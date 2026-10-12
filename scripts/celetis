@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+if [ $# -eq 0 ]; then
+  echo 'usage: scripts/celetis <script> [<argument>...], e.g. scripts/celetis next-step --open' >&2
+  exit 2
+fi
+name=$1
+dir=$(claude plugin list --json 2>/dev/null | jq -r '[.[] | select(.id == "celetis@celetis")] | (map(select(.scope == "user")) + .)[0].installPath // empty' 2>/dev/null | tr -d '\r')
+if [ -z "$dir" ]; then
+  echo 'celetis: the plugin is not installed; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis' >&2
+  exit 1
+fi
+if command -v cygpath >/dev/null 2>&1; then
+  dir=$(cygpath -u "$dir")
+fi
+if ! [[ $name =~ ^[a-z][a-z-]*$ ]] || [ ! -f "$dir/scripts/$name.sh" ]; then
+  echo "celetis: the plugin has no script $name" >&2
+  exit 2
+fi
+shift
+exec bash "$dir/scripts/$name.sh" "$@"

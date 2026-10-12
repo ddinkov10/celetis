@@ -1,0 +1,7 @@
+{
+  "name": "celetis",
+  "description": "An issue-driven agent harness: lane skills, a step runner, a landing script, and worktree setup.",
+  "author": {
+    "name": "ddinkov10"
+  }
+}
