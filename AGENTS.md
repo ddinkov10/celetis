@@ -56,6 +56,9 @@ which squash-merges the lane PR on `main` when each check of the workflow is gre
 the last act of a change: this repository has no deployment, and a change on `main` is in use at
 once ("Traps").
 
+- A lane never skips a step.
+- The maintainer starts the runner; an agent starts it only when its task says so, with a number,
+  and in a terminal.
 - A change of `skills/`, `step-prompt.md`, or `scripts/` changes the behavior of each product
   project, so its lane is `bug` or `feature`, not `chore`.
 

@@ -14,6 +14,12 @@ reasons why `specify` is a step of the script. ADR-0008 holds the reasons why th
 the change, and ADR-0009 holds the reasons why the board is a package of its own. ADR-0011 holds the
 reasons why a step session hands a stop to the issue.
 
+Two rules of the harness hold in each session, also in a session by hand:
+
+- A lane never skips a step.
+- The maintainer starts the runner; an agent starts it only when its task says so, with a number,
+  and in a terminal.
+
 In this document, these names are files of the plugin `celetis`, also when a session reads the
 document inside a product project that has a `docs/` folder and an ADR store of its own: the four
 documents (`docs/agent-flow.md`, `docs/issue-tracker.md`, `docs/capability.md`,
@@ -293,8 +299,11 @@ worktree dirty. The command runs the setup again in a worktree that has no marke
 **A custom part.** A custom part is the file `.claude/agent-flow/custom/<skill>.md` of a product
 project, with the name of a skill of the plugin. It holds an addition to the procedure of one step,
 for example a check on a real device after the build. The text is an addition: it cannot remove a
-rule of the general skill. A custom part is no domain skill, and it routes no change by its domain:
-domain knowledge stays in the `AGENTS.md` files (ADR-0006).
+rule of the general skill. An act that a custom part adds comes before the act of the skill that
+moves the line of the issue (a label, a comment with a heading that the resolver reads, a published
+spec, or a closed issue), because the script ends the session when the issue shows that the step is
+done. A custom part is no domain skill, and it routes no change by its domain: domain knowledge
+stays in the `AGENTS.md` files (ADR-0006).
 
 The last line of each `SKILL.md` of the plugin puts the text of that file into the skill when Claude
 Code loads the skill, and the skill has no frontmatter line for it. For the skill `<skill>`, the

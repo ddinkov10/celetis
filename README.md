@@ -178,13 +178,15 @@ They are files of `.claude/agent-flow/`:
 
 ```
 .claude/worktrees/
+.claude/settings.local.json
 docs/superpowers/
 .superpowers/
 docs/lessons/_pending/
 ```
 
 With no entry for `.claude/worktrees/`, a lane worktree makes the main checkout dirty, and the
-resolver prints the dirty-tree line for each issue (`docs/issue-tracker.md`). The three other
+resolver prints the dirty-tree line for each issue (`docs/issue-tracker.md`).
+`.claude/settings.local.json` holds the settings of one person for the project. The three other
 folders are scratch of the skills, and a file that git does not ignore makes a tree dirty too:
 
 - `docs/superpowers/` holds the drafts of the intents, the specs, and the plans;
@@ -218,7 +220,7 @@ The plugin names a role, and the `AGENTS.md` of the project names the thing. It 
 | **The architecture and the traps:** the shape of the project in the root file, and the traps of each subsystem in the `AGENTS.md` of its folder. They are the domain knowledge: the plugin has no domain skill (ADR-0006) | `specify`, `bug`, `hotfix`, `plan`, `chore`, and `critic-loop` |
 | **The design document and the look decision,** in a project with a UI: the document that holds the design rules, and how a session builds the options of a look decision and hands them over, with the dev server of the project | `specify` and `bug`; the two items "Prototype" of `docs/issue-tracker.md`, in "What lives on the issue" and in "Branches, PRs, merge" |
 | **The installed version of a dependency:** how a session reads it, and the documents that an installed package ships | `docs/docs-lookup.md`, which `specify`, `plan`, `bug`, `hotfix`, and `chore` cite |
-| **The agent flow of the project:** what a session must know of the lanes there, for example that the lanes are the plugin `celetis`, the landing mechanism, and the acts that only the maintainer does | Each session, also a step session. So after each change of this part, run the hand-run test in the project ("Tests") |
+| **The agent flow of the project:** what a session must know of the lanes there, for example that the lanes are the plugin `celetis`, the landing mechanism, and the acts that only the maintainer does. It also holds two rules of the harness, "A lane never skips a step." and "The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.", because a session reads `AGENTS.md` at its start and reads a document of the plugin only when a skill cites it | Each session, also a step session. So after each change of this part, run the hand-run test in the project ("Tests") |
 
 The plugin has no role for the deployment of a project. It is a product fact, so it also goes into
 `AGENTS.md` when more than one step needs it: a lane ends when the change is on the trunk.
@@ -517,5 +519,5 @@ Run the tests in a checkout of this repository.
   The test then reads the step text of the installed plugin, and it runs its turns in that
   checkout.
 
-`docs/agent-flow.md`, "Check the harness", holds the tests in full, with the reason of each fact of
-this part.
+`docs/agent-flow.md`, "Check the harness", holds the reasons behind the facts of the gate, the
+workflow, the proof on bash 3.2, and the hand-run test.
