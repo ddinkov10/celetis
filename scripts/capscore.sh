@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# capscore.sh — deterministic capability-gate scorer (see docs/capability.md).
+# scripts/celetis capscore — deterministic capability-gate scorer (see docs/capability.md of the plugin celetis).
 # Turns six 0-2 rubric digits into a model/effort tier via bands -> floors -> bias ->
 # escalation -> clamp (that order). bash 3.2-safe (macOS default): no mapfile, no assoc arrays.
 #
-# Usage:  capscore.sh J V B N S X [--attempt N] [--bias N] [--current-model provider/id]
-#         capscore.sh --test
+# Usage:  scripts/celetis capscore J V B N S X [--attempt N] [--bias N] [--current-model provider/id]
+#         scripts/celetis capscore --test
 # Bias fallback: CAP_EFFORT_BIAS env; default 2. Model is never biased.
 #
 # Model label: Claude Code -> haiku/sonnet/opus/fable by rank. opencode (OPENCODE=1) ->
@@ -147,7 +147,7 @@ run_tests() {
 }
 
 # ---- arg parse ----
-[ $# -eq 0 ] && die "need six digits J V B N S X (or --test); see docs/capability.md"
+[ $# -eq 0 ] && die "need six digits J V B N S X (or --test); see docs/capability.md of the plugin celetis"
 
 bias=""; attempt=1; digits=""
 while [ $# -gt 0 ]; do
