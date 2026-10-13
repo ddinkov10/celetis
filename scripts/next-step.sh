@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# RESOLVER encodes "Resolving an issue's state" in docs/agents/issue-tracker.md; change them together.
-# No stop line names the promote script's path: .claude/settings.json denies a command that holds it.
+# RESOLVER encodes "Resolving an issue's state" in docs/issue-tracker.md; change them together.
 set -euo pipefail
 
 RESOLVER='
@@ -13,23 +12,23 @@ def resolve($n):
   . as $i
   | if $i.state == "CLOSED" then
       if $i | labeled("wontfix") then {line: "stop #\($n) is closed as wontfix."}
-      else {line: "stop #\($n) is finished. Run the promote script when ready.", state: "done"} end
+      else {line: "stop #\($n) is finished.", state: "done"} end
     elif $i | labeled("needs-info") then blocked($n; "needs info"; "needs info"; "Answer the questions on the issue, then remove the label.")
     elif $i | labeled("ready-for-human") then blocked($n; "is ready-for-human"; (if $i | refused then "landing refused" else "ready for your step" end); "Do the human step (e.g. the hotfix ship checklist), then remove the label.")
     elif $i | labeled("epic") then {line: "stop #\($n) is an epic. Each child runs its own flow."}
     else
-      (if $i | (labeled("bug") or labeled("enhancement") or labeled("hotfix") or labeled("chore")) | not then "run /triage #\($n)"
-       elif ($i | labeled("enhancement")) and (($i.body // "") | startswith("Spec:") | not) then "run /feature #\($n)"
-       elif ($i | labeled("bug")) and ($i | commented("## Root cause") | not) then "run /bug #\($n)"
-       elif $i | labeled("chore") then "run /chore #\($n)"
-       elif $i | labeled("hotfix") then "run /hotfix #\($n)"
-       elif $i | commented("## Plan") | not then "run /plan #\($n)"
-       else "run /implement #\($n)" end) as $line
+      (if $i | (labeled("bug") or labeled("enhancement") or labeled("hotfix") or labeled("chore")) | not then "run /celetis:triage #\($n)"
+       elif ($i | labeled("enhancement")) and (($i.body // "") | startswith("Spec:") | not) then "run /celetis:feature #\($n)"
+       elif ($i | labeled("bug")) and ($i | commented("## Root cause") | not) then "run /celetis:bug #\($n)"
+       elif $i | labeled("chore") then "run /celetis:chore #\($n)"
+       elif $i | labeled("hotfix") then "run /celetis:hotfix #\($n)"
+       elif $i | commented("## Plan") | not then "run /celetis:plan #\($n)"
+       else "run /celetis:implement #\($n)" end) as $line
       | {line: $line, state: "ready"}
     end;
 def line($n): resolve($n).line;'
 
-usage="usage: next-step.sh <issue number> | --open | --json, e.g. next-step.sh 276"
+usage="usage: scripts/celetis next-step <issue number> | --open | --json, e.g. scripts/celetis next-step 276"
 [ $# -eq 1 ] || { printf '%s\n' "$usage" >&2; exit 2; }
 n=${1#\#}
 [ "$1" = --open ] || [ "$1" = --json ] || case $n in '' | *[!0-9]*) printf '%s\n' "$usage" >&2; exit 2 ;; esac
@@ -45,7 +44,7 @@ landing() {
   case $pid in '' | *[!0-9]*) return 1 ;; esac
   case $(ps -p "$pid" -o command= 2>/dev/null) in *land.sh*) ;; *) return 1 ;; esac
 }
-landing_line() { printf 'stop the landing of #%s runs; wait until scripts/land.sh ends\n' "$1"; }
+landing_line() { printf 'stop the landing of #%s runs; wait until scripts/celetis land ends\n' "$1"; }
 
 if [ "$1" = --json ]; then
   since=$(jq -rn 'now - 1209600 | strftime("%Y-%m-%d")')

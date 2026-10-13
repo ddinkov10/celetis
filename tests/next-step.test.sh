@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-here=$(cd "$(dirname "$0")" && pwd)
-next="$here/next-step.sh"
+here=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d)
+ln -s "$here" "$tmp/plug in"
+next="$tmp/plug in/scripts/next-step.sh"
 trap 'kill "${landing:-}" 2>/dev/null || true; rm -rf "$tmp"' EXIT
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 export NEXT_STEP_TEST_STATE="$tmp/state"
@@ -63,38 +64,33 @@ expect() {
 }
 
 reset; issue CLOSED wontfix ""; expect "stop #7 is closed as wontfix."
-reset; issue CLOSED bug ""; expect "stop #7 is finished. Run the promote script when ready."
-reset; issue CLOSED enhancement,ready-for-human "Spec: x" "## Plan" "## Landing refused"; expect "stop #7 is finished. Run the promote script when ready."
+reset; issue CLOSED bug ""; expect "stop #7 is finished."
+reset; issue CLOSED enhancement,ready-for-human "Spec: x" "## Plan" "## Landing refused"; expect "stop #7 is finished."
 reset; issue CLOSED bug,wontfix ""; expect "stop #7 is closed as wontfix."
 reset; issue OPEN bug,needs-info ""; expect "stop #7 needs info. Answer the questions on the issue, then remove the label."
 reset; issue OPEN hotfix,ready-for-human ""; expect "stop #7 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label."
 reset; issue OPEN enhancement,ready-for-human "Spec: x" "## Plan" "## Before landing"; expect "stop #7 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label."
 reset; issue OPEN enhancement,ready-for-human "Spec: x" "## Plan" "## Landing refused"; expect "stop #7 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label."
 reset; issue OPEN epic ""; expect "stop #7 is an epic. Each child runs its own flow."
-reset; issue OPEN needs-triage "It breaks"; expect "run /triage #7"
-reset; issue OPEN enhancement "Intent: add X"; expect "run /feature #7"
-reset; issue OPEN enhancement ""; expect "run /feature #7"
+reset; issue OPEN needs-triage "It breaks"; expect "run /celetis:triage #7"
+reset; issue OPEN enhancement "Intent: add X"; expect "run /celetis:feature #7"
+reset; issue OPEN enhancement ""; expect "run /celetis:feature #7"
 reset; issue OPEN enhancement,needs-info "Intent: add X"; expect "stop #7 needs info. Answer the questions on the issue, then remove the label."
-reset; issue OPEN bug "It breaks"; expect "run /bug #7"
-reset; issue OPEN chore ""; expect "run /chore #7"
-reset; issue OPEN hotfix ""; expect "run /hotfix #7"
-reset; issue OPEN enhancement "Spec: 2026-09-25"; expect "run /plan #7"
-reset; issue OPEN bug "" "## Root cause"; expect "run /plan #7"
-reset; issue OPEN enhancement "Spec: x" "see ## Plan"; expect "run /plan #7"
-reset; issue OPEN enhancement "Spec: x" "## Plan"; expect "run /implement #7"
-reset; issue OPEN bug "" "## Root cause" "## Plan"; expect "run /implement #7"
-reset; issue OPEN chore "" "## Landing refused"; expect "run /chore #7"
-reset; issue OPEN enhancement "Spec: x" "## Plan" "## Landing refused"; expect "run /implement #7"
+reset; issue OPEN bug "It breaks"; expect "run /celetis:bug #7"
+reset; issue OPEN chore ""; expect "run /celetis:chore #7"
+reset; issue OPEN hotfix ""; expect "run /celetis:hotfix #7"
+reset; issue OPEN enhancement "Spec: 2026-09-25"; expect "run /celetis:plan #7"
+reset; issue OPEN bug "" "## Root cause"; expect "run /celetis:plan #7"
+reset; issue OPEN enhancement "Spec: x" "see ## Plan"; expect "run /celetis:plan #7"
+reset; issue OPEN enhancement "Spec: x" "## Plan"; expect "run /celetis:implement #7"
+reset; issue OPEN bug "" "## Root cause" "## Plan"; expect "run /celetis:implement #7"
+reset; issue OPEN chore "" "## Landing refused"; expect "run /celetis:chore #7"
+reset; issue OPEN enhancement "Spec: x" "## Plan" "## Landing refused"; expect "run /celetis:implement #7"
 [ "$(cat "$S/gh-calls")" = "issue view 7 --json state,labels,body,comments" ] || fail "the form with a number must make 1 gh call and read no PR: $(cat "$S/gh-calls")"
 
 reset; issue OPEN chore ""
 run_next '#7'
-[ "$code" -eq 0 ] && one_line "run /chore #7" || fail "#7 as the argument: $code [$out] $err"
-
-# An agent can echo a stop line in a command, and .claude/settings.json denies a command that holds this path.
-reset; issue CLOSED bug ""
-run_next 7
-case $out in *scripts/promote.sh*) fail "a stop line names the promote script by its path: $out" ;; esac
+[ "$code" -eq 0 ] && one_line "run /celetis:chore #7" || fail "#7 as the argument: $code [$out] $err"
 
 reset; issue OPEN bug ""; touch "$S/gh-fail"
 run_next 7
@@ -109,7 +105,7 @@ printf '%s' "$err" | grep -q "no issue" || fail "gh's own message must reach std
 reset; issue OPEN chore ""
 for args in "" abc 7abc "#" "7 8" --all "--open 7" "--json 7"; do
   run_next $args
-  [ "$code" -eq 2 ] && [ -z "$out" ] && printf '%s' "$err" | grep -q "usage: next-step.sh" || fail "bad arguments [$args]: $code [$out] $err"
+  [ "$code" -eq 2 ] && [ -z "$out" ] && printf '%s' "$err" | grep -qxF "usage: scripts/celetis next-step <issue number> | --open | --json, e.g. scripts/celetis next-step 276" || fail "bad arguments [$args]: $code [$out] $err"
 done
 [ ! -f "$S/gh-calls" ] || fail "a usage error called gh: $(cat "$S/gh-calls")"
 
@@ -131,7 +127,11 @@ from=$lane run_next 7
 [ ! -f "$S/gh-calls" ] || fail "a dirty lane worktree must stop before any gh call: $(cat "$S/gh-calls")"
 rm "$lane/half-done.txt"
 from=$lane run_next 7
-[ "$code" -eq 0 ] && one_line "run /bug #7" || fail "run from a clean lane worktree: $code [$out] $err"
+[ "$code" -eq 0 ] && one_line "run /celetis:bug #7" || fail "run from a clean lane worktree: $code [$out] $err"
+mkdir "$repo/sub"
+from=$repo/sub run_next 7
+[ "$code" -eq 0 ] && one_line "run /celetis:bug #7" || fail "run from a subfolder of the repository: $code [$out] $err"
+rmdir "$repo/sub"
 echo dirty >"$repo/new.txt"
 from=$lane run_next 7
 [ "$code" -eq 0 ] && one_line "stop the working tree is dirty: $main; commit or stash first" || fail "dirty main checkout, run from a lane worktree: $code [$out] $err"
@@ -143,7 +143,7 @@ git -C "$repo" worktree add -q -b fix/17-other "$other"
 echo x >"$other/half-done.txt"
 reset; issue OPEN chore ""
 run_next 7
-[ "$code" -eq 0 ] && one_line "run /chore #7" || fail "a dirty #17 worktree stopped #7: $code [$out] $err"
+[ "$code" -eq 0 ] && one_line "run /celetis:chore #7" || fail "a dirty #17 worktree stopped #7: $code [$out] $err"
 git -C "$repo" worktree remove --force "$other"
 
 reset; issue OPEN chore ""
@@ -162,8 +162,8 @@ row() { printf '%s\t%s' "$1" "$2"; }
 
 reset; open_issue 9 epic ""; open_issue 7 needs-triage "It breaks"; open_issue 8 enhancement "Spec: x" "## Plan"
 run_next --open
-[ "$code" -eq 0 ] && [ "$out" = "$(row 7 "run /triage #7")
-$(row 8 "run /implement #8")
+[ "$code" -eq 0 ] && [ "$out" = "$(row 7 "run /celetis:triage #7")
+$(row 8 "run /celetis:implement #8")
 $(row 9 "stop #9 is an epic. Each child runs its own flow.")" ] || fail "--open must print one row for each open issue, lowest number first: $code [$out] $err"
 [ "$(cat "$S/gh-calls")" = "issue list --state open --limit 200 --json number,state,labels,body,comments" ] || fail "--open must make 1 gh call: $(cat "$S/gh-calls")"
 
@@ -192,7 +192,7 @@ reset; open_issue 7 chore ""; open_issue 8 chore ""
 echo x >"$lane/half-done.txt"
 run_next --open
 [ "$out" = "$(row 7 "stop the working tree is dirty: $main/.claude/worktrees/7-batch; commit or stash first")
-$(row 8 "run /chore #8")" ] || fail "--open with a dirty lane worktree: [$out] $err"
+$(row 8 "run /celetis:chore #8")" ] || fail "--open with a dirty lane worktree: [$out] $err"
 echo dirty >"$repo/new.txt"
 from=$lane run_next --open
 [ "$out" = "$(row 7 "stop the working tree is dirty: $main; commit or stash first")
@@ -205,7 +205,8 @@ run_next --open
 [ "$code" -eq 1 ] && one_line "stop cannot read the open issues from GitHub" || fail "--open with gh down: $code [$out] $err"
 printf '%s' "$err" | grep -q "HTTP 502" || fail "gh's own message must reach stderr: $err"
 
-cat >"$tmp/land.sh" <<'EOF'
+mkdir -p "$tmp/install dir/scripts"
+cat >"$tmp/install dir/scripts/land.sh" <<'EOF'
 #!/usr/bin/env bash
 trap 'kill $!' TERM
 /bin/sleep 30 &
@@ -214,20 +215,20 @@ EOF
 lock="$repo/.git/agent-flow/land-7.lock"
 mkdir -p "$repo/.git/agent-flow"
 reset; issue OPEN enhancement "Spec: x" "## Plan"; open_issue 7 enhancement "Spec: x" "## Plan"; open_issue 8 chore ""
-bash "$tmp/land.sh" &
+bash "$tmp/install dir/scripts/land.sh" 7 "feat(x): y" &
 landing=$!
 echo "$landing" >"$lock"
 run_next 7
-[ "$code" -eq 0 ] && one_line "stop the landing of #7 runs; wait until scripts/land.sh ends" || fail "a live landing: $code [$out] $err"
+[ "$code" -eq 0 ] && one_line "stop the landing of #7 runs; wait until scripts/celetis land ends" || fail "a live landing: $code [$out] $err"
 [ ! -f "$S/gh-calls" ] || fail "a live landing must stop before any gh call: $(cat "$S/gh-calls")"
 run_next --open
-[ "$out" = "$(row 7 "stop the landing of #7 runs; wait until scripts/land.sh ends")
-$(row 8 "run /chore #8")" ] || fail "--open with a live landing: [$out] $err"
+[ "$out" = "$(row 7 "stop the landing of #7 runs; wait until scripts/celetis land ends")
+$(row 8 "run /celetis:chore #8")" ] || fail "--open with a live landing: [$out] $err"
 kill "$landing"; wait "$landing" 2>/dev/null || true
 for stale in "$landing" "$$" garbage; do
   echo "$stale" >"$lock"
   run_next 7
-  [ "$code" -eq 0 ] && one_line "run /implement #7" || fail "a lock of [$stale] must hold nothing: $code [$out] $err"
+  [ "$code" -eq 0 ] && one_line "run /celetis:implement #7" || fail "a lock of [$stale] must hold nothing: $code [$out] $err"
 done
 rm "$lock"
 
@@ -242,7 +243,7 @@ jq -n 'def check($status; $conclusion): {__typename: "CheckRun", $status, $concl
     [27, "chore/12-a", false, "", []]]
   | map({number: .[0], url: "https://github.com/o/r/pull/\(.[0])", headRefName: .[1], isDraft: .[2], reviewDecision: .[3], statusCheckRollup: .[4]})' >"$S/prs.json"
 run_next --json
-[ "$code" -eq 0 ] && [ "$(printf '%s' "$out" | jq -c '[.noRun, (.issues[0] | [.number, .type, .state, .line, .path])]')" = '[null,[7,"chore","ready","run /chore #7",null]]' ] || fail "--json must print the rows of the board: $code [$out] $err"
+[ "$code" -eq 0 ] && [ "$(printf '%s' "$out" | jq -c '[.noRun, (.issues[0] | [.number, .type, .state, .line, .path])]')" = '[null,[7,"chore","ready","run /celetis:chore #7",null]]' ] || fail "--json must print the rows of the board: $code [$out] $err"
 [ "$(printf '%s' "$out" | jq -c '.issues[1].pr')" = '{"number":22,"url":"https://github.com/o/r/pull/22","draft":false,"checks":"fail","review":"changes"}' ] || fail "--json, the first open PR of an issue: [$out]"
 [ "$(printf '%s' "$out" | jq -c '[.issues[].pr | if . then [.number, .draft, .checks, .review] else . end]')" = '[null,[22,false,"fail","changes"],[24,true,"pending","required"],[25,false,"pass","approved"],[26,false,"fail",null],[27,false,null,null]]' ] || fail "--json, the open PR of each issue, with its checks and its review: [$out]"
 [ "$(wc -l <"$S/gh-calls" | tr -d ' ')" -eq 3 ] && grep -qxF 'pr list --state open --limit 200 --json headRefName,number,url,isDraft,statusCheckRollup,reviewDecision' "$S/gh-calls" || fail "--json must make 3 gh calls: $(cat "$S/gh-calls")"

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# The runner of the agent flow (docs/agents/agent-flow.md). No loop that reads a list holds a session: the stdin of a session is the terminal.
+# The runner of the agent flow (docs/agent-flow.md). No loop that reads a list holds a session: the stdin of a session is the terminal.
 set -euo pipefail
 
-usage="usage: scripts/agent-flow.sh [<issue number>...] | --board | --resume <issue number>, e.g. scripts/agent-flow.sh 373 374; with no number, the automatic runner"
+usage="usage: scripts/celetis agent-flow [<issue number>...] | --board | --resume <issue number>, e.g. scripts/celetis agent-flow 373 374; with no number, the automatic runner"
 issues=
 mode=
 if [ $# -eq 1 ] && [ "$1" = --board ]; then
@@ -27,13 +27,14 @@ done
 
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(dirname "$here")
-common=$(git -C "$here" rev-parse --path-format=absolute --git-common-dir)
-next="$root/.claude/scripts/next-step.sh"
-flow="$root/.claude/agent-flow"
+common=$(git rev-parse --path-format=absolute --git-common-dir)
+main=$(dirname "$common")
+next="$here/next-step.sh"
+flow="$main/.claude/agent-flow"
 state="$common/agent-flow"
 record="$state/no-progress"
 mkdir -p "$state"
-cd "$(dirname "$common")"
+cd "$main"
 
 [ -n "$mode" ] || mode=numbers
 [ "$mode" != numbers ] || [ -n "$issues" ] || mode=auto
@@ -64,7 +65,7 @@ say() {
 gate() {
   local value
   value=$(git config --get "agent-flow.gate.$1" 2>/dev/null) ||
-    value=$(jq -r --arg step "$1" '.[$step] // "me"' "$flow/gates.json")
+    value=$(jq -r --arg step "$1" '.[$step] // "me"' "$flow/gates.json" 2>/dev/null)
   [ "$value" = auto ] && echo auto || echo me
 }
 
@@ -101,7 +102,7 @@ trap release_all EXIT
 recorded() { grep -qxF "$1"$'\t'"$2" "$record" 2>/dev/null; }
 
 step_of() {
-  local step=${1#run /}
+  local step=${1#run /celetis:}
   step=${step%% *}
   [ "$step" != feature ] || step=specify
   echo "$step"
@@ -125,6 +126,11 @@ end_when_done() {
   done
 }
 
+update_plugin() {
+  { claude plugin marketplace update celetis && claude plugin update celetis@celetis --scope user; } >/dev/null 2>&1 </dev/null ||
+    say "the plugin update failed; the session starts on the installed version"
+}
+
 run_issue() {
   local n=$1 first=$2 line last= prompt step watcher
   take "issue-$n" || { say "another agent-flow.sh (PID $holder) works on #$n"; return 0; }
@@ -143,12 +149,13 @@ run_issue() {
     fi
     step=$(step_of "$line")
     if [ "$first" != any ] && [ "$(gate "$step")" != auto ]; then
-      say "the gate of $step is me: scripts/agent-flow.sh $n starts $prompt"
+      say "the gate of $step is me: scripts/celetis agent-flow $n starts $prompt"
       break
     fi
     first=gated
     say "start: $prompt"
     started=1
+    update_plugin
     watcher=
     if [ -n "${HERDR_PANE_ID:-}" ]; then
       [ -z "${HERDR_TAB_ID:-}" ] || herdr tab rename "$HERDR_TAB_ID" "#$n $step" >/dev/null 2>&1 || true
@@ -157,7 +164,7 @@ run_issue() {
     fi
     set -- --permission-mode auto -n "#$n $step"
     # No step text for specify: rule 2 of that text forbids a wait for a review, and specify waits for the approval of the design.
-    [ "$step" = specify ] || set -- "$@" --append-system-prompt-file "$flow/step-prompt.md"
+    [ "$step" = specify ] || set -- "$@" --append-system-prompt-file "$root/step-prompt.md"
     claude "$@" "$prompt" || true
     [ -z "$watcher" ] || kill "$watcher" 2>/dev/null || true
     last=$line
