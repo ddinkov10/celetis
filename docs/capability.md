@@ -1,0 +1,97 @@
+# Project — capability gates (model+effort per task)
+
+Second routing axis, beside **type** (the four `/bug` `/hotfix` `/feature` `/chore` entry
+commands). At **every dispatch point** a scored rubric decides which model tier and effort
+level executes the next task. Digit assignment is agentic (judgment — unavoidable); digits→tier
+arithmetic is deterministic and lives in `.claude/scripts/capscore.sh` (the doc is the spec; the
+script is the authority for the math — they must agree).
+
+## The rubric — six dimensions, each 0–2
+
+| dim | 0 | 1 | 2 |
+|---|---|---|---|
+| **J** judgment-density | mechanical / scripted | standard code, some choices | design / wording / architecture |
+| **V** verifiability *(inverted)* | deterministic gate catches failure (verify, tests) | partial coverage | only human review catches it |
+| **B** blast-radius | throwaway / scratch | local tooling, gitignored | shipped code or durable steering surface (skills, CLAUDE.md, published) |
+| **N** novelty | copy existing pattern | adapt existing pattern | new design |
+| **S** scope-size | 1 file | 2–5 files / 1 subsystem | >5 files or multi-subsystem |
+| **X** security-sensitivity | none | touches auth/crypto-adjacent code, semantics unchanged | changes auth/crypto/permission semantics |
+
+## Bands (sum 0–12)
+
+`0–3 → haiku/low` · `4–6 → sonnet/medium` · `7–9 → opus/high` · `10–11 → opus/xhigh` · `12 → fable/max`
+
+Model tiers (low→high): **haiku · sonnet · opus · fable**. Effort tiers (low→high): **low · medium ·
+high · xhigh · max**.
+
+Fable is reached only at Σ=12 or by attempt-3 escalation from opus: Opus 5.5 covers 7–11 at
+$4/$20 per MTok against Fable 5.1's $10/$50. Revisit the 10–11 band when either model changes.
+
+## Floors (beat the sum, never lower it)
+
+- **X=2** → min **opus/high**
+- **V=2** → min effort **high**
+
+## Effort bias
+
+`--bias N` (script flag) / `CAP_EFFORT_BIAS` (env fallback) raises **effort** by N tiers. **Model is
+never biased.** **Default 2** — lower per-dispatch with `--bias 0|1` when cost matters.
+
+**Application order:** sum → band → floors → bias → escalation → clamp.
+
+**Clamp (final invariant):** effort ceiling is **max**, EXCEPT a **fable** result caps at **xhigh**
+unless Σ=12 — `fable/max` is **reserved for Σ=12**. `opus/max` is the routine 7–11 result
+(opus/high or opus/xhigh + default b2) and is unaffected.
+
+## Escalation (deterministic, gate-fail count within one task)
+
+- attempt 2 → effort **+1 tier**
+- attempt 3 → model **+1 tier**, effort **≥ high**
+- attempt 4 → **STOP**, escalate to the user with the failure trail
+
+Attempt count is session-scoped — no cross-session persistence. The clamp still applies to escalation
+output: escalation never mints `fable/max` below Σ=12.
+
+## Scorecard format — MANDATORY
+
+Every dispatch prompt **and** every plan task header carries one line:
+
+```
+CAP: J1 V0 B1 N1 S1 X0 = 4 → sonnet/medium
+```
+
+Non-zero bias shows a `+bN` token before the arrow:
+
+```
+CAP: J1 V2 B2 N1 S1 X0 = 7 +b2 → opus/max
+```
+
+Generate it with the script (do not hand-compute the tier):
+
+```bash
+.claude/scripts/capscore.sh J V B N S X [--attempt N] [--bias N]
+```
+
+## Who must score, when — the consumption rule
+
+Score **before every dispatch of work to a model**, and put the resulting CAP line where that model
+will read it:
+
+- **Lane skills** (`bug|hotfix|chore|feature`) — score before any subagent dispatch; the CAP
+  line goes in the dispatch prompt.
+- **`implement`** per-task dispatch — CAP line per task.
+- **Ad-hoc Agent spawns** — any manual `Agent` spawn for repo work includes a CAP line in its prompt
+  (hard-set: the spawn IS the model choice).
+- **Plan headers** — print the CAP rec on session-executed tasks. Note: the **session model is the
+  user's picker**; the rubric can only *recommend* there (max is auto-assignable for a spawn, a rec
+  for the session). The user may override any rec.
+
+## Worked examples (seed calibration, default bias 2)
+
+- verify-gates plan: `CAP: J1 V0 B1 N1 S1 X0 = 4 +b2 → sonnet/xhigh` (base band sonnet/medium)
+- type-lanes plan: `CAP: J2 V2 B2 N1 S1 X0 = 8 +b2 → opus/max` (base band opus/high)
+
+## Out of scope (v1)
+
+Outcome ledger + threshold tuning (declined — revisit if tiers feel wrong in practice); cross-session
+fail-count persistence; per-tier cost accounting.
