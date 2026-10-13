@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# The one landing path of an agent (ADR-0014). .claude/agent-flow/landing.json names the mechanism: pr or merge.
+# The one landing path of an agent (ADR-0008). .claude/agent-flow/landing.json names the mechanism: pr or merge.
 set -euo pipefail
 
 die() { printf 'land: %s\n' "$1" >&2; exit 1; }
 
-usage="usage: scripts/land.sh <issue number> '<type>(<area>): <what>', e.g. scripts/land.sh 415 'feat(agent-harness): the build step lands the change'"
+usage="usage: scripts/celetis land <issue number> '<type>(<area>): <what>', e.g. scripts/celetis land 415 'feat(agent-harness): the build step lands the change'"
 conventional='^[a-z]+(\([^()]+\))?!?: [^ ]'
 [ $# -eq 2 ] || { echo "$usage" >&2; exit 2; }
 n=${1#\#}
@@ -14,15 +14,15 @@ subject=$2
 
 here=$(cd "$(dirname "$0")" && pwd)
 . "$here/worktree-lib.sh"
-landing=$(jq -r '.landing // empty' "$here/../.claude/agent-flow/landing.json" 2>/dev/null) || landing=
+common=$(git rev-parse --path-format=absolute --git-common-dir)
+main=$(dirname "$common")
+landing=$(jq -r '.landing // empty' "$main/.claude/agent-flow/landing.json" 2>/dev/null) || landing=
 case $landing in
   pr | merge) ;;
   *) echo 'land: .claude/agent-flow/landing.json must name the landing mechanism: {"landing": "pr"} or {"landing": "merge"}' >&2; exit 2 ;;
 esac
 
-common=$(git rev-parse --path-format=absolute --git-common-dir)
-main=$(dirname "$common")
-# .claude/scripts/next-step.sh reads this lock: the runner does not end the session while the landing runs.
+# scripts/next-step.sh reads this lock: the runner does not end the session while the landing runs.
 lock="$common/agent-flow/land-$n.lock"
 mkdir -p "$common/agent-flow"
 echo "$$" >"$lock"
@@ -31,7 +31,7 @@ at_exit() {
   local status=$?
   [ "$(cat "$lock" 2>/dev/null)" != "$$" ] || rm -f "$lock"
   if [ -n "$landed" ] && [ "$status" -ne 0 ]; then
-    echo "land: the change is on $trunk, but the removal of $branch stopped; run scripts/land.sh again" >&2
+    echo "land: the change is on $trunk, but the removal of $branch stopped; run scripts/celetis land again" >&2
     exit 1
   fi
 }
@@ -44,14 +44,14 @@ branch=$(git branch --list --format='%(refname:lstrip=2)' "feat/$n-*" "fix/$n-*"
 checkout=$(checkout_of "$branch")
 [ "$checkout" != "$main" ] || die "switch the main checkout off $branch first"
 if [ -n "$checkout" ]; then
-  [ "$(git rev-parse --show-toplevel)" != "$checkout" ] || die "leave $checkout first: run scripts/land.sh from the main checkout"
+  [ "$(git rev-parse --show-toplevel)" != "$checkout" ] || die "leave $checkout first: run scripts/celetis land from the main checkout"
   [ -z "$(git -C "$checkout" status --porcelain)" ] || die "the lane worktree is dirty: $checkout; commit first"
 fi
 git fetch -q origin "$trunk" || die "cannot fetch $trunk from origin"
 tip=$(git rev-parse "refs/heads/$branch")
 [ -n "$(git rev-list -n 1 "origin/$trunk..$branch")" ] || die "$branch has no commit that $trunk lacks; nothing to land"
 
-stale="merge origin/$trunk into $branch, run scripts/verify.sh again, then land again"
+stale="merge origin/$trunk into $branch, run the verify gate of the project again, then land again"
 
 land_merge() {
   local tree commit
@@ -68,11 +68,11 @@ land_merge() {
     commit=$(git commit-tree "$branch^{tree}" -p "origin/$trunk" -m "$subject (#$n)")
     git push -q origin "$commit:refs/heads/$trunk" || die "cannot push $trunk to origin; $trunk is as it was"
     git -C "$main" merge -q --ff-only "$commit" ||
-      die "the change is on origin/$trunk, but the main checkout did not move; run git pull there, then run scripts/land.sh again"
+      die "the change is on origin/$trunk, but the main checkout did not move; run git pull there, then run scripts/celetis land again"
   fi
   [ "$(gh issue view "$n" --json state --jq .state)" = CLOSED ] ||
     gh issue close "$n" --comment "Landed on $trunk${commit:+ in $commit}." >/dev/null ||
-    die "the change is on $trunk, but #$n is open; run scripts/land.sh again"
+    die "the change is on $trunk, but #$n is open; run scripts/celetis land again"
 }
 
 green() {

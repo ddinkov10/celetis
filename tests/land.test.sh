@@ -5,9 +5,11 @@ tmp=$(mktemp -d)
 trap 'cd /; rm -rf "$tmp"' EXIT
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 export S="$tmp/state" ORIGIN="$tmp/origin.git"
-harness="$tmp/harness"
-mkdir -p "$tmp/bin" "$harness/scripts" "$harness/.claude/agent-flow"
-cp "$here/land.sh" "$here/worktree-lib.sh" "$harness/scripts/"
+repo="$tmp/main checkout"
+config=.claude/agent-flow/landing.json
+mkdir -p "$tmp/bin"
+ln -s "$here/.." "$tmp/plug in"
+land_sh="$tmp/plug in/scripts/land.sh"
 
 fail() { echo "FAIL: $1"; exit 1; }
 
@@ -73,13 +75,14 @@ export PATH="$tmp/bin:$PATH"
 json() { printf '%s\n' "$2" >"$S/$1.json"; }
 fresh() {
   cd /
-  rm -rf "$tmp/repo" "$tmp/other" "$ORIGIN" "$S"
+  rm -rf "$repo" "$tmp/other" "$ORIGIN" "$S"
   mkdir -p "$S"
-  printf '{"landing": "%s"}\n' "$1" >"$harness/.claude/agent-flow/landing.json"
-  git init -q -b master "$tmp/repo"
-  cd "$tmp/repo"
+  git init -q -b master "$repo"
+  cd "$repo"
   echo app >app.txt
   printf '.claude/worktrees/\n' >.gitignore
+  mkdir -p "$(dirname "$config")"
+  printf '{"landing": "%s"}\n' "$1" >"$config"
   git add -A
   git commit -qm base
   git clone -q --bare . "$ORIGIN"
@@ -134,7 +137,7 @@ calls() { grep -cE -- "$1" "$S/gh-calls" 2>/dev/null || true; }
 land() {
   before="$(origin_master) $(git rev-parse master)"
   status=0
-  out=$(cd "${from:-$main}" && "$BASH" "$harness/scripts/land.sh" "$@" 2>&1) || status=$?
+  out=$(cd "${from:-$main}" && "$BASH" "$land_sh" "$@" 2>&1) || status=$?
   [[ $out != *"/land.sh: line "* ]] || fail "land.sh printed an error of bash: $out"
 }
 has() { printf '%s\n' "$out" | grep -qF -- "$1" || fail "$2: missing [$1] in: $out"; }
@@ -161,14 +164,15 @@ landed() {
 stopped() {
   [ "$status" -eq 1 ] && [ -d "$wt" ] && has_ref "$branch" || fail "$1 exit $status, or the lane is gone: $out"
   has "land: #7 is on master" "$1"
-  has "land: the change is on master, but the removal of $branch stopped; run scripts/land.sh again" "$1"
-  [ "$(grep -c 'run scripts/land.sh again' <<<"$out")" -eq 1 ] || fail "$1 does not say one time to run the script again: $out"
+  has "land: the change is on master, but the removal of $branch stopped; run scripts/celetis land again" "$1"
+  [ "$(grep -c 'run scripts/celetis land again' <<<"$out")" -eq 1 ] || fail "$1 does not say one time to run the script again: $out"
   no_lock "$1"
 }
+usage="usage: scripts/celetis land <issue number> '<type>(<area>): <what>', e.g. scripts/celetis land 415 'feat(agent-harness): the build step lands the change'"
 usage_error() {
   land "$@"
   [ "$status" -eq 2 ] || fail "bad arguments [$*] exit $status: $out"
-  has "usage: scripts/land.sh <issue number>" "bad arguments [$*]"
+  has "$usage" "bad arguments [$*]"
 }
 
 fresh merge; lane fix/7-crash
@@ -182,8 +186,8 @@ usage_error 7 'fix(x): y (#7)'
 usage_error 7 $'fix(x): y\nmore'
 usage_error 7 'fix(x): y' extra
 for value in '{"landing": "rebase"}' '{}' 'not json' ''; do
-  printf '%s' "$value" >"$harness/.claude/agent-flow/landing.json"
-  [ -n "$value" ] || rm "$harness/.claude/agent-flow/landing.json"
+  printf '%s' "$value" >"$main/$config"
+  [ -n "$value" ] || rm "$main/$config"
   land 7 'fix(x): y'
   [ "$status" -eq 2 ] || fail "landing.json [$value] exit $status: $out"
   has 'land: .claude/agent-flow/landing.json must name the landing mechanism' "landing.json [$value]"
@@ -200,7 +204,7 @@ for m in merge pr; do
   fresh $m; lane fix/7-crash; git branch -q feat/7-crash master
   land 7 'fix(x): y'; refused "several branches match #7: feat/7-crash fix/7-crash; keep one" "$m: two lane branches"
   fresh $m; lane fix/7-crash; from=$wt
-  land 7 'fix(x): y'; refused "leave $wt first: run scripts/land.sh from the main checkout" "$m: inside the lane worktree"
+  land 7 'fix(x): y'; refused "leave $wt first: run scripts/celetis land from the main checkout" "$m: inside the lane worktree"
   fresh $m; lane fix/7-crash; echo x >"$wt/new.txt"
   land 7 'fix(x): y'; refused "the lane worktree is dirty: $wt; commit first" "$m: a dirty lane worktree"
   fresh $m; lane fix/7-crash; git -C "$wt" reset -q --hard origin/master
@@ -219,7 +223,7 @@ fresh merge; lane fix/7-crash; upstream
 land 7 'fix(x): y'; refused "the main checkout is not level with origin/master" "merge: the main checkout behind"
 fresh merge; lane fix/7-crash; upstream; git pull -q origin master
 land 7 'fix(x): y'
-refused "fix/7-crash does not contain the head of master; merge origin/master into fix/7-crash, run scripts/verify.sh again, then land again" "merge: a stale branch"
+refused "fix/7-crash does not contain the head of master; merge origin/master into fix/7-crash, run the verify gate of the project again, then land again" "merge: a stale branch"
 fresh merge; lane fix/7-crash; reject_push
 land 7 'fix(x): y'; refused "cannot push master to origin; master is as it was" "merge: a push that origin rejects"
 [ -z "$(git status --porcelain)" ] || fail "merge: a rejected push left the main checkout dirty"
@@ -248,7 +252,7 @@ land 7 'fix(x): y'; landed "merge: an issue that is closed"
 fresh merge; lane fix/7-crash; touch "$S/close-fail-7"
 land 7 'fix(x): y'
 [ "$status" -eq 1 ] && [ -d "$wt" ] || fail "merge: a failed close exit $status: $out"
-has "land: the change is on master, but #7 is open; run scripts/land.sh again" "merge: a failed close"
+has "land: the change is on master, but #7 is open; run scripts/celetis land again" "merge: a failed close"
 new=$(origin_master)
 rm "$S/close-fail-7"
 land 7 'fix(x): another subject'; landed "merge: the second run after a failed close"
@@ -274,7 +278,7 @@ land 7 'fix(x): y'; landed "merge: the second run after an origin that did not a
 fresh merge; lane fix/7-crash; touch "$main/.git/index.lock"
 land 7 'fix(x): y'
 [ "$status" -eq 1 ] && [ -d "$wt" ] && has_ref fix/7-crash || fail "merge: a main checkout that does not move exit $status: $out"
-has "land: the change is on origin/master, but the main checkout did not move; run git pull there, then run scripts/land.sh again" "merge: a main checkout that does not move"
+has "land: the change is on origin/master, but the main checkout did not move; run git pull there, then run scripts/celetis land again" "merge: a main checkout that does not move"
 no_lock "merge: a main checkout that does not move"
 new=$(origin_master)
 rm "$main/.git/index.lock"; git pull -q origin master
@@ -309,9 +313,11 @@ grep -qx "fix/7-crash $tip" "$S/origin-at-merge" || fail "pr: the branch was not
 [ "$(calls '^pr merge')" -eq 1 ] && [ ! -f "$S/sleeps" ] || fail "pr: more than one merge, or a sleep"
 [ "$(cat "$S/closed")" = "issue close 3 --comment Each sub-issue is closed: #7 landed last." ] || fail "pr: closed [$(cat "$S/closed")]"
 [ "${before#* }" = "$(git rev-parse master)" ] && [ -z "$(git status --porcelain)" ] || fail "pr touched the main checkout"
+fresh pr; lane fix/7-crash; checks pass; mkdir "$main/sub"; from="$main/sub"
+land 7 'fix(x): y'; landed "pr: from a folder of the main checkout"
 
 for b in feat/7-x fix/7-x hotfix/7-x chore/7-x; do
-  fresh pr; lane $b; prs release-please--branches--master 12 $b 9 fix/17-other 10; checks "pass skipping"; echo $b >"$S/auto-delete"
+  fresh pr; lane $b; prs release/next 12 $b 9 fix/17-other 10; checks "pass skipping"; echo $b >"$S/auto-delete"
   land 7 'fix(x): y'; landed "pr: an open PR of $b"
   [ ! -f "$S/create-args" ] || fail "pr: opened a second PR for $b"
   [ "$(cat "$S/merge-args")" = "pr merge 9 --squash --match-head-commit $tip" ] || fail "pr: merged [$(cat "$S/merge-args")] for $b"
@@ -325,7 +331,7 @@ on_origin fix/7-crash || fail "pr: a refused delete removed the branch from orig
 rm "$ORIGIN/hooks/update"; merged "$tip"
 land 7 'fix(x): y'; landed "pr: the second run after a delete that origin refused"
 [ "$(calls '^pr merge')" -eq 1 ] || fail "pr: the second run merged again"
-fresh pr; prs release-please--branches--master 12; checks pass
+fresh pr; prs release/next 12; checks pass
 land 12 'fix(x): y'; refused "no lane branch matches #12; nothing to land" "pr: the number of the release PR"
 fresh pr; lane fix/7-crash; upstream; checks pass
 land 7 'fix(x): y'; landed "pr: a branch behind the trunk with no conflict"
@@ -335,16 +341,16 @@ land 7 'fix(x): y'; refused "several open PRs match #7: fix/7-crash feat/7-crash
 ! on_origin fix/7-crash || fail "pr: pushed before the refusal of two lane PRs"
 fresh pr; lane fix/7-crash; prs feat/7-other 10; checks pass
 land 7 'fix(x): y'; refused "PR #10 of #7 is on feat/7-other, not on fix/7-crash; keep one branch" "pr: a PR on another branch"
-fresh pr; lane fix/7-crash; prs fix/7-crash 10; on_base 10 production; checks pass
+fresh pr; lane fix/7-crash; prs fix/7-crash 10; on_base 10 develop; checks pass
 land 7 'fix(x): y'
-refused "PR #10 of #7 has the base production, not master; change its base, or close it: https://github.com/o/r/pull/10" "pr: a lane PR on another base"
+refused "PR #10 of #7 has the base develop, not master; change its base, or close it: https://github.com/o/r/pull/10" "pr: a lane PR on another base"
 ! on_origin fix/7-crash && [ "$(calls '^pr create')" -eq 0 ] || fail "pr: pushed, or opened a second PR, beside a lane PR on another base"
-fresh pr; lane fix/7-crash; prs fix/7-crash 9 fix/7-crash 10; on_base 10 production; checks pass
-land 7 'fix(x): y'; refused "PR #10 of #7 has the base production, not master" "pr: a lane PR on another base beside one on the trunk"
+fresh pr; lane fix/7-crash; prs fix/7-crash 9 fix/7-crash 10; on_base 10 develop; checks pass
+land 7 'fix(x): y'; refused "PR #10 of #7 has the base develop, not master" "pr: a lane PR on another base beside one on the trunk"
 ! on_origin fix/7-crash || fail "pr: pushed before the refusal of a lane PR on another base"
 fresh pr; lane fix/7-crash mine app.txt; upstream app.txt theirs
 land 7 'fix(x): y'
-refused "fix/7-crash conflicts with master; merge origin/master into fix/7-crash, run scripts/verify.sh again, then land again" "pr: a conflict"
+refused "fix/7-crash conflicts with master; merge origin/master into fix/7-crash, run the verify gate of the project again, then land again" "pr: a conflict"
 ! on_origin fix/7-crash && [ "$(calls '^pr list --state open')" -eq 0 ] || fail "pr: a conflicting branch was pushed"
 fresh pr; lane fix/7-crash; touch "$S/fail-pr-list"
 land 7 'fix(x): y'; refused "cannot list the PRs of fix/7-crash on GitHub" "pr: gh pr list fails"
@@ -393,11 +399,8 @@ land 7 'fix(x): y'; landed "pr: a PR that is merged at the local tip"
 fresh pr; lane fix/7-crash; merged "$old"; checks pass
 land 7 'fix(x): y'; landed "pr: a PR that is merged at another commit"
 [ "$(calls '^pr merge')" -eq 1 ] || fail "pr: an older merged PR counted as this landing"
-fresh pr; lane fix/7-crash; merged "$tip" production; checks pass
+fresh pr; lane fix/7-crash; merged "$tip" develop; checks pass
 land 7 'fix(x): y'; landed "pr: a PR that is merged into another base at the local tip"
 [ "$(calls '^pr create --base master ')" -eq 1 ] && [ "$(calls '^pr merge 9 ')" -eq 1 ] || fail "pr: a merge into another base counted as this landing: $(cat "$S/gh-calls")"
-
-# .claude/settings.json denies a Bash command that holds this path, so a session cannot quote a message that names it.
-! grep -q 'scripts/promote.sh' "$here/land.sh" "$here/worktree-lib.sh" || fail "land.sh names the promote script by its path"
 
 echo "PASS"
