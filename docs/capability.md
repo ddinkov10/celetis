@@ -1,4 +1,4 @@
-# Project — capability gates (model+effort per task)
+# Capability gates (model+effort per task)
 
 Second routing axis, beside **type** (the four `/celetis:bug` `/celetis:hotfix` `/celetis:feature`
 `/celetis:chore` entry commands). At **every dispatch point** a scored rubric decides which model

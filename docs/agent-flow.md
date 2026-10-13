@@ -14,6 +14,14 @@ reasons why `specify` is a step of the script. ADR-0008 holds the reasons why th
 the change, and ADR-0009 holds the reasons why the board is a package of its own. ADR-0011 holds the
 reasons why a step session hands a stop to the issue.
 
+In this document, these names are files of the plugin `celetis`, also when a session reads the
+document inside a product project that has a `docs/` folder and an ADR store of its own: the four
+documents (`docs/agent-flow.md`, `docs/issue-tracker.md`, `docs/capability.md`,
+`docs/docs-lookup.md`), `step-prompt.md`, a script `<name>.sh` of `scripts/` or a test of `tests/`
+that the text names by its file, and each ADR number, which is a record of `docs/adr/` in the folder
+of the plugin and not of the product project. Each other path is a path of the product project,
+apart from a path that starts with `~/` or `/`.
+
 ## Requirements
 
 - macOS or Linux, with bash 3.2 or later. There is no native Windows runner.
@@ -92,11 +100,11 @@ gives the value of each field. When `gh` or `jq` fails, the form prints
 `.claude/agent-flow/board.json` names this form.
 
 **The form `--resume <n>`** opens the session of a step with no progress again. It reads the last
-row of #<n> in the record and runs `claude --resume '#<n> <step>'` in the main checkout, with the
-step of that row. With no row, it prints `agent-flow: #<n> has no step with no progress` and exits
-1. It makes no `gh` call, takes no lock, and starts no job for the step end, so the session does
-not end by itself: leave it with `/exit`. `resume` of `.claude/agent-flow/board.json` names this
-form, so a Resume press on the board starts it.
+row of `#<n>` in the record and runs `claude --resume '#<n> <step>'` in the main checkout, with the
+step of that row. With no row, it prints `agent-flow: #<n> has no step with no progress` and
+exits 1. It makes no `gh` call, takes no lock, and starts no job for the step end, so the session
+does not end by itself: leave it with `/exit`. `resume` of `.claude/agent-flow/board.json` names
+this form, so a Resume press on the board starts it.
 
 The script asks for no confirmation. A start with the number of an issue whose next step is
 `implement`, `chore`, or `hotfix` builds the change and lands it with `scripts/celetis land` when
@@ -107,7 +115,7 @@ One lock for each issue and one lock for the automatic runner live in
 `<git common dir>/agent-flow/`. A second script starts no session for an issue that another script
 works on, and a second automatic runner exits 1. A lock holds the PID of its script, so a script
 that was killed holds nothing. `scripts/celetis land` holds `land-<n>.lock` in that folder while it
-lands #<n>. The file `no-progress` in that folder is the record: one row for each step that ended
+lands `#<n>`. The file `no-progress` in that folder is the record: one row for each step that ended
 with no progress. The automatic runner and the forms `--board` and `--resume` read it. A start with
 the number of the issue does not read it, so it starts that step again.
 
@@ -196,14 +204,14 @@ a stop they show the message and stay open (ADR-0011).
 After a stop with `ready-for-human`, do the act of the stop, remove the label, and start the step
 again. A `## Stopped` or `## Before landing` comment names the act. For a refused landing of
 `/celetis:implement` or `/celetis:chore`, fix a cause outside the change (for example, run the
-failed job again, or land the chore for the advisory): the next run of the step fixes a cause that
-the change made, lands the change, and does not build it again. For a Verify scenario, the act is a
-run of the scenario. After a PASS, the next run of `/celetis:implement` lands the built change.
-After a FAIL, keep the label: put the result on the issue, run `/celetis:plan #<n>` in a session of
-your own, and remove the label when the new plan is on the issue. A Run press on a built issue with
-no label lands the change. For a hotfix whose landing stopped, the checklist of step 7 of
-`skills/hotfix/SKILL.md` of the plugin holds your acts: you land with `scripts/celetis land` in your
-own shell, and the step does not run again.
+failed job again, or land a chore that removes the advisory of a dependency): the next run of the
+step fixes a cause that the change made, lands the change, and does not build it again. For a Verify
+scenario, the act is a run of the scenario. After a PASS, the next run of `/celetis:implement` lands
+the built change. After a FAIL, keep the label: put the result on the issue, run
+`/celetis:plan #<n>` in a session of your own, and remove the label when the new plan is on the
+issue. A Run press on a built issue with no label lands the change. For a hotfix whose landing
+stopped, the checklist of step 7 of `skills/hotfix/SKILL.md` of the plugin holds your acts: you land
+with `scripts/celetis land` in your own shell, and the step does not run again.
 
 A `specify` session starts with the line `run /celetis:feature #<n>`. The paths of `specify` give
 three lines that end it: `run /celetis:plan #<n>` (the spec is on the issue),
@@ -234,11 +242,12 @@ a start with numbers. The step is the command of the `run` line with no prefix: 
 `chore`, `hotfix`, `plan`, or `implement`. One command has another step name:
 `run /celetis:feature #<n>`, the line of an `enhancement` with no spec, is the step `specify`.
 
-The defaults are in `.claude/agent-flow/gates.json`: each of the seven steps is `me`, so one Run
-press on the board, or one start with a number, starts one step. The script reads the git config
-value `agent-flow.gate.<step>` first, then the file. A step with neither is `me`, and only the value
-`auto` is `auto`. With `specify` as `auto`, the script starts a design session by itself, and that
-session waits for you at its first question.
+`.claude/agent-flow/gates.json` holds the gates of the project, and the git config holds the gates
+of the machine. The script reads the git config value `agent-flow.gate.<step>` first, then the file,
+so the git config wins. A step that neither names is `me`, and only the value `auto` is `auto`. In
+this document, "the default gates" means that no step is `auto`: with the default gates, one Run
+press on the board, or one start with a number, starts one step. With `specify` as `auto`, the
+script starts a design session by itself, and that session waits for you at its first question.
 
 ```bash
 git config agent-flow.gate.implement auto     # make one step auto on this machine
@@ -326,7 +335,7 @@ Chromium browser. The config names the script, so the requirements of the script
 and its URL: open the URL.
 
 ```bash
-npx 'github:ddinkov10/agent-board#semver:^1'    # the last line: agent-board: http://127.0.0.1:4403
+npx 'github:ddinkov10/agent-board#semver:^1'    # the last line: agent-board: http://127.0.0.1:<port>
 PORT=4500 npx 'github:ddinkov10/agent-board#semver:^1'
 ```
 
@@ -339,9 +348,9 @@ PORT=4500 npx 'github:ddinkov10/agent-board#semver:^1'
   are glob characters in zsh with `EXTENDED_GLOB`.
 - The port is `PORT`, else `port` of the config, else 4403. When the port is in use, the board
   prints the cause and exits 1.
-- The entry `board` of `.claude/launch.json` starts the same command, so a session in a Code tab of
-  the desktop app can show the page in the Browser pane. That entry has `--yes`, which answers the
-  install question of `npx`.
+- A product project can hold an entry `board` in its `.claude/launch.json` that starts the same
+  command with `--yes`, which answers the install question of `npx`. A session in a Code tab of the
+  desktop app can then show the page in the Browser pane.
 
 **The config** is `.claude/agent-flow/board.json`. The board reads it from the main checkout only,
 once, at its start. Each of its first three keys is an argument list whose first item is a file of
@@ -352,7 +361,7 @@ the main checkout, and `{n}` stands for the number of the issue:
 | `data` | `scripts/celetis agent-flow --board` | The board starts it, with no shell, for each read of the issues. |
 | `run` | `scripts/celetis agent-flow {n}` | A Run press makes a herdr tab with the label `#<n> <step>` and types `'<main checkout>/scripts/celetis' 'agent-flow' <n> && exit` in its pane. |
 | `resume` | `scripts/celetis agent-flow --resume {n}` | A Resume press makes the same tab, with the focus, and types `'<main checkout>/scripts/celetis' 'agent-flow' '--resume' <n> && exit`. |
-| `port` | `4403` | The port, when `PORT` is not set. |
+| `port` | `<port>` | The port, when `PORT` is not set. |
 
 `&& exit` closes the tab when the script ends with no error, and a script that fails leaves the tab
 open with its message. With the default gates, the script of a Run press starts one session and ends
@@ -431,7 +440,8 @@ A Run press runs the script in a new herdr tab. A script that ends with no error
 read the state on the card of the issue: "The board" gives the state of each issue, and the README
 of the package gives the card of each state.
 
-`stop … is finished` means that the change is on the trunk.
+`stop … is finished` means that the issue is closed with no `wontfix` label. After a landing, the
+change is on the trunk.
 
 ## Guards
 
@@ -491,11 +501,11 @@ session a variant of it.
 - The script exits 0 at each `stop` line, at a `me` gate, and at "no progress", so `&& exit` closes
   the tab with the message of the script. A Run press whose session ends at once thus leaves no
   message: start `scripts/celetis agent-flow <n>` in a terminal to see it.
-- A start of the board from the entry `board` of `.claude/launch.json` needs `npx`, `herdr`, and the
-  tools of the script on the `PATH` of the desktop app, and the git credentials for GitHub in its
-  environment. This is not checked: the desktop app reads `.claude/launch.json` of the main
-  checkout, so the build of a lane cannot start the entry `board` of its branch. When that entry
-  does not start the board, start the board in a terminal.
+- A start of the board from the entry `board` of `.claude/launch.json`, in a project that has such
+  an entry, needs `npx`, `herdr`, and the tools of the script on the `PATH` of the desktop app, and
+  the git credentials for GitHub in its environment. This is not checked: the desktop app reads
+  `.claude/launch.json` of the main checkout, so the build of a lane cannot start the entry `board`
+  of its branch. When that entry does not start the board, start the board in a terminal.
 - A runner that stays open for more than 14 days after an update can lose the folder of its version.
   A runner process keeps the folder of its own version for its resolver and its launcher, and Claude
   Code removes the folder of an old version in a background cleanup 14 days after the update. After
@@ -513,10 +523,10 @@ The tests of the script, the resolver, `scripts/land.sh`, `scripts/worktree.sh`,
 the text of the plugin are in `tests/` of the plugin repository, `ddinkov10/celetis`: run them in a
 checkout of that repository. `scripts/verify.sh` is the verify gate of that repository. It runs each
 `tests/*.test.sh`, then `scripts/capscore.sh --test` and `claude plugin validate`, and its last line
-is `verify: PASS`. The workflow `.github/workflows/test.yml` runs each `tests/*.test.sh` and
-`scripts/capscore.sh --test` on Linux, for each pull request and for each push to `main`. The test
-of the step text is hand-run: it is in `tests/manual/`, so the gate and the workflow do not run it.
-The tests of the board are in `ddinkov10/agent-board`.
+is `verify: PASS`. The workflow `.github/workflows/test.yml` of that repository runs each
+`tests/*.test.sh` and `scripts/capscore.sh --test` on Linux, for each pull request and for each push
+to `main`. The test of the step text is hand-run: it is in `tests/manual/`, so the gate and the
+workflow do not run it. The tests of the board are in `ddinkov10/agent-board`.
 
 ```bash
 scripts/verify.sh
