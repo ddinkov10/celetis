@@ -51,7 +51,7 @@ N+1. Too little time for the lane → the change does not ship tonight.
 6. **Run `celetis:implement #<n>` on the micro-plan** — its Land step lands the fix as each lane does. A
    micro-plan is a local file, so the re-entry rule of `implement` does not apply to it. Window
    too small to verify → the change does not ship tonight: stop, report blocked.
-7. **Terminal.** The custom part of this skill names the ship acts of the project: its text, from `.claude/agent-flow/custom/hotfix.md`, is at the end of this skill.
+7. **Terminal.** When the project has a custom part `hotfix.md`, its text at the end of this skill names the ship acts of the project. A project with no such part has no ship act.
    - The fix landed: print the acts of the maintainer, and stop.
      - [ ] Do the ship acts of the project.
    - The landing stopped with a `## Landing refused` comment: run `gh issue edit <n> --add-label ready-for-human`, print the checklist, and stop.

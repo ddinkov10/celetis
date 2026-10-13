@@ -44,7 +44,7 @@ Read `docs/lessons/INDEX.md` (and `docs/lessons/_pending/QUEUE.md`). Scan Tags a
 ---
 name: {slug}                       # required — equals the file name without .md
 description: {one-line summary}     # required — drives relevance retrieval
-tags: [{tag}, {tag}]                # required — from the Tag Vocabulary below
+tags: [{tag}, {tag}]                # required — from the Tag Vocabulary: the list below with the tags of the custom part of the project
 date: {YYYY-MM-DD}                  # required — most recent meaningful update
 status: active                      # required — active | pending-review | superseded
 source: {origin}                    # optional — only on auto-captures
@@ -100,13 +100,13 @@ After saving, check if the lesson should become a mechanism: update a custom par
 5. Actionable — every lesson leads to a concrete rule or check.
 6. Date everything (YYYY-MM-DD).
 7. Self-contained — each file is readable without the catalog.
-8. Tags are mandatory, drawn from the Tag Vocabulary.
+8. Tags are mandatory, drawn from the Tag Vocabulary: the list below with the tags of the custom part of the project.
 9. Keep `INDEX.md` and the files in sync — one row per file, one file per row.
 10. Follow the canonical frontmatter + heading set; do not rename, reorder, or invent sections.
 
 ## Tag vocabulary
 
-Draw every tag from this controlled list. Introduce a new tag only when nothing fits, and add it here in the same change. Do not create synonyms or one-off tags. Replace the generic list below with the project's own subsystem/technology names when the kit is installed (edit this file, then keep it under version control).
+Draw every tag from this controlled list, with the tags of the custom part `lesson.md` of the project (`.claude/agent-flow/custom/lesson.md`). Introduce a new tag only when nothing fits, and add it to that custom part in the same change. Do not create synonyms or one-off tags. A project gives its own subsystem and technology names in that custom part.
 
 - Technology: `api` `auth` `database` `data-store` `networking` `bridge` `build` `gradle` `deploy` `platform` `webview` `ui` `test` `config`
 - Nature: `false-positive` `false-negative` `refix` `recurring` `regression` `platform-quirk` `data-loss` `performance`

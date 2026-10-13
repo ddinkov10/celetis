@@ -96,8 +96,8 @@ done <<<"$refs"
 
 tracked=$(git -c core.quotePath=false ls-files)
 is_tracked() { [[ "$nl$tracked$nl" == *"$nl$1$nl"* ]]; }
-frontmatter() { awk 'NR == 1 { if ($0 != "---") exit; next } $0 == "---" { printf "%s", front; exit } { front = front $0 "\n" }' "$1"; }
-has_front() { [[ "$nl$(frontmatter "$1")$nl" == *"$nl$2$nl"* ]]; }
+# A frontmatter holds "key: value" lines only: so a "---" line of the body does not end a frontmatter that has no end line.
+frontmatter() { awk 'NR == 1 { if ($0 != "---") exit; next } $0 == "---" { printf "%s", front; exit } $0 !~ /^[A-Za-z0-9_-]+: ./ { exit } { front = front $0 "\n" }' "$1"; }
 
 stray=
 while IFS= read -r path; do
@@ -107,24 +107,40 @@ while IFS= read -r path; do
 done <<<"$tracked"
 [ -z "$stray" ] || fail "a file of skills/ that is in no folder of a skill of the list:" "$stray"
 
+key=disable-model-invocation
 missing=
 lacks=
+disabled=
 ends=
+dynamic=
 for skill in $skills; do
   file=skills/$skill/SKILL.md
   if ! is_tracked "$file" || [ ! -f "$file" ]; then
     missing+=$file$nl
     continue
   fi
-  has_front "$file" "name: $skill" || lacks+="$file:name: $skill$nl"
-  [ "$skill" != guide ] || has_front "$file" 'disable-model-invocation: true' || lacks+="$file:disable-model-invocation: true$nl"
+  front=$(frontmatter "$file")
+  [[ "$nl$front$nl" == *"${nl}name: $skill$nl"* ]] || lacks+="$file:name: $skill$nl"
+  if [ "$skill" = guide ]; then
+    [[ "$nl$front$nl" == *"$nl$key: true$nl"* ]] || lacks+="$file:$key: true$nl"
+  else
+    n=1
+    while IFS= read -r line; do
+      n=$((n + 1))
+      [[ $line != "$key":* ]] || disabled+="$file:$n:$line$nl"
+    done <<<"$front"
+  fi
   printf -v custom '!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/%s.md" 2>/dev/null || true`' "$skill"
   end=$(awk -v want="$custom" '{ before = last; last = $0 } END { if (last != want) print FILENAME ":" NR ":" last; else if (before != "") print FILENAME ":" (NR - 1) ":" before }' "$file")
   [ -z "$end" ] || ends+=$end$nl
+  more=$(awk 'index($0, "!`") { where[++n] = NR; text[n] = $0 } END { for (i = 1; i <= n; i++) if (where[i] != NR) print FILENAME ":" where[i] ":" text[i] }' "$file")
+  [ -z "$more" ] || dynamic+=$more$nl
 done
 [ -z "$missing" ] || fail "a skill of the list with no SKILL.md:" "$missing"
 [ -z "$lacks" ] || fail "a line that the frontmatter of a SKILL.md must hold, as <path>:<the line>:" "$lacks"
+[ -z "$disabled" ] || fail "a SKILL.md other than skills/guide/SKILL.md with $key in its frontmatter, as <path>:<line>:<text>:" "$disabled"
 [ -z "$ends" ] || fail "the last line of a SKILL.md must be the line of its custom part, with an empty line before it:" "$ends"
+[ -z "$dynamic" ] || fail "a line of a SKILL.md, not its last line, with an exclamation mark directly before a backtick, as <path>:<line>:<text>:" "$dynamic"
 
 old_folders=$(search -F -e .claude/scripts/ -e .claude/skills/ -e .claude/commands/ -e docs/agents/ -- "${texts[@]}" "$documents")
 [ -z "$old_folders" ] || fail "an old folder of the harness, as <path>:<line>:<text>:" "$old_folders$nl"
@@ -138,16 +154,30 @@ script_files=
 [ ${#scripts[@]} -eq 0 ] || script_files=$(search -F "${scripts[@]}" -- "${texts[@]}")
 [ -z "$script_files" ] || fail "a script of the plugin by its file, where the form is \"scripts/celetis <name>\", as <path>:<line>:<text>:" "$script_files$nl"
 # The arrow is outside the bracket: in a C locale, a bracket holds each byte of the arrow as one character.
-bare_commands=$(search -E "(^|[ \`(]|→)/($commands)([^A-Za-z0-9_-]|\$)" -- "${texts[@]}" "$documents")
+bare_commands=$(search -E "(^|[ \`(\"']|→)/($commands)([^A-Za-z0-9_-]|\$)" -- "${texts[@]}" "$documents")
 [ -z "$bare_commands" ] || fail "a lane command with no \"celetis:\" before its name, as <path>:<line>:<text>:" "$bare_commands$nl"
 
 cites=$(search -o -E '\$\{CLAUDE_PLUGIN_ROOT\}/[A-Za-z0-9._/-]*[A-Za-z0-9]' -- skills)
+skill_file='^skills/([^/]+)/SKILL\.md$'
 broken=
+alone=
+seen=$nl
 while IFS= read -r cite; do
   [ -n "$cite" ] || continue
-  is_tracked "${cite#*:*:"$root"}" || broken+=$cite$nl
+  path=${cite#*:*:"$root"}
+  is_tracked "$path" || broken+=$cite$nl
+  [[ ${cite%%:*} =~ $skill_file ]] || continue
+  from=${BASH_REMATCH[1]}
+  [[ $path =~ $skill_file ]] || continue
+  other=${BASH_REMATCH[1]}
+  [[ $from != "$other" && $seen != *"$nl$from $other$nl"* ]] || continue
+  seen+="$from $other$nl"
+  grep -qF -- ".claude/agent-flow/custom/$other.md" "skills/$from/SKILL.md" || alone+=$cite$nl
 done <<<"$cites"
 [ -z "$broken" ] || fail "a citation of the plugin root in skills/ that names no tracked file:" "$broken"
+[ -z "$alone" ] || fail "a SKILL.md that cites the SKILL.md of another skill and does not name the custom part of that skill, .claude/agent-flow/custom/<name>.md:" "$alone"
+raw=$(search -F CLAUDE_PLUGIN_ROOT -- skills ':(exclude,glob)skills/*/SKILL.md')
+[ -z "$raw" ] || fail "the text CLAUDE_PLUGIN_ROOT in a file of skills/ that is no SKILL.md of a skill, as <path>:<line>:<text>:" "$raw$nl"
 
 [ "$fails" -eq 0 ]
 echo "PASS"
