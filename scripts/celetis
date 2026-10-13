@@ -4,6 +4,10 @@ if [ $# -eq 0 ]; then
   exit 2
 fi
 name=$1
+if ! command -v jq >/dev/null 2>&1; then
+  echo 'celetis: jq is not on PATH' >&2
+  exit 1
+fi
 dir=$(claude plugin list --json 2>/dev/null | jq -r '[.[] | select(.id == "celetis@celetis")] | (map(select(.scope == "user")) + .)[0].installPath // empty' 2>/dev/null | tr -d '\r')
 if [ -z "$dir" ]; then
   echo 'celetis: the plugin is not installed; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis' >&2

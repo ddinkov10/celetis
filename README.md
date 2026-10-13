@@ -376,7 +376,9 @@ in a terminal, and the board use the same form:
 - Each sub-command gives the output and the exit code of its script.
 - Run a command in a checkout of the product project: the plugin holds the scripts, so only the
   current folder names the project. `capscore` and `root` run in each folder.
-- With no installed plugin, the launcher prints one line with the two install commands and exits 1.
+- With no installed plugin, or with no `claude` on `PATH`, the launcher prints one line with the two
+  install commands and exits 1. With no `jq` on `PATH`, it prints `celetis: jq is not on PATH` and
+  exits 1.
 
 ## Updates
 

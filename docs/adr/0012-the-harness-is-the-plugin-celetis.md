@@ -438,7 +438,8 @@ with no hint.
 **The launcher.** `scripts/celetis` is one bash file, the same in each product project, and the
 plugin repository holds it. It reads the records with `claude plugin list --json` at each call
 and keeps no folder. It uses the `user` record of `celetis@celetis`, else the first record of
-that id. With no record, or with a `claude` that prints no JSON, it prints one line with the two
+that id. With no `jq` on `PATH`, it prints `celetis: jq is not on PATH` and exits 1, before that
+lookup. With no record, or with a `claude` that prints no JSON, it prints one line with the two
 install commands and exits 1. A new script of the plugin needs no change to the launcher.
 
 **The wiring.** Each machine runs `claude plugin marketplace add ddinkov10/celetis` and

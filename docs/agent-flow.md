@@ -27,14 +27,15 @@ apart from a path that starts with `~/` or `/`.
 - macOS or Linux, with bash 3.2 or later. There is no native Windows runner.
 - `claude`, `gh` (logged in), `jq`, and `git` 2.31 or later on `PATH`. When `gh` or `git` is
   missing, the script names it and exits 1. The launcher needs `claude` and `jq` to find the plugin
-  (the next item).
+  (the next item). When `jq` is missing, the launcher prints `celetis: jq is not on PATH` and
+  exits 1.
 - The plugin `celetis@celetis`, installed on the machine, and the launcher `scripts/celetis` in the
   product project. The scripts and the step text come from the installed plugin:
   `scripts/celetis <name> <arguments>` runs `scripts/<name>.sh` of that plugin with those arguments.
-  When the launcher finds no installed plugin, it prints one line with the two install commands and
-  exits 1. The wiring of a machine is those two commands, one time. The install enables the plugin
-  at the `user` scope, so each session of that machine loads it. The README of the plugin holds the
-  wiring of a machine and of a product project.
+  When the launcher finds no installed plugin, or no `claude`, it prints one line with the two
+  install commands and exits 1. The wiring of a machine is those two commands, one time. The
+  install enables the plugin at the `user` scope, so each session of that machine loads it. The
+  README of the plugin holds the wiring of a machine and of a product project.
 - The trunk of the main checkout is current. The trunk is the default branch of the repository on
   GitHub. The config comes from the main checkout of the product project, and so does the custom
   part of a step that the script starts ("The config and the custom parts"): after a merge that

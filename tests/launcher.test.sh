@@ -8,7 +8,7 @@ fails=0
 
 plug="$tmp/plug in"
 proj="$tmp/proj dir"
-mkdir -p "$plug/scripts" "$proj/scripts" "$tmp/stub" "$tmp/oops" "$tmp/nobin" "$tmp/cyg"
+mkdir -p "$plug/scripts" "$proj/scripts" "$tmp/stub" "$tmp/oops" "$tmp/nobin" "$tmp/nojq" "$tmp/cyg"
 cat >"$plug/scripts/echo.sh" <<'EOF'
 printf '[%s]' "$@"
 EOF
@@ -28,6 +28,7 @@ cat >"$tmp/cyg/cygpath" <<EOF
 EOF
 chmod +x "$tmp"/stub/claude "$tmp"/oops/claude "$tmp"/cyg/cygpath
 for t in bash jq tr; do ln -s "$(command -v "$t")" "$tmp/nobin/$t"; done
+for t in bash tr; do ln -s "$(command -v "$t")" "$tmp/nojq/$t"; done
 
 rec() { jq -nc --arg s "$1" --arg p "$2" '{id:"celetis@celetis",version:"x",scope:$s,enabled:true,installPath:$p}'; }
 other() { jq -nc '{id:"other@market",version:"x",scope:"user",enabled:true,installPath:"/nowhere"}'; }
@@ -58,6 +59,7 @@ expect() {
 stub="$tmp/stub:$PATH"
 install='celetis: the plugin is not installed; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis'
 usage='usage: scripts/celetis <script> [<argument>...], e.g. scripts/celetis next-step --open'
+nojq='celetis: jq is not on PATH'
 
 list "$(other)" "$(rec user "$plug")"
 run "$stub" echo a 'b c' '#7'
@@ -82,6 +84,12 @@ run "$tmp/nobin" echo
 expect "no claude on PATH" '' "$install" 1
 
 list "$(rec user "$plug")"
+run "$tmp/stub:$tmp/nojq" echo
+expect "no jq on PATH" '' "$nojq" 1
+
+run "$tmp/nojq" echo
+expect "no jq and no claude on PATH" '' "$nojq" 1
+
 run "$stub"
 expect "no argument" '' "$usage" 2
 
