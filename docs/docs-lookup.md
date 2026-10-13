@@ -13,19 +13,15 @@ skips the lookup.
 
 ## Which version
 
-Read the fact for the installed version:
+Read the fact for the installed version; `AGENTS.md` of the project says how.
 
-- Backend: `uv pip show <pkg> --python backend/.venv`.
-- Frontend: the `version` field of `frontend/node_modules/<pkg>/package.json`.
-
-Many backend pins are ranges (`fastapi>=0.109.0`), so the pin is the fallback only when nothing is
+Many pins are ranges (`fastapi>=0.109.0`), so the pin is the fallback only when nothing is
 installed. Read the latest release only when the change proposes an upgrade; then read both
 versions and the changelog between them.
 
 ## Sources, in order
 
-1. The docs the installed package ships, for example `frontend/node_modules/next/dist/docs/`
-   (`frontend/AGENTS.md` requires them for Next.js).
+1. The docs the installed package ships, when `AGENTS.md` names them.
 2. Context7: `resolve-library-id`, then `query-docs` with the library ID of the installed version,
    `/<org>/<project>/<version>`. When `resolve-library-id` lists no such version, go to source 3.
 3. `WebSearch` and `WebFetch` on primary sources: the official docs, changelogs, release notes,

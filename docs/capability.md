@@ -1,10 +1,10 @@
 # Project — capability gates (model+effort per task)
 
-Second routing axis, beside **type** (the four `/bug` `/hotfix` `/feature` `/chore` entry
-commands). At **every dispatch point** a scored rubric decides which model tier and effort
-level executes the next task. Digit assignment is agentic (judgment — unavoidable); digits→tier
-arithmetic is deterministic and lives in `.claude/scripts/capscore.sh` (the doc is the spec; the
-script is the authority for the math — they must agree).
+Second routing axis, beside **type** (the four `/celetis:bug` `/celetis:hotfix` `/celetis:feature`
+`/celetis:chore` entry commands). At **every dispatch point** a scored rubric decides which model
+tier and effort level executes the next task. Digit assignment is agentic (judgment — unavoidable);
+digits→tier arithmetic is deterministic and lives in `scripts/celetis capscore` (the doc is the
+spec; the script is the authority for the math — they must agree).
 
 ## The rubric — six dimensions, each 0–2
 
@@ -69,7 +69,7 @@ CAP: J1 V2 B2 N1 S1 X0 = 7 +b2 → opus/max
 Generate it with the script (do not hand-compute the tier):
 
 ```bash
-.claude/scripts/capscore.sh J V B N S X [--attempt N] [--bias N]
+scripts/celetis capscore J V B N S X [--attempt N] [--bias N]
 ```
 
 ## Who must score, when — the consumption rule
