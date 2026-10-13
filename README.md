@@ -260,7 +260,9 @@ that file, and its `port` is the port of `board.json`:
 Commit these files on the trunk and push them, by hand, before the first lane. A lane branch starts
 at the trunk of `origin`, so a file that is not there is in no lane worktree: the launcher, the
 worktree setup file, or a custom part. A file that git does not track also makes the main checkout
-dirty, and the resolver then stops each issue.
+dirty, and the resolver then stops each issue. The launcher and the worktree setup file need LF
+line endings on each host, and a `.gitattributes` file with the line `* text=auto eol=lf` keeps
+them.
 
 ## The full loop
 
