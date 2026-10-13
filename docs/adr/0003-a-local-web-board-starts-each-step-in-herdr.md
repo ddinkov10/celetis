@@ -1,5 +1,7 @@
 # A local web board shows the sessions and starts each step in a herdr tab
 
+Source: ddinkov10/fwrh_calculator ADR-0009. Each issue number of this record is an issue of that repository.
+
 ## Date
 
 2026-10-09
@@ -8,25 +10,25 @@
 
 - #403 (this change), #401 (the epic; its decisions 7 and 8 bind), #402 (the loop script and the
   mod)
-- ADR-0007 (`docs/adr/0007-agents-merge-lane-prs.md`); its decision on the merge path stands
-- ADR-0008 (`docs/adr/0008-loop-script-and-mod-run-the-agent-flow.md`); the script, the gate rule,
+- ADR-0001 (`docs/adr/0001-agents-merge-lane-prs.md`); its decision on the merge path stands
+- ADR-0002 (`docs/adr/0002-loop-script-and-mod-run-the-agent-flow.md`); the script, the gate rule,
   and the step-end rule of the mod stand
 - `.claude/agent-flow/board/`, `.claude/agent-flow/mod/hooks/register.ts`,
   `docs/agents/agent-flow.md`
 
 ## Supersedes
 
-One sentence of ADR-0008 (`0008-loop-script-and-mod-run-the-agent-flow`): "herdr-board and herdr go,
+One sentence of ADR-0002 (`0002-loop-script-and-mod-run-the-agent-flow`): "herdr-board and herdr go,
 with no second launch path". herdr-board still goes. herdr stays: the board starts each step in a
-herdr tab. The other parts of ADR-0008 stand.
+herdr tab. The other parts of ADR-0002 stand.
 
 ## Context
 
 After #402, `scripts/agent-flow.sh` runs the agent flow from a Terminal tab. Nothing shows in one
 place which sessions run, which sessions wait for the maintainer, and which issue waits for a start;
-ADR-0008 names that as a consequence. Issue #403 is child B of the epic #401. On 2026-10-07 the
+ADR-0002 names that as a consequence. Issue #403 is child B of the epic #401. On 2026-10-07 the
 maintainer approved a design that put the board in a mod pane in a Code tab of the desktop app. On
-2026-10-08 the maintainer reversed that place and chose a web page, "to be more pretty". ADR-0008
+2026-10-08 the maintainer reversed that place and chose a web page, "to be more pretty". ADR-0002
 lists "The board of #403 starts each step" under `Reconsider when`: that premise is now true, and
 this record is the result.
 
@@ -100,7 +102,7 @@ by hand.
   that one copy. The script still gives the same mod with `--plugin-dir`.
 - **Each gate is `me` in the tracked defaults** (`.claude/agent-flow/gates.json`), so one Run press
   starts one step. `auto` is a git config value on one machine. This changes decision 5 of #402 for
-  the repository; the gate rule of ADR-0008 does not change.
+  the repository; the gate rule of ADR-0002 does not change.
 - **The rules have one home each.** The script holds the rules for the gate, the lock, and the
   record, and gives them to the server as `scripts/agent-flow.sh --board`. The pure function `place`
   (`.claude/agent-flow/board/place.mjs`) holds the rules for the columns. The server and the mod
@@ -132,7 +134,7 @@ decision:
   package, a lockfile, a build step, and dependency audits for a harness tool. The route puts the
   harness inside the product code.
 - **The Terminal tool starts each step.** Decision 7 of #401 binds: a Run press starts each step in
-  herdr, with no call of the Terminal tool. ADR-0008 holds the reasons against that tool: each call
+  herdr, with no call of the Terminal tool. ADR-0002 holds the reasons against that tool: each call
   can ask for an approval, and each step leaves a tab.
 - **`herdr agent list` gives the state of a session.** The `specify` session recommended it. The
   maintainer chose the reporter only, as in the reference design, over `herdr agent list` only and

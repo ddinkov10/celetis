@@ -1,5 +1,7 @@
 # Domain routing and the domain skills go, and their trap facts live in the AGENTS.md files
 
+Source: ddinkov10/fwrh_calculator ADR-0012. Each issue number of this record is an issue of that repository.
+
 ## Date
 
 2026-10-11
@@ -122,4 +124,4 @@ names, are on no branch of the repository, so this change removes no such file.
 - The *Traps* section of the root `AGENTS.md` grows past about 30 lines.
 - Claude Code stops loading a subsystem `AGENTS.md` when it reads a file in that folder.
 - The repository gets a subsystem whose rules are not in the code, a test, or a doc (for example
-  the payment flow of ADR-0001).
+  the payment flow of ddinkov10/fwrh_calculator ADR-0001).

@@ -1,29 +1,31 @@
 # herdr gives the state of each session and ends each step, and the mod goes
 
+Source: ddinkov10/fwrh_calculator ADR-0011. Each issue number of this record is an issue of that repository.
+
 ## Date
 
 2026-10-10
 
 ## Related
 
-- ADR-0008 (`docs/adr/0008-loop-script-and-mod-run-the-agent-flow.md`): the script, the gate rule,
+- ADR-0002 (`docs/adr/0002-loop-script-and-mod-run-the-agent-flow.md`): the script, the gate rule,
   the lock, the record, and the step-end rule stand; only the home of the step-end rule changes
-- ADR-0009 (`docs/adr/0009-a-local-web-board-starts-each-step-in-herdr.md`): the board, Run, Go, the
+- ADR-0003 (`docs/adr/0003-a-local-web-board-starts-each-step-in-herdr.md`): the board, Run, Go, the
   gates, the rules of one home each, and the rest of the trust boundary stand
-- ADR-0010 (`docs/adr/0010-the-board-shows-what-each-agent-asks-and-unblocks-a-stuck-card.md`):
+- ADR-0004 (`docs/adr/0004-the-board-shows-what-each-agent-asks-and-unblocks-a-stuck-card.md`):
   Resume, Open shell, the reads of a hidden tab, the notifications, the pull request data, the
   hotfix-first order, the detail panel, the search, and Pipeline stand
 - `scripts/agent-flow.sh`, `.claude/agent-flow/board/`, `docs/agents/agent-flow.md`
 
 ## Supersedes
 
-- From ADR-0008, "A loop script in a Terminal tab runs the agent flow, and a mod ends each step
+- From ADR-0002, "A loop script in a Terminal tab runs the agent flow, and a mod ends each step
   session": the mod as the home of the step-end rule, `--plugin-dir`, and the variables
   `AGENT_FLOW_ISSUE` and `AGENT_FLOW_LINE`.
-- From ADR-0009, "A local web board starts each step in herdr": "The state of a session comes from
+- From ADR-0003, "A local web board starts each step in herdr": "The state of a session comes from
   the reporter of the mod only", "The mod loads at user level", and the trust rule "only the
   `sessionId` of a status file as the id of a session".
-- From ADR-0010, "The board shows what each agent asks and does, and unblocks a stuck card": the
+- From ADR-0004, "The board shows what each agent asks and does, and unblocks a stuck card": the
   fields `waitFor`, `ask`, `activity`, and `cwd` of the status file, the `no signal` rule, the check of
   herdr each 60 seconds, and `AGENT_FLOW_ISSUE` in the command of Resume.
 
@@ -75,7 +77,7 @@ From the documents and the source of herdr 0.9.3 (`herdrdev/herdr` at `2563803`,
   `#<n> <step>` and starts a job in the background. At each `idle` or `done` of the agent, the job
   runs `next-step.sh <n>`. When the new line differs from the line that started the session and is a
   `run` line or starts with `stop #<n> `, the job types `/exit` with `herdr agent prompt`. This is the
-  step-end rule of ADR-0008 in a new home. Outside herdr, no session ends by itself.
+  step-end rule of ADR-0002 in a new home. Outside herdr, no session ends by itself.
 - **The mod goes**, with the status files, `--plugin-dir`, `AGENT_FLOW_ISSUE`, `AGENT_FLOW_LINE`,
   and the setting `CLAUDE_CODE_PLUGIN_DIRS`. Resume runs `claude --resume '#<n> <step>'` in a tab with
   the label `#<n> <step>`, and Run names the first tab of a new workspace with that label.

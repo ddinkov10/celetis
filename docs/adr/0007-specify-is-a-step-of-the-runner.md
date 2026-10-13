@@ -1,5 +1,7 @@
 # specify is a step of the runner: Run has one command, and the script ends the session
 
+Source: ddinkov10/fwrh_calculator ADR-0013. Each issue number of this record is an issue of that repository.
+
 ## Date
 
 2026-10-11
@@ -7,20 +9,20 @@
 ## Related
 
 - #414 (this change), #412 (the session that showed the gap)
-- ADR-0008 (`docs/adr/0008-loop-script-and-mod-run-the-agent-flow.md`): the gate rule, the lock, the
+- ADR-0002 (`docs/adr/0002-loop-script-and-mod-run-the-agent-flow.md`): the gate rule, the lock, the
   record, and the "no progress" rule stand
-- ADR-0009 (`docs/adr/0009-a-local-web-board-starts-each-step-in-herdr.md`): the board, Run, Go, the
+- ADR-0003 (`docs/adr/0003-a-local-web-board-starts-each-step-in-herdr.md`): the board, Run, Go, the
   tracked defaults of `me`, and the trust boundary stand
-- ADR-0011 (`docs/adr/0011-herdr-gives-the-session-state-and-ends-each-step.md`): the step end
+- ADR-0005 (`docs/adr/0005-herdr-gives-the-session-state-and-ends-each-step.md`): the step end
   stands, unchanged
 - `scripts/agent-flow.sh`, `.claude/scripts/next-step.sh`, `.claude/agent-flow/gates.json`,
   `.claude/agent-flow/board/server.mjs`, `docs/agents/agent-flow.md`
 
 ## Supersedes
 
-From ADR-0009, "A local web board shows the sessions and starts each step in a herdr tab": "a card
+From ADR-0003, "A local web board shows the sessions and starts each step in a herdr tab": "a card
 with the step `specify` runs `claude -n '#<n> specify' '/feature #<n>'` there". The other parts of
-ADR-0009 stand.
+ADR-0003 stand.
 
 ## Context
 
@@ -28,8 +30,8 @@ On 2026-10-10 the `specify` session of #412 put the spec on the issue, and the r
 `run /plan #412`. The card of #412 stayed in Needs you with the state `turn ended` until the
 maintainer found the tab and typed `/exit`. No rule said that a `specify` session stays open. It
 followed from four facts. The resolver printed a `stop` line for an `enhancement` with no spec. The
-script starts only a `run` line. The step end is a job of the script (ADR-0011). So the board
-started `claude` directly for a `specify` card (ADR-0009), with no script and no job.
+script starts only a `run` line. The step end is a job of the script (ADR-0005). So the board
+started `claude` directly for a `specify` card (ADR-0003), with no script and no job.
 
 ## Constraints and evidence
 
@@ -46,10 +48,10 @@ started `claude` directly for a `specify` card (ADR-0009), with no script and no
   after the maintainer approves the design, and nothing checks the design again after the publish.
 - The `specify` sessions that Run started before this change had no step text. A session with no
   step text asked and waited in auto mode: the session of the #37 walk waited at a question
-  (ADR-0009), and the `specify` session of #414 asked and waited (the spec of #414, "Risks").
+  (ADR-0003), and the `specify` session of #414 asked and waited (the spec of #414, "Risks").
 - On 2026-10-10, `herdr api snapshot` gave the idle `specify` session of #412 the state `idle`.
 - The tests of the script use stubs of `claude`, `gh`, and `herdr` (`scripts/agent-flow.test.sh`).
-  ADR-0011 had no live proof of the step end.
+  ADR-0005 had no live proof of the step end.
 - The live proof on #414 (the comment headed `## Live proof`), on 2026-10-11, with herdr 0.9.3 and
   Claude Code 2.1.296: a Run press on the throwaway feature #426 ran `scripts/agent-flow.sh 426` in
   a herdr tab. The session waited for the approval of the design. At most 12 seconds after the line
@@ -67,7 +69,7 @@ started `claude` directly for a `specify` card (ADR-0009), with no script and no
   the lane track, the tab labels, and the session names use the name `specify`, so the script gives
   that one command the step name `specify`, in one function (`step_of`).
 - **`specify` has a normal gate.** `.claude/agent-flow/gates.json` holds `"specify": "me"`, and the
-  gate rule of ADR-0008 holds for it. With the default, only a Run press or a start with a number
+  gate rule of ADR-0002 holds for it. With the default, only a Run press or a start with a number
   starts it.
 - **Its session gets no step text.** The command line is
   `claude --permission-mode auto -n '#<n> specify' '/feature #<n>'`. The session then asks and waits
@@ -96,7 +98,7 @@ started `claude` directly for a `specify` card (ADR-0009), with no script and no
   conflict.
 - **The resolver prints `run /specify #<n>`.** The step name is then the command name. But the
   session skips the lane command, and each other lane starts with its lane command.
-- **The board ends the session.** ADR-0011 rejected it: the board does not run all the time.
+- **The board ends the session.** ADR-0005 rejected it: the board does not run all the time.
 
 ## Consequences
 
@@ -126,4 +128,4 @@ started `claude` directly for a `specify` card (ADR-0009), with no script and no
 - `specify` gets a check of the design after the publish, so the approval before the publish is no
   longer the only gate.
 - The step text gets a rule that a `specify` session must have.
-- herdr changes `agent wait` or `agent prompt` (ADR-0011).
+- herdr changes `agent wait` or `agent prompt` (ADR-0005).

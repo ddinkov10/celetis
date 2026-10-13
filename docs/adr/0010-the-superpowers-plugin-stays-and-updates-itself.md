@@ -1,5 +1,7 @@
 # The superpowers plugin stays, and it updates itself
 
+Source: ddinkov10/fwrh_calculator ADR-0016. Each issue number of this record is an issue of that repository.
+
 ## Date
 
 2026-10-11
@@ -8,7 +10,7 @@
 
 - #412: the spec, the plan, and the comment `## Live proof`
 - #413: the review of superpowers 7.0.0 against the lane skills
-- ADR-0011 (`docs/adr/0011-herdr-gives-the-session-state-and-ends-each-step.md`): the harness moves
+- ADR-0005 (`docs/adr/0005-herdr-gives-the-session-state-and-ends-each-step.md`): the harness moves
   to another repository with no change, and `--plugin-dir` went
 - `.claude/settings.json`, `docs/agents/agent-flow.md`
 
@@ -108,7 +110,7 @@ from the machine of the maintainer:
 ## Alternatives considered
 
 - **A clone of `obra/superpowers` that the harness owns, loaded with `--plugin-dir`.** The harness
-  then controls the time of each update. But it brings back the flag that ADR-0011 removed, and it
+  then controls the time of each update. But it brings back the flag that ADR-0005 removed, and it
   adds a sync script.
 - **A pinned copy in the repository, with a bot PR for each release.** The maintainer sees each
   release before the lanes use it, and no upstream code runs with no review. But each release waits
@@ -135,7 +137,7 @@ from the machine of the maintainer:
   turns the update pass off, unless `FORCE_AUTOUPDATE_PLUGINS=1` is set.
 - Each machine needs the `autoUpdate` key in `~/.claude/settings.json`. A machine without it stays
   on the version of its install, with no message, so the harness does not move to another machine
-  with no setup. This goes against ADR-0011: that record removed one user setting of the harness
+  with no setup. This goes against ADR-0005: that record removed one user setting of the harness
   and says that the harness can move to another repository with no plugin. The lanes need the
   superpowers plugin, and each machine needs this key.
 - A project file, a `.claude/settings.local.json`, a `--settings` value, or managed settings that

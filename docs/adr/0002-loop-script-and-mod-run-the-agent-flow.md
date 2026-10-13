@@ -1,5 +1,7 @@
 # A loop script in a Terminal tab runs the agent flow, and a mod ends each step session
 
+Source: ddinkov10/fwrh_calculator ADR-0008. Each issue number of this record is an issue of that repository.
+
 ## Date
 
 2026-10-06
@@ -8,7 +10,7 @@
 
 - #402 (this change), #401 (the epic, whose Decisions bind), #403 (the board pane, child B), #394
 - #381 (the runner that this replaces), #386 (its queue), #387 (its step-end hook)
-- ADR-0007 (`docs/adr/0007-agents-merge-lane-prs.md`), which names the board; its decision on the merge path stands
+- ADR-0001 (`docs/adr/0001-agents-merge-lane-prs.md`), which names the board; its decision on the merge path stands
 - `scripts/agent-flow.sh`, `.claude/agent-flow/`, `.claude/scripts/next-step.sh`, `docs/agents/agent-flow.md`
 - `docs/research/herdr-board-vs-herdr-projects.md` (the comparison behind the runner that goes)
 

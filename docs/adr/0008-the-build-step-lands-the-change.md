@@ -1,5 +1,7 @@
 # The build step lands the change, by the mechanism that the repository names
 
+Source: ddinkov10/fwrh_calculator ADR-0014. Each issue number of this record is an issue of that repository.
+
 ## Date
 
 2026-10-11
@@ -8,14 +10,14 @@
 
 - #415 (this change), #418 (no step fixed a refused merge; the card text for a refused landing stays
   there), #417 (GitHub leaves an epic open after its last sub-issue closes)
-- ADR-0005 (`docs/adr/0005-master-staging-production-fast-forward.md`) and ADR-0006
+- ddinkov10/fwrh_calculator ADR-0005 (`docs/adr/0005-master-staging-production-fast-forward.md`) and ddinkov10/fwrh_calculator ADR-0006
   (`docs/adr/0006-production-runs-release-please-releases.md`): the staging and production model
   stands, apart from the one phrase below
-- ADR-0007 (`docs/adr/0007-agents-merge-lane-prs.md`): superseded in part, below
-- ADR-0008 (`docs/adr/0008-loop-script-and-mod-run-the-agent-flow.md`) and ADR-0011
-  (`docs/adr/0011-herdr-gives-the-session-state-and-ends-each-step.md`): the script, the gate rule,
+- ADR-0001 (`docs/adr/0001-agents-merge-lane-prs.md`): superseded in part, below
+- ADR-0002 (`docs/adr/0002-loop-script-and-mod-run-the-agent-flow.md`) and ADR-0005
+  (`docs/adr/0005-herdr-gives-the-session-state-and-ends-each-step.md`): the script, the gate rule,
   and the step-end rule stand, unchanged
-- ADR-0013 (`docs/adr/0013-specify-is-a-step-of-the-runner.md`): it made `specify` a step of the
+- ADR-0007 (`docs/adr/0007-specify-is-a-step-of-the-runner.md`): it made `specify` a step of the
   runner with its own gate, on the date of this record. With that gate and without `finish`, the
   runner has seven gates: `triage`, `specify`, `bug`, `chore`, `hotfix`, `plan`, and `implement`
 - `scripts/land.sh`, `.claude/agent-flow/landing.json`, `.claude/scripts/next-step.sh`, and the
@@ -24,20 +26,20 @@
 
 ## Supersedes
 
-- From ADR-0007, "Agents merge lane PRs when CI is green; the human gate is promotion": where the
+- From ADR-0001, "Agents merge lane PRs when CI is green; the human gate is promotion": where the
   merge runs. `scripts/merge-pr.sh <n>` as the one merge path, `/finish` in a session of its own,
   the resolver line that sends an issue with an open PR to `/finish`, and the staging walkthrough
   as the check after a merge go. The rule that a refused PR stops with the reason on the issue
   goes too: the session first fixes a cause that the change made. The merge rule, the rule that an
   agent has one landing path, the permission rules, and the human gate at promotion stand.
-- From ADR-0005, "`master` deploys to staging; `production` is a fast-forward-only branch promoted
+- From ddinkov10/fwrh_calculator ADR-0005, "`master` deploys to staging; `production` is a fast-forward-only branch promoted
   by hand": the phrase that a human promotes "after the epic walkthrough passed on staging". The
   check before promotion is `/promote-preview`.
 
 ## Context
 
 Until #415 a lane ended with an open PR, and a second step, `/finish`, landed it in a session of
-its own (ADR-0007): it merged the PR with `scripts/merge-pr.sh`, waited for staging, walked the
+its own (ADR-0001): it merged the PR with `scripts/merge-pr.sh`, waited for staging, walked the
 stories again on staging, and removed the worktree and the branch. This shape had three defects.
 
 - **The second session had none of the context of the build.** When the merge script refused a PR,
@@ -58,7 +60,7 @@ gives no other date:
   PR, so the number of the PR is the last path part (`gh pr create --help`).
 - `gh pr checks --json bucket` sorts each check into `pass`, `fail`, `pending`, `skipping`, or
   `cancel`, and `gh pr merge --match-head-commit <sha>` merges only when the PR head is that commit
-  (ADR-0007).
+  (ADR-0001).
 - `unique` of jq sorts, so `[.[].bucket] | unique | join(" ")` prints `pass pending`, never
   `pending pass` (a run of `scripts/land.test.sh`).
 - `gh pr list --state merged --json number,headRefName,headRefOid` gives the head commit of each
@@ -85,7 +87,7 @@ gives no other date:
   `.claude/settings.json` has no rule for `gh pr create`, and it allows `scripts/land.sh` with no
   prompt.
 - A merged lane PR closes its issue through `Closes #<n>`, and the keyword works only on the
-  default branch (ADR-0005, ADR-0007).
+  default branch (ddinkov10/fwrh_calculator ADR-0005, ADR-0001).
 - `git merge-tree --write-tree <branch1> <branch2>` does a real merge and prints the id of its
   tree. It exits 0 for a clean merge and 1 for a merge with conflicts (`git help merge-tree`, EXIT
   STATUS).
@@ -97,11 +99,11 @@ gives no other date:
   `done` and `idle`.
 - The wait for the checks of a PR can last 15 minutes, and a foreground Bash command of Claude Code
   stops at 10.
-- A permission rule matches the text of a command (ADR-0007), and `.claude/settings.json` denies a
+- A permission rule matches the text of a command (ADR-0001), and `.claude/settings.json` denies a
   Bash command that holds the path of the promote script.
 - 31 issues that closed since 2026-09-01 (#102 to #250) had no walkthrough comment, so the resolver
   printed `run /finish` for each one.
-- The spec on #415 names this record ADR-0012, and the plan names it ADR-0013. Both numbers were
+- The spec on #415 names this record ADR-0006, and the plan names it ADR-0007. Both numbers were
   taken on the trunk while the work ran, by #419 and #414.
 
 The tests of this change:
@@ -128,7 +130,7 @@ The tests of this change:
   subject is a Conventional Commit subject with no issue number, and the script adds ` (#<n>)`. The
   trunk is the default branch that GitHub reports: the script holds no branch name.
   - With `pr`, the script pushes the lane branch and opens the PR when the branch has none (title
-    `<subject> (#<n>)`, body `Closes #<n>`). It then applies the merge rule of ADR-0007, unchanged:
+    `<subject> (#<n>)`, body `Closes #<n>`). It then applies the merge rule of ADR-0001, unchanged:
     it waits up to 15 minutes for the checks and squash-merges at the commit that the checks ran
     on, only when each check passed or was skipped and at least one check passed. The merge closes
     the issue through `Closes #<n>`. The script selects a PR only by a lane branch name, so it
@@ -190,7 +192,7 @@ The tests of this change:
   `<git common dir>/agent-flow/land-<n>.lock` and removes the file when it exits. While a live
   `land.sh` holds the lock, `next-step.sh <n>` and `next-step.sh --open` print
   `stop the landing of #<n> runs; wait until scripts/land.sh ends` for that issue. The line does
-  not start with `stop #<n> `, so the step-end rule of `scripts/agent-flow.sh` (ADR-0011) stays as
+  not start with `stop #<n> `, so the step-end rule of `scripts/agent-flow.sh` (ADR-0005) stays as
   it is and types no `/exit`. `--json` does not read the lock: an issue that lands has a live
   session, and the card of the session wins.
 
@@ -238,7 +240,7 @@ environment variable is set on staging is the human precondition of Land.
   conflict gets no check run, so the script would wait 15 minutes. `git merge-tree` gives the
   answer before the push.
 
-ADR-0007 rejected "a merge at the end of `/implement`" for three reasons. Each has an answer:
+ADR-0001 rejected "a merge at the end of `/implement`" for three reasons. Each has an answer:
 
 - *The session that wrote the code would land it.* The script decides by the checks, not the
   session. `/finish` applied the same merge rule and added no review.
@@ -261,7 +263,7 @@ ADR-0007 rejected "a merge at the end of `/implement`" for three reasons. Each h
   review.
 - The judgment "a cause that the change made" is the agent's. An agent can take an outside cause
   for its own and change files that the plan does not name. The task review of the fix and the
-  limit of three refusals bound it. The rule of ADR-0007 stays: a red `security` job on an upstream
+  limit of three refusals bound it. The rule of ADR-0001 stays: a red `security` job on an upstream
   advisory stops the landing until a person or a chore handles it.
 - With `pr`, a lane with one commit lands with the subject of its commit, which has no ` (#<n>)`:
   GitHub adds only the number of the PR. The script merges with no `--subject`, as

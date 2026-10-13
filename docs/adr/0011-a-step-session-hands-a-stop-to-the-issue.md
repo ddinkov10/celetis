@@ -1,5 +1,7 @@
 # A step session hands a stop to the issue: a comment, then `ready-for-human`
 
+Source: ddinkov10/fwrh_calculator ADR-0017. Each issue number of this record is an issue of that repository.
+
 ## Date
 
 2026-10-12
@@ -9,14 +11,14 @@
 - #394 (this change): its `## Root cause` report holds the states of a session at the end of a
   turn, the two decisions, and the red repro
 - #402: rule 2 of the step text. Its "Not now" puts the fix of #394 into the step text
-- #415 and ADR-0014 (`docs/adr/0014-the-build-step-lands-the-change.md`): the stop after a refused
+- #415 and ADR-0008 (`docs/adr/0008-the-build-step-lands-the-change.md`): the stop after a refused
   landing stands. A step session now adds a label after the `## Landing refused` comment
 - #418, on the trunk as `040f54c`: the resolver gives the card of a refused landing a reason of its
   own
-- ADR-0008 (`docs/adr/0008-loop-script-and-mod-run-the-agent-flow.md`) and ADR-0011
-  (`docs/adr/0011-herdr-gives-the-session-state-and-ends-each-step.md`): the step-end rule stands,
+- ADR-0002 (`docs/adr/0002-loop-script-and-mod-run-the-agent-flow.md`) and ADR-0005
+  (`docs/adr/0005-herdr-gives-the-session-state-and-ends-each-step.md`): the step-end rule stands,
   unchanged
-- ADR-0013 (`docs/adr/0013-specify-is-a-step-of-the-runner.md`): a `specify` session has no step
+- ADR-0007 (`docs/adr/0007-specify-is-a-step-of-the-runner.md`): a `specify` session has no step
   text
 - `.claude/agent-flow/step-prompt.md`, `.claude/agent-flow/step-prompt.test.sh`
 - `docs/agents/agent-flow.md`, `docs/agents/issue-tracker.md`
@@ -24,11 +26,11 @@
 ## Context
 
 A step session is a session that the runner, `scripts/agent-flow.sh`, starts with the step text,
-`.claude/agent-flow/step-prompt.md`: each session of the runner apart from `specify` (ADR-0013).
+`.claude/agent-flow/step-prompt.md`: each session of the runner apart from `specify` (ADR-0007).
 
 The runner ends a session only when the line of the issue moves: its step-end job types `/exit`
 only when `.claude/scripts/next-step.sh <n>` prints another line than the line that started the
-session (ADR-0011). The skills were written for a session with a person at the terminal: at a stop
+session (ADR-0005). The skills were written for a session with a person at the terminal: at a stop
 they "show the user" a message or "escalate to the user", and they write nothing that the resolver
 reads. The step text, the one text that fits a skill to a session of the runner, had a rule for a
 question (rule 2) and a rule for the landing (rule 3), and no rule for a stop or for a Verify
@@ -58,7 +60,7 @@ The runner:
   that is a `run` line or starts with `stop #<n> `. `run_issue` holds `claude` in its foreground
   (`scripts/agent-flow.sh:161`).
 - herdr gives an agent that waits at a question in prose the state `idle` or `done`, and `blocked`
-  only for a dialog (ADR-0011, of 2026-10-10; not read again). So a stop and a question have the
+  only for a dialog (ADR-0005, of 2026-10-10; not read again). So a stop and a question have the
   same herdr state and the same line. The runner cannot tell them apart, so the session must.
 - `bash scripts/agent-flow.test.sh` and `bash .claude/scripts/next-step.test.sh` print `PASS`. In
   their fixture world, an open issue with `ready-for-human` gives the line
@@ -200,7 +202,7 @@ The other parts of the decision:
 - **The step text does not tell what the maintainer does after a stop.** A sentence such as "the
   maintainer starts the step again" directs no act of the session, and it is not true for each
   lane: after a stop of a hotfix whose landing stopped, the maintainer lands in their own shell
-  (ADR-0014). `docs/agents/agent-flow.md` holds the acts of the maintainer.
+  (ADR-0008). `docs/agents/agent-flow.md` holds the acts of the maintainer.
 - **The step text has a test, `.claude/agent-flow/step-prompt.test.sh`.** It is hand-run, as each
   other test of the harness is. It reads fixed strings in the answer of each headless turn, such
   as a label command, a heading, and the end line. It sets
@@ -276,7 +278,7 @@ One more option, for the home of the two rules:
     fixture tests show the two halves: the resolver gives the `stop` line for the label
     (`.claude/scripts/next-step.test.sh`), and the runner types `/exit` when the line of the issue
     changes (`scripts/agent-flow.test.sh`). No fixture ends a session on an `is ready-for-human`
-    line. ADR-0013 holds the live proof of the step end for other lines. If the premise is false,
+    line. ADR-0007 holds the live proof of the step end for other lines. If the premise is false,
     the session stays open until `/exit`, as before.
 
 ## Reconsider when

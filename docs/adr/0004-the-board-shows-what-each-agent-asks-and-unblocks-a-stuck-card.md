@@ -1,14 +1,16 @@
 # The board shows what each agent asks and does, and unblocks a stuck card
 
+Source: ddinkov10/fwrh_calculator ADR-0010. Each issue number of this record is an issue of that repository.
+
 ## Date
 
 2026-10-10
 
 ## Related
 
-- ADR-0009 (`docs/adr/0009-a-local-web-board-starts-each-step-in-herdr.md`); its board, its rules
+- ADR-0003 (`docs/adr/0003-a-local-web-board-starts-each-step-in-herdr.md`); its board, its rules
   of one home each, and its trust boundary stand, and this record adds to them
-- ADR-0008 (`docs/adr/0008-loop-script-and-mod-run-the-agent-flow.md`); the script, the gate rule,
+- ADR-0002 (`docs/adr/0002-loop-script-and-mod-run-the-agent-flow.md`); the script, the gate rule,
   the record, and the step-end rule stand
 - `.claude/agent-flow/board/`, `.claude/agent-flow/mod/hooks/register.ts`,
   `scripts/agent-flow.sh`, `.claude/scripts/next-step.sh`, `docs/agents/agent-flow.md`
@@ -29,7 +31,7 @@ progress. The maintainer accepted eleven upgrades and said that the system desig
   and tool call (the mod API gives the tool name and input of each). It wrote only the state.
 - `next-step.sh --json` already asked `gh pr list` for the open pull requests, to print
   `run /finish`. The same call can also return the checks and the review decision.
-- herdr has a proven command to make a tab with a folder and to run a command in a pane (ADR-0009,
+- herdr has a proven command to make a tab with a folder and to run a command in a pane (ADR-0003,
   R2). No command to read the screen of a pane was tested.
 - A browser throttles the timers of a hidden tab to about one each minute after 5 minutes. That is
   enough for a tab title and a notification.
@@ -76,7 +78,7 @@ progress. The maintainer accepted eleven upgrades and said that the system desig
   the tab icon, and the notifications, which are the first thing the maintainer looks at.
 - **Read the full transcript of a session from the server.** It puts a second reader on the private
   files of Claude Code; the reporter already has the event at the moment it happens.
-- **Make Pipeline the main view.** ADR-0009 and the design direction lead with what needs the
+- **Make Pipeline the main view.** ADR-0003 and the design direction lead with what needs the
   maintainer; equal columns by step make a waiting agent look like any other card.
 
 ## Consequences

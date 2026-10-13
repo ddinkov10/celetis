@@ -13,7 +13,8 @@ Create an ADR when a decision:
 - cannot be recovered from the code.
 
 Do not create one for:
-- a lane-type verdict — which of `/bug`, `/hotfix`, `/feature`, `/chore` an issue takes;
+- a lane-type verdict — which of `/celetis:bug`, `/celetis:hotfix`, `/celetis:feature`,
+  `/celetis:chore` an issue takes;
 - routine maintenance, implementation detail, or a choice the code already makes obvious.
 
 ## How to write one
@@ -21,7 +22,7 @@ Do not create one for:
 1. Read `template.md`.
 2. Copy it to `NNNN-short-title.md`, the next number after the highest in the store.
 3. Fill every section. Omit `Supersedes` when no decision is being replaced.
-4. Use the `record-architecture-decisions` skill to review and land the record.
+4. Use the `celetis:record-architecture-decisions` skill to review and land the record.
 
 ## Rules
 

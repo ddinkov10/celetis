@@ -1,5 +1,7 @@
 # The board is a package of its own, and a contract with a version is its input
 
+Source: ddinkov10/fwrh_calculator ADR-0015. Each issue number of this record is an issue of that repository.
+
 ## Date
 
 2026-10-12
@@ -11,25 +13,25 @@
 - #416 (a session card shows when the step of its session is done), #428 (a New session button),
   and #429 (Go brings the terminal of herdr to the front): features of the board. The build of #430
   transfers them to `ddinkov10/agent-board`. These are their numbers of this repository.
-- ADR-0009 (`docs/adr/0009-a-local-web-board-starts-each-step-in-herdr.md`): superseded in three
+- ADR-0003 (`docs/adr/0003-a-local-web-board-starts-each-step-in-herdr.md`): superseded in three
   parts, below
-- ADR-0010 (`docs/adr/0010-the-board-shows-what-each-agent-asks-and-unblocks-a-stuck-card.md`) and
-  ADR-0011 (`docs/adr/0011-herdr-gives-the-session-state-and-ends-each-step.md`): Resume, Open
+- ADR-0004 (`docs/adr/0004-the-board-shows-what-each-agent-asks-and-unblocks-a-stuck-card.md`) and
+  ADR-0005 (`docs/adr/0005-herdr-gives-the-session-state-and-ends-each-step.md`): Resume, Open
   shell, the session cards from herdr, and the trust rules for the ids stand. The board now starts
   Resume through the `resume` entry of the config, and the script of this repository runs the same
   `claude --resume '#<n> <step>'` command
-- ADR-0013 (`docs/adr/0013-specify-is-a-step-of-the-runner.md`): `specify` is a step of the runner,
+- ADR-0007 (`docs/adr/0007-specify-is-a-step-of-the-runner.md`): `specify` is a step of the runner,
   and Run has one command; both stand
-- ADR-0007 (`docs/adr/0007-agents-merge-lane-prs.md`): it records that the branch-protection API of
+- ADR-0001 (`docs/adr/0001-agents-merge-lane-prs.md`): it records that the branch-protection API of
   GitHub answers 403 for this repository
-- ADR-0014 (`docs/adr/0014-the-build-step-lands-the-change.md`), the record of #415: the flow with
+- ADR-0008 (`docs/adr/0008-the-build-step-lands-the-change.md`), the record of #415: the flow with
   no `finish` step, and `landing.json` beside `gates.json`
 - `scripts/agent-flow.sh`, `.claude/scripts/next-step.sh`, `.claude/agent-flow/board.json`,
   `docs/agents/agent-flow.md`, and the repository `ddinkov10/agent-board`
 
 ## Supersedes
 
-From ADR-0009, "A local web board shows the sessions and starts each step in a herdr tab", three
+From ADR-0003, "A local web board shows the sessions and starts each step in a herdr tab", three
 parts:
 
 - "The board is a local web page of this repository", with its start command
@@ -39,12 +41,12 @@ parts:
 - The consequence that `place.mjs` reads five `stop` texts of the resolver (`STOPS`). No program
   reads a `stop` text.
 
-The trust boundary of ADR-0009 and ADR-0011 stands, with the five new rules of the Decision. The
-other parts of ADR-0009 stand, as ADR-0010, ADR-0011, and ADR-0013 changed them.
+The trust boundary of ADR-0003 and ADR-0005 stands, with the five new rules of the Decision. The
+other parts of ADR-0003 stand, as ADR-0004, ADR-0005, and ADR-0007 changed them.
 
 ## Context
 
-Until #430 the board lived in `.claude/agent-flow/board/` of this repository (ADR-0009). The
+Until #430 the board lived in `.claude/agent-flow/board/` of this repository (ADR-0003). The
 maintainer runs the agent flow in more than one repository on one machine, and wants the same board
 in each repository with no change to its code. The board could not leave this repository, for three
 causes:
@@ -102,7 +104,7 @@ herdr 0.9.3 (installed):
 GitHub:
 
 - The branch-protection API of GitHub answers 403 for this repository, which is private on a
-  personal plan (ADR-0007). `ddinkov10/agent-board` is a private repository of the same account, so
+  personal plan (ADR-0001). `ddinkov10/agent-board` is a private repository of the same account, so
   this record takes it that GitHub protects no tag there.
 
 The build of #430 gave these results for the seven risks of the spec:
@@ -237,7 +239,7 @@ a read are data older than 60 seconds, a session card that is gone, a press of R
 a press of Refresh.
 
 **The producer of this repository.** `scripts/agent-flow.sh --board` prints contract 1, and the
-rule of ADR-0009 holds: each rule has one home.
+rule of ADR-0003 holds: each rule has one home.
 
 - The resolver (`.claude/scripts/next-step.sh --json`) keeps its 3 `gh` calls. It gives each row
   the state that it knows from the tracker and from the working trees: `done`, `blocked` with
@@ -253,7 +255,7 @@ rule of ADR-0009 holds: each rule has one home.
 
 **The trust boundary.** A Run press starts a session in auto mode, and a start of the board in a
 repository runs the scripts that the config of that repository names. Each trust rule that the
-board had before #430 holds with no change (ADR-0009, as ADR-0010 and ADR-0011 changed it). Five
+board had before #430 holds with no change (ADR-0003, as ADR-0004 and ADR-0005 changed it). Five
 rules are new:
 
 - **The config comes from the main checkout only, once.** The page, the data, and a lane worktree

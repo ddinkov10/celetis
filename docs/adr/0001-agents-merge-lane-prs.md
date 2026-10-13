@@ -1,5 +1,7 @@
 # Agents merge lane PRs when CI is green; the human gate is promotion
 
+Source: ddinkov10/fwrh_calculator ADR-0007. Each issue number of this record is an issue of that repository.
+
 ## Date
 
 2026-10-04
@@ -8,7 +10,7 @@
 
 - #385
 - #381 (the board runner), #384 (`scripts/wait-for-staging.sh`), #386 (the board queue)
-- ADR-0005 (`docs/adr/0005-master-staging-production-fast-forward.md`) and ADR-0006 (`docs/adr/0006-production-runs-release-please-releases.md`), which this builds on
+- ddinkov10/fwrh_calculator ADR-0005 (`docs/adr/0005-master-staging-production-fast-forward.md`) and ddinkov10/fwrh_calculator ADR-0006 (`docs/adr/0006-production-runs-release-please-releases.md`), which this builds on
 - `scripts/merge-pr.sh`, `.claude/skills/finish/SKILL.md`, `.claude/scripts/next-step.sh`, `.claude/settings.json`
 - `docs/agents/issue-tracker.md` (Branches, PRs, merge), `docs/agents/herdr-board.md` (Gates, Guards)
 
@@ -18,7 +20,7 @@ The maintainer runs the agent flow from herdr-board and wants the card of an iss
 
 ## Constraints and evidence
 
-- A merge reaches `master`, which deploys to staging only (ADR-0005). Production moves only when the maintainer runs the promote script, and only that script merges the release-please PR (ADR-0006).
+- A merge reaches `master`, which deploys to staging only (ddinkov10/fwrh_calculator ADR-0005). Production moves only when the maintainer runs the promote script, and only that script merges the release-please PR (ddinkov10/fwrh_calculator ADR-0006).
 - The repository is private on a personal plan: `allow_auto_merge` is `false`, and the branch-protection API answers 403. GitHub can neither require checks nor merge a PR by itself (read on 2026-10-04).
 - The repository allows only squash merges. A merged lane PR closes its issue through `Closes #<n>`.
 - gh 2.100.0: `gh pr checks --json bucket` sorts each check into `pass`, `fail`, `pending`, `skipping`, or `cancel`, and `gh pr merge --match-head-commit <sha>` merges only when the PR head is that commit.
