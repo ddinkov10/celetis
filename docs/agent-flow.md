@@ -561,7 +561,9 @@ headless `claude -p` turns, so it needs a `claude` that is logged in, it uses to
 answer of a model can differ between runs. The test runs its turns in the folder where it starts,
 and each turn reads the instruction files of that folder (`AGENTS.md`). So run the test after each
 change of `step-prompt.md`, and run it in a product project after each change of the part of its
-`AGENTS.md` on the agent flow. The script sets `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`, because the
+`AGENTS.md` on the agent flow. In a product project, start it in the main checkout as
+`bash "$(scripts/celetis root)/tests/manual/step-prompt.test.sh"`: the test then reads the step
+text of the installed plugin. The script sets `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`, because the
 git status snapshot of a turn holds the branch name and the last commit subjects, and these can
 state the behavior that a case asserts. A turn with the step text starts with
 `--permission-mode auto`, as a step session does. On 2026-10-12 a headless turn with that flag held

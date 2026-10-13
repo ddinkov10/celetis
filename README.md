@@ -2,12 +2,13 @@
 
 `celetis` is a plugin for Claude Code: a general agent harness. It takes a request from free text
 to a change on the trunk through one GitHub issue: the intent, the lane, the spec, the plan, the
-build, and the landing. The issue is the state store. Each step is one session, each result goes
-onto the issue, and each hand-off reads the issue again.
+build, and the landing. The issue is the state store: each result goes onto the issue, and each
+hand-off reads the issue again.
 
 The plugin holds:
 
-- 18 skills: the lanes, the steps of a lane, and the helpers ("The skills");
+- 18 skills: the lanes, the steps of a lane, the skills for review and memory, and the helpers
+  ("The skills");
 - the scripts: the runner, the resolver, the landing script, the worktree script, and the
   capability scorer ("The commands");
 - the step text of the runner, `step-prompt.md`;
@@ -33,12 +34,13 @@ launcher file. It holds only what is its own:
 | The product facts | `AGENTS.md` |
 | The stores | `docs/adr/` and `docs/lessons/` |
 
-No file of the plugin names a part of a product. The plugin names a role, for example "the verify
-gate of the project", and the product project names the thing. A lane ends when the change is on
-the trunk, which is the default branch of the repository on GitHub: the verify gate, the
-deployment, and each other part of a product stay in the product project. The plugin has no
-`version`, no `bin/` folder, no hook, and no declared dependency, and it gives no permission rule.
-ADR-0012 (`docs/adr/0012-the-harness-is-the-plugin-celetis.md`) holds the reasons.
+No file of the plugin names a part of a product, apart from the records of `docs/adr/`. The plugin
+names a role, for example "the verify gate of the project", and the product project names the
+thing. A lane ends when the change is on the trunk, which is the default branch of the repository
+on GitHub: the verify gate, the deployment, and each other part of a product stay in the product
+project. The plugin has no `version`, no `bin/` folder, no hook, and no declared dependency, and it
+gives no permission rule. ADR-0012 (`docs/adr/0012-the-harness-is-the-plugin-celetis.md`) holds the
+reasons.
 
 ## Requirements
 
@@ -136,7 +138,7 @@ They are files of `.claude/agent-flow/`:
 
 | File | What it holds | With no file |
 |---|---|---|
-| `landing.json` | The landing mechanism. `{"landing": "pr"}` is one PR back to the trunk, which `scripts/celetis land` squash-merges when each check is green. `{"landing": "merge"}` is one squash commit on the trunk, with no PR | `scripts/celetis land` names the two mechanisms and exits 2 |
+| `landing.json` | The landing mechanism. `{"landing": "pr"}` is one PR back to the trunk, which `scripts/celetis land` squash-merges when each check is green. With `pr`, the landing needs one check or more that passes on the PR, so a project with no check uses `merge`. `{"landing": "merge"}` is one squash commit on the trunk, with no PR | `scripts/celetis land` names the two mechanisms and exits 2 |
 | `gates.json` | The gate of each step, `me` or `auto`: `{"triage": "me", "specify": "me", "bug": "me", "chore": "me", "hotfix": "me", "plan": "me", "implement": "me"}` | Each step is `me`, unless the git config of the machine names it `auto` |
 | `board.json` | The commands and the port of the board ("The agent board") | The board shows the session cards only |
 | `worktree-setup.sh` | The setup of a new lane worktree, for example the install of the dependencies and the copy of the files that git ignores | A new worktree gets no setup |
@@ -156,8 +158,8 @@ They are files of `.claude/agent-flow/`:
 - **The worktree setup.** `scripts/celetis worktree <n>` runs the file of the new worktree, in that
   worktree, as `bash .claude/agent-flow/worktree-setup.sh <main checkout>`, with stdout sent to
   stderr. So the file needs no execute bit, and it can print. When it exits with an error, the
-  command removes the worktree and the branch that it made. A marker in the git directory of the
-  worktree records a setup that is done, so the working tree stays clean.
+  command removes the worktree and the branch that it made. A worktree gets its setup one time
+  (`docs/agent-flow.md`, "The config and the custom parts").
 - **A custom part** is read when Claude Code loads its skill, from the root of the checkout where
   the session is at that time. A step that the runner starts reads the custom part of the main
   checkout, and a skill that loads after `EnterWorktree` reads the custom part of the lane branch.
@@ -209,7 +211,7 @@ The plugin names a role, and the `AGENTS.md` of the project names the thing. It 
 |---|---|
 | **The verify gate:** the command that proves a change, and how to read its result | `plan`, `implement`, `chore`, `hotfix`, and `guide` say "the verify gate of the project", and `scripts/celetis land` names it in a refusal |
 | **The architecture and the traps:** the shape of the project in the root file, and the traps of each subsystem in the `AGENTS.md` of its folder. They are the domain knowledge: the plugin has no domain skill (ADR-0006) | `specify`, `bug`, `hotfix`, `plan`, `chore`, and `critic-loop` |
-| **The design document and the look decision,** in a project with a UI: the document that holds the design rules, and how a session builds the options of a look decision and hands them over, with the dev server of the project | `specify` and `bug`; `docs/issue-tracker.md`, "Prototype" |
+| **The design document and the look decision,** in a project with a UI: the document that holds the design rules, and how a session builds the options of a look decision and hands them over, with the dev server of the project | `specify` and `bug`; the two items "Prototype" of `docs/issue-tracker.md`, in "What lives on the issue" and in "Branches, PRs, merge" |
 | **The installed version of a dependency:** how a session reads it, and the documents that an installed package ships | `docs/docs-lookup.md`, which `specify`, `plan`, `bug`, `hotfix`, and `chore` cite |
 | **The agent flow of the project:** what a session must know of the lanes there, for example that the lanes are the plugin `celetis`, the landing mechanism, and the acts that only the maintainer does | Each session, also a step session. So after each change of this part, run the hand-run test in the project ("Tests") |
 
@@ -225,15 +227,41 @@ it have no `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md`. A project tha
 
 - `docs/adr/`, with a `README.md` and a `template.md`: the skill `record-architecture-decisions`
   reads the two files and writes each record as `NNNN-short-title.md`, and the lanes read the
-  records.
+  records. The model for the two files is `docs/adr/README.md` and `docs/adr/template.md` of the
+  plugin.
 - `docs/lessons/INDEX.md`: the catalog of the lessons, with one table row for each lesson. The
-  lanes scan it, and the skill `lesson` adds a row to it.
+  lanes scan it, and the skill `lesson` adds a row to it. A new catalog has this head:
+
+  ```markdown
+  # Lessons
+
+  | Lesson | Tags | Date | Summary |
+  |---|---|---|---|
+  ```
 
 ### Optional: the board in the desktop app
 
 A product project can hold an entry `board` in its `.claude/launch.json` that starts the command of
 the board with `--yes`. A session in a Code tab of the desktop app can then show the page in the
-Browser pane. This start is not checked (`docs/agent-flow.md`, "The board", and "Limits").
+Browser pane. This start is not checked (`docs/agent-flow.md`, "The board", and "Limits"). The
+entry of the first product project is the example. It is one item of the list `configurations` of
+that file, and its `port` is the port of `board.json`:
+
+```json
+{
+  "name": "board",
+  "runtimeExecutable": "npx",
+  "runtimeArgs": ["--yes", "github:ddinkov10/agent-board#semver:^1"],
+  "port": 4403
+}
+```
+
+### Commit the wiring on the trunk
+
+Commit these files on the trunk and push them, by hand, before the first lane. A lane branch starts
+at the trunk of `origin`, so a file that is not there is in no lane worktree: the launcher, the
+worktree setup file, or a custom part. A file that git does not track also makes the main checkout
+dirty, and the resolver then stops each issue.
 
 ## The full loop
 
@@ -255,8 +283,9 @@ has each step.
   the issue again.
 - When you know the type, start the lane directly, with a number or with free text:
   `/celetis:bug the export stops on a report with no rows`.
-- Each step works in the lane worktree of the issue, `.claude/worktrees/<n>-<slug>`, on the branch
-  of the issue. The main checkout never changes branch, so two flows run side by side.
+- A lane and each step after it work in the lane worktree of the issue,
+  `.claude/worktrees/<n>-<slug>`, on the branch of the issue. `intake` and `triage` enter no
+  worktree. The main checkout never changes branch, so two flows run side by side.
 - The landing puts the change on the trunk by the mechanism of `landing.json`. With `pr`,
   `scripts/celetis land <n> '<subject>'` pushes the branch, opens the PR, waits up to 15 minutes
   for the checks, and squash-merges when each check is green. It then removes the worktree and the
@@ -366,10 +395,8 @@ release step.
   They bring the plugin of the machine to the head of `main`. So a change that lands here reaches
   the next step of each product project, with no act by hand. When one of the commands fails, the
   runner prints `agent-flow: the plugin update failed; the session starts on the installed version`
-  and starts the session. After a successful update, the runner reads the install folder again
-  with `scripts/celetis root` and takes the step text from it, so the session gets the skills and
-  the step text of the new version. The runner process keeps the resolver and the logic of its own
-  version until its next start. `--board` and `--resume` make no update and no lookup.
+  and starts the session. After a successful update, the session gets the skills and the step text
+  of the new version (`docs/agent-flow.md`, "How a step runs").
 - **A session by hand** gets no update from the runner. With auto-update on for the marketplace
   ("Wire a product project"), an interactive session updates the copy on disk at most 10 minutes
   after its first message. That session keeps the version that it loaded, and the next session
@@ -447,22 +474,17 @@ Run the tests in a checkout of this repository.
   AGENT_BOARD=<checkout of agent-board>/cli.mjs scripts/verify.sh
   ```
 
-  `tests/agent-flow.test.sh` gives each `--board` document to the checker of the board, so it fails
-  when the runner leaves contract 1. `AGENT_BOARD` names the entry file of a local checkout of the
-  package. With no `AGENT_BOARD`, the test runs the pinned `npx` command, and it needs the network
-  and the git credentials for GitHub.
+  `AGENT_BOARD` names the entry file of a local checkout of the board package, for the contract
+  check of the `--board` documents.
 - **The workflow** `.github/workflows/test.yml` runs each `tests/*.test.sh` and
   `scripts/capscore.sh --test` on Linux, for each pull request and for each push to `main`. It sets
-  `AGENT_FLOW_SKIP_BOARD_CHECK=1`: the package of the board is private, and a workflow of another
-  repository cannot read it. So the workflow does not check contract 1, and the gate on a machine
-  does. Only the workflow sets that variable.
+  `AGENT_FLOW_SKIP_BOARD_CHECK=1`, so it does not make that contract check: the gate on a machine
+  does.
 - **The proof on bash 3.2.** Each script and each test also runs under the `/bin/bash` of macOS:
 
   ```bash
   PATH="/bin:$PATH" /bin/bash tests/<name>.test.sh
   ```
-
-  `PATH` is necessary: some tests start their script with the `bash` that is first on `PATH`.
 - **The text test,** `tests/text.test.sh`, holds the rules of the general text. It fails on a word
   of its list of product words in a file that is no record of `docs/adr/`. It fails on an ADR
   number that names no record of `docs/adr/` and has no `ddinkov10/fwrh_calculator` before it. It
@@ -471,6 +493,14 @@ Run the tests in a checkout of this repository.
   `claude -p` turns. It needs a `claude` that is logged in, it uses tokens, and an answer can
   differ between two runs, so the gate and the workflow do not run it. Run it after each change of
   `step-prompt.md`, and in a product project after each change of the part of its `AGENTS.md` on
-  the agent flow.
+  the agent flow. In a product project, start it in the main checkout:
 
-`docs/agent-flow.md`, "Check the harness", holds the tests in full.
+  ```bash
+  bash "$(scripts/celetis root)/tests/manual/step-prompt.test.sh"
+  ```
+
+  The test then reads the step text of the installed plugin, and it runs its turns in that
+  checkout.
+
+`docs/agent-flow.md`, "Check the harness", holds the tests in full, with the reason of each fact of
+this part.
