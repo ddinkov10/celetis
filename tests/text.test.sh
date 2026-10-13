@@ -133,14 +133,14 @@ for skill in $skills; do
   printf -v custom '!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/%s.md" 2>/dev/null || true`' "$skill"
   end=$(awk -v want="$custom" '{ before = last; last = $0 } END { if (last != want) print FILENAME ":" NR ":" last; else if (before != "") print FILENAME ":" (NR - 1) ":" before }' "$file")
   [ -z "$end" ] || ends+=$end$nl
-  more=$(awk 'index($0, "!`") { where[++n] = NR; text[n] = $0 } END { for (i = 1; i <= n; i++) if (where[i] != NR) print FILENAME ":" where[i] ":" text[i] }' "$file")
+  more=$(awk 'index($0, "!`") || index($0, "```!") { where[++n] = NR; text[n] = $0 } END { for (i = 1; i <= n; i++) if (where[i] != NR) print FILENAME ":" where[i] ":" text[i] }' "$file")
   [ -z "$more" ] || dynamic+=$more$nl
 done
 [ -z "$missing" ] || fail "a skill of the list with no SKILL.md:" "$missing"
-[ -z "$lacks" ] || fail "a line that the frontmatter of a SKILL.md must hold, as <path>:<the line>:" "$lacks"
+[ -z "$lacks" ] || fail "a line that the frontmatter of a SKILL.md must hold, as <path>:<the line> (a frontmatter holds one-line \"key: value\" lines only: with another line in it, the test reads no frontmatter):" "$lacks"
 [ -z "$disabled" ] || fail "a SKILL.md other than skills/guide/SKILL.md with $key in its frontmatter, as <path>:<line>:<text>:" "$disabled"
 [ -z "$ends" ] || fail "the last line of a SKILL.md must be the line of its custom part, with an empty line before it:" "$ends"
-[ -z "$dynamic" ] || fail "a line of a SKILL.md, not its last line, with an exclamation mark directly before a backtick, as <path>:<line>:<text>:" "$dynamic"
+[ -z "$dynamic" ] || fail "a line of a SKILL.md, not its last line, with an exclamation mark directly before a backtick or with three backticks directly before an exclamation mark, as <path>:<line>:<text>:" "$dynamic"
 
 old_folders=$(search -F -e .claude/scripts/ -e .claude/skills/ -e .claude/commands/ -e docs/agents/ -- "${texts[@]}" "$documents")
 [ -z "$old_folders" ] || fail "an old folder of the harness, as <path>:<line>:<text>:" "$old_folders$nl"
@@ -165,7 +165,7 @@ seen=$nl
 while IFS= read -r cite; do
   [ -n "$cite" ] || continue
   path=${cite#*:*:"$root"}
-  is_tracked "$path" || broken+=$cite$nl
+  is_tracked "$path" || { broken+=$cite$nl; continue; }
   [[ ${cite%%:*} =~ $skill_file ]] || continue
   from=${BASH_REMATCH[1]}
   [[ $path =~ $skill_file ]] || continue
@@ -178,6 +178,12 @@ done <<<"$cites"
 [ -z "$alone" ] || fail "a SKILL.md that cites the SKILL.md of another skill and does not name the custom part of that skill, .claude/agent-flow/custom/<name>.md:" "$alone"
 raw=$(search -F CLAUDE_PLUGIN_ROOT -- skills ':(exclude,glob)skills/*/SKILL.md')
 [ -z "$raw" ] || fail "the text CLAUDE_PLUGIN_ROOT in a file of skills/ that is no SKILL.md of a skill, as <path>:<line>:<text>:" "$raw$nl"
+
+unparsed=
+for manifest in .claude-plugin/plugin.json .claude-plugin/marketplace.json; do
+  jq empty "$manifest" 2>/dev/null || unparsed+=$manifest$nl
+done
+[ -z "$unparsed" ] || fail "a manifest of the plugin that is missing or that jq cannot parse:" "$unparsed"
 
 [ "$fails" -eq 0 ]
 echo "PASS"
