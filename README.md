@@ -77,13 +77,12 @@ reasons.
    an interactive session does after that dialog (ADR-0012, R1).
 2. Add and install superpowers the same way: `docs/agent-flow.md`, "Requirements", gives its two
    commands.
-3. Last, turn on auto-update. In `~/.claude/settings.json`, add `"autoUpdate": true` beside
-   `source` in the entry `celetis` of `extraKnownMarketplaces`, and in the entry
-   `superpowers-marketplace`. Do this step last, and again after a later run of an add command: in
-   Claude Code 2.1.296 that command writes the entry again with `source` only. The block of the
-   project file holds the same key for `celetis`, but it is not shown that Claude Code takes the
-   key from a project file (ADR-0012, R2). So the key in `~/.claude/settings.json` is a wiring step
-   of each machine. "Updates" says what auto-update does.
+3. Last, turn on auto-update for superpowers. In `~/.claude/settings.json`, add
+   `"autoUpdate": true` beside `source` in the entry `superpowers-marketplace` of
+   `extraKnownMarketplaces`. Do this step last, and again after a later run of an add command: in
+   Claude Code 2.1.296 that command writes the entry again with `source` only. The entry `celetis`
+   needs no such step: the block of the project file holds the key for `celetis`, and Claude Code
+   takes it from there in a trusted folder (ADR-0012, R2). "Updates" says what auto-update does.
 
 The next parts are the files and the labels of one product project. Make each file in its main
 checkout.
@@ -397,11 +396,11 @@ release step.
   runner prints `agent-flow: the plugin update failed; the session starts on the installed version`
   and starts the session. After a successful update, the session gets the skills and the step text
   of the new version (`docs/agent-flow.md`, "How a step runs").
-- **A session by hand** gets no update from the runner. With auto-update on for the marketplace
-  ("Wire a product project"), an interactive session updates the copy on disk at most 10 minutes
-  after its first message. That session keeps the version that it loaded, and the next session
-  loads the new one: a change reaches a session by hand one session late (ADR-0010). The two
-  commands are the sure way.
+- **A session by hand** gets no update from the runner. The block of the project file turns
+  auto-update on for the marketplace `celetis` ("Wire a product project"). An interactive session
+  then updates the copy on disk at most 10 minutes after its first message. That session keeps the
+  version that it loaded, and the next session loads the new one: a change reaches a session by
+  hand one session late (ADR-0010, and ADR-0012, R2). The two commands bring a change at once.
 - **By hand, at once:** the same two commands. The second command alone can miss a commit: it makes
   no fetch for about 30 seconds after a refresh of the marketplace. The update with no `--scope`,
   `claude plugin update celetis@celetis`, moves only the `project` record of a checkout that has

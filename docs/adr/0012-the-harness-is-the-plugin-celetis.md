@@ -292,11 +292,19 @@ the build session made on these results. It is not a result of a probe.
     from `enabledPlugins` of the project file.
   - No update removed a version folder. The folders that no record named had a marker
     `.orphaned_at`. No probe shows the cleanup after 14 days.
-- **R2, `autoUpdate` in a project file: open.** ADR-0010 records that this is not tested. Its
-  probe needs an interactive session in a trusted folder with the project file, and the checkout
-  of `ddinkov10/celetis` is the first such folder. Task 11 of the plan settles it there, and
-  this record gets the result then. The fallback is the key in `~/.claude/settings.json`, as for
-  superpowers.
+- **R2, `autoUpdate` in a project file: holds.** ADR-0010 records that this was not tested. The
+  probe was one interactive session in the trusted checkout of `ddinkov10/celetis`. The project
+  file of that checkout holds the key on the entry `celetis`, and the entry `celetis` of
+  `~/.claude/settings.json` had no `autoUpdate`. Before the session, the `user` record, the
+  `project` record of that checkout, and the marketplace clone were at `6793272cdd9d`, and
+  `main` was at `8943f2d5ea39`. 3 min 18 s after the start of the session, the two records and
+  the clone were at `8943f2d5ea39`, and no `claude plugin` command ran. So the key of the
+  project file is sufficient for `celetis` in a trusted folder, and the new version reaches the
+  next session. The probe is one run, in a checkout that has a `project` record.
+- **A session in a trusted checkout with the project file makes a `project` record.** One
+  headless turn in the checkout of `ddinkov10/celetis`, after its project file was there, made
+  a `project` record of that checkout at the version of the `user` record. The update before a
+  step moves only the `user` record, and the auto-update of R2 moved the two records.
 - **One check is open: V5b of the Verify phase.** After an update moved the `user` record, one
   interactive session in the trusted checkout of `ddinkov10/celetis` shows the version folder
   that it loads. The check gives an answer only when the `project` record of that checkout is
@@ -460,7 +468,8 @@ of the project. A plugin gives no permission rule.
   `claude plugin update celetis@celetis` for a session by hand. In a checkout that has a
   `project` record, that form moves only that record.
 - **A session by hand** gets a change from auto-update at most one session late (ADR-0010), when
-  auto-update is on for the marketplace. R2 is open, so the two commands are the sure way.
+  auto-update is on for the marketplace. The key of the project file turns it on (R2). The two
+  commands bring a change at once.
 - `--board` and `--resume` make no update and no lookup.
 
 **The config.** It is in `.claude/agent-flow/` of the main checkout of the product project. The
@@ -673,9 +682,8 @@ and a runner that stays open for more than 14 days (Consequences).
   its file stem, and that stem has the new number.
 - **The ADR store of `ddinkov10/fwrh_calculator` keeps the eleven records** with their old
   numbers until ddinkov10/fwrh_calculator#442 decides on them. The two stores can then differ.
-- **Three things are open at the date of this record:** `autoUpdate` in a project file
-  (R2), the record that an interactive session in a trusted checkout loads (V5b), and the
-  launcher on a Windows host (R10). If V5b shows that a session loads a stale `project` record,
+- **Two things are open at the date of this record:** the record that an interactive session
+  in a trusted checkout loads (V5b), and the launcher on a Windows host (R10). If V5b shows that a session loads a stale `project` record,
   the update gets a third command, `claude plugin update celetis@celetis --scope project`.
 
 ## Reconsider when
