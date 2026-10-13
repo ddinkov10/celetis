@@ -42,9 +42,11 @@ S=$AGENT_FLOW_TEST_STATE
 if [ "$1" = plugin ]; then
   echo "$*" >>"$S/plugin-calls"
   echo "$*" >>"$S/order"
-  echo "fake claude plugin: output"
+  IFS= read -r _ || true
   echo "fake claude plugin: error" >&2
   [ ! -f "$S/plugin-fail" ] || exit 1
+  [ "$2" != list ] || { cat "$S/plugin-list" 2>/dev/null || echo '[]'; exit 0; }
+  echo "fake claude plugin: output"
   exit 0
 fi
 for prompt; do :; done
@@ -156,9 +158,17 @@ await() {
 sessions() { calls claude-env | cut -d'|' -f1,2; }
 locks() { ls "$st" 2>/dev/null | grep -c '\.lock$' || true; }
 rows() { wc -l <"$st/no-progress" | tr -d ' '; }
-form() { printf '[--permission-mode][auto][-n][#%s %s][--append-system-prompt-file][%s/step-prompt.md][/celetis:%s #%s]' "$1" "$2" "$plugin" "$2" "$1"; }
+form() { printf '[--permission-mode][auto][-n][#%s %s][--append-system-prompt-file][%s/step-prompt.md][/celetis:%s #%s]' "$1" "$2" "${3:-$plugin}" "$2" "$1"; }
 update="plugin marketplace update celetis
 plugin update celetis@celetis --scope user"
+lookup="plugin list --json"
+moved="$tmp/moved plugin"
+bare="$tmp/bare plugin"
+mkdir -p "$moved/scripts" "$bare/scripts"
+cp "$root/scripts/root.sh" "$moved/scripts/root.sh"
+cp "$root/scripts/root.sh" "$bare/scripts/root.sh"
+echo "the step text of the moved plugin" >"$moved/step-prompt.md"
+plugin_list() { printf '[{"id":"celetis@celetis","scope":"user","installPath":"%s"}]\n' "$1" >"$S/plugin-list"; }
 usage="usage: scripts/celetis agent-flow [<issue number>...] | --board | --resume <issue number>, e.g. scripts/celetis agent-flow 373 374; with no number, the automatic runner"
 
 reset; echo 1 >"$S/claude-exit"
@@ -180,8 +190,10 @@ agent-flow: stop #7 is finished." ] || fail "a start with a number must start th
 
 reset; issue 7 OPEN enhancement "Spec: x"
 run_flow 7
-[ "$(calls plugin-calls)" = "$update" ] && [ "$(calls order)" = "$update
-session /celetis:plan #7" ] || fail "a step start must run the two update commands, in order, before its session: [$(calls order)]"
+[ "$(calls plugin-calls)" = "$update
+$lookup" ] && [ "$(calls order)" = "$update
+$lookup
+session /celetis:plan #7" ] || fail "a step start must run the two update commands and then the lookup, in order, before its session: [$(calls order)]"
 [ "$out" = "agent-flow: start: /celetis:plan #7
 agent-flow: no progress: /celetis:plan #7" ] && [ -z "$err" ] || fail "the update must print nothing: [$out] [$err]"
 
@@ -195,9 +207,36 @@ agent-flow: no progress: /celetis:plan #7" ] && [ -z "$err" ] || fail "a failed 
 reset; issue 7 OPEN enhancement "Spec: x"; after 7 1 OPEN enhancement "Spec: x" "## Plan"
 run_flow 7
 [ "$(calls order)" = "$update
+$lookup
 session /celetis:plan #7
 $update
+$lookup
 session /celetis:implement #7" ] || fail "the update must run before each of two sessions: [$(calls order)]"
+
+reset; issue 7 OPEN enhancement "Spec: x"; plugin_list "$moved"
+run_flow 7
+[ "$(calls claude-calls)" = "$(form 7 plan "$moved")" ] && [ -z "$err" ] || fail "a session must take the step text of the folder that the update installed: [$(calls claude-calls)] [$err]"
+
+reset; issue 7 OPEN enhancement "Spec: x"; after 7 1 OPEN enhancement "Spec: x" "## Plan"; plugin_list "$moved"
+run_flow 7
+[ "$(calls claude-calls)" = "$(form 7 plan "$moved")
+$(form 7 implement "$moved")" ] && [ -z "$err" ] || fail "the second of two sessions must keep the installed folder: [$(calls claude-calls)] [$err]"
+
+reset; issue 7 OPEN enhancement "Spec: x"; after 7 1 OPEN enhancement "Spec: x" "## Plan"; plugin_list "$moved"
+echo oops >"$S/after/7/1/plugin-list"
+run_flow 7
+[ "$(calls claude-calls)" = "$(form 7 plan "$moved")
+$(form 7 implement "$moved")" ] && [ -z "$err" ] || fail "a lookup that gives no folder must keep the folder that the runner has: [$(calls claude-calls)] [$err]"
+
+reset; issue 7 OPEN enhancement "Spec: x"; echo oops >"$S/plugin-list"
+run_flow 7
+[ "$out" = "agent-flow: start: /celetis:plan #7
+agent-flow: no progress: /celetis:plan #7" ] && [ "$(calls claude-calls)" = "$(form 7 plan)" ] && [ -z "$err" ] || fail "a lookup that prints no JSON must keep the folder of the runner, with no error: [$out] [$(calls claude-calls)] [$err]"
+
+reset; issue 7 OPEN enhancement "Spec: x"; plugin_list "$bare"
+run_flow 7
+[ "$out" = "agent-flow: start: /celetis:plan #7
+agent-flow: no progress: /celetis:plan #7" ] && [ "$(calls claude-calls)" = "$(form 7 plan)" ] && [ -z "$err" ] || fail "a folder with no step-prompt.md must keep the folder of the runner, with no error: [$out] [$(calls claude-calls)] [$err]"
 
 reset
 issue 7 OPEN bug "It breaks"; after 7 1 OPEN bug "It breaks" "## Root cause"

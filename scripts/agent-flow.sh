@@ -127,8 +127,13 @@ end_when_done() {
 }
 
 update_plugin() {
-  { claude plugin marketplace update celetis && claude plugin update celetis@celetis --scope user; } >/dev/null 2>&1 </dev/null ||
+  local moved
+  if { claude plugin marketplace update celetis && claude plugin update celetis@celetis --scope user; } >/dev/null 2>&1 </dev/null; then
+    moved=$("$here/celetis" root </dev/null 2>/dev/null) || return 0
+    [ ! -f "$moved/step-prompt.md" ] || root=$moved
+  else
     say "the plugin update failed; the session starts on the installed version"
+  fi
 }
 
 run_issue() {
