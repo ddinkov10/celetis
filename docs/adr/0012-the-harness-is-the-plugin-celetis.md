@@ -12,7 +12,7 @@
   related plan of its spec was "the harness in a repository of its own, with Copier"
 - ddinkov10/fwrh_calculator#412: the superpowers plugin and its auto-update (ADR-0010)
 - ddinkov10/fwrh_calculator#394: the last change of the harness in its first repository
-  (ADR-0011). It landed before the lift
+  (ADR-0011). It landed before the move of the harness files
 - ddinkov10/fwrh_calculator#442: the harness records in the ADR store of that product
 - ddinkov10/fwrh_calculator#422: the runner and the board on a Windows host, with no bash file
 - ddinkov10/agent-board#5: the lane flow in `ddinkov10/agent-board`. It was
@@ -133,10 +133,10 @@ maintainer said: "layer one is everything that we will extract. So this project 
 work. After that, with new issues, we will add new functionality there, such as setup,
 additionals, skills, agents".
 
-The build of ddinkov10/fwrh_calculator#435 wrote this record during the lift, after the scripts
-and their tests were in the plugin repository and before the documents, the skills, the
-self-host, and the switch. For those parts this record holds the decision, and that issue holds
-the results.
+The build of ddinkov10/fwrh_calculator#435 wrote this record when the scripts and their tests
+were in the plugin repository. The documents and the skills were not there, no lane had run in
+`ddinkov10/celetis`, and `ddinkov10/fwrh_calculator` still had its own copy of the harness. For
+those parts this record holds the decision, and that issue holds the results.
 
 ## Constraints and evidence
 
@@ -229,7 +229,7 @@ Other facts:
 
 The probes. The build made them on 2026-10-12 on the Mac of the maintainer, with the plugin
 `celetis@celetis` from `ddinkov10/celetis`. `P` was a new repository whose `.claude/settings.json`
-held the wiring block of the Decision. A turn was
+held the marketplace and the two enabled plugins, and no permission rule. A turn was
 `claude -p --no-session-persistence --permission-mode <mode> '/celetis:probe'` in `P`. The comment
 `## Risk results` on ddinkov10/fwrh_calculator#435 holds each result with the name of its
 evidence file. The files are in the lane worktree of that issue, and they go with it at the
@@ -252,25 +252,26 @@ the build session made on these results. It is not a result of a probe.
   session. With that line in a throwaway skill, a turn in `default`, in `auto`, and in `dontAsk`
   gave the text of the custom file, with no tool call and no error text. After
   `cd .claude/agent-flow`, the Skill tool gave the same text. After `EnterWorktree`, it gave the
-  custom file of the lane branch. In a worktree with no custom file, the skill got the text
-  `(Bash completed with no output)` in place of the line.
+  custom file of the lane branch. In a worktree with no custom file, the skill showed no error,
+  and it got the text that "With no custom file" in the Decision names.
   - The permission check is active in these turns: a control skill with a line that writes a
     file did not load in `default` and in `dontAsk` (`Shell command permission check failed`). In
     a `-p` turn, a failed check gives an empty answer and exit code 0.
   - In `auto`, a line that only reads ran when the skill loaded, with no tool call. The control
     line, which needs an approval, went to the model, and the model ran it with the Bash tool.
-  - The line runs when the skill loads, in the checkout where the shell of the session is at
-    that time. No turn loaded a skill and then entered a worktree.
+  - No turn loaded a skill and then entered a worktree. "Which checkout" in the Decision follows
+    from the time at which the line runs.
   - In a folder that is no git repository, the shell text of the line prints one `fatal:` line
     of git on stderr and exits 0. No turn loaded a skill in such a folder.
   - Limit: each turn was a `-p` turn in `P`, which was not trusted and had no permission rule.
     No turn probed the line together with the `allow`, `ask`, and `deny` rules of a product
     project.
-- **R3, the update before a step: holds.** The two commands of the Decision are a ruling of the
-  build session. `claude plugin update celetis@celetis --scope user` alone refreshes the
-  marketplace clone and moves the `user` record: in five runs it got a new commit in about
-  5.5 s, and a new turn then printed the new version. But after a refresh of that clone it makes
-  no fetch for about 30 s. 3 s after a refresh it printed
+- **R3, the update before a step: holds.** The two commands of the Decision are the default of
+  decision 8 of the plan. The probes confirmed that default, and the build session kept it by a
+  ruling. `claude plugin update celetis@celetis --scope user` alone refreshes the marketplace
+  clone and moves the `user` record: in five runs it got a new commit in about 5.5 s, and a new
+  turn then printed the new version. But after a refresh of that clone it makes no fetch for
+  about 30 s. 3 s after a refresh it printed
   `celetis is already at the latest version (eef069313c98)` in 0.64 s with exit code 0, while
   `main` of `origin` was at `5202ff8`. Directly after that, the two commands moved the `user`
   record to `5202ff806686`. The documents state a rule of 30 seconds for the refresh before an
@@ -293,9 +294,9 @@ the build session made on these results. It is not a result of a probe.
     `.orphaned_at`. No probe shows the cleanup after 14 days.
 - **R2, `autoUpdate` in a project file: open.** ADR-0010 records that this is not tested. Its
   probe needs an interactive session in a trusted folder with the project file, and the checkout
-  of `ddinkov10/celetis` is the first such folder. Task 11 of the plan, the self-host, settles
-  it, and this record gets the result then. The fallback is the key in `~/.claude/settings.json`,
-  as for superpowers.
+  of `ddinkov10/celetis` is the first such folder. Task 11 of the plan settles it there, and
+  this record gets the result then. The fallback is the key in `~/.claude/settings.json`, as for
+  superpowers.
 - **One check is open: V5b of the Verify phase.** After an update moved the `user` record, one
   interactive session in the trusted checkout of `ddinkov10/celetis` shows the version folder
   that it loads. The check gives an answer only when the `project` record of that checkout is
@@ -305,8 +306,10 @@ The scripts and their tests, at the date of this record:
 
 - Each script test of the plugin passes in `scripts/verify.sh`, under `/bin/bash` 3.2 of macOS,
   and in the workflow on Linux. Each test of a script starts it from a folder with a space.
-- A script that starts outside a git repository stops with the `fatal:` line of git: the script
-  is in the folder of the plugin, so only the current folder names the product project.
+- A script that reads the product project stops outside a git repository with the `fatal:` line
+  of git: `worktree.sh`, `land.sh`, `next-step.sh`, and `agent-flow.sh`. The script is in the
+  folder of the plugin, so only the current folder names the product project. `capscore.sh` and
+  `root.sh` read no product project and run in each folder.
 
 ## Decision
 
@@ -396,9 +399,9 @@ The maintainer made sixteen decisions in the `specify` session of 2026-10-12:
   Linux.
 - **The plugin declares no dependency on superpowers.** The settings file of each product
   project enables the two plugins.
-- **The numbers of the ADR copies come from the store at the time of the build**, a copy changes
-  only in its numbers, and the record of the move lists the parts of the copies that describe
-  the harness before the plugin. "The ADR copies", below, and Supersedes hold the result.
+- **The numbers of the ADR copies come from the store at the time of the build**, and the record
+  of the move lists the parts of the copies that describe the harness before the plugin. "The
+  ADR copies", below, holds the rule of a copy, and Supersedes holds the list.
 - **A project can have a custom part for each skill.** `ddinkov10/fwrh_calculator` gets two:
   `hotfix.md` and `implement.md`.
 - **The test of the step text is a hand-run test.** It runs live `claude -p` turns, so it is not
@@ -440,11 +443,12 @@ of the project. A plugin gives no permission rule.
 
 **Versions and updates.** Each commit on `main` of `ddinkov10/celetis` is a new version.
 
-- **Before the runner starts the session of a step, it runs two commands (ruling of the build
-  session):** `claude plugin marketplace update celetis`, then
-  `claude plugin update celetis@celetis --scope user`. The second command alone has the window
-  of about 30 s of the evidence: a commit that lands in that window does not come, and the
-  command gives no sign.
+- **Before the runner starts the session of a step, it runs two commands:**
+  `claude plugin marketplace update celetis`, then
+  `claude plugin update celetis@celetis --scope user`. They are the default of decision 8 of the
+  plan. The probes confirmed that default, and the build session kept it by a ruling: the second
+  command alone has the window of about 30 s of the evidence, in which a commit that lands does
+  not come, and the command gives no sign.
 - **A failed update does not stop a step.** The runner prints
   `agent-flow: the plugin update failed; the session starts on the installed version` and starts
   the session.
@@ -459,8 +463,8 @@ of the project. A plugin gives no permission rule.
   auto-update is on for the marketplace. R2 is open, so the two commands are the sure way.
 - `--board` and `--resume` make no update and no lookup.
 
-**The config.** The scripts read `gates.json`, `landing.json`, and `board.json` from
-`.claude/agent-flow/` of the main checkout of the product project. A project with no
+**The config.** It is in `.claude/agent-flow/` of the main checkout of the product project. The
+scripts read `gates.json` and `landing.json`, and the board reads `board.json`. A project with no
 `gates.json` has each gate `me`, and `land` refuses a missing or wrong `landing.json`.
 
 **The worktree setup.** `scripts/celetis worktree <n>` makes the worktree and the branch from the
@@ -471,8 +475,8 @@ worktree, with stdout sent to stderr. So the file needs no execute bit and can p
 path of the worktree is the only stdout line. A non-zero exit removes the new worktree and prints
 `worktree setup failed`. A project with no such file gets no setup. The marker of a setup that is
 done is `<git dir of the worktree>/agent-flow-setup-done`: a file in the working tree makes the
-tree dirty. A lane worktree from before the switch has no such marker, so its setup runs one more
-time.
+tree dirty. A lane worktree that the old harness made has no such marker, so its setup runs one
+more time.
 
 **A custom part.** It is the file `.claude/agent-flow/custom/<skill>.md` of a product project,
 with the name of a skill of the plugin. Its text is an addition to one step. It cannot remove a
@@ -482,7 +486,8 @@ rule of the general skill, and it is no domain skill (ADR-0006).
   session):**
   `` !`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/<skill>.md" 2>/dev/null || true` ``,
   with no `allowed-tools` line. It reads the file from the root of the checkout where the shell
-  of the session is when the skill loads.
+  of the session is when the skill loads. The plan named three other forms ("Alternatives
+  considered").
 - **Which checkout.** A skill that is the first prompt of a session, as in each step that the
   runner starts, reads the custom part of the main checkout. A skill that loads after
   `EnterWorktree` reads the custom part of the lane branch. So the sentence of the spec "a lane
@@ -500,13 +505,14 @@ of the project"); a custom part, for an addition to one step; or no home, when a
 `.claude/settings.json` or the gate holds it already. A skill changes only where it names a
 product part, a path of the harness, or a command name. `tests/text.test.sh` is the authority:
 it fails on a product word of `ddinkov10/fwrh_calculator` (`backend`, `frontend`, `staging`,
-`promote`, `fwhr`, `DESIGN.md`, `verify.py`) in a file outside `docs/adr/`, with an allow list
-for general uses.
+`promote`, `fwhr`, `DESIGN.md`, `verify.py`) in a file that is no record of `docs/adr/`, with an
+allow list for general uses.
 
 **The ADR copies.** ADR-0001 to ADR-0011 are the copies of ddinkov10/fwrh_calculator ADR-0007
 to ddinkov10/fwrh_calculator ADR-0017, in the same order: the number of a copy is the old number
 minus 6, and its file keeps its slug. A copy changes only in its numbers. Each reference to one
-of those eleven records has the new number. Each reference to a record of that product has
+of those eleven records has the new number, apart from one sentence of ADR-0008 that quotes two
+issue texts (Consequences). Each reference to a record of that product has
 `ddinkov10/fwrh_calculator ` before it, as in ddinkov10/fwrh_calculator ADR-0005. Line 3 of a
 copy names its source. No other text changes, so an issue number in a copy is an issue of
 `ddinkov10/fwrh_calculator`. The records stay in that repository too. The same test fails on an
@@ -523,51 +529,22 @@ A session there loads the installed plugin, which is the landed `main`, not the 
 checkout, and its launcher runs the scripts of the installed plugin too. `claude --plugin-dir .`
 loads the files of the checkout for a test of a change.
 
-**Decisions of the plan.** The plan of ddinkov10/fwrh_calculator#435 made these decisions. The
-parts above hold those on the install record, the `user` record, the marker, the trunk, and the
-skip variable. The others:
+**Decisions of the plan.** The plan of ddinkov10/fwrh_calculator#435 made eighteen decisions.
+The parts above hold seven of them: the install record ("The wiring"), the `user` record ("The
+launcher"), the marker and the trunk ("The worktree setup"), the skip variable
+("`ddinkov10/celetis` as a product project"), the two commands of the update ("Versions and
+updates"), and the map of the ADR copies ("The ADR copies"). "Alternatives considered" holds one
+more: the three forms of the line of the custom part. Two more shape the plugin:
 
-- **The line of the custom part had three forms**, to try in this order: the plain
-  `cat .claude/agent-flow/custom/<skill>.md` line, that line with an `allowed-tools` line, and a
-  sentence that tells the session to read the file. The build took a fourth line, above.
 - **Tests are in `tests/`.** The hand-run test of the step text is
   `tests/manual/step-prompt.test.sh`, so the glob `tests/*.test.sh` of the gate and of the CI
   does not run it. It runs its turns in the folder where it starts, so it also checks the
   `AGENTS.md` of a product project.
 - **The text test has two more checks than the spec names:** old names of the harness, and the
   citations of the skills.
-- **The skeleton had a throwaway skill, `probe`,** for the probes. The task that brings the
-  skills removes it.
-- **The step text moved with the runner, and its hand-run test comes after the skills**, because
-  its cases quote them.
-- **R2 is settled in the self-host**, not with the other risks.
-- **The self-host issue is a real chore of `ddinkov10/celetis`:** the lesson store gets its
-  index file. It starts with `needs-triage`, so the run proves `triage` and `chore`.
-- **The Windows check is the human precondition of the landing** of the switch. The session
-  posts its `## Before landing` comment at the landing: an earlier comment with no label makes
-  the Land step skip its stop.
-- **The acts after the landing run in the turn of the landing**, in the run that lands. They are
-  no build task, so the re-entry rule of `implement` does not skip them.
-- **The maintainer pulls the main checkout of `ddinkov10/fwrh_calculator` after the landing.** A
-  pull by the session removes the resolver that the old runner uses to end that session.
-- **The comment on an open issue with an old plan does not start with `## `:** such a comment
-  ends a current landing refusal.
 
-**The parts of the build.** One lane, one plan, and one PR in `ddinkov10/fwrh_calculator`, with
-five parts in this order. The build makes no repository, no delete, and no force push.
-
-1. **Check.** The first commit is the skeleton of the plugin, and the build settles R1, R3, R4,
-   and R5 with it.
-2. **Lift.** The build pushes the general harness to `ddinkov10/celetis`. A lift makes two
-   commits: the files as they are at the source commit, then the changes.
-3. **Self-host.** `ddinkov10/celetis` gets its wiring and its config, one real issue of that
-   repository goes through a lane there and lands, and the agent board starts there.
-4. **Switch.** In `ddinkov10/fwrh_calculator`: the removals, the wiring, the new files, and the
-   documents. The change lands with the old landing script of the main checkout. That is its
-   last run.
-5. **After the landing.** The build session files the later issues, transfers
-   ddinkov10/fwrh_calculator#422 to `ddinkov10/celetis`, and comments on
-   ddinkov10/agent-board#5: the lane flow there is the wiring of the plugin.
+The other eight decisions are on the way and the order of the build, not on the plugin. The
+plan and the order of the build are on ddinkov10/fwrh_calculator#435.
 
 **The later issues**, in the order that the maintainer approved. They are issues of
 `ddinkov10/celetis` unless the line names another repository.
@@ -597,28 +574,30 @@ and a runner that stays open for more than 14 days (Consequences).
   uses directly with its custom parts injected. A project can then edit each line of a step. But
   a copy drifts, and a fix must reach each copy.
 - **The `bin/` folder of the plugin in place of the launcher.** It needs no file in a product
-  project. But Claude Code puts that folder on the `PATH` of the Bash tool only, after the
-  entries of the user: a terminal and the board do not get it, and a command of the user with
-  the same name comes first. The documents do not show it for a subagent or for a Windows host.
-  The config of the board also names a file inside the main checkout (ADR-0009), and the
-  launcher is such a file.
+  project. But by the fact of the documents on `bin/` ("Constraints and evidence"), a terminal
+  and the board do not get that folder. The documents do not show it for a subagent or for a
+  Windows host. The config of the board also names a file inside the main checkout (ADR-0009),
+  and the launcher is such a file.
 - **The fork `ddinkov10/dinq-harness` as the home.** It holds the plugin `dinq-harness` in a
   fork of superpowers. The maintainer said that it is a dead end (decision 4).
 - **A version and a release step.** A product project then stays on a copy until a release, so a
   bad change does not reach it at once. But each change waits for a release, and the maintainer
   asked for fast iteration in the first rounds (decision 6). Layer 1 has neither.
 - **The wiring from the project file only**, with no command on a machine. The documents allow
-  it for a relative-path entry, but no probe showed it (R1), and the launcher needs the install
-  record.
+  it for a relative-path entry. "The wiring" in the Decision gives the two causes against it.
 - **The launcher keeps the folder that it found in a file.** It was the fallback of R5. The
   lookup takes about 0.7 s, so it is not necessary, and a kept folder is the folder of an old
   version after each update.
-- **`cat .claude/agent-flow/custom/<skill>.md` as the line of the custom part.** It passed each
-  probe, but after a `cd` to a subfolder it loses the custom part with no error.
-- **`git show HEAD:.claude/agent-flow/custom/<skill>.md` as that line.** It ran with no prompt
-  in each mode. It gives the text of the last commit of the branch, not the text of the file.
-- **A sentence that tells the session to read the custom file.** It was the fallback of R4, and
-  R4 holds.
+- **The three forms of the line of the custom part that the plan named**, to try in this order.
+  The first is `cat .claude/agent-flow/custom/<skill>.md`. The risk results say that it "passed
+  each condition of the brief" of the probe task. The probe in a subfolder is the one that it
+  did not pass: after a `cd` to a subfolder it loses the custom part with no error. The second
+  is that line with an `allowed-tools` line. The first form and the line of the Decision ran in
+  each mode with no such line. The third is a sentence that tells the session to read the custom
+  file. It was the fallback of R4, and R4 holds.
+- **`git show HEAD:.claude/agent-flow/custom/<skill>.md` as the line of the custom part.** It
+  ran with no prompt in each mode. It gives the text of the last commit of the branch, not the
+  text of the file.
 - **`claude plugin update celetis@celetis --scope user` alone before a step.** It is the
   shortest sequence that got a new commit, but it has the window of about 30 s.
 - **No update in the runner, and one command by hand.** It was the fallback of R3. A change of
@@ -653,43 +632,48 @@ and a runner that stays open for more than 14 days (Consequences).
   behind the scripts that its launcher runs.
 - **A Windows host (R10).** The Bash tool of a Windows host is Git Bash, and the scripts run
   there. The launcher turns a Windows path with `cygpath`, but no session showed its lookup
-  there: the build session has no Windows host. The maintainer makes that check before the
-  switch lands.
+  there: the build session has no Windows host. The maintainer makes that check before
+  `ddinkov10/fwrh_calculator` changes to the plugin.
 - **Each machine needs two commands one time.** The install enables the plugin at the `user`
   scope, so each session of that machine loads it, in each folder.
-- **Each step that the runner starts begins 4 to 6 s later**, and it needs the network and a
-  credential for the update. The times are for a repository of about ten files, and for a new
-  commit the first command makes a full clone.
+- **Each step that the runner starts begins about 5 to 7 s later.** The two commands take 4.2 s
+  with nothing new and 6.2 s with a new commit, and the one lookup of the launcher after a good
+  update takes 0.68 s. The step needs the network and a credential for the update. The times are
+  for a repository of about ten files, and for a new commit the first command makes a full
+  clone.
 - **A runner process that stays open keeps the folder of its own version** for its resolver and
-  its launcher. Claude Code removes that folder 14 days after an update. After that, such a
-  runner prints `next-step.sh printed no line` for each issue. The cure is a new start of the
-  runner. Layer 1 does not fix this.
-- **A step that the runner starts reads the custom part of the main checkout.** A change of a
-  custom part on a lane branch reaches such a step only after it is on the trunk and in the main
-  checkout.
-- **The text of a skill is not the same in each folder.** With no custom file it ends with
-  `(Bash completed with no output)`. In a folder that is no git repository, the line gives one
-  `fatal:` line of git, which goes into the text by the documents. The setting
-  `disableSkillShellExecution` turns the custom parts off.
+  its launcher. Claude Code removes that folder 14 days after an update. After that, the
+  automatic runner (the form with no number, which is the form that stays open) cannot start
+  `next-step.sh`. It prints `agent-flow: stop cannot read the open issues from GitHub` one time,
+  and bash prints a `No such file or directory` line each 60 s. A runner with numbers prints
+  `agent-flow: #<n>: next-step.sh printed no line` for each number. The first line points at
+  GitHub, and the cause is the removed folder. The cure is a new start of the runner. Layer 1
+  does not fix this.
+- **A change of a custom part on a lane branch reaches a step that the runner starts only after
+  it is on the trunk and in the main checkout** ("Which checkout" in the Decision).
+- **The text of a skill is not the same in each folder.** With no custom file it ends with the
+  text that "With no custom file" in the Decision names. In a folder that is no git repository,
+  the line gives one `fatal:` line of git, which goes into the text by the documents. The
+  setting `disableSkillShellExecution` turns the custom parts off.
 - **The permission rules are the work of each product project.** The plugin gives none. A rule
   matches the text of a command, so a command with `./` before `scripts/celetis` does not match
   the `allow` rule.
-- **Two names stay until the rename:** the plugin is `celetis`, and its config folder, its lock
-  folder, its git config key, and its line prefix are `agent-flow`.
+- **Two names stay until the rename:** the plugin is `celetis`, and each place that the call
+  "The name `agent-flow` stays" lists keeps the name `agent-flow`.
 - **The CI of the plugin repository does not check contract 1.** A change of the runner that
   breaks the contract passes the CI and fails the verify gate on a machine.
-- **In `ddinkov10/celetis`, a session and the launcher use the installed plugin.** A change on a
-  lane branch there reaches no session before it lands, unless the session starts with
-  `--plugin-dir`. The tests run the files of the checkout.
+- **A change on a lane branch of `ddinkov10/celetis` reaches no session before it lands**, unless
+  the session starts with `--plugin-dir` ("`ddinkov10/celetis` as a product project" in the
+  Decision). The tests run the files of the checkout.
 - **The copies have two number systems in one text.** ADR-0005 is a record of this store, and
-  ddinkov10/fwrh_calculator ADR-0005 is a record of that product. A copy that quotes the number
-  that an issue text gives a record shows the new number: ADR-0008 says that the spec on its
-  issue names it ADR-0006, and that issue text holds ddinkov10/fwrh_calculator ADR-0012. A
-  number with no `ADR-` before it did not change: ADR-0009 gives its own number as 0015. One
-  `Supersedes` section names a record by its file stem, and that stem has the new number.
+  ddinkov10/fwrh_calculator ADR-0005 is a record of that product. A copy that quotes a number of
+  an issue text holds that number with the repository before it: ADR-0008 says that the spec on
+  its issue names it ddinkov10/fwrh_calculator ADR-0012. A number with no `ADR-` before it did
+  not change: ADR-0009 gives its own number as 0015. One `Supersedes` section names a record by
+  its file stem, and that stem has the new number.
 - **The ADR store of `ddinkov10/fwrh_calculator` keeps the eleven records** with their old
   numbers until ddinkov10/fwrh_calculator#442 decides on them. The two stores can then differ.
-- **Three things were not shown at the date of this record:** `autoUpdate` in a project file
+- **Three things are open at the date of this record:** `autoUpdate` in a project file
   (R2), the record that an interactive session in a trusted checkout loads (V5b), and the
   launcher on a Windows host (R10). If V5b shows that a session loads a stale `project` record,
   the update gets a third command, `claude plugin update celetis@celetis --scope project`.

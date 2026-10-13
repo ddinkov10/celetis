@@ -5,8 +5,9 @@ cd "$(dirname "$0")/.."
 allow=tests/product-words.allow
 words='backend|frontend|staging|promote|fwhr|DESIGN\.md|verify\.py'
 source_repo=ddinkov10/fwrh_calculator
+record_glob='docs/adr/[0-9]*.md'
 copies=11
-last=12
+least=12
 tab=$'\t'
 nl=$'\n'
 fails=0
@@ -25,7 +26,7 @@ search() { git grep --no-color --no-column -n -I "$@" || [ $? -eq 1 ]; }
 entries=()
 while IFS= read -r entry || [ -n "$entry" ]; do entries[${#entries[@]}]=$entry; done <"$allow"
 used=()
-hits=$(search -i -w -E "$words" -- . ':!docs/adr' ':!tests/text.test.sh' ":!$allow")
+hits=$(search -i -w -E "$words" -- . ":(exclude,glob)$record_glob" ':!tests/text.test.sh' ":!$allow")
 unallowed=
 while IFS= read -r hit; do
   [ -n "$hit" ] || continue
@@ -46,22 +47,25 @@ stale=
 for ((i = 0; i < ${#entries[@]}; i++)); do
   [ -n "${used[i]:-}" ] || stale+="$allow:$((i + 1)):${entries[i]}$nl"
 done
-[ -z "$unallowed" ] || fail "a product word outside docs/adr/, as <path>:<line>:<text>:" "$unallowed"
+[ -z "$unallowed" ] || fail "a product word in a file that is no record of docs/adr/, as <path>:<line>:<text>:" "$unallowed"
 [ -z "$stale" ] || fail "a line of $allow that allows no hit:" "$stale"
 
-records=$(git ls-files 'docs/adr/[0-9]*.md')
+records=$(git -c core.quotePath=false ls-files ":(glob)$record_glob")
 have=
+count=0
 while IFS= read -r record; do
   [ -f "$record" ] || continue
   number=${record#docs/adr/}
   have+="${number%%-*} "
+  count=$((count + 1))
 done <<<"$records"
 want=
-for ((n = 1; n <= last; n++)); do
+for ((n = 1; n <= count; n++)); do
   printf -v number '%04d' "$n"
   want+="$number "
 done
-[ "$have" = "$want" ] || fail "docs/adr/ must hold one record for each number from 0001 to $number (\`last\` in this test); it holds: ${have:-no record}"
+[ "$have" = "$want" ] && [ "$count" -ge "$least" ] ||
+  fail "docs/adr/ must hold one record for each number from 0001 with no gap, and $least records or more; it holds: ${have:-no record}"
 
 source_line() { echo "Source: $source_repo ADR-$1. Each issue number of this record is an issue of that repository."; }
 wrong=

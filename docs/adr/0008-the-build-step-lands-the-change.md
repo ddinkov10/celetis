@@ -103,8 +103,9 @@ gives no other date:
   Bash command that holds the path of the promote script.
 - 31 issues that closed since 2026-09-01 (#102 to #250) had no walkthrough comment, so the resolver
   printed `run /finish` for each one.
-- The spec on #415 names this record ADR-0006, and the plan names it ADR-0007. Both numbers were
-  taken on the trunk while the work ran, by #419 and #414.
+- The spec on #415 names this record ddinkov10/fwrh_calculator ADR-0012, and the plan names it
+  ddinkov10/fwrh_calculator ADR-0013. Both numbers were taken on the trunk while the work ran,
+  by #419 and #414.
 
 The tests of this change:
 
