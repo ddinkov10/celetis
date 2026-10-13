@@ -56,6 +56,9 @@ which squash-merges the lane PR on `main` when each check of the workflow is gre
 the last act of a change: this repository has no deployment, and a change on `main` is in use at
 once ("Traps").
 
+- A change of `skills/`, `step-prompt.md`, or `scripts/` changes the behavior of each product
+  project, so its lane is `bug` or `feature`, not `chore`.
+
 ## External facts
 
 For the lookup of `docs/docs-lookup.md`: the dependency of this repository is Claude Code.

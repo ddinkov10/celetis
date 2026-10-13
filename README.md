@@ -69,12 +69,18 @@ reasons.
    ```
 
    The install enables the plugin at the `user` scope, so each session of the machine loads it, in
-   each folder. The launcher finds the plugin through the record of this install, so the two
-   commands are necessary on each machine. It is not shown that the block of the project file
-   (below) loads the plugin with no install. In the probe, a headless turn in a new repository
-   whose project file held the marketplace and the two plugins loaded no plugin and added no
-   marketplace. A headless turn shows no workspace trust dialog, so the probe does not show what
-   an interactive session does after that dialog (ADR-0012, R1).
+   each folder. A session in a project that is not wired also lists the 18 skills, and a lane
+   skill that starts there from free text makes a GitHub issue before it finds no launcher. The
+   documents of Claude Code give a way to limit this, which is not shown here:
+   `"celetis@celetis": false` in `enabledPlugins` of `~/.claude/settings.json` turns the plugin
+   off at the `user` scope, and the project file of a wired project turns it on.
+
+   The launcher finds the plugin through the record of this install, so the two commands are
+   necessary on each machine. It is not shown that the block of the project file (below) loads
+   the plugin with no install. In the probe, a headless turn in a new repository whose project
+   file held the marketplace and the two plugins loaded no plugin and added no marketplace. A
+   headless turn shows no workspace trust dialog, so the probe does not show what an interactive
+   session does after that dialog (ADR-0012, R1).
 2. Add and install superpowers the same way: `docs/agent-flow.md`, "Requirements", gives its two
    commands.
 3. Last, turn on auto-update for superpowers. In `~/.claude/settings.json`, add
@@ -410,13 +416,19 @@ release step.
   `claude plugin update celetis@celetis`, moves only the `project` record of a checkout that has
   one, and a new session does not get the new version.
 
-A bad change reaches each product project at once. The gate and the workflow of this repository are
-the guard, and a revert on `main` is the way back. ADR-0012 holds two limits:
+A bad change reaches each product project at once, and a revert on `main` is the way back. The gate
+and the workflow of this repository guard only a change that lands through `scripts/celetis land`.
+A direct push to `main` reaches each product project at its next step, and the workflow runs after
+the push. The repository has no branch protection, so each process that has the git credential of
+the maintainer can push. When a bad version stops the runner before its update, the runner does not
+get the revert by itself: revert on `main`, and then run the two commands above by hand.
 
-- It is not shown which record an interactive session in a trusted checkout loads when that
-  checkout has a `project` record that is behind the `user` record.
-- A runner that stays open for more than 14 days after an update can lose the folder of its
-  version. The cure is a new start of the runner (`docs/agent-flow.md`, "Limits").
+ADR-0012 holds the evidence for one fact and one limit of the update:
+
+- **The fact:** a session loads the version of the `user` record, also when its checkout has a
+  `project` record that is behind (V5b). So the update before a step needs no third command.
+- **The limit:** a runner that stays open for more than 14 days after an update can lose the
+  folder of its version. The cure is a new start of the runner (`docs/agent-flow.md`, "Limits").
 
 ## The agent board
 

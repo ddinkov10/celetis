@@ -305,10 +305,18 @@ the build session made on these results. It is not a result of a probe.
   headless turn in the checkout of `ddinkov10/celetis`, after its project file was there, made
   a `project` record of that checkout at the version of the `user` record. The update before a
   step moves only the `user` record, and the auto-update of R2 moved the two records.
-- **One check is open: V5b of the Verify phase.** After an update moved the `user` record, one
-  interactive session in the trusted checkout of `ddinkov10/celetis` shows the version folder
-  that it loads. The check gives an answer only when the `project` record of that checkout is
-  behind the `user` record.
+- **V5 of the Verify phase: the runner updates the plugin before a step.** On 2026-10-13 the
+  runner, started in a lane worktree of `ddinkov10/fwrh_calculator`, moved the `user` record
+  from `8943f2d5ea39` to `652f410a7375` in 7 s, with no command by hand. The transcript of the
+  session that it started holds only the folder of the new version.
+- **V5b of the Verify phase: a session loads the version of the `user` record.** The check ran
+  on 2026-10-13, directly after that update of the runner. The `user` record of
+  `celetis@celetis` was at `652f410a7375`, and the `project` record of the trusted checkout of
+  `ddinkov10/celetis` was at `8943f2d5ea39`, behind it. One interactive session in that checkout
+  (`claude --permission-mode auto '/celetis:guide …'`) got the path
+  `…/cache/celetis/celetis/652f410a7375/docs/agent-flow.md`. So a session loads the version of
+  the `user` record, also when the `project` record of its checkout is behind, and the update
+  before a step needs no third command.
 
 The scripts and their tests, at the date of this record:
 
@@ -474,8 +482,9 @@ of the project. A plugin gives no permission rule.
 - `--board` and `--resume` make no update and no lookup.
 
 **The config.** It is in `.claude/agent-flow/` of the main checkout of the product project. The
-scripts read `gates.json` and `landing.json`, and the board reads `board.json`. A project with no
-`gates.json` has each gate `me`, and `land` refuses a missing or wrong `landing.json`.
+scripts read `gates.json` and `landing.json`, and the board reads `board.json`. With no
+`gates.json`, a step is `auto` only when the git config of the machine names it `auto`, and `land`
+refuses a missing or wrong `landing.json`.
 
 **The worktree setup.** `scripts/celetis worktree <n>` makes the worktree and the branch from the
 default branch of `origin`. It reads that name with `gh repo view --json defaultBranchRef`, as
@@ -632,8 +641,13 @@ and a runner that stays open for more than 14 days (Consequences).
   worktree setup file, and the launcher.
 - **The costs of direct use.** Each command has the prefix `/celetis:`. A project can only add
   text to a general step. A bad change reaches each product project at once (R7): the plugin has
-  no version and no release step. The gate and the CI of `ddinkov10/celetis` are the guard, and a
-  revert on its `main` is the way back.
+  no version and no release step. The gate and the CI of `ddinkov10/celetis` guard only a change
+  that lands through `scripts/celetis land`. A direct push to `main` reaches each product project
+  at its next step, and the workflow runs after the push. The repository has no branch
+  protection, so each process that has the git credential of the maintainer can push. A revert on
+  `main` is the way back. When a bad version stops the runner before its update, the runner does
+  not get the revert by itself: revert on `main`, and then run the two commands of the update by
+  hand ("Versions and updates" in the Decision).
 - **A private marketplace and the background update (R8).** The update needs a credential that
   works with no prompt. Without one the background update fails quietly, and the old copy stays.
   A cloud session adds no marketplace from a project file.
@@ -646,6 +660,13 @@ and a runner that stays open for more than 14 days (Consequences).
   `ddinkov10/fwrh_calculator` changes to the plugin.
 - **Each machine needs two commands one time.** The install enables the plugin at the `user`
   scope, so each session of that machine loads it, in each folder.
+- **The plugin is on in each folder of a machine.** A session in a project that is not wired
+  also lists the 18 skills, and a lane skill that starts there from free text makes a GitHub
+  issue before it finds no launcher. Layer 1 keeps the install at the `user` scope: the launcher
+  and the update need the `user` record. The documents give a way to limit this, which is not
+  shown here: `"celetis@celetis": false` in `enabledPlugins` of `~/.claude/settings.json` turns
+  the plugin off at the `user` scope, and the project file of a wired project turns it on
+  (docs:plugins/loading, "Disabled in user settings but still loads", read on 2026-10-13).
 - **Each step that the runner starts begins about 5 to 7 s later.** The two commands take 4.2 s
   with nothing new and 6.2 s with a new commit, and the one lookup of the launcher after a good
   update takes 0.68 s. The step needs the network and a credential for the update. The times are
@@ -683,9 +704,7 @@ and a runner that stays open for more than 14 days (Consequences).
   its file stem, and that stem has the new number.
 - **The ADR store of `ddinkov10/fwrh_calculator` keeps the eleven records** with their old
   numbers until ddinkov10/fwrh_calculator#442 decides on them. The two stores can then differ.
-- **Two things are open at the date of this record:** the record that an interactive session
-  in a trusted checkout loads (V5b), and the launcher on a Windows host (R10). If V5b shows that a session loads a stale `project` record,
-  the update gets a third command, `claude plugin update celetis@celetis --scope project`.
+- **One thing is open at the date of this record:** the launcher on a Windows host (R10).
 
 ## Reconsider when
 
