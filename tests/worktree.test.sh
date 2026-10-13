@@ -1,17 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
-here=$(cd "$(dirname "$0")" && pwd)
+here=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d)
 trap 'cd /; rm -rf "$tmp"' EXIT
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 
 fail() { echo "FAIL: $1"; exit 1; }
 
-mkdir -p "$tmp/bin"
-for tool in uv npm; do
-  printf '#!/usr/bin/env bash\necho "%s $*" >>"$SETUP_LOG"\n[ "${FAIL_TOOL:-}" != %s ] || exit 1\n' "$tool" "$tool" >"$tmp/bin/$tool"
-done
-echo '[ "$1" != venv ] || mkdir -p "${!#}"' >>"$tmp/bin/uv"
+mkdir -p "$tmp/bin" "$tmp/plug in"
+cp "$here/scripts/worktree.sh" "$here/scripts/worktree-lib.sh" "$tmp/plug in/"
 cat >"$tmp/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >>"$GH_LOG"
@@ -22,6 +19,10 @@ case "$1 $2" in
       *state,labels*) printf '%s\n' "$ISSUE_STATE" $ISSUE_LABELS ;;
       *) printf '%s\n' "$ISSUE_TITLE" $ISSUE_LABELS ;;
     esac ;;
+  "repo view")
+    [ -z "${REPO_VIEW_FAIL:-}" ] || { echo "HTTP 401" >&2; exit 1; }
+    case "$*" in *defaultBranchRef*) ;; *) echo "repo view without defaultBranchRef" >&2; exit 1 ;; esac
+    echo "${TRUNK:-master}" ;;
   "pr list")
     [ -z "${PR_LIST_FAIL:-}" ] || { echo "To get started with GitHub CLI, please run:  gh auth login" >&2; exit 4; }
     case "$*" in
@@ -32,12 +33,12 @@ case "$1 $2" in
     esac ;;
 esac
 EOF
-chmod +x "$tmp/bin/"*
+chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH" SETUP_LOG="$tmp/setup.log" GH_LOG="$tmp/gh.log" PRS='OPEN 0' \
   OPEN_HEADS= ISSUE_LABELS=enhancement ISSUE_TITLE=Probe ISSUE_STATE=OPEN
 touch "$SETUP_LOG" "$GH_LOG"
 
-wt() { bash "$here/worktree.sh" "$@"; }
+wt() { bash "$tmp/plug in/worktree.sh" "$@"; }
 code_of() { set +e; wt "$@" >/dev/null 2>&1; local c=$?; set -e; echo "$c"; }
 stderr_of() { wt "$@" 2>&1 >/dev/null || true; }
 has_ref() { git show-ref --verify --quiet "refs/heads/$1"; }
@@ -45,18 +46,23 @@ on_origin() { git ls-remote --exit-code --heads origin "refs/heads/$1" >/dev/nul
 branches() { git branch --list --format='%(refname:short)' "*/$1-*" | paste -sd ' ' -; }
 no_worktree() { ! compgen -G ".claude/worktrees/$1-*" >/dev/null; }
 slug_of() { local p; p=$(ISSUE_TITLE=$2 wt "$1") && echo "${p##*/$1-}"; }
-marker=backend/.venv/.worktree-setup-done
+setup=.claude/agent-flow/worktree-setup.sh
+marker_of() { echo "$(git -C "$1" rev-parse --path-format=absolute --git-dir)/agent-flow-setup-done"; }
+setup_runs() { wc -l <"$SETUP_LOG"; }
 
-git init -q -b master "$tmp/repo"
-cd "$tmp/repo"
-mkdir backend
-echo app >backend/app.py
-echo model >backend/face_landmarker.task
-printf 'backend/face_landmarker.task\n.claude/worktrees/\nbackend/.venv/\n.env\ndocker-compose.override.yml\n' >.gitignore
+git init -q -b master "$tmp/main checkout"
+cd "$tmp/main checkout"
+mkdir -p .claude/agent-flow
+cat >"$setup" <<'EOF'
+echo "$PWD|$1" >>"$SETUP_LOG"
+echo noise
+[ "${FAIL_SETUP:-}" != 1 ] || exit 1
+EOF
+chmod +x "$setup"
+echo app >app.txt
+echo .claude/worktrees/ >.gitignore
 git add -A
 git commit -qm base
-echo env >.env
-echo override >docker-compose.override.yml
 git clone -q --bare . "$tmp/origin.git"
 git remote add origin "$tmp/origin.git"
 git fetch -q origin
@@ -66,30 +72,30 @@ git -C "$tmp/other" push -q origin HEAD:master
 upstream=$(git -C "$tmp/other" rev-parse HEAD)
 main=$(git rev-parse --show-toplevel)
 
-out=$(wt 1)
+out=$(wt 1 2>"$tmp/err") || fail "new worktree not made: $(cat "$tmp/err")"
 [ "$out" = "$main/.claude/worktrees/1-probe" ] || fail "wrong path: $out"
 [ "$(git -C "$out" branch --show-current)" = feat/1-probe ] || fail "enhancement label did not name a feat/ branch"
 [ "$(git -C "$out" rev-parse HEAD)" = "$upstream" ] || fail "not based on a fresh origin/master"
 [ -z "$(git -C "$out" config --get branch.feat/1-probe.merge || true)" ] || fail "branch tracks origin/master"
-[ -f "$out/backend/face_landmarker.task" ] || fail "model not copied"
-[ -f "$out/.env" ] && [ -f "$out/docker-compose.override.yml" ] || fail "local config not copied"
-[ "$(wc -l <"$SETUP_LOG")" -eq 3 ] || fail "setup did not run exactly once"
-[ -f "$out/$marker" ] || fail "setup not marked done"
+[ "$(cat "$SETUP_LOG")" = "$out|$main" ] || fail "setup did not run once in the new worktree with the main checkout: $(cat "$SETUP_LOG")"
+grep -qx noise "$tmp/err" || fail "setup output not sent to stderr"
+[ -f "$(marker_of "$out")" ] || fail "setup not marked done"
+[ -z "$(git -C "$out" status --porcelain)" ] || fail "setup left the worktree dirty"
 
 : >"$GH_LOG"
 [ "$(ISSUE_TITLE='A renamed title' wt '#1')" = "$out" ] || fail "rerun by #<n> returned another path"
 [ "$(cd "$out" && wt 1)" = "$out" ] || fail "rerun from inside the issue's worktree returned another path"
 [ "$(branches 1)" = feat/1-probe ] || fail "rerun created a second branch: $(branches 1)"
 [ ! -s "$GH_LOG" ] || fail "re-entering a local branch called gh: $(cat "$GH_LOG")"
-[ "$(wc -l <"$SETUP_LOG")" -eq 3 ] || fail "rerun ran setup again"
+[ "$(setup_runs)" -eq 1 ] || fail "rerun ran setup again"
 
-rm "$out/$marker"
+rm "$(marker_of "$out")"
 [ "$(wt 1)" = "$out" ] || fail "resumed setup returned another path"
-[ "$(wc -l <"$SETUP_LOG")" -eq 6 ] || fail "interrupted setup not run again"
-[ -f "$out/$marker" ] || fail "resumed setup not marked done"
+[ "$(setup_runs)" -eq 2 ] || fail "interrupted setup not run again"
+[ -f "$(marker_of "$out")" ] || fail "resumed setup not marked done"
 
-rm "$out/$marker"
-[ "$(FAIL_TOOL=npm code_of 1)" -eq 1 ] || fail "failed resumed setup not reported"
+rm "$(marker_of "$out")"
+[ "$(FAIL_SETUP=1 code_of 1)" -eq 1 ] || fail "failed resumed setup not reported"
 [ -d "$out" ] && has_ref feat/1-probe || fail "failed resumed setup removed work"
 
 nested=$(cd "$out" && ISSUE_LABELS=bug ISSUE_TITLE=Nested wt 2)
@@ -97,25 +103,27 @@ nested=$(cd "$out" && ISSUE_LABELS=bug ISSUE_TITLE=Nested wt 2)
 has_ref fix/2-nested || fail "bug label did not name a fix/ branch"
 
 git worktree add -q -b chore/3-elsewhere "$tmp/elsewhere"
-before=$(wc -l <"$SETUP_LOG")
+before=$(setup_runs)
 [ "$(wt 3)" = "$(git -C "$tmp/elsewhere" rev-parse --show-toplevel)" ] || fail "existing worktree not reused"
-[ "$(wc -l <"$SETUP_LOG")" -eq $((before + 3)) ] || fail "unmarked existing worktree not set up once"
+[ "$(setup_runs)" -eq $((before + 1)) ] || fail "unmarked existing worktree not set up once"
 
 for arg in feat/4-old-form 4x 01 '#' ''; do
   [ "$(code_of "$arg")" -eq 2 ] || fail "invalid argument '$arg' not refused"
 done
+[[ $(stderr_of 4x) == *"usage: scripts/celetis worktree [--remove] <issue number>, e.g. 302 or #302"* ]] || fail "usage line not printed"
 
 git checkout -q -b chore/5-inplace
 [ "$(code_of 5)" -eq 1 ] || fail "main checkout branch not refused"
 no_worktree 5 || fail "created a worktree for the main checkout's branch"
 git checkout -q master
 
-[ "$(ISSUE_LABELS=bug ISSUE_TITLE=Broken FAIL_TOOL=npm code_of 6)" -eq 1 ] || fail "failed setup not reported"
+[ "$(ISSUE_LABELS=bug ISSUE_TITLE=Broken FAIL_SETUP=1 code_of 6)" -eq 1 ] || fail "failed setup not reported"
+[[ $(ISSUE_LABELS=bug ISSUE_TITLE=Broken FAIL_SETUP=1 stderr_of 6) == *"worktree setup failed"* ]] || fail "failed setup does not say so"
 no_worktree 6 || fail "failed setup left the worktree"
 [ -z "$(branches 6)" ] || fail "failed setup left a new branch"
 
 git branch -q fix/7-kept
-[ "$(FAIL_TOOL=uv code_of 7)" -eq 1 ] || fail "failed setup not reported for an existing branch"
+[ "$(FAIL_SETUP=1 code_of 7)" -eq 1 ] || fail "failed setup not reported for an existing branch"
 no_worktree 7 || fail "failed setup left the worktree of an existing branch"
 has_ref fix/7-kept || fail "failed setup deleted an existing branch"
 
@@ -123,7 +131,7 @@ gone=$(ISSUE_TITLE=Gone wt 8)
 rm -rf "$gone"
 again=$(wt 8) || fail "deleted worktree not recreated"
 [ "$again" = "$gone" ] || fail "deleted worktree recreated elsewhere: $again"
-[ -f "$gone/$marker" ] || fail "deleted worktree not set up again"
+[ -f "$(marker_of "$gone")" ] || fail "deleted worktree not set up again"
 
 [ "$(ISSUE_LABELS=hotfix slug_of 9 Fire)" = fire ] && has_ref hotfix/9-fire || fail "hotfix label did not name a hotfix/ branch"
 [ "$(ISSUE_LABELS='ready-for-agent chore' slug_of 10 Tidy)" = tidy ] && has_ref chore/10-tidy || fail "chore label did not name a chore/ branch"
@@ -146,7 +154,7 @@ pr_out=$(OPEN_HEADS='feat/160-other fix/16-remote-work' ISSUE_TITLE='Another tit
 
 git -C "$tmp/other" checkout -q -b fix/25-remote-setup
 git -C "$tmp/other" push -q origin fix/25-remote-setup
-[ "$(OPEN_HEADS=fix/25-remote-setup FAIL_TOOL=npm code_of 25)" -eq 1 ] || fail "failed setup of an open PR's branch not reported"
+[ "$(OPEN_HEADS=fix/25-remote-setup FAIL_SETUP=1 code_of 25)" -eq 1 ] || fail "failed setup of an open PR's branch not reported"
 no_worktree 25 || fail "failed setup left the worktree of an open PR's branch"
 [ -z "$(branches 25)" ] || fail "failed setup left the local branch of an open PR's branch"
 git ls-remote --exit-code origin refs/heads/fix/25-remote-setup >/dev/null || fail "failed setup deleted the open PR's branch on origin"
@@ -159,6 +167,35 @@ git fetch -q origin
 [ "$(git rev-parse feat/17-fresh-start)" = "$upstream" ] || fail "new branch not based on origin/master"
 [ "$(branches 17)" = feat/17-fresh-start ] || fail "merged PR's leftover remote branch checked out: $(branches 17)"
 
+git checkout -q -b chore/26-noexec
+chmod -x "$setup"
+git commit -qam noexec
+git checkout -q -b chore/27-nosetup master
+git rm -q "$setup"
+git commit -qm nosetup
+git checkout -q master
+before=$(setup_runs)
+noexec=$(wt 26) || fail "setup file with no execute bit broke the worktree"
+[ ! -x "$noexec/$setup" ] || fail "fixture setup file is executable"
+[ "$(setup_runs)" -eq $((before + 1)) ] || fail "setup file with no execute bit did not run"
+nosetup=$(wt 27) || fail "branch with no setup file not made"
+[ "$nosetup" = "$main/.claude/worktrees/27-nosetup" ] || fail "branch with no setup file: wrong path: $nosetup"
+[ -f "$(marker_of "$nosetup")" ] || fail "branch with no setup file not marked done"
+[ "$(setup_runs)" -eq $((before + 1)) ] || fail "branch with no setup file ran a setup"
+
+git clone -q "$tmp/origin.git" "$tmp/alt"
+git -C "$tmp/alt" commit -q --allow-empty -m on-main
+git init -q --bare "$tmp/origin-main.git"
+git -C "$tmp/alt" push -q "$tmp/origin-main.git" HEAD:refs/heads/main
+git remote set-url origin "$tmp/origin-main.git"
+trunk_out=$(TRUNK=main ISSUE_TITLE=Trunk wt 28) || fail "default branch main not used"
+[ "$(git -C "$trunk_out" rev-parse HEAD)" = "$(git -C "$tmp/alt" rev-parse HEAD)" ] || fail "new branch not based on origin/main"
+git remote set-url origin "$tmp/origin.git"
+
+[ "$(REPO_VIEW_FAIL=1 code_of 29)" -eq 1 ] || fail "unreadable default branch not refused"
+[[ $(REPO_VIEW_FAIL=1 stderr_of 29) == *"cannot read the default branch from GitHub"* ]] || fail "default branch refusal does not say so"
+no_worktree 29 && [ -z "$(branches 29)" ] || fail "refusal for #29 created a branch or a worktree"
+
 git branch -q feat/18-a
 git branch -q fix/18-b
 [ "$(code_of 18)" -eq 1 ] || fail "two local branches not refused"
@@ -168,7 +205,7 @@ no_worktree 18 && [ "$(branches 18)" = "feat/18-a fix/18-b" ] || fail "refusing 
 [ "$(ISSUE_LABELS='enhancement epic' code_of 20)" -eq 1 ] || fail "epic not refused"
 [[ $(ISSUE_LABELS='enhancement epic' stderr_of 20) == *epic* ]] || fail "epic refusal does not say epic"
 [ "$(ISSUE_LABELS=needs-triage code_of 21)" -eq 1 ] || fail "issue without a lane label not refused"
-[[ $(ISSUE_LABELS=needs-triage stderr_of 21) == *"/triage #21"* ]] || fail "issue without a lane label not sent to /triage"
+[[ $(ISSUE_LABELS=needs-triage stderr_of 21) == *"/celetis:triage #21"* ]] || fail "issue without a lane label not sent to /celetis:triage"
 [ "$(ISSUE_LABELS='bug enhancement' code_of 22)" -eq 1 ] || fail "issue with two lane labels not refused"
 [ "$(ISSUE_MISSING=1 code_of 23)" -eq 1 ] || fail "unreadable issue not refused"
 [ "$(PR_LIST_FAIL=1 code_of 24)" -eq 1 ] || fail "failed open-PR listing not refused"

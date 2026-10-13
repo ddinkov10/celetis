@@ -3,7 +3,7 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: scripts/worktree.sh [--remove] <issue number>, e.g. 302 or #302" >&2
+  echo "usage: scripts/celetis worktree [--remove] <issue number>, e.g. 302 or #302" >&2
   exit 2
 }
 
@@ -24,7 +24,9 @@ n=${1#\#}
 [[ $n =~ ^[1-9][0-9]*$ ]] || usage
 
 main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
-marker=backend/.venv/.worktree-setup-done
+setup=.claude/agent-flow/worktree-setup.sh
+# The marker sits in the git dir: a file in the working tree would make a new worktree dirty.
+marker_of() { echo "$(git -C "$1" rev-parse --path-format=absolute --git-dir)/agent-flow-setup-done"; }
 git worktree prune
 from_pr=0
 branch=$(git branch --list --format='%(refname:lstrip=2)' "feat/$n-*" "fix/$n-*" "hotfix/$n-*" "chore/$n-*")
@@ -45,11 +47,11 @@ if [ -z "$branch" ]; then
       " bug ") prefix=fix ;;
       " hotfix ") prefix=hotfix ;;
       " chore ") prefix=chore ;;
-      "  ") refuse "#$n has no lane label; run /triage #$n first" ;;
+      "  ") refuse "#$n has no lane label; run /celetis:triage #$n first" ;;
       *) refuse "#$n has several lane labels ($lanes); keep one" ;;
     esac
     slug=$(head -n 1 <<<"$issue" | LC_ALL=C tr 'A-Z' 'a-z' | LC_ALL=C sed -E 's/[^a-z0-9]+/-/g; s/^-//; s/-$//')
-    # 30 characters keep .claude/worktrees/<n>-<slug>/frontend/node_modules/... inside Windows path limits.
+    # 30 characters keep .claude/worktrees/<n>-<slug>/ plus the deepest path of a project inside Windows path limits.
     if [ ${#slug} -gt 30 ]; then
       slug=${slug:0:31}
       if [[ $slug == *-* ]]; then slug=${slug%-*}; else slug=${slug:0:30}; fi
@@ -94,7 +96,7 @@ if [ "$remove" -eq 1 ]; then
 fi
 
 if [ -n "$current" ]; then
-  if [ -f "$current/$marker" ]; then
+  if [ -f "$(marker_of "$current")" ]; then
     echo "$current"
     exit 0
   fi
@@ -105,8 +107,9 @@ elif [ "$from_pr" -eq 1 ]; then
   git fetch -q origin "$branch" >&2
   git worktree add --track -b "$branch" "$path" "origin/$branch" >&2
 else
-  git fetch -q origin master >&2
-  git worktree add --no-track -b "$branch" "$path" origin/master >&2
+  trunk=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name) || refuse "cannot read the default branch from GitHub"
+  git fetch -q origin "$trunk" >&2
+  git worktree add --no-track -b "$branch" "$path" "origin/$trunk" >&2
 fi
 
 fail() {
@@ -120,13 +123,8 @@ fail() {
 }
 
 cd "$path"
-uv venv -q --clear --python 3.12 backend/.venv >&2 || fail "uv venv"
-uv pip install -q --python backend/.venv \
-  -r backend/requirements.txt -r backend/api/requirements.txt -e ./backend \
-  -r backend/requirements-dev.txt >&2 || fail "uv pip install"
-npm --prefix frontend ci >&2 || fail "npm ci"
-for f in backend/face_landmarker.task .env docker-compose.override.yml; do
-  if [ -f "$main/$f" ]; then cp "$main/$f" "$f" || fail "copy $f"; fi
-done
-touch "$marker" || fail "mark setup done"
+if [ -f "$setup" ]; then
+  bash "$setup" "$main" >&2 || fail "$setup"
+fi
+touch "$(marker_of .)" || fail "mark setup done"
 echo "$path"
