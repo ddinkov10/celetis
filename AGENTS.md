@@ -15,10 +15,8 @@ labels, the state of an issue, and the branches.
 AGENT_BOARD=<checkout of ddinkov10/agent-board>/cli.mjs scripts/verify.sh
 ```
 
-- `AGENT_BOARD` names the entry file of a local checkout of the board package:
-  `tests/agent-flow.test.sh` gives its `--board` documents to that checker. With no `AGENT_BOARD`,
-  the test runs the pinned `npx` command, which needs the network and the git credentials for
-  GitHub.
+- `docs/agent-flow.md`, "Check the harness", says what `AGENT_BOARD` does, and what the gate does
+  with no such variable.
 - `tests/text.test.sh` reads tracked files only. Run `git add` on a new file before the gate.
 - Each script and each test also runs under bash 3.2, the `/bin/bash` of macOS. The proof for one
   test is `PATH="/bin:$PATH" /bin/bash tests/<name>.test.sh`.
@@ -44,9 +42,10 @@ project, not here. So the text of this repository is general:
 
 `tests/text.test.sh` is the authority for the first rule, and it reads this file and `README.md`
 too. It fails on a word of its list `words` in each file that is no record `docs/adr/NNNN-*.md`.
-`tests/product-words.allow` allows a general use of such a word, with one line for each use:
-`<path><tab><a part of the line>`. The test knows only its list, and the rule holds for each part
-of each product.
+`tests/product-words.allow` allows a general use of such a word. One line of it,
+`<path><tab><a part of the line>`, allows each hit of that path whose text holds the part, and a
+line that allows no hit fails the test. The test knows only its list, and the rule holds for each
+part of each product.
 
 ## Agent flow
 
@@ -56,6 +55,12 @@ The lanes of this repository are the skills of the plugin itself, on the issues 
 which squash-merges the lane PR on `main` when each check of the workflow is green. The landing is
 the last act of a change: this repository has no deployment, and a change on `main` is in use at
 once ("Traps").
+
+## External facts
+
+For the lookup of `docs/docs-lookup.md`: the dependency of this repository is Claude Code.
+`claude --version` prints its installed version, and its documents are
+`https://code.claude.com/docs/en/<page>` (ADR-0012, "Constraints and evidence").
 
 ## Traps
 
@@ -99,5 +104,8 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
   skills as verbatim text, and no test of the gate compares a quote with its skill. Before you
   change a sentence of a skill, search that test for it. A change of a quoted sentence changes the
   quote in the same commit, and the hand-run test runs again.
+- **The skills table and the commands table of `README.md` are written by hand.** A new skill, a
+  removed skill, or a new sub-command of `scripts/` also changes the README, and no test fails when
+  it does not.
 - **The skills `writing-for-agents` and `prototype` are vendored** from `mattpocock/skills`
   (ddinkov10/fwrh_calculator#265).
