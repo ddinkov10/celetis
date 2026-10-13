@@ -6,6 +6,10 @@ tmp=$(mktemp -d)
 trap 'kill $(jobs -p) 2>/dev/null || true; rm -rf "$tmp"' EXIT
 # The git status snapshot of a turn holds the branch name and the last commit subjects, which can state the behavior that a case asserts.
 export CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1
+# An agent session gives these variables to a child process: with none of them, each turn runs as from a terminal.
+unset AI_AGENT CLAUDECODE CLAUDE_CODE_CHILD_SESSION CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_EXECPATH \
+  CLAUDE_CODE_MESSAGING_SOCKET CLAUDE_CODE_MESSAGING_TOKEN CLAUDE_CODE_SESSION_ATTENDED \
+  CLAUDE_CODE_SESSION_ID CLAUDE_EFFORT CLAUDE_PID
 
 L='--add-label ready-for-human'
 B='--remove-label ready-for-agent'
