@@ -1,9 +1,9 @@
 ---
 name: critic-loop
-description: Standalone scored quality review of the current result — auto-detects a branch diff (vs merge-base) or the uncommitted working diff, scores it 0-10 across five perspectives, and iterates (fix + re-score) until the threshold. Use when the user runs /critic-loop or asks to score or critique the current work.
+description: Standalone scored quality review of the current result — auto-detects a branch diff (vs merge-base) or the uncommitted working diff, scores it 0-10 across five perspectives, and iterates (fix + re-score) until the threshold. Use when the user runs /celetis:critic-loop or asks to score or critique the current work.
 ---
 
-# /critic-loop — scored iterative critic loop
+# /celetis:critic-loop — scored iterative critic loop
 
 A standalone, score-driven quality loop over the current result. It does not touch the
 `implement` chain; run it ad-hoc on a branch or the working tree.
@@ -12,7 +12,7 @@ A standalone, score-driven quality loop over the current result. It does not tou
 
 Read `$ARGUMENTS`:
 
-- empty → auto-detect: on `master` or detached HEAD → **working** diff; any other branch → **branch** diff vs `git merge-base master HEAD`.
+- empty → auto-detect: on the trunk or detached HEAD → **working** diff; any other branch → **branch** diff vs `git merge-base <trunk> HEAD`. The trunk is the default branch of the repository: `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`.
 - a ref or sha → **branch** diff, base = the argument (`git diff <arg>...HEAD`).
 - `working` / `--working` → **working** diff (staged + unstaged).
 
@@ -49,7 +49,7 @@ subagents and never fixes anything.
 
 - PASS → report the score and stop.
 - FAIL → dispatch a fresh **fixer** subagent with the Critical and Important findings verbatim and
-  the diff path. Score the fix with `.claude/scripts/capscore.sh J V B N S X` (`.claude/skills/capability.md`)
+  the diff path. Score the fix with `scripts/celetis capscore J V B N S X` (`${CLAUDE_PLUGIN_ROOT}/docs/capability.md`)
   and put the CAP line first in the prompt. The fixer fixes, re-runs the covering tests, and commits.
 - Re-score with a scoped re-review: verdict each finding ADDRESSED or NOT ADDRESSED, re-score the five
   perspectives, flag new breakage. New Critical or Important findings join the open list.
@@ -62,3 +62,5 @@ Never fix findings yourself in this session.
 
 End with the final score (e.g. `8/10 — pass`) and the finding trail: each fix round with its
 per-perspective deltas. The commits stay on the branch; this command never merges or pushes.
+
+!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/critic-loop.md" 2>/dev/null || true`

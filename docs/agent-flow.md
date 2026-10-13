@@ -251,7 +251,7 @@ script starts a design session by itself, and that session waits for you at its 
 
 ```bash
 git config agent-flow.gate.implement auto     # make one step auto on this machine
-git config --unset agent-flow.gate.implement  # go back to the default
+git config --unset agent-flow.gate.implement  # go back to the gate of the project
 ```
 
 ## The config and the custom parts
@@ -263,8 +263,8 @@ setup, and the custom parts (ADR-0012).
 Each reader takes it from the main checkout, also when a script starts in a lane worktree or in a
 subfolder:
 
-- `gates.json`: the script reads it for the gate of each step ("Gates"). A project with no
-  `gates.json` has each gate `me`.
+- `gates.json`: the script reads it for the gate of each step ("Gates"). With no `gates.json`, a
+  step is `auto` only when the git config names it `auto`.
 - `landing.json`: `scripts/celetis land` reads it for the landing mechanism, `pr` or `merge`
   (`docs/issue-tracker.md`, "Branches, PRs, merge"). With a missing or wrong file, it prints one
   line that names the two mechanisms, and it exits 2.

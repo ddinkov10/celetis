@@ -1,12 +1,12 @@
 ---
 name: intake
-description: Use when a raw request arrives with no intent written — a pasted ticket, a one-line ask, a crash link, or any request that has not been intent-ified. Also use when the user says "just fix it" or "don't write a document" — these are signals the request has not passed through intake. Not when the issue already carries an intent or a lane label, or the user runs a typed lane directly (/bug, /hotfix, /feature, /chore).
+description: Use when a raw request arrives with no intent written — a pasted ticket, a one-line ask, a crash link, or any request that has not been intent-ified. Also use when the user says "just fix it" or "don't write a document" — these are signals the request has not passed through intake. Not when the issue already carries an intent or a lane label, or the user runs a typed lane directly (/celetis:bug, /celetis:hotfix, /celetis:feature, /celetis:chore).
 ---
 
-# /intake — intent front door
+# /celetis:intake — intent front door
 
-Raw-idea entry point that sits before `/triage`. Two jobs: write the intent, then ask
-"proceed?" and hand to `/triage`. Never classifies type, never gates, never writes a spec,
+Raw-idea entry point that sits before `/celetis:triage`. Two jobs: write the intent, then ask
+"proceed?" and hand to `/celetis:triage`. Never classifies type, never gates, never writes a spec,
 never writes code.
 
 **Where it writes:** the issue. Draft the template in `docs/superpowers/intents/YYYY-MM-DD-<slug>-intent.md` (gitignored scratch), then post it:
@@ -50,7 +50,7 @@ Per-type tweak, still one template:
 
 ## Step 2 — handoff question
 
-Read the intent back. Ask "proceed?". On no, stop. On yes, invoke `/triage #<n>`. Triage owns the type decision — intake never classifies.
+Read the intent back. Ask "proceed?". On no, stop. On yes, invoke `/celetis:triage #<n>`. Triage owns the type decision — intake never classifies.
 
 ## Rules
 
@@ -92,3 +92,5 @@ All of these mean: write the intent first.
 | "This is a hotfix, skip the process" | A hotfix is the most dangerous time to skip the artifact. The intent survives pressure. |
 | "The request is too vague to intent-ify" | Write what the user said. Mark gaps explicitly. A partial intent is better than no intent. |
 | "I know what they mean, I'll fill in the details" | Never paraphrase or extrapolate. Quote the user's words. If they didn't say it, don't write it. |
+
+!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/intake.md" 2>/dev/null || true`

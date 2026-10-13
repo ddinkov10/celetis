@@ -1,16 +1,16 @@
 ---
 name: triage
-description: Type-axis front door for a cold, unclassified idea whose TYPE (/bug · /hotfix · /feature · /chore) is not yet known. Use when the human runs /triage, or when a request's type is unclear and must be resolved before a lane starts. Resolves type only; the lane it hands to owns requirements, branching and gates. If the type is already known, invoke the lane directly (/bug …) and skip triage.
+description: Type-axis front door for a cold, unclassified idea whose TYPE (/celetis:bug · /celetis:hotfix · /celetis:feature · /celetis:chore) is not yet known. Use when the human runs /celetis:triage, or when a request's type is unclear and must be resolved before a lane starts. Resolves type only; the lane it hands to owns requirements, branching and gates. If the type is already known, invoke the lane directly (/celetis:bug …) and skip triage.
 ---
 
-# /triage — type-axis front door
+# /celetis:triage — type-axis front door
 
 Cold-idea entry point to the type-axis lane system. One job, three parts: **pick the type lane**
-(`/bug` · `/hotfix` · `/feature` · `/chore`), **write a clean one-line description**, and **ask
+(`/celetis:bug` · `/celetis:hotfix` · `/celetis:feature` · `/celetis:chore`), **write a clean one-line description**, and **ask
 whether to continue**. Nothing more — triage never starts a flow on its own.
 
 Only for when the type is unknown. If you already know the type, invoke the lane directly
-(`/bug …`).
+(`/celetis:bug …`).
 
 ## Scope
 
@@ -18,11 +18,11 @@ Triage resolves TYPE only. The lane it hands to owns requirements (`specify`), b
 
 ## Input
 
-`#<n>` — an issue. Free text with no issue → run `/intake` first; it creates the issue and hands
+`#<n>` — an issue. Free text with no issue → run `/celetis:intake` first; it creates the issue and hands
 back here. Read `gh issue view <n> --comments` and classify from the intent's `Problem` and
 `Done when` plus the reporter's text. An issue that already carries a lane label (`bug`,
 `enhancement`, `hotfix`, `chore`, `epic`) is routed: name its lane and stop. Labels and states:
-`docs/agents/issue-tracker.md`.
+`${CLAUDE_PLUGIN_ROOT}/docs/issue-tracker.md`.
 
 ## Classification contract — the ordered decision tree
 
@@ -30,13 +30,13 @@ Criteria are taken verbatim from the lanes' own descriptions. Apply
 them **in order** — cheapest, most distinctive test first — and stop at the first that fires:
 
 1. **Mechanical, zero-behavior edit?** (rename, format, doc, config, comment, dep bump, code move —
-   no stated fix, no behavior intent) → **`/chore`**.
+   no stated fix, no behavior intent) → **`/celetis:chore`**.
 2. Else **behavior exists today but is wrong?** (fix / broken / wrong / crash / regression / ≠ spec):
-   - **production broken AND must ship now?** → **`/hotfix`**.
-   - otherwise → **`/bug`** — only if a knowable correct state exists (a spec, or prior behavior
-     that regressed). No spec and no prior-correct state → **`/feature`**.
+   - **production broken AND must ship now?** → **`/celetis:hotfix`**.
+   - otherwise → **`/celetis:bug`** — only if a knowable correct state exists (a spec, or prior behavior
+     that regressed). No spec and no prior-correct state → **`/celetis:feature`**.
 3. Else **new capability or large rewrite?** (add / support / let / new / modernize / migrate / port /
-   refactor) → **`/feature`**.
+   refactor) → **`/celetis:feature`**.
 
 Three splitter questions resolve every ambiguity:
 
@@ -45,11 +45,11 @@ Three splitter questions resolve every ambiguity:
 - *Is this a mechanical edit, or does it change behavior or architecture?* — separates chore from the rest.
 
 **Rewrite trap:** "modernize / migrate / port / rewrite to X" preserves user-visible behavior but is a
-large architectural change, not a mechanical edit. It is **`/feature`**, never `/chore`.
+large architectural change, not a mechanical edit. It is **`/celetis:feature`**, never `/celetis:chore`.
 
 **Perf trap:** "slow / sluggish / performance / scrolls slowly" is not itself a bug signal — slowness
-is either a regression (`/bug`) or never-was-fast (`/feature`). With no stated regression and no stated
-new-perf goal, ask the existence splitter; do not silently default to `/bug`.
+is either a regression (`/celetis:bug`) or never-was-fast (`/celetis:feature`). With no stated regression and no stated
+new-perf goal, ask the existence splitter; do not silently default to `/celetis:bug`.
 
 ## Few-shot classifier
 
@@ -82,14 +82,14 @@ Ambiguous — ask the one splitter that resolves it:
    questions, no more.
 3. **Edge handling:**
    - **Multi-type idea** ("fix the export crash *and* add CSV export") → this issue keeps the
-     load-bearing type; `/intake` opens one issue per remaining type; triage each.
+     load-bearing type; `/celetis:intake` opens one issue per remaining type; triage each.
    - **Unclear** — the report lacks what its lane needs (a repro for a bug, an outcome for a
      feature) → `gh issue edit <n> --add-label needs-info`, comment the questions, stop.
    - **No-fit idea** → `gh issue edit <n> --add-label wontfix`, comment why, close it, stop.
 4. **Clean one-liner** — normalize the idea into the single-sentence description the lane consumes.
 5. **Label, announce, ask to continue** — apply the lane label and clear the triage one
    (`gh issue edit <n> --add-label <lane> --remove-label needs-triage`; the feature lane's label is
-   `enhancement`), then state the pick and the one-liner (`→ /bug #<n>: <one-liner>`). Ask the
+   `enhancement`), then state the pick and the one-liner (`→ /celetis:bug #<n>: <one-liner>`). Ask the
    human whether to proceed. On yes, invoke that lane with `#<n>` and follow it; the lane's step-1
    confirm is the redirect gate. On no, stop — the label already carries the verdict.
 
@@ -114,3 +114,5 @@ criteria, not recall.
 | 10 | "The list scrolls slowly with 500+ items" | ambiguous → ask: did it regress (bug) or is this new perf work (feature)? |
 | 11 | "Modernize the app to a Kotlin-based stack" | feature |
 | 12 | "A timed-out token refresh leaves downstream sites mishandling a null token, and no spec defines null-token behavior" | feature — the correct behavior is undefined, must be designed |
+
+!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/triage.md" 2>/dev/null || true`

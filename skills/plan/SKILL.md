@@ -9,7 +9,7 @@ Superset of `superpowers:writing-plans` for project features. Delegates to it; a
 
 ## Do this
 
-1. Enter the issue's worktree: run `scripts/worktree.sh <n>` with a 10-minute timeout and call
+1. Enter the issue's worktree: run `scripts/celetis worktree <n>` with a 10-minute timeout and call
    `EnterWorktree` with the path it prints (skip the call when the session is already there). The
    script re-enters the issue's branch, or creates it when the issue has none; when it refuses,
    show the user its message and stop.
@@ -22,7 +22,7 @@ Superset of `superpowers:writing-plans` for project features. Delegates to it; a
 
 **Scan lessons.** Scan `docs/lessons/INDEX.md` for lessons matching the spec; read matches in full. This closes the fresh-context handoff — a feature's plan runs clean (see `specify` Terminal), so the entry lane's lesson scan does not carry over.
 
-**Check the external facts.** Read the `## External facts` section of the spec or the `## Root cause` report. Settle per `.claude/skills/docs-lookup.md` each library API a task calls that the section does not cover. Carry the merged section as the plan's `## External facts`; the published `## Plan` comment hands it to `implement`. Copy each fact line a task depends on into that task's text, because an implementer's brief carries only its own task.
+**Check the external facts.** Read the `## External facts` section of the spec or the `## Root cause` report. Settle per `${CLAUDE_PLUGIN_ROOT}/docs/docs-lookup.md` each library API a task calls that the section does not cover. Carry the merged section as the plan's `## External facts`; the published `## Plan` comment hands it to `implement`. Copy each fact line a task depends on into that task's text, because an implementer's brief carries only its own task.
 
 **Save the plan to `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`** (gitignored scratch; the Terminal step publishes it to the issue).
 
@@ -32,13 +32,13 @@ Bias:         <n>
 ```
 
 **Per task:**
-- **Capability score.** Score the task on the six-dimension rubric (digit anchors: `.claude/skills/capability.md`) and emit the CAP line with the script — never hand-compute the tier:
+- **Capability score.** Score the task on the six-dimension rubric (digit anchors: `${CLAUDE_PLUGIN_ROOT}/docs/capability.md`) and emit the CAP line with the script — never hand-compute the tier:
   ```bash
-  .claude/scripts/capscore.sh J V B N S X          # add --bias 0|1 to lower a cheap task
+  scripts/celetis capscore J V B N S X          # add --bias 0|1 to lower a cheap task
   ```
   Put the emitted `CAP: J_ V_ B_ N_ S_ X_ = n [+bN] → model/effort` line in the task header. The user reviews the scores with the plan; `implement` applies each line (model = the tier's model; effort travels in the CAP line) and re-scores only a task whose scope materially changed.
 
-**Tasks are gated.** State in the plan — a per-task line or a Global Constraint — that each implementation task must pass `scripts/verify.sh` before its review.
+**Tasks are gated.** State in the plan — a per-task line or a Global Constraint — that each implementation task must pass the verify gate of the project before its review.
 
 **Add a final Verify phase — how the feature is proven on the project's own runtime.** The concrete shape is project-specific (on-device E2E for an app, a live browser flow for web, a script that exercises the service for a backend). State the scenario(s) and the below-the-UI oracle (probes/disk/logcat/HTTP) in this phase.
 
@@ -50,4 +50,6 @@ Bias:         <n>
 
 ## Terminal
 
-The execution method is already supplied: `/implement #<n>` in a fresh context. Once the plan is written and self-reviewed, publish it in the same turn: `gh issue comment <n> --body-file <plan>` with `## Plan` as its first line, then `gh issue edit <n> --add-label ready-for-agent`. Then tell the user the plan is on the issue for their review, and to run `/implement #<n>` in a fresh context.
+The execution method is already supplied: `/celetis:implement #<n>` in a fresh context. Once the plan is written and self-reviewed, publish it in the same turn: `gh issue comment <n> --body-file <plan>` with `## Plan` as its first line, then `gh issue edit <n> --add-label ready-for-agent`. Then tell the user the plan is on the issue for their review, and to run `/celetis:implement #<n>` in a fresh context.
+
+!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/plan.md" 2>/dev/null || true`

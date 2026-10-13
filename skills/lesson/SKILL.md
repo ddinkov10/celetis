@@ -1,6 +1,6 @@
 ---
 name: lesson
-description: Capture a lesson learned from a correction, mistake, or incident so it is not repeated — stores each lesson as its own file under docs/lessons/ with a catalog row in docs/lessons/INDEX.md. Use after the user corrects an approach, after resolving an incident, or when a non-obvious technique is validated and worth keeping. Trigger phrases: "/lesson", "capture this lesson", "remember not to do this", "save this lesson", "log this incident".
+description: Capture a lesson learned from a correction, mistake, or incident so it is not repeated — stores each lesson as its own file under docs/lessons/ with a catalog row in docs/lessons/INDEX.md. Use after the user corrects an approach, after resolving an incident, or when a non-obvious technique is validated and worth keeping. Trigger phrases: "/celetis:lesson", "capture this lesson", "remember not to do this", "save this lesson", "log this incident".
 ---
 
 # Capture lesson learned
@@ -20,7 +20,7 @@ A lesson captured by an automatic / non-interactive process must NOT land in the
 directly. Decide the path by who triggered the capture:
 
 - **Automatic capture** — invoked inside any autonomous / `bypassPermissions` / pipeline flow. Write the draft to `docs/lessons/_pending/{slug}.md` with `status: pending-review`, plus `source:` and `date:` frontmatter. Do NOT add an `INDEX.md` row and do NOT write under `docs/lessons/` directly. Append a row to `docs/lessons/_pending/QUEUE.md` (create it if absent). `_pending/` is gitignored, so the draft is never recalled until promoted.
-- **Interactive capture** — a human typed `/lesson` (they are the reviewer). Write directly to `docs/lessons/{slug}.md` + an `INDEX.md` row.
+- **Interactive capture** — a human typed `/celetis:lesson` (they are the reviewer). Write directly to `docs/lessons/{slug}.md` + an `INDEX.md` row.
 
 ## Process
 
@@ -89,7 +89,7 @@ Keep the summary tight — it is scanned, not read.
 
 ### Step 4: Cross-reference
 
-After saving, check if the lesson should become a mechanism: update a skill (`.claude/skills/`), `AGENTS.md`, `docs/`, or a subsystem `AGENTS.md`. Report what was saved and suggest follow-ups.
+After saving, check if the lesson should become a mechanism: update a custom part (`.claude/agent-flow/custom/<skill>.md`), `AGENTS.md`, `docs/`, or a subsystem `AGENTS.md` of the project. A change of a skill of the plugin is an issue of `ddinkov10/celetis`. Report what was saved and suggest follow-ups.
 
 ## Guidelines
 
@@ -111,3 +111,5 @@ Draw every tag from this controlled list. Introduce a new tag only when nothing 
 - Technology: `api` `auth` `database` `data-store` `networking` `bridge` `build` `gradle` `deploy` `platform` `webview` `ui` `test` `config`
 - Nature: `false-positive` `false-negative` `refix` `recurring` `regression` `platform-quirk` `data-loss` `performance`
 - Process: `process` `build` `e2e` `git` `triage` `release`
+
+!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/lesson.md" 2>/dev/null || true`

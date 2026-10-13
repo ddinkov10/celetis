@@ -26,3 +26,5 @@ A review pass that **removes and tightens** existing comments. Bias to deletion.
 
 The pass only deletes or tightens: comment count comes out the same or lower, and a terse comment
 stays terse.
+
+!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/polishing-code-comments.md" 2>/dev/null || true`

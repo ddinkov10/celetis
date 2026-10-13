@@ -1,15 +1,14 @@
 ---
 name: record-architecture-decisions
 description: Use when a decision is significant enough that a future maintainer must know why it was made — hard to reverse, surprising without context, and chosen among real alternatives. Not for routine work, obvious choices, lane-type verdicts, or a harness learning-loop.
-aliases: [/record-architecture-decisions]
 ---
 
 # Record Architecture Decisions
 
 The read/write tool for `docs/adr/`. Decisions here are architectural: durable choices about
 why a subsystem or the harness is shaped as it is (a structural split, a cross-component contract, an
-engine or scheme choice) — the things code cannot express. A lane-type verdict (which of `/bug`,
-`/hotfix`, `/feature`, `/chore` an issue takes) is not an architectural decision and does not
+engine or scheme choice) — the things code cannot express. A lane-type verdict (which of `/celetis:bug`,
+`/celetis:hotfix`, `/celetis:feature`, `/celetis:chore` an issue takes) is not an architectural decision and does not
 belong here. This is harness-level memory; it is not a mechanical learning-loop that
 auto-promotes facts from runs.
 
@@ -43,3 +42,5 @@ When all three hold:
 2. Copy `template.md` to `docs/adr/NNNN-short-title.md` (the next number after the highest in the store) and fill every section.
 3. If replacing a prior decision, set `Supersedes: <old-title>`; never rewrite a landed ADR.
 4. Commit the landed ADR with the subject `docs(adr): <topic>`; no commit when no ADR landed.
+
+!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/record-architecture-decisions.md" 2>/dev/null || true`

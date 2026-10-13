@@ -8,6 +8,11 @@ source_repo=ddinkov10/fwrh_calculator
 record_glob='docs/adr/[0-9]*.md'
 copies=11
 least=12
+skills='intake triage feature bug hotfix chore specify plan implement critic-loop polishing-code-comments lesson lesson-review record-architecture-decisions doc-drift-sync prototype writing-for-agents guide'
+commands='intake|triage|feature|bug|hotfix|chore|plan|implement|guide|critic-loop|lesson|lesson-review|record-architecture-decisions|doc-drift-sync'
+texts=(skills step-prompt.md)
+documents=':(glob)docs/*.md'
+root='${CLAUDE_PLUGIN_ROOT}/'
 tab=$'\t'
 nl=$'\n'
 fails=0
@@ -88,6 +93,61 @@ while IFS= read -r ref; do
   [[ " $have" == *" ${token#ADR-} "* ]] || dangling+=$ref$nl
 done <<<"$refs"
 [ -z "$dangling" ] || fail "an ADR reference that names no record of docs/adr/ and has no \"$source_repo \" before it:" "$dangling"
+
+tracked=$(git -c core.quotePath=false ls-files)
+is_tracked() { [[ "$nl$tracked$nl" == *"$nl$1$nl"* ]]; }
+frontmatter() { awk 'NR == 1 { if ($0 != "---") exit; next } $0 == "---" { printf "%s", front; exit } { front = front $0 "\n" }' "$1"; }
+has_front() { [[ "$nl$(frontmatter "$1")$nl" == *"$nl$2$nl"* ]]; }
+
+stray=
+while IFS= read -r path; do
+  [[ $path == skills/* ]] || continue
+  inside=${path#skills/}
+  [[ $inside == */* && " $skills " == *" ${inside%%/*} "* ]] || stray+=$path$nl
+done <<<"$tracked"
+[ -z "$stray" ] || fail "a file of skills/ that is in no folder of a skill of the list:" "$stray"
+
+missing=
+lacks=
+ends=
+for skill in $skills; do
+  file=skills/$skill/SKILL.md
+  if ! is_tracked "$file" || [ ! -f "$file" ]; then
+    missing+=$file$nl
+    continue
+  fi
+  has_front "$file" "name: $skill" || lacks+="$file:name: $skill$nl"
+  [ "$skill" != guide ] || has_front "$file" 'disable-model-invocation: true' || lacks+="$file:disable-model-invocation: true$nl"
+  printf -v custom '!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/%s.md" 2>/dev/null || true`' "$skill"
+  end=$(awk -v want="$custom" '{ before = last; last = $0 } END { if (last != want) print FILENAME ":" NR ":" last; else if (before != "") print FILENAME ":" (NR - 1) ":" before }' "$file")
+  [ -z "$end" ] || ends+=$end$nl
+done
+[ -z "$missing" ] || fail "a skill of the list with no SKILL.md:" "$missing"
+[ -z "$lacks" ] || fail "a line that the frontmatter of a SKILL.md must hold, as <path>:<the line>:" "$lacks"
+[ -z "$ends" ] || fail "the last line of a SKILL.md must be the line of its custom part, with an empty line before it:" "$ends"
+
+old_folders=$(search -F -e .claude/scripts/ -e .claude/skills/ -e .claude/commands/ -e docs/agents/ -- "${texts[@]}" "$documents")
+[ -z "$old_folders" ] || fail "an old folder of the harness, as <path>:<line>:<text>:" "$old_folders$nl"
+scripts=()
+while IFS= read -r path; do
+  [[ $path == scripts/*.sh && $path != scripts/*/* ]] || continue
+  scripts[${#scripts[@]}]=-e
+  scripts[${#scripts[@]}]=$path
+done <<<"$tracked"
+script_files=
+[ ${#scripts[@]} -eq 0 ] || script_files=$(search -F "${scripts[@]}" -- "${texts[@]}")
+[ -z "$script_files" ] || fail "a script of the plugin by its file, where the form is \"scripts/celetis <name>\", as <path>:<line>:<text>:" "$script_files$nl"
+# The arrow is outside the bracket: in a C locale, a bracket holds each byte of the arrow as one character.
+bare_commands=$(search -E "(^|[ \`(]|→)/($commands)([^A-Za-z0-9_-]|\$)" -- "${texts[@]}" "$documents")
+[ -z "$bare_commands" ] || fail "a lane command with no \"celetis:\" before its name, as <path>:<line>:<text>:" "$bare_commands$nl"
+
+cites=$(search -o -E '\$\{CLAUDE_PLUGIN_ROOT\}/[A-Za-z0-9._/-]*[A-Za-z0-9]' -- skills)
+broken=
+while IFS= read -r cite; do
+  [ -n "$cite" ] || continue
+  is_tracked "${cite#*:*:"$root"}" || broken+=$cite$nl
+done <<<"$cites"
+[ -z "$broken" ] || fail "a citation of the plugin root in skills/ that names no tracked file:" "$broken"
 
 [ "$fails" -eq 0 ]
 echo "PASS"

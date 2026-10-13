@@ -1,6 +1,6 @@
 ---
 name: lesson-review
-description: Review and promote (or reject) lessons an automatic process queued in docs/lessons/_pending/. Auto-captured lessons never enter the live catalog directly — a human triages them here. Trigger phrases: "/lesson-review", "review pending lessons", "promote lessons", "triage the lesson queue".
+description: Review and promote (or reject) lessons an automatic process queued in docs/lessons/_pending/. Auto-captured lessons never enter the live catalog directly — a human triages them here. Trigger phrases: "/celetis:lesson-review", "review pending lessons", "promote lessons", "triage the lesson queue".
 ---
 
 # Review pending lessons
@@ -32,7 +32,7 @@ existing live lesson covering the same model. Note if the draft's body says "mer
 Two cases:
 
 - **New lesson** (no live duplicate):
-  1. Validate against the `/lesson` skill rules — frontmatter keys, Tag Vocabulary, canonical body headings. Fix anything non-conforming.
+  1. Validate against the `/celetis:lesson` skill rules — frontmatter keys, Tag Vocabulary, canonical body headings. Fix anything non-conforming.
   2. Set `status: active`, remove the `source:` key (keep `date:` as today's date).
   3. `mv docs/lessons/_pending/{slug}.md docs/lessons/{slug}.md`.
   4. Add the catalog row to `docs/lessons/INDEX.md`.
@@ -72,3 +72,5 @@ Summarize: promoted (with new INDEX rows), merged-into-existing, rejected, skipp
 - Never auto-approve. Every promotion is an explicit reviewer decision.
 - Keep commits scoped to `docs/lessons/**`.
 - Promotion is the only write to `INDEX.md` for queued lessons; do not hand-add INDEX rows for pending drafts elsewhere.
+
+!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/lesson-review.md" 2>/dev/null || true`
