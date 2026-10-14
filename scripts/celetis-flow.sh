@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# The runner of the agent flow (docs/agent-flow.md). No loop that reads a list holds a session: the stdin of a session is the terminal.
+# The runner of the celetis flow (docs/celetis-flow.md). No loop that reads a list holds a session: the stdin of a session is the terminal.
 set -euo pipefail
 
-usage="usage: scripts/celetis agent-flow [<issue number>...] | --board | --resume <issue number>, e.g. scripts/celetis agent-flow 373 374; with no number, the automatic runner"
+usage="usage: scripts/celetis celetis-flow [<issue number>...] | --board | --resume <issue number>, e.g. scripts/celetis celetis-flow 373 374; with no number, the automatic runner"
 issues=
 mode=
 if [ $# -eq 1 ] && [ "$1" = --board ]; then
@@ -19,7 +19,7 @@ else
   done
 fi
 
-die() { printf 'agent-flow: %s\n' "$1" >&2; exit 1; }
+die() { printf 'celetis-flow: %s\n' "$1" >&2; exit 1; }
 
 for tool in claude gh jq git; do
   command -v "$tool" >/dev/null 2>&1 || die "$tool is not on PATH"
@@ -30,8 +30,8 @@ root=$(dirname "$here")
 common=$(git rev-parse --path-format=absolute --git-common-dir)
 main=$(dirname "$common")
 next="$here/next-step.sh"
-flow="$main/.claude/agent-flow"
-state="$common/agent-flow"
+flow="$main/.claude/celetis-flow"
+state="$common/celetis-flow"
 record="$state/no-progress"
 mkdir -p "$state"
 cd "$main"
@@ -59,12 +59,12 @@ holder=
 say() {
   [ "$mode" != auto ] || [ "$1" != "$said" ] || return 0
   said=$1
-  printf 'agent-flow: %s\n' "$1"
+  printf 'celetis-flow: %s\n' "$1"
 }
 
 gate() {
   local value
-  value=$(git config --get "agent-flow.gate.$1" 2>/dev/null) ||
+  value=$(git config --get "celetis-flow.gate.$1" 2>/dev/null) ||
     value=$(jq -r --arg step "$1" '.[$step] // "me"' "$flow/gates.json" 2>/dev/null)
   [ "$value" = auto ] && echo auto || echo me
 }
@@ -74,7 +74,7 @@ holder_of() {
   pid=$(cat "$state/$1.lock" 2>/dev/null) || return 1
   case $pid in '' | *[!0-9]* | "$$") return 1 ;; esac
   case $(ps -p "$pid" -o command= 2>/dev/null) in
-    *agent-flow.sh*) echo "$pid" ;;
+    *celetis-flow.sh*) echo "$pid" ;;
     *) return 1 ;;
   esac
 }
@@ -138,7 +138,7 @@ update_plugin() {
 
 run_issue() {
   local n=$1 first=$2 line last= prompt step watcher
-  take "issue-$n" || { say "another agent-flow.sh (PID $holder) works on #$n"; return 0; }
+  take "issue-$n" || { say "another celetis-flow.sh (PID $holder) works on #$n"; return 0; }
   while :; do
     line=$("$next" "$n" </dev/null) || true
     case $line in
@@ -154,7 +154,7 @@ run_issue() {
     fi
     step=$(step_of "$line")
     if [ "$first" != any ] && [ "$(gate "$step")" != auto ]; then
-      say "the gate of $step is me: scripts/celetis agent-flow $n starts $prompt"
+      say "the gate of $step is me: scripts/celetis celetis-flow $n starts $prompt"
       break
     fi
     first=gated

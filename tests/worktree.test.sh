@@ -46,13 +46,13 @@ on_origin() { git ls-remote --exit-code --heads origin "refs/heads/$1" >/dev/nul
 branches() { git branch --list --format='%(refname:short)' "*/$1-*" | paste -sd ' ' -; }
 no_worktree() { ! compgen -G ".claude/worktrees/$1-*" >/dev/null; }
 slug_of() { local p; p=$(ISSUE_TITLE=$2 wt "$1") && echo "${p##*/$1-}"; }
-setup=.claude/agent-flow/worktree-setup.sh
-marker_of() { echo "$(git -C "$1" rev-parse --path-format=absolute --git-dir)/agent-flow-setup-done"; }
+setup=.claude/celetis-flow/worktree-setup.sh
+marker_of() { echo "$(git -C "$1" rev-parse --path-format=absolute --git-dir)/celetis-flow-setup-done"; }
 setup_runs() { wc -l <"$SETUP_LOG"; }
 
 git init -q -b master "$tmp/main checkout"
 cd "$tmp/main checkout"
-mkdir -p .claude/agent-flow
+mkdir -p .claude/celetis-flow
 cat >"$setup" <<'EOF'
 echo "$PWD|$1" >>"$SETUP_LOG"
 echo noise

@@ -6,7 +6,7 @@ trap 'cd /; rm -rf "$tmp"' EXIT
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 export S="$tmp/state" ORIGIN="$tmp/origin.git"
 repo="$tmp/main checkout"
-config=.claude/agent-flow/landing.json
+config=.claude/celetis-flow/landing.json
 mkdir -p "$tmp/bin"
 ln -s "$here/.." "$tmp/plug in"
 land_sh="$tmp/plug in/scripts/land.sh"
@@ -17,7 +17,7 @@ fail() { echo "FAIL: $1"; exit 1; }
 cat >"$tmp/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$S/gh-calls"
-cp "$(git rev-parse --git-common-dir)/agent-flow/land-7.lock" "$S/lock-seen" 2>/dev/null || true
+cp "$(git rev-parse --git-common-dir)/celetis-flow/land-7.lock" "$S/lock-seen" 2>/dev/null || true
 [ ! -f "$S/gh-fail" ] && [ ! -f "$S/fail-$1-$2" ] || { echo "HTTP 502" >&2; exit 1; }
 filter=. fields=
 args=("$@")
@@ -141,7 +141,7 @@ land() {
   [[ $out != *"/land.sh: line "* ]] || fail "land.sh printed an error of bash: $out"
 }
 has() { printf '%s\n' "$out" | grep -qF -- "$1" || fail "$2: missing [$1] in: $out"; }
-no_lock() { ! ls "$main"/.git/agent-flow/*.lock >/dev/null 2>&1 || fail "$1 left its lock"; }
+no_lock() { ! ls "$main"/.git/celetis-flow/*.lock >/dev/null 2>&1 || fail "$1 left its lock"; }
 kept() {
   [ "$(origin_master) $(git rev-parse master)" = "$before" ] || fail "$1 moved the trunk"
   [ -z "$wt" ] || { [ -d "$wt" ] && has_ref "$branch"; } || fail "$1 removed the lane"
@@ -190,7 +190,7 @@ for value in '{"landing": "rebase"}' '{}' 'not json' ''; do
   [ -n "$value" ] || rm "$main/$config"
   land 7 'fix(x): y'
   [ "$status" -eq 2 ] || fail "landing.json [$value] exit $status: $out"
-  has 'land: .claude/agent-flow/landing.json must name the landing mechanism' "landing.json [$value]"
+  has 'land: .claude/celetis-flow/landing.json must name the landing mechanism' "landing.json [$value]"
 done
 [ ! -f "$S/gh-calls" ] || fail "a usage error or a bad landing.json called gh: $(cat "$S/gh-calls")"
 no_lock "a usage error"
