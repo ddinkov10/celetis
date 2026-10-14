@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# The runner of the celetis flow (docs/celetis-flow.md). No loop that reads a list holds a session: the stdin of a session is the terminal.
 set -euo pipefail
 
 usage="usage: scripts/celetis celetis-flow [<issue number>...] | --board | --resume <issue number>, e.g. scripts/celetis celetis-flow 373 374; with no number, the automatic runner"
@@ -21,7 +20,7 @@ fi
 
 die() { printf 'celetis-flow: %s\n' "$1" >&2; exit 1; }
 
-for tool in claude gh jq git; do
+for tool in jq git; do
   command -v "$tool" >/dev/null 2>&1 || die "$tool is not on PATH"
 done
 
@@ -32,7 +31,13 @@ main=$(dirname "$common")
 next="$here/next-step.sh"
 stale="stop the plugin version of this runner was removed after an update; start the runner again"
 stale_n() { printf '#%s: the plugin version of this runner was removed after an update; start the runner again' "$1"; }
-gone() { [ ! -f "$next" ]; }
+gone() {
+  local file
+  for file in "$next" "$here/celetis" "$here/lib/host.sh" "$here/lib/session.sh"; do
+    [ -f "$file" ] || return 0
+  done
+  return 1
+}
 flow="$main/.claude/celetis-flow"
 state="$common/celetis-flow"
 record="$state/no-progress"
@@ -41,6 +46,34 @@ cd "$main"
 
 [ -n "$mode" ] || mode=numbers
 [ "$mode" != numbers ] || [ -n "$issues" ] || mode=auto
+managed=
+if ! gone; then
+  source "$here/lib/host.sh"
+  source "$here/lib/session.sh"
+  if [ "$mode" = resume ]; then
+    celetis_session_select "$issues" || exit $?
+    if [ "${CELETIS_RESUME_RECORD+x}" = x ] && [ "$CELETIS_RESUME_RECORD" != "$CELETIS_SESSION" ]; then
+      die "the session record changed during package discovery; run the resume command again"
+    fi
+    unset CELETIS_RESUME_RECORD
+    celetis_host_require || exit $?
+    session_id=$(printf '%s\n' "$CELETIS_SESSION" | jq -r .session_id)
+    cd "$(printf '%s\n' "$CELETIS_SESSION" | jq -r .checkout)"
+    case $CELETIS_HOST in
+      claude) exec claude --resume "$session_id" ;;
+      codex) exec codex resume "$session_id" ;;
+    esac
+  fi
+  celetis_host_require || exit $?
+  command -v gh >/dev/null 2>&1 || die "gh is not on PATH"
+  if [ "${HERDR_ENV:-}" = 1 ]; then
+    [[ ${HERDR_PANE_ID:-} =~ ^w[1-9][0-9]*:p[1-9][0-9]*$ ]] || die "HERDR_ENV=1 needs a valid HERDR_PANE_ID; start from a herdr pane"
+    command -v herdr >/dev/null 2>&1 || die "herdr is not on PATH"
+    managed=1
+  fi
+elif [ "$mode" = resume ]; then
+  die "the plugin version of this runner was removed after an update; start the runner again"
+fi
 FLOW='{
   "lanes": {
     "feature": ["triage", "specify", "plan", "implement"],
@@ -111,12 +144,24 @@ step_of() {
   echo "$step"
 }
 
-# herdr ends a wait with an error when its agent exits, so the loop ends with the session.
 end_when_done() {
-  local n=$1 start_line=$2 tries=0 line
-  until herdr agent get "$HERDR_PANE_ID" >/dev/null 2>&1; do
-    tries=$((tries + 1))
-    [ "$tries" -le 60 ] || return 0
+  local n=$1 start_line=$2 step=$3 errors=$4 prior_id=$5 started_at=$6 deadline=$((SECONDS + 60)) line reply status
+  while :; do
+    if reply=$(herdr agent get "$HERDR_PANE_ID" 2>/dev/null); then
+      status=0
+      celetis_session_observe "$n" "$step" "$main" "$reply" "$prior_id" "$started_at" || status=$?
+      [ "$status" -ne 0 ] || break
+      if [ "$status" -eq 2 ]; then
+        touch "$errors"
+        celetis_startup_error "$n" "herdr returned an invalid identity"
+        return 1
+      fi
+    fi
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      touch "$errors"
+      celetis_startup_error "$n" "no saved turn with a verified identity after 60 seconds"
+      return 1
+    fi
     sleep 1
   done
   while herdr agent wait "$HERDR_PANE_ID" --until idle --until done >/dev/null 2>&1; do
@@ -131,7 +176,7 @@ end_when_done() {
 
 update_plugin() {
   local moved
-  if { claude plugin marketplace update celetis && claude plugin update celetis@celetis --scope user; } >/dev/null 2>&1 </dev/null; then
+  if celetis_host_update >/dev/null 2>&1 </dev/null; then
     moved=$("$here/celetis" root </dev/null 2>/dev/null) || return 0
     [ ! -f "$moved/step-prompt.md" ] || root=$moved
   else
@@ -140,7 +185,7 @@ update_plugin() {
 }
 
 run_issue() {
-  local n=$1 first=$2 line last= prompt step watcher
+  local n=$1 first=$2 line last= prompt step watcher watch_dir prior_id started_at exit_code=0
   take "issue-$n" || { say "another celetis-flow.sh (PID $holder) works on #$n"; return 0; }
   while :; do
     if gone; then say "$(stale_n "$n")"; break; fi
@@ -152,6 +197,7 @@ run_issue() {
     esac
     prompt=${line#run }
     if [ "$line" = "$last" ]; then
+      [ "$exit_code" -eq 0 ] || die "$CELETIS_HOST session exited with status $exit_code before issue progress; check startup output, then run $(celetis_manual_recovery) from the main checkout or start the step again"
       say "no progress: $prompt"
       recorded "$n" "$line" || printf '%s\t%s\n' "$n" "$line" >>"$record"
       break
@@ -165,30 +211,35 @@ run_issue() {
     say "start: $prompt"
     started=1
     update_plugin
+    if gone || { [ "$step" != specify ] && [ ! -f "$root/step-prompt.md" ]; }; then say "$(stale_n "$n")"; break; fi
+    celetis_host_arguments "$n" "$step" "$prompt" "$root" || die "cannot read the step instructions; start the runner again"
+    celetis_session_write "$n" "$step" "$main" "" || die "cannot write the session record for #$n"
     watcher=
-    if [ -n "${HERDR_PANE_ID:-}" ]; then
+    watch_dir=
+    if [ -n "$managed" ]; then
       [ -z "${HERDR_TAB_ID:-}" ] || herdr tab rename "$HERDR_TAB_ID" "#$n $step" >/dev/null 2>&1 || true
-      end_when_done "$n" "$line" </dev/null >/dev/null 2>&1 &
+      prior_id=$(herdr agent get "$HERDR_PANE_ID" </dev/null 2>/dev/null | jq -r '.result.agent.agent_session.value // empty' 2>/dev/null) || prior_id=
+      watch_dir=$(mktemp -d "$state/start.XXXXXX")
+      started_at=$(date +%s)
+      end_when_done "$n" "$line" "$step" "$watch_dir/error" "$prior_id" "$started_at" </dev/null &
       watcher=$!
     fi
-    set -- --permission-mode auto -n "#$n $step"
-    # No step text for specify: rule 2 of that text forbids a wait for a review, and specify waits for the approval of the design.
-    [ "$step" = specify ] || set -- "$@" --append-system-prompt-file "$root/step-prompt.md"
-    claude "$@" "$prompt" || true
-    [ -z "$watcher" ] || kill "$watcher" 2>/dev/null || true
+    exit_code=0
+    "$CELETIS_HOST" "${CELETIS_ARGS[@]}" || exit_code=$?
+    if [ -n "$watcher" ]; then
+      kill "$watcher" 2>/dev/null || true
+      wait "$watcher" 2>/dev/null || true
+      if ! jq -e '.session_id != null' "$state/sessions/$n.json" >/dev/null; then
+        [ -f "$watch_dir/error" ] || celetis_startup_error "$n" "the session ended before a saved turn had a verified identity"
+        rm -rf "$watch_dir"
+        return 1
+      fi
+      rm -rf "$watch_dir"
+    fi
     last=$line
   done
   release "issue-$n"
 }
-
-if [ "$mode" = resume ]; then
-  line=
-  while IFS=$'\t' read -r row_n row_line; do
-    [ "$row_n" != "$issues" ] || line=$row_line
-  done < <(cat "$record" 2>/dev/null)
-  [ -n "$line" ] || die "#$issues has no step with no progress"
-  exec claude --resume "#$issues $(step_of "$line")"
-fi
 
 if [ "$mode" = board ]; then
   if gone; then printf '%s\n' "$stale"; exit 1; fi
@@ -223,7 +274,7 @@ if [ "$mode" = board ]; then
          | if .state == "done" then .
            elif $m.locked then .state = "starting"
            elif .state == "dirty" then .
-           elif $m.stuck then .state = "stuck" | .act = "claude --resume \"#\($i.number) \($m.step)\""
+           elif $m.stuck then .state = "stuck" | .act = "scripts/celetis celetis-flow --resume \($i.number)"
            else . end
          | del(.line)))}'
   exit 0

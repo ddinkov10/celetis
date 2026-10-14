@@ -15,6 +15,56 @@ celetis_host_select() {
   esac
 }
 
+celetis_session_validate() {
+  jq -escS --argjson issue "$1" --arg checkout "$2" '
+    if length == 1 then .[0] else error("expected one record") end
+    | select(type == "object")
+    | select(keys == ["checkout","host","issue","schema","session_id","step"])
+    | select(.schema == 1 and .issue == $issue and .checkout == $checkout)
+    | select(.host == "claude" or .host == "codex")
+    | select(.step | IN("triage","specify","bug","chore","hotfix","plan","implement"))
+    | select(.session_id == null or (.session_id | type == "string" and
+        test("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")))
+  '
+}
+
+celetis_session_load() {
+  local issue=${1#\#} common file
+  [[ $issue =~ ^[1-9][0-9]*$ ]] || { echo 'celetis: resume needs an issue number' >&2; return 2; }
+  common=$(git rev-parse --path-format=absolute --git-common-dir) || return 1
+  file="$common/celetis-flow/sessions/$issue.json"
+  if [ ! -f "$file" ]; then
+    printf 'celetis: #%s has no current session record; start a new step with scripts/celetis celetis-flow %s\n' "$issue" "$issue" >&2
+    return 1
+  fi
+  CELETIS_SESSION=$(celetis_session_validate "$issue" "$(dirname "$common")" <"$file" 2>/dev/null) || {
+    printf 'celetis: invalid or obsolete session record %s; remove it and start a new step with scripts/celetis celetis-flow %s\n' "$file" "$issue" >&2
+    return 1
+  }
+}
+
+celetis_session_select() {
+  local host
+  celetis_session_load "$1" || return $?
+  host=$(printf '%s\n' "$CELETIS_SESSION" | jq -r .host)
+  if [ -n "${2:-}" ] && [ "$2" != "$host" ]; then
+    printf 'celetis: #%s recorded host is %s; resume without --host or use --host %s\n' "${1#\#}" "$host" "$host" >&2
+    return 1
+  fi
+  celetis_host_select "$host" || return $?
+  if ! printf '%s\n' "$CELETIS_SESSION" | jq -e '.session_id != null' >/dev/null; then
+    printf 'celetis: #%s has no saved turn with a verified herdr identity; exact runner resume requires herdr identity. From the main checkout, run %s and select the saved session, or start a new step if none exists.\n' "${1#\#}" "$(celetis_manual_recovery)" >&2
+    return 1
+  fi
+}
+
+celetis_manual_recovery() {
+  case $CELETIS_HOST in
+    claude) printf 'claude --resume' ;;
+    codex) printf 'codex resume' ;;
+  esac
+}
+
 celetis_codex_reply() {
   local id=$1 method=$2 deadline=$((SECONDS + 10)) line kind remaining
   while :; do
@@ -48,7 +98,8 @@ celetis_codex_reply() {
   return 1
 }
 
-celetis_codex_root() (
+celetis_codex_request() (
+  method=$1 params=$2
   command -v codex >/dev/null 2>&1 || { echo 'celetis: codex is not on PATH' >&2; exit 1; }
   umask 077
   scratch=$(mktemp -d "${TMPDIR:-/tmp}/celetis.XXXXXX") || exit 1
@@ -78,9 +129,14 @@ celetis_codex_root() (
   printf '%s\n' '{"id":1,"method":"initialize","params":{"clientInfo":{"name":"celetis","version":"0.0.0"},"capabilities":{"experimentalApi":true}}}' >&3
   celetis_codex_reply 1 initialize || { cat "$scratch/stderr" >&2; exit 1; }
   printf '%s\n' '{"method":"initialized"}' >&3
-  jq -nc --arg cwd "$PWD" '{id:2,method:"skills/list",params:{cwds:[$cwd],forceReload:true}}' >&3
-  celetis_codex_reply 2 skills/list || { cat "$scratch/stderr" >&2; exit 1; }
-  candidates=$(printf '%s\n' "$CELETIS_REPLY" | jq -ce --arg cwd "$PWD" '
+  jq -nc --arg method "$method" --argjson params "$params" '{id:2,method:$method,params:$params}' >&3
+  celetis_codex_reply 2 "$method" || { cat "$scratch/stderr" >&2; exit 1; }
+  printf '%s\n' "$CELETIS_REPLY"
+)
+
+celetis_codex_root() (
+  reply=$(celetis_codex_request skills/list "$(jq -nc --arg cwd "$PWD" '{cwds:[$cwd],forceReload:true}')") || exit 1
+  candidates=$(printf '%s\n' "$reply" | jq -ce --arg cwd "$PWD" '
     .result.data
     | if type != "array" then error("invalid data") else . end
     | map(select(.cwd == $cwd))
@@ -119,25 +175,32 @@ celetis_codex_root() (
 )
 
 celetis_main() {
-  local name dir
+  local name dir explicit=
   if [ "${1:-}" = --host ]; then
     if [ $# -lt 3 ]; then
       echo 'usage: scripts/celetis --host claude|codex <script> [<argument>...]' >&2
       return 2
     fi
-    celetis_host_select "$2" || return $?
+    explicit=$2
+    celetis_host_select "$explicit" || return $?
     shift 2
   else
     if [ $# -eq 0 ]; then
       echo 'usage: scripts/celetis <script> [<argument>...], e.g. scripts/celetis next-step --open' >&2
       return 2
     fi
-    celetis_host_select || return $?
   fi
   name=$1
   if ! command -v jq >/dev/null 2>&1; then
     echo 'celetis: jq is not on PATH' >&2
     return 1
+  fi
+  if [ "$name" = celetis-flow ] && [ $# -eq 3 ] && [ "$2" = --resume ]; then
+    celetis_session_select "$3" "$explicit" || return $?
+    export CELETIS_RESUME_RECORD=$CELETIS_SESSION
+  else
+    unset CELETIS_RESUME_RECORD
+    celetis_host_select || return $?
   fi
   if [ "$CELETIS_HOST" = codex ]; then
     dir=$(celetis_codex_root) || return 1
