@@ -30,6 +30,9 @@ root=$(dirname "$here")
 common=$(git rev-parse --path-format=absolute --git-common-dir)
 main=$(dirname "$common")
 next="$here/next-step.sh"
+stale="stop the plugin version of this runner was removed after an update; start the runner again"
+stale_n() { printf '#%s: the plugin version of this runner was removed after an update; start the runner again' "$1"; }
+gone() { [ ! -f "$next" ]; }
 flow="$main/.claude/celetis-flow"
 state="$common/celetis-flow"
 record="$state/no-progress"
@@ -140,6 +143,7 @@ run_issue() {
   local n=$1 first=$2 line last= prompt step watcher
   take "issue-$n" || { say "another celetis-flow.sh (PID $holder) works on #$n"; return 0; }
   while :; do
+    if gone; then say "$(stale_n "$n")"; break; fi
     line=$("$next" "$n" </dev/null) || true
     case $line in
       "run "*) ;;
@@ -187,6 +191,7 @@ if [ "$mode" = resume ]; then
 fi
 
 if [ "$mode" = board ]; then
+  if gone; then printf '%s\n' "$stale"; exit 1; fi
   doc=$("$next" --json </dev/null) || { printf '%s\n' "${doc:-stop cannot read the issues from GitHub}"; exit 1; }
   extra=
   while IFS=$'\t' read -r n line; do
@@ -232,6 +237,7 @@ fi
 take runner || die "another automatic runner has PID $holder"
 while :; do
   pick=
+  if gone; then say "$stale"; exit 1; fi
   if rows=$("$next" --open </dev/null); then
     while IFS=$'\t' read -r n line; do
       case $line in "run "*) ;; *) continue ;; esac
