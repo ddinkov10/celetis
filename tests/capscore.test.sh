@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+set -eu
+here=$(cd "$(dirname "$0")" && pwd)
+scorer="$here/../scripts/capscore.sh"
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+fails=0
+unset CELETIS_HOST CAP_EFFORT_BIAS CAP_CURRENT_MODEL CAP_MODEL_PROFILE CAP_RUNTIME_MODELS OPENCODE
+
+cat >"$tmp/profile.json" <<'JSON'
+{"schema":1,"runtime":"fixture-desktop@1","slots":["small","standard","large","largest"],"reviewer":{"rank":1,"effort":"medium"}}
+JSON
+cat >"$tmp/models.json" <<'JSON'
+{"schema":1,"runtime":"fixture-desktop@1","models":[
+{"id":"small","efforts":["low","medium","high","xhigh","max"]},
+{"id":"standard","efforts":["low","medium","high","xhigh","max"]},
+{"id":"large","efforts":["low","medium","high","xhigh","max"]},
+{"id":"largest","efforts":["low","medium","high","xhigh","max","ultra"]}]}
+JSON
+export CAP_MODEL_PROFILE="$tmp/profile.json" CAP_RUNTIME_MODELS="$tmp/models.json"
+
+run() {
+  code=0
+  out=$(/bin/bash "$scorer" "$@" 2>"$tmp/err") || code=$?
+  err=$(cat "$tmp/err")
+}
+check() {
+  local label=$1
+  shift
+  if "$@"; then printf 'ok   %s\n' "$label"; else
+    printf 'FAIL %s\n  stdout: %s\n  stderr: %s\n  exit: %s\n' "$label" "$out" "$err" "$code"
+    fails=$((fails + 1))
+  fi
+}
+expect() { check "$1" test "$code:$out:$err" = "0:$2:"; }
+json() { printf '%s\n' "$out" | jq -e "$1" >/dev/null 2>&1; }
+error() {
+  check "$1 exits with setup error and no result" test "$code:$out" = '2:'
+  check "$1 explains the repair" test "${err#*"$2"}" != "$err"
+}
+codex_run() { run --host codex "$@"; }
+
+run 1 0 2 1 1 0
+expect 'default Claude human CAP remains unchanged' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
+CELETIS_HOST=claude run 1 0 2 1 1 0
+expect 'selected Claude human CAP remains unchanged' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
+run --host claude 0 0 0 0 0 0 --bias 0
+expect 'zero bias keeps the original line format' 'CAP: J0 V0 B0 N0 S0 X0 = 0 → haiku/low'
+run --host claude 2 1 1 0 0 0 --bias 0 --attempt 2
+expect 'retry CAP retains the original suffix' 'CAP: J2 V1 B1 N0 S0 X0 = 4 → sonnet/high [attempt 2]'
+run --host claude 1 0 2 1 1 0 --json
+check 'machine result keeps digits, original bias and portable ranks' json '.schema == 1 and .digits == {J:1,V:0,B:2,N:1,S:1,X:0} and .bias == 2 and .attempt == 1 and .sum == 5 and .rank == 1 and .effort == "xhigh" and .status == "ready" and .host == "claude" and .dispatch == {rank:1,model:"sonnet",effort:"xhigh",runtime:null,reviewer:false} and .line == "CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh"'
+claude_score=$(printf '%s\n' "$out" | jq -c '{digits,bias,attempt,sum,rank,effort}')
+codex_run 1 0 2 1 1 0 --json
+check 'Codex resolves the same portable score' test "$code:$(printf '%s\n' "$out" | jq -c '{digits,bias,attempt,sum,rank,effort}' 2>/dev/null)" = "0:$claude_score"
+check 'Codex records the applied model effort and runtime' json '.dispatch == {rank:1,model:"standard",effort:"xhigh",runtime:"fixture-desktop@1",reviewer:false} and .host == "codex"'
+codex_run 1 0 2 1 1 0
+expect 'Codex human CAP uses its selected profile' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → standard/xhigh'
+CELETIS_HOST=codex run 1 0 2 1 1 0
+expect 'shared host environment selects Codex' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → standard/xhigh'
+CELETIS_HOST=codex run --host claude 1 0 2 1 1 0
+expect 'explicit host overrides the environment' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
+CAP_EFFORT_BIAS=0 codex_run 1 0 2 1 1 0
+expect 'bias environment remains available' 'CAP: J1 V0 B2 N1 S1 X0 = 5 → standard/medium'
+CAP_EFFORT_BIAS=0 codex_run 1 0 2 1 1 0 --bias 1
+expect 'explicit bias overrides environment' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b1 → standard/high'
+codex_run 0 0 0 0 0 2 --bias 1
+expect 'security floor precedes bias' 'CAP: J0 V0 B0 N0 S0 X2 = 2 +b1 → large/xhigh'
+codex_run 0 2 0 0 0 0 --bias 1
+expect 'verifiability effort floor precedes bias' 'CAP: J0 V2 B0 N0 S0 X0 = 2 +b1 → small/xhigh'
+codex_run 2 1 1 0 0 0 --bias 0 --attempt 2
+expect 'attempt 2 raises only effort' 'CAP: J2 V1 B1 N0 S0 X0 = 4 → standard/high [attempt 2]'
+codex_run 2 1 1 0 0 0 --bias 0 --attempt 3
+expect 'attempt 3 raises rank and floors effort' 'CAP: J2 V1 B1 N0 S0 X0 = 4 → large/high [attempt 3]'
+codex_run 2 2 2 2 2 0 --attempt 3
+expect 'clamp follows bias and escalation below sum 12' 'CAP: J2 V2 B2 N2 S2 X0 = 10 +b2 → largest/xhigh [attempt 3]'
+codex_run 2 2 2 2 2 2
+expect 'sum 12 retains the top effort' 'CAP: J2 V2 B2 N2 S2 X2 = 12 +b2 → largest/max'
+codex_run 0 0 0 0 0 0 --bias 0 --reviewer --json
+check 'reviewer minimum applies without rewriting the portable score' json '.rank == 0 and .effort == "low" and .dispatch == {rank:1,model:"standard",effort:"medium",runtime:"fixture-desktop@1",reviewer:true}'
+codex_run 2 2 2 2 2 2 --reviewer --json
+check 'reviewer floor never lowers a stronger score' json '.rank == 3 and .dispatch.rank == 3 and .dispatch.effort == "max"'
+run --host claude 0 0 0 0 0 0 --bias 0 --reviewer
+expect 'Claude reviewer minimum uses its standard tier' 'CAP: J0 V0 B0 N0 S0 X0 = 0 → sonnet/medium'
+OPENCODE=1 run 1 0 2 1 1 0 --current-model provider/current
+expect 'opencode explicit current-model behavior is preserved' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → provider/current/xhigh'
+OPENCODE=1 CAP_CURRENT_MODEL=provider/env run 2 2 2 2 2 0 --attempt 3 --json
+check 'opencode preserves current model and portable clamp' json '.host == "opencode" and .rank == 3 and .effort == "xhigh" and .dispatch.model == "provider/env"'
+OPENCODE=1 CAP_CURRENT_MODEL=provider/env run 1 0 2 1 1 0 --current-model provider/flag
+expect 'opencode flag still wins over current-model environment' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → provider/flag/xhigh'
+
+jq '.slots[3] = "large"' "$CAP_MODEL_PROFILE" >"$tmp/repeated.json"
+codex_run 2 2 2 2 2 2 --profile "$tmp/repeated.json" --json
+check 'repeated model IDs preserve four distinct capability ranks' json '.rank == 3 and .dispatch.model == "large"'
+jq '.reviewer = {rank:3,effort:"xhigh"}' "$CAP_MODEL_PROFILE" >"$tmp/top-reviewer.json"
+codex_run 0 0 0 0 0 0 --bias 2 --reviewer --profile "$tmp/top-reviewer.json"
+expect 'reviewer promotion obeys the top-rank clamp' 'CAP: J0 V0 B0 N0 S0 X0 = 0 +b2 → largest/xhigh'
+
+CAP_MODEL_PROFILE= codex_run 1 0 2 1 1 0
+error 'absent profile' '--profile'
+CAP_RUNTIME_MODELS= codex_run 1 0 2 1 1 0
+error 'absent runtime allowlist' '--runtime-models'
+codex_run 1 0 2 1 1 0 --profile "$tmp/missing"
+error 'missing profile file' '--profile'
+printf '%s\n' 'not json' >"$tmp/bad.json"
+codex_run 1 0 2 1 1 0 --profile "$tmp/bad.json"
+error 'malformed profile' 'profile'
+codex_run 1 0 2 1 1 0 --runtime-models "$tmp/bad.json"
+error 'malformed runtime allowlist' 'runtime allowlist'
+jq '.slots = ["small","standard","large"]' "$CAP_MODEL_PROFILE" >"$tmp/short.json"
+codex_run 1 0 2 1 1 0 --profile "$tmp/short.json"
+error 'fewer than four capability slots' 'four'
+jq '.runtime = "fixture-cli@1"' "$CAP_RUNTIME_MODELS" >"$tmp/other-runtime.json"
+codex_run 1 0 2 1 1 0 --runtime-models "$tmp/other-runtime.json"
+error 'CLI and desktop identity mismatch' 'runtime'
+jq '.slots[3] = "unavailable"' "$CAP_MODEL_PROFILE" >"$tmp/unavailable.json"
+codex_run 1 0 2 1 1 0 --profile "$tmp/unavailable.json"
+error 'even an unselected slot must exist in the runtime' 'unavailable'
+jq '.models[1].efforts = ["low","medium","high"]' "$CAP_RUNTIME_MODELS" >"$tmp/no-xhigh.json"
+codex_run 1 0 2 1 1 0 --runtime-models "$tmp/no-xhigh.json"
+error 'unsupported applied effort' 'xhigh'
+jq '.models[1].efforts = ["low","high","xhigh","max"]' "$CAP_RUNTIME_MODELS" >"$tmp/no-medium.json"
+codex_run 1 0 2 1 1 0 --runtime-models "$tmp/no-medium.json"
+error 'unsupported reviewer minimum effort' 'medium'
+jq '.reviewer.effort = "ultra"' "$CAP_MODEL_PROFILE" >"$tmp/ultra.json"
+codex_run 1 0 2 1 1 0 --profile "$tmp/ultra.json"
+error 'runtime extras cannot become rubric efforts' 'reviewer'
+jq '.reviewer.effort = "max"' "$CAP_MODEL_PROFILE" >"$tmp/max-floor.json"
+codex_run 1 0 2 1 1 0 --profile "$tmp/max-floor.json"
+error 'reviewer floor cannot break reserved max invariant' 'reviewer'
+jq '.models += [.models[0]]' "$CAP_RUNTIME_MODELS" >"$tmp/duplicate.json"
+codex_run 1 0 2 1 1 0 --runtime-models "$tmp/duplicate.json"
+error 'ambiguous runtime model IDs' 'runtime allowlist'
+printf '%s\n%s\n' "$(cat "$CAP_MODEL_PROFILE")" "$(cat "$CAP_MODEL_PROFILE")" >"$tmp/multiple.json"
+codex_run 1 0 2 1 1 0 --profile "$tmp/multiple.json"
+error 'multiple profile documents' 'profile'
+
+CAP_MODEL_PROFILE= CAP_RUNTIME_MODELS= codex_run 1 0 2 1 1 0 --attempt 4
+expect 'attempt 4 stops before missing setup is validated' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → STOP (attempt 4: escalate to user with failure trail)'
+codex_run 1 0 2 1 1 0 --attempt 5 --reviewer --profile "$tmp/missing" --runtime-models "$tmp/bad.json" --json
+check 'STOP machine result retains inputs and has no dispatch' json '.status == "stop" and .attempt == 5 and .digits.J == 1 and .bias == 2 and .rank == null and .effort == null and .dispatch == null'
+run --host claude 1 0 2 1 1 0 --attempt 4
+expect 'Claude STOP line remains unchanged' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → STOP (attempt 4: escalate to user with failure trail)'
+
+for flag in --host --profile --runtime-models --bias --attempt --current-model; do
+  run 0 0 0 0 0 0 "$flag"
+  error "missing $flag value" "$flag"
+done
+run --host other 0 0 0 0 0 0
+error 'invalid selected host' 'claude or codex'
+run --test
+check 'original built-in test entry point stays compatible' test "$code" = 0
+printf '\ncapscore tests: %s failures\n' "$fails"
+[ "$fails" -eq 0 ]
