@@ -45,8 +45,10 @@ reasons.
 ## Requirements
 
 - macOS or Linux, with bash 3.2 or later. There is no native Windows runner. On a Windows host, a
-  session by hand runs the scripts in Git Bash, and the lookup of the launcher there is not checked
-  (ADR-0012).
+  session by hand runs the scripts in Git Bash, and the lookup of the launcher there passed on
+  2026-10-14 (ADR-0012). Keep the clone path at 130 characters or less: a longer path goes past
+  the 260 limit on Windows, and `scripts/celetis worktree <n>` then stops with `Filename too
+  long`. `git config --global core.longpaths true` removes the limit.
 - `claude`, `gh` (logged in), `jq`, and `git` 2.31 or later on `PATH`.
 - Git credentials for GitHub that need no prompt, an ssh key or a credential helper for https: the
   plugin repository and the package of the board are private.
@@ -376,7 +378,7 @@ in a terminal, and the board use the same form:
 | Command | What it does |
 |---|---|
 | `scripts/celetis worktree <n>` | Makes the lane worktree and the branch of the issue, or enters the one that is there, and prints its path |
-| `scripts/celetis worktree --remove <n>` | Removes the lane worktree and the branch of an issue that ended with no landing by the script |
+| `scripts/celetis worktree --remove <n>` | Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first |
 | `scripts/celetis land <n> '<subject>'` | Lands the change of the issue by the mechanism of `landing.json`. It is the one landing path of an agent |
 | `scripts/celetis next-step <n> \| --open \| --json` | The resolver: the next step of one issue, of each open issue, or the rows for the board |
 | `scripts/celetis capscore J V B N S X` | Prints the CAP line of a task: its model and its effort, from six digits of the rubric |
@@ -499,7 +501,8 @@ Run the tests in a checkout of this repository.
   `scripts/capscore.sh --test` on Linux, for each pull request and for each push to `main`. It sets
   `CELETIS_FLOW_SKIP_BOARD_CHECK=1`, so it does not make that contract check: the gate on a machine
   does.
-- **The proof on bash 3.2.** Each script and each test also runs under the `/bin/bash` of macOS:
+- **The proof on bash 3.2.** The gate runs each test under the `/bin/bash` of macOS, with
+  `PATH="/bin:$PATH"` so each inner `bash` reaches `/bin/bash` too:
 
   ```bash
   PATH="/bin:$PATH" /bin/bash tests/<name>.test.sh
