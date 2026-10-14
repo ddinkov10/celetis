@@ -3,6 +3,8 @@ name: bug
 description: Type-axis lane for a bug fix — an existing behavior that ≠ intended/spec (wrong output, crash, regression) with production NOT on fire. Use when the human runs /celetis:bug, or when a request describes something that already works misbehaving — as opposed to new behavior (/celetis:feature), a prod-broken ship-now fire (/celetis:hotfix), or a zero-behavior-change edit like a dep bump / rename / doc-config fix (/celetis:chore).
 ---
 
+Before any step or answer, use `Read` to read `.claude/celetis-flow/custom/bug.md` from the root of the checkout where the session shell is now. Use file tools to locate that root. Apply the whole file as an addition to this skill. With no checkout or no file, continue. If access needs approval, request it. If access is denied or another read error occurs, stop and report the block.
+
 # /celetis:bug — bug-fix lane
 
 Type-axis entry command for fixing existing behavior that ≠ spec, prod not on fire. Type declared
@@ -56,5 +58,3 @@ start step N+1.
    `## Root cause` as its first line; the report is the spec (root cause + red repro + intended
    behavior + step 3's traps + its `## External facts` section) and `plan` drives the
    rest of the chain.
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/bug.md" 2>/dev/null || true`

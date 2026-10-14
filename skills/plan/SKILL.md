@@ -3,6 +3,8 @@ name: plan
 description: Use when turning a finished feature spec into an implementation plan. Superset of superpowers:writing-plans. Not for the design/elicitation pass (specify) or executing the plan (implement).
 ---
 
+Before any step or answer, use `Read` to read `.claude/celetis-flow/custom/plan.md` from the root of the checkout where the session shell is now. Use file tools to locate that root. Apply the whole file as an addition to this skill. With no checkout or no file, continue. If access needs approval, request it. If access is denied or another read error occurs, stop and report the block.
+
 # plan
 
 Superset of `superpowers:writing-plans` for project features. Delegates to it; adds project context + capability scores + a verify phase.
@@ -51,5 +53,3 @@ Bias:         <n>
 ## Terminal
 
 The execution method is already supplied: `/celetis:implement #<n>` in a fresh context. Once the plan is written and self-reviewed, publish it in the same turn: `gh issue comment <n> --body-file <plan>` with `## Plan` as its first line, then `gh issue edit <n> --add-label ready-for-agent`. Then tell the user the plan is on the issue for their review, and to run `/celetis:implement #<n>` in a fresh context.
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/plan.md" 2>/dev/null || true`

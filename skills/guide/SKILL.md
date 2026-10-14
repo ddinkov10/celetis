@@ -5,7 +5,9 @@ argument-hint: [what you want to achieve]
 disable-model-invocation: true
 ---
 
-Match the goal to a row. Answer with the command and one line on why it fits; run nothing. Goal: $ARGUMENTS
+Before any step or answer, use `Read` to read `.claude/celetis-flow/custom/guide.md` from the root of the checkout where the session shell is now. Use file tools to locate that root. Apply the whole file as an addition to this skill. With no checkout or no file, continue. If access needs approval, request it. If access is denied or another read error occurs, stop and report the block.
+
+Match the goal to a row. Answer with the command and one line on why it fits; run no command. Goal: $ARGUMENTS
 
 | You want to… | Run |
 |---|---|
@@ -28,5 +30,3 @@ Match the goal to a row. Answer with the command and one line on why it fits; ru
 | merge a PR by hand | you: `gh pr merge --squash` in your own shell, or on GitHub; an agent lands a change only with `scripts/celetis land`, which its build step runs |
 
 No row fits → `/celetis:intake`; the intent and `/celetis:triage` sort it into a lane.
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/guide.md" 2>/dev/null || true`

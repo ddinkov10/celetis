@@ -3,6 +3,8 @@ name: chore
 description: Type-axis lane for a chore — a change with ZERO behavior change (dependency bump, rename, formatting, doc/config/comment fix, moving code without altering it). Use when the human runs /celetis:chore, or when a request is purely mechanical with no observable behavior delta — as opposed to a bug (behavior ≠ spec → /celetis:bug), new behavior (/celetis:feature), or a prod fire (/celetis:hotfix).
 ---
 
+Before any step or answer, use `Read` to read `.claude/celetis-flow/custom/chore.md` from the root of the checkout where the session shell is now. Use file tools to locate that root. Apply the whole file as an addition to this skill. With no checkout or no file, continue. If access needs approval, request it. If access is denied or another read error occurs, stop and report the block.
+
 # /celetis:chore — chore lane
 
 Minimal type-axis lane for a **zero-behavior-change** edit: dep bump, rename, format, doc/config/
@@ -43,6 +45,4 @@ in `/celetis:bug` or `/celetis:feature`. If you have not completed step N, you c
    `<type>(<area>): <what>` — `<area>` is whatever a reader would recognise (the package or
    concern); `<type>` matches the change (`chore`, `build` for the build tooling,
    `docs`, `refactor` for a rename). Body: one line, what changed and from → to, ending with `#<n>`.
-6. **Land.** Follow Land of `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` (Tail step 5) from its step 2, with the commit subject of step 5 as the subject of `scripts/celetis land <n> '<subject>'`. The custom part of `implement` comes only with a load of that skill, and this lane reads its file (here, and in the re-entry rule of step 2). So read `.claude/celetis-flow/custom/implement.md` of the project too, when that file is there: its text is an addition to the text of `implement`. A fix for a refusal stays inside the zero-behavior-change claim, passes the verify gate of the project, and is committed before the next landing. The session makes each such fix itself: the task loop of Land step 4 is for a lane with a plan. Invoking this lane authorizes the commit and the landing.
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/chore.md" 2>/dev/null || true`
+6. **Land.** Follow Land of `${CLAUDE_PLUGIN_ROOT}/skills/implement/SKILL.md` (Tail step 5) from its step 2, with the commit subject of step 5 as the subject of `scripts/celetis land <n> '<subject>'`. Apply the same custom-part read rule to `.claude/celetis-flow/custom/implement.md` before following that procedure. A fix for a refusal stays inside the zero-behavior-change claim, passes the verify gate of the project, and is committed before the next landing. The session makes each such fix itself: the task loop of Land step 4 is for a lane with a plan. Invoking this lane authorizes the commit and the landing.

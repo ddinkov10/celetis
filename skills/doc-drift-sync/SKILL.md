@@ -3,6 +3,8 @@ name: doc-drift-sync
 description: Run the daily doc-drift maintenance pass — keep the project living docs (AGENTS.md, docs/**, README/CLAUDE) truthful against current code. Auto-fix obvious, source-verified drift (stale file/symbol refs, broken .md links, dangling referenced files, source-line locators); flag judgment calls. Use when asked to sync/refresh/audit the docs against the code, or when invoked by the daily cron.
 ---
 
+Before any step or answer, use `Read` to read `.claude/celetis-flow/custom/doc-drift-sync.md` from the root of the checkout where the session shell is now. Use file tools to locate that root. Apply the whole file as an addition to this skill. With no checkout or no file, continue. If access needs approval, request it. If access is denied or another read error occurs, stop and report the block.
+
 # Doc-Drift Sync
 
 Keep the docs honest against the current code. Fix the obvious drift, flag the rest, never guess. A wrong edit is worse than a missed one.
@@ -64,5 +66,3 @@ One local commit, in-scope docs only, in three parts:
 3. **Trailer** — `Co-Authored-By: <helper>` with a recognizable identity from the project convention.
 
 No drift → no commit, no churn. Never push.
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/doc-drift-sync.md" 2>/dev/null || true`

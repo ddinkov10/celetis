@@ -3,6 +3,8 @@ name: intake
 description: Use when a raw request arrives with no intent written — a pasted ticket, a one-line ask, a crash link, or any request that has not been intent-ified. Also use when the user says "just fix it" or "don't write a document" — these are signals the request has not passed through intake. Not when the issue already carries an intent or a lane label, or the user runs a typed lane directly (/celetis:bug, /celetis:hotfix, /celetis:feature, /celetis:chore).
 ---
 
+Before any step or answer, use `Read` to read `.claude/celetis-flow/custom/intake.md` from the root of the checkout where the session shell is now. Use file tools to locate that root. Apply the whole file as an addition to this skill. With no checkout or no file, continue. If access needs approval, request it. If access is denied or another read error occurs, stop and report the block.
+
 # /celetis:intake — intent front door
 
 Raw-idea entry point that sits before `/celetis:triage`. Two jobs: write the intent, then ask
@@ -92,5 +94,3 @@ All of these mean: write the intent first.
 | "This is a hotfix, skip the process" | A hotfix is the most dangerous time to skip the artifact. The intent survives pressure. |
 | "The request is too vague to intent-ify" | Write what the user said. Mark gaps explicitly. A partial intent is better than no intent. |
 | "I know what they mean, I'll fill in the details" | Never paraphrase or extrapolate. Quote the user's words. If they didn't say it, don't write it. |
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/intake.md" 2>/dev/null || true`

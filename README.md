@@ -150,7 +150,7 @@ They are files of `.claude/celetis-flow/`:
 | `gates.json` | The gate of each step, `me` or `auto`: `{"triage": "me", "specify": "me", "bug": "me", "chore": "me", "hotfix": "me", "plan": "me", "implement": "me"}` | Each step is `me`, unless the git config of the machine names it `auto` |
 | `board.json` | The commands and the port of the board ("The agent board") | The board shows the session cards only |
 | `worktree-setup.sh` | The setup of a new lane worktree, for example the install of the dependencies and the copy of the files that git ignores | A new worktree gets no setup |
-| `custom/<skill>.md` | A custom part: an addition to the procedure of the skill `<skill>` | The skill ends with the text `(Bash completed with no output)` |
+| `custom/<skill>.md` | A custom part: an addition to the procedure of the skill `<skill>` | The skill continues with its common instructions |
 
 - **The config** is the three JSON files. Each reader takes them from the main checkout, also when
   a script starts in a lane worktree. After a merge that changes one of them, run `git pull` in the
@@ -168,9 +168,10 @@ They are files of `.claude/celetis-flow/`:
   stderr. So the file needs no execute bit, and it can print. When it exits with an error, the
   command removes the worktree and the branch that it made. A worktree gets its setup one time
   (`docs/celetis-flow.md`, "The config and the custom parts").
-- **A custom part** is read when Claude Code loads its skill, from the root of the checkout where
-  the session is at that time. A step that the runner starts reads the custom part of the main
-  checkout, and a skill that loads after `EnterWorktree` reads the custom part of the lane branch.
+- **A custom part** is read with native file tools before the first step or answer of its skill,
+  from the root of the checkout where the session shell is at that time (ADR-0013). A step that the
+  runner starts reads the custom part of the main checkout, and a skill that loads after
+  `EnterWorktree` reads the custom part of the lane branch.
   The text is an addition: it cannot remove a rule of the general skill, and it is no domain skill
   (ADR-0006). Two skills name what their custom part holds: `hotfix.md` holds the ship acts of the
   project, and `lesson.md` holds its tags.
@@ -510,7 +511,8 @@ Run the tests in a checkout of this repository.
 - **The text test,** `tests/text.test.sh`, holds the rules of the general text. It fails on a word
   of its list of product words in a file that is no record of `docs/adr/`. It fails on an ADR
   number that names no record of `docs/adr/` and has no `ddinkov10/fwrh_calculator` before it. It
-  fails on a skill that does not end with the line of its custom part.
+  fails on a skill that does not start with the read rule of its custom part, or that holds a shell
+  injection.
 - **The hand-run test,** `tests/manual/step-prompt.test.sh`, checks the step text in headless
   `claude -p` turns. It needs a `claude` that is logged in, it uses tokens, and an answer can
   differ between two runs, so the gate and the workflow do not run it. Run it after each change of
@@ -523,6 +525,14 @@ Run the tests in a checkout of this repository.
 
   The test then reads the step text of the installed plugin, and it runs its turns in that
   checkout.
+- **The custom-part test,** `tests/manual/custom-part.test.sh`, loads the guide skill of the
+  checkout in headless turns. It checks native reads with no Bash tool, shell permission rules,
+  missing files, and denied reads. It also checks subfolders and worktrees, including a change
+  into a worktree during the session. It uses tokens and stays outside the gate and the workflow:
+
+  ```bash
+  PATH="/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh
+  ```
 
 `docs/celetis-flow.md`, "Check the harness", holds the reasons behind the facts of the gate, the
 workflow, the proof on bash 3.2, and the hand-run test.

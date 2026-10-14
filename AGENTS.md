@@ -100,12 +100,6 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
   (`end_when_done` in `scripts/celetis-flow.sh`). A label, a comment with a heading that the
   resolver reads, a published spec, and a closed issue move the line. So each act of the skill after
   such an act is in the same turn.
-- **An injected line that exits with an error aborts its skill.** Claude Code runs the last line of
-  each `SKILL.md`, the line of the custom part, when it loads the skill. A line that exits with an
-  error aborts the load, and the stderr of a line goes into the text of the skill (ADR-0012,
-  "Constraints and evidence"). So the line ends with `2>/dev/null || true`: in a project with no
-  custom part its `cat` fails, and the session still gets the skill, with no error text in it.
-  `tests/text.test.sh` holds the exact line and allows no second one.
 - **The hand-run test quotes the skills.** `tests/manual/step-prompt.test.sh` holds sentences of the
   skills as verbatim text, and no test of the gate compares a quote with its skill. Before you
   change a sentence of a skill, search that test for it. A change of a quoted sentence changes the

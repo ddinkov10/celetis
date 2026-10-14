@@ -3,6 +3,8 @@ name: feature
 description: Type-axis lane for a feature — new behavior that does not exist yet. Use when the human runs /celetis:feature, or when a request asks for capability the app lacks — as opposed to fixing existing behavior (/celetis:bug), a prod fire (/celetis:hotfix), or a zero-behavior-change edit (/celetis:chore).
 ---
 
+Before any step or answer, use `Read` to read `.claude/celetis-flow/custom/feature.md` from the root of the checkout where the session shell is now. Use file tools to locate that root. Apply the whole file as an addition to this skill. With no checkout or no file, continue. If access needs approval, request it. If access is denied or another read error occurs, stop and report the block.
+
 # /celetis:feature — feature lane
 
 Type-axis entry command for **new behavior**. Type declared at entry; if undeclared, the signal is
@@ -39,5 +41,3 @@ the same lane. If you have not completed step N, you cannot start step N+1.
    it refuses, show the user its message and stop. Every later step runs in that worktree; the
    main checkout never changes branch (Branches, PRs, merge in `${CLAUDE_PLUGIN_ROOT}/docs/issue-tracker.md`).
 3. **Invoke `celetis:specify #<n>`** and follow it — it drives the rest of the chain.
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/feature.md" 2>/dev/null || true`

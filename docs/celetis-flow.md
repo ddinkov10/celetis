@@ -305,26 +305,22 @@ spec, or a closed issue), because the script ends the session when the issue sho
 done. A custom part is no domain skill, and it routes no change by its domain: domain knowledge
 stays in the `AGENTS.md` files (ADR-0006).
 
-The last line of each `SKILL.md` of the plugin puts the text of that file into the skill when Claude
-Code loads the skill, and the skill has no frontmatter line for it. For the skill `<skill>`, the
-line is:
+Each `SKILL.md` starts with an instruction to read its custom part with native file tools before
+the first step or answer (ADR-0013). The session locates the current checkout root with file tools
+and reads the whole custom file with `Read`. Its text adds to the common skill. Loading the skill
+runs no shell command.
 
-```
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/<skill>.md" 2>/dev/null || true`
-```
-
-- **Which checkout.** The line reads the file from the root of the checkout where the shell of the
-  session is when the skill loads. A skill that is the first prompt of a session, as in each step
+- **Which checkout.** The session reads the file from the root of the checkout where its shell is
+  before the first step or answer. A skill that is the first prompt of a session, as in each step
   that the script starts, reads the custom part of the main checkout. A skill that loads after
   `EnterWorktree` reads the custom part of the lane branch.
-- **With no custom file,** the skill gets the text `(Bash completed with no output)` in place of the
-  line.
-- **In a folder that is no git repository,** the line puts one `fatal:` line of git into the text of
-  the skill, and the skill loads.
-- **The line runs only when a skill loads.** So a skill that tells the session to read the file of
-  another skill also names the custom part of that other skill,
-  `.claude/celetis-flow/custom/<that skill>.md` of the project, and the session reads that file when
-  it is there.
+- **With no checkout or no custom file,** the session continues with the common skill and no
+  injected error text.
+- **When file access needs approval,** the session requests it through the normal permission flow.
+  Denied access or another read error stops the work with a report of the block. A denied read is
+  not a missing file.
+- **When a skill reads another skill's procedure,** the session applies the same read rule to
+  `.claude/celetis-flow/custom/<that skill>.md` before following that procedure.
 
 ## The board
 
