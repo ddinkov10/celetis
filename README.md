@@ -49,7 +49,8 @@ reasons.
   2026-10-14 (ADR-0012). Keep the clone path at 130 characters or less: a longer path goes past
   the 260 limit on Windows, and `scripts/celetis worktree <n>` then stops with `Filename too
   long`. `git config --global core.longpaths true` removes the limit.
-- `claude`, `gh` (logged in), `jq`, and `git` 2.31 or later on `PATH`.
+- `claude`, `gh` (logged in), `jq`, `git` 2.31 or later, and Perl 5.14 or later on `PATH`.
+  The runner uses only the standard library of Perl.
 - Git credentials for GitHub that need no prompt, an ssh key or a credential helper for https: the
   plugin repository and the package of the board are private.
 - The plugin `superpowers@superpowers-marketplace`: the lane skills call its `superpowers:*` skills.
@@ -408,11 +409,16 @@ release step.
   ```
 
   They bring the plugin of the machine to the head of `main`. So a change that lands here reaches
-  the next step of each product project, with no act by hand. When one of the commands fails, the
-  runner prints
-  `celetis-flow: the plugin update failed; the session starts on the installed version` and starts
-  the session. After a successful update, the session gets the skills and the step text of the new
-  version (`docs/celetis-flow.md`, "How a step runs").
+  the next step of each product project, with no act by hand. The runner holds a file lock in the
+  Claude configuration directory while it updates the plugin and reads its install folder. Two
+  runners on the same machine use that lock even in different product projects.
+
+  One 120-second deadline covers the lock wait, both commands, and the install-folder lookup. A
+  failed command stops the runner with its command, exit status, and output. A timeout names the
+  operation that did not finish. The runner terminates the command and its descendants before it
+  releases the lock; process cleanup can take one further second. No session starts on a failure
+  or when the install folder has no step text. After a successful update, the session gets the
+  skills and the step text of the new version (`docs/celetis-flow.md`, "How a step runs").
 - **A session by hand** gets no update from the runner. The block of the project file turns
   auto-update on for the marketplace `celetis` ("Wire a product project"). An interactive session
   then updates the copy on disk at most 10 minutes after its first message. That session keeps the

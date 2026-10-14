@@ -23,7 +23,7 @@ Two rules of the harness hold in each session, also in a session by hand:
 In this document, these names are files of the plugin `celetis`, also when a session reads the
 document inside a product project that has a `docs/` folder and an ADR store of its own: the four
 documents (`docs/celetis-flow.md`, `docs/issue-tracker.md`, `docs/capability.md`,
-`docs/docs-lookup.md`), `step-prompt.md`, a script `<name>.sh` of `scripts/` or a test of `tests/`
+`docs/docs-lookup.md`), `step-prompt.md`, a script of `scripts/` or a test of `tests/`
 that the text names by its file, and each ADR number, which is a record of `docs/adr/` in the folder
 of the plugin and not of the product project. Each other path is a path of the product project,
 apart from a path that starts with `~/` or `/`.
@@ -32,8 +32,9 @@ apart from a path that starts with `~/` or `/`.
 
 - macOS or Linux, with bash 3.2 or later. There is no native Windows runner.
 - `claude`, `gh` (logged in), `jq`, and `git` 2.31 or later on `PATH`. When `gh` or `git` is
-  missing, the script names it and exits 1. The launcher needs `claude` and `jq` to find the plugin
-  (the next item). When `jq` is missing, the launcher prints `celetis: jq is not on PATH` and
+  missing, the script names it and exits 1. The runner also needs Perl 5.14 or later on `PATH`;
+  its update helper uses only the standard library. The launcher needs `claude` and `jq` to find
+  the plugin (the next item). When `jq` is missing, the launcher prints `celetis: jq is not on PATH` and
   exits 1.
 - The plugin `celetis@celetis`, installed on the machine, and the launcher `scripts/celetis` in the
   product project. The scripts and the step text come from the installed plugin:
@@ -161,12 +162,26 @@ So that session asks and waits as a session that you start by hand does (ADR-000
 the script starts the session of a step, it runs two commands, in this order:
 `claude plugin marketplace update celetis`, then
 `claude plugin update celetis@celetis --scope user`. They bring the plugin on the machine to the
-head of `main`. When one of them fails, the script prints
-`celetis-flow: the plugin update failed; the session starts on the installed version` and starts the
-session. After a successful update, the script reads the install folder again with
-`scripts/celetis root`, which prints the folder of the installed plugin and has no argument, and it
-takes the step text of the session from that folder (`<plugin root>` above). When the lookup gives
-no folder that holds a step text, the script keeps the folder that it had. The resolver and the
+head of `main`. One 120-second deadline covers the lock wait, both commands, and the install-folder
+lookup. When a command fails, the script shows the command, its exit status, and its output, then
+exits 1. A timeout names the operation that did not finish and shows its captured output. The
+script starts no session and writes no row to `no-progress` on an update failure.
+
+The helper `scripts/plugin-update.pl` holds an operating-system file lock at
+`<Claude configuration directory>/celetis-update.lock`. The directory is `CLAUDE_CONFIG_DIR` when
+set, and `~/.claude` otherwise. This lock is shared by runners in different product projects that
+use the same configuration directory. The lock file stays on disk; its existence does not mean
+that an update runs. The operating system releases a lock when its last holder exits.
+
+On a timeout, an interruption, or runner exit, the helper terminates the command's process group
+before it releases the lock. It sends TERM, allows one second to stop, then sends KILL to any
+remaining process. A command keeps the lock descriptor so a killed helper cannot release a live
+update's lock.
+
+After a successful update, the helper reads the user install record with
+`claude plugin list --json`. The runner takes the step text of the session from the install folder
+of that record (`<plugin root>` above). When the lookup gives
+no folder that holds a step text, the runner shows the cause and exits 1. The resolver and the
 logic of the runner stay the version of the runner process. The forms `--board` and `--resume` make
 no update and no lookup. A session that you start by hand gets no update from the script: the update
 by hand is the same two commands (ADR-0012).
