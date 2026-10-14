@@ -216,7 +216,7 @@ end_when_done() {
       case $line in
         "$start_line") ;;
         "run "* | "stop #$n "*)
-          if celetis_session_idle "$id" && [ "$("$next" "$n" </dev/null)" = "$line" ]; then
+          if [ "$("$next" "$n" </dev/null)" = "$line" ] && celetis_session_idle "$id"; then
             herdr agent prompt "$HERDR_PANE_ID" /exit >/dev/null 2>&1 ||
               printf 'celetis-flow: #%s cannot submit /exit; the session stays open. Exit it in this pane when ready.\n' "$n" >&2
             return 0

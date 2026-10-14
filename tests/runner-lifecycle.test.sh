@@ -85,8 +85,18 @@ cp "$tmp/bin/host" "$tmp/bin/claude"
 cp "$tmp/bin/host" "$tmp/bin/codex"
 cat >"$tmp/bin/gh" <<'EOF'
 #!/bin/bash
+S=$LIFECYCLE_TEST
 case "$1 $2" in
-  'issue view') cat "$LIFECYCLE_TEST/issue.json" ;;
+  'issue view')
+    if [ -f "$S/status-during-resolver" ]; then
+      count=$(($(cat "$S/resolver-checks" 2>/dev/null || echo 0) + 1))
+      echo "$count" >"$S/resolver-checks"
+      if [ "$count" -eq 2 ]; then
+        cp "$S/status-during-resolver" "$S/status"
+        touch "$S/late-state-set"
+      fi
+    fi
+    cat "$S/issue.json" ;;
   'issue list') jq -s . "$LIFECYCLE_TEST/issue.json" ;;
   *) exit 1 ;;
 esac
@@ -112,6 +122,9 @@ case "$1 $2" in
     jq -nc --arg host "$(cat "$S/host")" --arg id "$(cat "$S/id")" --arg status "$(cat "$S/status")" \
       '{result:{agent:{agent:$host,interactive_ready:true,agent_status:$status,agent_session:{agent:$host,kind:"id",value:$id}}}}' ;;
   'agent wait')
+    case " $* " in
+      *' --until working --until blocked '*) [ ! -f "$S/late-state-set" ] || touch "$S/decision-made" ;;
+    esac
     while [ -f "$S/live" ]; do
       case " $* " in
         *" --until $(cat "$S/status") "*)
@@ -125,6 +138,7 @@ case "$1 $2" in
   'agent prompt')
     echo /exit >>"$S/prompts"
     touch "$S/exit-submitted"
+    [ ! -f "$S/late-state-set" ] || touch "$S/decision-made"
     [ ! -f "$S/prompt-fail" ] ;;
   'pane read') echo 'fixture output' ;;
   *) exit 1 ;;
@@ -181,6 +195,26 @@ held() {
   (cd "$repo" && CELETIS_HOST="$other" "$BASH" "$plugin/scripts/celetis-flow.sh" 7) >"$tmp/other-out" 2>"$tmp/other.err" || fail "$other lock check failed"
   [ "$(cat "$S/count")" = 1 ] && grep -q 'another celetis-flow.sh' "$tmp/other-out" || fail "$other entered the active $host step"
 }
+late_failures=0
+for host in claude codex; do
+  for status in blocked unknown; do
+    reset
+    start
+    issue enhancement CLOSED
+    echo "$status" >"$S/status-during-resolver"
+    echo idle >"$S/status"
+    await_file "$S/decision-made"
+    [ "$(cat "$S/resolver-checks")" -eq 2 ] || fail "$host did not reach the final resolver call"
+    if [ -f "$S/prompts" ]; then
+      printf 'FAIL: %s received /exit after the final resolver changed its state to %s\n' "$host" "$status"
+      late_failures=$((late_failures + 1))
+    fi
+    held
+    finish
+    [ "$result" -eq 0 ] || fail "$host $status exited with $result"
+  done
+done
+[ "$late_failures" -eq 0 ] || exit 1
 for host in claude codex; do
   reset
   start
