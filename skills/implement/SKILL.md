@@ -3,6 +3,8 @@ name: implement
 description: Use when executing a written plan for a feature in the current session. Superset of superpowers:subagent-driven-development. Not for writing the plan (plan) or the design pass (specify).
 ---
 
+Before any step or answer, use `Read` to read `.claude/celetis-flow/custom/implement.md` from the root of the checkout where the session shell is now. Use file tools to locate that root. Apply the whole file as an addition to this skill. With no checkout or no file, continue. If access needs approval, request it. If access is denied or another read error occurs, stop and report the block.
+
 # implement
 
 Superset of `superpowers:subagent-driven-development` for project plans. Delegates to it; sets the capability tier of every dispatch + gates each task and a final verify phase.
@@ -50,5 +52,3 @@ Superset of `superpowers:subagent-driven-development` for project plans. Delegat
 A FAIL loops back to a fix subagent (same CAP tier), not to Land. (The Tail above sequences this phase; its PASS is the hard gate before Land.)
 
 **TDD stays** the implementer loop.
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/implement.md" 2>/dev/null || true`

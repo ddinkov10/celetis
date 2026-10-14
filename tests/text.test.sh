@@ -111,7 +111,7 @@ key=disable-model-invocation
 missing=
 lacks=
 disabled=
-ends=
+starts=
 dynamic=
 for skill in $skills; do
   file=skills/$skill/SKILL.md
@@ -130,17 +130,17 @@ for skill in $skills; do
       [[ $line != "$key":* ]] || disabled+="$file:$n:$line$nl"
     done <<<"$front"
   fi
-  printf -v custom '!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/%s.md" 2>/dev/null || true`' "$skill"
-  end=$(awk -v want="$custom" '{ before = last; last = $0 } END { if (last != want) print FILENAME ":" NR ":" last; else if (before != "") print FILENAME ":" (NR - 1) ":" before }' "$file")
-  [ -z "$end" ] || ends+=$end$nl
-  more=$(awk 'index($0, "!`") || index($0, "```!") { where[++n] = NR; text[n] = $0 } END { for (i = 1; i <= n; i++) if (where[i] != NR) print FILENAME ":" where[i] ":" text[i] }' "$file")
+  printf -v custom 'Before any step or answer, use `Read` to read `.claude/celetis-flow/custom/%s.md` from the root of the checkout where the session shell is now. Use file tools to locate that root. Apply the whole file as an addition to this skill. With no checkout or no file, continue. If access needs approval, request it. If access is denied or another read error occurs, stop and report the block.' "$skill"
+  start=$(awk 'NR > 1 && $0 == "---" { body = 1; next } body && NF { print; exit }' "$file")
+  [[ $start == "$custom" ]] || starts+="$file: missing or different custom-part read rule$nl"
+  more=$(awk 'index($0, "!`") || index($0, "```!") { print FILENAME ":" NR ":" $0 }' "$file")
   [ -z "$more" ] || dynamic+=$more$nl
 done
 [ -z "$missing" ] || fail "a skill of the list with no SKILL.md:" "$missing"
 [ -z "$lacks" ] || fail "a line that the frontmatter of a SKILL.md must hold, as <path>:<the line> (a frontmatter holds one-line \"key: value\" lines only: with another line in it, the test reads no frontmatter):" "$lacks"
 [ -z "$disabled" ] || fail "a SKILL.md other than skills/guide/SKILL.md with $key in its frontmatter, as <path>:<line>:<text>:" "$disabled"
-[ -z "$ends" ] || fail "the last line of a SKILL.md must be the line of its custom part, with an empty line before it:" "$ends"
-[ -z "$dynamic" ] || fail "a line of a SKILL.md, not its last line, with an exclamation mark directly before a backtick or with three backticks directly before an exclamation mark, as <path>:<line>:<text>:" "$dynamic"
+[ -z "$starts" ] || fail "the first paragraph of a SKILL.md must be the read rule of its custom part:" "$starts"
+[ -z "$dynamic" ] || fail "a shell injection in a SKILL.md, as <path>:<line>:<text>:" "$dynamic"
 
 old_folders=$(search -F -e .claude/scripts/ -e .claude/skills/ -e .claude/commands/ -e docs/agents/ -- "${texts[@]}" "$documents")
 [ -z "$old_folders" ] || fail "an old folder of the harness, as <path>:<line>:<text>:" "$old_folders$nl"

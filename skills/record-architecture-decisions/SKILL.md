@@ -3,6 +3,8 @@ name: record-architecture-decisions
 description: Use when a decision is significant enough that a future maintainer must know why it was made — hard to reverse, surprising without context, and chosen among real alternatives. Not for routine work, obvious choices, lane-type verdicts, or a harness learning-loop.
 ---
 
+Before any step or answer, use `Read` to read `.claude/celetis-flow/custom/record-architecture-decisions.md` from the root of the checkout where the session shell is now. Use file tools to locate that root. Apply the whole file as an addition to this skill. With no checkout or no file, continue. If access needs approval, request it. If access is denied or another read error occurs, stop and report the block.
+
 # Record Architecture Decisions
 
 The read/write tool for `docs/adr/`. Decisions here are architectural: durable choices about
@@ -42,5 +44,3 @@ When all three hold:
 2. Copy `template.md` to `docs/adr/NNNN-short-title.md` (the next number after the highest in the store) and fill every section.
 3. If replacing a prior decision, set `Supersedes: <old-title>`; never rewrite a landed ADR.
 4. Commit the landed ADR with the subject `docs(adr): <topic>`; no commit when no ADR landed.
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/record-architecture-decisions.md" 2>/dev/null || true`

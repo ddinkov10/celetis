@@ -3,6 +3,8 @@ name: prototype
 description: Build a throwaway prototype to answer a design question. Use when the user wants to sanity-check whether a state model or logic feels right, or explore what a UI should look like.
 ---
 
+Before any step or answer, use `Read` to read `.claude/celetis-flow/custom/prototype.md` from the root of the checkout where the session shell is now. Use file tools to locate that root. Apply the whole file as an addition to this skill. With no checkout or no file, continue. If access needs approval, request it. If access is denied or another read error occurs, stop and report the block.
+
 # Prototype
 
 A prototype is **throwaway code that answers a question**. The question decides the shape.
@@ -24,5 +26,3 @@ The two branches produce very different artifacts, so getting this wrong wastes 
 4. **Skip the polish.** No tests, no error handling beyond what makes the prototype _runnable_, no abstractions. The point is to learn something fast.
 5. **Surface the state.** After every action (logic) or on every variant switch (UI), print or render the full relevant state so the user can see what changed.
 6. **Capture it when done.** Fold any validated decision into the real code, then capture the prototype itself as a **primary source**: commit it to a throwaway branch, out of main, and leave a context pointer to that branch on the implementation issue. Capture the answer too (the verdict and the question it settled) in the issue or a commit. The main branch keeps only the validated decision.
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/prototype.md" 2>/dev/null || true`
