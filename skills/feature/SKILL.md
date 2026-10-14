@@ -31,7 +31,7 @@ the same lane. If you have not completed step N, you cannot start step N+1.
    `enhancement`, a one-line intent each), report the children, and stop. Do the relabel, the
    sub-issues, and the report in one turn: the relabel moves the issue's line in the runner's
    resolver (`scripts/celetis next-step`), and a session that the runner started ends at its
-   first idle moment after that (`${CLAUDE_PLUGIN_ROOT}/docs/agent-flow.md`, "The step end"). Each child runs its
+   first idle moment after that (`${CLAUDE_PLUGIN_ROOT}/docs/celetis-flow.md`, "The step end"). Each child runs its
    own `/celetis:feature #<child>`. One feature → continue to step 2.
 2. **Worktree.** Run `scripts/celetis worktree <n>` with a 10-minute timeout (a new worktree runs
    the worktree setup of the project) and call `EnterWorktree` with the path it prints. The script re-enters the
@@ -40,4 +40,4 @@ the same lane. If you have not completed step N, you cannot start step N+1.
    main checkout never changes branch (Branches, PRs, merge in `${CLAUDE_PLUGIN_ROOT}/docs/issue-tracker.md`).
 3. **Invoke `celetis:specify #<n>`** and follow it — it drives the rest of the chain.
 
-!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/feature.md" 2>/dev/null || true`
+!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/feature.md" 2>/dev/null || true`

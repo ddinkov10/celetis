@@ -43,4 +43,4 @@ When all three hold:
 3. If replacing a prior decision, set `Supersedes: <old-title>`; never rewrite a landed ADR.
 4. Commit the landed ADR with the subject `docs(adr): <topic>`; no commit when no ADR landed.
 
-!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/record-architecture-decisions.md" 2>/dev/null || true`
+!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/record-architecture-decisions.md" 2>/dev/null || true`

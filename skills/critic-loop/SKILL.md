@@ -63,4 +63,4 @@ Never fix findings yourself in this session.
 End with the final score (e.g. `8/10 — pass`) and the finding trail: each fix round with its
 per-perspective deltas. The commits stay on the branch; this command never merges or pushes.
 
-!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/critic-loop.md" 2>/dev/null || true`
+!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/critic-loop.md" 2>/dev/null || true`

@@ -115,4 +115,4 @@ criteria, not recall.
 | 11 | "Modernize the app to a Kotlin-based stack" | feature |
 | 12 | "A timed-out token refresh leaves downstream sites mishandling a null token, and no spec defines null-token behavior" | feature — the correct behavior is undefined, must be designed |
 
-!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/triage.md" 2>/dev/null || true`
+!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/triage.md" 2>/dev/null || true`

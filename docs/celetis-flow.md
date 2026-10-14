@@ -1,9 +1,9 @@
-# The agent-flow runner
+# The celetis-flow runner
 
-`scripts/celetis agent-flow` runs the agent flow from a Terminal tab. It asks the resolver for the
-next step of an issue and starts that step in a new interactive `claude` session in its tab. In a
-herdr pane, the script ends the session when the step is done, and it then starts the next step when
-its gate is `auto`. The GitHub issue stays the state store (`docs/issue-tracker.md`): every
+`scripts/celetis celetis-flow` runs the celetis flow from a Terminal tab. It asks the resolver for
+the next step of an issue and starts that step in a new interactive `claude` session in its tab. In
+a herdr pane, the script ends the session when the step is done, and it then starts the next step
+when its gate is `auto`. The GitHub issue stays the state store (`docs/issue-tracker.md`): every
 result of a step goes to the issue. The board is a local web page that shows each agent session and
 the next step of each issue, and its Run button starts the script for one issue in a new herdr tab.
 The board is a package of its own, `ddinkov10/agent-board`: a product project, a repository that
@@ -22,7 +22,7 @@ Two rules of the harness hold in each session, also in a session by hand:
 
 In this document, these names are files of the plugin `celetis`, also when a session reads the
 document inside a product project that has a `docs/` folder and an ADR store of its own: the four
-documents (`docs/agent-flow.md`, `docs/issue-tracker.md`, `docs/capability.md`,
+documents (`docs/celetis-flow.md`, `docs/issue-tracker.md`, `docs/capability.md`,
 `docs/docs-lookup.md`), `step-prompt.md`, a script `<name>.sh` of `scripts/` or a test of `tests/`
 that the text names by its file, and each ADR number, which is a record of `docs/adr/` in the folder
 of the plugin and not of the product project. Each other path is a path of the product project,
@@ -63,16 +63,16 @@ apart from a path that starts with `~/` or `/`.
 ## Start the script
 
 ```bash
-scripts/celetis agent-flow            # the automatic runner; it does not end
-scripts/celetis agent-flow 373 374    # a start with numbers; it takes the issues in this order and ends
-scripts/celetis agent-flow --board    # the data of the issues for the board, as one JSON document
-scripts/celetis agent-flow --resume 373    # the session of a step with no progress, again
+scripts/celetis celetis-flow            # the automatic runner; it does not end
+scripts/celetis celetis-flow 373 374    # a start with numbers; it takes the issues in this order and ends
+scripts/celetis celetis-flow --board    # the data of the issues for the board, as one JSON document
+scripts/celetis celetis-flow --resume 373    # the session of a step with no progress, again
 ```
 
 An argument is `<n>`, or `'#<n>'` in quotes. A shell can read an unquoted word that starts with `#`
 as the start of a comment: the script then gets neither that word nor the words after it, and with
-no number it starts the automatic runner. Each line of the script starts with `agent-flow: `, apart
-from its usage line and the output of `--board`.
+no number it starts the automatic runner. Each line of the script starts with `celetis-flow: `,
+apart from its usage line and the output of `--board`.
 
 **A start with numbers** does this for each issue. It asks the resolver for the line of the issue
 (`scripts/celetis next-step <n>`) and starts the step of the `run` line, whatever its gate. When the
@@ -104,13 +104,13 @@ that a live script holds, `stuck` with its `act` for a row of the record, the `s
 and `urgent` of each row, `runner`, `tracker`, and `flow` with the gate of each step. "The board"
 gives the value of each field. When `gh` or `jq` fails, the form prints
 `stop cannot read the issues from GitHub` and exits 1. The board is its reader: `data` of
-`.claude/agent-flow/board.json` names this form.
+`.claude/celetis-flow/board.json` names this form.
 
 **The form `--resume <n>`** opens the session of a step with no progress again. It reads the last
 row of `#<n>` in the record and runs `claude --resume '#<n> <step>'` in the main checkout, with the
-step of that row. With no row, it prints `agent-flow: #<n> has no step with no progress` and
+step of that row. With no row, it prints `celetis-flow: #<n> has no step with no progress` and
 exits 1. It makes no `gh` call, takes no lock, and starts no job for the step end, so the session
-does not end by itself: leave it with `/exit`. `resume` of `.claude/agent-flow/board.json` names
+does not end by itself: leave it with `/exit`. `resume` of `.claude/celetis-flow/board.json` names
 this form, so a Resume press on the board starts it.
 
 The script asks for no confirmation. A start with the number of an issue whose next step is
@@ -119,7 +119,7 @@ its checks are green, with no more act of yours. With an `auto` gate on a step, 
 through that step by itself.
 
 One lock for each issue and one lock for the automatic runner live in
-`<git common dir>/agent-flow/`. A second script starts no session for an issue that another script
+`<git common dir>/celetis-flow/`. A second script starts no session for an issue that another script
 works on, and a second automatic runner exits 1. A lock holds the PID of its script, so a script
 that was killed holds nothing. `scripts/celetis land` holds `land-<n>.lock` in that folder while it
 lands `#<n>`. The file `no-progress` in that folder is the record: one row for each step that ended
@@ -162,7 +162,7 @@ the script starts the session of a step, it runs two commands, in this order:
 `claude plugin marketplace update celetis`, then
 `claude plugin update celetis@celetis --scope user`. They bring the plugin on the machine to the
 head of `main`. When one of them fails, the script prints
-`agent-flow: the plugin update failed; the session starts on the installed version` and starts the
+`celetis-flow: the plugin update failed; the session starts on the installed version` and starts the
 session. After a successful update, the script reads the install folder again with
 `scripts/celetis root`, which prints the folder of the installed plugin and has no argument, and it
 takes the step text of the session from that folder (`<plugin root>` above). When the lookup gives
@@ -238,7 +238,7 @@ runs, for up to 15 minutes, the board shows the session in Needs you as `turn en
 that session. If a session ended during a landing, wait until `scripts/celetis next-step <n>` prints
 another line, and then run `scripts/celetis land <n> '<subject>'` again from the main checkout: it
 completes the landing. After the merge the issue is finished, so Run and
-`scripts/celetis agent-flow <n>` start nothing, and no card shows the lane worktree and the branch
+`scripts/celetis celetis-flow <n>` start nothing, and no card shows the lane worktree and the branch
 that stay. `scripts/celetis worktree --remove <n>` also removes them after the merge of the PR; it
 does not close the epic.
 
@@ -249,26 +249,26 @@ a start with numbers. The step is the command of the `run` line with no prefix: 
 `chore`, `hotfix`, `plan`, or `implement`. One command has another step name:
 `run /celetis:feature #<n>`, the line of an `enhancement` with no spec, is the step `specify`.
 
-`.claude/agent-flow/gates.json` holds the gates of the project, and the git config holds the gates
-of the machine. The script reads the git config value `agent-flow.gate.<step>` first, then the file,
-so the git config wins. A step that neither names is `me`, and only the value `auto` is `auto`. In
-this document, "the default gates" means that no step is `auto`: with the default gates, one Run
-press on the board, or one start with a number, starts one step. With `specify` as `auto`, the
-script starts a design session by itself, and that session waits for you at its first question.
+`.claude/celetis-flow/gates.json` holds the gates of the project, and the git config holds the gates
+of the machine. The script reads the git config value `celetis-flow.gate.<step>` first, then the
+file, so the git config wins. A step that neither names is `me`, and only the value `auto` is
+`auto`. In this document, "the default gates" means that no step is `auto`: with the default gates,
+one Run press on the board, or one start with a number, starts one step. With `specify` as `auto`,
+the script starts a design session by itself, and that session waits for you at its first question.
 
 ```bash
-git config agent-flow.gate.implement auto     # make one step auto on this machine
-git config --unset agent-flow.gate.implement  # go back to the gate of the project
+git config celetis-flow.gate.implement auto     # make one step auto on this machine
+git config --unset celetis-flow.gate.implement  # go back to the gate of the project
 ```
 
 ## The config and the custom parts
 
-Three parts of a product project are in its folder `.claude/agent-flow/`: the config, the worktree
+Three parts of a product project are in its folder `.claude/celetis-flow/`: the config, the worktree
 setup, and the custom parts (ADR-0012).
 
-**The config.** The config is in `.claude/agent-flow/` of the main checkout of the product project.
-Each reader takes it from the main checkout, also when a script starts in a lane worktree or in a
-subfolder:
+**The config.** The config is in `.claude/celetis-flow/` of the main checkout of the product
+project. Each reader takes it from the main checkout, also when a script starts in a lane worktree
+or in a subfolder:
 
 - `gates.json`: the script reads it for the gate of each step ("Gates"). With no `gates.json`, a
   step is `auto` only when the git config names it `auto`.
@@ -280,23 +280,23 @@ subfolder:
 The plugin holds the scripts, so only the current folder names the product project. A script that
 reads the product project stops outside a git repository, with the `fatal:` line of git:
 `scripts/celetis worktree`, `scripts/celetis land`, `scripts/celetis next-step`, and
-`scripts/celetis agent-flow`. `scripts/celetis capscore` and `scripts/celetis root` read no product
-project, and they run in each folder.
+`scripts/celetis celetis-flow`. `scripts/celetis capscore` and `scripts/celetis root` read no
+product project, and they run in each folder.
 
 **The worktree setup.** `scripts/celetis worktree <n>` makes the lane worktree and its branch
 (`docs/issue-tracker.md`, "Branches, PRs, merge"). A new branch starts at the freshly fetched trunk
 of `origin`. The trunk is the default branch that `gh repo view --json defaultBranchRef` gives, and
 the command reads it only when it makes a new branch. The command then runs the setup script of the
-new worktree, in that worktree, as `bash .claude/agent-flow/worktree-setup.sh <main checkout>`, with
-stdout sent to stderr. So the file needs no execute bit, it can print, and the path of the worktree
-is the only stdout line of the command. A project with no such file gets no setup. When the setup
-script exits with an error, the command prints
-`worktree setup failed: .claude/agent-flow/worktree-setup.sh`, removes the worktree and the branch
+new worktree, in that worktree, as `bash .claude/celetis-flow/worktree-setup.sh <main checkout>`,
+with stdout sent to stderr. So the file needs no execute bit, it can print, and the path of the
+worktree is the only stdout line of the command. A project with no such file gets no setup. When the
+setup script exits with an error, the command prints
+`worktree setup failed: .claude/celetis-flow/worktree-setup.sh`, removes the worktree and the branch
 that it made, and exits 1. The marker of a setup that is done is the file
-`<git dir of the worktree>/agent-flow-setup-done`: a file in the working tree would make a new
+`<git dir of the worktree>/celetis-flow-setup-done`: a file in the working tree would make a new
 worktree dirty. The command runs the setup again in a worktree that has no marker.
 
-**A custom part.** A custom part is the file `.claude/agent-flow/custom/<skill>.md` of a product
+**A custom part.** A custom part is the file `.claude/celetis-flow/custom/<skill>.md` of a product
 project, with the name of a skill of the plugin. It holds an addition to the procedure of one step,
 for example a check on a real device after the build. The text is an addition: it cannot remove a
 rule of the general skill. An act that a custom part adds comes before the act of the skill that
@@ -310,7 +310,7 @@ Code loads the skill, and the skill has no frontmatter line for it. For the skil
 line is:
 
 ```
-!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/<skill>.md" 2>/dev/null || true`
+!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/<skill>.md" 2>/dev/null || true`
 ```
 
 - **Which checkout.** The line reads the file from the root of the checkout where the shell of the
@@ -323,7 +323,7 @@ line is:
   the skill, and the skill loads.
 - **The line runs only when a skill loads.** So a skill that tells the session to read the file of
   another skill also names the custom part of that other skill,
-  `.claude/agent-flow/custom/<that skill>.md` of the project, and the session reads that file when
+  `.claude/celetis-flow/custom/<that skill>.md` of the project, and the session reads that file when
   it is there.
 
 ## The board
@@ -345,8 +345,8 @@ Chromium browser. The config names the script, so the requirements of the script
 and its URL: open the URL.
 
 ```bash
-npx 'github:ddinkov10/agent-board#semver:^1'    # the last line: agent-board: http://127.0.0.1:<port>
-PORT=4500 npx 'github:ddinkov10/agent-board#semver:^1'
+npx 'github:ddinkov10/agent-board#semver:^2'    # the last line: agent-board: http://127.0.0.1:<port>
+PORT=4500 npx 'github:ddinkov10/agent-board#semver:^2'
 ```
 
 - Start the board in the main checkout only, never in a lane worktree. `npx` reads the `.npmrc` of
@@ -354,7 +354,7 @@ PORT=4500 npx 'github:ddinkov10/agent-board#semver:^1'
   folders first on `PATH`, before the board runs. The board refuses a start in a lane worktree only
   after that read, so the refusal is no guard: it prints
   `agent-board: start the board in the main checkout: <path>` and exits 1.
-- `#semver:^1` names the newest release of major version 1. The quotes are necessary: `#` and `^`
+- `#semver:^2` names the newest release of major version 2. The quotes are necessary: `#` and `^`
   are glob characters in zsh with `EXTENDED_GLOB`.
 - The port is `PORT`, else `port` of the config, else 4403. When the port is in use, the board
   prints the cause and exits 1.
@@ -362,15 +362,15 @@ PORT=4500 npx 'github:ddinkov10/agent-board#semver:^1'
   command with `--yes`, which answers the install question of `npx`. A session in a Code tab of the
   desktop app can then show the page in the Browser pane.
 
-**The config** is `.claude/agent-flow/board.json`. The board reads it from the main checkout only,
+**The config** is `.claude/celetis-flow/board.json`. The board reads it from the main checkout only,
 once, at its start. Each of its first three keys is an argument list whose first item is a file of
 the main checkout, and `{n}` stands for the number of the issue:
 
 | Key | Value | Use |
 |---|---|---|
-| `data` | `scripts/celetis agent-flow --board` | The board starts it, with no shell, for each read of the issues. |
-| `run` | `scripts/celetis agent-flow {n}` | A Run press makes a herdr tab with the label `#<n> <step>` and types `'<main checkout>/scripts/celetis' 'agent-flow' <n> && exit` in its pane. |
-| `resume` | `scripts/celetis agent-flow --resume {n}` | A Resume press makes the same tab, with the focus, and types `'<main checkout>/scripts/celetis' 'agent-flow' '--resume' <n> && exit`. |
+| `data` | `scripts/celetis celetis-flow --board` | The board starts it, with no shell, for each read of the issues. |
+| `run` | `scripts/celetis celetis-flow {n}` | A Run press makes a herdr tab with the label `#<n> <step>` and types `'<main checkout>/scripts/celetis' 'celetis-flow' <n> && exit` in its pane. |
+| `resume` | `scripts/celetis celetis-flow --resume {n}` | A Resume press makes the same tab, with the focus, and types `'<main checkout>/scripts/celetis' 'celetis-flow' '--resume' <n> && exit`. |
 | `port` | `<port>` | The port, when `PORT` is not set. |
 
 `&& exit` closes the tab when the script ends with no error, and a script that fails leaves the tab
@@ -380,7 +380,7 @@ when that session ends: the tab then closes, and the card shows the next step. A
 landing) and the board starts again. A change of the script needs no new start: the board starts
 the script again for each read and each press.
 
-**The data.** `scripts/celetis agent-flow --board` prints contract 1 ("Start the script"), with 3
+**The data.** `scripts/celetis celetis-flow --board` prints contract 1 ("Start the script"), with 3
 `gh` calls for each read. The script puts these values in the fields of the document:
 
 | Field | Value |
@@ -420,7 +420,7 @@ Each row also has `number`, `title`, `url`, `updatedAt`, `closedAt`, and these f
 **Check the document** against the contract, in the main checkout:
 
 ```bash
-scripts/celetis agent-flow --board | npx 'github:ddinkov10/agent-board#semver:^1' check --stdin
+scripts/celetis celetis-flow --board | npx 'github:ddinkov10/agent-board#semver:^2' check --stdin
 ```
 
 The checker prints `agent-board: contract 1, <count> issues, ok` and exits 0, or it prints one line
@@ -436,15 +436,15 @@ The repository is private, so the link opens only for an account that can read i
 
 | The script prints | The maintainer's act | Then |
 |---|---|---|
-| `stop … needs info` or `stop … ready-for-human` | do what the line says; for `ready-for-human`, the latest `## Stopped` or `## Before landing` comment names the act, and "How a step runs", **A stop**, gives the act after a refused landing. The card of an issue with a current landing refusal reads `landing refused`: its `## Landing refused` comment names the cause | the next step starts with a Run press or with `scripts/celetis agent-flow <n>`; the automatic runner starts it only when its gate is `auto` |
+| `stop … needs info` or `stop … ready-for-human` | do what the line says; for `ready-for-human`, the latest `## Stopped` or `## Before landing` comment names the act, and "How a step runs", **A stop**, gives the act after a refused landing. The card of an issue with a current landing refusal reads `landing refused`: its `## Landing refused` comment names the cause | the next step starts with a Run press or with `scripts/celetis celetis-flow <n>`; the automatic runner starts it only when its gate is `auto` |
 | `stop … is an epic` | none: each child is an open issue with its own flow | — |
 | `stop … is finished` or `stop … is closed as wontfix` | none | — |
 | `stop the working tree is dirty …` | commit or stash | as the first row |
 | `stop the landing of #<n> runs …` | none: a session lands the issue | start the script again when the landing ended |
 | `stop cannot read … from GitHub` | check `gh auth status` and the network | the automatic runner tries again by itself; press Refresh on the board |
-| a `me` gate | a Run press on the card, or `scripts/celetis agent-flow <n>` | — |
-| `no progress: /celetis:feature #<n>` | the session ended with no spec on the issue: open the session again, or read the comment of a spike | a Run press, or `scripts/celetis agent-flow <n>` |
-| `no progress:` with another command | open the session again, or read the issue | a Run press, or `scripts/celetis agent-flow <n>` |
+| a `me` gate | a Run press on the card, or `scripts/celetis celetis-flow <n>` | — |
+| `no progress: /celetis:feature #<n>` | the session ended with no spec on the issue: open the session again, or read the comment of a spike | a Run press, or `scripts/celetis celetis-flow <n>` |
+| `no progress:` with another command | open the session again, or read the issue | a Run press, or `scripts/celetis celetis-flow <n>` |
 
 A Run press runs the script in a new herdr tab. A script that ends with no error closes its tab, so
 read the state on the card of the issue: "The board" gives the state of each issue, and the README
@@ -474,7 +474,7 @@ rules do not see a command of the script, so the script never merges and never p
 ## Sessions
 
 The name of a session is `#<n> <step>`. From the main checkout, `claude --resume '#402 plan'` opens
-the session of that step again, and `scripts/celetis agent-flow --resume 402` opens the session of
+the session of that step again, and `scripts/celetis celetis-flow --resume 402` opens the session of
 the step of #402 that has a row in the record. No job ends a session that you open again, so it
 stays open until you leave it. In a herdr tab with the label `#402 plan`, its card on the board
 links to #402. When a live session on the machine already has the name, Claude Code gives the new
@@ -510,20 +510,20 @@ session a variant of it.
   `statusCheckRollup` from `gh pr list` is not checked against a live GitHub.
 - The script exits 0 at each `stop` line, at a `me` gate, and at "no progress", so `&& exit` closes
   the tab with the message of the script. A Run press whose session ends at once thus leaves no
-  message: start `scripts/celetis agent-flow <n>` in a terminal to see it.
+  message: start `scripts/celetis celetis-flow <n>` in a terminal to see it.
 - A start of the board from the entry `board` of `.claude/launch.json`, in a project that has such
   an entry, needs `npx`, `herdr`, and the tools of the script on the `PATH` of the desktop app, and
   the git credentials for GitHub in its environment. This is not checked: the desktop app reads
   `.claude/launch.json` of the main checkout, so the build of a lane cannot start the entry `board`
   of its branch. When that entry does not start the board, start the board in a terminal.
-- A runner that stays open for more than 14 days after an update can lose the folder of its version.
-  A runner process keeps the folder of its own version for its resolver and its launcher, and Claude
-  Code removes the folder of an old version in a background cleanup 14 days after the update. After
-  that, the automatic runner cannot start `next-step.sh`: it prints
-  `agent-flow: stop cannot read the open issues from GitHub` one time, and bash prints a
+- A runner that stays open for more than 14 days after an update can lose the folder of its
+  version. A runner process keeps the folder of its own version for its resolver and its launcher,
+  and Claude Code removes the folder of an old version in a background cleanup 14 days after the
+  update. After that, the automatic runner cannot start `next-step.sh`: it prints
+  `celetis-flow: stop cannot read the open issues from GitHub` one time, and bash prints a
   `No such file or directory` line each 60 seconds. A runner with numbers prints
-  `agent-flow: #<n>: next-step.sh printed no line` for each number. The first line points at GitHub,
-  and the cause is the removed folder. The cure is a new start of the runner (ADR-0012).
+  `celetis-flow: #<n>: next-step.sh printed no line` for each number. The first line points at
+  GitHub, and the cause is the removed folder. The cure is a new start of the runner (ADR-0012).
 
 The README of the package holds the limits of the page.
 
@@ -540,7 +540,7 @@ workflow do not run it. The tests of the board are in `ddinkov10/agent-board`.
 
 ```bash
 scripts/verify.sh
-bash tests/agent-flow.test.sh
+bash tests/celetis-flow.test.sh
 bash tests/next-step.test.sh
 bash tests/land.test.sh
 bash tests/worktree.test.sh
@@ -549,17 +549,17 @@ bash tests/text.test.sh
 bash tests/manual/step-prompt.test.sh
 ```
 
-`bash tests/agent-flow.test.sh` gives each `--board` document of its stub world to the checker of
+`bash tests/celetis-flow.test.sh` gives each `--board` document of its stub world to the checker of
 the package (`check --stdin`), so the test fails when the script leaves contract 1. `AGENT_BOARD`
 names the entry file of a local checkout of the package:
-`AGENT_BOARD=<checkout of agent-board>/cli.mjs bash tests/agent-flow.test.sh`, or the same variable
-before `scripts/verify.sh`. With no `AGENT_BOARD`, the test runs the pinned `npx` command, and it
-needs the network and the git credentials for GitHub. `AGENT_FLOW_SKIP_BOARD_CHECK=1` makes the test
-skip the checker. Only the workflow sets it: the package is private, and a workflow of another
-repository cannot read it. So the workflow does not check contract 1, and the gate on a machine
-does. The test starts `npx` in its temporary folder, so `npx` reads no `.npmrc`
-and no `node_modules/.bin` of the checkout where the test starts: the test can run in a lane
-worktree. For the document of the real issues, "The board" gives the `check` command.
+`AGENT_BOARD=<checkout of agent-board>/cli.mjs bash tests/celetis-flow.test.sh`, or the same
+variable before `scripts/verify.sh`. With no `AGENT_BOARD`, the test runs the pinned `npx` command,
+and it needs the network and the git credentials for GitHub. `CELETIS_FLOW_SKIP_BOARD_CHECK=1` makes
+the test skip the checker. Only the workflow sets it: the package is private, and a workflow of
+another repository cannot read it. So the workflow does not check contract 1, and the gate on a
+machine does. The test starts `npx` in its temporary folder, so `npx` reads no `.npmrc` and no
+`node_modules/.bin` of the checkout where the test starts: the test can run in a lane worktree. For
+the document of the real issues, "The board" gives the `check` command.
 
 Three of the five tests of a script start their script with the bash that runs the test.
 `tests/worktree.test.sh` and `tests/launcher.test.sh` start their script with the `bash` that is
@@ -571,7 +571,7 @@ headless `claude -p` turns, so it needs a `claude` that is logged in, it uses to
 answer of a model can differ between runs. The test runs its turns in the folder where it starts,
 and each turn reads the instruction files of that folder (`AGENTS.md`). So run the test after each
 change of `step-prompt.md`, and run it in a product project after each change of the part of its
-`AGENTS.md` on the agent flow. In a product project, start it in the main checkout as
+`AGENTS.md` on the celetis flow. In a product project, start it in the main checkout as
 `bash "$(scripts/celetis root)/tests/manual/step-prompt.test.sh"`: the test then reads the step
 text of the installed plugin. The script sets `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`, because the
 git status snapshot of a turn holds the branch name and the last commit subjects, and these can

@@ -38,7 +38,7 @@ Superset of `superpowers:subagent-driven-development` for project plans. Delegat
 2. Broad final whole-branch review (base skill's final review), scored as its own dispatch with `scripts/celetis capscore`: the CAP line sets its model in place of the upstream "most capable model", because `${CLAUDE_PLUGIN_ROOT}/docs/capability.md` reserves fable for Σ=12.
 3. A re-run of the verify gate of the project.
 4. The **Verify phase** (below) — its PASS/FAIL is a hard gate.
-5. **Land** — `scripts/celetis land` puts the change on the trunk by the mechanism that `.claude/agent-flow/landing.json` names (ADR-0008 of the plugin `celetis`). It is the one landing path of an agent.
+5. **Land** — `scripts/celetis land` puts the change on the trunk by the mechanism that `.claude/celetis-flow/landing.json` names (ADR-0008 of the plugin `celetis`). It is the one landing path of an agent.
    1. `gh issue edit <n> --remove-label ready-for-agent`. A `## Plan` comment with no `ready-for-agent` label is the mark that the change is built.
    2. **Human precondition.** When the change needs an act that only a human can do before it reaches the trunk, and the issue has no `## Before landing` comment: post a comment whose first line is `## Before landing` and that names the act, then run `gh issue edit <n> --add-label ready-for-human`, and stop. The maintainer does the act and removes the label, and the next run of this step lands the change.
    3. Call `ExitWorktree` (keep). From the main checkout, run `scripts/celetis land <n> '<type>(<area>): <what>'` as a background command, and go on when it ends: the wait for the checks can last 15 minutes, and a foreground Bash command stops at 10. Write the command exactly so: the `allow` rule in `.claude/settings.json` names it. The subject is the squash subject of the change, without the issue number: the script adds ` (#<n>)`. When the lane branch holds one commit, pass the subject of that commit: the squash commit can take the subject of that commit in place of the argument. Exit 0 ends the step: the change is on the trunk, and the worktree and the branch are gone. **A stop after the landing** (a `land:` line that says `run scripts/celetis land again`) is no refusal, and step 5 does not count it: the change is on the trunk, so do what the line says and run the script again; a second stop with the same line is a cause outside the change (step 5). **An error that the session caused** (exit 2 with the usage line, a run from inside the lane worktree, a lane worktree that is dirty) is no refusal either, and step 5 does not count it: correct it, and run the script again.
@@ -51,4 +51,4 @@ A FAIL loops back to a fix subagent (same CAP tier), not to Land. (The Tail abov
 
 **TDD stays** the implementer loop.
 
-!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/implement.md" 2>/dev/null || true`
+!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/implement.md" 2>/dev/null || true`
