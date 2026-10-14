@@ -574,6 +574,35 @@ reset; issue 7 OPEN enhancement "Spec: x"; touch "$S/gh-fail"
 run_flow --board
 [ "$code" -eq 1 ] && [ "$out" = "stop cannot read the issues from GitHub" ] && printf '%s' "$err" | grep -q "HTTP 502" || fail "--board with gh down: $code [$out] [$err]"
 
+stale="$tmp/stale-plugin/scripts"
+mkdir -p "$stale"
+cp "$root/scripts/celetis-flow.sh" "$stale/"
+stale_msg="the plugin version of this runner was removed after an update; start the runner again"
+reset; issue 7 OPEN enhancement "Spec: x"
+( cd "$repo" && PATH="$bin:$PATH" "$BASH" "$stale/celetis-flow.sh" 7 >"$tmp/stale-out" 2>"$tmp/stale-err" <"$tmp/stdin" ) || fail "a stale runner with numbers must exit 0"
+[ "$(cat "$tmp/stale-out")" = "celetis-flow: #7: $stale_msg" ] && [ ! -s "$tmp/stale-err" ] || fail "a stale runner with numbers must name the removed version: [$(cat "$tmp/stale-out")] [$(cat "$tmp/stale-err")]"
+[ -z "$(calls gh-calls)" ] || fail "a stale runner must not call gh: [$(calls gh-calls)]"
+set +e
+( cd "$repo" && PATH="$bin:$PATH" "$BASH" "$stale/celetis-flow.sh" --board >"$tmp/stale-out" 2>"$tmp/stale-err" <"$tmp/stdin" )
+stale_code=$?
+set -e
+[ "$stale_code" -eq 1 ] && [ "$(cat "$tmp/stale-out")" = "stop $stale_msg" ] && [ ! -s "$tmp/stale-err" ] || fail "a stale --board must name the removed version: [$stale_code] [$(cat "$tmp/stale-out")] [$(cat "$tmp/stale-err")]"
+reset; issue 7 OPEN enhancement "Spec: x"; echo 1 >"$S/sleep-limit"
+set +e
+( cd "$repo" && PATH="$bin:$PATH" "$BASH" "$stale/celetis-flow.sh" >"$tmp/stale-out" 2>"$tmp/stale-err" <"$tmp/stdin" )
+stale_code=$?
+set -e
+[ "$stale_code" -eq 1 ] && [ "$(cat "$tmp/stale-out")" = "celetis-flow: stop $stale_msg" ] && [ ! -s "$tmp/stale-err" ] && [ ! -e "$S/sleeps" ] || fail "a stale automatic runner must stop at once with the true cause: [$stale_code] [$(cat "$tmp/stale-out")] [$(cat "$tmp/stale-err")]"
+reset; issue 7 OPEN enhancement "Spec: x"; issue 8 OPEN enhancement "Spec: x"
+( cd "$repo" && PATH="$bin:$PATH" "$BASH" "$stale/celetis-flow.sh" 7 8 >"$tmp/stale-out" 2>"$tmp/stale-err" <"$tmp/stdin" ) || fail "a stale runner with numbers must exit 0"
+[ "$(cat "$tmp/stale-out")" = "celetis-flow: #7: $stale_msg
+celetis-flow: #8: $stale_msg" ] && [ ! -s "$tmp/stale-err" ] || fail "a stale runner must name the removed version per number in order"
+mkdir -p "$stale/next-step.sh"
+reset; issue 7 OPEN enhancement "Spec: x"
+( cd "$repo" && PATH="$bin:$PATH" "$BASH" "$stale/celetis-flow.sh" 7 >"$tmp/stale-out" 2>"$tmp/stale-err" <"$tmp/stdin" ) || fail "a stale runner with numbers must exit 0"
+[ "$(cat "$tmp/stale-out")" = "celetis-flow: #7: $stale_msg" ] && [ ! -s "$tmp/stale-err" ] || fail "a stale runner with a directory at next-step.sh must name the removed version: [$(cat "$tmp/stale-out")] [$(cat "$tmp/stale-err")]"
+[ -z "$(calls gh-calls)" ] || fail "a stale runner must not call gh: [$(calls gh-calls)]"
+
 [ -f "$root/step-prompt.md" ] || fail "the step text is missing"
 [ -x "$root/scripts/celetis-flow.sh" ] || fail "celetis-flow.sh must be executable"
 
