@@ -1,24 +1,160 @@
 #!/usr/bin/env bash
-if [ $# -eq 0 ]; then
-  echo 'usage: scripts/celetis <script> [<argument>...], e.g. scripts/celetis next-step --open' >&2
-  exit 2
-fi
-name=$1
-if ! command -v jq >/dev/null 2>&1; then
-  echo 'celetis: jq is not on PATH' >&2
-  exit 1
-fi
-dir=$(claude plugin list --json 2>/dev/null | jq -r '[.[] | select(.id == "celetis@celetis")] | (map(select(.scope == "user")) + .)[0].installPath // empty' 2>/dev/null | tr -d '\r')
-if [ -z "$dir" ]; then
-  echo 'celetis: the plugin is not installed; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis' >&2
-  exit 1
-fi
-if command -v cygpath >/dev/null 2>&1; then
-  dir=$(cygpath -u "$dir")
-fi
-if ! [[ $name =~ ^[a-z][a-z-]*$ ]] || [ ! -f "$dir/scripts/$name.sh" ]; then
-  echo "celetis: the plugin has no script $name" >&2
-  exit 2
-fi
-shift
-exec bash "$dir/scripts/$name.sh" "$@"
+
+celetis_host_select() {
+  local host
+  if [ $# -gt 0 ]; then
+    host=$1
+  elif [ "${CELETIS_HOST+x}" = x ]; then
+    host=$CELETIS_HOST
+  else
+    host=$(git config --get celetis-flow.host 2>/dev/null) || host=claude
+  fi
+  case $host in
+    claude | codex) export CELETIS_HOST=$host ;;
+    *) printf 'celetis: invalid host %s; use claude or codex\n' "$host" >&2; return 2 ;;
+  esac
+}
+
+celetis_codex_reply() {
+  local id=$1 method=$2 deadline=$((SECONDS + 10)) line kind remaining
+  while :; do
+    remaining=$((deadline - SECONDS))
+    [ "$remaining" -gt 0 ] || break
+    if IFS= read -r -t "$remaining" line <&4; then
+      kind=$(printf '%s\n' "$line" | jq -ers --argjson id "$id" '
+        if length != 1 or (.[0] | type) != "object" then error("invalid message")
+        else .[0] end
+        | if has("id") then
+            if .id != $id then "other"
+            elif .error != null then "error"
+            elif (.result | type) == "object" then "result"
+            else error("invalid response") end
+          elif (.method | type) == "string" then "other"
+          else error("invalid notification") end
+      ' 2>/dev/null) || { echo 'celetis: invalid Codex app-server response' >&2; return 1; }
+      case $kind in
+        result) CELETIS_REPLY=$line; return 0 ;;
+        error) printf 'celetis: Codex %s failed: %s\n' "$method" "$(printf '%s\n' "$line" | jq -r '.error.message // "unknown error"')" >&2; return 1 ;;
+      esac
+    else
+      if [ "$SECONDS" -lt "$deadline" ]; then
+        printf 'celetis: Codex app-server closed its output during %s\n' "$method" >&2
+        return 1
+      fi
+      break
+    fi
+  done
+  printf 'celetis: Codex %s timed out after 10 seconds\n' "$method" >&2
+  return 1
+}
+
+celetis_codex_root() (
+  command -v codex >/dev/null 2>&1 || { echo 'celetis: codex is not on PATH' >&2; exit 1; }
+  umask 077
+  scratch=$(mktemp -d "${TMPDIR:-/tmp}/celetis.XXXXXX") || exit 1
+  codex_pid=
+  cleanup() {
+    exec 3>&- 4>&-
+    if [ -n "$codex_pid" ]; then
+      kill "$codex_pid" 2>/dev/null || true
+      for attempt in 1 2 3 4 5; do
+        kill -0 "$codex_pid" 2>/dev/null || break
+        sleep 0.1
+      done
+      kill -KILL "$codex_pid" 2>/dev/null || true
+      wait "$codex_pid" 2>/dev/null || true
+    fi
+    rm -rf "$scratch"
+  }
+  trap cleanup EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  mkfifo "$scratch/in" "$scratch/out" || exit 1
+  exec 3<>"$scratch/in" 4<>"$scratch/out"
+  codex app-server --stdio <"$scratch/in" >"$scratch/out" 3>&- 4>&- 2>"$scratch/stderr" &
+  codex_pid=$!
+  exec 4<"$scratch/out"
+  printf '%s\n' '{"id":1,"method":"initialize","params":{"clientInfo":{"name":"celetis","version":"0.0.0"},"capabilities":{"experimentalApi":true}}}' >&3
+  celetis_codex_reply 1 initialize || { cat "$scratch/stderr" >&2; exit 1; }
+  printf '%s\n' '{"method":"initialized"}' >&3
+  jq -nc --arg cwd "$PWD" '{id:2,method:"skills/list",params:{cwds:[$cwd],forceReload:true}}' >&3
+  celetis_codex_reply 2 skills/list || { cat "$scratch/stderr" >&2; exit 1; }
+  candidates=$(printf '%s\n' "$CELETIS_REPLY" | jq -ce --arg cwd "$PWD" '
+    .result.data
+    | if type != "array" then error("invalid data") else . end
+    | map(select(.cwd == $cwd))
+    | if length != 1 or (.[0].skills | type) != "array" then error("invalid skills") else .[0].skills end
+    | map(select(.pluginId == "celetis@celetis" and .enabled == true and
+        (.name | type == "string" and test("^celetis:[a-z][a-z-]*$"))))
+    | map(. as $skill
+        | if (.path | type) != "string" then error("invalid path") else .path end
+        | if test("[\u0000-\u001f]") then error("invalid path") else . end
+        | if test("^[A-Za-z]:\\\\") then gsub("\\\\"; "/") else . end
+        | if test("^(?:/|[A-Za-z]:/).+/skills/[a-z][a-z-]*/SKILL[.]md$") and
+            (test("/(?:[.][.]?|)/") | not) then . else error("invalid path") end
+        | capture("^(?<root>.+)/skills/(?<skill>[a-z][a-z-]*)/SKILL[.]md$") as $path
+        | if ("celetis:" + $path.skill) != $skill.name then error("invalid skill name")
+          else {root:$path.root,path:.} end)
+  ' 2>/dev/null) || { echo 'celetis: invalid Codex skills/list response' >&2; exit 1; }
+  case $(printf '%s\n' "$candidates" | jq '[.[].root] | unique | length') in
+    0) echo 'celetis: Codex has no enabled celetis@celetis installation; install and enable the plugin in Codex' >&2; exit 1 ;;
+    1) ;;
+    *) echo 'celetis: Codex reports multiple celetis package roots; fix the enabled installation' >&2; exit 1 ;;
+  esac
+  dir=$(printf '%s\n' "$candidates" | jq -r '.[0].root')
+  if command -v cygpath >/dev/null 2>&1; then dir=$(cygpath -u "$dir") || exit 1; fi
+  if [ ! -d "$dir/scripts" ] || ! jq -e '.name == "celetis"' "$dir/.claude-plugin/plugin.json" >/dev/null 2>&1; then
+    echo 'celetis: Codex reports an invalid celetis package; reinstall the plugin' >&2
+    exit 1
+  fi
+  while IFS= read -r path; do
+    if command -v cygpath >/dev/null 2>&1; then path=$(cygpath -u "$path") || exit 1; fi
+    if [ ! -f "$path" ]; then
+      echo 'celetis: Codex reports a missing installed skill; reinstall the plugin' >&2
+      exit 1
+    fi
+  done < <(printf '%s\n' "$candidates" | jq -r '.[].path')
+  printf '%s\n' "$dir"
+)
+
+celetis_main() {
+  local name dir
+  if [ "${1:-}" = --host ]; then
+    if [ $# -lt 3 ]; then
+      echo 'usage: scripts/celetis --host claude|codex <script> [<argument>...]' >&2
+      return 2
+    fi
+    celetis_host_select "$2" || return $?
+    shift 2
+  else
+    if [ $# -eq 0 ]; then
+      echo 'usage: scripts/celetis <script> [<argument>...], e.g. scripts/celetis next-step --open' >&2
+      return 2
+    fi
+    celetis_host_select || return $?
+  fi
+  name=$1
+  if ! command -v jq >/dev/null 2>&1; then
+    echo 'celetis: jq is not on PATH' >&2
+    return 1
+  fi
+  if [ "$CELETIS_HOST" = codex ]; then
+    dir=$(celetis_codex_root) || return 1
+  else
+    dir=$(claude plugin list --json 2>/dev/null | jq -r '[.[] | select(.id == "celetis@celetis")] | (map(select(.scope == "user")) + .)[0] | select(.enabled == null or .enabled == true) | .installPath // empty' 2>/dev/null | tr -d '\r')
+    if [ -z "$dir" ]; then
+      echo 'celetis: the plugin is not installed; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis' >&2
+      return 1
+    fi
+    if command -v cygpath >/dev/null 2>&1; then dir=$(cygpath -u "$dir"); fi
+  fi
+  if ! [[ $name =~ ^[a-z][a-z-]*$ ]] || [ ! -f "$dir/scripts/$name.sh" ]; then
+    echo "celetis: the plugin has no script $name" >&2
+    return 2
+  fi
+  shift
+  exec bash "$dir/scripts/$name.sh" "$@"
+}
+
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then celetis_main "$@"; fi
