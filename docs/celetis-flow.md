@@ -563,8 +563,9 @@ the document of the real issues, "The board" gives the `check` command.
 
 Three of the five tests of a script start their script with the bash that runs the test.
 `tests/worktree.test.sh` and `tests/launcher.test.sh` start their script with the `bash` that is
-first on `PATH`, and so does each script that starts another script. So for the proof on bash 3.2,
-the `/bin/bash` of macOS, run a test as `PATH="/bin:$PATH" /bin/bash <test>`.
+first on `PATH`, and so does each script that starts another script. So the gate runs each test as
+`PATH="/bin:$PATH" /bin/bash <test>`: the `/bin/bash` of macOS runs the test, and the `PATH`
+makes each inner `bash` reach it too.
 
 `bash tests/manual/step-prompt.test.sh` checks the step text. It runs its fixed cases in
 headless `claude -p` turns, so it needs a `claude` that is logged in, it uses tokens, and the

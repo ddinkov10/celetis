@@ -18,8 +18,8 @@ AGENT_BOARD=<checkout of ddinkov10/agent-board>/cli.mjs scripts/verify.sh
 - `docs/celetis-flow.md`, "Check the harness", says what `AGENT_BOARD` does, and what the gate does
   with no such variable.
 - `tests/text.test.sh` reads tracked files only. Run `git add` on a new file before the gate.
-- Each script and each test also runs under bash 3.2, the `/bin/bash` of macOS. The proof for one
-  test is `PATH="/bin:$PATH" /bin/bash tests/<name>.test.sh`.
+- Each script and each test also runs under bash 3.2, the `/bin/bash` of macOS. The gate runs each
+  test as `PATH="/bin:$PATH" /bin/bash <test>`, so each inner `bash` reaches `/bin/bash` too.
 - `tests/manual/step-prompt.test.sh` is hand-run: it is not in the gate, and it uses tokens. Run it
   after a change of `step-prompt.md`, of "Celetis flow" below, or of a sentence that it quotes
   ("Traps").
