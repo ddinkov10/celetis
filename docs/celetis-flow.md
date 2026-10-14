@@ -348,7 +348,8 @@ define the read, permission, and exact-once rules.
 
 ## The board
 
-The board is the package `ddinkov10/agent-board`, in a private repository of its own. Neither the
+The board is the package `ddinkov10/agent-board`, in a private repository of its own. Version
+2.0.0 reads the current `.claude/celetis-flow/board.json` path and contract 1. Neither the
 plugin nor a product project holds a file of the board: a product project holds the config of the
 board, and the plugin holds the script that prints its data. ADR-0009 holds the reasons for the
 package and for contract 1, the JSON document that the board reads. ADR-0003 holds the reasons for
@@ -388,10 +389,29 @@ the main checkout, and `{n}` stands for the number of the issue:
 
 | Key | Value | Use |
 |---|---|---|
-| `data` | `scripts/celetis celetis-flow --board` | The board starts it, with no shell, for each read of the issues. |
-| `run` | `scripts/celetis celetis-flow {n}` | A Run press makes a herdr tab with the label `#<n> <step>` and types `'<main checkout>/scripts/celetis' 'celetis-flow' <n> && exit` in its pane. |
-| `resume` | `scripts/celetis celetis-flow --resume {n}` | A Resume press makes the same tab, with the focus, and types `'<main checkout>/scripts/celetis' 'celetis-flow' '--resume' <n> && exit`. |
+| `data` | `["scripts/celetis", "celetis-flow", "--board"]` | The board starts it, with no shell, for each read of the issues. |
+| `run` | `["scripts/celetis", "celetis-flow", "{n}"]` | A Run press makes a herdr tab with the label `#<n> <step>`. It quotes each argument, types the command in the pane, then adds `&& exit`. |
+| `resume` | `["scripts/celetis", "celetis-flow", "--resume", "{n}"]` | A Resume press makes a tab with the same label and the focus. It quotes each argument, types the command, then adds `&& exit`. |
 | `port` | `<port>` | The port, when `PORT` is not set. |
+
+These lists use `CELETIS_HOST`, else `git config celetis-flow.host`, else Claude for a new
+step. Set the project default with `git config celetis-flow.host codex` or
+`git config celetis-flow.host claude`. Resume uses the host and exact ID in the current session
+record, even after the project default changes. It does not use the session name to find an ID.
+
+To fix the host in the board config, put the host prefix before `celetis-flow` in each list:
+
+```json
+{
+  "data": ["scripts/celetis", "--host", "codex", "celetis-flow", "--board"],
+  "run": ["scripts/celetis", "--host", "codex", "celetis-flow", "{n}"],
+  "resume": ["scripts/celetis", "--host", "codex", "celetis-flow", "--resume", "{n}"]
+}
+```
+
+Use `claude` in place of `codex` for Claude. An explicit resume host must match the recorded
+host. Keep `resume` unprefixed when issues can have saved sessions from either host. Each item
+is one argument; do not put a shell command, quote syntax, or an environment assignment in an item.
 
 `&& exit` closes the tab when the script ends with no error, and a script that fails leaves the tab
 open with its message. With the default gates, the script of a Run press starts one session and ends
@@ -422,7 +442,7 @@ A row gets its `state` by the first rule that matches:
 | 1 | is closed | `done` | `closedAt` |
 | 2 | has a lock that a live script holds | `starting` | |
 | 3 | has a dirty lane worktree | `dirty` | `path`: the lane worktree |
-| 4 | has a row in the record for its `run` line | `stuck` | `act`: `claude --resume "#<n> <step>"` |
+| 4 | has a row in the record for its `run` line | `stuck` | `act`: `scripts/celetis celetis-flow --resume <n>` |
 | 5 | has `needs-info` or `ready-for-human` | `blocked` | `reason`: `needs info` for `needs-info`. For `ready-for-human`: `landing refused` while a landing refusal is current (`docs/issue-tracker.md`, "Resolving an issue's state"), else `ready for your step`. `act`: the act that the `stop` line of the issue names |
 | 6 | has a `run` line | `ready` | |
 
@@ -493,12 +513,15 @@ rules do not see a command of the script, so the script never merges and never p
 
 ## Sessions
 
-The name of a session is `#<n> <step>`. From the main checkout, `claude --resume '#402 plan'` opens
-the session of that step again, and `scripts/celetis celetis-flow --resume 402` opens the session of
-the step of #402 that has a row in the record. No job ends a session that you open again, so it
-stays open until you leave it. In a herdr tab with the label `#402 plan`, its card on the board
-links to #402. When a live session on the machine already has the name, Claude Code gives the new
-session a variant of it.
+The herdr tab label is `#<n> <step>`. It links the live card to the issue on the board. The label
+is not the saved session ID. From the main checkout, `scripts/celetis celetis-flow --resume 402`
+reads the current record for #402 and opens its exact host and session ID. It holds the shared
+issue lock until the session exits. No completion job or update runs during resume.
+
+A missing or invalid record stops with a recovery action. A record with no verified ID directs
+you to `claude --resume` or `codex resume`, by its saved host, to select a saved session manually.
+Exact runner resume needs the identity from herdr and a saved turn. A resumed session stays open
+until you leave it.
 
 ## Limits
 

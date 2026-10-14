@@ -449,7 +449,8 @@ ADR-0012 holds the evidence for one fact and one limit of the update:
 
 The board is the package `ddinkov10/agent-board`: one local web page that shows each agent session
 of a repository and the next step of each issue, and that starts a step with one press. Neither
-the plugin nor a product project holds a file of the board.
+the plugin nor a product project holds a file of the board. Version 2.0.0 reads the current
+config path and contract 1.
 
 Start it in the main checkout only, never in a lane worktree, and open the URL of its last line:
 
@@ -480,6 +481,25 @@ so the product project holds no other file for the board:
 
 Two boards on one machine need two ports: the `board.json` of this repository has 4404. The board
 reads its config one time, at its start, from the main checkout.
+
+For a new step, these lists use `CELETIS_HOST`, else the project setting
+`git config celetis-flow.host`, else Claude. Set the project default with
+`git config celetis-flow.host codex` or `git config celetis-flow.host claude`. Resume reads the
+saved host and exact session ID for the issue, even when the project default has changed.
+
+An optional host prefix fixes the host of a list:
+
+```json
+{
+  "data": ["scripts/celetis", "--host", "codex", "celetis-flow", "--board"],
+  "run": ["scripts/celetis", "--host", "codex", "celetis-flow", "{n}"],
+  "resume": ["scripts/celetis", "--host", "codex", "celetis-flow", "--resume", "{n}"]
+}
+```
+
+Use `claude` for Claude. An explicit resume host must match the saved host. Keep the unprefixed
+`resume` list for issues with sessions from either host. Each item is one argument, not shell
+text. The board quotes the items when it sends a Run or Resume command to herdr.
 
 Check the data against the contract in the main checkout:
 

@@ -731,6 +731,12 @@ rm "$lane/new.txt"
 run_flow --board
 [ "$(field 7 '[.state, .step, .act, .started]')" = '["stuck","plan","scripts/celetis celetis-flow --resume 7",true]' ] || fail "--board, a row of the record: [$(field 7 .)]"
 checked
+board=$out
+CELETIS_HOST=codex run_flow --board
+[ "$code" -eq 0 ] && [ "$out" = "$board" ] && [ ! -e "$S/codex-calls" ] || fail "the selected host must not change board contract 1 or start a session: $code [$out] [$err]"
+checked
+documented_act=$(sed -n 's/.*| `stuck` | `act`: `\(.*\)` |/\1/p' "$root/docs/celetis-flow.md")
+[ "$documented_act" = 'scripts/celetis celetis-flow --resume <n>' ] || fail "the documented stuck-card command must use recorded-session recovery: [$documented_act]"
 touch "$S/hold-8"; tag=b- start_flow; b=$flow_pid; await 2
 run_flow --board
 [ "$code" -eq 0 ] && [ "$(doc .runner)" = true ] || fail "--board, a live automatic runner: $code [$out] [$err]"
