@@ -1,6 +1,6 @@
 # Host entry
 
-Every skill enters here before its procedure, including a handoff in the same session.
+Every skill enters here before any step or answer, including a handoff in the same session.
 This file changes host operations, not the lane's order, decisions, or completion criteria.
 
 ## Bind the bundle and the host
@@ -12,7 +12,8 @@ Markdown links in bundled references resolve from the containing file. Other unp
 belong to the product project.
 
 Use the host actually running this session: [Claude Code](claude.md) or [Codex](codex.md).
-Read that reference before any host operation. If the loaded skill path is unavailable, obtain
+Read that reference before any host operation. If the loaded skill path is unavailable, `guide`
+reports that setup gap. For another skill, obtain
 the enabled installation with `scripts/celetis --host claude root` or
 `scripts/celetis --host codex root`, matching the running host. A missing or ambiguous installation
 is a setup stop; do not guess a cache path or borrow the other host's install.
@@ -31,10 +32,12 @@ that input across a handoff; it is not a shell variable. Follow the host's invoc
 for both `celetis:<name>` and `superpowers:<name>`. When a required Superpowers skill is missing,
 stop with its name and the setup action; do not replace its procedure from memory.
 
-At entry, identify the active product checkout from the session context (or `git rev-parse
---show-toplevel` in that context). Its optional `.claude/celetis-flow/custom/<name>.md` augments
-the skill. Consume the result of the selected host's custom load once before the procedure;
-do not add a separate file read to it. Missing custom text is harmless.
+At entry, locate the active product checkout root from the session context and the host's
+file-access operations, including a linked worktree's `.git` file. Read the whole optional
+`.claude/celetis-flow/custom/<name>.md` there once before any step or answer. Apply it as an
+addition to the skill. An explicit missing file or no checkout is harmless. Request required
+file access through the normal approval flow. Denied access or another read error stops the
+entry with a report of the block; do not switch tools or use a shell to bypass it.
 Track the skill, its checkout, and its invocation in session context: a same-session
 handoff creates a new entry for the target skill; rereading a section of the current invocation
 or binding its later lane worktree does not load its custom text again.
@@ -44,9 +47,9 @@ its custom part once on first use. Reuse that entry for later sections; reading 
 invoke the borrowed procedure. This includes `chore` borrowing `implement` and `lesson-review`
 borrowing `lesson`. An intentional new invocation enters again.
 
-`guide` is human-invoked on both hosts. Its entry reads the host/custom references and returns
-the matching advice; it runs no project command and invokes no other skill. Use its supplied project
-context and loaded skill path without a shell lookup. If either is missing, report that setup gap.
+`guide` is human-invoked on both hosts. It uses file-access operations for its entry and returns
+the matching advice. It runs no workflow command and invokes no other skill. With no checkout,
+it gives the common advice without a custom part.
 
 ## Bind the project work
 

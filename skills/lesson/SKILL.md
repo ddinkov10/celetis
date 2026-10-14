@@ -3,7 +3,7 @@ name: lesson
 description: Capture a lesson learned from a correction, mistake, or incident so it is not repeated — stores each lesson as its own file under docs/lessons/ with a catalog row in docs/lessons/INDEX.md. Use after the user corrects an approach, after resolving an incident, or when a non-obvious technique is validated and worth keeping. Trigger phrases: "/celetis:lesson", "capture this lesson", "remember not to do this", "save this lesson", "log this incident".
 ---
 
-**Host entry.** Read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md before the procedure, including a same-session handoff.
+**Host entry.** Before any step or answer, read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
 
 # Capture lesson learned
 
@@ -113,5 +113,3 @@ Draw every tag from this controlled list, with the tags of the custom part `less
 - Technology: `api` `auth` `database` `data-store` `networking` `bridge` `build` `gradle` `deploy` `platform` `webview` `ui` `test` `config`
 - Nature: `false-positive` `false-negative` `refix` `recurring` `regression` `platform-quirk` `data-loss` `performance`
 - Process: `process` `build` `e2e` `git` `triage` `release`
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/lesson.md" 2>/dev/null || true`

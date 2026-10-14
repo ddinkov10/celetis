@@ -111,7 +111,6 @@ key=disable-model-invocation
 missing=
 lacks=
 disabled=
-ends=
 dynamic=
 host_entries=
 for skill in $skills; do
@@ -122,7 +121,7 @@ for skill in $skills; do
   fi
   front=$(frontmatter "$file")
   entry=$(awk 'BEGIN { section = 0 } /^---$/ { section++; next } section == 2 && NF { print; exit }' "$file")
-  [ "$entry" = '**Host entry.** Read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md before the procedure, including a same-session handoff.' ] || host_entries+=$file$nl
+  [ "$entry" = '**Host entry.** Before any step or answer, read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.' ] || host_entries+=$file$nl
   [[ "$nl$front$nl" == *"${nl}name: $skill$nl"* ]] || lacks+="$file:name: $skill$nl"
   if [ "$skill" = guide ]; then
     [[ "$nl$front$nl" == *"$nl$key: true$nl"* ]] || lacks+="$file:$key: true$nl"
@@ -133,18 +132,14 @@ for skill in $skills; do
       [[ $line != "$key":* ]] || disabled+="$file:$n:$line$nl"
     done <<<"$front"
   fi
-  printf -v custom '!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/%s.md" 2>/dev/null || true`' "$skill"
-  end=$(awk -v want="$custom" '{ before = last; last = $0 } END { if (last != want) print FILENAME ":" NR ":" last; else if (before != "") print FILENAME ":" (NR - 1) ":" before }' "$file")
-  [ -z "$end" ] || ends+=$end$nl
-  more=$(awk 'index($0, "!`") || index($0, "```!") { where[++n] = NR; text[n] = $0 } END { for (i = 1; i <= n; i++) if (where[i] != NR) print FILENAME ":" where[i] ":" text[i] }' "$file")
+  more=$(awk 'index($0, "!`") || index($0, "```!") { print FILENAME ":" NR ":" $0 }' "$file")
   [ -z "$more" ] || dynamic+=$more$nl
 done
 [ -z "$missing" ] || fail "a skill of the list with no SKILL.md:" "$missing"
 [ -z "$lacks" ] || fail "a line that the frontmatter of a SKILL.md must hold, as <path>:<the line> (a frontmatter holds one-line \"key: value\" lines only: with another line in it, the test reads no frontmatter):" "$lacks"
 [ -z "$disabled" ] || fail "a SKILL.md other than skills/guide/SKILL.md with $key in its frontmatter, as <path>:<line>:<text>:" "$disabled"
-[ -z "$ends" ] || fail "the last line of a SKILL.md must be the line of its custom part, with an empty line before it:" "$ends"
 [ -z "$host_entries" ] || fail "a skill without the common host entry before its procedure:" "$host_entries"
-[ -z "$dynamic" ] || fail "a line of a SKILL.md, not its last line, with an exclamation mark directly before a backtick or with three backticks directly before an exclamation mark, as <path>:<line>:<text>:" "$dynamic"
+[ -z "$dynamic" ] || fail "a shell injection in a SKILL.md, as <path>:<line>:<text>:" "$dynamic"
 
 old_folders=$(search -F -e .claude/scripts/ -e .claude/skills/ -e .claude/commands/ -e docs/agents/ -- "${texts[@]}" "${documents[@]}")
 [ -z "$old_folders" ] || fail "an old folder of the harness, as <path>:<line>:<text>:" "$old_folders$nl"

@@ -3,7 +3,7 @@ name: hotfix
 description: Type-axis lane for a hotfix — production is broken and the fix must ship now. Use when the human runs /celetis:hotfix, or when a request is a prod-down / blocking-regression fire needing immediate ship — as opposed to a normal bug with no fire (/celetis:bug), new behavior (/celetis:feature), or a zero-behavior-change edit (/celetis:chore). Ends by printing a manual ship checklist for you to run.
 ---
 
-**Host entry.** Read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md before the procedure, including a same-session handoff.
+**Host entry.** Before any step or answer, read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
 
 # /celetis:hotfix — production hotfix lane
 
@@ -53,7 +53,7 @@ N+1. Too little time for the lane → the change does not ship tonight.
 6. **Run `celetis:implement #<n>` on the micro-plan** — its Land step lands the fix as each lane does. A
    micro-plan is a local file, so the re-entry rule of `implement` does not apply to it. Window
    too small to verify → the change does not ship tonight: stop, report blocked.
-7. **Terminal.** When the project has a custom part `hotfix.md`, its text at the end of this skill names the ship acts of the project. A project with no such part has no ship act.
+7. **Terminal.** When the project has a custom part `hotfix.md`, that custom part names the ship acts of the project. A project with no such part has no ship act.
    - The fix landed: print the acts of the maintainer, and stop.
      - [ ] Do the ship acts of the project.
    - The landing stopped with a `## Landing refused` comment: run `gh issue edit <n> --add-label ready-for-human`, print the checklist, and stop.
@@ -66,5 +66,3 @@ N+1. Too little time for the lane → the change does not ship tonight.
      - [ ] Run `scripts/celetis land <n> '<subject>'` in your own shell.
      - [ ] Do the ship acts of the project.
      - [ ] Remove `ready-for-human`.
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/hotfix.md" 2>/dev/null || true`

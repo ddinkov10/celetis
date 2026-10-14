@@ -8,11 +8,3 @@ celetis_host_require() {
     return 1
   }
 }
-
-celetis_host_update() {
-  celetis_host_require || return $?
-  case $CELETIS_HOST in
-    claude) claude plugin marketplace update celetis && claude plugin update celetis@celetis --scope user ;;
-    codex) codex plugin marketplace upgrade celetis ;;
-  esac
-}

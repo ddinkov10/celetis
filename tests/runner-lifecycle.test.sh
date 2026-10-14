@@ -3,6 +3,7 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d)
 export LIFECYCLE_TEST="$tmp/state" CLAUDE_CONFIG_DIR="$tmp/claude"
+export CODEX_HOME="$tmp/codex"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 export HERDR_ENV=1 HERDR_PANE_ID=w1:p1
 unset HERDR_TAB_ID
@@ -36,7 +37,7 @@ S=$LIFECYCLE_TEST
 host=${0##*/}
 if [ "$1" = plugin ]; then
   printf '%s %s\n' "$host" "$*" >>"$S/updates"
-  [ ! -f "$S/update-fail" ] || exit 1
+  [ ! -f "$S/update-fail" ] || { echo "fixture: $host update unavailable" >&2; exit 1; }
   if [ "${2:-}" = list ]; then
     jq -nc --arg p "$LIFECYCLE_PLUGIN" '[{id:"celetis@celetis",scope:"user",enabled:true,installPath:$p}]'
   fi
@@ -236,11 +237,18 @@ for host in claude codex; do
   wait "$runner"
   for update in success failure; do
     reset
-    [ "$update" != failure ] || touch "$S/update-fail"
-    start
-    issue enhancement CLOSED
-    finish
-    [ "$result" -eq 0 ] || fail "$host $update refresh prevented the installed step"
+    if [ "$update" = failure ]; then
+      touch "$S/update-fail" "$S/finish-1"
+      start_runner
+      finish
+      [ "$result" -ne 0 ] && [ ! -e "$S/count" ] && [ ! -e "$state/no-progress" ] && [ ! -e "$state/sessions/7.json" ] || fail "$host failed refresh started a fallback session"
+      grep -q "fixture: $host update unavailable" "$tmp/flow.err" || fail "$host lost the update failure cause"
+    else
+      start
+      issue enhancement CLOSED
+      finish
+      [ "$result" -eq 0 ] || fail "$host successful refresh prevented the installed step"
+    fi
     if [ "$host" = codex ]; then
       expected='codex plugin marketplace upgrade celetis'
     elif [ "$update" = failure ]; then
@@ -252,7 +260,7 @@ claude plugin list --json'
     fi
     [ "$(cat "$S/updates")" = "$expected" ] || fail "$host refreshed another host or marketplace"
     if [ "$update" = failure ]; then
-      grep -qx 'celetis-flow: the plugin update failed; the session starts on the installed version' "$tmp/out" || fail "$host failed refresh has no notice"
+      grep -qx 'celetis-flow: the plugin update failed; the step did not start' "$tmp/flow.err" || fail "$host failed refresh has no stop notice"
     fi
   done
   for status in blocked unknown; do

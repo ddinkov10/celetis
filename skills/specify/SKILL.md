@@ -3,7 +3,7 @@ name: specify
 description: Use when starting design on a project feature, before any plan or code exists. Superset of superpowers:brainstorming. Not for writing the implementation plan (plan) or executing one (implement).
 ---
 
-**Host entry.** Read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md before the procedure, including a same-session handoff.
+**Host entry.** Before any step or answer, read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
 
 # specify
 
@@ -51,5 +51,3 @@ A design `specify` rejects: `gh issue edit <n> --add-label wontfix`, close the i
 **Remove the lane worktree** when the issue ends here, closed as `wontfix` or relabelled `epic`: return to the main checkout using the host operations, keeping the lane, then run `scripts/celetis worktree --remove <n>`. It deletes the worktree, the lane branch, and the issue's `prototype/<n>-*` branches. The script refuses → show the user its message and keep the worktree.
 
 **One turn after the line moves.** Three acts move the issue's line in the runner's resolver (`scripts/celetis next-step`): the publish of the spec, the relabel to `epic`, and the close as `wontfix`. A session that the runner started ends at its first idle moment after such an act (`<plugin>/docs/celetis-flow.md`, "The step end"). So get each answer from the user before the act, and do each later act in the same turn as the act: after the publish, the Terminal message; after the relabel, the sub-issues, the removal of the lane worktree, and then the report; after the close, the removal of the lane worktree.
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/specify.md" 2>/dev/null || true`

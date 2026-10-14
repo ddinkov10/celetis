@@ -23,7 +23,7 @@ Two rules of the harness hold in each session, also in a session by hand:
 In this document, these names are files of the plugin `celetis`, also when a session reads the
 document inside a product project that has a `docs/` folder and an ADR store of its own: the four
 documents (`docs/celetis-flow.md`, `docs/issue-tracker.md`, `docs/capability.md`,
-`docs/docs-lookup.md`), `step-prompt.md`, a script `<name>.sh` of `scripts/` or a test of `tests/`
+`docs/docs-lookup.md`), `step-prompt.md`, a script of `scripts/` or a test of `tests/`
 that the text names by its file, and each ADR number, which is a record of `docs/adr/` in the folder
 of the plugin and not of the product project. Each other path is a path of the product project,
 apart from a path that starts with `~/` or `/`.
@@ -31,9 +31,10 @@ apart from a path that starts with `~/` or `/`.
 ## Requirements
 
 - macOS or Linux, with bash 3.2 or later. There is no native Windows runner.
-- `claude`, `gh` (logged in), `jq`, and `git` 2.31 or later on `PATH`. When `gh` or `git` is
-  missing, the script names it and exits 1. The launcher needs `claude` and `jq` to find the plugin
-  (the next item). When `jq` is missing, the launcher prints `celetis: jq is not on PATH` and
+- The selected host CLI (`claude` or `codex`), `gh` (logged in), `jq`, and `git` 2.31 or later on `PATH`. When `gh` or `git` is
+  missing, the script names it and exits 1. The runner also needs Perl 5.14 or later on `PATH`;
+  its update helper uses only the standard library. The launcher needs the selected host and `jq` to find
+  the plugin (the next item). When `jq` is missing, the launcher prints `celetis: jq is not on PATH` and
   exits 1.
 - The plugin `celetis@celetis`, installed on the machine, and the launcher `scripts/celetis` in the
   product project. The scripts and the step text come from the installed plugin:
@@ -106,25 +107,27 @@ gives the value of each field. When `gh` or `jq` fails, the form prints
 `stop cannot read the issues from GitHub` and exits 1. The board is its reader: `data` of
 `.claude/celetis-flow/board.json` names this form.
 
-**The form `--resume <n>`** opens the session of a step with no progress again. It reads the last
-row of `#<n>` in the record and runs `claude --resume '#<n> <step>'` in the main checkout, with the
-step of that row. With no row, it prints `celetis-flow: #<n> has no step with no progress` and
-exits 1. It makes no `gh` call, takes no lock, and starts no job for the step end, so the session
-does not end by itself: leave it with `/exit`. `resume` of `.claude/celetis-flow/board.json` names
-this form, so a Resume press on the board starts it.
+**The form `--resume <n>`** reopens the exact session from
+`<git common dir>/celetis-flow/sessions/<n>.json`. It validates the current record, selects its
+saved host and checkout, and runs `claude --resume <id>` or `codex resume <id>`. A missing or
+invalid record stops with a recovery action. Resume takes the shared issue lock and retains it
+until the foreground exits. It makes no `gh` call or update and starts no completion watcher,
+so the session stays open until you leave it. `resume` of `.claude/celetis-flow/board.json` names
+this form.
 
 The script asks for no confirmation. A start with the number of an issue whose next step is
 `implement`, `chore`, or `hotfix` builds the change and lands it with `scripts/celetis land` when
 its checks are green, with no more act of yours. With an `auto` gate on a step, the script continues
 through that step by itself.
 
-One lock for each issue and one lock for the automatic runner live in
-`<git common dir>/celetis-flow/`. A second script starts no session for an issue that another script
-works on, and a second automatic runner exits 1. A lock holds the PID of its script, so a script
-that was killed holds nothing. `scripts/celetis land` holds `land-<n>.lock` in that folder while it
-lands `#<n>`. The file `no-progress` in that folder is the record: one row for each step that ended
-with no progress. The automatic runner and the forms `--board` and `--resume` read it. A start with
-the number of the issue does not read it, so it starts that step again.
+Issue locks and the automatic-runner lock use shared Git refs under
+`refs/celetis-flow/locks/`. Their owner records hold the runner and foreground PIDs and process
+start times. Either live process keeps the lock, including after a killed runner; an exited
+process does not. Claims and releases use Git compare-and-set, and foreground registration
+updates all held locks in one transaction. Both hosts and manual resume share the issue lock.
+`scripts/celetis land` keeps its separate `land-<n>.lock` in `<git common dir>/celetis-flow/`.
+The `no-progress` file there has one row for each step that ended with no progress. The automatic
+runner and `--board` read it. An explicit issue start can retry that step.
 
 ## How a step runs
 
@@ -158,38 +161,57 @@ the spec only after you approve the design, and nothing checks the design again 
 So that session asks and waits as a session that you start by hand does (ADR-0007).
 
 **The update.** Each commit on `main` of `ddinkov10/celetis` is a new version of the plugin. Before
-the script starts the session of a step, it runs two commands, in this order:
+a Claude step, the script runs two commands, in this order:
 `claude plugin marketplace update celetis`, then
 `claude plugin update celetis@celetis --scope user`. They bring the plugin on the machine to the
-head of `main`. When one of them fails, the script prints
-`celetis-flow: the plugin update failed; the session starts on the installed version` and starts the
-session. After a successful update, the script reads the install folder again with
-`scripts/celetis root`, which prints the folder of the installed plugin and has no argument, and it
-takes the step text of the session from that folder (`<plugin root>` above). When the lookup gives
-no folder that holds a step text, the script keeps the folder that it had. The resolver and the
-logic of the runner stay the version of the runner process. The forms `--board` and `--resume` make
-no update and no lookup. A session that you start by hand gets no update from the script: the update
-by hand is the same two commands (ADR-0012).
+head of `main`. Before a Codex step, it runs `codex plugin marketplace upgrade celetis`.
+One 120-second deadline covers the lock wait, the selected update commands, and the installed-root
+lookup. When a command fails, the script shows the command, its exit status, and its output, then
+exits 1. A timeout names the operation that did not finish and shows its captured output. The
+script starts no session and writes no row to `no-progress` on an update failure.
 
-**The step end.** In a herdr pane (`HERDR_PANE_ID` is set), the script does two things before it
+The helper `scripts/plugin-update.pl` holds an operating-system file lock at
+`<selected host configuration directory>/celetis-update.lock`. Claude uses `CLAUDE_CONFIG_DIR`
+or `~/.claude`; Codex uses `CODEX_HOME` or `~/.codex`. This lock is shared by runners in different
+product projects that use the same host configuration. The lock file stays on disk; its existence does not mean
+that an update runs. The operating system releases a lock when its last holder exits.
+
+On a timeout, an interruption, or runner exit, the helper terminates the command's process group
+before it releases the lock. It sends TERM, allows one second to stop, then sends KILL to any
+remaining process. A command keeps the lock descriptor so a killed helper cannot release a live
+update's lock.
+
+After a successful update, the helper invokes the same validated launcher resolver with
+`--host <host> root`. It uses the selected host's enabled installation and existing scope rules.
+The runner takes the step text from that installed root. When the lookup gives
+no folder that holds a step text, the runner shows the cause and exits 1. The resolver and the
+logic of the runner stay the version of the runner process. The forms `--board` and `--resume`
+make no update. A session that you start by hand gets no update from the runner.
+
+**The step end.** In a herdr pane (`HERDR_ENV=1` and a valid `HERDR_PANE_ID`), the script does two things before it
 starts a session. It names its tab `#<n> <step>` with `herdr tab rename "$HERDR_TAB_ID"`, so the
 board links the session to the issue. It also starts a job in the background that ends the session:
 
-1. The job waits until herdr finds the agent in the pane (`herdr agent get`), for 60 seconds at
-   most.
+1. The job waits for the selected host's new identity and a saved turn in the correct checkout,
+   for 60 seconds at most. It saves the verified ID in the current session record.
 2. It waits until the agent is ready for the next prompt:
    `herdr agent wait <pane> --until idle --until done`.
-3. It runs `next-step.sh <n>` of its own version. The step is done when the new line differs from
-   the line that started the session and is a `run` line or starts with `stop #<n> `. The job then
-   types `/exit` with `herdr agent prompt <pane> /exit`, and it ends.
-4. Else it waits until the agent works or shows a dialog again
-   (`herdr agent wait <pane> --until working --until blocked`), and it goes back to step 2.
+3. It verifies the current host, identity, readiness, and idle/done state, then reads
+   `next-step.sh <n>`. A changed `run` line or `stop #<n> ` line permits an exit check. The job
+   reads the resolver again, then makes a final session-state check before it submits `/exit`.
+   A blocked or unknown state gets no exit. A failed submission leaves the session open and
+   prints a recovery action.
+4. Otherwise it waits up to five seconds for working or blocked state, pauses one second, and
+   checks again. This also permits a new resolver check while the session remains idle.
+
+The runner waits for the foreground process to exit before it releases a lock or starts the
+next step. Successful `/exit` submission alone is not completion.
 
 In each other case the session stays open: the same `run` line, the dirty-tree line, the line of a
 landing that runs, the cannot-read line, and a resolver that fails. So a session whose agent waits
 for an answer, waits for a background task, or left an uncommitted file stays open, and a session
 that you start by hand never ends by itself. herdr ends a wait when its agent exits, so the job
-ends with the session, and the script stops the job when `claude` ends. When a session does not end
+ends with the session, and the script stops the job when the host process ends. When a session does not end
 and its agent waits for nothing, leave it with `/exit`: the script then asks the resolver again,
 and it prints the reason or starts the next step. Outside herdr the script starts no job and makes
 no `herdr` call.
@@ -305,26 +327,24 @@ spec, or a closed issue), because the script ends the session when the issue sho
 done. A custom part is no domain skill, and it routes no change by its domain: domain knowledge
 stays in the `AGENTS.md` files (ADR-0006).
 
-The last line of each `SKILL.md` of the plugin puts the text of that file into the skill when Claude
-Code loads the skill, and the skill has no frontmatter line for it. For the skill `<skill>`, the
-line is:
+Each `SKILL.md` starts with the common host entry, which reads its custom part once before
+the first step or answer (ADR-0013). Claude uses native `Read`, `Glob`, and `Grep`. Codex uses
+its supported file-access operations. The whole custom file adds to the common skill. The
+skill contains no load-time shell injection. `docs/hosts/entry.md` and the selected host reference
+define the read, permission, and exact-once rules.
 
-```
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/<skill>.md" 2>/dev/null || true`
-```
-
-- **Which checkout.** The line reads the file from the root of the checkout where the shell of the
-  session is when the skill loads. A skill that is the first prompt of a session, as in each step
-  that the script starts, reads the custom part of the main checkout. A skill that loads after
-  `EnterWorktree` reads the custom part of the lane branch.
-- **With no custom file,** the skill gets the text `(Bash completed with no output)` in place of the
-  line.
-- **In a folder that is no git repository,** the line puts one `fatal:` line of git into the text of
-  the skill, and the skill loads.
-- **The line runs only when a skill loads.** So a skill that tells the session to read the file of
-  another skill also names the custom part of that other skill,
-  `.claude/celetis-flow/custom/<that skill>.md` of the project, and the session reads that file when
-  it is there.
+- **Which checkout.** The session reads the file from the root of the checkout where its shell is
+  before the first step or answer. A skill that is the first prompt of a session, as in each step
+  that the script starts, reads the custom part of the main checkout. A new skill invocation after
+  binding a lane reads the custom part of that lane. Rereading the same skill invocation does not
+  repeat its custom read.
+- **With no checkout or no custom file,** the session continues with the common skill and no
+  injected error text.
+- **When file access needs approval,** the session requests it through the normal permission flow.
+  Denied access or another read error stops the work with a report of the block. A denied read is
+  not a missing file.
+- **When a skill reads another skill's procedure,** the session applies the same read rule to
+  `.claude/celetis-flow/custom/<that skill>.md` before following that procedure.
 
 ## The board
 
@@ -493,8 +513,9 @@ session a variant of it.
   session holds it until the spec is on the issue or you leave the session.
 - With a gate that is `auto` on a machine, the script of a Run press goes on with that step in the
   same tab. Between two sessions the card is in Running with `starts`.
-- A Terminal tab and the script in it can end when the app starts again. Start the script again: a
-  dead PID frees each lock, and the record stays.
+- A Terminal tab and the script in it can end when the app starts again. The lock stays while
+  either the runner or its foreground session is live. After both exit, a new runner can claim
+  the stale lock; the session record stays.
 - A session outside herdr, for example in a Code tab of the desktop app, has no card on the board,
   and the script does not end its step.
 - The script ends a step from the state that herdr gives the agent, and herdr reads the state of

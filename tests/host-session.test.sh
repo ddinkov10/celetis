@@ -4,6 +4,7 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 export SESSION_TEST="$tmp/state" CLAUDE_CONFIG_DIR="$tmp/claude"
+export CODEX_HOME="$tmp/codex"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID CELETIS_HOST
 S=$SESSION_TEST
@@ -122,8 +123,9 @@ esac
 EOF
 printf '#!/bin/bash\nexit 0\n' >"$tmp/bin/gh"
 chmod +x "$tmp/bin/"* "$plugin/scripts/next-step.sh"
-for command in bash jq git dirname mkdir cat mktemp mkfifo rm sleep mv ps touch; do ln -s "$(command -v "$command")" "$tmp/codex-only/$command"; done
+for command in bash jq git dirname mkdir cat mktemp mkfifo rm sleep mv ps touch perl date; do ln -s "$(command -v "$command")" "$tmp/codex-only/$command"; done
 ln -s "$tmp/bin/codex" "$tmp/codex-only/codex"
+ln -s "$tmp/bin/gh" "$tmp/codex-only/gh"
 export PATH="$tmp/bin:$PATH"
 git init -q "$repo"
 git -C "$repo" add .
@@ -158,6 +160,9 @@ for host in claude codex; do
   test_host=$other run --resume 7
   [ "$code" -eq 0 ] && jq -e --arg h "$host" --arg id "$uuid" '.host == $h and .args[-1] == $id' "$S/calls" >/dev/null || fail "$host resumed the prior $other session"
 done
+reset
+test_host=codex test_path="$tmp/codex-only" run 7
+[ "$code" -eq 0 ] && jq -e '.host == "codex"' "$S/calls" >/dev/null || fail "Codex-only refresh and launch required Claude: $code [$err]"
 for replacement in '.host="claude"' '.session_id="00000000-0000-4000-8000-000000000001"'; do
   reset
   mkdir -p "${record%/*}"

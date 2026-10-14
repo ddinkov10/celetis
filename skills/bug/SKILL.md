@@ -3,7 +3,7 @@ name: bug
 description: Type-axis lane for a bug fix — an existing behavior that ≠ intended/spec (wrong output, crash, regression) with production NOT on fire. Use when the human runs /celetis:bug, or when a request describes something that already works misbehaving — as opposed to new behavior (/celetis:feature), a prod-broken ship-now fire (/celetis:hotfix), or a zero-behavior-change edit like a dep bump / rename / doc-config fix (/celetis:chore).
 ---
 
-**Host entry.** Read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md before the procedure, including a same-session handoff.
+**Host entry.** Before any step or answer, read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
 
 # /celetis:bug — bug-fix lane
 
@@ -58,5 +58,3 @@ start step N+1.
    `## Root cause` as its first line; the report is the spec (root cause + red repro + intended
    behavior + step 3's traps + its `## External facts` section) and `plan` drives the
    rest of the chain.
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/bug.md" 2>/dev/null || true`

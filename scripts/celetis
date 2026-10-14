@@ -174,6 +174,31 @@ celetis_codex_root() (
   printf '%s\n' "$dir"
 )
 
+celetis_claude_root() {
+  local records dir code=0
+  if command -v claude >/dev/null 2>&1; then
+    records=$(claude plugin list --json) || code=$?
+    if [ "$code" -ne 0 ]; then
+      printf 'celetis: claude plugin list --json failed (exit %s)\n' "$code" >&2
+      [ -z "$records" ] || printf '%s\n' "$records" >&2
+      return "$code"
+    fi
+    if ! printf '%s\n' "$records" | jq -e 'type == "array"' >/dev/null 2>&1; then
+      printf 'celetis: invalid plugin list JSON\n%s\n' "$records" >&2
+      return 1
+    fi
+    dir=$(printf '%s\n' "$records" | jq -r '[.[] | select(.id == "celetis@celetis")] | (map(select(.scope == "user")) + .)[0] | select(.enabled == true) | .installPath // empty' | tr -d '\r') || return 1
+  else
+    dir=
+  fi
+  if [ -z "$dir" ]; then
+    echo 'celetis: the plugin is not installed; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis' >&2
+    return 1
+  fi
+  if command -v cygpath >/dev/null 2>&1; then dir=$(cygpath -u "$dir") || return 1; fi
+  printf '%s\n' "$dir"
+}
+
 celetis_main() {
   local name dir explicit=
   if [ "${1:-}" = --host ]; then
@@ -205,12 +230,7 @@ celetis_main() {
   if [ "$CELETIS_HOST" = codex ]; then
     dir=$(celetis_codex_root) || return 1
   else
-    dir=$(claude plugin list --json 2>/dev/null | jq -r '[.[] | select(.id == "celetis@celetis")] | (map(select(.scope == "user")) + .)[0] | select(.enabled == true) | .installPath // empty' 2>/dev/null | tr -d '\r')
-    if [ -z "$dir" ]; then
-      echo 'celetis: the plugin is not installed; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis' >&2
-      return 1
-    fi
-    if command -v cygpath >/dev/null 2>&1; then dir=$(cygpath -u "$dir"); fi
+    dir=$(celetis_claude_root) || return $?
   fi
   if ! [[ $name =~ ^[a-z][a-z-]*$ ]] || [ ! -f "$dir/scripts/$name.sh" ]; then
     echo "celetis: the plugin has no script $name" >&2

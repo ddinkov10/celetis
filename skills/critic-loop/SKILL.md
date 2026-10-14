@@ -3,7 +3,7 @@ name: critic-loop
 description: Standalone scored quality review of the current result — auto-detects a branch diff (vs merge-base) or the uncommitted working diff, scores it 0-10 across five perspectives, and iterates (fix + re-score) until the threshold. Use when the user runs /celetis:critic-loop or asks to score or critique the current work.
 ---
 
-**Host entry.** Read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md before the procedure, including a same-session handoff.
+**Host entry.** Before any step or answer, read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
 
 # /celetis:critic-loop — scored iterative critic loop
 
@@ -65,5 +65,3 @@ Never fix findings yourself in this session.
 
 End with the final score (e.g. `8/10 — pass`) and the finding trail: each fix round with its
 per-perspective deltas. The commits stay on the branch; this command never merges or pushes.
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/critic-loop.md" 2>/dev/null || true`

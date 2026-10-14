@@ -3,6 +3,7 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d)
 export LOCK_TEST="$tmp/state"
+export LOCK_TEST_PLUGIN="$root" CLAUDE_CONFIG_DIR="$tmp/claude" CODEX_HOME="$tmp/codex"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID
 S=$LOCK_TEST
@@ -39,12 +40,17 @@ EOF
 cat >"$tmp/bin/host" <<'EOF'
 #!/bin/bash
 S=$LOCK_TEST
-if [ "$1" = plugin ]; then exit 1; fi
+if [ "$1" = plugin ]; then
+  [ "$2" != list ] || jq -nc --arg p "$LOCK_TEST_PLUGIN" '[{id:"celetis@celetis",scope:"user",enabled:true,installPath:$p}]'
+  exit 0
+fi
 if [ "$1" = app-server ]; then
   while IFS= read -r line; do
     case $(printf '%s\n' "$line" | jq -r .method) in
       initialize) echo '{"id":1,"result":{}}' ;;
       config/read) echo '{"id":2,"result":{"config":{}}}' ;;
+      skills/list)
+        jq -nc --arg p "$LOCK_TEST_PLUGIN" --arg cwd "$PWD" '{id:2,result:{data:[{cwd:$cwd,skills:[{name:"celetis:guide",pluginId:"celetis@celetis",enabled:true,path:($p+"/skills/guide/SKILL.md")}]}]}}' ;;
     esac
   done
   exit 0

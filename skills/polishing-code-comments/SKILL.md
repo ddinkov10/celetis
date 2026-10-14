@@ -3,7 +3,7 @@ name: polishing-code-comments
 description: Use when polishing, tightening, or pruning existing code comments and inline docs — a comment-cleanup pass over a diff or file, or before finishing a branch. Not for adding missing comments or documentation coverage.
 ---
 
-**Host entry.** Read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md before the procedure, including a same-session handoff.
+**Host entry.** Before any step or answer, read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
 
 # Polishing Code Comments
 
@@ -28,5 +28,3 @@ A review pass that **removes and tightens** existing comments. Bias to deletion.
 
 The pass only deletes or tightens: comment count comes out the same or lower, and a terse comment
 stays terse.
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/polishing-code-comments.md" 2>/dev/null || true`

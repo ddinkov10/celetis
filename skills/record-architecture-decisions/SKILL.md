@@ -3,7 +3,7 @@ name: record-architecture-decisions
 description: Use when a decision is significant enough that a future maintainer must know why it was made — hard to reverse, surprising without context, and chosen among real alternatives. Not for routine work, obvious choices, lane-type verdicts, or a harness learning-loop.
 ---
 
-**Host entry.** Read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md before the procedure, including a same-session handoff.
+**Host entry.** Before any step or answer, read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
 
 # Record Architecture Decisions
 
@@ -44,5 +44,3 @@ When all three hold:
 2. Copy `template.md` to `docs/adr/NNNN-short-title.md` (the next number after the highest in the store) and fill every section.
 3. If replacing a prior decision, set `Supersedes: <old-title>`; never rewrite a landed ADR.
 4. Commit the landed ADR with the subject `docs(adr): <topic>`; no commit when no ADR landed.
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/record-architecture-decisions.md" 2>/dev/null || true`

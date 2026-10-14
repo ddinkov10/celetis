@@ -3,7 +3,7 @@ name: feature
 description: Type-axis lane for a feature — new behavior that does not exist yet. Use when the human runs /celetis:feature, or when a request asks for capability the app lacks — as opposed to fixing existing behavior (/celetis:bug), a prod fire (/celetis:hotfix), or a zero-behavior-change edit (/celetis:chore).
 ---
 
-**Host entry.** Read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md before the procedure, including a same-session handoff.
+**Host entry.** Before any step or answer, read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
 
 # /celetis:feature — feature lane
 
@@ -41,5 +41,3 @@ the same lane. If you have not completed step N, you cannot start step N+1.
    it refuses, show the user its message and stop. Every later step runs in that worktree; the
    main checkout never changes branch (Branches, PRs, merge in `<plugin>/docs/issue-tracker.md`).
 3. **Invoke `celetis:specify #<n>`** and follow it — it drives the rest of the chain.
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/feature.md" 2>/dev/null || true`

@@ -16,12 +16,12 @@ For `guide` advice, translate a shared `/celetis:<name> <input>` into a supporte
 `Use the celetis:feature skill for #7`. Recommend that prompt without invoking the target skill;
 Claude slash-command notation is not Codex user advice.
 
-The final Claude shell-injection line is literal text in Codex. Ignore it as an
-execution instruction. Instead, explicitly read the optional
-`.claude/celetis-flow/custom/<name>.md` from the invocation's active product checkout once at
-Host entry, before the procedure. A missing file is harmless; another read error is a setup
-stop. Each same-session handoff reads the target skill's custom part once. A later worktree
-binding does not repeat the current invocation's custom load.
+Use the file-access tool available in this Codex session for the custom read at Host entry.
+Prefer a dedicated file reader when one exists. On a CLI that exposes `exec_command` for file
+access, use an explicit read-only file command with the active checkout as `workdir`, and
+inspect its result. This is an explicit file read, not a native no-shell read or load-time
+injection. A denied read is a stop, not permission to try another tool or command. Apply the
+shared missing-file, error, and exact-once rules to direct calls and same-session handoffs.
 
 `guide` keeps `disable-model-invocation: true` for Claude and
 `policy.allow_implicit_invocation: false` in `agents/openai.yaml` for Codex. Its command advice

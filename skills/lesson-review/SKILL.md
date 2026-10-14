@@ -3,7 +3,7 @@ name: lesson-review
 description: Review and promote (or reject) lessons an automatic process queued in docs/lessons/_pending/. Auto-captured lessons never enter the live catalog directly — a human triages them here. Trigger phrases: "/celetis:lesson-review", "review pending lessons", "promote lessons", "triage the lesson queue".
 ---
 
-**Host entry.** Read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md before the procedure, including a same-session handoff.
+**Host entry.** Before any step or answer, read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
 
 # Review pending lessons
 
@@ -74,5 +74,3 @@ Summarize: promoted (with new INDEX rows), merged-into-existing, rejected, skipp
 - Never auto-approve. Every promotion is an explicit reviewer decision.
 - Keep commits scoped to `docs/lessons/**`.
 - Promotion is the only write to `INDEX.md` for queued lessons; do not hand-add INDEX rows for pending drafts elsewhere.
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/lesson-review.md" 2>/dev/null || true`

@@ -5,7 +5,7 @@ argument-hint: [what you want to achieve]
 disable-model-invocation: true
 ---
 
-**Host entry.** Read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md before the procedure, including a same-session handoff.
+**Host entry.** Before any step or answer, read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
 
 Match the goal to a row. Give the selected host's skill prompt or command and one line on why it fits. Execute no recommended action and invoke no other skill. Goal: the invocation input.
 
@@ -30,5 +30,3 @@ Match the goal to a row. Give the selected host's skill prompt or command and on
 | merge a PR by hand | you: `gh pr merge --squash` in your own shell, or on GitHub; an agent lands a change only with `scripts/celetis land`, which its build step runs |
 
 No row fits → `/celetis:intake`; the intent and `/celetis:triage` sort it into a lane.
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/guide.md" 2>/dev/null || true`

@@ -3,7 +3,7 @@ name: chore
 description: Type-axis lane for a chore — a change with ZERO behavior change (dependency bump, rename, formatting, doc/config/comment fix, moving code without altering it). Use when the human runs /celetis:chore, or when a request is purely mechanical with no observable behavior delta — as opposed to a bug (behavior ≠ spec → /celetis:bug), new behavior (/celetis:feature), or a prod fire (/celetis:hotfix).
 ---
 
-**Host entry.** Read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md before the procedure, including a same-session handoff.
+**Host entry.** Before any step or answer, read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
 
 # /celetis:chore — chore lane
 
@@ -46,5 +46,3 @@ in `/celetis:bug` or `/celetis:feature`. If you have not completed step N, you c
    concern); `<type>` matches the change (`chore`, `build` for the build tooling,
    `docs`, `refactor` for a rename). Body: one line, what changed and from → to, ending with `#<n>`.
 6. **Land.** Follow Land of `<plugin>/skills/implement/SKILL.md` (Tail step 5) from its step 2, with the commit subject of step 5 as the subject of `scripts/celetis land <n> '<subject>'`. Enter that reference through the host operations on its first use, including its optional `.claude/celetis-flow/custom/implement.md`; reuse the entry if step 2 already read it. Its custom text is an addition to `implement`. A fix for a refusal stays inside the zero-behavior-change claim, passes the verify gate of the project, and is committed before the next landing. The session makes each such fix itself: the task loop of Land step 4 is for a lane with a plan. Invoking this lane authorizes the commit and the landing.
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/chore.md" 2>/dev/null || true`

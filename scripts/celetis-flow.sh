@@ -33,7 +33,7 @@ stale="stop the plugin version of this runner was removed after an update; start
 stale_n() { printf '#%s: the plugin version of this runner was removed after an update; start the runner again' "$1"; }
 gone() {
   local file
-  for file in "$next" "$here/celetis" "$here/lib/host.sh" "$here/lib/session.sh"; do
+  for file in "$next" "$here/celetis" "$here/lib/host.sh" "$here/lib/session.sh" "$here/plugin-update.pl"; do
     [ -f "$file" ] || return 0
   done
   return 1
@@ -92,6 +92,8 @@ lock_owner=
 locks_held=
 session_pid=
 signal_status=0
+updater=
+update_output=
 
 say() {
   [ "$mode" != auto ] || [ "$1" != "$said" ] || return 0
@@ -166,6 +168,12 @@ register_session() {
 
 release_all() {
   local name
+  trap '' INT TERM HUP
+  if [ -n "$updater" ]; then
+    kill "$updater" 2>/dev/null || true
+    wait "$updater" 2>/dev/null || true
+  fi
+  [ -z "$update_output" ] || rm -f "$update_output"
   if [ -n "${watcher:-}" ]; then
     kill "$watcher" 2>/dev/null || true
     wait "$watcher" 2>/dev/null || true
@@ -229,13 +237,18 @@ end_when_done() {
 }
 
 update_plugin() {
-  local moved
-  if celetis_host_update >/dev/null 2>&1 </dev/null; then
-    moved=$("$here/celetis" root </dev/null 2>/dev/null) || return 0
-    [ ! -f "$moved/step-prompt.md" ] || root=$moved
-  else
-    say "the plugin update failed; the session starts on the installed version"
-  fi
+  local moved result=0
+  command -v perl >/dev/null 2>&1 || die "perl is not on PATH"
+  update_output=$(mktemp)
+  perl "$here/plugin-update.pl" "$$" "$CELETIS_HOST" >"$update_output" </dev/null &
+  updater=$!
+  wait "$updater" || result=$?
+  updater=
+  moved=$(cat "$update_output")
+  rm -f "$update_output"
+  update_output=
+  [ "$result" -eq 0 ] || die "the plugin update failed; the step did not start"
+  root=$moved
 }
 
 start_session() {

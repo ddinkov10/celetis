@@ -9,11 +9,10 @@ input as arguments. The native `$ARGUMENTS` substitution supplies that input on 
 The bundle may be identified by `CLAUDE_PLUGIN_ROOT`; the loaded skill's absolute path also
 identifies it. Resolve `<plugin>` before reading a bundled file.
 
-The native Skill tool or slash-command loader executes the final custom injection. That
-completes the current skill's custom load, including empty output. An absent or empty custom
-part needs no further file read. The existing `2>/dev/null || true` ending makes absence harmless.
-Only a borrowed file reference, loaded without native skill invocation, needs its own explicit
-optional custom read once, as Host entry specifies.
+Use `Read` for the custom file and `Glob` or `Grep` to locate the active checkout root. These
+file tools also serve borrowed skill references. Loading a skill runs no custom shell command;
+the one read at Host entry supplies the custom text. Keep this read on the native file tools,
+including when Bash is unavailable or a shell permission rule blocks `cat` or `git`.
 
 ## Worktree and commands
 

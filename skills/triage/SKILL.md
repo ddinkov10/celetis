@@ -3,7 +3,7 @@ name: triage
 description: Type-axis front door for a cold, unclassified idea whose TYPE (/celetis:bug · /celetis:hotfix · /celetis:feature · /celetis:chore) is not yet known. Use when the human runs /celetis:triage, or when a request's type is unclear and must be resolved before a lane starts. Resolves type only; the lane it hands to owns requirements, branching and gates. If the type is already known, invoke the lane directly (/celetis:bug …) and skip triage.
 ---
 
-**Host entry.** Read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md before the procedure, including a same-session handoff.
+**Host entry.** Before any step or answer, read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
 
 # /celetis:triage — type-axis front door
 
@@ -116,5 +116,3 @@ criteria, not recall.
 | 10 | "The list scrolls slowly with 500+ items" | ambiguous → ask: did it regress (bug) or is this new perf work (feature)? |
 | 11 | "Modernize the app to a Kotlin-based stack" | feature |
 | 12 | "A timed-out token refresh leaves downstream sites mishandling a null token, and no spec defines null-token behavior" | feature — the correct behavior is undefined, must be designed |
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/triage.md" 2>/dev/null || true`

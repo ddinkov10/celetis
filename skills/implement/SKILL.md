@@ -3,7 +3,7 @@ name: implement
 description: Use when executing a written plan for a feature in the current session. Superset of superpowers:subagent-driven-development. Not for writing the plan (plan) or the design pass (specify).
 ---
 
-**Host entry.** Read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md before the procedure, including a same-session handoff.
+**Host entry.** Before any step or answer, read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
 
 # implement
 
@@ -53,5 +53,3 @@ Superset of `superpowers:subagent-driven-development` for project plans. Delegat
 A FAIL loops back to a fix subagent (same CAP tier), not to Land. (The Tail above sequences this phase; its PASS is the hard gate before Land.)
 
 **TDD stays** the implementer loop.
-
-!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/implement.md" 2>/dev/null || true`

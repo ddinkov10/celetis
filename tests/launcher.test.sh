@@ -23,15 +23,15 @@ echo 'printf "%s" "$CELETIS_HOST"' >"$plug/scripts/host.sh"
 
 export LIST="$tmp/list.json"
 export SKILLS="$tmp/skills.json" CALLS="$tmp/calls" PID_FILE="$tmp/pid"
-export GIT_HOST= CODEX_MODE= TMPDIR="$tmp/pipes" UPDATE_FAIL=0
+export GIT_HOST= CODEX_MODE= TMPDIR="$tmp/pipes" LOOKUP_FAIL=0
 unset CELETIS_HOST
 cat >"$tmp/stub/claude" <<'EOF'
 #!/bin/bash
 if [ "$1 $2 $3" = "plugin list --json" ]; then
   cat "$LIST"
+  [ "$LOOKUP_FAIL" -eq 0 ] || { echo 'fixture: lookup failed' >&2; exit "$LOOKUP_FAIL"; }
 else
-  printf 'claude %s\n' "$*" >>"$CALLS"
-  exit "$UPDATE_FAIL"
+  exit 81
 fi
 exit 0
 EOF
@@ -46,7 +46,6 @@ EOF
 cat >"$tmp/codex/codex" <<'EOF'
 #!/bin/bash
 printf '%s\n' "$*" >>"$CALLS"
-[ "$*" != 'plugin marketplace upgrade celetis' ] || exit "$UPDATE_FAIL"
 [ "$*" = 'app-server --stdio' ] || exit 81
 printf '%s\n' "$$" >"$PID_FILE"
 trap 'exit 0' TERM
@@ -166,7 +165,15 @@ run "$stub" echo
 expect 'disabled preferred Claude scope cannot fall back to a project copy' '' "$install" 1
 
 run "$tmp/oops:$PATH" echo
-expect "claude prints no JSON" '' "$install" 1
+expect "claude prints no JSON" '' $'celetis: invalid plugin list JSON\noops' 1
+
+list "$(rec user "$plug")"
+LOOKUP_FAIL=23 run "$stub" echo
+check 'Claude lookup preserves the failing exit status' test "$code" -eq 23
+check 'Claude lookup preserves the command and original cause' test "$err" = "fixture: lookup failed
+celetis: claude plugin list --json failed (exit 23)
+$(cat "$LIST")"
+check 'failed Claude lookup starts no installed script' test -z "$out"
 
 run "$tmp/nobin" echo
 expect "no claude on PATH" '' "$install" 1
@@ -314,19 +321,5 @@ expect 'direct helper rejects an invalid host' '' 'celetis: invalid host other; 
 CELETIS_HOST=codex helper_run "$tmp/nobin" celetis_host_require
 expect 'direct helper checks the selected binary' '' 'celetis: codex is not on PATH' 1
 
-: >"$CALLS"
-helper_run "$stub" celetis_host_update
-expect 'Claude refresh succeeds' '' '' 0
-check 'Claude refresh keeps its two existing commands' test "$(cat "$CALLS")" = $'claude plugin marketplace update celetis\nclaude plugin update celetis@celetis --scope user'
-: >"$CALLS"
-CELETIS_HOST=codex helper_run "$codex_only" celetis_host_update
-expect 'Codex refresh needs no Claude binary' '' '' 0
-check 'Codex refresh upgrades only the selected marketplace' test "$(cat "$CALLS")" = 'plugin marketplace upgrade celetis'
-UPDATE_FAIL=7 CELETIS_HOST=codex helper_run "$codex_only" celetis_host_update
-expect 'Codex refresh preserves failure' '' '' 7
-: >"$CALLS"
-UPDATE_FAIL=7 helper_run "$stub" celetis_host_update
-expect 'Claude refresh preserves failure' '' '' 7
-check 'failed marketplace refresh skips the second command' test "$(cat "$CALLS")" = 'claude plugin marketplace update celetis'
 
 [ "$fails" -eq 0 ]
