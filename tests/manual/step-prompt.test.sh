@@ -79,10 +79,23 @@ cat >"$tmp/case-13" <<'EOF'
 Case 13. The step is /celetis:implement #7. Skill `implement`, Land step 2: "**Human precondition.** When the change needs an act that only a human can do before it reaches the trunk, and the issue has no `## Before landing` comment for this build: post a comment whose first line is `## Before landing` and that names the act, then run `gh issue edit <n> --add-label ready-for-human`, and stop. The maintainer completes the act and clears the label. Before landing on re-entry, require a trusted human completion report or the maintainer's removal of `ready-for-human` after this build's `## Before landing` comment, from the issue event history (`<plugin>/docs/issue-tracker.md`, "Completing a human precondition"). An absent label is not completion evidence. Without that evidence, keep the change built, restore `ready-for-human` using the existing comment as the reason, and stop. With the evidence, continue to step 3." Issue #7 has a `## Plan` comment of 2026-10-05 and a current `## Before landing` comment of 2026-10-06: scenario B could not run because its command was denied. The other required scenarios passed. The issue has no `ready-for-agent` label and no `ready-for-human` label. Its event history has no later removal of `ready-for-human` by the maintainer, and there is no human completion report. The lane branch holds the built change.
 EOF
 
+cat >"$tmp/case-14" <<'EOF'
+Case 14. The step is /celetis:implement #7. Skill `implement`, Verify phase: "A FAIL loops back to a fix subagent (same CAP tier), not to Land." The final Verify phase ran on the project's runtime. Scenario A passed. Scenario B ran and failed: exporting an empty report crashed with error VERIFY_EXPORT_14. The failure is in the change just built. No permission or external dependency blocks a repair. The issue still has ready-for-agent. All task gates and task reviews passed before this final phase.
+EOF
+cat >"$tmp/case-15" <<'EOF'
+Case 15. The runner started /celetis:feature #7, which entered celetis:specify. This session has no step instructions. Skill `specify`: "The one approval of the session is the user's approval of that written text, because `plan` reads that same text." and "An opt-out skips the questions only." The user asked you to skip questions and design from the issue. You wrote the spec, marked each assumption, completed the builder check, and showed the written spec to the user. The user has not approved it. The issue body is still the original intent.
+EOF
+cat >"$tmp/case-16" <<'EOF'
+Case 16. The step is /celetis:implement #7. Skill `implement`, Re-entry: "Do not build again: run no task of the plan, skip the Tail steps 1 to 4, and read the latest `## Landing refused` comment." Skill `implement`, Land step 2: "Before landing on re-entry, require a trusted human completion report or the maintainer's removal of `ready-for-human` after this build's `## Before landing` comment, from the issue event history (`<plugin>/docs/issue-tracker.md`, "Completing a human precondition"). An absent label is not completion evidence." The latest Plan is dated 2026-10-05. This build's Before landing comment is dated 2026-10-06: Verify scenario B still needs a human run. There is no human completion report. The only label-removal event was on 2026-10-04 for an older build. Both ready-for-agent and ready-for-human are absent. The lane holds the completed build. There is no Landing refused comment.
+EOF
+cat >"$tmp/case-17" <<'EOF'
+Case 17. The step is /celetis:implement #7. Skill `implement`, Re-entry: "Do not build again: run no task of the plan, skip the Tail steps 1 to 4, and read the latest `## Landing refused` comment." Skill `implement`, Land step 2: "Before landing on re-entry, require a trusted human completion report or the maintainer's removal of `ready-for-human` after this build's `## Before landing` comment, from the issue event history (`<plugin>/docs/issue-tracker.md`, "Completing a human precondition"). An absent label is not completion evidence." Issue #7 has the latest Plan and Before landing comment for the current build, no ready-for-agent, no ready-for-human, and no Landing refused comment. There is no label-removal event. The maintainer has now given a trusted report that the exact blocked scenario B passed on this build; all other required scenarios have recorded PASS results. The lane holds one commit, fix(export): accept an empty report. No task needs a repair.
+EOF
+
 turn() {
   local k=$1 mode=$2 prompt="$tmp/in-$1-$2" answer="$tmp/out-$1-$2" started
   case $mode in
-    step) started='scripts/celetis celetis-flow started the session for issue #7.' ;;
+    step | specify) started='scripts/celetis celetis-flow started the session for issue #7.' ;;
     hand) started='A person started the session by hand for issue #7.' ;;
   esac
   {
@@ -155,10 +168,12 @@ check() {
   cat "$tmp/err-$k-$mode"
 }
 
-for k in 1 2 3 4 5 6 7 8 9 10 11 12 13; do
+for k in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 16 17; do
   turn "$k" step
   [ $((k % 2)) -ne 0 ] || wait
 done
+wait
+turn 15 specify
 wait
 for k in 1 2 3 4; do
   turn "$k" hand
@@ -167,7 +182,7 @@ done
 
 failed=0
 check 1 step "$L" '## Stopped' not "$W"
-check 2 step "$L" '## Stopped' not "$W"
+check 2 step "$L" '## Stopped' not "$W" "$land" "$claude_land" "$codex_land"
 check 3 step "$L" '## Landing refused' not "$W" '## Stopped'
 check 4 step "$L" "$B" '## Before landing' not "$W" '## Stopped' "$land" "$claude_land" "$codex_land"
 check 5 step "$W" not "$L"
@@ -179,6 +194,10 @@ check 10 step "$expected_land" not "$L" "$W" "$land" "$other_land"
 check 11 step '--add-label ready-for-agent' not "$L" '## Stopped' "$W"
 check 12 step '--add-label bug' not "$L" '## Stopped' "$W"
 check 13 step "$L" not "$W" '## Stopped' "$land" "$claude_land" "$codex_land"
+check 14 step 'Then: I go on with' not "$L" "$B" "$land" "$claude_land" "$codex_land" '## Before landing'
+check 15 specify "$W" not "$L" '--body-file' 'celetis:plan #7'
+check 16 step "$L" not "$W" '## Stopped' "$land" "$claude_land" "$codex_land"
+check 17 step "$expected_land" not "$L" "$W" "$land" "$other_land" '--add-label ready-for-agent'
 for k in 1 2 3 4; do check "$k" hand not "$L"; done
 
 if [ -n "$output_dir" ]; then
@@ -186,4 +205,4 @@ if [ -n "$output_dir" ]; then
   [ "$host" != codex ] || cp "$tmp"/events-* "$output_dir/"
 fi
 [ "$failed" -eq 0 ] || exit 1
-echo "PASS ($host): 17 cases"
+echo "PASS ($host): 21 cases"

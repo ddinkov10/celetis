@@ -122,7 +122,7 @@ esac
 EOF
 printf '#!/bin/bash\nexit 0\n' >"$tmp/bin/gh"
 chmod +x "$tmp/bin/"* "$plugin/scripts/next-step.sh"
-for command in bash jq git dirname mkdir cat mktemp mkfifo rm sleep mv; do ln -s "$(command -v "$command")" "$tmp/codex-only/$command"; done
+for command in bash jq git dirname mkdir cat mktemp mkfifo rm sleep mv ps touch; do ln -s "$(command -v "$command")" "$tmp/codex-only/$command"; done
 ln -s "$tmp/bin/codex" "$tmp/codex-only/codex"
 export PATH="$tmp/bin:$PATH"
 git init -q "$repo"

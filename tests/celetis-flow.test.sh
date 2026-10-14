@@ -57,7 +57,7 @@ echo "$k" >"$S/sessions-$n"
 { printf '[%s]' "$@"; echo; } >>"$S/claude-calls"
 IFS= read -r typed || typed=
 printf '%s|%s|%s|%s\n' "$n" "$prompt" "$PWD" "$typed" >>"$S/claude-env"
-echo $(ls "$(git rev-parse --git-common-dir)/celetis-flow" | grep -E '\.lock$|^no-progress$') >>"$S/claude-locks"
+echo $({ git for-each-ref --format='%(refname:strip=3)' refs/celetis-flow/locks; [ ! -f "$(git rev-parse --git-common-dir)/celetis-flow/no-progress" ] || echo no-progress; } | sort) >>"$S/claude-locks"
 [ "$(wc -l <"$S/claude-calls")" -le 20 ] || kill -TERM $(cat "$S/runner-pids") 2>/dev/null
 if [ -n "${HERDR_PANE_ID:-}" ]; then
   mkdir -p "$CLAUDE_CONFIG_DIR/projects/fixture"
@@ -82,7 +82,7 @@ case "$1 $2 $*" in
   "tab rename"*) ;;
   "agent get"*)
     [ -f "$S/claude-live" ] || exit 1
-    printf '%s\n' '{"result":{"agent":{"agent":"claude","interactive_ready":true,"agent_session":{"agent":"claude","kind":"id","value":"00000000-0000-4000-8000-000000000001"}}}}' ;;
+    printf '%s\n' '{"result":{"agent":{"agent":"claude","interactive_ready":true,"agent_status":"idle","agent_session":{"agent":"claude","kind":"id","value":"00000000-0000-4000-8000-000000000001"}}}}' ;;
   "agent wait"*"--until idle"*)
     until [ -f "$S/turn-ended" ]; do [ -f "$S/claude-live" ] || exit 1; /bin/sleep 0.05; done ;;
   "agent wait"*) while [ -f "$S/claude-live" ]; do /bin/sleep 0.05; done; exit 1 ;;
@@ -163,7 +163,7 @@ await() {
   done
 }
 sessions() { calls claude-env | cut -d'|' -f1,2; }
-locks() { ls "$st" 2>/dev/null | grep -c '\.lock$' || true; }
+locks() { git -C "$repo" for-each-ref --format='%(refname)' refs/celetis-flow/locks | wc -l | tr -d ' '; }
 rows() { wc -l <"$st/no-progress" | tr -d ' '; }
 form() { printf '[--permission-mode][auto][-n][#%s %s][--append-system-prompt-file][%s/step-prompt.md][/celetis:%s #%s]' "$1" "$2" "${3:-$plugin}" "$2" "$1"; }
 update="plugin marketplace update celetis
@@ -256,7 +256,7 @@ celetis-flow: start: /celetis:plan #7
 celetis-flow: no progress: /celetis:plan #7
 celetis-flow: start: /celetis:plan #8
 celetis-flow: no progress: /celetis:plan #8" ] || fail "in herdr the runner must go on after each session: $code [$out] [$err]"
-[ "$(calls herdr-calls | grep -v '^agent get ' | grep -vx 'agent wait w1:p4 --until working --until blocked')" = "tab rename w1:t2 #7 bug
+[ "$(calls herdr-calls | grep -v '^agent get ' | grep -vx 'agent wait w1:p4 --until working --until blocked --timeout 5000')" = "tab rename w1:t2 #7 bug
 agent wait w1:p4 --until idle --until done
 agent prompt w1:p4 /exit
 tab rename w1:t2 #7 plan
@@ -298,7 +298,7 @@ unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID
 [ "$first" = "celetis-flow: start: /celetis:feature #9
 celetis-flow: no progress: /celetis:feature #9" ] && [ "$out" = "celetis-flow: start: /celetis:feature #9
 celetis-flow: the gate of plan is me: scripts/celetis celetis-flow 9 starts /celetis:plan #9" ] || fail "in herdr a specify session with no spec is no progress, and one with a spec ends at the gate of plan: [$first] [$out] [$err]"
-[ "$(calls herdr-calls | grep -v '^agent get ' | grep -vx 'agent wait w1:p4 --until working --until blocked')" = "tab rename w1:t2 #9 specify
+[ "$(calls herdr-calls | grep -v '^agent get ' | grep -vx 'agent wait w1:p4 --until working --until blocked --timeout 5000')" = "tab rename w1:t2 #9 specify
 agent wait w1:p4 --until idle --until done
 tab rename w1:t2 #9 specify
 agent wait w1:p4 --until idle --until done
@@ -359,7 +359,7 @@ kill "$landing"; wait "$landing" 2>/dev/null || true
 [ "$out" = "celetis-flow: start: /celetis:implement #7
 celetis-flow: stop the landing of #7 runs; wait until scripts/celetis land ends" ] || fail "a landing that runs must hold the step end: [$out] [$err]"
 ! calls herdr-calls | grep -q '^agent prompt' || fail "the runner typed /exit while the landing ran: [$(calls herdr-calls)]"
-calls herdr-calls | grep -qx 'agent wait w1:p4 --until working --until blocked' || fail "the runner must read the line of #7 and wait while the landing runs: [$(calls herdr-calls)]"
+calls herdr-calls | grep -qx 'agent wait w1:p4 --until working --until blocked --timeout 5000' || fail "the runner must read the line of #7 and wait while the landing runs: [$(calls herdr-calls)]"
 
 for args in abc 0 7x "#" "7 abc" -h --open "--board 7" "7 --board" --resume "--resume abc" "--resume 7 8" "7 --resume"; do
   reset
@@ -396,7 +396,7 @@ reset; issue 7 OPEN enhancement "Spec: x"; issue 8 OPEN enhancement "Spec: x"; t
 tag=a- start_flow 7; a=$flow_pid
 await 1
 run_flow 7
-[ "$code" -eq 0 ] && [ "$out" = "celetis-flow: another celetis-flow.sh (PID $a) works on #7" ] && [ "$(count claude-calls)" -eq 1 ] || fail "a second script must start no session for a locked issue: $code [$out] [$err]"
+[ "$code" -eq 0 ] && [ "$out" = "celetis-flow: another celetis-flow.sh or its session (PID $a) works on #7" ] && [ "$(count claude-calls)" -eq 1 ] || fail "a second script must start no session for a locked issue: $code [$out] [$err]"
 run_flow
 [ "$(sessions)" = "7|/celetis:plan #7
 8|/celetis:plan #8" ] || fail "the automatic runner must leave a locked issue and take the next: [$(sessions)]"
@@ -404,7 +404,7 @@ issue 9 OPEN enhancement "Spec: x"; touch "$S/hold-9"
 tag=b- start_flow; b=$flow_pid
 await 3
 run_flow
-[ "$code" -eq 1 ] && [ -z "$out" ] && [ "$err" = "celetis-flow: another automatic runner has PID $b" ] || fail "a second automatic runner: $code [$out] [$err]"
+[ "$code" -eq 1 ] && [ -z "$out" ] && [ "$err" = "celetis-flow: another automatic runner or its session has PID $b" ] || fail "a second automatic runner: $code [$out] [$err]"
 rm "$S/hold-7" "$S/hold-9"
 wait "$a" "$b" 2>/dev/null || true
 [ "$(locks)" -eq 0 ] || fail "a script that ended left a lock"
@@ -412,7 +412,8 @@ wait "$a" "$b" 2>/dev/null || true
 for stale in dead "$$" garbage; do
   reset; issue 7 OPEN enhancement "Spec: x"; mkdir -p "$st"
   if [ "$stale" = dead ]; then /bin/sleep 0 & stale=$!; wait "$stale"; fi
-  echo "$stale" >"$st/issue-7.lock"
+  owner=$(jq -nc --arg pid "$stale" '{runner:{pid:($pid | tonumber?),start:"stale"},session:null}' | git -C "$repo" hash-object -w --stdin)
+  git -C "$repo" update-ref refs/celetis-flow/locks/issue-7 "$owner"
   run_flow 7
   [ "$(count claude-calls)" -eq 1 ] && [ "$(locks)" -eq 0 ] || fail "a lock of [$stale] must hold nothing: [$out] [$err]"
 done
@@ -430,7 +431,7 @@ celetis-flow: no progress: /celetis:plan #8
 celetis-flow: no auto step can start; the runner asks again each 60 seconds" ] || fail "the automatic runner: $code [$out] [$err]"
 [ "$(calls sleeps)" = 60 ] && [ "$(calls gh-calls | grep -c '^issue list --state open --limit 200 --json number,state,labels,body,comments$')" -eq 3 ] || fail "the automatic runner must list again after each issue and wait 60 seconds: [$(calls sleeps)] [$(calls gh-calls)]"
 [ "$(calls claude-env | cut -d'|' -f4 | tr '\n' ' ')" = "one two three " ] || fail "the list of the automatic runner must not read the stdin of a session: [$(calls claude-env)]"
-[ "$(calls claude-locks | tail -1)" = "issue-8.lock no-progress runner.lock" ] || fail "a session must run under the lock of its issue and of the runner, and no other: [$(calls claude-locks)]"
+[ "$(calls claude-locks | tail -1)" = "issue-8 no-progress runner" ] || fail "a session must run under the lock of its issue and of the runner, and no other: [$(calls claude-locks)]"
 [ "$(locks)" -eq 0 ] && [ "$(rows)" -eq 2 ] || fail "the automatic runner must write one row for each step with no progress and free its locks"
 run_flow 7
 [ "$out" = "celetis-flow: start: /celetis:implement #7

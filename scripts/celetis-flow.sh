@@ -59,17 +59,14 @@ if ! gone; then
     celetis_host_require || exit $?
     session_id=$(printf '%s\n' "$CELETIS_SESSION" | jq -r .session_id)
     cd "$(printf '%s\n' "$CELETIS_SESSION" | jq -r .checkout)"
-    case $CELETIS_HOST in
-      claude) exec claude --resume "$session_id" ;;
-      codex) exec codex resume "$session_id" ;;
-    esac
-  fi
-  celetis_host_require || exit $?
-  command -v gh >/dev/null 2>&1 || die "gh is not on PATH"
-  if [ "${HERDR_ENV:-}" = 1 ]; then
-    [[ ${HERDR_PANE_ID:-} =~ ^w[1-9][0-9]*:p[1-9][0-9]*$ ]] || die "HERDR_ENV=1 needs a valid HERDR_PANE_ID; start from a herdr pane"
-    command -v herdr >/dev/null 2>&1 || die "herdr is not on PATH"
-    managed=1
+  else
+    celetis_host_require || exit $?
+    command -v gh >/dev/null 2>&1 || die "gh is not on PATH"
+    if [ "${HERDR_ENV:-}" = 1 ]; then
+      [[ ${HERDR_PANE_ID:-} =~ ^w[1-9][0-9]*:p[1-9][0-9]*$ ]] || die "HERDR_ENV=1 needs a valid HERDR_PANE_ID; start from a herdr pane"
+      command -v herdr >/dev/null 2>&1 || die "herdr is not on PATH"
+      managed=1
+    fi
   fi
 elif [ "$mode" = resume ]; then
   die "the plugin version of this runner was removed after an update; start the runner again"
@@ -91,6 +88,10 @@ FLOW='{
 said=
 started=0
 holder=
+lock_owner=
+locks_held=
+session_pid=
+signal_status=0
 
 say() {
   [ "$mode" != auto ] || [ "$1" != "$said" ] || return 0
@@ -105,35 +106,78 @@ gate() {
   [ "$value" = auto ] && echo auto || echo me
 }
 
+holder_from() {
+  local owner kind pid began
+  owner=$(git cat-file blob "$1" 2>/dev/null) || return 1
+  for kind in runner session; do
+    pid=$(printf '%s\n' "$owner" | jq -er --arg kind "$kind" '.[$kind].pid | select(type == "number" and . > 0 and . == floor)' 2>/dev/null) || continue
+    began=$(printf '%s\n' "$owner" | jq -er --arg kind "$kind" '.[$kind].start | select(type == "string" and length > 0)' 2>/dev/null) || continue
+    if [ "$kind" = runner ]; then
+      case $(ps -p "$pid" -o command= 2>/dev/null) in *celetis-flow.sh*) ;; *) continue ;; esac
+    fi
+    case $(ps -p "$pid" -o stat= 2>/dev/null) in '' | *Z* | *X*) continue ;; esac
+    [ "$(LC_ALL=C ps -p "$pid" -o lstart= 2>/dev/null)" = "$began" ] || continue
+    echo "$pid"
+    return 0
+  done
+  return 1
+}
+
 holder_of() {
-  local pid
-  pid=$(cat "$state/$1.lock" 2>/dev/null) || return 1
-  case $pid in '' | *[!0-9]* | "$$") return 1 ;; esac
-  case $(ps -p "$pid" -o command= 2>/dev/null) in
-    *celetis-flow.sh*) echo "$pid" ;;
-    *) return 1 ;;
-  esac
+  local owner
+  owner=$(git rev-parse --verify "refs/celetis-flow/locks/$1" 2>/dev/null) || return 1
+  holder_from "$owner"
 }
 
 take() {
-  local file="$state/$1.lock"
-  ( set -C; echo "$$" >"$file" ) 2>/dev/null && return 0
-  if holder=$(holder_of "$1"); then return 1; fi
-  # superdinq: two scripts that take over one stale lock at the same moment can both hold it; hold the lock with lockf(1) or flock(1) if that occurs.
-  rm -f "$file"
-  ( set -C; echo "$$" >"$file" ) 2>/dev/null || { holder=$(cat "$file" 2>/dev/null || true); return 1; }
-}
-
-release() { [ "$(cat "$state/$1.lock" 2>/dev/null)" != "$$" ] || rm -f "$state/$1.lock"; }
-
-release_all() {
-  local file
-  for file in "$state"/*.lock; do
-    file=${file##*/}
-    release "${file%.lock}"
+  local ref="refs/celetis-flow/locks/$1" old current began
+  if [ -z "$lock_owner" ]; then
+    began=$(LC_ALL=C ps -p "$$" -o lstart= 2>/dev/null) || die "cannot read process identity; allow process access and start the runner again"
+    lock_owner=$(jq -nc --argjson pid "$$" --arg start "$began" '{runner:{pid:$pid,start:$start},session:null}' | git hash-object -w --stdin) || die "cannot write the lock owner"
+  fi
+  while :; do
+    old=$(git rev-parse --verify "$ref" 2>/dev/null) || old=
+    if [ -n "$old" ] && holder=$(holder_from "$old"); then return 1; fi
+    if git update-ref --no-deref "$ref" "$lock_owner" "$old" 2>/dev/null; then
+      locks_held="$locks_held $1"
+      return 0
+    fi
+    current=$(git rev-parse --verify "$ref" 2>/dev/null) || current=
+    [ "$current" != "$old" ] || die "cannot take the $1 lock; check Git access and start the runner again"
   done
 }
+
+release() {
+  local name keep=
+  [ -z "$lock_owner" ] || git update-ref --no-deref -d "refs/celetis-flow/locks/$1" "$lock_owner" 2>/dev/null || true
+  for name in $locks_held; do [ "$name" = "$1" ] || keep="$keep $name"; done
+  locks_held=$keep
+}
+
+register_session() {
+  local began owner name
+  began=$(LC_ALL=C ps -p "$session_pid" -o lstart= 2>/dev/null) || die "cannot read session process identity; start the runner again"
+  owner=$(git cat-file blob "$lock_owner" | jq -c --argjson pid "$session_pid" --arg start "$began" '.session = {pid:$pid,start:$start}' |
+    git hash-object -w --stdin) || die "cannot write the session lock owner"
+  for name in $locks_held; do printf 'update refs/celetis-flow/locks/%s %s %s\n' "$name" "$owner" "$lock_owner"; done |
+    git update-ref --no-deref --stdin || die "cannot register the session in its locks; start the runner again"
+  lock_owner=$owner
+}
+
+release_all() {
+  local name
+  if [ -n "${watcher:-}" ]; then
+    kill "$watcher" 2>/dev/null || true
+    wait "$watcher" 2>/dev/null || true
+  fi
+  [ -z "${watch_dir:-}" ] || rm -rf "$watch_dir"
+  for name in $locks_held; do release "$name"; done
+}
 trap release_all EXIT
+on_signal() { if [ -n "$session_pid" ]; then signal_status=$1; else exit "$1"; fi; }
+trap 'on_signal 129' HUP
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
 
 recorded() { grep -qxF "$1"$'\t'"$2" "$record" 2>/dev/null; }
 
@@ -145,7 +189,7 @@ step_of() {
 }
 
 end_when_done() {
-  local n=$1 start_line=$2 step=$3 errors=$4 prior_id=$5 started_at=$6 deadline=$((SECONDS + 60)) line reply status
+  local n=$1 start_line=$2 step=$3 errors=$4 prior_id=$5 started_at=$6 deadline=$((SECONDS + 60)) line reply status id
   while :; do
     if reply=$(herdr agent get "$HERDR_PANE_ID" 2>/dev/null); then
       status=0
@@ -164,13 +208,23 @@ end_when_done() {
     fi
     sleep 1
   done
+  id=$(jq -r .session_id "$state/sessions/$n.json")
   while herdr agent wait "$HERDR_PANE_ID" --until idle --until done >/dev/null 2>&1; do
-    line=$("$next" "$n" </dev/null) || line=$start_line
-    case $line in
-      "$start_line") ;;
-      "run "* | "stop #$n "*) if herdr agent prompt "$HERDR_PANE_ID" /exit >/dev/null 2>&1; then return 0; fi ;;
-    esac
-    herdr agent wait "$HERDR_PANE_ID" --until working --until blocked >/dev/null 2>&1 || return 0
+    if gone; then say "$(stale_n "$n")"; return 1; fi
+    if celetis_session_idle "$id"; then
+      line=$("$next" "$n" </dev/null) || line=$start_line
+      case $line in
+        "$start_line") ;;
+        "run "* | "stop #$n "*)
+          if celetis_session_idle "$id" && [ "$("$next" "$n" </dev/null)" = "$line" ]; then
+            herdr agent prompt "$HERDR_PANE_ID" /exit >/dev/null 2>&1 ||
+              printf 'celetis-flow: #%s cannot submit /exit; the session stays open. Exit it in this pane when ready.\n' "$n" >&2
+            return 0
+          fi ;;
+      esac
+    fi
+    herdr agent wait "$HERDR_PANE_ID" --until working --until blocked --timeout 5000 >/dev/null 2>&1 || true
+    sleep 1
   done
 }
 
@@ -184,9 +238,38 @@ update_plugin() {
   fi
 }
 
+start_session() {
+  watch_dir=$(mktemp -d "$state/start.XXXXXX")
+  (
+    while [ ! -f "$watch_dir/go" ]; do
+      kill -0 "$$" 2>/dev/null || exit 1
+      sleep 0.05
+    done
+    exec "$CELETIS_HOST" "${CELETIS_ARGS[@]}"
+  ) <&0 &
+  session_pid=$!
+  register_session
+  if [ "$signal_status" -ne 0 ]; then
+    kill "$session_pid" 2>/dev/null || true
+    wait "$session_pid" 2>/dev/null || true
+    exit "$signal_status"
+  fi
+}
+
+wait_session() {
+  touch "$watch_dir/go"
+  while :; do
+    exit_code=0
+    wait "$session_pid" || exit_code=$?
+    kill -0 "$session_pid" 2>/dev/null || break
+  done
+  session_pid=
+  [ "$signal_status" -eq 0 ] || exit "$signal_status"
+}
+
 run_issue() {
   local n=$1 first=$2 line last= prompt step watcher watch_dir prior_id started_at exit_code=0
-  take "issue-$n" || { say "another celetis-flow.sh (PID $holder) works on #$n"; return 0; }
+  take "issue-$n" || { say "another celetis-flow.sh or its session (PID $holder) works on #$n"; return 0; }
   while :; do
     if gone; then say "$(stale_n "$n")"; break; fi
     line=$("$next" "$n" </dev/null) || true
@@ -215,17 +298,15 @@ run_issue() {
     celetis_host_arguments "$n" "$step" "$prompt" "$root" || die "cannot read the step instructions; start the runner again"
     celetis_session_write "$n" "$step" "$main" "" || die "cannot write the session record for #$n"
     watcher=
-    watch_dir=
+    start_session
     if [ -n "$managed" ]; then
       [ -z "${HERDR_TAB_ID:-}" ] || herdr tab rename "$HERDR_TAB_ID" "#$n $step" >/dev/null 2>&1 || true
       prior_id=$(herdr agent get "$HERDR_PANE_ID" </dev/null 2>/dev/null | jq -r '.result.agent.agent_session.value // empty' 2>/dev/null) || prior_id=
-      watch_dir=$(mktemp -d "$state/start.XXXXXX")
       started_at=$(date +%s)
       end_when_done "$n" "$line" "$step" "$watch_dir/error" "$prior_id" "$started_at" </dev/null &
       watcher=$!
     fi
-    exit_code=0
-    "$CELETIS_HOST" "${CELETIS_ARGS[@]}" || exit_code=$?
+    wait_session
     if [ -n "$watcher" ]; then
       kill "$watcher" 2>/dev/null || true
       wait "$watcher" 2>/dev/null || true
@@ -234,12 +315,25 @@ run_issue() {
         rm -rf "$watch_dir"
         return 1
       fi
-      rm -rf "$watch_dir"
     fi
+    rm -rf "$watch_dir"
+    watcher=
+    watch_dir=
     last=$line
   done
   release "issue-$n"
 }
+
+if [ "$mode" = resume ]; then
+  take "issue-$issues" || die "another celetis-flow.sh or its session (PID $holder) works on #$issues"
+  case $CELETIS_HOST in
+    claude) CELETIS_ARGS=(--resume "$session_id") ;;
+    codex) CELETIS_ARGS=(resume "$session_id") ;;
+  esac
+  start_session
+  wait_session
+  exit "$exit_code"
+fi
 
 if [ "$mode" = board ]; then
   if gone; then printf '%s\n' "$stale"; exit 1; fi
@@ -285,7 +379,7 @@ if [ "$mode" = numbers ]; then
   exit 0
 fi
 
-take runner || die "another automatic runner has PID $holder"
+take runner || die "another automatic runner or its session has PID $holder"
 while :; do
   pick=
   if gone; then say "$stale"; exit 1; fi

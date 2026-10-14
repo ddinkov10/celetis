@@ -60,6 +60,16 @@ celetis_session_observe() {
   celetis_session_write "$issue" "$step" "$checkout" "$id" || return 2
 }
 
+celetis_session_idle() {
+  herdr agent get "$HERDR_PANE_ID" 2>/dev/null |
+    jq -e --arg host "$CELETIS_HOST" --arg id "$1" '
+      .result.agent | .agent == $host and .interactive_ready == true and
+        (.agent_status | IN("idle", "done")) and
+        .agent_session.agent == $host and .agent_session.kind == "id" and
+        .agent_session.value == $id
+    ' >/dev/null 2>&1
+}
+
 celetis_host_arguments() {
   local issue=$1 step=$2 prompt=$3 root=$4 developer reply
   case $CELETIS_HOST in
