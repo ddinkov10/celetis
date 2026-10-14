@@ -655,15 +655,33 @@ and a runner that stays open for more than 14 days (Consequences).
   version, and a project cannot stay on an older one. A session by hand can be one version
   behind the scripts that its launcher runs.
 - **A Windows host (R10).** The Bash tool of a Windows host is Git Bash, and the scripts run
-  there. The launcher turns a Windows path with `cygpath`, but no session showed its lookup
-  there: the build session has no Windows host. The maintainer makes that check before
-  `ddinkov10/fwrh_calculator` changes to the plugin.
+  there. The launcher turns a Windows path with `cygpath`. The check passed on 2026-10-14 on
+  Windows 11 Pro 10.0.26200 with Git for Windows 2.40.0, Claude Code 2.1.299, `gh` 2.83.2, and
+  `jq` 1.8.1, at `df5c78e` with the plugin record at `df5c78ef723f` at the `user` scope (the
+  `## Windows check` comment on ddinkov10/fwrh_calculator#435): the two install commands exit 0,
+  a clone with `core.autocrlf=true` keeps LF, a headless `/celetis:guide` turn answers with
+  `scripts/celetis next-step` and shows its custom part, `scripts/celetis next-step --open`
+  prints one row and `scripts/celetis worktree 3` prints a path under `.claude/worktrees/`, and
+  with no `jq` on `PATH` the launcher prints `celetis: jq is not on PATH` and exits 1. The
+  interactive `/` menu was not checked.
+- **The Windows path limit.** In a clone with a path of about 135 characters,
+  `scripts/celetis worktree 3` stops with `error: unable to create file
+  docs/adr/0004-the-board-shows-what-each-agent-asks-and-unblocks-a-stuck-card.md: Filename too
+  long`, and it leaves the local branch. The worktree adds `.claude/worktrees/<n>-<slug>/` (up
+  to 50 characters) and the longest tracked path is 79 characters, so a clone path of more than
+  about 130 characters goes past the limit of 260. A clone under `C:\Users\<name>\PROJECTS\` is
+  far below it. `git config --global core.longpaths true` removes the limit.
+- **The order of the acts after a probe.** `scripts/celetis worktree --remove <n>` refuses while
+  the issue is open and its branch has no merged PR, so the issue closes first and the worktree
+  goes after it.
 - **Each machine needs two commands one time.** The install enables the plugin at the `user`
   scope, so each session of that machine loads it, in each folder.
 - **The plugin is on in each folder of a machine.** A session in a project that is not wired
   also lists the 18 skills, and a lane skill that starts there from free text makes a GitHub
-  issue before it finds no launcher. Layer 1 keeps the install at the `user` scope: the launcher
-  and the update need the `user` record. The documents give a way to limit this, which is not
+  issue before it finds no launcher. Layer 1 keeps the install at the `user` scope: the update
+  needs the `user` record. The launcher takes the `user` record first and falls back to the
+  first record of the id (`scripts/celetis`, line 11). The documents give a way to limit this,
+  which is not
   shown here: `"celetis@celetis": false` in `enabledPlugins` of `~/.claude/settings.json` turns
   the plugin off at the `user` scope, and the project file of a wired project turns it on
   (docs:plugins/loading, "Disabled in user settings but still loads", read on 2026-10-13).
@@ -704,7 +722,8 @@ and a runner that stays open for more than 14 days (Consequences).
   its file stem, and that stem has the new number.
 - **The ADR store of `ddinkov10/fwrh_calculator` keeps the eleven records** with their old
   numbers until ddinkov10/fwrh_calculator#442 decides on them. The two stores can then differ.
-- **One thing is open at the date of this record:** the launcher on a Windows host (R10).
+- **The Windows check passed on 2026-10-14** (R10 above, with the `## Windows check` comment on
+  ddinkov10/fwrh_calculator#435 as its record).
 
 ## Reconsider when
 
