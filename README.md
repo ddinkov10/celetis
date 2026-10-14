@@ -501,7 +501,8 @@ Run the tests in a checkout of this repository.
   `scripts/capscore.sh --test` on Linux, for each pull request and for each push to `main`. It sets
   `CELETIS_FLOW_SKIP_BOARD_CHECK=1`, so it does not make that contract check: the gate on a machine
   does.
-- **The proof on bash 3.2.** Each script and each test also runs under the `/bin/bash` of macOS:
+- **The proof on bash 3.2.** The gate runs each test under the `/bin/bash` of macOS, with
+  `PATH="/bin:$PATH"` so each inner `bash` reaches `/bin/bash` too:
 
   ```bash
   PATH="/bin:$PATH" /bin/bash tests/<name>.test.sh
