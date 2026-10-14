@@ -99,6 +99,11 @@ printf '%s\n' "$*" >>"$S/herdr-calls"
 case "$1 $2" in
   'tab rename') ;;
   'agent get')
+    if [ -f "$S/prior-host" ] && [ ! -f "$S/prior-reported" ]; then
+      if [ -f "$S/prior-seen" ]; then touch "$S/prior-reported"; else touch "$S/prior-seen"; fi
+      jq -nc --arg h "$(cat "$S/prior-host")" --arg id "$(cat "$S/prior-id")" '{result:{agent:{agent:$h,interactive_ready:true,agent_session:{agent:$h,kind:"id",value:$id}}}}'
+      exit 0
+    fi
     if [ ! -f "$S/live" ]; then
       [ -f "$S/prior-id" ] || exit 1
       jq -nc --arg h "$CELETIS_HOST" --arg id "$(cat "$S/prior-id")" '{result:{agent:{agent:$h,interactive_ready:true,agent_session:{agent:$h,kind:"id",value:$id}}}}'
@@ -141,6 +146,18 @@ run() {
   (cd "$repo" && PATH="${test_path:-$PATH}" CELETIS_HOST="${test_host:-claude}" "$BASH" "$plugin/scripts/celetis-flow.sh" "$@" < <(printf 'terminal input\n')) >"$tmp/out" 2>"$tmp/err" || code=$?
   out=$(cat "$tmp/out"); err=$(cat "$tmp/err")
 }
+for host in claude codex; do
+  reset
+  other=codex; [ "$host" != codex ] || other=claude
+  echo "$other" >"$S/prior-host"
+  echo 00000000-0000-4000-8000-000000000001 >"$S/prior-id"
+  export HERDR_ENV=1 HERDR_PANE_ID=w1:p1
+  test_host=$host run 7
+  [ "$code" -eq 0 ] && [ -z "$err" ] && jq -e --arg h "$host" --arg id "$uuid" '.host == $h and .session_id == $id' "$record" >/dev/null || fail "$host did not start after the prior $other report: $code [$err]"
+  : >"$S/calls"
+  test_host=$other run --resume 7
+  [ "$code" -eq 0 ] && jq -e --arg h "$host" --arg id "$uuid" '.host == $h and .args[-1] == $id' "$S/calls" >/dev/null || fail "$host resumed the prior $other session"
+done
 for replacement in '.host="claude"' '.session_id="00000000-0000-4000-8000-000000000001"'; do
   reset
   mkdir -p "${record%/*}"

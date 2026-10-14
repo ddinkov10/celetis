@@ -43,11 +43,13 @@ celetis_session_saved() {
 
 celetis_session_observe() {
   local issue=$1 step=$2 checkout=$3 reply=$4 prior_id=$5 started_at=$6 id
-  id=$(printf '%s\n' "$reply" | jq -er --arg host "$CELETIS_HOST" '
+  id=$(printf '%s\n' "$reply" | jq -er --arg host "$CELETIS_HOST" --arg prior "$prior_id" '
     .result.agent
-    | if type != "object" or .agent != $host then error("wrong agent") else . end
+    | if type != "object" or (.agent | IN("claude","codex") | not) or
+        (.agent != $host and ($prior == "" or .agent_session.value != $prior))
+      then error("wrong agent") else . end
     | if .agent_session == null or .interactive_ready != true then ""
-      elif .agent_session.agent != $host or .agent_session.kind != "id" or
+      elif .agent_session.agent != .agent or .agent_session.kind != "id" or
           (.agent_session.value | type) != "string" then error("invalid identity")
       else .agent_session.value end
   ' 2>/dev/null) || return 2
