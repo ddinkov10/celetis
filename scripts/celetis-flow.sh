@@ -21,7 +21,7 @@ fi
 
 die() { printf 'celetis-flow: %s\n' "$1" >&2; exit 1; }
 
-for tool in claude gh jq git; do
+for tool in claude gh jq git perl; do
   command -v "$tool" >/dev/null 2>&1 || die "$tool is not on PATH"
 done
 
@@ -58,6 +58,8 @@ FLOW='{
 said=
 started=0
 holder=
+updater=
+update_output=
 
 say() {
   [ "$mode" != auto ] || [ "$1" != "$said" ] || return 0
@@ -95,12 +97,21 @@ release() { [ "$(cat "$state/$1.lock" 2>/dev/null)" != "$$" ] || rm -f "$state/$
 
 release_all() {
   local file
+  trap '' INT TERM HUP
+  if [ -n "$updater" ]; then
+    kill "$updater" 2>/dev/null || true
+    wait "$updater" 2>/dev/null || true
+  fi
+  [ -z "$update_output" ] || rm -f "$update_output"
   for file in "$state"/*.lock; do
     file=${file##*/}
     release "${file%.lock}"
   done
 }
 trap release_all EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
 
 recorded() { grep -qxF "$1"$'\t'"$2" "$record" 2>/dev/null; }
 
@@ -130,13 +141,17 @@ end_when_done() {
 }
 
 update_plugin() {
-  local moved
-  if { claude plugin marketplace update celetis && claude plugin update celetis@celetis --scope user; } >/dev/null 2>&1 </dev/null; then
-    moved=$("$here/celetis" root </dev/null 2>/dev/null) || return 0
-    [ ! -f "$moved/step-prompt.md" ] || root=$moved
-  else
-    say "the plugin update failed; the session starts on the installed version"
-  fi
+  local moved result=0
+  update_output=$(mktemp)
+  perl "$here/plugin-update.pl" "$$" >"$update_output" </dev/null &
+  updater=$!
+  wait "$updater" || result=$?
+  updater=
+  moved=$(cat "$update_output")
+  rm -f "$update_output"
+  update_output=
+  [ "$result" -eq 0 ] || die "the plugin update failed; the step did not start"
+  root=$moved
 }
 
 run_issue() {

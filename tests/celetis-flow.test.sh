@@ -7,10 +7,12 @@ ln -s "$root" "$tmp/plug in"
 plugin="$tmp/plug in"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 export CELETIS_FLOW_TEST_STATE="$tmp/state"
+export CELETIS_FLOW_TEST_PLUGIN="$plugin" CELETIS_FLOW_TEST_PERL="$(command -v perl)"
+export CLAUDE_CONFIG_DIR="$tmp/claude config"
 unset HERDR_PANE_ID HERDR_TAB_ID
 S=$CELETIS_FLOW_TEST_STATE
 # A test that fails must leave no runner alive: an automatic runner has no end of its own.
-trap 'kill $(cat "$S/runner-pids" 2>/dev/null) "${landing:-}" 2>/dev/null || true; rm -rf "$tmp"' EXIT
+trap 'kill $(cat "$S/runner-pids" 2>/dev/null) "${landing:-}" "${lock_holder:-}" 2>/dev/null || true; [ -z "${update_pid:-}" ] || kill -KILL -- "-$update_pid" 2>/dev/null || true; rm -rf "$tmp"' EXIT
 bin="$tmp/bin"
 nobin="$tmp/nobin"
 mkdir -p "$bin" "$nobin"
@@ -45,7 +47,23 @@ if [ "$1" = plugin ]; then
   IFS= read -r _ || true
   echo "fake claude plugin: error" >&2
   [ ! -f "$S/plugin-fail" ] || exit 1
-  [ "$2" != list ] || { cat "$S/plugin-list" 2>/dev/null || echo '[]'; exit 0; }
+  [ ! -f "$S/plugin-fail-$2" ] || { echo "probe: $2 failed" >&2; exit 23; }
+  if [ -f "$S/plugin-hang-$2" ]; then
+    trap '' TERM
+    echo "$$" >"$S/plugin-pid"
+    bash -c 'trap "" TERM; echo "$$" >"$CELETIS_FLOW_TEST_STATE/plugin-child"; /bin/sleep 30' &
+    wait
+  fi
+  if [ "$2" = marketplace ] && [ -f "$S/hold-update" ]; then
+    mkdir "$S/update-active" 2>/dev/null || touch "$S/update-overlap"
+    touch "$S/update-entered"
+    while [ -f "$S/hold-update" ]; do /bin/sleep 0.05; done
+    rmdir "$S/update-active" 2>/dev/null || true
+  fi
+  [ "$2" != list ] || {
+    cat "$S/plugin-list" 2>/dev/null || printf '[{"id":"celetis@celetis","version":"test","scope":"user","enabled":true,"installPath":"%s"}]\n' "$CELETIS_FLOW_TEST_PLUGIN"
+    exit 0
+  }
   echo "fake claude plugin: output"
   exit 0
 fi
@@ -70,6 +88,20 @@ if [ -n "${HERDR_PANE_ID:-}" ]; then
 fi
 exit "$(cat "$S/claude-exit" 2>/dev/null || echo 0)"
 EOF
+cat >"$bin/perl" <<'EOF'
+#!/usr/bin/env bash
+echo "$$" >>"$CELETIS_FLOW_TEST_STATE/helpers"
+if [ ! -f "$CELETIS_FLOW_TEST_STATE/fast-clock" ]; then exec "$CELETIS_FLOW_TEST_PERL" "$@"; fi
+exec "$CELETIS_FLOW_TEST_PERL" -MTime::HiRes -e '
+  my $clock = \&Time::HiRes::clock_gettime;
+  {
+    no warnings "redefine";
+    *Time::HiRes::clock_gettime = sub { $clock->(@_) * 120 };
+  }
+  $0 = shift @ARGV;
+  do $0 or die $@ || $!;
+' "$@"
+EOF
 # The herdr stub plays one pane: an agent wait ends when the claude stub ends its turn or exits.
 cat >"$bin/herdr" <<'EOF'
 #!/usr/bin/env bash
@@ -93,7 +125,7 @@ S=$CELETIS_FLOW_TEST_STATE
 echo "$1" >>"$S/sleeps"
 [ "$(wc -l <"$S/sleeps")" -lt "$(cat "$S/sleep-limit" 2>/dev/null || echo 1)" ] || kill -TERM "$PPID"
 EOF
-chmod +x "$bin/gh" "$bin/claude" "$bin/herdr" "$bin/sleep"
+chmod +x "$bin/gh" "$bin/claude" "$bin/herdr" "$bin/sleep" "$bin/perl"
 cp "$bin/gh" "$nobin/gh"
 ln -s "$(command -v jq)" "$nobin/jq"
 ln -s "$(command -v git)" "$nobin/git"
@@ -147,11 +179,20 @@ run_flow() { start_flow "$@"; end_flow; }
 
 calls() { cat "$S/$1" 2>/dev/null || true; }
 count() { calls "$1" | wc -l | tr -d ' '; }
-await() {
+await_count() {
   local tries=0
-  until [ "$(count claude-calls)" -ge "$1" ]; do
+  until [ "$(count "$1")" -ge "$2" ]; do
     tries=$((tries + 1))
-    [ "$tries" -le 400 ] || fail "session $1 did not start in 20 seconds: [$(calls claude-calls)]"
+    [ "$tries" -le 400 ] || fail "$1 did not reach $2 calls in 20 seconds: [$(calls "$1")]"
+    /bin/sleep 0.05
+  done
+}
+await() { await_count claude-calls "$1"; }
+await_file() {
+  local tries=0
+  until [ -f "$1" ]; do
+    tries=$((tries + 1))
+    [ "$tries" -le 400 ] || fail "the update did not reach $1 in 20 seconds"
     /bin/sleep 0.05
   done
 }
@@ -162,7 +203,7 @@ form() { printf '[--permission-mode][auto][-n][#%s %s][--append-system-prompt-fi
 update="plugin marketplace update celetis
 plugin update celetis@celetis --scope user"
 lookup="plugin list --json"
-moved="$tmp/moved plugin"
+moved="$tmp/moved plugin Ж"
 bare="$tmp/bare plugin"
 mkdir -p "$moved/scripts" "$bare/scripts"
 cp "$root/scripts/root.sh" "$moved/scripts/root.sh"
@@ -199,10 +240,33 @@ celetis-flow: no progress: /celetis:plan #7" ] && [ -z "$err" ] || fail "the upd
 
 reset; issue 7 OPEN enhancement "Spec: x"; touch "$S/plugin-fail"
 run_flow 7
-[ "$code" -eq 0 ] && [ "$out" = "celetis-flow: start: /celetis:plan #7
-celetis-flow: the plugin update failed; the session starts on the installed version
-celetis-flow: no progress: /celetis:plan #7" ] && [ -z "$err" ] || fail "a failed update must print one line, and the session must start: $code [$out] [$err]"
-[ "$(calls plugin-calls)" = "plugin marketplace update celetis" ] && [ "$(count claude-calls)" -eq 1 ] || fail "a failed update command must stop the chain: [$(calls plugin-calls)] [$(calls claude-calls)]"
+[ "$code" -ne 0 ] && [ "$(count claude-calls)" -eq 0 ] && [ ! -e "$st/no-progress" ] || fail "a failed marketplace update must stop before the session: $code [$out] [$err]"
+[[ $err == *"claude plugin marketplace update celetis"* && $err == *"exit 1"* && $err == *"fake claude plugin: error"* ]] || fail "the failed command, status, and cause must reach stderr: [$err]"
+[ "$(calls plugin-calls)" = "plugin marketplace update celetis" ] && [ "$(locks)" -eq 0 ] || fail "a failed update must stop the chain and release its issue lock"
+
+reset; issue 7 OPEN enhancement "Spec: x"; touch "$S/plugin-fail-update"
+run_flow 7
+[ "$code" -ne 0 ] && [ "$(count claude-calls)" -eq 0 ] && [ ! -e "$st/no-progress" ] || fail "a failed plugin update must stop before the session: $code [$out] [$err]"
+[[ $err == *"claude plugin update celetis@celetis --scope user"* && $err == *"exit 23"* && $err == *"probe: update failed"* ]] || fail "the plugin update cause must reach stderr: [$err]"
+[ "$(calls plugin-calls)" = "$update" ] || fail "a failed plugin update must start no lookup: [$(calls plugin-calls)]"
+
+reset; issue 7 OPEN enhancement "Spec: x"; touch "$S/plugin-fail-list"
+run_flow 7
+[ "$code" -ne 0 ] && [ "$(count claude-calls)" -eq 0 ] && [[ $err == *"claude plugin list --json"* && $err == *"exit 23"* && $err == *"probe: list failed"* ]] || fail "a failed lookup must stop and show its command, status, and cause: $code [$err]"
+
+for stage in marketplace update list; do
+  reset; issue 7 OPEN enhancement "Spec: x"; touch "$S/plugin-hang-$stage" "$S/fast-clock"
+  start_flow 7
+  await_file "$S/plugin-child"
+  update_pid=$(cat "$S/plugin-pid")
+  update_child=$(cat "$S/plugin-child")
+  end_flow
+  [ "$code" -ne 0 ] && [ "$(count claude-calls)" -eq 0 ] && [ ! -e "$st/no-progress" ] || fail "a hung $stage command must stop before the session: $code [$out] [$err]"
+  [[ $err == *"timed out"* && $err == *"$stage"* && $err == *"fake claude plugin: error"* ]] || fail "a timeout must show its command and captured cause: [$err]"
+  ! kill -0 "$update_pid" 2>/dev/null || fail "the timed-out update still runs: $update_pid"
+  case $(ps -p "$update_child" -o stat= 2>/dev/null) in '' | *Z*) ;; *) fail "a timed-out update left a live descendant: $update_child" ;; esac
+  [ "$(locks)" -eq 0 ] || fail "a timed-out update left an issue lock"
+done
 
 reset; issue 7 OPEN enhancement "Spec: x"; after 7 1 OPEN enhancement "Spec: x" "## Plan"
 run_flow 7
@@ -225,18 +289,21 @@ $(form 7 implement "$moved")" ] && [ -z "$err" ] || fail "the second of two sess
 reset; issue 7 OPEN enhancement "Spec: x"; after 7 1 OPEN enhancement "Spec: x" "## Plan"; plugin_list "$moved"
 echo oops >"$S/after/7/1/plugin-list"
 run_flow 7
-[ "$(calls claude-calls)" = "$(form 7 plan "$moved")
-$(form 7 implement "$moved")" ] && [ -z "$err" ] || fail "a lookup that gives no folder must keep the folder that the runner has: [$(calls claude-calls)] [$err]"
+[ "$code" -ne 0 ] && [ "$(calls claude-calls)" = "$(form 7 plan "$moved")" ] && [ ! -e "$st/no-progress" ] || fail "a failed second lookup must stop before the second session: [$(calls claude-calls)] [$err]"
 
 reset; issue 7 OPEN enhancement "Spec: x"; echo oops >"$S/plugin-list"
 run_flow 7
-[ "$out" = "celetis-flow: start: /celetis:plan #7
-celetis-flow: no progress: /celetis:plan #7" ] && [ "$(calls claude-calls)" = "$(form 7 plan)" ] && [ -z "$err" ] || fail "a lookup that prints no JSON must keep the folder of the runner, with no error: [$out] [$(calls claude-calls)] [$err]"
+[ "$code" -ne 0 ] && [ "$(count claude-calls)" -eq 0 ] && [[ $err == *"invalid plugin list JSON"* && $err == *"oops"* ]] || fail "an invalid lookup must stop and show its cause: [$out] [$(calls claude-calls)] [$err]"
+
+for list in '[]' '{}' 'null' '[{"id":"celetis@celetis","scope":"project","installPath":"/somewhere"}]' '[{"id":"celetis@celetis","scope":"user"}]' '[{"id":"celetis@celetis","scope":"user","installPath":"/one"},{"id":"celetis@celetis","scope":"user","installPath":"/two"}]'; do
+  reset; issue 7 OPEN enhancement "Spec: x"; printf '%s\n' "$list" >"$S/plugin-list"
+  run_flow 7
+  [ "$code" -ne 0 ] && [ "$(count claude-calls)" -eq 0 ] && [ -n "$err" ] || fail "an absent or invalid user installation must stop before the session: $code [$list] [$err]"
+done
 
 reset; issue 7 OPEN enhancement "Spec: x"; plugin_list "$bare"
 run_flow 7
-[ "$out" = "celetis-flow: start: /celetis:plan #7
-celetis-flow: no progress: /celetis:plan #7" ] && [ "$(calls claude-calls)" = "$(form 7 plan)" ] && [ -z "$err" ] || fail "a folder with no step-prompt.md must keep the folder of the runner, with no error: [$out] [$(calls claude-calls)] [$err]"
+[ "$code" -ne 0 ] && [ "$(count claude-calls)" -eq 0 ] && [[ $err == *"step-prompt.md"* && $err == *"$bare"* ]] || fail "a folder without step text must stop and show its path: [$out] [$(calls claude-calls)] [$err]"
 
 reset
 issue 7 OPEN bug "It breaks"; after 7 1 OPEN bug "It breaks" "## Root cause"
@@ -384,6 +451,66 @@ run_flow 7
 run_flow
 [ "$code" -eq 143 ] && [ -z "$(calls claude-calls)" ] || fail "a dirty tree must start no session: $code [$out] [$err]"
 rm "$repo/new.txt"
+
+reset; issue 7 OPEN enhancement "Spec: x"
+mkdir -p "$CLAUDE_CONFIG_DIR"
+"$CELETIS_FLOW_TEST_PERL" -MFcntl=:flock -e '
+  open my $lock, ">>", $ARGV[0] or die $!;
+  flock($lock, LOCK_EX) or die $!;
+  open my $ready, ">", $ARGV[1] or die $!;
+  close $ready;
+  sleep 30;
+' "$CLAUDE_CONFIG_DIR/celetis-update.lock" "$S/lock-held" &
+lock_holder=$!
+await_file "$S/lock-held"
+touch "$S/fast-clock"
+run_flow 7
+[ "$code" -ne 0 ] && [ "$(count claude-calls)" -eq 0 ] && [ "$(count plugin-calls)" -eq 0 ] && [[ $err == *"timed out"* && $err == *"lock"* ]] || fail "lock contention must share the deadline and start no update: $code [$err]"
+kill -KILL "$lock_holder"; wait "$lock_holder" 2>/dev/null || true
+lock_holder=
+rm "$S/fast-clock"
+run_flow 7
+[ "$code" -eq 0 ] && [ "$(count claude-calls)" -eq 1 ] || fail "a killed lock holder must not leave a stale lock: $code [$err]"
+
+other_repo="$tmp/other repository"
+git clone -q "$repo" "$other_repo"
+reset; issue 7 OPEN enhancement "Spec: x"; issue 8 OPEN enhancement "Spec: x"; touch "$S/hold-update"
+tag=update-a- start_flow 7; a=$flow_pid
+await_file "$S/update-entered"
+from=$other_repo tag=update-b- start_flow 8; b=$flow_pid
+await_count helpers 2
+/bin/sleep 0.2
+[ "$(count plugin-calls)" -eq 1 ] && [ ! -f "$S/update-overlap" ] || fail "different repositories must share the update lock: [$(calls plugin-calls)]"
+rm "$S/hold-update"
+wait "$a" "$b"
+[ "$(count claude-calls)" -eq 2 ] && [ ! -f "$S/update-overlap" ] || fail "serialized updates must start both sessions without a collision"
+
+reset; issue 7 OPEN enhancement "Spec: x"; issue 8 OPEN enhancement "Spec: x"; touch "$S/hold-update"
+tag=killed-helper- start_flow 7; a=$flow_pid
+await_file "$S/update-entered"
+helper=$(head -1 "$S/helpers")
+kill -KILL "$helper"; wait "$a" 2>/dev/null || true
+from=$other_repo tag=surviving-command- start_flow 8; b=$flow_pid
+await_count helpers 2
+/bin/sleep 0.2
+[ "$(count plugin-calls)" -eq 1 ] && [ ! -f "$S/update-overlap" ] || fail "a killed helper must keep a live command's lock"
+rm "$S/hold-update"
+wait "$b"
+[ "$(count claude-calls)" -eq 1 ] && [ ! -f "$S/update-overlap" ] || fail "a surviving command must release its lock before the next update"
+
+reset; issue 7 OPEN enhancement "Spec: x"; touch "$S/plugin-hang-marketplace"
+tag=interrupted- start_flow 7
+await_file "$S/plugin-child"
+update_pid=$(cat "$S/plugin-pid")
+update_child=$(cat "$S/plugin-child")
+cancel_start=$SECONDS
+kill -TERM "$flow_pid"; wait "$flow_pid" 2>/dev/null || true
+rm "$S/plugin-hang-marketplace"
+run_flow 7
+[ "$code" -eq 0 ] && [ "$(count claude-calls)" -eq 1 ] || fail "a runner exit must stop its update and release the shared lock: $code [$err]"
+[ "$((SECONDS - cancel_start))" -le 5 ] || fail "an interrupted update took more than 5 seconds to release its lock"
+! kill -0 "$update_pid" 2>/dev/null || fail "an interrupted runner left its update alive"
+case $(ps -p "$update_child" -o stat= 2>/dev/null) in '' | *Z*) ;; *) fail "an interrupted runner left a live descendant" ;; esac
 
 reset; issue 7 OPEN enhancement "Spec: x"; issue 8 OPEN enhancement "Spec: x"; touch "$S/hold-7"
 tag=a- start_flow 7; a=$flow_pid
