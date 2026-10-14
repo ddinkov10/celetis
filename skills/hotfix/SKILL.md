@@ -65,4 +65,4 @@ N+1. Too little time for the lane → the change does not ship tonight.
      - [ ] Do the ship acts of the project.
      - [ ] Remove `ready-for-human`.
 
-!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/hotfix.md" 2>/dev/null || true`
+!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/hotfix.md" 2>/dev/null || true`

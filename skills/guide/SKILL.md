@@ -17,8 +17,8 @@ Match the goal to a row. Answer with the command and one line on why it fits; ru
 | make a zero-behavior-change edit (dep bump, rename, docs) | `/celetis:chore <# or text>` |
 | turn an approved spec (the issue body) into a plan | `/celetis:plan <#>` in a fresh context |
 | build a posted plan (`ready-for-agent`) and land the change | `/celetis:implement <#>` in a fresh context |
-| see each agent session and each issue's next step, and start a step | the board: `npx 'github:ddinkov10/agent-board#semver:^1'` in the main checkout, then `http://127.0.0.1:<port>`, with the `port` of `.claude/agent-flow/board.json` (`${CLAUDE_PLUGIN_ROOT}/docs/agent-flow.md`) |
-| run the next step of an issue in a fresh session, in your own terminal | `scripts/celetis agent-flow <n>...` in a Terminal tab; each gate is `me` by default, so it runs one step of each issue and ends. With no number it runs only the steps that `.claude/agent-flow/gates.json` or `git config agent-flow.gate.<step> auto` on this machine makes `auto`, so with the defaults it starts nothing (`${CLAUDE_PLUGIN_ROOT}/docs/agent-flow.md`) |
+| see each agent session and each issue's next step, and start a step | the board: `npx 'github:ddinkov10/agent-board#semver:^2'` in the main checkout, then `http://127.0.0.1:<port>`, with the `port` of `.claude/celetis-flow/board.json` (`${CLAUDE_PLUGIN_ROOT}/docs/celetis-flow.md`) |
+| run the next step of an issue in a fresh session, in your own terminal | `scripts/celetis celetis-flow <n>...` in a Terminal tab; each gate is `me` by default, so it runs one step of each issue and ends. With no number it runs only the steps that `.claude/celetis-flow/gates.json` or `git config celetis-flow.gate.<step> auto` on this machine makes `auto`, so with the defaults it starts nothing (`${CLAUDE_PLUGIN_ROOT}/docs/celetis-flow.md`) |
 | see an issue's next step without running it | `scripts/celetis next-step <#>`; `scripts/celetis next-step --open` lists each open issue |
 | open the session of a step again to diagnose it | `claude --resume '#<n> <step>'` from the main checkout, for example `claude --resume '#402 plan'` |
 | land a change whose landing stopped (`## Landing refused`) | the build step again, `/celetis:implement <#>` or `/celetis:chore <#>`: it lands the change and does not build it again |
@@ -29,4 +29,4 @@ Match the goal to a row. Answer with the command and one line on why it fits; ru
 
 No row fits → `/celetis:intake`; the intent and `/celetis:triage` sort it into a lane.
 
-!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/guide.md" 2>/dev/null || true`
+!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/guide.md" 2>/dev/null || true`

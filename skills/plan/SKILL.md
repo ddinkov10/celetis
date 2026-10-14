@@ -52,4 +52,4 @@ Bias:         <n>
 
 The execution method is already supplied: `/celetis:implement #<n>` in a fresh context. Once the plan is written and self-reviewed, publish it in the same turn: `gh issue comment <n> --body-file <plan>` with `## Plan` as its first line, then `gh issue edit <n> --add-label ready-for-agent`. Then tell the user the plan is on the issue for their review, and to run `/celetis:implement #<n>` in a fresh context.
 
-!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/plan.md" 2>/dev/null || true`
+!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/plan.md" 2>/dev/null || true`

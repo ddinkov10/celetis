@@ -130,7 +130,7 @@ for skill in $skills; do
       [[ $line != "$key":* ]] || disabled+="$file:$n:$line$nl"
     done <<<"$front"
   fi
-  printf -v custom '!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/%s.md" 2>/dev/null || true`' "$skill"
+  printf -v custom '!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/%s.md" 2>/dev/null || true`' "$skill"
   end=$(awk -v want="$custom" '{ before = last; last = $0 } END { if (last != want) print FILENAME ":" NR ":" last; else if (before != "") print FILENAME ":" (NR - 1) ":" before }' "$file")
   [ -z "$end" ] || ends+=$end$nl
   more=$(awk 'index($0, "!`") || index($0, "```!") { where[++n] = NR; text[n] = $0 } END { for (i = 1; i <= n; i++) if (where[i] != NR) print FILENAME ":" where[i] ":" text[i] }' "$file")
@@ -144,6 +144,8 @@ done
 
 old_folders=$(search -F -e .claude/scripts/ -e .claude/skills/ -e .claude/commands/ -e docs/agents/ -- "${texts[@]}" "$documents")
 [ -z "$old_folders" ] || fail "an old folder of the harness, as <path>:<line>:<text>:" "$old_folders$nl"
+old_name=$(search -i -E 'agent[-_ ]flow' -- "${texts[@]}" "$documents")
+[ -z "$old_name" ] || fail "the old name of the flow, as <path>:<line>:<text>:" "$old_name$nl"
 scripts=()
 while IFS= read -r path; do
   [[ $path == scripts/*.sh && $path != scripts/*/* ]] || continue
@@ -172,10 +174,10 @@ while IFS= read -r cite; do
   other=${BASH_REMATCH[1]}
   [[ $from != "$other" && $seen != *"$nl$from $other$nl"* ]] || continue
   seen+="$from $other$nl"
-  grep -qF -- ".claude/agent-flow/custom/$other.md" "skills/$from/SKILL.md" || alone+=$cite$nl
+  grep -qF -- ".claude/celetis-flow/custom/$other.md" "skills/$from/SKILL.md" || alone+=$cite$nl
 done <<<"$cites"
 [ -z "$broken" ] || fail "a citation of the plugin root in skills/ that names no tracked file:" "$broken"
-[ -z "$alone" ] || fail "a SKILL.md that cites the SKILL.md of another skill and does not name the custom part of that skill, .claude/agent-flow/custom/<name>.md:" "$alone"
+[ -z "$alone" ] || fail "a SKILL.md that cites the SKILL.md of another skill and does not name the custom part of that skill, .claude/celetis-flow/custom/<name>.md:" "$alone"
 raw=$(search -F CLAUDE_PLUGIN_ROOT -- skills ':(exclude,glob)skills/*/SKILL.md')
 [ -z "$raw" ] || fail "the text CLAUDE_PLUGIN_ROOT in a file of skills/ that is no SKILL.md of a skill, as <path>:<line>:<text>:" "$raw$nl"
 

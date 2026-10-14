@@ -1,0 +1,6 @@
+{
+  "data": ["scripts/celetis", "celetis-flow", "--board"],
+  "run": ["scripts/celetis", "celetis-flow", "{n}"],
+  "resume": ["scripts/celetis", "celetis-flow", "--resume", "{n}"],
+  "port": 4404
+}

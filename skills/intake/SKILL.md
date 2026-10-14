@@ -93,4 +93,4 @@ All of these mean: write the intent first.
 | "The request is too vague to intent-ify" | Write what the user said. Mark gaps explicitly. A partial intent is better than no intent. |
 | "I know what they mean, I'll fill in the details" | Never paraphrase or extrapolate. Quote the user's words. If they didn't say it, don't write it. |
 
-!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/intake.md" 2>/dev/null || true`
+!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/intake.md" 2>/dev/null || true`

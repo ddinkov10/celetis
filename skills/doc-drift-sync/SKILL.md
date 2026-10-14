@@ -65,4 +65,4 @@ One local commit, in-scope docs only, in three parts:
 
 No drift → no commit, no churn. Never push.
 
-!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/doc-drift-sync.md" 2>/dev/null || true`
+!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/doc-drift-sync.md" 2>/dev/null || true`

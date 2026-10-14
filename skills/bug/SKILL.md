@@ -57,4 +57,4 @@ start step N+1.
    behavior + step 3's traps + its `## External facts` section) and `plan` drives the
    rest of the chain.
 
-!`cat "$(git rev-parse --show-toplevel)/.claude/agent-flow/custom/bug.md" 2>/dev/null || true`
+!`cat "$(git rev-parse --show-toplevel)/.claude/celetis-flow/custom/bug.md" 2>/dev/null || true`

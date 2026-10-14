@@ -212,8 +212,8 @@ trap 'kill $!' TERM
 /bin/sleep 30 &
 wait
 EOF
-lock="$repo/.git/agent-flow/land-7.lock"
-mkdir -p "$repo/.git/agent-flow"
+lock="$repo/.git/celetis-flow/land-7.lock"
+mkdir -p "$repo/.git/celetis-flow"
 reset; issue OPEN enhancement "Spec: x" "## Plan"; open_issue 7 enhancement "Spec: x" "## Plan"; open_issue 8 chore ""
 bash "$tmp/install dir/scripts/land.sh" 7 "feat(x): y" &
 landing=$!

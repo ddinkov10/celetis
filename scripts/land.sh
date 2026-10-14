@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The one landing path of an agent (ADR-0008). .claude/agent-flow/landing.json names the mechanism: pr or merge.
+# The one landing path of an agent (ADR-0008). .claude/celetis-flow/landing.json names the mechanism: pr or merge.
 set -euo pipefail
 
 die() { printf 'land: %s\n' "$1" >&2; exit 1; }
@@ -16,15 +16,15 @@ here=$(cd "$(dirname "$0")" && pwd)
 . "$here/worktree-lib.sh"
 common=$(git rev-parse --path-format=absolute --git-common-dir)
 main=$(dirname "$common")
-landing=$(jq -r '.landing // empty' "$main/.claude/agent-flow/landing.json" 2>/dev/null) || landing=
+landing=$(jq -r '.landing // empty' "$main/.claude/celetis-flow/landing.json" 2>/dev/null) || landing=
 case $landing in
   pr | merge) ;;
-  *) echo 'land: .claude/agent-flow/landing.json must name the landing mechanism: {"landing": "pr"} or {"landing": "merge"}' >&2; exit 2 ;;
+  *) echo 'land: .claude/celetis-flow/landing.json must name the landing mechanism: {"landing": "pr"} or {"landing": "merge"}' >&2; exit 2 ;;
 esac
 
 # scripts/next-step.sh reads this lock: the runner does not end the session while the landing runs.
-lock="$common/agent-flow/land-$n.lock"
-mkdir -p "$common/agent-flow"
+lock="$common/celetis-flow/land-$n.lock"
+mkdir -p "$common/celetis-flow"
 echo "$$" >"$lock"
 landed=
 at_exit() {

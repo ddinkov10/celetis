@@ -1,4 +1,4 @@
-You run one step of this repository's agent flow in a session of its own. The first prompt names
+You run one step of this repository's celetis flow in a session of its own. The first prompt names
 the step and one GitHub issue, #<n>. The issue is the state store (the document
 `docs/issue-tracker.md` of the plugin `celetis`; `scripts/celetis root` prints the folder of the
 plugin): every result goes to the issue.

@@ -24,9 +24,9 @@ n=${1#\#}
 [[ $n =~ ^[1-9][0-9]*$ ]] || usage
 
 main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
-setup=.claude/agent-flow/worktree-setup.sh
+setup=.claude/celetis-flow/worktree-setup.sh
 # The marker sits in the git dir: a file in the working tree would make a new worktree dirty.
-marker_of() { echo "$(git -C "$1" rev-parse --path-format=absolute --git-dir)/agent-flow-setup-done"; }
+marker_of() { echo "$(git -C "$1" rev-parse --path-format=absolute --git-dir)/celetis-flow-setup-done"; }
 git worktree prune
 from_pr=0
 branch=$(git branch --list --format='%(refname:lstrip=2)' "feat/$n-*" "fix/$n-*" "hotfix/$n-*" "chore/$n-*")

@@ -40,7 +40,7 @@ dirty_line() { printf 'stop the working tree is dirty: %s; commit or stash first
 # scripts/land.sh holds this lock while it runs. The line does not start with "stop #<n> ", so the runner keeps the session open.
 landing() {
   local pid
-  pid=$(cat "$common/agent-flow/land-$1.lock" 2>/dev/null) || return 1
+  pid=$(cat "$common/celetis-flow/land-$1.lock" 2>/dev/null) || return 1
   case $pid in '' | *[!0-9]*) return 1 ;; esac
   case $(ps -p "$pid" -o command= 2>/dev/null) in *land.sh*) ;; *) return 1 ;; esac
 }
