@@ -5,7 +5,7 @@ scorer="$here/../scripts/capscore.sh"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 fails=0
-unset CELETIS_HOST CAP_EFFORT_BIAS CAP_CURRENT_MODEL CAP_MODEL_PROFILE CAP_RUNTIME_MODELS OPENCODE
+unset CELETIS_HOST CAP_EFFORT_BIAS CAP_CURRENT_MODEL CAP_MODEL_PROFILE CAP_RUNTIME_MODELS OPENCODE GIT_CONFIG GIT_CONFIG_PARAMETERS
 
 cat >"$tmp/profile.json" <<'JSON'
 {"schema":1,"runtime":"fixture-desktop@1","slots":["small","standard","large","largest"],"reviewer":{"rank":1,"effort":"medium"}}
@@ -40,8 +40,12 @@ error() {
 }
 codex_run() { run --host codex "$@"; }
 
-run 1 0 2 1 1 0
-expect 'default Claude human CAP remains unchanged' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
+GIT_CONFIG=/dev/null GIT_CONFIG_COUNT=0 run 1 0 2 1 1 0
+expect 'default Claude human CAP with no Git host remains unchanged' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
+GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=celetis-flow.host GIT_CONFIG_VALUE_0=codex run 1 0 2 1 1 0
+expect 'project Git host selects Codex' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → standard/xhigh'
+GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=celetis-flow.host GIT_CONFIG_VALUE_0=codex CELETIS_HOST=claude run 1 0 2 1 1 0
+expect 'host environment overrides the project Git host' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
 CELETIS_HOST=claude run 1 0 2 1 1 0
 expect 'selected Claude human CAP remains unchanged' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
 run --host claude 0 0 0 0 0 0 --bias 0
@@ -82,11 +86,11 @@ codex_run 2 2 2 2 2 2 --reviewer --json
 check 'reviewer floor never lowers a stronger score' json '.rank == 3 and .dispatch.rank == 3 and .dispatch.effort == "max"'
 run --host claude 0 0 0 0 0 0 --bias 0 --reviewer
 expect 'Claude reviewer minimum uses its standard tier' 'CAP: J0 V0 B0 N0 S0 X0 = 0 → sonnet/medium'
-OPENCODE=1 run 1 0 2 1 1 0 --current-model provider/current
+OPENCODE=1 run --host claude 1 0 2 1 1 0 --current-model provider/current
 expect 'opencode explicit current-model behavior is preserved' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → provider/current/xhigh'
-OPENCODE=1 CAP_CURRENT_MODEL=provider/env run 2 2 2 2 2 0 --attempt 3 --json
+OPENCODE=1 CAP_CURRENT_MODEL=provider/env run --host claude 2 2 2 2 2 0 --attempt 3 --json
 check 'opencode preserves current model and portable clamp' json '.host == "opencode" and .rank == 3 and .effort == "xhigh" and .dispatch.model == "provider/env"'
-OPENCODE=1 CAP_CURRENT_MODEL=provider/env run 1 0 2 1 1 0 --current-model provider/flag
+OPENCODE=1 CAP_CURRENT_MODEL=provider/env run --host claude 1 0 2 1 1 0 --current-model provider/flag
 expect 'opencode flag still wins over current-model environment' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → provider/flag/xhigh'
 
 jq '.slots[3] = "large"' "$CAP_MODEL_PROFILE" >"$tmp/repeated.json"
