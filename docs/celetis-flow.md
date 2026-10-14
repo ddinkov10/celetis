@@ -519,11 +519,13 @@ session a variant of it.
 - A runner that stays open for more than 14 days after an update can lose the folder of its
   version. A runner process keeps the folder of its own version for its resolver and its launcher,
   and Claude Code removes the folder of an old version in a background cleanup 14 days after the
-  update. After that, the automatic runner cannot start `next-step.sh`: it prints
-  `celetis-flow: stop cannot read the open issues from GitHub` one time, and bash prints a
-  `No such file or directory` line each 60 seconds. A runner with numbers prints
-  `celetis-flow: #<n>: next-step.sh printed no line` for each number. The first line points at
-  GitHub, and the cause is the removed folder. The cure is a new start of the runner (ADR-0012).
+  update. After that, the runner stops with the true cause. The automatic runner prints
+  `celetis-flow: stop the plugin version of this runner was removed after an update; start the
+  runner again` and exits 1. A runner with numbers prints
+  `celetis-flow: #<n>: the plugin version of this runner was removed after an update; start the
+  runner again` for each number. The form `--board` prints
+  `stop the plugin version of this runner was removed after an update; start the runner again`
+  and exits 1. The cure is a new start of the runner (ADR-0012).
 
 The README of the package holds the limits of the page.
 
