@@ -9,11 +9,11 @@ export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER
 export CELETIS_FLOW_TEST_STATE="$tmp/state"
 export CELETIS_HOST=claude
 export CELETIS_FLOW_TEST_PLUGIN="$plugin" CELETIS_FLOW_TEST_PERL="$(command -v perl)"
-export CLAUDE_CONFIG_DIR="$tmp/claude config"
+export CLAUDE_CONFIG_DIR="$tmp/claude config" CODEX_HOME="$tmp/codex config"
 unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID
 S=$CELETIS_FLOW_TEST_STATE
 # A test that fails must leave no runner alive: an automatic runner has no end of its own.
-trap 'kill $(cat "$S/runner-pids" 2>/dev/null) "${landing:-}" "${lock_holder:-}" 2>/dev/null || true; [ -z "${update_pid:-}" ] || kill -KILL -- "-$update_pid" 2>/dev/null || true; rm -rf "$tmp"' EXIT
+trap 'kill $(cat "$S/runner-pids" 2>/dev/null) "${landing:-}" "${lock_holder:-}" 2>/dev/null || true; [ -z "${update_pid:-}" ] || kill -KILL -- "-$update_pid" 2>/dev/null || true; kill -KILL $(cat "$S/codex-pid" "$S/codex-child" 2>/dev/null) 2>/dev/null || true; rm -rf "$tmp"' EXIT
 bin="$tmp/bin"
 nobin="$tmp/nobin"
 mkdir -p "$bin" "$nobin"
@@ -92,6 +92,26 @@ if [ -n "${HERDR_PANE_ID:-}" ]; then
 fi
 exit "$(cat "$S/claude-exit" 2>/dev/null || echo 0)"
 EOF
+cat >"$bin/codex" <<'EOF'
+#!/usr/bin/env bash
+S=$CELETIS_FLOW_TEST_STATE
+printf '%s\n' "$*" >>"$S/codex-calls"
+[ "$*" != 'plugin marketplace upgrade celetis' ] || exit 0
+[ "$*" = 'app-server --stdio' ] || exit 81
+while IFS= read -r line; do
+  case $(printf '%s\n' "$line" | jq -r .method) in
+    initialize) echo '{"id":1,"result":{}}' ;;
+    initialized) ;;
+    skills/list)
+      echo 'fixture: skills catalog lookup stalled with original cause' >&2
+      echo "$$" >"$S/codex-pid"
+      bash -c 'trap "" TERM; echo "$$" >"$CELETIS_FLOW_TEST_STATE/codex-child"; exec /bin/sleep 30' &
+      wait
+      ;;
+    *) exit 82 ;;
+  esac
+done
+EOF
 cat >"$bin/perl" <<'EOF'
 #!/usr/bin/env bash
 echo "$$" >>"$CELETIS_FLOW_TEST_STATE/helpers"
@@ -131,7 +151,7 @@ S=$CELETIS_FLOW_TEST_STATE
 echo "$1" >>"$S/sleeps"
 [ "$(wc -l <"$S/sleeps")" -lt "$(cat "$S/sleep-limit" 2>/dev/null || echo 1)" ] || kill -TERM "$PPID"
 EOF
-chmod +x "$bin/gh" "$bin/claude" "$bin/herdr" "$bin/sleep" "$bin/perl"
+chmod +x "$bin/gh" "$bin/claude" "$bin/codex" "$bin/herdr" "$bin/sleep" "$bin/perl"
 cp "$bin/gh" "$nobin/gh"
 ln -s "$(command -v jq)" "$nobin/jq"
 ln -s "$(command -v git)" "$nobin/git"
@@ -277,6 +297,35 @@ for stage in marketplace update list; do
   case $(ps -p "$update_child" -o stat= 2>/dev/null) in '' | *Z*) ;; *) fail "a timed-out update left a live descendant: $update_child" ;; esac
   [ "$(locks)" -eq 0 ] || fail "a timed-out update left an issue lock"
 done
+
+mkdir -p "$tmp/codex pipes"
+lost_diagnostics=0
+for boundary in timeout interruption; do
+  reset; issue 7 OPEN enhancement "Spec: x"
+  [ "$boundary" != timeout ] || touch "$S/fast-clock"
+  CELETIS_HOST=codex TMPDIR="$tmp/codex pipes" start_flow 7
+  await_file "$S/codex-child"
+  codex_pid=$(cat "$S/codex-pid")
+  codex_child=$(cat "$S/codex-child")
+  [ "$boundary" != interruption ] || kill -TERM "$flow_pid"
+  end_flow
+  [ "$code" -ne 0 ] && [ ! -e "$st/no-progress" ] && [ ! -e "$st/sessions/7.json" ] || fail "Codex lookup $boundary started a session or recorded progress: $code [$out] [$err]"
+  if [ "$boundary" = timeout ]; then
+    [[ $err == *'timed out after 120 seconds during bash '*'--host codex root'* ]] || fail "Codex lookup did not reach the shared deadline: [$err]"
+  else
+    [[ $err == *'interrupted by SIGTERM during bash '*'--host codex root'* ]] || fail "Codex lookup did not reach updater interruption: [$err]"
+  fi
+  if [ "$(grep -cF 'fixture: skills catalog lookup stalled with original cause' <<<"$err")" -ne 1 ]; then
+    echo "FAIL: Codex lookup $boundary lost or repeated its stderr: [$err]"
+    lost_diagnostics=$((lost_diagnostics + 1))
+  fi
+  ! kill -0 "$codex_pid" 2>/dev/null || fail "Codex lookup $boundary left its app-server alive"
+  case $(ps -p "$codex_child" -o stat= 2>/dev/null) in '' | *Z*) ;; *) fail "Codex lookup $boundary left a live descendant" ;; esac
+  [ "$(printf '%s' "$tmp/codex pipes"/*)" = "$tmp/codex pipes/*" ] || fail "Codex lookup $boundary left temporary files"
+  [ "$(locks)" -eq 0 ] || fail "Codex lookup $boundary left an issue lock"
+  "$CELETIS_FLOW_TEST_PERL" -MFcntl=:flock -e 'open my $lock, ">>", $ARGV[0] or die $!; flock($lock, LOCK_EX | LOCK_NB) or die $!;' "$CODEX_HOME/celetis-update.lock" || fail "Codex lookup $boundary left the update lock held"
+done
+[ "$lost_diagnostics" -eq 0 ] || fail 'Codex lookup diagnostics were lost'
 
 reset; issue 7 OPEN enhancement "Spec: x"; after 7 1 OPEN enhancement "Spec: x" "## Plan"
 run_flow 7

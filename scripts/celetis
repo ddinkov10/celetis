@@ -105,6 +105,8 @@ celetis_codex_request() (
   scratch=$(mktemp -d "${TMPDIR:-/tmp}/celetis.XXXXXX") || exit 1
   codex_pid=
   cleanup() {
+    local status=$?
+    if [ "$status" -ne 0 ] && [ -f "$scratch/stderr" ]; then cat "$scratch/stderr" >&2; fi
     exec 3>&- 4>&-
     if [ -n "$codex_pid" ]; then
       kill "$codex_pid" 2>/dev/null || true
@@ -127,10 +129,10 @@ celetis_codex_request() (
   codex_pid=$!
   exec 4<"$scratch/out"
   printf '%s\n' '{"id":1,"method":"initialize","params":{"clientInfo":{"name":"celetis","version":"0.0.0"},"capabilities":{"experimentalApi":true}}}' >&3
-  celetis_codex_reply 1 initialize || { cat "$scratch/stderr" >&2; exit 1; }
+  celetis_codex_reply 1 initialize || exit 1
   printf '%s\n' '{"method":"initialized"}' >&3
   jq -nc --arg method "$method" --argjson params "$params" '{id:2,method:$method,params:$params}' >&3
-  celetis_codex_reply 2 "$method" || { cat "$scratch/stderr" >&2; exit 1; }
+  celetis_codex_reply 2 "$method" || exit 1
   printf '%s\n' "$CELETIS_REPLY"
 )
 
