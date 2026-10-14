@@ -142,7 +142,7 @@ celetis_main() {
   if [ "$CELETIS_HOST" = codex ]; then
     dir=$(celetis_codex_root) || return 1
   else
-    dir=$(claude plugin list --json 2>/dev/null | jq -r '[.[] | select(.id == "celetis@celetis")] | (map(select(.scope == "user")) + .)[0] | select(.enabled == null or .enabled == true) | .installPath // empty' 2>/dev/null | tr -d '\r')
+    dir=$(claude plugin list --json 2>/dev/null | jq -r '[.[] | select(.id == "celetis@celetis")] | (map(select(.scope == "user")) + .)[0] | select(.enabled == true) | .installPath // empty' 2>/dev/null | tr -d '\r')
     if [ -z "$dir" ]; then
       echo 'celetis: the plugin is not installed; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis' >&2
       return 1

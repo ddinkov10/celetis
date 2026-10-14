@@ -3,6 +3,8 @@ name: record-architecture-decisions
 description: Use when a decision is significant enough that a future maintainer must know why it was made — hard to reverse, surprising without context, and chosen among real alternatives. Not for routine work, obvious choices, lane-type verdicts, or a harness learning-loop.
 ---
 
+**Host entry.** Read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md before the procedure, including a same-session handoff.
+
 # Record Architecture Decisions
 
 The read/write tool for `docs/adr/`. Decisions here are architectural: durable choices about

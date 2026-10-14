@@ -24,11 +24,11 @@ versions and the changelog between them.
 1. The docs the installed package ships, when `AGENTS.md` names them.
 2. Context7: `resolve-library-id`, then `query-docs` with the library ID of the installed version,
    `/<org>/<project>/<version>`. When `resolve-library-id` lists no such version, go to source 3.
-3. `WebSearch` and `WebFetch` on primary sources: the official docs, changelogs, release notes,
+3. The selected host's web search and fetch tools on primary sources: the official docs, changelogs, release notes,
    and the source repository.
 
-The Context7 and web tools can be deferred; load a deferred tool with `ToolSearch` before its
-first call.
+Discover deferred Context7 and web tools through the selected [host operations](hosts/entry.md)
+before their first call; use only the tools actually available on that host.
 
 ## Record
 

@@ -3,6 +3,8 @@ name: doc-drift-sync
 description: Run the daily doc-drift maintenance pass — keep the project living docs (AGENTS.md, docs/**, README/CLAUDE) truthful against current code. Auto-fix obvious, source-verified drift (stale file/symbol refs, broken .md links, dangling referenced files, source-line locators); flag judgment calls. Use when asked to sync/refresh/audit the docs against the code, or when invoked by the daily cron.
 ---
 
+**Host entry.** Read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md before the procedure, including a same-session handoff.
+
 # Doc-Drift Sync
 
 Keep the docs honest against the current code. Fix the obvious drift, flag the rest, never guess. A wrong edit is worse than a missed one.

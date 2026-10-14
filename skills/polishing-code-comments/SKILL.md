@@ -3,6 +3,8 @@ name: polishing-code-comments
 description: Use when polishing, tightening, or pruning existing code comments and inline docs — a comment-cleanup pass over a diff or file, or before finishing a branch. Not for adding missing comments or documentation coverage.
 ---
 
+**Host entry.** Read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md before the procedure, including a same-session handoff.
+
 # Polishing Code Comments
 
 A review pass that **removes and tightens** existing comments. Bias to deletion. This is a pruning pass, not a coverage pass.

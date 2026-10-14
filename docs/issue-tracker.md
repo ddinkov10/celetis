@@ -72,6 +72,22 @@ gh api --method POST "repos/{owner}/{repo}/issues/<epic>/sub_issues" -F sub_issu
 - **List an epic's children**: `gh api repos/{owner}/{repo}/issues/<epic>/sub_issues --jq '.[] | "#\(.number) \(.state) \(.title)"'`.
 - **Find a child's parent**: `gh api repos/{owner}/{repo}/issues/<n>/parent --jq .number` (404 when standalone). Read the parent's body before designing a child — its decisions bind.
 
+## Completing a human precondition
+
+A `## Before landing` comment belongs to the build it names. Before re-entry can land that
+build, require a trusted human report that its required acts and scenarios completed, or the
+maintainer's removal of `ready-for-human` after that comment. Check the current build and
+comment; an older clearance does not clear a newer precondition. Label absence alone is not
+completion evidence: a label write can fail.
+
+Read the existing event history with
+`gh api --paginate repos/{owner}/{repo}/issues/<n>/events`. The `unlabeled` event identifies
+`actor`, `created_at`, and `label.name` ([GitHub event types](https://docs.github.com/en/rest/using-the-rest-api/issue-event-types)).
+A maintainer's later removal of `ready-for-human` is the workflow's completion signal. Without
+that event or a trusted human completion report, keep the change built, restore the human
+label using the existing comment as its reason, and stop. No new approval or record format is
+needed. Each required scenario still needs PASS; an unrun scenario has none.
+
 ## Resolving an issue's state
 
 `gh issue view <n> --json state,labels,body,comments`.

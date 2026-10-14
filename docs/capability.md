@@ -80,8 +80,8 @@ will read it:
 - **Lane skills** (`bug|hotfix|chore|feature`) — score before any subagent dispatch; the CAP
   line goes in the dispatch prompt.
 - **`implement`** per-task dispatch — CAP line per task.
-- **Ad-hoc Agent spawns** — any manual `Agent` spawn for repo work includes a CAP line in its prompt
-  (hard-set: the spawn IS the model choice).
+- **Ad-hoc child spawns** — every child for repo work resolves its host binding and includes a CAP
+  line in its prompt; the actual spawn applies both model and effort through [host operations](hosts/entry.md).
 - **Plan headers** — print the CAP rec on session-executed tasks. Note: the **session model is the
   user's picker**; the rubric can only *recommend* there (max is auto-assignable for a spawn, a rec
   for the session). The user may override any rec.
@@ -207,6 +207,8 @@ For a Codex child, apply `dispatch.model` and `dispatch.effort` explicitly using
 available spawn tool on an isolated child. A tool that permits overrides only without inherited
 history requires that isolated mode. If the tool cannot apply the pair, stop with a setup error.
 Use the available follow-up tool for the same child to repair or re-review: retain its identity
-and selected pair. Do not assume that another host's `Agent` or message API exists, or spawn a
+and resolve the required pair again, including any gate-failure escalation. If that tool cannot
+apply a changed pair to the same identity, stop for setup with the failure trail. An unchanged
+pair may resume normally. Do not assume that another host's `Agent` or message API exists, or spawn a
 replacement just to change effort when the actual follow-up tool has no override. The scorer
 returns the binding; the dispatch controller owns creation, identity, and execution records.

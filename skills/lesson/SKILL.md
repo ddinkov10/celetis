@@ -3,11 +3,13 @@ name: lesson
 description: Capture a lesson learned from a correction, mistake, or incident so it is not repeated — stores each lesson as its own file under docs/lessons/ with a catalog row in docs/lessons/INDEX.md. Use after the user corrects an approach, after resolving an incident, or when a non-obvious technique is validated and worth keeping. Trigger phrases: "/celetis:lesson", "capture this lesson", "remember not to do this", "save this lesson", "log this incident".
 ---
 
+**Host entry.** Read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md before the procedure, including a same-session handoff.
+
 # Capture lesson learned
 
 Record a lesson from a correction, mistake, or incident so it is not repeated.
 
-**Input:** $ARGUMENTS (brief description of what went wrong, or empty to analyze from conversation context).
+**Input:** the invocation input (brief description of what went wrong, or empty to analyze from conversation context).
 
 ## Storage model
 
@@ -19,14 +21,14 @@ Record a lesson from a correction, mistake, or incident so it is not repeated.
 A lesson captured by an automatic / non-interactive process must NOT land in the live catalog
 directly. Decide the path by who triggered the capture:
 
-- **Automatic capture** — invoked inside any autonomous / `bypassPermissions` / pipeline flow. Write the draft to `docs/lessons/_pending/{slug}.md` with `status: pending-review`, plus `source:` and `date:` frontmatter. Do NOT add an `INDEX.md` row and do NOT write under `docs/lessons/` directly. Append a row to `docs/lessons/_pending/QUEUE.md` (create it if absent). `_pending/` is gitignored, so the draft is never recalled until promoted.
+- **Automatic capture** — invoked inside any autonomous or pipeline flow. Write the draft to `docs/lessons/_pending/{slug}.md` with `status: pending-review`, plus `source:` and `date:` frontmatter. Do NOT add an `INDEX.md` row and do NOT write under `docs/lessons/` directly. Append a row to `docs/lessons/_pending/QUEUE.md` (create it if absent). `_pending/` is gitignored, so the draft is never recalled until promoted.
 - **Interactive capture** — a human typed `/celetis:lesson` (they are the reviewer). Write directly to `docs/lessons/{slug}.md` + an `INDEX.md` row.
 
 ## Process
 
 ### Step 1: Gather context
 
-If `$ARGUMENTS` is empty, analyze the conversation for: the mistake, the correction, the root cause. If `$ARGUMENTS` is provided, use it as the start; ask only if a required detail is missing.
+If the invocation input is empty, analyze the conversation for: the mistake, the correction, the root cause. If the invocation input is provided, use it as the start; ask only if a required detail is missing.
 
 ### Step 2: Check for duplicates
 

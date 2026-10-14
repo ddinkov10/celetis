@@ -3,6 +3,8 @@ name: intake
 description: Use when a raw request arrives with no intent written — a pasted ticket, a one-line ask, a crash link, or any request that has not been intent-ified. Also use when the user says "just fix it" or "don't write a document" — these are signals the request has not passed through intake. Not when the issue already carries an intent or a lane label, or the user runs a typed lane directly (/celetis:bug, /celetis:hotfix, /celetis:feature, /celetis:chore).
 ---
 
+**Host entry.** Read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md before the procedure, including a same-session handoff.
+
 # /celetis:intake — intent front door
 
 Raw-idea entry point that sits before `/celetis:triage`. Two jobs: write the intent, then ask

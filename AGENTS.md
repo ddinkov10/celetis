@@ -36,7 +36,9 @@ project, not here. So the text of this repository is general:
   step. The third is no home, when a permission rule or the verify gate of that project holds the
   line already.
 - **A path with no prefix is a path of the product project.** A `SKILL.md` cites a file of the
-  plugin as `${CLAUDE_PLUGIN_ROOT}/<path>`, and the step text says "of the plugin `celetis`".
+  plugin as `<plugin>/<path>`, resolved by the host entry from the loaded skill path; the host-entry
+  link and bundled Markdown links resolve relative to their containing file. The step text says
+  "of the plugin `celetis`".
 - **In a skill and in the step text, an ADR number says its store:** "ADR-0008 of the plugin
   `celetis`". A product project has an ADR store of its own.
 

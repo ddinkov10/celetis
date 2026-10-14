@@ -11,8 +11,8 @@ least=12
 skills='intake triage feature bug hotfix chore specify plan implement critic-loop polishing-code-comments lesson lesson-review record-architecture-decisions doc-drift-sync prototype writing-for-agents guide'
 commands='intake|triage|feature|bug|hotfix|chore|plan|implement|guide|critic-loop|lesson|lesson-review|record-architecture-decisions|doc-drift-sync'
 texts=(skills step-prompt.md)
-documents=':(glob)docs/*.md'
-root='${CLAUDE_PLUGIN_ROOT}/'
+documents=(':(glob)docs/*.md' ':(glob)docs/hosts/*.md')
+root='<plugin>/'
 tab=$'\t'
 nl=$'\n'
 fails=0
@@ -113,6 +113,7 @@ lacks=
 disabled=
 ends=
 dynamic=
+host_entries=
 for skill in $skills; do
   file=skills/$skill/SKILL.md
   if ! is_tracked "$file" || [ ! -f "$file" ]; then
@@ -120,6 +121,8 @@ for skill in $skills; do
     continue
   fi
   front=$(frontmatter "$file")
+  entry=$(awk 'BEGIN { section = 0 } /^---$/ { section++; next } section == 2 && NF { print; exit }' "$file")
+  [ "$entry" = '**Host entry.** Read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md before the procedure, including a same-session handoff.' ] || host_entries+=$file$nl
   [[ "$nl$front$nl" == *"${nl}name: $skill$nl"* ]] || lacks+="$file:name: $skill$nl"
   if [ "$skill" = guide ]; then
     [[ "$nl$front$nl" == *"$nl$key: true$nl"* ]] || lacks+="$file:$key: true$nl"
@@ -140,11 +143,12 @@ done
 [ -z "$lacks" ] || fail "a line that the frontmatter of a SKILL.md must hold, as <path>:<the line> (a frontmatter holds one-line \"key: value\" lines only: with another line in it, the test reads no frontmatter):" "$lacks"
 [ -z "$disabled" ] || fail "a SKILL.md other than skills/guide/SKILL.md with $key in its frontmatter, as <path>:<line>:<text>:" "$disabled"
 [ -z "$ends" ] || fail "the last line of a SKILL.md must be the line of its custom part, with an empty line before it:" "$ends"
+[ -z "$host_entries" ] || fail "a skill without the common host entry before its procedure:" "$host_entries"
 [ -z "$dynamic" ] || fail "a line of a SKILL.md, not its last line, with an exclamation mark directly before a backtick or with three backticks directly before an exclamation mark, as <path>:<line>:<text>:" "$dynamic"
 
-old_folders=$(search -F -e .claude/scripts/ -e .claude/skills/ -e .claude/commands/ -e docs/agents/ -- "${texts[@]}" "$documents")
+old_folders=$(search -F -e .claude/scripts/ -e .claude/skills/ -e .claude/commands/ -e docs/agents/ -- "${texts[@]}" "${documents[@]}")
 [ -z "$old_folders" ] || fail "an old folder of the harness, as <path>:<line>:<text>:" "$old_folders$nl"
-old_name=$(search -i -E 'agent[-_ ]flow' -- "${texts[@]}" "$documents")
+old_name=$(search -i -E 'agent[-_ ]flow' -- "${texts[@]}" "${documents[@]}")
 [ -z "$old_name" ] || fail "the old name of the flow, as <path>:<line>:<text>:" "$old_name$nl"
 scripts=()
 while IFS= read -r path; do
@@ -156,10 +160,10 @@ script_files=
 [ ${#scripts[@]} -eq 0 ] || script_files=$(search -F "${scripts[@]}" -- "${texts[@]}")
 [ -z "$script_files" ] || fail "a script of the plugin by its file, where the form is \"scripts/celetis <name>\", as <path>:<line>:<text>:" "$script_files$nl"
 # The arrow is outside the bracket: in a C locale, a bracket holds each byte of the arrow as one character.
-bare_commands=$(search -E "(^|[ \`(\"']|→)/($commands)([^A-Za-z0-9_-]|\$)" -- "${texts[@]}" "$documents")
+bare_commands=$(search -E "(^|[ \`(\"']|→)/($commands)([^A-Za-z0-9_-]|\$)" -- "${texts[@]}" "${documents[@]}")
 [ -z "$bare_commands" ] || fail "a lane command with no \"celetis:\" before its name, as <path>:<line>:<text>:" "$bare_commands$nl"
 
-cites=$(search -o -E '\$\{CLAUDE_PLUGIN_ROOT\}/[A-Za-z0-9._/-]*[A-Za-z0-9]' -- skills)
+cites=$(search -o -E '<plugin>/[A-Za-z0-9._/-]*[A-Za-z0-9]' -- skills)
 skill_file='^skills/([^/]+)/SKILL\.md$'
 broken=
 alone=
@@ -178,8 +182,36 @@ while IFS= read -r cite; do
 done <<<"$cites"
 [ -z "$broken" ] || fail "a citation of the plugin root in skills/ that names no tracked file:" "$broken"
 [ -z "$alone" ] || fail "a SKILL.md that cites the SKILL.md of another skill and does not name the custom part of that skill, .claude/celetis-flow/custom/<name>.md:" "$alone"
-raw=$(search -F CLAUDE_PLUGIN_ROOT -- skills ':(exclude,glob)skills/*/SKILL.md')
-[ -z "$raw" ] || fail "the text CLAUDE_PLUGIN_ROOT in a file of skills/ that is no SKILL.md of a skill, as <path>:<line>:<text>:" "$raw$nl"
+raw=$(search -F '<plugin>/' -- skills ':(exclude,glob)skills/*/SKILL.md')
+[ -z "$raw" ] || fail "the text <plugin>/ in a file of skills/ that is no SKILL.md of a skill, as <path>:<line>:<text>:" "$raw$nl"
+
+links=$(search -o -E '\]\([./A-Za-z0-9_-]+[.]md\)' -- skills docs/hosts docs/docs-lookup.md)
+broken_links=
+repo_root=$PWD
+while IFS= read -r link; do
+  [ -n "$link" ] || continue
+  from=${link%%:*}
+  target=${link#*:*:](}
+  target=${target%)}
+  folder=$(cd "$(dirname "$from")/$(dirname "$target")" 2>/dev/null && pwd) || {
+    broken_links+=$link$nl; continue
+  }
+  resolved="$folder/$(basename "$target")"
+  is_tracked "${resolved#"$repo_root/"}" || broken_links+=$link$nl
+done <<<"$links"
+[ -z "$broken_links" ] || fail "a bundled Markdown link that does not resolve to a tracked file:" "$broken_links"
+
+host_missing=
+for path in docs/hosts/entry.md docs/hosts/claude.md docs/hosts/codex.md skills/guide/agents/openai.yaml; do
+  is_tracked "$path" && [ -f "$path" ] || host_missing+=$path$nl
+done
+[ -z "$host_missing" ] || fail "a host contract file that is missing or untracked:" "$host_missing"
+host_leaks=$(search -E '\$ARGUMENTS|CLAUDE_PLUGIN_ROOT|EnterWorktree|ExitWorktree|\(Skill tool\)|scratchpad directory' -- skills step-prompt.md)
+[ -z "$host_leaks" ] || fail "a native host assumption outside the host references:" "$host_leaks$nl"
+if [ -f skills/guide/agents/openai.yaml ]; then
+  [ "$(cat skills/guide/agents/openai.yaml)" = $'policy:\n  allow_implicit_invocation: false' ] ||
+    fail "guide must remain human-invoked in Codex"
+fi
 
 unparsed=
 for manifest in .claude-plugin/plugin.json .claude-plugin/marketplace.json; do

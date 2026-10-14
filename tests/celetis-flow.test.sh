@@ -168,7 +168,7 @@ mkdir -p "$moved/scripts" "$bare/scripts"
 cp "$root/scripts/root.sh" "$moved/scripts/root.sh"
 cp "$root/scripts/root.sh" "$bare/scripts/root.sh"
 echo "the step text of the moved plugin" >"$moved/step-prompt.md"
-plugin_list() { printf '[{"id":"celetis@celetis","scope":"user","installPath":"%s"}]\n' "$1" >"$S/plugin-list"; }
+plugin_list() { printf '[{"id":"celetis@celetis","scope":"user","enabled":true,"installPath":"%s"}]\n' "$1" >"$S/plugin-list"; }
 usage="usage: scripts/celetis celetis-flow [<issue number>...] | --board | --resume <issue number>, e.g. scripts/celetis celetis-flow 373 374; with no number, the automatic runner"
 
 reset; echo 1 >"$S/claude-exit"

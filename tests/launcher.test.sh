@@ -150,8 +150,8 @@ run "$stub" echo
 expect "a project record alone runs" 'project' '' 0
 
 list "$(rec user "$plug" | jq 'del(.enabled)')"
-run "$stub" echo legacy
-expect 'legacy Claude record without enabled still runs' '[legacy]' '' 0
+run "$stub" echo
+expect 'Claude record without enabled is refused' '' "$install" 1
 
 list "$(other)"
 run "$stub" echo
