@@ -4,6 +4,7 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d)
 export LIFECYCLE_TEST="$tmp/state" CLAUDE_CONFIG_DIR="$tmp/claude"
 export CODEX_HOME="$tmp/codex"
+export CELETIS_TEST_HERDR_FIXTURES="$root/tests/fixtures/herdr"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 export HERDR_ENV=1 HERDR_PANE_ID=w1:p1
 unset HERDR_TAB_ID
@@ -22,6 +23,27 @@ export LIFECYCLE_GIT
 LIFECYCLE_GIT=$(command -v git)
 trap 'touch "$S/finish-1" "$S/finish-2" 2>/dev/null || true; kill $(cat "$tmp/pids" 2>/dev/null) 2>/dev/null || true; rm -rf "$tmp"' EXIT
 fail() { printf 'FAIL: %s\n' "$1"; exit 1; }
+(
+  source "$root/scripts/lib/session.sh"
+  herdr() {
+    [ "$*" = "agent get $HERDR_PANE_ID" ] || return 1
+    jq "$filter" "$CELETIS_TEST_HERDR_FIXTURES/$CELETIS_HOST.json"
+  }
+  for CELETIS_HOST in claude codex; do
+    id=$(jq -r .result.agent.agent_session.value "$CELETIS_TEST_HERDR_FIXTURES/$CELETIS_HOST.json")
+    for status in idle done; do
+      filter=".result.agent.agent_status=\"$status\""
+      celetis_session_idle "$id" || fail "$CELETIS_HOST $status was not idle with the current herdr reply"
+    done
+    for mutation in '.agent_status="working"' '.agent_status="blocked"' '.agent_status="unknown"' \
+      'del(.agent_status)' '.agent_status="ready"' '.agent="other"' '.agent_session=null' \
+      '.agent_session.agent="other"' '.agent_session.kind="name"' \
+      '.agent_session.value="00000000-0000-4000-8000-000000000002"'; do
+      filter=".result.agent |= (.agent_status=\"idle\" | $mutation)"
+      ! celetis_session_idle "$id" || fail "$CELETIS_HOST accepted an unsafe idle reply: $mutation"
+    done
+  done
+)
 await_file() {
   local count=0
   until [ -f "$1" ]; do
@@ -73,7 +95,7 @@ echo "$k" >"$S/count"
 printf '%s\n' "$host" >>"$S/hosts"
 printf '00000000-0000-4000-8000-%012d\n' "$k" >"$S/id"
 echo "$host" >"$S/host"
-echo working >"$S/status"
+cat "$S/initial-status" >"$S/status"
 mkdir -p "$CLAUDE_CONFIG_DIR/projects/fixture"
 jq -nc --arg id "$(cat "$S/id")" --arg cwd "$PWD" --arg time "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   '{sessionId:$id,type:"user",cwd:$cwd,timestamp:$time}' >"$CLAUDE_CONFIG_DIR/projects/fixture/$(cat "$S/id").jsonl"
@@ -120,8 +142,10 @@ printf '%s\n' "$*" >>"$S/herdr-calls"
 case "$1 $2" in
   'agent get')
     [ -f "$S/live" ] || exit 1
-    jq -nc --arg host "$(cat "$S/host")" --arg id "$(cat "$S/id")" --arg status "$(cat "$S/status")" \
-      '{result:{agent:{agent:$host,interactive_ready:true,agent_status:$status,agent_session:{agent:$host,kind:"id",value:$id}}}}' ;;
+    jq -c --arg id "$(cat "$S/id")" --arg status "$(cat "$S/status")" --arg cwd "$PWD" --arg pane "$HERDR_PANE_ID" '
+      .result.agent |= (.agent_status = $status | .cwd = $cwd | .foreground_cwd = $cwd | .pane_id = $pane
+        | .agent_session.value = $id)
+    ' "$CELETIS_TEST_HERDR_FIXTURES/$(cat "$S/host").json" ;;
   'agent wait')
     case " $* " in
       *' --until working --until blocked '*) [ ! -f "$S/late-state-set" ] || touch "$S/decision-made" ;;
@@ -164,6 +188,7 @@ reset() {
   git -C "$repo" for-each-ref --format='%(refname)' refs/celetis-flow/locks | while IFS= read -r ref; do git -C "$repo" update-ref -d "$ref"; done
   rm -rf "$S" "$state" "$CLAUDE_CONFIG_DIR"
   mkdir -p "$S"
+  echo working >"$S/initial-status"
   issue
 }
 start_runner() {
@@ -217,6 +242,17 @@ for host in claude codex; do
 done
 [ "$late_failures" -eq 0 ] || exit 1
 for host in claude codex; do
+  for status in blocked unknown; do
+    reset
+    echo "$status" >"$S/initial-status"
+    start
+    issue enhancement CLOSED
+    /bin/sleep 0.3
+    [ ! -e "$S/prompts" ] || fail "$host received /exit while its first saved turn was $status"
+    held
+    finish
+    [ "$result" -eq 0 ] || fail "$host could not end its saved $status session"
+  done
   reset
   start
   code=0
@@ -303,18 +339,20 @@ claude plugin list --json'
     if [ "$guard" = landing ]; then kill "$landing" 2>/dev/null || true; wait "$landing" 2>/dev/null || true; fi
     rm -f "$lane/new"
   done
-  for submit in accepted failed; do
-    reset
-    start
-    [ "$submit" != failed ] || touch "$S/prompt-fail"
-    issue enhancement CLOSED
-    echo idle >"$S/status"
-    await_file "$S/exit-submitted"
-    /bin/sleep 0.2
-    held
-    [ "$(cat "$S/count")" = 1 ] && [ "$(wc -l <"$S/prompts" | tr -d ' ')" = 1 ] || fail "$host advanced before $submit exit completed"
-    finish
-    [ "$result" -eq 0 ] || fail "$host failed after actual exit"
+  for ending in idle done; do
+    for submit in accepted failed; do
+      reset
+      start
+      [ "$submit" != failed ] || touch "$S/prompt-fail"
+      issue enhancement CLOSED
+      echo "$ending" >"$S/status"
+      await_file "$S/exit-submitted"
+      /bin/sleep 0.2
+      held
+      [ "$(cat "$S/count")" = 1 ] && [ "$(wc -l <"$S/prompts" | tr -d ' ')" = 1 ] || fail "$host advanced before $submit exit completed"
+      finish
+      [ "$result" -eq 0 ] || fail "$host failed after actual exit"
+    done
   done
   reset
   start

@@ -10,6 +10,7 @@ export CELETIS_FLOW_TEST_STATE="$tmp/state"
 export CELETIS_HOST=claude
 export CELETIS_FLOW_TEST_PLUGIN="$plugin" CELETIS_FLOW_TEST_PERL="$(command -v perl)"
 export CLAUDE_CONFIG_DIR="$tmp/claude config" CODEX_HOME="$tmp/codex config"
+export CELETIS_TEST_HERDR_FIXTURES="$root/tests/fixtures/herdr"
 unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID
 S=$CELETIS_FLOW_TEST_STATE
 # A test that fails must leave no runner alive: an automatic runner has no end of its own.
@@ -126,7 +127,6 @@ exec "$CELETIS_FLOW_TEST_PERL" -MTime::HiRes -e '
   do $0 or die $@ || $!;
 ' "$@"
 EOF
-# The herdr stub plays one pane: an agent wait ends when the claude stub ends its turn or exits.
 cat >"$bin/herdr" <<'EOF'
 #!/usr/bin/env bash
 S=$CELETIS_FLOW_TEST_STATE
@@ -135,7 +135,10 @@ case "$1 $2 $*" in
   "tab rename"*) ;;
   "agent get"*)
     [ -f "$S/claude-live" ] || exit 1
-    printf '%s\n' '{"result":{"agent":{"agent":"claude","interactive_ready":true,"agent_status":"idle","agent_session":{"agent":"claude","kind":"id","value":"00000000-0000-4000-8000-000000000001"}}}}' ;;
+    jq -c --arg cwd "$PWD" --arg pane "$HERDR_PANE_ID" '
+      .result.agent |= (.agent_status = "idle" | .cwd = $cwd | .foreground_cwd = $cwd | .pane_id = $pane
+        | .agent_session.value = "00000000-0000-4000-8000-000000000001")
+    ' "$CELETIS_TEST_HERDR_FIXTURES/claude.json" ;;
   "agent wait"*"--until idle"*)
     until [ -f "$S/turn-ended" ]; do [ -f "$S/claude-live" ] || exit 1; /bin/sleep 0.05; done ;;
   "agent wait"*) while [ -f "$S/claude-live" ]; do /bin/sleep 0.05; done; exit 1 ;;

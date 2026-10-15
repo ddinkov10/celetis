@@ -46,9 +46,10 @@ celetis_session_observe() {
   id=$(printf '%s\n' "$reply" | jq -er --arg host "$CELETIS_HOST" --arg prior "$prior_id" '
     .result.agent
     | if type != "object" or (.agent | IN("claude","codex") | not) or
+        (.agent_status | IN("idle","working","blocked","done","unknown") | not) or
         (.agent != $host and ($prior == "" or .agent_session.value != $prior))
-      then error("wrong agent") else . end
-    | if .agent_session == null or .interactive_ready != true then ""
+      then error("invalid agent") else . end
+    | if .agent_session == null then ""
       elif .agent_session.agent != .agent or .agent_session.kind != "id" or
           (.agent_session.value | type) != "string" then error("invalid identity")
       else .agent_session.value end
@@ -63,7 +64,7 @@ celetis_session_observe() {
 celetis_session_idle() {
   herdr agent get "$HERDR_PANE_ID" 2>/dev/null |
     jq -e --arg host "$CELETIS_HOST" --arg id "$1" '
-      .result.agent | .agent == $host and .interactive_ready == true and
+      .result.agent | .agent == $host and
         (.agent_status | IN("idle", "done")) and
         .agent_session.agent == $host and .agent_session.kind == "id" and
         .agent_session.value == $id

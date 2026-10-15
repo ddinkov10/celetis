@@ -5,6 +5,7 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 export SESSION_TEST="$tmp/state" CLAUDE_CONFIG_DIR="$tmp/claude"
 export CODEX_HOME="$tmp/codex"
+export CELETIS_TEST_HERDR_FIXTURES="$root/tests/fixtures/herdr"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID CELETIS_HOST
 S=$SESSION_TEST
@@ -58,9 +59,11 @@ if [ "$1" = app-server ]; then
       thread/read)
         cwd=$PWD
         [ ! -f "$S/foreign-checkout" ] || cwd=/other-checkout
-        created=$(date +%s)
-        [ ! -f "$S/old-session" ] || created=0
-        jq -nc --argjson id "$id" --arg sid "$(cat "$S/id")" --arg cwd "$cwd" --argjson created "$created" '{id:$id,result:{thread:{id:$sid,cwd:$cwd,createdAt:$created,ephemeral:false}}}' ;;
+        sid=$(cat "$S/id")
+        [ ! -f "$S/wrong-saved-id" ] || sid=00000000-0000-4000-8000-000000000002
+        jq -nc --argjson id "$id" --arg sid "$sid" --arg cwd "$cwd" --argjson created "$(cat "$S/created")" \
+          --argjson ephemeral "$(test -f "$S/ephemeral" && echo true || echo false)" \
+          '{id:$id,result:{thread:{id:$sid,cwd:$cwd,createdAt:$created,ephemeral:$ephemeral}}}' ;;
       *) exit 82 ;;
     esac
   done
@@ -71,7 +74,9 @@ IFS= read -r typed || typed=
 printf '%s\n' "$typed" >>"$S/stdin"
 if [ "$1" = resume ] || [ "$1" = --resume ]; then exit 0; fi
 [ ! -f "$S/change-host" ] || git config celetis-flow.host "$(cat "$S/change-host")"
-echo "$host" >"$S/host"
+created=$(date +%s)
+[ ! -f "$S/old-session" ] || created=0
+echo "$created" >"$S/created"
 touch "$S/live"
 if [ ! -f "$S/no-save" ]; then
   touch "$S/saved"
@@ -100,20 +105,26 @@ printf '%s\n' "$*" >>"$S/herdr-calls"
 case "$1 $2" in
   'tab rename') ;;
   'agent get')
+    host=$CELETIS_HOST
+    id=$(cat "$S/id")
+    status=$(cat "$S/status")
     if [ -f "$S/prior-host" ] && [ ! -f "$S/prior-reported" ]; then
       if [ -f "$S/prior-seen" ]; then touch "$S/prior-reported"; else touch "$S/prior-seen"; fi
-      jq -nc --arg h "$(cat "$S/prior-host")" --arg id "$(cat "$S/prior-id")" '{result:{agent:{agent:$h,interactive_ready:true,agent_session:{agent:$h,kind:"id",value:$id}}}}'
-      exit 0
-    fi
-    if [ ! -f "$S/live" ]; then
+      host=$(cat "$S/prior-host")
+      id=$(cat "$S/prior-id")
+      status=done
+    elif [ ! -f "$S/live" ]; then
       [ -f "$S/prior-id" ] || exit 1
-      jq -nc --arg h "$CELETIS_HOST" --arg id "$(cat "$S/prior-id")" '{result:{agent:{agent:$h,interactive_ready:true,agent_session:{agent:$h,kind:"id",value:$id}}}}'
-      exit 0
+      id=$(cat "$S/prior-id")
+      status=done
+    else
+      touch "$S/observed"
+      [ ! -f "$S/bad-json" ] || { echo broken; exit 0; }
     fi
-    touch "$S/observed"
-    [ ! -f "$S/bad-json" ] || { echo broken; exit 0; }
-    jq -nc --arg h "$(cat "$S/host")" --arg id "$(cat "$S/id")" --arg ready "$(test -f "$S/not-ready" && echo no || echo yes)" --arg cwd "$PWD" \
-      '{result:{agent:{agent:$h,interactive_ready:($ready == "yes"),agent_status:"idle",cwd:$cwd,agent_session:(if $id == "" then null else {agent:$h,kind:"id",value:$id} end)}}}' ;;
+    jq -c --arg id "$id" --arg status "$status" --arg cwd "$PWD" --arg pane "$HERDR_PANE_ID" '
+      .result.agent |= (.agent_status = $status | .cwd = $cwd | .foreground_cwd = $cwd | .pane_id = $pane
+        | .agent_session = (if $id == "" then null else (.agent_session | .value = $id) end))
+    ' "$CELETIS_TEST_HERDR_FIXTURES/$host.json" | jq "$(cat "$S/herdr-filter")" ;;
   'agent wait')
     while [ -f "$S/live" ]; do /bin/sleep 0.05; done
     exit 1 ;;
@@ -140,6 +151,8 @@ reset() {
   mkdir -p "$S"
   echo plan >"$S/step"
   echo "$uuid" >"$S/id"
+  echo idle >"$S/status"
+  echo . >"$S/herdr-filter"
   : >"$S/developer"
   unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID
 }
@@ -148,6 +161,18 @@ run() {
   (cd "$repo" && PATH="${test_path:-$PATH}" CELETIS_HOST="${test_host:-claude}" "$BASH" "$plugin/scripts/celetis-flow.sh" "$@" < <(printf 'terminal input\n')) >"$tmp/out" 2>"$tmp/err" || code=$?
   out=$(cat "$tmp/out"); err=$(cat "$tmp/err")
 }
+for host in claude codex; do
+  for status in idle done working blocked unknown; do
+    reset
+    echo "$status" >"$S/status"
+    export HERDR_ENV=1 HERDR_PANE_ID=w1:p1
+    test_host=$host run 7
+    [ "$code" -eq 0 ] && [ -z "$err" ] && jq -e --arg h "$host" --arg id "$uuid" '.host == $h and .session_id == $id' "$record" >/dev/null || fail "$host did not save the current $status session: $code [$err]"
+    : >"$S/calls"
+    test_host=$host run --resume 7
+    [ "$code" -eq 0 ] && jq -e --arg h "$host" --arg id "$uuid" '.host == $h and .args[-1] == $id' "$S/calls" >/dev/null || fail "$host could not resume the saved $status session"
+  done
+done
 for host in claude codex; do
   reset
   other=codex; [ "$host" != codex ] || other=claude
@@ -264,12 +289,21 @@ for host in claude codex; do
   test_host=$host run 7
   test_host=$host run --resume 7
   [ "$code" -ne 0 ] && [[ $err == *'herdr identity'* ]] && [[ $err == *"$host"*'resume'* ]] || fail "$host recovery without herdr: $code [$err]"
-  for failure in no-id bad-id no-save not-ready bad-json foreign-checkout stale-id; do
+  for failure in no-id bad-id no-save unsaved-blocked unsaved-unknown bad-json foreign-checkout stale-id wrong-host wrong-session-host wrong-kind malformed-identity missing-status invalid-status; do
     reset
     case $failure in
       no-id) : >"$S/id" ;;
       bad-id) echo --last >"$S/id" ;;
       stale-id) cp "$S/id" "$S/prior-id" ;;
+      unsaved-*) echo "${failure#unsaved-}" >"$S/status"; touch "$S/no-save" ;;
+      wrong-host)
+        other=codex; [ "$host" != codex ] || other=claude
+        printf '.result.agent |= (.agent="%s" | .agent_session.agent="%s")\n' "$other" "$other" >"$S/herdr-filter" ;;
+      wrong-session-host) echo '.result.agent.agent_session.agent="other"' >"$S/herdr-filter" ;;
+      wrong-kind) echo '.result.agent.agent_session.kind="name"' >"$S/herdr-filter" ;;
+      malformed-identity) echo '.result.agent.agent_session="invalid"' >"$S/herdr-filter" ;;
+      missing-status) echo 'del(.result.agent.agent_status)' >"$S/herdr-filter" ;;
+      invalid-status) echo '.result.agent.agent_status="ready"' >"$S/herdr-filter" ;;
       *) touch "$S/$failure" ;;
     esac
     export HERDR_ENV=1 HERDR_PANE_ID=w1:p1
@@ -284,6 +318,14 @@ for host in claude codex; do
   export HERDR_ENV=1 HERDR_PANE_ID=w1:p1
   test_host=$host run 7
   [ "$code" -eq 0 ] && jq -e --arg id "$uuid" '.session_id == $id' "$record" >/dev/null || fail "$host did not replace the old pane identity"
+done
+
+for failure in wrong-saved-id ephemeral; do
+  reset
+  touch "$S/$failure"
+  export HERDR_ENV=1 HERDR_PANE_ID=w1:p1
+  test_host=codex run 7
+  [ "$code" -ne 0 ] && jq -e '.session_id == null' "$record" >/dev/null || fail "Codex accepted $failure persistence"
 done
 
 reset
