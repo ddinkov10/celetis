@@ -65,7 +65,17 @@ turn() {
 
 failed=0
 check() {
-  local name=$1 marker=$2 answer good=yes markers
+  local name=$1 marker=$2 answer good=yes markers status
+  if [ ! -f "$tmp/$name.status" ]; then
+    echo "ERROR: $name: missing client exit status"
+    exit 2
+  elif ! status=$(cat "$tmp/$name.status") || ! [[ $status =~ ^(0|[1-9][0-9]{0,2})$ ]] || [ "$status" -gt 255 ]; then
+    echo "ERROR: $name: invalid client exit status"
+    exit 2
+  elif [ "$status" -ne 0 ]; then
+    echo "ERROR: $name: client exited with status $status"
+    exit 2
+  fi
   answer=$(jq -rs '[.[] | select(.type == "result") | .result // ""] | join("\n")' "$tmp/$name.jsonl")
   if jq -se 'any(.[]; .type == "result" and .is_error == true)' "$tmp/$name.jsonl" >/dev/null; then
     echo "ERROR: $name: Claude Code could not run the test"

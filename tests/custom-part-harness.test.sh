@@ -64,6 +64,7 @@ jq -cn --arg path "$path" --arg name "$name" --arg answer "$answer" \
            input:{file_path:$path,path:$path,pattern:".*"}})] + .[2:]
       else . end)[]
   end'
+[ "${CUSTOM_FAULT:-}" != client-exit ] || exit 7
 MOCK
 chmod +x "$tmp/bin/claude"
 fails=0
@@ -112,6 +113,50 @@ for result in valid unrelated-block; do
     echo "ok: $result keeps exactly the 48 generated case files"
   else
     echo "FAIL: $result evidence includes unrelated files or omits generated files"; fails=$((fails + 1))
+  fi
+done
+status=0
+CUSTOM_FAULT=client-exit PATH="$tmp/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh \
+  --output-dir "$tmp/client-exit-evidence" >"$tmp/client-exit" 2>&1 || status=$?
+files=("$tmp/client-exit-evidence/"*)
+if [ "$status" -eq 2 ] &&
+    grep -q '^ERROR: no-shell: client exited with status 7$' "$tmp/client-exit" &&
+    [ "${#files[@]}" -eq 4 ] &&
+    [ "$(cat "$tmp/client-exit-evidence/no-shell.status")" = 7 ] &&
+    [ -f "$tmp/client-exit-evidence/no-shell.err" ] &&
+    [ -f "$tmp/client-exit-evidence/no-shell.input.json" ] &&
+    jq -se 'any(.[]; .type == "result" and .is_error == false and
+      (.result | contains("CUSTOM_FROM_ROOT")))' "$tmp/client-exit-evidence/no-shell.jsonl" >/dev/null; then
+  echo 'ok: rejects a failed client with valid text and keeps its four generated artifacts'
+else
+  echo 'FAIL: accepted a failed client or lost its evidence'; cat "$tmp/client-exit"; fails=$((fails + 1))
+fi
+checker="$tmp/checker"
+sed -n '/^check() {$/,/^}$/p' tests/manual/custom-part.test.sh >"$checker"
+for fault in missing empty word negative range multiline; do
+  folder="$tmp/status-$fault"
+  mkdir "$folder"
+  cp "$tmp/valid-evidence/"no-shell.* "$folder/"
+  expected='invalid client exit status'
+  case $fault in
+    missing) rm "$folder/no-shell.status"; expected='missing client exit status' ;;
+    empty) : >"$folder/no-shell.status" ;;
+    word) printf 'status=0\n' >"$folder/no-shell.status" ;;
+    negative) printf '%s\n' -1 >"$folder/no-shell.status" ;;
+    range) printf '256\n' >"$folder/no-shell.status" ;;
+    multiline) printf '0\n7\n' >"$folder/no-shell.status" ;;
+  esac
+  status=0
+  (
+    tmp=$folder
+    failed=0
+    source "$checker"
+    check no-shell CUSTOM_FROM_ROOT
+  ) >"$tmp/status-$fault.log" 2>&1 || status=$?
+  if [ "$status" -eq 2 ] && grep -q "^ERROR: no-shell: $expected$" "$tmp/status-$fault.log"; then
+    echo "ok: rejects $fault client status"
+  else
+    echo "FAIL: accepted $fault client status"; cat "$tmp/status-$fault.log"; fails=$((fails + 1))
   fi
 done
 [ "$fails" -eq 0 ]
