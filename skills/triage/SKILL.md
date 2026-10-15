@@ -3,7 +3,7 @@ name: triage
 description: Type-axis front door for a cold, unclassified idea whose TYPE (/celetis:bug · /celetis:hotfix · /celetis:feature · /celetis:chore) is not yet known. Use when the human runs /celetis:triage, or when a request's type is unclear and must be resolved before a lane starts. Resolves type only; the lane it hands to owns requirements, branching and gates. If the type is already known, invoke the lane directly (/celetis:bug …) and skip triage.
 ---
 
-Before any step or answer, use `Read` to read `.claude/celetis-flow/custom/triage.md` from the root of the checkout where the session shell is now. Use file tools to locate that root. Apply the whole file as an addition to this skill. With no checkout or no file, continue. If access needs approval, request it. If access is denied or another read error occurs, stop and report the block.
+**Host entry.** Before any step or response, including commentary or an announcement, complete the startup reads in [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
 
 # /celetis:triage — type-axis front door
 
@@ -24,7 +24,7 @@ Triage resolves TYPE only. The lane it hands to owns requirements (`specify`), b
 back here. Read `gh issue view <n> --comments` and classify from the intent's `Problem` and
 `Done when` plus the reporter's text. An issue that already carries a lane label (`bug`,
 `enhancement`, `hotfix`, `chore`, `epic`) is routed: name its lane and stop. Labels and states:
-`${CLAUDE_PLUGIN_ROOT}/docs/issue-tracker.md`.
+`<plugin>/docs/issue-tracker.md`.
 
 ## Classification contract — the ordered decision tree
 

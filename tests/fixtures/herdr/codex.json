@@ -1,0 +1,28 @@
+{
+  "id": "cli:agent:get",
+  "result": {
+    "agent": {
+      "agent": "codex",
+      "agent_session": {
+        "agent": "codex",
+        "kind": "id",
+        "source": "herdr:codex",
+        "value": "01a13e59-408f-7412-9f55-062db0bad4f4"
+      },
+      "agent_status": "idle",
+      "completion_seq": 6,
+      "cwd": "/private/tmp/celetis-21-acceptance/product",
+      "focused": true,
+      "foreground_cwd": "/private/tmp/celetis-21-acceptance/product",
+      "pane_id": "w2:p2",
+      "revision": 28,
+      "state_change_seq": 6,
+      "tab_id": "w2:t2",
+      "terminal_id": "term_65ddb8c71751e3",
+      "terminal_title": "Plan issue #1 | product",
+      "terminal_title_stripped": "Plan issue #1 | product",
+      "workspace_id": "w2"
+    },
+    "type": "agent_info"
+  }
+}

@@ -15,6 +15,10 @@ skips the lookup.
 
 Read the fact for the installed version; `AGENTS.md` of the project says how.
 
+For a host operation, also inspect the active surface's CLI help or tool schema. CLI and desktop
+can expose different tools and model pairs at the same time. Record the surface with the version.
+Installation metadata or a successful protocol probe does not prove a live workflow on that host.
+
 Many pins are ranges (`fastapi>=0.109.0`), so the pin is the fallback only when nothing is
 installed. Read the latest release only when the change proposes an upgrade; then read both
 versions and the changelog between them.
@@ -24,11 +28,11 @@ versions and the changelog between them.
 1. The docs the installed package ships, when `AGENTS.md` names them.
 2. Context7: `resolve-library-id`, then `query-docs` with the library ID of the installed version,
    `/<org>/<project>/<version>`. When `resolve-library-id` lists no such version, go to source 3.
-3. `WebSearch` and `WebFetch` on primary sources: the official docs, changelogs, release notes,
+3. The selected host's web search and fetch tools on primary sources: the official docs, changelogs, release notes,
    and the source repository.
 
-The Context7 and web tools can be deferred; load a deferred tool with `ToolSearch` before its
-first call.
+Discover deferred Context7 and web tools through the selected [host operations](hosts/entry.md)
+before their first call; use only the tools actually available on that host.
 
 ## Record
 

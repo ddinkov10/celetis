@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-set -eu
+set -euo pipefail
 cd "$(dirname "$0")/.."
+echo "== scripts/plugin-update.pl syntax"
+perl -c scripts/plugin-update.pl
 for t in tests/*.test.sh; do
   echo "== $t"
   PATH="/bin:$PATH" /bin/bash "$t"

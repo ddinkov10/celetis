@@ -3,7 +3,7 @@ name: polishing-code-comments
 description: Use when polishing, tightening, or pruning existing code comments and inline docs — a comment-cleanup pass over a diff or file, or before finishing a branch. Not for adding missing comments or documentation coverage.
 ---
 
-Before any step or answer, use `Read` to read `.claude/celetis-flow/custom/polishing-code-comments.md` from the root of the checkout where the session shell is now. Use file tools to locate that root. Apply the whole file as an addition to this skill. With no checkout or no file, continue. If access needs approval, request it. If access is denied or another read error occurs, stop and report the block.
+**Host entry.** Before any step or response, including commentary or an announcement, complete the startup reads in [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
 
 # Polishing Code Comments
 

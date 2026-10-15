@@ -3,7 +3,7 @@ name: feature
 description: Type-axis lane for a feature — new behavior that does not exist yet. Use when the human runs /celetis:feature, or when a request asks for capability the app lacks — as opposed to fixing existing behavior (/celetis:bug), a prod fire (/celetis:hotfix), or a zero-behavior-change edit (/celetis:chore).
 ---
 
-Before any step or answer, use `Read` to read `.claude/celetis-flow/custom/feature.md` from the root of the checkout where the session shell is now. Use file tools to locate that root. Apply the whole file as an addition to this skill. With no checkout or no file, continue. If access needs approval, request it. If access is denied or another read error occurs, stop and report the block.
+**Host entry.** Before any step or response, including commentary or an announcement, complete the startup reads in [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
 
 # /celetis:feature — feature lane
 
@@ -29,15 +29,15 @@ the same lane. If you have not completed step N, you cannot start step N+1.
    too big for one specify→plan→implement pass)? → agree the list of children with the user, then
    make it an epic, with `epic` as its only lane label:
    `gh issue edit <n> --add-label epic --remove-label enhancement`. Then create one
-   sub-issue per feature with the Epics recipe in `${CLAUDE_PLUGIN_ROOT}/docs/issue-tracker.md` (label
+   sub-issue per feature with the Epics recipe in `<plugin>/docs/issue-tracker.md` (label
    `enhancement`, a one-line intent each), report the children, and stop. Do the relabel, the
    sub-issues, and the report in one turn: the relabel moves the issue's line in the runner's
    resolver (`scripts/celetis next-step`), and a session that the runner started ends at its
-   first idle moment after that (`${CLAUDE_PLUGIN_ROOT}/docs/celetis-flow.md`, "The step end"). Each child runs its
+   first idle moment after that (`<plugin>/docs/celetis-flow.md`, "The step end"). Each child runs its
    own `/celetis:feature #<child>`. One feature → continue to step 2.
 2. **Worktree.** Run `scripts/celetis worktree <n>` with a 10-minute timeout (a new worktree runs
-   the worktree setup of the project) and call `EnterWorktree` with the path it prints. The script re-enters the
+   the worktree setup of the project) and bind the exact path it prints using the host operations. The script re-enters the
    issue's branch, or creates `feat/<n>-<slug>` from the title when the issue has none; when
    it refuses, show the user its message and stop. Every later step runs in that worktree; the
-   main checkout never changes branch (Branches, PRs, merge in `${CLAUDE_PLUGIN_ROOT}/docs/issue-tracker.md`).
+   main checkout never changes branch (Branches, PRs, merge in `<plugin>/docs/issue-tracker.md`).
 3. **Invoke `celetis:specify #<n>`** and follow it — it drives the rest of the chain.

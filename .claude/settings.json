@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(scripts/celetis land *)"
+      "Bash(scripts/celetis land *)",
+      "Bash(scripts/celetis --host claude land *)",
+      "Bash(scripts/celetis --host codex land *)"
     ],
     "deny": [
       "Bash(gh pr merge*)",

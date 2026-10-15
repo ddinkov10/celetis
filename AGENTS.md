@@ -1,7 +1,8 @@
 # AGENTS.md
 
-This repository is the Claude plugin `celetis`, a general agent harness: the skills (`skills/`), the
-scripts (`scripts/`), the step text (`step-prompt.md`), and the documents (`docs/`). It is also a
+This repository is the plugin `celetis`, a general agent harness with Claude and Codex host
+operations: skills (`skills/`), scripts (`scripts/`), step text (`step-prompt.md`), and documents
+(`docs/`). It is also a
 product project of its own plugin. `README.md` holds the wiring of a product project, the commands,
 and the update rule. `docs/celetis-flow.md` holds the runner, and `docs/issue-tracker.md` holds the
 labels, the state of an issue, and the branches.
@@ -36,7 +37,9 @@ project, not here. So the text of this repository is general:
   step. The third is no home, when a permission rule or the verify gate of that project holds the
   line already.
 - **A path with no prefix is a path of the product project.** A `SKILL.md` cites a file of the
-  plugin as `${CLAUDE_PLUGIN_ROOT}/<path>`, and the step text says "of the plugin `celetis`".
+  plugin as `<plugin>/<path>`, resolved by the host entry from the loaded skill path; the host-entry
+  link and bundled Markdown links resolve relative to their containing file. The step text says
+  "of the plugin `celetis`".
 - **In a skill and in the step text, an ADR number says its store:** "ADR-0008 of the plugin
   `celetis`". A product project has an ADR store of its own.
 
@@ -64,30 +67,29 @@ and a change on `main` is in use at once ("Traps").
 
 ## External facts
 
-For the lookup of `docs/docs-lookup.md`: the dependency of this repository is Claude Code.
-`claude --version` prints its installed version, and its documents are
-`https://code.claude.com/docs/en/<page>` (ADR-0012, "Constraints and evidence").
+For the lookup of `docs/docs-lookup.md`, read `claude --version` or `codex --version` for the
+selected host. Claude's documents are `https://code.claude.com/docs/en/<page>`; Codex's are
+`https://learn.chatgpt.com/docs/`. Check the current CLI help and active tool schema before
+using a host operation. `docs/celetis-flow.md`, "Acceptance status", separates observed versions
+from open runtime checks (ADR-0014).
 
 ## Traps
 
 Facts that no one file states. A line is here only when the code, a test, and the other documents
 do not state its fact, and a line goes when its fact stops being true (ADR-0006).
 
-- **A session here loads the installed plugin, not the files of the checkout.** Each
-  `/celetis:<skill>`, the step text, and each `scripts/celetis <name>` come from the install folder,
-  which holds a landed commit of `main`. So an edit changes no session until it lands and the plugin
-  of the machine updates (`README.md`, "Updates"), and the tests are the proof of an edit: they run
-  the files of the checkout. `claude --plugin-dir .` starts a session on the skills of the
-  checkout: by the documents of Claude Code, such a plugin takes the place of the installed plugin
-  with the same name. `scripts/celetis` runs the installed scripts in that session too, so run a
-  script of the checkout as `scripts/<name>.sh`.
+- **A normal session here reads the installed plugin.** Editing the checkout does not replace
+  either host's installed skills or scripts. The tests read checkout files. Claude's
+  `--plugin-dir .` can load checkout skills, but `scripts/celetis` still resolves the selected
+  host's installation. Run a checkout script as `scripts/<name>.sh`. Test an unlanded Codex package
+  only in an isolated test installation; its launcher must still resolve that installation.
 - **Each push to `main` reaches each product project at its next step.** The plugin has no version
   and no release step, and the runner updates the plugin of the machine before it starts a
-  session. That session gets the new skills and the new step text. A runner process keeps the
-  resolver and the launcher of its own version, so a change of `scripts/celetis-flow.sh` or
-  `scripts/next-step.sh` reaches a runner only at its next start. Claude Code removes the folder of
+  session. A failed update stops the step. A successful start uses the refreshed package.
+  A Claude runner keeps the resolver and launcher paths of its started version, so a change of
+  `scripts/celetis-flow.sh` or `scripts/next-step.sh` reaches it at its next start. Claude Code removes the folder of
   an old version 14 days after an update, and a runner that is still open then cannot start its
-  resolver (`docs/celetis-flow.md`, "Limits").
+  resolver. Codex's different resource limits are in `docs/celetis-flow.md`, "Acceptance status".
 - **A script file keeps its name.** `scripts/<name>.sh` is the sub-command
   `scripts/celetis <name>`, which the skills, the documents, and the files of each product project
   name: its `board.json`, and its `allow` rule `Bash(scripts/celetis land *)`. Two file names are

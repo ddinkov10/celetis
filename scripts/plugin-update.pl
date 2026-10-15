@@ -5,14 +5,16 @@ use warnings;
 use Fcntl qw(LOCK_EX LOCK_NB F_SETFD);
 use File::Path qw(make_path);
 use File::Temp qw(tempfile);
-use JSON::PP qw(decode_json);
+use FindBin qw($Bin);
 use POSIX qw(setpgid WNOHANG _exit);
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC sleep);
 
-@ARGV == 1 && $ARGV[0] =~ /^[1-9][0-9]*$/ or die "plugin-update: expected the runner PID\n";
-my $runner = $ARGV[0];
+@ARGV == 2 && $ARGV[0] =~ /^[1-9][0-9]*$/ && $ARGV[1] =~ /^(claude|codex)$/
+    or die "plugin-update: expected the runner PID and host (claude or codex)\n";
+my ($runner, $host) = @ARGV;
 my $deadline = clock_gettime(CLOCK_MONOTONIC) + 120;
-my $config = $ENV{CLAUDE_CONFIG_DIR} || "$ENV{HOME}/.claude";
+my $config = $host eq 'claude' ? ($ENV{CLAUDE_CONFIG_DIR} || "$ENV{HOME}/.claude")
+    : ($ENV{CODEX_HOME} || "$ENV{HOME}/.codex");
 my ($log) = tempfile(UNLINK => 1);
 my ($stdout) = tempfile(UNLINK => 1);
 my ($child, $interrupted);
@@ -57,12 +59,13 @@ until (flock($lock, LOCK_EX | LOCK_NB)) {
     sleep 0.05;
 }
 
-my $output;
-for my $command (
+my @commands = $host eq 'claude' ? (
     ['claude', 'plugin', 'marketplace', 'update', 'celetis'],
     ['claude', 'plugin', 'update', 'celetis@celetis', '--scope', 'user'],
-    ['claude', 'plugin', 'list', '--json'],
-) {
+) : (['codex', 'plugin', 'marketplace', 'upgrade', 'celetis']);
+push @commands, ['bash', "$Bin/celetis", '--host', $host, 'root'];
+my $output;
+for my $command (@commands) {
     $phase = join ' ', @$command;
     check();
     seek($log, 0, 0) && truncate($log, 0) or fail("cannot reset command output: $!");
@@ -99,13 +102,8 @@ for my $command (
     $output = <$stdout> // '';
 }
 check();
-my $records = eval { decode_json($output) };
-fail("invalid plugin list JSON: $@") if $@;
-ref($records) eq 'ARRAY' or fail('the plugin list is not an array');
-my @user = grep { ref($_) eq 'HASH' && ($_->{id} // '') eq 'celetis@celetis' && ($_->{scope} // '') eq 'user' } @$records;
-@user == 1 or fail('expected one user installation of celetis@celetis');
-my $path = $user[0]{installPath};
-defined($path) && !ref($path) && length($path) or fail('the user installation has no installPath');
-utf8::encode($path);
+my $path = $output;
+chomp $path;
+length($path) or fail('the installed-root lookup returned no path');
 -f "$path/step-prompt.md" or fail("the installed folder has no step-prompt.md: $path");
 print "$path\n";

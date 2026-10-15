@@ -1,8 +1,8 @@
 # The celetis-flow runner
 
 `scripts/celetis celetis-flow` runs the celetis flow from a Terminal tab. It asks the resolver for
-the next step of an issue and starts that step in a new interactive `claude` session in its tab. In
-a herdr pane, the script ends the session when the step is done, and it then starts the next step
+the next step of an issue and starts that step in a new interactive Claude or Codex session in
+its tab. In a herdr pane, the script ends the session when the step is done, and starts the next step
 when its gate is `auto`. The GitHub issue stays the state store (`docs/issue-tracker.md`): every
 result of a step goes to the issue. The board is a local web page that shows each agent session and
 the next step of each issue, and its Run button starts the script for one issue in a new herdr tab.
@@ -31,34 +31,31 @@ apart from a path that starts with `~/` or `/`.
 ## Requirements
 
 - macOS or Linux, with bash 3.2 or later. There is no native Windows runner.
-- `claude`, `gh` (logged in), `jq`, and `git` 2.31 or later on `PATH`. When `gh` or `git` is
+- The selected host CLI (`claude` or `codex`), `gh` (logged in), `jq`, and `git` 2.31 or later on `PATH`. When `gh` or `git` is
   missing, the script names it and exits 1. The runner also needs Perl 5.14 or later on `PATH`;
-  its update helper uses only the standard library. The launcher needs `claude` and `jq` to find
+  its update helper uses only the standard library. The launcher needs the selected host and `jq` to find
   the plugin (the next item). When `jq` is missing, the launcher prints `celetis: jq is not on PATH` and
   exits 1.
 - The plugin `celetis@celetis`, installed on the machine, and the launcher `scripts/celetis` in the
   product project. The scripts and the step text come from the installed plugin:
   `scripts/celetis <name> <arguments>` runs `scripts/<name>.sh` of that plugin with those arguments.
-  When the launcher finds no installed plugin, or no `claude`, it prints one line with the two
-  install commands and exits 1. The wiring of a machine is those two commands, one time. The
-  install enables the plugin at the `user` scope, so each session of that machine loads it. The
-  README of the plugin holds the wiring of a machine and of a product project.
+  The selected host must report a current enabled installation. Missing, disabled, malformed,
+  or ambiguous metadata stops lookup. Codex lookup uses `skills/list` on a short-lived local
+  app-server connection; it starts no model turn. The README holds the separate installation
+  recipes and product permissions. A Codex-only machine needs no Claude CLI.
 - The trunk of the main checkout is current. The trunk is the default branch of the repository on
   GitHub. The config comes from the main checkout of the product project, and so does the custom
   part of a step that the script starts ("The config and the custom parts"): after a merge that
   changes one of them, run `git pull` in the main checkout.
-- herdr 0.9 or later, for the step end: the script ends a session only in a herdr pane. In another
-  terminal the script runs too, but you leave each session with `/exit`.
-- The plugin `superpowers@superpowers-marketplace`: the lane skills call its `superpowers:*` skills.
-  `.claude/settings.json` enables it. On each machine, do this once. Add the marketplace:
-  `claude plugin marketplace add obra/superpowers-marketplace`. Install the plugin:
-  `claude plugin install superpowers@superpowers-marketplace`. Turn on auto-update for the
-  marketplace: add `"autoUpdate": true` beside `source` in the entry `superpowers-marketplace` of
-  `extraKnownMarketplaces` in `~/.claude/settings.json`. Do this step last, and again after a later
-  run of the add command: in Claude Code 2.1.296 that command writes the entry again with `source`
-  only. An interactive session then updates the copy on disk to the latest release, at most 10
-  minutes after its first message. That session keeps the version that it loaded, and the next
-  session loads the new one: a release reaches the lanes one session late (ADR-0010).
+- herdr 0.9.3, with the selected host's integration installed in its active configuration.
+  Use `herdr integration status`; complete normal folder and inspected-hook trust before a run.
+  The runner never answers those prompts. It ends a session only in a herdr pane. In another
+  terminal you leave each session with `/exit`, and exact runner resume has no observed identity.
+- Superpowers installed and enabled on the selected host. The README holds its setup for each
+  host. A missing required `superpowers:*` skill stops the lane.
+- For Codex children, the profile and current runtime allowlist from `docs/capability.md`.
+  The actual dispatch surface must support the resolved model and effort and the required
+  same-child follow-up controls. CLI and desktop capabilities can differ.
 - The board has more requirements: "The board" names them.
 
 ## Start the script
@@ -69,6 +66,12 @@ scripts/celetis celetis-flow 373 374    # a start with numbers; it takes the iss
 scripts/celetis celetis-flow --board    # the data of the issues for the board, as one JSON document
 scripts/celetis celetis-flow --resume 373    # the session of a step with no progress, again
 ```
+
+These human commands use `CELETIS_HOST`, then the project Git setting `celetis-flow.host`, then
+Claude. Put `--host claude` or `--host codex` before `celetis-flow` to override that choice.
+Every skill call supplies that prefix. Invalid host values stop; PATH order never chooses a host.
+The selected host stays fixed for the new step. Resume instead selects its recorded host and
+rejects an explicit prefix that names the other host.
 
 An argument is `<n>`, or `'#<n>'` in quotes. A shell can read an unquoted word that starts with `#`
 as the start of a comment: the script then gets neither that word nor the words after it, and with
@@ -107,30 +110,32 @@ gives the value of each field. When `gh` or `jq` fails, the form prints
 `stop cannot read the issues from GitHub` and exits 1. The board is its reader: `data` of
 `.claude/celetis-flow/board.json` names this form.
 
-**The form `--resume <n>`** opens the session of a step with no progress again. It reads the last
-row of `#<n>` in the record and runs `claude --resume '#<n> <step>'` in the main checkout, with the
-step of that row. With no row, it prints `celetis-flow: #<n> has no step with no progress` and
-exits 1. It makes no `gh` call, takes no lock, and starts no job for the step end, so the session
-does not end by itself: leave it with `/exit`. `resume` of `.claude/celetis-flow/board.json` names
-this form, so a Resume press on the board starts it.
+**The form `--resume <n>`** reopens the exact session from
+`<git common dir>/celetis-flow/sessions/<n>.json`. It validates the current record, selects its
+saved host and checkout, and runs `claude --resume <id>` or `codex resume --no-daemon <id>`. A missing or
+invalid record stops with a recovery action. Resume takes the shared issue lock and retains it
+until the foreground exits. It makes no `gh` call or update and starts no completion watcher,
+so the session stays open until you leave it. `resume` of `.claude/celetis-flow/board.json` names
+this form.
 
 The script asks for no confirmation. A start with the number of an issue whose next step is
 `implement`, `chore`, or `hotfix` builds the change and lands it with `scripts/celetis land` when
 its checks are green, with no more act of yours. With an `auto` gate on a step, the script continues
 through that step by itself.
 
-One lock for each issue and one lock for the automatic runner live in
-`<git common dir>/celetis-flow/`. A second script starts no session for an issue that another script
-works on, and a second automatic runner exits 1. A lock holds the PID of its script, so a script
-that was killed holds nothing. `scripts/celetis land` holds `land-<n>.lock` in that folder while it
-lands `#<n>`. The file `no-progress` in that folder is the record: one row for each step that ended
-with no progress. The automatic runner and the forms `--board` and `--resume` read it. A start with
-the number of the issue does not read it, so it starts that step again.
+Issue locks and the automatic-runner lock use shared Git refs under
+`refs/celetis-flow/locks/`. Their owner records hold the runner and foreground PIDs and process
+start times. Either live process keeps the lock, including after a killed runner; an exited
+process does not. Claims and releases use Git compare-and-set, and foreground registration
+updates all held locks in one transaction. Both hosts and manual resume share the issue lock.
+`scripts/celetis land` keeps its separate `land-<n>.lock` in `<git common dir>/celetis-flow/`.
+The `no-progress` file there has one row for each step that ended with no progress. The automatic
+runner and `--board` read it. An explicit issue start can retry that step.
 
 ## How a step runs
 
-A session is one `claude` process in the foreground of the tab, in the main checkout. For
-`run /celetis:plan #402`:
+A session is one selected host process in the foreground of the tab, with its original terminal
+input, in the main checkout. Claude starts `run /celetis:plan #402` as:
 
 ```bash
 claude \
@@ -140,12 +145,22 @@ claude \
   '/celetis:plan #402'
 ```
 
-The lane enters its own worktree with `scripts/celetis worktree` and `EnterWorktree`. The rules of
-`.claude/settings.json` hold in auto mode. `step-prompt.md` of the plugin is the step text: no start
+Codex reads effective `developer_instructions` with `config/read`, preserves that text, and
+appends the step text. It passes the combined value as one quoted `developer_instructions=...`
+value after `-c`. Its prompt is `Use the celetis:plan skill for #402. Complete its Host entry startup reads before any response, including commentary.`
+Every interactive Codex launch, including specify and exact resume, uses `--no-daemon` so its
+hooks use the current pane's environment. The CLI must support that option; it was checked on
+0.162.1. The runner retains the configured sandbox, approval, and model settings. No document
+content is evaluated as shell code.
+
+The lane uses the exact path returned by `scripts/celetis worktree`. The selected
+[host operations](hosts/entry.md) bind its commands, files, instructions, and children to that
+checkout; landing returns to the main checkout. Claude keeps its native worktree tools.
+Codex's app worktree does not replace the lane checkout. `step-prompt.md` is the step text: no start
 of a step that a skill sends to a fresh context, when to ask, the limits on landing, what a session
 does at a stop, and what it does with a Verify scenario that it cannot
 run. A step session is a session that the runner starts with the step text. The exit status of
-`claude` decides nothing: the resolver decides.
+the host decides nothing: the resolver decides.
 
 The session of `specify` is the one session with no step text, so it is no step session. For
 `run /celetis:feature #402`:
@@ -157,54 +172,66 @@ claude --permission-mode auto -n '#402 specify' '/celetis:feature #402'
 Rule 2 of the step text tells a session to publish with no wait for a review. `specify` publishes
 the spec only after you approve the design, and nothing checks the design again after the publish.
 So that session asks and waits as a session that you start by hand does (ADR-0007).
+Codex also omits the step-text override for specify. Its configured developer instructions remain.
 
 **The update.** Each commit on `main` of `ddinkov10/celetis` is a new version of the plugin. Before
-the script starts the session of a step, it runs two commands, in this order:
+a Claude step, the script runs two commands, in this order:
 `claude plugin marketplace update celetis`, then
 `claude plugin update celetis@celetis --scope user`. They bring the plugin on the machine to the
-head of `main`. One 120-second deadline covers the lock wait, both commands, and the install-folder
+head of `main`. Before a Codex step, it runs `codex plugin marketplace upgrade celetis`.
+One 120-second deadline covers the lock wait, the selected update commands, and the installed-root
 lookup. When a command fails, the script shows the command, its exit status, and its output, then
 exits 1. A timeout names the operation that did not finish and shows its captured output. The
 script starts no session and writes no row to `no-progress` on an update failure.
 
 The helper `scripts/plugin-update.pl` holds an operating-system file lock at
-`<Claude configuration directory>/celetis-update.lock`. The directory is `CLAUDE_CONFIG_DIR` when
-set, and `~/.claude` otherwise. This lock is shared by runners in different product projects that
-use the same configuration directory. The lock file stays on disk; its existence does not mean
+`<selected host configuration directory>/celetis-update.lock`. Claude uses `CLAUDE_CONFIG_DIR`
+or `~/.claude`; Codex uses `CODEX_HOME` or `~/.codex`. This lock is shared by runners in different
+product projects that use the same host configuration. The lock file stays on disk; its existence does not mean
 that an update runs. The operating system releases a lock when its last holder exits.
+This one Perl helper accepts the runner PID and selected host. Both hosts use the same deadline,
+lock, process-group cleanup, and validated launcher lookup.
 
 On a timeout, an interruption, or runner exit, the helper terminates the command's process group
 before it releases the lock. It sends TERM, allows one second to stop, then sends KILL to any
 remaining process. A command keeps the lock descriptor so a killed helper cannot release a live
 update's lock.
 
-After a successful update, the helper reads the user install record with
-`claude plugin list --json`. The runner takes the step text of the session from the install folder
-of that record (`<plugin root>` above). When the lookup gives
-no folder that holds a step text, the runner shows the cause and exits 1. The resolver and the
-logic of the runner stay the version of the runner process. The forms `--board` and `--resume` make
-no update and no lookup. A session that you start by hand gets no update from the script: the update
-by hand is the same two commands (ADR-0012).
+After a successful update, the helper invokes the same validated launcher resolver with
+`--host <host> root`. It uses the selected host's enabled installation and existing scope rules.
+The runner takes the step text from that installed root. When the lookup gives
+no folder that holds a step text, the runner shows the cause and exits 1. The runner retains the
+resolver and launcher paths chosen at startup; it does not restart itself after refresh. Codex
+can replace files at those paths. The forms `--board` and `--resume` make no update. A session
+that you start by hand gets no update from the runner.
+Codex requires a Git marketplace for this update command; a local source stops the step.
+Serialization does not make installed files immutable. "Acceptance status" records the open
+resource-lifetime requirement.
 
-**The step end.** In a herdr pane (`HERDR_PANE_ID` is set), the script does two things before it
+**The step end.** In a herdr pane (`HERDR_ENV=1` and a valid `HERDR_PANE_ID`), the script does two things before it
 starts a session. It names its tab `#<n> <step>` with `herdr tab rename "$HERDR_TAB_ID"`, so the
 board links the session to the issue. It also starts a job in the background that ends the session:
 
-1. The job waits until herdr finds the agent in the pane (`herdr agent get`), for 60 seconds at
-   most.
+1. The job waits for the selected host's new identity and a saved turn in the correct checkout,
+   for 60 seconds at most. It saves the verified ID in the current session record.
 2. It waits until the agent is ready for the next prompt:
    `herdr agent wait <pane> --until idle --until done`.
-3. It runs `next-step.sh <n>` of its own version. The step is done when the new line differs from
-   the line that started the session and is a `run` line or starts with `stop #<n> `. The job then
-   types `/exit` with `herdr agent prompt <pane> /exit`, and it ends.
-4. Else it waits until the agent works or shows a dialog again
-   (`herdr agent wait <pane> --until working --until blocked`), and it goes back to step 2.
+3. It verifies the current host, identity, readiness, and idle/done state, then reads
+   `next-step.sh <n>`. A changed `run` line or `stop #<n> ` line permits an exit check. The job
+   reads the resolver again, then makes a final session-state check before it submits `/exit`.
+   A blocked or unknown state gets no exit. A failed submission leaves the session open and
+   prints a recovery action.
+4. Otherwise it waits up to five seconds for working or blocked state, pauses one second, and
+   checks again. This also permits a new resolver check while the session remains idle.
+
+The runner waits for the foreground process to exit before it releases a lock or starts the
+next step. Successful `/exit` submission alone is not completion.
 
 In each other case the session stays open: the same `run` line, the dirty-tree line, the line of a
 landing that runs, the cannot-read line, and a resolver that fails. So a session whose agent waits
 for an answer, waits for a background task, or left an uncommitted file stays open, and a session
 that you start by hand never ends by itself. herdr ends a wait when its agent exits, so the job
-ends with the session, and the script stops the job when `claude` ends. When a session does not end
+ends with the session, and the script stops the job when the host process ends. When a session does not end
 and its agent waits for nothing, leave it with `/exit`: the script then asks the resolver again,
 and it prints the reason or starts the next step. Outside herdr the script starts no job and makes
 no `herdr` call.
@@ -231,7 +258,9 @@ step fixes a cause that the change made, lands the change, and does not build it
 scenario, the act is a run of the scenario. After a PASS, the next run of `/celetis:implement` lands
 the built change. After a FAIL, keep the label: put the result on the issue, run
 `/celetis:plan #<n>` in a session of your own, and remove the label when the new plan is on the
-issue. A Run press on a built issue with no label lands the change. For a hotfix whose landing
+issue. Re-entry requires completion evidence for the current build: the maintainer's later
+label-removal event or a trusted completion report, as `docs/issue-tracker.md` specifies. Label
+absence alone does not clear the precondition. For a hotfix whose landing
 stopped, the checklist of step 7 of `skills/hotfix/SKILL.md` of the plugin holds your acts: you land
 with `scripts/celetis land` in your own shell, and the step does not run again.
 
@@ -320,15 +349,17 @@ spec, or a closed issue), because the script ends the session when the issue sho
 done. A custom part is no domain skill, and it routes no change by its domain: domain knowledge
 stays in the `AGENTS.md` files (ADR-0006).
 
-Each `SKILL.md` starts with an instruction to read its custom part with native file tools before
-the first step or answer (ADR-0013). The session locates the current checkout root with file tools
-and reads the whole custom file with `Read`. Its text adds to the common skill. Loading the skill
-runs no shell command.
+Each `SKILL.md` starts with the common host entry, which reads its custom part once before
+the first step or answer (ADR-0013). Claude uses native `Read`, `Glob`, and `Grep`. Codex uses
+its supported file-access operations. The whole custom file adds to the common skill. The
+skill contains no load-time shell injection. `docs/hosts/entry.md` and the selected host reference
+define the read, permission, and exact-once rules.
 
 - **Which checkout.** The session reads the file from the root of the checkout where its shell is
   before the first step or answer. A skill that is the first prompt of a session, as in each step
-  that the script starts, reads the custom part of the main checkout. A skill that loads after
-  `EnterWorktree` reads the custom part of the lane branch.
+  that the script starts, reads the custom part of the main checkout. A new skill invocation after
+  binding a lane reads the custom part of that lane. Rereading the same skill invocation does not
+  repeat its custom read.
 - **With no checkout or no custom file,** the session continues with the common skill and no
   injected error text.
 - **When file access needs approval,** the session requests it through the normal permission flow.
@@ -339,7 +370,8 @@ runs no shell command.
 
 ## The board
 
-The board is the package `ddinkov10/agent-board`, in a private repository of its own. Neither the
+The board is the package `ddinkov10/agent-board`, in a private repository of its own. Version
+2.0.0 reads the current `.claude/celetis-flow/board.json` path and contract 1. Neither the
 plugin nor a product project holds a file of the board: a product project holds the config of the
 board, and the plugin holds the script that prints its data. ADR-0009 holds the reasons for the
 package and for contract 1, the JSON document that the board reads. ADR-0003 holds the reasons for
@@ -349,7 +381,7 @@ the four stay, and Done is a list that opens from the status bar.
 
 **Requirements.** Node 22 from 22.18, or Node 24.2 or later, with `npx`. `git` 2.31 or later, and
 git credentials for GitHub (an ssh key, or a credential helper for https): the package is private,
-and npm cannot ask for a password. herdr 0.9 or later on `PATH` and a herdr server that runs. A
+and npm cannot ask for a password. herdr 0.9.3 on `PATH` and a herdr server that runs. A
 Chromium browser. The config names the script, so the requirements of the script hold too.
 
 **Start the board** in the main checkout. It prints the repository, each command of the config,
@@ -370,8 +402,8 @@ PORT=4500 npx 'github:ddinkov10/agent-board#semver:^2'
 - The port is `PORT`, else `port` of the config, else 4403. When the port is in use, the board
   prints the cause and exits 1.
 - A product project can hold an entry `board` in its `.claude/launch.json` that starts the same
-  command with `--yes`, which answers the install question of `npx`. A session in a Code tab of the
-  desktop app can then show the page in the Browser pane.
+  command with `--yes`, which answers the install question of `npx`. A session in a Code tab of
+  Claude desktop can then show the page in the Browser pane.
 
 **The config** is `.claude/celetis-flow/board.json`. The board reads it from the main checkout only,
 once, at its start. Each of its first three keys is an argument list whose first item is a file of
@@ -379,10 +411,29 @@ the main checkout, and `{n}` stands for the number of the issue:
 
 | Key | Value | Use |
 |---|---|---|
-| `data` | `scripts/celetis celetis-flow --board` | The board starts it, with no shell, for each read of the issues. |
-| `run` | `scripts/celetis celetis-flow {n}` | A Run press makes a herdr tab with the label `#<n> <step>` and types `'<main checkout>/scripts/celetis' 'celetis-flow' <n> && exit` in its pane. |
-| `resume` | `scripts/celetis celetis-flow --resume {n}` | A Resume press makes the same tab, with the focus, and types `'<main checkout>/scripts/celetis' 'celetis-flow' '--resume' <n> && exit`. |
+| `data` | `["scripts/celetis", "celetis-flow", "--board"]` | The board starts it, with no shell, for each read of the issues. |
+| `run` | `["scripts/celetis", "celetis-flow", "{n}"]` | A Run press makes a herdr tab with the label `#<n> <step>`. It quotes each argument, types the command in the pane, then adds `&& exit`. |
+| `resume` | `["scripts/celetis", "celetis-flow", "--resume", "{n}"]` | A Resume press makes a tab with the same label and the focus. It quotes each argument, types the command, then adds `&& exit`. |
 | `port` | `<port>` | The port, when `PORT` is not set. |
+
+These lists use `CELETIS_HOST`, else `git config celetis-flow.host`, else Claude for a new
+step. Set the project default with `git config celetis-flow.host codex` or
+`git config celetis-flow.host claude`. Resume uses the host and exact ID in the current session
+record, even after the project default changes. It does not use the session name to find an ID.
+
+To fix the host in the board config, put the host prefix before `celetis-flow` in each list:
+
+```json
+{
+  "data": ["scripts/celetis", "--host", "codex", "celetis-flow", "--board"],
+  "run": ["scripts/celetis", "--host", "codex", "celetis-flow", "{n}"],
+  "resume": ["scripts/celetis", "--host", "codex", "celetis-flow", "--resume", "{n}"]
+}
+```
+
+Use `claude` in place of `codex` for Claude. An explicit resume host must match the recorded
+host. Keep `resume` unprefixed when issues can have saved sessions from either host. Each item
+is one argument; do not put a shell command, quote syntax, or an environment assignment in an item.
 
 `&& exit` closes the tab when the script ends with no error, and a script that fails leaves the tab
 open with its message. With the default gates, the script of a Run press starts one session and ends
@@ -413,7 +464,7 @@ A row gets its `state` by the first rule that matches:
 | 1 | is closed | `done` | `closedAt` |
 | 2 | has a lock that a live script holds | `starting` | |
 | 3 | has a dirty lane worktree | `dirty` | `path`: the lane worktree |
-| 4 | has a row in the record for its `run` line | `stuck` | `act`: `claude --resume "#<n> <step>"` |
+| 4 | has a row in the record for its `run` line | `stuck` | `act`: `scripts/celetis celetis-flow --resume <n>` |
 | 5 | has `needs-info` or `ready-for-human` | `blocked` | `reason`: `needs info` for `needs-info`. For `ready-for-human`: `landing refused` while a landing refusal is current (`docs/issue-tracker.md`, "Resolving an issue's state"), else `ready for your step`. `act`: the act that the `stop` line of the issue names |
 | 6 | has a `run` line | `ready` | |
 
@@ -466,30 +517,83 @@ change is on the trunk.
 
 ## Guards
 
-`.claude/settings.json` of a product project holds the permission rules for every Claude Code
-session in that project, started by the script or not. The plugin gives no permission rule, so each
-product project holds these:
+The README's host permission sections are the source for the rules and their checks. Claude
+uses `.claude/settings.json`; Codex uses a trusted `.codex/rules/` configuration. Both cover the
+current bare and explicit-host landing forms and restrict direct `gh pr merge`. The plugin does
+not grant permissions. Retain each product project's own restricted acts.
 
-- `deny`: `gh pr merge`. An agent has one landing path, the script below. To merge by hand, use your
-  own shell or GitHub. Each product project holds its own `deny` rules: this one, and the rules for
-  its own acts.
-- `allow`: `Bash(scripts/celetis land *)`. A build step runs `scripts/celetis land` with no
-  permission prompt. With `pr` it merges only the open lane PR of the issue on the trunk, and only
-  when every check is green; a lane PR with another base is a refusal (ADR-0001, ADR-0008).
-
-The rules match the text of a command. They stop a slip; they are not a security boundary. The
-`allow` rule matches `scripts/celetis land` with or with no arguments, and not
-`./scripts/celetis land`. Do not rely on a `deny` rule for another spelling of its command. The
-rules do not see a command of the script, so the script never merges and never pushes.
+The landing script is the required agent path. With `pr`, it merges only the issue's lane PR on
+the trunk, at the checked commit, with every check passed or skipped and at least one PASS.
+The main and lane checkout guards apply on both hosts. Host rules do not inspect the commands
+inside an allowed script or enforce every alternate command spelling. Codex prefix rules govern
+requests outside its sandbox; they do not create a stronger sandbox. A host refusal remains a
+stop. The deterministic script checks and final Verify results remain required (ADR-0008).
 
 ## Sessions
 
-The name of a session is `#<n> <step>`. From the main checkout, `claude --resume '#402 plan'` opens
-the session of that step again, and `scripts/celetis celetis-flow --resume 402` opens the session of
-the step of #402 that has a row in the record. No job ends a session that you open again, so it
-stays open until you leave it. In a herdr tab with the label `#402 plan`, its card on the board
-links to #402. When a live session on the machine already has the name, Claude Code gives the new
-session a variant of it.
+The herdr tab label is `#<n> <step>`. It links the live card to the issue on the board. The label
+is not the saved session ID. From the main checkout, `scripts/celetis celetis-flow --resume 402`
+reads the current record for #402 and opens its exact host and session ID. It holds the shared
+issue lock until the session exits. No completion job or update runs during resume.
+
+A missing or invalid record stops with a recovery action. A record with no verified ID directs
+you to `claude --resume` or `codex resume --no-daemon`, by its saved host, to select a saved session manually.
+Exact runner resume needs the identity from herdr and a saved turn. A resumed session stays open
+until you leave it.
+
+The record at `<git common dir>/celetis-flow/sessions/<n>.json` has exactly six fields:
+`schema: 1`, `host`, `issue`, `step`, absolute main `checkout`, and `session_id` (UUID or null).
+The runner writes it atomically. It accepts no old record format and makes no migration.
+Herdr supplies `result.agent.agent_session.value`; a tab name is never an identity.
+Claude persistence is a current saved user turn with matching ID, cwd, and launch time.
+Codex verifies `thread/read` and `thread/turns/list` without resuming or starting a model turn.
+
+If startup cannot verify identity and a saved turn within 60 seconds, the runner prints the
+host and local pane output with a recovery action. It leaves the foreground open and writes no
+false no-progress row. Complete the normal setup action, then retry. A record with a null ID
+cannot be used for exact runner resume.
+
+## Acceptance status
+
+Codex is opt-in while full acceptance remains open. These are observed versions and results as
+of 2026-10-15, not a certified minimum-version range:
+
+| Component | Evidence and limit |
+|---|---|
+| Codex CLI 0.162.1 | Private Git marketplace install and refresh, shared manifest discovery, effective configuration, and saved-turn API checks passed. A fresh 21-case step run passed with product instructions and the clarified startup text. These do not prove a full live workflow or native desktop selection |
+| Claude Code 2.1.299 | Current saved-turn fields were checked. The final 21 step cases and 12 native custom-read cases are blocked by the account's weekly limit; the reported reset is 17 October at 22:00 Europe/Sofia. CLI 2.1.300 was observed during the later documentation checks; no final model result is claimed for it |
+| Superpowers 7.0.0 | Installation on the isolated Codex Git configuration passed. Each active surface must still expose the dispatch and follow-up controls its procedures require |
+| herdr 0.9.3 | The installed integrations report Claude v10 and Codex v8. Later reviewed-source Codex checks passed valid startup, real no-progress, and native exact Resume with a saved second turn. The resumed herdr reply still lacked `agent_session`. Claude recovery, compaction, and full workflow checks remain open |
+| agent-board 2.0.0, tag commit `e36283b` | Contract 1 and the current config path passed. Released-browser Open shell and partial Claude Run/Go passed. The earlier Codex Run stopped on a local-marketplace setup error; Claude later stopped on quota. Later reviewed-source Codex Run, Resume, and Go passed with the correct issue and pane. Full acceptance remains open |
+| Bash 3.2.57, Perl 5.34.1, Node 26.11.1 | Used for the local deterministic gate and released-board checks. The scripts retain Bash 3.2 and Perl 5.14 as their language requirements |
+
+The later Codex board checks used reviewed commit `626881b`; the
+[public evidence record](https://github.com/ddinkov10/celetis/issues/21#issuecomment-6187619525)
+keeps the earlier failures. The first fixture turn attempted a forbidden issue comment, which
+failed on connectivity. The separate persistence turn used no tools. These results do not prove
+full instruction compliance, interruption, compaction, or a complete lane.
+
+The earlier 21 text-only cases omitted product instructions. The first run with those instructions
+rejected a valid product-directory prefix; its results passed a local replay after the checker
+repair. A later run rejected reason prose in case 13, whose oracle permits only commands and the
+ending. After that case's output format was made explicit, a fresh full run passed all 21 cases.
+Every client exited 0 without tool use or service errors. The strict action oracle stayed intact,
+and both failed runs remain recorded. The final Claude cases remain blocked by quota.
+
+A source wording test completed startup reads before the first response in five of five repair
+samples, compared with zero of five control samples. It used the full guide text and actual file
+reads. Normal installed native entry and chore step order still need verification after review.
+
+The remaining release checks include every required lane and helper on both Codex surfaces,
+cross-host steps, compaction and exact resume, native skill selection, permissions in the active
+host, changed-model/effort repair on the same child, and live board state/action pairs. A CLI
+probe does not establish a desktop result. No obsolete metadata or protocol fallback is supplied.
+
+**Stable installed resources remain open.** A Codex refresh replaced an installed sibling file
+at the same path while an app-server still advertised that path. The shared update lock covers
+cooperating updates, not all future reads of a running session. No supported per-session package
+pin has been proved. A supported solution or an explicit change of the accepted requirement is
+needed before full acceptance and shipping. ADR-0014 records the architecture and this limit.
 
 ## Limits
 
@@ -504,12 +608,13 @@ session a variant of it.
   session holds it until the spec is on the issue or you leave the session.
 - With a gate that is `auto` on a machine, the script of a Run press goes on with that step in the
   same tab. Between two sessions the card is in Running with `starts`.
-- A Terminal tab and the script in it can end when the app starts again. Start the script again: a
-  dead PID frees each lock, and the record stays.
+- A Terminal tab and the script in it can end when the app starts again. The lock stays while
+  either the runner or its foreground session is live. After both exit, a new runner can claim
+  the stale lock; the session record stays.
 - A session outside herdr, for example in a Code tab of the desktop app, has no card on the board,
   and the script does not end its step.
-- The script ends a step from the state that herdr gives the agent, and herdr reads the state of
-  Claude Code from its screen. A new release of Claude Code can need new rules of herdr
+- The script ends a step from the selected host state that herdr reports. A new host release can
+  need a new herdr integration or agent manifest
   (`herdr server update-agent-manifests`).
 - The script types `/exit` into the pane of a step that is done. Text that you type in that pane at
   that moment goes into the same line. This is more probable in a `specify` session, because you
@@ -545,11 +650,17 @@ The README of the package holds the limits of the page.
 The tests of the script, the resolver, `scripts/land.sh`, `scripts/worktree.sh`, the launcher, and
 the text of the plugin are in `tests/` of the plugin repository, `ddinkov10/celetis`: run them in a
 checkout of that repository. `scripts/verify.sh` is the verify gate of that repository. It runs each
-`tests/*.test.sh`, then `scripts/capscore.sh --test` and `claude plugin validate`, and its last line
-is `verify: PASS`. The workflow `.github/workflows/test.yml` of that repository runs each
-`tests/*.test.sh` and `scripts/capscore.sh --test` on Linux, for each pull request and for each push
-to `main`. The test of the step text is hand-run: it is in `tests/manual/`, so the gate and the
-workflow do not run it. The tests of the board are in `ddinkov10/agent-board`.
+`tests/*.test.sh`, `scripts/capscore.sh --test`, and `claude plugin validate .`, with a Perl syntax
+check first. Its last line is `verify: PASS`. The local full gate needs Claude's validator but
+starts no model turn. Codex package checks use the shared manifest, file, link, and invocation
+metadata checks in `tests/text.test.sh` and the discovery fixtures in `tests/launcher.test.sh`.
+There is no Codex plugin-validation command.
+
+The workflow `.github/workflows/test.yml` runs the syntax check, all top-level shell tests, and
+the scorer tests on Linux for each pull request and push to `main`. It uses no model credentials,
+host CLI, or token-consuming test. Live and model tests stay in `tests/manual/` or explicit
+acceptance runs. A deterministic PASS does not complete those scenarios. The board's tests are
+in `ddinkov10/agent-board`.
 
 ```bash
 scripts/verify.sh
@@ -559,7 +670,8 @@ bash tests/land.test.sh
 bash tests/worktree.test.sh
 bash tests/launcher.test.sh
 bash tests/text.test.sh
-bash tests/manual/step-prompt.test.sh
+bash tests/manual/step-prompt.test.sh --host claude
+bash tests/manual/step-prompt.test.sh --host codex
 ```
 
 `bash tests/celetis-flow.test.sh` gives each `--board` document of its stub world to the checker of
@@ -574,22 +686,35 @@ machine does. The test starts `npx` in its temporary folder, so `npx` reads no `
 `node_modules/.bin` of the checkout where the test starts: the test can run in a lane worktree. For
 the document of the real issues, "The board" gives the `check` command.
 
-Three of the five tests of a script start their script with the bash that runs the test.
-`tests/worktree.test.sh` and `tests/launcher.test.sh` start their script with the `bash` that is
-first on `PATH`, and so does each script that starts another script. So the gate runs each test as
+Tests and scripts can start another `bash` from `PATH`. The gate runs each test as
 `PATH="/bin:$PATH" /bin/bash <test>`: the `/bin/bash` of macOS runs the test, and the `PATH`
 makes each inner `bash` reach it too.
 
-`bash tests/manual/step-prompt.test.sh` checks the step text. It runs its fixed cases in
-headless `claude -p` turns, so it needs a `claude` that is logged in, it uses tokens, and the
-answer of a model can differ between runs. The test runs its turns in the folder where it starts,
-and each turn reads the instruction files of that folder (`AGENTS.md`). So run the test after each
+`bash tests/manual/step-prompt.test.sh --host claude|codex` checks the step text. Select one host;
+the `|` is notation, not a shell command. It runs fixed cases in that host's headless turns,
+so it needs that host to be logged in, it uses tokens, and the
+answer of a model can differ between runs. Start it in a product Git checkout or one of its
+subfolders. Before it starts a client, the test reads each `AGENTS.md` from that checkout's Git
+root through the starting folder, in that order. A linked checkout does not inherit instructions
+from a different checkout above its physical path. A read error stops the test; no instruction
+files is an explicit input. Each turn runs in an empty temporary Git project and receives the
+exact product instruction text, with its source paths, through standard input. This keeps product
+code and Git history out of the dry run. It tests the supplied instructions, not native instruction
+discovery. With `--output-dir DIR`, the test saves the instruction files, their paths and hashes,
+the combined instruction text, and each prompt with its result. Run the test after each
 change of `step-prompt.md`, and run it in a product project after each change of the part of its
 `AGENTS.md` on the celetis flow. In a product project, start it in the main checkout as
-`bash "$(scripts/celetis root)/tests/manual/step-prompt.test.sh"`: the test then reads the step
-text of the installed plugin. The script sets `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`, because the
+`bash "$(scripts/celetis --host codex root)/tests/manual/step-prompt.test.sh" --host codex`, or
+use `claude` in both places. The test then reads the step text of the installed plugin.
+For Claude, the script sets `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`, because the
 git status snapshot of a turn holds the branch name and the last commit subjects, and these can
 state the behavior that a case asserts. A turn with the step text starts with
 `--permission-mode auto`, as a step session does. On 2026-10-12 a headless turn with that flag held
 no text on auto mode in its context, so the test does not show how auto mode acts on a session
 (ADR-0011).
+
+`tests/manual/custom-part.test.sh` is the separate 12-case Claude test for native `Read`,
+missing files, denied reads, and checkout changes. Codex explicit-file and denied-read probes
+need their own recorded tool results; a text-only answer cannot prove a file was read. Guide's
+explicit-only metadata is part of the deterministic package check, while native selection
+remains a live acceptance check.

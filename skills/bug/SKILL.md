@@ -3,7 +3,7 @@ name: bug
 description: Type-axis lane for a bug fix — an existing behavior that ≠ intended/spec (wrong output, crash, regression) with production NOT on fire. Use when the human runs /celetis:bug, or when a request describes something that already works misbehaving — as opposed to new behavior (/celetis:feature), a prod-broken ship-now fire (/celetis:hotfix), or a zero-behavior-change edit like a dep bump / rename / doc-config fix (/celetis:chore).
 ---
 
-Before any step or answer, use `Read` to read `.claude/celetis-flow/custom/bug.md` from the root of the checkout where the session shell is now. Use file tools to locate that root. Apply the whole file as an addition to this skill. With no checkout or no file, continue. If access needs approval, request it. If access is denied or another read error occurs, stop and report the block.
+**Host entry.** Before any step or response, including commentary or an announcement, complete the startup reads in [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
 
 # /celetis:bug — bug-fix lane
 
@@ -26,10 +26,10 @@ start step N+1.
 1. **Confirm classification.** Existing behavior misbehaves → continue. New behavior → `/celetis:feature`;
    prod broken + ship-now → `/celetis:hotfix`; zero behavior change → `/celetis:chore`. Given free text instead of `#<n>`: create the issue first — `gh issue create --label bug --title "<one line>" --body-file <intent>` with the `/celetis:intake` template as the body — and continue with its number. Given `#<n>` whose issue carries `epic`: stop; an epic has no branch, and each child runs its own lane. Given any other `#<n>`: make `bug` its only lane label with `gh issue edit <n>` — `--add-label bug` when the issue lacks it, plus `--remove-label <name>` for each of `needs-triage`, `enhancement`, `hotfix`, `chore` that the issue carries — because `scripts/celetis worktree` names the branch from the lane label.
 2. **Worktree.** Run `scripts/celetis worktree <n>` with a 10-minute timeout (a new worktree runs
-   the worktree setup of the project) and call `EnterWorktree` with the path it prints. The script re-enters the
+   the worktree setup of the project) and bind the exact path it prints using the host operations. The script re-enters the
    issue's branch, or creates `fix/<n>-<slug>` from the title when the issue has none; when
    it refuses, show the user its message and stop. Every later step runs in that worktree; the
-   main checkout never changes branch (Branches, PRs, merge in `${CLAUDE_PLUGIN_ROOT}/docs/issue-tracker.md`).
+   main checkout never changes branch (Branches, PRs, merge in `<plugin>/docs/issue-tracker.md`).
 3. **Explore project context.** Explore files, docs, recent commits. Also read:
    - `AGENTS.md` — project architecture.
    - the `AGENTS.md` of the subsystem(s) the bug touches.
@@ -40,7 +40,7 @@ start step N+1.
    them.
 4. **Invoke `superpowers:systematic-debugging`** — MANDATORY, no self-granted exemptions; the red
    repro is the spec's repro. A hypothesis that rests on library, platform, or vendor behavior is
-   checked per `${CLAUDE_PLUGIN_ROOT}/docs/docs-lookup.md` before the report names it the root cause.
+   checked per `<plugin>/docs/docs-lookup.md` before the report names it the root cause.
 5. **Write a states table in the report.** For every value the fix guards or depends on, list each
    distinct state and name the code that writes it (file:line) — both the producer of the absent
    state AND the writer of the consulted value (a flag or field), not its default initializer. A
@@ -51,7 +51,7 @@ start step N+1.
    spec does not define behavior for every listed state, STOP and ask the user — present the states
    and the decision as concrete options. For a look decision (`AGENTS.md` of the project), the options
    are `celetis:prototype` variants: build them and hand them over, then ask for the pick, and record it
-   as the report's `## Prototype` section (`${CLAUDE_PLUGIN_ROOT}/docs/issue-tracker.md`). Do not ship a guessed
+   as the report's `## Prototype` section (`<plugin>/docs/issue-tracker.md`). Do not ship a guessed
    default. Proceed autonomously to step 7 only when every state is spec-defined and the fix is
    self-contained.
 7. **Post the report, then invoke `celetis:plan #<n>`.** `gh issue comment <n> --body-file <report>` with

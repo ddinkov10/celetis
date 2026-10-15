@@ -3,7 +3,7 @@ name: doc-drift-sync
 description: Run the daily doc-drift maintenance pass — keep the project living docs (AGENTS.md, docs/**, README/CLAUDE) truthful against current code. Auto-fix obvious, source-verified drift (stale file/symbol refs, broken .md links, dangling referenced files, source-line locators); flag judgment calls. Use when asked to sync/refresh/audit the docs against the code, or when invoked by the daily cron.
 ---
 
-Before any step or answer, use `Read` to read `.claude/celetis-flow/custom/doc-drift-sync.md` from the root of the checkout where the session shell is now. Use file tools to locate that root. Apply the whole file as an addition to this skill. With no checkout or no file, continue. If access needs approval, request it. If access is denied or another read error occurs, stop and report the block.
+**Host entry.** Before any step or response, including commentary or an announcement, complete the startup reads in [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
 
 # Doc-Drift Sync
 

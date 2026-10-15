@@ -1,6 +1,6 @@
 {
   "name": "celetis",
-  "description": "An issue-driven agent harness for Claude Code.",
+  "description": "An issue-driven agent harness: skills, a step runner, and a landing script.",
   "owner": {
     "name": "ddinkov10"
   },

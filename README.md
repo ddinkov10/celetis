@@ -1,9 +1,14 @@
 # celetis
 
-`celetis` is a plugin for Claude Code: a general agent harness. It takes a request from free text
-to a change on the trunk through one GitHub issue: the intent, the lane, the spec, the plan, the
+`celetis` is a general agent harness for Claude Code, with Codex CLI and desktop host adapters.
+It takes a request from free text to a change on the trunk through one GitHub issue: the intent,
+the lane, the spec, the plan, the
 build, and the landing. The issue is the state store: each result goes onto the issue, and each
 hand-off reads the issue again.
+
+Codex full workflow acceptance is incomplete. Stable installed resources during a running step,
+native desktop selection, retry controls, and final live workflows still need proof. The current
+integration is opt-in; see "Acceptance status" in `docs/celetis-flow.md` before using it.
 
 The plugin holds:
 
@@ -26,7 +31,7 @@ launcher file. It holds only what is its own:
 
 | Part | Place in the product project |
 |---|---|
-| The wiring | `.claude/settings.json`: the marketplace, the two enabled plugins, and the permission rules |
+| The host wiring | Claude: `.claude/settings.json`. Codex: the installed plugins and trusted `.codex/config.toml` and `.codex/rules/` (below) |
 | The launcher | `scripts/celetis` |
 | The config | `.claude/celetis-flow/gates.json`, `landing.json`, and `board.json` |
 | The worktree setup | `.claude/celetis-flow/worktree-setup.sh` |
@@ -39,8 +44,8 @@ names a role, for example "the verify gate of the project", and the product proj
 thing. A lane ends when the change is on the trunk, which is the default branch of the repository
 on GitHub: the verify gate, the deployment, and each other part of a product stay in the product
 project. The plugin has no `version`, no `bin/` folder, no hook, and no declared dependency, and it
-gives no permission rule. ADR-0012 (`docs/adr/0012-the-harness-is-the-plugin-celetis.md`) holds the
-reasons.
+gives no permission rule. ADR-0012 holds the original packaging decision; ADR-0014 extends it
+to both hosts without a second copy of the procedures.
 
 ## Requirements
 
@@ -49,12 +54,13 @@ reasons.
   2026-10-14 (ADR-0012). Keep the clone path at 130 characters or less: a longer path goes past
   the 260 limit on Windows, and `scripts/celetis worktree <n>` then stops with `Filename too
   long`. `git config --global core.longpaths true` removes the limit.
-- `claude`, `gh` (logged in), `jq`, `git` 2.31 or later, and Perl 5.14 or later on `PATH`.
+- The selected host CLI (`claude` or `codex`), `gh` (logged in), `jq`, `git` 2.31 or later,
+  and Perl 5.14 or later on `PATH`.
   The runner uses only the standard library of Perl.
 - Git credentials for GitHub that need no prompt, an ssh key or a credential helper for https: the
   plugin repository and the package of the board are private.
-- The plugin `superpowers@superpowers-marketplace`: the lane skills call its `superpowers:*` skills.
-- herdr 0.9 or later, for the step end of the runner and for the board. In another terminal the
+- Superpowers, installed and enabled on the selected host: the lanes call its `superpowers:*` skills.
+- herdr 0.9.3, for the step end of the runner and for the board. In another terminal the
   runner works too, but you leave each session with `/exit`.
 - For the board: Node 22 from 22.18, or Node 24.2 or later, with `npx`, and a Chromium browser.
 
@@ -62,7 +68,7 @@ reasons.
 
 ## Wire a product project
 
-### Each machine, one time
+### Each machine: Claude Code
 
 1. Add the marketplace, and install the plugin:
 
@@ -84,8 +90,12 @@ reasons.
    file held the marketplace and the two plugins loaded no plugin and added no marketplace. A
    headless turn shows no workspace trust dialog, so the probe does not show what an interactive
    session does after that dialog (ADR-0012, R1).
-2. Add and install superpowers the same way: `docs/celetis-flow.md`, "Requirements", gives its two
-   commands.
+2. Add and install Superpowers:
+
+   ```bash
+   claude plugin marketplace add obra/superpowers-marketplace
+   claude plugin install superpowers@superpowers-marketplace
+   ```
 3. Last, turn on auto-update for superpowers. In `~/.claude/settings.json`, add
    `"autoUpdate": true` beside `source` in the entry `superpowers-marketplace` of
    `extraKnownMarketplaces`. Do this step last, and again after a later run of an add command: in
@@ -93,17 +103,63 @@ reasons.
    needs no such step: the block of the project file holds the key for `celetis`, and Claude Code
    takes it from there in a trusted folder (ADR-0012, R2). "Updates" says what auto-update does.
 
-The next parts are the files and the labels of one product project. Make each file in its main
-checkout.
+### Each machine: Codex only
 
-### `.claude/settings.json`
+Use a signed-in Codex CLI and Git credentials that can read this private repository without a
+prompt. Claude is not required. Add the Git source, then install the plugin:
 
-The file holds the marketplace, the two plugins, and two permission rules:
+```bash
+codex plugin marketplace add ddinkov10/celetis --ref main
+codex plugin add celetis@celetis --json
+```
+
+Keep the returned `installedPath` for the launcher copy below. The launcher later discovers the
+enabled installation through `skills/list`; it does not calculate a cache path. A local-path
+marketplace is unsuitable for the runner: `plugin marketplace upgrade celetis` requires a Git
+source. `--ref main` selects the landed source. A test of an unlanded commit must use its explicit
+Git ref in a separate test configuration. These commands and result fields were checked on
+Codex 0.162.1. See the [Codex CLI reference](https://learn.chatgpt.com/docs/cli/reference).
+
+Install Superpowers from its Git marketplace:
+
+```bash
+codex plugin marketplace add obra/superpowers-marketplace
+codex plugin add superpowers@superpowers-marketplace --json
+```
+
+This installed Superpowers 7.0.0 on Codex 0.162.1. The Superpowers README also gives a catalog
+route: search for Superpowers in Codex's `/plugins` screen or the desktop Plugins page. Start a
+new chat and check that both plugins' skills are available. A missing required skill stops its lane.
+
+Codex saves user plugin choices in its configuration. A trusted product project can explicitly
+enable celetis in `.codex/config.toml`:
+
+```toml
+[plugins."celetis@celetis"]
+enabled = true
+
+[plugins."superpowers@superpowers-marketplace"]
+enabled = true
+```
+
+The [plugin configuration documentation](https://developers.openai.com/plugins/build/plugins)
+describes project trust and enablement. Install each host's plugins separately. A Claude install
+does not provide the Codex installation.
+
+The next parts are the files and labels of one product project. Make them in its main checkout.
+
+### Claude permissions: `.claude/settings.json`
+
+The file holds the marketplace, the two plugins, and the permission rules:
 
 ```json
 {
   "permissions": {
-    "allow": ["Bash(scripts/celetis land *)"],
+    "allow": [
+      "Bash(scripts/celetis land *)",
+      "Bash(scripts/celetis --host claude land *)",
+      "Bash(scripts/celetis --host codex land *)"
+    ],
     "deny": ["Bash(gh pr merge*)", "PowerShell(gh pr merge*)"]
   },
   "extraKnownMarketplaces": {
@@ -119,27 +175,106 @@ The file holds the marketplace, the two plugins, and two permission rules:
 }
 ```
 
-The plugin gives no permission rule, so each product project holds these two. The `allow` rule lets
-a build step run `scripts/celetis land` with no permission prompt. The `deny` rule leaves an agent
-one landing path, that script: to merge by hand, use your own shell or GitHub. A rule matches the
-text of a command, so the command has no `./` before it. A `Bash(...)` rule does not match the
+The plugin gives no permission rule, so each product project holds these rules. The `allow` entries
+cover the bare terminal command and both explicit host forms. Each manual skill uses its own
+host prefix. The `deny` entries retain the direct-merge restriction: to merge by hand, use your
+own shell or GitHub. A rule matches the text of a command, so the command has no `./` before it.
+A `Bash(...)` rule does not match the
 PowerShell tool of a session on a Windows host, so a `deny` rule has the two forms. A project adds a
 `deny` rule for each act of its own that only the maintainer does (`docs/celetis-flow.md`,
-"Guards").
+"Guards"). The [Claude permission reference](https://code.claude.com/docs/en/permissions)
+defines these command patterns and the deny-before-allow order.
+
+### Codex permissions: `.codex/rules/celetis.rules`
+
+Save these rules in the trusted project's `.codex/rules/` directory, then restart Codex:
+
+```starlark
+prefix_rule(
+    pattern = ["scripts/celetis", "land"],
+    decision = "allow",
+)
+prefix_rule(
+    pattern = ["scripts/celetis", "--host", ["claude", "codex"], "land"],
+    decision = "allow",
+)
+prefix_rule(
+    pattern = ["gh", "pr", "merge"],
+    decision = "forbidden",
+    justification = "Use scripts/celetis --host codex land from the main checkout.",
+)
+```
+
+Check the saved rules without executing a landing or merge:
+
+```bash
+codex execpolicy check --rules .codex/rules/celetis.rules -- scripts/celetis --host codex land 7 'fix(example): repair output'
+codex execpolicy check --rules .codex/rules/celetis.rules -- gh pr merge 7 --squash
+```
+
+The results must contain `decision: "allow"` and `decision: "forbidden"`, respectively. Also
+check the bare landing form and the Claude prefix. Codex 0.162.1 passed these exact policy checks.
+The [Codex rules documentation](https://learn.chatgpt.com/docs/agent-configuration/rules)
+defines their scope: command requests outside the sandbox, with project rules loaded only from
+a trusted configuration layer. These prefix rules do not inspect every command inside an allowed
+script or forbid every spelling or API route to a merge. Keep the host's sandbox and approval
+settings. Request required access to the main and lane checkouts through its normal controls.
+The landing script's checks remain authoritative for the permitted landing path. A policy-file
+check does not prove the active desktop session loaded that file.
 
 ### The launcher
 
 Copy `scripts/celetis` of the installed plugin to `scripts/celetis` of the project. The copy keeps
-the execute bit, which the board needs to start the file:
+the execute bit, which the board needs to start the file. On Claude:
 
 ```bash
-mkdir -p scripts
-cp "$(claude plugin list --json | jq -r '[.[] | select(.id == "celetis@celetis" and .scope == "user")][0].installPath')/scripts/celetis" scripts/celetis
+celetis_root=$(claude plugin list --json | jq -er '[.[] | select(.id == "celetis@celetis" and .scope == "user" and .enabled == true)] | if length == 1 then .[0].installPath else error("expected one enabled user installation") end') &&
+mkdir -p scripts &&
+cp "$celetis_root/scripts/celetis" scripts/celetis
+```
+
+On Codex, use the `installedPath` returned by `plugin add`, without a cache-path guess:
+
+```bash
+celetis_install=$(codex plugin add celetis@celetis --json) &&
+celetis_root=$(printf '%s\n' "$celetis_install" | jq -er 'select(.pluginId == "celetis@celetis") | .installedPath | strings | select(length > 0)') &&
+mkdir -p scripts &&
+cp "$celetis_root/scripts/celetis" scripts/celetis
 ```
 
 The file is the same in each product project. `scripts/celetis <name> <arguments>` runs
 `scripts/<name>.sh` of the installed plugin with those arguments ("The commands"), so a new script
 of the plugin needs no new copy.
+
+### Host selection and model setup
+
+Set the default for human terminal and board commands in the product checkout:
+
+```bash
+git config celetis-flow.host codex
+scripts/celetis --host codex root
+```
+
+Selection is `--host claude|codex`, then `CELETIS_HOST`, then `celetis-flow.host` in Git config,
+then `claude`. An invalid value stops the command. Skills always pass their actual host explicitly
+on each call, including landing. The selected host is exported to child scripts. Both installed
+hosts can use one product project; their installations and configuration remain separate.
+
+`root` validates the enabled plugin and returns the installed package directory. Codex discovery
+uses a short-lived app-server connection and `skills/list`, with no thread or model turn.
+Missing, disabled, malformed, or ambiguous installation data stops lookup. Do not use a
+marketplace source checkout in place of the returned installation.
+
+Before Codex child work, supply the four-slot profile and reviewer minimum in
+`docs/capability.md`, "Codex model profiles". Obtain the model IDs and efforts from the active
+dispatch surface, and pass the profile and runtime allowlist to each scorer call. There is no
+shipped Codex model default. A CLI catalog does not establish desktop dispatch support. A missing
+pair or a tool that cannot apply the required pair stops the dependent work.
+
+For herdr, run `herdr integration status` in the same host configuration used by the runner.
+Use `herdr integration install codex` for the Codex integration; it honors `CODEX_HOME`.
+Inspect the installed hook and complete the host's normal trust flow. A current integration alone does not prove that
+a model session can start. The runner reports startup dialogs and leaves them for the human.
 
 ### The config, the worktree setup, and the custom parts
 
@@ -169,10 +304,10 @@ They are files of `.claude/celetis-flow/`:
   stderr. So the file needs no execute bit, and it can print. When it exits with an error, the
   command removes the worktree and the branch that it made. A worktree gets its setup one time
   (`docs/celetis-flow.md`, "The config and the custom parts").
-- **A custom part** is read with native file tools before the first step or answer of its skill,
-  from the root of the checkout where the session shell is at that time (ADR-0013). A step that the
-  runner starts reads the custom part of the main checkout, and a skill that loads after
-  `EnterWorktree` reads the custom part of the lane branch.
+- **A custom part** is read once through the common host entry before the first step or answer
+  of its skill, from the active checkout root (ADR-0013). Claude uses native file tools; Codex
+  uses the file-access operations of its session. A runner step starts in the main checkout.
+  A later skill invoked after binding a lane reads the custom part of that lane.
   The text is an addition: it cannot remove a rule of the general skill, and it is no domain skill
   (ADR-0006). Two skills name what their custom part holds: `hotfix.md` holds the ship acts of the
   project, and `lesson.md` holds its tags.
@@ -251,10 +386,10 @@ it have no `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md`. A project tha
   |---|---|---|---|
   ```
 
-### Optional: the board in the desktop app
+### Optional: the board in Claude desktop
 
 A product project can hold an entry `board` in its `.claude/launch.json` that starts the command of
-the board with `--yes`. A session in a Code tab of the desktop app can then show the page in the
+the board with `--yes`. A session in a Code tab of Claude desktop can then show the page in the
 Browser pane. This start is not checked (`docs/celetis-flow.md`, "The board", and "Limits"). The
 entry of the first product project is the example. It is one item of the list `configurations` of
 that file, and its `port` is the port of `board.json`:
@@ -282,7 +417,11 @@ them.
 One request goes from free text to a change on the trunk. The example is a feature, the lane that
 has each step.
 
-**In a session by hand.** Start `claude` in the main checkout of the product project.
+**In a session by hand.** Start the selected host in the main checkout of the product project.
+In a terminal, start Codex with `codex --no-daemon` so its hooks use the current pane's environment.
+The table uses Claude's `/celetis:<skill> <input>` form. In Codex CLI or a desktop chat, use the
+advertised skill name: `Use the celetis:<skill> skill for <input>. Complete its Host entry startup reads before any response, including commentary.`, or select that skill in the
+host's skill selector. The native desktop selector still needs final acceptance proof.
 
 | You type | The session | It leaves on the issue |
 |---|---|---|
@@ -299,7 +438,10 @@ has each step.
   `/celetis:bug the export stops on a report with no rows`.
 - A lane and each step after it work in the lane worktree of the issue,
   `.claude/worktrees/<n>-<slug>`, on the branch of the issue. `intake` and `triage` enter no
-  worktree. The main checkout never changes branch, so two flows run side by side.
+  worktree. Claude binds the returned path with its worktree tools. Codex binds every command,
+  read, edit, and child brief to that exact path and reads its `AGENTS.md` files. A shell `cd`
+  alone does not bind later file tools. An app-created detached checkout does not replace the
+  lane checkout. Both hosts return to the main checkout for landing.
 - The landing puts the change on the trunk by the mechanism of `landing.json`. With `pr`,
   `scripts/celetis land <n> '<subject>'` pushes the branch, opens the PR, waits up to 15 minutes
   for the checks, and squash-merges when each check is green. It then removes the worktree and the
@@ -316,9 +458,9 @@ new interactive session, in the terminal tab where you start it. For each step, 
 1. asks the resolver for the next step: `scripts/celetis next-step <n>` prints a `run` line with
    the command of the step, for example `run /celetis:plan #<n>`, or a `stop` line with the reason;
 2. brings the plugin of the machine to the head of `main` ("Updates");
-3. starts `claude` in the main checkout with `--permission-mode auto`, the session name
-   `#<n> <step>`, the step text of the plugin, and the command of the `run` line as the first
-   prompt;
+3. starts the selected interactive CLI in the main checkout with the host's skill prompt and
+   step text. Claude uses `--permission-mode auto` and an appended system-prompt file. Codex
+   uses `--no-daemon`, keeps its configured permissions, and appends the step text to effective `developer_instructions`;
 4. in a herdr pane, ends the session when the issue shows that the step is done.
 
 The runner starts at an issue: write one with `/celetis:intake`, or open one on GitHub. Then, for
@@ -345,8 +487,8 @@ lives on the issue, the branches, and the order of the resolver.
 
 ## The skills
 
-In a session, a skill of the plugin is `/celetis:<skill>`. A skill of the project keeps its short
-name.
+The table uses `/celetis:<skill>` as the shared skill notation and the Claude invocation.
+On Codex, explicitly name or select the advertised `celetis:<skill>` as described above.
 
 | Group | Skill | What it does |
 |---|---|---|
@@ -372,10 +514,15 @@ name.
 Two documents of the plugin are not skills: `docs/capability.md`, the rubric of the capability
 score, and `docs/docs-lookup.md`, the lookup of the external facts.
 
+`guide` is explicit-only on both hosts. Claude reads `disable-model-invocation: true`; Codex
+reads `policy.allow_implicit_invocation: false` in `skills/guide/agents/openai.yaml`. Its shared
+entry also requires a human invocation. Guide reads its custom part and gives advice; it starts
+no workflow command.
+
 ## The commands
 
-A product project runs each script of the plugin as a sub-command of the launcher. A session, you
-in a terminal, and the board use the same form:
+A product project runs each script through the launcher. The table gives the human terminal
+and board form. Every skill call adds `--host claude` or `--host codex` before the sub-command:
 
 | Command | What it does |
 |---|---|
@@ -383,7 +530,7 @@ in a terminal, and the board use the same form:
 | `scripts/celetis worktree --remove <n>` | Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first |
 | `scripts/celetis land <n> '<subject>'` | Lands the change of the issue by the mechanism of `landing.json`. It is the one landing path of an agent |
 | `scripts/celetis next-step <n> \| --open \| --json` | The resolver: the next step of one issue, of each open issue, or the rows for the board |
-| `scripts/celetis capscore J V B N S X` | Prints the CAP line of a task: its model and its effort, from six digits of the rubric |
+| `scripts/celetis capscore J V B N S X` | Resolves the six digits. `--json` gives portable scores and the host pair; Codex also needs `--profile` and `--runtime-models` |
 | `scripts/celetis celetis-flow [<n>...] \| --board \| --resume <n>` | The runner: the next step of each number, or the automatic runner with no number. `--board` prints the data of the board, and `--resume` opens the session of a step with no progress again |
 | `scripts/celetis root` | Prints the install folder of the plugin. The runner uses it after an update |
 
@@ -391,9 +538,9 @@ in a terminal, and the board use the same form:
 - Each sub-command gives the output and the exit code of its script.
 - Run a command in a checkout of the product project: the plugin holds the scripts, so only the
   current folder names the project. `capscore` and `root` run in each folder.
-- With no installed plugin, or with no `claude` on `PATH`, the launcher prints one line with the two
-  install commands and exits 1. With no `jq` on `PATH`, it prints `celetis: jq is not on PATH` and
-  exits 1.
+- The launcher needs the selected host CLI and `jq`. A missing tool or invalid installation
+  stops with a setup action. Codex commands require no Claude binary. The current metadata must
+  explicitly mark the installation enabled; missing fields are not an old-format fallback.
 
 ## Updates
 
@@ -409,34 +556,44 @@ release step.
   ```
 
   They bring the plugin of the machine to the head of `main`. So a change that lands here reaches
-  the next step of each product project, with no act by hand. The runner holds a file lock in the
-  Claude configuration directory while it updates the plugin and reads its install folder. Two
-  runners on the same machine use that lock even in different product projects.
+  the next step of each product project, with no act by hand. A Codex runner instead runs
+  `codex plugin marketplace upgrade celetis`. The runner holds a file lock in the selected host's
+  configuration directory while it updates the plugin and resolves its installed root. Runners
+  in different product projects share that lock when they use the same host configuration.
 
-  One 120-second deadline covers the lock wait, both commands, and the install-folder lookup. A
+  One 120-second deadline covers the lock wait, the update commands, and the installed-root lookup. A
   failed command stops the runner with its command, exit status, and output. A timeout names the
   operation that did not finish. The runner terminates the command and its descendants before it
   releases the lock; process cleanup can take one further second. No session starts on a failure
   or when the install folder has no step text. After a successful update, the session gets the
   skills and the step text of the new version (`docs/celetis-flow.md`, "How a step runs").
-- **A session by hand** gets no update from the runner. The block of the project file turns
+- **A Claude session by hand** gets no update from the runner. The block of the project file turns
   auto-update on for the marketplace `celetis` ("Wire a product project"). An interactive session
   then updates the copy on disk at most 10 minutes after its first message. That session keeps the
   version that it loaded, and the next session loads the new one: a change reaches a session by
   hand one session late (ADR-0010, and ADR-0012, R2). The two commands bring a change at once.
-- **By hand, at once:** the same two commands. The second command alone can miss a commit: it makes
+- **Claude by hand, at once:** the same two commands. The second command alone can miss a commit: it makes
   no fetch for about 30 seconds after a refresh of the marketplace. The update with no `--scope`,
   `claude plugin update celetis@celetis`, moves only the `project` record of a checkout that has
   one, and a new session does not get the new version.
+- **Codex by hand:** run `codex plugin marketplace upgrade celetis`, then open a new chat.
+  Refresh the separate Superpowers source with
+  `codex plugin marketplace upgrade superpowers-marketplace` when using the Git setup above.
+  The celetis runner updates only its selected host's celetis marketplace.
+
+The update lock serializes cooperating runners; it does not pin a running session's files.
+Codex 0.162.1 can replace an installed skill's sibling file in place during a refresh. A supported
+way to keep all active resources stable is not yet proved. This is an open acceptance requirement,
+not a successful parity result (ADR-0014).
 
 A bad change reaches each product project at once, and a revert on `main` is the way back. The gate
 and the workflow of this repository guard only a change that lands through `scripts/celetis land`.
 A direct push to `main` reaches each product project at its next step, and the workflow runs after
 the push. The repository has no branch protection, so each process that has the git credential of
 the maintainer can push. When a bad version stops the runner before its update, the runner does not
-get the revert by itself: revert on `main`, and then run the two commands above by hand.
+get the revert by itself: revert on `main`, and then run the selected host's update commands by hand.
 
-ADR-0012 holds the evidence for one fact and one limit of the update:
+ADR-0012 holds the evidence for one fact and one limit of Claude updates:
 
 - **The fact:** a session loads the version of the `user` record, also when its checkout has a
   `project` record that is behind (V5b). So the update before a step needs no third command.
@@ -447,7 +604,8 @@ ADR-0012 holds the evidence for one fact and one limit of the update:
 
 The board is the package `ddinkov10/agent-board`: one local web page that shows each agent session
 of a repository and the next step of each issue, and that starts a step with one press. Neither
-the plugin nor a product project holds a file of the board.
+the plugin nor a product project holds a file of the board. Version 2.0.0 reads the current
+config path and contract 1.
 
 Start it in the main checkout only, never in a lane worktree, and open the URL of its last line:
 
@@ -479,6 +637,25 @@ so the product project holds no other file for the board:
 Two boards on one machine need two ports: the `board.json` of this repository has 4404. The board
 reads its config one time, at its start, from the main checkout.
 
+For a new step, these lists use `CELETIS_HOST`, else the project setting
+`git config celetis-flow.host`, else Claude. Set the project default with
+`git config celetis-flow.host codex` or `git config celetis-flow.host claude`. Resume reads the
+saved host and exact session ID for the issue, even when the project default has changed.
+
+An optional host prefix fixes the host of a list:
+
+```json
+{
+  "data": ["scripts/celetis", "--host", "codex", "celetis-flow", "--board"],
+  "run": ["scripts/celetis", "--host", "codex", "celetis-flow", "{n}"],
+  "resume": ["scripts/celetis", "--host", "codex", "celetis-flow", "--resume", "{n}"]
+}
+```
+
+Use `claude` for Claude. An explicit resume host must match the saved host. Keep the unprefixed
+`resume` list for issues with sessions from either host. Each item is one argument, not shell
+text. The board quotes the items when it sends a Run or Resume command to herdr.
+
 Check the data against the contract in the main checkout:
 
 ```bash
@@ -493,10 +670,10 @@ of each card. The README of the package holds the page:
 
 Run the tests in a checkout of this repository.
 
-- **The gate** is `scripts/verify.sh`. It runs each `tests/*.test.sh`, then
-  `scripts/capscore.sh --test` and `claude plugin validate .`, and its last line is `verify: PASS`.
-  The six tests are for the runner, the resolver, the landing script, the worktree script, the
-  launcher, and the text of the plugin.
+- **The full local gate** is `scripts/verify.sh`. It checks the Perl updater syntax, runs each
+  `tests/*.test.sh`, then `scripts/capscore.sh --test` and `claude plugin validate .`. Its last line
+  is `verify: PASS`. The source gate needs Claude's validator even on a Codex development machine;
+  product projects use their own gate. No validator starts a model turn.
 
   ```bash
   AGENT_BOARD=<checkout of agent-board>/cli.mjs scripts/verify.sh
@@ -505,7 +682,8 @@ Run the tests in a checkout of this repository.
   `AGENT_BOARD` names the entry file of a local checkout of the board package, for the contract
   check of the `--board` documents.
 - **The workflow** `.github/workflows/test.yml` runs each `tests/*.test.sh` and
-  `scripts/capscore.sh --test` on Linux, for each pull request and for each push to `main`. It sets
+  `scripts/capscore.sh --test`, plus the Perl syntax check, on Linux, for each pull request and
+  each push to `main`. It needs no host CLI, model credentials, or model tokens. It sets
   `CELETIS_FLOW_SKIP_BOARD_CHECK=1`, so it does not make that contract check: the gate on a machine
   does.
 - **The proof on bash 3.2.** The gate runs each test under the `/bin/bash` of macOS, with
@@ -517,22 +695,27 @@ Run the tests in a checkout of this repository.
 - **The text test,** `tests/text.test.sh`, holds the rules of the general text. It fails on a word
   of its list of product words in a file that is no record of `docs/adr/`. It fails on an ADR
   number that names no record of `docs/adr/` and has no `ddinkov10/fwrh_calculator` before it. It
-  fails on a skill that does not start with the read rule of its custom part, or that holds a shell
-  injection.
+  fails on a skill that does not start with the common host entry, or that holds a shell injection.
+  It checks the shared package names and root source, required installed files, bundled links,
+  the guide's Codex invocation policy, and the current Claude landing rules. Launcher tests check
+  Codex namespace discovery and reject missing enabled fields and ambiguous roots. These are
+  deterministic structure and protocol checks; there is no `codex plugin validate` command.
 - **The hand-run test,** `tests/manual/step-prompt.test.sh`, checks the step text in headless
-  `claude -p` turns. It needs a `claude` that is logged in, it uses tokens, and an answer can
+  turns on the selected host, `--host claude` or `--host codex`. It needs that host to be logged
+  in, it uses tokens, and an answer can
   differ between two runs, so the gate and the workflow do not run it. Run it after each change of
   `step-prompt.md`, and in a product project after each change of the part of its `AGENTS.md` on
   the celetis flow. In a product project, start it in the main checkout:
 
   ```bash
-  bash "$(scripts/celetis root)/tests/manual/step-prompt.test.sh"
+  bash "$(scripts/celetis --host codex root)/tests/manual/step-prompt.test.sh" --host codex
   ```
 
   The test then reads the step text of the installed plugin, and it runs its turns in that
-  checkout.
+  checkout. Use `claude` in both places for Claude. A text-only turn does not prove native
+  discovery, live tools, compaction, board actions, or landing.
 - **The custom-part test,** `tests/manual/custom-part.test.sh`, loads the guide skill of the
-  checkout in headless turns. It checks native reads with no Bash tool, shell permission rules,
+  checkout in Claude headless turns. It checks native reads with no Bash tool, shell permission rules,
   missing files, and denied reads. It also checks subfolders and worktrees, including a change
   into a worktree during the session. It uses tokens and stays outside the gate and the workflow:
 

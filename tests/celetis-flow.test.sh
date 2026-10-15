@@ -7,12 +7,14 @@ ln -s "$root" "$tmp/plug in"
 plugin="$tmp/plug in"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 export CELETIS_FLOW_TEST_STATE="$tmp/state"
+export CELETIS_HOST=claude
 export CELETIS_FLOW_TEST_PLUGIN="$plugin" CELETIS_FLOW_TEST_PERL="$(command -v perl)"
-export CLAUDE_CONFIG_DIR="$tmp/claude config"
-unset HERDR_PANE_ID HERDR_TAB_ID
+export CLAUDE_CONFIG_DIR="$tmp/claude config" CODEX_HOME="$tmp/codex config"
+export CELETIS_TEST_HERDR_FIXTURES="$root/tests/fixtures/herdr"
+unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID
 S=$CELETIS_FLOW_TEST_STATE
 # A test that fails must leave no runner alive: an automatic runner has no end of its own.
-trap 'kill $(cat "$S/runner-pids" 2>/dev/null) "${landing:-}" "${lock_holder:-}" 2>/dev/null || true; [ -z "${update_pid:-}" ] || kill -KILL -- "-$update_pid" 2>/dev/null || true; rm -rf "$tmp"' EXIT
+trap 'kill $(cat "$S/runner-pids" 2>/dev/null) "${landing:-}" "${lock_holder:-}" 2>/dev/null || true; [ -z "${update_pid:-}" ] || kill -KILL -- "-$update_pid" 2>/dev/null || true; kill -KILL $(cat "$S/codex-pid" "$S/codex-child" 2>/dev/null) 2>/dev/null || true; rm -rf "$tmp"' EXIT
 bin="$tmp/bin"
 nobin="$tmp/nobin"
 mkdir -p "$bin" "$nobin"
@@ -37,7 +39,6 @@ case "$1 $2" in
   *) echo "fake gh: unexpected $*" >&2; exit 1 ;;
 esac
 EOF
-# In a herdr pane the claude stub ends its turn after it applies the issue of its session, and waits up to 2 seconds for /exit.
 cat >"$bin/claude" <<'EOF'
 #!/usr/bin/env bash
 S=$CELETIS_FLOW_TEST_STATE
@@ -75,9 +76,13 @@ echo "$k" >"$S/sessions-$n"
 { printf '[%s]' "$@"; echo; } >>"$S/claude-calls"
 IFS= read -r typed || typed=
 printf '%s|%s|%s|%s\n' "$n" "$prompt" "$PWD" "$typed" >>"$S/claude-env"
-echo $(ls "$(git rev-parse --git-common-dir)/celetis-flow") >>"$S/claude-locks"
+echo $({ git for-each-ref --format='%(refname:strip=3)' refs/celetis-flow/locks; [ ! -f "$(git rev-parse --git-common-dir)/celetis-flow/no-progress" ] || echo no-progress; } | sort) >>"$S/claude-locks"
 [ "$(wc -l <"$S/claude-calls")" -le 20 ] || kill -TERM $(cat "$S/runner-pids") 2>/dev/null
-[ -z "${HERDR_PANE_ID:-}" ] || touch "$S/claude-live"
+if [ -n "${HERDR_PANE_ID:-}" ]; then
+  mkdir -p "$CLAUDE_CONFIG_DIR/projects/fixture"
+  jq -nc --arg cwd "$PWD" --arg time "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{sessionId:"00000000-0000-4000-8000-000000000001",type:"user",cwd:$cwd,timestamp:$time,message:{role:"user",content:"fixture"}}' >"$CLAUDE_CONFIG_DIR/projects/fixture/00000000-0000-4000-8000-000000000001.jsonl"
+  touch "$S/claude-live"
+fi
 while [ "$k" -eq 1 ] && [ -f "$S/hold-$n" ]; do /bin/sleep 0.05; done
 [ ! -d "$S/after/$n/$k" ] || cp "$S/after/$n/$k"/* "$S/"
 if [ -n "${HERDR_PANE_ID:-}" ]; then
@@ -87,6 +92,26 @@ if [ -n "${HERDR_PANE_ID:-}" ]; then
   rm -f "$S/claude-live" "$S/turn-ended" "$S/exit-typed"
 fi
 exit "$(cat "$S/claude-exit" 2>/dev/null || echo 0)"
+EOF
+cat >"$bin/codex" <<'EOF'
+#!/usr/bin/env bash
+S=$CELETIS_FLOW_TEST_STATE
+printf '%s\n' "$*" >>"$S/codex-calls"
+[ "$*" != 'plugin marketplace upgrade celetis' ] || exit 0
+[ "$*" = 'app-server --stdio' ] || exit 81
+while IFS= read -r line; do
+  case $(printf '%s\n' "$line" | jq -r .method) in
+    initialize) echo '{"id":1,"result":{}}' ;;
+    initialized) ;;
+    skills/list)
+      echo 'fixture: skills catalog lookup stalled with original cause' >&2
+      echo "$$" >"$S/codex-pid"
+      bash -c 'trap "" TERM; echo "$$" >"$CELETIS_FLOW_TEST_STATE/codex-child"; exec /bin/sleep 30' &
+      wait
+      ;;
+    *) exit 82 ;;
+  esac
+done
 EOF
 cat >"$bin/perl" <<'EOF'
 #!/usr/bin/env bash
@@ -102,14 +127,18 @@ exec "$CELETIS_FLOW_TEST_PERL" -MTime::HiRes -e '
   do $0 or die $@ || $!;
 ' "$@"
 EOF
-# The herdr stub plays one pane: an agent wait ends when the claude stub ends its turn or exits.
 cat >"$bin/herdr" <<'EOF'
 #!/usr/bin/env bash
 S=$CELETIS_FLOW_TEST_STATE
 printf '%s\n' "$*" >>"$S/herdr-calls"
 case "$1 $2 $*" in
   "tab rename"*) ;;
-  "agent get"*) [ -f "$S/claude-live" ] ;;
+  "agent get"*)
+    [ -f "$S/claude-live" ] || exit 1
+    jq -c --arg cwd "$PWD" --arg pane "$HERDR_PANE_ID" '
+      .result.agent |= (.agent_status = "idle" | .cwd = $cwd | .foreground_cwd = $cwd | .pane_id = $pane
+        | .agent_session.value = "00000000-0000-4000-8000-000000000001")
+    ' "$CELETIS_TEST_HERDR_FIXTURES/claude.json" ;;
   "agent wait"*"--until idle"*)
     until [ -f "$S/turn-ended" ]; do [ -f "$S/claude-live" ] || exit 1; /bin/sleep 0.05; done ;;
   "agent wait"*) while [ -f "$S/claude-live" ]; do /bin/sleep 0.05; done; exit 1 ;;
@@ -125,10 +154,12 @@ S=$CELETIS_FLOW_TEST_STATE
 echo "$1" >>"$S/sleeps"
 [ "$(wc -l <"$S/sleeps")" -lt "$(cat "$S/sleep-limit" 2>/dev/null || echo 1)" ] || kill -TERM "$PPID"
 EOF
-chmod +x "$bin/gh" "$bin/claude" "$bin/herdr" "$bin/sleep" "$bin/perl"
+chmod +x "$bin/gh" "$bin/claude" "$bin/codex" "$bin/herdr" "$bin/sleep" "$bin/perl"
 cp "$bin/gh" "$nobin/gh"
 ln -s "$(command -v jq)" "$nobin/jq"
 ln -s "$(command -v git)" "$nobin/git"
+ln -s "$(command -v dirname)" "$nobin/dirname"
+ln -s "$(command -v mkdir)" "$nobin/mkdir"
 export PATH="$bin:$PATH"
 
 repo="$tmp/re po"
@@ -197,7 +228,7 @@ await_file() {
   done
 }
 sessions() { calls claude-env | cut -d'|' -f1,2; }
-locks() { ls "$st" 2>/dev/null | grep -c '\.lock$' || true; }
+locks() { git -C "$repo" for-each-ref --format='%(refname)' refs/celetis-flow/locks | wc -l | tr -d ' '; }
 rows() { wc -l <"$st/no-progress" | tr -d ' '; }
 form() { printf '[--permission-mode][auto][-n][#%s %s][--append-system-prompt-file][%s/step-prompt.md][/celetis:%s #%s]' "$1" "$2" "${3:-$plugin}" "$2" "$1"; }
 update="plugin marketplace update celetis
@@ -209,7 +240,7 @@ mkdir -p "$moved/scripts" "$bare/scripts"
 cp "$root/scripts/root.sh" "$moved/scripts/root.sh"
 cp "$root/scripts/root.sh" "$bare/scripts/root.sh"
 echo "the step text of the moved plugin" >"$moved/step-prompt.md"
-plugin_list() { printf '[{"id":"celetis@celetis","scope":"user","installPath":"%s"}]\n' "$1" >"$S/plugin-list"; }
+plugin_list() { printf '[{"id":"celetis@celetis","scope":"user","enabled":true,"installPath":"%s"}]\n' "$1" >"$S/plugin-list"; }
 usage="usage: scripts/celetis celetis-flow [<issue number>...] | --board | --resume <issue number>, e.g. scripts/celetis celetis-flow 373 374; with no number, the automatic runner"
 
 reset; echo 1 >"$S/claude-exit"
@@ -262,11 +293,42 @@ for stage in marketplace update list; do
   update_child=$(cat "$S/plugin-child")
   end_flow
   [ "$code" -ne 0 ] && [ "$(count claude-calls)" -eq 0 ] && [ ! -e "$st/no-progress" ] || fail "a hung $stage command must stop before the session: $code [$out] [$err]"
-  [[ $err == *"timed out"* && $err == *"$stage"* && $err == *"fake claude plugin: error"* ]] || fail "a timeout must show its command and captured cause: [$err]"
+  phase=$stage
+  [ "$stage" != list ] || phase='--host claude root'
+  [[ $err == *"timed out"* && $err == *"$phase"* && $err == *"fake claude plugin: error"* ]] || fail "a timeout must show its command and captured cause: [$err]"
   ! kill -0 "$update_pid" 2>/dev/null || fail "the timed-out update still runs: $update_pid"
   case $(ps -p "$update_child" -o stat= 2>/dev/null) in '' | *Z*) ;; *) fail "a timed-out update left a live descendant: $update_child" ;; esac
   [ "$(locks)" -eq 0 ] || fail "a timed-out update left an issue lock"
 done
+
+mkdir -p "$tmp/codex pipes"
+lost_diagnostics=0
+for boundary in timeout interruption; do
+  reset; issue 7 OPEN enhancement "Spec: x"
+  [ "$boundary" != timeout ] || touch "$S/fast-clock"
+  CELETIS_HOST=codex TMPDIR="$tmp/codex pipes" start_flow 7
+  await_file "$S/codex-child"
+  codex_pid=$(cat "$S/codex-pid")
+  codex_child=$(cat "$S/codex-child")
+  [ "$boundary" != interruption ] || kill -TERM "$flow_pid"
+  end_flow
+  [ "$code" -ne 0 ] && [ ! -e "$st/no-progress" ] && [ ! -e "$st/sessions/7.json" ] || fail "Codex lookup $boundary started a session or recorded progress: $code [$out] [$err]"
+  if [ "$boundary" = timeout ]; then
+    [[ $err == *'timed out after 120 seconds during bash '*'--host codex root'* ]] || fail "Codex lookup did not reach the shared deadline: [$err]"
+  else
+    [[ $err == *'interrupted by SIGTERM during bash '*'--host codex root'* ]] || fail "Codex lookup did not reach updater interruption: [$err]"
+  fi
+  if [ "$(grep -cF 'fixture: skills catalog lookup stalled with original cause' <<<"$err")" -ne 1 ]; then
+    echo "FAIL: Codex lookup $boundary lost or repeated its stderr: [$err]"
+    lost_diagnostics=$((lost_diagnostics + 1))
+  fi
+  ! kill -0 "$codex_pid" 2>/dev/null || fail "Codex lookup $boundary left its app-server alive"
+  case $(ps -p "$codex_child" -o stat= 2>/dev/null) in '' | *Z*) ;; *) fail "Codex lookup $boundary left a live descendant" ;; esac
+  [ "$(printf '%s' "$tmp/codex pipes"/*)" = "$tmp/codex pipes/*" ] || fail "Codex lookup $boundary left temporary files"
+  [ "$(locks)" -eq 0 ] || fail "Codex lookup $boundary left an issue lock"
+  "$CELETIS_FLOW_TEST_PERL" -MFcntl=:flock -e 'open my $lock, ">>", $ARGV[0] or die $!; flock($lock, LOCK_EX | LOCK_NB) or die $!;' "$CODEX_HOME/celetis-update.lock" || fail "Codex lookup $boundary left the update lock held"
+done
+[ "$lost_diagnostics" -eq 0 ] || fail 'Codex lookup diagnostics were lost'
 
 reset; issue 7 OPEN enhancement "Spec: x"; after 7 1 OPEN enhancement "Spec: x" "## Plan"
 run_flow 7
@@ -308,15 +370,15 @@ run_flow 7
 reset
 issue 7 OPEN bug "It breaks"; after 7 1 OPEN bug "It breaks" "## Root cause"
 issue 8 OPEN enhancement "Spec: x"
-export HERDR_PANE_ID=w1:p4 HERDR_TAB_ID=w1:t2
+export HERDR_ENV=1 HERDR_PANE_ID=w1:p4 HERDR_TAB_ID=w1:t2
 run_flow 7 8
-unset HERDR_PANE_ID HERDR_TAB_ID
+unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID
 [ "$code" -eq 0 ] && [ "$out" = "celetis-flow: start: /celetis:bug #7
 celetis-flow: start: /celetis:plan #7
 celetis-flow: no progress: /celetis:plan #7
 celetis-flow: start: /celetis:plan #8
 celetis-flow: no progress: /celetis:plan #8" ] || fail "in herdr the runner must go on after each session: $code [$out] [$err]"
-[ "$(calls herdr-calls | grep -v '^agent get ' | grep -vx 'agent wait w1:p4 --until working --until blocked')" = "tab rename w1:t2 #7 bug
+[ "$(calls herdr-calls | grep -v '^agent get ' | grep -vx 'agent wait w1:p4 --until working --until blocked --timeout 5000')" = "tab rename w1:t2 #7 bug
 agent wait w1:p4 --until idle --until done
 agent prompt w1:p4 /exit
 tab rename w1:t2 #7 plan
@@ -351,14 +413,14 @@ run_flow
 
 reset; issue 9 OPEN enhancement "An idea"; after 9 2 OPEN enhancement "Spec: x"
 git -C "$repo" config celetis-flow.gate.plan me
-export HERDR_PANE_ID=w1:p4 HERDR_TAB_ID=w1:t2
+export HERDR_ENV=1 HERDR_PANE_ID=w1:p4 HERDR_TAB_ID=w1:t2
 run_flow 9; first=$out
 run_flow 9
-unset HERDR_PANE_ID HERDR_TAB_ID
+unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID
 [ "$first" = "celetis-flow: start: /celetis:feature #9
 celetis-flow: no progress: /celetis:feature #9" ] && [ "$out" = "celetis-flow: start: /celetis:feature #9
 celetis-flow: the gate of plan is me: scripts/celetis celetis-flow 9 starts /celetis:plan #9" ] || fail "in herdr a specify session with no spec is no progress, and one with a spec ends at the gate of plan: [$first] [$out] [$err]"
-[ "$(calls herdr-calls | grep -v '^agent get ' | grep -vx 'agent wait w1:p4 --until working --until blocked')" = "tab rename w1:t2 #9 specify
+[ "$(calls herdr-calls | grep -v '^agent get ' | grep -vx 'agent wait w1:p4 --until working --until blocked --timeout 5000')" = "tab rename w1:t2 #9 specify
 agent wait w1:p4 --until idle --until done
 tab rename w1:t2 #9 specify
 agent wait w1:p4 --until idle --until done
@@ -367,9 +429,9 @@ agent prompt w1:p4 /exit" ] || fail "in herdr the runner must name its tab #9 sp
 
 for end in "OPEN epic" "CLOSED wontfix"; do
   reset; issue 9 OPEN enhancement "An idea"; after 9 1 $end "An idea"
-  export HERDR_PANE_ID=w1:p4 HERDR_TAB_ID=w1:t2
+  export HERDR_ENV=1 HERDR_PANE_ID=w1:p4 HERDR_TAB_ID=w1:t2
   run_flow 9
-  unset HERDR_PANE_ID HERDR_TAB_ID
+  unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID
   [ "$(printf '%s\n' "$out" | sed -n 2p | cut -c1-25)" = "celetis-flow: stop #9 is " ] && [ "$(count claude-calls)" -eq 1 ] && [ ! -e "$st/no-progress" ] &&
     calls herdr-calls | grep -qx 'agent prompt w1:p4 /exit' || fail "the step end must end a specify session whose issue became [$end]: [$out] [$(calls herdr-calls)]"
 done
@@ -406,7 +468,7 @@ trap 'kill $!' TERM
 wait
 EOF
 reset; issue 7 OPEN enhancement "Spec: x" "## Plan"; after 7 1 CLOSED enhancement "Spec: x" "## Plan"; touch "$S/hold-7"
-export HERDR_PANE_ID=w1:p4 HERDR_TAB_ID=w1:t2
+export HERDR_ENV=1 HERDR_PANE_ID=w1:p4 HERDR_TAB_ID=w1:t2
 start_flow 7
 await 1
 bash "$tmp/install dir/scripts/land.sh" 7 "feat(x): y" &
@@ -414,12 +476,12 @@ landing=$!
 echo "$landing" >"$st/land-7.lock"
 rm "$S/hold-7"
 end_flow
-unset HERDR_PANE_ID HERDR_TAB_ID
+unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID
 kill "$landing"; wait "$landing" 2>/dev/null || true
 [ "$out" = "celetis-flow: start: /celetis:implement #7
 celetis-flow: stop the landing of #7 runs; wait until scripts/celetis land ends" ] || fail "a landing that runs must hold the step end: [$out] [$err]"
 ! calls herdr-calls | grep -q '^agent prompt' || fail "the runner typed /exit while the landing ran: [$(calls herdr-calls)]"
-calls herdr-calls | grep -qx 'agent wait w1:p4 --until working --until blocked' || fail "the runner must read the line of #7 and wait while the landing runs: [$(calls herdr-calls)]"
+calls herdr-calls | grep -qx 'agent wait w1:p4 --until working --until blocked --timeout 5000' || fail "the runner must read the line of #7 and wait while the landing runs: [$(calls herdr-calls)]"
 
 for args in abc 0 7x "#" "7 abc" -h --open "--board 7" "7 --board" --resume "--resume abc" "--resume 7 8" "7 --resume"; do
   reset
@@ -430,7 +492,7 @@ done
 
 reset; issue 7 OPEN enhancement "Spec: x"
 path=$nobin run_flow 7
-[ "$code" -eq 1 ] && [ "$err" = "celetis-flow: claude is not on PATH" ] && [ -z "$(calls gh-calls)" ] && [ ! -e "$st/no-progress" ] || fail "claude missing: $code [$out] [$err]"
+[ "$code" -eq 1 ] && [ "$err" = "celetis: claude is not on PATH" ] && [ -z "$(calls gh-calls)" ] && [ ! -e "$st/no-progress" ] || fail "claude missing: $code [$out] [$err]"
 
 reset; issue 7 OPEN enhancement "Spec: x"
 from=$lane run_flow 7
@@ -516,7 +578,7 @@ reset; issue 7 OPEN enhancement "Spec: x"; issue 8 OPEN enhancement "Spec: x"; t
 tag=a- start_flow 7; a=$flow_pid
 await 1
 run_flow 7
-[ "$code" -eq 0 ] && [ "$out" = "celetis-flow: another celetis-flow.sh (PID $a) works on #7" ] && [ "$(count claude-calls)" -eq 1 ] || fail "a second script must start no session for a locked issue: $code [$out] [$err]"
+[ "$code" -eq 0 ] && [ "$out" = "celetis-flow: another celetis-flow.sh or its session (PID $a) works on #7" ] && [ "$(count claude-calls)" -eq 1 ] || fail "a second script must start no session for a locked issue: $code [$out] [$err]"
 run_flow
 [ "$(sessions)" = "7|/celetis:plan #7
 8|/celetis:plan #8" ] || fail "the automatic runner must leave a locked issue and take the next: [$(sessions)]"
@@ -524,7 +586,7 @@ issue 9 OPEN enhancement "Spec: x"; touch "$S/hold-9"
 tag=b- start_flow; b=$flow_pid
 await 3
 run_flow
-[ "$code" -eq 1 ] && [ -z "$out" ] && [ "$err" = "celetis-flow: another automatic runner has PID $b" ] || fail "a second automatic runner: $code [$out] [$err]"
+[ "$code" -eq 1 ] && [ -z "$out" ] && [ "$err" = "celetis-flow: another automatic runner or its session has PID $b" ] || fail "a second automatic runner: $code [$out] [$err]"
 rm "$S/hold-7" "$S/hold-9"
 wait "$a" "$b" 2>/dev/null || true
 [ "$(locks)" -eq 0 ] || fail "a script that ended left a lock"
@@ -532,7 +594,8 @@ wait "$a" "$b" 2>/dev/null || true
 for stale in dead "$$" garbage; do
   reset; issue 7 OPEN enhancement "Spec: x"; mkdir -p "$st"
   if [ "$stale" = dead ]; then /bin/sleep 0 & stale=$!; wait "$stale"; fi
-  echo "$stale" >"$st/issue-7.lock"
+  owner=$(jq -nc --arg pid "$stale" '{runner:{pid:($pid | tonumber?),start:"stale"},session:null}' | git -C "$repo" hash-object -w --stdin)
+  git -C "$repo" update-ref refs/celetis-flow/locks/issue-7 "$owner"
   run_flow 7
   [ "$(count claude-calls)" -eq 1 ] && [ "$(locks)" -eq 0 ] || fail "a lock of [$stale] must hold nothing: [$out] [$err]"
 done
@@ -550,7 +613,7 @@ celetis-flow: no progress: /celetis:plan #8
 celetis-flow: no auto step can start; the runner asks again each 60 seconds" ] || fail "the automatic runner: $code [$out] [$err]"
 [ "$(calls sleeps)" = 60 ] && [ "$(calls gh-calls | grep -c '^issue list --state open --limit 200 --json number,state,labels,body,comments$')" -eq 3 ] || fail "the automatic runner must list again after each issue and wait 60 seconds: [$(calls sleeps)] [$(calls gh-calls)]"
 [ "$(calls claude-env | cut -d'|' -f4 | tr '\n' ' ')" = "one two three " ] || fail "the list of the automatic runner must not read the stdin of a session: [$(calls claude-env)]"
-[ "$(calls claude-locks | tail -1)" = "issue-8.lock no-progress runner.lock" ] || fail "a session must run under the lock of its issue and of the runner, and no other: [$(calls claude-locks)]"
+[ "$(calls claude-locks | tail -1)" = "issue-8 no-progress runner" ] || fail "a session must run under the lock of its issue and of the runner, and no other: [$(calls claude-locks)]"
 [ "$(locks)" -eq 0 ] && [ "$(rows)" -eq 2 ] || fail "the automatic runner must write one row for each step with no progress and free its locks"
 run_flow 7
 [ "$out" = "celetis-flow: start: /celetis:implement #7
@@ -669,8 +732,14 @@ checked
 [ "$(count claude-calls)" -eq 1 ] && [ "$(locks)" -eq 1 ] && [ "$(rows)" -eq 1 ] || fail "--board must start no session, take no lock, and write no row"
 rm "$lane/new.txt"
 run_flow --board
-[ "$(field 7 '[.state, .step, .act, .started]')" = '["stuck","plan","claude --resume \"#7 plan\"",true]' ] || fail "--board, a row of the record: [$(field 7 .)]"
+[ "$(field 7 '[.state, .step, .act, .started]')" = '["stuck","plan","scripts/celetis celetis-flow --resume 7",true]' ] || fail "--board, a row of the record: [$(field 7 .)]"
 checked
+board=$out
+CELETIS_HOST=codex run_flow --board
+[ "$code" -eq 0 ] && [ "$out" = "$board" ] && [ ! -e "$S/codex-calls" ] || fail "the selected host must not change board contract 1 or start a session: $code [$out] [$err]"
+checked
+documented_act=$(sed -n 's/.*| `stuck` | `act`: `\(.*\)` |/\1/p' "$root/docs/celetis-flow.md")
+[ "$documented_act" = 'scripts/celetis celetis-flow --resume <n>' ] || fail "the documented stuck-card command must use recorded-session recovery: [$documented_act]"
 touch "$S/hold-8"; tag=b- start_flow; b=$flow_pid; await 2
 run_flow --board
 [ "$code" -eq 0 ] && [ "$(doc .runner)" = true ] || fail "--board, a live automatic runner: $code [$out] [$err]"
@@ -682,14 +751,10 @@ run_flow --board
 checked
 rm "$repo/new.txt" "$S/hold-5"; wait "$a" 2>/dev/null || true
 
-reset; mkdir -p "$st"; printf '7\trun /celetis:plan #7\n9\trun /celetis:feature #9\n7\trun /celetis:implement #7\n' >"$st/no-progress"
+reset; mkdir -p "$st"; printf '7\trun /celetis:plan #7\n' >"$st/no-progress"
 run_flow --resume 7
-[ "$code" -eq 0 ] && [ "$(calls claude-calls)" = '[--resume][#7 implement]' ] && [ "$(calls claude-env | cut -d'|' -f3)" = "$main" ] || fail "--resume must open the session of the last row of #7 in the main checkout: $code [$(calls claude-calls)] [$err]"
+[ "$code" -eq 1 ] && [[ $err == *'no current session record'* ]] && [ -z "$(calls claude-calls)" ] || fail "--resume must reject an obsolete name record: $code [$err]"
 [ "$(locks)" -eq 0 ] && [ -z "$(calls herdr-calls)" ] && [ -z "$(calls gh-calls)" ] && [ ! -e "$S/plugin-calls" ] || fail "--resume must take no lock, start no job, make no gh call, and update no plugin"
-run_flow --resume '#9'
-[ "$(calls claude-calls | tail -1)" = '[--resume][#9 specify]' ] || fail "--resume, a feature with no spec: [$(calls claude-calls)]"
-run_flow --resume 8
-[ "$code" -eq 1 ] && [ "$err" = "celetis-flow: #8 has no step with no progress" ] && [ "$(count claude-calls)" -eq 2 ] || fail "--resume with no row: $code [$err]"
 
 reset; issue 7 OPEN enhancement "Spec: x"
 run_flow --board
