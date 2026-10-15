@@ -7,7 +7,7 @@ words='backend|frontend|staging|promote|fwhr|DESIGN\.md|verify\.py'
 source_repo=ddinkov10/fwrh_calculator
 record_glob='docs/adr/[0-9]*.md'
 copies=11
-least=12
+least=14
 skills='intake triage feature bug hotfix chore specify plan implement critic-loop polishing-code-comments lesson lesson-review record-architecture-decisions doc-drift-sync prototype writing-for-agents guide'
 commands='intake|triage|feature|bug|hotfix|chore|plan|implement|guide|critic-loop|lesson|lesson-review|record-architecture-decisions|doc-drift-sync'
 texts=(skills step-prompt.md)
@@ -208,11 +208,36 @@ if [ -f skills/guide/agents/openai.yaml ]; then
     fail "guide must remain human-invoked in Codex"
 fi
 
-unparsed=
-for manifest in .claude-plugin/plugin.json .claude-plugin/marketplace.json; do
-  jq empty "$manifest" 2>/dev/null || unparsed+=$manifest$nl
+jq -se '
+  length == 1 and (.[0] |
+    .name == "celetis" and (.description | type == "string" and length > 0)
+    and (has("version") | not))
+' .claude-plugin/plugin.json >/dev/null 2>&1 || fail "the shared plugin manifest must name celetis and have no version"
+jq -se '
+  length == 1 and (.[0] |
+    .name == "celetis" and (.owner.name | type == "string" and length > 0)
+    and (.plugins | type == "array" and length == 1)
+    and .plugins[0].name == "celetis" and .plugins[0].source == "./"
+    and (.plugins[0] | has("version") | not))
+' .claude-plugin/marketplace.json >/dev/null 2>&1 || fail "the shared marketplace must expose celetis from its root with no version"
+
+package_missing=
+for path in .claude-plugin/plugin.json .claude-plugin/marketplace.json scripts/celetis \
+  scripts/celetis-flow.sh scripts/next-step.sh scripts/worktree.sh scripts/land.sh \
+  scripts/capscore.sh scripts/plugin-update.pl scripts/lib/host.sh scripts/lib/session.sh \
+  step-prompt.md docs/capability.md docs/docs-lookup.md; do
+  is_tracked "$path" && [ -f "$path" ] || package_missing+=$path$nl
 done
-[ -z "$unparsed" ] || fail "a manifest of the plugin that is missing or that jq cannot parse:" "$unparsed"
+[ -z "$package_missing" ] || fail "a shared package resource that is missing or untracked:" "$package_missing"
+
+jq -se '
+  length == 1 and (.[0].permissions |
+    (.allow | type == "array" and index("Bash(scripts/celetis land *)") != null
+      and index("Bash(scripts/celetis --host claude land *)") != null
+      and index("Bash(scripts/celetis --host codex land *)") != null)
+    and (.deny | type == "array" and index("Bash(gh pr merge*)") != null
+      and index("PowerShell(gh pr merge*)") != null))
+' .claude/settings.json >/dev/null 2>&1 || fail "Claude wiring must allow current landing forms and deny direct merges"
 
 [ "$fails" -eq 0 ]
 echo "PASS"

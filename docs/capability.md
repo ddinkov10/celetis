@@ -146,7 +146,10 @@ trail without dispatching. JSON output requires `jq`; the human STOP line does n
 Codex has **no bundled model defaults**. Setup supplies a profile with exactly four slots in
 ascending capability order and a reviewer minimum. Repeated model IDs are allowed when the
 surface offers fewer distinct capability families; the four portable ranks remain distinct.
-The scorer validates availability, while setup owns the capability ordering.
+The scorer validates availability, while setup owns the capability ordering. Get the evidence
+from the tool that will create or resume the child, then save the two files at known absolute
+paths accessible from the main and lane checkouts.
+Keep the current parent model; this setup controls children only.
 
 Pass `--profile FILE` (or `CAP_MODEL_PROFILE`) and `--runtime-models FILE` (or
 `CAP_RUNTIME_MODELS`). Flags override their corresponding environment values. Both files contain
@@ -182,8 +185,8 @@ These placeholders are not usable defaults. Refresh the allowlist at dispatch fr
 surface that will create the child. CLI and desktop can expose different models and efforts;
 a CLI catalog, a bundled catalog, or another surface's saved snapshot does not establish desktop
 tool availability. The caller supplies this evidence explicitly; the scorer neither reads
-undocumented caches nor silently substitutes a model. Any future shipped default must name and
-validate the runtime version it supports.
+undocumented caches nor silently substitutes a model. Claude names such as `sonnet` and `opus`
+in a published CAP line are not Codex model IDs.
 
 Every slot ID must exist in the allowlist, including slots unused by this score. Runtime IDs
 must be unique; each lists its supported efforts. The reviewer rank is an integer 0–3, and its

@@ -10,5 +10,11 @@ jobs:
       CELETIS_FLOW_SKIP_BOARD_CHECK: "1"
     steps:
       - uses: actions/checkout@v4
-      - run: for t in tests/*.test.sh; do echo "== $t"; bash "$t"; done
+      - run: perl -c scripts/plugin-update.pl
+      - run: |
+          set -euo pipefail
+          for t in tests/*.test.sh; do
+            echo "== $t"
+            PATH="/bin:$PATH" /bin/bash "$t"
+          done
       - run: scripts/capscore.sh --test

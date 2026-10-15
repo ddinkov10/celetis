@@ -15,6 +15,10 @@ skips the lookup.
 
 Read the fact for the installed version; `AGENTS.md` of the project says how.
 
+For a host operation, also inspect the active surface's CLI help or tool schema. CLI and desktop
+can expose different tools and model pairs at the same time. Record the surface with the version.
+Installation metadata or a successful protocol probe does not prove a live workflow on that host.
+
 Many pins are ranges (`fastapi>=0.109.0`), so the pin is the fallback only when nothing is
 installed. Read the latest release only when the change proposes an upgrade; then read both
 versions and the changelog between them.
