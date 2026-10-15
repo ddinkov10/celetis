@@ -193,7 +193,7 @@ check 9 step '--add-label needs-info' not 'ready-for-human'
 check 10 step "$expected_land" not "$L" "$W" "$land" "$other_land"
 check 11 step '--add-label ready-for-agent' not "$L" '## Stopped' "$W"
 check 12 step '--add-label bug' not "$L" '## Stopped' "$W"
-check 13 step "$L" not "$W" '## Stopped' "$land" "$claude_land" "$codex_land"
+check 13 step "$L" 'Then: my step ends' not "$W" 'Then: I go on with' '--add-label ready-for-agent' '## Stopped' "$land" "$claude_land" "$codex_land"
 check 14 step 'Then: I go on with' not "$L" "$B" "$land" "$claude_land" "$codex_land" '## Before landing'
 check 15 specify "$W" not "$L" '--body-file' 'celetis:plan #7'
 check 16 step "$L" not "$W" '## Stopped' "$land" "$claude_land" "$codex_land"

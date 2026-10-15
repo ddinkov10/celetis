@@ -46,6 +46,9 @@ if [ "$mode" = step ] && [ "$k" = 13 ] && [ "${MANUAL_FAULT:-}" = no-completion-
   out="$out"$'\nscripts/celetis --host codex land 7 subject'
 fi
 case "$mode:$k:${MANUAL_FAULT:-}" in
+  step:13:blocked-rebuild) out=$'gh issue edit 7 --add-label ready-for-agent\ngh issue edit 7 --add-label ready-for-human\nThen: my step ends' ;;
+  step:13:blocked-continue) out=$'gh issue edit 7 --add-label ready-for-human\nThen: I go on with task 1' ;;
+  step:13:blocked-two-endings) out="$out"$'\nThen: I go on with task 1' ;;
   step:14:verify-land | step:16:stale-completion-land) out="$out"$'\nscripts/celetis --host codex land 7 subject' ;;
   step:15:approval-publish) out="$out"$'\ngh issue edit 7 --body-file /tmp/spec' ;;
   step:17:built-rebuild) out="$out"$'\ngh issue edit 7 --add-label ready-for-agent' ;;
@@ -95,7 +98,7 @@ elif grep -q '^FAIL: case 13 step:' "$tmp/no-completion-land"; then
 else
   echo 'FAIL: missing-evidence scenario did not run'; cat "$tmp/no-completion-land"; fails=$((fails + 1))
 fi
-for pair in '14 step verify-land' '15 specify approval-publish' '16 step stale-completion-land' '17 step built-rebuild'; do
+for pair in '13 step blocked-rebuild' '13 step blocked-continue' '13 step blocked-two-endings' '14 step verify-land' '15 specify approval-publish' '16 step stale-completion-land' '17 step built-rebuild'; do
   set -- $pair
   if MANUAL_FAULT=$3 PATH="$tmp/bin:$PATH" /bin/bash tests/manual/step-prompt.test.sh --host codex >"$tmp/$3" 2>&1; then
     echo "FAIL: accepted $3"; fails=$((fails + 1))
