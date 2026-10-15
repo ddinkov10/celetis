@@ -112,7 +112,7 @@ gives the value of each field. When `gh` or `jq` fails, the form prints
 
 **The form `--resume <n>`** reopens the exact session from
 `<git common dir>/celetis-flow/sessions/<n>.json`. It validates the current record, selects its
-saved host and checkout, and runs `claude --resume <id>` or `codex resume <id>`. A missing or
+saved host and checkout, and runs `claude --resume <id>` or `codex resume --no-daemon <id>`. A missing or
 invalid record stops with a recovery action. Resume takes the shared issue lock and retains it
 until the foreground exits. It makes no `gh` call or update and starts no completion watcher,
 so the session stays open until you leave it. `resume` of `.claude/celetis-flow/board.json` names
@@ -147,8 +147,11 @@ claude \
 
 Codex reads effective `developer_instructions` with `config/read`, preserves that text, and
 appends the step text. It passes the combined value as one quoted `developer_instructions=...`
-value after `-c`, and `Use the celetis:plan skill for #402` as the prompt. It retains the configured
-sandbox, approval, and model settings. No document content is evaluated as shell code.
+value after `-c`. Its prompt is `Use the celetis:plan skill for #402. Complete its Host entry startup reads before any response, including commentary.`
+Every interactive Codex launch, including specify and exact resume, uses `--no-daemon` so its
+hooks use the current pane's environment. The CLI must support that option; it was checked on
+0.162.1. The runner retains the configured sandbox, approval, and model settings. No document
+content is evaluated as shell code.
 
 The lane uses the exact path returned by `scripts/celetis worktree`. The selected
 [host operations](hosts/entry.md) bind its commands, files, instructions, and children to that
@@ -534,7 +537,7 @@ reads the current record for #402 and opens its exact host and session ID. It ho
 issue lock until the session exits. No completion job or update runs during resume.
 
 A missing or invalid record stops with a recovery action. A record with no verified ID directs
-you to `claude --resume` or `codex resume`, by its saved host, to select a saved session manually.
+you to `claude --resume` or `codex resume --no-daemon`, by its saved host, to select a saved session manually.
 Exact runner resume needs the identity from herdr and a saved turn. A resumed session stays open
 until you leave it.
 
@@ -557,7 +560,7 @@ of 2026-10-15, not a certified minimum-version range:
 
 | Component | Evidence and limit |
 |---|---|
-| Codex CLI 0.162.1 | Private Git marketplace install and refresh, shared manifest discovery, effective configuration, and saved-turn API checks passed. All 21 recorded product-context step cases pass the repaired checker; the run and replay are described below. These do not prove a full live workflow or native desktop selection |
+| Codex CLI 0.162.1 | Private Git marketplace install and refresh, shared manifest discovery, effective configuration, and saved-turn API checks passed. A fresh 21-case step run passed with product instructions and the clarified startup text. These do not prove a full live workflow or native desktop selection |
 | Claude Code 2.1.299 | Current saved-turn fields were checked. The final 21 step cases and 12 native custom-read cases are blocked by the account's weekly limit; the reported reset is 17 October at 22:00 Europe/Sofia. CLI 2.1.300 was observed during the later documentation checks; no final model result is claimed for it |
 | Superpowers 7.0.0 | Installation on the isolated Codex Git configuration passed. Each active surface must still expose the dispatch and follow-up controls its procedures require |
 | herdr 0.9.3 | The installed integrations report Claude v10 and Codex v8. Later reviewed-source Codex checks passed valid startup, real no-progress, and native exact Resume with a saved second turn. The resumed herdr reply still lacked `agent_session`. Claude recovery, compaction, and full workflow checks remain open |
@@ -570,12 +573,16 @@ keeps the earlier failures. The first fixture turn attempted a forbidden issue c
 failed on connectivity. The separate persistence turn used no tools. These results do not prove
 full instruction compliance, interruption, compaction, or a complete lane.
 
-The earlier 21 text-only cases omitted product instructions. The new 21-case Codex run included
-them, and all native clients exited 0 without tool use or service errors. Its suite exited 1:
-case 13 gave the required stop with an exact product-directory prefix that the checker rejected.
-After a narrow checker repair, all 21 unchanged results passed a local replay with matching
-prompt hashes. The original failure and raw results remain recorded. This replay started no
-model client; the final Claude cases remain blocked by quota.
+The earlier 21 text-only cases omitted product instructions. The first run with those instructions
+rejected a valid product-directory prefix; its results passed a local replay after the checker
+repair. A later run rejected reason prose in case 13, whose oracle permits only commands and the
+ending. After that case's output format was made explicit, a fresh full run passed all 21 cases.
+Every client exited 0 without tool use or service errors. The strict action oracle stayed intact,
+and both failed runs remain recorded. The final Claude cases remain blocked by quota.
+
+A source wording test completed startup reads before the first response in five of five repair
+samples, compared with zero of five control samples. It used the full guide text and actual file
+reads. Normal installed native entry and chore step order still need verification after review.
 
 The remaining release checks include every required lane and helper on both Codex surfaces,
 cross-host steps, compaction and exact resume, native skill selection, permissions in the active

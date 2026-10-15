@@ -341,7 +341,7 @@ if [ "$mode" = resume ]; then
   take "issue-$issues" || die "another celetis-flow.sh or its session (PID $holder) works on #$issues"
   case $CELETIS_HOST in
     claude) CELETIS_ARGS=(--resume "$session_id") ;;
-    codex) CELETIS_ARGS=(resume "$session_id") ;;
+    codex) CELETIS_ARGS=(resume --no-daemon "$session_id") ;;
   esac
   start_session
   wait_session

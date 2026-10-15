@@ -418,8 +418,9 @@ One request goes from free text to a change on the trunk. The example is a featu
 has each step.
 
 **In a session by hand.** Start the selected host in the main checkout of the product project.
+In a terminal, start Codex with `codex --no-daemon` so its hooks use the current pane's environment.
 The table uses Claude's `/celetis:<skill> <input>` form. In Codex CLI or a desktop chat, use the
-advertised skill name: `Use the celetis:<skill> skill for <input>`, or select that skill in the
+advertised skill name: `Use the celetis:<skill> skill for <input>. Complete its Host entry startup reads before any response, including commentary.`, or select that skill in the
 host's skill selector. The native desktop selector still needs final acceptance proof.
 
 | You type | The session | It leaves on the issue |
@@ -459,7 +460,7 @@ new interactive session, in the terminal tab where you start it. For each step, 
 2. brings the plugin of the machine to the head of `main` ("Updates");
 3. starts the selected interactive CLI in the main checkout with the host's skill prompt and
    step text. Claude uses `--permission-mode auto` and an appended system-prompt file. Codex
-   keeps its configured permissions and appends the step text to effective `developer_instructions`;
+   uses `--no-daemon`, keeps its configured permissions, and appends the step text to effective `developer_instructions`;
 4. in a herdr pane, ends the session when the issue shows that the step is done.
 
 The runner starts at an issue: write one with `/celetis:intake`, or open one on GitHub. Then, for

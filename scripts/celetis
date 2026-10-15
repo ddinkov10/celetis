@@ -61,7 +61,7 @@ celetis_session_select() {
 celetis_manual_recovery() {
   case $CELETIS_HOST in
     claude) printf 'claude --resume' ;;
-    codex) printf 'codex resume' ;;
+    codex) printf 'codex resume --no-daemon' ;;
   esac
 }
 

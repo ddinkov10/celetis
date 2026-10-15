@@ -119,6 +119,9 @@ for host in claude codex; do
             }
             die "$file: unrelated instruction\n" if $text =~ /OUTSIDE_PRODUCT_21|UNRELATED_SUBFOLDER_21/;
             die "$file: subfolder instruction at root\n" if !$nested && $text =~ /PRODUCT_AREA_21|PRODUCT_SUBFOLDER_21/;
+            if ($file =~ /received-13-step$/) {
+              die "$file: missing case 13 shell-only format\n" unless index($text, "For this case, return shell commands and the final Then line only.") >= 0;
+            }
           }
         ' "$evidence" "$([ "$folder" = . ] && echo 0 || echo 1)" &&
         perl -MJSON::PP -MDigest::SHA=sha256_hex -e '

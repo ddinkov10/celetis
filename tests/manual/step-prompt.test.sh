@@ -110,6 +110,7 @@ EOF
 
 cat >"$tmp/case-13" <<'EOF'
 Case 13. The step is /celetis:implement #7. Skill `implement`, Land step 2: "**Human precondition.** When the change needs an act that only a human can do before it reaches the trunk, and the issue has no `## Before landing` comment for this build: post a comment whose first line is `## Before landing` and that names the act, then run `gh issue edit <n> --add-label ready-for-human`, and stop. The maintainer completes the act and clears the label. Before landing on re-entry, require a trusted human completion report or the maintainer's removal of `ready-for-human` after this build's `## Before landing` comment, from the issue event history (`<plugin>/docs/issue-tracker.md`, "Completing a human precondition"). An absent label is not completion evidence. Without that evidence, keep the change built, restore `ready-for-human` using the existing comment as the reason, and stop. With the evidence, continue to step 3." Issue #7 has a `## Plan` comment of 2026-10-05 and a current `## Before landing` comment of 2026-10-06: scenario B could not run because its command was denied. The other required scenarios passed. The issue has no `ready-for-agent` label and no `ready-for-human` label. Its event history has no later removal of `ready-for-human` by the maintainer, and there is no human completion report. The lane branch holds the built change.
+For this case, return shell commands and the final Then line only.
 EOF
 
 cat >"$tmp/case-14" <<'EOF'

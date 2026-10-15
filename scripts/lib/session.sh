@@ -80,7 +80,7 @@ celetis_host_arguments() {
       CELETIS_ARGS+=("$prompt")
       ;;
     codex)
-      CELETIS_ARGS=()
+      CELETIS_ARGS=(--no-daemon)
       if [ "$step" != specify ]; then
         reply=$(celetis_codex_request config/read "$(jq -nc --arg cwd "$PWD" '{cwd:$cwd,includeLayers:false}')") || return 1
         IFS= read -r developer < <(printf '%s\n' "$reply" | jq -er --rawfile step "$root/step-prompt.md" '
@@ -90,10 +90,10 @@ celetis_host_arguments() {
           | (.developer_instructions // "") as $existing
           | "developer_instructions=" + ((if $existing == "" then $step else $existing + "\n\n" + $step end) | tojson)
         ') || return 1
-        CELETIS_ARGS=(-c "$developer")
+        CELETIS_ARGS+=(-c "$developer")
       fi
       prompt=${prompt#/celetis:}
-      CELETIS_ARGS+=("Use the celetis:${prompt%% *} skill for #$issue")
+      CELETIS_ARGS+=("Use the celetis:${prompt%% *} skill for #$issue. Complete its Host entry startup reads before any response, including commentary.")
       ;;
   esac
 }

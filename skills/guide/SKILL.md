@@ -5,7 +5,7 @@ argument-hint: [what you want to achieve]
 disable-model-invocation: true
 ---
 
-**Host entry.** Before any step or answer, read [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
+**Host entry.** Before any step or response, including commentary or an announcement, complete the startup reads in [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
 
 Match the goal to a row. Give the selected host's skill prompt or command and one line on why it fits. Execute no recommended action and invoke no other skill. Goal: the invocation input.
 

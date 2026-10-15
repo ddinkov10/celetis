@@ -220,11 +220,11 @@ for host in claude codex; do
         jq -e --arg p "$plugin/step-prompt.md" '.args[4:6] == ["--append-system-prompt-file",$p]' "$S/calls" >/dev/null || fail "Claude step file"
       fi
     else
-      jq -e --arg p "Use the celetis:$step skill for #7" '.args[-1] == $p' "$S/calls" >/dev/null || fail "Codex skill prompt"
+      jq -e --arg p "Use the celetis:$step skill for #7. Complete its Host entry startup reads before any response, including commentary." '.args[-1] == $p and .args[0] == "--no-daemon"' "$S/calls" >/dev/null || fail "Codex skill prompt or foreground mode"
       if [ "$step" = feature ]; then
-        jq -e '.args | length == 1' "$S/calls" >/dev/null || fail "Codex specify has step text"
+        jq -e '.args | length == 2' "$S/calls" >/dev/null || fail "Codex specify has step text"
       else
-        jq -e --rawfile text "$plugin/step-prompt.md" '.args[0] == "-c" and (.args[1] | sub("^developer_instructions=";"") | fromjson) == $text and (.args | length == 3)' "$S/calls" >/dev/null || fail "Codex lost literal developer instructions"
+        jq -e --rawfile text "$plugin/step-prompt.md" '.args[1] == "-c" and (.args[2] | sub("^developer_instructions=";"") | fromjson) == $text and (.args | length == 4)' "$S/calls" >/dev/null || fail "Codex lost literal developer instructions"
       fi
     fi
     [ ! -e "$S/substitution" ] && [ ! -e "$S/backticks" ] || fail "step text executed as shell code"
@@ -235,7 +235,7 @@ done
 reset
 printf 'Keep my instructions and literal $(value).\n\n' >"$S/developer"
 test_host=codex run 7
-[ "$code" -eq 0 ] && jq -e --rawfile existing "$S/developer" --rawfile step "$plugin/step-prompt.md" '(.args[1] | sub("^developer_instructions=";"") | fromjson) == ($existing + "\n\n" + $step)' "$S/calls" >/dev/null || fail "Codex replaced the existing developer instructions"
+[ "$code" -eq 0 ] && jq -e --rawfile existing "$S/developer" --rawfile step "$plugin/step-prompt.md" '(.args[2] | sub("^developer_instructions=";"") | fromjson) == ($existing + "\n\n" + $step)' "$S/calls" >/dev/null || fail "Codex replaced the existing developer instructions"
 
 for host in claude codex; do
   for step in triage feature bug chore hotfix plan implement; do
@@ -248,7 +248,7 @@ for host in claude codex; do
     other=codex; [ "$host" != codex ] || other=claude
     test_host=$other run --resume 7
     [ "$code" -eq 0 ] || fail "$host exact resume: $code [$err]"
-    jq -e --arg h "$host" --arg id "$uuid" --arg cwd "$repo" '.host == $h and .cwd == $cwd and .args == [(if $h == "codex" then "resume" else "--resume" end),$id]' "$S/calls" >/dev/null || fail "resume used the wrong host or identity"
+    jq -e --arg h "$host" --arg id "$uuid" --arg cwd "$repo" '.host == $h and .cwd == $cwd and .args == (if $h == "codex" then ["resume","--no-daemon",$id] else ["--resume",$id] end)' "$S/calls" >/dev/null || fail "resume used the wrong host, mode or identity"
     [ ! -s "$S/herdr-calls" ] && [ ! -s "$S/updates" ] || fail "resume started a watcher or update"
   done
 done
@@ -261,7 +261,7 @@ for default in claude codex; do
   : >"$S/calls"
   code=0
   (cd "$repo" && unset CELETIS_HOST && PATH="$tmp/codex-only" GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=celetis-flow.host GIT_CONFIG_VALUE_0="$default" scripts/celetis celetis-flow --resume 7 < <(printf 'terminal input\n')) >"$tmp/out" 2>"$tmp/err" || code=$?
-  [ "$code" -eq 0 ] && jq -e --arg id "$uuid" '.host == "codex" and .args == ["resume",$id]' "$S/calls" >/dev/null || fail "copied launcher resume with $default default and no Claude: $code [$(cat "$tmp/err")]"
+  [ "$code" -eq 0 ] && jq -e --arg id "$uuid" '.host == "codex" and .args == ["resume","--no-daemon",$id]' "$S/calls" >/dev/null || fail "copied launcher resume with $default default and no Claude: $code [$(cat "$tmp/err")]"
 done
 code=0
 (cd "$repo" && scripts/celetis --host claude celetis-flow --resume 7) >"$tmp/out" 2>"$tmp/err" || code=$?

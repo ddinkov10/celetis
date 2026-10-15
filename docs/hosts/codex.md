@@ -12,8 +12,8 @@ Superpowers skills from their own enabled installation and translate their host 
 this reference. Do not assume a Skill tool or `$ARGUMENTS` exists.
 
 For `guide` advice, translate a shared `/celetis:<name> <input>` into a supported plain prompt:
-`Use the celetis:<name> skill for <input>`, using the actual advertised name. For example,
-`Use the celetis:feature skill for #7`. Recommend that prompt without invoking the target skill;
+`Use the celetis:<name> skill for <input>. Complete its Host entry startup reads before any response, including commentary.`, using the actual advertised name. For example,
+`Use the celetis:feature skill for #7. Complete its Host entry startup reads before any response, including commentary.` Recommend that prompt without invoking the target skill;
 Claude slash-command notation is not Codex user advice.
 
 Use the file-access tool available in this Codex session for the custom read at Host entry.
@@ -107,7 +107,7 @@ only tools in its returned schema. Read installed docs, use Context7 if connecte
 available web search/open tools on primary sources. Claude's `ToolSearch`, `WebSearch`, and
 `WebFetch` names do not imply Codex tools exist. With no lookup, record an unsettled fact.
 
-For recovery, the human runs `codex resume <session-id>` from the main checkout with the
+For recovery, the human runs `codex resume --no-daemon <session-id>` from the main checkout with the
 recorded Codex ID, or reopens that exact chat in the app. `guide` returns that command or app
 method and runs nothing. An unknown session ID is a setup gap; do not resume an unrelated chat.
 

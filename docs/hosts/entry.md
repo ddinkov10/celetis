@@ -1,7 +1,9 @@
 # Host entry
 
-Every skill enters here before any step or answer, including a handoff in the same session.
-This file changes host operations, not the lane's order, decisions, or completion criteria.
+The startup file reads are in "Bind the bundle and the host" and "Enter the skill once".
+Complete them before any step or response, including commentary or an announcement, on each
+invocation and same-session handoff. The later sections apply when the skill reaches that
+operation. This file changes host operations, not the lane's order, decisions, or completion criteria.
 
 ## Bind the bundle and the host
 
