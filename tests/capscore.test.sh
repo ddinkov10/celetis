@@ -39,6 +39,17 @@ error() {
   check "$1 explains the repair" test "${err#*"$2"}" != "$err"
 }
 codex_run() { run --host codex "$@"; }
+retry_sequence() {
+  local label=$1 profile_path=$2 expected=$3 records= retry
+  shift 3
+  for retry in 1 2 3; do
+    codex_run "$@" --profile "$profile_path" --attempt "$retry" --json
+    check "$label attempt $retry succeeds" test "$code:$err" = '0:'
+    records=$records$out$'\n'
+  done
+  out=$(printf '%s' "$records" | jq -sc '[.[] | [.rank,.effort,.dispatch.rank,.dispatch.model,.dispatch.effort]]')
+  check "$label portable scores and applied pairs" test "$out" = "$expected"
+}
 
 GIT_CONFIG=/dev/null GIT_CONFIG_COUNT=0 run 1 0 2 1 1 0
 expect 'default Claude human CAP with no Git host remains unchanged' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
@@ -99,6 +110,34 @@ check 'repeated model IDs preserve four distinct capability ranks' json '.rank =
 jq '.reviewer = {rank:3,effort:"xhigh"}' "$CAP_MODEL_PROFILE" >"$tmp/top-reviewer.json"
 codex_run 0 0 0 0 0 0 --bias 2 --reviewer --profile "$tmp/top-reviewer.json"
 expect 'reviewer promotion obeys the top-rank clamp' 'CAP: J0 V0 B0 N0 S0 X0 = 0 +b2 → largest/xhigh'
+
+retry_sequence 'repeated rank 2/3 retains max' "$tmp/repeated.json" \
+  '[[2,"max",2,"large","max"],[2,"max",2,"large","max"],[3,"xhigh",3,"large","max"]]' \
+  2 2 1 1 2 1 --bias 2
+retry_sequence 'repeated rank 2/3 retains raised effort at zero bias' "$tmp/repeated.json" \
+  '[[2,"high",2,"large","high"],[2,"xhigh",2,"large","xhigh"],[3,"high",3,"large","xhigh"]]' \
+  2 2 1 1 2 1 --bias 0
+jq '.slots[2] = "standard"' "$CAP_MODEL_PROFILE" >"$tmp/repeated-middle.json"
+retry_sequence 'repeated rank 1/2 retains raised effort at bias 1' "$tmp/repeated-middle.json" \
+  '[[1,"high",1,"standard","high"],[1,"xhigh",1,"standard","xhigh"],[2,"high",2,"standard","xhigh"]]' \
+  1 0 2 1 1 0 --bias 1
+jq '.slots = ["standard","standard","standard","standard"]' "$CAP_MODEL_PROFILE" >"$tmp/single.json"
+retry_sequence 'single model saturates at max' "$tmp/single.json" \
+  '[[1,"xhigh",1,"standard","xhigh"],[1,"max",1,"standard","max"],[2,"xhigh",2,"standard","max"]]' \
+  1 0 2 1 1 0 --bias 2
+retry_sequence 'distinct models keep ordered rank escalation' "$CAP_MODEL_PROFILE" \
+  '[[2,"max",2,"large","max"],[2,"max",2,"large","max"],[3,"xhigh",3,"largest","xhigh"]]' \
+  2 2 1 1 2 1 --bias 2
+jq '.reviewer = {rank:2,effort:"medium"}' "$CAP_MODEL_PROFILE" >"$tmp/large-reviewer.json"
+retry_sequence 'reviewer retry compares the applied model' "$tmp/large-reviewer.json" \
+  '[[1,"high",2,"large","high"],[1,"xhigh",2,"large","xhigh"],[2,"high",2,"large","xhigh"]]' \
+  1 0 2 1 1 0 --bias 1 --reviewer
+retry_sequence 'reviewer retry retains its applied cap' "$tmp/top-reviewer.json" \
+  '[[2,"max",3,"largest","xhigh"],[2,"max",3,"largest","xhigh"],[3,"xhigh",3,"largest","xhigh"]]' \
+  2 2 1 1 2 1 --bias 2 --reviewer
+jq '.models[2].efforts = ["low","medium","high","xhigh"]' "$CAP_RUNTIME_MODELS" >"$tmp/no-large-max.json"
+codex_run 2 2 1 1 2 1 --bias 2 --attempt 3 --profile "$tmp/repeated.json" --runtime-models "$tmp/no-large-max.json"
+error 'unsupported retained retry effort' 'large/max'
 
 CAP_MODEL_PROFILE= codex_run 1 0 2 1 1 0
 error 'absent profile' '--profile'

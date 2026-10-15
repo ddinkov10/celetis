@@ -100,8 +100,9 @@ fail-count persistence; per-tier cost accounting.
 
 The arithmetic produces a capability **rank 0–3** and a rubric effort. The four ranks correspond
 in order to the Claude labels above; model names are a separate host binding. The sum, floors,
-bias, escalation, and final clamp are identical on each host. Rank 3 below Σ=12 caps at xhigh,
-including when its configured model also occupies another rank.
+bias, escalation, and final clamp of the portable score are identical on each host. Portable
+rank 3 below Σ=12 caps at xhigh. A host binding can raise the applied effort without changing
+the portable score.
 
 Host selection is `--host claude|codex` > `CELETIS_HOST` > `git config celetis-flow.host` >
 `claude`. The launcher exports its selected host. Without a new flag, Claude's existing human
@@ -133,8 +134,8 @@ Codex uses its configured slots even when `OPENCODE=1`.
 `dispatch` records the applied model and effort; its rank can rise for a reviewer. With
 `--reviewer`, Claude and opencode have a rank-1/medium minimum, and Codex uses its profile's
 minimum. This raises the resolved rank and effort after portable scoring, then reapplies the
-rank-3 clamp. Portable `rank` and `effort` still describe the original score. The human line
-uses the applied pair.
+rank-3 clamp. Codex applies its retry floor after this step. Portable `rank` and `effort` still
+describe the original score. The human line uses the applied pair.
 
 Attempt 4 or later returns `status: "stop"`, with `rank`, `effort`, `host`, and `dispatch` null.
 It keeps the digits, bias, sum, attempt, and original STOP line. STOP is resolved before host
@@ -150,6 +151,13 @@ The scorer validates availability, while setup owns the capability ordering. Get
 from the tool that will create or resume the child, then save the two files at known absolute
 paths accessible from the main and lane checkouts.
 Keep the current parent model; this setup controls children only.
+
+For attempts 2 and 3, the scorer resolves earlier attempts with the same digits, bias, profile,
+runtime, and reviewer role. When consecutive attempts select the same model ID, the applied
+effort cannot decrease. This floor uses the previous applied effort, including reviewer floors
+and caps. It can retain max at rank 3 below Σ=12 when the same model already used max. Effort
+can stay at its maximum. Different model IDs keep the ordered ranks and portable effort
+selection, with the same reviewer rules. The final applied pair must be supported by the runtime.
 
 Pass `--profile FILE` (or `CAP_MODEL_PROFILE`) and `--runtime-models FILE` (or
 `CAP_RUNTIME_MODELS`). Flags override their corresponding environment values. Both files contain

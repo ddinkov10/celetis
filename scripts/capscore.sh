@@ -76,6 +76,20 @@ resolve() {
   printf '%s/%s\n' "$(model_name "$m")" "${efforts[$e]}"
 }
 
+apply_score() {
+  local score=$1 e reviewer_e=0
+  applied_rank=${score% *}; applied_e=${score#* }
+  if [ "$reviewer" = true ]; then
+    [ "$applied_rank" -ge "$reviewer_rank" ] || applied_rank=$reviewer_rank
+    for ((e = 0; e < ${#efforts[@]}; e++)); do
+      if [ "${efforts[$e]}" = "$reviewer_effort" ]; then reviewer_e=$e; fi
+    done
+    [ "$applied_e" -ge "$reviewer_e" ] || applied_e=$reviewer_e
+    if [ "$applied_rank" -eq 3 ] && [ "$sum" -lt 12 ] && [ "$applied_e" -gt 3 ]; then applied_e=3; fi
+  fi
+  model=$(model_name "$applied_rank")
+}
+
 setup_codex_profile() {
   [ -n "$profile" ] && [ -f "$profile" ] && [ -r "$profile" ] || die 'Codex needs a readable --profile FILE (or CAP_MODEL_PROFILE); configure four ordered slots and a reviewer minimum'
   [ -n "$runtime_models" ] && [ -f "$runtime_models" ] && [ -r "$runtime_models" ] || die 'Codex needs a readable --runtime-models FILE (or CAP_RUNTIME_MODELS) from the active dispatch surface'
@@ -225,7 +239,6 @@ if [ "$score" = STOP ]; then
 else
   status=ready
   rank=${score% *}; effort=${efforts[${score#* }]}
-  applied_rank=$rank; applied_effort=$effort
   source "$(cd "$(dirname "$0")" && pwd)/lib/host.sh"
   if [ -n "$selected_host" ]; then celetis_host_select "$selected_host" || exit $?
   else celetis_host_select || exit $?; fi
@@ -239,17 +252,17 @@ else
     if [ -n "$CURRENT_MODEL" ]; then MODELS=("$CURRENT_MODEL")
     elif detected=$(detect_current_model); then MODELS=("$detected"); fi
   fi
-  if [ "$reviewer" = true ]; then
-    [ "$applied_rank" -ge "$reviewer_rank" ] || applied_rank=$reviewer_rank
-    for ((e = 0; e < ${#efforts[@]}; e++)); do
-      if [ "${efforts[$e]}" = "$applied_effort" ]; then applied_e=$e; fi
-      if [ "${efforts[$e]}" = "$reviewer_effort" ]; then reviewer_e=$e; fi
+  if [ "$host" = codex ]; then
+    previous_model=; previous_e=0
+    for ((retry = 1; retry <= attempt; retry++)); do
+      apply_score "$(resolve_score "$j" "$v" "$b" "$n" "$s" "$x" "$bias" "$retry")"
+      if [ "$model" = "$previous_model" ] && [ "$applied_e" -lt "$previous_e" ]; then applied_e=$previous_e; fi
+      previous_model=$model; previous_e=$applied_e
     done
-    [ "$applied_e" -ge "$reviewer_e" ] || applied_e=$reviewer_e
-    if [ "$applied_rank" -eq 3 ] && [ "$sum" -lt 12 ] && [ "$applied_e" -gt 3 ]; then applied_e=3; fi
-    applied_effort=${efforts[$applied_e]}
+  else
+    apply_score "$score"
   fi
-  model=$(model_name "$applied_rank")
+  applied_effort=${efforts[$applied_e]}
   if [ "$host" = codex ]; then
     printf '%s\n' "$binding" | jq -e --arg model "$model" --arg effort "$applied_effort" \
       'any(.models[]; .id == $model and (.efforts | index($effort)) != null)' >/dev/null ||
