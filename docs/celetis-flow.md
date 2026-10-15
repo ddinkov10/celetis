@@ -557,12 +557,25 @@ of 2026-10-15, not a certified minimum-version range:
 
 | Component | Evidence and limit |
 |---|---|
-| Codex CLI 0.162.1 | Private Git marketplace install and refresh, shared manifest discovery, effective configuration, and saved-turn API checks passed. The 21 text-only step cases passed. These do not prove a full live workflow or native desktop selection |
+| Codex CLI 0.162.1 | Private Git marketplace install and refresh, shared manifest discovery, effective configuration, and saved-turn API checks passed. All 21 recorded product-context step cases pass the repaired checker; the run and replay are described below. These do not prove a full live workflow or native desktop selection |
 | Claude Code 2.1.299 | Current saved-turn fields were checked. The final 21 step cases and 12 native custom-read cases are blocked by the account's weekly limit; the reported reset is 17 October at 22:00 Europe/Sofia. CLI 2.1.300 was observed during the later documentation checks; no final model result is claimed for it |
 | Superpowers 7.0.0 | Installation on the isolated Codex Git configuration passed. Each active surface must still expose the dispatch and follow-up controls its procedures require |
-| herdr 0.9.3 | The installed integrations report Claude v10 and Codex v8. Live probes showed identity and blocked states. Final-runner handoff, no-progress, and exact Resume are still due on both hosts |
-| agent-board 2.0.0, tag commit `e36283b` | Contract 1 and the current config path passed. Released-browser Open shell and partial Claude Run/Go passed. Codex Run stopped on a local-marketplace setup error; Claude later stopped on quota. Setup repair alone does not complete those live actions |
+| herdr 0.9.3 | The installed integrations report Claude v10 and Codex v8. Later reviewed-source Codex checks passed valid startup, real no-progress, and native exact Resume with a saved second turn. The resumed herdr reply still lacked `agent_session`. Claude recovery, compaction, and full workflow checks remain open |
+| agent-board 2.0.0, tag commit `e36283b` | Contract 1 and the current config path passed. Released-browser Open shell and partial Claude Run/Go passed. The earlier Codex Run stopped on a local-marketplace setup error; Claude later stopped on quota. Later reviewed-source Codex Run, Resume, and Go passed with the correct issue and pane. Full acceptance remains open |
 | Bash 3.2.57, Perl 5.34.1, Node 26.11.1 | Used for the local deterministic gate and released-board checks. The scripts retain Bash 3.2 and Perl 5.14 as their language requirements |
+
+The later Codex board checks used reviewed commit `626881b`; the
+[public evidence record](https://github.com/ddinkov10/celetis/issues/21#issuecomment-6187619525)
+keeps the earlier failures. The first fixture turn attempted a forbidden issue comment, which
+failed on connectivity. The separate persistence turn used no tools. These results do not prove
+full instruction compliance, interruption, compaction, or a complete lane.
+
+The earlier 21 text-only cases omitted product instructions. The new 21-case Codex run included
+them, and all native clients exited 0 without tool use or service errors. Its suite exited 1:
+case 13 gave the required stop with an exact product-directory prefix that the checker rejected.
+After a narrow checker repair, all 21 unchanged results passed a local replay with matching
+prompt hashes. The original failure and raw results remain recorded. This replay started no
+model client; the final Claude cases remain blocked by quota.
 
 The remaining release checks include every required lane and helper on both Codex surfaces,
 cross-host steps, compaction and exact resume, native skill selection, permissions in the active
@@ -673,8 +686,15 @@ makes each inner `bash` reach it too.
 `bash tests/manual/step-prompt.test.sh --host claude|codex` checks the step text. Select one host;
 the `|` is notation, not a shell command. It runs fixed cases in that host's headless turns,
 so it needs that host to be logged in, it uses tokens, and the
-answer of a model can differ between runs. The test runs its turns in the folder where it starts,
-and each turn reads the instruction files of that folder (`AGENTS.md`). So run the test after each
+answer of a model can differ between runs. Start it in a product Git checkout or one of its
+subfolders. Before it starts a client, the test reads each `AGENTS.md` from that checkout's Git
+root through the starting folder, in that order. A linked checkout does not inherit instructions
+from a different checkout above its physical path. A read error stops the test; no instruction
+files is an explicit input. Each turn runs in an empty temporary Git project and receives the
+exact product instruction text, with its source paths, through standard input. This keeps product
+code and Git history out of the dry run. It tests the supplied instructions, not native instruction
+discovery. With `--output-dir DIR`, the test saves the instruction files, their paths and hashes,
+the combined instruction text, and each prompt with its result. Run the test after each
 change of `step-prompt.md`, and run it in a product project after each change of the part of its
 `AGENTS.md` on the celetis flow. In a product project, start it in the main checkout as
 `bash "$(scripts/celetis --host codex root)/tests/manual/step-prompt.test.sh" --host codex`, or

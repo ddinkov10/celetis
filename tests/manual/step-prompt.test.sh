@@ -18,6 +18,39 @@ if [ -n "$output_dir" ]; then
   output_dir=$(cd "$output_dir" && pwd)
 fi
 trap 'kill $(jobs -p) 2>/dev/null || true; rm -rf "$tmp"' EXIT
+product_cwd=$(pwd -P)
+product_root=$(git rev-parse --show-toplevel) || { echo 'start this test in a product Git checkout' >&2; exit 2; }
+product_root=$(cd "$product_root" && pwd -P)
+directory=$product_cwd
+instruction_dirs=("$directory")
+while [ "$directory" != "$product_root" ]; do
+  directory=$(dirname "$directory")
+  instruction_dirs=("$directory" "${instruction_dirs[@]}")
+done
+printf 'Product root: %s\nStarting folder: %s\n\nApply these product instructions in the listed order.\n' \
+  "$product_root" "$product_cwd" >"$tmp/product-context.md"
+: >"$tmp/product-sources"
+source_count=0
+for directory in "${instruction_dirs[@]}"; do
+  instruction_file="$directory/AGENTS.md"
+  if [ -e "$instruction_file" ] || [ -L "$instruction_file" ]; then
+    source_count=$((source_count + 1))
+    snapshot="product-instruction-$source_count.md"
+    if ! cat "$instruction_file" >"$tmp/$snapshot"; then
+      echo "cannot read product instructions: $instruction_file" >&2
+      exit 2
+    fi
+    hash=$(shasum -a 256 <"$tmp/$snapshot")
+    jq -nc --arg path "$instruction_file" --arg sha256 "${hash%% *}" --arg snapshot "$snapshot" \
+      '{path:$path,sha256:$sha256,snapshot:$snapshot}' >>"$tmp/product-sources"
+    printf '\n# Instructions from %s\n\n' "$instruction_file" >>"$tmp/product-context.md"
+    cat "$tmp/$snapshot" >>"$tmp/product-context.md"
+    printf '\n' >>"$tmp/product-context.md"
+  fi
+done
+if [ "$source_count" -eq 0 ]; then printf '\nNo product AGENTS.md was found.\n' >>"$tmp/product-context.md"; fi
+jq -s --arg cwd "$product_cwd" --arg root "$product_root" \
+  '{cwd:$cwd,root:$root,sources:.}' "$tmp/product-sources" >"$tmp/product-context.json"
 # The git status snapshot of a turn holds the branch name and the last commit subjects, which can state the behavior that a case asserts.
 export CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1
 # An agent session gives these variables to a child process: with none of them, each turn runs as from a terminal.
@@ -105,6 +138,8 @@ This is a dry run. Run no tool and invoke no skill. Answer with the acts that yo
 You are the session of one step of this repository's celetis flow. $started The skill excerpts are verbatim. The host is $host. These host references are already loaded for this dry run; apply their command spellings without executing their initialization:
 
 EOF
+    cat "$tmp/product-context.md"
+    printf '\nHost references:\n'
     cat "$root/docs/hosts/entry.md" "$root/docs/hosts/$host.md"
     if [ "$mode" = step ] && [ "$host" = codex ]; then
       printf '\nStep instructions:\n'
@@ -131,7 +166,7 @@ EOF
 }
 
 check() {
-  local k=$1 mode=$2 answer="$tmp/out-$1-$2" bad=no found what= s recovered
+  local k=$1 mode=$2 answer="$tmp/out-$1-$2" bad=no found what= s recovered human_stop actions bound_cwd
   shift 2
   if [ "$(cat "$tmp/status-$k-$mode")" != 0 ]; then
     what=', host command failed'
@@ -146,7 +181,10 @@ check() {
     what=', missing completion, error, or unexpected tool event'
   elif [ -f "$answer" ] && grep -qF 'Then:' "$answer"; then
     if [ "$k:$mode" = 13:step ]; then
-      [ "$(sed '/^[[:space:]]*$/d' "$answer")" = $'gh issue edit 7 --add-label ready-for-human\nThen: my step ends' ] ||
+      human_stop=$'gh issue edit 7 --add-label ready-for-human\nThen: my step ends'
+      actions=$(sed '/^[[:space:]]*$/d' "$answer")
+      bound_cwd=$(jq -rn --arg cwd "$product_cwd" '$cwd | @sh')
+      [ "$actions" = "$human_stop" ] || [ "$actions" = "cd $bound_cwd && $human_stop" ] ||
         what=', unexpected action in human-precondition stop'
     fi
     for s; do
@@ -205,6 +243,8 @@ check 17 step "$expected_land" not "$L" "$W" "$land" "$other_land" '--add-label 
 for k in 1 2 3 4; do check "$k" hand not "$L"; done
 
 if [ -n "$output_dir" ]; then
+  cp "$tmp/product-context.md" "$tmp/product-context.json" "$output_dir/"
+  if [ "$source_count" -gt 0 ]; then cp "$tmp"/product-instruction-*.md "$output_dir/"; fi
   cp "$tmp"/case-* "$tmp"/in-* "$tmp"/out-* "$tmp"/err-* "$tmp"/status-* "$tmp/version" "$output_dir/" 2>/dev/null || true
   [ "$host" != codex ] || cp "$tmp"/events-* "$output_dir/"
 fi
