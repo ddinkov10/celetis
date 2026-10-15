@@ -14,7 +14,7 @@ Markdown links in bundled references resolve from the containing file. Other unp
 belong to the product project.
 
 Use the host actually running this session: [Claude Code](claude.md) or [Codex](codex.md).
-Read that reference before any host operation. If the loaded skill path is unavailable, `guide`
+Read that reference and inspect its returned tool result before constructing any dependent host operation. If the loaded skill path is unavailable, `guide`
 reports that setup gap. For another skill, obtain
 the enabled installation with `scripts/celetis --host claude root` or
 `scripts/celetis --host codex root`, matching the running host. A missing or ambiguous installation

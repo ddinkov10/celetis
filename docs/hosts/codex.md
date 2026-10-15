@@ -16,6 +16,11 @@ For `guide` advice, translate a shared `/celetis:<name> <input>` into a supporte
 `Use the celetis:feature skill for #7. Complete its Host entry startup reads before any response, including commentary.` Recommend that prompt without invoking the target skill;
 Claude slash-command notation is not Codex user advice.
 
+At Host entry, locate a Git checkout with `git rev-parse --show-toplevel` from the session cwd.
+Inspect its returned result before the custom read. It handles normal and linked checkouts;
+do not read `.git` as a regular file. An explicit “not a git repository” result is the shared
+no-checkout case; other lookup errors stop entry.
+
 Use the file-access tool available in this Codex session for the custom read at Host entry.
 Prefer a dedicated file reader when one exists. On a CLI that exposes `exec_command` for file
 access, use an explicit read-only file command with the active checkout as `workdir`, and
