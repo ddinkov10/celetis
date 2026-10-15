@@ -16,11 +16,12 @@ fi
 tmp=$(mktemp -d)
 tmp=$(cd "$tmp" && pwd -P)
 lane="$tmp/project/.claude/worktrees/lane"
+output_files=()
 cleanup() {
   local status=$? file
   kill $(jobs -p) 2>/dev/null || true
-  if [ -n "$output_dir" ]; then
-    for file in "$tmp"/*.input.json "$tmp"/*.jsonl "$tmp"/*.err "$tmp"/*.status; do
+  if [ -n "$output_dir" ] && [ "${#output_files[@]}" -gt 0 ]; then
+    for file in "${output_files[@]}"; do
       [ ! -f "$file" ] || cp "$file" "$output_dir/" || status=1
     done
   fi
@@ -46,6 +47,7 @@ printf 'Include CUSTOM_FROM_LANE on its own line in your answer.\n' >"$lane/.cla
 
 turn() {
   local name=$1 folder=$2 tools=$3 settings=$4 prompt=$5
+  output_files+=("$tmp/$name.input.json" "$tmp/$name.jsonl" "$tmp/$name.err" "$tmp/$name.status")
   jq -cn --arg cwd "$folder" --arg plugin "$root" --arg tools "$tools" \
     --argjson settings "$settings" --arg prompt "$prompt" \
     '{cwd:$cwd,plugin:$plugin,tools:$tools,settings:$settings,prompt:$prompt}' >"$tmp/$name.input.json"

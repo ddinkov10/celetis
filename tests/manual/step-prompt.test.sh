@@ -145,6 +145,10 @@ check() {
   ' "$tmp/events-$k-$mode" >/dev/null; then
     what=', missing completion, error, or unexpected tool event'
   elif [ -f "$answer" ] && grep -qF 'Then:' "$answer"; then
+    if [ "$k:$mode" = 13:step ]; then
+      [ "$(sed '/^[[:space:]]*$/d' "$answer")" = $'gh issue edit 7 --add-label ready-for-human\nThen: my step ends' ] ||
+        what=', unexpected action in human-precondition stop'
+    fi
     for s; do
       if [ "$s" = not ]; then bad=has; continue; fi
       found=no
@@ -193,7 +197,7 @@ check 9 step '--add-label needs-info' not 'ready-for-human'
 check 10 step "$expected_land" not "$L" "$W" "$land" "$other_land"
 check 11 step '--add-label ready-for-agent' not "$L" '## Stopped' "$W"
 check 12 step '--add-label bug' not "$L" '## Stopped' "$W"
-check 13 step "$L" 'Then: my step ends' not "$W" 'Then: I go on with' '--add-label ready-for-agent' '## Stopped' "$land" "$claude_land" "$codex_land"
+check 13 step
 check 14 step 'Then: I go on with' not "$L" "$B" "$land" "$claude_land" "$codex_land" '## Before landing'
 check 15 specify "$W" not "$L" '--body-file' 'celetis:plan #7'
 check 16 step "$L" not "$W" '## Stopped' "$land" "$claude_land" "$codex_land"

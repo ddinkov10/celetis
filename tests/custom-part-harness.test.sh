@@ -19,6 +19,9 @@ while [ $# -gt 0 ]; do
   shift
 done
 printf 'unrelated fixture file\n' >"$fixture_root/not-evidence"
+for suffix in input.json jsonl err status; do
+  printf 'unrelated lookalike\n' >"$fixture_root/not-evidence.$suffix"
+done
 path="$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/celetis-flow/custom/guide.md"
 answer='scripts/celetis --host claude next-step'
 name=Read
@@ -79,11 +82,6 @@ if [ "${#streams[@]}" -eq 12 ] && [ -f "$tmp/valid-evidence/denied-read.input.js
 else
   echo 'FAIL: lost evidence after PASS'; fails=$((fails + 1))
 fi
-if [ ! -e "$tmp/valid-evidence/not-evidence" ]; then
-  echo 'ok: keeps only generated case evidence'
-else
-  echo 'FAIL: copied an unrelated fixture file'; fails=$((fails + 1))
-fi
 for fault in unrelated-block wrong-path missing-denial wrong-denial-id wrong-result-id read-succeeded later-read later-grep; do
   if CUSTOM_FAULT=$fault PATH="$tmp/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh --output-dir "$tmp/$fault-evidence" >"$tmp/$fault" 2>&1; then
     echo "FAIL: accepted $fault"; fails=$((fails + 1))
@@ -101,5 +99,20 @@ if [ -f "$tmp/unrelated-block-evidence/denied-read.jsonl" ] &&
 else
   echo 'FAIL: lost evidence after checker failure'; fails=$((fails + 1))
 fi
+for result in valid unrelated-block; do
+  files=("$tmp/$result-evidence/"*)
+  good=yes
+  [ "${#files[@]}" -eq 48 ] || good=no
+  for name in no-shell ask-cat deny-cat ask-git deny-git subfolder worktree outside missing missing-lane enter-worktree denied-read; do
+    for suffix in input.json jsonl err status; do
+      [ -f "$tmp/$result-evidence/$name.$suffix" ] || good=no
+    done
+  done
+  if [ "$good" = yes ]; then
+    echo "ok: $result keeps exactly the 48 generated case files"
+  else
+    echo "FAIL: $result evidence includes unrelated files or omits generated files"; fails=$((fails + 1))
+  fi
+done
 [ "$fails" -eq 0 ]
 echo PASS
