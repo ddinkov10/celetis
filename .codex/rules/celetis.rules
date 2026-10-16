@@ -3,11 +3,11 @@ prefix_rule(
     decision = "allow",
 )
 prefix_rule(
-    pattern = ["scripts/celetis", "--host", ["claude", "codex"], "land"],
+    pattern = ["scripts/celetis", "--agent", ["claude", "codex"], "land"],
     decision = "allow",
 )
 prefix_rule(
     pattern = ["gh", "pr", "merge"],
     decision = "forbidden",
-    justification = "Use scripts/celetis --host codex land from the main checkout.",
+    justification = "Use scripts/celetis --agent codex land from the main checkout.",
 )

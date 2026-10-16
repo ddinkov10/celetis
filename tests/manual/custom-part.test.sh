@@ -98,10 +98,10 @@ check() {
       end
     ' "$tmp/$name.jsonl" >/dev/null || good=no
     grep -qiE 'permission|denied|blocked|cannot read|not permitted' <<<"$answer" || good=no
-    ! grep -qF 'scripts/celetis --host claude next-step' <<<"$answer" || good=no
+    ! grep -qF 'scripts/celetis --agent claude next-step' <<<"$answer" || good=no
     marker=
   else
-    grep -qF 'scripts/celetis --host claude next-step' <<<"$answer" || good=no
+    grep -qF 'scripts/celetis --agent claude next-step' <<<"$answer" || good=no
   fi
   markers=$(grep -oE 'CUSTOM_FROM_[A-Z]+' <<<"$answer" | sort -u || true)
   [ "$markers" = "$marker" ] || good=no

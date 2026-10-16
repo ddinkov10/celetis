@@ -63,7 +63,7 @@ my @commands = $host eq 'claude' ? (
     ['claude', 'plugin', 'marketplace', 'update', 'celetis'],
     ['claude', 'plugin', 'update', 'celetis@celetis', '--scope', 'user'],
 ) : (['codex', 'plugin', 'marketplace', 'upgrade', 'celetis']);
-push @commands, ['bash', "$Bin/celetis", '--host', $host, 'root'];
+push @commands, ['bash', "$Bin/celetis", '--agent', $host, 'root'];
 my $output;
 for my $command (@commands) {
     $phase = join ' ', @$command;

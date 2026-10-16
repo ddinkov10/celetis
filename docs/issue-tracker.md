@@ -4,7 +4,7 @@ Issues are the state store for every lane. The issue number `#<n>` is the handle
 
 The state, headings, paths, and branches are shared by both hosts. `/celetis:<skill>` names the
 shared skill; use the selected host's invocation. Skills expand each launcher call with the
-explicit `--host claude` or `--host codex` prefix under [Host entry](hosts/entry.md). Human
+explicit `--agent claude` or `--agent codex` prefix under [Host entry](hosts/entry.md). Human
 terminal and board commands can use the project default. Changing hosts between steps retains
 the same issue and lane checkout; resume always uses the host in the current session record.
 

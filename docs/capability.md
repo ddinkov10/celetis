@@ -104,9 +104,9 @@ bias, escalation, and final clamp of the portable score are identical on each ho
 rank 3 below Σ=12 caps at xhigh. A host binding can raise the applied effort without changing
 the portable score.
 
-Host selection is `--host claude|codex` > `CELETIS_HOST` > `git config celetis-flow.host` >
-`claude`. The launcher exports its selected host. Without a new flag, Claude's existing human
-CAP output is unchanged. When the selected host is Claude and `OPENCODE=1`, the existing opencode
+Agent selection is `--agent claude|codex` > `CELETIS_AGENT` > `git config celetis-flow.agent` >
+`claude`. The launcher exports its selected agent as `CELETIS_AGENT`. Without a new flag,
+Claude's existing human CAP output is unchanged. When the selected host is Claude and `OPENCODE=1`, the existing opencode
 mode still uses its current model: `--current-model provider/id` > `CAP_CURRENT_MODEL` > the
 current-model database lookup. If none is found, its existing Claude-label fallback remains.
 Codex uses its configured slots even when `OPENCODE=1`.
@@ -205,7 +205,7 @@ such as ultra do not extend the rubric. Missing files, malformed configuration, 
 mismatches, and unavailable model/effort pairs exit 2 with a setup action and no result.
 
 ```bash
-scripts/celetis --host codex capscore 1 0 2 1 1 0 --json \
+scripts/celetis --agent codex capscore 1 0 2 1 1 0 --json \
   --profile /path/to/profile.json --runtime-models /path/to/active-models.json
 ```
 

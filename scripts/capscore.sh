@@ -16,7 +16,7 @@ usage: scripts/celetis capscore J V B N S X [options]
        scripts/celetis capscore --test
 --bias N                 effort bias (CAP_EFFORT_BIAS; default 2)
 --attempt N              gate-fail attempt (default 1; 4 or later stops)
---host claude|codex       explicit host (CELETIS_HOST > project config > claude)
+--agent claude|codex      explicit agent (CELETIS_AGENT > project config > claude)
 --json                   portable score plus the applied dispatch pair
 --reviewer               apply the selected host's reviewer minimum
 --profile FILE           Codex profile (CAP_MODEL_PROFILE)
@@ -208,7 +208,7 @@ while [ $# -gt 0 ]; do
     --reviewer) reviewer=true ;;
     --bias) need_value "$@"; shift; bias=$1; is_uint "$bias" || die '--bias needs a non-negative integer' ;;
     --attempt) need_value "$@"; shift; attempt=$1; is_uint "$attempt" || die '--attempt needs a positive integer' ;;
-    --host) need_value "$@"; shift; selected_host=$1 ;;
+    --agent) need_value "$@"; shift; selected_host=$1 ;;
     --profile) need_value "$@"; shift; profile=$1 ;;
     --runtime-models) need_value "$@"; shift; runtime_models=$1 ;;
     --current-model) need_value "$@"; shift; CURRENT_MODEL=$1 ;;
@@ -242,7 +242,7 @@ else
   source "$(cd "$(dirname "$0")" && pwd)/lib/host.sh"
   if [ -n "$selected_host" ]; then celetis_host_select "$selected_host" || exit $?
   else celetis_host_select || exit $?; fi
-  host=$CELETIS_HOST
+  host=$CELETIS_AGENT
   reviewer_rank=1; reviewer_effort=medium
   if [ "$host" = codex ]; then
     setup_codex_profile

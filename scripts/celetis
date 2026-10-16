@@ -4,14 +4,14 @@ celetis_host_select() {
   local host
   if [ $# -gt 0 ]; then
     host=$1
-  elif [ "${CELETIS_HOST+x}" = x ]; then
-    host=$CELETIS_HOST
+  elif [ "${CELETIS_AGENT+x}" = x ]; then
+    host=$CELETIS_AGENT
   else
-    host=$(git config --get celetis-flow.host 2>/dev/null) || host=claude
+    host=$(git config --get celetis-flow.agent 2>/dev/null) || host=claude
   fi
   case $host in
-    claude | codex) export CELETIS_HOST=$host ;;
-    *) printf 'celetis: invalid host %s; use claude or codex\n' "$host" >&2; return 2 ;;
+    claude | codex) export CELETIS_AGENT=$host ;;
+    *) printf 'celetis: invalid agent %s; use claude or codex\n' "$host" >&2; return 2 ;;
   esac
 }
 
@@ -48,7 +48,7 @@ celetis_session_select() {
   celetis_session_load "$1" || return $?
   host=$(printf '%s\n' "$CELETIS_SESSION" | jq -r .host)
   if [ -n "${2:-}" ] && [ "$2" != "$host" ]; then
-    printf 'celetis: #%s recorded host is %s; resume without --host or use --host %s\n' "${1#\#}" "$host" "$host" >&2
+    printf 'celetis: #%s recorded host is %s; resume without --agent or use --agent %s\n' "${1#\#}" "$host" "$host" >&2
     return 1
   fi
   celetis_host_select "$host" || return $?
@@ -59,7 +59,7 @@ celetis_session_select() {
 }
 
 celetis_manual_recovery() {
-  case $CELETIS_HOST in
+  case $CELETIS_AGENT in
     claude) printf 'claude --resume' ;;
     codex) printf 'codex resume --no-daemon' ;;
   esac
@@ -203,9 +203,9 @@ celetis_claude_root() {
 
 celetis_main() {
   local name dir explicit=
-  if [ "${1:-}" = --host ]; then
+  if [ "${1:-}" = --agent ]; then
     if [ $# -lt 3 ]; then
-      echo 'usage: scripts/celetis --host claude|codex <script> [<argument>...]' >&2
+      echo 'usage: scripts/celetis --agent claude|codex <script> [<argument>...]' >&2
       return 2
     fi
     explicit=$2
@@ -229,7 +229,7 @@ celetis_main() {
     unset CELETIS_RESUME_RECORD
     celetis_host_select || return $?
   fi
-  if [ "$CELETIS_HOST" = codex ]; then
+  if [ "$CELETIS_AGENT" = codex ]; then
     dir=$(celetis_codex_root) || return 1
   else
     dir=$(celetis_claude_root) || return $?

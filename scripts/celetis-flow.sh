@@ -240,7 +240,7 @@ update_plugin() {
   local moved result=0
   command -v perl >/dev/null 2>&1 || die "perl is not on PATH"
   update_output=$(mktemp)
-  perl "$here/plugin-update.pl" "$$" "$CELETIS_HOST" >"$update_output" </dev/null &
+  perl "$here/plugin-update.pl" "$$" "$CELETIS_AGENT" >"$update_output" </dev/null &
   updater=$!
   wait "$updater" || result=$?
   updater=
@@ -258,7 +258,7 @@ start_session() {
       kill -0 "$$" 2>/dev/null || exit 1
       sleep 0.05
     done
-    exec "$CELETIS_HOST" "${CELETIS_ARGS[@]}"
+    exec "$CELETIS_AGENT" "${CELETIS_ARGS[@]}"
   ) <&0 &
   session_pid=$!
   register_session
@@ -293,7 +293,7 @@ run_issue() {
     esac
     prompt=${line#run }
     if [ "$line" = "$last" ]; then
-      [ "$exit_code" -eq 0 ] || die "$CELETIS_HOST session exited with status $exit_code before issue progress; check startup output, then run $(celetis_manual_recovery) from the main checkout or start the step again"
+      [ "$exit_code" -eq 0 ] || die "$CELETIS_AGENT session exited with status $exit_code before issue progress; check startup output, then run $(celetis_manual_recovery) from the main checkout or start the step again"
       say "no progress: $prompt"
       recorded "$n" "$line" || printf '%s\t%s\n' "$n" "$line" >>"$record"
       break
@@ -339,7 +339,7 @@ run_issue() {
 
 if [ "$mode" = resume ]; then
   take "issue-$issues" || die "another celetis-flow.sh or its session (PID $holder) works on #$issues"
-  case $CELETIS_HOST in
+  case $CELETIS_AGENT in
     claude) CELETIS_ARGS=(--resume "$session_id") ;;
     codex) CELETIS_ARGS=(resume --no-daemon "$session_id") ;;
   esac
@@ -367,11 +367,17 @@ if [ "$mode" = board ]; then
   for step in $(printf '%s' "$FLOW" | jq -r '[.lanes[][]] | unique[]'); do gates="$gates$step"$'\t'"$(gate "$step")"$'\n'; done
   runner=false
   ! holder_of runner >/dev/null || runner=true
-  printf '%s' "$doc" | jq --argjson flow "$FLOW" --arg extra "$extra" --arg gates "$gates" --argjson runner "$runner" '
+  agents=$(for agent in claude codex; do
+    cause=
+    command -v "$agent" >/dev/null 2>&1 || cause="celetis: $agent is not on PATH"
+    jq -nc --arg agent "$agent" --arg cause "$cause" '{key:$agent,value:{available:($cause == ""),cause:(if $cause == "" then null else $cause end)}}'
+  done | jq -s from_entries)
+  printf '%s' "$doc" | jq --argjson flow "$FLOW" --arg extra "$extra" --arg gates "$gates" --argjson runner "$runner" \
+    --argjson agents "$agents" --arg defaultAgent "$CELETIS_AGENT" '
     ($extra | split("\n") | map(select(. != "") | split("\t") | {key: .[0], value: {
       step: (if .[1] == "" then null else .[1] end), locked: (.[2] == "true"), stuck: (.[3] == "true")}}) | from_entries) as $more
     | ["implement", "chore", "hotfix"] as $lands
-    | {contract: 1, tracker: "GitHub",
+    | {contract: 1, tracker: "GitHub", agents: $agents, defaultAgent: $defaultAgent,
        flow: ($flow + {steps: ($gates | split("\n") | map(select(. != "") | split("\t") | . as $f | {key: $f[0], value: ({gate: $f[1]}
          + (if ($lands | index($f[0])) then {hint: "It lands the change when the build is done."} else {} end))}) | from_entries)}),
        noRun, runner: $runner,

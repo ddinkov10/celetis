@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 celetis_session_data() {
-  jq -nc --argjson issue "$1" --arg host "$CELETIS_HOST" --arg step "$2" --arg checkout "$3" --arg id "$4" \
+  jq -nc --argjson issue "$1" --arg host "$CELETIS_AGENT" --arg step "$2" --arg checkout "$3" --arg id "$4" \
     '{schema:1,host:$host,issue:$issue,step:$step,checkout:$checkout,session_id:(if $id == "" then null else $id end)}' |
     celetis_session_validate "$1" "$3"
 }
@@ -18,7 +18,7 @@ celetis_session_write() (
 
 celetis_session_saved() {
   local id=$1 checkout=$2 started_at=${3:-0} file reply
-  case $CELETIS_HOST in
+  case $CELETIS_AGENT in
     claude)
       for file in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/projects/*/"$id.jsonl"; do
         [ -f "$file" ] || continue
@@ -43,7 +43,7 @@ celetis_session_saved() {
 
 celetis_session_observe() {
   local issue=$1 step=$2 checkout=$3 reply=$4 prior_id=$5 started_at=$6 id
-  id=$(printf '%s\n' "$reply" | jq -er --arg host "$CELETIS_HOST" --arg prior "$prior_id" '
+  id=$(printf '%s\n' "$reply" | jq -er --arg host "$CELETIS_AGENT" --arg prior "$prior_id" '
     .result.agent
     | if type != "object" or (.agent | IN("claude","codex") | not) or
         (.agent_status | IN("idle","working","blocked","done","unknown") | not) or
@@ -63,7 +63,7 @@ celetis_session_observe() {
 
 celetis_session_idle() {
   herdr agent get "$HERDR_PANE_ID" 2>/dev/null |
-    jq -e --arg host "$CELETIS_HOST" --arg id "$1" '
+    jq -e --arg host "$CELETIS_AGENT" --arg id "$1" '
       .result.agent | .agent == $host and
         (.agent_status | IN("idle", "done")) and
         .agent_session.agent == $host and .agent_session.kind == "id" and
@@ -73,7 +73,7 @@ celetis_session_idle() {
 
 celetis_host_arguments() {
   local issue=$1 step=$2 prompt=$3 root=$4 developer reply
-  case $CELETIS_HOST in
+  case $CELETIS_AGENT in
     claude)
       CELETIS_ARGS=(--permission-mode auto -n "#$issue $step")
       [ "$step" = specify ] || CELETIS_ARGS+=(--append-system-prompt-file "$root/step-prompt.md")
@@ -100,6 +100,6 @@ celetis_host_arguments() {
 
 celetis_startup_error() {
   local issue=$1 detail=$2
-  printf 'celetis-flow: #%s %s startup: %s. Check the version, trust, and sign-in prompts in this pane. Complete the required action, then start the step again. Manual recovery: %s from the main checkout.\n' "$issue" "$CELETIS_HOST" "$detail" "$(celetis_manual_recovery)" >&2
+  printf 'celetis-flow: #%s %s startup: %s. Check the version, trust, and sign-in prompts in this pane. Complete the required action, then start the step again. Manual recovery: %s from the main checkout.\n' "$issue" "$CELETIS_AGENT" "$detail" "$(celetis_manual_recovery)" >&2
   herdr pane read "$HERDR_PANE_ID" --source recent-unwrapped --lines 40 >&2 2>/dev/null || true
 }

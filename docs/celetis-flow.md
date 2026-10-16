@@ -67,9 +67,9 @@ scripts/celetis celetis-flow --board    # the data of the issues for the board, 
 scripts/celetis celetis-flow --resume 373    # the session of a step with no progress, again
 ```
 
-These human commands use `CELETIS_HOST`, then the project Git setting `celetis-flow.host`, then
-Claude. Put `--host claude` or `--host codex` before `celetis-flow` to override that choice.
-Every skill call supplies that prefix. Invalid host values stop; PATH order never chooses a host.
+These human commands use `CELETIS_AGENT`, then the project Git setting `celetis-flow.agent`, then
+Claude. Put `--agent claude` or `--agent codex` before `celetis-flow` to override that choice.
+Every skill call supplies that prefix. Empty or unsupported agent values stop; PATH order never chooses an agent.
 The selected host stays fixed for the new step. Resume instead selects its recorded host and
 rejects an explicit prefix that names the other host.
 
@@ -98,8 +98,8 @@ only. With the default gates no step is `auto`, so the automatic runner starts n
 
 **The form `--board`** is read-only: it takes no lock, writes no row in the record, and starts no
 session. `--board` is its only argument. It prints contract 1, the JSON document that the board
-reads: `contract`, `tracker`, `flow`, `noRun`, `runner`, and `issues`, with one row for each issue
-that has a card. The rows come from the resolver (`scripts/celetis next-step --json`), which makes 3
+reads: `contract`, `tracker`, `flow`, `noRun`, `runner`, `agents`, `defaultAgent`, and `issues`, with
+one row for each issue that has a card. The rows come from the resolver (`scripts/celetis next-step --json`), which makes 3
 `gh` calls. The resolver gives each row the state that it knows from GitHub and from the working
 trees: `done`, `blocked` with `reason` and `act`, `ready`, or `dirty` with `path`. The `reason` is
 `needs info`, `landing refused`, or `ready for your step` ("The board", rule 5). It also gives the
@@ -198,7 +198,7 @@ remaining process. A command keeps the lock descriptor so a killed helper cannot
 update's lock.
 
 After a successful update, the helper invokes the same validated launcher resolver with
-`--host <host> root`. It uses the selected host's enabled installation and existing scope rules.
+`--agent <agent> root`. It uses the selected host's enabled installation and existing scope rules.
 The runner takes the step text from that installed root. When the lookup gives
 no folder that holds a step text, the runner shows the cause and exits 1. The runner retains the
 resolver and launcher paths chosen at startup; it does not restart itself after refresh. Codex
@@ -370,8 +370,9 @@ define the read, permission, and exact-once rules.
 
 ## The board
 
-The board is the package `ddinkov10/agent-board`, in a private repository of its own. Version
-2.0.0 reads the current `.claude/celetis-flow/board.json` path and contract 1. Neither the
+The board is the package `ddinkov10/agent-board`, in a private repository of its own. The config
+below needs a stable v2 release with agent selection and the `{agent}` Run placeholder. Version
+2.0.0 rejects this Run list. A local source check does not prove released-package support. Neither the
 plugin nor a product project holds a file of the board: a product project holds the config of the
 board, and the plugin holds the script that prints its data. ADR-0009 holds the reasons for the
 package and for contract 1, the JSON document that the board reads. ADR-0003 holds the reasons for
@@ -407,40 +408,43 @@ PORT=4500 npx 'github:ddinkov10/agent-board#semver:^2'
 
 **The config** is `.claude/celetis-flow/board.json`. The board reads it from the main checkout only,
 once, at its start. Each of its first three keys is an argument list whose first item is a file of
-the main checkout, and `{n}` stands for the number of the issue:
+the main checkout. `{n}` stands for the number of the issue, and `{agent}` for the Run selection:
 
 | Key | Value | Use |
 |---|---|---|
 | `data` | `["scripts/celetis", "celetis-flow", "--board"]` | The board starts it, with no shell, for each read of the issues. |
-| `run` | `["scripts/celetis", "celetis-flow", "{n}"]` | A Run press makes a herdr tab with the label `#<n> <step>`. It quotes each argument, types the command in the pane, then adds `&& exit`. |
+| `run` | `["scripts/celetis", "--agent", "{agent}", "celetis-flow", "{n}"]` | A Run press makes a herdr tab with the label `#<n> <step>`. It quotes each argument, types the command in the pane, then adds `&& exit`. |
 | `resume` | `["scripts/celetis", "celetis-flow", "--resume", "{n}"]` | A Resume press makes a tab with the same label and the focus. It quotes each argument, types the command, then adds `&& exit`. |
 | `port` | `<port>` | The port, when `PORT` is not set. |
 
-These lists use `CELETIS_HOST`, else `git config celetis-flow.host`, else Claude for a new
-step. Set the project default with `git config celetis-flow.host codex` or
-`git config celetis-flow.host claude`. Resume uses the host and exact ID in the current session
-record, even after the project default changes. It does not use the session name to find an ID.
+The data command selects `--agent`, then `CELETIS_AGENT`, then `git config celetis-flow.agent`,
+then `claude`. It reports that choice as `defaultAgent`. The board's default control calls
+`POST /api/agent`, which writes only the project key `celetis-flow.agent` and reads the data again.
+Set the same preference by hand with `git config celetis-flow.agent codex` or
+`git config celetis-flow.agent claude`. An explicit flag or environment value still takes
+priority over that stored preference.
 
-To fix the host in the board config, put the host prefix before `celetis-flow` in each list:
+`POST /api/run` substitutes the chosen agent, or `defaultAgent` when no choice is supplied,
+for `{agent}`. Run never writes the default. Unknown or unavailable choices return 409 and
+start no agent. The `agents` entries check only whether each executable is on `PATH`; they
+do not invoke either CLI or discover its plugin. Plugin installation, sign-in, trust, and
+full host parity need separate checks. A missing selected executable still stops the data command.
 
-```json
-{
-  "data": ["scripts/celetis", "--host", "codex", "celetis-flow", "--board"],
-  "run": ["scripts/celetis", "--host", "codex", "celetis-flow", "{n}"],
-  "resume": ["scripts/celetis", "--host", "codex", "celetis-flow", "--resume", "{n}"]
-}
-```
-
-Use `claude` in place of `codex` for Claude. An explicit resume host must match the recorded
-host. Keep `resume` unprefixed when issues can have saved sessions from either host. Each item
+Resume keeps its unprefixed list and uses the host and exact ID in the current session record,
+even after the project default changes. It does not use the session name to find an ID. Each item
 is one argument; do not put a shell command, quote syntax, or an environment assignment in an item.
 
 `&& exit` closes the tab when the script ends with no error, and a script that fails leaves the tab
 open with its message. With the default gates, the script of a Run press starts one session and ends
 when that session ends: the tab then closes, and the card shows the next step. A change of
 `board.json` reaches the board only when the file is in the main checkout (a `git pull` after the
-landing) and the board starts again. A change of the script needs no new start: the board starts
-the script again for each read and each press.
+landing) and the board starts again. Follow the [coordinated product wiring update](../README.md#the-agent-board):
+plugin refresh does not replace the product's copied launcher, host permission rules, or board
+Run list. Its preparation and the compatible stable v2 board release are human preconditions
+before landing this config. Stop affected sessions, runners, and boards before replacement;
+restart only after the product's main checkout has the new wiring and the selected host
+installation has refreshed. A change of the script needs no new start: the board starts the
+script again for each read and each press.
 
 **The data.** `scripts/celetis celetis-flow --board` prints contract 1 ("Start the script"), with 3
 `gh` calls for each read. The script puts these values in the fields of the document:
@@ -455,6 +459,8 @@ the script again for each read and each press.
 | `flow.steps.<step>.hint` | `It lands the change when the build is done.` for `implement`, `chore`, and `hotfix`. No other step has a hint. |
 | `noRun` | `The main checkout is dirty: <path>. Commit or stash first.` while the main checkout is dirty, else `null`. |
 | `runner` | `true` while a live automatic runner holds its lock. |
+| `agents` | Entries `claude` and `codex`. Each has `available: true` and `cause: null` when its executable is on `PATH`, else `available: false` and `cause: "celetis: <agent> is not on PATH"`. |
+| `defaultAgent` | The agent selected by `--agent`, `CELETIS_AGENT`, the project key `celetis-flow.agent`, or the default `claude`, in that order. |
 | `issues` | One row for each open issue and for each issue that closed in the last 14 days. An issue whose line of the resolver is the epic line or the `wontfix` line has no row. |
 
 A row gets its `state` by the first rule that matches:
@@ -670,8 +676,8 @@ bash tests/land.test.sh
 bash tests/worktree.test.sh
 bash tests/launcher.test.sh
 bash tests/text.test.sh
-bash tests/manual/step-prompt.test.sh --host claude
-bash tests/manual/step-prompt.test.sh --host codex
+bash tests/manual/step-prompt.test.sh --agent claude
+bash tests/manual/step-prompt.test.sh --agent codex
 ```
 
 `bash tests/celetis-flow.test.sh` gives each `--board` document of its stub world to the checker of
@@ -686,11 +692,18 @@ machine does. The test starts `npx` in its temporary folder, so `npx` reads no `
 `node_modules/.bin` of the checkout where the test starts: the test can run in a lane worktree. For
 the document of the real issues, "The board" gives the `check` command.
 
+`bash tests/board-agent.test.sh` loads the board from `AGENT_BOARD` and checks default changes,
+Run overrides, refusals, and exact Resume through the product launcher, with real Git and a local
+HTTP server. With no `AGENT_BOARD`, it uses `npm pack` to fetch the stable v2 package into a
+temporary directory outside the product checkout. That path needs the network and GitHub
+credentials. `CELETIS_FLOW_SKIP_BOARD_CHECK=1` also skips this private-package integration test
+in the workflow. A pass against local source proves only that source, not the released consumer.
+
 Tests and scripts can start another `bash` from `PATH`. The gate runs each test as
 `PATH="/bin:$PATH" /bin/bash <test>`: the `/bin/bash` of macOS runs the test, and the `PATH`
 makes each inner `bash` reach it too.
 
-`bash tests/manual/step-prompt.test.sh --host claude|codex` checks the step text. Select one host;
+`bash tests/manual/step-prompt.test.sh --agent claude|codex` checks the step text. Select one host;
 the `|` is notation, not a shell command. It runs fixed cases in that host's headless turns,
 so it needs that host to be logged in, it uses tokens, and the
 answer of a model can differ between runs. Start it in a product Git checkout or one of its
@@ -704,7 +717,7 @@ discovery. With `--output-dir DIR`, the test saves the instruction files, their 
 the combined instruction text, and each prompt with its result. Run the test after each
 change of `step-prompt.md`, and run it in a product project after each change of the part of its
 `AGENTS.md` on the celetis flow. In a product project, start it in the main checkout as
-`bash "$(scripts/celetis --host codex root)/tests/manual/step-prompt.test.sh" --host codex`, or
+`bash "$(scripts/celetis --agent codex root)/tests/manual/step-prompt.test.sh" --agent codex`, or
 use `claude` in both places. The test then reads the step text of the installed plugin.
 For Claude, the script sets `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`, because the
 git status snapshot of a turn holds the branch name and the last commit subjects, and these can

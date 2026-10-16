@@ -38,9 +38,9 @@ These commands use model tokens. Run them only when the selected host can accept
 
 ```bash
 PATH="/bin:$PATH" /bin/bash tests/manual/step-prompt.test.sh \
-  --host claude --output-dir <new-evidence-directory>
+  --agent claude --output-dir <new-evidence-directory>
 PATH="/bin:$PATH" /bin/bash tests/manual/step-prompt.test.sh \
-  --host codex --output-dir <new-evidence-directory>
+  --agent codex --output-dir <new-evidence-directory>
 PATH="/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh \
   --output-dir <new-evidence-directory>
 ```

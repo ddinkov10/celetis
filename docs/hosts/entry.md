@@ -16,14 +16,14 @@ belong to the product project.
 Use the host actually running this session: [Claude Code](claude.md) or [Codex](codex.md).
 Read that reference and inspect its returned tool result before constructing any dependent host operation. If the loaded skill path is unavailable, `guide`
 reports that setup gap. For another skill, obtain
-the enabled installation with `scripts/celetis --host claude root` or
-`scripts/celetis --host codex root`, matching the running host. A missing or ambiguous installation
+the enabled installation with `scripts/celetis --agent claude root` or
+`scripts/celetis --agent codex root`, matching the running host. A missing or ambiguous installation
 is a setup stop; do not guess a cache path or borrow the other host's install.
 
 In shared procedures, `scripts/celetis <command>` is shorthand. On **every call**, write
-`scripts/celetis --host claude <command>` on Claude or
-`scripts/celetis --host codex <command>` on Codex, including checklists and retry messages.
-The host flag precedes the sub-command. The bare launcher remains the project-default command
+`scripts/celetis --agent claude <command>` on Claude or
+`scripts/celetis --agent codex <command>` on Codex, including checklists and retry messages.
+The agent flag precedes the sub-command. The bare launcher remains the project-default command
 for human terminal and board use; skill execution selects the actual host explicitly. A shell's
 exports and cwd do not carry into the next tool call.
 

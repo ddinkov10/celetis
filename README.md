@@ -157,8 +157,8 @@ The file holds the marketplace, the two plugins, and the permission rules:
   "permissions": {
     "allow": [
       "Bash(scripts/celetis land *)",
-      "Bash(scripts/celetis --host claude land *)",
-      "Bash(scripts/celetis --host codex land *)"
+      "Bash(scripts/celetis --agent claude land *)",
+      "Bash(scripts/celetis --agent codex land *)"
     ],
     "deny": ["Bash(gh pr merge*)", "PowerShell(gh pr merge*)"]
   },
@@ -195,20 +195,20 @@ prefix_rule(
     decision = "allow",
 )
 prefix_rule(
-    pattern = ["scripts/celetis", "--host", ["claude", "codex"], "land"],
+    pattern = ["scripts/celetis", "--agent", ["claude", "codex"], "land"],
     decision = "allow",
 )
 prefix_rule(
     pattern = ["gh", "pr", "merge"],
     decision = "forbidden",
-    justification = "Use scripts/celetis --host codex land from the main checkout.",
+    justification = "Use scripts/celetis --agent codex land from the main checkout.",
 )
 ```
 
 Check the saved rules without executing a landing or merge:
 
 ```bash
-codex execpolicy check --rules .codex/rules/celetis.rules -- scripts/celetis --host codex land 7 'fix(example): repair output'
+codex execpolicy check --rules .codex/rules/celetis.rules -- scripts/celetis --agent codex land 7 'fix(example): repair output'
 codex execpolicy check --rules .codex/rules/celetis.rules -- gh pr merge 7 --squash
 ```
 
@@ -246,19 +246,20 @@ The file is the same in each product project. `scripts/celetis <name> <arguments
 `scripts/<name>.sh` of the installed plugin with those arguments ("The commands"), so a new script
 of the plugin needs no new copy.
 
-### Host selection and model setup
+### Agent selection and model setup
 
 Set the default for human terminal and board commands in the product checkout:
 
 ```bash
-git config celetis-flow.host codex
-scripts/celetis --host codex root
+git config celetis-flow.agent codex
+scripts/celetis --agent codex root
 ```
 
-Selection is `--host claude|codex`, then `CELETIS_HOST`, then `celetis-flow.host` in Git config,
-then `claude`. An invalid value stops the command. Skills always pass their actual host explicitly
-on each call, including landing. The selected host is exported to child scripts. Both installed
-hosts can use one product project; their installations and configuration remain separate.
+Selection is `--agent claude|codex`, then `CELETIS_AGENT`, then `celetis-flow.agent` in Git config,
+then `claude`. An empty or unsupported value stops the command. Skills always pass their actual
+host explicitly on each call, including landing. The selected agent is exported as
+`CELETIS_AGENT` to child scripts. Both installed hosts can use one product project; their
+installations and configuration remain separate.
 
 `root` validates the enabled plugin and returns the installed package directory. Codex discovery
 uses a short-lived app-server connection and `skills/list`, with no thread or model turn.
@@ -522,7 +523,7 @@ no workflow command.
 ## The commands
 
 A product project runs each script through the launcher. The table gives the human terminal
-and board form. Every skill call adds `--host claude` or `--host codex` before the sub-command:
+and board form. Every skill call adds `--agent claude` or `--agent codex` before the sub-command:
 
 | Command | What it does |
 |---|---|
@@ -604,8 +605,9 @@ ADR-0012 holds the evidence for one fact and one limit of Claude updates:
 
 The board is the package `ddinkov10/agent-board`: one local web page that shows each agent session
 of a repository and the next step of each issue, and that starts a step with one press. Neither
-the plugin nor a product project holds a file of the board. Version 2.0.0 reads the current
-config path and contract 1.
+the plugin nor a product project holds a file of the board. The config below needs a stable v2
+release with agent selection and the `{agent}` Run placeholder. Version 2.0.0 rejects this Run
+list. A check against local board source does not prove that the released package supports it.
 
 Start it in the main checkout only, never in a lane worktree, and open the URL of its last line:
 
@@ -621,7 +623,7 @@ so the product project holds no other file for the board:
 ```json
 {
   "data": ["scripts/celetis", "celetis-flow", "--board"],
-  "run": ["scripts/celetis", "celetis-flow", "{n}"],
+  "run": ["scripts/celetis", "--agent", "{agent}", "celetis-flow", "{n}"],
   "resume": ["scripts/celetis", "celetis-flow", "--resume", "{n}"],
   "port": 4403
 }
@@ -630,31 +632,44 @@ so the product project holds no other file for the board:
 | Key | Use |
 |---|---|
 | `data` | The board starts it for each read of the issues. It prints contract 1, the JSON document that the board reads |
-| `run` | A Run press types it in a new herdr tab. It starts the next step of the issue `{n}` |
+| `run` | A Run press types it in a new herdr tab. It starts the next step of the issue `{n}` with the selected `{agent}` |
 | `resume` | A Resume press types it in a new herdr tab. It opens the session of a step with no progress again |
 | `port` | The port, when `PORT` is not set. With no `port`, it is 4403 |
 
 Two boards on one machine need two ports: the `board.json` of this repository has 4404. The board
 reads its config one time, at its start, from the main checkout.
 
-For a new step, these lists use `CELETIS_HOST`, else the project setting
-`git config celetis-flow.host`, else Claude. Set the project default with
-`git config celetis-flow.host codex` or `git config celetis-flow.host claude`. Resume reads the
-saved host and exact session ID for the issue, even when the project default has changed.
+**Before landing this config,** the maintainer must have the compatible stable v2 board release
+and stop affected sessions, runners, and boards. Prepare a coordinated replacement of each
+product project's [copied launcher](#the-launcher), [Claude permission rules](#claude-permissions-claudesettingsjson),
+[Codex permission rules](#codex-permissions-codexrulesceletisrules), and the Run list above,
+using the [current agent-selection inputs](#agent-selection-and-model-setup). Plugin refresh
+does not replace copied product wiring. Use this reviewed build for copies prepared before
+landing. Wiring included in a product's reviewed change must arrive through that product's
+trunk landing; keep its main checkout clean. Update other product copies separately.
 
-An optional host prefix fixes the host of a list:
+Keep affected sessions, runners, and boards stopped until the compatible board release and
+refreshed plugin are available. After each product's wiring is current in its main checkout,
+[refresh the selected host installation](#updates) and restart those sessions, runners, and
+boards before the next step or board action.
 
-```json
-{
-  "data": ["scripts/celetis", "--host", "codex", "celetis-flow", "--board"],
-  "run": ["scripts/celetis", "--host", "codex", "celetis-flow", "{n}"],
-  "resume": ["scripts/celetis", "--host", "codex", "celetis-flow", "--resume", "{n}"]
-}
-```
+The data document has `agents` entries for `claude` and `codex`, and a `defaultAgent`. Each entry
+has `available: true` and `cause: null` when its executable is on `PATH`, else `available: false`
+and the missing-executable cause. Availability checks only the executable. Plugin installation,
+sign-in, trust, and full host parity need separate checks.
 
-Use `claude` for Claude. An explicit resume host must match the saved host. Keep the unprefixed
-`resume` list for issues with sessions from either host. Each item is one argument, not shell
-text. The board quotes the items when it sends a Run or Resume command to herdr.
+The data command selects `--agent`, then `CELETIS_AGENT`, then the project Git setting
+`celetis-flow.agent`, then `claude`. The board's default control calls `POST /api/agent`, which
+writes only `celetis-flow.agent`. You can also set it with `git config celetis-flow.agent codex`
+or `git config celetis-flow.agent claude`. An explicit flag or environment value takes priority
+over that stored preference on the next data read.
+
+A Run press calls `POST /api/run`. The board substitutes the chosen agent, or `defaultAgent`
+when no choice is supplied, for `{agent}`. This override applies only to that Run and does not
+write the project preference. Unknown or unavailable choices return 409 and start no agent.
+Resume keeps its unprefixed list: it reads the saved host and exact session ID for the issue,
+even after the project default changes. Each item is one argument, not shell text. The board
+quotes the items when it sends a Run or Resume command to herdr.
 
 Check the data against the contract in the main checkout:
 
@@ -680,12 +695,13 @@ Run the tests in a checkout of this repository.
   ```
 
   `AGENT_BOARD` names the entry file of a local checkout of the board package, for the contract
-  check of the `--board` documents.
+  check of the `--board` documents and the board-to-launcher integration test. With no value,
+  the integration test packs the stable v2 package in a temporary directory.
 - **The workflow** `.github/workflows/test.yml` runs each `tests/*.test.sh` and
   `scripts/capscore.sh --test`, plus the Perl syntax check, on Linux, for each pull request and
   each push to `main`. It needs no host CLI, model credentials, or model tokens. It sets
-  `CELETIS_FLOW_SKIP_BOARD_CHECK=1`, so it does not make that contract check: the gate on a machine
-  does.
+  `CELETIS_FLOW_SKIP_BOARD_CHECK=1`, so it skips that contract check and the private-package
+  board-to-launcher integration test. The gate on a machine runs both.
 - **The proof on bash 3.2.** The gate runs each test under the `/bin/bash` of macOS, with
   `PATH="/bin:$PATH"` so each inner `bash` reaches `/bin/bash` too:
 
@@ -701,14 +717,14 @@ Run the tests in a checkout of this repository.
   Codex namespace discovery and reject missing enabled fields and ambiguous roots. These are
   deterministic structure and protocol checks; there is no `codex plugin validate` command.
 - **The hand-run test,** `tests/manual/step-prompt.test.sh`, checks the step text in headless
-  turns on the selected host, `--host claude` or `--host codex`. It needs that host to be logged
+  turns on the selected host, `--agent claude` or `--agent codex`. It needs that host to be logged
   in, it uses tokens, and an answer can
   differ between two runs, so the gate and the workflow do not run it. Run it after each change of
   `step-prompt.md`, and in a product project after each change of the part of its `AGENTS.md` on
   the celetis flow. In a product project, start it in the main checkout:
 
   ```bash
-  bash "$(scripts/celetis --host codex root)/tests/manual/step-prompt.test.sh" --host codex
+  bash "$(scripts/celetis --agent codex root)/tests/manual/step-prompt.test.sh" --agent codex
   ```
 
   The test then reads the step text of the installed plugin, and it runs its turns in that
