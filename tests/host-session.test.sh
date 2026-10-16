@@ -165,12 +165,23 @@ for host in claude codex; do
   for status in idle done working blocked unknown; do
     reset
     echo "$status" >"$S/status"
-    export HERDR_ENV=1 HERDR_PANE_ID=w1:p1
+    export HERDR_ENV=1 HERDR_PANE_ID=wW:pE
     test_host=$host run 7
     [ "$code" -eq 0 ] && [ -z "$err" ] && jq -e --arg h "$host" --arg id "$uuid" '.host == $h and .session_id == $id' "$record" >/dev/null || fail "$host did not save the current $status session: $code [$err]"
     : >"$S/calls"
     test_host=$host run --resume 7
     [ "$code" -eq 0 ] && jq -e --arg h "$host" --arg id "$uuid" '.host == $h and .args[-1] == $id' "$S/calls" >/dev/null || fail "$host could not resume the saved $status session"
+  done
+done
+for host in claude codex; do
+  for pane in w1:p1 wW:p14 w1:pE wW:pE wa0:pz9; do
+    reset
+    export HERDR_ENV=1 HERDR_PANE_ID="$pane"
+    test_host=$host run 7
+    [ "$code" -eq 0 ] && [ -z "$err" ] || fail "$host rejected $pane: $code [$err]"
+    jq -e --arg h "$host" '.host == $h' "$S/calls" >/dev/null || fail "$host did not launch for $pane"
+    jq -e --arg h "$host" --arg id "$uuid" '.host == $h and .session_id == $id' "$record" >/dev/null || fail "$host lost the saved identity for $pane"
+    [[ $(cat "$S/herdr-calls") == *"agent get $pane"* ]] || fail "$host changed $pane"
   done
 done
 for host in claude codex; do
@@ -339,15 +350,26 @@ for host in claude codex; do
   test_host=$host run 7
   [ "$code" -ne 0 ] && [ ! -e "$common/celetis-flow/no-progress" ] || fail "$host startup exit became no progress outside herdr"
 
+  for environment in unset '' 0; do
+    reset
+    [ "$environment" = unset ] || export HERDR_ENV="$environment"
+    export HERDR_PANE_ID=wW:pE
+    test_host=$host run 7
+    [ "$code" -eq 0 ] && [ ! -e "$S/herdr-calls" ] && jq -e --arg h "$host" '.host == $h' "$S/calls" >/dev/null && jq -e '.session_id == null' "$record" >/dev/null || fail "$host controlled herdr outside its environment: $environment"
+  done
+  for pane in '' invalid w:p1 w1:p w1:t1 w1:p1:extra -w1:p1 ' w1:p1' 'w1:p1 ' 'w1:p1/x' $'w1:p1\n' $'w1:p1\t'; do
+    reset
+    export HERDR_ENV=1 HERDR_PANE_ID="$pane"
+    test_host=$host run 7
+    [ "$code" -eq 1 ] && [[ $err == *'HERDR_ENV=1 needs a valid HERDR_PANE_ID; start from a herdr pane'* ]] || fail "$host accepted an invalid pane: [$err]"
+    [ ! -e "$S/herdr-calls" ] && [ ! -e "$S/calls" ] && [ ! -e "$S/updates" ] || fail "$host acted before pane validation"
+  done
   reset
-  export HERDR_PANE_ID=w1:p1
+  export HERDR_ENV=1
   test_host=$host run 7
-  [ "$code" -eq 0 ] && [ ! -e "$S/herdr-calls" ] && jq -e '.session_id == null' "$record" >/dev/null || fail "$host controlled herdr outside its environment"
+  [ "$code" -eq 1 ] && [[ $err == *'HERDR_ENV=1 needs a valid HERDR_PANE_ID; start from a herdr pane'* ]] || fail "$host accepted an unset pane: [$err]"
+  [ ! -e "$S/herdr-calls" ] && [ ! -e "$S/calls" ] && [ ! -e "$S/updates" ] || fail "$host acted before unset pane validation"
 done
-reset
-export HERDR_ENV=1 HERDR_PANE_ID=invalid
-run 7
-[ "$code" -ne 0 ] && [ ! -e "$S/herdr-calls" ] && [ ! -e "$S/calls" ] || fail "a bad pane ID started herdr control"
 
 for host in claude codex; do
   reset
