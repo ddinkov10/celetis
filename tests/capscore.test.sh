@@ -21,11 +21,14 @@ cat >"$tmp/models.json" <<'JSON'
 JSON
 export CAP_MODEL_PROFILE="$tmp/profile.json" CAP_RUNTIME_MODELS="$tmp/models.json"
 
-run() {
+run_at() {
+  local location=$1
+  shift
   code=0
-  out=$(cd "$tmp/project" && /bin/bash "$scorer" "$@" 2>"$tmp/err") || code=$?
+  out=$(cd "$location" && /bin/bash "$scorer" "$@" 2>"$tmp/err") || code=$?
   err=$(cat "$tmp/err")
 }
+run() { run_at "$tmp/project" "$@"; }
 check() {
   local label=$1
   shift
@@ -41,6 +44,7 @@ error() {
   check "$1 explains the repair" test "${err#*"$2"}" != "$err"
 }
 codex_run() { run --host codex "$@"; }
+codex_at() { local location=$1; shift; run_at "$location" --host codex "$@"; }
 retry_sequence() {
   local label=$1 profile_path=$2 expected=$3 records= retry
   shift 3
@@ -75,12 +79,108 @@ claude_score=$(printf '%s\n' "$out" | jq -c '{digits,bias,attempt,sum,rank,effor
 codex_run 1 0 2 1 1 0 --json
 check 'Codex resolves the same portable score' test "$code:$(printf '%s\n' "$out" | jq -c '{digits,bias,attempt,sum,rank,effort}' 2>/dev/null)" = "0:$claude_score"
 check 'Codex records the applied model effort and runtime' json '.dispatch == {rank:1,model:"standard",effort:"xhigh",runtime:"fixture-desktop@1",reviewer:false} and .host == "codex"'
+explicit_result=$out
 codex_run 1 0 2 1 1 0
 expect 'Codex human CAP uses its selected profile' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → standard/xhigh'
 CELETIS_HOST=codex run 1 0 2 1 1 0
 expect 'shared host environment selects Codex' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → standard/xhigh'
 CELETIS_HOST=codex run --host claude 1 0 2 1 1 0
 expect 'explicit host overrides the environment' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
+
+profile_path=$CAP_MODEL_PROFILE
+unset CAP_MODEL_PROFILE
+cat >"$tmp/project/.celetis.yaml" <<'YAML'
+landing: merge
+codexProfiles:
+  fixture-cli@1:
+    slots: [largest, large, standard, small]
+    reviewer: {rank: 1, effort: medium}
+  fixture-desktop@1:
+    slots: [small, standard, large, largest]
+    reviewer: {rank: 1, effort: medium}
+YAML
+codex_run 1 0 2 1 1 0 --json
+check 'configured profile succeeds' test "$code:$err" = '0:'
+check 'configured runtime matches' json '.dispatch.runtime == "fixture-desktop@1" and .dispatch.model == "standard" and .dispatch.effort == "xhigh"'
+check 'configured profile equals explicit profile result' test "$out" = "$explicit_result"
+
+git -C "$tmp/project" -c user.name=fixture -c user.email=fixture@example.test commit -q --allow-empty -m fixture
+git -C "$tmp/project" worktree add -q -b lane "$tmp/lane"
+mkdir "$tmp/project/subfolder"
+cat >"$tmp/lane/.celetis.yaml" <<'YAML'
+landing: merge
+codexProfiles:
+  fixture-desktop@1:
+    slots: [small, large, standard, largest]
+    reviewer: {rank: 1, effort: medium}
+YAML
+codex_at "$tmp/lane" 1 0 2 1 1 0 --json
+check 'lane selects the main profile' test "$code:$out:$err" = "0:$explicit_result:"
+codex_at "$tmp/project/subfolder" 1 0 2 1 1 0 --json
+check 'subfolder selects the main profile' test "$code:$out:$err" = "0:$explicit_result:"
+
+jq '.slots[1] = "large"' "$profile_path" >"$tmp/env-profile.json"
+CAP_MODEL_PROFILE="$tmp/env-profile.json" codex_run 1 0 2 1 1 0 --json
+check 'profile environment overrides main config' json '.dispatch.model == "large" and .dispatch.runtime == "fixture-desktop@1"'
+CAP_MODEL_PROFILE="$tmp/env-profile.json" codex_run 1 0 2 1 1 0 --profile "$profile_path" --json
+check 'profile flag overrides environment' test "$code:$out:$err" = "0:$explicit_result:"
+codex_run 1 0 2 1 1 0 --profile '' --json
+error 'empty explicit profile has no config fallback' '--profile'
+CAP_MODEL_PROFILE= codex_run 1 0 2 1 1 0 --json
+error 'empty profile environment has no config fallback' '--profile'
+codex_run 1 0 2 1 1 0 --profile "$tmp/missing" --json
+error 'invalid explicit profile has no config fallback' '--profile'
+
+cat >"$tmp/project/.celetis.yaml" <<'YAML'
+landing: merge
+codexProfiles:
+  fixture-cli@1:
+    slots: [small, standard, large, largest]
+    reviewer: {rank: 1, effort: medium}
+YAML
+codex_run 1 0 2 1 1 0 --json
+error 'missing live runtime identity' 'fixture-desktop@1'
+cat >"$tmp/project/.celetis.yaml" <<'YAML'
+landing: merge
+codexProfiles:
+  fixture-desktop@1:
+    slots: [small]
+    reviewer: {rank: 1, effort: medium}
+YAML
+codex_run 1 0 2 1 1 0 --json
+error 'malformed configured profile' 'codexProfiles.fixture-desktop@1.slots'
+cat >"$tmp/project/.celetis.yaml" <<'YAML'
+landing: merge
+codexProfiles:
+  fixture-desktop@1:
+    slots: [small, standard, large, unavailable]
+    reviewer: {rank: 1, effort: medium}
+YAML
+codex_run 1 0 2 1 1 0 --json
+error 'unavailable configured slot' 'unavailable'
+cat >"$tmp/project/.celetis.yaml" <<'YAML'
+landing: merge
+codexProfiles:
+  fixture-desktop@1:
+    slots: [small, standard, large, largest]
+    reviewer: {rank: 1, effort: medium}
+YAML
+jq '.models[1].efforts = ["low","high","xhigh","max"]' "$CAP_RUNTIME_MODELS" >"$tmp/no-config-medium.json"
+codex_run 1 0 2 1 1 0 --runtime-models "$tmp/no-config-medium.json" --json
+error 'unavailable configured reviewer pair' 'medium'
+printf 'invalid: [\n' >"$tmp/project/.celetis.yaml"
+CAP_MODEL_PROFILE= CAP_RUNTIME_MODELS= codex_run 1 0 2 1 1 0 --attempt 4
+expect 'STOP precedes invalid config and runtime lookup' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → STOP (attempt 4: escalate to user with failure trail)'
+printf 'landing: merge\n' >"$tmp/project/.celetis.yaml"
+
+mkdir "$tmp/outside"
+yq() { printf 'unexpected yq call\n' >&2; return 99; }
+export -f yq
+codex_at "$tmp/outside" 1 0 2 1 1 0 --profile "$profile_path" --runtime-models "$CAP_RUNTIME_MODELS" --json
+check 'standalone explicit scoring needs no repository or yq' test "$code:$out:$err" = "0:$explicit_result:"
+unset -f yq
+export CAP_MODEL_PROFILE=$profile_path
+
 CAP_EFFORT_BIAS=0 codex_run 1 0 2 1 1 0
 expect 'bias environment remains available' 'CAP: J1 V0 B2 N1 S1 X0 = 5 → standard/medium'
 CAP_EFFORT_BIAS=0 codex_run 1 0 2 1 1 0 --bias 1

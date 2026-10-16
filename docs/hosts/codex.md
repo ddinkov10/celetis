@@ -70,13 +70,17 @@ lane through `worktree`; no new app worktree is needed.
 
 Inspect the active surface's spawn and follow-up schemas and supported model/effort pairs before
 dispatch. Desktop and CLI catalogs can differ. Refresh the runtime allowlist from this same
-surface and validate the profile as [capability binding](../capability.md) specifies. Every
-scorer call supplies the host and configuration explicitly:
+surface and validate the main checkout's `codexProfiles` entry as
+[capability binding](../capability.md) specifies. Every scorer call supplies the host and active
+runtime evidence explicitly:
 
 ```bash
 scripts/celetis --host codex capscore J V B N S X --bias BIAS --attempt N --json \
-  --profile /absolute/profile.json --runtime-models /absolute/active-models.json
+  --runtime-models /absolute/active-models.json
 ```
+
+For standalone scoring outside a configured repository, also pass `--profile
+/absolute/profile.json`.
 
 Add `--reviewer` for review dispatches, including the task reviewer, builder check, and final
 review. Parse `status` first: `stop` dispatches nothing. On `ready`, record `line`, `dispatch`,

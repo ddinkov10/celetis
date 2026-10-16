@@ -147,9 +147,10 @@ trail without dispatching. JSON output requires `jq`; the human STOP line does n
 Codex has **no bundled model defaults**. Setup supplies a profile with exactly four slots in
 ascending capability order and a reviewer minimum. Repeated model IDs are allowed when the
 surface offers fewer distinct capability families; the four portable ranks remain distinct.
-The scorer validates availability, while setup owns the capability ordering. Get the evidence
-from the tool that will create or resume the child, then save the two files at known absolute
-paths accessible from the main and lane checkouts.
+Store the profile under `codexProfiles` in the main checkout's `.celetis.yaml`, keyed by the
+active dispatch runtime identity. The scorer selects that identity and validates availability;
+the profile owns the capability ordering. Refresh the runtime allowlist from the tool that will
+create or resume the child before each dispatch, then supply its file path to the scorer.
 Keep the current parent model; this setup controls children only.
 
 For attempts 2 and 3, the scorer resolves earlier attempts with the same digits, bias, profile,
@@ -159,11 +160,22 @@ and caps. It can retain max at rank 3 below Σ=12 when the same model already us
 can stay at its maximum. Different model IDs keep the ordered ranks and portable effort
 selection, with the same reviewer rules. The final applied pair must be supported by the runtime.
 
-Pass `--profile FILE` (or `CAP_MODEL_PROFILE`) and `--runtime-models FILE` (or
-`CAP_RUNTIME_MODELS`). Flags override their corresponding environment values. Both files contain
-one JSON object with `schema: 1` and the same nonempty `runtime` identity. Use a surface and
-version or capability revision that identifies the actual dispatch environment. A profile
-example with placeholder IDs is:
+Pass `--runtime-models FILE` (or `CAP_RUNTIME_MODELS`) for the active dispatch surface. Its JSON
+object has `schema: 1` and a nonempty `runtime` identity. Use a surface and version or capability
+revision that identifies the actual dispatch environment. A repository profile with placeholder
+IDs is:
+
+```yaml
+codexProfiles:
+  dispatch-surface@capability-revision:
+    slots: [small-model, standard-model, large-model, large-model]
+    reviewer: {rank: 1, effort: medium}
+```
+
+For standalone or one-run scoring, `--profile FILE` overrides `CAP_MODEL_PROFILE`, which
+overrides the main config profile. An explicitly supplied invalid or empty profile does not fall
+back to the config. The explicit file has one JSON object with the same `runtime` as the
+allowlist:
 
 ```json
 {
@@ -203,6 +215,13 @@ max cannot be guaranteed below Σ=12. Its configured pair must be supported even
 implementation dispatch. The final applied pair must also be supported. Extra runtime efforts
 such as ultra do not extend the rubric. Missing files, malformed configuration, identity
 mismatches, and unavailable model/effort pairs exit 2 with a setup action and no result.
+
+```bash
+scripts/celetis --host codex capscore 1 0 2 1 1 0 --json \
+  --runtime-models /path/to/active-models.json
+```
+
+Outside a configured repository, supply the explicit profile and runtime allowlist:
 
 ```bash
 scripts/celetis --host codex capscore 1 0 2 1 1 0 --json \
