@@ -637,8 +637,21 @@ so the product project holds no other file for the board:
 | `port` | The port, when `PORT` is not set. With no `port`, it is 4403 |
 
 Two boards on one machine need two ports: the `board.json` of this repository has 4404. The board
-reads its config one time, at its start, from the main checkout. Restart running boards after
-the new board release and this config change.
+reads its config one time, at its start, from the main checkout.
+
+**Before landing this config,** the maintainer must have the compatible stable v2 board release
+and stop affected sessions, runners, and boards. Prepare a coordinated replacement of each
+product project's [copied launcher](#the-launcher), [Claude permission rules](#claude-permissions-claudesettingsjson),
+[Codex permission rules](#codex-permissions-codexrulesceletisrules), and the Run list above,
+using the [current agent-selection inputs](#agent-selection-and-model-setup). Plugin refresh
+does not replace copied product wiring. Use this reviewed build for copies prepared before
+landing. Wiring included in a product's reviewed change must arrive through that product's
+trunk landing; keep its main checkout clean. Update other product copies separately.
+
+Keep affected sessions, runners, and boards stopped until the compatible board release and
+refreshed plugin are available. After each product's wiring is current in its main checkout,
+[refresh the selected host installation](#updates) and restart those sessions, runners, and
+boards before the next step or board action.
 
 The data document has `agents` entries for `claude` and `codex`, and a `defaultAgent`. Each entry
 has `available: true` and `cause: null` when its executable is on `PATH`, else `available: false`

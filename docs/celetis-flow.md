@@ -438,9 +438,13 @@ is one argument; do not put a shell command, quote syntax, or an environment ass
 open with its message. With the default gates, the script of a Run press starts one session and ends
 when that session ends: the tab then closes, and the card shows the next step. A change of
 `board.json` reaches the board only when the file is in the main checkout (a `git pull` after the
-landing) and the board starts again. Restart running boards after the new board release and this
-config change. A change of the script needs no new start: the board starts
-the script again for each read and each press.
+landing) and the board starts again. Follow the [coordinated product wiring update](../README.md#the-agent-board):
+plugin refresh does not replace the product's copied launcher, host permission rules, or board
+Run list. Its preparation and the compatible stable v2 board release are human preconditions
+before landing this config. Stop affected sessions, runners, and boards before replacement;
+restart only after the product's main checkout has the new wiring and the selected host
+installation has refreshed. A change of the script needs no new start: the board starts the
+script again for each read and each press.
 
 **The data.** `scripts/celetis celetis-flow --board` prints contract 1 ("Start the script"), with 3
 `gh` calls for each read. The script puts these values in the fields of the document:
