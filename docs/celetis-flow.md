@@ -31,8 +31,9 @@ apart from a path that starts with `~/` or `/`.
 ## Requirements
 
 - macOS or Linux, with bash 3.2 or later. There is no native Windows runner.
-- The selected host CLI (`claude` or `codex`), `gh` (logged in), `jq`, and `git` 2.31 or later on `PATH`. When `gh` or `git` is
-  missing, the script names it and exits 1. The runner also needs Perl 5.14 or later on `PATH`;
+- The selected host CLI (`claude` or `codex`), `gh` (logged in), `jq`, Mike Farah yq
+  `>=4.54.1,<5`, and `git` 2.31 or later on `PATH`. See `docs/configuration.md` for the pinned
+  parser installation. When `gh` or `git` is missing, the script names it and exits 1. The runner also needs Perl 5.14 or later on `PATH`;
   its update helper uses only the standard library. The launcher needs the selected host and `jq` to find
   the plugin (the next item). When `jq` is missing, the launcher prints `celetis: jq is not on PATH` and
   exits 1.
@@ -67,8 +68,8 @@ scripts/celetis celetis-flow --board    # the data of the issues for the board, 
 scripts/celetis celetis-flow --resume 373    # the session of a step with no progress, again
 ```
 
-These human commands use `CELETIS_HOST`, then the project Git setting `celetis-flow.host`, then
-Claude. Put `--host claude` or `--host codex` before `celetis-flow` to override that choice.
+These human commands use `CELETIS_HOST`, then `host` in the main checkout's `.celetis.yaml`,
+then Claude. Put `--host claude` or `--host codex` before `celetis-flow` to override that choice.
 Every skill call supplies that prefix. Invalid host values stop; PATH order never chooses a host.
 The selected host stays fixed for the new step. Resume instead selects its recorded host and
 rejects an explicit prefix that names the other host.
@@ -293,52 +294,49 @@ a start with numbers. The step is the command of the `run` line with no prefix: 
 `chore`, `hotfix`, `plan`, or `implement`. One command has another step name:
 `run /celetis:feature #<n>`, the line of an `enhancement` with no spec, is the step `specify`.
 
-`.claude/celetis-flow/gates.json` holds the gates of the project, and the git config holds the gates
-of the machine. The script reads the git config value `celetis-flow.gate.<step>` first, then the
-file, so the git config wins. A step that neither names is `me`, and only the value `auto` is
-`auto`. In this document, "the default gates" means that no step is `auto`: with the default gates,
-one Run press on the board, or one start with a number, starts one step. With `specify` as `auto`,
-the script starts a design session by itself, and that session waits for you at its first question.
+`gates` in the main checkout's `.celetis.yaml` holds the project gates. Each omitted step is
+`me`. The only values are `me` and `auto`; a wrong value stops the command. Git gate settings
+have no effect. The default gates start one step for each number or Run press. With `specify`
+as `auto`, the runner starts a design session and waits for your first answer.
 
-```bash
-git config celetis-flow.gate.implement auto     # make one step auto on this machine
-git config --unset celetis-flow.gate.implement  # go back to the gate of the project
+```yaml
+landing: pr
+gates:
+  implement: auto
 ```
 
 ## The config and the custom parts
 
-Three parts of a product project are in its folder `.claude/celetis-flow/`: the config, the worktree
-setup, and the custom parts (ADR-0012).
+**The config.** Operational settings are in the main checkout's `.celetis.yaml`, including when
+commands start in a lane or subfolder. `docs/configuration.md` gives the full schema.
 
-**The config.** The config is in `.claude/celetis-flow/` of the main checkout of the product
-project. Each reader takes it from the main checkout, also when a script starts in a lane worktree
-or in a subfolder:
+- `host` selects the default host for a new step ("Start the script").
+- `gates` selects `me` or `auto` for each step ("Gates").
+- `landing` selects `pr` or `merge` for `scripts/celetis land` (`docs/issue-tracker.md`).
+- The board still reads `.claude/celetis-flow/board.json` ("The board").
 
-- `gates.json`: the script reads it for the gate of each step ("Gates"). With no `gates.json`, a
-  step is `auto` only when the git config names it `auto`.
-- `landing.json`: `scripts/celetis land` reads it for the landing mechanism, `pr` or `merge`
-  (`docs/issue-tracker.md`, "Branches, PRs, merge"). With a missing or wrong file, it prints one
-  line that names the two mechanisms, and it exits 2.
-- `board.json`: the board reads it ("The board"). No script reads it.
+A missing or invalid required config stops before branch or worktree changes, locks, runtime
+state, plugin updates, host sessions, or landing pushes. The runner checks the main config
+before each new session. It keeps the selected host for that run. Resume uses the recorded
+host and exact session ID; a changed default cannot select another saved session.
+Installation discovery with an explicit host and standalone capability scoring with explicit
+inputs remain available outside a repository. They need no project config.
 
-The plugin holds the scripts, so only the current folder names the product project. A script that
-reads the product project stops outside a git repository, with the `fatal:` line of git:
-`scripts/celetis worktree`, `scripts/celetis land`, `scripts/celetis next-step`, and
-`scripts/celetis celetis-flow`. `scripts/celetis capscore` and `scripts/celetis root` read no
-product project, and they run in each folder.
-
-**The worktree setup.** `scripts/celetis worktree <n>` makes the lane worktree and its branch
+**The worktree setup.** `scripts/celetis worktree <n>` creates the lane worktree and its branch
 (`docs/issue-tracker.md`, "Branches, PRs, merge"). A new branch starts at the freshly fetched trunk
-of `origin`. The trunk is the default branch that `gh repo view --json defaultBranchRef` gives, and
-the command reads it only when it makes a new branch. The command then runs the setup script of the
-new worktree, in that worktree, as `bash .claude/celetis-flow/worktree-setup.sh <main checkout>`,
-with stdout sent to stderr. So the file needs no execute bit, it can print, and the path of the
-worktree is the only stdout line of the command. A project with no such file gets no setup. When the
-setup script exits with an error, the command prints
-`worktree setup failed: .claude/celetis-flow/worktree-setup.sh`, removes the worktree and the branch
-that it made, and exits 1. The marker of a setup that is done is the file
-`<git dir of the worktree>/celetis-flow-setup-done`: a file in the working tree would make a new
-worktree dirty. The command runs the setup again in a worktree that has no marker.
+of `origin`. `gh repo view --json defaultBranchRef` gives the trunk when the command creates a
+new branch. The command checks `.celetis.yaml` in the lane before setup. It reads `worktreeSetup`
+as one string and runs `bash -c "$setup" celetis-worktree-setup "$main"` in the lane. `$1` is the
+main checkout. Multiline scripts share variables and functions, preserve their text bytes,
+and keep inherited stdin. All output goes to stderr; stdout holds only the successful lane path.
+An omitted or empty setup runs no script.
+
+A failed setup or invalid new lane config prints `worktree setup failed:`, removes a new
+worktree and a branch created by the command, and exits 1. An existing branch or worktree stays
+for repair and retry. The marker remains
+`<git dir of the worktree>/celetis-flow-setup-done`. The command marks only success. It runs setup
+again in an unmarked lane. A marked lane still needs valid config, but does not run setup again.
+Reading config in another command never executes setup.
 
 **A custom part.** A custom part is the file `.claude/celetis-flow/custom/<skill>.md` of a product
 project, with the name of a skill of the plugin. It holds an addition to the procedure of one step,
@@ -416,10 +414,9 @@ the main checkout, and `{n}` stands for the number of the issue:
 | `resume` | `["scripts/celetis", "celetis-flow", "--resume", "{n}"]` | A Resume press makes a tab with the same label and the focus. It quotes each argument, types the command, then adds `&& exit`. |
 | `port` | `<port>` | The port, when `PORT` is not set. |
 
-These lists use `CELETIS_HOST`, else `git config celetis-flow.host`, else Claude for a new
-step. Set the project default with `git config celetis-flow.host codex` or
-`git config celetis-flow.host claude`. Resume uses the host and exact ID in the current session
-record, even after the project default changes. It does not use the session name to find an ID.
+These lists use `CELETIS_HOST`, then `host` in the main checkout's `.celetis.yaml`, then Claude
+for a new step. Set the project default in that field. Resume uses the host and exact ID in the
+current session record, even after the project default changes. It does not use the session name to find an ID.
 
 To fix the host in the board config, put the host prefix before `celetis-flow` in each list:
 

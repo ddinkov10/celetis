@@ -33,8 +33,8 @@ launcher file. It holds only what is its own:
 |---|---|
 | The host wiring | Claude: `.claude/settings.json`. Codex: the installed plugins and trusted `.codex/config.toml` and `.codex/rules/` (below) |
 | The launcher | `scripts/celetis` |
-| The config | `.claude/celetis-flow/gates.json`, `landing.json`, and `board.json` |
-| The worktree setup | `.claude/celetis-flow/worktree-setup.sh` |
+| The config | `.celetis.yaml` and `.claude/celetis-flow/board.json` |
+| The worktree setup | `worktreeSetup` in `.celetis.yaml` |
 | The custom parts | `.claude/celetis-flow/custom/<skill>.md`, one file for each skill that needs one |
 | The product facts | `AGENTS.md` |
 | The stores | `docs/adr/` and `docs/lessons/` |
@@ -251,16 +251,16 @@ of the plugin needs no new copy.
 
 ### Host selection and model setup
 
-Set the default for human terminal and board commands in the product checkout:
+Set `host: codex` in `.celetis.yaml` for human terminal and board commands. Check the installed
+package with an explicit host:
 
 ```bash
-git config celetis-flow.host codex
 scripts/celetis --host codex root
 ```
 
-Selection is `--host claude|codex`, then `CELETIS_HOST`, then `celetis-flow.host` in Git config,
-then `claude`. An invalid value stops the command. Skills always pass their actual host explicitly
-on each call, including landing. The selected host is exported to child scripts. Both installed
+Selection is `--host claude|codex`, then `CELETIS_HOST`, then `host` in the main checkout's
+`.celetis.yaml`, then `claude`. An invalid value stops the command. Skills always pass their
+actual host explicitly on each call, including landing. The selected host is exported to child scripts. Both installed
 hosts can use one product project; their installations and configuration remain separate.
 
 `root` validates the enabled plugin and returns the installed package directory. Codex discovery
@@ -281,32 +281,32 @@ a model session can start. The runner reports startup dialogs and leaves them fo
 
 ### The config, the worktree setup, and the custom parts
 
-They are files of `.claude/celetis-flow/`:
+Operational settings and setup are fields of `.celetis.yaml` (`docs/configuration.md`).
+Commands that need repository setup require this file and stop if it is missing or invalid.
 
-| File | What it holds | With no file |
+| Field or file | What it holds | When omitted |
 |---|---|---|
-| `landing.json` | The landing mechanism. `{"landing": "pr"}` is one PR back to the trunk, which `scripts/celetis land` squash-merges when each check is green. With `pr`, the landing needs one check or more that passes on the PR, so a project with no check uses `merge`. `{"landing": "merge"}` is one squash commit on the trunk, with no PR | `scripts/celetis land` names the two mechanisms and exits 2 |
-| `gates.json` | The gate of each step, `me` or `auto`: `{"triage": "me", "specify": "me", "bug": "me", "chore": "me", "hotfix": "me", "plan": "me", "implement": "me"}` | Each step is `me`, unless the git config of the machine names it `auto` |
-| `board.json` | The commands and the port of the board ("The agent board") | The board shows the session cards only |
-| `worktree-setup.sh` | The setup of a new lane worktree, for example the install of the dependencies and the copy of the files that git ignores | A new worktree gets no setup |
-| `custom/<skill>.md` | A custom part: an addition to the procedure of the skill `<skill>` | The skill continues with its common instructions |
+| `landing` | Required `pr` or `merge`. `pr` squash-merges a PR when each check is green. `merge` creates one squash commit on the trunk, with no PR. A project with no PR check uses `merge` | The command exits 2 |
+| `gates` | A mapping from the seven step names to `me` or `auto` | Each omitted step is `me` |
+| `worktreeSetup` | One Bash script for a lane, for example dependency installation and copying ignored files | No setup |
+| `.claude/celetis-flow/board.json` | The board commands and port ("The agent board") | The board shows session cards only |
+| `.claude/celetis-flow/custom/<skill>.md` | An addition to the skill procedure | No addition |
 
-- **The config** is the three JSON files. Each reader takes them from the main checkout, also when
-  a script starts in a lane worktree. After a merge that changes one of them, run `git pull` in the
-  main checkout.
-- **The gate of a step** comes from the git config of the machine
-  (`git config celetis-flow.gate.<step> auto`), then from `gates.json`, and else it is `me`. An
-  `auto` step starts by itself. A `me` step starts only when you start it, with a number or with a
-  Run press on the board.
+- **Operational settings** come from the main checkout, including when a command starts in a
+  lane or subfolder. After a merge changes the config, run `git pull` in the main checkout.
+- **The gate of a step** comes from `gates.<step>`. An `auto` step starts by itself. A `me` step
+  starts when you supply a number or press Run on the board. Old Git host and gate settings
+  have no effect.
 - **With the landing `pr`,** keep the repository setting `squash_merge_commit_title` at
   `COMMIT_OR_PR_TITLE`: for a PR with one commit, GitHub then takes the subject of that commit and
   adds the PR number (`docs/issue-tracker.md`, "Branches, PRs, merge").
   `gh api 'repos/{owner}/{repo}' --jq .squash_merge_commit_title` prints the value.
-- **The worktree setup.** `scripts/celetis worktree <n>` runs the file of the new worktree, in that
-  worktree, as `bash .claude/celetis-flow/worktree-setup.sh <main checkout>`, with stdout sent to
-  stderr. So the file needs no execute bit, and it can print. When it exits with an error, the
-  command removes the worktree and the branch that it made. A worktree gets its setup one time
-  (`docs/celetis-flow.md`, "The config and the custom parts").
+- **The worktree setup.** `scripts/celetis worktree <n>` reads `worktreeSetup` from the lane's
+  `.celetis.yaml`. It runs the complete string in one Bash process in that lane, with the main
+  checkout as `$1` and inherited stdin. All output goes to stderr, so stdout holds one lane path.
+  A failed setup removes a new worktree and a branch created by the command. An existing branch
+  or worktree stays for repair and retry. A successful setup gets the existing marker and runs
+  only once. Every entry still checks the lane config (`docs/celetis-flow.md`).
 - **A custom part** is read once through the common host entry before the first step or answer
   of its skill, from the active checkout root (ADR-0013). Claude uses native file tools; Codex
   uses the file-access operations of its session. A runner step starts in the main checkout.
@@ -409,9 +409,9 @@ that file, and its `port` is the port of `board.json`:
 ### Commit the wiring on the trunk
 
 Commit these files on the trunk and push them, by hand, before the first lane. A lane branch starts
-at the trunk of `origin`, so a file that is not there is in no lane worktree: the launcher, the
-worktree setup file, or a custom part. A file that git does not track also makes the main checkout
-dirty, and the resolver then stops each issue. The launcher and the worktree setup file need LF
+at the trunk of `origin`, so a file that is not there is in no lane worktree: the launcher,
+`.celetis.yaml`, or a custom part. A file that git does not track also makes the main checkout
+dirty, and the resolver then stops each issue. The launcher and `.celetis.yaml` need LF
 line endings on each host, and a `.gitattributes` file with the line `* text=auto eol=lf` keeps
 them.
 
@@ -445,7 +445,7 @@ host's skill selector. The native desktop selector still needs final acceptance 
   read, edit, and child brief to that exact path and reads its `AGENTS.md` files. A shell `cd`
   alone does not bind later file tools. An app-created detached checkout does not replace the
   lane checkout. Both hosts return to the main checkout for landing.
-- The landing puts the change on the trunk by the mechanism of `landing.json`. With `pr`,
+- The landing puts the change on the trunk by the `landing` field of `.celetis.yaml`. With `pr`,
   `scripts/celetis land <n> '<subject>'` pushes the branch, opens the PR, waits up to 15 minutes
   for the checks, and squash-merges when each check is green. It then removes the worktree and the
   branch.
@@ -531,7 +531,7 @@ and board form. Every skill call adds `--host claude` or `--host codex` before t
 |---|---|
 | `scripts/celetis worktree <n>` | Makes the lane worktree and the branch of the issue, or enters the one that is there, and prints its path |
 | `scripts/celetis worktree --remove <n>` | Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first |
-| `scripts/celetis land <n> '<subject>'` | Lands the change of the issue by the mechanism of `landing.json`. It is the one landing path of an agent |
+| `scripts/celetis land <n> '<subject>'` | Lands the change of the issue by the `landing` field of `.celetis.yaml`. It is the one landing path of an agent |
 | `scripts/celetis next-step <n> \| --open \| --json` | The resolver: the next step of one issue, of each open issue, or the rows for the board |
 | `scripts/celetis capscore J V B N S X` | Resolves the six digits. `--json` gives portable scores and the host pair; Codex also needs `--profile` and `--runtime-models` |
 | `scripts/celetis celetis-flow [<n>...] \| --board \| --resume <n>` | The runner: the next step of each number, or the automatic runner with no number. `--board` prints the data of the board, and `--resume` opens the session of a step with no progress again |
@@ -541,7 +541,8 @@ and board form. Every skill call adds `--host claude` or `--host codex` before t
 - Each sub-command gives the output and the exit code of its script.
 - Run a command in a checkout of the product project: the plugin holds the scripts, so only the
   current folder names the project. `capscore` and `root` run in each folder.
-- The launcher needs the selected host CLI and `jq`. A missing tool or invalid installation
+- The launcher needs the selected host CLI and `jq`. Project commands also need the parser
+  and valid config described in `docs/configuration.md`. A missing tool or invalid installation
   stops with a setup action. Codex commands require no Claude binary. The current metadata must
   explicitly mark the installation enabled; missing fields are not an old-format fallback.
 
@@ -640,9 +641,8 @@ so the product project holds no other file for the board:
 Two boards on one machine need two ports: the `board.json` of this repository has 4404. The board
 reads its config one time, at its start, from the main checkout.
 
-For a new step, these lists use `CELETIS_HOST`, else the project setting
-`git config celetis-flow.host`, else Claude. Set the project default with
-`git config celetis-flow.host codex` or `git config celetis-flow.host claude`. Resume reads the
+For a new step, these lists use `CELETIS_HOST`, then `host` in the main checkout's
+`.celetis.yaml`, then Claude. Set the project default in that field. Resume reads the
 saved host and exact session ID for the issue, even when the project default has changed.
 
 An optional host prefix fixes the host of a list:

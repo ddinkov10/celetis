@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# The one landing path of an agent (ADR-0008). .claude/celetis-flow/landing.json names the mechanism: pr or merge.
 set -euo pipefail
 
 die() { printf 'land: %s\n' "$1" >&2; exit 1; }
@@ -14,13 +13,11 @@ subject=$2
 
 here=$(cd "$(dirname "$0")" && pwd)
 . "$here/worktree-lib.sh"
+. "$here/celetis"
 common=$(git rev-parse --path-format=absolute --git-common-dir)
 main=$(dirname "$common")
-landing=$(jq -r '.landing // empty' "$main/.claude/celetis-flow/landing.json" 2>/dev/null) || landing=
-case $landing in
-  pr | merge) ;;
-  *) echo 'land: .claude/celetis-flow/landing.json must name the landing mechanism: {"landing": "pr"} or {"landing": "merge"}' >&2; exit 2 ;;
-esac
+config=$(celetis_config_read "$main")
+landing=$(printf '%s\n' "$config" | jq -r .landing)
 
 # scripts/next-step.sh reads this lock: the runner does not end the session while the landing runs.
 lock="$common/celetis-flow/land-$n.lock"

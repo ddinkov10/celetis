@@ -91,6 +91,7 @@ if [ -n "${HERDR_PANE_ID:-}" ]; then
   until [ -f "$S/exit-typed" ] || [ "$tries" -ge 40 ]; do tries=$((tries + 1)); /bin/sleep 0.05; done
   rm -f "$S/claude-live" "$S/turn-ended" "$S/exit-typed"
 fi
+[ ! -f "$S/invalid-config" ] || cp "$S/invalid-config" .celetis.yaml
 exit "$(cat "$S/claude-exit" 2>/dev/null || echo 0)"
 EOF
 cat >"$bin/codex" <<'EOF'
@@ -115,6 +116,7 @@ done
 EOF
 cat >"$bin/perl" <<'EOF'
 #!/usr/bin/env bash
+case $1 in */plugin-update.pl) ;; *) exec "$CELETIS_FLOW_TEST_PERL" "$@" ;; esac
 echo "$$" >>"$CELETIS_FLOW_TEST_STATE/helpers"
 if [ ! -f "$CELETIS_FLOW_TEST_STATE/fast-clock" ]; then exec "$CELETIS_FLOW_TEST_PERL" "$@"; fi
 exec "$CELETIS_FLOW_TEST_PERL" -MTime::HiRes -e '
@@ -160,13 +162,22 @@ ln -s "$(command -v jq)" "$nobin/jq"
 ln -s "$(command -v git)" "$nobin/git"
 ln -s "$(command -v dirname)" "$nobin/dirname"
 ln -s "$(command -v mkdir)" "$nobin/mkdir"
+for tool in yq perl mktemp rm cat; do ln -s "$(command -v "$tool")" "$nobin/$tool"; done
 export PATH="$bin:$PATH"
 
 repo="$tmp/re po"
 git init -q "$repo"
 git -C "$repo" config core.autocrlf false
-mkdir -p "$repo/.claude/celetis-flow"
-printf '{"triage":"auto","bug":"me","chore":"me","hotfix":"me","plan":"auto","implement":"auto"}\n' >"$repo/.claude/celetis-flow/gates.json"
+cat >"$repo/.celetis.yaml" <<'EOF'
+landing: merge
+gates:
+  triage: auto
+  plan: auto
+  implement: auto
+worktreeSetup: touch "$CELETIS_FLOW_TEST_STATE/setup-ran"
+EOF
+cp "$repo/.celetis.yaml" "$tmp/initial-config"
+cp "$repo/.celetis.yaml" "$tmp/flow-config"
 printf '.claude/worktrees/\n' >"$repo/.gitignore"
 git -C "$repo" add -A
 git -C "$repo" commit -qm base
@@ -175,12 +186,24 @@ main=$(dirname "$common")
 st="$common/celetis-flow"
 lane="$repo/.claude/worktrees/7-crash"
 git -C "$repo" worktree add -q -b fix/7-crash "$lane"
+printf 'landing: pr\nhost: codex\ngates:\n  specify: auto\n  bug: auto\n  chore: auto\n  hotfix: auto\n' >"$lane/.celetis.yaml"
+git -C "$lane" commit -qam lane-config
+mkdir "$repo/config-sub" "$lane/config-sub"
 
 reset() {
   rm -rf "$S" "$st"
   mkdir -p "$S"
   printf 'one\ntwo\nthree\nfour\nfive\n' >"$tmp/stdin"
   git -C "$repo" config --remove-section celetis-flow.gate 2>/dev/null || true
+  if ! cmp -s "$tmp/flow-config" "$repo/.celetis.yaml"; then
+    cp "$tmp/flow-config" "$repo/.celetis.yaml"
+    git -C "$repo" add .celetis.yaml
+    git -C "$repo" commit -qm reset-config
+  fi
+}
+set_gate() {
+  yq -i ".gates.$1 = \"$2\"" "$repo/.celetis.yaml"
+  git -C "$repo" commit -qam gate-config
 }
 
 issue() {
@@ -205,6 +228,7 @@ end_flow() {
   set -e
   out=$(cat "$tmp/out")
   err=$(cat "$tmp/err")
+  [ ! -e "$S/setup-ran" ] || fail "runner executed worktree setup"
 }
 run_flow() { start_flow "$@"; end_flow; }
 
@@ -242,6 +266,21 @@ cp "$root/scripts/root.sh" "$bare/scripts/root.sh"
 echo "the step text of the moved plugin" >"$moved/step-prompt.md"
 plugin_list() { printf '[{"id":"celetis@celetis","scope":"user","enabled":true,"installPath":"%s"}]\n' "$1" >"$S/plugin-list"; }
 usage="usage: scripts/celetis celetis-flow [<issue number>...] | --board | --resume <issue number>, e.g. scripts/celetis celetis-flow 373 374; with no number, the automatic runner"
+
+for bad in missing invalid; do
+  reset; issue 7 OPEN enhancement "Spec: x"
+  if [ "$bad" = missing ]; then rm "$repo/.celetis.yaml"
+  else printf 'landing: invalid\n' >"$repo/.celetis.yaml"; fi
+  run_flow 7
+  [ "$code" -eq 2 ] && [[ $err == *"$main/.celetis.yaml"* ]] || fail "$bad runner config was not refused: $code [$out] [$err]"
+  [ ! -e "$st" ] && [ "$(locks)" -eq 0 ] && [ "$(count plugin-calls)" -eq 0 ] && [ "$(count claude-calls)" -eq 0 ] || fail "$bad runner config created state, took a lock, updated, or launched"
+  cp "$tmp/flow-config" "$repo/.celetis.yaml"
+done
+reset; issue 7 OPEN enhancement "Spec: x"; after 7 1 OPEN enhancement "Spec: x" "## Plan"
+printf 'landing: invalid\n' >"$S/invalid-config"
+run_flow 7
+[ "$code" -eq 2 ] && [ "$(count claude-calls)" -eq 1 ] && [ "$(count plugin-calls)" -eq 3 ] && [ "$(locks)" -eq 0 ] || fail "runner did not validate config before its second session: $code [$out] [$err]"
+cp "$tmp/flow-config" "$repo/.celetis.yaml"
 
 reset; echo 1 >"$S/claude-exit"
 issue 7 OPEN bug "It breaks"
@@ -407,12 +446,12 @@ run_flow 9
 celetis-flow: the gate of specify is me: scripts/celetis celetis-flow 9 starts /celetis:feature #9" ] || fail "after an auto step, the default gate of specify must end the issue: [$out] [$err]"
 run_flow
 [ "$code" -eq 143 ] && [ "$(count claude-calls)" -eq 1 ] || fail "with the default gate the automatic runner must start no specify session: $code [$(calls claude-calls)]"
-git -C "$repo" config celetis-flow.gate.specify auto
+set_gate specify auto
 run_flow
 [ "$(sessions | tail -1)" = "9|/celetis:feature #9" ] && [ "$(cat "$st/no-progress")" = "9"$'\t'"run /celetis:feature #9" ] || fail "with the gate auto the automatic runner must start specify, and a session that publishes no spec must write one row: [$(sessions)] [$(cat "$st/no-progress" 2>/dev/null)]"
 
 reset; issue 9 OPEN enhancement "An idea"; after 9 2 OPEN enhancement "Spec: x"
-git -C "$repo" config celetis-flow.gate.plan me
+set_gate plan me
 export HERDR_ENV=1 HERDR_PANE_ID=w1:p4 HERDR_TAB_ID=w1:t2
 run_flow 9; first=$out
 run_flow 9
@@ -632,44 +671,26 @@ reset; issue 7 OPEN enhancement "Spec: x"; touch "$S/view-fail-7"; echo 2 >"$S/s
 run_flow
 [ "$out" = "celetis-flow: stop cannot read #7 from GitHub" ] && [ "$(count sleeps)" -eq 2 ] && [ -z "$(calls claude-calls)" ] && [ ! -e "$st/no-progress" ] || fail "an issue that cannot start must wait 60 seconds: [$out]"
 
-[ "$(jq -cS . "$root/.claude/celetis-flow/gates.json")" = '{"bug":"me","chore":"me","hotfix":"me","implement":"me","plan":"me","specify":"me","triage":"me"}' ] || fail "gates.json must hold me for each of the seven steps"
-
-cp "$root/.claude/celetis-flow/gates.json" "$tmp/real-gates.json"
+printf 'landing: merge\n' >"$tmp/flow-config"
 reset; issue 7 OPEN enhancement "Spec: x"; after 7 1 OPEN enhancement "Spec: x" "## Plan"; issue 9 OPEN enhancement "An idea"
-cp "$tmp/real-gates.json" "$repo/.claude/celetis-flow/gates.json"; git -C "$repo" commit -qam "the tracked gates"
+for step in triage specify bug chore hotfix plan implement; do git -C "$repo" config "celetis-flow.gate.$step" auto; done
+for from in "$repo" "$lane" "$repo/config-sub" "$lane/config-sub"; do
+  run_flow --board
+  [ "$code" -eq 0 ] && [ "$(printf '%s' "$out" | jq -cS '.flow.steps | map_values(.gate)')" = '{"bug":"me","chore":"me","hotfix":"me","implement":"me","plan":"me","specify":"me","triage":"me"}' ] && [ -z "$err" ] || fail "omitted main gates from $from must be me despite Git and lane config: $code [$out] [$err]"
+done
+unset from
 run_flow 7
 [ "$out" = "celetis-flow: start: /celetis:plan #7
-celetis-flow: the gate of implement is me: scripts/celetis celetis-flow 7 starts /celetis:implement #7" ] || fail "with the tracked gates a start with a number must start one session: [$out] [$err]"
+celetis-flow: the gate of implement is me: scripts/celetis celetis-flow 7 starts /celetis:implement #7" ] || fail "omitted gates must start only the requested step: [$out] [$err]"
 run_flow
-[ "$code" -eq 143 ] && [ -z "$(calls claude-calls | sed 1d)" ] || fail "with the tracked gates the automatic runner must start nothing: $code [$(calls claude-calls)]"
-git -C "$repo" revert --no-edit HEAD >/dev/null
+[ "$code" -eq 143 ] && [ "$(count claude-calls)" -eq 1 ] || fail "obsolete Git auto gates started a step: $code [$(calls claude-calls)]"
 
-reset; issue 5 OPEN bug "It breaks"; issue 7 OPEN enhancement "Spec: x"
-git -C "$repo" config celetis-flow.gate.plan Auto
-git -C "$repo" config celetis-flow.gate.bug auto
+reset; issue 5 OPEN bug "It breaks"
+set_gate bug auto
 run_flow
-[ "$(sessions)" = "5|/celetis:bug #5" ] || fail "git config must change a gate, and only the value auto is auto: [$(sessions)]"
-run_flow 7
-[ "$(sessions | tail -1)" = "7|/celetis:plan #7" ] || fail "a start with a number must start a me step: [$(sessions)]"
-
-jq 'del(.plan)' "$repo/.claude/celetis-flow/gates.json" >"$tmp/gates.json"
-cp "$tmp/gates.json" "$repo/.claude/celetis-flow/gates.json"
-git -C "$repo" commit -qam "no gate for plan"
-reset; issue 7 OPEN enhancement "Spec: x"
-run_flow
-[ -z "$(calls claude-calls)" ] || fail "a step with no entry must be a me step"
-
-git -C "$repo" rm -q .claude/celetis-flow/gates.json
-git -C "$repo" commit -qm "no gates.json"
-reset; issue 7 OPEN enhancement "Spec: x"; after 7 1 OPEN enhancement "Spec: x" "## Plan"
-run_flow 7
-[ "$out" = "celetis-flow: start: /celetis:plan #7
-celetis-flow: the gate of implement is me: scripts/celetis celetis-flow 7 starts /celetis:implement #7" ] && [ -z "$err" ] || fail "with no gates.json a start with a number must start one session, and print no error: [$out] [$err]"
-run_flow
-[ "$code" -eq 143 ] && [ -z "$(calls claude-calls | sed 1d)" ] && [ -z "$err" ] || fail "with no gates.json the automatic runner must start nothing, and print no error: $code [$(calls claude-calls)] [$err]"
-run_flow --board
-[ "$(printf '%s' "$out" | jq -cS '.flow.steps | map_values(.gate)')" = '{"bug":"me","chore":"me","hotfix":"me","implement":"me","plan":"me","specify":"me","triage":"me"}' ] && [ -z "$err" ] || fail "with no gates.json --board must show each gate as me, and print no error: [$out] [$err]"
-git -C "$repo" revert --no-edit HEAD >/dev/null
+[ "$(sessions)" = "5|/celetis:bug #5" ] || fail "YAML auto gate did not start its step: [$(sessions)]"
+cp "$tmp/initial-config" "$tmp/flow-config"
+reset
 
 field() { printf '%s' "$out" | jq -c ".issues[] | select(.number == $1) | $2"; }
 doc() { printf '%s' "$out" | jq -c "$1"; }
@@ -708,8 +729,8 @@ reset
 issue 4 CLOSED bug "old"; issue 5 OPEN bug "It breaks"; issue 6 OPEN epic ""; issue 10 OPEN hotfix,needs-info ""
 issue 7 OPEN enhancement "Spec: x"; issue 8 OPEN needs-triage "A typo"; issue 9 OPEN enhancement "An idea"
 issue 11 OPEN chore,ready-for-human "" "## Landing refused"; issue 12 OPEN hotfix,ready-for-human "" "## Landing refused" "## Before landing"
-git -C "$repo" config celetis-flow.gate.plan me
-git -C "$repo" config celetis-flow.gate.chore auto; git -C "$repo" config celetis-flow.gate.specify auto
+set_gate plan me
+set_gate chore auto; set_gate specify auto
 mkdir -p "$st"; printf '7\trun /celetis:plan #7\n' >"$st/no-progress"
 touch "$S/hold-5"; tag=a- start_flow 5; a=$flow_pid; await 1
 echo x >"$lane/new.txt"
@@ -726,7 +747,7 @@ checked
 [ "$(field 11 '[.type, .state, .reason, .act, .step, .urgent]')" = '["chore","blocked","landing refused","Do the human step (e.g. the hotfix ship checklist), then remove the label.",null,false]' ] || fail "--board, a refused landing: [$(field 11 .)]"
 [ "$(field 12 '[.state, .reason, .urgent]')" = '["blocked","ready for your step",true]' ] || fail "--board, a refusal that is not current: [$(field 12 .)]"
 [ "$(doc '[.issues[] | has("line")] | any')" = false ] || fail "--board must print no line field"
-[ "$(printf '%s' "$out" | jq -cS '.flow.steps | map_values(.gate)')" = '{"bug":"me","chore":"auto","hotfix":"me","implement":"auto","plan":"me","specify":"auto","triage":"auto"}' ] || fail "--board, the gate of each step from git config and gates.json: [$out]"
+[ "$(printf '%s' "$out" | jq -cS '.flow.steps | map_values(.gate)')" = '{"bug":"me","chore":"auto","hotfix":"me","implement":"auto","plan":"me","specify":"auto","triage":"auto"}' ] || fail "--board, the gate of each step from main YAML: [$out]"
 [ "$(doc '[.flow.lanes.feature, .flow.lanes.hotfix, [.flow.stages[].name], .flow.stages[1].steps, .flow.steps.implement.hint, .flow.steps.plan.hint]')" = '[["triage","specify","plan","implement"],["triage","hotfix"],["Triage","Define","Plan","Implement"],["specify","bug","chore","hotfix"],"It lands the change when the build is done.",null]' ] || fail "--board, the lanes, the stages, and the hints: [$out]"
 [ "$(count gh-calls)" -eq 3 ] && calls gh-calls | grep -Eq '^issue list --state closed --search closed:>=[0-9]{4}-[0-9]{2}-[0-9]{2} --limit 200 --json ' || fail "--board must make 3 gh calls: [$(calls gh-calls)]"
 [ "$(count claude-calls)" -eq 1 ] && [ "$(locks)" -eq 1 ] && [ "$(rows)" -eq 1 ] || fail "--board must start no session, take no lock, and write no row"

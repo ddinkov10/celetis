@@ -147,13 +147,17 @@ celetis_config_read() (
 )
 
 celetis_host_select() {
-  local host
+  local host main config
   if [ $# -gt 0 ]; then
     host=$1
   elif [ "${CELETIS_HOST+x}" = x ]; then
     host=$CELETIS_HOST
   else
-    host=$(git config --get celetis-flow.host 2>/dev/null) || host=claude
+    host=claude
+    if main=$(celetis_config_main 2>/dev/null); then
+      config=$(celetis_config_read "$main") || return $?
+      host=$(printf '%s\n' "$config" | jq -r '.host // "claude"') || return $?
+    fi
   fi
   case $host in
     claude | codex) export CELETIS_HOST=$host ;;
@@ -348,7 +352,7 @@ celetis_claude_root() {
 }
 
 celetis_main() {
-  local name dir explicit=
+  local name dir main explicit=
   if [ "${1:-}" = --host ]; then
     if [ $# -lt 3 ]; then
       echo 'usage: scripts/celetis --host claude|codex <script> [<argument>...]' >&2
@@ -375,6 +379,11 @@ celetis_main() {
     unset CELETIS_RESUME_RECORD
     celetis_host_select || return $?
   fi
+  case $name in
+    worktree | celetis-flow | next-step | land | board)
+      main=$(celetis_config_main) || return $?
+      celetis_config_read "$main" >/dev/null || return $? ;;
+  esac
   if [ "$CELETIS_HOST" = codex ]; then
     dir=$(celetis_codex_root) || return 1
   else

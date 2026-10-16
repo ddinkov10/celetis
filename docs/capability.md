@@ -104,8 +104,8 @@ bias, escalation, and final clamp of the portable score are identical on each ho
 rank 3 below Σ=12 caps at xhigh. A host binding can raise the applied effort without changing
 the portable score.
 
-Host selection is `--host claude|codex` > `CELETIS_HOST` > `git config celetis-flow.host` >
-`claude`. The launcher exports its selected host. Without a new flag, Claude's existing human
+Host selection is `--host claude|codex` > `CELETIS_HOST` > `host` in the main checkout's
+`.celetis.yaml` > `claude`. The launcher exports its selected host. Without a new flag, Claude's existing human
 CAP output is unchanged. When the selected host is Claude and `OPENCODE=1`, the existing opencode
 mode still uses its current model: `--current-model provider/id` > `CAP_CURRENT_MODEL` > the
 current-model database lookup. If none is found, its existing Claude-label fallback remains.

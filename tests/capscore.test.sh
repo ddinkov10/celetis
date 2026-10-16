@@ -5,6 +5,8 @@ scorer="$here/../scripts/capscore.sh"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 fails=0
+git init -q "$tmp/project"
+printf 'landing: merge\n' >"$tmp/project/.celetis.yaml"
 unset CELETIS_HOST CAP_EFFORT_BIAS CAP_CURRENT_MODEL CAP_MODEL_PROFILE CAP_RUNTIME_MODELS OPENCODE GIT_CONFIG GIT_CONFIG_PARAMETERS
 
 cat >"$tmp/profile.json" <<'JSON'
@@ -21,7 +23,7 @@ export CAP_MODEL_PROFILE="$tmp/profile.json" CAP_RUNTIME_MODELS="$tmp/models.jso
 
 run() {
   code=0
-  out=$(/bin/bash "$scorer" "$@" 2>"$tmp/err") || code=$?
+  out=$(cd "$tmp/project" && /bin/bash "$scorer" "$@" 2>"$tmp/err") || code=$?
   err=$(cat "$tmp/err")
 }
 check() {
@@ -52,11 +54,15 @@ retry_sequence() {
 }
 
 GIT_CONFIG=/dev/null GIT_CONFIG_COUNT=0 run 1 0 2 1 1 0
-expect 'default Claude human CAP with no Git host remains unchanged' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
+expect 'default Claude human CAP remains unchanged' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
 GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=celetis-flow.host GIT_CONFIG_VALUE_0=codex run 1 0 2 1 1 0
-expect 'project Git host selects Codex' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → standard/xhigh'
+expect 'obsolete Git host has no effect on scoring' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
+printf 'landing: merge\nhost: codex\n' >"$tmp/project/.celetis.yaml"
+run 1 0 2 1 1 0
+expect 'main YAML host selects Codex for scoring' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → standard/xhigh'
+printf 'landing: merge\n' >"$tmp/project/.celetis.yaml"
 GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=celetis-flow.host GIT_CONFIG_VALUE_0=codex CELETIS_HOST=claude run 1 0 2 1 1 0
-expect 'host environment overrides the project Git host' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
+expect 'host environment overrides an obsolete Git host' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
 CELETIS_HOST=claude run 1 0 2 1 1 0
 expect 'selected Claude human CAP remains unchanged' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
 run --host claude 0 0 0 0 0 0 --bias 0

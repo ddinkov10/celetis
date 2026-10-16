@@ -8,7 +8,7 @@ export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER
 fail() { echo "FAIL: $1"; exit 1; }
 
 mkdir -p "$tmp/bin" "$tmp/plug in"
-cp "$here/scripts/worktree.sh" "$here/scripts/worktree-lib.sh" "$tmp/plug in/"
+cp "$here/scripts/celetis" "$here/scripts/worktree.sh" "$here/scripts/worktree-lib.sh" "$tmp/plug in/"
 cat >"$tmp/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >>"$GH_LOG"
@@ -33,8 +33,14 @@ case "$1 $2" in
     esac ;;
 esac
 EOF
-chmod +x "$tmp/bin/gh"
-export PATH="$tmp/bin:$PATH" SETUP_LOG="$tmp/setup.log" GH_LOG="$tmp/gh.log" PRS='OPEN 0' \
+export WORKTREE_GIT="$(command -v git)" GIT_LOG="$tmp/git.log"
+cat >"$tmp/bin/git" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$GIT_LOG"
+exec "$WORKTREE_GIT" "$@"
+EOF
+chmod +x "$tmp/bin/gh" "$tmp/bin/git"
+export PATH="$tmp/bin:$PATH" SETUP_LOG="$tmp/setup.log" SETUP_BYTES="$tmp/setup.bytes" GH_LOG="$tmp/gh.log" PRS='OPEN 0' \
   OPEN_HEADS= ISSUE_LABELS=enhancement ISSUE_TITLE=Probe ISSUE_STATE=OPEN
 touch "$SETUP_LOG" "$GH_LOG"
 
@@ -46,19 +52,29 @@ on_origin() { git ls-remote --exit-code --heads origin "refs/heads/$1" >/dev/nul
 branches() { git branch --list --format='%(refname:short)' "*/$1-*" | paste -sd ' ' -; }
 no_worktree() { ! compgen -G ".claude/worktrees/$1-*" >/dev/null; }
 slug_of() { local p; p=$(ISSUE_TITLE=$2 wt "$1") && echo "${p##*/$1-}"; }
-setup=.claude/celetis-flow/worktree-setup.sh
+setup=.celetis.yaml
 marker_of() { echo "$(git -C "$1" rev-parse --path-format=absolute --git-dir)/celetis-flow-setup-done"; }
 setup_runs() { wc -l <"$SETUP_LOG"; }
 
 git init -q -b master "$tmp/main checkout"
 cd "$tmp/main checkout"
-mkdir -p .claude/celetis-flow
-cat >"$setup" <<'EOF'
-echo "$PWD|$1" >>"$SETUP_LOG"
-echo noise
+cat >"$tmp/expected-setup" <<'EOF'
+kept=kept
+record() { printf '%s|%s|%s\n' "$PWD" "$1" "$kept" >>"$SETUP_LOG"; }
+
+record "$1"
+printf '%s' "$BASH_EXECUTION_STRING" >"$SETUP_BYTES"
+printf '%s\n' 'noise "quoted" \slash' >&2
+printf '%s\n' stdout-noise
 [ "${FAIL_SETUP:-}" != 1 ] || exit 1
+
+
 EOF
-chmod +x "$setup"
+{
+  printf 'landing: merge\nworktreeSetup: |+\n'
+  sed 's/^/  /' "$tmp/expected-setup"
+} >"$setup"
+cp "$setup" "$tmp/base-config"
 echo app >app.txt
 echo .claude/worktrees/ >.gitignore
 git add -A
@@ -72,15 +88,30 @@ git -C "$tmp/other" push -q origin HEAD:master
 upstream=$(git -C "$tmp/other" rev-parse HEAD)
 main=$(git rev-parse --show-toplevel)
 
+printf 'landing: merge\nworktreeSetup: exit 91\n' >"$setup"
 out=$(wt 1 2>"$tmp/err") || fail "new worktree not made: $(cat "$tmp/err")"
 [ "$out" = "$main/.claude/worktrees/1-probe" ] || fail "wrong path: $out"
 [ "$(git -C "$out" branch --show-current)" = feat/1-probe ] || fail "enhancement label did not name a feat/ branch"
 [ "$(git -C "$out" rev-parse HEAD)" = "$upstream" ] || fail "not based on a fresh origin/master"
 [ -z "$(git -C "$out" config --get branch.feat/1-probe.merge || true)" ] || fail "branch tracks origin/master"
-[ "$(cat "$SETUP_LOG")" = "$out|$main" ] || fail "setup did not run once in the new worktree with the main checkout: $(cat "$SETUP_LOG")"
-grep -qx noise "$tmp/err" || fail "setup output not sent to stderr"
+[ "$(cat "$SETUP_LOG")" = "$out|$main|kept" ] || fail "setup did not run once in the new worktree with the main checkout: $(cat "$SETUP_LOG")"
+cmp "$SETUP_BYTES" "$tmp/expected-setup" || fail "setup script bytes changed"
+grep -qxF 'noise "quoted" \slash' "$tmp/err" || fail "setup stderr text changed"
+grep -qx stdout-noise "$tmp/err" || fail "setup stdout not sent to stderr"
+cp "$tmp/base-config" "$setup"
 [ -f "$(marker_of "$out")" ] || fail "setup not marked done"
 [ -z "$(git -C "$out" status --porcelain)" ] || fail "setup left the worktree dirty"
+
+for bad in missing invalid; do
+  if [ "$bad" = missing ]; then rm "$setup"
+  else printf 'landing: invalid\n' >"$setup"; fi
+  : >"$GIT_LOG"; : >"$GH_LOG"
+  [ "$(code_of 90)" -eq 2 ] || fail "$bad main config was not refused"
+  [[ $(stderr_of 90) == *"$main/.celetis.yaml"* ]] || fail "$bad main config did not name its path"
+  ! grep -Eq '^(worktree (prune|add|remove)|branch)' "$GIT_LOG" || fail "$bad main config changed Git state: $(cat "$GIT_LOG")"
+  [ ! -s "$GH_LOG" ] || fail "$bad main config called gh"
+  cp "$tmp/base-config" "$setup"
+done
 
 : >"$GH_LOG"
 [ "$(ISSUE_TITLE='A renamed title' wt '#1')" = "$out" ] || fail "rerun by #<n> returned another path"
@@ -89,6 +120,11 @@ grep -qx noise "$tmp/err" || fail "setup output not sent to stderr"
 [ ! -s "$GH_LOG" ] || fail "re-entering a local branch called gh: $(cat "$GH_LOG")"
 [ "$(setup_runs)" -eq 1 ] || fail "rerun ran setup again"
 
+cp "$out/$setup" "$tmp/lane-config"
+printf 'landing: invalid\n' >"$out/$setup"
+[ "$(code_of 1)" -ne 0 ] || fail "marked re-entry accepted an invalid lane config"
+[ "$(setup_runs)" -eq 1 ] && [ -f "$(marker_of "$out")" ] || fail "invalid marked re-entry changed setup state"
+cp "$tmp/lane-config" "$out/$setup"
 rm "$(marker_of "$out")"
 [ "$(wt 1)" = "$out" ] || fail "resumed setup returned another path"
 [ "$(setup_runs)" -eq 2 ] || fail "interrupted setup not run again"
@@ -97,6 +133,7 @@ rm "$(marker_of "$out")"
 rm "$(marker_of "$out")"
 [ "$(FAIL_SETUP=1 code_of 1)" -eq 1 ] || fail "failed resumed setup not reported"
 [ -d "$out" ] && has_ref feat/1-probe || fail "failed resumed setup removed work"
+[ ! -f "$(marker_of "$out")" ] || fail "failed resumed setup marked success"
 
 nested=$(cd "$out" && ISSUE_LABELS=bug ISSUE_TITLE=Nested wt 2)
 [ "$nested" = "$main/.claude/worktrees/2-nested" ] || fail "worktree nested inside another: $nested"
@@ -167,21 +204,41 @@ git fetch -q origin
 [ "$(git rev-parse feat/17-fresh-start)" = "$upstream" ] || fail "new branch not based on origin/master"
 [ "$(branches 17)" = feat/17-fresh-start ] || fail "merged PR's leftover remote branch checked out: $(branches 17)"
 
-git checkout -q -b chore/26-noexec
-chmod -x "$setup"
-git commit -qam noexec
+git checkout -q -b chore/26-emptysetup
+printf 'landing: merge\nworktreeSetup: ""\n' >"$setup"
+git commit -qam emptysetup
 git checkout -q -b chore/27-nosetup master
-git rm -q "$setup"
-git commit -qm nosetup
+printf 'landing: merge\n' >"$setup"
+git commit -qam nosetup
+git checkout -q -b chore/30-stdin master
+cat >"$setup" <<'EOF'
+landing: merge
+worktreeSetup: |
+  IFS= read -r setup_stdin
+  printf '%s' "$setup_stdin" >"$SETUP_STDIN"
+EOF
+git commit -qam stdin
 git checkout -q master
 before=$(setup_runs)
-noexec=$(wt 26) || fail "setup file with no execute bit broke the worktree"
-[ ! -x "$noexec/$setup" ] || fail "fixture setup file is executable"
-[ "$(setup_runs)" -eq $((before + 1)) ] || fail "setup file with no execute bit did not run"
-nosetup=$(wt 27) || fail "branch with no setup file not made"
-[ "$nosetup" = "$main/.claude/worktrees/27-nosetup" ] || fail "branch with no setup file: wrong path: $nosetup"
-[ -f "$(marker_of "$nosetup")" ] || fail "branch with no setup file not marked done"
-[ "$(setup_runs)" -eq $((before + 1)) ] || fail "branch with no setup file ran a setup"
+emptysetup=$(wt 26) || fail "empty setup string broke the worktree"
+[ -f "$(marker_of "$emptysetup")" ] || fail "empty setup was not marked done"
+nosetup=$(wt 27) || fail "branch with no setup field not made"
+[ "$nosetup" = "$main/.claude/worktrees/27-nosetup" ] || fail "branch with no setup: wrong path: $nosetup"
+[ -f "$(marker_of "$nosetup")" ] || fail "branch with no setup not marked done"
+[ "$(setup_runs)" -eq "$before" ] || fail "absent or empty setup ran a script"
+export SETUP_STDIN="$tmp/setup.stdin"
+stdin_lane=$(printf 'inherited input\n' | wt 30) || fail "setup could not read inherited stdin"
+[ "$(cat "$SETUP_STDIN")" = 'inherited input' ] || fail "setup stdin was replaced by script text"
+[ -f "$(marker_of "$stdin_lane")" ] || fail "stdin setup not marked done"
+
+git -C "$tmp/other" checkout -q -b fix/31-invalid-config master
+printf 'landing: invalid\n' >"$tmp/other/.celetis.yaml"
+git -C "$tmp/other" commit -qam invalid-config
+git -C "$tmp/other" push -q origin fix/31-invalid-config
+[ "$(OPEN_HEADS=fix/31-invalid-config code_of 31)" -eq 1 ] || fail "invalid new lane config was not a setup failure"
+[[ $(OPEN_HEADS=fix/31-invalid-config stderr_of 31) == *"worktree setup failed"* ]] || fail "invalid new lane config had no setup failure diagnostic"
+no_worktree 31 && [ -z "$(branches 31)" ] || fail "invalid new lane config left a worktree or new local branch"
+git ls-remote --exit-code origin refs/heads/fix/31-invalid-config >/dev/null || fail "invalid lane cleanup deleted the remote branch"
 
 git clone -q "$tmp/origin.git" "$tmp/alt"
 git -C "$tmp/alt" commit -q --allow-empty -m on-main

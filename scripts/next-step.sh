@@ -33,8 +33,10 @@ usage="usage: scripts/celetis next-step <issue number> | --open | --json, e.g. s
 n=${1#\#}
 [ "$1" = --open ] || [ "$1" = --json ] || case $n in '' | *[!0-9]*) printf '%s\n' "$usage" >&2; exit 2 ;; esac
 
+. "$(dirname "$0")/celetis"
 common=$(git rev-parse --path-format=absolute --git-common-dir)
 main=$(dirname "$common")
+celetis_config_read "$main" >/dev/null
 dirty() { [ -d "$1" ] && [ -n "$(git -C "$1" status --porcelain)" ]; }
 dirty_line() { printf 'stop the working tree is dirty: %s; commit or stash first\n' "$1"; }
 # scripts/land.sh holds this lock while it runs. The line does not start with "stop #<n> ", so the runner keeps the session open.

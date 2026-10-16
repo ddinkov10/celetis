@@ -23,6 +23,7 @@ echo 'printf "%s" "$CELETIS_HOST"' >"$plug/scripts/host.sh"
 
 export LIST="$tmp/list.json"
 export SKILLS="$tmp/skills.json" CALLS="$tmp/calls" PID_FILE="$tmp/pid"
+export REAL_GIT="$(command -v git)"
 export GIT_HOST= CODEX_MODE= TMPDIR="$tmp/pipes" LOOKUP_FAIL=0
 unset CELETIS_HOST
 cat >"$tmp/stub/claude" <<'EOF'
@@ -40,7 +41,7 @@ cat >"$tmp/stub/git" <<'EOF'
 if [ "$*" = 'config --get celetis-flow.host' ] && [ "${GIT_HOST+x}" = x ] && [ -n "$GIT_HOST" ]; then
   printf '%s\n' "$GIT_HOST"
 else
-  exit 1
+  exec "$REAL_GIT" "$@"
 fi
 EOF
 cat >"$tmp/codex/codex" <<'EOF'
@@ -101,12 +102,12 @@ run() {
   local p=$1
   shift
   code=0
-  out=$(PATH="$p" "$celetis" "$@" 2>"$tmp/err") || code=$?
+  out=$(cd "${from:-$proj}" && PATH="$p" "$celetis" "$@" 2>"$tmp/err") || code=$?
   err=$(cat "$tmp/err")
 }
 
 skills() {
-  jq -nc --arg cwd "$PWD" --args '{data:[{cwd:$cwd,skills:[$ARGS.positional[] | fromjson],errors:[]}]}' -- "$@" >"$SKILLS"
+  jq -nc --arg cwd "${from:-$proj}" --args '{data:[{cwd:$cwd,skills:[$ARGS.positional[] | fromjson],errors:[]}]}' -- "$@" >"$SKILLS"
 }
 skill() {
   jq -nc --arg path "$1" --arg enabled "${2:-true}" --arg id "${3:-celetis@celetis}" --arg name "${4:-celetis:guide}" \
@@ -131,6 +132,17 @@ expect() {
   fi
 }
 
+git init -q "$proj"
+printf 'landing: merge\n' >"$proj/.celetis.yaml"
+git -C "$proj" add .
+git -C "$proj" -c user.name=t -c user.email=t@t commit -qm fixture
+proj=$(cd "$proj" && pwd -P)
+celetis="$proj/scripts/celetis"
+git -C "$proj" worktree add -q -b feat/1-lane "$tmp/lane"
+lane=$(cd "$tmp/lane" && pwd -P)
+printf 'landing: pr\nhost: claude\n' >"$lane/.celetis.yaml"
+mkdir "$proj/sub" "$lane/sub" "$tmp/outside"
+printf 'printf "%%s\\n" "%s"\n' "$plug" >"$plug/scripts/root.sh"
 stub="$tmp/stub:$PATH"
 install='celetis: the plugin is not installed; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis'
 usage='usage: scripts/celetis <script> [<argument>...], e.g. scripts/celetis next-step --open'
@@ -211,7 +223,10 @@ run "$both" host
 expect 'both hosts installed still defaults to Claude' claude '' 0
 
 GIT_HOST=codex run "$both" host
-expect 'project host selects Codex' codex '' 0
+expect 'obsolete Git host has no effect' claude '' 0
+printf 'landing: merge\nhost: codex\n' >"$proj/.celetis.yaml"
+GIT_HOST=claude run "$both" host
+expect 'main YAML host selects Codex' codex '' 0
 
 CELETIS_HOST=codex GIT_HOST=claude run "$both" host
 expect 'environment host overrides the project host' codex '' 0
@@ -227,7 +242,7 @@ run "$codex_only" --host codex echo a 'b c' '' '#7' --host claude
 expect 'standalone bootstrap works without Claude and preserves arguments' '[a][b c][][#7][--host][claude]' '' 0
 check 'successful discovery removes its process and temporary pipes' cleaned
 check 'one lookup makes exactly the handshake and skills request' test "$(sed '1d' "$CALLS" | jq -rs '[.[].method] | join(",")')" = 'initialize,initialized,skills/list'
-check 'lookup uses the current checkout and forces enabled-state refresh' test "$(tail -1 "$CALLS" | jq -r --arg cwd "$PWD" '.params == {cwds:[$cwd],forceReload:true}')" = true
+check 'lookup uses the current checkout and forces enabled-state refresh' test "$(tail -1 "$CALLS" | jq -r --arg cwd "$proj" '.params == {cwds:[$cwd],forceReload:true}')" = true
 
 sleep 30 &
 unrelated=$!
@@ -242,8 +257,8 @@ run "$both" --host other echo
 expect 'invalid explicit host fails' '' 'celetis: invalid host other; use claude or codex' 2
 CELETIS_HOST=other run "$both" echo
 expect 'invalid environment host fails' '' 'celetis: invalid host other; use claude or codex' 2
-GIT_HOST=other run "$both" echo
-expect 'invalid project host fails' '' 'celetis: invalid host other; use claude or codex' 2
+GIT_HOST=other run "$both" host
+expect 'invalid obsolete Git host has no effect' codex '' 0
 CELETIS_HOST= run "$both" echo
 expect 'empty environment host fails' '' 'celetis: invalid host ; use claude or codex' 2
 CELETIS_HOST=other run "$both" --host codex host
@@ -305,13 +320,13 @@ helper_run() {
   local p=$1
   shift
   code=0
-  out=$(PATH="$p" bash -c 'set -eu; source "$1"; shift; "$@"; if [ "$1" = celetis_host_select ]; then bash -c '\''printf "%s" "$CELETIS_HOST"'\''; fi' helper "$helper" "$@" 2>"$tmp/err") || code=$?
+  out=$(cd "${from:-$proj}" && PATH="$p" bash -c 'set -eu; source "$1"; shift; "$@"; if [ "$1" = celetis_host_select ]; then bash -c '\''printf "%s" "$CELETIS_HOST"'\''; fi' helper "$helper" "$@" 2>"$tmp/err") || code=$?
   err=$(cat "$tmp/err")
 }
 helper_run "$stub" celetis_host_select
-expect 'direct helper defaults to Claude and exports to children' claude '' 0
-GIT_HOST=codex helper_run "$both" celetis_host_select
-expect 'direct helper respects the project host' codex '' 0
+expect 'direct helper uses main YAML and exports to children' codex '' 0
+GIT_HOST=claude helper_run "$both" celetis_host_select
+expect 'direct helper ignores the obsolete Git host' codex '' 0
 CELETIS_HOST=claude GIT_HOST=codex helper_run "$both" celetis_host_select
 expect 'direct helper environment overrides the project host' claude '' 0
 CELETIS_HOST=codex helper_run "$codex_only" celetis_host_require
@@ -321,5 +336,38 @@ expect 'direct helper rejects an invalid host' '' 'celetis: invalid host other; 
 CELETIS_HOST=codex helper_run "$tmp/nobin" celetis_host_require
 expect 'direct helper checks the selected binary' '' 'celetis: codex is not on PATH' 1
 
+
+for from in "$proj" "$lane" "$proj/sub" "$lane/sub"; do
+  skills "$(skill "$plug/skills/guide/SKILL.md")"
+  GIT_HOST=claude run "$both" host
+  expect "main YAML host from $from" codex '' 0
+  CELETIS_HOST=claude run "$both" host
+  expect "environment host from $from" claude '' 0
+  CELETIS_HOST=codex run "$both" --host claude host
+  expect "explicit host from $from" claude '' 0
+  printf 'landing: merge\n' >"$proj/.celetis.yaml"
+  GIT_HOST=codex run "$both" host
+  expect "default host from $from" claude '' 0
+  printf 'landing: merge\nhost: codex\n' >"$proj/.celetis.yaml"
+done
+unset from
+skills "$(skill "$plug/skills/guide/SKILL.md")"
+export LAUNCH_LOG="$tmp/launched"
+printf 'touch "$LAUNCH_LOG"\n' >"$plug/scripts/next-step.sh"
+for bad in missing invalid; do
+  if [ "$bad" = missing ]; then rm "$proj/.celetis.yaml"
+  else printf 'landing: merge\nhost: other\n' >"$proj/.celetis.yaml"; fi
+  run "$both" --host claude next-step 7
+  check "$bad main config stops a project command" test "$code" -eq 2
+  check "$bad main config starts no installed script" test ! -e "$LAUNCH_LOG"
+  check "$bad main config reports the selected path" test "${err#*"$proj/.celetis.yaml"}" != "$err"
+  run "$tmp/stub:$tmp/nobin" --host claude root
+  expect "explicit installation root bypasses $bad project config without yq" "$plug" '' 0
+done
+printf 'landing: merge\nhost: codex\n' >"$proj/.celetis.yaml"
+from="$tmp/outside" run "$tmp/stub:$tmp/nobin" --host claude root
+expect 'explicit installation root works outside Git without yq' "$plug" '' 0
+from="$tmp/outside" run "$stub" root
+expect 'outside Git has no required project defaults' "$plug" '' 0
 
 [ "$fails" -eq 0 ]

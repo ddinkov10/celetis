@@ -75,7 +75,18 @@ custom:
 The setup script runs in one Bash process in the new lane checkout. Its first positional
 argument is the main checkout. Its output goes to stderr and its exit status decides success.
 Reading the config or entering a skill does not execute setup. Shell consumers that extract
-text can use `jq -j` to avoid an added newline; command substitution removes trailing newlines.
+text use `jq -jr` and a sentinel because command substitution removes trailing newlines.
+The worktree command removes exactly the sentinel and runs
+`bash -c "$setup" celetis-worktree-setup "$main"`. The script keeps inherited stdin, so `read`
+can receive terminal input. An omitted or empty script runs no setup.
+
+The main config is checked before Git prune, branch or worktree changes, runtime state creation,
+plugin updates, host sessions, and landing pushes. The runner checks it again before each new
+session. The worktree command also checks the lane config on every entry, including a lane with
+its setup marker. An unmarked lane runs setup once and receives the marker only after success.
+A setup failure or invalid new lane config uses the existing cleanup: remove the new worktree
+and a branch created by the command; keep an existing branch or worktree for repair and retry.
+Git settings `celetis-flow.host` and `celetis-flow.gate.<step>` have no effect.
 
 Use the main checkout for `host`, `landing`, `gates`, `board`, and `codexProfiles`.
 Use the new lane checkout for setup. At each skill entry, use `custom.<skill>` from the active
@@ -98,7 +109,7 @@ Source `scripts/celetis` to use these functions without starting installation di
   a nonzero status.
 - `celetis_config_read CHECKOUT` reads only `CHECKOUT/.celetis.yaml`. It prints one compact,
   validated JSON object. It does not insert defaults, select a host, or execute text.
-  An invalid or missing setup returns status 2 with empty stdout. Its diagnostic names the
+  An invalid or missing config returns status 2 with empty stdout. Its diagnostic names the
   selected file and field; syntax and root errors use `<document>`.
 
 The reader uses one private YAML snapshot for metadata checks and JSON conversion. It checks

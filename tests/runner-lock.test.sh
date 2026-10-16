@@ -76,8 +76,7 @@ EOF
 chmod +x "$tmp/bin/"*
 export PATH="$tmp/bin:$PATH"
 git -C "$tmp/project" init -q
-mkdir -p "$tmp/project/.claude/celetis-flow"
-echo '{"plan":"auto"}' >"$tmp/project/.claude/celetis-flow/gates.json"
+printf 'landing: merge\ngates:\n  plan: auto\n' >"$tmp/project/.celetis.yaml"
 git -C "$tmp/project" add .
 git -C "$tmp/project" commit -qm fixture
 state="$tmp/project/.git/celetis-flow"
@@ -98,7 +97,7 @@ for name in issue-7 runner; do
   done
   [ -f "$S/returned-codex" ] || fail "the contenders did not both inspect the stale owner"
   /bin/sleep 0.5
-  [ -f "$S/started-claude" ] && [ ! -f "$S/started-codex" ] || fail "both hosts replaced the same stale $name lock"
+  [ -f "$S/started-claude" ] && [ ! -f "$S/started-codex" ] || fail "stale $name lock started the wrong hosts: $(ls "$S"/started-* 2>/dev/null); Claude: $(cat "$tmp/claude.out" "$tmp/claude.err"); Codex: $(cat "$tmp/codex.out" "$tmp/codex.err")"
   git -C "$tmp/project" log --all --oneline >/dev/null || fail "a live lock broke git log"
   touch "$S/release"
   wait 2>/dev/null || true
