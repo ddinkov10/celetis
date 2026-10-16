@@ -63,7 +63,7 @@ if ! gone; then
     celetis_host_require || exit $?
     command -v gh >/dev/null 2>&1 || die "gh is not on PATH"
     if [ "${HERDR_ENV:-}" = 1 ]; then
-      [[ ${HERDR_PANE_ID:-} =~ ^w[1-9][0-9]*:p[1-9][0-9]*$ ]] || die "HERDR_ENV=1 needs a valid HERDR_PANE_ID; start from a herdr pane"
+      [[ ${HERDR_PANE_ID:-} =~ ^w[A-Za-z0-9]+:p[A-Za-z0-9]+$ ]] || die "HERDR_ENV=1 needs a valid HERDR_PANE_ID; start from a herdr pane"
       command -v herdr >/dev/null 2>&1 || die "herdr is not on PATH"
       managed=1
     fi
