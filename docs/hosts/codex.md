@@ -34,11 +34,11 @@ uses this host's spellings; it never starts a lane.
 
 ## Worktree, commands, and files
 
-Write `scripts/celetis --host codex <command>` on every launcher call. Resolve the bundle from
-the loaded skill path, or use `scripts/celetis --host codex root` in the product checkout.
+Write `scripts/celetis --agent codex <command>` on every launcher call. Resolve the bundle from
+the loaded skill path, or use `scripts/celetis --agent codex root` in the product checkout.
 Neither a Claude environment variable nor an export in a previous tool call establishes it.
 
-Run `scripts/celetis --host codex worktree <n>` in the active product checkout and wait up to ten
+Run `scripts/celetis --agent codex worktree <n>` in the active product checkout and wait up to ten
 minutes for completion. Record the main checkout as the directory containing the absolute Git
 common directory (`git rev-parse --path-format=absolute --git-common-dir`). Bind the exact
 successful output path as the lane checkout. A Codex managed or detached app worktree does not
@@ -58,7 +58,7 @@ child inherit that checkout for lane edits.
 
 Before landing or removal, set command context to the recorded main checkout, verify its root
 and trunk, and read its applicable instructions. Keep the lane on disk. Run
-`scripts/celetis --host codex land <n> '<subject>'` there using the command tool's persistent
+`scripts/celetis --agent codex land <n> '<subject>'` there using the command tool's persistent
 session/background support. Wait on the returned session identifier until exit; the checks may
 take fifteen minutes. A yield is not completion. Do not start another landing while it runs.
 With `exec_command`, retain `session_id` and use `write_stdin` to collect completion. When the
@@ -74,7 +74,7 @@ surface and validate the profile as [capability binding](../capability.md) speci
 scorer call supplies the host and configuration explicitly:
 
 ```bash
-scripts/celetis --host codex capscore J V B N S X --bias BIAS --attempt N --json \
+scripts/celetis --agent codex capscore J V B N S X --bias BIAS --attempt N --json \
   --profile /absolute/profile.json --runtime-models /absolute/active-models.json
 ```
 

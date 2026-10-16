@@ -240,7 +240,7 @@ update_plugin() {
   local moved result=0
   command -v perl >/dev/null 2>&1 || die "perl is not on PATH"
   update_output=$(mktemp)
-  perl "$here/plugin-update.pl" "$$" "$CELETIS_HOST" >"$update_output" </dev/null &
+  perl "$here/plugin-update.pl" "$$" "$CELETIS_AGENT" >"$update_output" </dev/null &
   updater=$!
   wait "$updater" || result=$?
   updater=
@@ -258,7 +258,7 @@ start_session() {
       kill -0 "$$" 2>/dev/null || exit 1
       sleep 0.05
     done
-    exec "$CELETIS_HOST" "${CELETIS_ARGS[@]}"
+    exec "$CELETIS_AGENT" "${CELETIS_ARGS[@]}"
   ) <&0 &
   session_pid=$!
   register_session
@@ -293,7 +293,7 @@ run_issue() {
     esac
     prompt=${line#run }
     if [ "$line" = "$last" ]; then
-      [ "$exit_code" -eq 0 ] || die "$CELETIS_HOST session exited with status $exit_code before issue progress; check startup output, then run $(celetis_manual_recovery) from the main checkout or start the step again"
+      [ "$exit_code" -eq 0 ] || die "$CELETIS_AGENT session exited with status $exit_code before issue progress; check startup output, then run $(celetis_manual_recovery) from the main checkout or start the step again"
       say "no progress: $prompt"
       recorded "$n" "$line" || printf '%s\t%s\n' "$n" "$line" >>"$record"
       break
@@ -339,7 +339,7 @@ run_issue() {
 
 if [ "$mode" = resume ]; then
   take "issue-$issues" || die "another celetis-flow.sh or its session (PID $holder) works on #$issues"
-  case $CELETIS_HOST in
+  case $CELETIS_AGENT in
     claude) CELETIS_ARGS=(--resume "$session_id") ;;
     codex) CELETIS_ARGS=(resume --no-daemon "$session_id") ;;
   esac

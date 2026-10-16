@@ -7,7 +7,7 @@ ln -s "$root" "$tmp/plug in"
 plugin="$tmp/plug in"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 export CELETIS_FLOW_TEST_STATE="$tmp/state"
-export CELETIS_HOST=claude
+export CELETIS_AGENT=claude
 export CELETIS_FLOW_TEST_PLUGIN="$plugin" CELETIS_FLOW_TEST_PERL="$(command -v perl)"
 export CLAUDE_CONFIG_DIR="$tmp/claude config" CODEX_HOME="$tmp/codex config"
 export CELETIS_TEST_HERDR_FIXTURES="$root/tests/fixtures/herdr"
@@ -294,7 +294,7 @@ for stage in marketplace update list; do
   end_flow
   [ "$code" -ne 0 ] && [ "$(count claude-calls)" -eq 0 ] && [ ! -e "$st/no-progress" ] || fail "a hung $stage command must stop before the session: $code [$out] [$err]"
   phase=$stage
-  [ "$stage" != list ] || phase='--host claude root'
+  [ "$stage" != list ] || phase='--agent claude root'
   [[ $err == *"timed out"* && $err == *"$phase"* && $err == *"fake claude plugin: error"* ]] || fail "a timeout must show its command and captured cause: [$err]"
   ! kill -0 "$update_pid" 2>/dev/null || fail "the timed-out update still runs: $update_pid"
   case $(ps -p "$update_child" -o stat= 2>/dev/null) in '' | *Z*) ;; *) fail "a timed-out update left a live descendant: $update_child" ;; esac
@@ -306,7 +306,7 @@ lost_diagnostics=0
 for boundary in timeout interruption; do
   reset; issue 7 OPEN enhancement "Spec: x"
   [ "$boundary" != timeout ] || touch "$S/fast-clock"
-  CELETIS_HOST=codex TMPDIR="$tmp/codex pipes" start_flow 7
+  CELETIS_AGENT=codex TMPDIR="$tmp/codex pipes" start_flow 7
   await_file "$S/codex-child"
   codex_pid=$(cat "$S/codex-pid")
   codex_child=$(cat "$S/codex-child")
@@ -314,9 +314,9 @@ for boundary in timeout interruption; do
   end_flow
   [ "$code" -ne 0 ] && [ ! -e "$st/no-progress" ] && [ ! -e "$st/sessions/7.json" ] || fail "Codex lookup $boundary started a session or recorded progress: $code [$out] [$err]"
   if [ "$boundary" = timeout ]; then
-    [[ $err == *'timed out after 120 seconds during bash '*'--host codex root'* ]] || fail "Codex lookup did not reach the shared deadline: [$err]"
+    [[ $err == *'timed out after 120 seconds during bash '*'--agent codex root'* ]] || fail "Codex lookup did not reach the shared deadline: [$err]"
   else
-    [[ $err == *'interrupted by SIGTERM during bash '*'--host codex root'* ]] || fail "Codex lookup did not reach updater interruption: [$err]"
+    [[ $err == *'interrupted by SIGTERM during bash '*'--agent codex root'* ]] || fail "Codex lookup did not reach updater interruption: [$err]"
   fi
   if [ "$(grep -cF 'fixture: skills catalog lookup stalled with original cause' <<<"$err")" -ne 1 ]; then
     echo "FAIL: Codex lookup $boundary lost or repeated its stderr: [$err]"
@@ -735,7 +735,7 @@ run_flow --board
 [ "$(field 7 '[.state, .step, .act, .started]')" = '["stuck","plan","scripts/celetis celetis-flow --resume 7",true]' ] || fail "--board, a row of the record: [$(field 7 .)]"
 checked
 board=$out
-CELETIS_HOST=codex run_flow --board
+CELETIS_AGENT=codex run_flow --board
 [ "$code" -eq 0 ] && [ "$out" = "$board" ] && [ ! -e "$S/codex-calls" ] || fail "the selected host must not change board contract 1 or start a session: $code [$out] [$err]"
 checked
 documented_act=$(sed -n 's/.*| `stuck` | `act`: `\(.*\)` |/\1/p' "$root/docs/celetis-flow.md")

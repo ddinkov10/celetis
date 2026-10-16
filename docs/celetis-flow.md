@@ -67,9 +67,9 @@ scripts/celetis celetis-flow --board    # the data of the issues for the board, 
 scripts/celetis celetis-flow --resume 373    # the session of a step with no progress, again
 ```
 
-These human commands use `CELETIS_HOST`, then the project Git setting `celetis-flow.host`, then
-Claude. Put `--host claude` or `--host codex` before `celetis-flow` to override that choice.
-Every skill call supplies that prefix. Invalid host values stop; PATH order never chooses a host.
+These human commands use `CELETIS_AGENT`, then the project Git setting `celetis-flow.agent`, then
+Claude. Put `--agent claude` or `--agent codex` before `celetis-flow` to override that choice.
+Every skill call supplies that prefix. Empty or unsupported agent values stop; PATH order never chooses an agent.
 The selected host stays fixed for the new step. Resume instead selects its recorded host and
 rejects an explicit prefix that names the other host.
 
@@ -198,7 +198,7 @@ remaining process. A command keeps the lock descriptor so a killed helper cannot
 update's lock.
 
 After a successful update, the helper invokes the same validated launcher resolver with
-`--host <host> root`. It uses the selected host's enabled installation and existing scope rules.
+`--agent <agent> root`. It uses the selected host's enabled installation and existing scope rules.
 The runner takes the step text from that installed root. When the lookup gives
 no folder that holds a step text, the runner shows the cause and exits 1. The runner retains the
 resolver and launcher paths chosen at startup; it does not restart itself after refresh. Codex
@@ -416,18 +416,18 @@ the main checkout, and `{n}` stands for the number of the issue:
 | `resume` | `["scripts/celetis", "celetis-flow", "--resume", "{n}"]` | A Resume press makes a tab with the same label and the focus. It quotes each argument, types the command, then adds `&& exit`. |
 | `port` | `<port>` | The port, when `PORT` is not set. |
 
-These lists use `CELETIS_HOST`, else `git config celetis-flow.host`, else Claude for a new
-step. Set the project default with `git config celetis-flow.host codex` or
-`git config celetis-flow.host claude`. Resume uses the host and exact ID in the current session
+These lists use `CELETIS_AGENT`, else `git config celetis-flow.agent`, else Claude for a new
+step. Set the project default with `git config celetis-flow.agent codex` or
+`git config celetis-flow.agent claude`. Resume uses the host and exact ID in the current session
 record, even after the project default changes. It does not use the session name to find an ID.
 
-To fix the host in the board config, put the host prefix before `celetis-flow` in each list:
+To fix the agent in the board config, put the agent prefix before `celetis-flow` in each list:
 
 ```json
 {
-  "data": ["scripts/celetis", "--host", "codex", "celetis-flow", "--board"],
-  "run": ["scripts/celetis", "--host", "codex", "celetis-flow", "{n}"],
-  "resume": ["scripts/celetis", "--host", "codex", "celetis-flow", "--resume", "{n}"]
+  "data": ["scripts/celetis", "--agent", "codex", "celetis-flow", "--board"],
+  "run": ["scripts/celetis", "--agent", "codex", "celetis-flow", "{n}"],
+  "resume": ["scripts/celetis", "--agent", "codex", "celetis-flow", "--resume", "{n}"]
 }
 ```
 
@@ -670,8 +670,8 @@ bash tests/land.test.sh
 bash tests/worktree.test.sh
 bash tests/launcher.test.sh
 bash tests/text.test.sh
-bash tests/manual/step-prompt.test.sh --host claude
-bash tests/manual/step-prompt.test.sh --host codex
+bash tests/manual/step-prompt.test.sh --agent claude
+bash tests/manual/step-prompt.test.sh --agent codex
 ```
 
 `bash tests/celetis-flow.test.sh` gives each `--board` document of its stub world to the checker of
@@ -690,7 +690,7 @@ Tests and scripts can start another `bash` from `PATH`. The gate runs each test 
 `PATH="/bin:$PATH" /bin/bash <test>`: the `/bin/bash` of macOS runs the test, and the `PATH`
 makes each inner `bash` reach it too.
 
-`bash tests/manual/step-prompt.test.sh --host claude|codex` checks the step text. Select one host;
+`bash tests/manual/step-prompt.test.sh --agent claude|codex` checks the step text. Select one host;
 the `|` is notation, not a shell command. It runs fixed cases in that host's headless turns,
 so it needs that host to be logged in, it uses tokens, and the
 answer of a model can differ between runs. Start it in a product Git checkout or one of its
@@ -704,7 +704,7 @@ discovery. With `--output-dir DIR`, the test saves the instruction files, their 
 the combined instruction text, and each prompt with its result. Run the test after each
 change of `step-prompt.md`, and run it in a product project after each change of the part of its
 `AGENTS.md` on the celetis flow. In a product project, start it in the main checkout as
-`bash "$(scripts/celetis --host codex root)/tests/manual/step-prompt.test.sh" --host codex`, or
+`bash "$(scripts/celetis --agent codex root)/tests/manual/step-prompt.test.sh" --agent codex`, or
 use `claude` in both places. The test then reads the step text of the installed plugin.
 For Claude, the script sets `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`, because the
 git status snapshot of a turn holds the branch name and the last commit subjects, and these can

@@ -3,10 +3,10 @@ the step and one GitHub issue, #<n>. The issue is the state store (the document
 `docs/issue-tracker.md` of the plugin `celetis`): every result goes to the issue.
 
 Read `docs/hosts/entry.md` of the plugin `celetis` from the loaded skill's package before the
-step. If its path is unavailable, `scripts/celetis --host claude root` or
-`scripts/celetis --host codex root` prints the selected installation. Follow that host's invocation,
+step. If its path is unavailable, `scripts/celetis --agent claude root` or
+`scripts/celetis --agent codex root` prints the selected installation. Follow that host's invocation,
 custom-part, worktree, command, and dispatch rules on every same-session handoff. Every launcher
-command below includes `--host claude` or `--host codex` before its sub-command, matching this host.
+command below includes `--agent claude` or `--agent codex` before its sub-command, matching this host.
 Bind commands and file edits to the lane path; return to the main checkout for landing.
 
 1. Follow the skill of the step, including any hand-off the skill names (/celetis:bug hands on to
@@ -22,8 +22,8 @@ Bind commands and file edits to the lane path; return to the main checkout for l
      is no. Do not start that lane; the runner starts it in a fresh session.
    - When a skill tells you to wait for a review of a plan or a report, do not wait: publish it
      and go on.
-3. Land a change only with `scripts/celetis --host claude land` or
-   `scripts/celetis --host codex land`, matching this host,
+3. Land a change only with `scripts/celetis --agent claude land` or
+   `scripts/celetis --agent codex land`, matching this host,
    and only when the skill of your step says so.
 4. A stop is not a question: where a skill says to ask, rule 2 holds. When the step cannot go on
    and no decision of rule 2 is open (a skill says to stop, to show the user a message, or to

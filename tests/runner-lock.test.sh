@@ -21,18 +21,18 @@ if [ "$2" = 90000001 ]; then
   exit 0
 fi
 if [ "$2" = 12345678 ]; then
-  touch "$S/read-$CELETIS_HOST"
+  touch "$S/read-$CELETIS_AGENT"
   for attempt in {1..200}; do
     [ ! -f "$S/read-claude" ] || [ ! -f "$S/read-codex" ] || break
     /bin/sleep 0.01
   done
-  if [ "$CELETIS_HOST" = codex ]; then
+  if [ "$CELETIS_AGENT" = codex ]; then
     for attempt in {1..200}; do
       [ ! -f "$S/started-claude" ] || break
       /bin/sleep 0.01
     done
   fi
-  touch "$S/returned-$CELETIS_HOST"
+  touch "$S/returned-$CELETIS_AGENT"
   exit 1
 fi
 exec /bin/ps "$@"
@@ -55,7 +55,7 @@ if [ "$1" = app-server ]; then
   done
   exit 0
 fi
-touch "$S/started-$CELETIS_HOST"
+touch "$S/started-$CELETIS_AGENT"
 for attempt in {1..200}; do
   [ ! -f "$S/release" ] || exit 0
   /bin/sleep 0.05
@@ -90,7 +90,7 @@ for name in issue-7 runner; do
   set --
   [ "$name" != issue-7 ] || set -- 7
   for host in claude codex; do
-    (cd "$tmp/project" && CELETIS_HOST="$host" exec "$BASH" "$root/scripts/celetis-flow.sh" "$@" >"$tmp/$host.out" 2>"$tmp/$host.err") &
+    (cd "$tmp/project" && CELETIS_AGENT="$host" exec "$BASH" "$root/scripts/celetis-flow.sh" "$@" >"$tmp/$host.out" 2>"$tmp/$host.err") &
   done
   for attempt in {1..200}; do
     [ ! -f "$S/returned-codex" ] || break
@@ -111,7 +111,7 @@ for name in issue-7 runner; do
 done
 rm -rf "$S" "$state"
 mkdir -p "$S" "$state"
-(cd "$tmp/project" && CELETIS_HOST=claude exec "$BASH" "$root/scripts/celetis-flow.sh" 7 >"$tmp/claude.out" 2>"$tmp/claude.err") &
+(cd "$tmp/project" && CELETIS_AGENT=claude exec "$BASH" "$root/scripts/celetis-flow.sh" 7 >"$tmp/claude.out" 2>"$tmp/claude.err") &
 runner=$!
 for attempt in {1..200}; do
   [ ! -f "$S/started-claude" ] || break
@@ -129,6 +129,6 @@ mkdir -p "$S" "$state"
 owner=$(printf '{"runner":null,"session":{"pid":90000001,"start":"fixture"}}\n' | git -C "$tmp/project" hash-object -w --stdin)
 git -C "$tmp/project" update-ref refs/celetis-flow/locks/issue-7 "$owner"
 touch "$S/release"
-(cd "$tmp/project" && CELETIS_HOST=claude "$BASH" "$root/scripts/celetis-flow.sh" 7) >"$tmp/zombie.out" 2>"$tmp/zombie.err"
+(cd "$tmp/project" && CELETIS_AGENT=claude "$BASH" "$root/scripts/celetis-flow.sh" 7) >"$tmp/zombie.out" 2>"$tmp/zombie.err"
 [ -f "$S/started-claude" ] || fail "an exited zombie session kept the issue lock"
 echo PASS

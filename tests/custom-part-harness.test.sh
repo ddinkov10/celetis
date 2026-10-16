@@ -23,7 +23,7 @@ for suffix in input.json jsonl err status; do
   printf 'unrelated lookalike\n' >"$fixture_root/not-evidence.$suffix"
 done
 path="$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/celetis-flow/custom/guide.md"
-answer='scripts/celetis --host claude next-step'
+answer='scripts/celetis --agent claude next-step'
 name=Read
 if [[ $prompt == 'Enter the existing worktree at '* ]]; then
   path=${prompt#Enter the existing worktree at }

@@ -233,8 +233,8 @@ done
 jq -se '
   length == 1 and (.[0].permissions |
     (.allow | type == "array" and index("Bash(scripts/celetis land *)") != null
-      and index("Bash(scripts/celetis --host claude land *)") != null
-      and index("Bash(scripts/celetis --host codex land *)") != null)
+      and index("Bash(scripts/celetis --agent claude land *)") != null
+      and index("Bash(scripts/celetis --agent codex land *)") != null)
     and (.deny | type == "array" and index("Bash(gh pr merge*)") != null
       and index("PowerShell(gh pr merge*)") != null))
 ' .claude/settings.json >/dev/null 2>&1 || fail "Claude wiring must allow current landing forms and deny direct merges"

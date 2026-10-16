@@ -5,7 +5,7 @@ scorer="$here/../scripts/capscore.sh"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 fails=0
-unset CELETIS_HOST CAP_EFFORT_BIAS CAP_CURRENT_MODEL CAP_MODEL_PROFILE CAP_RUNTIME_MODELS OPENCODE GIT_CONFIG GIT_CONFIG_PARAMETERS
+unset CELETIS_AGENT CELETIS_HOST CAP_EFFORT_BIAS CAP_CURRENT_MODEL CAP_MODEL_PROFILE CAP_RUNTIME_MODELS OPENCODE GIT_CONFIG GIT_CONFIG_PARAMETERS
 
 cat >"$tmp/profile.json" <<'JSON'
 {"schema":1,"runtime":"fixture-desktop@1","slots":["small","standard","large","largest"],"reviewer":{"rank":1,"effort":"medium"}}
@@ -18,10 +18,12 @@ cat >"$tmp/models.json" <<'JSON'
 {"id":"largest","efforts":["low","medium","high","xhigh","max","ultra"]}]}
 JSON
 export CAP_MODEL_PROFILE="$tmp/profile.json" CAP_RUNTIME_MODELS="$tmp/models.json"
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_COUNT=0
+git init -q "$tmp/project"
 
 run() {
   code=0
-  out=$(/bin/bash "$scorer" "$@" 2>"$tmp/err") || code=$?
+  out=$(cd "$tmp/project" && /bin/bash "$scorer" "$@" 2>"$tmp/err") || code=$?
   err=$(cat "$tmp/err")
 }
 check() {
@@ -38,7 +40,7 @@ error() {
   check "$1 exits with setup error and no result" test "$code:$out" = '2:'
   check "$1 explains the repair" test "${err#*"$2"}" != "$err"
 }
-codex_run() { run --host codex "$@"; }
+codex_run() { run --agent codex "$@"; }
 retry_sequence() {
   local label=$1 profile_path=$2 expected=$3 records= retry
   shift 3
@@ -52,18 +54,40 @@ retry_sequence() {
 }
 
 GIT_CONFIG=/dev/null GIT_CONFIG_COUNT=0 run 1 0 2 1 1 0
-expect 'default Claude human CAP with no Git host remains unchanged' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
+expect 'default Claude human CAP with no Git agent remains unchanged' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
+GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=celetis-flow.agent GIT_CONFIG_VALUE_0=codex run 1 0 2 1 1 0
+expect 'board preference selects Codex' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → standard/xhigh'
+GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=celetis-flow.agent GIT_CONFIG_VALUE_0=codex CELETIS_AGENT=claude run --agent codex 1 0 2 1 1 0
+expect 'explicit agent overrides environment and project' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → standard/xhigh'
+GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=celetis-flow.agent GIT_CONFIG_VALUE_0=codex CELETIS_HOST=claude run 1 0 2 1 1 0
+expect 'obsolete environment cannot override the new project key' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → standard/xhigh'
 GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=celetis-flow.host GIT_CONFIG_VALUE_0=codex run 1 0 2 1 1 0
-expect 'project Git host selects Codex' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → standard/xhigh'
-GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=celetis-flow.host GIT_CONFIG_VALUE_0=codex CELETIS_HOST=claude run 1 0 2 1 1 0
-expect 'host environment overrides the project Git host' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
-CELETIS_HOST=claude run 1 0 2 1 1 0
+expect 'obsolete project key alone cannot select Codex' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
+GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=celetis-flow.host GIT_CONFIG_VALUE_0=claude GIT_CONFIG_KEY_1=celetis-flow.agent GIT_CONFIG_VALUE_1=codex run 1 0 2 1 1 0
+expect 'conflicting obsolete project key cannot override the new key' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → standard/xhigh'
+run --host codex 1 0 2 1 1 0
+check 'obsolete host option is rejected' test "$code:$out" = '2:'
+run --agent '' 1 0 2 1 1 0
+check 'empty explicit agent fails' test "$code" = 2
+CELETIS_AGENT= run 1 0 2 1 1 0
+check 'empty environment agent fails' test "$code" = 2
+GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=celetis-flow.agent GIT_CONFIG_VALUE_0= run 1 0 2 1 1 0
+check 'empty project agent fails' test "$code" = 2
+CELETIS_AGENT=other run 1 0 2 1 1 0
+check 'unsupported environment agent fails' test "$code" = 2
+GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=celetis-flow.agent GIT_CONFIG_VALUE_0=other run 1 0 2 1 1 0
+check 'unsupported project agent fails' test "$code" = 2
+run --agent codex
+check 'agent option needs a command' test "$code" = 2
+GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=celetis-flow.agent GIT_CONFIG_VALUE_0=codex CELETIS_AGENT=claude run 1 0 2 1 1 0
+expect 'agent environment overrides the project Git agent' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
+CELETIS_AGENT=claude run 1 0 2 1 1 0
 expect 'selected Claude human CAP remains unchanged' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
-run --host claude 0 0 0 0 0 0 --bias 0
+run --agent claude 0 0 0 0 0 0 --bias 0
 expect 'zero bias keeps the original line format' 'CAP: J0 V0 B0 N0 S0 X0 = 0 → haiku/low'
-run --host claude 2 1 1 0 0 0 --bias 0 --attempt 2
+run --agent claude 2 1 1 0 0 0 --bias 0 --attempt 2
 expect 'retry CAP retains the original suffix' 'CAP: J2 V1 B1 N0 S0 X0 = 4 → sonnet/high [attempt 2]'
-run --host claude 1 0 2 1 1 0 --json
+run --agent claude 1 0 2 1 1 0 --json
 check 'machine result keeps digits, original bias and portable ranks' json '.schema == 1 and .digits == {J:1,V:0,B:2,N:1,S:1,X:0} and .bias == 2 and .attempt == 1 and .sum == 5 and .rank == 1 and .effort == "xhigh" and .status == "ready" and .host == "claude" and .dispatch == {rank:1,model:"sonnet",effort:"xhigh",runtime:null,reviewer:false} and .line == "CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh"'
 claude_score=$(printf '%s\n' "$out" | jq -c '{digits,bias,attempt,sum,rank,effort}')
 codex_run 1 0 2 1 1 0 --json
@@ -71,10 +95,10 @@ check 'Codex resolves the same portable score' test "$code:$(printf '%s\n' "$out
 check 'Codex records the applied model effort and runtime' json '.dispatch == {rank:1,model:"standard",effort:"xhigh",runtime:"fixture-desktop@1",reviewer:false} and .host == "codex"'
 codex_run 1 0 2 1 1 0
 expect 'Codex human CAP uses its selected profile' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → standard/xhigh'
-CELETIS_HOST=codex run 1 0 2 1 1 0
-expect 'shared host environment selects Codex' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → standard/xhigh'
-CELETIS_HOST=codex run --host claude 1 0 2 1 1 0
-expect 'explicit host overrides the environment' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
+CELETIS_AGENT=codex run 1 0 2 1 1 0
+expect 'shared agent environment selects Codex' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → standard/xhigh'
+CELETIS_AGENT=codex run --agent claude 1 0 2 1 1 0
+expect 'explicit agent overrides the environment' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh'
 CAP_EFFORT_BIAS=0 codex_run 1 0 2 1 1 0
 expect 'bias environment remains available' 'CAP: J1 V0 B2 N1 S1 X0 = 5 → standard/medium'
 CAP_EFFORT_BIAS=0 codex_run 1 0 2 1 1 0 --bias 1
@@ -95,13 +119,13 @@ codex_run 0 0 0 0 0 0 --bias 0 --reviewer --json
 check 'reviewer minimum applies without rewriting the portable score' json '.rank == 0 and .effort == "low" and .dispatch == {rank:1,model:"standard",effort:"medium",runtime:"fixture-desktop@1",reviewer:true}'
 codex_run 2 2 2 2 2 2 --reviewer --json
 check 'reviewer floor never lowers a stronger score' json '.rank == 3 and .dispatch.rank == 3 and .dispatch.effort == "max"'
-run --host claude 0 0 0 0 0 0 --bias 0 --reviewer
+run --agent claude 0 0 0 0 0 0 --bias 0 --reviewer
 expect 'Claude reviewer minimum uses its standard tier' 'CAP: J0 V0 B0 N0 S0 X0 = 0 → sonnet/medium'
-OPENCODE=1 run --host claude 1 0 2 1 1 0 --current-model provider/current
+OPENCODE=1 run --agent claude 1 0 2 1 1 0 --current-model provider/current
 expect 'opencode explicit current-model behavior is preserved' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → provider/current/xhigh'
-OPENCODE=1 CAP_CURRENT_MODEL=provider/env run --host claude 2 2 2 2 2 0 --attempt 3 --json
+OPENCODE=1 CAP_CURRENT_MODEL=provider/env run --agent claude 2 2 2 2 2 0 --attempt 3 --json
 check 'opencode preserves current model and portable clamp' json '.host == "opencode" and .rank == 3 and .effort == "xhigh" and .dispatch.model == "provider/env"'
-OPENCODE=1 CAP_CURRENT_MODEL=provider/env run --host claude 1 0 2 1 1 0 --current-model provider/flag
+OPENCODE=1 CAP_CURRENT_MODEL=provider/env run --agent claude 1 0 2 1 1 0 --current-model provider/flag
 expect 'opencode flag still wins over current-model environment' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → provider/flag/xhigh'
 
 jq '.slots[3] = "large"' "$CAP_MODEL_PROFILE" >"$tmp/repeated.json"
@@ -182,15 +206,15 @@ CAP_MODEL_PROFILE= CAP_RUNTIME_MODELS= codex_run 1 0 2 1 1 0 --attempt 4
 expect 'attempt 4 stops before missing setup is validated' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → STOP (attempt 4: escalate to user with failure trail)'
 codex_run 1 0 2 1 1 0 --attempt 5 --reviewer --profile "$tmp/missing" --runtime-models "$tmp/bad.json" --json
 check 'STOP machine result retains inputs and has no dispatch' json '.status == "stop" and .attempt == 5 and .digits.J == 1 and .bias == 2 and .rank == null and .effort == null and .dispatch == null'
-run --host claude 1 0 2 1 1 0 --attempt 4
+run --agent claude 1 0 2 1 1 0 --attempt 4
 expect 'Claude STOP line remains unchanged' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → STOP (attempt 4: escalate to user with failure trail)'
 
-for flag in --host --profile --runtime-models --bias --attempt --current-model; do
+for flag in --agent --profile --runtime-models --bias --attempt --current-model; do
   run 0 0 0 0 0 0 "$flag"
   error "missing $flag value" "$flag"
 done
-run --host other 0 0 0 0 0 0
-error 'invalid selected host' 'claude or codex'
+run --agent other 0 0 0 0 0 0
+error 'invalid selected agent' 'claude or codex'
 run --test
 check 'original built-in test entry point stays compatible' test "$code" = 0
 printf '\ncapscore tests: %s failures\n' "$fails"
