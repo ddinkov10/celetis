@@ -367,11 +367,17 @@ if [ "$mode" = board ]; then
   for step in $(printf '%s' "$FLOW" | jq -r '[.lanes[][]] | unique[]'); do gates="$gates$step"$'\t'"$(gate "$step")"$'\n'; done
   runner=false
   ! holder_of runner >/dev/null || runner=true
-  printf '%s' "$doc" | jq --argjson flow "$FLOW" --arg extra "$extra" --arg gates "$gates" --argjson runner "$runner" '
+  agents=$(for agent in claude codex; do
+    cause=
+    command -v "$agent" >/dev/null 2>&1 || cause="celetis: $agent is not on PATH"
+    jq -nc --arg agent "$agent" --arg cause "$cause" '{key:$agent,value:{available:($cause == ""),cause:(if $cause == "" then null else $cause end)}}'
+  done | jq -s from_entries)
+  printf '%s' "$doc" | jq --argjson flow "$FLOW" --arg extra "$extra" --arg gates "$gates" --argjson runner "$runner" \
+    --argjson agents "$agents" --arg defaultAgent "$CELETIS_AGENT" '
     ($extra | split("\n") | map(select(. != "") | split("\t") | {key: .[0], value: {
       step: (if .[1] == "" then null else .[1] end), locked: (.[2] == "true"), stuck: (.[3] == "true")}}) | from_entries) as $more
     | ["implement", "chore", "hotfix"] as $lands
-    | {contract: 1, tracker: "GitHub",
+    | {contract: 1, tracker: "GitHub", agents: $agents, defaultAgent: $defaultAgent,
        flow: ($flow + {steps: ($gates | split("\n") | map(select(. != "") | split("\t") | . as $f | {key: $f[0], value: ({gate: $f[1]}
          + (if ($lands | index($f[0])) then {hint: "It lands the change when the build is done."} else {} end))}) | from_entries)}),
        noRun, runner: $runner,

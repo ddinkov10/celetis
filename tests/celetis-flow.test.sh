@@ -736,8 +736,25 @@ run_flow --board
 checked
 board=$out
 CELETIS_AGENT=codex run_flow --board
-[ "$code" -eq 0 ] && [ "$out" = "$board" ] && [ ! -e "$S/codex-calls" ] || fail "the selected host must not change board contract 1 or start a session: $code [$out] [$err]"
+[ "$(doc '.agents | keys')" = '["claude","codex"]' ] || fail 'board agent names differ'
+[ "$(doc .defaultAgent)" = '"codex"' ] || fail 'board default differs from selection'
+[ "$(doc .agents)" = '{"claude":{"available":true,"cause":null},"codex":{"available":true,"cause":null}}' ] || fail 'available board agents must have null causes'
+[ "$code" -eq 0 ] && [ "$(doc 'del(.defaultAgent)')" = "$(printf '%s' "$board" | jq -c 'del(.defaultAgent)')" ] && [ ! -e "$S/codex-calls" ] || fail "only the default agent may change in the board document: $code [$out] [$err]"
 checked
+mkdir "$tmp/board-bin"
+for command in bash jq git dirname mkdir cat date grep wc ps; do ln -s "$(command -v "$command")" "$tmp/board-bin/$command"; done
+ln -s "$bin/gh" "$tmp/board-bin/gh"
+ln -s "$bin/codex" "$tmp/board-bin/codex"
+CELETIS_AGENT=codex path="$tmp/board-bin" run_flow --board
+[ "$code" -eq 0 ] && [ "$(doc '.agents.claude.available')" = false ] && [ "$(doc '.agents.claude.cause | type == "string" and length > 0')" = true ] && [ "$(doc '.agents.codex')" = '{"available":true,"cause":null}' ] || fail "the missing non-selected executable must be unavailable: $code [$out] [$err]"
+checked
+git -C "$repo" config celetis-flow.agent codex
+(unset CELETIS_AGENT; run_flow --board; printf '%s' "$out" >"$tmp/preferred-board")
+[ "$(jq -c .defaultAgent "$tmp/preferred-board")" = '"codex"' ] || fail 'board must read the project agent preference'
+git -C "$repo" config celetis-flow.agent claude
+(unset CELETIS_AGENT; run_flow --board; printf '%s' "$out" >"$tmp/preferred-board")
+[ "$(jq -c .defaultAgent "$tmp/preferred-board")" = '"claude"' ] || fail 'the next board read must report a changed project preference'
+git -C "$repo" config --unset celetis-flow.agent
 documented_act=$(sed -n 's/.*| `stuck` | `act`: `\(.*\)` |/\1/p' "$root/docs/celetis-flow.md")
 [ "$documented_act" = 'scripts/celetis celetis-flow --resume <n>' ] || fail "the documented stuck-card command must use recorded-session recovery: [$documented_act]"
 touch "$S/hold-8"; tag=b- start_flow; b=$flow_pid; await 2
@@ -760,7 +777,7 @@ reset; issue 7 OPEN enhancement "Spec: x"
 run_flow --board
 [ "$code" -eq 0 ] && [ ! -e "$S/plugin-calls" ] || fail "--board must update no plugin: $code [$(calls plugin-calls)] [$err]"
 
-[ "$(jq -c . "$root/.claude/celetis-flow/board.json")" = '{"data":["scripts/celetis","celetis-flow","--board"],"run":["scripts/celetis","celetis-flow","{n}"],"resume":["scripts/celetis","celetis-flow","--resume","{n}"],"port":4404}' ] || fail "board.json must hold the four keys"
+[ "$(jq -c . "$root/.claude/celetis-flow/board.json")" = '{"data":["scripts/celetis","celetis-flow","--board"],"run":["scripts/celetis","--agent","{agent}","celetis-flow","{n}"],"resume":["scripts/celetis","celetis-flow","--resume","{n}"],"port":4404}' ] || fail "board.json must pass the Run agent and keep data and Resume unprefixed"
 
 reset; issue 7 OPEN enhancement "Spec: x"; touch "$S/gh-fail"
 run_flow --board

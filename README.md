@@ -605,8 +605,9 @@ ADR-0012 holds the evidence for one fact and one limit of Claude updates:
 
 The board is the package `ddinkov10/agent-board`: one local web page that shows each agent session
 of a repository and the next step of each issue, and that starts a step with one press. Neither
-the plugin nor a product project holds a file of the board. Version 2.0.0 reads the current
-config path and contract 1.
+the plugin nor a product project holds a file of the board. The config below needs a stable v2
+release with agent selection and the `{agent}` Run placeholder. Version 2.0.0 rejects this Run
+list. A check against local board source does not prove that the released package supports it.
 
 Start it in the main checkout only, never in a lane worktree, and open the URL of its last line:
 
@@ -622,7 +623,7 @@ so the product project holds no other file for the board:
 ```json
 {
   "data": ["scripts/celetis", "celetis-flow", "--board"],
-  "run": ["scripts/celetis", "celetis-flow", "{n}"],
+  "run": ["scripts/celetis", "--agent", "{agent}", "celetis-flow", "{n}"],
   "resume": ["scripts/celetis", "celetis-flow", "--resume", "{n}"],
   "port": 4403
 }
@@ -631,31 +632,31 @@ so the product project holds no other file for the board:
 | Key | Use |
 |---|---|
 | `data` | The board starts it for each read of the issues. It prints contract 1, the JSON document that the board reads |
-| `run` | A Run press types it in a new herdr tab. It starts the next step of the issue `{n}` |
+| `run` | A Run press types it in a new herdr tab. It starts the next step of the issue `{n}` with the selected `{agent}` |
 | `resume` | A Resume press types it in a new herdr tab. It opens the session of a step with no progress again |
 | `port` | The port, when `PORT` is not set. With no `port`, it is 4403 |
 
 Two boards on one machine need two ports: the `board.json` of this repository has 4404. The board
-reads its config one time, at its start, from the main checkout.
+reads its config one time, at its start, from the main checkout. Restart running boards after
+the new board release and this config change.
 
-For a new step, these lists use `CELETIS_AGENT`, else the project setting
-`git config celetis-flow.agent`, else Claude. Set the project default with
-`git config celetis-flow.agent codex` or `git config celetis-flow.agent claude`. Resume reads the
-saved host and exact session ID for the issue, even when the project default has changed.
+The data document has `agents` entries for `claude` and `codex`, and a `defaultAgent`. Each entry
+has `available: true` and `cause: null` when its executable is on `PATH`, else `available: false`
+and the missing-executable cause. Availability checks only the executable. Plugin installation,
+sign-in, trust, and full host parity need separate checks.
 
-An optional agent prefix fixes the agent of a list:
+The data command selects `--agent`, then `CELETIS_AGENT`, then the project Git setting
+`celetis-flow.agent`, then `claude`. The board's default control calls `POST /api/agent`, which
+writes only `celetis-flow.agent`. You can also set it with `git config celetis-flow.agent codex`
+or `git config celetis-flow.agent claude`. An explicit flag or environment value takes priority
+over that stored preference on the next data read.
 
-```json
-{
-  "data": ["scripts/celetis", "--agent", "codex", "celetis-flow", "--board"],
-  "run": ["scripts/celetis", "--agent", "codex", "celetis-flow", "{n}"],
-  "resume": ["scripts/celetis", "--agent", "codex", "celetis-flow", "--resume", "{n}"]
-}
-```
-
-Use `claude` for Claude. An explicit resume agent must match the saved host. Keep the unprefixed
-`resume` list for issues with sessions from either host. Each item is one argument, not shell
-text. The board quotes the items when it sends a Run or Resume command to herdr.
+A Run press calls `POST /api/run`. The board substitutes the chosen agent, or `defaultAgent`
+when no choice is supplied, for `{agent}`. This override applies only to that Run and does not
+write the project preference. Unknown or unavailable choices return 409 and start no agent.
+Resume keeps its unprefixed list: it reads the saved host and exact session ID for the issue,
+even after the project default changes. Each item is one argument, not shell text. The board
+quotes the items when it sends a Run or Resume command to herdr.
 
 Check the data against the contract in the main checkout:
 
@@ -681,12 +682,13 @@ Run the tests in a checkout of this repository.
   ```
 
   `AGENT_BOARD` names the entry file of a local checkout of the board package, for the contract
-  check of the `--board` documents.
+  check of the `--board` documents and the board-to-launcher integration test. With no value,
+  the integration test packs the stable v2 package in a temporary directory.
 - **The workflow** `.github/workflows/test.yml` runs each `tests/*.test.sh` and
   `scripts/capscore.sh --test`, plus the Perl syntax check, on Linux, for each pull request and
   each push to `main`. It needs no host CLI, model credentials, or model tokens. It sets
-  `CELETIS_FLOW_SKIP_BOARD_CHECK=1`, so it does not make that contract check: the gate on a machine
-  does.
+  `CELETIS_FLOW_SKIP_BOARD_CHECK=1`, so it skips that contract check and the private-package
+  board-to-launcher integration test. The gate on a machine runs both.
 - **The proof on bash 3.2.** The gate runs each test under the `/bin/bash` of macOS, with
   `PATH="/bin:$PATH"` so each inner `bash` reaches `/bin/bash` too:
 
