@@ -54,7 +54,8 @@ to both hosts without a second copy of the procedures.
   2026-10-14 (ADR-0012). Keep the clone path at 130 characters or less: a longer path goes past
   the 260 limit on Windows, and `scripts/celetis worktree <n>` then stops with `Filename too
   long`. `git config --global core.longpaths true` removes the limit.
-- The selected host CLI (`claude` or `codex`), `gh` (logged in), `jq`, `git` 2.31 or later,
+- The selected host CLI (`claude` or `codex`), `gh` (logged in), `jq`, Mike Farah's `yq`
+  `>=4.54.1,<5`, `git` 2.31 or later,
   and Perl 5.14 or later on `PATH`.
   The runner uses only the standard library of Perl.
 - Git credentials for GitHub that need no prompt, an ssh key or a credential helper for https: the
@@ -65,6 +66,8 @@ to both hosts without a second copy of the procedures.
 - For the board: Node 22 from 22.18, or Node 24.2 or later, with `npx`, and a Chromium browser.
 
 `docs/celetis-flow.md` gives each requirement in full ("Requirements", and "The board").
+The [configuration reference](docs/configuration.md) gives the repository schema and the
+`yq` v4.54.1 download commands for macOS and Linux.
 
 ## Wire a product project
 
