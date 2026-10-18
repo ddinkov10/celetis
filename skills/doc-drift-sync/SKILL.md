@@ -3,7 +3,7 @@ name: doc-drift-sync
 description: Run the daily doc-drift maintenance pass — keep the project living docs (AGENTS.md, docs/**, README/CLAUDE) truthful against current code. Auto-fix obvious, source-verified drift (stale file/symbol refs, broken .md links, dangling referenced files, source-line locators); flag judgment calls. Use when asked to sync/refresh/audit the docs against the code, or when invoked by the daily cron.
 ---
 
-**Host entry.** Before any step or response, including commentary or an announcement, complete the startup reads in [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
+**Host entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in this loaded file's path. Read [the host operations](../../docs/hosts/entry.md) at `<plugin>/docs/hosts/entry.md` directly, before any product-path scan. The relative link starts in the absolute directory containing this SKILL.md. Complete its startup reads on each invocation, including a same-session handoff.
 
 # Doc-Drift Sync
 

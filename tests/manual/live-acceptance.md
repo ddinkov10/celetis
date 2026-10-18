@@ -45,10 +45,13 @@ PATH="/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh \
   --output-dir <new-evidence-directory>
 ```
 
-The step suite has 21 cases. The native Claude custom suite has 12 cases. Capture the command,
+The step suite has 24 cases. The native Claude custom suite has 24 cases. Capture the command,
 client version, suite exit status, and complete stdout/stderr separately from their case files.
 The custom suite saves each exact prompt, tools, settings, checkout, plugin path, event stream,
-stderr, and client exit status, including on failure. Save generated fixture data only.
+stderr, config source bytes and hashes, installed source hashes, runtime version, and client
+exit status, including on failure. It keeps 97 generated artifacts after a complete run.
+Save generated fixture data only. Run the separate CLI and desktop native YAML probes in
+[config entry on Codex](config-entry-codex.md), with their actual tools and isolated installations.
 
 For checker-only changes, compare hashes of the old and current model inputs before reusing
 saved results. Compare the quoted skills, host references, step text, and applicable project
@@ -57,9 +60,10 @@ Use local fault fixtures to prove rejection of unsafe answers. Call the result a
 Changed model inputs require the complete final suite on the affected host. Keep every earlier
 failed, blocked, and interrupted run; use a new directory for each later run.
 
-Native denied-read evidence needs a Read call at the exact custom path, its matching error
+Native denied-read evidence needs a file-read call at the exact active `.celetis.yaml` path, its matching error
 result and permission-denial record, and no later tool call. A final answer that says it could
-not read a file does not establish those facts. A no-shell probe must explicitly name its
+not read a file does not establish those facts. Keep host-specific IDs and denial formats.
+A no-shell probe must explicitly name its
 permitted file-read tool. If access is denied, retain the denial and stop that operation.
 
 ## Scenario oracles
@@ -73,7 +77,7 @@ references for the step order. Only the shared landing script may perform a fixt
 | Bug, chore, hotfix | Claude, CLI, desktop | Each lane's labels, artifacts, and step order; meaningful verify result; landing; lane and prototype cleanup |
 | All 18 skills and helpers | Claude regression, CLI, desktop | Installed inventory matches the repository; representative output or artifact for every skill; native invocation where required; guide runs only on explicit human invocation |
 | Scope split, spike, rejected design | CLI, desktop | Real epic/child or issue state; correct worktree and prototype retention or removal; approval waits remain intact |
-| Custom text and handoffs | Claude, CLI, desktop | Each appropriate file read once at its entry; missing file harmless; distinct main/lane markers; direct, borrowed, and handed-off rules; denied-read stop |
+| Custom text and handoffs | Claude, CLI, desktop | Whole active `.celetis.yaml` read once per entry; only target custom string applied; no setup; missing config/custom harmless; invalid or ambiguous config stops; distinct root/lane/subfolder markers; direct, borrowed, and handed-off rules; exact denied-read stop without another access path |
 | Task gate failure and repair | CLI, desktop | First failure at an independent meaningful oracle; same implementer repair; scoped independent re-review; unchanged oracle; final PASS |
 | CAP floor, escalation, STOP | CLI, desktop | Requested and actual model/effort from runtime evidence; floor applies; changed pair reaches the same child when supported; attempt 4 hands off and stops before landing |
 | Waiting decision or permission | Interactive CLI, desktop, herdr | Real waiting prompt and blocked card; unchanged issue state; no watcher exit; no guard bypass; record foreground lifetime |

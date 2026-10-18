@@ -35,7 +35,7 @@ launcher file. It holds only what is its own:
 | The launcher | `scripts/celetis` |
 | The config | `.celetis.yaml` and `.claude/celetis-flow/board.json` |
 | The worktree setup | `worktreeSetup` in `.celetis.yaml` |
-| The custom parts | `.claude/celetis-flow/custom/<skill>.md`, one file for each skill that needs one |
+| The custom parts | `custom.<skill>` in `.celetis.yaml`, one string for each skill that needs one |
 | The product facts | `AGENTS.md` |
 | The stores | `docs/adr/` and `docs/lessons/` |
 
@@ -290,7 +290,7 @@ Commands that need repository setup require this file and stop if it is missing 
 | `gates` | A mapping from the seven step names to `me` or `auto` | Each omitted step is `me` |
 | `worktreeSetup` | One Bash script for a lane, for example dependency installation and copying ignored files | No setup |
 | `.claude/celetis-flow/board.json` | The board commands and port ("The agent board") | The board shows session cards only |
-| `.claude/celetis-flow/custom/<skill>.md` | An addition to the skill procedure | No addition |
+| `custom.<skill>` | An addition to the skill procedure | No addition |
 
 - **Operational settings** come from the main checkout, including when a command starts in a
   lane or subfolder. After a merge changes the config, run `git pull` in the main checkout.
@@ -307,13 +307,16 @@ Commands that need repository setup require this file and stop if it is missing 
   A failed setup removes a new worktree and a branch created by the command. An existing branch
   or worktree stays for repair and retry. A successful setup gets the existing marker and runs
   only once. Every entry still checks the lane config (`docs/celetis-flow.md`).
-- **A custom part** is read once through the common host entry before the first step or answer
-  of its skill, from the active checkout root (ADR-0013). Claude uses native file tools; Codex
-  uses the file-access operations of its session. A runner step starts in the main checkout.
-  A later skill invoked after binding a lane reads the custom part of that lane.
-  The text is an addition: it cannot remove a rule of the general skill, and it is no domain skill
-  (ADR-0006). Two skills name what their custom part holds: `hotfix.md` holds the ship acts of the
-  project, and `lesson.md` holds its tags.
+- **A custom part** is the parsed string `custom.<skill>` in `.celetis.yaml`. At entry, the
+  skill reads the whole config once from the active checkout through native file tools and
+  applies only its own string (ADR-0013). No shell or parser runs during entry. A runner step
+  starts in the main checkout; a later skill entered in a lane reads that lane's config.
+  A same-session handoff or first borrowed reference creates its own entry. Later sections
+  reuse that entry. Missing checkout, config, or custom text gives no addition; an invalid,
+  ambiguous, unreadable, or denied config stops entry. A denied read has no alternate path.
+  The text is an addition: it cannot remove a rule of the general skill (ADR-0006).
+  `custom.hotfix` holds the project's ship acts, and `custom.lesson` holds its tags. Keep
+  literal block text and parsed trailing newlines intact (`docs/configuration.md`).
 
 `docs/celetis-flow.md` holds these parts in full ("Gates", and "The config and the custom parts").
 
@@ -410,7 +413,7 @@ that file, and its `port` is the port of `board.json`:
 
 Commit these files on the trunk and push them, by hand, before the first lane. A lane branch starts
 at the trunk of `origin`, so a file that is not there is in no lane worktree: the launcher,
-`.celetis.yaml`, or a custom part. A file that git does not track also makes the main checkout
+`.celetis.yaml`, including a custom part. A file that git does not track also makes the main checkout
 dirty, and the resolver then stops each issue. The launcher and `.celetis.yaml` need LF
 line endings on each host, and a `.gitattributes` file with the line `* text=auto eol=lf` keeps
 them.
@@ -717,14 +720,21 @@ Run the tests in a checkout of this repository.
   The test then reads the step text of the installed plugin, and it runs its turns in that
   checkout. Use `claude` in both places for Claude. A text-only turn does not prove native
   discovery, live tools, compaction, board actions, or landing.
-- **The custom-part test,** `tests/manual/custom-part.test.sh`, loads the guide skill of the
-  checkout in Claude headless turns. It checks native reads with no Bash tool, shell permission rules,
-  missing files, and denied reads. It also checks subfolders and worktrees, including a change
-  into a worktree during the session. It uses tokens and stays outside the gate and the workflow:
+- **The custom-part test,** `tests/manual/custom-part.test.sh`, loads an isolated copy of the
+  checkout package through Claude's real `--plugin-dir` discovery. Its 24 cases check native
+  YAML reads without Bash, shell permission rules, root/subfolder/linked checkout selection,
+  absent config and custom values, invalid config, a denied read, same-session handoff, and
+  borrowed rules. Each entry reads exactly one active config and applies only its target text.
+  The retained artifacts include source hashes, exact paths, restrictions, streams, and exit
+  statuses. It uses tokens and stays outside the gate and the workflow:
 
   ```bash
-  PATH="/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh
+  PATH="/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh --output-dir /absolute/evidence
   ```
+
+  The separate Codex CLI and desktop probes are in `tests/manual/config-entry-codex.md`.
+  A missing supported file-only reader is BLOCKED. Shell reads and deterministic fixtures
+  cannot prove native no-shell entry. `tests/manual/live-acceptance.md` tracks open surfaces.
 
 `docs/celetis-flow.md`, "Check the harness", holds the reasons behind the facts of the gate, the
 workflow, the proof on bash 3.2, and the hand-run test.

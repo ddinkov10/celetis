@@ -33,7 +33,7 @@ project, not here. So the text of this repository is general:
 - **It names a role, not a part of a product:** "the verify gate of the project", "the trunk", "the
   design document that `AGENTS.md` names". A product line has one of three homes. The first is the
   `AGENTS.md` of the product project, for a fact that more than one step needs. The second is a
-  custom part of that project (`.claude/celetis-flow/custom/<skill>.md`), for an addition to one
+  custom part of that project (`custom.<skill>` in `.celetis.yaml`), for an addition to one
   step. The third is no home, when a permission rule or the verify gate of that project holds the
   line already.
 - **A path with no prefix is a path of the product project.** A `SKILL.md` cites a file of the

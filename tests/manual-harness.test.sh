@@ -22,7 +22,8 @@ if [ -n "${MANUAL_INPUTS:-}" ]; then printf '%s\n' "$prompt" >"$MANUAL_INPUTS/re
 out='Then: my step ends'
 if [ "$mode" = step ]; then
   case $k in
-    1 | 2) out=$'## Stopped\ngh issue edit 7 --add-label ready-for-human\nThen: my step ends' ;;
+    1 | 2 | 18 | 19) out=$'## Stopped\ngh issue edit 7 --add-label ready-for-human\nThen: my step ends' ;;
+    20) out=$'File-only config entry is BLOCKED: no usable native file reader or checkout locator exists.\nShell access is absent, so I cannot run gh to report this issue.\nEnable native file metadata and full-file reads for the product checkout.\nThen: my step ends' ;;
     3) out=$'## Landing refused\ngh issue edit 7 --add-label ready-for-human\nThen: my step ends' ;;
     4 | 8) out=$'## Before landing\ngh issue comment 7 --body-file /tmp/reason\ngh issue edit 7 --remove-label ready-for-agent --add-label ready-for-human\nThen: my step ends' ;;
     5 | 7 | 15) out='Then: I wait for the person' ;;
@@ -49,6 +50,19 @@ if [ "$mode" = step ] && [ "$k" = 13 ] && [ "${MANUAL_FAULT:-}" = no-completion-
   out="$out"$'\nscripts/celetis --host codex land 7 subject'
 fi
 case "$mode:$k:${MANUAL_FAULT:-}" in
+  step:18:invalid-config-continue) out='Then: I go on with the skill' ;;
+  step:18:entry-setup) out="$out"$'\nbash -c "$worktreeSetup"' ;;
+  step:19:denied-entry-retry) out="$out"$'\ncat .celetis.yaml' ;;
+  step:20:no-shell-missing-reader) out=$'BLOCKED: no checkout locator exists.\nShell access is absent, so I cannot run gh to report this issue.\nEnable native file metadata and full-file reads.\nThen: my step ends' ;;
+  step:20:no-shell-missing-locator) out=$'BLOCKED: no usable native file reader exists.\nShell access is absent, so I cannot run gh to report this issue.\nEnable native file metadata and full-file reads.\nThen: my step ends' ;;
+  step:20:no-shell-missing-setup) out=$'BLOCKED: no usable native file reader or checkout locator exists.\nShell access is absent, so I cannot run gh to report this issue.\nThen: my step ends' ;;
+  step:20:no-shell-missing-shell) out=$'BLOCKED: no usable native file reader or checkout locator exists.\nI cannot run gh to report this issue.\nEnable native file metadata and full-file reads.\nThen: my step ends' ;;
+  step:20:no-shell-missing-limit) out=$'BLOCKED: setup is unavailable.\nI cannot run gh to report the issue.\nThen: my step ends' ;;
+  step:20:no-shell-missing-report) out=$'BLOCKED: no usable native file-only reader or checkout locator for .celetis.yaml.\nThen: my step ends' ;;
+  step:20:no-shell-two-endings) out="$out"$'\nThen: my step ends' ;;
+  step:20:no-shell-continue) out="$out"$'\nThen: I go on with guide' ;;
+  step:20:no-shell-entry-fallback) out="$out"$'\ngit rev-parse --show-toplevel' ;;
+
   step:13:bound-stop) out="cd '$MANUAL_BINDING_DIR' && $out" ;;
   step:13:wrong-bound-stop) out="cd '/tmp/wrong-product' && $out" ;;
   step:13:bound-work-stop) out="cd '$MANUAL_BINDING_DIR' && git apply /tmp/repair.patch"$'\n'"$out" ;;
@@ -79,8 +93,8 @@ chmod +x "$tmp/bin/claude" "$tmp/bin/codex"
 fails=0
 for host in claude codex; do
   if PATH="$tmp/bin:$PATH" /bin/bash tests/manual/step-prompt.test.sh --host "$host" >"$tmp/$host" 2>&1 &&
-      [ "$(grep -c '^PASS: case ' "$tmp/$host")" -eq 21 ]; then
-    echo "ok: $host runs all twenty-one scenarios"
+      [ "$(grep -c '^PASS: case ' "$tmp/$host")" -eq 24 ]; then
+    echo "ok: $host runs all twenty-four scenarios"
   else
     echo "FAIL: $host omitted or rejected a valid fixture"; cat "$tmp/$host"; fails=$((fails + 1))
   fi
@@ -106,7 +120,7 @@ for host in claude codex; do
           push @expected, "Check PRODUCT_AREA_21 before a landing.",
             "Wait for PRODUCT_SUBFOLDER_21 when approval is missing." if $nested;
           my @files = glob "$dir/received-*";
-          die "expected 21 prompts\n" unless @files == 21;
+          die "expected 24 prompts\n" unless @files == 24;
           push @files, "$dir/product-context.md";
           for my $file (@files) {
             open my $fh, "<", $file or die "$file: $!";
@@ -222,7 +236,7 @@ elif grep -q '^FAIL: case 13 step:' "$tmp/no-completion-land"; then
 else
   echo 'FAIL: missing-evidence scenario did not run'; cat "$tmp/no-completion-land"; fails=$((fails + 1))
 fi
-for pair in '13 step blocked-build-label' '13 step blocked-rebuild' '13 step blocked-work-ended' '13 step blocked-command-ended' '13 step blocked-continue' '13 step blocked-two-endings' '14 step verify-land' '15 specify approval-publish' '16 step stale-completion-land' '17 step built-rebuild'; do
+for pair in '13 step blocked-build-label' '13 step blocked-rebuild' '13 step blocked-work-ended' '13 step blocked-command-ended' '13 step blocked-continue' '13 step blocked-two-endings' '14 step verify-land' '15 specify approval-publish' '16 step stale-completion-land' '17 step built-rebuild' '18 step invalid-config-continue' '18 step entry-setup' '19 step denied-entry-retry' '20 step no-shell-entry-fallback' '20 step no-shell-missing-limit' '20 step no-shell-missing-report' '20 step no-shell-two-endings' '20 step no-shell-continue' '20 step no-shell-missing-reader' '20 step no-shell-missing-locator' '20 step no-shell-missing-setup' '20 step no-shell-missing-shell'; do
   set -- $pair
   if MANUAL_FAULT=$3 PATH="$tmp/bin:$PATH" /bin/bash tests/manual/step-prompt.test.sh --host codex >"$tmp/$3" 2>&1; then
     echo "FAIL: accepted $3"; fails=$((fails + 1))

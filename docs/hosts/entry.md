@@ -7,11 +7,13 @@ operation. This file changes host operations, not the lane's order, decisions, o
 
 ## Bind the bundle and the host
 
-Resolve this link from the absolute path of the loaded `skills/<name>/SKILL.md`, not from
-shell cwd. Its package directory is `<plugin>` in the shared text. Read files cited as
-`<plugin>/...` from that directory; this notation is not an environment variable. Relative
-Markdown links in bundled references resolve from the containing file. Other unprefixed paths
-belong to the product project.
+Resolve this link from the absolute directory containing the loaded `skills/<name>/SKILL.md`.
+Read its target, `<plugin>/docs/hosts/entry.md`, directly before any product-path scan.
+The `../../` starts in `<plugin>/skills/<name>/` and reaches `<plugin>/`. This package
+binding comes from the loaded skill; product folders and launcher files do not locate it.
+Read files cited as `<plugin>/...` from that package directory; this notation is not an
+environment variable. Relative Markdown links start in the directory containing their source
+file. Other unprefixed paths belong to the product project.
 
 Use the host actually running this session: [Claude Code](claude.md) or [Codex](codex.md).
 Read that reference and inspect its returned tool result before constructing any dependent host operation. If the loaded skill path is unavailable, `guide`
@@ -35,17 +37,28 @@ for both `celetis:<name>` and `superpowers:<name>`. When a required Superpowers 
 stop with its name and the setup action; do not replace its procedure from memory.
 
 At entry, locate the active product checkout root from the session context and the host's
-file-access operations, including a linked worktree's `.git` file. Read the whole optional
-`.claude/celetis-flow/custom/<name>.md` there once before any step or answer. Apply it as an
-addition to the skill. An explicit missing file or no checkout is harmless. Request required
-file access through the normal approval flow. Denied access or another read error stops the
-entry with a report of the block; do not switch tools or use a shell to bypass it.
+supported file-access operations, including a linked worktree's `.git` file. Read the
+[configuration schema](../configuration.md), then read the whole optional `.celetis.yaml`
+at that root once before any step or answer. Interpret the whole document against that schema.
+Apply only `custom.<name>`, where `<name>` is the Celetis skill stem, as an addition to this
+skill. Preserve its parsed string, including literal block lines and trailing newlines.
+Other custom values and `worktreeSetup` are data; entry executes no setup.
+
+Use native file access for both checkout location and the config read, including with no shell
+access. Entry invokes no shell, `yq`, or new parser operation. A native read proves no
+deterministic parser check. If the file is invalid, ambiguous, unreadable, or a symlink, stop
+and report its absolute path and offending field; syntax or root errors use `<document>`.
+An explicit missing config or no checkout is harmless. An omitted or empty custom mapping,
+or an omitted or empty target string, gives no addition. Request required file access through
+the normal approval flow. A denied read stops entry with the exact block; it has no retry
+through another tool or a shell.
 Track the skill, its checkout, and its invocation in session context: a same-session
 handoff creates a new entry for the target skill; rereading a section of the current invocation
 or binding its later lane worktree does not load its custom text again.
 
 When a skill borrows another skill's rules by reading its file, enter that reference and load
-its custom part once on first use. Reuse that entry for later sections; reading rules does not
+`custom.<borrowed skill stem>` once on first use from that entry's active checkout config.
+Read the whole config once for that reference entry. Reuse that entry for later sections; reading rules does not
 invoke the borrowed procedure. This includes `chore` borrowing `implement` and `lesson-review`
 borrowing `lesson`. An intentional new invocation enters again.
 
@@ -58,7 +71,7 @@ it gives the common advice without a custom part.
 Keep the main checkout path and the active checkout path distinct. When a lane runs
 `scripts/celetis worktree <n>`, wait for its successful completion and bind the **exact absolute
 path it prints** using the host reference. Keep the script's branch and checkout; its existing
-`.claude/worktrees/` paths and `.claude/celetis-flow/` configuration are shared by both hosts.
+`.claude/worktrees/` paths and `.celetis.yaml` configuration are shared by both hosts.
 
 After binding, read `AGENTS.md` in that checkout and the applicable ancestor and subsystem
 `AGENTS.md` files before editing. Bind every command, file read, file edit, and child brief to

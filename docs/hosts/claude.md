@@ -9,10 +9,19 @@ input as arguments. The native `$ARGUMENTS` substitution supplies that input on 
 The bundle may be identified by `CLAUDE_PLUGIN_ROOT`; the loaded skill's absolute path also
 identifies it. Resolve `<plugin>` before reading a bundled file.
 
-Use `Read` for the custom file and `Glob` or `Grep` to locate the active checkout root. These
-file tools also serve borrowed skill references. Loading a skill runs no custom shell command;
-the one read at Host entry supplies the custom text. Keep this read on the native file tools,
-including when Bash is unavailable or a shell permission rule blocks `cat` or `git`.
+Use the session context and `Glob`, `Grep`, or `Read` to locate the active Git checkout root.
+Check candidate `.git` entries from the current folder toward its ancestors. A `.git`
+directory marks a normal checkout; a `.git` file with `gitdir:` marks a linked checkout.
+That file's containing folder is the active root, not the common Git directory or its parent
+checkout. Stop at this first Git boundary. An explicit absence through the session's root
+is the no-checkout case; another lookup error stops entry.
+
+Use `Read` for the whole root `.celetis.yaml` once, with no offset or limit. Interpret it
+using the shared configuration schema and apply only the target custom string. These native
+file tools also serve borrowed skill references. Keep checkout location and config reads on
+these tools when Bash is unavailable or a shell permission rule blocks `cat` or `git`.
+If the surface cannot identify the checkout or the required regular file with its file tools,
+stop for access setup. A read denial stops without another access path.
 
 ## Worktree and commands
 

@@ -338,33 +338,30 @@ for repair and retry. The marker remains
 again in an unmarked lane. A marked lane still needs valid config, but does not run setup again.
 Reading config in another command never executes setup.
 
-**A custom part.** A custom part is the file `.claude/celetis-flow/custom/<skill>.md` of a product
-project, with the name of a skill of the plugin. It holds an addition to the procedure of one step,
-for example a check on a real device after the build. The text is an addition: it cannot remove a
-rule of the general skill. An act that a custom part adds comes before the act of the skill that
-moves the line of the issue (a label, a comment with a heading that the resolver reads, a published
-spec, or a closed issue), because the script ends the session when the issue shows that the step is
-done. A custom part is no domain skill, and it routes no change by its domain: domain knowledge
-stays in the `AGENTS.md` files (ADR-0006).
+**A custom part.** `custom.<skill>` in the active checkout's `.celetis.yaml` holds an
+addition to that skill's procedure, for example a check on a real device after the build.
+The text cannot remove a general rule. An added act comes before the skill moves the line
+of the issue, because the runner ends the session when the issue shows that the step is done.
+Domain knowledge stays in the `AGENTS.md` files (ADR-0006).
 
-Each `SKILL.md` starts with the common host entry, which reads its custom part once before
-the first step or answer (ADR-0013). Claude uses native `Read`, `Glob`, and `Grep`. Codex uses
-its supported file-access operations. The whole custom file adds to the common skill. The
-skill contains no load-time shell injection. `docs/hosts/entry.md` and the selected host reference
-define the read, permission, and exact-once rules.
+Each `SKILL.md` starts with the common host entry, which reads the whole config once through
+native file tools before any step or answer and applies only its target string (ADR-0013).
+Claude uses `Read`, `Glob`, and `Grep`; Codex uses supported file-only operations on its actual
+surface. The agent interprets the schema in `docs/configuration.md`, with no shell, `yq`, or
+new parser operation. Native entry executes no setup and proves no deterministic parser check.
+`docs/hosts/entry.md` and the selected host reference own the entry rules.
 
-- **Which checkout.** The session reads the file from the root of the checkout where its shell is
-  before the first step or answer. A skill that is the first prompt of a session, as in each step
-  that the script starts, reads the custom part of the main checkout. A new skill invocation after
-  binding a lane reads the custom part of that lane. Rereading the same skill invocation does not
-  repeat its custom read.
-- **With no checkout or no custom file,** the session continues with the common skill and no
-  injected error text.
-- **When file access needs approval,** the session requests it through the normal permission flow.
-  Denied access or another read error stops the work with a report of the block. A denied read is
-  not a missing file.
-- **When a skill reads another skill's procedure,** the session applies the same read rule to
-  `.claude/celetis-flow/custom/<that skill>.md` before following that procedure.
+- **Which checkout.** Locate the active root from session context and file tools, including
+  a linked checkout's `.git` file. A runner step starts in the main checkout. A later skill
+  entered in a lane uses that lane's config. Read no parent config and combine no files.
+- **With no checkout or config,** continue with the common skill. Omitted or empty custom
+  values also give no addition. An existing invalid, ambiguous, unreadable, or symlink config
+  stops entry with the file and field.
+- **When file access needs approval,** request it through the normal controls. A denied read
+  stops; use no other tool or shell to retry it.
+- **When a skill borrows another skill's rules,** enter that reference and apply its
+  `custom.<skill>` once. Reuse that entry for later sections. A same-session handoff or an
+  intentional new invocation creates a new entry and reads the active config once again.
 
 ## The board
 
