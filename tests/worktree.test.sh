@@ -12,25 +12,48 @@ cp "$here/scripts/worktree.sh" "$here/scripts/worktree-lib.sh" "$tmp/plug in/"
 cat >"$tmp/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >>"$GH_LOG"
-case "$1 $2" in
-  "issue view")
-    [ -z "${ISSUE_MISSING:-}" ] || { echo "Could not resolve to an issue" >&2; exit 1; }
-    case "$*" in
-      *state,labels*) printf '%s\n' "$ISSUE_STATE" $ISSUE_LABELS ;;
-      *) printf '%s\n' "$ISSUE_TITLE" $ISSUE_LABELS ;;
-    esac ;;
-  "repo view")
+if [ "$1" != api ]; then
+  echo "HTTP 403: GitHub GraphQL is not available from Claude Code sessions" >&2
+  exit 1
+fi
+shift
+paginate=0 filter=. endpoint=
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --paginate) paginate=1 ;;
+    --jq) filter=$2; shift ;;
+    -*) echo "unknown flag $1" >&2; exit 1 ;;
+    *) endpoint=$1 ;;
+  esac
+  shift
+done
+list() {
+  case "$endpoint" in *per_page=100*) ;; *) echo "list without per_page=100" >&2; exit 1 ;; esac
+  [ "$paginate" -eq 1 ] || { echo "list without --paginate" >&2; exit 1; }
+  if [ "${PAGES:-1}" -eq 2 ]; then jq -c '[.[:1], .[1:]] | .[]' <<<"$1"; else echo "$1"; fi | jq -r "$filter"
+}
+pulls_failed() {
+  [ -z "${PR_LIST_FAIL:-}" ] || { echo "To get started with GitHub CLI, please run:  gh auth login" >&2; exit 4; }
+}
+case "$endpoint" in
+  'repos/{owner}/{repo}')
     [ -z "${REPO_VIEW_FAIL:-}" ] || { echo "HTTP 401" >&2; exit 1; }
-    case "$*" in *defaultBranchRef*) ;; *) echo "repo view without defaultBranchRef" >&2; exit 1 ;; esac
-    echo "${TRUNK:-master}" ;;
-  "pr list")
-    [ -z "${PR_LIST_FAIL:-}" ] || { echo "To get started with GitHub CLI, please run:  gh auth login" >&2; exit 4; }
-    case "$*" in
-      *--head*)
-        case "$*" in *"--state all"*) ;; *) echo "pr list without --state all" >&2; exit 1 ;; esac
-        printf '%s\n' "$PRS" ;;
-      *) printf '%s\n' $OPEN_HEADS ;;
-    esac ;;
+    jq -n --arg trunk "${TRUNK:-master}" '{default_branch: $trunk}' | jq -r "$filter" ;;
+  'repos/{owner}/{repo}/issues/'[0-9]*)
+    [ -z "${ISSUE_MISSING:-}" ] || { echo "HTTP 404: Not Found" >&2; exit 1; }
+    jq -n --arg title "$ISSUE_TITLE" --arg state "$ISSUE_STATE" --arg labels "$ISSUE_LABELS" \
+      '{title: $title, state: ($state | ascii_downcase), labels: ($labels | split(" ") | map(select(. != "") | {name: .}))}' |
+      jq -r "$filter" ;;
+  'repos/{owner}/{repo}/pulls?state=open'*)
+    pulls_failed
+    list "$(jq -nc --arg heads "$OPEN_HEADS" '[$heads | split(" ")[] | select(. != "") | {head: {ref: .}}]')" ;;
+  'repos/{owner}/{repo}/pulls?head={owner}:'*'&state=all'*)
+    pulls_failed
+    list "$(printf '%s\n' "$PRS" | jq -Rnc '[inputs | select(. != "") | split(" ") | {
+      state: (if .[0] == "OPEN" then "open" else "closed" end),
+      merged_at: (if .[0] == "MERGED" then "2026-10-19T00:00:00Z" else null end),
+      head: {sha: .[1]}}]')" ;;
+  *) echo "HTTP 404: Not Found ($endpoint)" >&2; exit 1 ;;
 esac
 EOF
 chmod +x "$tmp/bin/gh"
@@ -49,6 +72,7 @@ slug_of() { local p; p=$(ISSUE_TITLE=$2 wt "$1") && echo "${p##*/$1-}"; }
 setup=.claude/celetis-flow/worktree-setup.sh
 marker_of() { echo "$(git -C "$1" rev-parse --path-format=absolute --git-dir)/celetis-flow-setup-done"; }
 setup_runs() { wc -l <"$SETUP_LOG"; }
+only_api() { ! grep -qv '^api ' "$GH_LOG" || fail "gh called without api: $(grep -v '^api ' "$GH_LOG")"; }
 
 git init -q -b master "$tmp/main checkout"
 cd "$tmp/main checkout"
@@ -82,6 +106,7 @@ grep -qx noise "$tmp/err" || fail "setup output not sent to stderr"
 [ -f "$(marker_of "$out")" ] || fail "setup not marked done"
 [ -z "$(git -C "$out" status --porcelain)" ] || fail "setup left the worktree dirty"
 
+only_api
 : >"$GH_LOG"
 [ "$(ISSUE_TITLE='A renamed title' wt '#1')" = "$out" ] || fail "rerun by #<n> returned another path"
 [ "$(cd "$out" && wt 1)" = "$out" ] || fail "rerun from inside the issue's worktree returned another path"
@@ -145,7 +170,7 @@ git -C "$tmp/other" checkout -q -b fix/16-remote-work
 git -C "$tmp/other" commit -q --allow-empty -m remote-work
 git -C "$tmp/other" push -q origin fix/16-remote-work
 remote_tip=$(git -C "$tmp/other" rev-parse HEAD)
-pr_out=$(OPEN_HEADS='feat/160-other fix/16-remote-work' ISSUE_TITLE='Another title' wt 16)
+pr_out=$(PAGES=2 OPEN_HEADS='feat/160-other fix/16-remote-work' ISSUE_TITLE='Another title' wt 16)
 [ "$pr_out" = "$main/.claude/worktrees/16-remote-work" ] || fail "open PR's branch not re-entered: $pr_out"
 [ "$(git -C "$pr_out" rev-parse HEAD)" = "$remote_tip" ] || fail "open PR's branch not at its remote tip"
 [ "$(git config --get branch.fix/16-remote-work.remote)" = origin ] || fail "open PR's branch does not track origin"
@@ -225,7 +250,9 @@ prototype_kept() {
     on_origin prototype/1-probe-ui && on_origin prototype/1-gone
 }
 
+: >"$GH_LOG"
 [ "$(code_of --remove 1)" -eq 1 ] || fail "removed with an open PR"
+grep -qF 'head={owner}:feat/1-probe&' "$GH_LOG" || fail "removal did not list the PRs of its branch: $(cat "$GH_LOG")"
 [ "$(PRS=$'CLOSED 0\nOPEN 0' ISSUE_STATE=CLOSED code_of --remove 1)" -eq 1 ] || fail "removed with an open PR beside a closed one"
 [ "$(PRS= code_of --remove 1)" -eq 1 ] || fail "removed with no PR on an open issue"
 [[ $(PRS= stderr_of --remove 1) == *"#1 is open"*"no merged PR"* ]] || fail "open-issue refusal does not name the open issue and the missing merge"
@@ -264,12 +291,13 @@ touch "$out/scratch"
 [ ! -e "$proto" ] || fail "locked prototype checkout not removed before the lane"
 rm "$out/scratch"
 git worktree lock "$out"
-wt --remove '#1'
+PAGES=2 wt --remove '#1'
 [ ! -e "$out" ] || fail "merged worktree not removed"
 ! has_ref feat/1-probe || fail "merged branch not deleted"
 ! has_ref prototype/1-probe-ui && ! has_ref prototype/1-alt || fail "local prototype branch not deleted"
 ! on_origin prototype/1-probe-ui && ! on_origin prototype/1-gone || fail "prototype branch not deleted on origin"
 has_ref prototype/10-near && on_origin prototype/10-near || fail "deleted another issue's prototype"
+only_api
 : >"$GH_LOG"
 [ "$(code_of --remove 1)" -eq 0 ] || fail "removing an issue with no branch did not exit 0"
 [ ! -s "$GH_LOG" ] || fail "removing an issue with no branch called gh"
@@ -307,5 +335,6 @@ git -C "$tidy" commit -q --allow-empty -m local-only
 git push -q origin chore/10-tidy
 wt --remove 10
 [ ! -e "$tidy" ] && ! has_ref chore/10-tidy || fail "closed issue's pushed branch not removed"
+only_api
 
 echo "PASS"
