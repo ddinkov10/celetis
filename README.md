@@ -656,10 +656,16 @@ full workflow acceptance remain open as listed in `docs/celetis-flow.md`, "Accep
 
 Run the tests in a checkout of this repository.
 
+Both `tests/native-entry.test.sh` and `tests/native-observer.test.sh` need Claude Code's
+`claude plugin test` runtime. The workflow pins Claude Code 2.1.302 through its
+[supported npm package](https://code.claude.com/docs/en/setup#install-with-npm).
+This repository test runtime is required even when product operations select Codex.
+The checks need no model credentials or tokens and start no model turn.
+
 - **The full local gate** is `scripts/verify.sh`. It checks the Perl updater syntax, runs each
   `tests/*.test.sh`, then `scripts/capscore.sh --test` and `claude plugin validate .`. Its last line
-  is `verify: PASS`. The source gate needs Claude's validator even on a Codex development machine;
-  product projects use their own gate. No validator starts a model turn.
+  is `verify: PASS`. It also needs Claude's validator, which starts no model turn.
+  Product projects use their own gate.
 
   ```bash
   AGENT_BOARD=<checkout of agent-board>/cli.mjs scripts/verify.sh
@@ -671,7 +677,7 @@ Run the tests in a checkout of this repository.
   gate; released-package acceptance uses the exact GitHub tag through the new adapter.
 - **The workflow** `.github/workflows/test.yml` runs each `tests/*.test.sh` and
   `scripts/capscore.sh --test`, plus the Perl syntax check, on Linux, for each pull request and
-  each push to `main`. It needs no host CLI, model credentials, or model tokens. It sets
+  each push to `main`. It installs Node.js 22 and the pinned Claude test runtime before the tests. It sets
   `CELETIS_FLOW_SKIP_BOARD_CHECK=1`, so it skips that contract check and the private-package
   board-to-launcher integration test. The gate on a machine runs both.
 - **The proof on bash 3.2.** The gate runs each test under the `/bin/bash` of macOS, with
