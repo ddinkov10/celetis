@@ -13,55 +13,67 @@ land_sh="$tmp/plug in/scripts/land.sh"
 
 fail() { echo "FAIL: $1"; exit 1; }
 
-# The stub answers each read from a JSON file with the --json fields and the --jq filter of the call, so a filter of land.sh gets null for a field that its call does not ask for.
 cat >"$tmp/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$S/gh-calls"
 cp "$(git rev-parse --git-common-dir)/celetis-flow/land-7.lock" "$S/lock-seen" 2>/dev/null || true
-[ ! -f "$S/gh-fail" ] && [ ! -f "$S/fail-$1-$2" ] || { echo "HTTP 502" >&2; exit 1; }
-filter=. fields=
-args=("$@")
-for ((i = 0; i < $#; i++)); do
-  [ "${args[i]}" != --jq ] || filter=${args[i + 1]}
-  [ "${args[i]}" != --json ] || fields=${args[i + 1]}
+[ "$1" = api ] || { echo "HTTP 403: GitHub GraphQL is not available from Claude Code sessions" >&2; exit 1; }
+shift
+method= filter=. paginate= endpoint= fields=()
+while [ $# -gt 0 ]; do
+  case $1 in
+    --paginate) paginate=1 ;;
+    --silent) ;;
+    --jq) filter=$2; shift ;;
+    -X) method=$2; shift ;;
+    -f) fields+=("$2"); shift ;;
+    -*) echo "stub gh: unknown flag $1" >&2; exit 1 ;;
+    *) endpoint=$1 ;;
+  esac
+  shift
 done
-answer() {
-  jq -r --arg fields "$fields" 'def asked: if $fields == "" then . else with_entries(select(.key as $k | $fields | split(",") | index($k))) end;
-    (if type == "array" then map(asked) else asked end) | '"$filter" "$S/$1.json"
+[ -n "$method" ] || { [ ${#fields[@]} -eq 0 ] && method=GET || method=POST; }
+path=${endpoint%%\?*}
+[ ! -f "$S/gh-fail" ] && [ ! -f "$S/fail-$method-${path##*/}" ] || { echo "HTTP 502" >&2; exit 1; }
+answer() { jq -r "$filter" "$S/$1.json"; }
+list() {
+  [ -n "$paginate" ] && [[ $endpoint == *per_page=100* ]] || { echo "stub gh: a list without --paginate and per_page=100: $endpoint" >&2; exit 1; }
+  answer "$1"
 }
+field() { local f; for f in "${fields[@]}"; do [ "${f%%=*}" != "$1" ] || echo "${f#*=}"; done; }
 nth() {
   local k=$(($(cat "$S/$1" 2>/dev/null || echo 0) + 1))
   echo "$k" >"$S/$1"
   [ -f "$S/$2-$k.json" ] && echo "$2-$k" || echo "$2"
 }
-case "$1 $2" in
-  "repo view") answer repo ;;
-  "issue view") answer issue ;;
-  "issue close")
-    [ ! -f "$S/close-fail-$3" ] || { echo "close failed" >&2; exit 1; }
-    printf '%s\n' "$*" >>"$S/closed" ;;
-  "pr list") case "$*" in *"--state merged"*) answer merged ;; *) answer prs ;; esac ;;
-  "pr create") printf '%s\n' "$*" >"$S/create-args"; echo "https://github.com/o/r/pull/9" ;;
-  "pr view") answer "$(nth views view)" ;;
-  "pr checks")
-    f=$(nth polls checks)
-    [ "$(jq length "$S/$f.json")" -gt 0 ] || { echo "no checks reported" >&2; exit 1; }
-    answer "$f" ;;
-  "pr merge")
+repo='repos/{owner}/{repo}'
+case "$method $endpoint" in
+  "GET $repo") answer repo ;;
+  "GET $repo/issues/"*/parent)
+    [ ! -f "$S/parent-fail" ] || { echo "gh: Bad Gateway (HTTP 502)" >&2; exit 1; }
+    [ -f "$S/parent.json" ] || { echo '{"message":"No parent issue found","status":"404"}'; echo "gh: No parent issue found (HTTP 404)" >&2; exit 1; }
+    answer parent ;;
+  "GET $repo/issues/"*/sub_issues) answer subs ;;
+  "GET $repo/issues/"*) answer issue ;;
+  "POST $repo/issues/"*/comments | "PATCH $repo/issues/"*)
+    n=${path%/comments}; n=${n##*/}
+    [ ! -f "$S/close-fail-$n" ] || { echo "close failed" >&2; exit 1; }
+    if [ "$method" = POST ]; then echo "comment $n $(field body)"; else echo "close $n $(field state) $(field state_reason)"; fi >>"$S/closed" ;;
+  "GET $repo/pulls?state=open&"*) list prs ;;
+  "GET $repo/pulls?head={owner}:"*"&state=closed&"*) list merged ;;
+  "POST $repo/pulls")
+    printf '%s\n' "${fields[*]}" >"$S/create-args"
+    echo '{"number":9,"html_url":"https://github.com/o/r/pull/9"}' | jq -r "$filter" ;;
+  "GET $repo/pulls/"*) answer "$(nth views view)" ;;
+  "PUT $repo/pulls/"*/merge)
     [ ! -f "$S/merge-fail" ] || { cat "$S/merge-fail" >&2; exit 1; }
-    printf '%s\n' "$*" >"$S/merge-args"
+    pr=${path%/merge}
+    printf '%s\n' "${pr##*/} ${fields[*]}" >"$S/merge-args"
     git --git-dir="$ORIGIN" for-each-ref --format='%(refname:short) %(objectname)' refs/heads >"$S/origin-at-merge"
     [ ! -f "$S/auto-delete" ] || git --git-dir="$ORIGIN" update-ref -d "refs/heads/$(cat "$S/auto-delete")" ;;
-  "api "*)
-    case "$*" in
-      *"/parent"*)
-        [ ! -f "$S/parent-fail" ] || { echo "gh: Bad Gateway (HTTP 502)" >&2; exit 1; }
-        [ -f "$S/parent.json" ] || { echo '{"message":"No parent issue found","status":"404"}'; echo "gh: No parent issue found (HTTP 404)" >&2; exit 1; }
-        answer parent ;;
-      *"/sub_issues"*) answer subs ;;
-      *) echo "stub gh: unexpected $*" >&2; exit 1 ;;
-    esac ;;
-  *) echo "stub gh: unexpected $*" >&2; exit 1 ;;
+  "GET $repo/commits/"*"/check-runs?"*) list "$(nth polls checks)" ;;
+  "GET $repo/commits/"*"/status?"*) list status ;;
+  *) echo "stub gh: unexpected $method $endpoint" >&2; exit 1 ;;
 esac
 EOF
 printf '#!/usr/bin/env bash\necho x >>"$S/sleeps"\n' >"$tmp/bin/sleep"
@@ -90,9 +102,9 @@ fresh() {
   git fetch -q origin
   main=$(git rev-parse --show-toplevel)
   wt= branch= from=
-  json repo '{"defaultBranchRef":{"name":"master"}}'
-  json issue '{"state":"OPEN"}'
-  json prs '[]'; json merged '[]'; json subs '[]'; json checks '[]'
+  json repo '{"default_branch":"master"}'
+  json issue '{"state":"open"}'
+  json prs '[]'; json merged '[]'; json subs '[]'; json checks '{"check_runs":[]}'; json status '{"statuses":[]}'
 }
 lane() {
   branch=$1
@@ -102,7 +114,7 @@ lane() {
   git -C "$wt" add -A
   git -C "$wt" commit -qm work
   tip=$(git rev-parse "$1")
-  json view "{\"headRefOid\":\"$tip\"}"
+  json view "{\"head\":{\"sha\":\"$tip\"}}"
 }
 upstream() {
   git clone -q "$ORIGIN" "$tmp/other"
@@ -121,14 +133,17 @@ lost='git update-ref -d "$1"'
 prs() {
   local rows=
   while [ $# -gt 0 ]; do
-    rows="$rows${rows:+,}{\"headRefName\":\"$1\",\"baseRefName\":\"master\",\"number\":$2,\"url\":\"https://github.com/o/r/pull/$2\"}"
+    rows="$rows${rows:+,}{\"head\":{\"ref\":\"$1\"},\"base\":{\"ref\":\"master\"},\"number\":$2,\"html_url\":\"https://github.com/o/r/pull/$2\"}"
     shift 2
   done
   json prs "[$rows]"
 }
-on_base() { json prs "$(jq -c --argjson pr "$1" --arg base "$2" '(.[] | select(.number == $pr)).baseRefName = $base' "$S/prs.json")"; }
-merged() { json merged "[{\"headRefOid\":\"$1\",\"baseRefName\":\"${2:-master}\"}]"; }
-checks() { json "${2:-checks}" "$(jq -cn '[$ARGS.positional[] | {bucket: .}]' --args $1)"; }
+on_base() { json prs "$(jq -c --argjson pr "$1" --arg base "$2" '(.[] | select(.number == $pr)).base.ref = $base' "$S/prs.json")"; }
+merged() { json merged "[{\"state\":\"closed\",\"merged_at\":\"2026-10-19T00:00:00Z\",\"base\":{\"ref\":\"${2:-master}\"},\"head\":{\"sha\":\"$1\"}}]"; }
+checks() {
+  json "${2:-checks}" "$(jq -cn '{check_runs: [$ARGS.positional[] | {pass: "success", fail: "failure", skipping: "skipped", cancel: "cancelled"}[.] as $c |
+    {status: (if $c then "completed" else "in_progress" end), conclusion: $c}]}' --args $1)"
+}
 
 origin_master() { git --git-dir="$ORIGIN" rev-parse master; }
 has_ref() { git show-ref --verify --quiet "refs/heads/$1"; }
@@ -152,7 +167,7 @@ refused() {
   has "land: $1" "$2"
   [ "$(grep -c '^land: ' <<<"$out")" -eq 1 ] || fail "$2 printed more than one land: line: $out"
   kept "$2"
-  [ "$(calls '^pr merge')" -eq 0 ] && [ ! -f "$S/closed" ] || fail "$2 merged or closed: $(cat "$S/gh-calls")"
+  [ "$(calls '/pulls/[0-9]+/merge')" -eq 0 ] && [ ! -f "$S/closed" ] || fail "$2 merged or closed: $(cat "$S/gh-calls")"
 }
 landed() {
   [ "$status" -eq 0 ] || fail "$1 exit $status: $out"
@@ -239,13 +254,13 @@ new=$(origin_master)
 [ "$(git log -1 --format=%s "$new")" = "fix(x): the crash is gone (#7)" ] || fail "merge: subject $(git log -1 --format=%s "$new")"
 [ "$(git rev-parse "$new^{tree}")" = "$(git rev-parse "$tip^{tree}")" ] || fail "merge: the squash tree is not the tree of the branch"
 [ "$(git rev-parse HEAD)" = "$new" ] && [ -f work.txt ] && [ -z "$(git status --porcelain)" ] || fail "merge: the main checkout did not move to the commit"
-[ "$(cat "$S/closed")" = "issue close 7 --comment Landed on master in $new." ] || fail "merge: closed [$(cat "$S/closed")]"
+[ "$(cat "$S/closed")" = "comment 7 Landed on master in $new."$'\n'"close 7 closed completed" ] || fail "merge: closed [$(cat "$S/closed")]"
 ! has_ref prototype/7-look && ! on_origin prototype/7-look && [ ! -e "$main/.claude/worktrees/prototype-7-look" ] || fail "merge: a prototype of #7 stays"
 has_ref prototype/70-near && on_origin prototype/70-near || fail "merge: deleted the prototype of #70"
-[ "$(calls '^pr ')" -eq 0 ] || fail "merge called gh pr: $(cat "$S/gh-calls")"
+[ "$(calls '/(pulls|commits)')" -eq 0 ] || fail "merge read or wrote a PR: $(cat "$S/gh-calls")"
 grep -qE '^[0-9]+$' "$S/lock-seen" || fail "the script held no lock while it ran"
 
-fresh merge; lane fix/7-crash; json issue '{"state":"CLOSED"}'
+fresh merge; lane fix/7-crash; json issue '{"state":"closed"}'
 land 7 'fix(x): y'; landed "merge: an issue that is closed"
 [ ! -f "$S/closed" ] || fail "merge: closed an issue that was closed"
 
@@ -257,22 +272,22 @@ new=$(origin_master)
 rm "$S/close-fail-7"
 land 7 'fix(x): another subject'; landed "merge: the second run after a failed close"
 [ "$(origin_master)" = "$new" ] || fail "merge: the second run made a second commit"
-[ "$(cat "$S/closed")" = "issue close 7 --comment Landed on master in $new." ] || fail "merge: the second run closed [$(cat "$S/closed")]"
+[ "$(cat "$S/closed")" = "comment 7 Landed on master in $new."$'\n'"close 7 closed completed" ] || fail "merge: the second run closed [$(cat "$S/closed")]"
 
 fresh merge; lane fix/7-crash
 git worktree add -q -b prototype/7-look "$main/.claude/worktrees/prototype-7-look" master
 touch "$main/.claude/worktrees/prototype-7-look/scratch"
 land 7 'fix(x): y'; stopped "a removal that stops"
 has_ref prototype/7-look || fail "a removal that stops deleted the prototype branch of a checkout that stays"
-rm "$main/.claude/worktrees/prototype-7-look/scratch"; json issue '{"state":"CLOSED"}'
+rm "$main/.claude/worktrees/prototype-7-look/scratch"; json issue '{"state":"closed"}'
 land 7 'fix(x): y'; landed "merge: the second run after a removal that stopped"
-[ "$(calls '^issue close')" -eq 1 ] || fail "merge: the second run closed the issue again"
+[ "$(calls 'PATCH .*/issues/7 ')" -eq 1 ] || fail "merge: the second run closed the issue again"
 
 fresh merge; lane fix/7-crash; git push -q origin fix/7-crash
 PATH="$tmp/deaf:$PATH" land 7 'fix(x): y'; stopped "merge: an origin that does not answer at the delete"
 has "fatal: origin does not answer" "merge: an origin that does not answer at the delete"
 on_origin fix/7-crash || fail "merge: the branch left an origin that does not answer"
-json issue '{"state":"CLOSED"}'
+json issue '{"state":"closed"}'
 land 7 'fix(x): y'; landed "merge: the second run after an origin that did not answer"
 
 fresh merge; lane fix/7-crash; touch "$main/.git/index.lock"
@@ -287,13 +302,14 @@ land 7 'fix(x): another subject'; landed "merge: the second run after a main che
 
 fresh merge; lane fix/7-crash; json parent '{"number":3,"state":"open"}'; json subs '[{"number":7,"state":"open"},{"number":8,"state":"closed"}]'
 land 7 'fix(x): y'; landed "the last sub-issue"
-grep -qxF "issue close 3 --comment Each sub-issue is closed: #7 landed last." "$S/closed" || fail "the last sub-issue did not close the epic: $(cat "$S/closed")"
+[ "$(tail -n 2 "$S/closed")" = "comment 3 Each sub-issue is closed: #7 landed last."$'\n'"close 3 closed completed" ] ||
+  fail "the last sub-issue did not close the epic: $(cat "$S/closed")"
 fresh merge; lane fix/7-crash; json parent '{"number":3,"state":"open"}'; json subs '[{"number":7,"state":"closed"},{"number":8,"state":"open"}]'
 land 7 'fix(x): y'; landed "a sub-issue with an open sibling"
-[ "$(calls '^issue close 3')" -eq 0 ] || fail "closed an epic with an open sub-issue"
+[ "$(calls 'issues/3(/comments)? ')" -eq 0 ] || fail "closed an epic with an open sub-issue"
 fresh merge; lane fix/7-crash; json parent '{"number":3,"state":"closed"}'
 land 7 'fix(x): y'; landed "a closed epic"
-[ "$(calls 'sub_issues|^issue close 3')" -eq 0 ] || fail "read or closed an epic that was closed"
+[ "$(calls 'sub_issues|issues/3(/comments)? ')" -eq 0 ] || fail "read or closed an epic that was closed"
 fresh merge; lane fix/7-crash
 land 7 'fix(x): y'; landed "no parent"
 [ "$(calls 'sub_issues')" -eq 0 ] && [[ $out != *parent* ]] || fail "an issue with no parent: $out"
@@ -307,11 +323,12 @@ has "land: cannot close the epic #3; close it by hand" "an epic that gh cannot c
 fresh pr; lane fix/7-crash; checks pass; json parent '{"number":3,"state":"open"}'; json subs '[{"number":7,"state":"open"}]'
 land 7 'fix(x): the crash is gone'
 landed "pr"
-[ "$(cat "$S/create-args")" = "pr create --base master --head fix/7-crash --title fix(x): the crash is gone (#7) --body Closes #7" ] || fail "pr: created [$(cat "$S/create-args")]"
-[ "$(cat "$S/merge-args")" = "pr merge 9 --squash --match-head-commit $tip" ] || fail "pr: merged [$(cat "$S/merge-args")]"
+[ "$(cat "$S/create-args")" = "base=master head=fix/7-crash title=fix(x): the crash is gone (#7) body=Closes #7" ] || fail "pr: created [$(cat "$S/create-args")]"
+[ "$(cat "$S/merge-args")" = "9 merge_method=squash sha=$tip" ] || fail "pr: merged [$(cat "$S/merge-args")]"
+grep -qF "commits/$tip/check-runs?" "$S/gh-calls" && grep -qF "commits/$tip/status?" "$S/gh-calls" || fail "pr: read the checks of another commit: $(cat "$S/gh-calls")"
 grep -qx "fix/7-crash $tip" "$S/origin-at-merge" || fail "pr: the branch was not on origin at the merge"
-[ "$(calls '^pr merge')" -eq 1 ] && [ ! -f "$S/sleeps" ] || fail "pr: more than one merge, or a sleep"
-[ "$(cat "$S/closed")" = "issue close 3 --comment Each sub-issue is closed: #7 landed last." ] || fail "pr: closed [$(cat "$S/closed")]"
+[ "$(calls '/pulls/[0-9]+/merge')" -eq 1 ] && [ ! -f "$S/sleeps" ] || fail "pr: more than one merge, or a sleep"
+[ "$(cat "$S/closed")" = "comment 3 Each sub-issue is closed: #7 landed last."$'\n'"close 3 closed completed" ] || fail "pr: closed [$(cat "$S/closed")]"
 [ "${before#* }" = "$(git rev-parse master)" ] && [ -z "$(git status --porcelain)" ] || fail "pr touched the main checkout"
 fresh pr; lane fix/7-crash; checks pass; mkdir "$main/sub"; from="$main/sub"
 land 7 'fix(x): y'; landed "pr: from a folder of the main checkout"
@@ -320,7 +337,7 @@ for b in feat/7-x fix/7-x hotfix/7-x chore/7-x; do
   fresh pr; lane $b; prs release/next 12 $b 9 fix/17-other 10; checks "pass skipping"; echo $b >"$S/auto-delete"
   land 7 'fix(x): y'; landed "pr: an open PR of $b"
   [ ! -f "$S/create-args" ] || fail "pr: opened a second PR for $b"
-  [ "$(cat "$S/merge-args")" = "pr merge 9 --squash --match-head-commit $tip" ] || fail "pr: merged [$(cat "$S/merge-args")] for $b"
+  [ "$(cat "$S/merge-args")" = "9 merge_method=squash sha=$tip" ] || fail "pr: merged [$(cat "$S/merge-args")] for $b"
 done
 fresh pr; lane fix/7-crash; prs fix/7-crash 9; checks pass; on_delete "$lost"
 land 7 'fix(x): y'; landed "pr: origin loses the branch at the delete"
@@ -330,7 +347,7 @@ has "hook declined" "pr: a delete that origin refuses"
 on_origin fix/7-crash || fail "pr: a refused delete removed the branch from origin"
 rm "$ORIGIN/hooks/update"; merged "$tip"
 land 7 'fix(x): y'; landed "pr: the second run after a delete that origin refused"
-[ "$(calls '^pr merge')" -eq 1 ] || fail "pr: the second run merged again"
+[ "$(calls '/pulls/[0-9]+/merge')" -eq 1 ] || fail "pr: the second run merged again"
 fresh pr; prs release/next 12; checks pass
 land 12 'fix(x): y'; refused "no lane branch matches #12; nothing to land" "pr: the number of the release PR"
 fresh pr; lane fix/7-crash; upstream; checks pass
@@ -344,20 +361,20 @@ land 7 'fix(x): y'; refused "PR #10 of #7 is on feat/7-other, not on fix/7-crash
 fresh pr; lane fix/7-crash; prs fix/7-crash 10; on_base 10 develop; checks pass
 land 7 'fix(x): y'
 refused "PR #10 of #7 has the base develop, not master; change its base, or close it: https://github.com/o/r/pull/10" "pr: a lane PR on another base"
-! on_origin fix/7-crash && [ "$(calls '^pr create')" -eq 0 ] || fail "pr: pushed, or opened a second PR, beside a lane PR on another base"
+! on_origin fix/7-crash && [ ! -f "$S/create-args" ] || fail "pr: pushed, or opened a second PR, beside a lane PR on another base"
 fresh pr; lane fix/7-crash; prs fix/7-crash 9 fix/7-crash 10; on_base 10 develop; checks pass
 land 7 'fix(x): y'; refused "PR #10 of #7 has the base develop, not master" "pr: a lane PR on another base beside one on the trunk"
 ! on_origin fix/7-crash || fail "pr: pushed before the refusal of a lane PR on another base"
 fresh pr; lane fix/7-crash mine app.txt; upstream app.txt theirs
 land 7 'fix(x): y'
 refused "fix/7-crash conflicts with master; merge origin/master into fix/7-crash, run the verify gate of the project again, then land again" "pr: a conflict"
-! on_origin fix/7-crash && [ "$(calls '^pr list --state open')" -eq 0 ] || fail "pr: a conflicting branch was pushed"
-fresh pr; lane fix/7-crash; touch "$S/fail-pr-list"
-land 7 'fix(x): y'; refused "cannot list the PRs of fix/7-crash on GitHub" "pr: gh pr list fails"
+! on_origin fix/7-crash && [ "$(calls 'pulls\?state=open')" -eq 0 ] || fail "pr: a conflicting branch was pushed"
+fresh pr; lane fix/7-crash; touch "$S/fail-GET-pulls"
+land 7 'fix(x): y'; refused "cannot list the PRs of fix/7-crash on GitHub" "pr: the PR list fails"
 fresh pr; lane fix/7-crash; reject_push
 land 7 'fix(x): y'; refused "cannot push fix/7-crash to origin" "pr: a push that origin rejects"
-fresh pr; lane fix/7-crash; touch "$S/fail-pr-create"
-land 7 'fix(x): y'; refused "cannot open the PR of fix/7-crash" "pr: gh pr create fails"
+fresh pr; lane fix/7-crash; touch "$S/fail-POST-pulls"
+land 7 'fix(x): y'; refused "cannot open the PR of fix/7-crash" "pr: the PR create fails"
 
 check_refusal() {
   fresh pr; lane fix/7-crash; prs fix/7-crash 9; checks "$1"
@@ -371,6 +388,15 @@ check_refusal "" "the checks of PR #9 did not finish in 15 minutes (no check run
 [ "$(cat "$S/polls")" -eq 60 ] || fail "no check runs polled $(cat "$S/polls") times, not 60"
 check_refusal "pending pass" "the checks of PR #9 did not finish in 15 minutes (pass pending)"
 [ "$(cat "$S/polls")" -eq 60 ] || fail "checks never finish polled $(cat "$S/polls") times, not 60"
+fresh pr; lane fix/7-crash; prs fix/7-crash 9; checks pass; json status '{"statuses":[{"state":"failure"}]}'
+land 7 'fix(x): y'; refused "PR #9 has a check that is not green (fail pass)" "pr: a commit status that fails"
+fresh pr; lane fix/7-crash; prs fix/7-crash 9; checks pass; json status '{"statuses":[{"state":"pending"}]}'
+land 7 'fix(x): y'; refused "the checks of PR #9 did not finish in 15 minutes (pass pending)" "pr: a commit status that is pending"
+[ "$(cat "$S/polls")" -eq 60 ] || fail "a pending commit status polled $(cat "$S/polls") times, not 60"
+for call in check-runs status; do
+  fresh pr; lane fix/7-crash; prs fix/7-crash 9; checks pass; json status '{"statuses":[{"state":"success"}]}'; touch "$S/fail-GET-$call"
+  land 7 'fix(x): y'; refused "the checks of PR #9 did not finish in 15 minutes (no check runs)" "pr: a $call call that fails"
+done
 
 fresh pr; lane fix/7-crash; prs fix/7-crash 9; checks "pending pass"; checks pass checks-3
 land 7 'fix(x): y'; landed "pr: pending, then green"
@@ -379,10 +405,10 @@ fresh pr; lane fix/7-crash; prs fix/7-crash 9; checks ""; checks pass checks-2
 land 7 'fix(x): y'; landed "pr: checks appear late"
 
 old=0000000000000000000000000000000000000000
-fresh pr; lane fix/7-crash; prs fix/7-crash 9; checks pass; json view "{\"headRefOid\":\"$old\"}"; json view-3 "{\"headRefOid\":\"$tip\"}"
+fresh pr; lane fix/7-crash; prs fix/7-crash 9; checks pass; json view "{\"head\":{\"sha\":\"$old\"}}"; json view-3 "{\"head\":{\"sha\":\"$tip\"}}"
 land 7 'fix(x): y'; landed "pr: the PR shows the pushed head late"
 [ "$(cat "$S/views")" -eq 3 ] && [ "$(cat "$S/polls")" -eq 1 ] || fail "pr: read the checks of an old head: $(cat "$S/views") views, $(cat "$S/polls") polls"
-fresh pr; lane fix/7-crash; prs fix/7-crash 9; checks pass; json view "{\"headRefOid\":\"$old\"}"
+fresh pr; lane fix/7-crash; prs fix/7-crash 9; checks pass; json view "{\"head\":{\"sha\":\"$old\"}}"
 land 7 'fix(x): y'; refused "the checks of PR #9 did not finish in 15 minutes (the PR does not show $tip yet)" "pr: the PR never shows the pushed head"
 [ ! -f "$S/polls" ] || fail "pr: read the checks of an old head"
 
@@ -395,12 +421,16 @@ kept "pr: a merge that GitHub rejects"; on_origin fix/7-crash || fail "pr: a rej
 
 fresh pr; lane fix/7-crash; merged "$tip"
 land 7 'fix(x): y'; landed "pr: a PR that is merged at the local tip"
-[ "$(calls '^pr (create|checks|merge)|^pr list --state open')" -eq 0 ] || fail "pr: a landed change was landed again: $(cat "$S/gh-calls")"
+[ "$(calls '/(pulls|commits)')" -eq 1 ] || fail "pr: a landed change was landed again: $(cat "$S/gh-calls")"
+grep -qF 'pulls?head={owner}:fix/7-crash&state=closed&' "$S/gh-calls" || fail "pr: the merged lookup does not name head={owner}:fix/7-crash: $(cat "$S/gh-calls")"
+fresh pr; lane fix/7-crash; merged "$tip"; json merged "$(jq -c '.[0].merged_at = null' "$S/merged.json")"; checks pass
+land 7 'fix(x): y'; landed "pr: a PR that is closed at the local tip with no merge"
+[ "$(calls '/pulls/[0-9]+/merge')" -eq 1 ] || fail "pr: a closed PR with no merge counted as this landing"
 fresh pr; lane fix/7-crash; merged "$old"; checks pass
 land 7 'fix(x): y'; landed "pr: a PR that is merged at another commit"
-[ "$(calls '^pr merge')" -eq 1 ] || fail "pr: an older merged PR counted as this landing"
+[ "$(calls '/pulls/[0-9]+/merge')" -eq 1 ] || fail "pr: an older merged PR counted as this landing"
 fresh pr; lane fix/7-crash; merged "$tip" develop; checks pass
 land 7 'fix(x): y'; landed "pr: a PR that is merged into another base at the local tip"
-[ "$(calls '^pr create --base master ')" -eq 1 ] && [ "$(calls '^pr merge 9 ')" -eq 1 ] || fail "pr: a merge into another base counted as this landing: $(cat "$S/gh-calls")"
+[ "$(calls ' -f base=master ')" -eq 1 ] && [ "$(calls '/pulls/9/merge')" -eq 1 ] || fail "pr: a merge into another base counted as this landing: $(cat "$S/gh-calls")"
 
 echo "PASS"
