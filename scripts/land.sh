@@ -118,7 +118,7 @@ wait_green() {
 
 land_pr() {
   local merged open lane head base
-  merged=$(gh api --paginate "repos/{owner}/{repo}/pulls?head={owner}:$branch&state=closed&per_page=100" \
+  merged=$(gh api --paginate "repos/{owner}/{repo}/pulls?head={owner}:$(jq -rn --arg b "$branch" '$b | @uri')&state=closed&per_page=100" \
     --jq '.[] | select(.merged_at) | "\(.base.ref) \(.head.sha)"') || die "cannot list the PRs of $branch on GitHub"
   ! grep -qxF "$trunk $tip" <<<"$merged" || return 0
   git merge-tree --write-tree "origin/$trunk" "$branch" >/dev/null 2>&1 || die "$branch conflicts with $trunk; $stale"

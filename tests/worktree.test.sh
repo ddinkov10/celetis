@@ -252,7 +252,7 @@ prototype_kept() {
 
 : >"$GH_LOG"
 [ "$(code_of --remove 1)" -eq 1 ] || fail "removed with an open PR"
-grep -qF 'head={owner}:feat/1-probe&' "$GH_LOG" || fail "removal did not list the PRs of its branch: $(cat "$GH_LOG")"
+grep -qF 'head={owner}:feat%2F1-probe&' "$GH_LOG" || fail "removal did not list the PRs of its branch: $(cat "$GH_LOG")"
 [ "$(PRS=$'CLOSED 0\nOPEN 0' ISSUE_STATE=CLOSED code_of --remove 1)" -eq 1 ] || fail "removed with an open PR beside a closed one"
 [ "$(PRS= code_of --remove 1)" -eq 1 ] || fail "removed with no PR on an open issue"
 [[ $(PRS= stderr_of --remove 1) == *"#1 is open"*"no merged PR"* ]] || fail "open-issue refusal does not name the open issue and the missing merge"

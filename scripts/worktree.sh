@@ -71,7 +71,7 @@ if [ "$current" = "$main" ]; then
 fi
 
 if [ "$remove" -eq 1 ]; then
-  prs=$(gh api --paginate "repos/{owner}/{repo}/pulls?head={owner}:$branch&state=all&per_page=100" \
+  prs=$(gh api --paginate "repos/{owner}/{repo}/pulls?head={owner}:$(jq -rn --arg b "$branch" '$b | @uri')&state=all&per_page=100" \
     --jq '.[] | (if .merged_at then "MERGED" else (.state | ascii_upcase) end) + " " + .head.sha') ||
     refuse "cannot list the PRs of $branch on GitHub"
   tip=$(git rev-parse "refs/heads/$branch")

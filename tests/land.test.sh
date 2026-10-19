@@ -60,7 +60,11 @@ case "$method $endpoint" in
     [ ! -f "$S/close-fail-$n" ] || { echo "close failed" >&2; exit 1; }
     if [ "$method" = POST ]; then echo "comment $n $(field body)"; else echo "close $n $(field state) $(field state_reason)"; fi >>"$S/closed" ;;
   "GET $repo/pulls?state=open&"*) list prs ;;
-  "GET $repo/pulls?head={owner}:"*"&state=closed&"*) list merged ;;
+  "GET $repo/pulls?head={owner}:"*"&state=closed&"*)
+    head=${endpoint#*:}
+    head=$(perl -pe 's/\+/ /g; s/%([0-9A-Fa-f]{2})/chr hex $1/ge' <<<"${head%%&*}")
+    jq --arg head "$head" 'map(select(.head.ref == $head))' "$S/merged.json" >"$S/merged-of-head.json"
+    list merged-of-head ;;
   "POST $repo/pulls")
     printf '%s\n' "${fields[*]}" >"$S/create-args"
     echo '{"number":9,"html_url":"https://github.com/o/r/pull/9"}' | jq -r "$filter" ;;
@@ -139,7 +143,7 @@ prs() {
   json prs "[$rows]"
 }
 on_base() { json prs "$(jq -c --argjson pr "$1" --arg base "$2" '(.[] | select(.number == $pr)).base.ref = $base' "$S/prs.json")"; }
-merged() { json merged "[{\"state\":\"closed\",\"merged_at\":\"2026-10-19T00:00:00Z\",\"base\":{\"ref\":\"${2:-master}\"},\"head\":{\"sha\":\"$1\"}}]"; }
+merged() { json merged "[{\"state\":\"closed\",\"merged_at\":\"2026-10-19T00:00:00Z\",\"base\":{\"ref\":\"${2:-master}\"},\"head\":{\"ref\":\"$branch\",\"sha\":\"$1\"}}]"; }
 checks() {
   json "${2:-checks}" "$(jq -cn '{check_runs: [$ARGS.positional[] | {pass: "success", fail: "failure", skipping: "skipped", cancel: "cancelled"}[.] as $c |
     {status: (if $c then "completed" else "in_progress" end), conclusion: $c}]}' --args $1)"
@@ -422,7 +426,10 @@ kept "pr: a merge that GitHub rejects"; on_origin fix/7-crash || fail "pr: a rej
 fresh pr; lane fix/7-crash; merged "$tip"
 land 7 'fix(x): y'; landed "pr: a PR that is merged at the local tip"
 [ "$(calls '/(pulls|commits)')" -eq 1 ] || fail "pr: a landed change was landed again: $(cat "$S/gh-calls")"
-grep -qF 'pulls?head={owner}:fix/7-crash&state=closed&' "$S/gh-calls" || fail "pr: the merged lookup does not name head={owner}:fix/7-crash: $(cat "$S/gh-calls")"
+grep -qF 'pulls?head={owner}:fix%2F7-crash&state=closed&' "$S/gh-calls" || fail "pr: the merged lookup does not name head={owner}:fix%2F7-crash: $(cat "$S/gh-calls")"
+fresh pr; lane fix/7-c++; merged "$tip"
+land 7 'fix(x): y'; landed "pr: a PR that is merged at the local tip of a branch with + in its name"
+[ "$(calls '/(pulls|commits)')" -eq 1 ] || fail "pr: the merged lookup did not find the merged PR of fix/7-c++: $(cat "$S/gh-calls")"
 fresh pr; lane fix/7-crash; merged "$tip"; json merged "$(jq -c '.[0].merged_at = null' "$S/merged.json")"; checks pass
 land 7 'fix(x): y'; landed "pr: a PR that is closed at the local tip with no merge"
 [ "$(calls '/pulls/[0-9]+/merge')" -eq 1 ] || fail "pr: a closed PR with no merge counted as this landing"
