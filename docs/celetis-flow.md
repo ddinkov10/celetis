@@ -491,7 +491,10 @@ Each row also has `number`, `title`, `url`, `updatedAt`, `closedAt`, and these f
 - `urgent`: `true` for the type `hotfix`.
 - `pr`: the open pull request whose branch name holds `/<n>-`, with its number, URL, draft state, CI
   result (`pass`, `fail`, `pending`, or `null`), and review state (`approved`, `changes`,
-  `required`, or `null`); else `null`.
+  `required`, or `null`); else `null`. For the review state, the last review of each reviewer that
+  approves, requests changes, or is dismissed counts. The review state is `changes` when one of
+  those reviews requests changes, else `approved` when one approves, else `required` when a
+  requested reviewer or team has not answered, else `null`.
 
 **Check the document** against the contract, in the main checkout:
 
@@ -517,7 +520,7 @@ The repository is private, so the link opens only for an account that can read i
 | `stop … is finished` or `stop … is closed as wontfix` | none | — |
 | `stop the working tree is dirty …` | commit or stash | as the first row |
 | `stop the landing of #<n> runs …` | none: a session lands the issue | start the script again when the landing ended |
-| `stop cannot read … from GitHub` | check `gh auth status` and the network | the automatic runner tries again by itself; press Refresh on the board |
+| `stop cannot read … from GitHub` | check `gh auth status`, the network, and the REST rate limit (`gh api rate_limit`) | the automatic runner tries again by itself; press Refresh on the board |
 | a `me` gate | a Run press on the card, or `scripts/celetis celetis-flow <n>` | — |
 | `no progress: /celetis:feature #<n>` | the session ended with no spec on the issue: open the session again, or read the comment of a spike | a Run press, or `scripts/celetis celetis-flow <n>` |
 | `no progress:` with another command | open the session again, or read the issue | a Run press, or `scripts/celetis celetis-flow <n>` |
@@ -636,9 +639,13 @@ needed before full acceptance and shipping. ADR-0014 records the architecture an
 - The `herdr` commands of the script come from the documents and the source of herdr 0.9.3. The
   step end of the script was checked against a live herdr on 2026-10-11 (ADR-0007). Two parts of it
   are not checked: the end of a session after its `scripts/celetis land` run ends (ADR-0008), and
-  the end of a session after it adds `ready-for-human` at a stop (ADR-0011). The shapes of the REST
-  reads of `--json` for each open PR (its check runs, its commit status, and its reviews) are not
-  checked against a live GitHub.
+  the end of a session after it adds `ready-for-human` at a stop (ADR-0011). Two shapes of the REST
+  reads of `--json` for each open PR are not checked against a live GitHub: a commit status list
+  that is not empty, and a review list that is not empty.
+- The REST API of GitHub lists a commit status only after the status reports. So the list does not
+  show a status that branch protection requires until that status reports. Until then,
+  `scripts/celetis land` can read `pass` and ask for the merge. GitHub then refuses the merge, and
+  the build step stops with `## Landing refused`. Until then, the board also shows `pass` for the PR.
 - The script exits 0 at each `stop` line, at a `me` gate, and at "no progress", so `&& exit` closes
   the tab with the message of the script. A Run press whose session ends at once thus leaves no
   message: start `scripts/celetis celetis-flow <n>` in a terminal to see it.
