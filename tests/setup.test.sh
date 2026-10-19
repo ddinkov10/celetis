@@ -273,8 +273,24 @@ run write --hosts codex --landing pr >/dev/null
 bytes_are $'# C\n' CLAUDE.md
 [ "$(jq '.entries | has("CLAUDE.md")' "$proj/.claude/celetis-flow/wiring.json")" = false ] || fail "codex recorded a CLAUDE file"
 
+new_project symlink
+printf '# P\n' >"$proj/AGENTS.md"
+ln -s AGENTS.md "$proj/CLAUDE.md"
+commit_all product
+run write --hosts claude --landing pr >/dev/null
+bytes_are "# P"$'\n\n'"$heading"$'\n\n'"$b" AGENTS.md
+[ -L "$proj/CLAUDE.md" ] || fail "write replaced a symlinked CLAUDE.md"
+[ "$(jq '.entries | has("CLAUDE.md")' "$proj/.claude/celetis-flow/wiring.json")" = false ] || fail "write recorded a symlinked CLAUDE.md"
+new_project symlinkignored
+printf '# P\n' >"$proj/AGENTS.md"
+echo CLAUDE.md >"$proj/.gitignore"
+ln -s AGENTS.md "$proj/CLAUDE.md"
+commit_all product
+[ "$(code_of write --hosts claude --landing pr)" -eq 0 ] || fail "write refused an ignored symlinked CLAUDE.md"
+
 new_project crlf
-printf '%s\n' "$ignores" | sed 's/$/\r/' >"$proj/.gitignore"
+printf '%s\n' "$ignores" | awk '{ printf "%s\r\n", $0 }' >"$proj/.gitignore"
+[ "$(grep -c $'\r' "$proj/.gitignore")" -eq 5 ] || fail "the CRLF fixture has no CR"
 cp "$proj/.gitignore" "$tmp/crlf.gitignore"
 commit_all product
 run write --hosts codex --landing pr >/dev/null

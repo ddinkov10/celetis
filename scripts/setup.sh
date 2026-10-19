@@ -103,13 +103,19 @@ read_record() {
   fi
 }
 
-touched() {
+claude_files() {
   local path
+  for path in CLAUDE.md .claude/CLAUDE.md; do
+    if [ -f "$path" ] && [ ! -L "$path" ]; then echo "$path"; fi
+  done
+}
+
+touched() {
   printf '%s\n' scripts/celetis .claude/celetis-flow/landing.json "$wiring" .gitignore .gitattributes AGENTS.md
   if has_host codex; then echo .codex/rules/celetis.rules; fi
   if has_host claude; then
     echo .claude/settings.json
-    for path in CLAUDE.md .claude/CLAUDE.md; do [ ! -e "$path" ] || echo "$path"; done
+    claude_files
   fi
 }
 
@@ -227,7 +233,7 @@ write_files() {
     '- A lane never skips a step.' \
     '- The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.'
   if has_host claude; then
-    for path in CLAUDE.md .claude/CLAUDE.md; do [ ! -e "$path" ] || own_lines "$path" @AGENTS.md; done
+    while IFS= read -r path; do own_lines "$path" @AGENTS.md; done < <(claude_files)
   fi
 }
 
