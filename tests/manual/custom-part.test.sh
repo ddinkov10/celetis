@@ -463,7 +463,10 @@ check() {
       *) field=custom.guide ;;
     esac
     grep -qF "$field" <<<"$answer" || good=no
-    grep -qiE 'invalid|ambiguous|duplicate|symlink|symbolic|malformed|syntax error|not allowed|failed validation|(not|isn.t|aren.t).*(valid|accepted|allowed)' <<<"${answer//"$path"/}" || good=no
+    if ! grep -qiE 'invalid|ambiguous|duplicate|symlink|symbolic|malformed|syntax error|not allowed|failed validation|(not|isn.t|aren.t).*(valid|accepted|allowed)' <<<"${answer//"$path"/}"; then
+      [ "$name" = folded ] && grep -qiF "config schema doesn't accept folded blocks" <<<"${answer//"$path"/}" &&
+        ! grep -qiE '(config|file) is (valid|accepted as-is)|folded blocks are (accepted|allowed)' <<<"${answer//"$path"/}" || good=no
+    fi
     grep -qiE 'stop|cannot|can.t|unable|blocked|refus' <<<"$answer" || good=no
     ! grep -qF 'scripts/celetis --host claude next-step' <<<"$answer" || good=no
     marker=

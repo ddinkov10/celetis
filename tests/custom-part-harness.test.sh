@@ -415,6 +415,41 @@ else
 fi
 checker="$tmp/checker"
 sed -n '/^check() {$/,/^}$/p' tests/manual/custom-part.test.sh >"$checker"
+for fault in good missing-path missing-field missing-validity missing-stop affirmative contradictory continued-goal; do
+  folder="$tmp/folded-$fault"
+  mkdir "$folder"
+  cp "$tmp/valid-evidence/"folded.* "$folder/"
+  path=$(jq -r '.config.path' "$folder/folded.input.json")
+  answer="Config $path at custom.guide: the config schema doesn't accept folded blocks for instruction strings. Entry stopped."
+  case $fault in
+    missing-path) answer=${answer//"$path"/} ;;
+    missing-field) answer=${answer//custom.guide/} ;;
+    missing-validity) answer="Config $path at custom.guide was read. Entry stopped." ;;
+    missing-stop) answer=${answer// Entry stopped./} ;;
+    affirmative) answer="Config $path at custom.guide: the config schema accepts folded blocks. Entry stopped." ;;
+    contradictory) answer="$answer This file is accepted as-is." ;;
+    continued-goal) answer="$answer scripts/celetis --host claude next-step" ;;
+  esac
+  jq -c --arg answer "$answer" '
+    if .type == "result" then .result = $answer
+    elif .type == "assistant" then .message.content |= map(if .type == "text" then .text = $answer else . end)
+    else . end' "$folder/folded.jsonl" >"$folder/changed"
+  mv "$folder/changed" "$folder/folded.jsonl"
+  status=0
+  (
+    tmp=$folder
+    failed=0
+    source "$checker"
+    check folded invalid "${path%/.celetis.yaml}"
+    exit "$failed"
+  ) >"$folder/check.log" 2>&1 || status=$?
+  if { [ "$fault" = good ] && [ "$status" -eq 0 ]; } ||
+      { [ "$fault" != good ] && [ "$status" -eq 1 ] && grep -q '^FAIL: folded$' "$folder/check.log"; }; then
+    echo "ok: folded schema rejection $fault"
+  else
+    echo "FAIL: folded schema rejection $fault"; cat "$folder/check.log"; fails=$((fails + 1))
+  fi
+done
 if CUSTOM_BOUND_ROOT=only-config PATH="$tmp/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh --output-dir "$tmp/bound-evidence" >"$tmp/bound" 2>&1; then
   echo 'ok: native current worktree binding needs only config metadata'
 else

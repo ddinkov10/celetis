@@ -17,9 +17,17 @@ function target(root, path) {
   return match?.[1];
 }
 
+const stopInstruction = '\nReport this entry block only. Do not give goal advice or use another access path.';
+
 function stopped(error) {
-  return 'Celetis entry stopped: ' + (error?.message || String(error)) +
-    '\nReport this entry block only. Do not give goal advice or use another access path.';
+  return 'Celetis entry stopped: ' + (error?.message || String(error)) + stopInstruction;
+}
+
+async function* nativeStop(error, e) {
+  const answer = error.slice(0, -stopInstruction.length);
+  yield { kind: 'text', index: 0, text: answer };
+  yield { kind: 'stop', stopReason: 'end_turn', usage: null };
+  return { turnId: e.turnId, index: e.index, answer, toolUses: [], stopReason: 'end_turn', usage: null };
 }
 
 async function metadata($, path) {
@@ -129,12 +137,23 @@ export function register(on) {
     });
   }
   function rewrite(e, blocks, text) {
-    return { ...e, message: { ...e.message, content: e.message.content.map((part, index) =>
-      blocks.some(block => block.index === index) ? { ...part, text } : part) } };
+    return { ...e, message: { ...e.message, content: e.message.content.map((part, index) => {
+      const selected = blocks.find(block => block.index === index);
+      return selected ? { ...part, text: typeof text === 'function' ? text(selected) : text } : part;
+    }) } };
   }
+  on('turn.step', async function* ($, e, next) {
+    const error = loops.get(e.agentId)?.entry.error;
+    return yield* (error ? nativeStop(error, e) : next(e));
+  }).catch(async function* ($, e, next) {
+    const error = loops.get(e.agentId)?.entry.error;
+    if (!next.called && error) return yield* nativeStop(error, e);
+  });
   on('skill.prompt', async ($, e, next) => {
     const name = target($.plugin.root, e.path);
-    if (!name || e.source !== 'plugin' || e.pluginName !== 'celetis' || e.skill !== 'celetis:' + name) return next(e);
+    if (!name || e.source !== 'plugin' || e.pluginName !== 'celetis' || e.skill !== 'celetis:' + name) {
+      return expansion(undefined, (await next(e)).text);
+    }
     try {
       const result = await next(e);
       return expansion(name, result.text);
@@ -157,6 +176,18 @@ export function register(on) {
       (e.agentId === undefined || (typeof e.agentId === 'string' && e.agentId.length > 0)) &&
       ((e.door === 'note' && e.origin.kind === 'engine' && e.message.content.length === index + 1) ||
        (e.door === 'tool-message' && e.origin.kind === 'tool' && e.origin.tool === 'Skill' && e.message.content.length === 1));
+    if (!bound) return next(rewrite(e, blocks, selected => selected.request.name
+      ? stopped('native skill delivery has no supported loop binding') : selected.block.text.slice(selected.end + 1)));
+    if (!request.name) {
+      const current = state(e.agentId);
+      const previous = current.entry;
+      const text = block.text.slice(end + 1);
+      request.entry = { id: e.uuid, references: new Map(), error: null };
+      const result = await next(rewrite(e, blocks, text));
+      if (current.entry === previous && result.message?.content[index]?.text === text) current.entry = request.entry;
+      pending.delete(ticket);
+      return result;
+    }
     let text = stopped('native skill delivery has no supported loop binding');
     let loaded, current, entry;
     if (bound) {
@@ -188,8 +219,9 @@ export function register(on) {
     const blocks = owned(e);
     if (!blocks.length) return next(e);
     const text = stopped(next.error.message || 'native entry hook exceeded its budget');
-    for (const { request } of blocks) if (request.entry) request.entry.error = text;
-    return next(next.called ? e : rewrite(e, blocks, text));
+    for (const { request } of blocks) if (request.name && request.entry) request.entry.error = text;
+    return next(next.called ? e : rewrite(e, blocks, selected => selected.request.name
+      ? text : selected.block.text.slice(selected.end + 1)));
   });
   on('tool.call', { tool: 'Read' }, async ($, e, next) => {
     const name = target($.plugin.root, e.file_path);

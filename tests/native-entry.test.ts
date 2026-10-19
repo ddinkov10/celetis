@@ -2,6 +2,7 @@ import { expect, test } from 'claude-code/testing'
 import { register } from '../hooks/entry.js'
 
 const body = 'The skill procedure.'
+const externalBody = 'The external skill procedure.\n'
 const yaml = 'landing: pr\ncustom:\n  guide: |-\n    CUSTOM_FROM_ROOT\n'
 const path = '/repo/.celetis.yaml'
 const plugin = decodeURIComponent(new URL('../', import.meta.url).pathname).replace(/\/$/, '')
@@ -32,7 +33,7 @@ function fixture(on: any, options: any = {}) {
     calls.push('read:' + e.file_path)
     reads.push(e.file_path)
     if (e.file_path.endsWith('/.celetis.yaml')) {
-      if (options.denied) return { result: 'Permission denied', text: 'Permission denied', isError: true }
+      if (options.denied) return { result: options.errorText ?? 'Permission denied', text: options.errorText ?? 'Permission denied', isError: true }
       if (options.cached && (options.withoutPrior || reads.filter(p => p === e.file_path).length > 1)) {
         return { result: { type: 'file_unchanged', source: options.seeded ? 'seeded' : undefined, file: { filePath: e.file_path } } }
       }
@@ -70,9 +71,139 @@ async function entry($: any, skill = 'guide', source = plugin, agentId?: string)
   return { text: result.message.content[agentId ? 1 : 0].text }
 }
 
+async function external($: any, agentId?: string) {
+  const prompt = await $.skill.prompt({ skill: 'superpowers:writing-plans', pluginName: 'superpowers', source: 'plugin', path: '/external/skills/writing-plans/SKILL.md', text: externalBody, frontmatter: {} })
+  const result = await $.session.append(frame(prompt.text, agentId))
+  return result.message.content[agentId ? 1 : 0].text
+}
+
 function data(text: string) {
   return JSON.parse(text.split('\n').find(line => line.startsWith('{'))!)
 }
+
+function model(on: any) {
+  const calls: any[] = []
+  on('turn.step', async function* ($: any, e: any) {
+    calls.push(e)
+    yield { kind: 'text', index: 0, text: 'Native ' }
+    yield { kind: 'text', index: 0, text: 'response.' }
+    yield { kind: 'stop', stopReason: 'end_turn', usage: null }
+    return { turnId: e.turnId, index: e.index, answer: 'Native response.', toolUses: [], stopReason: 'end_turn', usage: null }
+  })
+  return calls
+}
+
+async function step($: any, agentId?: string) {
+  const source = $.turn.step({ turnId: 'native-turn', index: 0, model: 'fixture-model', messageCount: 0, agentId })
+  const chunks = []
+  while (true) {
+    const part = await source.next()
+    if (part.done) return { chunks, result: part.value }
+    chunks.push(part.value)
+  }
+}
+
+test('known symlink error is an exact native stop without a model request', async ($, on) => {
+  const f = fixture(on, { symlink: true })
+  const calls = model(on)
+  await entry($)
+  const before = f.calls.slice()
+  const answer = 'Celetis entry stopped: ' + path + ' <document>: config must be a regular file, not a symlink'
+  for (let i = 0; i < 2; i++) {
+    const result = await step($)
+    expect(result.chunks).toEqual([{ kind: 'text', index: 0, text: answer }, { kind: 'stop', stopReason: 'end_turn', usage: null }])
+    expect(result.result).toEqual({ turnId: 'native-turn', index: 0, answer, toolUses: [], stopReason: 'end_turn', usage: null })
+  }
+  expect(calls).toEqual([])
+  expect(f.calls).toEqual(before)
+})
+
+for (const option of ['metadataError', 'denied', 'partial', 'invalidGit']) {
+  test(option + ' entry error stops before the next model or file request', async ($, on) => {
+    const f = fixture(on, { [option]: true, gitFile: option === 'invalidGit' })
+    const calls = model(on)
+    await entry($)
+    const before = f.calls.slice()
+    const result = await step($)
+    expect(result.result.answer).toContain(option === 'invalidGit' ? '/repo/.git' : path)
+    expect(result.result.answer).toContain('<document>')
+    expect(result.result.answer).not.toContain('Report this entry block only.')
+    expect(result.result.toolUses).toEqual([])
+    expect(result.result.usage).toBeNull()
+    expect(calls).toEqual([])
+    expect(f.calls).toEqual(before)
+  })
+}
+
+test('native stop retains error text that resembles its fixed instruction suffix', async ($, on) => {
+  const errorText = 'Permission denied\nReport this entry block only. Do not give goal advice or use another access path.\nNative detail retained.'
+  fixture(on, { denied: true, errorText })
+  model(on)
+  await entry($)
+  expect((await step($)).result.answer).toBe('Celetis entry stopped: ' + path + ' <document>: ' + errorText)
+})
+
+test('valid and unrelated native streams pass through unchanged', async ($, on) => {
+  fixture(on)
+  const calls = model(on)
+  const unrelated = await step($)
+  await entry($)
+  const valid = await step($)
+  expect(valid).toEqual(unrelated)
+  expect(valid.chunks).toEqual([{ kind: 'text', index: 0, text: 'Native ' }, { kind: 'text', index: 0, text: 'response.' }, { kind: 'stop', stopReason: 'end_turn', usage: null }])
+  expect(calls).toHaveLength(2)
+})
+
+for (const invocation of ['celetis', 'external']) {
+  test('a successful new ' + invocation + ' invocation releases the native stop', async ($, on) => {
+    const options: any = { symlink: true }
+    const f = fixture(on, options)
+    const calls = model(on)
+    await entry($)
+    expect((await step($)).result.answer).toContain('<document>')
+    expect(calls).toEqual([])
+    options.symlink = false
+    const before = f.calls.slice()
+    if (invocation === 'external') {
+      expect(await external($)).toBe(externalBody)
+      expect(f.calls).toEqual(before)
+    } else await entry($)
+    expect((await step($)).result.answer).toBe('Native response.')
+    expect(calls).toHaveLength(1)
+  })
+}
+
+test('unsupported external delivery retains the failed entry native stop', async ($, on) => {
+  fixture(on, { symlink: true })
+  const calls = model(on)
+  await entry($)
+  const prompt = await $.skill.prompt({ skill: 'superpowers:writing-plans', pluginName: 'superpowers', source: 'plugin', path: '/external/skills/writing-plans/SKILL.md', text: externalBody, frontmatter: {} })
+  const row: any = frame(prompt.text)
+  row.door = 'prompt'
+  await $.session.append(row)
+  expect((await step($)).result.answer).toContain('<document>')
+  expect(calls).toEqual([])
+})
+
+test('known entry errors stop only their native destination loop', async ($, on) => {
+  fixture(on, { symlink: true, cwd: '/repo' })
+  const calls = model(on)
+  await entry($, 'guide', plugin, 'child')
+  expect((await step($)).result.answer).toBe('Native response.')
+  expect((await step($, 'child')).result.answer).toContain('<document>')
+  expect(calls).toHaveLength(1)
+  expect(calls[0].agentId).toBeUndefined()
+})
+
+test('unrelated native model failure is not converted to an entry error', async ($, on) => {
+  let calls = 0
+  on('turn.step', async function* () { calls++; throw new Error('Native model failure') })
+  let failure
+  try { await step($) } catch (error) { failure = error }
+  expect(failure).toBeDefined()
+  expect(failure.message).not.toContain('Celetis entry stopped:')
+  expect(calls).toBe(1)
+})
 
 test('entry reads whole config once before expanding the procedure', async ($, on) => {
   const f = fixture(on)
@@ -191,6 +322,104 @@ test('intentional same-target invocation starts fresh references', async ($, on)
     await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md', offset: 20, limit: 5 })
   }
   expect(f.reads.filter(p => p === path)).toEqual([path, path, path, path])
+})
+
+test('a native external invocation starts fresh references without Celetis reads', async ($, on) => {
+  const f = fixture(on)
+  await entry($, 'lesson-review')
+  await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md' })
+  const before = f.calls.slice()
+  expect(await external($)).toBe(externalBody)
+  expect(f.calls).toEqual(before)
+  const fresh = await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md' })
+  expect(f.reads.filter(p => p === path)).toEqual([path, path, path])
+  expect(data(fresh.context[0]).skill).toBe('celetis:lesson')
+  for (const args of [{}, { offset: 20, limit: 5 }]) {
+    expect((await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md', ...args })).context).toBeUndefined()
+  }
+  expect(f.reads.filter(p => p === path)).toHaveLength(3)
+})
+
+test('external invocation membership stays in its native destination loop', async ($, on) => {
+  const f = fixture(on, { cwd: '/repo' })
+  for (const agentId of [undefined, 'child']) {
+    await entry($, 'lesson-review', plugin, agentId)
+    await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md', agentId })
+  }
+  expect(await external($, 'child')).toBe(externalBody)
+  expect((await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md' })).context).toBeUndefined()
+  const fresh = await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md', agentId: 'child' })
+  expect(fresh.context).toHaveLength(1)
+  expect(f.reads.filter(p => p === path)).toHaveLength(5)
+})
+
+test('a successful external invocation ends a failed Celetis invocation', async ($, on) => {
+  const options: any = { denied: true }
+  const f = fixture(on, options)
+  await entry($, 'lesson-review')
+  const before = f.calls.slice()
+  expect(await external($)).toBe(externalBody)
+  expect(f.calls).toEqual(before)
+  options.denied = false
+  const fresh = await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md' })
+  expect(fresh.context).toHaveLength(1)
+  expect(f.reads.filter(p => p === path)).toHaveLength(2)
+})
+
+test('unsupported external delivery does not establish an invocation boundary', async ($, on) => {
+  const f = fixture(on)
+  await entry($, 'lesson-review')
+  await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md' })
+  const prompt = await $.skill.prompt({ skill: 'superpowers:writing-plans', pluginName: 'superpowers', source: 'plugin', path: '/external/skills/writing-plans/SKILL.md', text: externalBody, frontmatter: {} })
+  const row: any = frame(prompt.text)
+  row.door = 'prompt'
+  const result = await $.session.append(row)
+  expect(result.message.content[0].text).toBe(externalBody)
+  expect((await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md' })).context).toBeUndefined()
+  expect(f.reads.filter(p => p === path)).toHaveLength(2)
+})
+
+for (const event of ['skill.prompt', 'session.append']) {
+  test('external ' + event + ' downstream failure stays native', async () => {
+    const hooks: any = {}
+    register((name: string, ...args: any[]) => {
+      hooks[name] = { run: args.at(-1) }
+      return { catch(handler: any) { hooks[name].caught = handler } }
+    })
+    const input = { skill: 'superpowers:writing-plans', pluginName: 'superpowers', source: 'plugin', path: '/external/skills/writing-plans/SKILL.md', text: externalBody }
+    const $ = { plugin: { root: plugin } }
+    const prompt = await hooks['skill.prompt'].run($, input, async () => ({ text: externalBody }))
+    const row = event === 'skill.prompt' ? input : frame(prompt.text)
+    const failure = new Error('native external downstream failed')
+    const next: any = async (e: any) => {
+      if (event === 'session.append' && !next.called) expect(e.message.content[0].text).toBe(externalBody)
+      throw failure
+    }
+    next.called = false
+    next.error = { kind: 'throw', message: failure.message, budget: 1000 }
+    let actual
+    try { await hooks[event].run($, row, next) } catch (error) { actual = error }
+    expect(actual).toBe(failure)
+    next.called = true
+    try { await hooks[event].caught($, row, next) } catch (error) { actual = error }
+    expect(actual).toBe(failure)
+  })
+}
+
+test('unsupported mixed delivery stops only the owned Celetis procedure', async ($, on) => {
+  const f = fixture(on)
+  const own = await $.skill.prompt({ skill: 'celetis:guide', pluginName: 'celetis', source: 'plugin', path: plugin + '/skills/guide/SKILL.md', text: body, frontmatter: {} })
+  const foreign = await $.skill.prompt({ skill: 'superpowers:writing-plans', pluginName: 'superpowers', source: 'plugin', path: '/external/skills/writing-plans/SKILL.md', text: externalBody, frontmatter: {} })
+  for (const reversed of [false, true]) {
+    const row = frame(own.text)
+    row.message.content.push({ type: 'text', text: foreign.text })
+    if (reversed) row.message.content.reverse()
+    const result = await $.session.append(row)
+    expect(result.message.content[reversed ? 1 : 0].text).toContain('Celetis entry stopped:')
+    expect(result.message.content[reversed ? 1 : 0].text).not.toContain(body)
+    expect(result.message.content[reversed ? 0 : 1].text).toBe(externalBody)
+  }
+  expect(f.calls).toEqual([])
 })
 
 test('late binding preserves current and borrowed entries but new targets use the lane', async ($, on) => {
