@@ -28,13 +28,17 @@ cp "$root/scripts/celetis" "$BOARD_PRODUCT/scripts/celetis"
 cp "$root/.claude/celetis-flow/board.json" "$BOARD_PRODUCT/.claude/celetis-flow/board.json"
 cat >"$tmp/bin/gh" <<'EOF'
 #!/bin/bash
-case "$1 $2" in
-  'issue list')
-    if [ "$4" = closed ]; then echo '[]'; else cat "$BOARD_TEST/issues.json"; fi ;;
-  'issue view') jq --argjson n "$3" '.[] | select(.number == $n)' "$BOARD_TEST/issues.json" ;;
-  'pr list') echo '[]' ;;
+[ "$1" = api ] || { echo "HTTP 403: GitHub GraphQL is not available from Claude Code sessions" >&2; exit 1; }
+filter=. endpoint=
+while [ $# -gt 0 ]; do case $1 in --jq) filter=$2; shift ;; repos/*) endpoint=$1 ;; esac; shift; done
+case $endpoint in
+  'repos/{owner}/{repo}/issues?state=open&'*) json=$(cat "$BOARD_TEST/issues.json") ;;
+  'repos/{owner}/{repo}/issues/'*/comments'?'*) json='[]' ;;
+  'repos/{owner}/{repo}/issues/'*) json=$(jq --argjson n "${endpoint##*/}" '.[] | select(.number == $n)' "$BOARD_TEST/issues.json") ;;
+  'repos/{owner}/{repo}/issues?state=closed&'* | 'repos/{owner}/{repo}/pulls?state=open&'*) json='[]' ;;
   *) exit 1 ;;
 esac
+printf '%s\n' "$json" | jq -r "$filter"
 EOF
 cat >"$tmp/bin/agent" <<'EOF'
 #!/bin/bash
@@ -123,7 +127,7 @@ git init -q "$BOARD_PRODUCT"
 git -C "$BOARD_PRODUCT" add .
 git -C "$BOARD_PRODUCT" commit -qm fixture
 git -C "$BOARD_PRODUCT" config celetis-flow.agent claude
-jq -nc '[range(7;11) | {number:.,title:"Fixture issue",url:("https://example.test/issues/"+tostring),state:"OPEN",labels:[{name:"enhancement"}],body:"Spec: fixture",comments:[],updatedAt:"2026-10-01T00:00:00Z",closedAt:null}]' >"$BOARD_TEST/issues.json"
+jq -nc '[range(7;11) | {number:.,title:"Fixture issue",html_url:("https://example.test/issues/"+tostring),state:"open",labels:[{name:"enhancement"}],body:"Spec: fixture",comments:0,updated_at:"2026-10-01T00:00:00Z",closed_at:null}]' >"$BOARD_TEST/issues.json"
 cat >"$tmp/test.mjs" <<'EOF'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'

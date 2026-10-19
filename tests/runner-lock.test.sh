@@ -66,8 +66,17 @@ cp "$tmp/bin/host" "$tmp/bin/claude"
 cp "$tmp/bin/host" "$tmp/bin/codex"
 cat >"$tmp/bin/gh" <<'EOF'
 #!/bin/bash
-doc='{"number":7,"state":"OPEN","labels":[{"name":"enhancement"}],"body":"Spec: fixture","comments":[]}'
-if [ "$2" = list ]; then printf '[%s]\n' "$doc"; else printf '%s\n' "$doc"; fi
+[ "$1" = api ] || { echo "HTTP 403: GitHub GraphQL is not available from Claude Code sessions" >&2; exit 1; }
+doc='{"number":7,"state":"open","labels":[{"name":"enhancement"}],"body":"Spec: fixture","comments":0}'
+filter=. endpoint=
+while [ $# -gt 0 ]; do case $1 in --jq) filter=$2; shift ;; repos/*) endpoint=$1 ;; esac; shift; done
+case $endpoint in
+  'repos/{owner}/{repo}/issues/7') json=$doc ;;
+  'repos/{owner}/{repo}/issues/7/comments?'*) json='[]' ;;
+  'repos/{owner}/{repo}/issues?state=open&'*) json="[$doc]" ;;
+  *) exit 1 ;;
+esac
+printf '%s\n' "$json" | jq -r "$filter"
 EOF
 cat >"$tmp/bin/sleep" <<'EOF'
 #!/bin/bash

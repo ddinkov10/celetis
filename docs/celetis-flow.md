@@ -36,6 +36,8 @@ apart from a path that starts with `~/` or `/`.
   its update helper uses only the standard library. The launcher needs the selected host and `jq` to find
   the plugin (the next item). When `jq` is missing, the launcher prints `celetis: jq is not on PATH` and
   exits 1.
+- The scripts use only the REST API of GitHub (`gh api`), so they also work where a proxy refuses
+  GraphQL, as in a Claude Code cloud session.
 - The plugin `celetis@celetis`, installed on the machine, and the launcher `scripts/celetis` in the
   product project. The scripts and the step text come from the installed plugin:
   `scripts/celetis <name> <arguments>` runs `scripts/<name>.sh` of that plugin with those arguments.
@@ -99,8 +101,11 @@ only. With the default gates no step is `auto`, so the automatic runner starts n
 **The form `--board`** is read-only: it takes no lock, writes no row in the record, and starts no
 session. `--board` is its only argument. It prints contract 1, the JSON document that the board
 reads: `contract`, `tracker`, `flow`, `noRun`, `runner`, `agents`, `defaultAgent`, and `issues`, with
-one row for each issue that has a card. The rows come from the resolver (`scripts/celetis next-step --json`), which makes 3
-`gh` calls. The resolver gives each row the state that it knows from GitHub and from the working
+one row for each issue that has a card. The rows come from the resolver (`scripts/celetis next-step --json`).
+The resolver makes these `gh api` calls: 3 paginated lists (open issues, closed issues, open PRs),
+one paginated call for the comments of each open issue that has a comment, and 3 calls for each
+open PR whose branch holds `/<number>-`. The resolver gives
+each row the state that it knows from GitHub and from the working
 trees: `done`, `blocked` with `reason` and `act`, `ready`, or `dirty` with `path`. The `reason` is
 `needs info`, `landing refused`, or `ready for your step` ("The board", rule 5). It also gives the
 `noRun` text for a dirty main checkout. `--board` adds what the runner knows: `starting` for a lock
@@ -329,8 +334,9 @@ product project, and they run in each folder.
 
 **The worktree setup.** `scripts/celetis worktree <n>` makes the lane worktree and its branch
 (`docs/issue-tracker.md`, "Branches, PRs, merge"). A new branch starts at the freshly fetched trunk
-of `origin`. The trunk is the default branch that `gh repo view --json defaultBranchRef` gives, and
-the command reads it only when it makes a new branch. The command then runs the setup script of the
+of `origin`. The trunk is the default branch that
+`gh api 'repos/{owner}/{repo}' --jq .default_branch` gives, and the command reads it only when it
+makes a new branch. The command then runs the setup script of the
 new worktree, in that worktree, as `bash .claude/celetis-flow/worktree-setup.sh <main checkout>`,
 with stdout sent to stderr. So the file needs no execute bit, it can print, and the path of the
 worktree is the only stdout line of the command. A project with no such file gets no setup. When the
@@ -446,8 +452,10 @@ restart only after the product's main checkout has the new wiring and the select
 installation has refreshed. A change of the script needs no new start: the board starts the
 script again for each read and each press.
 
-**The data.** `scripts/celetis celetis-flow --board` prints contract 1 ("Start the script"), with 3
-`gh` calls for each read. The script puts these values in the fields of the document:
+**The data.** `scripts/celetis celetis-flow --board` prints contract 1 ("Start the script"). Each read
+makes these `gh api` calls: 3 paginated lists (open issues, closed issues, open PRs), one paginated
+call for the comments of each open issue that has a comment, and 3 calls for each open PR whose
+branch holds `/<number>-`. The script puts these values in the fields of the document:
 
 | Field | Value |
 |---|---|
@@ -483,7 +491,10 @@ Each row also has `number`, `title`, `url`, `updatedAt`, `closedAt`, and these f
 - `urgent`: `true` for the type `hotfix`.
 - `pr`: the open pull request whose branch name holds `/<n>-`, with its number, URL, draft state, CI
   result (`pass`, `fail`, `pending`, or `null`), and review state (`approved`, `changes`,
-  `required`, or `null`); else `null`.
+  `required`, or `null`); else `null`. For the review state, the last review of each reviewer that
+  approves, requests changes, or is dismissed counts. The review state is `changes` when one of
+  those reviews requests changes, else `approved` when one approves, else `required` when a
+  requested reviewer or team has not answered, else `null`.
 
 **Check the document** against the contract, in the main checkout:
 
@@ -509,7 +520,7 @@ The repository is private, so the link opens only for an account that can read i
 | `stop … is finished` or `stop … is closed as wontfix` | none | — |
 | `stop the working tree is dirty …` | commit or stash | as the first row |
 | `stop the landing of #<n> runs …` | none: a session lands the issue | start the script again when the landing ended |
-| `stop cannot read … from GitHub` | check `gh auth status` and the network | the automatic runner tries again by itself; press Refresh on the board |
+| `stop cannot read … from GitHub` | check `gh auth status`, the network, and the REST rate limit (`gh api rate_limit`) | the automatic runner tries again by itself; press Refresh on the board |
 | a `me` gate | a Run press on the card, or `scripts/celetis celetis-flow <n>` | — |
 | `no progress: /celetis:feature #<n>` | the session ended with no spec on the issue: open the session again, or read the comment of a spike | a Run press, or `scripts/celetis celetis-flow <n>` |
 | `no progress:` with another command | open the session again, or read the issue | a Run press, or `scripts/celetis celetis-flow <n>` |
@@ -628,8 +639,13 @@ needed before full acceptance and shipping. ADR-0014 records the architecture an
 - The `herdr` commands of the script come from the documents and the source of herdr 0.9.3. The
   step end of the script was checked against a live herdr on 2026-10-11 (ADR-0007). Two parts of it
   are not checked: the end of a session after its `scripts/celetis land` run ends (ADR-0008), and
-  the end of a session after it adds `ready-for-human` at a stop (ADR-0011). The shape of
-  `statusCheckRollup` from `gh pr list` is not checked against a live GitHub.
+  the end of a session after it adds `ready-for-human` at a stop (ADR-0011). Two shapes of the REST
+  reads of `--json` for each open PR are not checked against a live GitHub: a commit status list
+  that is not empty, and a review list that is not empty.
+- The REST API of GitHub lists a commit status only after the status reports. So the list does not
+  show a status that branch protection requires until that status reports. Until then,
+  `scripts/celetis land` can read `pass` and ask for the merge. GitHub then refuses the merge, and
+  the build step stops with `## Landing refused`. Until then, the board also shows `pass` for the PR.
 - The script exits 0 at each `stop` line, at a `me` gate, and at "no progress", so `&& exit` closes
   the tab with the message of the script. A Run press whose session ends at once thus leaves no
   message: start `scripts/celetis celetis-flow <n>` in a terminal to see it.
