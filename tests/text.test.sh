@@ -218,7 +218,7 @@ for path in docs/hosts/entry.md docs/hosts/claude.md docs/hosts/codex.md skills/
   is_tracked "$path" && [ -f "$path" ] || host_missing+=$path$nl
 done
 [ -z "$host_missing" ] || fail "a host contract file that is missing or untracked:" "$host_missing"
-for contract in 'launcher recommendation' '--host claude <command>' '--host codex <command>' "person's terminal"; do
+for contract in 'launcher recommendation' '--agent claude <command>' '--agent codex <command>' "person's terminal"; do
   grep -qF -- "$contract" skills/guide/SKILL.md || fail "guide must select the running host in terminal advice: $contract"
 done
 for contract in 'After Host entry succeeds' 'If entry stops' 'conditional commands'; do
@@ -257,8 +257,8 @@ done
 jq -se '
   length == 1 and (.[0].permissions |
     (.allow | type == "array" and index("Bash(scripts/celetis land *)") != null
-      and index("Bash(scripts/celetis --host claude land *)") != null
-      and index("Bash(scripts/celetis --host codex land *)") != null)
+      and index("Bash(scripts/celetis --agent claude land *)") != null
+      and index("Bash(scripts/celetis --agent codex land *)") != null)
     and (.deny | type == "array" and index("Bash(gh pr merge*)") != null
       and index("PowerShell(gh pr merge*)") != null))
 ' .claude/settings.json >/dev/null 2>&1 || fail "Claude wiring must allow current landing forms and deny direct merges"

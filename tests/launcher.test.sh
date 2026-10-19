@@ -19,13 +19,13 @@ printf '[%s]' "$@"
 EOF
 echo 'exit 7' >"$plug/scripts/fail.sh"
 echo 'printf project' >"$proj/scripts/echo.sh"
-echo 'printf "%s" "$CELETIS_HOST"' >"$plug/scripts/host.sh"
+echo 'printf "%s" "$CELETIS_AGENT"' >"$plug/scripts/host.sh"
 
 export LIST="$tmp/list.json"
 export SKILLS="$tmp/skills.json" CALLS="$tmp/calls" PID_FILE="$tmp/pid"
 export REAL_GIT="$(command -v git)"
 export GIT_HOST= CODEX_MODE= TMPDIR="$tmp/pipes" LOOKUP_FAIL=0
-unset CELETIS_HOST
+unset CELETIS_AGENT CELETIS_HOST GIT_AGENT
 cat >"$tmp/stub/claude" <<'EOF'
 #!/bin/bash
 if [ "$1 $2 $3" = "plugin list --json" ]; then
@@ -38,7 +38,9 @@ exit 0
 EOF
 cat >"$tmp/stub/git" <<'EOF'
 #!/bin/bash
-if [ "$*" = 'config --get celetis-flow.host' ] && [ "${GIT_HOST+x}" = x ] && [ -n "$GIT_HOST" ]; then
+if [ "$*" = 'config --get celetis-flow.agent' ] && [ "${GIT_AGENT+x}" = x ]; then
+  printf '%s\n' "$GIT_AGENT"
+elif [ "$*" = 'config --get celetis-flow.host' ] && [ "${GIT_HOST+x}" = x ] && [ -n "$GIT_HOST" ]; then
   printf '%s\n' "$GIT_HOST"
 else
   exec "$REAL_GIT" "$@"
@@ -176,7 +178,7 @@ list "$(rec project "$proj")" "$(rec user "$plug" | jq '.enabled = false')"
 run "$stub" echo
 expect 'disabled preferred Claude scope cannot fall back to a project copy' '' "$install" 1
 
-run "$tmp/oops:$PATH" echo
+run "$tmp/oops:$stub" --agent claude echo
 expect "claude prints no JSON" '' $'celetis: invalid plugin list JSON\noops' 1
 
 list "$(rec user "$plug")"
@@ -224,92 +226,103 @@ expect 'both hosts installed still defaults to Claude' claude '' 0
 
 GIT_HOST=codex run "$both" host
 expect 'obsolete Git host has no effect' claude '' 0
+GIT_AGENT=codex run "$both" host
+expect 'obsolete Git agent has no effect' claude '' 0
 printf 'landing: merge\nhost: codex\n' >"$proj/.celetis.yaml"
 GIT_HOST=claude run "$both" host
 expect 'main YAML host selects Codex' codex '' 0
 
-CELETIS_HOST=codex GIT_HOST=claude run "$both" host
-expect 'environment host overrides the project host' codex '' 0
+CELETIS_AGENT=claude GIT_AGENT=codex run "$both" host
+expect 'environment agent overrides the project agent' claude '' 0
 
-CELETIS_HOST=claude GIT_HOST=claude run "$both" --host codex host
-expect 'explicit host overrides environment and project' codex '' 0
+CELETIS_AGENT=claude GIT_AGENT=codex run "$both" --agent codex host
+expect 'explicit agent overrides environment and project' codex '' 0
 
-CELETIS_HOST=codex run "$both" --host claude host
+CELETIS_HOST=claude GIT_AGENT=claude run "$both" host
+expect 'obsolete environment and Git agent cannot override YAML' codex '' 0
+run "$both" --host codex host
+check 'obsolete host option is rejected' test "$code:$out" = '2:'
+
+CELETIS_AGENT=codex run "$both" --agent claude host
 expect 'explicit Claude ignores installed Codex' claude '' 0
 
 : >"$CALLS"
-run "$codex_only" --host codex echo a 'b c' '' '#7' --host claude
-expect 'standalone bootstrap works without Claude and preserves arguments' '[a][b c][][#7][--host][claude]' '' 0
+run "$codex_only" --agent codex echo a 'b c' '' '#7' --agent claude
+expect 'standalone bootstrap works without Claude and preserves arguments' '[a][b c][][#7][--agent][claude]' '' 0
 check 'successful discovery removes its process and temporary pipes' cleaned
 check 'one lookup makes exactly the handshake and skills request' test "$(sed '1d' "$CALLS" | jq -rs '[.[].method] | join(",")')" = 'initialize,initialized,skills/list'
 check 'lookup uses the current checkout and forces enabled-state refresh' test "$(tail -1 "$CALLS" | jq -r --arg cwd "$proj" '.params == {cwds:[$cwd],forceReload:true}')" = true
 
 sleep 30 &
 unrelated=$!
-run "$codex_only" --host codex fail
+run "$codex_only" --agent codex fail
 check 'cleanup leaves an unrelated process alive' kill -0 "$unrelated"
 kill "$unrelated"
 wait "$unrelated" 2>/dev/null || true
 
 expect 'Codex preserves subcommand exit status' '' '' 7
 
-run "$both" --host other echo
-expect 'invalid explicit host fails' '' 'celetis: invalid host other; use claude or codex' 2
-CELETIS_HOST=other run "$both" echo
-expect 'invalid environment host fails' '' 'celetis: invalid host other; use claude or codex' 2
+run "$both" --agent other echo
+expect 'invalid explicit agent fails' '' 'celetis: invalid agent other; use claude or codex' 2
+CELETIS_AGENT=other run "$both" echo
+expect 'invalid environment agent fails' '' 'celetis: invalid agent other; use claude or codex' 2
 GIT_HOST=other run "$both" host
 expect 'invalid obsolete Git host has no effect' codex '' 0
-CELETIS_HOST= run "$both" echo
-expect 'empty environment host fails' '' 'celetis: invalid host ; use claude or codex' 2
-CELETIS_HOST=other run "$both" --host codex host
+CELETIS_AGENT= run "$both" echo
+expect 'empty environment agent fails' '' 'celetis: invalid agent ; use claude or codex' 2
+run "$both" --agent '' host
+expect 'empty explicit agent fails' '' 'celetis: invalid agent ; use claude or codex' 2
+GIT_AGENT=other run "$both" host
+expect 'invalid obsolete Git agent has no effect' codex '' 0
+CELETIS_AGENT=other run "$both" --agent codex host
 expect 'explicit host overrides an invalid lower-precedence value' codex '' 0
-run "$both" --host
+run "$both" --agent
 check 'host option needs a value' test "$code" = 2
-run "$both" --host codex
+run "$both" --agent codex
 check 'host option needs a command' test "$code" = 2
-run "$tmp/nobin" --host codex echo
+run "$tmp/nobin" --agent codex echo
 expect 'missing selected Codex binary fails' '' 'celetis: codex is not on PATH' 1
 
 skills "$(skill "$plug/skills/guide/SKILL.md" false)"
-run "$both" --host codex echo
+run "$both" --agent codex echo
 expect 'disabled Codex installation cannot fall back to Claude' '' "$missing" 1
 skills "$(skill "$plug/skills/guide/SKILL.md" true celetis@other)" "$(skill "$plug/skills/guide/SKILL.md" true celetis@celetis celetis-other:guide)"
-run "$both" --host codex echo
+run "$both" --agent codex echo
 expect 'only the exact plugin and skill namespace count' '' "$missing" 1
 skills
-run "$both" --host codex echo
+run "$both" --agent codex echo
 expect 'missing Codex installation fails' '' "$missing" 1
 
 skills "$(skill "$plug/skills/guide/SKILL.md")" "$(skill "$proj/skills/guide/SKILL.md")"
-run "$both" --host codex echo
+run "$both" --agent codex echo
 expect 'ambiguous Codex package roots fail' '' 'celetis: Codex reports multiple celetis package roots; fix the enabled installation' 1
 skills "$(skill "$plug/skills/guide/SKILL.md")" "$(skill "$plug/skills/guide/SKILL.md")"
-run "$both" --host codex echo ok
+run "$both" --agent codex echo ok
 expect 'several skills in one package root are unambiguous' '[ok]' '' 0
 
 for path in "$tmp/missing/skills/guide/SKILL.md" "$plug/guide/SKILL.md" "$plug/skills/../SKILL.md" 'relative/skills/guide/SKILL.md'; do
   skills "$(skill "$path")"
-  run "$both" --host codex echo
+  run "$both" --agent codex echo
   check "invalid installed skill path is refused: $path" test "$code:$out" = '1:'
 done
 skills "$(skill "$plug/skills/guide/SKILL.md")"
 mv "$plug/skills/guide/SKILL.md" "$plug/skills/guide/SKILL.saved"
-run "$both" --host codex echo
+run "$both" --agent codex echo
 expect 'missing installed skill is refused' '' 'celetis: Codex reports a missing installed skill; reinstall the plugin' 1
 mv "$plug/skills/guide/SKILL.saved" "$plug/skills/guide/SKILL.md"
 printf '%s\n' '{"name":"other"}' >"$plug/.claude-plugin/plugin.json"
-run "$both" --host codex echo
+run "$both" --agent codex echo
 expect 'wrong package manifest is refused' '' 'celetis: Codex reports an invalid celetis package; reinstall the plugin' 1
 printf '%s\n' '{"name":"celetis"}' >"$plug/.claude-plugin/plugin.json"
-CODEX_MODE=fragment run "$codex_only" --host codex echo fragmented
+CODEX_MODE=fragment run "$codex_only" --agent codex echo fragmented
 expect 'response fragments survive a bounded read timeout' '[fragmented]' '' 0
 printf '%s\n' '{"data":"bad"}' >"$SKILLS"
-run "$both" --host codex echo
+run "$both" --agent codex echo
 expect 'malformed skills result fails' '' 'celetis: invalid Codex skills/list response' 1
 
 for mode in malformed error exit timeout flood; do
   start=$SECONDS
-  CODEX_MODE=$mode run "$codex_only" --host codex echo
+  CODEX_MODE=$mode run "$codex_only" --agent codex echo
   check "protocol $mode is a setup error" test "$code:$out" = '1:'
   check "protocol $mode reports diagnostics on stderr" test -n "$err"
   check "protocol $mode cleans up" cleaned
@@ -320,20 +333,20 @@ helper_run() {
   local p=$1
   shift
   code=0
-  out=$(cd "${from:-$proj}" && PATH="$p" bash -c 'set -eu; source "$1"; shift; "$@"; if [ "$1" = celetis_host_select ]; then bash -c '\''printf "%s" "$CELETIS_HOST"'\''; fi' helper "$helper" "$@" 2>"$tmp/err") || code=$?
+  out=$(cd "${from:-$proj}" && PATH="$p" bash -c 'set -eu; source "$1"; shift; "$@"; if [ "$1" = celetis_host_select ]; then bash -c '\''printf "%s" "$CELETIS_AGENT"'\''; fi' helper "$helper" "$@" 2>"$tmp/err") || code=$?
   err=$(cat "$tmp/err")
 }
 helper_run "$stub" celetis_host_select
 expect 'direct helper uses main YAML and exports to children' codex '' 0
 GIT_HOST=claude helper_run "$both" celetis_host_select
 expect 'direct helper ignores the obsolete Git host' codex '' 0
-CELETIS_HOST=claude GIT_HOST=codex helper_run "$both" celetis_host_select
+CELETIS_AGENT=claude GIT_HOST=codex helper_run "$both" celetis_host_select
 expect 'direct helper environment overrides the project host' claude '' 0
-CELETIS_HOST=codex helper_run "$codex_only" celetis_host_require
+CELETIS_AGENT=codex helper_run "$codex_only" celetis_host_require
 expect 'direct Codex helper does not require Claude' '' '' 0
-CELETIS_HOST=other helper_run "$both" celetis_host_require
-expect 'direct helper rejects an invalid host' '' 'celetis: invalid host other; use claude or codex' 2
-CELETIS_HOST=codex helper_run "$tmp/nobin" celetis_host_require
+CELETIS_AGENT=other helper_run "$both" celetis_host_require
+expect 'direct helper rejects an invalid agent' '' 'celetis: invalid agent other; use claude or codex' 2
+CELETIS_AGENT=codex helper_run "$tmp/nobin" celetis_host_require
 expect 'direct helper checks the selected binary' '' 'celetis: codex is not on PATH' 1
 
 
@@ -341,9 +354,9 @@ for from in "$proj" "$lane" "$proj/sub" "$lane/sub"; do
   skills "$(skill "$plug/skills/guide/SKILL.md")"
   GIT_HOST=claude run "$both" host
   expect "main YAML host from $from" codex '' 0
-  CELETIS_HOST=claude run "$both" host
+  CELETIS_AGENT=claude run "$both" host
   expect "environment host from $from" claude '' 0
-  CELETIS_HOST=codex run "$both" --host claude host
+  CELETIS_AGENT=codex run "$both" --agent claude host
   expect "explicit host from $from" claude '' 0
   printf 'landing: merge\n' >"$proj/.celetis.yaml"
   GIT_HOST=codex run "$both" host
@@ -357,15 +370,15 @@ printf 'touch "$LAUNCH_LOG"\n' >"$plug/scripts/next-step.sh"
 for bad in missing invalid; do
   if [ "$bad" = missing ]; then rm "$proj/.celetis.yaml"
   else printf 'landing: merge\nhost: other\n' >"$proj/.celetis.yaml"; fi
-  run "$both" --host claude next-step 7
+  run "$both" --agent claude next-step 7
   check "$bad main config stops a project command" test "$code" -eq 2
   check "$bad main config starts no installed script" test ! -e "$LAUNCH_LOG"
   check "$bad main config reports the selected path" test "${err#*"$proj/.celetis.yaml"}" != "$err"
-  run "$tmp/stub:$tmp/nobin" --host claude root
+  run "$tmp/stub:$tmp/nobin" --agent claude root
   expect "explicit installation root bypasses $bad project config without yq" "$plug" '' 0
 done
 printf 'landing: merge\nhost: codex\n' >"$proj/.celetis.yaml"
-from="$tmp/outside" run "$tmp/stub:$tmp/nobin" --host claude root
+from="$tmp/outside" run "$tmp/stub:$tmp/nobin" --agent claude root
 expect 'explicit installation root works outside Git without yq' "$plug" '' 0
 from="$tmp/outside" run "$stub" root
 expect 'outside Git has no required project defaults' "$plug" '' 0

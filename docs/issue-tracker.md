@@ -4,7 +4,7 @@ Issues are the state store for every lane. The issue number `#<n>` is the handle
 
 The state, headings, paths, and branches are shared by both hosts. `/celetis:<skill>` names the
 shared skill; use the selected host's invocation. Skills expand each launcher call with the
-explicit `--host claude` or `--host codex` prefix under [Host entry](hosts/entry.md). Human
+explicit `--agent claude` or `--agent codex` prefix under [Host entry](hosts/entry.md). Human
 terminal and board commands can use the project default. Changing hosts between steps retains
 the same issue and lane checkout; resume always uses the host in the current session record.
 
@@ -54,6 +54,11 @@ Exactly one lane label per routed issue. The other labels mark waits and gates.
 Local `docs/superpowers/` files are scratch; a fresh session re-fetches from the issue. A product project ignores `docs/superpowers/` and `.claude/worktrees/` in its `.gitignore`: with no entry for `.claude/worktrees/`, a lane worktree makes the main checkout dirty, and the resolver prints the dirty-tree line for each issue.
 
 ## Branches, PRs, merge
+
+The main checkout's `.celetis.yaml` owns repository setup (ADR-0015). Its manual replacement
+and stopped old runners are a human precondition for the config cutover, as
+[`docs/configuration.md`](configuration.md#replace-the-old-setup) specifies. Keep the plugin
+change built and unlanded until that precondition and the required live checks have evidence.
 
 Trunk-based. Every issue is its own work item: one lane branch off the trunk, landed by `scripts/celetis land` with the `landing` field of the main checkout's `.celetis.yaml`: `pr` is one PR back to the trunk; `merge` is one squash commit on the trunk, with no PR. The trunk is the default branch of the repository on GitHub.
 

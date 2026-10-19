@@ -453,7 +453,7 @@ check() {
       end
     ' "$tmp/$name.events.jsonl" >/dev/null || good=no
     grep -qiE 'permission|denied|blocked|cannot read|not permitted' <<<"$answer" || good=no
-    ! grep -qF 'scripts/celetis --host claude next-step' <<<"$answer" || good=no
+    ! grep -qF 'scripts/celetis --agent claude next-step' <<<"$answer" || good=no
     marker=
   elif [ "$marker" = invalid ]; then
     grep -qF "$path" <<<"$answer" || good=no
@@ -464,14 +464,16 @@ check() {
     esac
     grep -qF "$field" <<<"$answer" || good=no
     if ! grep -qiE 'invalid|ambiguous|duplicate|symlink|symbolic|malformed|syntax error|not allowed|failed validation|(not|isn.t|aren.t).*(valid|accepted|allowed)' <<<"${answer//"$path"/}"; then
-      [ "$name" = folded ] && grep -qiF "config schema doesn't accept folded blocks" <<<"${answer//"$path"/}" &&
-        ! grep -qiE '(config|file) is (valid|accepted as-is)|folded blocks are (accepted|allowed)' <<<"${answer//"$path"/}" || good=no
+      { [ "$name" = folded ] && grep -qiF "config schema doesn't accept folded blocks" <<<"${answer//"$path"/}" &&
+        ! grep -qiE '(config|file) is (valid|accepted as-is)|folded blocks are (accepted|allowed)' <<<"${answer//"$path"/}"; } ||
+        { [ "$name" = unknown-field ] && grep -qiF "field the schema doesn't allow" <<<"${answer//"$path"/}" &&
+          ! grep -qiE '(config|file) is (valid|accepted as-is)|custom[.]unknown is (valid|accepted|allowed)|schema (accepts|allows) custom[.]unknown' <<<"${answer//"$path"/}"; } || good=no
     fi
     grep -qiE 'stop|cannot|can.t|unable|blocked|refus' <<<"$answer" || good=no
-    ! grep -qF 'scripts/celetis --host claude next-step' <<<"$answer" || good=no
+    ! grep -qF 'scripts/celetis --agent claude next-step' <<<"$answer" || good=no
     marker=
   elif [ "$name" != borrowed ]; then
-    grep -qF 'scripts/celetis --host claude next-step' <<<"$answer" || good=no
+    grep -qF 'scripts/celetis --agent claude next-step' <<<"$answer" || good=no
   fi
   markers=$(grep -oE 'CUSTOM_(FROM_[A-Z]+|HANDOFF_WRITING|BORROWED_REVIEW|BORROWED_LESSON)' <<<"$answer" | sort || true)
   [ "$markers" = "$marker" ] || good=no

@@ -46,7 +46,7 @@ hook through those controls when unavailable; never bypass managed policy or a R
 
 ## Worktree and commands
 
-Use `scripts/celetis --host claude <command>` on every call. Enter the exact path printed by `worktree` with `EnterWorktree`,
+Use `scripts/celetis --agent claude <command>` on every call. Enter the exact path printed by `worktree` with `EnterWorktree`,
 skipping the call when already bound there. Verify cwd and read that checkout's instructions.
 Before landing or removing a lane, call `ExitWorktree` with keep, then verify the main checkout.
 Keep the lane until the script removes it. If these tools are unavailable, stop for setup.

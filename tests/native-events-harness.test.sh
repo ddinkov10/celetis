@@ -15,7 +15,7 @@ def read(id,p,content):
  return [row('tool.start',id,inp),row('tool.result',id,inp,out)]
 def meta(id,p,kind):
  inp={'path':p};return [row('fs.stat.start',id,inp),row('fs.stat.result',id,inp,{'value':{'kind':kind,'isLink':False}})]
-answer='scripts/celetis --host claude next-step <#>\nCUSTOM_FROM_ROOT'
+answer='scripts/celetis --agent claude next-step <#>\nCUSTOM_FROM_ROOT'
 valid=read('host',host,'Host entry')+meta(1,str(checkout/'.git'),'dir')+meta(2,path,'file')+read('config',path,source)+[{'type':'assistant','message':{'role':'assistant','content':[{'type':'text','text':answer}]}},{'type':'result','subtype':'success','is_error':False,'result':answer,'permission_denials':[]}]
 input={'cwd':str(checkout),'plugin':str(plugin),'pluginSources':[{'path':host,'sha256':hashlib.sha256(b'Host entry').hexdigest()}],'git':{'path':str(checkout/'.git'),'kind':'directory'},'config':{'path':path,'source':source,'sha256':hashlib.sha256(source.encode()).hexdigest(),'kind':'regular'}}
 faults=['valid','missing-host-hash','bad-host-hash','missing-config-hash','bad-config-hash','wrong-read-path','missing-meta-start','late-metadata','wrong-meta-path','wrong-result-id','fake-observer','missing-counts','token-cap']
@@ -51,7 +51,7 @@ for family,faults in [('absent',['good','no-result','wrong-id','non-enoent','ear
    rows+=[row('fs.stat.start',2,inp)]
    if fault=='early-text':rows+=[{'type':'assistant','message':{'content':[{'type':'text','text':'Checking the config.'}]}}]
    if fault!='no-result':rows+=[result]
-   answer='scripts/celetis --host claude next-step <#>'
+   answer='scripts/celetis --agent claude next-step <#>'
   else:
    rows+=meta(2,path,'file');inp={'tool':'Read','tool_use_id':'config','file_path':path}
    result=row('tool.result','config',inp,{'result':'Error: File is in a directory that is denied by your permission settings.','text':'<tool_use_error>File is in a directory that is denied by your permission settings.</tool_use_error>','isError':True})

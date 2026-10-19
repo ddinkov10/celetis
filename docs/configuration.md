@@ -36,7 +36,7 @@ The allowed custom keys are `bug`, `chore`, `critic-loop`, `doc-drift-sync`, `fe
 An empty setup string runs no setup. An empty instruction string gives no addition.
 An empty `custom` or `codexProfiles` mapping is valid.
 
-Host selection is `--host`, then `CELETIS_HOST`, then the main config's `host`, then
+Agent selection is `--agent`, then `CELETIS_AGENT`, then the main config's `host`, then
 `claude`. Resume uses the host and session ID in its saved record. An explicit host that
 conflicts with that record stops resume.
 
@@ -86,7 +86,7 @@ session. The worktree command also checks the lane config on every entry, includ
 its setup marker. An unmarked lane runs setup once and receives the marker only after success.
 A setup failure or invalid new lane config uses the existing cleanup: remove the new worktree
 and a branch created by the command; keep an existing branch or worktree for repair and retry.
-Git settings `celetis-flow.host` and `celetis-flow.gate.<step>` have no effect.
+Old Git defaults have no effect; the cutover table below lists them.
 
 Use the main checkout for `host`, `landing`, `gates`, `board`, and `codexProfiles`.
 Use the new lane checkout for setup. At each skill entry, use `custom.<skill>` from the active
@@ -122,6 +122,57 @@ Source `scripts/celetis` to use these functions without starting installation di
 The reader uses one private YAML snapshot for metadata checks and JSON conversion. It checks
 document, key, node, and style metadata before JSON conversion can remove YAML information.
 JSON remains in memory. No generated config file is written.
+
+## Start the board
+
+Run `scripts/celetis board` in the main checkout or a subfolder. It takes no arguments and
+refuses a lane start before `npx`. It reads only the main config's `board.port`, default 4403,
+and keeps `PORT` above that value. It supplies the fixed data, selected-agent Run, and
+saved-host Resume lists through stdin to released agent-board v2.2.0. The board validates
+that JSON and its executable paths. No board config file is made.
+See [the board contract](celetis-flow.md#the-board) for the exact lists.
+
+## Replace the old setup
+
+This is a manual cutover. Each push to the plugin trunk reaches product projects at their next
+runner refresh. The maintainer must prepare every affected product project and stop its old
+sessions, runners, and boards before the plugin lands. Keep the change unlanded until the
+maintainer gives a trusted readiness report for this build. This lane changes no other project.
+
+1. Install Mike Farah yq v4.54.1 on each machine and CI job that runs a shell consumer, using
+   the instructions below. Keep `jq` on `PATH`.
+2. Review each old input and prepare one `.celetis.yaml` in that product's main checkout:
+
+   | Old input | Replacement |
+   | --- | --- |
+   | Git `celetis-flow.agent` or `celetis-flow.host` | Optional YAML `host`. Keep the intended new-step default. |
+   | Git `celetis-flow.gate.<step>` and `.claude/celetis-flow/gates.json` | YAML `gates.<step>`. Write each intended `auto`; omitted steps now use `me`. |
+   | `.claude/celetis-flow/landing.json` | Required YAML `landing`. |
+   | `.claude/celetis-flow/board.json` | YAML `board.port` only. The adapter supplies all three fixed command lists. |
+   | `.claude/celetis-flow/worktree-setup.sh` | Complete script body in a literal `worktreeSetup` string. It still runs in one lane Bash process with main as `$1`. |
+   | Each `.claude/celetis-flow/custom/<skill>.md` | Complete instruction text in `custom.<skill>`, with its parsed line breaks and trailing newlines. |
+   | Each repository-owned `--profile` or `CAP_MODEL_PROFILE` JSON input | Its `slots` and `reviewer` under `codexProfiles.<runtime>`. Use the matching runtime identity as the key; omit the old `schema` and `runtime` fields. |
+
+   Use `|`, `|-`, or `|+` to preserve the required script and instruction strings. Check each
+   profile against the active dispatch surface's current model/effort allowlist. Supply no
+   placeholder or bundled model defaults. Explicit profile files remain available for one-run
+   or standalone scoring; remove a persistent override when the main YAML should own selection.
+3. Copy the changed standalone `scripts/celetis` from the reviewed plugin package. A plugin
+   refresh does not update that product file. The public controls are `--agent` and
+   `CELETIS_AGENT`; YAML and saved session records still use the key `host`.
+4. Remove the old Celetis setup files and obsolete Git defaults after their values are accounted
+   for. Keep native `.claude/settings.json`, `.codex/config.toml`, `.codex/rules/`, project
+   instructions, records, runtime state, and the setup marker. If a native desktop board entry
+   exists, point it at `scripts/celetis board` and match its preview port to the YAML value.
+5. Commit the product's replacement files on its trunk, review the required live results, and
+   report readiness before the plugin landing. After the coordinated refresh, restart its
+   sessions, runners, and boards. Test both Run agents and Resume with an existing exact record.
+
+There is no old-layout reader, automatic migration, dependency installer, or native settings
+generator. The board dependency is the exact GitHub tag v2.2.0. Local `AGENT_BOARD` gate checks
+do not replace released-package acceptance. Native desktop binding, stable installed resources,
+changed-pair child controls, managed Claude setup, and complete child bootstrap keep their
+separate acceptance states in [Acceptance status](celetis-flow.md#acceptance-status).
 
 ## Install the parser
 

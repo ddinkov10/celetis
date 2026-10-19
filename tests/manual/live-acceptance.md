@@ -32,15 +32,27 @@ For herdr tests, create an owned named session and controller pane. Verify real 
 inside that pane before controls. Start the released board there on an unused local port.
 Use its real browser actions. Record the returned pane identities; control only owned panes.
 
+For the single-config cutover, the board start is `scripts/celetis --agent <agent> board` in the
+fixture main checkout. The adapter must run the exact GitHub tag v2.2.0 with `--config-stdin`;
+keep its actual package commit, input, stdout/stderr, HTTP producer data, and port. `AGENT_BOARD`
+is a local checker override only. Use no override for the released-package check. Test main and
+subfolder startup, lane refusal before npx, malformed config, external/lane executable refusal,
+default/configured ports, inherited `PORT`, and absence of a second config file.
+Exercise actual Run for each explicit agent and Resume after changing YAML `host`; retain the
+session record, exact session/pane IDs, checkout, selected host, shared lock, and closed port after
+cleanup. Deterministic host fixtures and stdin checks do not close the real action row.
+Before landing, require the maintainer's readiness report for the
+[manual product replacement](../../docs/configuration.md#replace-the-old-setup) and stopped old runners.
+
 ## Model suites and saved results
 
 These commands use model tokens. Run them only when the selected host can accept the work:
 
 ```bash
 PATH="/bin:$PATH" /bin/bash tests/manual/step-prompt.test.sh \
-  --host claude --output-dir <new-evidence-directory>
+  --agent claude --output-dir <new-evidence-directory>
 PATH="/bin:$PATH" /bin/bash tests/manual/step-prompt.test.sh \
-  --host codex --output-dir <new-evidence-directory>
+  --agent codex --output-dir <new-evidence-directory>
 PATH="/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh \
   --output-dir <new-evidence-directory>
 ```

@@ -68,8 +68,8 @@ scripts/celetis celetis-flow --board    # the data of the issues for the board, 
 scripts/celetis celetis-flow --resume 373    # the session of a step with no progress, again
 ```
 
-These human commands use `CELETIS_HOST`, then `host` in the main checkout's `.celetis.yaml`,
-then Claude. Put `--host claude` or `--host codex` before `celetis-flow` to override that choice.
+These human commands use `CELETIS_AGENT`, then `host` in the main checkout's `.celetis.yaml`,
+then Claude. Put `--agent claude` or `--agent codex` before `celetis-flow` to override that choice.
 Every skill call supplies that prefix. Invalid host values stop; PATH order never chooses a host.
 The selected host stays fixed for the new step. Resume instead selects its recorded host and
 rejects an explicit prefix that names the other host.
@@ -99,8 +99,8 @@ only. With the default gates no step is `auto`, so the automatic runner starts n
 
 **The form `--board`** is read-only: it takes no lock, writes no row in the record, and starts no
 session. `--board` is its only argument. It prints contract 1, the JSON document that the board
-reads: `contract`, `tracker`, `flow`, `noRun`, `runner`, and `issues`, with one row for each issue
-that has a card. The rows come from the resolver (`scripts/celetis next-step --json`), which makes 3
+reads: `contract`, `tracker`, `flow`, `noRun`, `runner`, `agents`, `defaultAgent`, and `issues`, with
+one row for each issue that has a card. The rows come from the resolver (`scripts/celetis next-step --json`), which makes 3
 `gh` calls. The resolver gives each row the state that it knows from GitHub and from the working
 trees: `done`, `blocked` with `reason` and `act`, `ready`, or `dirty` with `path`. The `reason` is
 `needs info`, `landing refused`, or `ready for your step` ("The board", rule 5). It also gives the
@@ -108,16 +108,14 @@ trees: `done`, `blocked` with `reason` and `act`, `ready`, or `dirty` with `path
 that a live script holds, `stuck` with its `act` for a row of the record, the `step`, `started`,
 and `urgent` of each row, `runner`, `tracker`, and `flow` with the gate of each step. "The board"
 gives the value of each field. When `gh` or `jq` fails, the form prints
-`stop cannot read the issues from GitHub` and exits 1. The board is its reader: `data` of
-`.claude/celetis-flow/board.json` names this form.
+`stop cannot read the issues from GitHub` and exits 1. The board is its reader: the adapter supplies this form as `data`.
 
 **The form `--resume <n>`** reopens the exact session from
 `<git common dir>/celetis-flow/sessions/<n>.json`. It validates the current record, selects its
 saved host and checkout, and runs `claude --resume <id>` or `codex resume --no-daemon <id>`. A missing or
 invalid record stops with a recovery action. Resume takes the shared issue lock and retains it
 until the foreground exits. It makes no `gh` call or update and starts no completion watcher,
-so the session stays open until you leave it. `resume` of `.claude/celetis-flow/board.json` names
-this form.
+so the session stays open until you leave it. The board adapter supplies this form as `resume`.
 
 The script asks for no confirmation. A start with the number of an issue whose next step is
 `implement`, `chore`, or `hotfix` builds the change and lands it with `scripts/celetis land` when
@@ -199,7 +197,7 @@ remaining process. A command keeps the lock descriptor so a killed helper cannot
 update's lock.
 
 After a successful update, the helper invokes the same validated launcher resolver with
-`--host <host> root`. It uses the selected host's enabled installation and existing scope rules.
+`--agent <agent> root`. It uses the selected host's enabled installation and existing scope rules.
 The runner takes the step text from that installed root. When the lookup gives
 no folder that holds a step text, the runner shows the cause and exits 1. The runner retains the
 resolver and launcher paths chosen at startup; it does not restart itself after refresh. Codex
@@ -313,7 +311,8 @@ commands start in a lane or subfolder. `docs/configuration.md` gives the full sc
 - `host` selects the default host for a new step ("Start the script").
 - `gates` selects `me` or `auto` for each step ("Gates").
 - `landing` selects `pr` or `merge` for `scripts/celetis land` (`docs/issue-tracker.md`).
-- The board still reads `.claude/celetis-flow/board.json` ("The board").
+- `board.port` selects the board port ("The board").
+- `codexProfiles.<runtime>` supplies the dispatch profile (`docs/capability.md`).
 
 A missing or invalid required config stops before branch or worktree changes, locks, runtime
 state, plugin updates, host sessions, or landing pushes. The runner checks the main config
@@ -366,76 +365,60 @@ new parser operation. Native entry executes no setup and proves no deterministic
 
 ## The board
 
-The board is the package `ddinkov10/agent-board`, in a private repository of its own. Version
-2.0.0 reads the current `.claude/celetis-flow/board.json` path and contract 1. Neither the
-plugin nor a product project holds a file of the board: a product project holds the config of the
-board, and the plugin holds the script that prints its data. ADR-0009 holds the reasons for the
-package and for contract 1, the JSON document that the board reads. ADR-0003 holds the reasons for
-the board, ADR-0004 holds the reasons for Resume, Open shell, and the notifications, and ADR-0005
-holds the reasons why the session cards come from herdr. ADR-0003 names four columns: the rules of
-the four stay, and Done is a list that opens from the status bar.
+The board is the separate package `ddinkov10/agent-board`. Celetis uses released v2.2.0, whose
+stdin-config mode supports the fixed Run selection and saved-host Resume commands below.
+The package stays independent of YAML and Celetis field names. ADR-0009 keeps the package,
+contract 1, and command/path trust rules; ADR-0015 replaces only config storage.
 
-**Requirements.** Node 22 from 22.18, or Node 24.2 or later, with `npx`. `git` 2.31 or later, and
-git credentials for GitHub (an ssh key, or a credential helper for https): the package is private,
-and npm cannot ask for a password. herdr 0.9.3 on `PATH` and a herdr server that runs. A
-Chromium browser. The config names the script, so the requirements of the script hold too.
+**Requirements.** Node 22 from 22.18, or Node 24.2 or later, with `npx`; Git 2.31 or later;
+GitHub credentials that need no prompt; herdr 0.9.3 and a running server; and a Chromium browser.
+The script requirements above apply to its commands too.
 
-**Start the board** in the main checkout. It prints the repository, each command of the config,
-and its URL: open the URL.
+**Start the board** in the main checkout or a subfolder:
 
 ```bash
-npx 'github:ddinkov10/agent-board#semver:^2'    # the last line: agent-board: http://127.0.0.1:<port>
-PORT=4500 npx 'github:ddinkov10/agent-board#semver:^2'
+scripts/celetis board
+PORT=4500 scripts/celetis board
 ```
 
-- Start the board in the main checkout only, never in a lane worktree. `npx` reads the `.npmrc` of
-  the folder where it starts, and it puts each `node_modules/.bin` of that folder and of its parent
-  folders first on `PATH`, before the board runs. The board refuses a start in a lane worktree only
-  after that read, so the refusal is no guard: it prints
-  `agent-board: start the board in the main checkout: <path>` and exits 1.
-- `#semver:^2` names the newest release of major version 2. The quotes are necessary: `#` and `^`
-  are glob characters in zsh with `EXTENDED_GLOB`.
-- The port is `PORT`, else `port` of the config, else 4403. When the port is in use, the board
-  prints the cause and exits 1.
-- A product project can hold an entry `board` in its `.claude/launch.json` that starts the same
-  command with `--yes`, which answers the install question of `npx`. A session in a Code tab of
-  Claude desktop can then show the page in the Browser pane.
+The adapter takes no arguments. It validates `.celetis.yaml` from the main checkout, refuses a
+lane start, then runs in the main checkout. The refusal occurs before `npx` can read a lane's
+`.npmrc` or `node_modules/.bin`. The main checkout and its npm configuration must still be trusted.
+The adapter sends one JSON object to
+`npx --yes 'github:ddinkov10/agent-board#v2.2.0' --config-stdin`. It makes no config file.
+`--config-stdin` is config input; `check --stdin` remains contract-1 issue-data input.
 
-**The config** is `.claude/celetis-flow/board.json`. The board reads it from the main checkout only,
-once, at its start. Each of its first three keys is an argument list whose first item is a file of
-the main checkout, and `{n}` stands for the number of the issue:
+The board prints its repository, commands, and URL. Open that URL. It reads this input once at
+startup and validates each executable inside the main checkout, with no lane or external path.
+An invalid config or executable stops startup. A busy port also stops it.
 
 | Key | Value | Use |
 |---|---|---|
-| `data` | `["scripts/celetis", "celetis-flow", "--board"]` | The board starts it, with no shell, for each read of the issues. |
-| `run` | `["scripts/celetis", "celetis-flow", "{n}"]` | A Run press makes a herdr tab with the label `#<n> <step>`. It quotes each argument, types the command in the pane, then adds `&& exit`. |
-| `resume` | `["scripts/celetis", "celetis-flow", "--resume", "{n}"]` | A Resume press makes a tab with the same label and the focus. It quotes each argument, types the command, then adds `&& exit`. |
-| `port` | `<port>` | The port, when `PORT` is not set. |
+| `data` | `["scripts/celetis", "celetis-flow", "--board"]` | Reads contract 1 without a shell. |
+| `run` | `["scripts/celetis", "--agent", "{agent}", "celetis-flow", "{n}"]` | Starts the selected agent for issue `{n}` in a new herdr tab. |
+| `resume` | `["scripts/celetis", "celetis-flow", "--resume", "{n}"]` | Opens the recorded host/session in a new herdr tab. |
+| `port` | `.board.port // 4403` from the main YAML | The port when `PORT` is absent. |
 
-These lists use `CELETIS_HOST`, then `host` in the main checkout's `.celetis.yaml`, then Claude
-for a new step. Set the project default in that field. Resume uses the host and exact ID in the
-current session record, even after the project default changes. It does not use the session name to find an ID.
+Only the port is repository setup. `PORT` stays inherited and takes precedence. This repository
+uses 4404. Restart the board after a port change. A native desktop preview entry, when used,
+starts the same launcher and uses the same port (`README.md`, "Optional: the board in Claude desktop").
 
-To fix the host in the board config, put the host prefix before `celetis-flow` in each list:
+`POST /api/run` substitutes the chosen agent, or `defaultAgent` when no choice is supplied,
+for `{agent}`. Run does not change the project default. Set that default with `host` in the main
+YAML; `--agent` and `CELETIS_AGENT` override it. Unknown or unavailable choices return 409 and
+start no agent. Availability checks only executable presence; sign-in, trust, plugin discovery,
+and full host parity need separate checks.
 
-```json
-{
-  "data": ["scripts/celetis", "--host", "codex", "celetis-flow", "--board"],
-  "run": ["scripts/celetis", "--host", "codex", "celetis-flow", "{n}"],
-  "resume": ["scripts/celetis", "--host", "codex", "celetis-flow", "--resume", "{n}"]
-}
-```
+Resume has no fixed agent prefix. It uses the host and exact ID in the saved record, even after
+the project default changes. Each item is one argument. The board quotes the items and adds
+`&& exit`: success closes the tab; a failed script leaves its message there. With the default
+`me` gates, a Run starts one step and ends when its session ends.
 
-Use `claude` in place of `codex` for Claude. An explicit resume host must match the recorded
-host. Keep `resume` unprefixed when issues can have saved sessions from either host. Each item
-is one argument; do not put a shell command, quote syntax, or an environment assignment in an item.
-
-`&& exit` closes the tab when the script ends with no error, and a script that fails leaves the tab
-open with its message. With the default gates, the script of a Run press starts one session and ends
-when that session ends: the tab then closes, and the card shows the next step. A change of
-`board.json` reaches the board only when the file is in the main checkout (a `git pull` after the
-landing) and the board starts again. A change of the script needs no new start: the board starts
-the script again for each read and each press.
+The board starts the data script on each read and the action script on each press. A plugin
+refresh does not replace the standalone launcher or a product's setup. The maintainer must
+complete the [manual cutover](configuration.md#replace-the-old-setup) and stop old sessions,
+runners, and boards before they use the changed plugin. Real Run/Resume acceptance remains a
+separate live gate; a stdin or local-source check does not establish it.
 
 **The data.** `scripts/celetis celetis-flow --board` prints contract 1 ("Start the script"), with 3
 `gh` calls for each read. The script puts these values in the fields of the document:
@@ -450,6 +433,8 @@ the script again for each read and each press.
 | `flow.steps.<step>.hint` | `It lands the change when the build is done.` for `implement`, `chore`, and `hotfix`. No other step has a hint. |
 | `noRun` | `The main checkout is dirty: <path>. Commit or stash first.` while the main checkout is dirty, else `null`. |
 | `runner` | `true` while a live automatic runner holds its lock. |
+| `agents` | Entries `claude` and `codex`. Each has `available: true` and `cause: null` when its executable is on `PATH`, else `available: false` and `cause: "celetis: <agent> is not on PATH"`. |
+| `defaultAgent` | The agent selected by `--agent`, `CELETIS_AGENT`, `host` in the main YAML, or the default `claude`, in that order. |
 | `issues` | One row for each open issue and for each issue that closed in the last 14 days. An issue whose line of the resolver is the epic line or the `wontfix` line has no row. |
 
 A row gets its `state` by the first rule that matches:
@@ -477,7 +462,7 @@ Each row also has `number`, `title`, `url`, `updatedAt`, `closedAt`, and these f
 **Check the document** against the contract, in the main checkout:
 
 ```bash
-scripts/celetis celetis-flow --board | npx 'github:ddinkov10/agent-board#semver:^2' check --stdin
+scripts/celetis celetis-flow --board | npx --yes 'github:ddinkov10/agent-board#v2.2.0' check --stdin
 ```
 
 The checker prints `agent-board: contract 1, <count> issues, ok` and exits 0, or it prints one line
@@ -556,10 +541,12 @@ of 2026-10-15, not a certified minimum-version range:
 | Component | Evidence and limit |
 |---|---|
 | Codex CLI 0.162.1 | Private Git marketplace install and refresh, shared manifest discovery, effective configuration, and saved-turn API checks passed. A fresh 21-case step run passed with product instructions and the clarified startup text. These do not prove a full live workflow or native desktop selection |
-| Claude Code 2.1.299 | Current saved-turn fields were checked. The final 21 step cases and 12 native custom-read cases are blocked by the account's weekly limit; the reported reset is 17 October at 22:00 Europe/Sofia. CLI 2.1.300 was observed during the later documentation checks; no final model result is claimed for it |
+| Claude Code 2.1.302 | The single-config Task 4 checks recorded 24 quoted cases and 24 native cases. The native result used 22 provider cases and two module-owned zero-usage stops, with strict event checks. Managed plugin setup and complete child bootstrap remain UNRUN. Changed inputs require fresh live results |
 | Superpowers 7.0.0 | Installation on the isolated Codex Git configuration passed. Each active surface must still expose the dispatch and follow-up controls its procedures require |
 | herdr 0.9.3 | The installed integrations report Claude v10 and Codex v8. Later reviewed-source Codex checks passed valid startup, real no-progress, and native exact Resume with a saved second turn. The resumed herdr reply still lacked `agent_session`. Claude recovery, compaction, and full workflow checks remain open |
-| agent-board 2.0.0, tag commit `e36283b` | Contract 1 and the current config path passed. Released-browser Open shell and partial Claude Run/Go passed. The earlier Codex Run stopped on a local-marketplace setup error; Claude later stopped on quota. Later reviewed-source Codex Run, Resume, and Go passed with the correct issue and pane. Full acceptance remains open |
+| agent-board 2.0.0, tag commit `e36283b` (earlier storage) | Contract 1 and the current config path passed. Released-browser Open shell and partial Claude Run/Go passed. The earlier Codex Run stopped on a local-marketplace setup error; Claude later stopped on quota. Later reviewed-source Codex Run, Resume, and Go passed with the correct issue and pane. Full acceptance remains open |
+| agent-board v2.2.0, commit `d7f5a79f71f1566a5cb916438214b36400c1d4a3` | The released dependency passed its 296-test gate and actual npx stdin-config checks. Adapter, path refusals, and real Run/Resume each need their own evidence; the dependency check closes none of the live rows |
+| Codex desktop | The current selector cannot bind the owned isolated package: BLOCKED. CLI typed skill input and quoted tests do not establish desktop entry |
 | Bash 3.2.57, Perl 5.34.1, Node 26.11.1 | Used for the local deterministic gate and released-board checks. The scripts retain Bash 3.2 and Perl 5.14 as their language requirements |
 
 The later Codex board checks used reviewed commit `626881b`; the
@@ -573,7 +560,7 @@ rejected a valid product-directory prefix; its results passed a local replay aft
 repair. A later run rejected reason prose in case 13, whose oracle permits only commands and the
 ending. After that case's output format was made explicit, a fresh full run passed all 21 cases.
 Every client exited 0 without tool use or service errors. The strict action oracle stayed intact,
-and both failed runs remain recorded. The final Claude cases remain blocked by quota.
+and both failed runs remain recorded. Those earlier quota results remain historical; the Task 4 row above records the later native and quoted checks.
 
 A source wording test completed startup reads before the first response in five of five repair
 samples, compared with zero of five control samples. It used the full guide text and actual file
@@ -597,11 +584,11 @@ needed before full acceptance and shipping. ADR-0014 records the architecture an
 - The runner sees only its own locks. While a script works on an issue, start each step of that
   issue through the script or the board, not by hand in a session of your own.
 - With the default gates the automatic runner starts nothing. The board has no control for it:
-  start it in a terminal, after you make a gate `auto` on the machine. With `triage` as `auto`, it
+  start it in a terminal, after you set a gate to `auto` in the main YAML. With `triage` as `auto`, it
   classifies each new issue, and a splitter question of `/celetis:triage` holds it until you answer.
   With `specify` as `auto`, it opens a design session for the lowest feature with no spec, and that
   session holds it until the spec is on the issue or you leave the session.
-- With a gate that is `auto` on a machine, the script of a Run press goes on with that step in the
+- With a gate that is `auto` in the main YAML, the script of a Run press goes on with that step in the
   same tab. Between two sessions the card is in Running with `starts`.
 - A Terminal tab and the script in it can end when the app starts again. The lock stays while
   either the runner or its foreground session is live. After both exit, a new runner can claim
@@ -665,8 +652,8 @@ bash tests/land.test.sh
 bash tests/worktree.test.sh
 bash tests/launcher.test.sh
 bash tests/text.test.sh
-bash tests/manual/step-prompt.test.sh --host claude
-bash tests/manual/step-prompt.test.sh --host codex
+bash tests/manual/step-prompt.test.sh --agent claude
+bash tests/manual/step-prompt.test.sh --agent codex
 ```
 
 `bash tests/celetis-flow.test.sh` gives each `--board` document of its stub world to the checker of
@@ -681,11 +668,18 @@ machine does. The test starts `npx` in its temporary folder, so `npx` reads no `
 `node_modules/.bin` of the checkout where the test starts: the test can run in a lane worktree. For
 the document of the real issues, "The board" gives the `check` command.
 
+`bash tests/board-agent.test.sh` loads the board from `AGENT_BOARD` and checks default changes,
+Run overrides, refusals, and exact Resume through the product launcher, with real Git and a local
+HTTP server. With no `AGENT_BOARD`, it uses `npm pack` to fetch the stable v2 package into a
+temporary directory outside the product checkout. That path needs the network and GitHub
+credentials. `CELETIS_FLOW_SKIP_BOARD_CHECK=1` also skips this private-package integration test
+in the workflow. A pass against local source proves only that source, not the released consumer.
+
 Tests and scripts can start another `bash` from `PATH`. The gate runs each test as
 `PATH="/bin:$PATH" /bin/bash <test>`: the `/bin/bash` of macOS runs the test, and the `PATH`
 makes each inner `bash` reach it too.
 
-`bash tests/manual/step-prompt.test.sh --host claude|codex` checks the step text. Select one host;
+`bash tests/manual/step-prompt.test.sh --agent claude|codex` checks the step text. Select one host;
 the `|` is notation, not a shell command. It runs fixed cases in that host's headless turns,
 so it needs that host to be logged in, it uses tokens, and the
 answer of a model can differ between runs. Start it in a product Git checkout or one of its
@@ -699,7 +693,7 @@ discovery. With `--output-dir DIR`, the test saves the instruction files, their 
 the combined instruction text, and each prompt with its result. Run the test after each
 change of `step-prompt.md`, and run it in a product project after each change of the part of its
 `AGENTS.md` on the celetis flow. In a product project, start it in the main checkout as
-`bash "$(scripts/celetis --host codex root)/tests/manual/step-prompt.test.sh" --host codex`, or
+`bash "$(scripts/celetis --agent codex root)/tests/manual/step-prompt.test.sh" --agent codex`, or
 use `claude` in both places. The test then reads the step text of the installed plugin.
 For Claude, the script sets `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`, because the
 git status snapshot of a turn holds the branch name and the last commit subjects, and these can

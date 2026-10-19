@@ -27,20 +27,20 @@ fail() { printf 'FAIL: %s\n' "$1"; exit 1; }
   source "$root/scripts/lib/session.sh"
   herdr() {
     [ "$*" = "agent get $HERDR_PANE_ID" ] || return 1
-    jq "$filter" "$CELETIS_TEST_HERDR_FIXTURES/$CELETIS_HOST.json"
+    jq "$filter" "$CELETIS_TEST_HERDR_FIXTURES/$CELETIS_AGENT.json"
   }
-  for CELETIS_HOST in claude codex; do
-    id=$(jq -r .result.agent.agent_session.value "$CELETIS_TEST_HERDR_FIXTURES/$CELETIS_HOST.json")
+  for CELETIS_AGENT in claude codex; do
+    id=$(jq -r .result.agent.agent_session.value "$CELETIS_TEST_HERDR_FIXTURES/$CELETIS_AGENT.json")
     for status in idle done; do
       filter=".result.agent.agent_status=\"$status\""
-      celetis_session_idle "$id" || fail "$CELETIS_HOST $status was not idle with the current herdr reply"
+      celetis_session_idle "$id" || fail "$CELETIS_AGENT $status was not idle with the current herdr reply"
     done
     for mutation in '.agent_status="working"' '.agent_status="blocked"' '.agent_status="unknown"' \
       'del(.agent_status)' '.agent_status="ready"' '.agent="other"' '.agent_session=null' \
       '.agent_session.agent="other"' '.agent_session.kind="name"' \
       '.agent_session.value="00000000-0000-4000-8000-000000000002"'; do
       filter=".result.agent |= (.agent_status=\"idle\" | $mutation)"
-      ! celetis_session_idle "$id" || fail "$CELETIS_HOST accepted an unsafe idle reply: $mutation"
+      ! celetis_session_idle "$id" || fail "$CELETIS_AGENT accepted an unsafe idle reply: $mutation"
     done
   done
 )
@@ -194,7 +194,7 @@ reset() {
 start_runner() {
   set -- "${1:-issue}"
   if [ "$1" = issue ]; then set -- 7; else set --; fi
-  (cd "$repo" && CELETIS_HOST="$host" exec "$BASH" "$plugin/scripts/celetis-flow.sh" "$@" >"$tmp/out" 2>"$tmp/flow.err") &
+  (cd "$repo" && CELETIS_AGENT="$host" exec "$BASH" "$plugin/scripts/celetis-flow.sh" "$@" >"$tmp/out" 2>"$tmp/flow.err") &
   runner=$!
   echo "$runner" >>"$tmp/pids"
 }
@@ -218,7 +218,7 @@ finish() {
 held() {
   local other=codex
   [ "$host" != codex ] || other=claude
-  (cd "$repo" && CELETIS_HOST="$other" "$BASH" "$plugin/scripts/celetis-flow.sh" 7) >"$tmp/other-out" 2>"$tmp/other.err" || fail "$other lock check failed"
+  (cd "$repo" && CELETIS_AGENT="$other" "$BASH" "$plugin/scripts/celetis-flow.sh" 7) >"$tmp/other-out" 2>"$tmp/other.err" || fail "$other lock check failed"
   [ "$(cat "$S/count")" = 1 ] && grep -q 'another celetis-flow.sh' "$tmp/other-out" || fail "$other entered the active $host step"
 }
 late_failures=0
@@ -263,7 +263,7 @@ for host in claude codex; do
   : >"$S/updates"
   : >"$S/herdr-calls"
   touch "$S/hold-resume"
-  (cd "$repo" && CELETIS_HOST="$host" exec "$BASH" "$plugin/scripts/celetis-flow.sh" --resume 7) >"$tmp/resume-out" 2>"$tmp/resume.err" &
+  (cd "$repo" && CELETIS_AGENT="$host" exec "$BASH" "$plugin/scripts/celetis-flow.sh" --resume 7) >"$tmp/resume-out" 2>"$tmp/resume.err" &
   runner=$!
   echo "$runner" >>"$tmp/pids"
   await_file "$S/resumed"
@@ -383,7 +383,7 @@ claude plugin list --json'
     held
     if [ "$mode" = auto ]; then
       code=0
-      (cd "$repo" && CELETIS_HOST=codex "$BASH" "$plugin/scripts/celetis-flow.sh") >"$tmp/auto-out" 2>"$tmp/auto.err" || code=$?
+      (cd "$repo" && CELETIS_AGENT=codex "$BASH" "$plugin/scripts/celetis-flow.sh") >"$tmp/auto-out" 2>"$tmp/auto.err" || code=$?
       [ "$code" -eq 1 ] && grep -q 'another automatic runner or its session' "$tmp/auto.err" || fail "$host lost its automatic lock with a live foreground"
     fi
     touch "$S/finish-1"
@@ -392,7 +392,7 @@ claude plugin list --json'
       /bin/sleep 0.05
     done
     [ ! -f "$S/live" ] || fail "$host orphaned session did not exit"
-    (cd "$repo" && CELETIS_HOST="$host" "$BASH" "$plugin/scripts/celetis-flow.sh" 7) >"$tmp/after-crash" 2>"$tmp/after-crash.err"
+    (cd "$repo" && CELETIS_AGENT="$host" "$BASH" "$plugin/scripts/celetis-flow.sh" 7) >"$tmp/after-crash" 2>"$tmp/after-crash.err"
     grep -q 'stop #7 is finished' "$tmp/after-crash" || fail "$host session exit did not free the crashed runner's lock"
   done
   reset

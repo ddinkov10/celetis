@@ -54,7 +54,7 @@ part of each product.
 
 The lanes of this repository are the skills of the plugin itself, on the issues of
 `ddinkov10/celetis` (`README.md`, "The full loop"). The landing is `pr`
-(`.claude/celetis-flow/landing.json`): a build step ends with
+(`landing` in `.celetis.yaml`): a build step ends with
 `scripts/celetis land <n> '<subject>'`, which squash-merges the lane PR on `main` when each check of
 the workflow is green. The landing is the last act of a change: this repository has no deployment,
 and a change on `main` is in use at once ("Traps").
@@ -92,7 +92,7 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
   resolver. Codex's different resource limits are in `docs/celetis-flow.md`, "Acceptance status".
 - **A script file keeps its name.** `scripts/<name>.sh` is the sub-command
   `scripts/celetis <name>`, which the skills, the documents, and the files of each product project
-  name: its `board.json`, and its `allow` rule `Bash(scripts/celetis land *)`. Two file names are
+  name: its board commands, and its `allow` rule `Bash(scripts/celetis land *)`. Two file names are
   also patterns of the process list. `scripts/next-step.sh` takes a landing as live only when the
   process of its lock has `land.sh` in its command line, and `scripts/celetis-flow.sh` takes a lock
   as held only when its process has `celetis-flow.sh` there. After a rename, a live lock looks

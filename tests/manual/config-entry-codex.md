@@ -10,7 +10,7 @@ does not qualify. Keep the installed and reviewed source hashes equal during eac
 
 For CLI, current supported operations include `codex plugin marketplace add`, `codex plugin add`,
 and `codex plugin list --json`. Use a separate test home and its supported configuration. Record
-the returned installed path and `scripts/celetis --host codex root` from the product checkout.
+the returned installed path and `scripts/celetis --agent codex root` from the product checkout.
 For desktop, select the skill from an isolated installed package's actual advertised catalog.
 If the desktop cannot bind that isolated installation, mark its native invocation BLOCKED.
 Reading a CLI installation from the current chat does not prove desktop selector behavior.

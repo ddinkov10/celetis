@@ -7,7 +7,7 @@ ln -s "$root" "$tmp/plug in"
 plugin="$tmp/plug in"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 export CELETIS_FLOW_TEST_STATE="$tmp/state"
-export CELETIS_HOST=claude
+export CELETIS_AGENT=claude
 export CELETIS_FLOW_TEST_PLUGIN="$plugin" CELETIS_FLOW_TEST_PERL="$(command -v perl)"
 export CLAUDE_CONFIG_DIR="$tmp/claude config" CODEX_HOME="$tmp/codex config"
 export CELETIS_TEST_HERDR_FIXTURES="$root/tests/fixtures/herdr"
@@ -333,7 +333,7 @@ for stage in marketplace update list; do
   end_flow
   [ "$code" -ne 0 ] && [ "$(count claude-calls)" -eq 0 ] && [ ! -e "$st/no-progress" ] || fail "a hung $stage command must stop before the session: $code [$out] [$err]"
   phase=$stage
-  [ "$stage" != list ] || phase='--host claude root'
+  [ "$stage" != list ] || phase='--agent claude root'
   [[ $err == *"timed out"* && $err == *"$phase"* && $err == *"fake claude plugin: error"* ]] || fail "a timeout must show its command and captured cause: [$err]"
   ! kill -0 "$update_pid" 2>/dev/null || fail "the timed-out update still runs: $update_pid"
   case $(ps -p "$update_child" -o stat= 2>/dev/null) in '' | *Z*) ;; *) fail "a timed-out update left a live descendant: $update_child" ;; esac
@@ -345,7 +345,7 @@ lost_diagnostics=0
 for boundary in timeout interruption; do
   reset; issue 7 OPEN enhancement "Spec: x"
   [ "$boundary" != timeout ] || touch "$S/fast-clock"
-  CELETIS_HOST=codex TMPDIR="$tmp/codex pipes" start_flow 7
+  CELETIS_AGENT=codex TMPDIR="$tmp/codex pipes" start_flow 7
   await_file "$S/codex-child"
   codex_pid=$(cat "$S/codex-pid")
   codex_child=$(cat "$S/codex-child")
@@ -353,9 +353,9 @@ for boundary in timeout interruption; do
   end_flow
   [ "$code" -ne 0 ] && [ ! -e "$st/no-progress" ] && [ ! -e "$st/sessions/7.json" ] || fail "Codex lookup $boundary started a session or recorded progress: $code [$out] [$err]"
   if [ "$boundary" = timeout ]; then
-    [[ $err == *'timed out after 120 seconds during bash '*'--host codex root'* ]] || fail "Codex lookup did not reach the shared deadline: [$err]"
+    [[ $err == *'timed out after 120 seconds during bash '*'--agent codex root'* ]] || fail "Codex lookup did not reach the shared deadline: [$err]"
   else
-    [[ $err == *'interrupted by SIGTERM during bash '*'--host codex root'* ]] || fail "Codex lookup did not reach updater interruption: [$err]"
+    [[ $err == *'interrupted by SIGTERM during bash '*'--agent codex root'* ]] || fail "Codex lookup did not reach updater interruption: [$err]"
   fi
   if [ "$(grep -cF 'fixture: skills catalog lookup stalled with original cause' <<<"$err")" -ne 1 ]; then
     echo "FAIL: Codex lookup $boundary lost or repeated its stderr: [$err]"
@@ -698,7 +698,7 @@ doc() { printf '%s' "$out" | jq -c "$1"; }
 checked() {
   [ "${CELETIS_FLOW_SKIP_BOARD_CHECK:-}" != 1 ] || return 0
   if [ -n "${AGENT_BOARD:-}" ]; then printf '%s' "$out" | node "$AGENT_BOARD" check --stdin >"$tmp/check" 2>&1
-  else printf '%s' "$out" | ( cd "$tmp" && npx --yes 'github:ddinkov10/agent-board#semver:^2' check --stdin ) >"$tmp/check" 2>&1; fi ||
+  else printf '%s' "$out" | ( cd "$tmp" && npx --yes 'github:ddinkov10/agent-board#v2.2.0' check --stdin ) >"$tmp/check" 2>&1; fi ||
     fail "the --board document is not contract 1 (AGENT_BOARD names the entry file of a local agent-board checkout; else npx needs the network and the git credentials): $(cat "$tmp/check")"
 }
 
@@ -723,7 +723,7 @@ checker_calls() {
 }
 [ -z "$(checker_calls CELETIS_FLOW_SKIP_BOARD_CHECK=1 AGENT_BOARD=/board/cli.mjs)" ] || fail "CELETIS_FLOW_SKIP_BOARD_CHECK=1 must skip the checker"
 [ "$(checker_calls AGENT_BOARD=/board/cli.mjs)" = "node /board/cli.mjs check --stdin" ] || fail "AGENT_BOARD must name the checker: [$(checker_calls AGENT_BOARD=/board/cli.mjs)]"
-[ "$(checker_calls)" = "npx --yes github:ddinkov10/agent-board#semver:^2 check --stdin" ] || fail "with neither variable the pinned npx command must run: [$(checker_calls)]"
+[ "$(checker_calls)" = "npx --yes github:ddinkov10/agent-board#v2.2.0 check --stdin" ] || fail "with neither variable the pinned npx command must run: [$(checker_calls)]"
 
 reset
 issue 4 CLOSED bug "old"; issue 5 OPEN bug "It breaks"; issue 6 OPEN epic ""; issue 10 OPEN hotfix,needs-info ""
@@ -756,9 +756,30 @@ run_flow --board
 [ "$(field 7 '[.state, .step, .act, .started]')" = '["stuck","plan","scripts/celetis celetis-flow --resume 7",true]' ] || fail "--board, a row of the record: [$(field 7 .)]"
 checked
 board=$out
-CELETIS_HOST=codex run_flow --board
-[ "$code" -eq 0 ] && [ "$out" = "$board" ] && [ ! -e "$S/codex-calls" ] || fail "the selected host must not change board contract 1 or start a session: $code [$out] [$err]"
+CELETIS_AGENT=codex run_flow --board
+[ "$(doc '.agents | keys')" = '["claude","codex"]' ] || fail 'board agent names differ'
+[ "$(doc .defaultAgent)" = '"codex"' ] || fail 'board default differs from selection'
+[ "$(doc .agents)" = '{"claude":{"available":true,"cause":null},"codex":{"available":true,"cause":null}}' ] || fail 'available board agents must have null causes'
+[ "$code" -eq 0 ] && [ "$(doc 'del(.defaultAgent)')" = "$(printf '%s' "$board" | jq -c 'del(.defaultAgent)')" ] && [ ! -e "$S/codex-calls" ] || fail "only the default agent may change in the board document: $code [$out] [$err]"
 checked
+mkdir "$tmp/board-bin"
+for command in bash jq yq perl mktemp rm git dirname mkdir cat date grep wc ps; do ln -s "$(command -v "$command")" "$tmp/board-bin/$command"; done
+ln -s "$bin/gh" "$tmp/board-bin/gh"
+ln -s "$bin/codex" "$tmp/board-bin/codex"
+CELETIS_AGENT=codex path="$tmp/board-bin" run_flow --board
+[ "$code" -eq 0 ] && [ "$(doc '.agents.claude.available')" = false ] && [ "$(doc '.agents.claude.cause | type == "string" and length > 0')" = true ] && [ "$(doc '.agents.codex')" = '{"available":true,"cause":null}' ] || fail "the missing non-selected executable must be unavailable: $code [$out] [$err]"
+checked
+git -C "$repo" config celetis-flow.agent codex
+(unset CELETIS_AGENT; run_flow --board; printf '%s' "$out" >"$tmp/preferred-board")
+[ "$(jq -c .defaultAgent "$tmp/preferred-board")" = '"claude"' ] || fail 'board must ignore the obsolete Git agent preference'
+yq -i '.host = "codex"' "$repo/.celetis.yaml"
+git -C "$repo" commit -qam board-codex-default
+git -C "$repo" config celetis-flow.agent claude
+(unset CELETIS_AGENT; run_flow --board; printf '%s' "$out" >"$tmp/preferred-board")
+[ "$(jq -c .defaultAgent "$tmp/preferred-board")" = '"codex"' ] || fail 'the next board read must report the YAML host'
+yq -i 'del(.host)' "$repo/.celetis.yaml"
+git -C "$repo" commit -qam board-default-reset
+git -C "$repo" config --unset celetis-flow.agent
 documented_act=$(sed -n 's/.*| `stuck` | `act`: `\(.*\)` |/\1/p' "$root/docs/celetis-flow.md")
 [ "$documented_act" = 'scripts/celetis celetis-flow --resume <n>' ] || fail "the documented stuck-card command must use recorded-session recovery: [$documented_act]"
 touch "$S/hold-8"; tag=b- start_flow; b=$flow_pid; await 2
@@ -781,7 +802,7 @@ reset; issue 7 OPEN enhancement "Spec: x"
 run_flow --board
 [ "$code" -eq 0 ] && [ ! -e "$S/plugin-calls" ] || fail "--board must update no plugin: $code [$(calls plugin-calls)] [$err]"
 
-[ "$(jq -c . "$root/.claude/celetis-flow/board.json")" = '{"data":["scripts/celetis","celetis-flow","--board"],"run":["scripts/celetis","celetis-flow","{n}"],"resume":["scripts/celetis","celetis-flow","--resume","{n}"],"port":4404}' ] || fail "board.json must hold the four keys"
+[ -z "$(git -C "$root" ls-files .claude/celetis-flow)" ] || fail "the old tracked setup must be absent"
 
 reset; issue 7 OPEN enhancement "Spec: x"; touch "$S/gh-fail"
 run_flow --board

@@ -6,12 +6,12 @@ host=claude
 output_dir=
 while [ $# -gt 0 ]; do
   case $1 in
-    --host) [ $# -ge 2 ] || exit 2; host=$2; shift 2 ;;
+    --agent) [ $# -ge 2 ] || exit 2; host=$2; shift 2 ;;
     --output-dir) [ $# -ge 2 ] || exit 2; output_dir=$2; shift 2 ;;
-    *) echo "usage: $0 [--host claude|codex] [--output-dir DIR]" >&2; exit 2 ;;
+    *) echo "usage: $0 [--agent claude|codex] [--output-dir DIR]" >&2; exit 2 ;;
   esac
 done
-case $host in claude | codex) ;; *) echo "invalid host: $host" >&2; exit 2 ;; esac
+case $host in claude | codex) ;; *) echo "invalid agent: $host" >&2; exit 2 ;; esac
 tmp=$(mktemp -d)
 if [ -n "$output_dir" ]; then
   mkdir -p "$output_dir"
@@ -62,8 +62,8 @@ L='--add-label ready-for-human'
 B='--remove-label ready-for-agent'
 W='Then: I wait for the person'
 land='scripts/celetis land 7'
-claude_land='scripts/celetis --host claude land 7'
-codex_land='scripts/celetis --host codex land 7'
+claude_land='scripts/celetis --agent claude land 7'
+codex_land='scripts/celetis --agent codex land 7'
 expected_land=$claude_land
 other_land=$codex_land
 if [ "$host" = codex ]; then expected_land=$codex_land; other_land=$claude_land; fi
@@ -207,8 +207,10 @@ check() {
         what=', missing checkout locator limitation'
       grep -qiE '(enable|configure|provide|connect|grant|install).*(native.*(file|metadata|read|access|locator)|(Glob|Grep).*Read|Read.*(Glob|Grep))' "$answer" ||
         what=', missing positive native access setup'
-      grep -qiE 'shell.*(absent|unavailable|not available|no access)|(no|absent|unavailable).*shell' "$answer" ||
+      grep -qiE 'shell.*(absent|unavailable|not available|no access)|(no|absent|unavailable).*shell|no (usable )?`?Bash`? tool|`?Bash`? tool (is )?(absent|unavailable|not available)' "$answer" ||
         what=', missing shell access limitation'
+      ! grep -qiE '(has|have) (a |an )?`?Bash`? tool|`?Bash`? tool is (available|enabled|usable)' "$answer" ||
+        what=', shell availability contradicts blocked entry'
       grep -qiE '(cannot|unable).*(`?gh`?|report.*issue|post.*Stopped)' "$answer" ||
         what=', missing issue-reporting limitation'
       [ "$(grep -c '^Then:' "$answer")" -eq 1 ] && grep -qx 'Then: my step ends' "$answer" ||

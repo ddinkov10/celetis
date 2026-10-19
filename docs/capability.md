@@ -104,7 +104,7 @@ bias, escalation, and final clamp of the portable score are identical on each ho
 rank 3 below Σ=12 caps at xhigh. A host binding can raise the applied effort without changing
 the portable score.
 
-Host selection is `--host claude|codex` > `CELETIS_HOST` > `host` in the main checkout's
+Agent selection is `--agent claude|codex` > `CELETIS_AGENT` > `host` in the main checkout's
 `.celetis.yaml` > `claude`. The launcher exports its selected host. Without a new flag, Claude's existing human
 CAP output is unchanged. When the selected host is Claude and `OPENCODE=1`, the existing opencode
 mode still uses its current model: `--current-model provider/id` > `CAP_CURRENT_MODEL` > the
@@ -152,6 +152,11 @@ active dispatch runtime identity. The scorer selects that identity and validates
 the profile owns the capability ordering. Refresh the runtime allowlist from the tool that will
 create or resume the child before each dispatch, then supply its file path to the scorer.
 Keep the current parent model; this setup controls children only.
+
+For an existing project, replace each repository-owned profile input as the
+[manual cutover](configuration.md#replace-the-old-setup) specifies. Keep `slots` and `reviewer`
+under the exact runtime key; refresh the allowlist before dispatch. ADR-0015 changes storage
+only. It does not resolve desktop binding, installed-resource lifetime, or same-child retry limits.
 
 For attempts 2 and 3, the scorer resolves earlier attempts with the same digits, bias, profile,
 runtime, and reviewer role. When consecutive attempts select the same model ID, the applied
@@ -217,14 +222,14 @@ such as ultra do not extend the rubric. Missing files, malformed configuration, 
 mismatches, and unavailable model/effort pairs exit 2 with a setup action and no result.
 
 ```bash
-scripts/celetis --host codex capscore 1 0 2 1 1 0 --json \
+scripts/celetis --agent codex capscore 1 0 2 1 1 0 --json \
   --runtime-models /path/to/active-models.json
 ```
 
 Outside a configured repository, supply the explicit profile and runtime allowlist:
 
 ```bash
-scripts/celetis --host codex capscore 1 0 2 1 1 0 --json \
+scripts/celetis --agent codex capscore 1 0 2 1 1 0 --json \
   --profile /path/to/profile.json --runtime-models /path/to/active-models.json
 ```
 

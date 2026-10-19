@@ -51,7 +51,7 @@ for suffix in input.json jsonl err status; do
 done
 checkout=$(git rev-parse --show-toplevel 2>/dev/null || true)
 path=${checkout:+$checkout/.celetis.yaml}
-answer='scripts/celetis --host claude next-step'
+answer='scripts/celetis --agent claude next-step'
 count=1
 entered=
 if [[ $prompt == 'Enter the existing worktree at '* ]]; then
@@ -233,11 +233,11 @@ jq -cn --arg path "$path" --arg answer "$answer" --arg entered "$entered" --arg 
       elif $fault == "metadata-node-content" then map(if .message.content[0].id == "meta-1" then .message.content[0].input.code += " await fs.readFile(\".celetis.yaml\");" else . end)
       elif $fault == "metadata-node-process" then map(if .message.content[0].id == "meta-1" then .message.content[0].input.code += " await import(\"node:child_process\");" else . end)
       elif $fault == "metadata-node-parser" then map(if .message.content[0].id == "meta-1" then .message.content[0].input.code += " yaml.parse(\"landing: pr\");" else . end)
-      elif $fault == "success-bare-command" then map(if .type == "result" then .result |= sub("scripts/celetis --host claude"; "scripts/celetis") else . end)
+      elif $fault == "success-bare-command" then map(if .type == "result" then .result |= sub("scripts/celetis --agent claude"; "scripts/celetis") else . end)
       elif $fault == "worktree-session" and $entered != "" then map(if .type == "result" then .session_id = "other-session" else . end)
       elif $fault == "success-unrelated" then map(if .type == "result" then .result += "\nUNRELATED_CUSTOM_MUST_NOT_RUN" else . end)
       elif $fault == "success-setup" then map(if .type == "result" then .result += "\nSETUP_MUST_NOT_RUN" else . end)
-      elif $fault == "invalid-continues" and ($answer | startswith("Invalid ")) then map(if .type == "result" then .result = "scripts/celetis --host claude next-step" else . end)
+      elif $fault == "invalid-continues" and ($answer | startswith("Invalid ")) then map(if .type == "result" then .result = "scripts/celetis --agent claude next-step" else . end)
       elif $fault == "invalid-missing-field" and ($answer | startswith("Invalid ")) then map(if .type == "result" then .result |= sub(" at .*\\. Entry stopped"; ". Entry stopped") else . end)
       elif $fault == "invalid-missing-stop" and ($answer | startswith("Invalid ")) then map(if .type == "result" then .result |= sub(" Entry stopped\\."; "") else . end)
       elif $fault == "invalid-missing-validity" and ($answer | startswith("Invalid ")) then map(if .type == "result" then .result |= sub("Invalid "; "Config ") else . end)
@@ -428,7 +428,7 @@ for fault in good missing-path missing-field missing-validity missing-stop affir
     missing-stop) answer=${answer// Entry stopped./} ;;
     affirmative) answer="Config $path at custom.guide: the config schema accepts folded blocks. Entry stopped." ;;
     contradictory) answer="$answer This file is accepted as-is." ;;
-    continued-goal) answer="$answer scripts/celetis --host claude next-step" ;;
+    continued-goal) answer="$answer scripts/celetis --agent claude next-step" ;;
   esac
   jq -c --arg answer "$answer" '
     if .type == "result" then .result = $answer
@@ -448,6 +448,41 @@ for fault in good missing-path missing-field missing-validity missing-stop affir
     echo "ok: folded schema rejection $fault"
   else
     echo "FAIL: folded schema rejection $fault"; cat "$folder/check.log"; fails=$((fails + 1))
+  fi
+done
+for fault in good missing-path missing-field missing-validity missing-stop affirmative contradictory continued-goal; do
+  folder="$tmp/unknown-field-$fault"
+  mkdir "$folder"
+  cp "$tmp/valid-evidence/"unknown-field.* "$folder/"
+  path=$(jq -r '.config.path' "$folder/unknown-field.input.json")
+  answer="Config $path at custom.unknown has a field the schema doesn't allow. Entry stopped."
+  case $fault in
+    missing-path) answer=${answer//"$path"/} ;;
+    missing-field) answer=${answer//custom.unknown/} ;;
+    missing-validity) answer="Config $path at custom.unknown was read. Entry stopped." ;;
+    missing-stop) answer=${answer// Entry stopped./} ;;
+    affirmative) answer="Config $path at custom.unknown has a field the schema allows. Entry stopped." ;;
+    contradictory) answer="$answer This file is accepted as-is." ;;
+    continued-goal) answer="$answer scripts/celetis --agent claude next-step" ;;
+  esac
+  jq -c --arg answer "$answer" '
+    if .type == "result" then .result = $answer
+    elif .type == "assistant" then .message.content |= map(if .type == "text" then .text = $answer else . end)
+    else . end' "$folder/unknown-field.jsonl" >"$folder/changed"
+  mv "$folder/changed" "$folder/unknown-field.jsonl"
+  status=0
+  (
+    tmp=$folder
+    failed=0
+    source "$checker"
+    check unknown-field invalid "${path%/.celetis.yaml}"
+    exit "$failed"
+  ) >"$folder/check.log" 2>&1 || status=$?
+  if { [ "$fault" = good ] && [ "$status" -eq 0 ]; } ||
+      { [ "$fault" != good ] && [ "$status" -eq 1 ] && grep -q '^FAIL: unknown-field$' "$folder/check.log"; }; then
+    echo "ok: unknown-field schema rejection $fault"
+  else
+    echo "FAIL: unknown-field schema rejection $fault"; cat "$folder/check.log"; fails=$((fails + 1))
   fi
 done
 if CUSTOM_BOUND_ROOT=only-config PATH="$tmp/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh --output-dir "$tmp/bound-evidence" >"$tmp/bound" 2>&1; then

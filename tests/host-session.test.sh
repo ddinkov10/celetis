@@ -7,7 +7,7 @@ export SESSION_TEST="$tmp/state" CLAUDE_CONFIG_DIR="$tmp/claude"
 export CODEX_HOME="$tmp/codex"
 export CELETIS_TEST_HERDR_FIXTURES="$root/tests/fixtures/herdr"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
-unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID CELETIS_HOST
+unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID CELETIS_AGENT
 S=$SESSION_TEST
 plugin="$tmp/installed package"
 repo="$tmp/product checkout"
@@ -105,7 +105,7 @@ printf '%s\n' "$*" >>"$S/herdr-calls"
 case "$1 $2" in
   'tab rename') ;;
   'agent get')
-    host=$CELETIS_HOST
+    host=$CELETIS_AGENT
     id=$(cat "$S/id")
     status=$(cat "$S/status")
     if [ -f "$S/prior-host" ] && [ ! -f "$S/prior-reported" ]; then
@@ -159,19 +159,30 @@ reset() {
 }
 run() {
   code=0
-  (cd "$repo" && PATH="${test_path:-$PATH}" CELETIS_HOST="${test_host:-claude}" "$BASH" "$plugin/scripts/celetis-flow.sh" "$@" < <(printf 'terminal input\n')) >"$tmp/out" 2>"$tmp/err" || code=$?
+  (cd "$repo" && PATH="${test_path:-$PATH}" CELETIS_AGENT="${test_host:-claude}" "$BASH" "$plugin/scripts/celetis-flow.sh" "$@" < <(printf 'terminal input\n')) >"$tmp/out" 2>"$tmp/err" || code=$?
   out=$(cat "$tmp/out"); err=$(cat "$tmp/err")
 }
 for host in claude codex; do
   for status in idle done working blocked unknown; do
     reset
     echo "$status" >"$S/status"
-    export HERDR_ENV=1 HERDR_PANE_ID=w1:p1
+    export HERDR_ENV=1 HERDR_PANE_ID=wW:pE
     test_host=$host run 7
     [ "$code" -eq 0 ] && [ -z "$err" ] && jq -e --arg h "$host" --arg id "$uuid" '.host == $h and .session_id == $id' "$record" >/dev/null || fail "$host did not save the current $status session: $code [$err]"
     : >"$S/calls"
     test_host=$host run --resume 7
     [ "$code" -eq 0 ] && jq -e --arg h "$host" --arg id "$uuid" '.host == $h and .args[-1] == $id' "$S/calls" >/dev/null || fail "$host could not resume the saved $status session"
+  done
+done
+for host in claude codex; do
+  for pane in w1:p1 wW:p14 w1:pE wW:pE wa0:pz9; do
+    reset
+    export HERDR_ENV=1 HERDR_PANE_ID="$pane"
+    test_host=$host run 7
+    [ "$code" -eq 0 ] && [ -z "$err" ] || fail "$host rejected $pane: $code [$err]"
+    jq -e --arg h "$host" '.host == $h' "$S/calls" >/dev/null || fail "$host did not launch for $pane"
+    jq -e --arg h "$host" --arg id "$uuid" '.host == $h and .session_id == $id' "$record" >/dev/null || fail "$host lost the saved identity for $pane"
+    [[ $(cat "$S/herdr-calls") == *"agent get $pane"* ]] || fail "$host changed $pane"
   done
 done
 for host in claude codex; do
@@ -195,7 +206,7 @@ for replacement in '.host="claude"' '.session_id="00000000-0000-4000-8000-000000
   jq -nc --arg cwd "$repo" --arg id "$uuid" '{schema:1,host:"codex",issue:7,step:"plan",checkout:$cwd,session_id:$id}' >"$record"
   jq "$replacement" "$record" >"$S/replace-record"
   code=0
-  (cd "$repo" && scripts/celetis --host codex celetis-flow --resume 7) >"$tmp/out" 2>"$tmp/err" || code=$?
+  (cd "$repo" && scripts/celetis --agent codex celetis-flow --resume 7) >"$tmp/out" 2>"$tmp/err" || code=$?
   [ "$code" -ne 0 ] && [ ! -e "$S/calls" ] || fail "a resume record changed during package discovery: $replacement"
 done
 for host in claude codex; do
@@ -262,12 +273,12 @@ for default in claude codex; do
   printf 'landing: merge\nhost: %s\n' "$default" >"$repo/.celetis.yaml"
   : >"$S/calls"
   code=0
-  (cd "$repo" && unset CELETIS_HOST && PATH="$tmp/codex-only" GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=celetis-flow.host GIT_CONFIG_VALUE_0="$default" scripts/celetis celetis-flow --resume 7 < <(printf 'terminal input\n')) >"$tmp/out" 2>"$tmp/err" || code=$?
+  (cd "$repo" && unset CELETIS_AGENT && PATH="$tmp/codex-only" GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=celetis-flow.agent GIT_CONFIG_VALUE_0="$default" scripts/celetis celetis-flow --resume 7 < <(printf 'terminal input\n')) >"$tmp/out" 2>"$tmp/err" || code=$?
   [ "$code" -eq 0 ] && jq -e --arg id "$uuid" '.host == "codex" and .args == ["resume","--no-daemon",$id]' "$S/calls" >/dev/null || fail "copied launcher resume with $default default and no Claude: $code [$(cat "$tmp/err")]"
 done
 printf 'landing: merge\nhost: claude\n' >"$repo/.celetis.yaml"
 code=0
-(cd "$repo" && scripts/celetis --host claude celetis-flow --resume 7) >"$tmp/out" 2>"$tmp/err" || code=$?
+(cd "$repo" && scripts/celetis --agent claude celetis-flow --resume 7) >"$tmp/out" 2>"$tmp/err" || code=$?
 [ "$code" -ne 0 ] && [[ $(cat "$tmp/err") == *'recorded host is codex'* ]] || fail "an explicit host request switched a saved session"
 
 cp "$record" "$tmp/valid-record"
@@ -342,15 +353,26 @@ for host in claude codex; do
   test_host=$host run 7
   [ "$code" -ne 0 ] && [ ! -e "$common/celetis-flow/no-progress" ] || fail "$host startup exit became no progress outside herdr"
 
+  for environment in unset '' 0; do
+    reset
+    [ "$environment" = unset ] || export HERDR_ENV="$environment"
+    export HERDR_PANE_ID=wW:pE
+    test_host=$host run 7
+    [ "$code" -eq 0 ] && [ ! -e "$S/herdr-calls" ] && jq -e --arg h "$host" '.host == $h' "$S/calls" >/dev/null && jq -e '.session_id == null' "$record" >/dev/null || fail "$host controlled herdr outside its environment: $environment"
+  done
+  for pane in '' invalid w:p1 w1:p w1:t1 w1:p1:extra -w1:p1 ' w1:p1' 'w1:p1 ' 'w1:p1/x' $'w1:p1\n' $'w1:p1\t'; do
+    reset
+    export HERDR_ENV=1 HERDR_PANE_ID="$pane"
+    test_host=$host run 7
+    [ "$code" -eq 1 ] && [[ $err == *'HERDR_ENV=1 needs a valid HERDR_PANE_ID; start from a herdr pane'* ]] || fail "$host accepted an invalid pane: [$err]"
+    [ ! -e "$S/herdr-calls" ] && [ ! -e "$S/calls" ] && [ ! -e "$S/updates" ] || fail "$host acted before pane validation"
+  done
   reset
-  export HERDR_PANE_ID=w1:p1
+  export HERDR_ENV=1
   test_host=$host run 7
-  [ "$code" -eq 0 ] && [ ! -e "$S/herdr-calls" ] && jq -e '.session_id == null' "$record" >/dev/null || fail "$host controlled herdr outside its environment"
+  [ "$code" -eq 1 ] && [[ $err == *'HERDR_ENV=1 needs a valid HERDR_PANE_ID; start from a herdr pane'* ]] || fail "$host accepted an unset pane: [$err]"
+  [ ! -e "$S/herdr-calls" ] && [ ! -e "$S/calls" ] && [ ! -e "$S/updates" ] || fail "$host acted before unset pane validation"
 done
-reset
-export HERDR_ENV=1 HERDR_PANE_ID=invalid
-run 7
-[ "$code" -ne 0 ] && [ ! -e "$S/herdr-calls" ] && [ ! -e "$S/calls" ] || fail "a bad pane ID started herdr control"
 
 for host in claude codex; do
   reset
@@ -358,8 +380,20 @@ for host in claude codex; do
   echo "$other" >"$S/change-host"
   printf 'landing: merge\nhost: %s\n' "$host" >"$repo/.celetis.yaml"
   git -C "$repo" config celetis-flow.host "$other"
+  git -C "$repo" config celetis-flow.agent "$other"
+  export HERDR_ENV=1 HERDR_PANE_ID=w1:p1
   code=0
-  (cd "$repo" && unset CELETIS_HOST && GIT_CONFIG_COUNT=0 scripts/celetis celetis-flow 7 < <(printf 'terminal input\n')) >"$tmp/out" 2>"$tmp/err" || code=$?
+  (cd "$repo" && unset CELETIS_AGENT && GIT_CONFIG_COUNT=0 scripts/celetis celetis-flow 7 < <(printf 'terminal input\n')) >"$tmp/out" 2>"$tmp/err" || code=$?
   [ "$code" -eq 0 ] && jq -e --arg h "$host" '.host == $h' "$S/calls" >/dev/null && jq -e --arg h "$host" '.host == $h' "$record" >/dev/null || fail "the current project default did not select and retain $host: $code [$(cat "$tmp/err")]"
+  [ "$(yq -r .host "$repo/.celetis.yaml")" = "$other" ] || fail "the project preference did not change after $host started"
+  unset HERDR_ENV HERDR_PANE_ID
+  : >"$S/calls"
+  code=0
+  (cd "$repo" && unset CELETIS_AGENT && GIT_CONFIG_COUNT=0 scripts/celetis celetis-flow --resume 7 < <(printf 'terminal input\n')) >"$tmp/out" 2>"$tmp/err" || code=$?
+  [ "$code" -eq 0 ] && jq -e --arg h "$host" --arg id "$uuid" '.host == $h and .args == (if $h == "codex" then ["resume","--no-daemon",$id] else ["--resume",$id] end)' "$S/calls" >/dev/null || fail "unprefixed resume switched the saved $host agent or UUID after the project preference changed: $code [$(cat "$tmp/err")]"
+  : >"$S/calls"
+  code=0
+  (cd "$repo" && scripts/celetis --agent "$other" celetis-flow --resume 7) >"$tmp/out" 2>"$tmp/err" || code=$?
+  [ "$code" -ne 0 ] && [ ! -s "$S/calls" ] && [[ $(cat "$tmp/err") == *"recorded host is $host"* ]] || fail "an explicit agent request switched the saved $host session"
 done
 echo 'PASS: host launch and exact resume'
