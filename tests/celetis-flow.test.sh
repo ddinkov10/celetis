@@ -748,8 +748,8 @@ checked
   echo 'repos/{owner}/{repo}/issues?state=open&per_page=100'
   echo 'repos/{owner}/{repo}/issues?state=closed&since=<date>T00:00:00Z&per_page=100'
   echo 'repos/{owner}/{repo}/pulls?state=open&per_page=100'
-  for n in 5 6 7 8 9 10 11 12; do echo "repos/{owner}/{repo}/issues/$n/comments?per_page=100"; done
-} | LC_ALL=C sort)" ] || fail "--board must read the three lists and the comments of each open issue: [$(calls gh-calls)]"
+  for n in 11 12; do echo "repos/{owner}/{repo}/issues/$n/comments?per_page=100"; done
+} | LC_ALL=C sort)" ] || fail "--board must read the three lists and the comments of each open issue that has a comment: [$(calls gh-calls)]"
 [ "$(count claude-calls)" -eq 1 ] && [ "$(locks)" -eq 1 ] && [ "$(rows)" -eq 1 ] || fail "--board must start no session, take no lock, and write no row"
 rm "$lane/new.txt"
 run_flow --board

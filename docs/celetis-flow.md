@@ -103,7 +103,8 @@ session. `--board` is its only argument. It prints contract 1, the JSON document
 reads: `contract`, `tracker`, `flow`, `noRun`, `runner`, `agents`, `defaultAgent`, and `issues`, with
 one row for each issue that has a card. The rows come from the resolver (`scripts/celetis next-step --json`).
 The resolver makes these `gh api` calls: 3 paginated lists (open issues, closed issues, open PRs),
-one call for the comments of each open issue, and 3 calls for each open PR. The resolver gives
+one paginated call for the comments of each open issue that has a comment, and 3 calls for each
+open PR whose branch holds `/<number>-`. The resolver gives
 each row the state that it knows from GitHub and from the working
 trees: `done`, `blocked` with `reason` and `act`, `ready`, or `dirty` with `path`. The `reason` is
 `needs info`, `landing refused`, or `ready for your step` ("The board", rule 5). It also gives the
@@ -452,9 +453,9 @@ installation has refreshed. A change of the script needs no new start: the board
 script again for each read and each press.
 
 **The data.** `scripts/celetis celetis-flow --board` prints contract 1 ("Start the script"). Each read
-makes these `gh api` calls: 3 paginated lists (open issues, closed issues, open PRs), one call for
-the comments of each open issue, and 3 calls for each open PR. The script puts these values in the
-fields of the document:
+makes these `gh api` calls: 3 paginated lists (open issues, closed issues, open PRs), one paginated
+call for the comments of each open issue that has a comment, and 3 calls for each open PR whose
+branch holds `/<number>-`. The script puts these values in the fields of the document:
 
 | Field | Value |
 |---|---|

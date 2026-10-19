@@ -155,8 +155,10 @@ reset; issue open chore "" "## Landing refused"; expect "run /celetis:chore #7"
 reset; issue open enhancement "Spec: x" "## Plan" "## Landing refused"; expect "run /celetis:implement #7"
 reset; issue open enhancement $'Spec: x\n`y`' $'## Plan\n\n1. `a`'; expect "run /celetis:implement #7"
 reset; issue open enhancement $'Intent: add X\nSpec: later'; expect "run /celetis:feature #7"
+[ "$(endpoints)" = 'repos/{owner}/{repo}/issues/7' ] || fail "the form with a number must read #7, no comment of an issue with no comment, and no PR: $(cat "$S/gh-calls")"
+reset; echo 1 >"$S/page-size"; issue open bug "" "## Root cause" "## Plan"; expect "run /celetis:implement #7"
 [ "$(endpoints)" = 'repos/{owner}/{repo}/issues/7
-repos/{owner}/{repo}/issues/7/comments?per_page=100' ] || fail "the form with a number must read #7 and its comments, and no PR: $(cat "$S/gh-calls")"
+repos/{owner}/{repo}/issues/7/comments?per_page=100' ] || fail "the form with a number must read the 2 comments of #7 in one call, and no PR: $(cat "$S/gh-calls")"
 
 reset; issue open chore ""
 run_next '#7'
@@ -233,8 +235,8 @@ run_next --open
 [ "$code" -eq 0 ] && [ "$out" = "$(row 7 "run /celetis:triage #7")
 $(row 8 "run /celetis:implement #8")
 $(row 9 "stop #9 is an epic. Each child runs its own flow.")" ] || fail "--open must print one row for each open issue, lowest number first: $code [$out] $err"
-[ "$(endpoints | LC_ALL=C sort)" = "$({ echo 'repos/{owner}/{repo}/issues?state=open&per_page=100'; comments_calls 7 8 9; } | LC_ALL=C sort)" ] ||
-  fail "--open must read the open issues once and the comments of each open issue: $(cat "$S/gh-calls")"
+[ "$(endpoints | LC_ALL=C sort)" = "$({ echo 'repos/{owner}/{repo}/issues?state=open&per_page=100'; comments_calls 8; } | LC_ALL=C sort)" ] ||
+  fail "--open must read the open issues once and the comments of each open issue that has a comment: $(cat "$S/gh-calls")"
 
 both() {
   reset; issue open "$@"; run_next 7; single=$out
@@ -317,13 +319,14 @@ prs '[[21, "fix/17-other", false, [], [], []],
   [24, "chore/9-a", true, [run("completed"; "success")], ["pending"], [], ["r"]],
   [25, "chore/10-a", false, [run("completed"; "skipped")], ["success"], [review("a"; "APPROVED")]],
   [26, "chore/11-a", false, [run("queued"; null)], ["error"], []],
-  [27, "chore/12-a", false, [], [], []]]'
+  [27, "chore/12-a", false, [], [], []],
+  [28, "dependabot/npm_and_yarn/x-1.2.3", false, [run("completed"; "failure")], ["error"], [review("a"; "APPROVED")]]]'
 run_next --json
 [ "$code" -eq 0 ] && [ "$(printf '%s' "$out" | jq -c '[.noRun, (.issues[0] | [.number, .type, .state, .line, .path])]')" = '[null,[7,"chore","ready","run /celetis:chore #7",null]]' ] || fail "--json must print the rows of the board: $code [$out] $err"
 [ "$(printf '%s' "$out" | jq -c '.issues[1].pr')" = '{"number":22,"url":"https://github.com/o/r/pull/22","draft":false,"checks":"fail","review":"changes"}' ] || fail "--json, the first open PR of an issue: [$out]"
 [ "$(printf '%s' "$out" | jq -c '[.issues[].pr | if . then [.number, .draft, .checks, .review] else . end]')" = '[null,[22,false,"fail","changes"],[24,true,"pending","required"],[25,false,"pass","approved"],[26,false,"fail",null],[27,false,null,null]]' ] || fail "--json, the open PR of each issue, with its checks and its review: [$out]"
-[ "$(endpoints | LC_ALL=C sort)" = "$(json_calls "7 8 9 10 11 12" "21 22 23 24 25 26 27")" ] ||
-  fail "--json must read the three lists, the comments of each open issue, and the check runs, the commit status, and the reviews of each open PR: $(cat "$S/gh-calls")"
+[ "$(endpoints | LC_ALL=C sort)" = "$(json_calls "" "21 22 23 24 25 26 27")" ] ||
+  fail "--json must read the three lists, no comment of an issue with no comment, and the check runs, the commit status, and the reviews of each open PR whose branch holds /<number>-: $(cat "$S/gh-calls")"
 reset; open_issue 7 bug,needs-info ""; open_issue 8 hotfix,ready-for-human ""; open_issue 9 epic ""; open_issue 12 chore ""
 state=closed open_issue 10 bug ""; state=closed open_issue 11 bug,wontfix ""
 batch="$repo/.claude/worktrees/12-batch"
@@ -370,7 +373,7 @@ run_next --json
 [ "$(printf '%s' "$out" | jq -c '.issues[0] | [.state, .path]')" = "[\"dirty\",\"$main/.claude/worktrees/7-refused\"]" ] || fail "--json, a dirty lane worktree comes before a refused landing: [$out]"
 git -C "$repo" worktree remove --force "$refused"
 
-reset; open_issue 7 chore ""; open_issue 8 chore ""; state=closed open_issue 9 bug ""; state=closed open_issue 10 bug ""
+reset; open_issue 7 chore "" "A note"; open_issue 8 chore "" "A note"; state=closed open_issue 9 bug ""; state=closed open_issue 10 bug ""
 days=15 state=closed open_issue 11 bug ""
 jq 'map(if .number == 8 or .number == 10 then .pull_request = {html_url: "https://github.com/o/r/pull/\(.number)"} else . end)' "$S/issues.json" >"$S/issues.tmp"
 mv "$S/issues.tmp" "$S/issues.json"
@@ -409,7 +412,7 @@ run_next --json
 [ "$code" -eq 0 ] && [ "$(printf '%s' "$out" | jq -c '[.issues[].pr | [.number, .checks, .review]]')" = '[[31,"fail","approved"],[32,"pending","changes"],[33,null,"changes"],[34,null,"approved"],[35,null,null],[36,null,"required"],[37,null,"required"],[38,null,null]]' ] ||
   fail "--json, the checks with a commit status, and the review from the last review of each reviewer: $code [$out] $err"
 
-reset; issue open chore ""; open_issue 7 chore ""; open_issue 8 chore ""; touch "$S/fail-issues-7-comments"
+reset; issue open chore "" "A note"; open_issue 7 chore "" "A note"; open_issue 8 chore ""; touch "$S/fail-issues-7-comments"
 run_next 7
 [ "$code" -eq 1 ] && one_line "stop cannot read #7 from GitHub" || fail "the comments of #7 cannot be read: $code [$out] $err"
 run_next --open

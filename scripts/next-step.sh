@@ -47,10 +47,12 @@ landing() {
 landing_line() { printf 'stop the landing of #%s runs; wait until scripts/celetis land ends\n' "$1"; }
 
 with_comments() {
-  local issue
+  local issue number count
   while IFS= read -r issue; do
+    read -r number count <<<"$(jq -r '"\(.number) \(.comments)"' <<<"$issue")"
     { printf '%s\n' "$issue"
-      gh api --paginate "repos/{owner}/{repo}/issues/$(jq .number <<<"$issue")/comments?per_page=100" --jq '.[] | tojson' </dev/null
+      [ "$count" = 0 ] ||
+        gh api --paginate "repos/{owner}/{repo}/issues/$number/comments?per_page=100" --jq '.[] | tojson' </dev/null
     } | jq -cs '.[0] + {comments: .[1:]}' || return
   done
 }
@@ -89,7 +91,8 @@ if [ "$1" = --json ]; then
   open=$(open_issues) &&
     closed=$(gh api --paginate "repos/{owner}/{repo}/issues?state=closed&since=${since}T00:00:00Z&per_page=100" \
       --jq '.[] | select(.pull_request | not) | tojson' | jq -s --arg since "$since" 'map(select(.closed_at >= $since))') &&
-    prs=$(gh api --paginate 'repos/{owner}/{repo}/pulls?state=open&per_page=100' --jq '.[] | tojson' | with_pr_state | jq -s .) &&
+    prs=$(gh api --paginate 'repos/{owner}/{repo}/pulls?state=open&per_page=100' \
+      --jq '.[] | select(.head.ref | test("/[0-9]+-")) | tojson' | with_pr_state | jq -s .) &&
     issues=$(printf '%s\n%s\n' "$open" "$closed" | jq -cs 'add | unique_by(.number)') &&
     rows=$(printf '%s\n%s\n' "$issues" "$prs" | jq -cs "$RESOLVER"' .[1] as $prs | .[0] | map((.number | tostring) as $n | resolve($n) as $r | {
       number, title, url: .html_url,
