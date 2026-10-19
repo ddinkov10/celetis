@@ -154,8 +154,8 @@ done <<<"$tracked"
 script_files=
 [ ${#scripts[@]} -eq 0 ] || script_files=$(search -F "${scripts[@]}" -- "${texts[@]}")
 [ -z "$script_files" ] || fail "a script of the plugin by its file, where the form is \"scripts/celetis <name>\", as <path>:<line>:<text>:" "$script_files$nl"
-porcelain=$(search -E '(^|[^[:alnum:]_])gh (issue|pr|repo|label|search) ' -- scripts)
-[ -z "$porcelain" ] || fail "a gh call in scripts/ that uses GraphQL, where the form is \"gh api <REST path>\", as <path>:<line>:<text>:" "$porcelain$nl"
+refused_gh=$(search -E '(^|[^[:alnum:]_])gh ((issue|pr|repo|label|search) |api .*(graphql|search/))' -- scripts)
+[ -z "$refused_gh" ] || fail "a gh call in scripts/ that uses GraphQL or a search/ path, where the form is \"gh api <REST path>\", as <path>:<line>:<text>:" "$refused_gh$nl"
 # The arrow is outside the bracket: in a C locale, a bracket holds each byte of the arrow as one character.
 bare_commands=$(search -E "(^|[ \`(\"']|→)/($commands)([^A-Za-z0-9_-]|\$)" -- "${texts[@]}" "${documents[@]}")
 [ -z "$bare_commands" ] || fail "a lane command with no \"celetis:\" before its name, as <path>:<line>:<text>:" "$bare_commands$nl"
