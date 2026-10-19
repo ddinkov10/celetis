@@ -154,5 +154,171 @@ want='usage: scripts/celetis setup check | write --hosts claude|codex|claude,cod
 [ "$(code_of)" -eq 2 ] && [ "$(code_of bogus)" -eq 2 ] && [ "$(code_of check extra)" -eq 2 ] || fail "usage not refused"
 [[ $(err_of bogus) == "$want" ]] || fail "wrong usage line: $(err_of bogus)"
 
+
+want='usage: scripts/celetis setup check | write --hosts claude|codex|claude,codex [--default claude|codex] --landing pr|merge | push'
+for args in "write --hosts claude,codex --landing pr" "write --hosts claude --default codex --landing pr" "write --hosts claude --landing squash" \
+  "write --hosts gitlab --landing pr" "write --hosts claude" "write --landing pr" "write --hosts claude --landing pr extra" "write --hosts claude,codex --default gitlab --landing pr"; do
+  [ "$(code_of $args)" -eq 2 ] || fail "'$args' did not exit 2"
+done
+[[ $(err_of write --hosts claude --default codex --landing pr) == "$want" ]] || fail "wrong usage line for write"
+
+readme_fence() {
+  awk -v heading="$1" 'index($0, heading) == 1 { seen = 1; next } seen && /^```/ { if (open) exit; open = 1; next } open' "$here/README.md"
+}
+rules=$(readme_fence '### Codex permissions')
+ignores=$(readme_fence '### `.gitignore`')
+[ "$(printf '%s\n' "$rules" | grep -c '')" -eq 13 ] && [ "$(printf '%s\n' "$ignores" | grep -c '')" -eq 5 ] || fail "the README fences changed; update this test"
+heading='## Celetis flow'
+lanes="- The lanes are the skills of the plugin \`celetis\`, on the issues of \`$REPO\`."
+landing='- `.claude/celetis-flow/landing.json` names the landing mechanism, and a build step ends with `scripts/celetis land`.'
+never='- A lane never skips a step.'
+maintainer='- The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.'
+b=$lanes$'\n'$landing$'\n'$never$'\n'$maintainer$'\n'
+gitattributes='scripts/celetis text eol=lf'
+
+commit_all() { git -C "$proj" add -A && git -C "$proj" commit -qm "$1"; }
+sorted() { jq -S 'walk(if type == "array" then sort else . end)'; }
+jlines() { jq -Rn '[inputs]'; }
+record_is() {
+  [ "$(sorted <"$proj/.claude/celetis-flow/wiring.json")" = "$(sorted <<<"$1")" ] || fail "wrong record: $(cat "$proj/.claude/celetis-flow/wiring.json")"
+}
+bytes_are() { printf '%s' "$1" | cmp -s - "$proj/$2" || fail "wrong bytes in $2: $(cat "$proj/$2")"; }
+entries_of() { jq -S --arg file "$1" '.entries[$file]' "$proj/.claude/celetis-flow/wiring.json" | sorted; }
+clean_tree() { [ -z "$(git -C "$proj" status --porcelain)" ] || fail "$1: $(git -C "$proj" status --porcelain)"; }
+
+new_project empty
+out=$(run write --hosts codex --landing merge 2>"$tmp/err") || fail "write failed on an empty project: $(cat "$tmp/err")"
+[ ! -s "$tmp/err" ] || fail "write printed on stderr: $(cat "$tmp/err")"
+cmp -s "$plug/scripts/celetis" "$proj/scripts/celetis" && [ -x "$proj/scripts/celetis" ] || fail "the launcher is no executable copy"
+bytes_are $'{"landing": "merge"}\n' .claude/celetis-flow/landing.json
+bytes_are "$rules"$'\n' .codex/rules/celetis.rules
+bytes_are "$ignores"$'\n' .gitignore
+bytes_are "$gitattributes"$'\n' .gitattributes
+bytes_are "$heading"$'\n\n'"$b" AGENTS.md
+[ ! -e "$proj/.claude/settings.json" ] || fail "write made .claude/settings.json for codex only"
+[ "$(git -C "$proj" config celetis-flow.agent)" = codex ] || fail "wrong celetis-flow.agent"
+expected=$(jq -n --argjson ignores "$(jlines <<<"$ignores")" --argjson agents "$(printf '%s\n%s' "$heading" "$b" | jlines)" \
+  --arg gitattributes "$gitattributes" '{
+    schema: 1,
+    answers: {hosts: ["codex"], tracker: "github"},
+    files: [".claude/celetis-flow/landing.json", ".claude/celetis-flow/wiring.json", ".codex/rules/celetis.rules", "scripts/celetis"],
+    entries: {".gitignore": $ignores, ".gitattributes": [$gitattributes], "AGENTS.md": $agents}
+  }')
+record_is "$expected"
+jq -S . "$proj/.claude/celetis-flow/wiring.json" | cmp -s - "$proj/.claude/celetis-flow/wiring.json" || fail "the record is not in the jq -S form"
+[ -z "$(grep -v '^setup: changed ' <<<"$out" || true)" ] || fail "write printed more than the changed paths: $out"
+[ "$(sed -n 's/^setup: changed //p' <<<"$out" | sort)" = "$(git -C "$proj" status --porcelain --untracked-files=all | cut -c4- | sort)" ] ||
+  fail "the changed paths differ from git status: $out"
+record=$(cat "$proj/.claude/celetis-flow/wiring.json")
+commit_all wiring
+git -C "$proj" push -q origin main
+[ "$(run write --hosts codex --landing merge 2>&1)" = "setup: no file changed" ] || fail "a rerun did not report no change"
+clean_tree "a rerun changed a file"
+[ "$(cat "$proj/.claude/celetis-flow/wiring.json")" = "$record" ] || fail "a rerun changed the record"
+
+new_project own
+mkdir "$proj/scripts"
+echo old >"$proj/scripts/celetis"
+printf 'node_modules/\ndocs/superpowers/' >"$proj/.gitignore"
+printf '# P\n## Build\n- make\n## Celetis flow\n\n* A lane never skips a step.\n\n## Deploy\n- ship\n' >"$proj/AGENTS.md"
+commit_all product
+run write --hosts codex --landing pr >/dev/null
+cmp -s "$plug/scripts/celetis" "$proj/scripts/celetis" && [ -x "$proj/scripts/celetis" ] || fail "write kept an old launcher"
+bytes_are $'node_modules/\ndocs/superpowers/\n.claude/worktrees/\n.claude/settings.local.json\n.superpowers/\ndocs/lessons/_pending/\n' .gitignore
+bytes_are $'# P\n## Build\n- make\n## Celetis flow\n\n* A lane never skips a step.\n'"$lanes"$'\n'"$landing"$'\n'"$maintainer"$'\n\n## Deploy\n- ship\n' AGENTS.md
+[ "$(entries_of AGENTS.md)" = "$(printf '%s\n%s' "$heading" "$b" | jlines | sorted)" ] || fail "wrong AGENTS.md entries: $(entries_of AGENTS.md)"
+[ "$(entries_of .gitignore)" = "$(jlines <<<"$ignores" | sorted)" ] || fail "wrong .gitignore entries: $(entries_of .gitignore)"
+
+agents_case() {
+  new_project "agents$1"
+  printf '%s' "$2" >"$proj/AGENTS.md"
+  commit_all product
+  run write --hosts codex --landing pr >/dev/null
+  bytes_are "$3" AGENTS.md
+}
+agents_case 1 $'# P\n- x\n' $'# P\n- x\n\n'"$heading"$'\n\n'"$b"
+agents_case 2 $'# P\n\n' $'# P\n\n'"$heading"$'\n\n'"$b"
+agents_case 3 $'## Celetis flow\n\n## Deploy\n' "$heading"$'\n\n'"$b"$'\n## Deploy\n'
+agents_case 4 $'## Celetis flow\n\n### Notes\n- note\n\n# Next\n' "$heading"$'\n\n### Notes\n- note\n'"$b"$'\n# Next\n'
+agents_case 5 $'## Celetis flow\n- A lane never skips a step.' "$heading"$'\n'"$never"$'\n'"$lanes"$'\n'"$landing"$'\n'"$maintainer"$'\n'
+agents_case 6 $'## Celetis flow\n\n- The maintainer starts the runner; an agent starts it only when its task says\n  so, with a number, and in a terminal.\n' \
+  "$heading"$'\n\n- The maintainer starts the runner; an agent starts it only when its task says\n  so, with a number, and in a terminal.\n'"$b"
+agents_case 7 $'## Celetis flow\n\n  *   A lane never skips a step.  \r\n' "$heading"$'\n\n  *   A lane never skips a step.  \r\n'"$lanes"$'\n'"$landing"$'\n'"$maintainer"$'\n'
+agents_case 8 $'# P\n\n- A lane never skips a step.\n' $'# P\n\n- A lane never skips a step.\n\n'"$heading"$'\n\n'"$b"
+
+new_project claude
+printf '# C' >"$proj/CLAUDE.md"
+mkdir "$proj/.claude"
+printf '# Dot\n@AGENTS.md\n' >"$proj/.claude/CLAUDE.md"
+commit_all product
+run write --hosts claude --landing pr >/dev/null
+bytes_are $'# C\n@AGENTS.md\n' CLAUDE.md
+bytes_are $'# Dot\n@AGENTS.md\n' .claude/CLAUDE.md
+[ "$(entries_of CLAUDE.md)" = "$(echo '["@AGENTS.md"]' | sorted)" ] && [ "$(entries_of .claude/CLAUDE.md)" = "$(entries_of CLAUDE.md)" ] || fail "wrong CLAUDE entries"
+[ "$(git -C "$proj" config celetis-flow.agent)" = claude ] || fail "wrong celetis-flow.agent for claude"
+
+new_project claudedot
+mkdir "$proj/.claude"
+printf '@AGENTS.md\n' >"$proj/.claude/CLAUDE.md"
+commit_all product
+run write --hosts claude --landing pr >/dev/null
+[ ! -e "$proj/CLAUDE.md" ] || fail "write made a CLAUDE.md"
+bytes_are $'@AGENTS.md\n' .claude/CLAUDE.md
+[ "$(jq -c '.entries | has("CLAUDE.md"), has(".claude/CLAUDE.md")' "$proj/.claude/celetis-flow/wiring.json" | paste -sd ' ' -)" = "false true" ] || fail "wrong CLAUDE record"
+
+new_project codexclaude
+printf '# C\n' >"$proj/CLAUDE.md"
+commit_all product
+run write --hosts codex --landing pr >/dev/null
+bytes_are $'# C\n' CLAUDE.md
+[ "$(jq '.entries | has("CLAUDE.md")' "$proj/.claude/celetis-flow/wiring.json")" = false ] || fail "codex recorded a CLAUDE file"
+
+new_project crlf
+printf '%s\n' "$ignores" | sed 's/$/\r/' >"$proj/.gitignore"
+cp "$proj/.gitignore" "$tmp/crlf.gitignore"
+commit_all product
+run write --hosts codex --landing pr >/dev/null
+cmp -s "$tmp/crlf.gitignore" "$proj/.gitignore" || fail "write changed a CRLF .gitignore"
+[ "$(entries_of .gitignore)" = "$(jlines <<<"$ignores" | sorted)" ] || fail "wrong entries for a CRLF .gitignore"
+
+new_project ignored
+echo '.claude/' >"$proj/.gitignore"
+commit_all product
+stops "setup: git ignores .claude/celetis-flow/landing.json; make git track it first" write --hosts codex --landing merge
+clean_tree "an ignored path left a file"
+new_project ignoredscripts
+echo 'scripts/' >"$proj/.gitignore"
+commit_all product
+stops "setup: git ignores scripts/celetis; make git track it first" write --hosts codex --landing merge
+clean_tree "an ignored launcher left a file"
+mkdir "$proj/scripts"
+cp "$plug/scripts/celetis" "$proj/scripts/celetis"
+git -C "$proj" add -f scripts/celetis
+git -C "$proj" commit -qm tracked
+[ "$(code_of write --hosts codex --landing merge)" -eq 0 ] || fail "write refused a tracked launcher that .gitignore matches"
+
+new_project union
+run write --hosts claude,codex --default codex --landing merge >/dev/null
+[ "$(git -C "$proj" config celetis-flow.agent)" = codex ] || fail "wrong celetis-flow.agent for two hosts"
+echo '# own' >>"$proj/.codex/rules/celetis.rules"
+commit_all wiring
+git -C "$proj" push -q origin main
+rules_bytes=$(cat "$proj/.codex/rules/celetis.rules")
+run write --hosts claude --landing pr >/dev/null
+[ "$(cat "$proj/.codex/rules/celetis.rules")" = "$rules_bytes" ] || fail "write changed the rules file of an unchosen host"
+[ "$(jq -c '(.files | index(".codex/rules/celetis.rules") != null), .answers.hosts' "$proj/.claude/celetis-flow/wiring.json" | paste -sd ' ' -)" = 'true ["claude"]' ] || fail "wrong union record"
+bytes_are $'{"landing": "pr"}\n' .claude/celetis-flow/landing.json
+[ "$(git -C "$proj" config celetis-flow.agent)" = claude ] || fail "wrong celetis-flow.agent for one host"
+
+new_project badrecord
+mkdir -p "$proj/.claude/celetis-flow"
+want='setup: .claude/celetis-flow/wiring.json is no record of setup; fix or remove it first'
+for bad in '[]' 'not json' '{"schema": 2, "files": [], "entries": {}}' '{"schema": 1}' '{"schema": 1, "files": [1], "entries": {}}' '{"schema": 1, "files": [], "entries": {"a": "b"}}'; do
+  printf '%s\n' "$bad" >"$proj/.claude/celetis-flow/wiring.json"
+  commit_all "bad $bad"
+  stops "$want" write --hosts codex --landing pr
+  clean_tree "a bad record left a file"
+done
+
 only_api
 echo "PASS"
