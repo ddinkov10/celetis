@@ -193,17 +193,19 @@ check() {
   elif [ -f "$answer" ] && grep -qF 'Then:' "$answer"; then
     if [ "$k:$mode" = 13:step ]; then
       human_stop=$'gh issue edit 7 --add-label ready-for-human\nThen: my step ends'
-      actions=$(sed '/^[[:space:]]*$/d' "$answer")
+      actions=$(sed -E '/^[[:space:]]*$/d; /^[[:space:]]*```(bash|sh|shell)?[[:space:]]*$/d' "$answer")
       bound_cwd=$(jq -rn --arg cwd "$product_cwd" '$cwd | @sh')
       [ "$actions" = "$human_stop" ] || [ "$actions" = "cd $bound_cwd && $human_stop" ] ||
         what=', unexpected action in human-precondition stop'
     fi
     if [ "$k:$mode" = 20:step ]; then
-      grep -qiE 'no (usable )?(native )?file(-only)? reader|native.*file.*reader.*(unavailable|missing)' "$answer" ||
+      grep -qiE 'BLOCKED|setup stop|cannot enter|stopped before entry' "$answer" ||
+        what=', missing blocked entry state'
+      grep -qiE 'no (usable )?(native )?file(-only)? reader|native.*file.*reader.*(unavailable|missing)|no (usable )?.*Read.*(tool|reaches)|file(-only)? reader tools:[[:space:]]*none' "$answer" ||
         what=', missing native reader limitation'
-      grep -qiE 'no.*(checkout|root).*(locator|location|access)|(checkout|root).*(locator|location).*(unavailable|missing)' "$answer" ||
+      grep -qiE 'no.*(checkout|root).*(locator|location|access)|(checkout|root).*(locator|location).*(unavailable|missing)|(cannot|unable to).*(find|locate|identify).*(checkout|root)|checkout-locator tools:[[:space:]]*none' "$answer" ||
         what=', missing checkout locator limitation'
-      grep -qiE '(enable|configure|provide|connect|grant|install).*native.*(file|metadata|read|access|locator)' "$answer" ||
+      grep -qiE '(enable|configure|provide|connect|grant|install).*(native.*(file|metadata|read|access|locator)|(Glob|Grep).*Read|Read.*(Glob|Grep))' "$answer" ||
         what=', missing positive native access setup'
       grep -qiE 'shell.*(absent|unavailable|not available|no access)|(no|absent|unavailable).*shell' "$answer" ||
         what=', missing shell access limitation'
@@ -268,7 +270,7 @@ check 17 step "$expected_land" not "$L" "$W" "$land" "$other_land" '--add-label 
 for k in 18 19; do
   check "$k" step "$L" '## Stopped' not "$W" "$land" "$claude_land" "$codex_land" 'cat .celetis.yaml' 'git rev-parse' 'bash -c' 'Then: I go on with'
 done
-check 20 step 'BLOCKED' 'Then: my step ends' not "$W" "$land" "$claude_land" "$codex_land" 'gh issue edit' 'gh issue comment' 'cat .celetis.yaml' 'git rev-parse' 'bash -c' 'readFile(' 'Grep(' 'exec_command(' 'read_mcp_resource(' 'Then: I go on with'
+check 20 step 'Then: my step ends' not "$W" "$land" "$claude_land" "$codex_land" 'gh issue edit' 'gh issue comment' 'cat .celetis.yaml' 'git rev-parse' 'bash -c' 'readFile(' 'Grep(' 'exec_command(' 'read_mcp_resource(' 'Then: I go on with'
 for k in 1 2 3 4; do check "$k" hand not "$L"; done
 
 if [ -n "$output_dir" ]; then

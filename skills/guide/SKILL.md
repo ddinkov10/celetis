@@ -7,7 +7,11 @@ disable-model-invocation: true
 
 **Host entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in this loaded file's path. Read [the host operations](../../docs/hosts/entry.md) at `<plugin>/docs/hosts/entry.md` directly, before any product-path scan. The relative link starts in the absolute directory containing this SKILL.md. Complete its startup reads on each invocation, including a same-session handoff.
 
-Match the goal to a row. Give the selected host's skill prompt or command and one line on why it fits. Execute no recommended action and invoke no other skill. Goal: the invocation input.
+If entry stops, report only the exact block and the required repair or access setup. End the turn without goal advice, including conditional commands.
+
+After Host entry succeeds, match the goal to a row. Give the selected host's skill prompt or command and one line on why it fits.
+Write each launcher recommendation as `scripts/celetis --host claude <command>` or `scripts/celetis --host codex <command>` for the running host, including commands for the person's terminal.
+Execute no recommended action and invoke no other skill. Goal: the invocation input.
 
 | You want to… | Run |
 |---|---|

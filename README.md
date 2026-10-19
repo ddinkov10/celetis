@@ -43,9 +43,10 @@ No file of the plugin names a part of a product, apart from the records of `docs
 names a role, for example "the verify gate of the project", and the product project names the
 thing. A lane ends when the change is on the trunk, which is the default branch of the repository
 on GitHub: the verify gate, the deployment, and each other part of a product stay in the product
-project. The plugin has no `version`, no `bin/` folder, no hook, and no declared dependency, and it
-gives no permission rule. ADR-0012 holds the original packaging decision; ADR-0014 extends it
-to both hosts without a second copy of the procedures.
+project. The plugin has no `version`, no `bin/` folder, and no declared dependency, and it gives
+no permission rule. Its Claude native hook completes file entry before skill expansion.
+ADR-0012 holds the original packaging decision; ADR-0014 extends it to both hosts without a
+second copy of the procedures.
 
 ## Requirements
 
@@ -726,10 +727,13 @@ Run the tests in a checkout of this repository.
   absent config and custom values, invalid config, a denied read, same-session handoff, and
   borrowed rules. Each entry reads exactly one active config and applies only its target text.
   The retained artifacts include source hashes, exact paths, restrictions, streams, and exit
-  statuses. It uses tokens and stays outside the gate and the workflow:
+  statuses. Claude's native hook uses metadata and normal permission-checked `Read` before
+  the model sees an entry. The owned passive observer records native API results and content
+  hashes; it changes no permission or result. The test installs no tool. It uses tokens and stays outside the gate and the workflow:
 
   ```bash
-  PATH="/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh --output-dir /absolute/evidence
+  PATH="/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh \
+    --output-dir /absolute/evidence
   ```
 
   The separate Codex CLI and desktop probes are in `tests/manual/config-entry-codex.md`.

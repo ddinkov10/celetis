@@ -183,12 +183,17 @@ for contract in '.celetis.yaml' 'custom.<name>' 'configuration.md' 'whole' 'once
   grep -qF -- "$contract" docs/hosts/entry.md || fail "Host entry is missing the YAML contract: $contract"
 done
 for host in claude codex; do
-  for contract in '.git' '.celetis.yaml' 'shell' 'context'; do
+  for contract in '.git' 'shell' 'context'; do
     grep -qF -- "$contract" "docs/hosts/$host.md" || fail "$host is missing native entry guidance: $contract"
   done
 done
+grep -qF '.celetis.yaml' hooks/entry.js || fail 'Claude native entry must select .celetis.yaml'
+grep -qF '.celetis.yaml' docs/hosts/codex.md || fail 'Codex native entry must select .celetis.yaml'
 grep -qF 'active checkout binding' docs/hosts/codex.md || fail 'Codex entry must use the active checkout binding'
 grep -qF 'tool process cwd' docs/hosts/codex.md || fail 'Codex entry must distinguish the tool process cwd'
+for contract in 'hooks/entry.js' '$.session.root()' '$.fs.stat' 'permission-checked' 'zero content reads' 'one whole `Read` request' 'including commentary' 'file_unchanged' 'seeded result' 'compacted' 'another access path' 'hook setup'; do
+  grep -qF -- "$contract" docs/hosts/claude.md || fail "Claude entry must preserve native hook guarantees: $contract"
+done
 raw=$(search -F '<plugin>/' -- skills ':(exclude,glob)skills/*/SKILL.md')
 [ -z "$raw" ] || fail "the text <plugin>/ in a file of skills/ that is no SKILL.md of a skill, as <path>:<line>:<text>:" "$raw$nl"
 
@@ -213,6 +218,13 @@ for path in docs/hosts/entry.md docs/hosts/claude.md docs/hosts/codex.md skills/
   is_tracked "$path" && [ -f "$path" ] || host_missing+=$path$nl
 done
 [ -z "$host_missing" ] || fail "a host contract file that is missing or untracked:" "$host_missing"
+for contract in 'launcher recommendation' '--host claude <command>' '--host codex <command>' "person's terminal"; do
+  grep -qF -- "$contract" skills/guide/SKILL.md || fail "guide must select the running host in terminal advice: $contract"
+done
+for contract in 'After Host entry succeeds' 'If entry stops' 'conditional commands'; do
+  grep -qF -- "$contract" skills/guide/SKILL.md || fail "guide must gate goal advice on successful entry: $contract"
+done
+grep -qF 'Do not read a `.git` directory' docs/hosts/codex.md || fail 'Codex metadata must branch before reading .git'
 host_leaks=$(search -E '\$ARGUMENTS|CLAUDE_PLUGIN_ROOT|EnterWorktree|ExitWorktree|\(Skill tool\)|scratchpad directory' -- skills step-prompt.md)
 [ -z "$host_leaks" ] || fail "a native host assumption outside the host references:" "$host_leaks$nl"
 if [ -f skills/guide/agents/openai.yaml ]; then

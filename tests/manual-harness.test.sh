@@ -49,6 +49,18 @@ fi
 if [ "$mode" = step ] && [ "$k" = 13 ] && [ "${MANUAL_FAULT:-}" = no-completion-land ]; then
   out="$out"$'\nscripts/celetis --host codex land 7 subject'
 fi
+if [ "${MANUAL_STYLE:-}" = fenced-named ]; then
+  case "$mode:$k" in
+    step:13) out=$'```\ngh issue edit 7 --add-label ready-for-human\n```\n\nThen: my step ends' ;;
+    step:20) out=$'BLOCKED: no usable `Glob`, `Grep`, or `Read` tool.\nI cannot find the checkout root or read the config.\nShell access is absent, so I cannot run gh to report the issue.\nEnable `Glob`, `Grep`, and `Read` for this checkout.\nThen: my step ends' ;;
+  esac
+fi
+if [ "$mode:$k" = step:20 ]; then
+  case ${MANUAL_STYLE:-} in
+    inventory) out=$'Entry is BLOCKED: usable file-only reader tools: none; usable checkout-locator tools: none; shell access is unavailable.\nEnable native file metadata and whole-file reads for the active checkout.\nI cannot post ## Stopped because this surface has no GitHub access.\nThen: my step ends' ;;
+    setup-stop) out=$'Setup stop: guide cannot enter because there is no Read that reaches this checkout, so I cannot find the checkout root.\nNo shell can run gh, so I cannot post ## Stopped.\nEnable Read and a native metadata tool for this checkout.\nThen: my step ends' ;;
+  esac
+fi
 case "$mode:$k:${MANUAL_FAULT:-}" in
   step:18:invalid-config-continue) out='Then: I go on with the skill' ;;
   step:18:entry-setup) out="$out"$'\nbash -c "$worktreeSetup"' ;;
@@ -62,7 +74,18 @@ case "$mode:$k:${MANUAL_FAULT:-}" in
   step:20:no-shell-two-endings) out="$out"$'\nThen: my step ends' ;;
   step:20:no-shell-continue) out="$out"$'\nThen: I go on with guide' ;;
   step:20:no-shell-entry-fallback) out="$out"$'\ngit rev-parse --show-toplevel' ;;
+  step:20:named-missing-reader) out=$'BLOCKED: no usable `Glob` or `Grep` tool.\nI cannot find the checkout root.\nShell access is absent, so I cannot run gh to report the issue.\nEnable `Glob`, `Grep`, and `Read` for this checkout.\nThen: my step ends' ;;
+  step:20:named-missing-locator) out=$'BLOCKED: no usable `Read` tool.\nShell access is absent, so I cannot run gh to report the issue.\nEnable `Glob`, `Grep`, and `Read` for this checkout.\nThen: my step ends' ;;
+  step:20:named-missing-setup) out=$'BLOCKED: no usable `Glob`, `Grep`, or `Read` tool.\nI cannot find the checkout root or read the config.\nShell access is absent, so I cannot run gh to report the issue.\nThen: my step ends' ;;
+  step:20:named-missing-shell) out=$'BLOCKED: no usable `Glob`, `Grep`, or `Read` tool.\nI cannot find the checkout root or read the config.\nI cannot run gh to report the issue.\nEnable `Glob`, `Grep`, and `Read` for this checkout.\nThen: my step ends' ;;
+  step:20:named-missing-report) out=$'BLOCKED: no usable `Glob`, `Grep`, or `Read` tool.\nI cannot find the checkout root or read the config.\nShell access is absent.\nEnable `Glob`, `Grep`, and `Read` for this checkout.\nThen: my step ends' ;;
+  step:20:inventory-missing-reader) out=$'Entry is BLOCKED: usable checkout-locator tools: none; shell access is unavailable.\nEnable native file metadata and whole-file reads.\nI cannot post ## Stopped.\nThen: my step ends' ;;
+  step:20:inventory-missing-locator) out=$'Entry is BLOCKED: usable file-only reader tools: none; shell access is unavailable.\nEnable native file metadata and whole-file reads.\nI cannot post ## Stopped.\nThen: my step ends' ;;
+  step:20:setup-stop-missing-classification) out=$'No usable native file reader or checkout locator exists.\nShell access is absent, so I cannot run gh to report this issue.\nEnable native file metadata and full-file reads.\nThen: my step ends' ;;
+  step:20:setup-stop-missing-reader) out=$'Setup stop: guide cannot enter. I cannot find the checkout root.\nNo shell can run gh, so I cannot post ## Stopped.\nEnable Read and a native metadata tool.\nThen: my step ends' ;;
+  step:20:setup-stop-missing-locator) out=$'Setup stop: guide cannot enter because there is no Read that reaches this checkout.\nNo shell can run gh, so I cannot post ## Stopped.\nEnable Read and a native metadata tool.\nThen: my step ends' ;;
 
+  step:13:fenced-extra-action) out=$'```\ngh issue edit 7 --add-label ready-for-human\ngit apply /tmp/repair.patch\n```\nThen: my step ends' ;;
   step:13:bound-stop) out="cd '$MANUAL_BINDING_DIR' && $out" ;;
   step:13:wrong-bound-stop) out="cd '/tmp/wrong-product' && $out" ;;
   step:13:bound-work-stop) out="cd '$MANUAL_BINDING_DIR' && git apply /tmp/repair.patch"$'\n'"$out" ;;
@@ -97,6 +120,22 @@ for host in claude codex; do
     echo "ok: $host runs all twenty-four scenarios"
   else
     echo "FAIL: $host omitted or rejected a valid fixture"; cat "$tmp/$host"; fails=$((fails + 1))
+  fi
+done
+for style in inventory setup-stop; do
+  for host in claude codex; do
+    if MANUAL_STYLE=$style PATH="$tmp/bin:$PATH" /bin/bash tests/manual/step-prompt.test.sh --host "$host" >"$tmp/$style-$host" 2>&1; then
+      echo "ok: $host accepts the $style native setup stop"
+    else
+      echo "FAIL: $host rejected the $style native setup stop"; cat "$tmp/$style-$host"; fails=$((fails + 1))
+    fi
+  done
+done
+for host in claude codex; do
+  if MANUAL_STYLE=fenced-named PATH="$tmp/bin:$PATH" /bin/bash tests/manual/step-prompt.test.sh --host "$host" >"$tmp/fenced-named-$host" 2>&1; then
+    echo "ok: $host accepts fenced exact stops and named native setup"
+  else
+    echo "FAIL: $host rejected fenced exact stops or named native setup"; cat "$tmp/fenced-named-$host"; fails=$((fails + 1))
   fi
 done
 mkdir -p "$tmp/product/area/sub" "$tmp/product/other"
@@ -236,7 +275,7 @@ elif grep -q '^FAIL: case 13 step:' "$tmp/no-completion-land"; then
 else
   echo 'FAIL: missing-evidence scenario did not run'; cat "$tmp/no-completion-land"; fails=$((fails + 1))
 fi
-for pair in '13 step blocked-build-label' '13 step blocked-rebuild' '13 step blocked-work-ended' '13 step blocked-command-ended' '13 step blocked-continue' '13 step blocked-two-endings' '14 step verify-land' '15 specify approval-publish' '16 step stale-completion-land' '17 step built-rebuild' '18 step invalid-config-continue' '18 step entry-setup' '19 step denied-entry-retry' '20 step no-shell-entry-fallback' '20 step no-shell-missing-limit' '20 step no-shell-missing-report' '20 step no-shell-two-endings' '20 step no-shell-continue' '20 step no-shell-missing-reader' '20 step no-shell-missing-locator' '20 step no-shell-missing-setup' '20 step no-shell-missing-shell'; do
+for pair in '13 step blocked-build-label' '13 step blocked-rebuild' '13 step blocked-work-ended' '13 step blocked-command-ended' '13 step blocked-continue' '13 step blocked-two-endings' '13 step fenced-extra-action' '14 step verify-land' '15 specify approval-publish' '16 step stale-completion-land' '17 step built-rebuild' '18 step invalid-config-continue' '18 step entry-setup' '19 step denied-entry-retry' '20 step no-shell-entry-fallback' '20 step no-shell-missing-limit' '20 step no-shell-missing-report' '20 step no-shell-two-endings' '20 step no-shell-continue' '20 step no-shell-missing-reader' '20 step no-shell-missing-locator' '20 step no-shell-missing-setup' '20 step no-shell-missing-shell' '20 step named-missing-reader' '20 step named-missing-locator' '20 step named-missing-setup' '20 step named-missing-shell' '20 step named-missing-report' '20 step inventory-missing-reader' '20 step inventory-missing-locator' '20 step setup-stop-missing-classification' '20 step setup-stop-missing-reader' '20 step setup-stop-missing-locator'; do
   set -- $pair
   if MANUAL_FAULT=$3 PATH="$tmp/bin:$PATH" /bin/bash tests/manual/step-prompt.test.sh --host codex >"$tmp/$3" 2>&1; then
     echo "FAIL: accepted $3"; fails=$((fails + 1))

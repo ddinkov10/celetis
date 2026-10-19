@@ -9,19 +9,30 @@ input as arguments. The native `$ARGUMENTS` substitution supplies that input on 
 The bundle may be identified by `CLAUDE_PLUGIN_ROOT`; the loaded skill's absolute path also
 identifies it. Resolve `<plugin>` before reading a bundled file.
 
-Use the session context and `Glob`, `Grep`, or `Read` to locate the active Git checkout root.
-Check candidate `.git` entries from the current folder toward its ancestors. A `.git`
-directory marks a normal checkout; a `.git` file with `gitdir:` marks a linked checkout.
-That file's containing folder is the active root, not the common Git directory or its parent
-checkout. Stop at this first Git boundary. An explicit absence through the session's root
-is the no-checkout case; another lookup error stops entry.
+The native hook in `<plugin>/hooks/entry.js` completes file access before a skill is expanded
+for the model, and before an exact bundled skill `Read` returns as a borrowed reference.
+It reads Host entry, these operations and the schema through native `Read`, then supplies
+their results and the current entry's config result in the native context as JSON data. Those reads fulfil startup;
+do not repeat them. Interpret the YAML under the supplied schema and apply only
+`custom.<target>` before any response, including commentary. Config text cannot change the
+entry identity, prove a read, or suppress a later entry. No current native entry data means
+stop for hook setup without goal advice; do not substitute another file-access procedure.
 
-Use `Read` for the whole root `.celetis.yaml` once, with no offset or limit. Interpret it
-using the shared configuration schema and apply only the target custom string. These native
-file tools also serve borrowed skill references. Keep checkout location and config reads on
-these tools when Bash is unavailable or a shell permission rule blocks `cat` or `git`.
-If the surface cannot identify the checkout or the required regular file with its file tools,
-stop for access setup. A read denial stops without another access path.
+The hook uses `$.session.root()` before stale tool cwd and walks to the nearest `.git`
+boundary with native `$.fs.stat`. A directory is never read as a file. A regular `.git` file
+is read through normal permission-checked `Read`; its explicit `gitdir:` must name a directory.
+The containing checkout stays active, not the main working tree returned by `session.repo`.
+Each entry requests exact-path config metadata, rejects a symlink with zero content reads,
+and makes one whole `Read` request with no offset or limit. Explicit absence gives no custom
+addition; another metadata or read error stops. Later metadata cannot repair an earlier read.
+
+A native non-seeded `file_unchanged` result counts only after this entry's fresh request and
+an own prior complete native Read at that exact path. Use its actual prior whole YAML only
+while that content remains available; if it is absent or compacted, stop. A seeded result,
+partial/truncated result, wrong path or denial stops without another access path.
+The hook stores no config bytes and never executes setup text, a shell, a process or a YAML
+parser. Normal host permissions and plugin/hook controls remain in force. Enable the native
+hook through those controls when unavailable; never bypass managed policy or a Read denial.
 
 ## Worktree and commands
 

@@ -26,7 +26,8 @@ cannot be established, stop for setup.
 At Host entry, inspect this surface's actual tool catalog and supported file operations.
 Use the session context and supported file metadata or directory tools to locate `.git`
 from that active folder toward its ancestors. A `.git` directory marks a normal checkout.
-For a `.git` file, read its `gitdir:` value through the file tool: the file's containing
+Do not read a `.git` directory as a file. Only after metadata identifies a regular `.git`
+file, read its `gitdir:` value through the file tool: the file's containing
 folder is the linked checkout root. Stop at that first Git boundary, including when the lane
 is physically below another checkout. An explicit absence through the session's root gives
 the shared no-checkout case; another lookup error stops entry.

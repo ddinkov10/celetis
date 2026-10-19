@@ -346,8 +346,9 @@ Domain knowledge stays in the `AGENTS.md` files (ADR-0006).
 
 Each `SKILL.md` starts with the common host entry, which reads the whole config once through
 native file tools before any step or answer and applies only its target string (ADR-0013).
-Claude uses `Read`, `Glob`, and `Grep`; Codex uses supported file-only operations on its actual
-surface. The agent interprets the schema in `docs/configuration.md`, with no shell, `yq`, or
+Claude's native hook supplies metadata and permission-checked `Read` results before the
+model sees the entry; filename search alone proves no file kind. Codex uses supported file-only operations on its actual surface. The agent
+interprets the schema in `docs/configuration.md`, with no shell, `yq`, or
 new parser operation. Native entry executes no setup and proves no deterministic parser check.
 `docs/hosts/entry.md` and the selected host reference own the entry rules.
 
@@ -707,7 +708,7 @@ state the behavior that a case asserts. A turn with the step text starts with
 no text on auto mode in its context, so the test does not show how auto mode acts on a session
 (ADR-0011).
 
-`tests/manual/custom-part.test.sh` is the separate 12-case Claude test for native `Read`,
+`tests/manual/custom-part.test.sh` is the separate 24-case Claude test for native `Read`,
 missing files, denied reads, and checkout changes. Codex explicit-file and denied-read probes
 need their own recorded tool results; a text-only answer cannot prove a file was read. Guide's
 explicit-only metadata is part of the deterministic package check, while native selection

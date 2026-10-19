@@ -53,6 +53,34 @@ exit status, including on failure. It keeps 97 generated artifacts after a compl
 Save generated fixture data only. Run the separate CLI and desktop native YAML probes in
 [config entry on Codex](config-entry-codex.md), with their actual tools and isolated installations.
 
+For Claude, the isolated package includes the native entry module. Load the passive observer
+from the owned acceptance fixture with its source hashes. It observes normal native metadata,
+Read calls/results and permission decisions without changing them. Its system/ui_log records
+carry native IDs, exact paths, metadata and compact complete-content SHA256 values. Match each
+result to its earlier call and compare content hashes with the retained package/config bytes.
+Reject missing, fabricated, wrong-path or late records. A model's output or an entry-data marker
+is no read proof. Keep every actual assistant TextBlock in timing checks.
+No MCP server, global installation, output style or system-prompt override is needed. Missing
+native hook capability is a normal setup block. Missing config has zero content reads; a symlink
+has zero content reads. The 24 cases still produce 97 artifacts.
+The borrowed case uses explicit initial Skill selection as a reference, with no procedure.
+A native `file_unchanged` result is valid only after a matching prior successful whole-file
+result; each entry still makes its own exact full `Read` request. Static host operations may
+be reused for borrowed references. Count target markers across assistant text without counting
+the final result's mirrored text twice.
+The EnterWorktree case keeps one CLI process. A first user turn enters the actual lane;
+after its successful native result, a second user turn starts with `/celetis:guide`. Keep both
+SDKUserMessage inputs in the case input and both result events with the same session ID.
+Match the successful native call/result and returned `worktreePath` to the current binding.
+The hook uses the current native root and validates its Git boundary; an old cwd string,
+mismatched, failed, or stale binding does not select the checkout. Config metadata still precedes
+its full `Read`. The tool cwd can remain at main; all entry paths must name the returned lane.
+The native input adds one test recording instruction: emit actual `lstat` results as JSON with
+absolute path and boolean `file`, `directory`, and `symlink` fields from that result's methods;
+an actual ENOENT records path and code. It adds no expected root, marker, operation, or response rule.
+The native hook uses `fs.stat`, so that old recording request supplies no evidence by itself.
+The passive observer must record actual metadata results or native rejections at their exact paths.
+
 For checker-only changes, compare hashes of the old and current model inputs before reusing
 saved results. Compare the quoted skills, host references, step text, and applicable project
 instructions too. Replay unchanged answers, events, and statuses through the current checker.
@@ -61,7 +89,9 @@ Changed model inputs require the complete final suite on the affected host. Keep
 failed, blocked, and interrupted run; use a new directory for each later run.
 
 Native denied-read evidence needs a file-read call at the exact active `.celetis.yaml` path, its matching error
-result and permission-denial record, and no later tool call. A final answer that says it could
+result with specific permission-error text, and no later tool call. Keep a separate native denial
+record when the host emits one; a matching observer-proven native Read error is also evidence.
+A final answer that says it could
 not read a file does not establish those facts. Keep host-specific IDs and denial formats.
 A no-shell probe must explicitly name its
 permitted file-read tool. If access is denied, retain the denial and stop that operation.
