@@ -191,7 +191,7 @@ grep -qF '.celetis.yaml' hooks/entry.js || fail 'Claude native entry must select
 grep -qF '.celetis.yaml' docs/hosts/codex.md || fail 'Codex native entry must select .celetis.yaml'
 grep -qF 'active checkout binding' docs/hosts/codex.md || fail 'Codex entry must use the active checkout binding'
 grep -qF 'tool process cwd' docs/hosts/codex.md || fail 'Codex entry must distinguish the tool process cwd'
-for contract in 'hooks/entry.js' '$.session.root()' '$.fs.stat' 'permission-checked' 'zero content reads' 'one whole `Read` request' 'including commentary' 'file_unchanged' 'seeded result' 'compacted' 'another access path' 'hook setup'; do
+for contract in 'hooks/entry.js' 'native destination' '$.session.root()' '$.session.cwd()' '$.fs.stat' 'permission-checked' 'zero content reads' 'one whole `Read` request' 'including commentary' 'file_unchanged' 'seeded result' 'compacted' 'another access path' 'hook setup' 'later full-file' 'new invocation' 'same agent loop'; do
   grep -qF -- "$contract" docs/hosts/claude.md || fail "Claude entry must preserve native hook guarantees: $contract"
 done
 raw=$(search -F '<plugin>/' -- skills ':(exclude,glob)skills/*/SKILL.md')

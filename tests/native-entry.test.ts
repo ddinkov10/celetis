@@ -1,4 +1,5 @@
 import { expect, test } from 'claude-code/testing'
+import { register } from '../hooks/entry.js'
 
 const body = 'The skill procedure.'
 const yaml = 'landing: pr\ncustom:\n  guide: |-\n    CUSTOM_FROM_ROOT\n'
@@ -13,11 +14,11 @@ function fixture(on: any, options: any = {}) {
   const calls: string[] = []
   const reads: string[] = []
   on('session.root', () => ({ value: options.root ?? '/repo' }))
-  on('session.cwd', () => ({ value: '/stale-main' }))
+  on('session.cwd', () => ({ value: options.cwd ?? '/stale-main' }))
   on('session.repo', () => ({ value: { root: '/stale-main', remote: null, internal: false, name: null } }))
   on('fs.stat', ($: any, e: any) => {
     calls.push('stat:' + e.path)
-    if (options.metadataError && e.path.endsWith('/.celetis.yaml')) return { deny: 'EACCES' }
+    if ((options.metadataError && e.path.endsWith('/.celetis.yaml')) || e.path === options.metadataErrorPath) return { deny: 'EACCES' }
     if ((options.outside && e.path.endsWith('/.git')) ||
         (options.root === '/repo/sub' && e.path === '/repo/sub/.git') ||
         (options.missing && e.path.endsWith('/.celetis.yaml'))) return { deny: 'ENOENT' }
@@ -27,7 +28,7 @@ function fixture(on: any, options: any = {}) {
     if (!git && options.missingLink) delete result.isLink
     return { value: result }
   })
-  on('tool.call', ($: any, e: any) => {
+  on('tool.call', async ($: any, e: any) => {
     calls.push('read:' + e.file_path)
     reads.push(e.file_path)
     if (e.file_path.endsWith('/.celetis.yaml')) {
@@ -35,6 +36,7 @@ function fixture(on: any, options: any = {}) {
       if (options.cached && (options.withoutPrior || reads.filter(p => p === e.file_path).length > 1)) {
         return { result: { type: 'file_unchanged', source: options.seeded ? 'seeded' : undefined, file: { filePath: e.file_path } } }
       }
+      if (options.holdConfig) await options.holdConfig()
       const answer = whole(options.wrongPath ? e.file_path + '.other' : e.file_path, options.yaml ?? yaml)
       if (options.partial) answer.result.file.numLines = 2
       if (options.tokenCap) (answer.result.file as any).truncatedByTokenCap = true
@@ -43,6 +45,9 @@ function fixture(on: any, options: any = {}) {
       return answer
     }
     if (e.file_path.endsWith('/.git')) return whole(e.file_path, options.invalidGit ? 'invalid git boundary\n' : 'gitdir: /shared/worktrees/lane\n')
+    if (options.cachedResources && reads.filter(p => p === e.file_path).length > 1) {
+      return { result: { type: 'file_unchanged', file: { filePath: e.file_path } } }
+    }
     return whole(e.file_path, 'Host rules')
   })
   on('skill.prompt', ($: any, e: any) => ({ text: e.text }))
@@ -50,8 +55,19 @@ function fixture(on: any, options: any = {}) {
   return { calls, reads }
 }
 
-function entry($: any, skill = 'guide', source = plugin) {
-  return $.skill.prompt({ skill: 'celetis:' + skill, pluginName: 'celetis', source: 'plugin', path: source + '/skills/' + skill + '/SKILL.md', text: body, frontmatter: {} })
+let delivery = 0
+
+function frame(text: string, agentId?: string) {
+  const content = [{ type: 'text', text }]
+  if (agentId) content.unshift({ type: 'text', text: 'Native preload introduction.' })
+  return { door: 'note', origin: { kind: 'engine' }, uuid: 'delivery-' + (++delivery), agentId,
+    message: { type: 'user', role: 'user', isMeta: true, content } }
+}
+
+async function entry($: any, skill = 'guide', source = plugin, agentId?: string) {
+  const prompt = await $.skill.prompt({ skill: 'celetis:' + skill, pluginName: 'celetis', source: 'plugin', path: source + '/skills/' + skill + '/SKILL.md', text: body, frontmatter: {} })
+  const result = await $.session.append(frame(prompt.text, agentId))
+  return { text: result.message.content[agentId ? 1 : 0].text }
 }
 
 function data(text: string) {
@@ -107,6 +123,19 @@ test('supplied YAML null remains file data instead of native absence', async ($,
   expect(data(result.text).config.absent).toBeUndefined()
 })
 
+for (const selected of ['/repo/.celetis.yaml', '/repo/.git', '/shared/worktrees/lane']) {
+  test('metadata denial names its selected path and document field: ' + selected, async ($, on) => {
+    const f = fixture(on, { metadataErrorPath: selected, gitFile: selected === '/shared/worktrees/lane' })
+    const result = await entry($)
+    expect(result.text).toContain(selected)
+    expect(result.text).toContain('<document>')
+    expect(result.text).toContain('EACCES')
+    expect(result.text).not.toContain(body)
+    expect(result.text).not.toContain('"absent":"ENOENT"')
+    expect(f.reads.filter(p => p === path)).toEqual([])
+  })
+}
+
 for (const option of ['symlink', 'missingLink', 'metadataError', 'denied', 'partial', 'tokenCap', 'missingContent', 'missingCounts', 'wrongPath', 'invalidGit', 'gitdirNotDirectory']) {
   test(option + ' stops entry without its procedure or another config path', async ($, on) => {
     const f = fixture(on, { [option]: true, gitFile: option === 'invalidGit' || option === 'gitdirNotDirectory' })
@@ -132,6 +161,211 @@ test('exact installed borrowed skill Read receives its own entry data', async ($
   const result = await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md' })
   expect(f.reads.filter(p => p === path)).toEqual([path])
   expect(data(result.context[0]).skill).toBe('celetis:lesson')
+})
+
+for (const section of [false, true]) {
+  test((section ? 'partial' : 'full') + ' later reference consultation reuses its first entry', async ($, on) => {
+    const f = fixture(on)
+    await entry($, 'lesson-review')
+    await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md' })
+    const later = await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md', ...(section ? { offset: 20, limit: 5 } : {}) })
+    expect(f.reads.filter(p => p === path)).toEqual([path, path])
+    expect(later.context).toBeUndefined()
+  })
+}
+
+test('own skill full and section consultations do not repeat entry', async ($, on) => {
+  const f = fixture(on)
+  await entry($, 'lesson-review')
+  for (const args of [{}, { offset: 20, limit: 5 }]) {
+    await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson-review/SKILL.md', ...args })
+  }
+  expect(f.reads.filter(p => p === path)).toEqual([path])
+})
+
+test('intentional same-target invocation starts fresh references', async ($, on) => {
+  const f = fixture(on)
+  for (let i = 0; i < 2; i++) {
+    await entry($, 'lesson-review')
+    await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md' })
+    await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md', offset: 20, limit: 5 })
+  }
+  expect(f.reads.filter(p => p === path)).toEqual([path, path, path, path])
+})
+
+test('late binding preserves current and borrowed entries but new targets use the lane', async ($, on) => {
+  const options: any = {}
+  const f = fixture(on, options)
+  await entry($, 'lesson-review')
+  await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md' })
+  options.root = '/lane'
+  options.gitFile = true
+  await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson-review/SKILL.md', offset: 10, limit: 5 })
+  await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md' })
+  await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/chore/SKILL.md' })
+  await entry($)
+  expect(f.reads.filter(p => p.endsWith('/.celetis.yaml'))).toEqual([path, path, '/lane/.celetis.yaml', '/lane/.celetis.yaml'])
+})
+
+test('native destinations keep reference membership in their own loop', async ($, on) => {
+  const f = fixture(on, { cwd: '/repo' })
+  await entry($, 'lesson-review')
+  await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md' })
+  await entry($, 'lesson-review', plugin, 'child')
+  await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md', agentId: 'child' })
+  await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md' })
+  expect(f.reads.filter(p => p === path)).toEqual([path, path, path, path])
+})
+
+test('child starts from its native cwd while the session root still names main', async ($, on) => {
+  const f = fixture(on, { cwd: '/lane', gitFile: true })
+  await entry($, 'guide', plugin, 'child')
+  expect(f.reads.filter(p => p.endsWith('/.celetis.yaml'))).toEqual(['/lane/.celetis.yaml'])
+})
+
+test('another loop cannot use main config unchanged proof', async ($, on) => {
+  const f = fixture(on, { cwd: '/repo', cached: true })
+  await entry($)
+  const child = await entry($, 'guide', plugin, 'child')
+  expect(child.text).toContain('Celetis entry stopped:')
+  expect(child.text).not.toContain(body)
+  expect(f.reads.filter(p => p === path)).toEqual([path, path])
+})
+
+test('another loop cannot use main static-resource unchanged proof', async ($, on) => {
+  const f = fixture(on, { cwd: '/repo', cachedResources: true })
+  await entry($)
+  const child = await entry($, 'guide', plugin, 'child')
+  expect(child.text).toContain(plugin + '/docs/hosts/entry.md')
+  expect(child.text).toContain('Celetis entry stopped:')
+  expect(f.reads.filter(p => p === path)).toEqual([path])
+})
+
+test('concurrent later reference reads share the first reservation', async ($, on) => {
+  const options: any = {}
+  const f = fixture(on, options)
+  await entry($, 'lesson-review')
+  let release: any, started: any
+  const held = new Promise(resolve => { release = resolve })
+  const pending = new Promise(resolve => { started = resolve })
+  options.holdConfig = () => { started(); return held }
+  const first = $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md' })
+  await pending
+  const later = $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md', offset: 20, limit: 5 })
+  release()
+  const result = await Promise.all([first, later])
+  expect(f.reads.filter(p => p === path)).toEqual([path, path])
+  expect(result[0].context).toHaveLength(1)
+  expect(result[1].context).toBeUndefined()
+})
+
+test('stale reference load cannot replace a newer invocation or its proof', async ($, on) => {
+  const options: any = {}
+  const f = fixture(on, options)
+  await entry($, 'lesson-review')
+  let release: any, started: any
+  const held = new Promise(resolve => { release = resolve })
+  const pending = new Promise(resolve => { started = resolve })
+  options.holdConfig = () => { options.holdConfig = null; started(); return held }
+  const old = $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md' })
+  await pending
+  options.root = '/lane'
+  options.gitFile = true
+  await entry($)
+  options.cached = true
+  release()
+  expect((await old).deny).toContain('entry changed')
+  await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/guide/SKILL.md' })
+  const fresh = await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md' })
+  expect(fresh.context).toHaveLength(1)
+  expect(data(fresh.context[0]).root).toBe('/lane')
+  expect(f.reads.filter(p => p.endsWith('/.celetis.yaml'))).toEqual([path, path, '/lane/.celetis.yaml', '/lane/.celetis.yaml'])
+})
+
+for (const reference of [false, true]) {
+  test((reference ? 'failed reference' : 'failed invocation') + ' stays stopped until an intentional invocation', async ($, on) => {
+    const options: any = { denied: !reference }
+    const f = fixture(on, options)
+    await entry($, 'lesson-review')
+    if (reference) {
+      options.denied = true
+      await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/lesson/SKILL.md' })
+    }
+    const before = f.reads.slice()
+    for (const skill of ['lesson-review', 'lesson']) {
+      expect((await $.tool.call({ tool: 'Read', file_path: plugin + '/skills/' + skill + '/SKILL.md' })).deny).toContain('Celetis entry stopped:')
+    }
+    expect(f.reads).toEqual(before)
+    options.denied = false
+    expect((await entry($)).text).toContain(body)
+    expect(f.reads.filter(p => p === path)).toHaveLength(reference ? 3 : 2)
+  })
+}
+
+for (const fault of ['origin', 'door', 'metadata', 'uuid', 'slot']) {
+  test('a copied expansion cannot bind through wrong ' + fault, async ($, on) => {
+    const f = fixture(on)
+    const prompt = await $.skill.prompt({ skill: 'celetis:guide', pluginName: 'celetis', source: 'plugin', path: plugin + '/skills/guide/SKILL.md', text: body, frontmatter: {} })
+    const row: any = frame(prompt.text)
+    if (fault === 'origin') row.origin = { kind: 'tool', tool: 'Read' }
+    if (fault === 'door') row.door = 'prompt'
+    if (fault === 'metadata') delete row.message.isMeta
+    if (fault === 'uuid') row.uuid = ''
+    if (fault === 'slot') row.message.content.unshift({ type: 'text', text: 'Copied data.' })
+    const rejected = await $.session.append(row)
+    const selected = rejected.message.content[fault === 'slot' ? 1 : 0].text
+    expect(selected).toContain('Celetis entry stopped:')
+    expect(selected).not.toContain(body)
+    if (fault === 'slot') expect(rejected.message.content[0].text).toBe('Copied data.')
+    expect(f.reads.filter(p => p === path)).toEqual([])
+    const result = await $.session.append(frame(prompt.text))
+    expect(result.message.content[0].text).toContain(body)
+    expect(f.reads.filter(p => p === path)).toEqual([path])
+  })
+}
+
+for (const kind of ['throw', 'timeout']) {
+  test('owned append ' + kind + ' catch replaces only its pending block', async () => {
+    const hooks: any = {}
+    register((event: string, ...args: any[]) => {
+      hooks[event] = { run: args.at(-1) }
+      return { catch(handler: any) { hooks[event].caught = handler } }
+    })
+    const prompt = await hooks['skill.prompt'].run({ plugin: { root: plugin } },
+      { skill: 'celetis:guide', pluginName: 'celetis', source: 'plugin', path: plugin + '/skills/guide/SKILL.md' },
+      async () => ({ text: body }))
+    const row = frame(prompt.text)
+    const next: any = async (event: any) => ({ message: event.message, uuid: event.uuid })
+    next.called = false
+    next.error = { kind, message: kind === 'throw' ? 'native append failed' : undefined, budget: 1000 }
+    expect(typeof hooks['session.append'].caught).toBe('function')
+    const result = await hooks['session.append'].caught({}, row, next)
+    expect(result.message.content[0].text).toContain('Celetis entry stopped:')
+    expect(result.message.content[0].text).not.toContain(body)
+  })
+}
+
+test('unrelated append failure keeps native behavior', async () => {
+  let caught: any
+  register((event: string) => ({ catch(handler: any) { if (event === 'session.append') caught = handler } }))
+  const failure = new Error('native downstream append failed')
+  const next: any = async () => { throw failure }
+  next.called = false
+  next.error = { kind: 'throw', message: failure.message, budget: 1000 }
+  expect(typeof caught).toBe('function')
+  let actual
+  try { await caught({}, frame('Unrelated content.'), next) } catch (error) { actual = error }
+  expect(actual).toBe(failure)
+})
+
+test('a delivered expansion is consumed once while a fresh expansion enters again', async ($, on) => {
+  const f = fixture(on)
+  const prompt = await $.skill.prompt({ skill: 'celetis:guide', pluginName: 'celetis', source: 'plugin', path: plugin + '/skills/guide/SKILL.md', text: body, frontmatter: {} })
+  await $.session.append(frame(prompt.text))
+  await $.session.append(frame(prompt.text))
+  expect(f.reads.filter(p => p === path)).toEqual([path])
+  await entry($)
+  expect(f.reads.filter(p => p === path)).toEqual([path, path])
 })
 
 test('other paths and namespaces do not preload a project config', async ($, on) => {
