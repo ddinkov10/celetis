@@ -1,14 +1,16 @@
 # celetis
 
-`celetis` is a general agent harness for Claude Code, with Codex CLI and desktop host adapters.
+`celetis` is a general agent harness with required automation for Claude Code and Codex TUI/CLI.
+The shared flows also allow manual or inline invocation in the Codex desktop app.
 It takes a request from free text to a change on the trunk through one GitHub issue: the intent,
 the lane, the spec, the plan, the
 build, and the landing. The issue is the state store: each result goes onto the issue, and each
 hand-off reads the issue again.
 
-Codex full workflow acceptance is incomplete. Stable installed resources during a running step,
-native desktop selection, retry controls, and final live workflows still need proof. The current
-integration is opt-in; see "Acceptance status" in `docs/celetis-flow.md` before using it.
+Codex remains opt-in while required CLI workflow acceptance is incomplete. Stable installed
+resources during a running step, changed-pair same-child repair, and final live workflows still
+need proof. Desktop automation is optional and has separate evidence in
+[Acceptance status](docs/celetis-flow.md#acceptance-status).
 
 The plugin holds:
 
@@ -47,6 +49,7 @@ project. The plugin has no `version`, no `bin/` folder, and no declared dependen
 no permission rule. Its Claude native hook completes file entry before skill expansion.
 ADR-0012 holds the original packaging decision; ADR-0014 extends it to both hosts without a
 second copy of the procedures. ADR-0015 replaces their config storage clauses with one YAML file.
+ADR-0016 limits required automation to the CLI hosts while keeping desktop invocation available.
 
 ## Requirements
 
@@ -431,7 +434,8 @@ has each step.
 In a terminal, start Codex with `codex --no-daemon` so its hooks use the current pane's environment.
 The table uses Claude's `/celetis:<skill> <input>` form. In Codex CLI or a desktop chat, use the
 advertised skill name: `Use the celetis:<skill> skill for <input>. Complete its Host entry startup reads before any response, including commentary.`, or select that skill in the
-host's skill selector. The native desktop selector still needs final acceptance proof.
+host's skill selector. Native desktop selector acceptance is optional under
+[Acceptance status](docs/celetis-flow.md#acceptance-status).
 
 | You type | The session | It leaves on the issue |
 |---|---|---|
@@ -651,8 +655,9 @@ scripts/celetis celetis-flow --board | npx --yes 'github:ddinkov10/agent-board#v
 `docs/celetis-flow.md`, "The board", gives the fixed command lists and card states.
 The [package README](https://github.com/ddinkov10/agent-board#readme) describes its page.
 Before the plugin cutover, the maintainer completes the [manual replacement](docs/configuration.md#replace-the-old-setup)
-for each product project and stops its old sessions, runners, and boards. Native desktop and
-full workflow acceptance remain open as listed in `docs/celetis-flow.md`, "Acceptance status".
+for each product project and stops its old sessions, runners, and boards. Required CLI workflow
+acceptance remains open; optional desktop evidence is separate in
+[Acceptance status](docs/celetis-flow.md#acceptance-status).
 
 ## Tests
 
@@ -725,9 +730,9 @@ The checks need no model credentials or tokens and start no model turn.
     --output-dir /absolute/evidence
   ```
 
-  The separate Codex CLI and desktop probes are in `tests/manual/config-entry-codex.md`.
-  A missing supported file-only reader is BLOCKED. Shell reads and deterministic fixtures
-  cannot prove native no-shell entry. `tests/manual/live-acceptance.md` tracks open surfaces.
+  The required Codex CLI and optional desktop probes are in `tests/manual/config-entry-codex.md`.
+  A missing supported file-only reader makes that operation BLOCKED. Shell reads and deterministic
+  fixtures cannot prove native no-shell entry. `tests/manual/live-acceptance.md` tracks open surfaces.
 
 `docs/celetis-flow.md`, "Check the harness", holds the reasons behind the facts of the gate, the
 workflow, the proof on bash 3.2, and the hand-run test.

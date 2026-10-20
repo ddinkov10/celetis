@@ -156,7 +156,10 @@ Keep the current parent model; this setup controls children only.
 For an existing project, replace each repository-owned profile input as the
 [manual cutover](configuration.md#replace-the-old-setup) specifies. Keep `slots` and `reviewer`
 under the exact runtime key; refresh the allowlist before dispatch. ADR-0015 changes storage
-only. It does not resolve desktop binding, installed-resource lifetime, or same-child retry limits.
+only. Installed-resource lifetime and same-child retry limits on required CLI surfaces remain
+open. Desktop binding has separate optional acceptance under
+[Acceptance status](celetis-flow.md#acceptance-status); the active-surface profile and tool checks
+still apply to each requested desktop operation.
 
 For attempts 2 and 3, the scorer resolves earlier attempts with the same digits, bias, profile,
 runtime, and reviewer role. When consecutive attempts select the same model ID, the applied

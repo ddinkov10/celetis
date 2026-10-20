@@ -549,8 +549,15 @@ cannot be used for exact runner resume.
 
 ## Acceptance status
 
-Codex is opt-in while full acceptance remains open. These are observed versions and results as
-of 2026-10-20, not a certified minimum-version range:
+Automatic flows are required for Claude Code and Codex TUI/CLI. In this acceptance policy,
+"both hosts" means those two CLI hosts. The terminal runner and board actions target those CLIs.
+The shared flows remain callable manually or inline in the Codex desktop app; desktop automation
+is optional. A missing desktop automation capability or an incomplete optional desktop check
+does not block CLI development, CLI acceptance, or a change that satisfies its required checks.
+ADR-0016 records this scope.
+
+Codex is opt-in while required CLI acceptance remains open. These are observed versions and
+results as of 2026-10-20, not a certified minimum-version range:
 
 | Component | Evidence and limit |
 |---|---|
@@ -560,7 +567,6 @@ of 2026-10-20, not a certified minimum-version range:
 | herdr 0.9.3 | The installed integrations report Claude v10 and Codex v8. Later reviewed-source Codex checks passed valid startup, real no-progress, and native exact Resume with a saved second turn. The resumed herdr reply still lacked `agent_session`. Claude recovery, compaction, and full workflow checks remain open |
 | agent-board 2.0.0, tag commit `e36283b` (earlier storage) | Contract 1 and the current config path passed. Released-browser Open shell and partial Claude Run/Go passed. The earlier Codex Run stopped on a local-marketplace setup error; Claude later stopped on quota. Later reviewed-source Codex Run, Resume, and Go passed with the correct issue and pane. Full acceptance remains open |
 | agent-board v2.2.1, commit `2014361f365e03e18169ed75d602b729e25e03bb` | The release records a 322-test gate and read-only default-agent controls. The released adapter and fixture Run/Resume checks have separate evidence. Real browser/Herdr Run and Resume remain open |
-| Codex desktop | The current selector cannot bind the owned isolated package: BLOCKED. CLI typed skill input and quoted tests do not establish desktop entry |
 | Bash 3.2.57, Perl 5.34.1, Node 26.11.1 | Used for the local deterministic gate and released-board checks. The scripts retain Bash 3.2 and Perl 5.14 as their language requirements |
 
 The later Codex board checks used reviewed commit `626881b`; the
@@ -580,16 +586,29 @@ A source wording test completed startup reads before the first response in five 
 samples, compared with zero of five control samples. It used the full guide text and actual file
 reads. Normal installed native entry and chore step order still need verification after review.
 
-The remaining release checks include every required lane and helper on both Codex surfaces,
-cross-host steps, compaction and exact resume, native skill selection, permissions in the active
-host, changed-model/effort repair on the same child, and live board state/action pairs. A CLI
-probe does not establish a desktop result. No obsolete metadata or protocol fallback is supplied.
+The remaining required CLI acceptance checks include every applicable lane and helper on Claude
+Code and Codex TUI/CLI, cross-host steps, compaction and exact resume, native CLI skill selection,
+permissions in the active CLI host, changed-model/effort repair on the same child, and live board
+state/action pairs. These gaps remain open. Optional desktop success cannot close a required
+CLI gap. No obsolete metadata or protocol fallback is supplied. The
+[live acceptance procedure](../tests/manual/live-acceptance.md) records each required surface.
 
 **Stable installed resources remain open.** A Codex refresh replaced an installed sibling file
 at the same path while an app-server still advertised that path. The shared update lock covers
 cooperating updates, not all future reads of a running session. No supported per-session package
 pin has been proved. A supported solution or an explicit change of the accepted requirement is
 needed before full acceptance and shipping. ADR-0014 records the architecture and this limit.
+
+### Optional Codex desktop evidence
+
+Desktop probes have their own PASS, FAIL, BLOCKED, or UNRUN records. BLOCKED and UNRUN remain
+incomplete without blocking otherwise complete required CLI checks. A CLI probe does not
+establish a desktop result. Manual desktop operations still use the active surface's tools,
+model profiles, and permissions; a missing tool or denied read stops that operation.
+
+| Component | Evidence and limit |
+|---|---|
+| Codex desktop | The current selector cannot bind the owned isolated package: BLOCKED. CLI typed skill input and quoted tests do not establish desktop entry |
 
 ## Limits
 
