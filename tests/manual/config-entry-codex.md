@@ -1,7 +1,9 @@
 # Native config entry on Codex
 
-Run CLI and desktop separately. Use an owned temporary product and isolated supported plugin
-installation. Keep the user's real plugin cache and settings unchanged. Read current CLI help,
+The CLI cases are required; desktop diagnostics are optional under
+[Acceptance status](../../docs/celetis-flow.md#acceptance-status). Run and record them separately.
+Use an owned temporary product and isolated supported plugin installation.
+Keep the user's real plugin cache and settings unchanged. Read current CLI help,
 the active tool schemas, and official host documentation before setup. The launcher must resolve
 the installed test package through real discovery; a checkout path passed as a fake installation
 does not qualify. Keep the installed and reviewed source hashes equal during each run.
@@ -92,4 +94,8 @@ Save one record per case, with these fields:
 
 PASS requires every observation for that case on that surface. A successful file capability
 probe is supporting evidence only. A replay, shell read, deterministic gate, or CLI success
-does not close desktop native acceptance. Keep blocked and unrun cases open for final Verify.
+does not close desktop native acceptance. Keep required CLI BLOCKED and UNRUN cases open for
+final Verify. Optional desktop BLOCKED and UNRUN remain incomplete in their separate records;
+they cannot block CLI development, required CLI completion, or a change that satisfies its
+required checks. No optional desktop case is PASS without its own evidence, and desktop success
+cannot close a required CLI gap. Missing tools and denied reads still stop the requested entry.

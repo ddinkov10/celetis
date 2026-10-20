@@ -1,8 +1,10 @@
 # Live acceptance
 
-Use this procedure after the deterministic gate and independent code review. It tests the
-shared workflow on Claude, Codex CLI, and Codex desktop. A shell fixture, a direct-file model
-test, and a native desktop invocation prove different operations. Record each surface separately.
+Use this procedure after the deterministic gate and independent code review. Required automation
+acceptance covers Claude Code and Codex TUI/CLI under
+[Acceptance status](../../docs/celetis-flow.md#acceptance-status). Codex desktop automation is an
+optional diagnostic. A shell fixture, a direct-file model test, and a native desktop invocation
+prove different operations. Record each surface separately.
 
 ## Prepare the fixture
 
@@ -23,10 +25,10 @@ test, and a native desktop invocation prove different operations. Record each su
 5. Record each preapproved fixture input and its actual human authorization source. General
    permission to run tests is not approval of a later written spec or proof of a human action.
    At an unresolved decision, retain the waiting state and collect evidence of that state.
-6. Run the Claude reference and both Codex surfaces on the same scenario behavior. Give each
-   run its own issue and evidence directory. Keep the expected states, artifacts, and cleanup
-   criteria equal. A denied operation, quota limit, or missing native control blocks that test;
-   continue independent cases.
+6. Run the Claude Code reference and Codex TUI/CLI on each applicable required scenario below.
+   Give each run its own issue and evidence directory. Keep the expected states, artifacts, and
+   cleanup criteria equal. A denied operation, quota limit, or missing native control blocks
+   that test; continue independent cases. Record optional desktop diagnostics separately.
 
 For herdr tests, create an owned named session and controller pane. Verify real `HERDR_ENV=1`
 inside that pane before controls. Start the released board there on an unused local port.
@@ -67,7 +69,8 @@ client version, suite exit status, and complete stdout/stderr separately from th
 The custom suite saves each exact prompt, tools, settings, checkout, plugin path, event stream,
 stderr, config source bytes and hashes, installed source hashes, runtime version, and client
 exit status, including on failure. It keeps 97 generated artifacts after a complete run.
-Save generated fixture data only. Run the separate CLI and desktop native YAML probes in
+Save generated fixture data only. Run the required CLI native YAML probes and record any optional
+desktop probes separately in
 [config entry on Codex](config-entry-codex.md), with their actual tools and isolated installations.
 
 For Claude, the isolated package includes the native entry module. Load the passive observer
@@ -120,21 +123,21 @@ references for the step order. Only the shared landing script may perform a fixt
 
 | Scenario | Surfaces | Required observations |
 |---|---|---|
-| Feature from intake to landing | Claude, CLI, desktop | Approved written spec in the issue body; latest Plan; task gates and independent reviews; all Verify scenarios pass; landed trunk commit; closed issue; cleanup |
-| Bug, chore, hotfix | Claude, CLI, desktop | Each lane's labels, artifacts, and step order; meaningful verify result; landing; lane and prototype cleanup |
-| All 19 skills and helpers | Claude regression, CLI, desktop | Installed inventory matches the repository; representative output or artifact for every skill; native invocation where required; guide and setup run only on explicit human invocation; Codex lists `celetis:setup` in a project with no `.codex/` folder |
-| Scope split, spike, rejected design | CLI, desktop | Real epic/child or issue state; correct worktree and prototype retention or removal; approval waits remain intact |
-| Custom text and handoffs | Claude, CLI, desktop | Whole active `.celetis.yaml` read once per entry; only target custom string applied; no setup; missing config/custom harmless; invalid or ambiguous config stops; distinct root/lane/subfolder markers; direct, borrowed, and handed-off rules; exact denied-read stop without another access path |
-| Task gate failure and repair | CLI, desktop | First failure at an independent meaningful oracle; same implementer repair; scoped independent re-review; unchanged oracle; final PASS |
-| CAP floor, escalation, STOP | CLI, desktop | Requested and actual model/effort from runtime evidence; floor applies; changed pair reaches the same child when supported; attempt 4 hands off and stops before landing |
-| Waiting decision or permission | Interactive CLI, desktop, herdr | Real waiting prompt and blocked card; unchanged issue state; no watcher exit; no guard bypass; record foreground lifetime |
-| Interrupt, no progress, exact resume | Both hosts through runner and board | Saved non-null record from a current turn; actual interruption and no-progress results; same host, ID, and checkout on resume; no duplicate issue lock |
-| Red CI, unrun Verify, human precondition | CLI, desktop | Separate cases for each cause; correct stopped or built markers; no early merge; current human completion evidence when required; re-entry keeps the completed build |
-| Both landing mechanisms | CLI, desktop | Same verified trunk result through each supported mechanism; actual PR checks where required; lane/prototype cleanup; shared landing script used |
-| Update, failed refresh, long-lived runner | Both hosts | Next step uses new content; failure retains its cause and stops before launch; updater cleanup before unlock; active resources keep their promised content and path lifetime |
-| Cross-host Plan handoff | Claude to Codex, Codex to Claude | Same spec, Plan, and issue; published CAP digits resolve on the receiving host; verified landing; record the receiving Codex surface |
-| Resume and compaction | CLI, desktop | Step/custom rules persist; exact saved identity; ledger and issue recovery preserve finished work; no repeat build |
-| Board actions | Released board and herdr, both hosts | Real Run, Resume, Go, Open shell; exact issue/session/pane association; actual waiting, active, and recovery cards |
+| Feature from intake to landing | Claude Code, Codex TUI/CLI | Approved written spec in the issue body; latest Plan; task gates and independent reviews; all Verify scenarios pass; landed trunk commit; closed issue; cleanup |
+| Bug, chore, hotfix | Claude Code, Codex TUI/CLI | Each lane's labels, artifacts, and step order; meaningful verify result; landing; lane and prototype cleanup |
+| All 19 skills and helpers | Claude Code regression, Codex TUI/CLI | Installed inventory matches the repository; representative output or artifact for every skill; native invocation where required; guide and setup run only on explicit human invocation; Codex lists `celetis:setup` in a project with no `.codex/` folder |
+| Scope split, spike, rejected design | Codex TUI/CLI | Real epic/child or issue state; correct worktree and prototype retention or removal; approval waits remain intact |
+| Custom text and handoffs | Claude Code, Codex TUI/CLI | Whole active `.celetis.yaml` read once per entry; only target custom string applied; no setup; missing config/custom harmless; invalid or ambiguous config stops; distinct root/lane/subfolder markers; direct, borrowed, and handed-off rules; exact denied-read stop without another access path |
+| Task gate failure and repair | Codex TUI/CLI | First failure at an independent meaningful oracle; same implementer repair; scoped independent re-review; unchanged oracle; final PASS |
+| CAP floor, escalation, STOP | Codex TUI/CLI | Requested and actual model/effort from runtime evidence; floor applies; changed pair reaches the same child when supported; attempt 4 hands off and stops before landing |
+| Waiting decision or permission | Interactive Codex TUI/CLI, herdr | Real waiting prompt and blocked card; unchanged issue state; no watcher exit; no guard bypass; record foreground lifetime |
+| Interrupt, no progress, exact resume | Claude Code and Codex TUI/CLI through runner and board | Saved non-null record from a current turn; actual interruption and no-progress results; same host, ID, and checkout on resume; no duplicate issue lock |
+| Red CI, unrun Verify, human precondition | Codex TUI/CLI | Separate cases for each cause; correct stopped or built markers; no early merge; current human completion evidence when required; re-entry keeps the completed build |
+| Both landing mechanisms | Codex TUI/CLI | Same verified trunk result through each supported mechanism; actual PR checks where required; lane/prototype cleanup; shared landing script used |
+| Update, failed refresh, long-lived runner | Claude Code, Codex TUI/CLI | Next step uses new content; failure retains its cause and stops before launch; updater cleanup before unlock; active resources keep their promised content and path lifetime |
+| Cross-host Plan handoff | Claude Code to Codex TUI/CLI, Codex TUI/CLI to Claude Code | Same spec, Plan, and issue; published CAP digits resolve on the receiving host; verified landing; record the receiving Codex surface |
+| Resume and compaction | Codex TUI/CLI | Step/custom rules persist; exact saved identity; ledger and issue recovery preserve finished work; no repeat build |
+| Board actions | Released board and herdr, Claude Code and Codex TUI/CLI | Real Run, Resume, Go, Open shell; exact issue/session/pane association; actual waiting, active, and recovery cards |
 
 For update tests, inspect the old advertised skill path while its session remains alive. Check
 both its bytes and continued existence. A versioned directory name alone proves neither.
@@ -144,10 +147,20 @@ For failure and re-entry tests, save the old and new heads, oracle output, label
 and check results. A missing label alone is not human completion evidence. Keep deliberately
 red CI separate from a failed local task gate so that each cause has its own observation.
 
+## Optional Codex desktop diagnostics
+
+The shared flows remain available for manual or inline desktop invocation. Any desktop scenario
+or native config probe uses a separate PASS, FAIL, BLOCKED, or UNRUN record. Use the same applicable
+observations above without making desktop a required surface.
+
 For native desktop tests, use the actual installed selector and collaboration controls. Save
 their native results and the applied model/effort. Direct-file CLI reads and a supported CLI
-same-ID model change are useful evidence for their own scope. Desktop fields remain open until
-the native operation is observed or its exact limitation is recorded.
+same-ID model change prove only their recorded CLI scope. Record each desktop operation's native
+result or exact limitation; an unattempted operation is UNRUN. A missing tool or denied
+read still stops that requested operation. Optional desktop BLOCKED or UNRUN remains incomplete
+without blocking CLI development, required CLI acceptance, or a change that meets its required
+checks. Optional desktop PASS cannot close a required CLI gap, including resource lifetime or
+changed-pair same-child repair.
 
 ## Evidence and cleanup
 
@@ -166,4 +179,4 @@ End owned clients before removing their profile or scratch files. Verify foregro
 before lock release, inspect any stale owner, and release only a matching owned stale lock.
 Stop the owned board/controller/server, close its browser tab and panes, and check the port.
 Retain failed outputs and required fixture repositories. Report every retained resource and its
-owner. Publish no full acceptance claim while a required row or surface remains open.
+owner. Publish no full CLI acceptance claim while a required CLI row or surface remains open.

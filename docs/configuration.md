@@ -173,9 +173,12 @@ maintainer gives a trusted readiness report for this build. This lane changes no
 There is no old-layout reader, automatic migration, or dependency installer. `/celetis:setup`
 writes the wiring of a product project (`README.md`, "Wire a product project"); it does not
 migrate an old setup. The board dependency is the exact GitHub tag v2.2.1. Local `AGENT_BOARD`
-gate checks do not replace released-package acceptance. Native desktop binding, stable installed
-resources, changed-pair child controls, managed Claude setup, and complete child bootstrap keep
-their separate acceptance states in [Acceptance status](celetis-flow.md#acceptance-status).
+gate checks do not replace released-package acceptance. Stable installed resources, changed-pair
+child controls on required CLI surfaces, managed Claude setup, and complete child bootstrap keep
+their acceptance states in [Acceptance status](celetis-flow.md#acceptance-status). Native Codex
+desktop binding is separate optional evidence; a desktop limit does not block otherwise complete
+required CLI checks. Active-surface validation and permission stops still apply to each requested
+operation.
 
 ## Install the parser
 
