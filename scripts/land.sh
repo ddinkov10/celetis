@@ -140,6 +140,13 @@ land_pr() {
   gh api --silent -X PUT "repos/{owner}/{repo}/pulls/$pr/merge" -f merge_method=squash -f sha="$tip" || die "cannot merge PR #$pr at $tip; the PR stays open: $url"
 }
 
+pull_main() {
+  git fetch -q origin "$trunk" 2>/dev/null &&
+    [ "$(git -C "$main" branch --show-current)" = "$trunk" ] &&
+    git -C "$main" merge -q --ff-only "origin/$trunk" 2>/dev/null ||
+    echo "land: the main checkout did not move to origin/$trunk; run git pull on $trunk there"
+}
+
 close_epic() {
   local parent number state open
   parent=$(gh api "repos/{owner}/{repo}/issues/$n/parent" --jq '"\(.number) \(.state)"' 2>&1) || {
@@ -168,6 +175,7 @@ delete_pushed() {
 "land_$landing"
 landed=1
 echo "land: #$n is on $trunk"
+[ "$landing" = merge ] || pull_main
 close_epic
 delete_pushed
 # A plain call: in an || list, set -e is off inside remove_lane, and it deletes the lane after a checkout that it could not remove.

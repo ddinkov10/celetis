@@ -309,7 +309,8 @@ field that is there. Each other field stays by hand.
 | `custom.<skill>` | An addition to the skill procedure | No addition |
 
 - **Operational settings** come from the main checkout, including when a command starts in a
-  lane or subfolder. After a merge changes the config, run `git pull` in the main checkout.
+  lane or subfolder. `scripts/celetis land` moves the trunk of the main checkout; after a merge by
+  other means, or after its line `land: the main checkout did not move`, run `git pull` there.
 - **The gate of a step** comes from `gates.<step>`. An `auto` step starts by itself. A `me` step
   starts when you supply a number or press Run on the board. Old Git defaults have no effect.
 - **With the landing `pr`,** keep the repository setting `squash_merge_commit_title` at
@@ -521,8 +522,8 @@ host's skill selector. Native desktop selector acceptance is optional under
   lane checkout. Both hosts return to the main checkout for landing.
 - The landing puts the change on the trunk by the `landing` field of `.celetis.yaml`. With `pr`,
   `scripts/celetis land <n> '<subject>'` pushes the branch, opens the PR, waits up to 15 minutes
-  for the checks, and squash-merges when each check is green. It then removes the worktree and the
-  branch.
+  for the checks, and squash-merges when each check is green. It then moves the trunk of the main
+  checkout to the merge, and removes the worktree and the branch.
 - The other lanes are shorter. `/celetis:bug` finds the root cause, posts it as a `## Root cause`
   comment, and hands on to `plan`. `/celetis:chore` makes a change with no change of behavior: it
   verifies, commits, and lands in one session. `/celetis:hotfix` fixes broken production in one
