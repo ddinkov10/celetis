@@ -43,7 +43,7 @@ If no usable file-only reader or checkout locator exists with shell access absen
 the tool names, exact limitation, and required file-access setup. Keep that native acceptance
 case BLOCKED. `exec_command` with `cat`, `git`, or a parser does not satisfy native no-shell
 entry. A denied read stops without another tool or command. Apply these rules to direct calls,
-same-session handoffs, and borrowed references. Use the separate CLI and desktop probes in
+same-session handoffs, and borrowed references. Use the required CLI and optional desktop probes in
 [native config acceptance](../../tests/manual/config-entry-codex.md); one surface proves no other.
 
 `guide` keeps `disable-model-invocation: true` for Claude and
@@ -142,3 +142,8 @@ The native skill selector, command binding, and child controls must be checked o
 surface. A CLI dry run does not prove desktop selector behavior. Invocation metadata is
 documented in [Build skills](https://learn.chatgpt.com/docs/build-skills); current runtime tool
 schemas remain the authority for dispatch fields.
+
+Desktop automation acceptance is optional under [Acceptance status](../celetis-flow.md#acceptance-status).
+The shared skills remain callable manually or inline. Actual-surface checks and setup stops
+still apply to the requested desktop operation; its limit does not block required CLI acceptance
+or a change that satisfies its required checks.
