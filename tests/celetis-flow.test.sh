@@ -312,7 +312,7 @@ for stage in marketplace update list; do
   phase=$stage
   [ "$stage" != list ] || phase='--agent claude root'
   [[ $err == *"timed out"* && $err == *"$phase"* && $err == *"fake claude plugin: error"* ]] || fail "a timeout must show its command and captured cause: [$err]"
-  ! kill -0 "$update_pid" 2>/dev/null || fail "the timed-out update still runs: $update_pid"
+  case $(ps -p "$update_pid" -o stat= 2>/dev/null) in '' | *Z*) ;; *) fail "the timed-out update still runs: $update_pid" ;; esac
   case $(ps -p "$update_child" -o stat= 2>/dev/null) in '' | *Z*) ;; *) fail "a timed-out update left a live descendant: $update_child" ;; esac
   [ "$(locks)" -eq 0 ] || fail "a timed-out update left an issue lock"
 done
@@ -338,7 +338,7 @@ for boundary in timeout interruption; do
     echo "FAIL: Codex lookup $boundary lost or repeated its stderr: [$err]"
     lost_diagnostics=$((lost_diagnostics + 1))
   fi
-  ! kill -0 "$codex_pid" 2>/dev/null || fail "Codex lookup $boundary left its app-server alive"
+  case $(ps -p "$codex_pid" -o stat= 2>/dev/null) in '' | *Z*) ;; *) fail "Codex lookup $boundary left its app-server alive" ;; esac
   case $(ps -p "$codex_child" -o stat= 2>/dev/null) in '' | *Z*) ;; *) fail "Codex lookup $boundary left a live descendant" ;; esac
   [ "$(printf '%s' "$tmp/codex pipes"/*)" = "$tmp/codex pipes/*" ] || fail "Codex lookup $boundary left temporary files"
   [ "$(locks)" -eq 0 ] || fail "Codex lookup $boundary left an issue lock"
