@@ -312,6 +312,44 @@ write_files() {
   fi
 }
 
+labels() {
+  cat <<'EOF'
+needs-triage|not yet classified|FBCA04
+bug|Something isn't working|d73a4a
+enhancement|New feature or request|a2eeef
+hotfix|production broken, the fix ships now|FEF2C0
+chore|zero-behavior-change edit|006B75
+epic|parent of several feature sub-issues|0052CC
+needs-info|the report lacks what its lane needs; the questions are in a comment|FEF2C0
+ready-for-agent|plan posted; `/celetis:implement #<n>` can start|D93F0B
+ready-for-human|a step only a human runs|C2E0C6
+wontfix|This will not be worked on|ffffff
+EOF
+}
+
+make_labels() {
+  local existing name description color found
+  existing=$(gh api --paginate 'repos/{owner}/{repo}/labels?per_page=100' --jq '.[].name' 2>/dev/null) || die "cannot list the labels"
+  while IFS='|' read -r name description color; do
+    if found=$(grep -ixF -m1 -- "$name" <<<"$existing"); then
+      [ "$found" = "$name" ] || warn "the label $found differs in case from $name; setup leaves it"
+    else
+      gh api --silent 'repos/{owner}/{repo}/labels' -f name="$name" -f description="$description" -f color="$color" 2>/dev/null ||
+        die "cannot make the label $name"
+      echo "setup: made the label $name"
+    fi
+  done < <(labels)
+}
+
+make_stores() {
+  local path
+  mkdir -p docs/adr docs/lessons
+  for path in docs/adr/README.md docs/adr/template.md; do
+    [ -e "$path" ] || cp "$plugin/$path" "$path"
+  done
+  [ -e docs/lessons/INDEX.md ] || printf '# Lessons\n\n| Lesson | Tags | Date | Summary |\n|---|---|---|---|\n' >docs/lessons/INDEX.md
+}
+
 write_record() {
   own_file "$wiring"
   jq -S --arg hosts "$hosts" --rawfile files "$scratch/files" --slurpfile entries "$scratch/entries" '
@@ -339,7 +377,9 @@ write() {
   read_record
   check_ignored
   if has_host claude; then settings_plan; fi
+  make_labels
   write_files
+  make_stores
   write_record
   git config celetis-flow.agent "$default"
   report_changes

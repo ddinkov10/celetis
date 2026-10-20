@@ -37,6 +37,7 @@ case "$endpoint" in
     jq -n --arg repo "$REPO" --arg trunk "$TRUNK" '{full_name: $repo, default_branch: $trunk}' | jq -r "$filter" ;;
   'repos/{owner}/{repo}/labels?per_page=100')
     [ "$paginate" -eq 1 ] || { echo "list without --paginate" >&2; exit 1; }
+    [ -z "${LIST_FAIL:-}" ] || { echo "HTTP 403: Resource not accessible" >&2; exit 1; }
     page=$(jq -nc --arg names "$LABELS" '[$names | split(" ")[] | select(. != "") | {name: .}]')
     if [ "${PAGES:-1}" -eq 2 ]; then jq -c '[.[:1], .[1:]] | .[]' <<<"$page"; else echo "$page"; fi | jq -r "$filter" ;;
   'repos/{owner}/{repo}/labels')
@@ -54,7 +55,8 @@ case "$endpoint" in
 esac
 EOF
 chmod +x "$tmp/bin/gh"
-export PATH="$tmp/bin:$PATH" GH_LOG="$tmp/gh.log" LABEL_LOG="$tmp/label.log" REPO=acme/widgets TRUNK=main LABELS=
+all_labels='needs-triage bug enhancement hotfix chore epic needs-info ready-for-agent ready-for-human wontfix'
+export PATH="$tmp/bin:$PATH" GH_LOG="$tmp/gh.log" LABEL_LOG="$tmp/label.log" REPO=acme/widgets TRUNK=main LABELS=$all_labels
 touch "$GH_LOG" "$LABEL_LOG"
 
 new_project() {
@@ -456,6 +458,91 @@ for bad in '[]' 'not json' '{"schema": 2, "files": [], "entries": {}}' '{"schema
   stops "$want" write --hosts codex --landing pr
   clean_tree "a bad record left a file"
 done
+
+index_head=$'# Lessons\n\n| Lesson | Tags | Date | Summary |\n|---|---|---|---|\n'
+unrecorded_stores() {
+  jq -e '[.files[], (.entries | keys[])] | all(startswith("docs/") | not)' "$proj/.claude/celetis-flow/wiring.json" >/dev/null ||
+    fail "$1: the record names a store file"
+}
+
+new_project stores
+run write --hosts codex --landing pr >/dev/null
+cmp -s "$plug/docs/adr/README.md" "$proj/docs/adr/README.md" || fail "write made no copy of the ADR README"
+cmp -s "$plug/docs/adr/template.md" "$proj/docs/adr/template.md" || fail "write made no copy of the ADR template"
+! grep -q harness "$proj/docs/adr/README.md" || fail "the ADR README of a product speaks of the harness"
+bytes_are "$index_head" docs/lessons/INDEX.md
+unrecorded_stores "an empty project"
+
+new_project productstores
+mkdir -p "$proj/docs/adr"
+printf '# Our decisions\n' >"$proj/docs/adr/README.md"
+commit_all product
+run write --hosts codex --landing pr >/dev/null
+bytes_are $'# Our decisions\n' docs/adr/README.md
+cmp -s "$plug/docs/adr/template.md" "$proj/docs/adr/template.md" || fail "write made no template next to a product README"
+bytes_are "$index_head" docs/lessons/INDEX.md
+unrecorded_stores "a product store"
+
+new_project handwired
+mkdir -p "$proj/.claude/celetis-flow" "$proj/.codex/rules" "$proj/scripts" "$proj/docs/adr" "$proj/docs/lessons"
+cp "$here/.claude/settings.json" "$proj/.claude/settings.json"
+printf '%s\n' "$ignores" >"$proj/.gitignore"
+printf '%s\n' "$rules" >"$proj/.codex/rules/celetis.rules"
+cp "$plug/scripts/celetis" "$proj/scripts/celetis"
+printf '{"landing": "pr"}\n' >"$proj/.claude/celetis-flow/landing.json"
+cp "$plug/docs/adr/README.md" "$plug/docs/adr/template.md" "$proj/docs/adr/"
+printf '%s' "$index_head" >"$proj/docs/lessons/INDEX.md"
+printf '* text=auto eol=lf\n' >"$proj/.gitattributes"
+printf '%s\n\n%s' "$heading" "$b" >"$proj/AGENTS.md"
+commit_all hand
+git -C "$proj" push -q origin main
+run write --hosts claude,codex --default claude --landing pr >/dev/null
+[ "$(git -C "$proj" status --porcelain)" = " M .gitattributes"$'\n''?? .claude/celetis-flow/wiring.json' ] || fail "wrong changes to a hand-wired project: $(git -C "$proj" status --porcelain)"
+bytes_are $'* text=auto eol=lf\n'"$gitattributes"$'\n' .gitattributes
+expected=$(jq -n --argjson ignores "$(jlines <<<"$ignores")" --argjson agents "$(printf '%s\n%s' "$heading" "$b" | jlines)" \
+  --arg gitattributes "$gitattributes" --argjson settings "$settings_entries" '{
+    schema: 1,
+    answers: {hosts: ["claude", "codex"], tracker: "github"},
+    files: [".claude/celetis-flow/landing.json", ".claude/celetis-flow/wiring.json", ".codex/rules/celetis.rules", "scripts/celetis"],
+    entries: {".gitignore": $ignores, ".gitattributes": [$gitattributes], "AGENTS.md": $agents, ".claude/settings.json": $settings}
+  }')
+record_is "$expected"
+unrecorded_stores "a hand-wired project"
+
+[ ! -s "$LABEL_LOG" ] || fail "an earlier case made a label: $(cat "$LABEL_LOG")"
+new_project labels
+out=$(LABELS='bug enhancement wontfix' run write --hosts codex --landing pr 2>"$tmp/err") || fail "write failed on a project with three labels: $(cat "$tmp/err")"
+cat >"$tmp/label.want" <<'EOF'
+needs-triage|not yet classified|FBCA04
+hotfix|production broken, the fix ships now|FEF2C0
+chore|zero-behavior-change edit|006B75
+epic|parent of several feature sub-issues|0052CC
+needs-info|the report lacks what its lane needs; the questions are in a comment|FEF2C0
+ready-for-agent|plan posted; `/celetis:implement #<n>` can start|D93F0B
+ready-for-human|a step only a human runs|C2E0C6
+EOF
+cmp -s "$tmp/label.want" "$LABEL_LOG" || fail "wrong labels made: $(cat "$LABEL_LOG")"
+[ "$(sed -n 's/^setup: made the label //p' <<<"$out")" = "$(cut -d'|' -f1 "$tmp/label.want")" ] || fail "wrong label report: $out"
+
+new_project labelsall
+: >"$LABEL_LOG"
+out=$(run write --hosts codex --landing pr)
+[ ! -s "$LABEL_LOG" ] && ! grep -q 'made the label' <<<"$out" || fail "write made a label that is there: $(cat "$LABEL_LOG")"
+
+new_project labelcase
+out=$(LABELS="${all_labels/ bug / Bug }" run write --hosts codex --landing pr)
+[ ! -s "$LABEL_LOG" ] || fail "write made a label that differs in case: $(cat "$LABEL_LOG")"
+grep -qxF 'setup: warning: the label Bug differs in case from bug; setup leaves it' <<<"$out" || fail "no warning for a label in another case: $out"
+
+new_project labelpages
+PAGES=2 run write --hosts codex --landing pr >/dev/null
+[ ! -s "$LABEL_LOG" ] || fail "write made a label of page 2: $(cat "$LABEL_LOG")"
+
+new_project labelfail
+LABELS= LABEL_FAIL=1 stops "setup: cannot make the label needs-triage" write --hosts codex --landing pr
+clean_tree "a label failure left a file"
+LIST_FAIL=1 stops "setup: cannot list the labels" write --hosts codex --landing pr
+clean_tree "a label list failure left a file"
 
 only_api
 echo "PASS"
