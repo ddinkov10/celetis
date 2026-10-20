@@ -457,7 +457,9 @@ question: commit and push to the trunk of `origin`?
   `chore(celetis): wire the project for the celetis lanes`, and it pushes the trunk. The push also
   carries each commit of the local trunk that is ahead of `origin`, and setup names them before it
   asks. When `origin` refuses the push, setup stops with the message of git, and the commit stays
-  on the local trunk. A later run of setup pushes it after you fix the cause.
+  on the local trunk. A later run of setup pushes it after you fix the cause. When the trunk
+  refuses direct pushes, push the setup commit to a branch, land it through a PR, and then update
+  the local trunk from `origin`.
 - On a no, the files stay uncommitted in the main checkout, and the resolver stops each issue until
   you commit or drop them.
 
