@@ -295,9 +295,9 @@ a model session can start. The runner reports startup dialogs and leaves them fo
 
 Operational settings and setup are fields of `.celetis.yaml` (`docs/configuration.md`).
 Commands that need repository setup require this file and stop if it is missing or invalid.
-Setup makes the file with `host` and `landing` when there is none. It adds a missing `host` at
-the end of a valid file, or it stops when the file cannot take the line. It changes no field that
-is there. Each other field stays by hand.
+`/celetis:setup` makes the file with `host` and `landing` when there is none. It adds a missing
+`host` at the end of a valid file, or it stops when the file cannot take the line. It changes no
+field that is there. Each other field stays by hand.
 
 | Field or file | What it holds | When omitted |
 |---|---|---|
@@ -466,17 +466,19 @@ of `origin`, so a file that is not there is in no lane worktree: the launcher, o
 including a custom part. A file that git does not track also makes the main checkout dirty, and the
 resolver then stops each issue.
 
-Setup stops before any write when a file that it writes has an uncommitted change, or when the
-index holds a staged change, so its commit holds only its own changes. At the end, setup asks one
-question: commit and push to the trunk of `origin`?
+Setup stops before any write when the index holds a staged change, or when a path that setup can
+write for either host has an uncommitted change. This includes each store file, also one that
+setup makes only when it is missing. So the commit of setup holds only its own changes. At the end,
+setup asks one question: commit and push to the trunk of `origin`?
 
 - On a yes, setup commits the files that it changed, with the subject
   `chore(celetis): wire the project for the celetis lanes`, and it pushes the trunk. The push also
   carries each commit of the local trunk that is ahead of `origin`, and setup names them before it
   asks. When `origin` refuses the push, setup stops with the message of git, and the commit stays
   on the local trunk. A later run of setup pushes it after you fix the cause. When the trunk
-  refuses direct pushes, push the setup commit to a branch, land it through a PR, and then update
-  the local trunk from `origin`.
+  refuses direct pushes, push the setup commit to a branch, land it through a PR, and then run
+  `git pull --rebase` on the local trunk. After a squash landing, a pull with a merge keeps the
+  setup commit ahead of `origin`, and the next push is refused again.
 - On a no, the files stay uncommitted in the main checkout, and the resolver stops each issue until
   you commit or drop them.
 

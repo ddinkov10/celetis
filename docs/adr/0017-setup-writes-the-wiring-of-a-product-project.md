@@ -69,7 +69,7 @@ by hand. More product projects now need the wiring.
   with its own entries, and on a hand-wired project, the record, a rerun, the trunk checks, and
   the cases of `.celetis.yaml`. The live checks V3 (an empty project with a push) and V4 (the
   skill on Claude Code 2.1.302) passed for the build `a7364d8`, before the change to
-  `.celetis.yaml`. The plan of that change runs them again.
+  `.celetis.yaml`.
 
 ## Decision
 
@@ -83,8 +83,11 @@ The later children need the judgment of a session: #42 detects the stack, and #4
 **A record holds the ownership** (decision 2). `.claude/celetis-flow/wiring.json` is committed
 with the wiring. It holds the answers (the hosts and the tracker), each file that setup owns
 whole, and each entry that setup owns in a shared file: a JSON entry as its path (and its item in
-an array), and a line as its text. Setup changes or removes no entry that is not in the record.
-In #41, setup removes nothing: removal is #46.
+an array), and a line as its text. Each run writes its answers again. It keeps each file and each
+entry of the old record, and it adds the ones that it owns now: the record is the union of the
+two. So the record keeps the files of a host that a later run does not choose, and an owned entry
+whose value differs from a later answer. Setup changes or removes no entry that is not in the
+record. In #41, setup removes nothing: removal is #46.
 
 **A first run adopts each equal entry** (decision 3). An entry that is there and equals an entry
 of the current form goes into the record as owned. So a hand-wired project comes under the second
@@ -105,9 +108,10 @@ holds the default host, or the one host. The file is committed, so each clone ge
 - Setup adds each missing entry as a line at the end of the file. It never rewrites the file with
   a YAML tool, so the comments, the literal blocks, and the order of the product keep their bytes.
   A new file holds `host` before `landing`.
-- A `host` or `landing` with a value other than the answer is an entry of the product. Setup
-  leaves it, prints a warning, and adds no record entry for it. The maintainer changes that field
-  by hand. Replacement is #46.
+- Setup leaves a `host` or `landing` with a value other than the answer, prints a warning, and
+  adds no record entry for it. With no entry in the old record, it is an entry of the product. An
+  entry that an earlier run recorded stays in the record, by the union above. The maintainer
+  changes that field by hand. Replacement is #46.
 - Setup stops before any write in three cases: the index holds the file with CRLF line endings,
   the reader refuses the file (for example, a file with no `landing`), or the file cannot take a
   line. A file cannot take a line when the reader refuses the file with the line, or when the line
@@ -157,8 +161,11 @@ holds the default host, or the one host. The file is committed, so each clone ge
   hand.
 - Setup reads an existing `.celetis.yaml` with yq and jq. With no `.celetis.yaml`, setup needs no
   yq.
-- A `.celetis.yaml` that cannot take a line at its end needs a hand edit before setup: a flow
-  root, a `...` end marker, or a `|` or `|+` block at the end with no final newline.
+- When `host` is missing, a `.celetis.yaml` that cannot take a line at its end needs a hand edit
+  before setup: a flow root, a `...` end marker, or a `|` or `|+` block at the end with no final
+  newline.
+- A `.celetis.yaml` that the index holds with CRLF line endings needs a conversion to LF and a
+  commit before setup.
 - Not checked: a protected trunk (risk 1 of the spec), a fresh clone on Windows (risk 5), the
   explicit selection on Codex (risk 6), and Codex in a project with no `.codex/` folder (risk 7).
 
