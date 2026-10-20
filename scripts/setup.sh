@@ -417,7 +417,8 @@ push() {
       if [ "$path" = scripts/celetis ]; then git add --chmod=+x -- "$path"; else git add -- "$path"; fi
     done <<<"$changed"
     # No path here: git commit -- <path> takes the file mode from the working tree and drops the 100755 of git add --chmod.
-    git commit -q -m 'chore(celetis): wire the project for the celetis lanes'
+    git commit -q -m 'chore(celetis): wire the project for the celetis lanes' ||
+      { git reset -q -- "${setup_paths[@]}"; die "the commit failed; the files stay uncommitted"; }
   fi
   git push -q origin "refs/heads/$trunk:refs/heads/$trunk" || die "the push failed; the commit stays on the local $trunk"
 }

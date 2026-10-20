@@ -668,6 +668,20 @@ out=$(run push 2>"$tmp/err") || fail "a rerun of push failed: $(cat "$tmp/err")"
 grep -qxF 'setup: no file changed; nothing to commit' <<<"$out" || fail "a rerun of push did not report no change: $out"
 [ "$(git -C "$proj" rev-parse HEAD)" = "$head" ] && [ "$(remote_head)" = "$head" ] || fail "a rerun of push did not carry the commit ahead"
 
+new_project pushhook
+run write --hosts codex --landing pr >/dev/null
+printf '#!/bin/sh\necho the hook refuses the commit >&2\nexit 1\n' >"$proj/.git/hooks/pre-commit"
+chmod +x "$proj/.git/hooks/pre-commit"
+head=$(git -C "$proj" rev-parse HEAD)
+dirty=$(git -C "$proj" status --porcelain)
+stops_after 'the hook refuses the commit' 'setup: the commit failed; the files stay uncommitted' push
+git -C "$proj" diff --cached --quiet || fail "a refused commit left staged files: $(git -C "$proj" diff --cached --name-only)"
+[ "$(git -C "$proj" rev-parse HEAD)" = "$head" ] && [ "$(remote_head)" = "$head" ] || fail "a refused commit moved a trunk"
+[ "$(git -C "$proj" status --porcelain)" = "$dirty" ] || fail "a refused commit changed the files: $(git -C "$proj" status --porcelain)"
+rm "$proj/.git/hooks/pre-commit"
+run push >/dev/null 2>"$tmp/err" || fail "push failed after a refused commit: $(cat "$tmp/err")"
+[ "$(git -C "$proj" log -1 --format=%s)" = "$subject" ] && [ "$(remote_head)" = "$(git -C "$proj" rev-parse HEAD)" ] || fail "push did not commit after a refused commit"
+
 new_project pushstaged
 run write --hosts codex --landing pr >/dev/null
 echo x >"$proj/other.txt"
