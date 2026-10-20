@@ -114,7 +114,7 @@ source "$root/scripts/celetis"
 config=$(celetis_config_read "$root")
 check no_old_setup_config test -f "$root/.celetis.yaml"
 check no_old_setup_symlink test ! -L "$root/.celetis.yaml"
-check no_old_setup_tracked test -z "$(git -C "$root" ls-files .claude/celetis-flow)"
+check no_old_setup_tracked test -z "$(git -C "$root" ls-files -- .claude/celetis-flow ':!.claude/celetis-flow/wiring.json')"
 check board_source_repository_port jq -e '.board.port == 4404' <<<"$config"
 check board_source_repository_gates jq -e '. as $config | ["triage","specify","bug","chore","hotfix","plan","implement"] | all(.[]; ($config.gates[.] // "me") == "me")' <<<"$config"
 

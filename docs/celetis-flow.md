@@ -311,7 +311,8 @@ gates:
 ## The config and the custom parts
 
 **The config.** Operational settings are in the main checkout's `.celetis.yaml`, including when
-commands start in a lane or subfolder. `docs/configuration.md` gives the full schema.
+commands start in a lane or subfolder. `docs/configuration.md` gives the full schema. The record
+of setup, `.claude/celetis-flow/wiring.json`, is no config: only `scripts/celetis setup` reads it.
 
 - `host` selects the default host for a new step ("Start the script").
 - `gates` selects `me` or `auto` for each step ("Gates").
@@ -667,14 +668,14 @@ The README of the package holds the limits of the page.
 
 ## Check the harness
 
-The tests of the script, the resolver, `scripts/land.sh`, `scripts/worktree.sh`, the launcher, and
-the text of the plugin are in `tests/` of the plugin repository, `ddinkov10/celetis`: run them in a
-checkout of that repository. `scripts/verify.sh` is the verify gate of that repository. It runs each
-`tests/*.test.sh`, `scripts/capscore.sh --test`, and `claude plugin validate .`, with a Perl syntax
-check first. Its last line is `verify: PASS`. The local full gate needs Claude's validator but
-starts no model turn. Codex package checks use the shared manifest, file, link, and invocation
-metadata checks in `tests/text.test.sh` and the discovery fixtures in `tests/launcher.test.sh`.
-There is no Codex plugin-validation command.
+The tests of the script, the resolver, `scripts/land.sh`, `scripts/worktree.sh`, `scripts/setup.sh`,
+the launcher, and the text of the plugin are in `tests/` of the plugin repository,
+`ddinkov10/celetis`: run them in a checkout of that repository. `scripts/verify.sh` is the verify
+gate of that repository. It runs each `tests/*.test.sh`, `scripts/capscore.sh --test`, and
+`claude plugin validate .`, with a Perl syntax check first. Its last line is `verify: PASS`. The
+local full gate needs Claude's validator but starts no model turn. Codex package checks use the
+shared manifest, file, link, and invocation metadata checks in `tests/text.test.sh` and the
+discovery fixtures in `tests/launcher.test.sh`. There is no Codex plugin-validation command.
 
 The workflow `.github/workflows/test.yml` runs the syntax check, all top-level shell tests, and
 the scorer tests on Linux for each pull request and push to `main`. It uses no model credentials,
@@ -688,6 +689,7 @@ bash tests/celetis-flow.test.sh
 bash tests/next-step.test.sh
 bash tests/land.test.sh
 bash tests/worktree.test.sh
+bash tests/setup.test.sh
 bash tests/launcher.test.sh
 bash tests/text.test.sh
 bash tests/manual/step-prompt.test.sh --agent claude
@@ -742,6 +744,6 @@ no text on auto mode in its context, so the test does not show how auto mode act
 
 `tests/manual/custom-part.test.sh` is the separate 24-case Claude test for native `Read`,
 missing files, denied reads, and checkout changes. Codex explicit-file and denied-read probes
-need their own recorded tool results; a text-only answer cannot prove a file was read. Guide's
-explicit-only metadata is part of the deterministic package check, while native selection
-remains a live acceptance check.
+need their own recorded tool results; a text-only answer cannot prove a file was read. The
+explicit-only metadata of `guide` and `setup` is part of the deterministic package check, while
+native selection remains a live acceptance check.

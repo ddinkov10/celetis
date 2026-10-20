@@ -169,8 +169,8 @@ for file in "$here"/../skills/*/SKILL.md; do
 done
 run_read
 check current_skill_allowlist test "$code:$err" = '0:'
-check skill_inventory_count test "$inventory" -eq 18
-check all_skill_values_retained jq -e '.custom | length == 18 and all(.[]; . == "Instruction.")' <<<"$out"
+check skill_inventory_count test "$inventory" -eq 19
+check all_skill_values_retained jq -e '.custom | length == 19 and all(.[]; . == "Instruction.")' <<<"$out"
 
 rm "$repo/.celetis.yaml"
 run_read

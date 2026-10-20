@@ -823,7 +823,7 @@ reset; issue 7 OPEN enhancement "Spec: x"
 run_flow --board
 [ "$code" -eq 0 ] && [ ! -e "$S/plugin-calls" ] || fail "--board must update no plugin: $code [$(calls plugin-calls)] [$err]"
 
-[ -z "$(git -C "$root" ls-files .claude/celetis-flow)" ] || fail "the old tracked setup must be absent"
+[ -z "$(git -C "$root" ls-files -- .claude/celetis-flow ':!.claude/celetis-flow/wiring.json')" ] || fail "the old tracked setup must be absent"
 
 reset; issue 7 OPEN enhancement "Spec: x"; touch "$S/gh-fail"
 run_flow --board

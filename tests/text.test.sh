@@ -8,8 +8,9 @@ source_repo=ddinkov10/fwrh_calculator
 record_glob='docs/adr/[0-9]*.md'
 copies=11
 least=14
-skills='intake triage feature bug hotfix chore specify plan implement critic-loop polishing-code-comments lesson lesson-review record-architecture-decisions doc-drift-sync prototype writing-for-agents guide'
-commands='intake|triage|feature|bug|hotfix|chore|plan|implement|guide|critic-loop|lesson|lesson-review|record-architecture-decisions|doc-drift-sync'
+skills='intake triage feature bug hotfix chore specify plan implement critic-loop polishing-code-comments lesson lesson-review record-architecture-decisions doc-drift-sync prototype writing-for-agents guide setup'
+human='guide setup'
+commands='intake|triage|feature|bug|hotfix|chore|plan|implement|guide|setup|critic-loop|lesson|lesson-review|record-architecture-decisions|doc-drift-sync'
 texts=(skills step-prompt.md)
 documents=(':(glob)docs/*.md' ':(glob)docs/hosts/*.md')
 root='<plugin>/'
@@ -123,7 +124,7 @@ for skill in $skills; do
   entry=$(awk 'BEGIN { section = 0 } /^---$/ { section++; next } section == 2 && NF { print; exit }' "$file")
   [ "$entry" = '**Host entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in this loaded file'"'"'s path. Read [the host operations](../../docs/hosts/entry.md) at `<plugin>/docs/hosts/entry.md` directly, before any product-path scan. The relative link starts in the absolute directory containing this SKILL.md. Complete its startup reads on each invocation, including a same-session handoff.' ] || host_entries+=$file$nl
   [[ "$nl$front$nl" == *"${nl}name: $skill$nl"* ]] || lacks+="$file:name: $skill$nl"
-  if [ "$skill" = guide ]; then
+  if [[ " $human " == *" $skill "* ]]; then
     [[ "$nl$front$nl" == *"$nl$key: true$nl"* ]] || lacks+="$file:$key: true$nl"
   else
     n=1
@@ -137,7 +138,7 @@ for skill in $skills; do
 done
 [ -z "$missing" ] || fail "a skill of the list with no SKILL.md:" "$missing"
 [ -z "$lacks" ] || fail "a line that the frontmatter of a SKILL.md must hold, as <path>:<the line> (a frontmatter holds one-line \"key: value\" lines only: with another line in it, the test reads no frontmatter):" "$lacks"
-[ -z "$disabled" ] || fail "a SKILL.md other than skills/guide/SKILL.md with $key in its frontmatter, as <path>:<line>:<text>:" "$disabled"
+[ -z "$disabled" ] || fail "a SKILL.md of a skill other than ${human// / and } with $key in its frontmatter, as <path>:<line>:<text>:" "$disabled"
 [ -z "$host_entries" ] || fail "a skill without the common host entry before its procedure:" "$host_entries"
 [ -z "$dynamic" ] || fail "a shell injection in a SKILL.md, as <path>:<line>:<text>:" "$dynamic"
 
@@ -216,7 +217,7 @@ done <<<"$links"
 [ -z "$broken_links" ] || fail "a bundled Markdown link that does not resolve to a tracked file:" "$broken_links"
 
 host_missing=
-for path in docs/hosts/entry.md docs/hosts/claude.md docs/hosts/codex.md skills/guide/agents/openai.yaml; do
+for path in docs/hosts/entry.md docs/hosts/claude.md docs/hosts/codex.md skills/guide/agents/openai.yaml skills/setup/agents/openai.yaml; do
   is_tracked "$path" && [ -f "$path" ] || host_missing+=$path$nl
 done
 [ -z "$host_missing" ] || fail "a host contract file that is missing or untracked:" "$host_missing"
@@ -229,10 +230,11 @@ done
 grep -qF 'Do not read a `.git` directory' docs/hosts/codex.md || fail 'Codex metadata must branch before reading .git'
 host_leaks=$(search -E '\$ARGUMENTS|CLAUDE_PLUGIN_ROOT|EnterWorktree|ExitWorktree|\(Skill tool\)|scratchpad directory' -- skills step-prompt.md)
 [ -z "$host_leaks" ] || fail "a native host assumption outside the host references:" "$host_leaks$nl"
-if [ -f skills/guide/agents/openai.yaml ]; then
-  [ "$(cat skills/guide/agents/openai.yaml)" = $'policy:\n  allow_implicit_invocation: false' ] ||
-    fail "guide must remain human-invoked in Codex"
-fi
+for skill in $human; do
+  policy=skills/$skill/agents/openai.yaml
+  [ ! -f "$policy" ] || [ "$(cat "$policy")" = $'policy:\n  allow_implicit_invocation: false' ] ||
+    fail "$skill must remain human-invoked in Codex"
+done
 
 jq -se '
   length == 1 and (.[0] |
@@ -249,9 +251,9 @@ jq -se '
 
 package_missing=
 for path in .claude-plugin/plugin.json .claude-plugin/marketplace.json scripts/celetis \
-  scripts/celetis-flow.sh scripts/next-step.sh scripts/worktree.sh scripts/land.sh \
+  scripts/celetis-flow.sh scripts/next-step.sh scripts/worktree.sh scripts/land.sh scripts/setup.sh \
   scripts/capscore.sh scripts/plugin-update.pl scripts/lib/host.sh scripts/lib/session.sh \
-  step-prompt.md docs/capability.md docs/docs-lookup.md; do
+  step-prompt.md docs/capability.md docs/docs-lookup.md docs/adr/README.md docs/adr/template.md; do
   is_tracked "$path" && [ -f "$path" ] || package_missing+=$path$nl
 done
 [ -z "$package_missing" ] || fail "a shared package resource that is missing or untracked:" "$package_missing"

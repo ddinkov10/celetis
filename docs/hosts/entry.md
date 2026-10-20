@@ -66,6 +66,10 @@ borrowing `lesson`. An intentional new invocation enters again.
 the matching advice. It runs no workflow command and invokes no other skill. With no checkout,
 it gives the common advice without a custom part.
 
+`setup` is human-invoked on both hosts, as `guide` is. Unlike `guide`, it runs the launcher of the
+plugin, `<plugin>/scripts/celetis`, in the main checkout of the product project, and it enters no
+lane worktree.
+
 ## Bind the project work
 
 Keep the main checkout path and the active checkout path distinct. When a lane runs

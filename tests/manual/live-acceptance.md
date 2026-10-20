@@ -125,7 +125,7 @@ references for the step order. Only the shared landing script may perform a fixt
 |---|---|---|
 | Feature from intake to landing | Claude Code, Codex TUI/CLI | Approved written spec in the issue body; latest Plan; task gates and independent reviews; all Verify scenarios pass; landed trunk commit; closed issue; cleanup |
 | Bug, chore, hotfix | Claude Code, Codex TUI/CLI | Each lane's labels, artifacts, and step order; meaningful verify result; landing; lane and prototype cleanup |
-| All 18 skills and helpers | Claude Code regression, Codex TUI/CLI | Installed inventory matches the repository; representative output or artifact for every skill; native invocation where required; guide runs only on explicit human invocation |
+| All 19 skills and helpers | Claude Code regression, Codex TUI/CLI | Installed inventory matches the repository; representative output or artifact for every skill; native invocation where required; guide and setup run only on explicit human invocation; Codex lists `celetis:setup` in a project with no `.codex/` folder |
 | Scope split, spike, rejected design | Codex TUI/CLI | Real epic/child or issue state; correct worktree and prototype retention or removal; approval waits remain intact |
 | Custom text and handoffs | Claude Code, Codex TUI/CLI | Whole active `.celetis.yaml` read once per entry; only target custom string applied; no setup; missing config/custom harmless; invalid or ambiguous config stops; distinct root/lane/subfolder markers; direct, borrowed, and handed-off rules; exact denied-read stop without another access path |
 | Task gate failure and repair | Codex TUI/CLI | First failure at an independent meaningful oracle; same implementer repair; scoped independent re-review; unchanged oracle; final PASS |

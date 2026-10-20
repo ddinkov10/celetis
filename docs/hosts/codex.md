@@ -46,9 +46,10 @@ entry. A denied read stops without another tool or command. Apply these rules to
 same-session handoffs, and borrowed references. Use the required CLI and optional desktop probes in
 [native config acceptance](../../tests/manual/config-entry-codex.md); one surface proves no other.
 
-`guide` keeps `disable-model-invocation: true` for Claude and
-`policy.allow_implicit_invocation: false` in `agents/openai.yaml` for Codex. Its command advice
-uses this host's spellings; it never starts a lane.
+`guide` and `setup` keep `disable-model-invocation: true` for Claude and
+`policy.allow_implicit_invocation: false` in `agents/openai.yaml` for Codex. The command advice of
+`guide` uses this host's spellings; it never starts a lane. Unlike `guide`, `setup` runs the
+launcher of the plugin in the main checkout and enters no lane worktree.
 
 ## Worktree, commands, and files
 
