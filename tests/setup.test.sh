@@ -258,6 +258,19 @@ agents_case 6 $'## Celetis flow\n\n- The maintainer starts the runner; an agent 
   "$heading"$'\n\n- The maintainer starts the runner; an agent starts it only when its task says\n  so, with a number, and in a terminal.\n'"$b"
 agents_case 7 $'## Celetis flow\n\n  *   A lane never skips a step.  \r\n' "$heading"$'\n\n  *   A lane never skips a step.  \r\n'"$lanes"$'\n'"$landing"$'\n'"$maintainer"$'\n'
 agents_case 8 $'# P\n\n- A lane never skips a step.\n' $'# P\n\n- A lane never skips a step.\n\n'"$heading"$'\n\n'"$b"
+fenced=$'# P\n\n## Celetis flow\n\n- A lane never skips a step.\n\nThe config of this project:\n\n```yaml\n# pr: each check must be green\nlanding: pr\n```\n\n- Run the gate before a review.\n'
+agents_case 9 "$fenced" "$fenced$lanes"$'\n'"$landing"$'\n'"$maintainer"$'\n'
+fenced=$'# P\n\n```markdown\n## Celetis flow\n\n- A lane never skips a step.\n```\n'
+agents_case 10 "$fenced" "$fenced"$'\n'"$heading"$'\n\n'"$b"
+fenced=$'## Celetis flow\n\n~~~\n- A lane never skips a step.\n~~~\n'
+agents_case 11 "$fenced" "$fenced$b"
+fenced=$'## Celetis flow\n\n````markdown\n~~~~~\n# One\n```\n# Two\n````\n'
+agents_case 12 "$fenced" "$fenced$b"
+fenced=$'# P\n\n```sh\nmake\n'
+agents_case 13 "$fenced" "$fenced"$'\n'"$heading"$'\n\n'"$b"
+commit_all wiring
+run write --hosts codex --landing pr >/dev/null
+bytes_are "$fenced"$'\n'"$heading"$'\n\n'"$b" AGENTS.md
 
 new_project claude
 printf '# C' >"$proj/CLAUDE.md"

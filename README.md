@@ -407,8 +407,9 @@ Setup adds each missing line at the end of the section. With no section, it adds
 the end of the file, and with no `AGENTS.md`, it makes the file. A line of the section counts when
 its text after the list mark is the same, also with `*` or with no list mark, and setup then adds
 no second copy. A bullet that wraps over two lines has no match, and setup adds the one-line form
-beside it. The rest of `AGENTS.md` stays by hand: the other rows of the table, and the acts of the
-celetis flow that only the maintainer does.
+beside it. A line in a fenced code block is no heading and no line of the section. The rest of
+`AGENTS.md` stays by hand: the other rows of the table, and the acts of the celetis flow that only
+the maintainer does.
 
 The plugin has no role for the deployment of a project. It is a product fact, so it also goes into
 `AGENTS.md` when more than one step needs it: a lane ends when the change is on the trunk.

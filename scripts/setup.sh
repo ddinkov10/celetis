@@ -184,7 +184,16 @@ own_section() {
     NR == FNR { want[++n] = $0; next }
     { text[++m] = $0 }
     END {
-      for (i = 1; i <= m && !start; i++) if (norm(text[i]) == norm(want[1])) start = i
+      # A fence with no closing line marks no line, so a rerun still finds a section appended after it.
+      for (i = 1; i <= m; i++) {
+        if (fence == "") {
+          if (match(text[i], /^ ? ? ?(```+|~~~+)/)) { fence = substr(text[i], RSTART, RLENGTH); sub(/^ +/, "", fence); from = i }
+        } else if (text[i] ~ ("^ ? ? ?" fence "+[ \t\r]*$")) {
+          for (k = from; k <= i; k++) code[k] = 1
+          fence = ""
+        }
+      }
+      for (i = 1; i <= m && !start; i++) if (!code[i] && norm(text[i]) == norm(want[1])) start = i
       if (!start) {
         for (i = 1; i <= m; i++) print text[i]
         if (m > 0 && norm(text[m]) != "") print ""
@@ -194,12 +203,12 @@ own_section() {
         exit
       }
       stop = m
-      for (i = start + 1; i <= m; i++) if (text[i] ~ /^# / || text[i] ~ /^## /) { stop = i - 1; break }
+      for (i = start + 1; i <= m; i++) if (!code[i] && (text[i] ~ /^# / || text[i] ~ /^## /)) { stop = i - 1; break }
       last = start
       for (i = start + 1; i <= stop; i++) if (norm(text[i]) != "") last = i
       for (j = 2; j <= n; j++) {
         found = 0
-        for (i = start + 1; i <= stop; i++) if (bare(text[i]) == bare(want[j])) found = 1
+        for (i = start + 1; i <= stop; i++) if (!code[i] && bare(text[i]) == bare(want[j])) found = 1
         if (!found) add[++a] = want[j]
       }
       if (!a) exit
