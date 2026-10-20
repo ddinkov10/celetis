@@ -12,10 +12,10 @@ integration is opt-in; see "Acceptance status" in `docs/celetis-flow.md` before 
 
 The plugin holds:
 
-- 18 skills: the lanes, the steps of a lane, the skills for review and memory, and the helpers
+- 19 skills: the lanes, the steps of a lane, the skills for review and memory, and the helpers
   ("The skills");
-- the scripts: the runner, the resolver, the landing script, the worktree script, and the
-  capability scorer ("The commands");
+- the scripts: the runner, the resolver, the landing script, the worktree script, the setup
+  script, and the capability scorer ("The commands");
 - the step text of the runner, `step-prompt.md`;
 - the documents that the skills cite, in `docs/`.
 
@@ -78,7 +78,7 @@ to both hosts without a second copy of the procedures.
    ```
 
    The install enables the plugin at the `user` scope, so each session of the machine loads it, in
-   each folder. A session in a project that is not wired also lists the 18 skills, and a lane
+   each folder. A session in a project that is not wired also lists the 19 skills, and a lane
    skill that starts there from free text makes a GitHub issue before it finds no launcher. The
    documents of Claude Code give a way to limit this, which is not shown here:
    `"celetis@celetis": false` in `enabledPlugins` of `~/.claude/settings.json` turns the plugin
@@ -113,12 +113,11 @@ codex plugin marketplace add ddinkov10/celetis --ref main
 codex plugin add celetis@celetis --json
 ```
 
-Keep the returned `installedPath` for the launcher copy below. The launcher later discovers the
-enabled installation through `skills/list`; it does not calculate a cache path. A local-path
-marketplace is unsuitable for the runner: `plugin marketplace upgrade celetis` requires a Git
-source. `--ref main` selects the landed source. A test of an unlanded commit must use its explicit
-Git ref in a separate test configuration. These commands and result fields were checked on
-Codex 0.162.1. See the [Codex CLI reference](https://learn.chatgpt.com/docs/cli/reference).
+The launcher discovers the enabled installation through `skills/list`; it does not calculate a cache
+path. A local-path marketplace is unsuitable for the runner: `plugin marketplace upgrade celetis`
+requires a Git source. `--ref main` selects the landed source. A test of an unlanded commit must use
+its explicit Git ref in a separate test configuration. These commands and result fields were checked
+on Codex 0.162.1. See the [Codex CLI reference](https://learn.chatgpt.com/docs/cli/reference).
 
 Install Superpowers from its Git marketplace:
 
@@ -146,7 +145,23 @@ The [plugin configuration documentation](https://developers.openai.com/plugins/b
 describes project trust and enablement. Install each host's plugins separately. A Claude install
 does not provide the Codex installation.
 
-The next parts are the files and labels of one product project. Make them in its main checkout.
+The two parts above stay by hand on each machine. The next parts are the files and labels of one
+product project. `/celetis:setup` writes them in its main checkout, and each section below shows
+the current form that it writes. Where a part stays by hand, its section says so.
+
+- The session asks for the issue tracker, the hosts (Claude, Codex, or both), and the landing.
+  Setup stops on each tracker other than GitHub. With two hosts, the session also asks for the
+  default host.
+- Setup writes the part of a host only when you choose that host: `.claude/settings.json` and the
+  line `@AGENTS.md` for Claude, and `.codex/rules/celetis.rules` for Codex.
+- Setup owns the launcher, `.claude/celetis-flow/landing.json`, and `.codex/rules/celetis.rules`
+  whole, and it writes each one again at each run, whatever the file holds. In a file that the
+  product also uses, setup adds each missing entry, and it changes or removes no entry that is
+  there.
+- Setup records each file and each entry that it owns in `.claude/celetis-flow/wiring.json`, so
+  that a later run can tell them from the entries of the product.
+- Setup shows the diff, and it commits and pushes the wiring only after your yes ("The wiring on
+  the trunk").
 
 ### Claude permissions: `.claude/settings.json`
 
@@ -187,7 +202,7 @@ defines these command patterns and the deny-before-allow order.
 
 ### Codex permissions: `.codex/rules/celetis.rules`
 
-Save these rules in the trusted project's `.codex/rules/` directory, then restart Codex:
+Setup saves these rules in the trusted project's `.codex/rules/` directory:
 
 ```starlark
 prefix_rule(
@@ -205,7 +220,7 @@ prefix_rule(
 )
 ```
 
-Check the saved rules without executing a landing or merge:
+Restart Codex after the write. Check the saved rules without executing a landing or merge:
 
 ```bash
 codex execpolicy check --rules .codex/rules/celetis.rules -- scripts/celetis --agent codex land 7 'fix(example): repair output'
@@ -224,31 +239,18 @@ check does not prove the active desktop session loaded that file.
 
 ### The launcher
 
-Copy `scripts/celetis` of the installed plugin to `scripts/celetis` of the project. The copy keeps
-the execute bit, which the board needs to start the file. On Claude:
-
-```bash
-celetis_root=$(claude plugin list --json | jq -er '[.[] | select(.id == "celetis@celetis" and .scope == "user" and .enabled == true)] | if length == 1 then .[0].installPath else error("expected one enabled user installation") end') &&
-mkdir -p scripts &&
-cp "$celetis_root/scripts/celetis" scripts/celetis
-```
-
-On Codex, use the `installedPath` returned by `plugin add`, without a cache-path guess:
-
-```bash
-celetis_install=$(codex plugin add celetis@celetis --json) &&
-celetis_root=$(printf '%s\n' "$celetis_install" | jq -er 'select(.pluginId == "celetis@celetis") | .installedPath | strings | select(length > 0)') &&
-mkdir -p scripts &&
-cp "$celetis_root/scripts/celetis" scripts/celetis
-```
-
-The file is the same in each product project. `scripts/celetis <name> <arguments>` runs
+Setup copies `scripts/celetis` of the installed plugin to `scripts/celetis` of the project. The
+commit of setup gives the file the mode `100755`, the execute bit, which the board needs to start
+the file. The file is the same in each product project. `scripts/celetis <name> <arguments>` runs
 `scripts/<name>.sh` of the installed plugin with those arguments ("The commands"), so a new script
 of the plugin needs no new copy.
 
 ### Agent selection and model setup
 
-Set the default for human terminal and board commands in the product checkout:
+Setup sets the default host of human terminal and board commands in the main checkout:
+`git config celetis-flow.agent` gets the one host that you choose, or the default host that you
+name with two hosts. Git keeps this setting in the clone and does not commit it, so set it by hand
+in each other clone of the project, and check the lookup of the plugin there:
 
 ```bash
 git config celetis-flow.agent codex
@@ -279,7 +281,10 @@ a model session can start. The runner reports startup dialogs and leaves them fo
 
 ### The config, the worktree setup, and the custom parts
 
-They are files of `.claude/celetis-flow/`:
+They are files of `.claude/celetis-flow/`. Setup writes `landing.json` with the landing that you
+confirm. It proposes the value of the file that is there. With no file, it proposes `pr` when a
+workflow of `.github/workflows/` runs on each pull request to the trunk, and else `merge`. The
+other files stay by hand:
 
 | File | What it holds | With no file |
 |---|---|---|
@@ -336,20 +341,26 @@ folders are scratch of the skills, and a file that git does not ignore makes a t
 
 ### The labels
 
-The flow uses the ten labels of `docs/issue-tracker.md`, "Labels". GitHub gives a new repository
-three of them (`bug`, `enhancement`, and `wontfix`). Make the seven others:
+The flow uses the ten labels of `docs/issue-tracker.md`, "Labels". Setup makes each label that the
+repository does not have, with this description:
 
-```bash
-gh label create needs-triage -d 'not yet classified'
-gh label create hotfix -d 'production broken, the fix ships now'
-gh label create chore -d 'zero-behavior-change edit'
-gh label create epic -d 'parent of several feature sub-issues'
-gh label create needs-info -d 'the report lacks what its lane needs; the questions are in a comment'
-gh label create ready-for-agent -d 'plan posted; `/celetis:implement #<n>` can start'
-gh label create ready-for-human -d 'a step only a human runs'
-```
+| Label | Description |
+|---|---|
+| `needs-triage` | not yet classified |
+| `bug` | Something isn't working |
+| `enhancement` | New feature or request |
+| `hotfix` | production broken, the fix ships now |
+| `chore` | zero-behavior-change edit |
+| `epic` | parent of several feature sub-issues |
+| `needs-info` | the report lacks what its lane needs; the questions are in a comment |
+| `ready-for-agent` | plan posted; `/celetis:implement #<n>` can start |
+| `ready-for-human` | a step only a human runs |
+| `wontfix` | This will not be worked on |
 
-The commands have no `--force`, so a label that is there keeps its color and its description.
+GitHub gives a new repository three of them (`bug`, `enhancement`, and `wontfix`), and their
+descriptions are the ones of GitHub. A label that is there keeps its color and its description.
+Setup ignores the case of a name: when the repository has `Bug`, setup makes no `bug`, and it
+prints a warning.
 
 ### `AGENTS.md`
 
@@ -363,20 +374,44 @@ The plugin names a role, and the `AGENTS.md` of the project names the thing. It 
 | **The installed version of a dependency:** how a session reads it, and the documents that an installed package ships | `docs/docs-lookup.md`, which `specify`, `plan`, `bug`, `hotfix`, and `chore` cite |
 | **The celetis flow of the project:** what a session must know of the lanes there, for example that the lanes are the plugin `celetis`, the landing mechanism, and the acts that only the maintainer does. It also holds two rules of the harness, "A lane never skips a step." and "The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.", because a session reads `AGENTS.md` at its start and reads a document of the plugin only when a skill cites it | Each session, also a step session. So after each change of this part, run the hand-run test in the project ("Tests") |
 
+Setup writes the celetis flow part as the section `## Celetis flow`, with these four lines.
+`<owner>/<repo>` is the repository on GitHub:
+
+```markdown
+## Celetis flow
+
+- The lanes are the skills of the plugin `celetis`, on the issues of `<owner>/<repo>`.
+- `.claude/celetis-flow/landing.json` names the landing mechanism, and a build step ends with `scripts/celetis land`.
+- A lane never skips a step.
+- The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.
+```
+
+Setup adds each missing line at the end of the section. With no section, it adds the section at
+the end of the file, and with no `AGENTS.md`, it makes the file. A line of the section counts when
+its text after the list mark is the same, also with `*` or with no list mark, and setup then adds
+no second copy. A bullet that wraps over two lines has no match, and setup adds the one-line form
+beside it. The rest of `AGENTS.md` stays by hand: the other rows of the table, and the acts of the
+celetis flow that only the maintainer does.
+
 The plugin has no role for the deployment of a project. It is a product fact, so it also goes into
 `AGENTS.md` when more than one step needs it: a lane ends when the change is on the trunk.
 
 Claude Code reads `AGENTS.md` at the start of a session only when the project and each folder above
 it have no `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md`. A project that keeps a
 `CLAUDE.md` imports the file from it, with the line `@AGENTS.md` (the documents of Claude Code,
-`https://code.claude.com/docs/en/memory`, read on 2026-10-13 for Claude Code 2.1.296).
+`https://code.claude.com/docs/en/memory`, read on 2026-10-13 for Claude Code 2.1.296). With Claude
+as a chosen host, setup adds that line to `CLAUDE.md` and to `.claude/CLAUDE.md`, each one only
+when it is there. It leaves a file that is a symbolic link alone, for example a `CLAUDE.md` that
+links to `AGENTS.md`.
 
 ### The stores
 
+Setup makes each of the three files below when it is missing, and it changes no file that is
+there. Its record does not list them: they are files of the product.
+
 - `docs/adr/`, with a `README.md` and a `template.md`: the skill `record-architecture-decisions`
   reads the two files and writes each record as `NNNN-short-title.md`, and the lanes read the
-  records. The model for the two files is `docs/adr/README.md` and `docs/adr/template.md` of the
-  plugin.
+  records. Setup copies `docs/adr/README.md` and `docs/adr/template.md` of the plugin.
 - `docs/lessons/INDEX.md`: the catalog of the lessons, with one table row for each lesson. The
   lanes scan it, and the skill `lesson` adds a row to it. A new catalog has this head:
 
@@ -390,10 +425,10 @@ it have no `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md`. A project tha
 ### Optional: the board in Claude desktop
 
 A product project can hold an entry `board` in its `.claude/launch.json` that starts the command of
-the board with `--yes`. A session in a Code tab of Claude desktop can then show the page in the
-Browser pane. This start is not checked (`docs/celetis-flow.md`, "The board", and "Limits"). The
-entry of the first product project is the example. It is one item of the list `configurations` of
-that file, and its `port` is the port of `board.json`:
+the board with `--yes`. The entry stays by hand. A session in a Code tab of Claude desktop can then
+show the page in the Browser pane. This start is not checked (`docs/celetis-flow.md`, "The board",
+and "Limits"). The entry of the first product project is the example. It is one item of the list
+`configurations` of that file, and its `port` is the port of `board.json`:
 
 ```json
 {
@@ -404,14 +439,29 @@ that file, and its `port` is the port of `board.json`:
 }
 ```
 
-### Commit the wiring on the trunk
+### The wiring on the trunk
 
-Commit these files on the trunk and push them, by hand, before the first lane. A lane branch starts
-at the trunk of `origin`, so a file that is not there is in no lane worktree: the launcher, the
-worktree setup file, or a custom part. A file that git does not track also makes the main checkout
-dirty, and the resolver then stops each issue. The launcher and the worktree setup file need LF
-line endings on each host, and a `.gitattributes` file with the line `* text=auto eol=lf` keeps
-them.
+The wiring must be on the trunk of `origin` before the first lane. A lane branch starts at the trunk
+of `origin`, so a file that is not there is in no lane worktree: the launcher, the worktree setup
+file, or a custom part. A file that git does not track also makes the main checkout dirty, and the
+resolver then stops each issue.
+
+Setup stops before any write when a file that it writes has an uncommitted change, or when the
+index holds a staged change, so its commit holds only its own changes. At the end, setup asks one
+question: commit and push to the trunk of `origin`?
+
+- On a yes, setup commits the files that it changed, with the subject
+  `chore(celetis): wire the project for the celetis lanes`, and it pushes the trunk. The push also
+  carries each commit of the local trunk that is ahead of `origin`, and setup names them before it
+  asks. When `origin` refuses the push, setup stops with the message of git, and the commit stays
+  on the local trunk. A later run of setup pushes it after you fix the cause.
+- On a no, the files stay uncommitted in the main checkout, and the resolver stops each issue until
+  you commit or drop them.
+
+Commit each file that you add by hand on the trunk too, and push it: for example the worktree setup
+file or a custom part. The launcher and the worktree setup file need LF line endings on each host.
+Setup adds the line `scripts/celetis text eol=lf` to `.gitattributes`. A project with a worktree
+setup file adds the line `.claude/celetis-flow/worktree-setup.sh text eol=lf` by hand.
 
 ## The full loop
 
@@ -511,14 +561,16 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | **Helpers** | [`/celetis:prototype`](skills/prototype/SKILL.md) | Builds throwaway code that answers a design question: a logic demo in one HTML file, or UI variants on one route |
 | | [`/celetis:writing-for-agents`](skills/writing-for-agents/SKILL.md) | The reference for a document that an agent reads: a skill, or an `AGENTS.md` |
 | | [`/celetis:guide`](skills/guide/SKILL.md) | Says which command fits a goal. Only you can start it |
+| | [`/celetis:setup`](skills/setup/SKILL.md) | Writes the wiring of a product project in its main checkout, and commits and pushes it after your yes. Only you can start it |
 
 Two documents of the plugin are not skills: `docs/capability.md`, the rubric of the capability
 score, and `docs/docs-lookup.md`, the lookup of the external facts.
 
-`guide` is explicit-only on both hosts. Claude reads `disable-model-invocation: true`; Codex
-reads `policy.allow_implicit_invocation: false` in `skills/guide/agents/openai.yaml`. Its shared
-entry also requires a human invocation. Guide reads its custom part and gives advice; it starts
-no workflow command.
+`guide` and `setup` are explicit-only on both hosts. Claude reads `disable-model-invocation: true`;
+Codex reads `policy.allow_implicit_invocation: false` in `skills/guide/agents/openai.yaml` and
+`skills/setup/agents/openai.yaml`. Their shared entry also requires a human invocation. Guide
+reads its custom part and gives advice; it starts no workflow command. Setup runs the launcher of
+the plugin in the main checkout, and it enters no lane worktree.
 
 ## The commands
 
@@ -534,6 +586,7 @@ and board form. Every skill call adds `--agent claude` or `--agent codex` before
 | `scripts/celetis capscore J V B N S X` | Resolves the six digits. `--json` gives portable scores and the host pair; Codex also needs `--profile` and `--runtime-models` |
 | `scripts/celetis celetis-flow [<n>...] \| --board \| --resume <n>` | The runner: the next step of each number, or the automatic runner with no number. `--board` prints the data of the board, and `--resume` opens the session of a step with no progress again |
 | `scripts/celetis root` | Prints the install folder of the plugin. The runner uses it after an update |
+| `scripts/celetis setup check \| write ... \| push` | The deterministic part of `/celetis:setup`: the checks, the write of the wiring, and the commit with the push. The first run in a project calls the launcher of the plugin, because the project has no launcher yet |
 
 - The form has no `./`: the `allow` rule matches the text of the command.
 - Each sub-command gives the output and the exit code of its script.
@@ -713,9 +766,9 @@ Run the tests in a checkout of this repository.
   number that names no record of `docs/adr/` and has no `ddinkov10/fwrh_calculator` before it. It
   fails on a skill that does not start with the common host entry, or that holds a shell injection.
   It checks the shared package names and root source, required installed files, bundled links,
-  the guide's Codex invocation policy, and the current Claude landing rules. Launcher tests check
-  Codex namespace discovery and reject missing enabled fields and ambiguous roots. These are
-  deterministic structure and protocol checks; there is no `codex plugin validate` command.
+  the Codex invocation policy of `guide` and `setup`, and the current Claude landing rules. Launcher
+  tests check Codex namespace discovery and reject missing enabled fields and ambiguous roots. These
+  are deterministic structure and protocol checks; there is no `codex plugin validate` command.
 - **The hand-run test,** `tests/manual/step-prompt.test.sh`, checks the step text in headless
   turns on the selected host, `--agent claude` or `--agent codex`. It needs that host to be logged
   in, it uses tokens, and an answer can

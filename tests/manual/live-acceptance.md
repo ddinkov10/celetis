@@ -71,7 +71,7 @@ references for the step order. Only the shared landing script may perform a fixt
 |---|---|---|
 | Feature from intake to landing | Claude, CLI, desktop | Approved written spec in the issue body; latest Plan; task gates and independent reviews; all Verify scenarios pass; landed trunk commit; closed issue; cleanup |
 | Bug, chore, hotfix | Claude, CLI, desktop | Each lane's labels, artifacts, and step order; meaningful verify result; landing; lane and prototype cleanup |
-| All 18 skills and helpers | Claude regression, CLI, desktop | Installed inventory matches the repository; representative output or artifact for every skill; native invocation where required; guide runs only on explicit human invocation |
+| All 19 skills and helpers | Claude regression, CLI, desktop | Installed inventory matches the repository; representative output or artifact for every skill; native invocation where required; guide and setup run only on explicit human invocation |
 | Scope split, spike, rejected design | CLI, desktop | Real epic/child or issue state; correct worktree and prototype retention or removal; approval waits remain intact |
 | Custom text and handoffs | Claude, CLI, desktop | Each appropriate file read once at its entry; missing file harmless; distinct main/lane markers; direct, borrowed, and handed-off rules; denied-read stop |
 | Task gate failure and repair | CLI, desktop | First failure at an independent meaningful oracle; same implementer repair; scoped independent re-review; unchanged oracle; final PASS |
