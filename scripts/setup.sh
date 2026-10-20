@@ -319,7 +319,7 @@ config_plan() {
   : >"$scratch/config.keys"
   : >"$scratch/config.lines"
   if [ -e "$config" ]; then
-    celetis_config_read "$top" >"$scratch/config.json" || die "$config is no valid config; fix it first"
+    celetis_config_read "$top" >"$scratch/config.json" || die "cannot read $config; fix the cause above first"
   else
     echo '{}' >"$scratch/config.json"
   fi

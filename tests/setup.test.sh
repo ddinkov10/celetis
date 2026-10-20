@@ -652,7 +652,7 @@ printf 'landing: squash\n' >"$proj/.celetis.yaml"
 commit_all product
 git -C "$proj" push -q origin main
 : >"$LABEL_LOG"
-want='setup: .celetis.yaml is no valid config; fix it first'
+want='setup: cannot read .celetis.yaml; fix the cause above first'
 LABELS= stops_after 'landing: invalid value' "$want" write --hosts codex --landing pr
 [ ! -s "$LABEL_LOG" ] || fail "an invalid config left a label: $(cat "$LABEL_LOG")"
 clean_tree "an invalid config left a file"
@@ -687,6 +687,13 @@ printf '#!/bin/sh\nexit 1\n' >"$tmp/noyq/yq"
 chmod +x "$tmp/noyq/yq"
 PATH="$tmp/noyq:$PATH" run write --hosts codex --landing merge >/dev/null 2>"$tmp/err" || fail "write needed yq for a new config: $(cat "$tmp/err")"
 bytes_are $'host: codex\nlanding: merge\n' .celetis.yaml
+
+new_project confignoyqread
+printf 'landing: pr\n' >"$proj/.celetis.yaml"
+commit_all product
+LABELS= PATH="$tmp/noyq:$PATH" stops_after 'cannot read the yq version' 'setup: cannot read .celetis.yaml; fix the cause above first' write --hosts codex --landing pr
+[ ! -s "$LABEL_LOG" ] || fail "a config read with no yq left a label: $(cat "$LABEL_LOG")"
+clean_tree "a config read with no yq left a file"
 
 new_project configcrlf
 printf 'host: claude\r\nlanding: pr\r\n' >"$proj/.celetis.yaml"
