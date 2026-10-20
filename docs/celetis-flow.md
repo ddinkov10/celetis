@@ -313,7 +313,8 @@ git config --unset celetis-flow.gate.implement  # go back to the gate of the pro
 ## The config and the custom parts
 
 Three parts of a product project are in its folder `.claude/celetis-flow/`: the config, the worktree
-setup, and the custom parts (ADR-0012).
+setup, and the custom parts (ADR-0012). The folder also holds the record of setup, `wiring.json`,
+which only `scripts/celetis setup` reads: it is no config.
 
 **The config.** The config is in `.claude/celetis-flow/` of the main checkout of the product
 project. Each reader takes it from the main checkout, also when a script starts in a lane worktree

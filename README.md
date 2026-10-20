@@ -34,6 +34,7 @@ launcher file. It holds only what is its own:
 | The host wiring | Claude: `.claude/settings.json`. Codex: the installed plugins and trusted `.codex/config.toml` and `.codex/rules/` (below) |
 | The launcher | `scripts/celetis` |
 | The config | `.claude/celetis-flow/gates.json`, `landing.json`, and `board.json` |
+| The record of setup | `.claude/celetis-flow/wiring.json` |
 | The worktree setup | `.claude/celetis-flow/worktree-setup.sh` |
 | The custom parts | `.claude/celetis-flow/custom/<skill>.md`, one file for each skill that needs one |
 | The product facts | `AGENTS.md` |
@@ -161,7 +162,8 @@ the current form that it writes. Where a part stays by hand, its section says so
 - Setup records each file and each entry that it owns in `.claude/celetis-flow/wiring.json`, so
   that a later run can tell them from the entries of the product.
 - Setup shows the diff, and it commits and pushes the wiring only after your yes ("The wiring on
-  the trunk").
+  the trunk"). It makes the labels and sets `celetis-flow.agent` at the write, before that
+  question, so a no keeps them.
 
 ### Claude permissions: `.claude/settings.json`
 
