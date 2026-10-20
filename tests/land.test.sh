@@ -458,12 +458,18 @@ land 7 'fix(x): y'; landed "pr: a PR that is merged into another base at the loc
 fresh pr; lane fix/7-crash; merged "$tip"; upstream
 land 7 'fix(x): y'; landed "pr: a PR that is merged, with origin/master ahead"
 [ "$(git rev-parse master)" = "$(origin_master)" ] || fail "pr: a PR that is merged did not move the main checkout"
-for local in 'git commit -q --allow-empty -m local' 'git checkout -q -b side' 'echo mine >work.txt'; do
-  fresh pr; lane fix/7-crash; checks pass; eval "$local"; head=$(git rev-parse HEAD)
-  land 7 'fix(x): y'; landed "pr: [$local] in the main checkout"
-  has "land: the main checkout did not move to origin/master; run git pull on master there" "pr: [$local]"
-  [ "$(git rev-parse HEAD)" = "$head" ] || fail "pr: [$local] moved the main checkout"
+[[ $out != *"did not move"* ]] || fail "pr: warned on a PR that is merged: $out"
+for state in 'git commit -q --allow-empty -m local' 'git checkout -q -b side' 'git checkout -q --detach' 'echo mine >work.txt'; do
+  fresh pr; lane fix/7-crash; checks pass; eval "$state"; head=$(git rev-parse HEAD)
+  land 7 'fix(x): y'; landed "pr: [$state] in the main checkout"
+  has "land: the main checkout did not move to origin/master; run git pull on master there" "pr: [$state]"
+  [ "$(grep -c 'did not move' <<<"$out")" -eq 1 ] || fail "pr: [$state] did not print the warning once: $out"
+  [ "$(git rev-parse HEAD)" = "$head" ] || fail "pr: [$state] moved the main checkout"
+  [ ! -f work.txt ] || [ "$(cat work.txt)" = mine ] || fail "pr: [$state] overwrote a local file"
 done
-[ "$(cat work.txt)" = mine ] || fail "pr: the update overwrote a local file"
+fresh pr; lane fix/7-crash; checks pass; echo changed >app.txt
+land 7 'fix(x): y'; landed "pr: a local change that the merge does not touch"
+[ "$(git rev-parse master)" = "$(origin_master)" ] && [ "$(cat app.txt)" = changed ] && [[ $out != *"did not move"* ]] ||
+  fail "pr: a local change that the merge does not touch: $out"
 
 echo "PASS"
