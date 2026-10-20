@@ -228,6 +228,9 @@ for contract in 'After Host entry succeeds' 'If entry stops' 'conditional comman
   grep -qF -- "$contract" skills/guide/SKILL.md || fail "guide must gate goal advice on successful entry: $contract"
 done
 grep -qF 'Do not read a `.git` directory' docs/hosts/codex.md || fail 'Codex metadata must branch before reading .git'
+for contract in 'multi_agent_v1' 'fork_context: false' 'send_input' 'codex debug models' 'tool search' 'collaboration.followup_task'; do
+  grep -qF -- "$contract" docs/hosts/codex.md || fail "Codex dispatch must cover both tool sets: $contract"
+done
 host_leaks=$(search -E '\$ARGUMENTS|CLAUDE_PLUGIN_ROOT|EnterWorktree|ExitWorktree|\(Skill tool\)|scratchpad directory' -- skills step-prompt.md)
 [ -z "$host_leaks" ] || fail "a native host assumption outside the host references:" "$host_leaks$nl"
 for skill in $human; do
