@@ -19,6 +19,7 @@ Match the goal to a row. Give the selected host's skill prompt or command and on
 | make a zero-behavior-change edit (dep bump, rename, docs) | `/celetis:chore <# or text>` |
 | turn an approved spec (the issue body) into a plan | `/celetis:plan <#>` in a fresh context |
 | build a posted plan (`ready-for-agent`) and land the change | `/celetis:implement <#>` in a fresh context |
+| wire a product project to the plugin | `/celetis:setup` in the main checkout of the project |
 | see each agent session and each issue's next step, and start a step | the board: `npx 'github:ddinkov10/agent-board#semver:^2'` in the main checkout, then `http://127.0.0.1:<port>`, with the `port` of `.claude/celetis-flow/board.json` (`<plugin>/docs/celetis-flow.md`) |
 | run the next step of an issue in a fresh session, in your own terminal | `scripts/celetis celetis-flow <n>...` in a Terminal tab; each gate is `me` by default, so it runs one step of each issue and ends. With no number it runs only the steps that `.claude/celetis-flow/gates.json` or `git config celetis-flow.gate.<step> auto` on this machine makes `auto`, so with the defaults it starts nothing (`<plugin>/docs/celetis-flow.md`) |
 | see an issue's next step without running it | `scripts/celetis next-step <#>`; `scripts/celetis next-step --open` lists each open issue |

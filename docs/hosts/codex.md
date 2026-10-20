@@ -28,9 +28,10 @@ inspect its result. This is an explicit file read, not a native no-shell read or
 injection. A denied read is a stop, not permission to try another tool or command. Apply the
 shared missing-file, error, and exact-once rules to direct calls and same-session handoffs.
 
-`guide` keeps `disable-model-invocation: true` for Claude and
-`policy.allow_implicit_invocation: false` in `agents/openai.yaml` for Codex. Its command advice
-uses this host's spellings; it never starts a lane.
+`guide` and `setup` keep `disable-model-invocation: true` for Claude and
+`policy.allow_implicit_invocation: false` in `agents/openai.yaml` for Codex. The command advice of
+`guide` uses this host's spellings; it never starts a lane. Unlike `guide`, `setup` runs the
+launcher of the plugin in the main checkout and enters no lane worktree.
 
 ## Worktree, commands, and files
 
