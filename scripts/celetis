@@ -124,7 +124,7 @@ celetis_config_read() (
     ["triage","specify","bug","chore","hotfix","plan","implement"] as $steps
     | ["bug","chore","critic-loop","doc-drift-sync","feature","guide","hotfix","implement",
        "intake","lesson","lesson-review","plan","polishing-code-comments","prototype",
-       "record-architecture-decisions","specify","triage","writing-for-agents"] as $skills
+       "record-architecture-decisions","setup","specify","triage","writing-for-agents"] as $skills
     | object([]) | keys_only(["host","landing","gates","board","worktreeSetup","custom","codexProfiles"]; [])
     | required("landing"; []) | . as $config
     | [

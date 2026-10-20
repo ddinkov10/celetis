@@ -31,7 +31,7 @@ An empty `board` mapping uses port 4403. `PORT` takes precedence over the config
 
 The allowed custom keys are `bug`, `chore`, `critic-loop`, `doc-drift-sync`, `feature`,
 `guide`, `hotfix`, `implement`, `intake`, `lesson`, `lesson-review`, `plan`,
-`polishing-code-comments`, `prototype`, `record-architecture-decisions`, `specify`,
+`polishing-code-comments`, `prototype`, `record-architecture-decisions`, `setup`, `specify`,
 `triage`, and `writing-for-agents`.
 An empty setup string runs no setup. An empty instruction string gives no addition.
 An empty `custom` or `codexProfiles` mapping is valid.
