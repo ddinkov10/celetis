@@ -10,9 +10,10 @@ usage() {
 }
 
 plugin=$(cd "$(dirname "$0")/.." && pwd)
+. "$plugin/scripts/celetis"
 setup_paths=(
   scripts/celetis
-  .claude/celetis-flow/landing.json
+  .celetis.yaml
   .claude/celetis-flow/wiring.json
   .codex/rules/celetis.rules
   .claude/settings.json
@@ -67,6 +68,7 @@ run_checks() {
 
 wiring=.claude/celetis-flow/wiring.json
 settings=.claude/settings.json
+config=.celetis.yaml
 
 has_host() { [[ " $hosts " == *" $1 "* ]]; }
 
@@ -116,7 +118,7 @@ touched() {
   for path in CLAUDE.md .claude/CLAUDE.md; do
     if [ -L AGENTS.md ] && [ ! -L "$path" ] && [ AGENTS.md -ef "$path" ]; then agents=$path; fi
   done
-  printf '%s\n' scripts/celetis .claude/celetis-flow/landing.json "$wiring" .gitignore .gitattributes "$agents"
+  printf '%s\n' scripts/celetis "$config" "$wiring" .gitignore .gitattributes "$agents"
   for path in docs/adr/README.md docs/adr/template.md docs/lessons/INDEX.md; do
     [ -e "$path" ] || echo "$path"
   done
@@ -284,6 +286,48 @@ settings_apply() {
   cp "$scratch/settings.out" "$settings"
 }
 
+config_key() {
+  local key=$1 answer=$2 current
+  current=$(jq -r --arg key "$key" '.[$key] // empty' "$scratch/config.json")
+  if [ -z "$current" ]; then
+    echo "$key" >>"$scratch/config.keys"
+    echo "$key: $answer" >>"$scratch/config.lines"
+  elif [ "$current" = "$answer" ]; then
+    echo "$key" >>"$scratch/config.keys"
+  else
+    warn "$config: $key is $current, not $answer; setup leaves it"
+  fi
+}
+
+config_plan() {
+  : >"$scratch/config.keys"
+  : >"$scratch/config.lines"
+  if [ -e "$config" ]; then
+    celetis_config_read "$top" >"$scratch/config.json" || die "$config is no valid config; fix it first"
+  else
+    echo '{}' >"$scratch/config.json"
+  fi
+  config_key host "$default"
+  config_key landing "$landing"
+  [ -s "$scratch/config.lines" ] || return 0
+  mkdir "$scratch/yaml"
+  {
+    if [ -e "$config" ]; then
+      cat "$config"
+      [ -z "$(tail -c1 "$config")" ] || echo
+    fi
+    cat "$scratch/config.lines"
+  } >"$scratch/yaml/$config"
+  celetis_config_read "$scratch/yaml" >/dev/null 2>&1 ||
+    die "cannot add the line $(head -n1 "$scratch/config.lines") to $config; add it by hand first"
+}
+
+config_apply() {
+  local key
+  while IFS= read -r key; do own_entry "$config" "$(jq -nc --arg key "$key" '{path: [$key]}')"; done <"$scratch/config.keys"
+  [ ! -s "$scratch/config.lines" ] || cp "$scratch/yaml/$config" "$config"
+}
+
 codex_rules() {
   cat <<'EOF'
 prefix_rule(
@@ -307,17 +351,16 @@ write_files() {
   own_file scripts/celetis
   cp "$plugin/scripts/celetis" scripts/celetis
   chmod 755 scripts/celetis
-  own_file .claude/celetis-flow/landing.json
-  printf '{"landing": "%s"}\n' "$landing" >.claude/celetis-flow/landing.json
+  config_apply
   if has_host codex; then
     own_file .codex/rules/celetis.rules
     codex_rules >.codex/rules/celetis.rules
   fi
   own_lines .gitignore .claude/worktrees/ .claude/settings.local.json docs/superpowers/ .superpowers/ docs/lessons/_pending/
-  own_lines .gitattributes 'scripts/celetis text eol=lf'
+  own_lines .gitattributes 'scripts/celetis text eol=lf' '.celetis.yaml text eol=lf'
   own_section AGENTS.md '## Celetis flow' \
     "- The lanes are the skills of the plugin \`celetis\`, on the issues of \`$repo\`." \
-    '- `.claude/celetis-flow/landing.json` names the landing mechanism, and a build step ends with `scripts/celetis land`.' \
+    '- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `scripts/celetis land`.' \
     '- A lane never skips a step.' \
     '- The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.'
   if has_host claude; then
@@ -396,11 +439,11 @@ write() {
   read_record
   check_paths
   if has_host claude; then settings_plan; fi
+  config_plan
   make_labels
   write_files
   make_stores
   write_record
-  git config celetis-flow.agent "$default"
   report_changes
 }
 
