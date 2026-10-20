@@ -74,6 +74,8 @@ case "$method $endpoint" in
     pr=${path%/merge}
     printf '%s\n' "${pr##*/} ${fields[*]}" >"$S/merge-args"
     git --git-dir="$ORIGIN" for-each-ref --format='%(refname:short) %(objectname)' refs/heads >"$S/origin-at-merge"
+    squash=$(git --git-dir="$ORIGIN" commit-tree "$(git --git-dir="$ORIGIN" merge-tree --write-tree master "$(field sha)")" -p master -m "squash of ${pr##*/}")
+    git --git-dir="$ORIGIN" update-ref refs/heads/master "$squash"
     [ ! -f "$S/auto-delete" ] || git --git-dir="$ORIGIN" update-ref -d "refs/heads/$(cat "$S/auto-delete")" ;;
   "GET $repo/commits/"*"/check-runs?"*) list "$(nth polls checks)" ;;
   "GET $repo/commits/"*"/status?"*) list status ;;
@@ -345,7 +347,9 @@ grep -qF "commits/$tip/check-runs?" "$S/gh-calls" && grep -qF "commits/$tip/stat
 grep -qx "fix/7-crash $tip" "$S/origin-at-merge" || fail "pr: the branch was not on origin at the merge"
 [ "$(calls '/pulls/[0-9]+/merge')" -eq 1 ] && [ ! -f "$S/sleeps" ] || fail "pr: more than one merge, or a sleep"
 [ "$(cat "$S/closed")" = "comment 3 Each sub-issue is closed: #7 landed last."$'\n'"close 3 closed completed" ] || fail "pr: closed [$(cat "$S/closed")]"
-[ "${before#* }" = "$(git rev-parse master)" ] && [ -z "$(git status --porcelain)" ] || fail "pr touched the main checkout"
+[ "$(git rev-parse master)" = "$(origin_master)" ] && [ "$(origin_master)" != "${before%% *}" ] && [ -z "$(git status --porcelain)" ] ||
+  fail "pr: the main checkout did not move to origin/master"
+[[ $out != *"did not move"* ]] || fail "pr: warned with a main checkout that moved: $out"
 fresh pr; lane fix/7-crash; checks pass; mkdir "$main/sub"; from="$main/sub"
 land 7 'fix(x): y'; landed "pr: from a folder of the main checkout"
 
@@ -451,5 +455,21 @@ land 7 'fix(x): y'; landed "pr: a PR that is merged at another commit"
 fresh pr; lane fix/7-crash; merged "$tip" develop; checks pass
 land 7 'fix(x): y'; landed "pr: a PR that is merged into another base at the local tip"
 [ "$(calls ' -f base=master ')" -eq 1 ] && [ "$(calls '/pulls/9/merge')" -eq 1 ] || fail "pr: a merge into another base counted as this landing: $(cat "$S/gh-calls")"
+fresh pr; lane fix/7-crash; merged "$tip"; upstream
+land 7 'fix(x): y'; landed "pr: a PR that is merged, with origin/master ahead"
+[ "$(git rev-parse master)" = "$(origin_master)" ] || fail "pr: a PR that is merged did not move the main checkout"
+[[ $out != *"did not move"* ]] || fail "pr: warned on a PR that is merged: $out"
+for state in 'git commit -q --allow-empty -m local' 'git checkout -q -b side' 'git checkout -q --detach' 'echo mine >work.txt'; do
+  fresh pr; lane fix/7-crash; checks pass; eval "$state"; head=$(git rev-parse HEAD)
+  land 7 'fix(x): y'; landed "pr: [$state] in the main checkout"
+  has "land: the main checkout did not move to origin/master; run git pull on master there" "pr: [$state]"
+  [ "$(grep -c 'did not move' <<<"$out")" -eq 1 ] || fail "pr: [$state] did not print the warning once: $out"
+  [ "$(git rev-parse HEAD)" = "$head" ] || fail "pr: [$state] moved the main checkout"
+  [ ! -f work.txt ] || [ "$(cat work.txt)" = mine ] || fail "pr: [$state] overwrote a local file"
+done
+fresh pr; lane fix/7-crash; checks pass; echo changed >app.txt
+land 7 'fix(x): y'; landed "pr: a local change that the merge does not touch"
+[ "$(git rev-parse master)" = "$(origin_master)" ] && [ "$(cat app.txt)" = changed ] && [[ $out != *"did not move"* ]] ||
+  fail "pr: a local change that the merge does not touch: $out"
 
 echo "PASS"
