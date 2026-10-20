@@ -153,7 +153,7 @@ stops "setup: the index holds staged changes; commit or unstage them first" chec
 
 new_project usage
 want='usage: scripts/celetis setup check | write --hosts claude|codex|claude,codex [--default claude|codex] --landing pr|merge | push'
-[ "$(code_of)" -eq 2 ] && [ "$(code_of bogus)" -eq 2 ] && [ "$(code_of check extra)" -eq 2 ] || fail "usage not refused"
+[ "$(code_of)" -eq 2 ] && [ "$(code_of bogus)" -eq 2 ] && [ "$(code_of check extra)" -eq 2 ] && [ "$(code_of push extra)" -eq 2 ] || fail "usage not refused"
 [[ $(err_of bogus) == "$want" ]] || fail "wrong usage line: $(err_of bogus)"
 
 
@@ -556,6 +556,65 @@ LABELS= LABEL_FAIL=1 stops "setup: cannot make the label needs-triage" write --h
 clean_tree "a label failure left a file"
 LIST_FAIL=1 stops "setup: cannot list the labels" write --hosts codex --landing pr
 clean_tree "a label list failure left a file"
+
+subject='chore(celetis): wire the project for the celetis lanes'
+remote_head() { git -C "$proj" ls-remote origin refs/heads/main | cut -f1; }
+
+new_project push
+git -C "$proj" config core.fileMode false
+out=$(run write --hosts claude,codex --default claude --landing pr)
+chmod -x "$proj/scripts/celetis"
+echo product >"$proj/notes.txt"
+run push >"$tmp/out" 2>"$tmp/err" || fail "push failed: $(cat "$tmp/err")"
+[ ! -s "$tmp/out" ] && [ ! -s "$tmp/err" ] || fail "push printed: $(cat "$tmp/out" "$tmp/err")"
+[ "$(git -C "$proj" log -1 --format=%s)" = "$subject" ] || fail "wrong subject of the push commit"
+[ "$(git -C "$proj" show --name-only --format= HEAD | sort)" = "$(sed -n 's/^setup: changed //p' <<<"$out" | sort)" ] || fail "the push commit holds other paths: $(git -C "$proj" show --name-only --format= HEAD)"
+[[ $(git -C "$proj" ls-tree HEAD scripts/celetis) == 100755* ]] || fail "the launcher has no mode 100755: $(git -C "$proj" ls-tree HEAD scripts/celetis)"
+[ "$(remote_head)" = "$(git -C "$proj" rev-parse HEAD)" ] || fail "push did not reach origin/main"
+[ "$(git -C "$proj" status --porcelain)" = '?? notes.txt' ] || fail "push touched a product file: $(git -C "$proj" status --porcelain)"
+
+new_project pushahead
+git -C "$proj" commit -q --allow-empty -m one
+git -C "$proj" commit -q --allow-empty -m two
+run write --hosts codex --landing pr >/dev/null
+run push >/dev/null || fail "push failed on a trunk that is ahead"
+[ "$(git -C "$tmp/pushahead.git" log --format=%s main)" = "$subject"$'\ntwo\none\nbase' ] || fail "push did not carry the commits ahead: $(git -C "$tmp/pushahead.git" log --format=%s main)"
+
+new_project pushclean
+run write --hosts codex --landing pr >/dev/null
+commit_all wiring
+git -C "$proj" push -q origin main
+head=$(git -C "$proj" rev-parse HEAD)
+[ "$(run push 2>&1)" = 'setup: no file changed; nothing to commit' ] && [ "$(code_of push)" -eq 0 ] || fail "push did not report no change"
+[ "$(git -C "$proj" rev-parse HEAD)" = "$head" ] && [ "$(remote_head)" = "$head" ] || fail "push moved a trunk with no change"
+
+new_project pushrefused
+run write --hosts codex --landing pr >/dev/null
+printf '#!/bin/sh\nexit 1\n' >"$tmp/pushrefused.git/hooks/pre-receive"
+chmod +x "$tmp/pushrefused.git/hooks/pre-receive"
+before=$(remote_head)
+set +e
+run push >/dev/null 2>"$tmp/err"
+code=$?
+set -e
+[ "$code" -eq 1 ] || fail "a refused push did not exit 1: $code"
+[ "$(tail -n1 "$tmp/err")" = 'setup: the push failed; the commit stays on the local main' ] || fail "wrong last line for a refused push: $(cat "$tmp/err")"
+awk '/pre-receive hook declined/ { seen = 1 } /^setup: the push failed/ { ok = seen } END { exit !ok }' "$tmp/err" || fail "git's refusal does not come before the setup line: $(cat "$tmp/err")"
+[ "$(git -C "$proj" log -1 --format=%s)" = "$subject" ] && [ "$(remote_head)" = "$before" ] || fail "a refused push moved a trunk"
+
+new_project pushstaged
+run write --hosts codex --landing pr >/dev/null
+echo x >"$proj/other.txt"
+git -C "$proj" add other.txt
+head=$(git -C "$proj" rev-parse HEAD)
+stops "setup: the index holds staged changes; commit or unstage them first" push
+[ "$(git -C "$proj" rev-parse HEAD)" = "$head" ] || fail "push committed with a staged file"
+
+new_project pushbranch
+run write --hosts codex --landing pr >/dev/null
+git -C "$proj" checkout -q -b other
+stops "setup: the main checkout is on other, not on main; switch to main first" push
+[ "$(git -C "$proj" log -1 --format=%s)" = base ] || fail "push committed on another branch"
 
 only_api
 echo "PASS"
