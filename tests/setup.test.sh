@@ -186,7 +186,7 @@ b=$lanes$'\n'$landing$'\n'$never$'\n'$maintainer$'\n'
 gitattributes='scripts/celetis text eol=lf'
 
 commit_all() { git -C "$proj" add -A && git -C "$proj" commit -qm "$1"; }
-sorted() { jq -S 'walk(if type == "array" then sort else . end)'; }
+sorted() { jq -S 'if type == "array" then sort else .files |= sort | .entries |= map_values(sort) end'; }
 jlines() { jq -Rn '[inputs]'; }
 record_is() {
   [ "$(sorted <"$proj/.claude/celetis-flow/wiring.json")" = "$(sorted <<<"$1")" ] || fail "wrong record: $(cat "$proj/.claude/celetis-flow/wiring.json")"
@@ -556,6 +556,15 @@ bytes_are $'# Our decisions\n' docs/adr/README.md
 cmp -s "$plug/docs/adr/template.md" "$proj/docs/adr/template.md" || fail "write made no template next to a product README"
 bytes_are "$index_head" docs/lessons/INDEX.md
 unrecorded_stores "a product store"
+
+new_project producttemplate
+mkdir -p "$proj/docs/adr" "$proj/docs/lessons"
+printf '# Our template\n' >"$proj/docs/adr/template.md"
+printf '# Our lessons\n' >"$proj/docs/lessons/INDEX.md"
+commit_all product
+run write --hosts codex --landing pr >/dev/null
+bytes_are $'# Our template\n' docs/adr/template.md
+bytes_are $'# Our lessons\n' docs/lessons/INDEX.md
 
 new_project handwired
 mkdir -p "$proj/.claude/celetis-flow" "$proj/.codex/rules" "$proj/scripts" "$proj/docs/adr" "$proj/docs/lessons"
