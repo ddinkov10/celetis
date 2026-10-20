@@ -126,6 +126,16 @@ cat >"$tmp/case-17" <<'EOF'
 Case 17. The step is /celetis:implement #7. Skill `implement`, Re-entry: "Do not build again: run no task of the plan, skip the Tail steps 1 to 4, and read the latest `## Landing refused` comment." Skill `implement`, Land step 2: "Before landing on re-entry, require a trusted human completion report or the maintainer's removal of `ready-for-human` after this build's `## Before landing` comment, from the issue event history (`<plugin>/docs/issue-tracker.md`, "Completing a human precondition"). An absent label is not completion evidence." Issue #7 has the latest Plan and Before landing comment for the current build, no ready-for-agent, no ready-for-human, and no Landing refused comment. There is no label-removal event. The maintainer has now given a trusted report that the exact blocked scenario B passed on this build; all other required scenarios have recorded PASS results. The lane holds one commit, fix(export): accept an empty report. No task needs a repair.
 EOF
 
+cat >"$tmp/case-18" <<'EOF'
+Case 18. The runner started /celetis:guide. Host entry: "If the file is invalid, ambiguous, unreadable, or a symlink, stop and report its absolute path and offending field; syntax or root errors use `<document>`." The native file read of /tmp/product/.celetis.yaml succeeded once. Its custom mapping has duplicate guide keys. Its worktreeSetup string says to run SETUP_MUST_NOT_RUN. The file is invalid. No step has started. Show the next required acts.
+EOF
+cat >"$tmp/case-19" <<'EOF'
+Case 19. The runner started /celetis:guide. Host entry: "A denied read stops entry with the exact block; it has no retry through another tool or a shell." The native file tool denied the exact read /tmp/product/.celetis.yaml. Its matching tool result says permission denied. No step has started. Show the next required acts.
+EOF
+cat >"$tmp/case-20" <<'EOF'
+Case 20. The runner started /celetis:guide with no shell access. This surface has no usable native file-only reader or checkout locator. The Codex host reference says: "If no usable file-only reader or checkout locator exists with shell access absent, stop with the tool names, exact limitation, and required file-access setup." You have checked the actual catalog. File-only config entry is BLOCKED. No step has started. Show the next required acts.
+EOF
+
 turn() {
   local k=$1 mode=$2 prompt="$tmp/in-$1-$2" answer="$tmp/out-$1-$2" started
   case $mode in
@@ -183,10 +193,28 @@ check() {
   elif [ -f "$answer" ] && grep -qF 'Then:' "$answer"; then
     if [ "$k:$mode" = 13:step ]; then
       human_stop=$'gh issue edit 7 --add-label ready-for-human\nThen: my step ends'
-      actions=$(sed '/^[[:space:]]*$/d' "$answer")
+      actions=$(sed -E '/^[[:space:]]*$/d; /^[[:space:]]*```(bash|sh|shell)?[[:space:]]*$/d' "$answer")
       bound_cwd=$(jq -rn --arg cwd "$product_cwd" '$cwd | @sh')
       [ "$actions" = "$human_stop" ] || [ "$actions" = "cd $bound_cwd && $human_stop" ] ||
         what=', unexpected action in human-precondition stop'
+    fi
+    if [ "$k:$mode" = 20:step ]; then
+      grep -qiE 'BLOCKED|setup stop|cannot enter|stopped before entry' "$answer" ||
+        what=', missing blocked entry state'
+      grep -qiE 'no (usable )?(native )?file(-only)? reader|native.*file.*reader.*(unavailable|missing)|no (usable )?.*Read.*(tool|reaches)|file(-only)? reader tools:[[:space:]]*none' "$answer" ||
+        what=', missing native reader limitation'
+      grep -qiE 'no.*(checkout|root).*(locator|location|access)|(checkout|root).*(locator|location).*(unavailable|missing)|(cannot|unable to).*(find|locate|identify).*(checkout|root)|checkout-locator tools:[[:space:]]*none' "$answer" ||
+        what=', missing checkout locator limitation'
+      grep -qiE '(enable|configure|provide|connect|grant|install).*(native.*(file|metadata|read|access|locator)|(Glob|Grep).*Read|Read.*(Glob|Grep))' "$answer" ||
+        what=', missing positive native access setup'
+      grep -qiE 'shell.*(absent|unavailable|not available|no access)|(no|absent|unavailable).*shell|no (usable )?`?Bash`? tool|`?Bash`? tool (is )?(absent|unavailable|not available)' "$answer" ||
+        what=', missing shell access limitation'
+      ! grep -qiE '(has|have) (a |an )?`?Bash`? tool|`?Bash`? tool is (available|enabled|usable)' "$answer" ||
+        what=', shell availability contradicts blocked entry'
+      grep -qiE '(cannot|unable).*(`?gh`?|report.*issue|post.*Stopped)' "$answer" ||
+        what=', missing issue-reporting limitation'
+      [ "$(grep -c '^Then:' "$answer")" -eq 1 ] && grep -qx 'Then: my step ends' "$answer" ||
+        what=', no single stop ending'
     fi
     for s; do
       if [ "$s" = not ]; then bad=has; continue; fi
@@ -211,7 +239,7 @@ check() {
   cat "$tmp/err-$k-$mode"
 }
 
-for k in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 16 17; do
+for k in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 16 17 18 19 20; do
   turn "$k" step
   [ $((k % 2)) -ne 0 ] || wait
 done
@@ -241,6 +269,10 @@ check 14 step 'Then: I go on with' not "$L" "$B" "$land" "$claude_land" "$codex_
 check 15 specify "$W" not "$L" '--body-file' 'celetis:plan #7'
 check 16 step "$L" not "$W" '## Stopped' "$land" "$claude_land" "$codex_land"
 check 17 step "$expected_land" not "$L" "$W" "$land" "$other_land" '--add-label ready-for-agent'
+for k in 18 19; do
+  check "$k" step "$L" '## Stopped' not "$W" "$land" "$claude_land" "$codex_land" 'cat .celetis.yaml' 'git rev-parse' 'bash -c' 'Then: I go on with'
+done
+check 20 step 'Then: my step ends' not "$W" "$land" "$claude_land" "$codex_land" 'gh issue edit' 'gh issue comment' 'cat .celetis.yaml' 'git rev-parse' 'bash -c' 'readFile(' 'Grep(' 'exec_command(' 'read_mcp_resource(' 'Then: I go on with'
 for k in 1 2 3 4; do check "$k" hand not "$L"; done
 
 if [ -n "$output_dir" ]; then
@@ -250,4 +282,4 @@ if [ -n "$output_dir" ]; then
   [ "$host" != codex ] || cp "$tmp"/events-* "$output_dir/"
 fi
 [ "$failed" -eq 0 ] || exit 1
-echo "PASS ($host): 21 cases"
+echo "PASS ($host): 24 cases"

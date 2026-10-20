@@ -33,9 +33,9 @@ launcher file. It holds only what is its own:
 |---|---|
 | The host wiring | Claude: `.claude/settings.json`. Codex: the installed plugins and trusted `.codex/config.toml` and `.codex/rules/` (below) |
 | The launcher | `scripts/celetis` |
-| The config | `.claude/celetis-flow/gates.json`, `landing.json`, and `board.json` |
-| The worktree setup | `.claude/celetis-flow/worktree-setup.sh` |
-| The custom parts | `.claude/celetis-flow/custom/<skill>.md`, one file for each skill that needs one |
+| The config | `.celetis.yaml` |
+| The worktree setup | `worktreeSetup` in `.celetis.yaml` |
+| The custom parts | `custom.<skill>` in `.celetis.yaml`, one string for each skill that needs one |
 | The product facts | `AGENTS.md` |
 | The stores | `docs/adr/` and `docs/lessons/` |
 
@@ -43,9 +43,10 @@ No file of the plugin names a part of a product, apart from the records of `docs
 names a role, for example "the verify gate of the project", and the product project names the
 thing. A lane ends when the change is on the trunk, which is the default branch of the repository
 on GitHub: the verify gate, the deployment, and each other part of a product stay in the product
-project. The plugin has no `version`, no `bin/` folder, no hook, and no declared dependency, and it
-gives no permission rule. ADR-0012 holds the original packaging decision; ADR-0014 extends it
-to both hosts without a second copy of the procedures.
+project. The plugin has no `version`, no `bin/` folder, and no declared dependency, and it gives
+no permission rule. Its Claude native hook completes file entry before skill expansion.
+ADR-0012 holds the original packaging decision; ADR-0014 extends it to both hosts without a
+second copy of the procedures. ADR-0015 replaces their config storage clauses with one YAML file.
 
 ## Requirements
 
@@ -54,7 +55,8 @@ to both hosts without a second copy of the procedures.
   2026-10-14 (ADR-0012). Keep the clone path at 130 characters or less: a longer path goes past
   the 260 limit on Windows, and `scripts/celetis worktree <n>` then stops with `Filename too
   long`. `git config --global core.longpaths true` removes the limit.
-- The selected host CLI (`claude` or `codex`), `gh` (logged in), `jq`, `git` 2.31 or later,
+- The selected host CLI (`claude` or `codex`), `gh` (logged in), `jq`, Mike Farah's `yq`
+  `>=4.54.1,<5`, `git` 2.31 or later,
   and Perl 5.14 or later on `PATH`.
   The runner uses only the standard library of Perl.
 - Git credentials for GitHub that need no prompt, an ssh key or a credential helper for https: the
@@ -65,6 +67,8 @@ to both hosts without a second copy of the procedures.
 - For the board: Node 22 from 22.18, or Node 24.2 or later, with `npx`, and a Chromium browser.
 
 `docs/celetis-flow.md` gives each requirement in full ("Requirements", and "The board").
+The [configuration reference](docs/configuration.md) gives the repository schema and the
+`yq` v4.54.1 download commands for macOS and Linux.
 
 ## Wire a product project
 
@@ -248,18 +252,17 @@ of the plugin needs no new copy.
 
 ### Agent selection and model setup
 
-Set the default for human terminal and board commands in the product checkout:
+Set `host: codex` in `.celetis.yaml` for human terminal and board commands. Check the installed
+package with an explicit host:
 
 ```bash
-git config celetis-flow.agent codex
 scripts/celetis --agent codex root
 ```
 
-Selection is `--agent claude|codex`, then `CELETIS_AGENT`, then `celetis-flow.agent` in Git config,
-then `claude`. An empty or unsupported value stops the command. Skills always pass their actual
-host explicitly on each call, including landing. The selected agent is exported as
-`CELETIS_AGENT` to child scripts. Both installed hosts can use one product project; their
-installations and configuration remain separate.
+Selection is `--agent claude|codex`, then `CELETIS_AGENT`, then `host` in the main checkout's
+`.celetis.yaml`, then `claude`. An invalid value stops the command. Skills always pass their
+actual host explicitly on each call, including landing. The selected host is exported to child scripts. Both installed
+hosts can use one product project; their installations and configuration remain separate.
 
 `root` validates the enabled plugin and returns the installed package directory. Codex discovery
 uses a short-lived app-server connection and `skills/list`, with no thread or model turn.
@@ -268,7 +271,8 @@ marketplace source checkout in place of the returned installation.
 
 Before Codex child work, supply the four-slot profile and reviewer minimum in
 `docs/capability.md`, "Codex model profiles". Obtain the model IDs and efforts from the active
-dispatch surface, and pass the profile and runtime allowlist to each scorer call. There is no
+dispatch surface. Store its profile under `codexProfiles` in the main config and pass the current
+runtime allowlist to each scorer call. There is no
 shipped Codex model default. A CLI catalog does not establish desktop dispatch support. A missing
 pair or a tool that cannot apply the required pair stops the dependent work.
 
@@ -279,41 +283,46 @@ a model session can start. The runner reports startup dialogs and leaves them fo
 
 ### The config, the worktree setup, and the custom parts
 
-They are files of `.claude/celetis-flow/`:
+Operational settings and setup are fields of `.celetis.yaml` (`docs/configuration.md`).
+Commands that need repository setup require this file and stop if it is missing or invalid.
 
-| File | What it holds | With no file |
+| Field or file | What it holds | When omitted |
 |---|---|---|
-| `landing.json` | The landing mechanism. `{"landing": "pr"}` is one PR back to the trunk, which `scripts/celetis land` squash-merges when each check is green. With `pr`, the landing needs one check or more that passes on the PR, so a project with no check uses `merge`. `{"landing": "merge"}` is one squash commit on the trunk, with no PR | `scripts/celetis land` names the two mechanisms and exits 2 |
-| `gates.json` | The gate of each step, `me` or `auto`: `{"triage": "me", "specify": "me", "bug": "me", "chore": "me", "hotfix": "me", "plan": "me", "implement": "me"}` | Each step is `me`, unless the git config of the machine names it `auto` |
-| `board.json` | The commands and the port of the board ("The agent board") | The board shows the session cards only |
-| `worktree-setup.sh` | The setup of a new lane worktree, for example the install of the dependencies and the copy of the files that git ignores | A new worktree gets no setup |
-| `custom/<skill>.md` | A custom part: an addition to the procedure of the skill `<skill>` | The skill continues with its common instructions |
+| `landing` | Required `pr` or `merge`. `pr` squash-merges a PR when each check is green. `merge` creates one squash commit on the trunk, with no PR. A project with no PR check uses `merge` | The command exits 2 |
+| `gates` | A mapping from the seven step names to `me` or `auto` | Each omitted step is `me` |
+| `worktreeSetup` | One Bash script for a lane, for example dependency installation and copying ignored files | No setup |
+| `board.port` | The board port ("The agent board") | 4403 |
+| `codexProfiles.<runtime>` | Four ordered model slots and the reviewer minimum for that dispatch surface | Configured Codex dispatch stops |
+| `custom.<skill>` | An addition to the skill procedure | No addition |
 
-- **The config** is the three JSON files. Each reader takes them from the main checkout, also when
-  a script starts in a lane worktree. After a merge that changes one of them, run `git pull` in the
-  main checkout.
-- **The gate of a step** comes from the git config of the machine
-  (`git config celetis-flow.gate.<step> auto`), then from `gates.json`, and else it is `me`. An
-  `auto` step starts by itself. A `me` step starts only when you start it, with a number or with a
-  Run press on the board.
+- **Operational settings** come from the main checkout, including when a command starts in a
+  lane or subfolder. After a merge changes the config, run `git pull` in the main checkout.
+- **The gate of a step** comes from `gates.<step>`. An `auto` step starts by itself. A `me` step
+  starts when you supply a number or press Run on the board. Old Git defaults have no effect.
 - **With the landing `pr`,** keep the repository setting `squash_merge_commit_title` at
   `COMMIT_OR_PR_TITLE`: for a PR with one commit, GitHub then takes the subject of that commit and
   adds the PR number (`docs/issue-tracker.md`, "Branches, PRs, merge").
   `gh api 'repos/{owner}/{repo}' --jq .squash_merge_commit_title` prints the value.
-- **The worktree setup.** `scripts/celetis worktree <n>` runs the file of the new worktree, in that
-  worktree, as `bash .claude/celetis-flow/worktree-setup.sh <main checkout>`, with stdout sent to
-  stderr. So the file needs no execute bit, and it can print. When it exits with an error, the
-  command removes the worktree and the branch that it made. A worktree gets its setup one time
-  (`docs/celetis-flow.md`, "The config and the custom parts").
-- **A custom part** is read once through the common host entry before the first step or answer
-  of its skill, from the active checkout root (ADR-0013). Claude uses native file tools; Codex
-  uses the file-access operations of its session. A runner step starts in the main checkout.
-  A later skill invoked after binding a lane reads the custom part of that lane.
-  The text is an addition: it cannot remove a rule of the general skill, and it is no domain skill
-  (ADR-0006). Two skills name what their custom part holds: `hotfix.md` holds the ship acts of the
-  project, and `lesson.md` holds its tags.
+- **The worktree setup.** `scripts/celetis worktree <n>` reads `worktreeSetup` from the lane's
+  `.celetis.yaml`. It runs the complete string in one Bash process in that lane, with the main
+  checkout as `$1` and inherited stdin. All output goes to stderr, so stdout holds one lane path.
+  A failed setup removes a new worktree and a branch created by the command. An existing branch
+  or worktree stays for repair and retry. A successful setup gets the existing marker and runs
+  only once. Every entry still checks the lane config (`docs/celetis-flow.md`).
+- **A custom part** is the parsed string `custom.<skill>` in `.celetis.yaml`. At entry, the
+  skill reads the whole config once from the active checkout through native file tools and
+  applies only its own string (ADR-0013 and ADR-0015). No shell or parser runs during entry. A runner step
+  starts in the main checkout; a later skill entered in a lane reads that lane's config.
+  A same-session handoff or first borrowed reference creates its own entry. Later sections
+  reuse that entry. Missing checkout, config, or custom text gives no addition; an invalid,
+  ambiguous, unreadable, or denied config stops entry. A denied read has no alternate path.
+  The text is an addition: it cannot remove a rule of the general skill (ADR-0006).
+  `custom.hotfix` holds the project's ship acts, and `custom.lesson` holds its tags. Keep
+  literal block text and parsed trailing newlines intact (`docs/configuration.md`).
 
 `docs/celetis-flow.md` holds these parts in full ("Gates", and "The config and the custom parts").
+Before updating an existing product project, complete the [manual cutover](docs/configuration.md#replace-the-old-setup).
+It includes the changed standalone launcher and stopped old runners; plugin refresh alone does not prepare a project.
 
 ### `.gitignore`
 
@@ -389,27 +398,27 @@ it have no `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md`. A project tha
 
 ### Optional: the board in Claude desktop
 
-A product project can hold an entry `board` in its `.claude/launch.json` that starts the command of
-the board with `--yes`. A session in a Code tab of Claude desktop can then show the page in the
-Browser pane. This start is not checked (`docs/celetis-flow.md`, "The board", and "Limits"). The
-entry of the first product project is the example. It is one item of the list `configurations` of
-that file, and its `port` is the port of `board.json`:
+A product project can keep a native `board` entry in `.claude/launch.json`. Point it at the same
+launcher command. Its native preview port must match `board.port` in `.celetis.yaml`:
 
 ```json
 {
   "name": "board",
-  "runtimeExecutable": "npx",
-  "runtimeArgs": ["--yes", "github:ddinkov10/agent-board#semver:^2"],
+  "runtimeExecutable": "scripts/celetis",
+  "runtimeArgs": ["board"],
   "port": 4403
 }
 ```
 
+This desktop launch remains UNRUN (`docs/celetis-flow.md`, "Limits"). The terminal start below
+has a separate acceptance result.
+
 ### Commit the wiring on the trunk
 
 Commit these files on the trunk and push them, by hand, before the first lane. A lane branch starts
-at the trunk of `origin`, so a file that is not there is in no lane worktree: the launcher, the
-worktree setup file, or a custom part. A file that git does not track also makes the main checkout
-dirty, and the resolver then stops each issue. The launcher and the worktree setup file need LF
+at the trunk of `origin`, so a file that is not there is in no lane worktree: the launcher,
+`.celetis.yaml`, including a custom part. A file that git does not track also makes the main checkout
+dirty, and the resolver then stops each issue. The launcher and `.celetis.yaml` need LF
 line endings on each host, and a `.gitattributes` file with the line `* text=auto eol=lf` keeps
 them.
 
@@ -443,7 +452,7 @@ host's skill selector. The native desktop selector still needs final acceptance 
   read, edit, and child brief to that exact path and reads its `AGENTS.md` files. A shell `cd`
   alone does not bind later file tools. An app-created detached checkout does not replace the
   lane checkout. Both hosts return to the main checkout for landing.
-- The landing puts the change on the trunk by the mechanism of `landing.json`. With `pr`,
+- The landing puts the change on the trunk by the `landing` field of `.celetis.yaml`. With `pr`,
   `scripts/celetis land <n> '<subject>'` pushes the branch, opens the PR, waits up to 15 minutes
   for the checks, and squash-merges when each check is green. It then removes the worktree and the
   branch.
@@ -529,9 +538,10 @@ and board form. Every skill call adds `--agent claude` or `--agent codex` before
 |---|---|
 | `scripts/celetis worktree <n>` | Makes the lane worktree and the branch of the issue, or enters the one that is there, and prints its path |
 | `scripts/celetis worktree --remove <n>` | Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first |
-| `scripts/celetis land <n> '<subject>'` | Lands the change of the issue by the mechanism of `landing.json`. It is the one landing path of an agent |
+| `scripts/celetis land <n> '<subject>'` | Lands the change of the issue by the `landing` field of `.celetis.yaml`. It is the one landing path of an agent |
 | `scripts/celetis next-step <n> \| --open \| --json` | The resolver: the next step of one issue, of each open issue, or the rows for the board |
-| `scripts/celetis capscore J V B N S X` | Resolves the six digits. `--json` gives portable scores and the host pair; Codex also needs `--profile` and `--runtime-models` |
+| `scripts/celetis board` | Starts released agent-board v2.2.1 from the main YAML config; takes no arguments |
+| `scripts/celetis capscore J V B N S X` | Resolves the six digits. `--json` gives portable scores and the host pair; Codex selects its main config profile by live runtime identity and needs `--runtime-models` |
 | `scripts/celetis celetis-flow [<n>...] \| --board \| --resume <n>` | The runner: the next step of each number, or the automatic runner with no number. `--board` prints the data of the board, and `--resume` opens the session of a step with no progress again |
 | `scripts/celetis root` | Prints the install folder of the plugin. The runner uses it after an update |
 
@@ -539,7 +549,8 @@ and board form. Every skill call adds `--agent claude` or `--agent codex` before
 - Each sub-command gives the output and the exit code of its script.
 - Run a command in a checkout of the product project: the plugin holds the scripts, so only the
   current folder names the project. `capscore` and `root` run in each folder.
-- The launcher needs the selected host CLI and `jq`. A missing tool or invalid installation
+- The launcher needs the selected host CLI and `jq`. Project commands also need the parser
+  and valid config described in `docs/configuration.md`. A missing tool or invalid installation
   stops with a setup action. Codex commands require no Claude binary. The current metadata must
   explicitly mark the installation enabled; missing fields are not an old-format fallback.
 
@@ -603,92 +614,60 @@ ADR-0012 holds the evidence for one fact and one limit of Claude updates:
 
 ## The agent board
 
-The board is the package `ddinkov10/agent-board`: one local web page that shows each agent session
-of a repository and the next step of each issue, and that starts a step with one press. Neither
-the plugin nor a product project holds a file of the board. The config below needs a stable v2
-release with agent selection and the `{agent}` Run placeholder. Version 2.0.0 rejects this Run
-list. A check against local board source does not prove that the released package supports it.
-
-Start it in the main checkout only, never in a lane worktree, and open the URL of its last line:
+The board is the separate package `ddinkov10/agent-board`. It shows each agent session and the
+next step of each issue, and starts a step with one press. Start it in the main checkout or one
+of its subfolders, then open the URL on its last line:
 
 ```bash
-npx 'github:ddinkov10/agent-board#semver:^2'    # the last line: agent-board: http://127.0.0.1:<port>
+scripts/celetis board
+PORT=4500 scripts/celetis board
 ```
 
-The quotes are necessary. `npx --yes` answers the install question of the first start.
+The command takes no arguments. It validates the main checkout's `.celetis.yaml` and refuses a
+lane start before it runs `npx`. It sends the fixed command lists through stdin to
+`npx --yes 'github:ddinkov10/agent-board#v2.2.1' --config-stdin` in the main checkout. No second
+config file is made. The released package validates the input and its executable paths.
+Only `board.port` comes from YAML; its default is 4403. `PORT` overrides it. This repository uses
+4404, so its board can run beside a board on 4403. Restart the board after a port change.
 
-The config of the board is `.claude/celetis-flow/board.json`. Its three entries name the launcher,
-so the product project holds no other file for the board:
+The producer prints contract 1. Its `agents` entries report executable availability for Claude
+and Codex. Sign-in, trust, and enabled plugin discovery need their own checks.
+A Run press passes the selected `{agent}` through `scripts/celetis --agent <agent> celetis-flow
+<n>`. With no explicit choice, it uses `defaultAgent`: `CELETIS_AGENT`, then `host` in the main
+YAML, then `claude`. Set the project default in that YAML field. A Run choice changes only that
+start. The board's default-agent menu and command palette show `Default agent is read-only`.
+They show the reason: `The producer controls the default agent. Change it in the producer configuration.`
+Unknown or unavailable Run choices return 409 and start no agent.
+Resume uses `scripts/celetis celetis-flow --resume <n>` and the saved host and exact session ID,
+even after the YAML default changes. Each command item is one argument; the board quotes it
+before it sends the command to herdr.
 
-```json
-{
-  "data": ["scripts/celetis", "celetis-flow", "--board"],
-  "run": ["scripts/celetis", "--agent", "{agent}", "celetis-flow", "{n}"],
-  "resume": ["scripts/celetis", "celetis-flow", "--resume", "{n}"],
-  "port": 4403
-}
-```
-
-| Key | Use |
-|---|---|
-| `data` | The board starts it for each read of the issues. It prints contract 1, the JSON document that the board reads |
-| `run` | A Run press types it in a new herdr tab. It starts the next step of the issue `{n}` with the selected `{agent}` |
-| `resume` | A Resume press types it in a new herdr tab. It opens the session of a step with no progress again |
-| `port` | The port, when `PORT` is not set. With no `port`, it is 4403 |
-
-Two boards on one machine need two ports: the `board.json` of this repository has 4404. The board
-reads its config one time, at its start, from the main checkout.
-
-**Before landing this config,** the maintainer must have the compatible stable v2 board release
-and stop affected sessions, runners, and boards. Prepare a coordinated replacement of each
-product project's [copied launcher](#the-launcher), [Claude permission rules](#claude-permissions-claudesettingsjson),
-[Codex permission rules](#codex-permissions-codexrulesceletisrules), and the Run list above,
-using the [current agent-selection inputs](#agent-selection-and-model-setup). Plugin refresh
-does not replace copied product wiring. Use this reviewed build for copies prepared before
-landing. Wiring included in a product's reviewed change must arrive through that product's
-trunk landing; keep its main checkout clean. Update other product copies separately.
-
-Keep affected sessions, runners, and boards stopped until the compatible board release and
-refreshed plugin are available. After each product's wiring is current in its main checkout,
-[refresh the selected host installation](#updates) and restart those sessions, runners, and
-boards before the next step or board action.
-
-The data document has `agents` entries for `claude` and `codex`, and a `defaultAgent`. Each entry
-has `available: true` and `cause: null` when its executable is on `PATH`, else `available: false`
-and the missing-executable cause. Availability checks only the executable. Plugin installation,
-sign-in, trust, and full host parity need separate checks.
-
-The data command selects `--agent`, then `CELETIS_AGENT`, then the project Git setting
-`celetis-flow.agent`, then `claude`. The board's default control calls `POST /api/agent`, which
-writes only `celetis-flow.agent`. You can also set it with `git config celetis-flow.agent codex`
-or `git config celetis-flow.agent claude`. An explicit flag or environment value takes priority
-over that stored preference on the next data read.
-
-A Run press calls `POST /api/run`. The board substitutes the chosen agent, or `defaultAgent`
-when no choice is supplied, for `{agent}`. This override applies only to that Run and does not
-write the project preference. Unknown or unavailable choices return 409 and start no agent.
-Resume keeps its unprefixed list: it reads the saved host and exact session ID for the issue,
-even after the project default changes. Each item is one argument, not shell text. The board
-quotes the items when it sends a Run or Resume command to herdr.
-
-Check the data against the contract in the main checkout:
+Check issue data against the released contract in the main checkout:
 
 ```bash
-scripts/celetis celetis-flow --board | npx 'github:ddinkov10/agent-board#semver:^2' check --stdin
+scripts/celetis celetis-flow --board | npx --yes 'github:ddinkov10/agent-board#v2.2.1' check --stdin
 ```
 
-`docs/celetis-flow.md`, "The board", holds the requirements, the fields of the data, and the state
-of each card. The README of the package holds the page:
-`https://github.com/ddinkov10/agent-board#readme`.
+`docs/celetis-flow.md`, "The board", gives the fixed command lists and card states.
+The [package README](https://github.com/ddinkov10/agent-board#readme) describes its page.
+Before the plugin cutover, the maintainer completes the [manual replacement](docs/configuration.md#replace-the-old-setup)
+for each product project and stops its old sessions, runners, and boards. Native desktop and
+full workflow acceptance remain open as listed in `docs/celetis-flow.md`, "Acceptance status".
 
 ## Tests
 
 Run the tests in a checkout of this repository.
 
+Both `tests/native-entry.test.sh` and `tests/native-observer.test.sh` need Claude Code's
+`claude plugin test` runtime. The workflow pins Claude Code 2.1.302 through its
+[supported npm package](https://code.claude.com/docs/en/setup#install-with-npm).
+This repository test runtime is required even when product operations select Codex.
+The checks need no model credentials or tokens and start no model turn.
+
 - **The full local gate** is `scripts/verify.sh`. It checks the Perl updater syntax, runs each
   `tests/*.test.sh`, then `scripts/capscore.sh --test` and `claude plugin validate .`. Its last line
-  is `verify: PASS`. The source gate needs Claude's validator even on a Codex development machine;
-  product projects use their own gate. No validator starts a model turn.
+  is `verify: PASS`. It also needs Claude's validator, which starts no model turn.
+  Product projects use their own gate.
 
   ```bash
   AGENT_BOARD=<checkout of agent-board>/cli.mjs scripts/verify.sh
@@ -696,10 +675,11 @@ Run the tests in a checkout of this repository.
 
   `AGENT_BOARD` names the entry file of a local checkout of the board package, for the contract
   check of the `--board` documents and the board-to-launcher integration test. With no value,
-  the integration test packs the stable v2 package in a temporary directory.
+  the integration test packs v2.2.1 in a temporary directory. This override is for the local
+  gate; released-package acceptance uses the exact GitHub tag through the new adapter.
 - **The workflow** `.github/workflows/test.yml` runs each `tests/*.test.sh` and
   `scripts/capscore.sh --test`, plus the Perl syntax check, on Linux, for each pull request and
-  each push to `main`. It needs no host CLI, model credentials, or model tokens. It sets
+  each push to `main`. It installs Node.js 22 and the pinned Claude test runtime before the tests. It sets
   `CELETIS_FLOW_SKIP_BOARD_CHECK=1`, so it skips that contract check and the private-package
   board-to-launcher integration test. The gate on a machine runs both.
 - **The proof on bash 3.2.** The gate runs each test under the `/bin/bash` of macOS, with
@@ -730,14 +710,24 @@ Run the tests in a checkout of this repository.
   The test then reads the step text of the installed plugin, and it runs its turns in that
   checkout. Use `claude` in both places for Claude. A text-only turn does not prove native
   discovery, live tools, compaction, board actions, or landing.
-- **The custom-part test,** `tests/manual/custom-part.test.sh`, loads the guide skill of the
-  checkout in Claude headless turns. It checks native reads with no Bash tool, shell permission rules,
-  missing files, and denied reads. It also checks subfolders and worktrees, including a change
-  into a worktree during the session. It uses tokens and stays outside the gate and the workflow:
+- **The custom-part test,** `tests/manual/custom-part.test.sh`, loads an isolated copy of the
+  checkout package through Claude's real `--plugin-dir` discovery. Its 24 cases check native
+  YAML reads without Bash, shell permission rules, root/subfolder/linked checkout selection,
+  absent config and custom values, invalid config, a denied read, same-session handoff, and
+  borrowed rules. Each entry reads exactly one active config and applies only its target text.
+  The retained artifacts include source hashes, exact paths, restrictions, streams, and exit
+  statuses. Claude's native hook uses metadata and normal permission-checked `Read` before
+  the model sees an entry. The owned passive observer records native API results and content
+  hashes; it changes no permission or result. The test installs no tool. It uses tokens and stays outside the gate and the workflow:
 
   ```bash
-  PATH="/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh
+  PATH="/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh \
+    --output-dir /absolute/evidence
   ```
+
+  The separate Codex CLI and desktop probes are in `tests/manual/config-entry-codex.md`.
+  A missing supported file-only reader is BLOCKED. Shell reads and deterministic fixtures
+  cannot prove native no-shell entry. `tests/manual/live-acceptance.md` tracks open surfaces.
 
 `docs/celetis-flow.md`, "Check the harness", holds the reasons behind the facts of the gate, the
 workflow, the proof on bash 3.2, and the hand-run test.

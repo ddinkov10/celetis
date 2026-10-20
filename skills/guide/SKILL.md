@@ -5,9 +5,13 @@ argument-hint: [what you want to achieve]
 disable-model-invocation: true
 ---
 
-**Host entry.** Before any step or response, including commentary or an announcement, complete the startup reads in [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
+**Host entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in this loaded file's path. Read [the host operations](../../docs/hosts/entry.md) at `<plugin>/docs/hosts/entry.md` directly, before any product-path scan. The relative link starts in the absolute directory containing this SKILL.md. Complete its startup reads on each invocation, including a same-session handoff.
 
-Match the goal to a row. Give the selected host's skill prompt or command and one line on why it fits. Execute no recommended action and invoke no other skill. Goal: the invocation input.
+If entry stops, report only the exact block and the required repair or access setup. End the turn without goal advice, including conditional commands.
+
+After Host entry succeeds, match the goal to a row. Give the selected host's skill prompt or command and one line on why it fits.
+Write each launcher recommendation as `scripts/celetis --agent claude <command>` or `scripts/celetis --agent codex <command>` for the running host, including commands for the person's terminal.
+Execute no recommended action and invoke no other skill. Goal: the invocation input.
 
 | You want to… | Run |
 |---|---|
@@ -19,8 +23,8 @@ Match the goal to a row. Give the selected host's skill prompt or command and on
 | make a zero-behavior-change edit (dep bump, rename, docs) | `/celetis:chore <# or text>` |
 | turn an approved spec (the issue body) into a plan | `/celetis:plan <#>` in a fresh context |
 | build a posted plan (`ready-for-agent`) and land the change | `/celetis:implement <#>` in a fresh context |
-| see each agent session and each issue's next step, and start a step | the board: `npx 'github:ddinkov10/agent-board#semver:^2'` in the main checkout, then `http://127.0.0.1:<port>`, with the `port` of `.claude/celetis-flow/board.json` (`<plugin>/docs/celetis-flow.md`) |
-| run the next step of an issue in a fresh session, in your own terminal | `scripts/celetis celetis-flow <n>...` in a Terminal tab; each gate is `me` by default, so it runs one step of each issue and ends. With no number it runs only the steps that `.claude/celetis-flow/gates.json` or `git config celetis-flow.gate.<step> auto` on this machine makes `auto`, so with the defaults it starts nothing (`<plugin>/docs/celetis-flow.md`) |
+| see each agent session and each issue's next step, and start a step | the board: `scripts/celetis board` in the main checkout, then `http://127.0.0.1:<port>`, with `board.port` in `.celetis.yaml` (`<plugin>/docs/celetis-flow.md`) |
+| run the next step of an issue in a fresh session, in your own terminal | `scripts/celetis celetis-flow <n>...` in a Terminal tab; each gate is `me` by default, so it runs one step of each issue and ends. With no number it runs only the steps that `gates.<step>: auto` in `.celetis.yaml` makes `auto`, so with the defaults it starts nothing (`<plugin>/docs/celetis-flow.md`) |
 | see an issue's next step without running it | `scripts/celetis next-step <#>`; `scripts/celetis next-step --open` lists each open issue |
 | open the session of a step again to diagnose it | the selected host's session-recovery command from the host operations, using the recorded session identity |
 | land a change whose landing stopped (`## Landing refused`) | the build step again, `/celetis:implement <#>` or `/celetis:chore <#>`: it lands the change and does not build it again |

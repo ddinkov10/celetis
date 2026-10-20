@@ -79,6 +79,7 @@ repo="$tmp/repo"
 git init -q "$repo"
 git -C "$repo" config core.autocrlf false
 printf x >"$repo/a.txt"
+printf 'landing: merge\nworktreeSetup: touch "$NEXT_STEP_TEST_STATE/setup-ran"\n' >"$repo/.celetis.yaml"
 printf '.claude/worktrees/\n' >"$repo/.gitignore"
 git -C "$repo" add -A
 git -C "$repo" commit -qm base
@@ -112,6 +113,17 @@ expect() {
   run_next 7
   [ "$code" -eq 0 ] && one_line "$1" || fail "expected [$1], got $code [$out] $err"
 }
+
+for bad in missing invalid; do
+  reset; issue open chore ""
+  cp "$repo/.celetis.yaml" "$tmp/config.saved"
+  if [ "$bad" = missing ]; then rm "$repo/.celetis.yaml"
+  else printf 'landing: invalid\n' >"$repo/.celetis.yaml"; fi
+  run_next 7
+  [ "$code" -eq 2 ] && [ -z "$out" ] && [[ $err == *"$repo/.celetis.yaml"* ]] || fail "$bad main config was not refused: $code [$out] [$err]"
+  [ ! -e "$S/gh-calls" ] && [ ! -e "$S/setup-ran" ] || fail "$bad main config read issues or ran setup"
+  mv "$tmp/config.saved" "$repo/.celetis.yaml"
+done
 
 endpoints() { sed -E 's/^api (--paginate )?([^ ]*).*/\2/; s/since=[0-9]{4}-[0-9]{2}-[0-9]{2}T/since=<date>T/' "$S/gh-calls"; }
 comments_calls() { local n; for n; do echo "repos/{owner}/{repo}/issues/$n/comments?per_page=100"; done; }
@@ -372,6 +384,8 @@ echo x >"$refused/half-done.txt"
 run_next --json
 [ "$(printf '%s' "$out" | jq -c '.issues[0] | [.state, .path]')" = "[\"dirty\",\"$main/.claude/worktrees/7-refused\"]" ] || fail "--json, a dirty lane worktree comes before a refused landing: [$out]"
 git -C "$repo" worktree remove --force "$refused"
+
+[ ! -e "$S/setup-ran" ] || fail "next-step ran worktree setup"
 
 reset; open_issue 7 chore "" "A note"; open_issue 8 chore "" "A note"; state=closed open_issue 9 bug ""; state=closed open_issue 10 bug ""
 days=15 state=closed open_issue 11 bug ""

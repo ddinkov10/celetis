@@ -19,7 +19,7 @@ usage: scripts/celetis capscore J V B N S X [options]
 --agent claude|codex      explicit agent (CELETIS_AGENT > project config > claude)
 --json                   portable score plus the applied dispatch pair
 --reviewer               apply the selected host's reviewer minimum
---profile FILE           Codex profile (CAP_MODEL_PROFILE)
+--profile FILE           Codex profile (CAP_MODEL_PROFILE > main config profile)
 --runtime-models FILE    active dispatch allowlist (CAP_RUNTIME_MODELS)
 --current-model ID       opencode current model (CAP_CURRENT_MODEL)
 See docs/capability.md of the plugin celetis for profile and result schemas.
@@ -91,23 +91,22 @@ apply_score() {
 }
 
 setup_codex_profile() {
-  [ -n "$profile" ] && [ -f "$profile" ] && [ -r "$profile" ] || die 'Codex needs a readable --profile FILE (or CAP_MODEL_PROFILE); configure four ordered slots and a reviewer minimum'
+  local profiles='[]' config='{}' main='' config_file=''
+  if [ "$profile_supplied" = true ]; then
+    [ -n "$profile" ] && [ -f "$profile" ] && [ -r "$profile" ] || die 'Codex needs a readable --profile FILE (or CAP_MODEL_PROFILE); configure four ordered slots and a reviewer minimum'
+    need_jq
+    profiles=$(jq -cs '.' "$profile" 2>&1) || die "invalid Codex profile: $profiles"
+  else
+    main=$(celetis_config_main 2>/dev/null) || die 'Codex needs a main checkout with codexProfiles or an explicit --profile FILE'
+    config_file="$main/.celetis.yaml"
+    config=$(celetis_config_read "$main") || exit $?
+  fi
   [ -n "$runtime_models" ] && [ -f "$runtime_models" ] && [ -r "$runtime_models" ] || die 'Codex needs a readable --runtime-models FILE (or CAP_RUNTIME_MODELS) from the active dispatch surface'
   need_jq
-  binding=$(jq -cn --slurpfile profiles "$profile" --slurpfile runtimes "$runtime_models" '
+  binding=$(jq -cn --argjson profiles "$profiles" --argjson config "$config" --argjson explicit "$profile_supplied" --arg config_file "$config_file" --slurpfile runtimes "$runtime_models" '
     def text: type == "string" and length > 0 and (explode | all(. >= 32 and . != 127));
     def model_id: text and test("^[A-Za-z0-9][A-Za-z0-9._/-]*$");
-    if ($profiles | length) != 1 then error("invalid Codex profile: need one JSON object") else . end
-    | $profiles[0] as $p
-    | if ($p | type) != "object" or $p.schema != 1 or ($p.runtime | text | not) or
-         ($p.slots | type) != "array" or ($p.slots | length) != 4 or
-         (all($p.slots[]; model_id) | not)
-      then error("invalid Codex profile: schema 1 needs runtime and four ordered model slots") else . end
-    | if ($p.reviewer | type) != "object" or ($p.reviewer.rank | type) != "number" or
-         $p.reviewer.rank < 0 or $p.reviewer.rank > 3 or ($p.reviewer.rank | floor) != $p.reviewer.rank or
-         (["low","medium","high","xhigh"] | index($p.reviewer.effort)) == null
-      then error("invalid Codex profile: reviewer needs rank 0-3 and effort low, medium, high or xhigh (max is reserved for sum 12)") else . end
-    | if ($runtimes | length) != 1 then error("invalid runtime allowlist: need one JSON object") else . end
+    if ($runtimes | length) != 1 then error("invalid runtime allowlist: need one JSON object") else . end
     | $runtimes[0] as $r
     | if ($r | type) != "object" or $r.schema != 1 or ($r.runtime | text | not) or
          ($r.models | type) != "array" or ($r.models | length) == 0 or
@@ -116,6 +115,20 @@ setup_codex_profile() {
            (.efforts | unique | length) == (.efforts | length)) | not) or
          ([$r.models[].id] | unique | length) != ($r.models | length)
       then error("invalid runtime allowlist: schema 1 needs unique model IDs and supported efforts") else . end
+    | (if $explicit then $profiles
+       elif ($config.codexProfiles | type) == "object" and ($config.codexProfiles | has($r.runtime))
+       then [$config.codexProfiles[$r.runtime] | {schema:1,runtime:$r.runtime,slots,reviewer}]
+       else error($config_file + ": codexProfiles." + $r.runtime + ": missing profile; configure it or pass --profile") end) as $selected
+    | if ($selected | length) != 1 then error("invalid Codex profile: need one JSON object") else . end
+    | $selected[0] as $p
+    | if ($p | type) != "object" or $p.schema != 1 or ($p.runtime | text | not) or
+         ($p.slots | type) != "array" or ($p.slots | length) != 4 or
+         (all($p.slots[]; model_id) | not)
+      then error("invalid Codex profile: schema 1 needs runtime and four ordered model slots") else . end
+    | if ($p.reviewer | type) != "object" or ($p.reviewer.rank | type) != "number" or
+         $p.reviewer.rank < 0 or $p.reviewer.rank > 3 or ($p.reviewer.rank | floor) != $p.reviewer.rank or
+         (["low","medium","high","xhigh"] | index($p.reviewer.effort)) == null
+      then error("invalid Codex profile: reviewer needs rank 0-3 and effort low, medium, high or xhigh (max is reserved for sum 12)") else . end
     | if $p.runtime != $r.runtime then error("profile runtime does not match the active dispatch runtime") else . end
     | reduce $p.slots[] as $id (.;
         if any($r.models[]; .id == $id) then . else error("profile model unavailable in active runtime: " + $id) end)
@@ -198,7 +211,8 @@ run_tests() {
 }
 
 bias=""; attempt=1; digits=""; selected_host=""; json=false; reviewer=false
-profile=${CAP_MODEL_PROFILE:-}; runtime_models=${CAP_RUNTIME_MODELS:-}
+profile=${CAP_MODEL_PROFILE-}; runtime_models=${CAP_RUNTIME_MODELS:-}; profile_supplied=false
+[ "${CAP_MODEL_PROFILE+x}" = x ] && profile_supplied=true
 [ $# -gt 0 ] || die 'need six digits J V B N S X (or --test); see docs/capability.md of the plugin celetis'
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -209,7 +223,7 @@ while [ $# -gt 0 ]; do
     --bias) need_value "$@"; shift; bias=$1; is_uint "$bias" || die '--bias needs a non-negative integer' ;;
     --attempt) need_value "$@"; shift; attempt=$1; is_uint "$attempt" || die '--attempt needs a positive integer' ;;
     --agent) need_value "$@"; shift; selected_host=$1 ;;
-    --profile) need_value "$@"; shift; profile=$1 ;;
+    --profile) need_value "$@"; shift; profile=$1; profile_supplied=true ;;
     --runtime-models) need_value "$@"; shift; runtime_models=$1 ;;
     --current-model) need_value "$@"; shift; CURRENT_MODEL=$1 ;;
     -*) die "unknown flag: $1" ;;

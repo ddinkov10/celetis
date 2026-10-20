@@ -38,10 +38,8 @@ gone() {
   done
   return 1
 }
-flow="$main/.claude/celetis-flow"
 state="$common/celetis-flow"
 record="$state/no-progress"
-mkdir -p "$state"
 cd "$main"
 
 [ -n "$mode" ] || mode=numbers
@@ -56,10 +54,12 @@ if ! gone; then
       die "the session record changed during package discovery; run the resume command again"
     fi
     unset CELETIS_RESUME_RECORD
+    config=$(celetis_config_read "$main") || exit $?
     celetis_host_require || exit $?
     session_id=$(printf '%s\n' "$CELETIS_SESSION" | jq -r .session_id)
     cd "$(printf '%s\n' "$CELETIS_SESSION" | jq -r .checkout)"
   else
+    config=$(celetis_config_read "$main") || exit $?
     celetis_host_require || exit $?
     command -v gh >/dev/null 2>&1 || die "gh is not on PATH"
     if [ "${HERDR_ENV:-}" = 1 ]; then
@@ -71,6 +71,7 @@ if ! gone; then
 elif [ "$mode" = resume ]; then
   die "the plugin version of this runner was removed after an update; start the runner again"
 fi
+mkdir -p "$state"
 FLOW='{
   "lanes": {
     "feature": ["triage", "specify", "plan", "implement"],
@@ -102,10 +103,7 @@ say() {
 }
 
 gate() {
-  local value
-  value=$(git config --get "celetis-flow.gate.$1" 2>/dev/null) ||
-    value=$(jq -r --arg step "$1" '.[$step] // "me"' "$flow/gates.json" 2>/dev/null)
-  [ "$value" = auto ] && echo auto || echo me
+  printf '%s\n' "$config" | jq -r --arg step "$1" '.gates[$step] // "me"'
 }
 
 holder_from() {
@@ -285,6 +283,7 @@ run_issue() {
   take "issue-$n" || { say "another celetis-flow.sh or its session (PID $holder) works on #$n"; return 0; }
   while :; do
     if gone; then say "$(stale_n "$n")"; break; fi
+    config=$(celetis_config_read "$main") || exit $?
     line=$("$next" "$n" </dev/null) || true
     case $line in
       "run "*) ;;
@@ -402,6 +401,7 @@ take runner || die "another automatic runner or its session has PID $holder"
 while :; do
   pick=
   if gone; then say "$stale"; exit 1; fi
+  config=$(celetis_config_read "$main") || exit $?
   if rows=$("$next" --open </dev/null); then
     while IFS=$'\t' read -r n line; do
       case $line in "run "*) ;; *) continue ;; esac

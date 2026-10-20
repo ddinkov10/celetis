@@ -16,17 +16,35 @@ For `guide` advice, translate a shared `/celetis:<name> <input>` into a supporte
 `Use the celetis:feature skill for #7. Complete its Host entry startup reads before any response, including commentary.` Recommend that prompt without invoking the target skill;
 Claude slash-command notation is not Codex user advice.
 
-At Host entry, locate a Git checkout with `git rev-parse --show-toplevel` from the session cwd.
-Inspect its returned result before the custom read. It handles normal and linked checkouts;
-do not read `.git` as a regular file. An explicit “not a git repository” result is the shared
-no-checkout case; other lookup errors stop entry.
+Use the active checkout binding supplied in session context as the starting directory.
+A rebind replaces that binding even when the tool process cwd still names the main checkout.
+Use absolute paths in the bound checkout for root location and the config read. Inspect the
+tool process cwd to establish its runtime location; the supplied active binding controls
+product access. With no supplied binding, start from the host session cwd. If that start
+cannot be established, stop for setup.
 
-Use the file-access tool available in this Codex session for the custom read at Host entry.
-Prefer a dedicated file reader when one exists. On a CLI that exposes `exec_command` for file
-access, use an explicit read-only file command with the active checkout as `workdir`, and
-inspect its result. This is an explicit file read, not a native no-shell read or load-time
-injection. A denied read is a stop, not permission to try another tool or command. Apply the
-shared missing-file, error, and exact-once rules to direct calls and same-session handoffs.
+At Host entry, inspect this surface's actual tool catalog and supported file operations.
+Use the session context and supported file metadata or directory tools to locate `.git`
+from that active folder toward its ancestors. A `.git` directory marks a normal checkout.
+Do not read a `.git` directory as a file. Only after metadata identifies a regular `.git`
+file, read its `gitdir:` value through the file tool: the file's containing
+folder is the linked checkout root. Stop at that first Git boundary, including when the lane
+is physically below another checkout. An explicit absence through the session's root gives
+the shared no-checkout case; another lookup error stops entry.
+
+Read the whole root `.celetis.yaml` once through an available native file tool, then interpret
+it against the shared schema. Prefer a dedicated file reader. A documented local Node REPL
+can use supported file operations such as `node:fs/promises` metadata and `readFile` when
+that runtime reaches the active checkout. Inspect its location and result first. Use file
+operations only: no process launch, shell command, YAML library, or new parser operation.
+An advertised generic REPL alone proves neither local access nor entry acceptance.
+
+If no usable file-only reader or checkout locator exists with shell access absent, stop with
+the tool names, exact limitation, and required file-access setup. Keep that native acceptance
+case BLOCKED. `exec_command` with `cat`, `git`, or a parser does not satisfy native no-shell
+entry. A denied read stops without another tool or command. Apply these rules to direct calls,
+same-session handoffs, and borrowed references. Use the separate CLI and desktop probes in
+[native config acceptance](../../tests/manual/config-entry-codex.md); one surface proves no other.
 
 `guide` keeps `disable-model-invocation: true` for Claude and
 `policy.allow_implicit_invocation: false` in `agents/openai.yaml` for Codex. Its command advice
@@ -70,13 +88,17 @@ lane through `worktree`; no new app worktree is needed.
 
 Inspect the active surface's spawn and follow-up schemas and supported model/effort pairs before
 dispatch. Desktop and CLI catalogs can differ. Refresh the runtime allowlist from this same
-surface and validate the profile as [capability binding](../capability.md) specifies. Every
-scorer call supplies the host and configuration explicitly:
+surface and validate the main checkout's `codexProfiles` entry as
+[capability binding](../capability.md) specifies. Every scorer call supplies the host and active
+runtime evidence explicitly:
 
 ```bash
 scripts/celetis --agent codex capscore J V B N S X --bias BIAS --attempt N --json \
-  --profile /absolute/profile.json --runtime-models /absolute/active-models.json
+  --runtime-models /absolute/active-models.json
 ```
+
+For standalone scoring outside a configured repository, also pass `--profile
+/absolute/profile.json`.
 
 Add `--reviewer` for review dispatches, including the task reviewer, builder check, and final
 review. Parse `status` first: `stop` dispatches nothing. On `ready`, record `line`, `dispatch`,

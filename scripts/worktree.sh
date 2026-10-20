@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Every lane checks its branch out here, so parallel flows never switch the main checkout's branch.
 set -euo pipefail
 
 usage() {
@@ -13,6 +12,7 @@ refuse() {
 }
 
 . "$(dirname "$0")/worktree-lib.sh"
+. "$(dirname "$0")/celetis"
 
 remove=0
 if [ "${1:-}" = --remove ]; then
@@ -23,8 +23,8 @@ fi
 n=${1#\#}
 [[ $n =~ ^[1-9][0-9]*$ ]] || usage
 
-main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
-setup=.claude/celetis-flow/worktree-setup.sh
+main=$(celetis_config_main)
+celetis_config_read "$main" >/dev/null
 # The marker sits in the git dir: a file in the working tree would make a new worktree dirty.
 marker_of() { echo "$(git -C "$1" rev-parse --path-format=absolute --git-dir)/celetis-flow-setup-done"; }
 git worktree prune
@@ -97,10 +97,6 @@ if [ "$remove" -eq 1 ]; then
 fi
 
 if [ -n "$current" ]; then
-  if [ -f "$(marker_of "$current")" ]; then
-    echo "$current"
-    exit 0
-  fi
   path=$current
 elif [ "$has_branch" -eq 1 ]; then
   git worktree add "$path" "$branch" >&2
@@ -124,8 +120,15 @@ fail() {
 }
 
 cd "$path"
-if [ -f "$setup" ]; then
-  bash "$setup" "$main" >&2 || fail "$setup"
+config=$(celetis_config_read "$path") || fail ".celetis.yaml"
+if [ -f "$(marker_of .)" ]; then
+  echo "$path"
+  exit 0
+fi
+setup=$(printf '%s\n' "$config" | jq -jr '.worktreeSetup // ""'; printf '.')
+setup=${setup%.}
+if [ -n "$setup" ]; then
+  bash -c "$setup" celetis-worktree-setup "$main" >&2 || fail ".celetis.yaml worktreeSetup"
 fi
 touch "$(marker_of .)" || fail "mark setup done"
 echo "$path"

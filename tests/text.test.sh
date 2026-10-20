@@ -121,7 +121,7 @@ for skill in $skills; do
   fi
   front=$(frontmatter "$file")
   entry=$(awk 'BEGIN { section = 0 } /^---$/ { section++; next } section == 2 && NF { print; exit }' "$file")
-  [ "$entry" = '**Host entry.** Before any step or response, including commentary or an announcement, complete the startup reads in [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.' ] || host_entries+=$file$nl
+  [ "$entry" = '**Host entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in this loaded file'"'"'s path. Read [the host operations](../../docs/hosts/entry.md) at `<plugin>/docs/hosts/entry.md` directly, before any product-path scan. The relative link starts in the absolute directory containing this SKILL.md. Complete its startup reads on each invocation, including a same-session handoff.' ] || host_entries+=$file$nl
   [[ "$nl$front$nl" == *"${nl}name: $skill$nl"* ]] || lacks+="$file:name: $skill$nl"
   if [ "$skill" = guide ]; then
     [[ "$nl$front$nl" == *"$nl$key: true$nl"* ]] || lacks+="$file:$key: true$nl"
@@ -175,10 +175,27 @@ while IFS= read -r cite; do
   other=${BASH_REMATCH[1]}
   [[ $from != "$other" && $seen != *"$nl$from $other$nl"* ]] || continue
   seen+="$from $other$nl"
-  grep -qF -- ".claude/celetis-flow/custom/$other.md" "skills/$from/SKILL.md" || alone+=$cite$nl
+  grep -qF -- "custom.$other" "skills/$from/SKILL.md" || alone+=$cite$nl
 done <<<"$cites"
 [ -z "$broken" ] || fail "a citation of the plugin root in skills/ that names no tracked file:" "$broken"
-[ -z "$alone" ] || fail "a SKILL.md that cites the SKILL.md of another skill and does not name the custom part of that skill, .claude/celetis-flow/custom/<name>.md:" "$alone"
+[ -z "$alone" ] || fail "a SKILL.md that cites another skill without its custom.<target> entry:" "$alone"
+old_custom=$(search -F '.claude/celetis-flow/custom/' -- skills docs/hosts)
+[ -z "$old_custom" ] || fail "an obsolete custom file in active entry instructions:" "$old_custom$nl"
+for contract in '.celetis.yaml' 'custom.<name>' 'configuration.md' 'whole' 'once' 'parsed string' 'absolute directory containing' 'before any product-path scan'; do
+  grep -qF -- "$contract" docs/hosts/entry.md || fail "Host entry is missing the YAML contract: $contract"
+done
+for host in claude codex; do
+  for contract in '.git' 'shell' 'context'; do
+    grep -qF -- "$contract" "docs/hosts/$host.md" || fail "$host is missing native entry guidance: $contract"
+  done
+done
+grep -qF '.celetis.yaml' hooks/entry.js || fail 'Claude native entry must select .celetis.yaml'
+grep -qF '.celetis.yaml' docs/hosts/codex.md || fail 'Codex native entry must select .celetis.yaml'
+grep -qF 'active checkout binding' docs/hosts/codex.md || fail 'Codex entry must use the active checkout binding'
+grep -qF 'tool process cwd' docs/hosts/codex.md || fail 'Codex entry must distinguish the tool process cwd'
+for contract in 'hooks/entry.js' 'native destination' '$.session.root()' '$.session.cwd()' '$.fs.stat' 'permission-checked' 'zero content reads' 'one whole `Read` request' 'including commentary' 'file_unchanged' 'seeded result' 'compacted' 'another access path' 'hook setup' 'later full-file' 'new invocation' 'same agent loop'; do
+  grep -qF -- "$contract" docs/hosts/claude.md || fail "Claude entry must preserve native hook guarantees: $contract"
+done
 raw=$(search -F '<plugin>/' -- skills ':(exclude,glob)skills/*/SKILL.md')
 [ -z "$raw" ] || fail "the text <plugin>/ in a file of skills/ that is no SKILL.md of a skill, as <path>:<line>:<text>:" "$raw$nl"
 
@@ -203,6 +220,13 @@ for path in docs/hosts/entry.md docs/hosts/claude.md docs/hosts/codex.md skills/
   is_tracked "$path" && [ -f "$path" ] || host_missing+=$path$nl
 done
 [ -z "$host_missing" ] || fail "a host contract file that is missing or untracked:" "$host_missing"
+for contract in 'launcher recommendation' '--agent claude <command>' '--agent codex <command>' "person's terminal"; do
+  grep -qF -- "$contract" skills/guide/SKILL.md || fail "guide must select the running host in terminal advice: $contract"
+done
+for contract in 'After Host entry succeeds' 'If entry stops' 'conditional commands'; do
+  grep -qF -- "$contract" skills/guide/SKILL.md || fail "guide must gate goal advice on successful entry: $contract"
+done
+grep -qF 'Do not read a `.git` directory' docs/hosts/codex.md || fail 'Codex metadata must branch before reading .git'
 host_leaks=$(search -E '\$ARGUMENTS|CLAUDE_PLUGIN_ROOT|EnterWorktree|ExitWorktree|\(Skill tool\)|scratchpad directory' -- skills step-prompt.md)
 [ -z "$host_leaks" ] || fail "a native host assumption outside the host references:" "$host_leaks$nl"
 if [ -f skills/guide/agents/openai.yaml ]; then

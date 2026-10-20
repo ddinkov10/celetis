@@ -3,7 +3,7 @@ name: lesson-review
 description: Review and promote (or reject) lessons an automatic process queued in docs/lessons/_pending/. Auto-captured lessons never enter the live catalog directly — a human triages them here. Trigger phrases: "/celetis:lesson-review", "review pending lessons", "promote lessons", "triage the lesson queue".
 ---
 
-**Host entry.** Before any step or response, including commentary or an announcement, complete the startup reads in [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
+**Host entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in this loaded file's path. Read [the host operations](../../docs/hosts/entry.md) at `<plugin>/docs/hosts/entry.md` directly, before any product-path scan. The relative link starts in the absolute directory containing this SKILL.md. Complete its startup reads on each invocation, including a same-session handoff.
 
 # Review pending lessons
 
@@ -34,7 +34,7 @@ existing live lesson covering the same model. Note if the draft's body says "mer
 Two cases:
 
 - **New lesson** (no live duplicate):
-  1. Read the `/celetis:lesson` rules through the host entry as a reference — frontmatter keys, Tag Vocabulary, canonical body headings — including the optional `.claude/celetis-flow/custom/lesson.md` once on first use. Reuse that reference for later drafts. Fix anything non-conforming.
+  1. Read the `/celetis:lesson` rules through the host entry as a reference — frontmatter keys, Tag Vocabulary, canonical body headings — including optional `custom.lesson` from the active checkout's `.celetis.yaml` once on first use. Reuse that reference for later drafts. Fix anything non-conforming.
   2. Set `status: active`, remove the `source:` key (keep `date:` as today's date).
   3. `mv docs/lessons/_pending/{slug}.md docs/lessons/{slug}.md`.
   4. Add the catalog row to `docs/lessons/INDEX.md`.

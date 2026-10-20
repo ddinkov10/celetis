@@ -6,7 +6,7 @@ trap 'cd /; rm -rf "$tmp"' EXIT
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 export S="$tmp/state" ORIGIN="$tmp/origin.git"
 repo="$tmp/main checkout"
-config=.claude/celetis-flow/landing.json
+config=.celetis.yaml
 mkdir -p "$tmp/bin"
 ln -s "$here/.." "$tmp/plug in"
 land_sh="$tmp/plug in/scripts/land.sh"
@@ -97,8 +97,10 @@ fresh() {
   cd "$repo"
   echo app >app.txt
   printf '.claude/worktrees/\n' >.gitignore
-  mkdir -p "$(dirname "$config")"
-  printf '{"landing": "%s"}\n' "$1" >"$config"
+  printf 'landing: %s\nworktreeSetup: touch "$S/setup-ran"\n' "$1" >"$config"
+  mkdir -p .claude/celetis-flow
+  other=pr; [ "$1" != pr ] || other=merge
+  printf '{"landing":"%s"}\n' "$other" >.claude/celetis-flow/landing.json
   git add -A
   git commit -qm base
   git clone -q --bare . "$ORIGIN"
@@ -115,6 +117,10 @@ lane() {
   wt="$main/.claude/worktrees/${1#*/}"
   git worktree add -q -b "$1" "$wt" origin/master
   echo "${2:-work}" >"$wt/${3:-work.txt}"
+  if [ "${LANE_CONFLICT:-}" = 1 ]; then
+    other=pr; [ "$(yq .landing "$main/$config")" != pr ] || other=merge
+    printf 'landing: %s\n' "$other" >"$wt/$config"
+  fi
   git -C "$wt" add -A
   git -C "$wt" commit -qm work
   tip=$(git rev-parse "$1")
@@ -165,6 +171,7 @@ kept() {
   [ "$(origin_master) $(git rev-parse master)" = "$before" ] || fail "$1 moved the trunk"
   [ -z "$wt" ] || { [ -d "$wt" ] && has_ref "$branch"; } || fail "$1 removed the lane"
   no_lock "$1"
+  [ ! -e "$S/setup-ran" ] || fail "$1 ran worktree setup"
 }
 refused() {
   [ "$status" -eq 1 ] || fail "$2 exit $status, not 1: $out"
@@ -179,6 +186,7 @@ landed() {
   has "land: $branch and its worktree are gone" "$1"
   [[ $out != *error:* ]] || fail "$1 printed an error of git: $out"
   no_lock "$1"
+  [ ! -e "$S/setup-ran" ] || fail "$1 ran worktree setup"
 }
 stopped() {
   [ "$status" -eq 1 ] && [ -d "$wt" ] && has_ref "$branch" || fail "$1 exit $status, or the lane is gone: $out"
@@ -186,6 +194,7 @@ stopped() {
   has "land: the change is on master, but the removal of $branch stopped; run scripts/celetis land again" "$1"
   [ "$(grep -c 'run scripts/celetis land again' <<<"$out")" -eq 1 ] || fail "$1 does not say one time to run the script again: $out"
   no_lock "$1"
+  [ ! -e "$S/setup-ran" ] || fail "$1 ran worktree setup"
 }
 usage="usage: scripts/celetis land <issue number> '<type>(<area>): <what>', e.g. scripts/celetis land 415 'feat(agent-harness): the build step lands the change'"
 usage_error() {
@@ -204,14 +213,17 @@ usage_error 7 'the crash is gone'
 usage_error 7 'fix(x): y (#7)'
 usage_error 7 $'fix(x): y\nmore'
 usage_error 7 'fix(x): y' extra
-for value in '{"landing": "rebase"}' '{}' 'not json' ''; do
+for value in 'landing: rebase' '{}' 'not yaml: [' ''; do
   printf '%s' "$value" >"$main/$config"
   [ -n "$value" ] || rm "$main/$config"
   land 7 'fix(x): y'
-  [ "$status" -eq 2 ] || fail "landing.json [$value] exit $status: $out"
-  has 'land: .claude/celetis-flow/landing.json must name the landing mechanism' "landing.json [$value]"
+  [ "$status" -eq 2 ] || fail ".celetis.yaml [$value] exit $status: $out"
+  has "$main/.celetis.yaml:" ".celetis.yaml [$value]"
+  kept "bad config"
+  ! on_origin "$branch" || fail "bad config pushed the lane branch"
+  [ ! -d "$main/.git/celetis-flow" ] || fail "bad config created the state directory"
 done
-[ ! -f "$S/gh-calls" ] || fail "a usage error or a bad landing.json called gh: $(cat "$S/gh-calls")"
+[ ! -f "$S/gh-calls" ] || fail "a usage error or a bad .celetis.yaml called gh: $(cat "$S/gh-calls")"
 no_lock "a usage error"
 
 for m in merge pr; do
@@ -247,7 +259,7 @@ fresh merge; lane fix/7-crash; reject_push
 land 7 'fix(x): y'; refused "cannot push master to origin; master is as it was" "merge: a push that origin rejects"
 [ -z "$(git status --porcelain)" ] || fail "merge: a rejected push left the main checkout dirty"
 
-fresh merge; lane fix/7-crash
+fresh merge; LANE_CONFLICT=1 lane fix/7-crash
 git worktree add -q -b prototype/7-look "$main/.claude/worktrees/prototype-7-look" master
 git branch -q prototype/70-near master
 git push -q origin prototype/7-look prototype/70-near fix/7-crash
@@ -324,7 +336,7 @@ fresh merge; lane fix/7-crash; json parent '{"number":3,"state":"open"}'; touch 
 land 7 'fix(x): y'; landed "an epic that gh cannot close"
 has "land: cannot close the epic #3; close it by hand" "an epic that gh cannot close"
 
-fresh pr; lane fix/7-crash; checks pass; json parent '{"number":3,"state":"open"}'; json subs '[{"number":7,"state":"open"}]'
+fresh pr; LANE_CONFLICT=1 lane fix/7-crash; checks pass; json parent '{"number":3,"state":"open"}'; json subs '[{"number":7,"state":"open"}]'
 land 7 'fix(x): the crash is gone'
 landed "pr"
 [ "$(cat "$S/create-args")" = "base=master head=fix/7-crash title=fix(x): the crash is gone (#7) body=Closes #7" ] || fail "pr: created [$(cat "$S/create-args")]"

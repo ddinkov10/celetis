@@ -3,7 +3,7 @@ name: lesson
 description: Capture a lesson learned from a correction, mistake, or incident so it is not repeated — stores each lesson as its own file under docs/lessons/ with a catalog row in docs/lessons/INDEX.md. Use after the user corrects an approach, after resolving an incident, or when a non-obvious technique is validated and worth keeping. Trigger phrases: "/celetis:lesson", "capture this lesson", "remember not to do this", "save this lesson", "log this incident".
 ---
 
-**Host entry.** Before any step or response, including commentary or an announcement, complete the startup reads in [the host operations](../../docs/hosts/entry.md) relative to this loaded SKILL.md, including a same-session handoff.
+**Host entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in this loaded file's path. Read [the host operations](../../docs/hosts/entry.md) at `<plugin>/docs/hosts/entry.md` directly, before any product-path scan. The relative link starts in the absolute directory containing this SKILL.md. Complete its startup reads on each invocation, including a same-session handoff.
 
 # Capture lesson learned
 
@@ -91,7 +91,7 @@ Keep the summary tight — it is scanned, not read.
 
 ### Step 4: Cross-reference
 
-After saving, check if the lesson should become a mechanism: update a custom part (`.claude/celetis-flow/custom/<skill>.md`), `AGENTS.md`, `docs/`, or a subsystem `AGENTS.md` of the project. A change of a skill of the plugin is an issue of `ddinkov10/celetis`. Report what was saved and suggest follow-ups.
+After saving, check if the lesson should become a mechanism: update `custom.<skill>` in `.celetis.yaml`, `AGENTS.md`, `docs/`, or a subsystem `AGENTS.md` of the project. A change of a skill of the plugin is an issue of `ddinkov10/celetis`. Report what was saved and suggest follow-ups.
 
 ## Guidelines
 
@@ -108,7 +108,7 @@ After saving, check if the lesson should become a mechanism: update a custom par
 
 ## Tag vocabulary
 
-Draw every tag from this controlled list, with the tags of the custom part `lesson.md` of the project (`.claude/celetis-flow/custom/lesson.md`). Introduce a new tag only when nothing fits, and add it to that custom part in the same change. Do not create synonyms or one-off tags. A project gives its own subsystem and technology names in that custom part.
+Draw every tag from this controlled list, with the tags of `custom.lesson` in the project's `.celetis.yaml`. Introduce a new tag only when nothing fits, and add it to that field in the same change. Do not create synonyms or one-off tags. A project gives its own subsystem and technology names in that field.
 
 - Technology: `api` `auth` `database` `data-store` `networking` `bridge` `build` `gradle` `deploy` `platform` `webview` `ui` `test` `config`
 - Nature: `false-positive` `false-negative` `refix` `recurring` `regression` `platform-quirk` `data-loss` `performance`

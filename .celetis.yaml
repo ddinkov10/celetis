@@ -1,0 +1,4 @@
+host: codex
+landing: pr
+board:
+  port: 4404
