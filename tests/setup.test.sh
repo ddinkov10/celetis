@@ -80,6 +80,13 @@ stops() {
   [ "$(code_of "$@")" -eq 1 ] || fail "'$*' did not exit 1 for: $want"
   [[ $(err_of "$@") == "$want" ]] || fail "wrong stop for: $want; got: $(err_of "$@")"
 }
+stops_after() {
+  local cause=$1 want=$2 err
+  shift 2
+  [ "$(code_of "$@")" -eq 1 ] || fail "'$*' did not exit 1 for: $want"
+  err=$(err_of "$@")
+  [ "$(tail -n1 <<<"$err")" = "$want" ] && grep -qF -- "$cause" <<<"$err" || fail "wrong stop for: $want after: $cause; got: $err"
+}
 
 new_project clean
 [ "$(code_of check)" -eq 0 ] || fail "check refused a clean trunk"
@@ -279,7 +286,8 @@ new_project symlink
 printf '# P\n' >"$proj/AGENTS.md"
 ln -s AGENTS.md "$proj/CLAUDE.md"
 commit_all product
-run write --hosts claude --landing pr >/dev/null
+out=$(run write --hosts claude --landing pr)
+! grep -qF 'is a symbolic link' <<<"$out" || fail "write warned on a CLAUDE.md that links to AGENTS.md: $out"
 bytes_are "# P"$'\n\n'"$heading"$'\n\n'"$b" AGENTS.md
 [ -L "$proj/CLAUDE.md" ] || fail "write replaced a symlinked CLAUDE.md"
 [ "$(jq '.entries | has("CLAUDE.md")' "$proj/.claude/celetis-flow/wiring.json")" = false ] || fail "write recorded a symlinked CLAUDE.md"
@@ -289,6 +297,25 @@ echo CLAUDE.md >"$proj/.gitignore"
 ln -s AGENTS.md "$proj/CLAUDE.md"
 commit_all product
 [ "$(code_of write --hosts claude --landing pr)" -eq 0 ] || fail "write refused an ignored symlinked CLAUDE.md"
+
+new_project agentslink
+printf '# C\n' >"$proj/CLAUDE.md"
+ln -s CLAUDE.md "$proj/AGENTS.md"
+commit_all product
+run write --hosts claude --landing pr >/dev/null
+[ -L "$proj/AGENTS.md" ] || fail "write replaced a symlinked AGENTS.md"
+bytes_are "# C"$'\n\n'"$heading"$'\n\n'"$b" CLAUDE.md
+[ "$(jq '.entries | has("CLAUDE.md")' "$proj/.claude/celetis-flow/wiring.json")" = false ] || fail "write recorded @AGENTS.md in the file of AGENTS.md"
+
+new_project claudelink
+mkdir "$proj/docs"
+printf '# C\n' >"$proj/docs/claude.md"
+ln -s docs/claude.md "$proj/CLAUDE.md"
+commit_all product
+out=$(run write --hosts claude --landing pr)
+grep -qxF 'setup: warning: CLAUDE.md is a symbolic link to a file other than AGENTS.md; setup leaves it, so Claude reads AGENTS.md only if that file holds @AGENTS.md' <<<"$out" ||
+  fail "no warning for a CLAUDE.md that links to another file: $out"
+bytes_are $'# C\n' docs/claude.md
 
 new_project crlf
 printf '%s\n' "$ignores" | awk '{ printf "%s\r\n", $0 }' >"$proj/.gitignore"
@@ -448,6 +475,40 @@ printf '# Our template\n' >"$proj/docs/adr/template.md"
 git -C "$proj" add -f docs/adr
 git -C "$proj" commit -qm tracked
 [ "$(code_of write --hosts codex --landing merge)" -eq 0 ] || fail "write refused tracked store files that .gitignore matches"
+
+new_project linkedfolder
+mkdir -p "$proj/config/claude"
+printf '{}\n' >"$proj/config/claude/settings.json"
+ln -s config/claude "$proj/.claude"
+commit_all product
+LABELS= stops_after 'is beyond a symbolic link' \
+  'setup: .claude/celetis-flow/landing.json lies beyond a symbolic link or in a submodule; setup writes no file there' write --hosts claude --landing pr
+clean_tree "a linked folder left a file"
+[ ! -s "$LABEL_LOG" ] || fail "a linked folder left a label: $(cat "$LABEL_LOG")"
+
+new_project linkedagents
+mkdir "$proj/docs"
+printf '# Rules\n' >"$proj/docs/agents.md"
+ln -s docs/agents.md "$proj/AGENTS.md"
+commit_all product
+LABELS= stops 'setup: AGENTS.md is a symbolic link; setup writes no file through a link' write --hosts codex --landing pr
+clean_tree "a linked AGENTS.md left a file"
+[ ! -s "$LABEL_LOG" ] || fail "a linked AGENTS.md left a label: $(cat "$LABEL_LOG")"
+
+new_project submodule
+git init -q -b main "$tmp/subdocs"
+echo docs >"$tmp/subdocs/index.md"
+git -C "$tmp/subdocs" add index.md
+git -C "$tmp/subdocs" commit -qm docs
+git -C "$proj" -c protocol.file.allow=always submodule add -q "$tmp/subdocs" docs
+commit_all product
+LABELS= stops_after "is in submodule 'docs'" \
+  'setup: docs/adr/README.md lies beyond a symbolic link or in a submodule; setup writes no file there' write --hosts codex --landing pr
+clean_tree "a submodule left a file"
+[ ! -s "$LABEL_LOG" ] || fail "a submodule left a label: $(cat "$LABEL_LOG")"
+mkdir -p "$proj/docs/adr" "$proj/docs/lessons"
+touch "$proj/docs/adr/README.md" "$proj/docs/adr/template.md" "$proj/docs/lessons/INDEX.md"
+[ "$(code_of write --hosts codex --landing pr)" -eq 0 ] || fail "write stopped on store files that are there in a submodule"
 
 new_project union
 run write --hosts claude,codex --default codex --landing merge >/dev/null

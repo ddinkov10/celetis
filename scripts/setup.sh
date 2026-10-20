@@ -107,13 +107,19 @@ read_record() {
 claude_files() {
   local path
   for path in CLAUDE.md .claude/CLAUDE.md; do
-    if [ -f "$path" ] && [ ! -L "$path" ]; then echo "$path"; fi
+    if [ -f "$path" ] && [ ! -L "$path" ] && ! [ "$path" -ef AGENTS.md ]; then echo "$path"; fi
   done
 }
 
 touched() {
-  printf '%s\n' scripts/celetis .claude/celetis-flow/landing.json "$wiring" .gitignore .gitattributes AGENTS.md \
-    docs/adr/README.md docs/adr/template.md docs/lessons/INDEX.md
+  local path agents=AGENTS.md
+  for path in CLAUDE.md .claude/CLAUDE.md; do
+    if [ -L AGENTS.md ] && [ ! -L "$path" ] && [ AGENTS.md -ef "$path" ]; then agents=$path; fi
+  done
+  printf '%s\n' scripts/celetis .claude/celetis-flow/landing.json "$wiring" .gitignore .gitattributes "$agents"
+  for path in docs/adr/README.md docs/adr/template.md docs/lessons/INDEX.md; do
+    [ -e "$path" ] || echo "$path"
+  done
   if has_host codex; then echo .codex/rules/celetis.rules; fi
   if has_host claude; then
     echo .claude/settings.json
@@ -121,10 +127,17 @@ touched() {
   fi
 }
 
-check_ignored() {
-  local path
+check_paths() {
+  local path code
   while IFS= read -r path; do
-    ! git check-ignore -q -- "$path" || die "git ignores $path; make git track it first"
+    [ ! -L "$path" ] || die "$path is a symbolic link; setup writes no file through a link"
+    code=0
+    git check-ignore -q -- "$path" || code=$?
+    case $code in
+      0) die "git ignores $path; make git track it first" ;;
+      1) ;;
+      *) die "$path lies beyond a symbolic link or in a submodule; setup writes no file there" ;;
+    esac
   done < <(touched)
 }
 
@@ -308,6 +321,11 @@ write_files() {
     '- A lane never skips a step.' \
     '- The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.'
   if has_host claude; then
+    for path in CLAUDE.md .claude/CLAUDE.md; do
+      if [ -L "$path" ] && ! [ "$path" -ef AGENTS.md ]; then
+        warn "$path is a symbolic link to a file other than AGENTS.md; setup leaves it, so Claude reads AGENTS.md only if that file holds @AGENTS.md"
+      fi
+    done
     while IFS= read -r path; do own_lines "$path" @AGENTS.md; done < <(claude_files)
     settings_apply
   fi
@@ -376,7 +394,7 @@ write() {
   scratch=$(mktemp -d "${TMPDIR:-/tmp}/celetis.XXXXXX")
   trap 'rm -rf "$scratch"' EXIT
   read_record
-  check_ignored
+  check_paths
   if has_host claude; then settings_plan; fi
   make_labels
   write_files

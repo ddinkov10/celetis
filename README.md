@@ -404,7 +404,8 @@ it have no `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md`. A project tha
 `https://code.claude.com/docs/en/memory`, read on 2026-10-13 for Claude Code 2.1.296). With Claude
 as a chosen host, setup adds that line to `CLAUDE.md` and to `.claude/CLAUDE.md`, each one only
 when it is there. It leaves a file that is a symbolic link alone, for example a `CLAUDE.md` that
-links to `AGENTS.md`.
+links to `AGENTS.md`, and it warns when the link leads to another file. When `AGENTS.md` links to
+one of the two files, setup writes the section into that file and adds no `@AGENTS.md` line.
 
 ### The stores
 
