@@ -391,12 +391,16 @@ push() {
   check_trunk
   check_staged
   changed=$(git status --porcelain --untracked-files=all -- "${setup_paths[@]}" | cut -c4-)
-  if [ -z "$changed" ]; then echo 'setup: no file changed; nothing to commit'; return 0; fi
-  while IFS= read -r path; do
-    if [ "$path" = scripts/celetis ]; then git add --chmod=+x -- "$path"; else git add -- "$path"; fi
-  done <<<"$changed"
-  # No path here: git commit -- <path> takes the file mode from the working tree and drops the 100755 of git add --chmod.
-  git commit -q -m 'chore(celetis): wire the project for the celetis lanes'
+  if [ -z "$changed" ]; then
+    echo 'setup: no file changed; nothing to commit'
+    [ "$ahead" -gt 0 ] || return 0
+  else
+    while IFS= read -r path; do
+      if [ "$path" = scripts/celetis ]; then git add --chmod=+x -- "$path"; else git add -- "$path"; fi
+    done <<<"$changed"
+    # No path here: git commit -- <path> takes the file mode from the working tree and drops the 100755 of git add --chmod.
+    git commit -q -m 'chore(celetis): wire the project for the celetis lanes'
+  fi
   git push -q origin "refs/heads/$trunk:refs/heads/$trunk" || die "the push failed; the commit stays on the local $trunk"
 }
 

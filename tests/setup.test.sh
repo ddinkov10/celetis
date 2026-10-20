@@ -601,6 +601,11 @@ set -e
 [ "$(tail -n1 "$tmp/err")" = 'setup: the push failed; the commit stays on the local main' ] || fail "wrong last line for a refused push: $(cat "$tmp/err")"
 awk '/pre-receive hook declined/ { seen = 1 } /^setup: the push failed/ { ok = seen } END { exit !ok }' "$tmp/err" || fail "git's refusal does not come before the setup line: $(cat "$tmp/err")"
 [ "$(git -C "$proj" log -1 --format=%s)" = "$subject" ] && [ "$(remote_head)" = "$before" ] || fail "a refused push moved a trunk"
+rm "$tmp/pushrefused.git/hooks/pre-receive"
+head=$(git -C "$proj" rev-parse HEAD)
+out=$(run push 2>"$tmp/err") || fail "a rerun of push failed: $(cat "$tmp/err")"
+grep -qxF 'setup: no file changed; nothing to commit' <<<"$out" || fail "a rerun of push did not report no change: $out"
+[ "$(git -C "$proj" rev-parse HEAD)" = "$head" ] && [ "$(remote_head)" = "$head" ] || fail "a rerun of push did not carry the commit ahead"
 
 new_project pushstaged
 run write --hosts codex --landing pr >/dev/null
