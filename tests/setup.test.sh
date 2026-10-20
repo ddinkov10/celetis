@@ -96,7 +96,7 @@ mkdir "$proj/sub"
 [ "$(CWD=$proj/sub code_of check)" -eq 0 ] || fail "check refused a subfolder"
 touch "$proj/unrelated"
 [ "$(code_of check)" -eq 0 ] || fail "check refused an untracked file that setup does not touch"
-REPO_FAIL=1 stops "setup: origin is not a GitHub repository that gh can read" check
+REPO_FAIL=1 stops_after "HTTP 404: Not Found" "setup: origin is not a GitHub repository that gh can read" check
 
 new_project trees
 git -C "$proj" worktree add -q "$tmp/linked" -b side
@@ -118,7 +118,7 @@ TRUNK=trunk stops "setup: the main checkout is on main, not on trunk; switch to 
 
 new_project fetch
 git -C "$proj" remote set-url origin "$tmp/missing.git"
-stops "setup: cannot fetch main from origin" check
+stops_after "does not appear to be a git repository" "setup: cannot fetch main from origin" check
 
 new_project behind
 git clone -q "$tmp/behind.git" "$tmp/behind-other"
@@ -613,9 +613,9 @@ PAGES=2 run write --hosts codex --landing pr >/dev/null
 [ ! -s "$LABEL_LOG" ] || fail "write made a label of page 2: $(cat "$LABEL_LOG")"
 
 new_project labelfail
-LABELS= LABEL_FAIL=1 stops "setup: cannot make the label needs-triage" write --hosts codex --landing pr
+LABELS= LABEL_FAIL=1 stops_after "HTTP 403: Resource not accessible" "setup: cannot make the label needs-triage" write --hosts codex --landing pr
 clean_tree "a label failure left a file"
-LIST_FAIL=1 stops "setup: cannot list the labels" write --hosts codex --landing pr
+LIST_FAIL=1 stops_after "HTTP 403: Resource not accessible" "setup: cannot list the labels" write --hosts codex --landing pr
 clean_tree "a label list failure left a file"
 
 subject='chore(celetis): wire the project for the celetis lanes'

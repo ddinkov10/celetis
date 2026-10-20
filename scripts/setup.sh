@@ -31,13 +31,13 @@ check_trunk() {
   [ "$(git rev-parse --path-format=absolute --git-dir)" = "$(git rev-parse --path-format=absolute --git-common-dir)" ] ||
     die "run setup in the main checkout, not in a linked worktree: $top"
   cd "$top"
-  info=$(gh api 'repos/{owner}/{repo}' --jq '.full_name, .default_branch' 2>/dev/null) ||
+  info=$(gh api 'repos/{owner}/{repo}' --jq '.full_name, .default_branch') ||
     die "origin is not a GitHub repository that gh can read"
   repo=${info%%$'\n'*}
   trunk=${info#*$'\n'}
   branch=$(git branch --show-current)
   [ "$branch" = "$trunk" ] || die "the main checkout is on ${branch:-a detached HEAD}, not on $trunk; switch to $trunk first"
-  git fetch -q origin "$trunk" 2>/dev/null || die "cannot fetch $trunk from origin"
+  git fetch -q origin "$trunk" || die "cannot fetch $trunk from origin"
   [ "$(git rev-list --count "HEAD..origin/$trunk")" -eq 0 ] ||
     die "the local $trunk is behind origin/$trunk or has diverged from it; run git pull first"
   ahead=$(git rev-list --count "origin/$trunk..HEAD")
@@ -348,12 +348,12 @@ EOF
 
 make_labels() {
   local existing name description color found
-  existing=$(gh api --paginate 'repos/{owner}/{repo}/labels?per_page=100' --jq '.[].name' 2>/dev/null) || die "cannot list the labels"
+  existing=$(gh api --paginate 'repos/{owner}/{repo}/labels?per_page=100' --jq '.[].name') || die "cannot list the labels"
   while IFS='|' read -r name description color; do
     if found=$(grep -ixF -m1 -- "$name" <<<"$existing"); then
       [ "$found" = "$name" ] || warn "the label $found differs in case from $name; setup leaves it"
     else
-      gh api --silent 'repos/{owner}/{repo}/labels' -f name="$name" -f description="$description" -f color="$color" 2>/dev/null ||
+      gh api --silent 'repos/{owner}/{repo}/labels' -f name="$name" -f description="$description" -f color="$color" ||
         die "cannot make the label $name"
       echo "setup: made the label $name"
     fi
