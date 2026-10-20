@@ -297,6 +297,127 @@ run write --hosts codex --landing pr >/dev/null
 cmp -s "$tmp/crlf.gitignore" "$proj/.gitignore" || fail "write changed a CRLF .gitignore"
 [ "$(entries_of .gitignore)" = "$(jlines <<<"$ignores" | sorted)" ] || fail "wrong entries for a CRLF .gitignore"
 
+new_project settings
+cat >"$tmp/settings.want" <<'EOF'
+{
+  "permissions": {
+    "allow": [
+      "Bash(scripts/celetis land *)",
+      "Bash(scripts/celetis --agent claude land *)",
+      "Bash(scripts/celetis --agent codex land *)"
+    ],
+    "deny": [
+      "Bash(gh pr merge*)",
+      "PowerShell(gh pr merge*)"
+    ]
+  },
+  "extraKnownMarketplaces": {
+    "celetis": {
+      "source": {
+        "source": "github",
+        "repo": "ddinkov10/celetis"
+      },
+      "autoUpdate": true
+    }
+  },
+  "enabledPlugins": {
+    "superpowers@superpowers-marketplace": true,
+    "celetis@celetis": true
+  }
+}
+EOF
+settings_entries='[
+  {"path": ["permissions", "allow"], "item": "Bash(scripts/celetis land *)"},
+  {"path": ["permissions", "allow"], "item": "Bash(scripts/celetis --agent claude land *)"},
+  {"path": ["permissions", "allow"], "item": "Bash(scripts/celetis --agent codex land *)"},
+  {"path": ["permissions", "deny"], "item": "Bash(gh pr merge*)"},
+  {"path": ["permissions", "deny"], "item": "PowerShell(gh pr merge*)"},
+  {"path": ["extraKnownMarketplaces", "celetis"]},
+  {"path": ["enabledPlugins", "superpowers@superpowers-marketplace"]},
+  {"path": ["enabledPlugins", "celetis@celetis"]}
+]'
+run write --hosts claude --landing pr >/dev/null
+cmp -s "$tmp/settings.want" "$proj/.claude/settings.json" || fail "wrong .claude/settings.json: $(cat "$proj/.claude/settings.json")"
+[ "$(readme_fence '### Claude permissions' | jq -S .)" = "$(jq -S . "$tmp/settings.want")" ] || fail "the README object changed; update this test"
+[ "$(entries_of .claude/settings.json)" = "$(sorted <<<"$settings_entries")" ] || fail "wrong settings entries: $(entries_of .claude/settings.json)"
+jq -e '.files | index(".claude/settings.json") == null' "$proj/.claude/celetis-flow/wiring.json" >/dev/null || fail "write recorded .claude/settings.json as an owned file"
+
+new_project settingsproduct
+mkdir "$proj/.claude"
+cat >"$proj/.claude/settings.json" <<'EOF'
+{
+    "permissions": {
+        "allow": [
+            "Bash(npm test)"
+        ]
+    },
+    "env": {
+        "CI": "1"
+    },
+    "enabledPlugins": {}
+}
+EOF
+commit_all product
+run write --hosts claude --landing pr >/dev/null
+file=$proj/.claude/settings.json
+[ "$(jq -c .permissions.allow "$file")" = '["Bash(npm test)","Bash(scripts/celetis land *)","Bash(scripts/celetis --agent claude land *)","Bash(scripts/celetis --agent codex land *)"]' ] || fail "wrong allow items"
+[ "$(jq -c keys_unsorted "$file")" = '["permissions","env","enabledPlugins","extraKnownMarketplaces"]' ] || fail "wrong key order"
+[ "$(jq -c .env "$file")" = '{"CI":"1"}' ] || fail "write changed env"
+[[ $(sed -n 2p "$file") == '    "'* ]] || fail "write changed the indent: $(sed -n 2p "$file")"
+[ "$(entries_of .claude/settings.json)" = "$(sorted <<<"$settings_entries")" ] || fail "wrong entries for a product file"
+commit_all wiring
+git -C "$proj" push -q origin main
+[ "$(run write --hosts claude --landing pr 2>&1)" = "setup: no file changed" ] || fail "a rerun changed a settings file"
+
+new_project settingstab
+mkdir "$proj/.claude"
+printf '{\n\t"env": {\n\t\t"CI": "1"\n\t}\n}\n' >"$proj/.claude/settings.json"
+commit_all product
+run write --hosts claude --landing pr >/dev/null
+[[ $(sed -n 2p "$proj/.claude/settings.json") == $'\t"env"'* ]] || fail "write changed a tab indent: $(sed -n 2p "$proj/.claude/settings.json")"
+
+new_project settingshand
+mkdir "$proj/.claude"
+cp "$here/.claude/settings.json" "$proj/.claude/settings.json"
+commit_all product
+run write --hosts claude --landing pr >/dev/null
+cmp -s "$here/.claude/settings.json" "$proj/.claude/settings.json" || fail "write changed a hand-wired settings file"
+[ "$(entries_of .claude/settings.json)" = "$(sorted <<<"$settings_entries")" ] || fail "wrong entries for a hand-wired file"
+
+new_project settingsdiffers
+mkdir "$proj/.claude"
+printf '{"enabledPlugins": {"celetis@celetis": false}}\n' >"$proj/.claude/settings.json"
+commit_all product
+differs='setup: warning: .claude/settings.json: enabledPlugins.celetis@celetis differs from the current form; setup leaves it'
+out=$(run write --hosts claude --landing pr 2>"$tmp/err") || fail "write failed on a differing entry: $(cat "$tmp/err")"
+grep -qxF "$differs" <<<"$out" || fail "no warning for a differing entry: $out"
+[ "$(jq -c .enabledPlugins "$proj/.claude/settings.json")" = '{"celetis@celetis":false,"superpowers@superpowers-marketplace":true}' ] || fail "write changed a differing entry"
+[ "$(entries_of .claude/settings.json)" = "$(jq 'map(select(.path != ["enabledPlugins", "celetis@celetis"]))' <<<"$settings_entries" | sorted)" ] ||
+  fail "write recorded a differing entry: $(entries_of .claude/settings.json)"
+
+new_project settingsrecorded
+run write --hosts claude --landing pr >/dev/null
+jq '.enabledPlugins["celetis@celetis"] = false' "$proj/.claude/settings.json" >"$tmp/changed.json"
+cp "$tmp/changed.json" "$proj/.claude/settings.json"
+commit_all wiring
+out=$(run write --hosts claude --landing pr)
+grep -qxF "$differs" <<<"$out" || fail "no warning for a changed owned entry: $out"
+[ "$(entries_of .claude/settings.json)" = "$(sorted <<<"$settings_entries")" ] || fail "write dropped a recorded entry"
+
+new_project settingsbad
+mkdir "$proj/.claude"
+bad_settings() {
+  printf '%s\n' "$1" >"$proj/.claude/settings.json"
+  commit_all "bad $1"
+  stops "setup: .claude/settings.json$2; fix it first" write --hosts claude --landing pr
+  clean_tree "bad settings left a file"
+}
+bad_settings '{' ' is no JSON object'
+bad_settings '[]' ' is no JSON object'
+bad_settings '{"permissions":{"allow":"x"}}' ': permissions.allow is no array'
+bad_settings '{"enabledPlugins":[]}' ': enabledPlugins is no object'
+[ "$(code_of write --hosts codex --landing pr)" -eq 0 ] || fail "write checked .claude/settings.json for codex only"
+
 new_project ignored
 echo '.claude/' >"$proj/.gitignore"
 commit_all product

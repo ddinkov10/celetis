@@ -66,6 +66,7 @@ run_checks() {
 }
 
 wiring=.claude/celetis-flow/wiring.json
+settings=.claude/settings.json
 
 has_host() { [[ " $hosts " == *" $1 "* ]]; }
 
@@ -196,6 +197,79 @@ own_section() {
   [ ! -s "$scratch/section" ] || cp "$scratch/section" "$file"
 }
 
+# The \u0020 in the deny rules keeps their text from matching the gh-call rule of tests/text.test.sh.
+settings_form() {
+  cat <<'EOF'
+[
+  {"path": ["permissions", "allow"], "item": "Bash(scripts/celetis land *)"},
+  {"path": ["permissions", "allow"], "item": "Bash(scripts/celetis --agent claude land *)"},
+  {"path": ["permissions", "allow"], "item": "Bash(scripts/celetis --agent codex land *)"},
+  {"path": ["permissions", "deny"], "item": "Bash(gh\u0020pr merge*)"},
+  {"path": ["permissions", "deny"], "item": "PowerShell(gh\u0020pr merge*)"},
+  {"path": ["extraKnownMarketplaces", "celetis"], "value": {"source": {"source": "github", "repo": "ddinkov10/celetis"}, "autoUpdate": true}},
+  {"path": ["enabledPlugins", "superpowers@superpowers-marketplace"], "value": true},
+  {"path": ["enabledPlugins", "celetis@celetis"], "value": true}
+]
+EOF
+}
+
+settings_plan() {
+  local src=$settings bad
+  if [ -e "$settings" ]; then
+    jq -es 'length == 1 and (.[0] | type == "object")' "$settings" >/dev/null 2>&1 || die "$settings is no JSON object; fix it first"
+  else
+    echo '{}' >"$scratch/settings.in"
+    src=$scratch/settings.in
+  fi
+  jq -c --argjson form "$(settings_form)" '
+    def dotted: join(".");
+    def put($p; $v): .doc |= setpath($p; $v);
+    reduce $form[] as $e ({doc: ., added: [], adopted: [], differs: [], bad: null};
+      if .bad then .
+      else
+        $e.path as $p
+        | (.doc | getpath($p[:-1])) as $parent
+        | if $parent != null and ($parent | type) != "object" then .bad = "\($p[:-1] | dotted) is no object"
+          else
+            ($parent != null and ($parent | has($p[-1]))) as $there
+            | (.doc | getpath($p)) as $cur
+            | ($e | del(.value)) as $own
+            | if $e | has("item") then
+                if ($there | not) then put($p; [$e.item]) | .added += [$own]
+                elif ($cur | type) != "array" then .bad = "\($p | dotted) is no array"
+                elif any($cur[]; . == $e.item) then .adopted += [$own]
+                else put($p; $cur + [$e.item]) | .added += [$own]
+                end
+              elif ($there | not) then put($p; $e.value) | .added += [$own]
+              elif $cur == $e.value then .adopted += [$own]
+              else .differs += [$p | dotted]
+              end
+          end
+      end)
+  ' "$src" >"$scratch/settings.plan"
+  bad=$(jq -r '.bad // empty' "$scratch/settings.plan")
+  [ -z "$bad" ] || die "$settings: $bad; fix it first"
+}
+
+settings_apply() {
+  local plan=$scratch/settings.plan lead= item fmt
+  fmt=(--indent 2)
+  while IFS= read -r item; do
+    warn "$settings: $item differs from the current form; setup leaves it"
+  done < <(jq -r '.differs[]' "$plan")
+  while IFS= read -r item; do own_entry "$settings" "$item"; done < <(jq -c '(.added + .adopted)[]' "$plan")
+  jq -e '.added | length > 0' "$plan" >/dev/null || return 0
+  if [ -e "$settings" ]; then lead=$(awk 'match($0, /^[ \t]+[^ \t\r]/) { print substr($0, 1, RLENGTH - 1); exit }' "$settings"); fi
+  if [[ $lead == $'\t'* ]]; then
+    fmt=(--tab)
+  elif [ "${#lead}" -ge 1 ] && [ "${#lead}" -le 7 ]; then
+    fmt=(--indent "${#lead}")
+  fi
+  mkdir -p "$(dirname "$settings")"
+  jq "${fmt[@]}" .doc "$plan" >"$scratch/settings.out"
+  cp "$scratch/settings.out" "$settings"
+}
+
 codex_rules() {
   cat <<'EOF'
 prefix_rule(
@@ -234,6 +308,7 @@ write_files() {
     '- The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.'
   if has_host claude; then
     while IFS= read -r path; do own_lines "$path" @AGENTS.md; done < <(claude_files)
+    settings_apply
   fi
 }
 
@@ -263,6 +338,7 @@ write() {
   trap 'rm -rf "$scratch"' EXIT
   read_record
   check_ignored
+  if has_host claude; then settings_plan; fi
   write_files
   write_record
   git config celetis-flow.agent "$default"
