@@ -24,7 +24,7 @@ fallback, automatic migration, settings generator, or dependency installer." The
 for the setup of a product project only. `/celetis:setup` writes the native host settings of the
 wiring and the entries `host` and `landing` of `.celetis.yaml`. It is still no fallback, no
 automatic migration, and no dependency installer: it reads no file of the old layout, and the
-cutover of ADR-0015 stays manual. The other parts of ADR-0015 stand.
+cutover of ADR-0015 stays manual. This record changes no other part of ADR-0015.
 
 ## Context
 

@@ -154,7 +154,7 @@ describes project trust and enablement. Install each host's plugins separately. 
 does not provide the Codex installation.
 
 The two parts above stay by hand on each machine. The next parts are the files and labels of one
-product project. `/celetis:setup` writes them in its main checkout (ADR-0016), and each section
+product project. `/celetis:setup` writes them in its main checkout (ADR-0017), and each section
 below shows the current form that it writes. Where a part stays by hand, its section says so.
 
 - The session asks for the issue tracker, the hosts (Claude, Codex, or both), and the landing.
