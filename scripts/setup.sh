@@ -311,15 +311,17 @@ config_plan() {
   config_key landing "$landing"
   [ -s "$scratch/config.lines" ] || return 0
   mkdir "$scratch/yaml"
-  {
-    if [ -e "$config" ]; then
+  if [ -e "$config" ]; then
+    {
       cat "$config"
       [ -z "$(tail -c1 "$config")" ] || echo
-    fi
-    cat "$scratch/config.lines"
-  } >"$scratch/yaml/$config"
-  celetis_config_read "$scratch/yaml" >/dev/null 2>&1 ||
-    die "cannot add the line $(head -n1 "$scratch/config.lines") to $config; add it by hand first"
+      cat "$scratch/config.lines"
+    } >"$scratch/yaml/$config"
+    celetis_config_read "$scratch/yaml" >/dev/null 2>&1 ||
+      die "cannot add the line $(head -n1 "$scratch/config.lines") to $config; add it by hand first"
+  else
+    cp "$scratch/config.lines" "$scratch/yaml/$config"
+  fi
 }
 
 config_apply() {

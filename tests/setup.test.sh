@@ -659,6 +659,13 @@ LABELS= stops 'setup: cannot add the line host: codex to .celetis.yaml; add it b
 [ ! -s "$LABEL_LOG" ] || fail "a config that takes no line left a label: $(cat "$LABEL_LOG")"
 clean_tree "a config that takes no line left a file"
 
+new_project confignoyq
+mkdir "$tmp/noyq"
+printf '#!/bin/sh\nexit 1\n' >"$tmp/noyq/yq"
+chmod +x "$tmp/noyq/yq"
+PATH="$tmp/noyq:$PATH" run write --hosts codex --landing merge >/dev/null 2>"$tmp/err" || fail "write needed yq for a new config: $(cat "$tmp/err")"
+bytes_are $'host: codex\nlanding: merge\n' .celetis.yaml
+
 [ ! -s "$LABEL_LOG" ] || fail "an earlier case made a label: $(cat "$LABEL_LOG")"
 new_project labels
 out=$(LABELS='bug enhancement wontfix' run write --hosts codex --landing pr 2>"$tmp/err") || fail "write failed on a project with three labels: $(cat "$tmp/err")"
