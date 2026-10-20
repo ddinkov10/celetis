@@ -300,6 +300,7 @@ config_key() {
 }
 
 config_plan() {
+  local next
   : >"$scratch/config.keys"
   : >"$scratch/config.lines"
   if [ -e "$config" ]; then
@@ -317,7 +318,8 @@ config_plan() {
       [ -z "$(tail -c1 "$config")" ] || echo
       cat "$scratch/config.lines"
     } >"$scratch/yaml/$config"
-    celetis_config_read "$scratch/yaml" >/dev/null 2>&1 ||
+    next=$(celetis_config_read "$scratch/yaml" 2>/dev/null) &&
+      [ "$(jq -S 'del(.host, .landing)' <<<"$next")" = "$(jq -S 'del(.host, .landing)' "$scratch/config.json")" ] ||
       die "cannot add the line $(head -n1 "$scratch/config.lines") to $config; add it by hand first"
   else
     cp "$scratch/config.lines" "$scratch/yaml/$config"

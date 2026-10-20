@@ -659,6 +659,15 @@ LABELS= stops 'setup: cannot add the line host: codex to .celetis.yaml; add it b
 [ ! -s "$LABEL_LOG" ] || fail "a config that takes no line left a label: $(cat "$LABEL_LOG")"
 clean_tree "a config that takes no line left a file"
 
+new_project configvalue
+printf 'landing: pr\ncustom:\n  bug: |\n    Keep' >"$proj/.celetis.yaml"
+commit_all product
+git -C "$proj" push -q origin main
+: >"$LABEL_LOG"
+LABELS= stops 'setup: cannot add the line host: claude to .celetis.yaml; add it by hand first' write --hosts claude --landing pr
+[ ! -s "$LABEL_LOG" ] || fail "a line that changes a value left a label: $(cat "$LABEL_LOG")"
+clean_tree "a line that changes a value left a file"
+
 new_project confignoyq
 mkdir "$tmp/noyq"
 printf '#!/bin/sh\nexit 1\n' >"$tmp/noyq/yq"
