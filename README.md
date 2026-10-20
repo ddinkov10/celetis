@@ -151,23 +151,27 @@ describes project trust and enablement. Install each host's plugins separately. 
 does not provide the Codex installation.
 
 The two parts above stay by hand on each machine. The next parts are the files and labels of one
-product project. `/celetis:setup` writes them in its main checkout, and each section below shows
-the current form that it writes. Where a part stays by hand, its section says so.
+product project. `/celetis:setup` writes them in its main checkout (ADR-0016), and each section
+below shows the current form that it writes. Where a part stays by hand, its section says so.
 
 - The session asks for the issue tracker, the hosts (Claude, Codex, or both), and the landing.
   Setup stops on each tracker other than GitHub. With two hosts, the session also asks for the
-  default host.
+  default host. For the landing and the default host, the session proposes the value of
+  `.celetis.yaml` when the file has one.
 - Setup writes the part of a host only when you choose that host: `.claude/settings.json` and the
   line `@AGENTS.md` for Claude, and `.codex/rules/celetis.rules` for Codex.
-- Setup owns the launcher, `.claude/celetis-flow/landing.json`, and `.codex/rules/celetis.rules`
-  whole, and it writes each one again at each run, whatever the file holds. In a file that the
-  product also uses, setup adds each missing entry, and it changes or removes no entry that is
-  there.
+- Setup owns the launcher and `.codex/rules/celetis.rules` whole, and it writes each one again at
+  each run, whatever the file holds. In a file that the product also uses, setup adds each missing
+  entry, and it changes or removes no entry that is there.
+- In `.celetis.yaml`, setup owns two entries: `host` (the default host, or the one host) and
+  `landing`. It makes the file when there is none. In a valid file, it adds a missing `host` as a
+  line at the end, and it keeps each byte of the product. When an entry is there with a value
+  other than your answer, setup keeps that value and prints a warning. Change that field by hand
+  when your answer is the intended value.
 - Setup records each file and each entry that it owns in `.claude/celetis-flow/wiring.json`, so
   that a later run can tell them from the entries of the product.
 - Setup shows the diff, and it commits and pushes the wiring only after your yes ("The wiring on
-  the trunk"). It makes the labels and sets `celetis-flow.agent` at the write, before that
-  question, so a no keeps them.
+  the trunk"). It makes the labels at the write, before that question, so a no keeps them.
 
 ### Claude permissions: `.claude/settings.json`
 
@@ -253,8 +257,10 @@ of the plugin needs no new copy.
 
 ### Agent selection and model setup
 
-Set `host: codex` in `.celetis.yaml` for human terminal and board commands. Check the installed
-package with an explicit host:
+`host` in `.celetis.yaml` selects the host of the human terminal and board commands. Setup writes
+it with the default host that you choose, or with the one host. Setup does not change a `host`
+that is there: to change the default host, edit `host` by hand. Check the installed package with
+an explicit host:
 
 ```bash
 scripts/celetis --agent codex root
@@ -286,6 +292,9 @@ a model session can start. The runner reports startup dialogs and leaves them fo
 
 Operational settings and setup are fields of `.celetis.yaml` (`docs/configuration.md`).
 Commands that need repository setup require this file and stop if it is missing or invalid.
+Setup makes the file with `host` and `landing` when there is none. It adds a missing `host` at
+the end of a valid file, or it stops when the file cannot take the line. It changes no field that
+is there. Each other field stays by hand.
 
 | Field or file | What it holds | When omitted |
 |---|---|---|
@@ -386,7 +395,7 @@ Setup writes the celetis flow part as the section `## Celetis flow`, with these 
 ## Celetis flow
 
 - The lanes are the skills of the plugin `celetis`, on the issues of `<owner>/<repo>`.
-- `.claude/celetis-flow/landing.json` names the landing mechanism, and a build step ends with `scripts/celetis land`.
+- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `scripts/celetis land`.
 - A lane never skips a step.
 - The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.
 ```
@@ -469,8 +478,7 @@ question: commit and push to the trunk of `origin`?
 
 Commit each change that you make by hand on the trunk too, and push it: for example a custom part
 in `.celetis.yaml`. The launcher and `.celetis.yaml` need LF line endings on each host. Setup adds
-the line `scripts/celetis text eol=lf` to `.gitattributes`. A project adds the line
-`.celetis.yaml text eol=lf` by hand, or keeps the line `* text=auto eol=lf`.
+the lines `scripts/celetis text eol=lf` and `.celetis.yaml text eol=lf` to `.gitattributes`.
 
 ## The full loop
 

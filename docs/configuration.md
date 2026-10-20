@@ -170,11 +170,12 @@ maintainer gives a trusted readiness report for this build. This lane changes no
    report readiness before the plugin landing. After the coordinated refresh, restart its
    sessions, runners, and boards. Test both Run agents and Resume with an existing exact record.
 
-There is no old-layout reader, automatic migration, dependency installer, or native settings
-generator. The board dependency is the exact GitHub tag v2.2.1. Local `AGENT_BOARD` gate checks
-do not replace released-package acceptance. Native desktop binding, stable installed resources,
-changed-pair child controls, managed Claude setup, and complete child bootstrap keep their
-separate acceptance states in [Acceptance status](celetis-flow.md#acceptance-status).
+There is no old-layout reader, automatic migration, or dependency installer. `/celetis:setup`
+writes the wiring of a product project (`README.md`, "Wire a product project"); it does not
+migrate an old setup. The board dependency is the exact GitHub tag v2.2.1. Local `AGENT_BOARD`
+gate checks do not replace released-package acceptance. Native desktop binding, stable installed
+resources, changed-pair child controls, managed Claude setup, and complete child bootstrap keep
+their separate acceptance states in [Acceptance status](celetis-flow.md#acceptance-status).
 
 ## Install the parser
 
