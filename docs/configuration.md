@@ -128,8 +128,10 @@ JSON remains in memory. No generated config file is written.
 Run `scripts/celetis board` in the main checkout or a subfolder. It takes no arguments and
 refuses a lane start before `npx`. It reads only the main config's `board.port`, default 4403,
 and keeps `PORT` above that value. It supplies the fixed data, selected-agent Run, and
-saved-host Resume lists through stdin to released agent-board v2.2.0. The board validates
+saved-host Resume lists through stdin to released agent-board v2.2.1. The board validates
 that JSON and its executable paths. No board config file is made.
+The board displays the producer default as read-only. Change `host` in the main YAML to set
+the project default. A board Run choice applies only to that start; Resume uses its saved host.
 See [the board contract](celetis-flow.md#the-board) for the exact lists.
 
 ## Replace the old setup
@@ -169,7 +171,7 @@ maintainer gives a trusted readiness report for this build. This lane changes no
    sessions, runners, and boards. Test both Run agents and Resume with an existing exact record.
 
 There is no old-layout reader, automatic migration, dependency installer, or native settings
-generator. The board dependency is the exact GitHub tag v2.2.0. Local `AGENT_BOARD` gate checks
+generator. The board dependency is the exact GitHub tag v2.2.1. Local `AGENT_BOARD` gate checks
 do not replace released-package acceptance. Native desktop binding, stable installed resources,
 changed-pair child controls, managed Claude setup, and complete child bootstrap keep their
 separate acceptance states in [Acceptance status](celetis-flow.md#acceptance-status).

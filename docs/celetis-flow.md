@@ -37,6 +37,8 @@ apart from a path that starts with `~/` or `/`.
   its update helper uses only the standard library. The launcher needs the selected host and `jq` to find
   the plugin (the next item). When `jq` is missing, the launcher prints `celetis: jq is not on PATH` and
   exits 1.
+- The scripts use only the REST API of GitHub (`gh api`), so they also work where a proxy refuses
+  GraphQL, as in a Claude Code cloud session.
 - The plugin `celetis@celetis`, installed on the machine, and the launcher `scripts/celetis` in the
   product project. The scripts and the step text come from the installed plugin:
   `scripts/celetis <name> <arguments>` runs `scripts/<name>.sh` of that plugin with those arguments.
@@ -100,8 +102,11 @@ only. With the default gates no step is `auto`, so the automatic runner starts n
 **The form `--board`** is read-only: it takes no lock, writes no row in the record, and starts no
 session. `--board` is its only argument. It prints contract 1, the JSON document that the board
 reads: `contract`, `tracker`, `flow`, `noRun`, `runner`, `agents`, `defaultAgent`, and `issues`, with
-one row for each issue that has a card. The rows come from the resolver (`scripts/celetis next-step --json`), which makes 3
-`gh` calls. The resolver gives each row the state that it knows from GitHub and from the working
+one row for each issue that has a card. The rows come from the resolver (`scripts/celetis next-step --json`).
+The resolver makes these `gh api` calls: 3 paginated lists (open issues, closed issues, open PRs),
+one paginated call for the comments of each open issue that has a comment, and 3 calls for each
+open PR whose branch holds `/<number>-`. The resolver gives
+each row the state that it knows from GitHub and from the working
 trees: `done`, `blocked` with `reason` and `act`, `ready`, or `dirty` with `path`. The `reason` is
 `needs info`, `landing refused`, or `ready for your step` ("The board", rule 5). It also gives the
 `noRun` text for a dirty main checkout. `--board` adds what the runner knows: `starting` for a lock
@@ -323,7 +328,7 @@ inputs remain available outside a repository. They need no project config.
 
 **The worktree setup.** `scripts/celetis worktree <n>` creates the lane worktree and its branch
 (`docs/issue-tracker.md`, "Branches, PRs, merge"). A new branch starts at the freshly fetched trunk
-of `origin`. `gh repo view --json defaultBranchRef` gives the trunk when the command creates a
+of `origin`. `gh api 'repos/{owner}/{repo}' --jq .default_branch` gives the trunk when the command creates a
 new branch. The command checks `.celetis.yaml` in the lane before setup. It reads `worktreeSetup`
 as one string and runs `bash -c "$setup" celetis-worktree-setup "$main"` in the lane. `$1` is the
 main checkout. Multiline scripts share variables and functions, preserve their text bytes,
@@ -365,7 +370,7 @@ new parser operation. Native entry executes no setup and proves no deterministic
 
 ## The board
 
-The board is the separate package `ddinkov10/agent-board`. Celetis uses released v2.2.0, whose
+The board is the separate package `ddinkov10/agent-board`. Celetis uses released v2.2.1, whose
 stdin-config mode supports the fixed Run selection and saved-host Resume commands below.
 The package stays independent of YAML and Celetis field names. ADR-0009 keeps the package,
 contract 1, and command/path trust rules; ADR-0015 replaces only config storage.
@@ -385,7 +390,7 @@ The adapter takes no arguments. It validates `.celetis.yaml` from the main check
 lane start, then runs in the main checkout. The refusal occurs before `npx` can read a lane's
 `.npmrc` or `node_modules/.bin`. The main checkout and its npm configuration must still be trusted.
 The adapter sends one JSON object to
-`npx --yes 'github:ddinkov10/agent-board#v2.2.0' --config-stdin`. It makes no config file.
+`npx --yes 'github:ddinkov10/agent-board#v2.2.1' --config-stdin`. It makes no config file.
 `--config-stdin` is config input; `check --stdin` remains contract-1 issue-data input.
 
 The board prints its repository, commands, and URL. Open that URL. It reads this input once at
@@ -409,6 +414,10 @@ YAML; `--agent` and `CELETIS_AGENT` override it. Unknown or unavailable choices 
 start no agent. Availability checks only executable presence; sign-in, trust, plugin discovery,
 and full host parity need separate checks.
 
+The board shows the default as read-only in its agent menu and command palette. A valid trusted
+`POST /api/agent` returns 409 with `The producer controls the default agent. Change it in the producer configuration.`
+It changes no YAML or Git setting. Change `host` in the main YAML to set the project default.
+
 Resume has no fixed agent prefix. It uses the host and exact ID in the saved record, even after
 the project default changes. Each item is one argument. The board quotes the items and adds
 `&& exit`: success closes the tab; a failed script leaves its message there. With the default
@@ -420,8 +429,10 @@ complete the [manual cutover](configuration.md#replace-the-old-setup) and stop o
 runners, and boards before they use the changed plugin. Real Run/Resume acceptance remains a
 separate live gate; a stdin or local-source check does not establish it.
 
-**The data.** `scripts/celetis celetis-flow --board` prints contract 1 ("Start the script"), with 3
-`gh` calls for each read. The script puts these values in the fields of the document:
+**The data.** `scripts/celetis celetis-flow --board` prints contract 1 ("Start the script"). Each read
+makes these `gh api` calls: 3 paginated lists (open issues, closed issues, open PRs), one paginated
+call for the comments of each open issue that has a comment, and 3 calls for each open PR whose
+branch holds `/<number>-`. The script puts these values in the fields of the document:
 
 | Field | Value |
 |---|---|
@@ -457,12 +468,15 @@ Each row also has `number`, `title`, `url`, `updatedAt`, `closedAt`, and these f
 - `urgent`: `true` for the type `hotfix`.
 - `pr`: the open pull request whose branch name holds `/<n>-`, with its number, URL, draft state, CI
   result (`pass`, `fail`, `pending`, or `null`), and review state (`approved`, `changes`,
-  `required`, or `null`); else `null`.
+  `required`, or `null`); else `null`. For the review state, the last review of each reviewer that
+  approves, requests changes, or is dismissed counts. The review state is `changes` when one of
+  those reviews requests changes, else `approved` when one approves, else `required` when a
+  requested reviewer or team has not answered, else `null`.
 
 **Check the document** against the contract, in the main checkout:
 
 ```bash
-scripts/celetis celetis-flow --board | npx --yes 'github:ddinkov10/agent-board#v2.2.0' check --stdin
+scripts/celetis celetis-flow --board | npx --yes 'github:ddinkov10/agent-board#v2.2.1' check --stdin
 ```
 
 The checker prints `agent-board: contract 1, <count> issues, ok` and exits 0, or it prints one line
@@ -483,7 +497,7 @@ The repository is private, so the link opens only for an account that can read i
 | `stop … is finished` or `stop … is closed as wontfix` | none | — |
 | `stop the working tree is dirty …` | commit or stash | as the first row |
 | `stop the landing of #<n> runs …` | none: a session lands the issue | start the script again when the landing ended |
-| `stop cannot read … from GitHub` | check `gh auth status` and the network | the automatic runner tries again by itself; press Refresh on the board |
+| `stop cannot read … from GitHub` | check `gh auth status`, the network, and the REST rate limit (`gh api rate_limit`) | the automatic runner tries again by itself; press Refresh on the board |
 | a `me` gate | a Run press on the card, or `scripts/celetis celetis-flow <n>` | — |
 | `no progress: /celetis:feature #<n>` | the session ended with no spec on the issue: open the session again, or read the comment of a spike | a Run press, or `scripts/celetis celetis-flow <n>` |
 | `no progress:` with another command | open the session again, or read the issue | a Run press, or `scripts/celetis celetis-flow <n>` |
@@ -536,7 +550,7 @@ cannot be used for exact runner resume.
 ## Acceptance status
 
 Codex is opt-in while full acceptance remains open. These are observed versions and results as
-of 2026-10-15, not a certified minimum-version range:
+of 2026-10-20, not a certified minimum-version range:
 
 | Component | Evidence and limit |
 |---|---|
@@ -545,7 +559,7 @@ of 2026-10-15, not a certified minimum-version range:
 | Superpowers 7.0.0 | Installation on the isolated Codex Git configuration passed. Each active surface must still expose the dispatch and follow-up controls its procedures require |
 | herdr 0.9.3 | The installed integrations report Claude v10 and Codex v8. Later reviewed-source Codex checks passed valid startup, real no-progress, and native exact Resume with a saved second turn. The resumed herdr reply still lacked `agent_session`. Claude recovery, compaction, and full workflow checks remain open |
 | agent-board 2.0.0, tag commit `e36283b` (earlier storage) | Contract 1 and the current config path passed. Released-browser Open shell and partial Claude Run/Go passed. The earlier Codex Run stopped on a local-marketplace setup error; Claude later stopped on quota. Later reviewed-source Codex Run, Resume, and Go passed with the correct issue and pane. Full acceptance remains open |
-| agent-board v2.2.0, commit `d7f5a79f71f1566a5cb916438214b36400c1d4a3` | The released dependency passed its 296-test gate and actual npx stdin-config checks. Adapter, path refusals, and real Run/Resume each need their own evidence; the dependency check closes none of the live rows |
+| agent-board v2.2.1, commit `2014361f365e03e18169ed75d602b729e25e03bb` | The release records a 322-test gate and read-only default-agent controls. The released adapter and fixture Run/Resume checks have separate evidence. Real browser/Herdr Run and Resume remain open |
 | Codex desktop | The current selector cannot bind the owned isolated package: BLOCKED. CLI typed skill input and quoted tests do not establish desktop entry |
 | Bash 3.2.57, Perl 5.34.1, Node 26.11.1 | Used for the local deterministic gate and released-board checks. The scripts retain Bash 3.2 and Perl 5.14 as their language requirements |
 
@@ -604,8 +618,13 @@ needed before full acceptance and shipping. ADR-0014 records the architecture an
 - The `herdr` commands of the script come from the documents and the source of herdr 0.9.3. The
   step end of the script was checked against a live herdr on 2026-10-11 (ADR-0007). Two parts of it
   are not checked: the end of a session after its `scripts/celetis land` run ends (ADR-0008), and
-  the end of a session after it adds `ready-for-human` at a stop (ADR-0011). The shape of
-  `statusCheckRollup` from `gh pr list` is not checked against a live GitHub.
+  the end of a session after it adds `ready-for-human` at a stop (ADR-0011). Two shapes of the REST
+  reads of `--json` for each open PR are not checked against a live GitHub: a commit status list
+  that is not empty, and a review list that is not empty.
+- The REST API of GitHub lists a commit status only after the status reports. So the list does not
+  show a status that branch protection requires until that status reports. Until then,
+  `scripts/celetis land` can read `pass` and ask for the merge. GitHub then refuses the merge, and
+  the build step stops with `## Landing refused`. Until then, the board also shows `pass` for the PR.
 - The script exits 0 at each `stop` line, at a `me` gate, and at "no progress", so `&& exit` closes
   the tab with the message of the script. A Run press whose session ends at once thus leaves no
   message: start `scripts/celetis celetis-flow <n>` in a terminal to see it.

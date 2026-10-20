@@ -34,7 +34,7 @@ at_exit() {
 }
 trap at_exit EXIT
 
-trunk=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name) || die "cannot read the default branch from GitHub"
+trunk=$(gh api 'repos/{owner}/{repo}' --jq .default_branch) || die "cannot read the default branch from GitHub"
 branch=$(git branch --list --format='%(refname:lstrip=2)' "feat/$n-*" "fix/$n-*" "hotfix/$n-*" "chore/$n-*")
 [ -n "$branch" ] || die "no lane branch matches #$n; nothing to land"
 [[ $branch != *$'\n'* ]] || die "several branches match #$n: ${branch//$'\n'/ }; keep one"
@@ -49,6 +49,11 @@ tip=$(git rev-parse "refs/heads/$branch")
 [ -n "$(git rev-list -n 1 "origin/$trunk..$branch")" ] || die "$branch has no commit that $trunk lacks; nothing to land"
 
 stale="merge origin/$trunk into $branch, run the verify gate of the project again, then land again"
+
+close_issue() {
+  gh api --silent "repos/{owner}/{repo}/issues/$1/comments" -f body="$2" &&
+    gh api --silent -X PATCH "repos/{owner}/{repo}/issues/$1" -f state=closed -f state_reason=completed
+}
 
 land_merge() {
   local tree commit
@@ -67,16 +72,30 @@ land_merge() {
     git -C "$main" merge -q --ff-only "$commit" ||
       die "the change is on origin/$trunk, but the main checkout did not move; run git pull there, then run scripts/celetis land again"
   fi
-  [ "$(gh issue view "$n" --json state --jq .state)" = CLOSED ] ||
-    gh issue close "$n" --comment "Landed on $trunk${commit:+ in $commit}." >/dev/null ||
+  [ "$(gh api "repos/{owner}/{repo}/issues/$n" --jq .state)" = closed ] ||
+    close_issue "$n" "Landed on $trunk${commit:+ in $commit}." ||
     die "the change is on $trunk, but #$n is open; run scripts/celetis land again"
 }
 
+buckets_of() {
+  {
+    gh api --paginate "repos/{owner}/{repo}/commits/$1/check-runs?per_page=100" --jq '.check_runs[] |
+      if .status != "completed" then "pending"
+      elif .conclusion == "success" then "pass"
+      elif .conclusion == "skipped" or .conclusion == "neutral" then "skipping"
+      elif .conclusion == "cancelled" then "cancel"
+      elif .conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "action_required" then "fail"
+      else "pending" end' &&
+      gh api --paginate "repos/{owner}/{repo}/commits/$1/status?per_page=100" --jq '.statuses[] |
+        if .state == "success" then "pass" elif .state == "error" or .state == "failure" then "fail" else "pending" end'
+  } | LC_ALL=C sort -u | paste -sd ' ' -
+}
+
 green() {
-  # After a push, the checks that GitHub lists are those of the old head until the PR shows the new one.
-  [ "$(gh pr view "$pr" --json headRefOid --jq .headRefOid 2>/dev/null)" = "$tip" ] ||
+  # After a push, the PR starts its checks on $tip only when it shows $tip.
+  [ "$(gh api "repos/{owner}/{repo}/pulls/$pr" --jq .head.sha 2>/dev/null)" = "$tip" ] ||
     { buckets="the PR does not show $tip yet"; return 1; }
-  buckets=$(gh pr checks "$pr" --json bucket --jq '[.[].bucket] | unique | join(" ")' 2>/dev/null) || buckets=""
+  buckets=$(buckets_of "$tip" 2>/dev/null) || buckets=""
   case $buckets in
     pass | "pass skipping") return 0 ;;
     "" | *pending*) return 1 ;;
@@ -96,12 +115,12 @@ wait_green() {
 
 land_pr() {
   local merged open lane head base
-  merged=$(gh pr list --head "$branch" --state merged --json baseRefName,headRefOid \
-    --jq '.[] | "\(.baseRefName) \(.headRefOid)"') || die "cannot list the PRs of $branch on GitHub"
+  merged=$(gh api --paginate "repos/{owner}/{repo}/pulls?head={owner}:$(jq -rn --arg b "$branch" '$b | @uri')&state=closed&per_page=100" \
+    --jq '.[] | select(.merged_at) | "\(.base.ref) \(.head.sha)"') || die "cannot list the PRs of $branch on GitHub"
   ! grep -qxF "$trunk $tip" <<<"$merged" || return 0
   git merge-tree --write-tree "origin/$trunk" "$branch" >/dev/null 2>&1 || die "$branch conflicts with $trunk; $stale"
-  open=$(gh pr list --state open --limit 200 --json number,url,headRefName,baseRefName \
-    --jq '.[] | "\(.headRefName) \(.baseRefName) \(.number) \(.url)"') || die "cannot list the open PRs on GitHub"
+  open=$(gh api --paginate 'repos/{owner}/{repo}/pulls?state=open&per_page=100' \
+    --jq '.[] | "\(.head.ref) \(.base.ref) \(.number) \(.html_url)"') || die "cannot list the open PRs on GitHub"
   lane=$(grep -E "^(feat|fix|hotfix|chore)/$n-" <<<"$open" || true)
   while read -r head base pr url; do
     [ -z "$head" ] || [ "$base" = "$trunk" ] || die "PR #$pr of #$n has the base $base, not $trunk; change its base, or close it: $url"
@@ -111,14 +130,14 @@ land_pr() {
   [ -z "$lane" ] || [ "$head" = "$branch" ] || die "PR #$pr of #$n is on $head, not on $branch; keep one branch: $url"
   git push -q origin "$branch" || die "cannot push $branch to origin"
   if [ -z "$lane" ]; then
-    url=$(gh pr create --base "$trunk" --head "$branch" --title "$subject (#$n)" --body "Closes #$n") ||
+    url=$(gh api 'repos/{owner}/{repo}/pulls' -f base="$trunk" -f head="$branch" -f title="$subject (#$n)" -f body="Closes #$n" --jq .html_url) ||
       die "cannot open the PR of $branch"
     pr=${url##*/}
     [[ $pr =~ ^[0-9]+$ ]] || die "cannot read the number of the new PR: $url"
   fi
   echo "Waiting up to 15 minutes for the checks of PR #$pr at $tip"
   wait_green || die "the checks of PR #$pr did not finish in 15 minutes (${buckets:-no check runs}): $url"
-  gh pr merge "$pr" --squash --match-head-commit "$tip" || die "cannot merge PR #$pr at $tip; the PR stays open: $url"
+  gh api --silent -X PUT "repos/{owner}/{repo}/pulls/$pr/merge" -f merge_method=squash -f sha="$tip" || die "cannot merge PR #$pr at $tip; the PR stays open: $url"
 }
 
 close_epic() {
@@ -133,7 +152,7 @@ close_epic() {
     --jq ".[] | select(.state == \"open\" and .number != $n) | .number" 2>&1) ||
     { echo "land: cannot read the sub-issues of #$number; close the epic by hand: $open"; return 0; }
   [ -z "$open" ] || return 0
-  gh issue close "$number" --comment "Each sub-issue is closed: #$n landed last." >/dev/null ||
+  close_issue "$number" "Each sub-issue is closed: #$n landed last." ||
     echo "land: cannot close the epic #$number; close it by hand"
 }
 

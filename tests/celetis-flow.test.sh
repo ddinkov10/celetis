@@ -28,15 +28,30 @@ S=$CELETIS_FLOW_TEST_STATE
 cat >/dev/null
 printf '%s\n' "$*" >>"$S/gh-calls"
 [ "$(wc -l <"$S/gh-calls")" -le 300 ] || { echo "fake gh: over 300 calls" >&2; kill -TERM $(cat "$S/runner-pids") 2>/dev/null; exit 1; }
+[ "$1" = api ] || { echo "HTTP 403: GitHub GraphQL is not available from Claude Code sessions" >&2; exit 1; }
 [ ! -f "$S/gh-fail" ] || { echo "HTTP 502" >&2; exit 1; }
-case "$1 $2" in
-  "issue view")
-    [ -f "$S/issue-$3.json" ] && [ ! -f "$S/view-fail-$3" ] || { echo "no issue $3" >&2; exit 1; }
-    cat "$S/issue-$3.json"
-    ;;
-  "issue list") cat "$S"/issue-*.json 2>/dev/null | jq -s --arg s "$4" '[.[] | select(.state == ($s | ascii_upcase))]' ;;
-  "pr list") cat "$S"/pr-* 2>/dev/null | jq -Rn '[inputs | {headRefName: .}]' ;;
-  *) echo "fake gh: unexpected $*" >&2; exit 1 ;;
+filter=. endpoint=
+while [ $# -gt 0 ]; do
+  case $1 in
+    --jq) filter=$2; shift ;;
+    repos/*) endpoint=$1 ;;
+  esac
+  shift
+done
+issue=${endpoint#repos/\{owner\}/\{repo\}/issues/}
+n=${issue%%/*}
+case $endpoint in
+  'repos/{owner}/{repo}/issues/'*/comments'?'*)
+    [ -f "$S/issue-$n.json" ] || { echo "no issue $n" >&2; exit 1; }
+    jq -r ".comments | $filter" "$S/issue-$n.json" ;;
+  'repos/{owner}/{repo}/issues/'*)
+    [ -f "$S/issue-$n.json" ] && [ ! -f "$S/view-fail-$n" ] || { echo "no issue $n" >&2; exit 1; }
+    jq -r "(.comments |= length) | $filter" "$S/issue-$n.json" ;;
+  'repos/{owner}/{repo}/issues?state='*)
+    state=${endpoint#*state=}
+    cat "$S"/issue-*.json 2>/dev/null | jq -s --arg s "${state%%&*}" 'map(select(.state == $s) | .comments |= length)' | jq -r "$filter" ;;
+  'repos/{owner}/{repo}/pulls?state=open&'*) echo '[]' | jq -r "$filter" ;;
+  *) echo "fake gh: unexpected $endpoint" >&2; exit 1 ;;
 esac
 EOF
 cat >"$bin/claude" <<'EOF'
@@ -206,12 +221,13 @@ set_gate() {
   git -C "$repo" commit -qam gate-config
 }
 
+closed_at=$(jq -rn 'now | todate')
 issue() {
   local dir=${into:-$S} n=$1 state=$2 labels=$3 body=$4
   shift 4
   mkdir -p "$dir"
-  jq -n --argjson n "$n" --arg s "$state" --arg l "$labels" --arg b "$body" \
-    '{number: $n, title: "Issue \($n)", url: "https://example.test/issues/\($n)", state: $s, updatedAt: "2026-10-01T00:00:00Z", closedAt: (if $s == "CLOSED" then "2026-10-02T00:00:00Z" else null end), labels: ($l | split(",") | map(select(. != "") | {name: .})), body: $b, comments: ($ARGS.positional | map({body: .}))}' \
+  jq -n --argjson n "$n" --arg s "$state" --arg l "$labels" --arg b "$body" --arg closed "$closed_at" \
+    '{number: $n, title: "Issue \($n)", html_url: "https://example.test/issues/\($n)", state: ($s | ascii_downcase), updated_at: "2026-10-01T00:00:00Z", closed_at: (if $s == "CLOSED" then $closed else null end), labels: ($l | split(",") | map(select(. != "") | {name: .})), body: (if $b == "" then null else $b end), comments: ($ARGS.positional | map({body: .}))}' \
     --args "$@" >"$dir/issue-$n.json"
 }
 after() { into="$S/after/$1/$2" issue "$1" "${@:3}"; }
@@ -650,7 +666,7 @@ celetis-flow: no progress: /celetis:implement #7
 celetis-flow: start: /celetis:plan #8
 celetis-flow: no progress: /celetis:plan #8
 celetis-flow: no auto step can start; the runner asks again each 60 seconds" ] || fail "the automatic runner: $code [$out] [$err]"
-[ "$(calls sleeps)" = 60 ] && [ "$(calls gh-calls | grep -c '^issue list --state open --limit 200 --json number,state,labels,body,comments$')" -eq 3 ] || fail "the automatic runner must list again after each issue and wait 60 seconds: [$(calls sleeps)] [$(calls gh-calls)]"
+[ "$(calls sleeps)" = 60 ] && [ "$(calls gh-calls | grep -cF 'api --paginate repos/{owner}/{repo}/issues?state=open&per_page=100 ')" -eq 3 ] || fail "the automatic runner must list again after each issue and wait 60 seconds: [$(calls sleeps)] [$(calls gh-calls)]"
 [ "$(calls claude-env | cut -d'|' -f4 | tr '\n' ' ')" = "one two three " ] || fail "the list of the automatic runner must not read the stdin of a session: [$(calls claude-env)]"
 [ "$(calls claude-locks | tail -1)" = "issue-8 no-progress runner" ] || fail "a session must run under the lock of its issue and of the runner, and no other: [$(calls claude-locks)]"
 [ "$(locks)" -eq 0 ] && [ "$(rows)" -eq 2 ] || fail "the automatic runner must write one row for each step with no progress and free its locks"
@@ -698,7 +714,7 @@ doc() { printf '%s' "$out" | jq -c "$1"; }
 checked() {
   [ "${CELETIS_FLOW_SKIP_BOARD_CHECK:-}" != 1 ] || return 0
   if [ -n "${AGENT_BOARD:-}" ]; then printf '%s' "$out" | node "$AGENT_BOARD" check --stdin >"$tmp/check" 2>&1
-  else printf '%s' "$out" | ( cd "$tmp" && npx --yes 'github:ddinkov10/agent-board#v2.2.0' check --stdin ) >"$tmp/check" 2>&1; fi ||
+  else printf '%s' "$out" | ( cd "$tmp" && npx --yes 'github:ddinkov10/agent-board#v2.2.1' check --stdin ) >"$tmp/check" 2>&1; fi ||
     fail "the --board document is not contract 1 (AGENT_BOARD names the entry file of a local agent-board checkout; else npx needs the network and the git credentials): $(cat "$tmp/check")"
 }
 
@@ -723,7 +739,7 @@ checker_calls() {
 }
 [ -z "$(checker_calls CELETIS_FLOW_SKIP_BOARD_CHECK=1 AGENT_BOARD=/board/cli.mjs)" ] || fail "CELETIS_FLOW_SKIP_BOARD_CHECK=1 must skip the checker"
 [ "$(checker_calls AGENT_BOARD=/board/cli.mjs)" = "node /board/cli.mjs check --stdin" ] || fail "AGENT_BOARD must name the checker: [$(checker_calls AGENT_BOARD=/board/cli.mjs)]"
-[ "$(checker_calls)" = "npx --yes github:ddinkov10/agent-board#v2.2.0 check --stdin" ] || fail "with neither variable the pinned npx command must run: [$(checker_calls)]"
+[ "$(checker_calls)" = "npx --yes github:ddinkov10/agent-board#v2.2.1 check --stdin" ] || fail "with neither variable the pinned npx command must run: [$(checker_calls)]"
 
 reset
 issue 4 CLOSED bug "old"; issue 5 OPEN bug "It breaks"; issue 6 OPEN epic ""; issue 10 OPEN hotfix,needs-info ""
@@ -738,7 +754,7 @@ echo x >"$lane/new.txt"
 run_flow --board
 [ "$code" -eq 0 ] && [ "$(doc '[.contract, .tracker, .noRun, .runner, [.issues[].number]]')" = '[1,"GitHub",null,false,[4,5,7,8,9,10,11,12]]' ] || fail "--board must print contract 1 with no row for an epic: $code [$out] [$err]"
 checked
-[ "$(field 4 '[.type, .state, .step, .closedAt, .title, .url]')" = '["bug","done",null,"2026-10-02T00:00:00Z","Issue 4","https://example.test/issues/4"]' ] || fail "--board, a closed issue: [$(field 4 .)]"
+[ "$(field 4 '[.type, .state, .step, .closedAt, .title, .url]')" = "[\"bug\",\"done\",null,\"$closed_at\",\"Issue 4\",\"https://example.test/issues/4\"]" ] || fail "--board, a closed issue: [$(field 4 .)]"
 [ "$(field 5 '[.state, .step]')" = '["starting","bug"]' ] || fail "--board, a lock that a live script holds: [$(field 5 .)]"
 [ "$(field 7 '[.type, .state, .step, .path, .started]')" = "[\"feature\",\"dirty\",\"plan\",\"$main/.claude/worktrees/7-crash\",true]" ] || fail "--board, a dirty lane worktree comes before a row of the record: [$(field 7 .)]"
 [ "$(field 8 '[.state, .step, .started, .urgent]')" = '["ready","triage",false,false]' ] || fail "--board, a ready row: [$(field 8 .)]"
@@ -749,7 +765,12 @@ checked
 [ "$(doc '[.issues[] | has("line")] | any')" = false ] || fail "--board must print no line field"
 [ "$(printf '%s' "$out" | jq -cS '.flow.steps | map_values(.gate)')" = '{"bug":"me","chore":"auto","hotfix":"me","implement":"auto","plan":"me","specify":"auto","triage":"auto"}' ] || fail "--board, the gate of each step from main YAML: [$out]"
 [ "$(doc '[.flow.lanes.feature, .flow.lanes.hotfix, [.flow.stages[].name], .flow.stages[1].steps, .flow.steps.implement.hint, .flow.steps.plan.hint]')" = '[["triage","specify","plan","implement"],["triage","hotfix"],["Triage","Define","Plan","Implement"],["specify","bug","chore","hotfix"],"It lands the change when the build is done.",null]' ] || fail "--board, the lanes, the stages, and the hints: [$out]"
-[ "$(count gh-calls)" -eq 3 ] && calls gh-calls | grep -Eq '^issue list --state closed --search closed:>=[0-9]{4}-[0-9]{2}-[0-9]{2} --limit 200 --json ' || fail "--board must make 3 gh calls: [$(calls gh-calls)]"
+[ "$(calls gh-calls | sed -E 's/^api (--paginate )?([^ ]*).*/\2/; s/since=[0-9]{4}-[0-9]{2}-[0-9]{2}T/since=<date>T/' | LC_ALL=C sort)" = "$({
+  echo 'repos/{owner}/{repo}/issues?state=open&per_page=100'
+  echo 'repos/{owner}/{repo}/issues?state=closed&since=<date>T00:00:00Z&per_page=100'
+  echo 'repos/{owner}/{repo}/pulls?state=open&per_page=100'
+  for n in 11 12; do echo "repos/{owner}/{repo}/issues/$n/comments?per_page=100"; done
+} | LC_ALL=C sort)" ] || fail "--board must read the three lists and the comments of each open issue that has a comment: [$(calls gh-calls)]"
 [ "$(count claude-calls)" -eq 1 ] && [ "$(locks)" -eq 1 ] && [ "$(rows)" -eq 1 ] || fail "--board must start no session, take no lock, and write no row"
 rm "$lane/new.txt"
 run_flow --board

@@ -16,7 +16,7 @@ mkdir -p "$BOARD_TEST" "$BOARD_PLUGIN" "$BOARD_PRODUCT/scripts" "$tmp/bin"
 BOARD_PRODUCT=$(cd "$BOARD_PRODUCT" && pwd -P)
 board=${AGENT_BOARD:-}
 if [ -z "$board" ]; then
-  (cd "$tmp" && npm pack --pack-destination "$tmp" 'github:ddinkov10/agent-board#v2.2.0') >"$tmp/package-name"
+  (cd "$tmp" && npm pack --pack-destination "$tmp" 'github:ddinkov10/agent-board#v2.2.1') >"$tmp/package-name"
   tar -xzf "$tmp/$(tail -1 "$tmp/package-name")" -C "$tmp"
   board="$tmp/package/cli.mjs"
 fi
@@ -32,13 +32,17 @@ cat >"$BOARD_TEST/board-input.json"
 EOF
 cat >"$tmp/bin/gh" <<'EOF'
 #!/bin/bash
-case "$1 $2" in
-  'issue list')
-    if [ "$4" = closed ]; then echo '[]'; else cat "$BOARD_TEST/issues.json"; fi ;;
-  'issue view') jq --argjson n "$3" '.[] | select(.number == $n)' "$BOARD_TEST/issues.json" ;;
-  'pr list') echo '[]' ;;
+[ "$1" = api ] || { echo "HTTP 403: GitHub GraphQL is not available from Claude Code sessions" >&2; exit 1; }
+filter=. endpoint=
+while [ $# -gt 0 ]; do case $1 in --jq) filter=$2; shift ;; repos/*) endpoint=$1 ;; esac; shift; done
+case $endpoint in
+  'repos/{owner}/{repo}/issues?state=open&'*) json=$(cat "$BOARD_TEST/issues.json") ;;
+  'repos/{owner}/{repo}/issues/'*/comments'?'*) json='[]' ;;
+  'repos/{owner}/{repo}/issues/'*) json=$(jq --argjson n "${endpoint##*/}" '.[] | select(.number == $n)' "$BOARD_TEST/issues.json") ;;
+  'repos/{owner}/{repo}/issues?state=closed&'* | 'repos/{owner}/{repo}/pulls?state=open&'*) json='[]' ;;
   *) exit 1 ;;
 esac
+printf '%s\n' "$json" | jq -r "$filter"
 EOF
 cat >"$tmp/bin/agent" <<'EOF'
 #!/bin/bash
@@ -128,7 +132,7 @@ git -C "$BOARD_PRODUCT" add .
 git -C "$BOARD_PRODUCT" commit -qm fixture
 git -C "$BOARD_PRODUCT" config celetis-flow.agent claude
 (cd "$BOARD_PRODUCT" && PATH="$tmp/bin" /bin/bash "$root/scripts/board.sh")
-jq -nc '[range(7;11) | {number:.,title:"Fixture issue",url:("https://example.test/issues/"+tostring),state:"OPEN",labels:[{name:"enhancement"}],body:"Spec: fixture",comments:[],updatedAt:"2026-10-01T00:00:00Z",closedAt:null}]' >"$BOARD_TEST/issues.json"
+jq -nc '[range(6;10) | {number:.,title:"Fixture issue",html_url:("https://example.test/issues/"+tostring),state:"open",labels:[{name:"enhancement"}],body:"Spec: fixture",comments:0,updated_at:"2026-10-01T00:00:00Z",closed_at:null}]' >"$BOARD_TEST/issues.json"
 cat >"$tmp/test.mjs" <<'EOF'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
@@ -158,9 +162,13 @@ try {
     return { status: response.status, body: await response.json() }
   }
   const ok = async (path, body) => assert.deepEqual(await post(path, body), { status: 200, body: { ok: true } })
+  const refuseDefault = async agent => assert.deepEqual(await post('agent', { agent }), {
+    status: 409,
+    body: { error: 'The producer controls the default agent. Change it in the producer configuration.' }
+  }, 'the board must refuse producer-default changes')
   const git = (...args) => execFileSync('git', ['-C', main, ...args], { encoding: 'utf8' })
   const preference = () => git('config', '--get', 'celetis-flow.agent').trim()
-  const otherConfig = () => git('config', '--local', '--list').split('\n').filter(line => !line.startsWith('celetis-flow.agent=')).sort()
+  const localConfig = () => git('config', '--local', '--null', '--list')
   const calls = async () => (await readFile(join(state, 'calls'), 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
   const producer = async () => {
     const data = await runData(main, config.data)
@@ -170,28 +178,45 @@ try {
   const initial = await (await fetch(`${url}/api/board`)).json()
   assert.equal(initial.defaultAgent, 'claude')
   assert.deepEqual(initial.agents, { claude: { available: true, cause: null }, codex: { available: true, cause: null } })
-  const before = otherConfig()
-  await ok('agent', { agent: 'codex' })
-  assert.equal(preference(), 'codex')
-  assert.deepEqual(otherConfig(), before, 'the board must write only celetis-flow.agent')
+  const yaml = await readFile(join(main, '.celetis.yaml'))
+  assert.deepEqual(yaml, execFileSync('git', ['-C', main, 'show', 'HEAD:.celetis.yaml']))
+  const before = localConfig()
+  const gitConfig = await readFile(join(main, '.git/config'))
+  assert.equal(preference(), 'claude')
+  const initialCalls = await calls()
+  await refuseDefault('codex')
+  assert.deepEqual(await readFile(join(main, '.celetis.yaml')), yaml, 'a refused default must leave tracked YAML unchanged')
+  assert.equal(localConfig(), before, 'a refused default must leave all local Git settings unchanged')
+  assert.deepEqual(await readFile(join(main, '.git/config')), gitConfig, 'a refused default must leave the Git config bytes unchanged')
   assert.equal((await producer()).defaultAgent, 'claude', 'the producer must ignore the old Git preference')
+  assert.equal((await (await fetch(`${url}/api/board`)).json()).defaultAgent, 'claude')
+  assert.deepEqual(await calls(), initialCalls, 'a refused default must start no agent')
+  assert.equal(await readFile(join(state, 'commands'), 'utf8').catch(() => ''), '', 'a refused default must open no command')
+  assert.equal(git('status', '--porcelain'), '')
+  await ok('run', { number: 6 })
+  assert.equal((await calls()).at(-1).host, 'claude', 'an unqualified Run must keep the YAML default after refusal')
+  assert.deepEqual(await readFile(join(main, '.celetis.yaml')), yaml)
+  assert.equal(localConfig(), before)
   await writeFile(join(main, '.celetis.yaml'), 'landing: pr\nhost: codex\n')
   git('add', '.celetis.yaml')
   git('commit', '-qm', 'fixture Codex default')
   await ok('refresh')
   assert.equal((await producer()).defaultAgent, 'codex')
-  const changed = git('config', '--local', '--list')
   await ok('run', { number: 7, agent: 'claude' })
   assert.equal((await calls()).at(-1).host, 'claude')
-  assert.equal(git('config', '--local', '--list'), changed, 'Run must not change the project preference')
+  assert.equal(localConfig(), before, 'Run must not change any local Git setting')
   await ok('run', { number: 8 })
   assert.equal((await calls()).at(-1).host, 'codex')
-  assert.equal(git('config', '--local', '--list'), changed)
+  assert.equal(localConfig(), before)
   const saved = JSON.parse(await readFile(join(main, '.git/celetis-flow/sessions/8.json'), 'utf8'))
   assert.equal(saved.host, 'codex')
   assert.equal(saved.session_id, '00000000-0000-4000-8000-000000000008')
-  await ok('agent', { agent: 'claude' })
+  const codexYaml = await readFile(join(main, '.celetis.yaml'))
+  await refuseDefault('claude')
+  assert.deepEqual(await readFile(join(main, '.celetis.yaml')), codexYaml)
+  assert.equal(localConfig(), before)
   assert.equal((await producer()).defaultAgent, 'codex')
+  assert.equal((await (await fetch(`${url}/api/board`)).json()).defaultAgent, 'codex')
   await writeFile(join(main, '.celetis.yaml'), 'landing: pr\nhost: claude\n')
   git('add', '.celetis.yaml')
   git('commit', '-qm', 'fixture Claude default')
@@ -208,12 +233,14 @@ try {
   assert.equal((await producer()).agents.codex.available, false)
   for (const agent of ['codex', 'unknown']) {
     assert.equal((await post('run', { number: 9, agent })).status, 409)
-    assert.equal((await post('agent', { agent })).status, 409)
+    await refuseDefault(agent)
   }
   assert.equal((await calls()).length, started, 'a refused choice must start no agent')
   assert.equal(await readFile(join(state, 'commands'), 'utf8'), commands, 'a refused choice must open no command')
   assert.equal(preference(), 'claude')
-  assert.deepEqual(otherConfig(), before)
+  assert.equal(localConfig(), before)
+  assert.deepEqual(await readFile(join(main, '.git/config')), gitConfig)
+  assert.deepEqual(await readFile(join(main, '.celetis.yaml')), yaml)
   assert.equal(git('status', '--porcelain'), '')
   console.log('board-agent: PASS')
 } finally {

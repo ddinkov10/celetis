@@ -33,11 +33,16 @@ inside that pane before controls. Start the released board there on an unused lo
 Use its real browser actions. Record the returned pane identities; control only owned panes.
 
 For the single-config cutover, the board start is `scripts/celetis --agent <agent> board` in the
-fixture main checkout. The adapter must run the exact GitHub tag v2.2.0 with `--config-stdin`;
+fixture main checkout. The adapter must run the exact GitHub tag v2.2.1 with `--config-stdin`;
 keep its actual package commit, input, stdout/stderr, HTTP producer data, and port. `AGENT_BOARD`
 is a local checker override only. Use no override for the released-package check. Test main and
 subfolder startup, lane refusal before npx, malformed config, external/lane executable refusal,
 default/configured ports, inherited `PORT`, and absence of a second config file.
+Check that the agent menu and command palette show the default as read-only and expose the
+reason by pointer and keyboard. They must send no setter request. A valid trusted `POST /api/agent`
+must return 409 with `The producer controls the default agent. Change it in the producer configuration.`
+Keep tracked YAML, all local Git settings, and the producer default unchanged. Before a YAML edit,
+check that an unqualified Run still uses the original default.
 Exercise actual Run for each explicit agent and Resume after changing YAML `host`; retain the
 session record, exact session/pane IDs, checkout, selected host, shared lock, and closed port after
 cleanup. Deterministic host fixtures and stdin checks do not close the real action row.

@@ -540,7 +540,7 @@ and board form. Every skill call adds `--agent claude` or `--agent codex` before
 | `scripts/celetis worktree --remove <n>` | Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first |
 | `scripts/celetis land <n> '<subject>'` | Lands the change of the issue by the `landing` field of `.celetis.yaml`. It is the one landing path of an agent |
 | `scripts/celetis next-step <n> \| --open \| --json` | The resolver: the next step of one issue, of each open issue, or the rows for the board |
-| `scripts/celetis board` | Starts released agent-board v2.2.0 from the main YAML config; takes no arguments |
+| `scripts/celetis board` | Starts released agent-board v2.2.1 from the main YAML config; takes no arguments |
 | `scripts/celetis capscore J V B N S X` | Resolves the six digits. `--json` gives portable scores and the host pair; Codex selects its main config profile by live runtime identity and needs `--runtime-models` |
 | `scripts/celetis celetis-flow [<n>...] \| --board \| --resume <n>` | The runner: the next step of each number, or the automatic runner with no number. `--board` prints the data of the board, and `--resume` opens the session of a step with no progress again |
 | `scripts/celetis root` | Prints the install folder of the plugin. The runner uses it after an update |
@@ -625,7 +625,7 @@ PORT=4500 scripts/celetis board
 
 The command takes no arguments. It validates the main checkout's `.celetis.yaml` and refuses a
 lane start before it runs `npx`. It sends the fixed command lists through stdin to
-`npx --yes 'github:ddinkov10/agent-board#v2.2.0' --config-stdin` in the main checkout. No second
+`npx --yes 'github:ddinkov10/agent-board#v2.2.1' --config-stdin` in the main checkout. No second
 config file is made. The released package validates the input and its executable paths.
 Only `board.port` comes from YAML; its default is 4403. `PORT` overrides it. This repository uses
 4404, so its board can run beside a board on 4403. Restart the board after a port change.
@@ -635,7 +635,9 @@ and Codex. Sign-in, trust, and enabled plugin discovery need their own checks.
 A Run press passes the selected `{agent}` through `scripts/celetis --agent <agent> celetis-flow
 <n>`. With no explicit choice, it uses `defaultAgent`: `CELETIS_AGENT`, then `host` in the main
 YAML, then `claude`. Set the project default in that YAML field. A Run choice changes only that
-start. Unknown or unavailable choices return 409 and start no agent.
+start. The board's default-agent menu and command palette show `Default agent is read-only`.
+They show the reason: `The producer controls the default agent. Change it in the producer configuration.`
+Unknown or unavailable Run choices return 409 and start no agent.
 Resume uses `scripts/celetis celetis-flow --resume <n>` and the saved host and exact session ID,
 even after the YAML default changes. Each command item is one argument; the board quotes it
 before it sends the command to herdr.
@@ -643,7 +645,7 @@ before it sends the command to herdr.
 Check issue data against the released contract in the main checkout:
 
 ```bash
-scripts/celetis celetis-flow --board | npx --yes 'github:ddinkov10/agent-board#v2.2.0' check --stdin
+scripts/celetis celetis-flow --board | npx --yes 'github:ddinkov10/agent-board#v2.2.1' check --stdin
 ```
 
 `docs/celetis-flow.md`, "The board", gives the fixed command lists and card states.
@@ -673,7 +675,7 @@ The checks need no model credentials or tokens and start no model turn.
 
   `AGENT_BOARD` names the entry file of a local checkout of the board package, for the contract
   check of the `--board` documents and the board-to-launcher integration test. With no value,
-  the integration test packs v2.2.0 in a temporary directory. This override is for the local
+  the integration test packs v2.2.1 in a temporary directory. This override is for the local
   gate; released-package acceptance uses the exact GitHub tag through the new adapter.
 - **The workflow** `.github/workflows/test.yml` runs each `tests/*.test.sh` and
   `scripts/capscore.sh --test`, plus the Perl syntax check, on Linux, for each pull request and

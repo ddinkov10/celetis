@@ -28,8 +28,11 @@ exit "${BOARD_NPX_STATUS:-0}"
 EOF
 cat >"$tmp/bin/gh" <<'EOF'
 #!/bin/bash
-case "$1 $2" in
-  'issue list' | 'pr list') echo '[]' ;;
+[ "$1" = api ] || exit 1
+filter=. endpoint=
+while [ $# -gt 0 ]; do case $1 in --jq) filter=$2; shift ;; repos/*) endpoint=$1 ;; esac; shift; done
+case $endpoint in
+  'repos/{owner}/{repo}/issues?state='* | 'repos/{owner}/{repo}/pulls?state=open&'*) echo '[]' | jq -r "$filter" ;;
   *) exit 1 ;;
 esac
 EOF
@@ -74,7 +77,7 @@ before=$(git -C "$repo" status --porcelain --untracked-files=all)
 run_board "$repo"
 check board_stdin_contract_start test "$code:$out:$err" = '0::'
 check board_stdin_contract_json config_is ". == $expected"
-check board_stdin_contract_argv test "$(cat "$capture/argv" 2>/dev/null || true)" = $'--yes\ngithub:ddinkov10/agent-board#v2.2.0\n--config-stdin'
+check board_stdin_contract_argv test "$(cat "$capture/argv" 2>/dev/null || true)" = $'--yes\ngithub:ddinkov10/agent-board#v2.2.1\n--config-stdin'
 check board_source_main test "$(cat "$capture/cwd" 2>/dev/null || true)" = "$repo"
 check board_source_no_config_file test ! -e "$repo/.claude/celetis-flow"
 check board_source_no_project_write test "$(git -C "$repo" status --porcelain --untracked-files=all)" = "$before"
@@ -150,7 +153,7 @@ else
     if [ -n "${AGENT_BOARD:-}" ]; then
       out=$(printf '%s' "$input" | (cd "$repo" && node "$AGENT_BOARD" check --config-stdin) 2>"$tmp/stderr") || code=$?
     else
-      out=$(printf '%s' "$input" | (cd "$repo" && "$BOARD_REAL_NPX" --yes 'github:ddinkov10/agent-board#v2.2.0' check --config-stdin) 2>"$tmp/stderr") || code=$?
+      out=$(printf '%s' "$input" | (cd "$repo" && "$BOARD_REAL_NPX" --yes 'github:ddinkov10/agent-board#v2.2.1' check --config-stdin) 2>"$tmp/stderr") || code=$?
     fi
     err=$(cat "$tmp/stderr")
     check board_consumer_bad_config test "$code" = 1

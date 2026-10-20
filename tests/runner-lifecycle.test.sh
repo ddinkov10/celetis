@@ -109,8 +109,11 @@ cp "$tmp/bin/host" "$tmp/bin/codex"
 cat >"$tmp/bin/gh" <<'EOF'
 #!/bin/bash
 S=$LIFECYCLE_TEST
-case "$1 $2" in
-  'issue view')
+[ "$1" = api ] || { echo "HTTP 403: GitHub GraphQL is not available from Claude Code sessions" >&2; exit 1; }
+filter=. endpoint=
+while [ $# -gt 0 ]; do case $1 in --jq) filter=$2; shift ;; repos/*) endpoint=$1 ;; esac; shift; done
+case $endpoint in
+  'repos/{owner}/{repo}/issues/7')
     if [ -f "$S/status-during-resolver" ]; then
       count=$(($(cat "$S/resolver-checks" 2>/dev/null || echo 0) + 1))
       echo "$count" >"$S/resolver-checks"
@@ -119,8 +122,9 @@ case "$1 $2" in
         touch "$S/late-state-set"
       fi
     fi
-    cat "$S/issue.json" ;;
-  'issue list') jq -s . "$LIFECYCLE_TEST/issue.json" ;;
+    jq -r "(.comments |= length) | $filter" "$S/issue.json" ;;
+  'repos/{owner}/{repo}/issues/7/comments?'*) jq -r ".comments | $filter" "$S/issue.json" ;;
+  'repos/{owner}/{repo}/issues?state=open&'*) jq -r "[select(.state == \"open\") | .comments |= length] | $filter" "$S/issue.json" ;;
   *) exit 1 ;;
 esac
 EOF
@@ -182,7 +186,7 @@ lane="$repo/.claude/worktrees/7-fixture"
 git -C "$repo" worktree add -q -b fix/7-fixture "$lane"
 issue() {
   jq -nc --arg label "${1:-enhancement}" --arg state "${2:-OPEN}" --arg comment "${3:-}" \
-    '{number:7,state:$state,labels:[{name:$label}],body:"Spec: fixture",comments:(if $comment == "" then [] else [{body:$comment}] end)}' >"$S/issue.json"
+    '{number:7,state:($state | ascii_downcase),labels:[{name:$label}],body:"Spec: fixture",comments:(if $comment == "" then [] else [{body:$comment}] end)}' >"$S/issue.json"
 }
 reset() {
   git -C "$repo" for-each-ref --format='%(refname)' refs/celetis-flow/locks | while IFS= read -r ref; do git -C "$repo" update-ref -d "$ref"; done

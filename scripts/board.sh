@@ -15,4 +15,4 @@ printf '%s\n' "$config" | jq -c '{
   run:["scripts/celetis","--agent","{agent}","celetis-flow","{n}"],
   resume:["scripts/celetis","celetis-flow","--resume","{n}"],
   port:(.board.port // 4403)
-}' | npx --yes 'github:ddinkov10/agent-board#v2.2.0' --config-stdin
+}' | npx --yes 'github:ddinkov10/agent-board#v2.2.1' --config-stdin

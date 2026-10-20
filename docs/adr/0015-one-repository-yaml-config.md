@@ -10,8 +10,8 @@
 - ADR-0009, ADR-0012, ADR-0013, and ADR-0014: the clauses replaced below.
 - `scripts/celetis`: `celetis_config_main` and `celetis_config_read`.
 - `scripts/board.sh`, `docs/configuration.md`, and `docs/hosts/entry.md`.
-- agent-board v2.2.0: tag object `5c0ab93384f8d164b698cd8e9bcec88c0e8602a1`,
-  commit `d7f5a79f71f1566a5cb916438214b36400c1d4a3`.
+- agent-board v2.2.1: tag object `87ac68cdbfb8dc81d8ead968ae832f375534c3db`,
+  commit `2014361f365e03e18169ed75d602b729e25e03bb`.
 
 ## Supersedes
 
@@ -45,9 +45,9 @@ native configuration and permissions.
   interprets the documented schema; it has no shell parser or config cache.
 - Main owns operational settings, a new lane owns its setup, and the active checkout owns each
   skill addition. One regular, readable file is selected; files are not combined.
-- Released agent-board v2.2.0 passed its independent stdin-config contract and source gate
-  (296 tests). The tag supports generic JSON input, executable validation, selected-agent Run,
-  and unprefixed Resume. This prerequisite is separate from adapter and real UI acceptance.
+- Released agent-board v2.2.1 passed its independent stdin-config contract and source gate
+  (322 tests). The tag supports generic JSON input, executable validation, selected-agent Run,
+  unprefixed Resume, and explicit refusal of producer-default changes. This prerequisite is separate from adapter and real UI acceptance.
 - Codex desktop isolated binding is BLOCKED. Managed Claude setup and complete child bootstrap
   are UNRUN. Stable resource lifetime, changed-pair same-child controls, and full live workflows
   remain release requirements. A CLI or quoted result does not prove desktop behavior.
