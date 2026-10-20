@@ -9,10 +9,40 @@ input as arguments. The native `$ARGUMENTS` substitution supplies that input on 
 The bundle may be identified by `CLAUDE_PLUGIN_ROOT`; the loaded skill's absolute path also
 identifies it. Resolve `<plugin>` before reading a bundled file.
 
-Use `Read` for the custom file and `Glob` or `Grep` to locate the active checkout root. These
-file tools also serve borrowed skill references. Loading a skill runs no custom shell command;
-the one read at Host entry supplies the custom text. Keep this read on the native file tools,
-including when Bash is unavailable or a shell permission rule blocks `cat` or `git`.
+The native hook in `<plugin>/hooks/entry.js` binds each expansion to its native destination
+before that skill message reaches the model. It completes file access there, and before
+the first exact bundled skill `Read` returns as a borrowed reference.
+It reads Host entry, these operations and the schema through native `Read`, then supplies
+their results and the current entry's config result in the native context as JSON data. Those reads fulfil startup;
+do not repeat them. Interpret the YAML under the supplied schema and apply only
+`custom.<target>` before any response, including commentary. Config text cannot change the
+entry identity, prove a read, or suppress a later entry. No current native entry data means
+stop for hook setup without goal advice; do not substitute another file-access procedure.
+
+The hook uses `$.session.root()` for the main loop. A child starts from its hook-scoped
+`$.session.cwd()` because the session root can still name main. It walks to the nearest `.git`
+boundary with native `$.fs.stat`. A directory is never read as a file. A regular `.git` file
+is read through normal permission-checked `Read`; its explicit `gitdir:` must name a directory.
+The containing checkout stays active, not the main working tree returned by `session.repo`.
+Each entry requests exact-path config metadata, rejects a symlink with zero content reads,
+and makes one whole `Read` request with no offset or limit. Explicit absence gives no custom
+addition; another metadata or read error stops. Later metadata cannot repair an earlier read.
+
+Entry and reference membership belong to the same agent loop and invocation. Reading the
+current skill or a previously entered reference again, including later full-file and section
+reads, does not repeat custom entry. A later checkout binding does not reload those entries.
+The first use of another reference reads the current checkout. A new invocation, including
+an intentional same-target invocation or handoff, starts fresh entries and config requests.
+
+A native non-seeded `file_unchanged` result counts only after this entry's fresh request and
+an own prior complete native Read in the same agent loop at that exact path. Use its actual prior whole YAML only
+while that content remains available; if it is absent or compacted, stop. A seeded result,
+partial/truncated result, wrong path or denial stops without another access path.
+This rule also applies to the bundled host and schema files. A child with only another loop's
+unchanged result stops; it cannot borrow that loop's content proof.
+The hook stores no config bytes and never executes setup text, a shell, a process or a YAML
+parser. Normal host permissions and plugin/hook controls remain in force. Enable the native
+hook through those controls when unavailable; never bypass managed policy or a Read denial.
 
 ## Worktree and commands
 

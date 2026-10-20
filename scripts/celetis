@@ -1,13 +1,163 @@
 #!/usr/bin/env bash
 
+celetis_config_main() {
+  local common
+  common=$(git rev-parse --path-format=absolute --git-common-dir) || return 1
+  dirname "$common"
+}
+
+celetis_config_read() (
+  file="$1/.celetis.yaml"
+  celetis_config_error() {
+    printf 'celetis: %s: %s\n' "$file" "$*" >&2
+    exit 2
+  }
+  [ -f "$file" ] && [ -r "$file" ] && [ ! -L "$file" ] ||
+    celetis_config_error '<document>: need a regular, readable file, with no symlink'
+  command -v yq >/dev/null 2>&1 ||
+    celetis_config_error '<document>: need Mike Farah yq >=4.54.1,<5 on PATH'
+  version=$(yq --version 2>/dev/null) ||
+    celetis_config_error '<document>: cannot read the yq version'
+  if [[ $version =~ ^yq\ \(https://github[.]com/mikefarah/yq/\)\ version\ v4[.]([0-9]+)[.]([0-9]+)$ ]] &&
+    { [ "${BASH_REMATCH[1]}" -gt 54 ] ||
+      { [ "${BASH_REMATCH[1]}" -eq 54 ] && [ "${BASH_REMATCH[2]}" -ge 1 ]; }; }; then
+    :
+  else
+    celetis_config_error '<document>: need Mike Farah yq >=4.54.1,<5 on PATH'
+  fi
+  command -v jq >/dev/null 2>&1 || celetis_config_error '<document>: jq is not on PATH'
+  umask 077
+  scratch=$(mktemp -d) || celetis_config_error '<document>: cannot create a YAML snapshot'
+  trap 'rm -rf "$scratch"' EXIT
+  perl -e '
+    use strict;
+    use warnings;
+    my $path = shift;
+    my @before = lstat $path;
+    @before && -f _ && !-l _ or die "not a regular file\n";
+    open my $input, "<", $path or die "cannot open file: $!\n";
+    my @opened = stat $input;
+    $before[0] == $opened[0] && $before[1] == $opened[1] or die "file changed\n";
+    binmode $input;
+    binmode STDOUT;
+    while (1) {
+      my $count = read $input, my $bytes, 65536;
+      defined $count or die "cannot read file: $!\n";
+      last unless $count;
+      print $bytes or die "cannot write snapshot: $!\n";
+    }
+    close $input or die "cannot close file: $!\n";
+  ' "$file" >"$scratch/input.yaml" 2>"$scratch/read.err" ||
+    celetis_config_error "<document>: $(cat "$scratch/read.err")"
+  metadata=$(yq eval -o=json -I=0 '
+    {"document": document_index,
+     "nodes": [... | {"path": path, "key": is_key, "tag": tag, "kind": kind,
+                     "style": style, "text": to_string}],
+     "maps": [... | select(kind == "map") | {"path": path, "keys": (keys | map(to_string))}]}
+  ' "$scratch/input.yaml" 2>"$scratch/yq.err") ||
+    celetis_config_error "<document>: invalid YAML: $(cat "$scratch/yq.err")"
+  problem=$(printf '%s\n' "$metadata" | jq -rs '
+    def field: map(tostring) | join(".") | if . == "" then "<document>" else . end;
+    if length != 1 then "<document>: need one YAML document"
+    elif .[0].nodes[0].tag != "!!map" then "<document>: need a mapping root"
+    else .[0] as $doc
+      | [
+          ($doc.nodes[] | select(.key and .tag != "!!str")
+            | (.path | field) + ": mapping keys must be strings"),
+          ($doc.maps[] | . as $map | .keys | group_by(.)[]
+            | select(length > 1) | ($map.path + [.[0]] | field) + ": duplicate key"),
+          ($doc.nodes[] | select(.kind == "alias")
+            | (.path | field) + ": YAML aliases are not allowed"),
+          ($doc.nodes[] | select(.tag | IN("!!map","!!seq","!!str","!!null","!!bool","!!int","!!float") | not)
+            | (.path | field) + ": unsupported YAML tag"),
+          ($doc.nodes[] | select(.tag == "!!float")
+            | select(.text | ascii_downcase | test("^[+-]?[.](inf|nan)$"))
+            | (.path | field) + ": non-finite numbers are not allowed"),
+          ($doc.nodes[] | select(.key | not)
+            | select(.path == ["worktreeSetup"] or (.path[0] == "custom" and (.path | length) == 2))
+            | select(.style | contains("folded"))
+            | (.path | field) + ": use a literal block for multiline text"),
+          ($doc.nodes[] | select(.key | not) | select(.tag == "!!float")
+            | select(.path == ["board","port"] or
+                ((.path | length) == 4 and .path[0] == "codexProfiles" and
+                 .path[2] == "reviewer" and .path[3] == "rank"))
+            | (.path | field) + ": need an integer")
+        ] | first // empty
+    end
+  ') || celetis_config_error '<document>: cannot validate YAML metadata'
+  [ -z "$problem" ] || celetis_config_error "$problem"
+  config=$(yq eval -o=json -I=0 '.' "$scratch/input.yaml" 2>"$scratch/yq.err") ||
+    celetis_config_error "<document>: cannot convert YAML to JSON: $(cat "$scratch/yq.err")"
+  config=$(printf '%s\n' "$config" | jq -c '
+    def field: map(tostring) | join(".") | if . == "" then "<document>" else . end;
+    def bad($path; $message): error(($path | field) + ": " + $message);
+    def object($path): if type == "object" then . else bad($path; "need an object") end;
+    def keys_only($allowed; $path):
+      . as $object
+      | (first(keys_unsorted[] | select(. as $key | $allowed | index($key) | not)) // null) as $unknown
+      | if $unknown == null then $object else bad($path + [$unknown]; "unknown field") end;
+    def required($key; $path):
+      if has($key) then . else bad($path + [$key]; "required field") end;
+    def enum($values; $path):
+      if type == "string" and (. as $value | $values | index($value)) != null then .
+      else bad($path; "invalid value") end;
+    def text($path):
+      if type != "string" then bad($path; "need a string")
+      elif contains("\u0000") then bad($path; "NUL is not allowed")
+      else . end;
+    def integer($min; $max; $path):
+      if type != "number" then bad($path; "need an integer")
+      elif floor != . or . < $min or . > $max then bad($path; "integer is out of range")
+      else . end;
+    def profile($path):
+      object($path) | keys_only(["slots","reviewer"]; $path)
+      | required("slots"; $path) | required("reviewer"; $path)
+      | (.slots | if type == "array" and length == 4 and
+          all(.[]; type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._/-]*$") and
+            (explode | all(. >= 32 and . != 127))) then .
+          else bad($path + ["slots"]; "need four nonempty model IDs") end) as $slots
+      | .reviewer | object($path + ["reviewer"])
+      | keys_only(["rank","effort"]; $path + ["reviewer"])
+      | required("rank"; $path + ["reviewer"]) | required("effort"; $path + ["reviewer"])
+      | (.rank | integer(0; 3; $path + ["reviewer","rank"])) as $rank
+      | .effort | enum(["low","medium","high","xhigh"]; $path + ["reviewer","effort"]);
+    ["triage","specify","bug","chore","hotfix","plan","implement"] as $steps
+    | ["bug","chore","critic-loop","doc-drift-sync","feature","guide","hotfix","implement",
+       "intake","lesson","lesson-review","plan","polishing-code-comments","prototype",
+       "record-architecture-decisions","specify","triage","writing-for-agents"] as $skills
+    | object([]) | keys_only(["host","landing","gates","board","worktreeSetup","custom","codexProfiles"]; [])
+    | required("landing"; []) | . as $config
+    | [
+        (.landing | enum(["pr","merge"]; ["landing"])),
+        (if has("host") then .host | enum(["claude","codex"]; ["host"]) else empty end),
+        (if has("gates") then .gates | object(["gates"]) | keys_only($steps; ["gates"])
+          | to_entries[] | .key as $step | .value | enum(["me","auto"]; ["gates",$step]) else empty end),
+        (if has("board") then .board | object(["board"]) | keys_only(["port"]; ["board"])
+          | if has("port") then .port | integer(1024; 65535; ["board","port"]) else empty end else empty end),
+        (if has("worktreeSetup") then .worktreeSetup | text(["worktreeSetup"]) else empty end),
+        (if has("custom") then .custom | object(["custom"]) | keys_only($skills; ["custom"])
+          | to_entries[] | .key as $skill | .value | text(["custom",$skill]) else empty end),
+        (if has("codexProfiles") then .codexProfiles | object(["codexProfiles"]) | to_entries[]
+          | .key as $runtime
+          | if $runtime == "" then bad(["codexProfiles"]; "runtime keys must be nonempty") else
+              .value | profile(["codexProfiles",$runtime]) end else empty end)
+      ] | $config
+  ' 2>"$scratch/schema.err") || celetis_config_error "$(cat "$scratch/schema.err")"
+  printf '%s\n' "$config"
+)
+
 celetis_host_select() {
-  local host
+  local host main config
   if [ $# -gt 0 ]; then
     host=$1
   elif [ "${CELETIS_AGENT+x}" = x ]; then
     host=$CELETIS_AGENT
   else
-    host=$(git config --get celetis-flow.agent 2>/dev/null) || host=claude
+    host=claude
+    if main=$(celetis_config_main 2>/dev/null); then
+      config=$(celetis_config_read "$main") || return $?
+      host=$(printf '%s\n' "$config" | jq -r '.host // "claude"') || return $?
+    fi
   fi
   case $host in
     claude | codex) export CELETIS_AGENT=$host ;;
@@ -202,7 +352,7 @@ celetis_claude_root() {
 }
 
 celetis_main() {
-  local name dir explicit=
+  local name dir main explicit=
   if [ "${1:-}" = --agent ]; then
     if [ $# -lt 3 ]; then
       echo 'usage: scripts/celetis --agent claude|codex <script> [<argument>...]' >&2
@@ -229,6 +379,11 @@ celetis_main() {
     unset CELETIS_RESUME_RECORD
     celetis_host_select || return $?
   fi
+  case $name in
+    worktree | celetis-flow | next-step | land | board)
+      main=$(celetis_config_main) || return $?
+      celetis_config_read "$main" >/dev/null || return $? ;;
+  esac
   if [ "$CELETIS_AGENT" = codex ]; then
     dir=$(celetis_codex_root) || return 1
   else

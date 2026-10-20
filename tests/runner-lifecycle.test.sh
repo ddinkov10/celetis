@@ -176,7 +176,7 @@ EOF
 chmod +x "$tmp/bin/"*
 export PATH="$tmp/bin:$PATH"
 git init -q "$repo"
-echo '{"plan":"auto","implement":"auto"}' >"$repo/.claude/celetis-flow/gates.json"
+printf 'landing: merge\ngates:\n  plan: auto\n  implement: auto\n' >"$repo/.celetis.yaml"
 echo '.claude/worktrees/' >"$repo/.gitignore"
 git -C "$repo" add .
 git -C "$repo" commit -qm fixture

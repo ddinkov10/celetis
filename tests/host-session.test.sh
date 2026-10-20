@@ -73,7 +73,7 @@ jq -nc --arg h "$host" --arg cwd "$PWD" --args '{host:$h,cwd:$cwd,args:$ARGS.pos
 IFS= read -r typed || typed=
 printf '%s\n' "$typed" >>"$S/stdin"
 if [ "$1" = resume ] || [ "$1" = --resume ]; then exit 0; fi
-[ ! -f "$S/change-host" ] || git config celetis-flow.agent "$(cat "$S/change-host")"
+[ ! -f "$S/change-host" ] || printf 'landing: merge\nhost: %s\n' "$(cat "$S/change-host")" >.celetis.yaml
 created=$(date +%s)
 [ ! -f "$S/old-session" ] || created=0
 echo "$created" >"$S/created"
@@ -134,11 +134,12 @@ esac
 EOF
 printf '#!/bin/bash\nexit 0\n' >"$tmp/bin/gh"
 chmod +x "$tmp/bin/"* "$plugin/scripts/next-step.sh"
-for command in bash jq git dirname mkdir cat mktemp mkfifo rm sleep mv ps touch perl date; do ln -s "$(command -v "$command")" "$tmp/codex-only/$command"; done
+for command in bash jq yq git dirname mkdir cat mktemp mkfifo rm sleep mv ps touch perl date; do ln -s "$(command -v "$command")" "$tmp/codex-only/$command"; done
 ln -s "$tmp/bin/codex" "$tmp/codex-only/codex"
 ln -s "$tmp/bin/gh" "$tmp/codex-only/gh"
 export PATH="$tmp/bin:$PATH"
 git init -q "$repo"
+printf 'landing: merge\n' >"$repo/.celetis.yaml"
 git -C "$repo" add .
 git -C "$repo" commit -qm fixture
 repo=$(cd "$repo" && pwd -P)
@@ -269,11 +270,13 @@ export HERDR_ENV=1 HERDR_PANE_ID=w1:p1
 test_host=codex run 7
 unset HERDR_ENV HERDR_PANE_ID
 for default in claude codex; do
+  printf 'landing: merge\nhost: %s\n' "$default" >"$repo/.celetis.yaml"
   : >"$S/calls"
   code=0
   (cd "$repo" && unset CELETIS_AGENT && PATH="$tmp/codex-only" GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=celetis-flow.agent GIT_CONFIG_VALUE_0="$default" scripts/celetis celetis-flow --resume 7 < <(printf 'terminal input\n')) >"$tmp/out" 2>"$tmp/err" || code=$?
   [ "$code" -eq 0 ] && jq -e --arg id "$uuid" '.host == "codex" and .args == ["resume","--no-daemon",$id]' "$S/calls" >/dev/null || fail "copied launcher resume with $default default and no Claude: $code [$(cat "$tmp/err")]"
 done
+printf 'landing: merge\nhost: claude\n' >"$repo/.celetis.yaml"
 code=0
 (cd "$repo" && scripts/celetis --agent claude celetis-flow --resume 7) >"$tmp/out" 2>"$tmp/err" || code=$?
 [ "$code" -ne 0 ] && [[ $(cat "$tmp/err") == *'recorded host is codex'* ]] || fail "an explicit host request switched a saved session"
@@ -375,12 +378,14 @@ for host in claude codex; do
   reset
   other=codex; [ "$host" != codex ] || other=claude
   echo "$other" >"$S/change-host"
-  git -C "$repo" config celetis-flow.agent "$host"
+  printf 'landing: merge\nhost: %s\n' "$host" >"$repo/.celetis.yaml"
+  git -C "$repo" config celetis-flow.host "$other"
+  git -C "$repo" config celetis-flow.agent "$other"
   export HERDR_ENV=1 HERDR_PANE_ID=w1:p1
   code=0
   (cd "$repo" && unset CELETIS_AGENT && GIT_CONFIG_COUNT=0 scripts/celetis celetis-flow 7 < <(printf 'terminal input\n')) >"$tmp/out" 2>"$tmp/err" || code=$?
   [ "$code" -eq 0 ] && jq -e --arg h "$host" '.host == $h' "$S/calls" >/dev/null && jq -e --arg h "$host" '.host == $h' "$record" >/dev/null || fail "the current project default did not select and retain $host: $code [$(cat "$tmp/err")]"
-  [ "$(git -C "$repo" config --get celetis-flow.agent)" = "$other" ] || fail "the project preference did not change after $host started"
+  [ "$(yq -r .host "$repo/.celetis.yaml")" = "$other" ] || fail "the project preference did not change after $host started"
   unset HERDR_ENV HERDR_PANE_ID
   : >"$S/calls"
   code=0
