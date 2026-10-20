@@ -112,7 +112,8 @@ claude_files() {
 }
 
 touched() {
-  printf '%s\n' scripts/celetis .claude/celetis-flow/landing.json "$wiring" .gitignore .gitattributes AGENTS.md
+  printf '%s\n' scripts/celetis .claude/celetis-flow/landing.json "$wiring" .gitignore .gitattributes AGENTS.md \
+    docs/adr/README.md docs/adr/template.md docs/lessons/INDEX.md
   if has_host codex; then echo .codex/rules/celetis.rules; fi
   if has_host claude; then
     echo .claude/settings.json

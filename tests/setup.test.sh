@@ -436,6 +436,19 @@ git -C "$proj" add -f scripts/celetis
 git -C "$proj" commit -qm tracked
 [ "$(code_of write --hosts codex --landing merge)" -eq 0 ] || fail "write refused a tracked launcher that .gitignore matches"
 
+new_project ignoredstore
+echo 'docs/adr/' >"$proj/.gitignore"
+commit_all product
+LABELS= stops "setup: git ignores docs/adr/README.md; make git track it first" write --hosts codex --landing merge
+clean_tree "an ignored store left a file"
+[ ! -s "$LABEL_LOG" ] || fail "an ignored store left a label: $(cat "$LABEL_LOG")"
+mkdir -p "$proj/docs/adr"
+printf '# Our decisions\n' >"$proj/docs/adr/README.md"
+printf '# Our template\n' >"$proj/docs/adr/template.md"
+git -C "$proj" add -f docs/adr
+git -C "$proj" commit -qm tracked
+[ "$(code_of write --hosts codex --landing merge)" -eq 0 ] || fail "write refused tracked store files that .gitignore matches"
+
 new_project union
 run write --hosts claude,codex --default codex --landing merge >/dev/null
 [ "$(git -C "$proj" config celetis-flow.agent)" = codex ] || fail "wrong celetis-flow.agent for two hosts"
