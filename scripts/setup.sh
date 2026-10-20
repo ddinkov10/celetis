@@ -59,8 +59,15 @@ check_staged() {
   git diff --cached --quiet || die "the index holds staged changes; commit or unstage them first"
 }
 
+check_eol() {
+  case $(git ls-files --eol -- "$config") in
+    i/crlf* | i/mixed*) die "the index holds $config with CRLF line endings; convert it to LF and commit it first" ;;
+  esac
+}
+
 run_checks() {
   check_trunk
+  check_eol
   check_dirty
   check_staged
 }

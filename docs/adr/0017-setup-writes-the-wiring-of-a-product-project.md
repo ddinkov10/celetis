@@ -55,6 +55,13 @@ by hand. More product projects now need the wiring.
   - a second `host` line gives `host: duplicate key`;
   - a `|` or `|+` block at the end of a file with no final newline gets one more newline in its
     value when a newline and a line come after it.
+- With the line `.celetis.yaml text eol=lf` in `.gitattributes`, git shows a `.celetis.yaml` that
+  the index holds with CRLF line endings as changed only when it compares the content of the file.
+  It compares the content only when the stat data in the index does not prove that the file is
+  unchanged, so the result depends on the time of each write. In four runs with the same input,
+  the commit of setup held the converted file in some runs and the CRLF file in the others. In a
+  clone of the CRLF file, a touch makes the file show as changed, and the resolver stops on a
+  dirty tree.
 - A rewrite of `.claude/settings.json` with `jq` can change lines of the product: it splits an
   array on one line, changes CRLF to LF, and adds a missing final newline. The report of the
   skill shows such a change.
@@ -101,9 +108,10 @@ holds the default host, or the one host. The file is committed, so each clone ge
 - A `host` or `landing` with a value other than the answer is an entry of the product. Setup
   leaves it, prints a warning, and adds no record entry for it. The maintainer changes that field
   by hand. Replacement is #46.
-- Setup stops before any write in two cases: the reader refuses the file (for example, a file
-  with no `landing`), or the file cannot take a line. A file cannot take a line when the reader
-  refuses the file with the line, or when the line changes a value of the product.
+- Setup stops before any write in three cases: the index holds the file with CRLF line endings,
+  the reader refuses the file (for example, a file with no `landing`), or the file cannot take a
+  line. A file cannot take a line when the reader refuses the file with the line, or when the line
+  changes a value of the product.
 - `.gitattributes` gets the owned lines `scripts/celetis text eol=lf` and
   `.celetis.yaml text eol=lf`. The second owned line of `AGENTS.md` names `landing` in
   `.celetis.yaml`.

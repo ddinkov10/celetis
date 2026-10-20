@@ -482,7 +482,9 @@ question: commit and push to the trunk of `origin`?
 
 Commit each change that you make by hand on the trunk too, and push it: for example a custom part
 in `.celetis.yaml`. The launcher and `.celetis.yaml` need LF line endings on each host. Setup adds
-the lines `scripts/celetis text eol=lf` and `.celetis.yaml text eol=lf` to `.gitattributes`.
+the lines `scripts/celetis text eol=lf` and `.celetis.yaml text eol=lf` to `.gitattributes`. When
+the index holds `.celetis.yaml` with CRLF line endings, setup stops before any write: convert the
+file to LF and commit it first.
 
 ## The full loop
 

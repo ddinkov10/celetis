@@ -688,6 +688,33 @@ chmod +x "$tmp/noyq/yq"
 PATH="$tmp/noyq:$PATH" run write --hosts codex --landing merge >/dev/null 2>"$tmp/err" || fail "write needed yq for a new config: $(cat "$tmp/err")"
 bytes_are $'host: codex\nlanding: merge\n' .celetis.yaml
 
+new_project configcrlf
+printf 'host: claude\r\nlanding: pr\r\n' >"$proj/.celetis.yaml"
+commit_all product
+git -C "$proj" push -q origin main
+: >"$LABEL_LOG"
+want='setup: the index holds .celetis.yaml with CRLF line endings; convert it to LF and commit it first'
+stops "$want" check
+LABELS= stops "$want" write --hosts claude --landing pr
+[ ! -s "$LABEL_LOG" ] || fail "a CRLF config left a label: $(cat "$LABEL_LOG")"
+clean_tree "a CRLF config left a file"
+printf 'host: claude\nlanding: pr\r\n' >"$proj/.celetis.yaml"
+commit_all mixed
+LABELS= stops "$want" write --hosts claude --landing pr
+[ ! -s "$LABEL_LOG" ] || fail "a config with mixed line endings left a label: $(cat "$LABEL_LOG")"
+clean_tree "a config with mixed line endings left a file"
+
+new_project configcrlfcheckout
+git -C "$proj" config core.autocrlf true
+git -C "$proj" config core.safecrlf false
+printf 'landing: pr\n' >"$proj/.celetis.yaml"
+commit_all product
+rm "$proj/.celetis.yaml"
+git -C "$proj" checkout -- .celetis.yaml
+[ "$(grep -c $'\r' "$proj/.celetis.yaml")" -eq 1 ] || fail "the CRLF checkout fixture has no CR"
+run write --hosts claude --landing pr >/dev/null 2>"$tmp/err" || fail "write stopped on a CRLF checkout of an LF config: $(cat "$tmp/err")"
+bytes_are $'landing: pr\r\nhost: claude\n' .celetis.yaml
+
 [ ! -s "$LABEL_LOG" ] || fail "an earlier case made a label: $(cat "$LABEL_LOG")"
 new_project labels
 out=$(LABELS='bug enhancement wontfix' run write --hosts codex --landing pr 2>"$tmp/err") || fail "write failed on a project with three labels: $(cat "$tmp/err")"
