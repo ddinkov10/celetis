@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# The deterministic acts of /celetis:setup; each one starts with the checks of the main checkout and its trunk.
 set -euo pipefail
 
 die() { printf 'setup: %s\n' "$1" >&2; exit 1; }
