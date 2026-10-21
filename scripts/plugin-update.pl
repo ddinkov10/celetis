@@ -26,6 +26,13 @@ for my $signal (qw(INT TERM HUP)) {
 sub stop_child {
     return unless defined $child;
     sleep 1 if kill 'TERM', -$child;
+    if ($ENV{PROBE_LOG}) {
+        my $t = sprintf '%.3f', Time::HiRes::time();
+        system("{ echo '== before KILL child=$child t=$t'; ps -A -o pid=,ppid=,pgid=,stat=,command= | awk -v g=$child '\$3 == g'; } >>'$ENV{PROBE_LOG}'");
+        open my $p, '>>', $ENV{PROBE_LOG} or die $!;
+        printf $p "== KILL t=%.3f\n", Time::HiRes::time();
+        close $p;
+    }
     kill 'KILL', -$child;
     waitpid($child, 0);
     undef $child;

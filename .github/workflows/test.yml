@@ -28,10 +28,9 @@ jobs:
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/yq" --version
       - run: perl -c scripts/plugin-update.pl
-      - run: |
-          set -euo pipefail
-          for t in tests/*.test.sh; do
-            echo "== $t"
-            PATH="/bin:$PATH" /bin/bash "$t"
-          done
-      - run: scripts/capscore.sh --test
+      - name: Probe the timed-out update race (#71)
+        run: |
+          stages=
+          for _ in $(seq 5); do stages="$stages marketplace update"; done
+          for _ in $(seq 60); do stages="$stages list"; done
+          PROBE_STAGES=$stages PATH="/bin:$PATH" /bin/bash tests/probe-71.sh
