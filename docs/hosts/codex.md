@@ -110,12 +110,13 @@ Create a child with `dispatch.model` and `dispatch.effort` explicitly set in the
 fields, in an isolated context. Codex selects one of two tool sets for each session: v2 when the
 `multi_agent_v2` feature is on, else the `multi_agent_version` of the session model in
 `codex debug models`, else v1 when the `multi_agent` feature is on. The session keeps that set,
-and a child inherits it.
+and a child inherits it. An old resumed or forked thread with no recorded set gets v1.
 
-- In the v1 set, the tools are in the `multi_agent_v1` namespace. The `spawn_agent` fields are
-  `model`, `reasoning_effort`, and `fork_context: false`. When the model supports tool search,
-  these tools are deferred: do a tool search for `spawn_agent` before a missing tool stops
-  dispatch.
+- In the v1 set, the tools are in the `multi_agent_v1` namespace. The
+  `multi_agent_v1.spawn_agent` fields are `model`, `reasoning_effort`, and `fork_context: false`.
+  When the session model supports tool search, Codex defers these tools. If `spawn_agent`,
+  `wait_agent`, or `send_input` is not visible, do a tool search for it before a missing tool
+  stops dispatch.
 - In the v2 set, the default namespace is `collaboration`. The `collaboration.spawn_agent`
   fields are `task_name`, `model`, `reasoning_effort`, and `fork_turns: "none"`.
 

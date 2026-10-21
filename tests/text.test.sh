@@ -228,7 +228,7 @@ for contract in 'After Host entry succeeds' 'If entry stops' 'conditional comman
   grep -qF -- "$contract" skills/guide/SKILL.md || fail "guide must gate goal advice on successful entry: $contract"
 done
 grep -qF 'Do not read a `.git` directory' docs/hosts/codex.md || fail 'Codex metadata must branch before reading .git'
-for contract in 'multi_agent_v1' 'fork_context: false' 'send_input' 'codex debug models' 'tool search' 'collaboration.followup_task'; do
+for contract in 'multi_agent_v1.spawn_agent' 'fork_context: false' 'multi_agent_v1.send_input' 'codex debug models' 'tool search' 'collaboration.followup_task'; do
   grep -qF -- "$contract" docs/hosts/codex.md || fail "Codex dispatch must cover both tool sets: $contract"
 done
 grep -qF 'not in the environment of a Bash tool command' docs/hosts/claude.md ||

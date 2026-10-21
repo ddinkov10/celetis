@@ -7,9 +7,9 @@ Read through [Host entry](entry.md). These operations apply to the same shared s
 Invoke `celetis:<name>` and `superpowers:<name>` with the Skill tool, passing the invocation
 input as arguments. The native `$ARGUMENTS` substitution supplies that input on Claude.
 Resolve `<plugin>` from the loaded skill's absolute path before reading a bundled file.
-Claude Code puts `${CLAUDE_PLUGIN_ROOT}` only into skill, command, and agent text and into hook,
-MCP stdio, and LSP processes. It is not in the environment of a Bash tool command, in the main
-session or in a subagent.
+Claude Code puts `${CLAUDE_PLUGIN_ROOT}` into skill, command, and agent text and into hook,
+MCP stdio, and LSP processes. It is not in the environment of a Bash tool command, whether that
+command runs in the main session or in a subagent.
 
 The native hook in `<plugin>/hooks/entry.js` binds each expansion to its native destination
 before that skill message reaches the model. It completes file access there, and before
