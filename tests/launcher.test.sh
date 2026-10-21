@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
+. "$here/lib/pool.sh"
 launcher="$here/../scripts/celetis"
 helper="$here/../scripts/lib/host.sh"
 tmp=$(mktemp -d)
@@ -82,12 +83,17 @@ while IFS= read -r line; do
   esac
 done
 EOF
+cat >"$tmp/codex/sleep" <<EOF
+#!/bin/bash
+[ "\$*" != 0.1 ] || set -- 0.02
+exec "$(command -v sleep)" "\$@"
+EOF
 printf '#!/bin/bash\necho oops\n' >"$tmp/oops/claude"
 cat >"$tmp/cyg/cygpath" <<EOF
 #!/bin/bash
 [ "\$1" = -u ] && [ "\$2" = 'C:\\plug' ] && printf '%s\\n' "$plug"
 EOF
-chmod +x "$tmp"/stub/claude "$tmp"/stub/git "$tmp"/codex/codex "$tmp"/oops/claude "$tmp"/cyg/cygpath
+chmod +x "$tmp"/stub/claude "$tmp"/stub/git "$tmp"/codex/codex "$tmp"/codex/sleep "$tmp"/oops/claude "$tmp"/cyg/cygpath
 for t in bash jq tr mktemp mkfifo rm cat sleep dirname; do ln -s "$(command -v "$t")" "$tmp/nobin/$t"; done
 for t in bash tr; do ln -s "$(command -v "$t")" "$tmp/nojq/$t"; done
 
@@ -149,6 +155,23 @@ stub="$tmp/stub:$PATH"
 install='celetis: the plugin is not installed; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis'
 usage='usage: scripts/celetis <script> [<argument>...], e.g. scripts/celetis next-step --open'
 nojq='celetis: jq is not on PATH'
+codex_only="$tmp/codex:$tmp/nobin"
+
+protocol() {
+  tmp="$tmp/$1"
+  mkdir -p "$tmp/pipes"
+  export CODEX_MODE=$1 TMPDIR="$tmp/pipes" CALLS="$tmp/calls" PID_FILE="$tmp/pid"
+  local start=$SECONDS
+  run "$codex_only" --agent codex echo
+  check "protocol $1 is a setup error" test "$code:$out" = '1:'
+  check "protocol $1 reports diagnostics on stderr" test -n "$err"
+  check "protocol $1 cleans up" cleaned
+  check "protocol $1 returns within its deadline" test "$((SECONDS - start))" -le 12
+  [ "$fails" -eq 0 ]
+}
+for mode in malformed error exit timeout flood; do
+  TMPDIR=$tmp pool_run "protocol $mode" protocol "$mode"
+done
 
 list "$(other)" "$(rec user "$plug")"
 run "$stub" echo a 'b c' '#7'
@@ -218,7 +241,6 @@ expect "installPath through cygpath" '[w]' '' 0
 list "$(rec user "$plug")"
 skills "$(skill "$plug/skills/guide/SKILL.md")"
 both="$tmp/codex:$stub"
-codex_only="$tmp/codex:$tmp/nobin"
 missing='celetis: Codex has no enabled celetis@celetis installation; install and enable the plugin in Codex'
 
 run "$both" host
@@ -320,15 +342,6 @@ printf '%s\n' '{"data":"bad"}' >"$SKILLS"
 run "$both" --agent codex echo
 expect 'malformed skills result fails' '' 'celetis: invalid Codex skills/list response' 1
 
-for mode in malformed error exit timeout flood; do
-  start=$SECONDS
-  CODEX_MODE=$mode run "$codex_only" --agent codex echo
-  check "protocol $mode is a setup error" test "$code:$out" = '1:'
-  check "protocol $mode reports diagnostics on stderr" test -n "$err"
-  check "protocol $mode cleans up" cleaned
-  check "protocol $mode returns within its deadline" test "$((SECONDS - start))" -le 12
-done
-
 helper_run() {
   local p=$1
   shift
@@ -383,4 +396,5 @@ expect 'explicit installation root works outside Git without yq' "$plug" '' 0
 from="$tmp/outside" run "$stub" root
 expect 'outside Git has no required project defaults' "$plug" '' 0
 
+pool_wait || fails=$((fails + 1))
 [ "$fails" -eq 0 ]
