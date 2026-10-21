@@ -1038,6 +1038,10 @@ top=$(git -C "$proj" rev-parse --show-toplevel)
 trylane=$top/.claude/worktrees/setup-try
 printf '#!/bin/sh\nexit 1\n' >"$proj/.git/hooks/pre-commit"
 chmod +x "$proj/.git/hooks/pre-commit"
+git -C "$proj" config hook.block.event pre-commit
+git -C "$proj" config hook.block.command false
+git -C "$proj" config hook.message.event prepare-commit-msg
+git -C "$proj" config hook.message.command false
 head=$(git -C "$proj" rev-parse HEAD)
 refs=$(git -C "$proj" for-each-ref --format='%(refname)')
 : >"$LABEL_LOG"

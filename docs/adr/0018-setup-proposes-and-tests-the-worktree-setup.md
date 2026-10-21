@@ -41,8 +41,8 @@ met these traps (the comment of 2026-10-18 on #7, and gaps 4 and 5 of the record
   lane with no environment, it printed a warning, skipped its checks, and exited 0.
 - The base had 28 type-check errors, and a lane had no place to find that baseline.
 
-#41 made `/celetis:setup`, which writes the wiring. It writes no `worktreeSetup` and runs no check
-of the project. ADR-0017 names the stack of #42 as a judgment of a session.
+#41 made `/celetis:setup`, which writes the wiring. The setup of #41 wrote no `worktreeSetup` and
+ran no check of the project. ADR-0017 names the stack of #42 as a judgment of a session.
 
 ## Constraints and evidence
 
@@ -52,9 +52,16 @@ of the project. ADR-0017 names the stack of #42 as a judgment of a session.
   document.
 - git 2.56.0: in a linked worktree, `git rev-parse --git-path hooks` prints the hooks folder of
   the main repository, so all worktrees share the hooks. `git commit --no-verify` skips only the
-  `pre-commit` and `commit-msg` hooks. The commit that adds `git hook list` has the date
-  2026-02-19, after the freeze of 2.53, so the command is newer than the git floor 2.31 of the
-  README. Its first release is not settled.
+  `pre-commit` and `commit-msg` hooks.
+- git 2.56.0, in a detached linked worktree: `git -c core.hooksPath=/dev/null commit` ran a
+  `pre-commit` hook of the config (`hook.<name>.event` and `hook.<name>.command`), and with
+  `--no-verify` it ran a `prepare-commit-msg` hook of the config. Each hook stopped the commit.
+  `git write-tree` and `git commit-tree` ran no hook, and `git commit-tree --no-gpg-sign` made no
+  signature with `commit.gpgsign=true`. `git update-ref` and `git worktree add` ran the
+  `reference-transaction` hook.
+- The log of git (https://git.kilabit.info/git/log/builtin/hook.c?showmsg=1): the commit that adds
+  `git hook list` has the date 2026-02-19, after the freeze of 2.53, so the command is newer than
+  the git floor 2.31 of the README. Its first release is not settled.
 - git 2.40.0.windows.1, in a detached linked worktree: a commit with
   `-c core.hooksPath=/dev/null -c commit.gpgsign=false` ran neither the `pre-commit` nor the
   `post-commit` hook, and a plain `git commit` ran `pre-commit`. `GIT_AUTHOR_NAME`,
@@ -99,17 +106,18 @@ stays and goes to the test as it is: an empty field is the maintainer's choice o
 **A test lane before any write** (decision 1). `scripts/celetis setup try` takes the options of
 `write`. It removes a test lane that an earlier run left, and it stops on a folder there that is
 no worktree. It makes the detached worktree `.claude/worktrees/setup-try` at `HEAD` of the local
-trunk, and it writes the wiring there with the code of `write`. It commits the wiring with no hook
-(`-c core.hooksPath=/dev/null`), no signing, and the fixed identity
-`celetis <setup@celetis.invalid>`. So the test lane holds the tree of a new lane after the push,
-and the commit needs no identity and no key of the machine. No hook of the commit runs before the
-script built the environment; `git worktree add` keeps its `post-checkout` hook, as for a real
-lane. `try` then runs the `worktreeSetup` of the test lane with the call of
-`scripts/celetis worktree`. It runs in the main checkout after the checks of `check`, which read
-the repository on GitHub once, and it makes no label: a label is a change on GitHub. Its stdout
-holds only the path of the test lane, also after a failed setup, and it exits with the status of
-the setup. `try --remove` removes the test lane; the throwaway commit has no ref. The test runs
-also with no script, because a lane with no setup is what a new lane gets then.
+trunk, and it writes the wiring there with the code of `write`. It commits the wiring with
+plumbing (`git write-tree`, `git commit-tree --no-gpg-sign`, and `git update-ref`), with no
+signing and the fixed identity `celetis <setup@celetis.invalid>`. So the test lane holds the tree
+of a new lane after the push, and the commit needs no identity and no key of the machine. No hook
+of a commit runs, from the hooks folder or from the config, before the script built the
+environment. `git worktree add` keeps its `post-checkout` hook, and each ref change keeps the
+`reference-transaction` hook, as for a real lane. `try` then runs the `worktreeSetup` of the test
+lane with the call of `scripts/celetis worktree`. It runs in the main checkout after the checks of
+`check`, which read the repository on GitHub once, and it makes no label: a label is a change on
+GitHub. Its stdout holds only the path of the test lane, also after a failed setup, and it exits
+with the status of the setup. `try --remove` removes the test lane; the throwaway commit has no
+ref. The test runs also with no script, because a lane with no setup is what a new lane gets then.
 
 In the test lane, the session checks the exit status, an import of the package of the project from
 a path inside the lane, the checks of the project, a clean `git status` after the setup and after
@@ -190,9 +198,11 @@ git dir (ADR-0012).
 - **`git hook list` to find the hooks.** It names each hook of an event with its source in one
   command. But it is newer than the git floor 2.31 of the README. The hooks folder and the
   `hook.*` entries work on that floor.
-- **`--no-verify` for the commit of the test lane.** It skips only the `pre-commit` and
-  `commit-msg` hooks, so the other hooks of a commit still run before the script built the
-  environment.
+- **`git commit` with `-c core.hooksPath=/dev/null` or `--no-verify` for the commit of the test
+  lane.** It is one command. But `core.hooksPath` turns off only the hooks folder, and
+  `--no-verify` skips only the `pre-commit` and `commit-msg` hooks. So a hook of the config, or a
+  `prepare-commit-msg` hook, still runs before the script built the environment, and it can stop
+  the commit.
 - **A required copy of an ignored file.** A missing file is then a clear failure. But a failed
   setup removes the new lane, so each lane on a machine with no such file (a fresh clone, another
   machine) fails.
@@ -219,8 +229,9 @@ git dir (ADR-0012).
 - The three parts are not in the record, so a stale script, ignore line, or baseline stays until
   the maintainer changes it by hand. A `worktreeSetup` that is there and fails its test also needs
   a hand edit.
-- A script that cannot read back from a literal block needs a hand edit of `.celetis.yaml` first:
-  CRLF line endings, a first line that starts with a tab, or a file with a `...` end marker.
+- When the literal block cannot read back, setup adds no `worktreeSetup`, and the maintainer adds
+  it by hand first: for a script with CRLF line endings or with a first line that starts with a
+  tab, and for a `.celetis.yaml` with a `...` end marker.
 - On a first run, the main `.gitignore` can lack `.claude/worktrees/`, so `git status` of the main
   checkout shows the test lane as untracked until `try --remove`.
 - On a no to the push, a new lane gets no setup until the wiring is on the trunk of `origin`.
