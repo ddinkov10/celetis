@@ -636,6 +636,7 @@ lane() {
     die "$1 is no lane worktree in .claude/worktrees/ of this repository"
   json=$(celetis_config_read "$top") || die "cannot read $config; fix the cause above first"
   jq -e '(.worktreeSetup // "") != ""' <<<"$json" >/dev/null || die "the main $config has no worktreeSetup to run"
+  rm -f "$(marker_of "$path")"
   run_setup "$path" "$json" "$top" || die "the worktree setup failed in $path"
 }
 

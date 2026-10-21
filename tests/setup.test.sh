@@ -1195,9 +1195,9 @@ done
 
 CWD=$lane stops "setup: run setup in the main checkout, not in a linked worktree: $lane" lane "$lane"
 
-rm "$(marker_of "$lane")"
+[ -f "$(marker_of "$lane")" ] || fail "the lane has no marker before a failed setup"
 SETUP_FAIL=1 stops_after script-stdout "setup: the worktree setup failed in $lane" lane "$lane"
-[ -d "$lane" ] && [ ! -f "$(marker_of "$lane")" ] || fail "a failed setup of lane removed the lane or left a marker"
+[ -d "$lane" ] && [ ! -f "$(marker_of "$lane")" ] || fail "a failed setup of lane removed the lane or kept a marker"
 [ -z "$(git -C "$lane" status --porcelain)" ] || fail "a failed setup of lane changed the lane"
 
 new_project lanenone
