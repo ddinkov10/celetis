@@ -70,18 +70,19 @@ Claude Code, a newly wired project needs no model setup for its first child.
 | Profile | `--profile` or `CAP_MODEL_PROFILE` is set (an empty value too), or the main checkout's `.celetis.yaml` has one or more `codexProfiles` entries | Required |
 | Parent model | No explicit profile, and the main config has no `codexProfiles` entry (field absent or `{}`) | Not read |
 
-The profile mode keeps each current check and stop. A profile for another runtime identity still
-stops with "missing profile". So a project that chose model tiers never changes to the parent model
-with no notice. With no explicit profile, the scorer still reads the main config: a failed Git
-lookup, a missing config, or an invalid config exits 2. So the scorer never takes an error for "no
-profile".
+The profile mode keeps each current check and stop. A `codexProfiles` entry for another runtime
+identity still stops with "missing profile". So a project that chose model tiers never changes to
+the parent model with no notice. With no explicit profile, the scorer still reads the main config:
+a failed Git lookup, a missing config, or an invalid config exits 2. So the scorer never takes an
+error for "no profile".
 
 **The parent-model result.** The portable score (`sum`, `rank`, `effort`) does not change. The
 applied effort uses the rules of a profile with four identical slots and the reviewer minimum
 `{rank: 1, effort: medium}`:
 
 - `--reviewer` raises the rank to 1 and the effort to `medium` at minimum, as on Claude.
-- At rank 3 below Σ=12, the effort stops at `xhigh`.
+- At rank 3 below Σ=12, the effort stops at `xhigh`, unless the same-model retry floor (below) keeps
+  `max`.
 - Attempt 3 raises the rank, but the model stays. The effort is `high` at minimum.
 - The same-model retry floor applies: attempt 2 or 3 never gets a lower effort than the attempt
   before it. So attempt 3 can keep `max` from attempt 2.

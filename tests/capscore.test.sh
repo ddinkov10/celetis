@@ -177,6 +177,8 @@ YAML
 jq '.models[1].efforts = ["low","high","xhigh","max"]' "$CAP_RUNTIME_MODELS" >"$tmp/no-config-medium.json"
 codex_run 1 0 2 1 1 0 --runtime-models "$tmp/no-config-medium.json" --json
 error 'unavailable configured reviewer pair' 'medium'
+CAP_RUNTIME_MODELS= codex_run 1 0 2 1 1 0 --json
+error 'configured profile needs its runtime file' '--runtime-models'
 printf 'invalid: [\n' >"$tmp/project/.celetis.yaml"
 CAP_MODEL_PROFILE= CAP_RUNTIME_MODELS= codex_run 1 0 2 1 1 0 --attempt 4
 expect 'STOP precedes invalid config and runtime lookup' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → STOP (attempt 4: escalate to user with failure trail)'

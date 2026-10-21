@@ -151,16 +151,18 @@ The scorer selects one of two modes for Codex. The choice is deterministic:
 
 - The **profile mode** applies when `--profile` or `CAP_MODEL_PROFILE` is set (an empty value
   too), or when the main checkout's `.celetis.yaml` has one or more `codexProfiles` entries. A
-  profile for another runtime identity stops with "missing profile"; the scorer does not change to
-  the parent-model mode.
+  `codexProfiles` entry for another runtime identity stops with "missing profile"; the scorer does
+  not change to the parent-model mode.
 - The **parent-model mode** applies with no explicit profile and no `codexProfiles` entry (the
   field is absent or `{}`). It still reads the main config: a failed Git lookup, a missing config,
   or an invalid config exits 2.
 
-In the parent-model mode, each child keeps the parent's model and gets the effort of its rank.
-The scorer names no model ID and reads no runtime file, not even a supplied one. The applied
-effort follows the rules of a profile with four identical slots and a rank-1/medium reviewer
-minimum. `dispatch.model` and `dispatch.runtime` are null, and the human line shows `inherit`.
+In the parent-model mode, each child keeps the parent's model, or the model that the Codex config
+sets in `[agents].default_subagent_model` ([Codex dispatch](hosts/codex.md#dispatch)), and gets the
+effort of its rank. The scorer names no model ID and reads no runtime file, not even a supplied
+one. The applied effort follows the rules of a profile with four identical slots and a
+rank-1/medium reviewer minimum. `dispatch.model` and `dispatch.runtime` are null, and the human
+line shows `inherit`.
 For the digits `1 0 2 1 1 0` and the default bias 2, the result holds:
 
 ```json
