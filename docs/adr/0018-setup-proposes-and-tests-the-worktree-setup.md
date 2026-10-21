@@ -102,8 +102,9 @@ no worktree. It makes the detached worktree `.claude/worktrees/setup-try` at `HE
 trunk, and it writes the wiring there with the code of `write`. It commits the wiring with no hook
 (`-c core.hooksPath=/dev/null`), no signing, and the fixed identity
 `celetis <setup@celetis.invalid>`. So the test lane holds the tree of a new lane after the push,
-and the commit needs no identity and no key of the machine. No product hook runs before the script
-built the environment. `try` then runs the `worktreeSetup` of the test lane with the call of
+and the commit needs no identity and no key of the machine. No hook of the commit runs before the
+script built the environment; `git worktree add` keeps its `post-checkout` hook, as for a real
+lane. `try` then runs the `worktreeSetup` of the test lane with the call of
 `scripts/celetis worktree`. It runs in the main checkout after the checks of `check`, which read
 the repository on GitHub once, and it makes no label: a label is a change on GitHub. Its stdout
 holds only the path of the test lane, also after a failed setup, and it exits with the status of
@@ -162,10 +163,12 @@ when no file changed, the session lists each worktree in `.claude/worktrees/` on
 resolves against the working directory of the caller. It runs the `worktreeSetup` of the main
 `.celetis.yaml`, not the one of the lane, because the lane branch can be older than the script. It
 runs no trunk check and no check of a dirty tree, so it also runs after a no to the push. A marker
-that is there does not stop it. It writes the marker after a success. After a failure, it keeps the
-lane with no marker. Setup changes nothing else in the lane. A lane branch with an older
-`.gitignore` can show the new environment as untracked, and the report then names a merge of the
-trunk into that branch.
+that is there does not stop it: after its checks, just before the run, `lane` removes the marker of
+the lane, so that an old marker cannot stay after a failed run. A success writes the marker again.
+After a failure, the lane stays with no marker, and the next `scripts/celetis worktree <n>` runs
+the setup of the lane config again. Setup changes nothing else in the lane. A lane branch with an
+older `.gitignore` can show the new environment as untracked, and the report then names a merge of
+the trunk into that branch.
 
 **The marker means that a script ran** (decision 1). `scripts/celetis worktree` writes
 `<git dir of the worktree>/celetis-flow-setup-done` only after a script that is not empty
