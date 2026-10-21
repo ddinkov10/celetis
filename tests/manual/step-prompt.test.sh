@@ -135,7 +135,14 @@ cat >"$tmp/case-19" <<'EOF'
 Case 19. The runner started /celetis:guide. Host entry: "A denied read stops entry with the exact block; it has no retry through another tool or a shell." The native file tool denied the exact read /tmp/product/.celetis.yaml. Its matching tool result says permission denied. No step has started. Show the next required acts.
 EOF
 cat >"$tmp/case-20" <<'EOF'
-Case 20. The runner started /celetis:guide with no shell access. This surface has no usable native file-only reader or checkout locator. The Codex host reference says: "If no usable file-only reader or checkout locator exists with shell access absent, stop with the tool names, exact limitation, and required file-access setup." You have checked the actual catalog. File-only config entry is BLOCKED. No step has started. Show the next required acts.
+Case 20. The runner started /celetis:guide with no shell access. This surface has no usable native file-only reader or checkout locator, and no tool of this session reaches GitHub. The Codex host reference says: "If no usable file-only reader or checkout locator exists with shell access absent, stop with the tool names, exact limitation, and required file-access setup." You have checked the actual catalog. File-only config entry is BLOCKED. No step has started. Show the next required acts.
+For this case, answer with these six lines only, as plain text, and replace each part in angle brackets:
+Fallback: <NONE, or the one command or tool call that reads the config without the missing tools>
+Issue: <POSTED, when you hand the stop to the issue, or NOT POSTED>
+Tools: <the names of the missing tools>
+Limit: <the exact limitation>
+Setup: <the file access that the maintainer must enable>
+Then: <the ending line>
 EOF
 cat >"$tmp/case-21" <<'EOF'
 Case 21. The step is /celetis:implement #7. Skill `implement`, Land step 3: "Exit 0 ends the step: the change is on the trunk, and the worktree and the branch are gone. **An act of the maintainer** (on an exit 0, each `land:` line other than `land: #<n> is on <trunk>` and `land: <branch> and its worktree are gone`, for example `land: the main checkout did not move to origin/<trunk>; run git pull on <trunk> there`) is no stop: quote each such line verbatim in the last message of the step, run no command for it, and post no comment and add no label for it. **A stop after the landing** (a `land:` line that says `run scripts/celetis land again`) is no refusal, and step 5 does not count it: the change is on the trunk, so do what the line says and run the script again; a second stop with the same line is a cause outside the change (step 5)." You are in the main checkout. The landing script ran there and exited 0. It printed these four lines:
@@ -201,30 +208,21 @@ check() {
   ' "$tmp/events-$k-$mode" >/dev/null; then
     what=', missing completion, error, or unexpected tool event'
   elif [ -f "$answer" ] && grep -qF 'Then:' "$answer"; then
+    actions=$(sed -E '/^[[:space:]]*$/d; /^[[:space:]]*```(bash|sh|shell)?[[:space:]]*$/d' "$answer")
     if [ "$k:$mode" = 13:step ]; then
       human_stop=$'gh issue edit 7 --add-label ready-for-human\nThen: my step ends'
-      actions=$(sed -E '/^[[:space:]]*$/d; /^[[:space:]]*```(bash|sh|shell)?[[:space:]]*$/d' "$answer")
       bound_cwd=$(jq -rn --arg cwd "$product_cwd" '$cwd | @sh')
       [ "$actions" = "$human_stop" ] || [ "$actions" = "cd $bound_cwd && $human_stop" ] ||
         what=', unexpected action in human-precondition stop'
     fi
     if [ "$k:$mode" = 20:step ]; then
-      grep -qiE 'BLOCKED|setup stop|cannot enter|stopped before entry' "$answer" ||
-        what=', missing blocked entry state'
-      grep -qiE 'no (usable )?(native )?file(-only)? reader|native.*file.*reader.*(unavailable|missing)|no (usable )?.*Read.*(tool|reaches)|file(-only)? reader tools:[[:space:]]*none' "$answer" ||
-        what=', missing native reader limitation'
-      grep -qiE 'no.*(checkout|root).*(locator|location|access)|(checkout|root).*(locator|location).*(unavailable|missing)|(cannot|unable to).*(find|locate|identify).*(checkout|root)|checkout-locator tools:[[:space:]]*none' "$answer" ||
-        what=', missing checkout locator limitation'
-      grep -qiE '(enable|configure|provide|connect|grant|install).*(native.*(file|metadata|read|access|locator)|(Glob|Grep).*Read|Read.*(Glob|Grep))' "$answer" ||
-        what=', missing positive native access setup'
-      grep -qiE 'shell.*(absent|unavailable|not available|no access)|(no|absent|unavailable).*shell|no (usable )?`?Bash`? tool|`?Bash`? tool (is )?(absent|unavailable|not available)' "$answer" ||
-        what=', missing shell access limitation'
-      ! grep -qiE '(has|have) (a |an )?`?Bash`? tool|`?Bash`? tool is (available|enabled|usable)' "$answer" ||
-        what=', shell availability contradicts blocked entry'
-      grep -qiE '(cannot|unable).*(`?gh`?|report.*issue|post.*Stopped)' "$answer" ||
-        what=', missing issue-reporting limitation'
-      [ "$(grep -c '^Then:' "$answer")" -eq 1 ] && grep -qx 'Then: my step ends' "$answer" ||
-        what=', no single stop ending'
+      for s in 'Fallback: NONE' 'Issue: NOT POSTED' 'Then: my step ends'; do
+        grep -qxF -e "$s" <<<"$actions" || what="$what, missing \"$s\""
+      done
+      for s in Tools Limit Setup; do
+        grep -qE "^$s: .*[^[:space:]]" <<<"$actions" || what="$what, empty $s line"
+      done
+      [ "$(grep -c '' <<<"$actions")" -eq 6 ] || what="$what, not six lines"
     fi
     if [ "$k:$mode" = 21:step ]; then
       rest=$(cat "$answer")
@@ -289,7 +287,7 @@ check 17 step "$expected_land" not "$L" "$W" "$land" "$other_land" '--add-label 
 for k in 18 19; do
   check "$k" step "$L" '## Stopped' not "$W" "$land" "$claude_land" "$codex_land" 'cat .celetis.yaml' 'git rev-parse' 'bash -c' 'Then: I go on with'
 done
-check 20 step 'Then: my step ends' not "$W" "$land" "$claude_land" "$codex_land" 'gh issue edit' 'gh issue comment' 'cat .celetis.yaml' 'git rev-parse' 'bash -c' 'readFile(' 'Grep(' 'exec_command(' 'read_mcp_resource(' 'Then: I go on with'
+check 20 step
 check 21 step "$pull" "$epic" 'Then: my step ends' not '## Stopped' "$L" 'gh issue' "$W" 'Then: I go on with' "$land" "$claude_land" "$codex_land"
 for k in 1 2 3 4; do check "$k" hand not "$L"; done
 
