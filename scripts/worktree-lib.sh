@@ -1,4 +1,4 @@
-# Sourced by scripts/worktree.sh and scripts/land.sh.
+# Sourced by scripts/worktree.sh, scripts/land.sh, and scripts/setup.sh.
 
 # The marker sits in the git dir: a file in the working tree would make a new worktree dirty.
 marker_of() { echo "$(git -C "$1" rev-parse --path-format=absolute --git-dir)/celetis-flow-setup-done"; }

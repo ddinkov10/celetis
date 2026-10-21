@@ -9,7 +9,7 @@ fail() { echo "FAIL: $1"; exit 1; }
 
 plug="$tmp/plug in"
 mkdir -p "$tmp/bin" "$plug/scripts" "$plug/docs/adr"
-cp "$here/scripts/setup.sh" "$here/scripts/celetis" "$plug/scripts/"
+cp "$here/scripts/setup.sh" "$here/scripts/celetis" "$here/scripts/worktree-lib.sh" "$plug/scripts/"
 cp "$here/docs/adr/README.md" "$here/docs/adr/template.md" "$plug/docs/adr/"
 cat >"$tmp/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -1018,6 +1018,201 @@ run write --hosts codex --landing pr >/dev/null
 git -C "$proj" checkout -q -b other
 stops "setup: the main checkout is on other, not on main; switch to main first" push
 [ "$(git -C "$proj" log -1 --format=%s)" = base ] || fail "push committed on another branch"
+
+marker_of() { echo "$(git -C "$1" rev-parse --path-format=absolute --git-dir)/celetis-flow-setup-done"; }
+gh_calls() { echo $(($(wc -l <"$GH_LOG"))); }
+export SETUP_LOG="$tmp/setup.log"
+cat >"$tmp/lane-setup.sh" <<'EOF'
+printf '%s|%s\n' "$PWD" "$1" >>"$SETUP_LOG"
+echo script-stdout
+echo script-stderr >&2
+[ -z "${SETUP_FAIL:-}" ] || exit 7
+EOF
+lane_identity='celetis <setup@celetis.invalid>|celetis <setup@celetis.invalid>'
+try_opts=(--hosts codex --landing merge --setup-file "$tmp/lane-setup.sh")
+only_lanes() { ! git -C "$proj" status --porcelain --untracked-files=all | grep -qv '^?? \.claude/worktrees/' || fail "try changed the main checkout: $(git -C "$proj" status --porcelain --untracked-files=all)"; }
+in_list() { git -C "$proj" worktree list --porcelain | grep -qxF "worktree $1"; }
+
+new_project try
+top=$(git -C "$proj" rev-parse --show-toplevel)
+trylane=$top/.claude/worktrees/setup-try
+printf '#!/bin/sh\nexit 1\n' >"$proj/.git/hooks/pre-commit"
+chmod +x "$proj/.git/hooks/pre-commit"
+head=$(git -C "$proj" rev-parse HEAD)
+refs=$(git -C "$proj" for-each-ref --format='%(refname)')
+: >"$LABEL_LOG"
+: >"$SETUP_LOG"
+calls=$(gh_calls)
+out=$(run try "${try_opts[@]}" 2>"$tmp/err") || fail "try failed: $(cat "$tmp/err")"
+[ "$out" = "$trylane" ] || fail "try printed more than the path of the test lane: $out"
+in_list "$out" || fail "the test lane is no worktree of git"
+[ "$(git -C "$out" rev-parse --abbrev-ref HEAD)" = HEAD ] || fail "the test lane is no detached worktree"
+[ "$(git -C "$out" rev-parse HEAD^)" = "$head" ] || fail "the test lane is not HEAD plus one commit"
+[ -z "$(git -C "$out" status --porcelain --untracked-files=all)" ] || fail "the wiring is not committed in the test lane"
+[ "$(git -C "$out" log -1 --format='%an <%ae>|%cn <%ce>')" = "$lane_identity" ] || fail "wrong identity: $(git -C "$out" log -1 --format='%an <%ae>|%cn <%ce>')"
+[ "$(git -C "$out" log -1 --format=%s)" = 'chore(celetis): wire the project for the celetis lanes' ] || fail "wrong subject of the test lane commit"
+[[ $(git -C "$out" ls-tree HEAD scripts/celetis) == 100755* ]] || fail "the launcher has no mode 100755 in the test lane"
+[ "$(cat "$SETUP_LOG")" = "$out|$top" ] || fail "the setup did not run once in the test lane with the main checkout: $(cat "$SETUP_LOG")"
+grep -qx script-stdout "$tmp/err" && grep -qx script-stderr "$tmp/err" || fail "the setup output is not on stderr: $(cat "$tmp/err")"
+[ -f "$(marker_of "$out")" ] || fail "the test lane has no marker after a setup"
+jq -e --rawfile want "$tmp/lane-setup.sh" '.worktreeSetup == $want' <<<"$(. "$plug/scripts/celetis" && celetis_config_read "$out")" >/dev/null || fail "the config of the test lane lacks the setup"
+[ "$(git -C "$proj" rev-parse HEAD)" = "$head" ] && [ "$(git -C "$proj" branch --show-current)" = main ] || fail "try moved the main checkout"
+[ "$(git -C "$proj" for-each-ref --format='%(refname)')" = "$refs" ] || fail "try made a ref"
+only_lanes
+[ ! -e "$proj/.celetis.yaml" ] && [ ! -e "$proj/scripts/celetis" ] || fail "try wrote a file in the main checkout"
+[ ! -s "$LABEL_LOG" ] || fail "try made a label: $(cat "$LABEL_LOG")"
+[ "$(gh_calls)" -eq $((calls + 1)) ] && [ "$(tail -n1 "$GH_LOG")" = 'api repos/{owner}/{repo} --jq .full_name, .default_branch' ] || fail "try made another gh call: $(tail -n +$((calls + 1)) "$GH_LOG")"
+
+mkdir -p "$out/.venv/bin"
+echo x >"$out/.venv/bin/python"
+echo junk >"$out/untracked.txt"
+: >"$SETUP_LOG"
+again=$(run try "${try_opts[@]}" 2>"$tmp/err") || fail "a second try failed: $(cat "$tmp/err")"
+[ "$again" = "$trylane" ] && [ ! -e "$again/.venv" ] && [ ! -e "$again/untracked.txt" ] || fail "a second try kept files of the old test lane"
+[ "$(cat "$SETUP_LOG")" = "$again|$top" ] || fail "the setup did not run in the new test lane: $(cat "$SETUP_LOG")"
+[ "$(git -C "$proj" worktree list --porcelain | grep -c 'setup-try' || true)" -eq 1 ] || fail "a second try left two test lanes"
+[ "$(git -C "$again" rev-parse HEAD^)" = "$head" ] || fail "the new test lane is not HEAD plus one commit"
+
+mkdir "$proj/sub"
+cp "$tmp/lane-setup.sh" "$proj/sub/rel.sh"
+again=$(CWD=$proj/sub run try --hosts codex --landing merge --setup-file rel.sh 2>"$tmp/err") || fail "try failed in a subfolder: $(cat "$tmp/err")"
+[ "$again" = "$trylane" ] || fail "try in a subfolder printed another path: $again"
+
+: >"$SETUP_LOG"
+set +e
+out=$(SETUP_FAIL=1 run try "${try_opts[@]}" 2>"$tmp/err")
+code=$?
+set -e
+[ "$code" -eq 7 ] || fail "try did not exit with the status of the setup: $code"
+[ "$out" = "$trylane" ] || fail "try did not print the path after a failed setup: $out"
+[ -d "$out" ] && in_list "$out" || fail "try removed the test lane after a failed setup"
+[ ! -f "$(marker_of "$out")" ] || fail "a failed setup left a marker in the test lane"
+grep -qx script-stdout "$tmp/err" || fail "the failed setup output is not on stderr"
+[ -z "$(git -C "$out" status --porcelain --untracked-files=all)" ] || fail "the test lane is dirty after a failed setup"
+
+: >"$SETUP_LOG"
+calls=$(gh_calls)
+out=$(run try --remove 2>"$tmp/err") || fail "try --remove failed: $(cat "$tmp/err")"
+[ -z "$out" ] && [ ! -s "$tmp/err" ] || fail "try --remove printed: $out $(cat "$tmp/err")"
+! in_list "$trylane" && [ ! -e "$trylane" ] || fail "try --remove left the test lane"
+[ -z "$(git -C "$proj" worktree list --porcelain | grep 'setup-try' || true)" ] || fail "try --remove left a record of the test lane"
+out=$(run try --remove 2>"$tmp/err") || fail "a second try --remove failed: $(cat "$tmp/err")"
+[ -z "$out" ] && [ ! -s "$tmp/err" ] || fail "a second try --remove printed: $out $(cat "$tmp/err")"
+[ ! -s "$SETUP_LOG" ] || fail "try --remove ran the setup"
+[ "$(gh_calls)" -eq "$calls" ] || fail "try --remove called gh: $(tail -n +$((calls + 1)) "$GH_LOG")"
+
+mkdir -p "$trylane"
+echo keep >"$trylane/keep"
+not_worktree='setup: .claude/worktrees/setup-try is no worktree of git; remove it first'
+stops "$not_worktree" try "${try_opts[@]}"
+stops "$not_worktree" try --remove
+[ "$(cat "$trylane/keep")" = keep ] || fail "a stop removed a folder that is no worktree"
+[ ! -s "$SETUP_LOG" ] || fail "try ran the setup before its stop"
+rm -rf "$trylane"
+git -C "$proj" worktree add -q --detach "$trylane"
+rm -rf "$trylane"
+out=$(run try "${try_opts[@]}" 2>"$tmp/err") || fail "try failed after a test lane was deleted by hand: $(cat "$tmp/err")"
+[ "$out" = "$trylane" ] && in_list "$out" || fail "try did not make a new test lane after a deleted one"
+run try --remove
+
+git -C "$proj" worktree add -q "$tmp/try-linked" -b side
+linked=$(git -C "$tmp/try-linked" rev-parse --show-toplevel)
+in_linked="setup: run setup in the main checkout, not in a linked worktree: $linked"
+CWD=$tmp/try-linked stops "$in_linked" try --remove
+CWD=$tmp/try-linked stops "$in_linked" try "${try_opts[@]}"
+CWD=$tmp/try-linked stops "$in_linked" lane "$linked"
+
+[ "$(code_of try)" -eq 2 ] && [ "$(code_of try --hosts codex)" -eq 2 ] && [ "$(code_of try --hosts codex --landing pr --remove)" -eq 2 ] || fail "try took a wrong argument list"
+[ "$(code_of try --remove extra)" -eq 2 ] && [ "$(code_of try --remove --hosts codex)" -eq 2 ] || fail "try --remove took another argument"
+[ "$(code_of lane)" -eq 2 ] && [ "$(code_of lane a b)" -eq 2 ] && [ "$(code_of lane '')" -eq 2 ] || fail "lane took a wrong argument list"
+
+new_project tryahead
+git -C "$proj" commit -q --allow-empty -m one
+head=$(git -C "$proj" rev-parse HEAD)
+out=$(run try "${try_opts[@]}" 2>"$tmp/err") || fail "try failed on a trunk that is ahead: $(cat "$tmp/err")"
+[ "$out" = "$(git -C "$proj" rev-parse --show-toplevel)/.claude/worktrees/setup-try" ] || fail "try printed a warning on stdout: $out"
+grep -qF 'setup: warning: the local main is 1 commit ahead of origin/main' "$tmp/err" || fail "the warning of try is not on stderr: $(cat "$tmp/err")"
+[ "$(git -C "$out" rev-parse HEAD^)" = "$head" ] || fail "the test lane is not the local trunk plus one commit"
+
+new_project trywired
+run write --hosts codex --landing merge >/dev/null
+commit_all wiring
+git -C "$proj" push -q origin main
+head=$(git -C "$proj" rev-parse HEAD)
+: >"$SETUP_LOG"
+out=$(run try --hosts codex --landing merge 2>"$tmp/err") || fail "try failed on a wired project: $(cat "$tmp/err")"
+[ "$(git -C "$out" rev-parse HEAD)" = "$head" ] || fail "try committed in a test lane that needs no change"
+[ ! -s "$SETUP_LOG" ] && [ ! -f "$(marker_of "$out")" ] || fail "try ran a setup that is not there"
+run try --remove
+run write --hosts codex --landing merge --setup-file "$tmp/lane-setup.sh" >/dev/null
+commit_all setup
+git -C "$proj" push -q origin main
+head=$(git -C "$proj" rev-parse HEAD)
+out=$(run try --hosts codex --landing merge 2>"$tmp/err") || fail "try failed on a project with a setup: $(cat "$tmp/err")"
+[ "$(git -C "$out" rev-parse HEAD)" = "$head" ] || fail "try committed in a test lane that needs no change"
+[ "$(cat "$SETUP_LOG")" = "$out|$(git -C "$proj" rev-parse --show-toplevel)" ] || fail "try did not run the setup of the config: $(cat "$SETUP_LOG")"
+run try --remove
+
+new_project trysame
+out=$(run try "${try_opts[@]}" 2>"$tmp/err") || fail "try failed: $(cat "$tmp/err")"
+run write "${try_opts[@]}" >/dev/null
+[ "$(git -C "$out" diff --name-only HEAD^ HEAD | sort)" = "$(git -C "$proj" status --porcelain --untracked-files=all | cut -c4- | sort)" ] || fail "the test lane holds other paths than write: $(git -C "$out" diff --name-only HEAD^ HEAD)"
+for path in $(git -C "$out" diff --name-only HEAD^ HEAD); do
+  cmp -s "$out/$path" "$proj/$path" || fail "the test lane differs from write in $path"
+done
+
+new_project lane
+git -C "$proj" worktree add -q -b feat/1-x "$proj/.claude/worktrees/1-x"
+git -C "$proj" worktree add -q --detach "$proj/.claude/worktrees/setup-try"
+git -C "$proj" worktree add -q --detach "$tmp/lane-outside"
+mkdir "$tmp/elsewhere" "$proj/sub"
+run write "${try_opts[@]}" >/dev/null
+top=$(git -C "$proj" rev-parse --show-toplevel)
+lane=$(git -C "$proj/.claude/worktrees/1-x" rev-parse --show-toplevel)
+mkdir "$lane/sub"
+git -C "$proj" remote set-url origin "$tmp/missing.git"
+touch "$(marker_of "$lane")"
+: >"$SETUP_LOG"
+calls=$(gh_calls)
+out=$(run lane "$lane" 2>"$tmp/err") || fail "lane failed: $(cat "$tmp/err")"
+[ -z "$out" ] || fail "lane printed on stdout: $out"
+[ "$(cat "$SETUP_LOG")" = "$lane|$top" ] || fail "lane did not run the setup of the main checkout once in the lane: $(cat "$SETUP_LOG")"
+grep -qx script-stdout "$tmp/err" || fail "the setup output of lane is not on stderr"
+[ -f "$(marker_of "$lane")" ] || fail "lane left no marker"
+rm "$(marker_of "$lane")"
+CWD=$proj run lane .claude/worktrees/1-x/sub 2>"$tmp/err" >/dev/null || fail "lane failed on a subfolder of a lane: $(cat "$tmp/err")"
+CWD=$proj/sub run lane ../.claude/worktrees/1-x 2>"$tmp/err" >/dev/null || fail "lane failed on a relative path from a subfolder: $(cat "$tmp/err")"
+[ "$(cat "$SETUP_LOG")" = "$lane|$top"$'\n'"$lane|$top"$'\n'"$lane|$top" ] || fail "lane did not run in the lane of a relative path: $(cat "$SETUP_LOG")"
+[ -f "$(marker_of "$lane")" ] || fail "lane left no marker for a relative path"
+[ "$(gh_calls)" -eq "$calls" ] || fail "lane called gh: $(tail -n +$((calls + 1)) "$GH_LOG")"
+[ -z "$(git -C "$lane" status --porcelain)" ] || fail "lane changed the files of the lane"
+
+no_lane="is no lane worktree in .claude/worktrees/ of this repository"
+for path in "$proj" "$proj/sub" "$proj/.claude/worktrees/setup-try" "$tmp/lane-outside" "$tmp/elsewhere" "$tmp/missing" "$tmp/clean" "$proj/app.txt" "$proj/.claude/worktrees"; do
+  stops "setup: $path $no_lane" lane "$path"
+done
+[ "$(wc -l <"$SETUP_LOG" | tr -d ' ')" -eq 3 ] || fail "a stop of lane ran the setup"
+
+CWD=$lane stops "setup: run setup in the main checkout, not in a linked worktree: $lane" lane "$lane"
+
+rm "$(marker_of "$lane")"
+SETUP_FAIL=1 stops_after script-stdout "setup: the worktree setup failed in $lane" lane "$lane"
+[ -d "$lane" ] && [ ! -f "$(marker_of "$lane")" ] || fail "a failed setup of lane removed the lane or left a marker"
+[ -z "$(git -C "$lane" status --porcelain)" ] || fail "a failed setup of lane changed the lane"
+
+new_project lanenone
+git -C "$proj" worktree add -q -b fix/2-y "$proj/.claude/worktrees/2-y"
+lane=$(git -C "$proj/.claude/worktrees/2-y" rev-parse --show-toplevel)
+no_script='setup: the main .celetis.yaml has no worktreeSetup to run'
+stops_after 'need a regular, readable file' 'setup: cannot read .celetis.yaml; fix the cause above first' lane "$lane"
+printf 'host: codex\nlanding: merge\n' >"$proj/.celetis.yaml"
+stops "$no_script" lane "$lane"
+printf 'host: codex\nlanding: merge\nworktreeSetup: ""\n' >"$proj/.celetis.yaml"
+stops "$no_script" lane "$lane"
+printf 'host: codex\nlanding: merge\nworktreeSetup: |-\n  exit 0\n' >"$proj/.celetis.yaml"
+[ ! -f "$(marker_of "$lane")" ] || fail "a stop of lane left a marker"
+run lane "$lane" 2>/dev/null || fail "lane failed on a one-line setup"
+[ -f "$(marker_of "$lane")" ] || fail "lane left no marker for a one-line setup"
 
 only_api
 echo "PASS"

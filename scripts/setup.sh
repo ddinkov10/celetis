@@ -10,6 +10,8 @@ usage() {
 
 plugin=$(cd "$(dirname "$0")/.." && pwd)
 . "$plugin/scripts/celetis"
+. "$plugin/scripts/worktree-lib.sh"
+wire_subject='chore(celetis): wire the project for the celetis lanes'
 setup_paths=(
   scripts/celetis
   .celetis.yaml
@@ -26,11 +28,16 @@ setup_paths=(
   docs/lessons/INDEX.md
 )
 
-check_trunk() {
+check_main() {
   top=$(git rev-parse --show-toplevel) || exit 1
   [ "$(git rev-parse --path-format=absolute --git-dir)" = "$(git rev-parse --path-format=absolute --git-common-dir)" ] ||
     die "run setup in the main checkout, not in a linked worktree: $top"
   cd "$top"
+  test_lane=$top/.claude/worktrees/setup-try
+}
+
+check_trunk() {
+  check_main
   info=$(gh api 'repos/{owner}/{repo}' --jq '.full_name, .default_branch') ||
     die "origin is not a GitHub repository that gh can read"
   repo=${info%%$'\n'*}
@@ -509,9 +516,11 @@ write_record() {
   cp "$scratch/record.json" "$wiring"
 }
 
+changed_paths() { git status --porcelain --untracked-files=all -- "${setup_paths[@]}" | cut -c4-; }
+
 report_changes() {
   local changed
-  changed=$(git status --porcelain --untracked-files=all -- "${setup_paths[@]}" | cut -c4-)
+  changed=$(changed_paths)
   if [ -z "$changed" ]; then echo 'setup: no file changed'; else sed 's/^/setup: changed /' <<<"$changed"; fi
 }
 
@@ -529,39 +538,114 @@ write_tree() {
   write_record
 }
 
+make_scratch() {
+  scratch=$(mktemp -d "${TMPDIR:-/tmp}/celetis.XXXXXX")
+  trap 'rm -rf "$scratch"' EXIT
+}
+
 write() {
   write_args "$@"
   run_checks
-  scratch=$(mktemp -d "${TMPDIR:-/tmp}/celetis.XXXXXX")
-  trap 'rm -rf "$scratch"' EXIT
+  make_scratch
   plan_tree
   make_labels
   write_tree
   report_changes
 }
 
+stage_paths() {
+  local path
+  while IFS= read -r path; do
+    if [ "$path" = scripts/celetis ]; then git add --chmod=+x -- "$path"; else git add -- "$path"; fi
+  done <<<"$1"
+}
+
 push() {
-  local changed path
+  local changed
   check_trunk
   check_staged
-  changed=$(git status --porcelain --untracked-files=all -- "${setup_paths[@]}" | cut -c4-)
+  changed=$(changed_paths)
   if [ -z "$changed" ]; then
     echo 'setup: no file changed; nothing to commit'
     [ "$ahead" -gt 0 ] || return 0
   else
-    while IFS= read -r path; do
-      if [ "$path" = scripts/celetis ]; then git add --chmod=+x -- "$path"; else git add -- "$path"; fi
-    done <<<"$changed"
+    stage_paths "$changed"
     # No path here: git commit -- <path> takes the file mode from the working tree and drops the 100755 of git add --chmod.
-    git commit -q -m 'chore(celetis): wire the project for the celetis lanes' ||
+    git commit -q -m "$wire_subject" ||
       { git reset -q -- "${setup_paths[@]}"; die "the commit failed; the files stay uncommitted"; }
   fi
   git push -q origin "refs/heads/$trunk:refs/heads/$trunk" || die "the push failed; the commit stays on the local $trunk"
 }
 
+is_worktree() {
+  git worktree list --porcelain | WANT=$1 awk '/^worktree / && substr($0, 10) == ENVIRON["WANT"] { found = 1 } END { exit !found }'
+}
+
+remove_test_lane() {
+  if is_worktree "$test_lane"; then
+    git worktree remove --force "$test_lane"
+    git worktree prune
+  elif [ -e "$test_lane" ] || [ -L "$test_lane" ]; then
+    die ".claude/worktrees/setup-try is no worktree of git; remove it first"
+  fi
+}
+
+commit_wiring() {
+  local changed
+  changed=$(changed_paths)
+  [ -n "$changed" ] || return 0
+  stage_paths "$changed"
+  # core.hooksPath: --no-verify skips only pre-commit and commit-msg.
+  GIT_AUTHOR_NAME=celetis GIT_AUTHOR_EMAIL=setup@celetis.invalid GIT_COMMITTER_NAME=celetis GIT_COMMITTER_EMAIL=setup@celetis.invalid \
+    git -c core.hooksPath=/dev/null -c commit.gpgsign=false commit -q -m "$wire_subject" ||
+    die "the commit failed in the test lane"
+}
+
+make_test_lane() {
+  write_args "$@"
+  run_checks
+  make_scratch
+  remove_test_lane
+  git worktree add --detach "$test_lane" HEAD
+  cd "$test_lane"
+  plan_tree
+  write_tree
+  commit_wiring
+}
+
+try() {
+  local json code=0
+  make_test_lane "$@" >&2
+  json=$(celetis_config_read "$test_lane") || die "cannot read $config; fix the cause above first"
+  run_setup "$test_lane" "$json" "$top" || code=$?
+  echo "$test_lane"
+  return "$code"
+}
+
+try_remove() {
+  check_main
+  remove_test_lane
+}
+
+lane() {
+  local given=$1 path json
+  case $given in /*) ;; *) given=$PWD/$given ;; esac
+  check_main
+  path=$(git -C "$given" rev-parse --show-toplevel 2>/dev/null) || path=
+  [[ $path == "$top/.claude/worktrees/"* ]] && [ "$path" != "$test_lane" ] && is_worktree "$path" ||
+    die "$1 is no lane worktree in .claude/worktrees/ of this repository"
+  json=$(celetis_config_read "$top") || die "cannot read $config; fix the cause above first"
+  jq -e '(.worktreeSetup // "") != ""' <<<"$json" >/dev/null || die "the main $config has no worktreeSetup to run"
+  run_setup "$path" "$json" "$top" || die "the worktree setup failed in $path"
+}
+
 case ${1:-} in
   check) [ $# -eq 1 ] || usage; run_checks ;;
   write) shift; write "$@" ;;
+  try)
+    shift
+    if [ "${1:-}" = --remove ]; then [ $# -eq 1 ] || usage; try_remove; else try "$@"; fi ;;
+  lane) [ $# -eq 2 ] && [ -n "$2" ] || usage; lane "$2" ;;
   push) [ $# -eq 1 ] || usage; push ;;
   *) usage ;;
 esac
