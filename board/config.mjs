@@ -1,7 +1,5 @@
-import { access, constants, lstat, readFile, realpath } from 'node:fs/promises'
+import { access, constants, lstat, realpath } from 'node:fs/promises'
 import { isAbsolute, join, sep } from 'node:path'
-
-export const CONFIG_PATH = '.claude/celetis-flow/board.json'
 
 export class ConfigError extends Error {
   name = 'ConfigError'
@@ -15,7 +13,6 @@ const CONTROL = /[\u0000-\u001f\u007f]/
 const BRACE = /[{}]/
 
 const refuse = message => { throw new ConfigError(message) }
-const isAbsent = path => lstat(path).then(() => false, cause => cause.code === 'ENOENT')
 const isUnder = (folder, path) => path.startsWith(`${folder}${sep}`)
 const isList = value => Array.isArray(value) && value.length > 0 && value.every(item => typeof item === 'string')
 
@@ -65,12 +62,4 @@ export const parseConfig = async (main, source, subject) => {
     config.port = json.port
   }
   return config
-}
-
-export const readConfig = async main => {
-  const path = join(main, CONFIG_PATH)
-  if (await isAbsent(path)) return parseConfig(main, '{}', 'the file')
-  const real = await realpath(path).catch(() => refuse('the file is not a regular file'))
-  await checkFile(main, real, 'the file')
-  return parseConfig(main, await readFile(real, 'utf8'), 'the file')
 }

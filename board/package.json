@@ -1,6 +1,5 @@
 {
   "name": "agent-board",
-  "version": "2.2.1",
   "private": true,
   "type": "module",
   "license": "UNLICENSED",

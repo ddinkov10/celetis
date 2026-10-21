@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { execFile, spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { copyFile, lstat, mkdir, mkdtemp, readFile, readlink, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { request } from 'node:http'
 import { createConnection, createServer } from 'node:net'
 import { networkInterfaces, tmpdir } from 'node:os'
@@ -13,7 +13,6 @@ import { promisify } from 'node:util'
 const HERE = import.meta.dirname
 const FIXTURES = join(HERE, 'fixtures')
 const CLI = join(HERE, 'cli.mjs')
-const CONFIG = '.claude/celetis-flow/board.json'
 const LIMIT_MS = 30_000
 const FIXTURE_CONFIG = { data: ['flow/producer.sh'], run: ['flow/run.sh', '{n}'] }
 const DOCUMENT = await readFile(join(FIXTURES, 'contract-1.json'), 'utf8')
@@ -22,7 +21,7 @@ const NOT_DOT_GIT = 'agent-board: the git directory is not the folder .git of a 
 const OLD_NODE = "--import=data:text/javascript,Object.defineProperty(process,'version',{value:'v20.19.0'});Object.defineProperty(process.versions,'node',{value:'20.19.0'})"
 const READ_FAILURE = "--import=data:text/javascript,Object.defineProperty(process,'stdin',{get(){throw%20new%20Error('stdin%20read%20failed')}})"
 const CONFIG_FORMS = [['--config-stdin'], ['check', '--config-stdin']]
-const USAGE = { code: 2, stdout: '', stderr: 'usage: agent-board [--config-stdin | check [--config-stdin | --stdin]]\n' }
+const USAGE = { code: 2, stdout: '', stderr: 'usage: agent-board --config-stdin | check --config-stdin | check --stdin (scripts/celetis board starts the board)\n' }
 const OUTSIDE = Object.values(networkInterfaces()).flat().find(address => address.family === 'IPv4' && !address.internal)?.address
 
 const BIN = await mkdtemp(join(tmpdir(), 'agent-board-bin-'))
@@ -61,11 +60,10 @@ const repo = async (t, name = 'fix ture') => {
   return folder
 }
 
-const fixture = async (t, config = FIXTURE_CONFIG, name) => {
+const fixture = async (t, name) => {
   const folder = await repo(t, name)
   await mkdir(join(folder, 'flow'))
   for (const name of ['producer.sh', 'contract-1.json', 'run.sh']) await copyFile(join(FIXTURES, name), join(folder, 'flow', name))
-  await put(join(folder, CONFIG), JSON.stringify(config))
   return folder
 }
 
@@ -103,7 +101,7 @@ const stop = child => {
   return once(child, 'exit')
 }
 
-const serve = async (t, cwd, env = {}, { args = [], input = '', port } = {}) => {
+const serve = async (t, cwd, env = {}, { args = ['--config-stdin'], input = '{}', port } = {}) => {
   port ??= await freePort()
   const child = spawn(process.execPath, [CLI, ...args], { cwd, env: { ...ENV, PORT: String(port), ...env }, stdio: ['pipe', 'pipe', 'pipe'], timeout: LIMIT_MS })
   t.after(() => stop(child))
@@ -144,7 +142,7 @@ const connect = (host, port) => new Promise(done => {
 test('the fixture repository: the start prints each command, the cards of the producer show, and Run types the run script with the number', async t => {
   const folder = await fixture(t)
   const log = join(dirname(folder), 'herdr.log')
-  const board = await serve(t, folder, { HERDR_LOG: log, HERDR_WORKSPACE: basename(folder) })
+  const board = await serve(t, folder, { HERDR_LOG: log, HERDR_WORKSPACE: basename(folder) }, { input: JSON.stringify(FIXTURE_CONFIG) })
   assert.deepEqual(board.lines, [
     `agent-board: repository ${folder}`,
     `agent-board: data    ${folder}/flow/producer.sh`,
@@ -165,7 +163,7 @@ test('the fixture repository: the start prints each command, the cards of the pr
   ])
 })
 
-test('with no config, the start prints the repository and the URL, serves the page, and the board shows the sessions of the repository only', async t => {
+test('with an empty config, the start prints the repository and the URL, serves the page, and the board shows the sessions of the repository only', async t => {
   const folder = await repo(t)
   const board = await serve(t, folder, { HERDR_AGENT_CWD: folder })
   assert.deepEqual(board.lines, [`agent-board: repository ${folder}`, `agent-board: http://127.0.0.1:${board.port}`])
@@ -176,9 +174,9 @@ test('with no config, the start prints the repository and the URL, serves the pa
   assert.deepEqual(cardsOf(json.columns, card => [card.number, card.title, card.sessionId]), { needs: [], running: [[7, '#7', 's1']], idle: [], done: [] })
 })
 
-test('the start prints each command of the config, and the server reads the config once: a change of board.json after the start changes nothing', async t => {
-  const folder = await fixture(t, { resume: ['flow/run.sh', '--resume', '{n}'], ...FIXTURE_CONFIG })
-  const board = await serve(t, folder)
+test('the start prints each command of the config', async t => {
+  const folder = await fixture(t)
+  const board = await serve(t, folder, {}, { input: JSON.stringify({ resume: ['flow/run.sh', '--resume', '{n}'], ...FIXTURE_CONFIG }) })
   assert.deepEqual(board.lines, [
     `agent-board: repository ${folder}`,
     `agent-board: data    ${folder}/flow/producer.sh`,
@@ -186,7 +184,6 @@ test('the start prints each command of the config, and the server reads the conf
     `agent-board: resume  ${folder}/flow/run.sh --resume {n}`,
     `agent-board: http://127.0.0.1:${board.port}`,
   ])
-  await put(join(folder, CONFIG), '{}')
   const { json } = await board.get('/api/board')
   assert.deepEqual([json.source.isSet, json.can], [true, { run: true, resume: true }])
   assert.deepEqual(cardsOf(json.columns, card => card.number), { needs: [394, 430], running: [], idle: [], done: [414] })
@@ -209,7 +206,7 @@ test('all config forms enforce the same checkout guards', async t => {
     [worktree, `agent-board: start the board in the main checkout: ${folder}`],
     [linked, `agent-board: start the board in the main checkout: ${folder}`],
   ]
-  for (const args of [[], ['check'], ...CONFIG_FORMS]) {
+  for (const args of CONFIG_FORMS) {
     for (const [cwd, line] of cases) {
       assert.deepEqual(await cli(args, { cwd, env: { NODE_OPTIONS: READ_FAILURE } }), refusal(line), [...args, cwd].join(' '))
     }
@@ -244,22 +241,6 @@ test('a start in a subfolder of the main checkout, or through a symbolic link to
   }
 })
 
-test('a config that the reader refuses gives one line with the path of the config, exit 1, and no stdout', async t => {
-  const folder = await fixture(t, { run: ['flow/run.sh', '{n}', 'a\tb'] })
-  assert.deepEqual(await cli([], { cwd: folder }), refusal(`agent-board: ${CONFIG}: "run": an item or a path has a control character`))
-  const file = join(await lane(folder), 'board.json')
-  await put(file, JSON.stringify(FIXTURE_CONFIG))
-  await rm(join(folder, CONFIG))
-  await symlink(file, join(folder, CONFIG))
-  assert.deepEqual(await cli([], { cwd: folder }), refusal(`agent-board: ${CONFIG}: the file resolves into a lane worktree`))
-})
-
-test('a config that the user cannot read gives the line of the config with the system error, and no stack trace', { skip: process.getuid() === 0 && 'the root user reads each file' }, async t => {
-  const folder = await repo(t)
-  await put(join(folder, CONFIG), '{}', 0o000)
-  assert.deepEqual(await cli([], { cwd: folder }), refusal(`agent-board: ${CONFIG}: EACCES: permission denied, open '${join(folder, CONFIG)}'`))
-})
-
 test('a git and a herdr in a node_modules/.bin folder of the start folder do not run, with that folder first on PATH', async t => {
   const folder = await repo(t)
   const planted = join(folder, 'node_modules', '.bin')
@@ -275,28 +256,8 @@ test('a git and a herdr in a node_modules/.bin folder of the start folder do not
   assert.equal(await readFile(log, 'utf8'), 'api snapshot\n')
 })
 
-test('the port is PORT, else the port of the config; a port in use, and a PORT that is no port, each give one line, exit 1, and no stdout', async t => {
-  const folder = await repo(t)
-  const { port } = await serve(t, folder)
-  const other = await listening()
-  t.after(() => other.close())
-  await put(join(folder, CONFIG), JSON.stringify({ port: other.address().port }))
-  const inUse = number => refusal(`agent-board: cannot listen on 127.0.0.1:${number}: the port is in use`)
-  assert.deepEqual(await cli([], { cwd: folder, env: { PORT: String(port) } }), inUse(port))
-  assert.deepEqual(await cli([], { cwd: folder }), inUse(other.address().port))
-  const { code, stdout, stderr } = await cli([], { cwd: folder, env: { PORT: '99999' } })
-  assert.deepEqual([code, stdout], [1, ''])
-  assert.match(stderr, /^agent-board: cannot listen on 127\.0\.0\.1:99999: [^\n]+\n$/)
-})
-
-test('the server listens on 127.0.0.1 only: a connection to another address of this machine is refused', { skip: !OUTSIDE && 'this machine has no IPv4 address that is not a loopback address' }, async t => {
-  const { port } = await serve(t, await repo(t))
-  assert.deepEqual(await Promise.all(['127.0.0.1', OUTSIDE].map(host => connect(host, port))), ['open', 'ECONNREFUSED'])
-})
-
 test('issue data stdin stays independent', async t => {
   const cwd = await temp(t)
-  await put(join(cwd, CONFIG), '{')
   const bad = JSON.parse(DOCUMENT)
   bad.tracker = 7
   bad.issues[0].state = 'waiting'
@@ -307,27 +268,10 @@ test('issue data stdin stays independent', async t => {
   assert.deepEqual(await check('{'), { code: 1, stdout: '', stderr: 'the data is not JSON\n' })
 })
 
-test('check runs the data command of the config in the main checkout and checks its output', async t => {
-  const folder = await fixture(t)
-  assert.deepEqual(await cli(['check'], { cwd: folder }), OK)
-  await script(join(folder, 'flow', 'eval.sh'), 'eval "$1"')
-  await mkdir(join(folder, 'sub'))
-  for (const [command, result] of [
-    ['cat flow/contract-1.json', OK],
-    ['echo boom >&2; echo more >&2; echo out; exit 3', refusal('agent-board: boom')],
-    ['echo stop cannot read; exit 1', refusal('agent-board: stop cannot read')],
-    ['exit 3', refusal('agent-board: the data command exited 3')],
-  ]) {
-    await put(join(folder, CONFIG), JSON.stringify({ data: ['flow/eval.sh', command] }))
-    assert.deepEqual(await cli(['check'], { cwd: join(folder, 'sub') }), result, command)
-  }
-  assert.deepEqual(await cli(['check'], { cwd: await repo(t) }), refusal('agent-board: the config has no "data"'))
-})
-
-test('only the five public argument tuples are accepted', async t => {
+test('only the three public argument tuples are accepted', async t => {
   const cwd = await temp(t)
   const lists = [
-    ['nope'], ['check', 'nope'], ['check', '--stdin', 'more'], ['--stdin'], ['--unknown'],
+    [], ['check'], ['nope'], ['check', 'nope'], ['check', '--stdin', 'more'], ['--stdin'], ['--unknown'],
     ['--config-stdin', 'check'], ['--stdin', 'check'], ['--config-stdin', '--stdin'], ['--stdin', '--config-stdin'],
     ['check', '--config-stdin', '--stdin'], ['check', '--stdin', '--config-stdin'],
     ['--config-stdin', '--config-stdin'], ['check', '--config-stdin', '--config-stdin'],
@@ -353,9 +297,8 @@ test('on a Node that is too old, the entry prints the Node line and exits 1 befo
   }
 })
 
-test('config stdin serves and checks without a config file', async t => {
+test('config stdin serves and checks', async t => {
   const folder = await fixture(t)
-  await rm(join(folder, CONFIG))
   const input = JSON.stringify(FIXTURE_CONFIG)
   assert.deepEqual(await cli(['check', '--config-stdin'], { cwd: folder, input }), OK)
   const board = await serve(t, folder, {}, { args: ['--config-stdin'], input })
@@ -368,73 +311,6 @@ test('config stdin serves and checks without a config file', async t => {
   const { status, json } = await board.get('/api/board')
   assert.equal(status, 200)
   assert.deepEqual(cardsOf(json.columns, card => card.number), { needs: [394, 430], running: [], idle: [], done: [414] })
-  await assert.rejects(lstat(join(folder, CONFIG)), { code: 'ENOENT' })
-  await put(join(folder, CONFIG), input)
-  assert.deepEqual(await cli(['check'], { cwd: folder }), OK)
-  const file = await serve(t, folder)
-  assert.deepEqual(file.lines.slice(0, -1), board.lines.slice(0, -1))
-  const fileJson = (await file.get('/api/board')).json
-  assert.deepEqual([fileJson.can, cardsOf(fileJson.columns, card => card.number)], [json.can, cardsOf(json.columns, card => card.number)])
-})
-
-test('config stdin ignores each file state', async t => {
-  for (const state of ['absent', 'invalid JSON', 'conflicting config', 'unreadable', 'directory', 'external symlink']) {
-    await t.test(state, { skip: state === 'unreadable' && process.getuid() === 0 && 'the root user reads each file' }, async t => {
-      const folder = await fixture(t)
-      const path = join(folder, CONFIG)
-      const marker = join(dirname(folder), 'conflict-marker')
-      await script(join(folder, 'flow/conflict.sh'), 'printf called >>"$PRODUCER_MARKER"', 'cat flow/contract-1.json')
-      await rm(path)
-      const port = await freePort()
-      if (state === 'invalid JSON') await put(path, '{')
-      if (state === 'conflicting config') await put(path, JSON.stringify({ data: ['flow/conflict.sh'], port: port + 1 }))
-      if (state === 'unreadable') await put(path, '{}', 0o000)
-      if (state === 'directory') await mkdir(path)
-      if (state === 'external symlink') {
-        const outside = join(dirname(folder), 'external.json')
-        await put(outside, '{')
-        await symlink(outside, path)
-      }
-      const snapshot = async () => {
-        const info = await lstat(path).catch(cause => {
-          if (cause.code !== 'ENOENT') throw cause
-        })
-        if (!info) return null
-        return {
-          mode: info.mode, ino: info.ino, size: info.size, mtime: info.mtimeMs, ctime: info.ctimeMs,
-          contents: info.isSymbolicLink() ? await readlink(path) : info.isFile() && state !== 'unreadable' ? await readFile(path, 'utf8') : null,
-        }
-      }
-      const before = await snapshot()
-      const input = JSON.stringify({ ...FIXTURE_CONFIG, port })
-      const env = { PORT: undefined, PRODUCER_MARKER: marker }
-      assert.deepEqual(await cli(['check', '--config-stdin'], { cwd: folder, env, input }), OK)
-      const board = await serve(t, folder, env, { args: ['--config-stdin'], input, port })
-      assert.deepEqual(board.lines, [
-        `agent-board: repository ${folder}`,
-        `agent-board: data    ${folder}/flow/producer.sh`,
-        `agent-board: run     ${folder}/flow/run.sh {n}`,
-        `agent-board: http://127.0.0.1:${port}`,
-      ])
-      assert.deepEqual(cardsOf((await board.get('/api/board')).json.columns, card => card.number), { needs: [394, 430], running: [], idle: [], done: [414] })
-      await assert.rejects(readFile(marker), { code: 'ENOENT' })
-      assert.deepEqual(await snapshot(), before)
-    })
-  }
-})
-
-test('config stdin keeps the startup config', async t => {
-  const folder = await fixture(t)
-  const config = { ...FIXTURE_CONFIG, resume: ['flow/run.sh', '--resume', '{n}'] }
-  const board = await serve(t, folder, {}, { args: ['--config-stdin'], input: JSON.stringify(config) })
-  assert.equal((await board.get('/api/board')).status, 200)
-  const marker = join(dirname(folder), 'changed-producer')
-  await script(join(folder, 'flow/changed.sh'), `printf called >'${marker}'`, 'exit 3')
-  await put(join(folder, CONFIG), JSON.stringify({ data: ['flow/changed.sh'] }))
-  const { json } = await board.get('/api/board')
-  assert.deepEqual([json.source.isSet, json.source.error, json.can], [true, null, { run: true, resume: true }])
-  assert.deepEqual(cardsOf(json.columns, card => card.number), { needs: [394, 430], running: [], idle: [], done: [414] })
-  await assert.rejects(readFile(marker), { code: 'ENOENT' })
 })
 
 test('config stdin waits for EOF and accepts chunks', async t => {
@@ -485,7 +361,7 @@ test('config stdin waits for EOF and accepts chunks', async t => {
 })
 
 test('config stdin reports each bad input without starting work', async t => {
-  const folder = await fixture(t, { data: ['flow/record.sh'] })
+  const folder = await fixture(t)
   const marker = join(dirname(folder), 'producer-marker')
   await script(join(folder, 'flow/record.sh'), 'printf called >>"$PRODUCER_MARKER"', 'cat flow/contract-1.json')
   const port = await freePort()
@@ -507,7 +383,7 @@ test('config stdin reports each bad input without starting work', async t => {
 })
 
 test('config stdin catches read failures', async t => {
-  const folder = await fixture(t, { data: ['flow/record.sh'] })
+  const folder = await fixture(t)
   const marker = join(dirname(folder), 'producer-marker')
   await script(join(folder, 'flow/record.sh'), 'printf called >>"$PRODUCER_MARKER"', 'cat flow/contract-1.json')
   const port = await freePort()
@@ -525,7 +401,6 @@ test('config stdin enforces executable security in the real CLI', async t => {
   const port = await freePort()
   const env = { PORT: String(port), PRODUCER_MARKER: marker }
   await script(join(folder, 'flow/record.sh'), 'printf called >>"$PRODUCER_MARKER"', 'cat flow/contract-1.json')
-  await put(join(folder, CONFIG), JSON.stringify({ data: ['flow/record.sh'] }))
   await script(join(dirname(folder), 'sibling.sh'), 'printf called >>"$PRODUCER_MARKER"')
   await symlink(join(dirname(folder), 'sibling.sh'), join(folder, 'flow/external.sh'))
   await put(join(folder, 'flow/not-executable.sh'), 'exit 0\n')
@@ -615,9 +490,7 @@ test('config stdin preserves missing data and producer results', async t => {
   ]
   for (const [command, expected] of cases) {
     const input = JSON.stringify({ data: ['flow/eval.sh', command] })
-    await put(join(folder, CONFIG), input)
     assert.deepEqual(await cli(['check', '--config-stdin'], { cwd: folder, input }), expected, command)
-    assert.deepEqual(await cli(['check'], { cwd: folder }), expected, command)
   }
 })
 
@@ -627,7 +500,7 @@ test('stdin config keeps startup safeguards and terminal actions', async t => {
     run: ['flow/run.sh', '--agent', '{agent}', '{n}', 'one word', 'a;b'],
     resume: ['flow/run.sh', '--resume', '{n}'],
   }
-  const folder = await fixture(t, config, "it's a fixture")
+  const folder = await fixture(t, "it's a fixture")
   const document = JSON.parse(DOCUMENT)
   document.issues.push({
     number: 431, title: 'stopped step', type: 'feature', state: 'stuck', step: 'plan',
@@ -642,47 +515,42 @@ test('stdin config keeps startup safeguards and terminal actions', async t => {
   assert.deepEqual(await cli(['check', '--config-stdin'], { cwd: folder, env, input: JSON.stringify(config) }), {
     code: 0, stdout: 'agent-board: contract 1, 4 issues, ok\n', stderr: '',
   })
-  const typed = []
-  for (const args of [[], ['--config-stdin']]) {
-    const log = join(dirname(folder), args.length ? 'stdin-herdr.log' : 'file-herdr.log')
-    const board = await serve(t, folder, { ...env, HERDR_LOG: log }, { args, input: JSON.stringify(config) })
-    const { json } = await board.get('/api/board')
-    assert.deepEqual(json.can, { run: true, resume: true })
-    assert.equal((await board.post('/api/run', { number: 430, agent: 'opencode' })).status, 200)
-    assert.equal((await board.post('/api/resume', { number: 431 })).status, 200)
-    typed.push((await readFile(log, 'utf8')).split('\n').filter(line => line.startsWith('pane run ')))
-    await assert.rejects(readFile(marker), { code: 'ENOENT' })
-  }
+  const log = join(dirname(folder), 'herdr.log')
+  const board = await serve(t, folder, { ...env, HERDR_LOG: log }, { input: JSON.stringify(config) })
+  const { json } = await board.get('/api/board')
+  assert.deepEqual(json.can, { run: true, resume: true })
+  assert.equal((await board.post('/api/run', { number: 430, agent: 'opencode' })).status, 200)
+  assert.equal((await board.post('/api/resume', { number: 431 })).status, 200)
+  const typed = (await readFile(log, 'utf8')).split('\n').filter(line => line.startsWith('pane run '))
+  await assert.rejects(readFile(marker), { code: 'ENOENT' })
   const quoted = folder.replaceAll("'", "'\\''")
-  const expected = [
+  assert.deepEqual(typed, [
     `pane run w1:p1 '${quoted}/flow/run.sh' '--agent' 'opencode' 430 'one word' 'a;b' && exit`,
     `pane run w1:p1 '${quoted}/flow/run.sh' '--resume' 431 && exit`,
-  ]
-  assert.deepEqual(typed, [expected, expected])
+  ])
 })
 
-test('default changes leave producer configuration unchanged in both config modes', async t => {
+test('default changes leave producer configuration unchanged', async t => {
   const config = {
     data: ['flow/producer.sh'], run: ['flow/run.sh', '--agent', '{agent}', '{n}'],
     resume: ['flow/run.sh', '--resume', '{n}'],
   }
-  for (const args of [[], ['--config-stdin']]) await t.test(args.length ? 'stdin' : 'file', async t => {
-    const folder = await fixture(t, config)
-    const document = JSON.parse(DOCUMENT)
-    document.agents = { claude: { available: true, cause: null }, codex: { available: true, cause: null } }
-    delete document.defaultAgent
-    document.issues.push(
-      { ...document.issues[0], number: 431, state: 'stuck', act: 'Resume the step' },
-      { ...document.issues[0], number: 432 },
-    )
-    await put(join(folder, 'flow/contract-1.json'), JSON.stringify(document))
-    await put(join(folder, '.celetis.yaml'), 'agent: claude\n')
-    await git(folder, 'add', '.celetis.yaml')
-    await git(folder, 'commit', '-q', '-m', 'producer settings')
-    await git(folder, 'config', 'celetis-flow.agent', 'claude')
-    await git(folder, 'config', '--add', 'fixture.keep', 'one')
-    await git(folder, 'config', '--add', 'fixture.keep', 'two')
-    await put(join(folder, 'flow/producer.sh'), `#!/usr/bin/env node
+  const folder = await fixture(t)
+  const document = JSON.parse(DOCUMENT)
+  document.agents = { claude: { available: true, cause: null }, codex: { available: true, cause: null } }
+  delete document.defaultAgent
+  document.issues.push(
+    { ...document.issues[0], number: 431, state: 'stuck', act: 'Resume the step' },
+    { ...document.issues[0], number: 432 },
+  )
+  await put(join(folder, 'flow/contract-1.json'), JSON.stringify(document))
+  await put(join(folder, '.celetis.yaml'), 'agent: claude\n')
+  await git(folder, 'add', '.celetis.yaml')
+  await git(folder, 'commit', '-q', '-m', 'producer settings')
+  await git(folder, 'config', 'celetis-flow.agent', 'claude')
+  await git(folder, 'config', '--add', 'fixture.keep', 'one')
+  await git(folder, 'config', '--add', 'fixture.keep', 'two')
+  await put(join(folder, 'flow/producer.sh'), `#!/usr/bin/env node
 const { readFile } = require('node:fs/promises')
 async function main() {
   const document = JSON.parse(await readFile('flow/contract-1.json', 'utf8'))
@@ -693,30 +561,29 @@ async function main() {
 }
 main()
 `, 0o755)
-    const snapshot = async () => ({
-      yaml: await readFile(join(folder, '.celetis.yaml')),
-      git: (await git(folder, 'config', '--local', '--null', '--list')).stdout,
-      producer: JSON.parse((await exec(join(folder, 'flow/producer.sh'), [], { cwd: folder, env: ENV })).stdout),
-    })
-    const before = await snapshot()
-    assert.equal(before.producer.defaultAgent, 'claude')
-    const log = join(dirname(folder), 'herdr.log')
-    const board = await serve(t, folder, { HERDR_LOG: log, HERDR_WORKSPACE: basename(folder) }, { args, input: JSON.stringify(config) })
-    assert.equal((await board.get('/api/board')).json.defaultAgent, 'claude')
-    const { status, json } = await board.post('/api/agent', { agent: 'codex' })
-    assert.deepEqual([status, json], [409, { error: 'The producer controls the default agent. Change it in the producer configuration.' }])
-    assert.deepEqual(await snapshot(), before)
-    assert.equal((await board.post('/api/refresh', {})).status, 200)
-    assert.equal((await board.get('/api/board')).json.defaultAgent, 'claude')
-    assert.equal((await board.post('/api/run', { number: 430, agent: 'codex' })).status, 200)
-    assert.equal((await board.post('/api/run', { number: 432 })).status, 200)
-    assert.equal((await board.post('/api/resume', { number: 431 })).status, 200)
-    assert.deepEqual((await readFile(log, 'utf8')).split('\n').filter(line => line.startsWith('pane run ')), [
-      `pane run w1:p1 '${folder}/flow/run.sh' '--agent' 'codex' 430 && exit`,
-      `pane run w1:p1 '${folder}/flow/run.sh' '--agent' 'claude' 432 && exit`,
-      `pane run w1:p1 '${folder}/flow/run.sh' '--resume' 431 && exit`,
-    ])
-    assert.deepEqual(await snapshot(), before)
-    assert.equal((await board.get('/api/board')).json.defaultAgent, 'claude')
+  const snapshot = async () => ({
+    yaml: await readFile(join(folder, '.celetis.yaml')),
+    git: (await git(folder, 'config', '--local', '--null', '--list')).stdout,
+    producer: JSON.parse((await exec(join(folder, 'flow/producer.sh'), [], { cwd: folder, env: ENV })).stdout),
   })
+  const before = await snapshot()
+  assert.equal(before.producer.defaultAgent, 'claude')
+  const log = join(dirname(folder), 'herdr.log')
+  const board = await serve(t, folder, { HERDR_LOG: log, HERDR_WORKSPACE: basename(folder) }, { input: JSON.stringify(config) })
+  assert.equal((await board.get('/api/board')).json.defaultAgent, 'claude')
+  const { status, json } = await board.post('/api/agent', { agent: 'codex' })
+  assert.deepEqual([status, json], [409, { error: 'The producer controls the default agent. Change it in the producer configuration.' }])
+  assert.deepEqual(await snapshot(), before)
+  assert.equal((await board.post('/api/refresh', {})).status, 200)
+  assert.equal((await board.get('/api/board')).json.defaultAgent, 'claude')
+  assert.equal((await board.post('/api/run', { number: 430, agent: 'codex' })).status, 200)
+  assert.equal((await board.post('/api/run', { number: 432 })).status, 200)
+  assert.equal((await board.post('/api/resume', { number: 431 })).status, 200)
+  assert.deepEqual((await readFile(log, 'utf8')).split('\n').filter(line => line.startsWith('pane run ')), [
+    `pane run w1:p1 '${folder}/flow/run.sh' '--agent' 'codex' 430 && exit`,
+    `pane run w1:p1 '${folder}/flow/run.sh' '--agent' 'claude' 432 && exit`,
+    `pane run w1:p1 '${folder}/flow/run.sh' '--resume' 431 && exit`,
+  ])
+  assert.deepEqual(await snapshot(), before)
+  assert.equal((await board.get('/api/board')).json.defaultAgent, 'claude')
 })

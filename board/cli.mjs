@@ -11,7 +11,7 @@ if (!isNodeOk(process.versions.node)) stop(`agent-board: ${NODE_NEEDED}`)
 const { realpath } = await import('node:fs/promises')
 const { basename, delimiter, dirname } = await import('node:path')
 const { text } = await import('node:stream/consumers')
-const { CONFIG_PATH, parseConfig, readConfig } = await import('./config.mjs')
+const { parseConfig } = await import('./config.mjs')
 const { CONTRACT, readDocument } = await import('./contract.mjs')
 const { createBoard, run, runData } = await import('./server.mjs')
 
@@ -19,10 +19,9 @@ if (process.env.PATH) process.env.PATH = cleanPath(process.env.PATH, delimiter)
 
 const args = process.argv.slice(2)
 const [command, flag] = args
-if (!(args.length === 0 ||
-  (args.length === 1 && ['--config-stdin', 'check'].includes(command)) ||
+if (!((args.length === 1 && command === '--config-stdin') ||
   (args.length === 2 && command === 'check' && ['--config-stdin', '--stdin'].includes(flag)))) {
-  stop('usage: agent-board [--config-stdin | check [--config-stdin | --stdin]]', 2)
+  stop('usage: agent-board --config-stdin | check --config-stdin | check --stdin (scripts/celetis board starts the board)', 2)
 }
 
 const revParse = async (...args) => {
@@ -77,14 +76,10 @@ if (flag === '--stdin') {
 } else {
   const main = await mainCheckout()
   let config
-  if (command === '--config-stdin' || flag === '--config-stdin') {
-    try {
-      config = await parseConfig(main, await text(process.stdin), 'the input')
-    } catch (cause) {
-      stop(`agent-board: config stdin: ${cause.message}`)
-    }
-  } else {
-    config = await readConfig(main).catch(cause => stop(`agent-board: ${CONFIG_PATH}: ${cause.message}`))
+  try {
+    config = await parseConfig(main, await text(process.stdin), 'the input')
+  } catch (cause) {
+    stop(`agent-board: config stdin: ${cause.message}`)
   }
   if (command === 'check') await checkData(main, config.data)
   else serve(main, config)

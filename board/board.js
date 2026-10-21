@@ -528,7 +528,7 @@ const drawStatus = (source, isDown) => {
   const name = data?.tracker ?? 'Issues'
   const text = el('span', 'sb-text')
   if (isDown) text.append(SERVER_DOWN)
-  else if (!source.isSet) text.append('no issue data: set "data" in .claude/celetis-flow/board.json')
+  else if (!source.isSet) text.append('no issue data: the config has no "data"')
   else if (source.error) text.append(`cannot read: ${source.error}`)
   else if (!source.readAt) text.append('no data yet')
   else text.append('read ', timed(source.readAt, false, ' ago'))

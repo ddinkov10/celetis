@@ -7,10 +7,11 @@ const HERE = import.meta.dirname
 const ENTRY = join(HERE, 'cli.mjs')
 const readPackage = async () => JSON.parse(await readFile(join(HERE, 'package.json'), 'utf8'))
 
-test('the package has its name, a version of three numbers, the module type, the licence, the Node range, and one command', async () => {
-  const { name, version, type, license, engines, bin } = await readPackage()
+test('the package has its name, no version, the module type, the licence, the Node range, and one command', async () => {
+  const fields = await readPackage()
+  const { name, type, license, engines, bin } = fields
   assert.equal(name, 'agent-board')
-  assert.match(version, /^\d+\.\d+\.\d+$/)
+  assert.equal(Object.hasOwn(fields, 'version'), false)
   assert.equal(type, 'module')
   assert.equal(license, 'UNLICENSED')
   assert.equal(engines?.node, '^22.18.0 || >=24.2.0')
