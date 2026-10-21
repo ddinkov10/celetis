@@ -59,8 +59,13 @@ ADR-0016 limits required automation to the CLI hosts while keeping desktop invoc
   2026-10-14 (ADR-0012). Keep the clone path at 130 characters or less: a longer path goes past
   the 260 limit on Windows, and `scripts/celetis worktree <n>` then stops with `Filename too
   long`. `git config --global core.longpaths true` removes the limit.
-- The selected host CLI (`claude` or `codex`), `gh` (logged in), `jq`, Mike Farah's `yq`
-  `>=4.54.1,<5`, `git` 2.31 or later,
+- The selected host CLI: Claude Code 2.1.299 or later, or Codex CLI 0.162.1 or later. The Claude
+  entry hook reads the `skill.prompt` fields `source`, `pluginName`, and `path`, which came in
+  2.1.299; an older release stops each skill for hook setup. Codex 0.162.1 is the lowest release
+  on which the install, the refresh, and the lookup of the plugin were checked; an older release
+  is not supported. These versions are a floor, not proof of the full workflow
+  ([Acceptance status](docs/celetis-flow.md#acceptance-status)).
+- `gh` (logged in), `jq`, Mike Farah's `yq` `>=4.54.1,<5`, `git` 2.31 or later,
   and Perl 5.14 or later on `PATH`.
   The runner uses only the standard library of Perl.
 - Git credentials for GitHub that need no prompt, an ssh key or a credential helper for https: the
