@@ -341,9 +341,12 @@ An omitted or empty setup runs no script.
 A failed setup or invalid new lane config prints `worktree setup failed:`, removes a new
 worktree and a branch created by the command, and exits 1. An existing branch or worktree stays
 for repair and retry. The marker remains
-`<git dir of the worktree>/celetis-flow-setup-done`. The command marks only success. It runs setup
-again in an unmarked lane. A marked lane still needs valid config, but does not run setup again.
-Reading config in another command never executes setup.
+`<git dir of the worktree>/celetis-flow-setup-done`. The command writes it only after a script that
+is not empty succeeded. With an empty or missing `worktreeSetup`, it writes no marker. It runs
+setup again in an unmarked lane, so a script that a merge of the trunk brings runs at the next
+entry. A marked lane still needs valid config, but does not run setup again. A lane that has a
+marker keeps it; `scripts/celetis setup lane <path>` runs the script there. Reading config in
+another command never executes setup.
 
 **A custom part.** `custom.<skill>` in the active checkout's `.celetis.yaml` holds an
 addition to that skill's procedure, for example a check on a real device after the build.

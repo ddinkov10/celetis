@@ -321,8 +321,12 @@ field that is there. Each other field stays by hand.
   `.celetis.yaml`. It runs the complete string in one Bash process in that lane, with the main
   checkout as `$1` and inherited stdin. All output goes to stderr, so stdout holds one lane path.
   A failed setup removes a new worktree and a branch created by the command. An existing branch
-  or worktree stays for repair and retry. A successful setup gets the existing marker and runs
-  only once. Every entry still checks the lane config (`docs/celetis-flow.md`).
+  or worktree stays for repair and retry. The command writes the marker only after a script that
+  is not empty succeeded, and that script then runs only once. With an empty or missing
+  `worktreeSetup`, the command writes no marker. Each later entry reads the lane config again, so
+  a script that a merge of the trunk brings runs at the next entry. A lane that has a marker keeps
+  it; `scripts/celetis setup lane <path>` runs the script there. Every entry still checks the lane
+  config (`docs/celetis-flow.md`).
 - **A custom part** is the parsed string `custom.<skill>` in `.celetis.yaml`. At entry, the
   skill reads the whole config once from the active checkout through native file tools and
   applies only its own string (ADR-0013 and ADR-0015). No shell or parser runs during entry. A runner step
