@@ -19,8 +19,8 @@ usage: scripts/celetis capscore J V B N S X [options]
 --agent claude|codex      explicit agent (CELETIS_AGENT > project config > claude)
 --json                   portable score plus the applied dispatch pair
 --reviewer               apply the selected host's reviewer minimum
---profile FILE           Codex profile (CAP_MODEL_PROFILE > main config profile)
---runtime-models FILE    active dispatch allowlist (CAP_RUNTIME_MODELS)
+--profile FILE           Codex profile (CAP_MODEL_PROFILE > main config profile > parent model)
+--runtime-models FILE    active dispatch allowlist for a Codex profile (CAP_RUNTIME_MODELS)
 --current-model ID       opencode current model (CAP_CURRENT_MODEL)
 See docs/capability.md of the plugin celetis for profile and result schemas.
 USAGE
@@ -97,9 +97,14 @@ setup_codex_profile() {
     need_jq
     profiles=$(jq -cs '.' "$profile" 2>&1) || die "invalid Codex profile: $profiles"
   else
-    main=$(celetis_config_main 2>/dev/null) || die 'Codex needs a main checkout with codexProfiles or an explicit --profile FILE'
+    main=$(celetis_config_main 2>/dev/null) || die 'Codex needs a main checkout with .celetis.yaml or an explicit --profile FILE'
     config_file="$main/.celetis.yaml"
     config=$(celetis_config_read "$main") || exit $?
+    need_jq
+    if printf '%s\n' "$config" | jq -e '(.codexProfiles // {}) | length == 0' >/dev/null; then
+      MODELS=(""); binding=; runtime=
+      return
+    fi
   fi
   [ -n "$runtime_models" ] && [ -f "$runtime_models" ] && [ -r "$runtime_models" ] || die 'Codex needs a readable --runtime-models FILE (or CAP_RUNTIME_MODELS) from the active dispatch surface'
   need_jq
@@ -154,7 +159,7 @@ emit_json() {
        host:(if $host == "" then null else $host end),rank:(if $rank == "" then null else ($rank | tonumber) end),
        effort:(if $effort == "" then null else $effort end),
        dispatch:(if $status == "stop" then null else
-         {rank:($applied_rank | tonumber),model:$model,effort:$applied_effort,
+         {rank:($applied_rank | tonumber),model:(if $model == "" then null else $model end),effort:$applied_effort,
           runtime:(if $runtime == "" then null else $runtime end),reviewer:$reviewer} end),line:$line}'
 }
 
@@ -246,7 +251,7 @@ sum=$(( j + v + b + n + s + x ))
 label="CAP: J$j V$v B$b N$n S$s X$x = $sum"
 [ "$bias" -eq 0 ] || label="$label +b$bias"
 score=$(resolve_score "$j" "$v" "$b" "$n" "$s" "$x" "$bias" "$attempt")
-host= rank= effort= applied_rank= applied_effort= model= runtime=
+host= rank= effort= applied_rank= applied_effort= model= runtime= binding=
 if [ "$score" = STOP ]; then
   status=stop
   line="$label → STOP (attempt $attempt: escalate to user with failure trail)"
@@ -277,12 +282,12 @@ else
     apply_score "$score"
   fi
   applied_effort=${efforts[$applied_e]}
-  if [ "$host" = codex ]; then
+  if [ "$host" = codex ] && [ -n "$binding" ]; then
     printf '%s\n' "$binding" | jq -e --arg model "$model" --arg effort "$applied_effort" \
       'any(.models[]; .id == $model and (.efforts | index($effort)) != null)' >/dev/null ||
       die "effort unavailable in active runtime: $model/$applied_effort; repair --profile or select a runtime that supports this effort"
   fi
-  line="$label → $model/$applied_effort"
+  line="$label → ${model:-inherit}/$applied_effort"
   [ "$attempt" -le 1 ] || line="$line [attempt $attempt]"
 fi
 if [ "$json" = true ]; then emit_json; else printf '%s\n' "$line"; fi

@@ -50,7 +50,7 @@ retry_sequence() {
   local label=$1 profile_path=$2 expected=$3 records= retry
   shift 3
   for retry in 1 2 3; do
-    codex_run "$@" --profile "$profile_path" --attempt "$retry" --json
+    codex_run "$@" ${profile_path:+--profile "$profile_path"} --attempt "$retry" --json
     check "$label attempt $retry succeeds" test "$code:$err" = '0:'
     records=$records$out$'\n'
   done
@@ -181,6 +181,42 @@ printf 'invalid: [\n' >"$tmp/project/.celetis.yaml"
 CAP_MODEL_PROFILE= CAP_RUNTIME_MODELS= codex_run 1 0 2 1 1 0 --attempt 4
 expect 'STOP precedes invalid config and runtime lookup' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → STOP (attempt 4: escalate to user with failure trail)'
 printf 'landing: merge\n' >"$tmp/project/.celetis.yaml"
+codex_run 1 0 2 1 1 0 --json
+check 'no profile scores with the parent model' json '.status == "ready" and .host == "codex" and .rank == 1 and .effort == "xhigh" and .dispatch == {rank:1,model:null,effort:"xhigh",runtime:null,reviewer:false} and .line == "CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → inherit/xhigh"'
+check 'no profile keeps the portable score' test "$(printf '%s\n' "$out" | jq -c '{digits,bias,attempt,sum,rank,effort}')" = "$claude_score"
+codex_run 1 0 2 1 1 0
+expect 'no profile human line names inherit' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → inherit/xhigh'
+printf 'landing: merge\ncodexProfiles: {}\n' >"$tmp/project/.celetis.yaml"
+codex_run 1 0 2 1 1 0 --json
+check 'empty codexProfiles uses the parent model' json '.dispatch == {rank:1,model:null,effort:"xhigh",runtime:null,reviewer:false}'
+printf 'landing: merge\n' >"$tmp/project/.celetis.yaml"
+CAP_RUNTIME_MODELS= codex_run 1 0 2 1 1 0 --json
+check 'parent model needs no runtime file' json '.dispatch.model == null and .dispatch.effort == "xhigh"'
+printf '%s\n' 'not json' >"$tmp/parent-bad-models.json"
+codex_run 1 0 2 1 1 0 --runtime-models "$tmp/parent-bad-models.json" --json
+check 'a supplied runtime file is not read' json '.dispatch.model == null'
+codex_run 1 0 2 1 1 0 --runtime-models "$tmp/missing" --json
+check 'a missing runtime file is not checked' json '.dispatch.model == null'
+codex_run 0 0 0 0 0 0 --bias 0 --reviewer --json
+check 'parent model reviewer minimum is rank 1 medium' json '.rank == 0 and .effort == "low" and .dispatch == {rank:1,model:null,effort:"medium",runtime:null,reviewer:true}'
+retry_sequence 'parent model retains max at attempt 3' '' \
+  '[[1,"xhigh",1,null,"xhigh"],[1,"max",1,null,"max"],[2,"xhigh",2,null,"max"]]' \
+  1 0 2 1 1 0 --bias 2
+codex_run 1 0 2 1 1 0 --attempt 2
+expect 'parent model human retry line' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → inherit/max [attempt 2]'
+codex_run 1 0 2 1 1 0 --attempt 3
+expect 'parent model human attempt 3 keeps max' 'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → inherit/max [attempt 3]'
+codex_run 1 0 2 1 1 0 --attempt 4 --json
+check 'parent model attempt 4 stops' json '.status == "stop" and .dispatch == null'
+codex_at "$tmp/lane" 1 0 2 1 1 0 --json
+check 'main config decides over a lane profile' json '.dispatch.model == null and .dispatch.runtime == null'
+rm "$tmp/project/.celetis.yaml"
+codex_run 1 0 2 1 1 0 --json
+error 'missing config with no profile' '.celetis.yaml'
+printf 'invalid: [\n' >"$tmp/project/.celetis.yaml"
+codex_run 1 0 2 1 1 0 --json
+error 'invalid config with no profile' '.celetis.yaml'
+printf 'landing: merge\n' >"$tmp/project/.celetis.yaml"
 
 mkdir "$tmp/outside"
 yq() { printf 'unexpected yq call\n' >&2; return 99; }
@@ -188,6 +224,8 @@ export -f yq
 codex_at "$tmp/outside" 1 0 2 1 1 0 --profile "$profile_path" --runtime-models "$CAP_RUNTIME_MODELS" --json
 check 'standalone explicit scoring needs no repository or yq' test "$code:$out:$err" = "0:$explicit_result:"
 unset -f yq
+codex_at "$tmp/outside" 1 0 2 1 1 0 --json
+error 'outside a checkout with no profile' '--profile'
 export CAP_MODEL_PROFILE=$profile_path
 
 CAP_EFFORT_BIAS=0 codex_run 1 0 2 1 1 0
