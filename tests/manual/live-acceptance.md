@@ -9,7 +9,7 @@ prove different operations. Record each surface separately.
 ## Prepare the fixture
 
 1. Record the reviewed plugin commit, its tracked-file hashes, the installed package path and
-   hashes, runtime versions, and the exact released board tag and commit. Read the current host
+   hashes, and runtime versions. The plugin commit is also the board commit. Read the current host
    tool schema and CLI help. Use the installed package for native entry and runner acceptance.
 2. Use an owned private disposable product repository with real issues, branches, PRs, and CI.
    Keep a separate repository or checkout for each concurrent scenario. A board fixture whose
@@ -31,15 +31,14 @@ prove different operations. Record each surface separately.
    that test; continue independent cases. Record optional desktop diagnostics separately.
 
 For herdr tests, create an owned named session and controller pane. Verify real `HERDR_ENV=1`
-inside that pane before controls. Start the released board there on an unused local port.
+inside that pane before controls. Start the board there on an unused local port.
 Use its real browser actions. Record the returned pane identities; control only owned panes.
 
 For the single-config cutover, the board start is `scripts/celetis --agent <agent> board` in the
-fixture main checkout. The adapter must run the exact GitHub tag v2.2.1 with `--config-stdin`;
-keep its actual package commit, input, stdout/stderr, HTTP producer data, and port. `AGENT_BOARD`
-is a local checker override only. Use no override for the released-package check. Test main and
-subfolder startup, lane refusal before npx, malformed config, external/lane executable refusal,
-default/configured ports, inherited `PORT`, and absence of a second config file.
+fixture main checkout. The adapter must run `board/cli.mjs` of the installed plugin with
+`--config-stdin`; keep the plugin commit, input, stdout/stderr, HTTP producer data, and port.
+Test main and subfolder startup, lane refusal before node, malformed config, external/lane
+executable refusal, default/configured ports, inherited `PORT`, and absence of a second config file.
 Check that the agent menu and command palette show the default as read-only and expose the
 reason by pointer and keyboard. They must send no setter request. A valid trusted `POST /api/agent`
 must return 409 with `The producer controls the default agent. Change it in the producer configuration.`
@@ -137,7 +136,7 @@ references for the step order. Only the shared landing script may perform a fixt
 | Update, failed refresh, long-lived runner | Claude Code, Codex TUI/CLI | Next step uses new content; failure retains its cause and stops before launch; updater cleanup before unlock; active resources keep their promised content and path lifetime |
 | Cross-host Plan handoff | Claude Code to Codex TUI/CLI, Codex TUI/CLI to Claude Code | Same spec, Plan, and issue; published CAP digits resolve on the receiving host; verified landing; record the receiving Codex surface |
 | Resume and compaction | Codex TUI/CLI | Step/custom rules persist; exact saved identity; ledger and issue recovery preserve finished work; no repeat build |
-| Board actions | Released board and herdr, Claude Code and Codex TUI/CLI | Real Run, Resume, Go, Open shell; exact issue/session/pane association; actual waiting, active, and recovery cards |
+| Board actions | The board of the installed plugin and herdr, Claude Code and Codex TUI/CLI | Real Run, Resume, Go, Open shell; exact issue/session/pane association; actual waiting, active, and recovery cards |
 
 For update tests, inspect the old advertised skill path while its session remains alive. Check
 both its bytes and continued existence. A versioned directory name alone proves neither.

@@ -6,13 +6,13 @@ its tab. In a herdr pane, the script ends the session when the step is done, and
 when its gate is `auto`. The GitHub issue stays the state store (`docs/issue-tracker.md`): every
 result of a step goes to the issue. The board is a local web page that shows each agent session and
 the next step of each issue, and its Run button starts the script for one issue in a new herdr tab.
-The board is a package of its own, `ddinkov10/agent-board`: a product project, a repository that
-uses the plugin `celetis`, holds its config, and the plugin holds the script that prints its data.
+The board is `board/` of the plugin: a product project, a repository that uses the plugin
+`celetis`, holds its config, and the plugin holds the board and the script that prints its data.
 ADR-0002 holds the reasons for the script, ADR-0003 holds the reasons for the board, ADR-0005 holds
 the reasons why herdr, not a mod, gives the session state and ends a step, and ADR-0007 holds the
 reasons why `specify` is a step of the script. ADR-0008 holds the reasons why the build step lands
-the change, and ADR-0009 holds the reasons why the board is a package of its own. ADR-0011 holds the
-reasons why a step session hands a stop to the issue.
+the change, ADR-0009 holds the reasons for contract 1, and ADR-0020 holds the reasons why the board
+is a part of the plugin. ADR-0011 holds the reasons why a step session hands a stop to the issue.
 
 Two rules of the harness hold in each session, also in a session by hand:
 
@@ -379,13 +379,14 @@ new parser operation. Native entry executes no setup and proves no deterministic
 
 ## The board
 
-The board is the separate package `ddinkov10/agent-board`. Celetis uses released v2.2.1, whose
-stdin-config mode supports the fixed Run selection and saved-host Resume commands below.
-The package stays independent of YAML and Celetis field names. ADR-0009 keeps the package,
-contract 1, and command/path trust rules; ADR-0015 replaces only config storage.
+The board is `board/` of the plugin. It reads its config from stdin only, and that config
+supports the fixed Run selection and saved-host Resume commands below.
+The board stays independent of YAML and Celetis field names. ADR-0009 keeps contract 1 and the
+command/path trust rules. ADR-0015 replaces the config storage, and ADR-0020 makes the board a part
+of the plugin.
 
-**Requirements.** Node 22 from 22.18, or Node 24.2 or later, with `npx`; Git 2.31 or later;
-GitHub credentials that need no prompt; herdr 0.9.3 and a running server; and a Chromium browser.
+**Requirements.** Node 22 from 22.18, or Node 24.2 or later; Git 2.31 or later; herdr 0.9.3 and a
+running server; and a Chromium browser. The board needs no GitHub credentials of its own.
 The script requirements above apply to its commands too.
 
 **Start the board** in the main checkout or a subfolder:
@@ -396,11 +397,19 @@ PORT=4500 scripts/celetis board
 ```
 
 The adapter takes no arguments. It validates `.celetis.yaml` from the main checkout, refuses a
-lane start, then runs in the main checkout. The refusal occurs before `npx` can read a lane's
-`.npmrc` or `node_modules/.bin`. The main checkout and its npm configuration must still be trusted.
-The adapter sends one JSON object to
-`npx --yes 'github:ddinkov10/agent-board#v2.2.1' --config-stdin`. It makes no config file.
+lane start, then runs in the main checkout. Before it finds `node`, it removes each
+`node_modules/.bin` entry from `PATH`, so a product project cannot put its own `node` first.
+The main checkout must still be trusted. The adapter sends one JSON object to
+`node <plugin>/board/cli.mjs --config-stdin`, where `<plugin>` is the root of the installed
+plugin (`scripts/celetis root`). It makes no config file.
 `--config-stdin` is config input; `check --stdin` remains contract-1 issue-data input.
+The adapter exits 1 with one line when `node` is not on `PATH`, or when the plugin has no
+`board/cli.mjs`:
+
+```text
+celetis-board: node is not on PATH; the board needs Node 22.18, or Node 24.2 or later
+celetis-board: the plugin has no board/cli.mjs: <plugin>; reinstall the plugin
+```
 
 The board prints its repository, commands, and URL. Open that URL. It reads this input once at
 startup and validates each executable inside the main checkout, with no lane or external path.
@@ -482,20 +491,20 @@ Each row also has `number`, `title`, `url`, `updatedAt`, `closedAt`, and these f
   those reviews requests changes, else `approved` when one approves, else `required` when a
   requested reviewer or team has not answered, else `null`.
 
-**Check the document** against the contract, in the main checkout:
+**Check the document** against the contract, in the main checkout. `scripts/celetis root` prints
+`<plugin>`:
 
 ```bash
-scripts/celetis celetis-flow --board | npx --yes 'github:ddinkov10/agent-board#v2.2.1' check --stdin
+scripts/celetis celetis-flow --board | node <plugin>/board/cli.mjs check --stdin
 ```
 
 The checker prints `agent-board: contract 1, <count> issues, ok` and exits 0, or it prints one line
 for each failure and exits 1.
 
-**The page.** The README of `ddinkov10/agent-board` holds each part that is not of the plugin: the
+**The page.** [`board/README.md`](../board/README.md) of the plugin holds the page: the
 columns and the card of each state, the layout, the keys, the buttons Run, Resume,
 Open shell, and Go, the errors, the tables of contract 1, the other forms of the command, the trust
-boundary, and the limits of the page. Its URL is `https://github.com/ddinkov10/agent-board#readme`.
-The repository is private, so the link opens only for an account that can read it.
+boundary, and the limits of the page.
 
 ## What the script prints, and your act
 
@@ -512,8 +521,8 @@ The repository is private, so the link opens only for an account that can read i
 | `no progress:` with another command | open the session again, or read the issue | a Run press, or `scripts/celetis celetis-flow <n>` |
 
 A Run press runs the script in a new herdr tab. A script that ends with no error closes its tab, so
-read the state on the card of the issue: "The board" gives the state of each issue, and the README
-of the package gives the card of each state.
+read the state on the card of the issue: "The board" gives the state of each issue, and
+`board/README.md` of the plugin gives the card of each state.
 
 `stop … is finished` means that the issue is closed with no `wontfix` label. After a landing, the
 change is on the trunk.
@@ -575,7 +584,7 @@ results as of 2026-10-20, not a certified minimum-version range:
 | Superpowers 7.0.0 | Installation on the isolated Codex Git configuration passed. Each active surface must still expose the dispatch and follow-up controls its procedures require |
 | herdr 0.9.3 | The installed integrations report Claude v10 and Codex v8. Later reviewed-source Codex checks passed valid startup, real no-progress, and native exact Resume with a saved second turn. The resumed herdr reply still lacked `agent_session`. Claude recovery, compaction, and full workflow checks remain open |
 | agent-board 2.0.0, tag commit `e36283b` (earlier storage) | Contract 1 and the current config path passed. Released-browser Open shell and partial Claude Run/Go passed. The earlier Codex Run stopped on a local-marketplace setup error; Claude later stopped on quota. Later reviewed-source Codex Run, Resume, and Go passed with the correct issue and pane. Full acceptance remains open |
-| agent-board v2.2.1, commit `2014361f365e03e18169ed75d602b729e25e03bb` | The release records a 322-test gate and read-only default-agent controls. The released adapter and fixture Run/Resume checks have separate evidence. Real browser/Herdr Run and Resume remain open |
+| `board/` of the plugin, from source commit `95144d3` (ADR-0020) | The board code of `95144d3` is the code of the release commit `2014361f365e03e18169ed75d602b729e25e03bb`. That release records a 322-test gate and read-only default-agent controls. The adapter and fixture Run/Resume checks of that release have separate evidence. Real browser/Herdr Run and Resume remain open |
 | Bash 3.2.57, Perl 5.34.1, Node 26.11.1 | Used for the local deterministic gate and released-board checks. The scripts retain Bash 3.2 and Perl 5.14 as their language requirements |
 
 The later Codex board checks used reviewed commit `626881b`; the
@@ -657,8 +666,8 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   the tab with the message of the script. A Run press whose session ends at once thus leaves no
   message: start `scripts/celetis celetis-flow <n>` in a terminal to see it.
 - A start of the board from the entry `board` of `.claude/launch.json`, in a project that has such
-  an entry, needs `npx`, `herdr`, and the tools of the script on the `PATH` of the desktop app, and
-  the git credentials for GitHub in its environment. This is not checked: the desktop app reads
+  an entry, needs `node`, `herdr`, and the tools of the script on the `PATH` of the desktop app,
+  and no git credentials. This is not checked: the desktop app reads
   `.claude/launch.json` of the main checkout, so the build of a lane cannot start the entry `board`
   of its branch. When that entry does not start the board, start the board in a terminal.
 - A runner that stays open for more than 14 days after an update can lose the folder of its
@@ -672,7 +681,7 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   `stop the plugin version of this runner was removed after an update; start the runner again`
   and exits 1. The cure is a new start of the runner (ADR-0012).
 
-The README of the package holds the limits of the page.
+`board/README.md` of the plugin holds the limits of the page.
 
 ## Check the harness
 
@@ -681,8 +690,9 @@ the launcher, and the text of the plugin are in `tests/` of the plugin repositor
 `ddinkov10/celetis`: run them in a checkout of that repository. `scripts/verify.sh` is the verify
 gate of that repository. It runs each `tests/*.test.sh` at the same time, one job per core, and
 prints the output and the time of each test in glob order. Then it runs `scripts/capscore.sh --test`
-and `claude plugin validate .`. A Perl syntax check runs first. Its last line is `verify: PASS`. The
-local full gate needs Claude's validator but starts no model turn. Codex package checks use the
+and `claude plugin validate .`. A Perl syntax check and the board suite run first. Its last line is
+`verify: PASS`. The local full gate needs Claude's validator but starts no model turn. The board
+suite needs Node 22.18, or Node 24.2 or later. Codex package checks use the
 shared manifest, file, link, and invocation metadata checks in `tests/text.test.sh` and the
 discovery fixtures in `tests/launcher.test.sh`. There is no Codex plugin-validation command.
 
@@ -690,10 +700,11 @@ The workflow `.github/workflows/test.yml` runs `scripts/verify.sh` on Linux for 
 and push to `main`. It uses no model credentials,
 host CLI, or token-consuming test. Live and model tests stay in `tests/manual/` or explicit
 acceptance runs. A deterministic PASS does not complete those scenarios. The board's tests are
-in `ddinkov10/agent-board`.
+`board/*.test.mjs` of the plugin repository, and `(cd board && node --test)` runs them.
 
 ```bash
 scripts/verify.sh
+(cd board && node --test)
 bash tests/celetis-flow.test.sh
 bash tests/next-step.test.sh
 bash tests/land.test.sh
@@ -705,24 +716,14 @@ bash tests/manual/step-prompt.test.sh --agent claude
 bash tests/manual/step-prompt.test.sh --agent codex
 ```
 
-`bash tests/celetis-flow.test.sh` gives each `--board` document of its stub world to the checker of
-the package (`check --stdin`), so the test fails when the script leaves contract 1. `AGENT_BOARD`
-names the entry file of a local checkout of the package:
-`AGENT_BOARD=<checkout of agent-board>/cli.mjs bash tests/celetis-flow.test.sh`, or the same
-variable before `scripts/verify.sh`. With no `AGENT_BOARD`, the test runs the pinned `npx` command,
-and it needs the network and the git credentials for GitHub. `CELETIS_FLOW_SKIP_BOARD_CHECK=1` makes
-the test skip the checker. Only the workflow sets it: the package is private, and a workflow of
-another repository cannot read it. So the workflow does not check contract 1, and the gate on a
-machine does. The test starts `npx` in its temporary folder, so `npx` reads no `.npmrc` and no
-`node_modules/.bin` of the checkout where the test starts: the test can run in a lane worktree. For
-the document of the real issues, "The board" gives the `check` command.
+`bash tests/celetis-flow.test.sh` gives each `--board` document of its stub world to
+`node <checkout>/board/cli.mjs check --stdin`, the checker of the board in the same checkout, so
+the test fails when the script leaves contract 1. For the document of the real issues, "The board"
+gives the `check` command.
 
-`bash tests/board-agent.test.sh` loads the board from `AGENT_BOARD` and checks default changes,
+`bash tests/board-agent.test.sh` loads `board/` of a copy of the plugin and checks default changes,
 Run overrides, refusals, and exact Resume through the product launcher, with real Git and a local
-HTTP server. With no `AGENT_BOARD`, it uses `npm pack` to fetch the stable v2 package into a
-temporary directory outside the product checkout. That path needs the network and GitHub
-credentials. `CELETIS_FLOW_SKIP_BOARD_CHECK=1` also skips this private-package integration test
-in the workflow. A pass against local source proves only that source, not the released consumer.
+HTTP server. The workflow runs both tests and the board suite.
 
 Tests and scripts can start another `bash` from `PATH`. The gate runs each test as
 `PATH="/bin:$PATH" /bin/bash <test>`: the `/bin/bash` of macOS runs the test, and the `PATH`
