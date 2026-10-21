@@ -32,5 +32,5 @@ jobs:
         run: |
           stages=
           for _ in $(seq 5); do stages="$stages marketplace update"; done
-          for _ in $(seq 60); do stages="$stages list"; done
-          PROBE_STAGES=$stages PATH="/bin:$PATH" /bin/bash tests/probe-71.sh
+          for _ in $(seq 40); do stages="$stages list"; done
+          PROBE_HOGS=2 PROBE_STAGES=$stages PATH="/bin:$PATH" /bin/bash tests/probe-71.sh

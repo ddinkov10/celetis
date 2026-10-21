@@ -294,6 +294,11 @@ for stage in $PROBE_STAGES; do
   update_pid=$(cat "$S/plugin-pid")
   update_child=$(cat "$S/plugin-child")
   echo "== $stage update_pid=$update_pid" >>"$PROBE_LOG"
+  hogs=
+  if [ -n "${PROBE_HOGS:-}" ]; then
+    renice -n 19 -p "$update_pid" >/dev/null
+    for _ in $(seq "$PROBE_HOGS"); do yes >/dev/null & hogs="$hogs $!"; done
+  fi
   end_flow
   [ "$code" -ne 0 ] && [ "$(count claude-calls)" -eq 0 ] && [ ! -e "$st/no-progress" ] || echo "probe: $i unexpected end: $code"
   phase=$stage
@@ -303,6 +308,7 @@ for stage in $PROBE_STAGES; do
   t_check=$(perl -MTime::HiRes=time -e 'printf q(%.3f), time')
   line_now=$(ps -p "$update_pid" -o pid=,ppid=,pgid=,stat=,wchan:24=,command= 2>/dev/null || true)
   st_child=$(ps -p "$update_child" -o stat= 2>/dev/null | tr -d ' ' || true)
+  [ -z "$hogs" ] || { kill $hogs; wait $hogs 2>/dev/null || true; }
   t_kill=$(grep '^== KILL t=' "$PROBE_LOG" | tail -1 | sed 's/.* t=//')
   gap=$(perl -e 'printf q(%d), ($ARGV[0] - $ARGV[1]) * 1000' "$t_check" "$t_kill")
   case $st_now in
