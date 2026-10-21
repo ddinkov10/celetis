@@ -23,7 +23,7 @@ board:
 | `board` | Mapping with optional `port`, an integer from 1024 to 65535 | Port 4403 |
 | `worktreeSetup` | One Bash script string | No setup |
 | `custom` | Mapping from a Celetis skill stem to an instruction string | No addition for an omitted skill |
-| `codexProfiles` | Mapping from a runtime identity to its profile | None |
+| `codexProfiles` | Mapping from a runtime identity to its profile | Each Codex child keeps the parent's model |
 
 The allowed gate names are `triage`, `specify`, `bug`, `chore`, `hotfix`, `plan`, and
 `implement`. No other step is accepted. An empty `gates` mapping uses `me` for all seven.
@@ -51,7 +51,9 @@ Each profile has exactly two required fields:
 A model ID starts with an ASCII letter or digit. Its other characters are ASCII letters,
 digits, `.`, `_`, `/`, or `-`. Reviewer effort is `low`, `medium`, `high`, or `xhigh`.
 A profile has no `schema`, `runtime`, or model allowlist field. Celetis reads the model and
-effort evidence from the active dispatch surface. There is no default or bundled profile.
+effort evidence from the active dispatch surface. There is no bundled profile. With no entry,
+each Codex child keeps the parent's model and gets the effort of its rank
+([Codex model profiles](capability.md#codex-model-profiles)).
 Explicit `--profile` and `CAP_MODEL_PROFILE` inputs take precedence for standalone or one-run
 scoring.
 

@@ -81,7 +81,8 @@ will read it:
   line goes in the dispatch prompt.
 - **`implement`** per-task dispatch — CAP line per task.
 - **Ad-hoc child spawns** — every child for repo work resolves its host binding and includes a CAP
-  line in its prompt; the actual spawn applies both model and effort through [host operations](hosts/entry.md).
+  line in its prompt; the actual spawn applies the effort, and the model when `dispatch.model` is
+  not null, through [host operations](hosts/entry.md).
 - **Plan headers** — print the CAP rec on session-executed tasks. Note: the **session model is the
   user's picker**; the rubric can only *recommend* there (max is auto-assignable for a spawn, a rec
   for the session). The user may override any rec.
@@ -102,14 +103,15 @@ The arithmetic produces a capability **rank 0–3** and a rubric effort. The fou
 in order to the Claude labels above; model names are a separate host binding. The sum, floors,
 bias, escalation, and final clamp of the portable score are identical on each host. Portable
 rank 3 below Σ=12 caps at xhigh. A host binding can raise the applied effort without changing
-the portable score.
+the portable score. On Codex with no profile, the binding names no model: each child keeps the
+parent's model ("Codex model profiles").
 
 Agent selection is `--agent claude|codex` > `CELETIS_AGENT` > `host` in the main checkout's
 `.celetis.yaml` > `claude`. The launcher exports its selected host. Without a new flag, Claude's existing human
 CAP output is unchanged. When the selected host is Claude and `OPENCODE=1`, the existing opencode
 mode still uses its current model: `--current-model provider/id` > `CAP_CURRENT_MODEL` > the
 current-model database lookup. If none is found, its existing Claude-label fallback remains.
-Codex uses its configured slots even when `OPENCODE=1`.
+Codex uses its configured slots, or the parent model with no profile, even when `OPENCODE=1`.
 
 `--json` returns one schema-1 object instead of the human line. It includes `digits` (`J`, `V`,
 `B`, `N`, `S`, `X`), original `bias`, `attempt`, `sum`, portable `rank` and `effort`, `host`,
@@ -133,9 +135,10 @@ Codex uses its configured slots even when `OPENCODE=1`.
 
 `dispatch` records the applied model and effort; its rank can rise for a reviewer. With
 `--reviewer`, Claude and opencode have a rank-1/medium minimum, and Codex uses its profile's
-minimum. This raises the resolved rank and effort after portable scoring, then reapplies the
-rank-3 clamp. Codex applies its retry floor after this step. Portable `rank` and `effort` still
-describe the original score. The human line uses the applied pair.
+minimum, or rank-1/medium with no profile. This raises the resolved rank and effort after
+portable scoring, then reapplies the rank-3 clamp. Codex applies its retry floor after this step.
+Portable `rank` and `effort` still describe the original score. The human line uses the applied
+pair.
 
 Attempt 4 or later returns `status: "stop"`, with `rank`, `effort`, `host`, and `dispatch` null.
 It keeps the digits, bias, sum, attempt, and original STOP line. STOP is resolved before host
@@ -144,7 +147,29 @@ trail without dispatching. JSON output requires `jq`; the human STOP line does n
 
 ## Codex model profiles
 
-Codex has **no bundled model defaults**. Setup supplies a profile with exactly four slots in
+The scorer selects one of two modes for Codex. The choice is deterministic:
+
+- The **profile mode** applies when `--profile` or `CAP_MODEL_PROFILE` is set (an empty value
+  too), or when the main checkout's `.celetis.yaml` has one or more `codexProfiles` entries. A
+  profile for another runtime identity stops with "missing profile"; the scorer does not change to
+  the parent-model mode.
+- The **parent-model mode** applies with no explicit profile and no `codexProfiles` entry (the
+  field is absent or `{}`). It still reads the main config: a failed Git lookup, a missing config,
+  or an invalid config exits 2.
+
+In the parent-model mode, each child keeps the parent's model and gets the effort of its rank.
+The scorer names no model ID and reads no runtime file, not even a supplied one. The applied
+effort follows the rules of a profile with four identical slots and a rank-1/medium reviewer
+minimum. `dispatch.model` and `dispatch.runtime` are null, and the human line shows `inherit`.
+For the digits `1 0 2 1 1 0` and the default bias 2, the result holds:
+
+```json
+{"host": "codex", "status": "ready",
+ "dispatch": {"rank": 1, "model": null, "effort": "xhigh", "runtime": null, "reviewer": false},
+ "line": "CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → inherit/xhigh"}
+```
+
+For model tiers, supply a profile; the plugin bundles none. A profile has exactly four slots in
 ascending capability order and a reviewer minimum. Repeated model IDs are allowed when the
 surface offers fewer distinct capability families; the four portable ranks remain distinct.
 Store the profile under `codexProfiles` in the main checkout's `.celetis.yaml`, keyed by the
@@ -165,13 +190,14 @@ For attempts 2 and 3, the scorer resolves earlier attempts with the same digits,
 runtime, and reviewer role. When consecutive attempts select the same model ID, the applied
 effort cannot decrease. This floor uses the previous applied effort, including reviewer floors
 and caps. It can retain max at rank 3 below Σ=12 when the same model already used max. Effort
-can stay at its maximum. Different model IDs keep the ordered ranks and portable effort
-selection, with the same reviewer rules. The final applied pair must be supported by the runtime.
+can stay at its maximum. The parent-model mode is one model, so this same-model floor applies to
+each retry. Different model IDs keep the ordered ranks and portable effort selection, with the
+same reviewer rules. In the profile mode, the final applied pair must be supported by the runtime.
 
-Pass `--runtime-models FILE` (or `CAP_RUNTIME_MODELS`) for the active dispatch surface. Its JSON
-object has `schema: 1` and a nonempty `runtime` identity. Use a surface and version or capability
-revision that identifies the actual dispatch environment. A repository profile with placeholder
-IDs is:
+In the profile mode, pass `--runtime-models FILE` (or `CAP_RUNTIME_MODELS`) for the active
+dispatch surface. Its JSON object has `schema: 1` and a nonempty `runtime` identity. Use a surface
+and version or capability revision that identifies the actual dispatch environment. A repository
+profile with placeholder IDs is:
 
 ```yaml
 codexProfiles:
@@ -182,8 +208,8 @@ codexProfiles:
 
 For standalone or one-run scoring, `--profile FILE` overrides `CAP_MODEL_PROFILE`, which
 overrides the main config profile. An explicitly supplied invalid or empty profile does not fall
-back to the config. The explicit file has one JSON object with the same `runtime` as the
-allowlist:
+back to the config or to the parent model. The explicit file has one JSON object with the same
+`runtime` as the allowlist:
 
 ```json
 {
@@ -224,6 +250,14 @@ implementation dispatch. The final applied pair must also be supported. Extra ru
 such as ultra do not extend the rubric. Missing files, malformed configuration, identity
 mismatches, and unavailable model/effort pairs exit 2 with a setup action and no result.
 
+With no profile, the scorer needs no runtime file:
+
+```bash
+scripts/celetis --agent codex capscore 1 0 2 1 1 0 --json
+```
+
+With a `codexProfiles` entry, supply the runtime allowlist:
+
 ```bash
 scripts/celetis --agent codex capscore 1 0 2 1 1 0 --json \
   --runtime-models /path/to/active-models.json
@@ -242,8 +276,9 @@ rescore the task because the host changed, and do not replace a written zero bia
 scorer's default 2. Record the new human line and `dispatch` pair in the execution record.
 
 For a Codex child, apply `dispatch.model` and `dispatch.effort` explicitly using the actual
-available spawn tool on an isolated child. A tool that permits overrides only without inherited
-history requires that isolated mode. If the tool cannot apply the pair, stop with a setup error.
+available spawn tool on an isolated child. With `dispatch.model: null`, send no `model` field and
+set the effort. A tool that permits overrides only without inherited history requires that
+isolated mode. If the tool cannot apply the pair, stop with a setup error.
 Use the available follow-up tool for the same child to repair or re-review: retain its identity
 and resolve the required pair again, including any gate-failure escalation. If that tool cannot
 apply a changed pair to the same identity, stop for setup with the failure trail. An unchanged

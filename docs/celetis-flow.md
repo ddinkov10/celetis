@@ -56,7 +56,8 @@ apart from a path that starts with `~/` or `/`.
   terminal you leave each session with `/exit`, and exact runner resume has no observed identity.
 - Superpowers installed and enabled on the selected host. The README holds its setup for each
   host. A missing required `superpowers:*` skill stops the lane.
-- For Codex children, the profile and current runtime allowlist from `docs/capability.md`.
+- For Codex children with model tiers, the profile and current runtime allowlist from
+  `docs/capability.md`. With no profile, each Codex child keeps the parent's model.
   The actual dispatch surface must support the resolved model and effort and the required
   same-child follow-up controls. CLI and desktop capabilities can differ.
 - The board has more requirements: "The board" names them.
@@ -318,7 +319,8 @@ of setup, `.claude/celetis-flow/wiring.json`, is no config: only `scripts/celeti
 - `gates` selects `me` or `auto` for each step ("Gates").
 - `landing` selects `pr` or `merge` for `scripts/celetis land` (`docs/issue-tracker.md`).
 - `board.port` selects the board port ("The board").
-- `codexProfiles.<runtime>` supplies the dispatch profile (`docs/capability.md`).
+- `codexProfiles.<runtime>` supplies an optional dispatch profile for model tiers
+  (`docs/capability.md`).
 
 A missing or invalid required config stops before branch or worktree changes, locks, runtime
 state, plugin updates, host sessions, or landing pushes. The runner checks the main config
