@@ -64,7 +64,7 @@ PATH="/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh \
   --output-dir <new-evidence-directory>
 ```
 
-The step suite has 24 cases. The native Claude custom suite has 24 cases. Capture the command,
+The step suite has 25 cases. The native Claude custom suite has 24 cases. Capture the command,
 client version, suite exit status, and complete stdout/stderr separately from their case files.
 The custom suite saves each exact prompt, tools, settings, checkout, plugin path, event stream,
 stderr, config source bytes and hashes, installed source hashes, runtime version, and client
