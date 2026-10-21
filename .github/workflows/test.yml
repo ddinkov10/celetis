@@ -7,7 +7,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      CELETIS_FLOW_SKIP_BOARD_CHECK: "1"
       DISABLE_UPDATES: "1"
     steps:
       - uses: actions/checkout@v4

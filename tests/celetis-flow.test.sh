@@ -304,12 +304,8 @@ plugin_list() { printf '[{"id":"celetis@celetis","scope":"user","enabled":true,"
 usage="usage: scripts/celetis celetis-flow [<issue number>...] | --board | --resume <issue number>, e.g. scripts/celetis celetis-flow 373 374; with no number, the automatic runner"
 field() { printf '%s' "$out" | jq -c ".issues[] | select(.number == $1) | $2"; }
 doc() { printf '%s' "$out" | jq -c "$1"; }
-# npx reads .npmrc and node_modules/.bin of the folder where it starts, and the test can start in a lane worktree.
 checked() {
-  [ "${CELETIS_FLOW_SKIP_BOARD_CHECK:-}" != 1 ] || return 0
-  if [ -n "${AGENT_BOARD:-}" ]; then printf '%s' "$out" | node "$AGENT_BOARD" check --stdin >"$tmp/check" 2>&1
-  else printf '%s' "$out" | ( cd "$tmp" && npx --yes 'github:ddinkov10/agent-board#v2.2.1' check --stdin ) >"$tmp/check" 2>&1; fi ||
-    fail "the --board document is not contract 1 (AGENT_BOARD names the entry file of a local agent-board checkout; else npx needs the network and the git credentials): $(cat "$tmp/check")"
+  printf '%s' "$out" | node "$root/board/cli.mjs" check --stdin >"$tmp/check" 2>&1 || fail "the --board document is not contract 1: $(cat "$tmp/check")"
 }
 
 group_config() {
@@ -894,29 +890,6 @@ group_board_live() {
 
 group_stale() {
   group_init stale
-  mkdir "$tmp/checker-bin"
-  cat >"$tmp/checker-bin/node" <<'EOF'
-#!/usr/bin/env bash
-echo "${0##*/} $*" >>"$CHECKER_CALLS"
-cat >/dev/null
-EOF
-  cp "$tmp/checker-bin/node" "$tmp/checker-bin/npx"
-  chmod +x "$tmp/checker-bin/node" "$tmp/checker-bin/npx"
-  checker_calls() {
-    : >"$tmp/checker-calls"
-    (
-      export PATH="$tmp/checker-bin:$PATH" CHECKER_CALLS="$tmp/checker-calls"
-      unset AGENT_BOARD CELETIS_FLOW_SKIP_BOARD_CHECK
-      [ $# -eq 0 ] || export "$@"
-      out='{}'
-      checked
-    )
-    cat "$tmp/checker-calls"
-  }
-  [ -z "$(checker_calls CELETIS_FLOW_SKIP_BOARD_CHECK=1 AGENT_BOARD=/board/cli.mjs)" ] || fail "CELETIS_FLOW_SKIP_BOARD_CHECK=1 must skip the checker"
-  [ "$(checker_calls AGENT_BOARD=/board/cli.mjs)" = "node /board/cli.mjs check --stdin" ] || fail "AGENT_BOARD must name the checker: [$(checker_calls AGENT_BOARD=/board/cli.mjs)]"
-  [ "$(checker_calls)" = "npx --yes github:ddinkov10/agent-board#v2.2.1 check --stdin" ] || fail "with neither variable the pinned npx command must run: [$(checker_calls)]"
-
   [ -z "$(git -C "$root" ls-files -- .claude/celetis-flow ':!.claude/celetis-flow/wiring.json')" ] || fail "the old tracked setup must be absent"
 
   stale="$tmp/stale-plugin/scripts"

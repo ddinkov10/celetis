@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
-if [ "${CELETIS_FLOW_SKIP_BOARD_CHECK:-}" = 1 ]; then
-  echo 'board-agent: SKIP (CELETIS_FLOW_SKIP_BOARD_CHECK=1)'
-  exit 0
-fi
 tmp=$(mktemp -d)
 export BOARD_TEST="$tmp/state" BOARD_PLUGIN="$tmp/installed package" BOARD_PRODUCT="$tmp/product checkout"
 export CLAUDE_CONFIG_DIR="$tmp/claude" CODEX_HOME="$tmp/codex"
@@ -12,22 +8,18 @@ export CELETIS_TEST_HERDR_FIXTURES="$root/tests/fixtures/herdr"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 unset CELETIS_AGENT HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID
 trap 'kill $(cat "$BOARD_TEST/pids" 2>/dev/null) 2>/dev/null || true; rm -rf "$tmp"' EXIT
-mkdir -p "$BOARD_TEST" "$BOARD_PLUGIN" "$BOARD_PRODUCT/scripts" "$tmp/bin"
+mkdir -p "$BOARD_TEST" "$BOARD_PLUGIN" "$BOARD_PRODUCT/scripts" "$tmp/bin" "$tmp/stub"
 BOARD_PRODUCT=$(cd "$BOARD_PRODUCT" && pwd -P)
-board=${AGENT_BOARD:-}
-if [ -z "$board" ]; then
-  (cd "$tmp" && npm pack --pack-destination "$tmp" 'github:ddinkov10/agent-board#v2.2.1') >"$tmp/package-name"
-  tar -xzf "$tmp/$(tail -1 "$tmp/package-name")" -C "$tmp"
-  board="$tmp/package/cli.mjs"
-fi
-cp -R "$root/scripts" "$root/.claude-plugin" "$BOARD_PLUGIN/"
+cp -R "$root/scripts" "$root/.claude-plugin" "$root/board" "$BOARD_PLUGIN/"
+board="$BOARD_PLUGIN/board/cli.mjs"
 mkdir -p "$BOARD_PLUGIN/skills/guide"
 echo fixture >"$BOARD_PLUGIN/skills/guide/SKILL.md"
 echo fixture >"$BOARD_PLUGIN/step-prompt.md"
 cp "$root/scripts/celetis" "$BOARD_PRODUCT/scripts/celetis"
 printf 'landing: pr\nhost: claude\n' >"$BOARD_PRODUCT/.celetis.yaml"
-cat >"$tmp/bin/npx" <<'EOF'
+cat >"$tmp/stub/node" <<'EOF'
 #!/bin/bash
+printf '%s\n' "$@" >"$BOARD_TEST/board-argv"
 cat >"$BOARD_TEST/board-input.json"
 EOF
 cat >"$tmp/bin/gh" <<'EOF'
@@ -123,7 +115,7 @@ case "$1 $2" in
   *) exit 1 ;;
 esac
 EOF
-chmod +x "$tmp/bin/"*
+chmod +x "$tmp/bin/"* "$tmp/stub/node"
 for command in bash jq yq git dirname mkdir cat mktemp mkfifo rm sleep mv ps touch perl date tr grep sed; do
   ln -s "$(command -v "$command")" "$tmp/bin/$command"
 done
@@ -132,7 +124,11 @@ git init -q "$BOARD_PRODUCT"
 git -C "$BOARD_PRODUCT" add .
 git -C "$BOARD_PRODUCT" commit -qm fixture
 git -C "$BOARD_PRODUCT" config celetis-flow.agent claude
-(cd "$BOARD_PRODUCT" && PATH="$tmp/bin" /bin/bash "$root/scripts/board.sh")
+(cd "$BOARD_PRODUCT" && PATH="$tmp/stub:$tmp/bin" /bin/bash "$BOARD_PLUGIN/scripts/board.sh")
+[ "$(cat "$BOARD_TEST/board-argv")" = "$board"$'\n--config-stdin' ] || {
+  echo "board-agent: FAIL: the adapter did not start $board: $(cat "$BOARD_TEST/board-argv")" >&2
+  exit 1
+}
 jq -nc '[range(6;10) | {number:.,title:"Fixture issue",html_url:("https://example.test/issues/"+tostring),state:"open",labels:[{name:"enhancement"}],body:"Spec: fixture",comments:0,updated_at:"2026-10-01T00:00:00Z",closed_at:null}]' >"$BOARD_TEST/issues.json"
 cat >"$tmp/test.mjs" <<'EOF'
 import assert from 'node:assert/strict'

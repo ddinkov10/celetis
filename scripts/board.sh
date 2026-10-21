@@ -1,7 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 [ $# -eq 0 ] || { echo 'usage: scripts/celetis board' >&2; exit 2; }
-source "$(cd "$(dirname "$0")" && pwd)/celetis"
+plugin=$(cd "$(dirname "$0")/.." && pwd)
+source "$plugin/scripts/celetis"
+clean= rest=$PATH:
+while [ -n "$rest" ]; do
+  entry=${rest%%:*} rest=${rest#*:}
+  [[ $entry =~ node_modules/\.bin/*$ ]] || clean=${clean:+$clean:}$entry
+done
+PATH=$clean
+command -v node >/dev/null || {
+  echo 'celetis-board: node is not on PATH; the board needs Node 22.18, or Node 24.2 or later' >&2
+  exit 1
+}
+[ -f "$plugin/board/cli.mjs" ] || {
+  printf 'celetis-board: the plugin has no board/cli.mjs: %s; reinstall the plugin\n' "$plugin" >&2
+  exit 1
+}
 main=$(celetis_config_main)
 config=$(celetis_config_read "$main")
 checkout=$(git rev-parse --show-toplevel)
@@ -15,4 +30,4 @@ printf '%s\n' "$config" | jq -c '{
   run:["scripts/celetis","--agent","{agent}","celetis-flow","{n}"],
   resume:["scripts/celetis","celetis-flow","--resume","{n}"],
   port:(.board.port // 4403)
-}' | npx --yes 'github:ddinkov10/agent-board#v2.2.1' --config-stdin
+}' | node "$plugin/board/cli.mjs" --config-stdin
