@@ -627,6 +627,9 @@ group_checkout() {
   rm "$repo/new.txt"
 }
 
+lock_free() {
+  "$CELETIS_FLOW_TEST_PERL" -MFcntl=:flock -e 'open my $lock, ">>", $ARGV[0] or die $!; flock($lock, LOCK_EX | LOCK_NB) or exit 1' "$CLAUDE_CONFIG_DIR/celetis-update.lock"
+}
 group_update_lock() {
   group_init update_lock
   reset; issue 7 OPEN enhancement "Spec: x"
@@ -658,10 +661,10 @@ group_update_lock() {
   update_child=$(cat "$S/plugin-child")
   cancel_start=$SECONDS
   kill -TERM "$flow_pid"; wait "$flow_pid" 2>/dev/null || true
+  until lock_free || [ "$((SECONDS - cancel_start))" -gt 5 ]; do /bin/sleep 0.05; done
+  lock_free && [ "$((SECONDS - cancel_start))" -le 5 ] || fail "an interrupted update took more than 5 seconds to release its lock"
   rm "$S/plugin-hang-marketplace"
   start_flow 7
-  await_count plugin-calls 2
-  [ "$((SECONDS - cancel_start))" -le 5 ] || fail "an interrupted update took more than 5 seconds to release its lock"
   end_flow
   [ "$code" -eq 0 ] && [ "$(count claude-calls)" -eq 1 ] || fail "a runner exit must stop its update and release the shared lock: $code [$err]"
   ! kill -0 "$update_pid" 2>/dev/null || fail "an interrupted runner left its update alive"

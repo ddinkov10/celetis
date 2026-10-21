@@ -85,7 +85,7 @@ mkdir -p "$CLAUDE_CONFIG_DIR/projects/fixture"
 jq -nc --arg id "$id" --arg cwd "$PWD" --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{type:"user",sessionId:$id,cwd:$cwd,timestamp:$timestamp,message:{role:"user",content:"fixture"}}' >"$CLAUDE_CONFIG_DIR/projects/fixture/$id.jsonl"
 touch "$S/live"
 record="$(git rev-parse --git-common-dir)/celetis-flow/sessions/$n.json"
-for attempt in {1..100}; do
+for attempt in {1..600}; do
   if jq -e --arg id "$id" '.session_id == $id' "$record" >/dev/null 2>&1; then
     rm "$S/live"
     exit 0
@@ -110,10 +110,11 @@ case "$1 $2" in
   'tab rename') echo '{"result":{}}' ;;
   'pane run')
     printf '%s\n' "$4" >>"$S/commands"
-    echo "$$" >>"$S/pids"
     cd "$BOARD_PRODUCT"
     export HERDR_ENV=1 HERDR_PANE_ID=w1:p1 HERDR_TAB_ID=w1:t1
-    /bin/bash -c "$4" >>"$S/run-output" 2>&1 || { cat "$S/run-output" >&2; exit 1; }
+    rm -f "$S/ran"
+    ( /bin/bash -c "$4" >>"$S/run-output" 2>&1; echo "$?" >"$S/ran.tmp"; mv "$S/ran.tmp" "$S/ran" ) </dev/null >/dev/null 2>&1 &
+    echo "$!" >>"$S/pids"
     echo '{"result":{}}' ;;
   'agent get')
     [ -f "$S/live" ] || exit 1
@@ -162,6 +163,15 @@ try {
     return { status: response.status, body: await response.json() }
   }
   const ok = async (path, body) => assert.deepEqual(await post(path, body), { status: 200, body: { ok: true } })
+  const launched = async (path, body) => {
+    await ok(path, body)
+    for (let i = 0; i < 1200; i++) {
+      const code = await readFile(join(state, 'ran'), 'utf8').catch(() => null)
+      if (code !== null) return assert.equal(code.trim(), '0', await readFile(join(state, 'run-output'), 'utf8'))
+      await new Promise(done => setTimeout(done, 50))
+    }
+    assert.fail(`the ${path} command did not end in 60 seconds`)
+  }
   const refuseDefault = async agent => assert.deepEqual(await post('agent', { agent }), {
     status: 409,
     body: { error: 'The producer controls the default agent. Change it in the producer configuration.' }
@@ -193,7 +203,7 @@ try {
   assert.deepEqual(await calls(), initialCalls, 'a refused default must start no agent')
   assert.equal(await readFile(join(state, 'commands'), 'utf8').catch(() => ''), '', 'a refused default must open no command')
   assert.equal(git('status', '--porcelain'), '')
-  await ok('run', { number: 6 })
+  await launched('run', { number: 6 })
   assert.equal((await calls()).at(-1).host, 'claude', 'an unqualified Run must keep the YAML default after refusal')
   assert.deepEqual(await readFile(join(main, '.celetis.yaml')), yaml)
   assert.equal(localConfig(), before)
@@ -202,10 +212,10 @@ try {
   git('commit', '-qm', 'fixture Codex default')
   await ok('refresh')
   assert.equal((await producer()).defaultAgent, 'codex')
-  await ok('run', { number: 7, agent: 'claude' })
+  await launched('run', { number: 7, agent: 'claude' })
   assert.equal((await calls()).at(-1).host, 'claude')
   assert.equal(localConfig(), before, 'Run must not change any local Git setting')
-  await ok('run', { number: 8 })
+  await launched('run', { number: 8 })
   assert.equal((await calls()).at(-1).host, 'codex')
   assert.equal(localConfig(), before)
   const saved = JSON.parse(await readFile(join(main, '.git/celetis-flow/sessions/8.json'), 'utf8'))
@@ -223,7 +233,7 @@ try {
   await ok('refresh')
   assert.equal((await producer()).defaultAgent, 'claude')
   time += 31_000
-  await ok('resume', { number: 8 })
+  await launched('resume', { number: 8 })
   assert.deepEqual((await calls()).at(-1), { host: 'codex', cwd: main, args: ['resume', '--no-daemon', saved.session_id] })
   assert.equal(preference(), 'claude')
   const started = (await calls()).length
