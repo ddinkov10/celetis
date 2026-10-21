@@ -246,11 +246,18 @@ git commit -qam stdin
 git checkout -q master
 before=$(setup_runs)
 emptysetup=$(wt 26) || fail "empty setup string broke the worktree"
-[ -f "$(marker_of "$emptysetup")" ] || fail "empty setup was not marked done"
+[ ! -f "$(marker_of "$emptysetup")" ] || fail "empty setup was marked done"
 nosetup=$(wt 27) || fail "branch with no setup field not made"
 [ "$nosetup" = "$main/.claude/worktrees/27-nosetup" ] || fail "branch with no setup: wrong path: $nosetup"
-[ -f "$(marker_of "$nosetup")" ] || fail "branch with no setup not marked done"
+[ ! -f "$(marker_of "$nosetup")" ] || fail "branch with no setup was marked done"
 [ "$(setup_runs)" -eq "$before" ] || fail "absent or empty setup ran a script"
+cp "$tmp/base-config" "$nosetup/$setup"
+git -C "$nosetup" commit -qam "merge a script"
+before=$(setup_runs)
+[ "$(wt 27)" = "$nosetup" ] || fail "re-entry of a lane with a later script returned another path"
+[ "$(setup_runs)" -eq $((before + 1)) ] && [ -f "$(marker_of "$nosetup")" ] || fail "a later script did not run once"
+wt 27 >/dev/null
+[ "$(setup_runs)" -eq $((before + 1)) ] || fail "a marked lane ran the later script again"
 export SETUP_STDIN="$tmp/setup.stdin"
 stdin_lane=$(printf 'inherited input\n' | wt 30) || fail "setup could not read inherited stdin"
 [ "$(cat "$SETUP_STDIN")" = 'inherited input' ] || fail "setup stdin was replaced by script text"

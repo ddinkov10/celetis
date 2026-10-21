@@ -31,7 +31,8 @@ apart from a path that starts with `~/` or `/`.
 ## Requirements
 
 - macOS or Linux, with bash 3.2 or later. There is no native Windows runner.
-- The selected host CLI (`claude` or `codex`), `gh` (logged in), `jq`, Mike Farah yq
+- The selected host CLI (`claude` 2.1.299 or later, or `codex` 0.162.1 or later; the README gives
+  the reason for each), `gh` (logged in), `jq`, Mike Farah yq
   `>=4.54.1,<5`, and `git` 2.31 or later on `PATH`. See `docs/configuration.md` for the pinned
   parser installation. When `gh` or `git` is missing, the script names it and exits 1. The runner also needs Perl 5.14 or later on `PATH`;
   its update helper uses only the standard library. The launcher needs the selected host and `jq` to find
@@ -341,9 +342,12 @@ An omitted or empty setup runs no script.
 A failed setup or invalid new lane config prints `worktree setup failed:`, removes a new
 worktree and a branch created by the command, and exits 1. An existing branch or worktree stays
 for repair and retry. The marker remains
-`<git dir of the worktree>/celetis-flow-setup-done`. The command marks only success. It runs setup
-again in an unmarked lane. A marked lane still needs valid config, but does not run setup again.
-Reading config in another command never executes setup.
+`<git dir of the worktree>/celetis-flow-setup-done`. The command writes it only after a script that
+is not empty succeeded. With an empty or missing `worktreeSetup`, it writes no marker. It runs
+setup again in an unmarked lane, so a script that a merge of the trunk brings runs at the next
+entry. A marked lane still needs valid config, but does not run setup again. A lane that has a
+marker keeps it; `scripts/celetis setup lane <path>` runs the script there. Reading config in
+another command never executes setup.
 
 **A custom part.** `custom.<skill>` in the active checkout's `.celetis.yaml` holds an
 addition to that skill's procedure, for example a check on a real device after the build.

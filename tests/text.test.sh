@@ -228,6 +228,14 @@ for contract in 'After Host entry succeeds' 'If entry stops' 'conditional comman
   grep -qF -- "$contract" skills/guide/SKILL.md || fail "guide must gate goal advice on successful entry: $contract"
 done
 grep -qF 'Do not read a `.git` directory' docs/hosts/codex.md || fail 'Codex metadata must branch before reading .git'
+for contract in 'multi_agent_v1.spawn_agent' 'fork_context: false' 'multi_agent_v1.send_input' 'codex debug models' 'tool search' 'collaboration.followup_task'; do
+  grep -qF -- "$contract" docs/hosts/codex.md || fail "Codex dispatch must cover both tool sets: $contract"
+done
+grep -qF 'not in the environment of a Bash tool command' docs/hosts/claude.md ||
+  fail 'Claude host must say that the Bash tool has no CLAUDE_PLUGIN_ROOT'
+for contract in 'Claude Code 2.1.299 or later' 'Codex CLI 0.162.1 or later'; do
+  grep -qF -- "$contract" README.md || fail "README must name the minimum host version: $contract"
+done
 host_leaks=$(search -E '\$ARGUMENTS|CLAUDE_PLUGIN_ROOT|EnterWorktree|ExitWorktree|\(Skill tool\)|scratchpad directory' -- skills step-prompt.md)
 [ -z "$host_leaks" ] || fail "a native host assumption outside the host references:" "$host_leaks$nl"
 for skill in $human; do
