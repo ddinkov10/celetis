@@ -1,4 +1,4 @@
-host: codex
+host: claude
 landing: pr
 board:
   port: 4404

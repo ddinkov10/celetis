@@ -7,7 +7,7 @@ mapping root. Comments are allowed.
 This repository uses:
 
 ```yaml
-host: codex
+host: claude
 landing: pr
 board:
   port: 4404
