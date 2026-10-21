@@ -307,12 +307,12 @@ uses a short-lived app-server connection and `skills/list`, with no thread or mo
 Missing, disabled, malformed, or ambiguous installation data stops lookup. Do not use a
 marketplace source checkout in place of the returned installation.
 
-Before Codex child work, supply the four-slot profile and reviewer minimum in
+With no profile, each Codex child keeps the parent's model and gets the effort of its rank. This
+needs no setup. For model tiers, supply the four-slot profile and reviewer minimum in
 `docs/capability.md`, "Codex model profiles". Obtain the model IDs and efforts from the active
 dispatch surface. Store its profile under `codexProfiles` in the main config and pass the current
-runtime allowlist to each scorer call. There is no
-shipped Codex model default. A CLI catalog does not establish desktop dispatch support. A missing
-pair or a tool that cannot apply the required pair stops the dependent work.
+runtime allowlist to each scorer call. A CLI catalog does not establish desktop dispatch support.
+A missing pair or a tool that cannot apply the required pair stops the dependent work.
 
 For herdr, run `herdr integration status` in the same host configuration used by the runner.
 Use `herdr integration install codex` for the Codex integration; it honors `CODEX_HOME`.
@@ -337,7 +337,7 @@ changes no field that is there. Each other field stays by hand.
 | `gates` | A mapping from the seven step names to `me` or `auto` | Each omitted step is `me` |
 | `worktreeSetup` | One Bash script for a lane, for example dependency installation and copying ignored files | No setup |
 | `board.port` | The board port ("The agent board") | 4403 |
-| `codexProfiles.<runtime>` | Four ordered model slots and the reviewer minimum for that dispatch surface | Configured Codex dispatch stops |
+| `codexProfiles.<runtime>` | Four ordered model slots and the reviewer minimum for that dispatch surface | Each Codex child keeps the parent's model |
 | `custom.<skill>` | An addition to the skill procedure | No addition |
 
 - **Operational settings** come from the main checkout, including when a command starts in a
@@ -647,7 +647,7 @@ and board form. Every skill call adds `--agent claude` or `--agent codex` before
 | `scripts/celetis land <n> '<subject>'` | Lands the change of the issue by the `landing` field of `.celetis.yaml`. It is the one landing path of an agent |
 | `scripts/celetis next-step <n> \| --open \| --json` | The resolver: the next step of one issue, of each open issue, or the rows for the board |
 | `scripts/celetis board` | Starts released agent-board v2.2.1 from the main YAML config; takes no arguments |
-| `scripts/celetis capscore J V B N S X` | Resolves the six digits. `--json` gives portable scores and the host pair; Codex selects its main config profile by live runtime identity and needs `--runtime-models` |
+| `scripts/celetis capscore J V B N S X` | Resolves the six digits. `--json` gives portable scores and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null |
 | `scripts/celetis celetis-flow [<n>...] \| --board \| --resume <n>` | The runner: the next step of each number, or the automatic runner with no number. `--board` prints the data of the board, and `--resume` opens the session of a step with no progress again |
 | `scripts/celetis root` | Prints the install folder of the plugin. The runner uses it after an update |
 | `scripts/celetis setup check \| write ... \| try ... \| try --remove \| lane <path> \| push` | The deterministic part of `/celetis:setup`: the checks, the write of the wiring, the test lane (`try` makes it and runs the worktree setup there, and `try --remove` removes it), the run of the worktree setup in a lane that exists (`lane`), and the commit with the push. The first run in a project calls the launcher of the plugin, because the project has no launcher yet |

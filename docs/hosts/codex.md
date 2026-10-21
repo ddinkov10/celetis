@@ -88,10 +88,18 @@ lane through `worktree`; no new app worktree is needed.
 ## Dispatch
 
 Inspect the active surface's spawn and follow-up schemas and supported model/effort pairs before
-dispatch. Desktop and CLI catalogs can differ. Refresh the runtime allowlist from this same
-surface and validate the main checkout's `codexProfiles` entry as
-[capability binding](../capability.md) specifies. Every scorer call supplies the host and active
-runtime evidence explicitly:
+dispatch. Desktop and CLI catalogs can differ. Read `codexProfiles` in the `.celetis.yaml` of the
+main checkout, recorded from the Git common directory. When that field has an entry, or with an
+explicit profile, refresh the runtime allowlist from this same surface and pass it with
+`--runtime-models`. With neither, each child keeps the parent's model, and the scorer reads no
+runtime file. [Capability binding](../capability.md) specifies both modes. Every scorer call
+supplies the host explicitly:
+
+```bash
+scripts/celetis --agent codex capscore J V B N S X --bias BIAS --attempt N --json
+```
+
+With a profile, the call also supplies the active runtime evidence:
 
 ```bash
 scripts/celetis --agent codex capscore J V B N S X --bias BIAS --attempt N --json \
@@ -104,13 +112,14 @@ For standalone scoring outside a configured repository, also pass `--profile
 Add `--reviewer` for review dispatches, including the task reviewer, builder check, and final
 review. Parse `status` first: `stop` dispatches nothing. On `ready`, record `line`, `dispatch`,
 the actual spawn arguments and returned child identity in the execution record. Apply the
-scorer's resolved reviewer minimum; the profile owns that minimum.
+scorer's resolved reviewer minimum. The profile owns that minimum; with no profile, it is
+rank 1/`medium`.
 
-Create a child with `dispatch.model` and `dispatch.effort` explicitly set in the actual tool's
-fields, in an isolated context. Codex selects one of two tool sets for each session: v2 when the
-`multi_agent_v2` feature is on, else the `multi_agent_version` of the session model in
-`codex debug models`, else v1 when the `multi_agent` feature is on. The session keeps that set,
-and a child inherits it. An old resumed or forked thread with no recorded set gets v1.
+Create a child in an isolated context. Set `dispatch.effort` explicitly in the actual tool's
+fields, and set `dispatch.model` when it is not null. Codex selects one of two tool sets for each
+session: v2 when the `multi_agent_v2` feature is on, else the `multi_agent_version` of the session
+model in `codex debug models`, else v1 when the `multi_agent` feature is on. The session keeps that
+set, and a child inherits it. An old resumed or forked thread with no recorded set gets v1.
 
 - In the v1 set, the tools are in the `multi_agent_v1` namespace. The
   `multi_agent_v1.spawn_agent` fields are `model`, `reasoning_effort`, and `fork_context: false`.
@@ -119,6 +128,11 @@ and a child inherits it. An old resumed or forked thread with no recorded set ge
   stops dispatch.
 - In the v2 set, the default namespace is `collaboration`. The `collaboration.spawn_agent`
   fields are `task_name`, `model`, `reasoning_effort`, and `fork_turns: "none"`.
+
+When `dispatch.model` is null (`line` shows `inherit`), send no `model` field and set
+`reasoning_effort` to `dispatch.effort`. The child then gets `[agents].default_subagent_model`
+when the user set it, else the parent's current model. Codex checks the effort against that
+model; a refused effort is a setup stop. Do not lower the effort or try another value.
 
 Keep the parent model unchanged. Give the child the exact lane path, relevant project
 instructions, its task text (not the whole plan), constraints and external facts, required
