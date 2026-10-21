@@ -201,8 +201,8 @@ below shows the current form that it writes. Where a part stays by hand, its sec
 - After the push step, setup lists each lane worktree that exists and offers to run the script
   there with `scripts/celetis setup lane <path>`. It does this also after a no or a failed push,
   and when no file changed. A lane branch with an older `.gitignore` can then show the new
-  environment as untracked, and the resolver stops its issue: a merge of the trunk into that
-  branch brings the ignore lines.
+  environment as untracked, and the resolver stops its issue: after the wiring is on the trunk, a
+  merge of the trunk into that branch brings the ignore lines.
 
 ### Claude permissions: `.claude/settings.json`
 
@@ -624,7 +624,7 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | **Helpers** | [`/celetis:prototype`](skills/prototype/SKILL.md) | Builds throwaway code that answers a design question: a logic demo in one HTML file, or UI variants on one route |
 | | [`/celetis:writing-for-agents`](skills/writing-for-agents/SKILL.md) | The reference for a document that an agent reads: a skill, or an `AGENTS.md` |
 | | [`/celetis:guide`](skills/guide/SKILL.md) | Says which command fits a goal. Only you can start it |
-| | [`/celetis:setup`](skills/setup/SKILL.md) | Writes the wiring of a product project in its main checkout, and commits and pushes it after your yes. Only you can start it |
+| | [`/celetis:setup`](skills/setup/SKILL.md) | Proposes and tests the worktree setup of a product project, writes the wiring in its main checkout, and commits and pushes the wiring after your yes. Only you can start it |
 
 Two documents of the plugin are not skills: `docs/capability.md`, the rubric of the capability
 score, and `docs/docs-lookup.md`, the lookup of the external facts.

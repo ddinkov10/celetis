@@ -806,6 +806,11 @@ CWD=$proj/sub run write --hosts codex --landing pr --setup-file rel.sh >/dev/nul
 bytes_are $'host: codex\nlanding: pr\nworktreeSetup: |\n  echo hi\n' .celetis.yaml
 commit_all wiring
 CWD=$proj/sub LABELS= stops "setup: cannot read $proj/sub/missing.sh" write --hosts codex --landing pr --setup-file missing.sh
+for file in 'Z:/missing/x' 'Z:\missing\x'; do
+  for option in --setup-file --baseline-file; do
+    CWD=$proj/sub LABELS= stops "setup: cannot read $file" write --hosts codex --landing pr "$option" "$file"
+  done
+done
 
 no_add='setup: cannot add worktreeSetup to .celetis.yaml; add it by hand first'
 new_project setupcrlf
@@ -815,7 +820,7 @@ LABELS= stops "$no_add" write --hosts codex --landing pr --setup-file "$tmp/setu
 [ ! -s "$LABEL_LOG" ] || fail "a CRLF setup file left a label: $(cat "$LABEL_LOG")"
 clean_tree "a CRLF setup file left a file"
 printf '\tset -e\necho hi\n' >"$tmp/setuptab.sh"
-LABELS= stops "$no_add" write --hosts codex --landing pr --setup-file "$tmp/setuptab.sh"
+LABELS= stops_after 'invalid YAML' "$no_add" write --hosts codex --landing pr --setup-file "$tmp/setuptab.sh"
 clean_tree "a setup file with a tab in its first line left a file"
 printf 'host: codex\nlanding: pr\n' >"$proj/.celetis.yaml"
 commit_all product
@@ -826,7 +831,7 @@ clean_tree "a CRLF setup file left a file in a config"
 new_project setupend
 printf 'host: codex\nlanding: pr\n...\n' >"$proj/.celetis.yaml"
 commit_all product
-LABELS= stops "$no_add" write --hosts codex --landing pr --setup-file "$tmp/setup1.sh"
+LABELS= stops_after 'invalid YAML' "$no_add" write --hosts codex --landing pr --setup-file "$tmp/setup1.sh"
 [ ! -s "$LABEL_LOG" ] || fail "a config with an end marker left a label: $(cat "$LABEL_LOG")"
 clean_tree "a config with an end marker left a file"
 [ "$(code_of write --hosts codex --landing pr)" -eq 0 ] || fail "write refused a config with an end marker and no setup file"
@@ -839,7 +844,7 @@ LABELS= stops "$no_add" write --hosts claude --landing pr --setup-file "$tmp/set
 clean_tree "a block that changes a value left a file"
 
 new_project setupnoyq
-LABELS= PATH="$tmp/noyq:$PATH" stops "$no_add" write --hosts codex --landing pr --setup-file "$tmp/setup1.sh"
+LABELS= PATH="$tmp/noyq:$PATH" stops_after 'cannot read the yq version' "$no_add" write --hosts codex --landing pr --setup-file "$tmp/setup1.sh"
 clean_tree "a block check with no yq left a file"
 
 new_project ignorelines
@@ -1185,8 +1190,9 @@ grep -qx script-stdout "$tmp/err" || fail "the setup output of lane is not on st
 [ -f "$(marker_of "$lane")" ] || fail "lane left no marker"
 rm "$(marker_of "$lane")"
 CWD=$proj run lane .claude/worktrees/1-x/sub 2>"$tmp/err" >/dev/null || fail "lane failed on a subfolder of a lane: $(cat "$tmp/err")"
+run lane "$lane/sub" 2>"$tmp/err" >/dev/null || fail "lane failed on the absolute path of a subfolder of a lane: $(cat "$tmp/err")"
 CWD=$proj/sub run lane ../.claude/worktrees/1-x 2>"$tmp/err" >/dev/null || fail "lane failed on a relative path from a subfolder: $(cat "$tmp/err")"
-[ "$(cat "$SETUP_LOG")" = "$lane|$top"$'\n'"$lane|$top"$'\n'"$lane|$top" ] || fail "lane did not run in the lane of a relative path: $(cat "$SETUP_LOG")"
+[ "$(cat "$SETUP_LOG")" = "$lane|$top"$'\n'"$lane|$top"$'\n'"$lane|$top"$'\n'"$lane|$top" ] || fail "lane did not run in the lane of a relative path: $(cat "$SETUP_LOG")"
 [ -f "$(marker_of "$lane")" ] || fail "lane left no marker for a relative path"
 [ "$(gh_calls)" -eq "$calls" ] || fail "lane called gh: $(tail -n +$((calls + 1)) "$GH_LOG")"
 [ -z "$(git -C "$lane" status --porcelain)" ] || fail "lane changed the files of the lane"
@@ -1195,7 +1201,7 @@ no_lane="is no lane worktree in .claude/worktrees/ of this repository"
 for path in "$proj" "$proj/sub" "$proj/.claude/worktrees/setup-try" "$tmp/lane-outside" "$tmp/elsewhere" "$tmp/missing" "$tmp/clean" "$proj/app.txt" "$proj/.claude/worktrees"; do
   stops "setup: $path $no_lane" lane "$path"
 done
-[ "$(wc -l <"$SETUP_LOG" | tr -d ' ')" -eq 3 ] || fail "a stop of lane ran the setup"
+[ "$(wc -l <"$SETUP_LOG" | tr -d ' ')" -eq 4 ] || fail "a stop of lane ran the setup"
 
 CWD=$lane stops "setup: run setup in the main checkout, not in a linked worktree: $lane" lane "$lane"
 

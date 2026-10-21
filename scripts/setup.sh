@@ -103,8 +103,8 @@ write_args() {
     shift 2
   done
   # The files are read after run_checks changes the directory.
-  case $setup_file in '' | /*) ;; *) setup_file=$PWD/$setup_file ;; esac
-  case $baseline_file in '' | /*) ;; *) baseline_file=$PWD/$baseline_file ;; esac
+  case $setup_file in '' | /* | [A-Za-z]:/* | [A-Za-z]:\\*) ;; *) setup_file=$PWD/$setup_file ;; esac
+  case $baseline_file in '' | /* | [A-Za-z]:/* | [A-Za-z]:\\*) ;; *) baseline_file=$PWD/$baseline_file ;; esac
   case $hosts in
     claude | codex) [ -z "$given" ] || usage; default=$hosts ;;
     claude,codex) [ "$given" = claude ] || [ "$given" = codex ] || usage; default=$given; hosts='claude codex' ;;
@@ -405,7 +405,7 @@ config_plan() {
   fi
   [ -s "$scratch/config.block" ] || return 0
   cat "$scratch/config.block" >>"$scratch/yaml/$config"
-  next=$(celetis_config_read "$scratch/yaml" 2>/dev/null) &&
+  next=$(celetis_config_read "$scratch/yaml") &&
     jq -e --rawfile want "$setup_file" '.worktreeSetup == $want' <<<"$next" >/dev/null &&
     [ "$(jq -S 'del(.worktreeSetup)' <<<"$next")" = "$(jq -S --arg host "$default" --arg landing "$landing" '.host //= $host | .landing //= $landing' "$scratch/config.json")" ] ||
     die "cannot add worktreeSetup to $config; add it by hand first"
@@ -630,10 +630,9 @@ try_remove() {
 }
 
 lane() {
-  local given=$1 path json
-  case $given in /*) ;; *) given=$PWD/$given ;; esac
+  local path json
+  path=$(git -C "$1" rev-parse --show-toplevel 2>/dev/null) || path=
   check_main
-  path=$(git -C "$given" rev-parse --show-toplevel 2>/dev/null) || path=
   [[ $path == "$top/.claude/worktrees/"* ]] && [ "$path" != "$test_lane" ] && is_worktree "$path" ||
     die "$1 is no lane worktree in .claude/worktrees/ of this repository"
   json=$(celetis_config_read "$top") || die "cannot read $config; fix the cause above first"
