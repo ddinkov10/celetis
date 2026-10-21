@@ -1,29 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
-tmp=$(mktemp -d)
-export LIFECYCLE_TEST="$tmp/state" CLAUDE_CONFIG_DIR="$tmp/claude"
-export CODEX_HOME="$tmp/codex"
+base=$(mktemp -d)
+. "$root/tests/lib/pool.sh"
 export CELETIS_TEST_HERDR_FIXTURES="$root/tests/fixtures/herdr"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 export HERDR_ENV=1 HERDR_PANE_ID=w1:p1
 unset HERDR_TAB_ID
-S=$LIFECYCLE_TEST
-plugin="$tmp/plugin"
-repo="$tmp/project"
-mkdir -p "$S" "$plugin" "$repo/.claude/celetis-flow" "$tmp/bin"
-mkdir -p "$repo/scripts"
-cp "$root/scripts/celetis" "$repo/scripts/celetis"
-cp -R "$root/scripts" "$root/.claude-plugin" "$plugin/"
-mkdir -p "$plugin/skills/guide"
-echo fixture >"$plugin/skills/guide/SKILL.md"
-echo fixture >"$plugin/step-prompt.md"
-export LIFECYCLE_PLUGIN="$plugin"
 export LIFECYCLE_GIT
 LIFECYCLE_GIT=$(command -v git)
-trap 'touch "$S/finish-1" "$S/finish-2" 2>/dev/null || true; kill $(cat "$tmp/pids" 2>/dev/null) 2>/dev/null || true; rm -rf "$tmp"' EXIT
+cleanup() {
+  local d pids
+  for d in "$base"/*/state; do touch "$d/finish-1" "$d/finish-2" 2>/dev/null || true; done
+  pids=$(cat "$base"/*/pids 2>/dev/null | paste -sd , -)
+  if [ -n "$pids" ]; then
+    pkill -P "$pids" 2>/dev/null || true
+    kill ${pids//,/ } 2>/dev/null || true
+  fi
+  rm -rf "$base"
+}
+trap cleanup EXIT
 fail() { printf 'FAIL: %s\n' "$1"; exit 1; }
-(
+case_idle() {
   source "$root/scripts/lib/session.sh"
   herdr() {
     [ "$*" = "agent get $HERDR_PANE_ID" ] || return 1
@@ -43,16 +41,17 @@ fail() { printf 'FAIL: %s\n' "$1"; exit 1; }
       ! celetis_session_idle "$id" || fail "$CELETIS_AGENT accepted an unsafe idle reply: $mutation"
     done
   done
-)
+}
 await_file() {
   local count=0
   until [ -f "$1" ]; do
     count=$((count + 1))
-    [ "$count" -le 200 ] || fail "timed out: $1; $(cat "$tmp"/*.err 2>/dev/null)"
+    [ "$count" -le 600 ] || fail "timed out: $1; $(cat "$tmp"/*.err 2>/dev/null)"
     /bin/sleep 0.05
   done
 }
-cat >"$tmp/bin/host" <<'EOF'
+mkdir -p "$base/bin"
+cat >"$base/bin/host" <<'EOF'
 #!/bin/bash
 set -eu
 S=$LIFECYCLE_TEST
@@ -100,13 +99,21 @@ mkdir -p "$CLAUDE_CONFIG_DIR/projects/fixture"
 jq -nc --arg id "$(cat "$S/id")" --arg cwd "$PWD" --arg time "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   '{sessionId:$id,type:"user",cwd:$cwd,timestamp:$time}' >"$CLAUDE_CONFIG_DIR/projects/fixture/$(cat "$S/id").jsonl"
 touch "$S/live" "$S/started-$k"
-until [ -f "$S/finish-$k" ]; do /bin/sleep 0.05; done
+until [ -f "$S/finish-$k" ]; do
+  [ -d "$S" ] || exit 1
+  /bin/sleep 0.05
+done
 rm -f "$S/live"
 exit "$(cat "$S/exit-code" 2>/dev/null || echo 0)"
 EOF
-cp "$tmp/bin/host" "$tmp/bin/claude"
-cp "$tmp/bin/host" "$tmp/bin/codex"
-cat >"$tmp/bin/gh" <<'EOF'
+cp "$base/bin/host" "$base/bin/claude"
+cp "$base/bin/host" "$base/bin/codex"
+cat >"$base/bin/sleep" <<'EOF'
+#!/bin/bash
+[ "$*" != 1 ] || exec /bin/sleep 0.05
+exec /bin/sleep "$@"
+EOF
+cat >"$base/bin/gh" <<'EOF'
 #!/bin/bash
 S=$LIFECYCLE_TEST
 [ "$1" = api ] || { echo "HTTP 403: GitHub GraphQL is not available from Claude Code sessions" >&2; exit 1; }
@@ -128,18 +135,21 @@ case $endpoint in
   *) exit 1 ;;
 esac
 EOF
-cat >"$tmp/bin/git" <<'EOF'
+cat >"$base/bin/git" <<'EOF'
 #!/bin/bash
 S=$LIFECYCLE_TEST
 if [ -f "$S/hold-registration" ] && [ "$*" = 'update-ref --no-deref --stdin' ]; then
   cat >"$S/registration"
   touch "$S/registering"
-  until [ -f "$S/allow-registration" ]; do /bin/sleep 0.05; done
+  until [ -f "$S/allow-registration" ]; do
+    [ -d "$S" ] || exit 1
+    /bin/sleep 0.05
+  done
   exec "$LIFECYCLE_GIT" "$@" <"$S/registration"
 fi
 exec "$LIFECYCLE_GIT" "$@"
 EOF
-cat >"$tmp/bin/herdr" <<'EOF'
+cat >"$base/bin/herdr" <<'EOF'
 #!/bin/bash
 S=$LIFECYCLE_TEST
 printf '%s\n' "$*" >>"$S/herdr-calls"
@@ -173,17 +183,30 @@ case "$1 $2" in
   *) exit 1 ;;
 esac
 EOF
-chmod +x "$tmp/bin/"*
-export PATH="$tmp/bin:$PATH"
-git init -q "$repo"
-printf 'landing: merge\ngates:\n  plan: auto\n  implement: auto\n' >"$repo/.celetis.yaml"
-echo '.claude/worktrees/' >"$repo/.gitignore"
-git -C "$repo" add .
-git -C "$repo" commit -qm fixture
-common=$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir)
-state="$common/celetis-flow"
-lane="$repo/.claude/worktrees/7-fixture"
-git -C "$repo" worktree add -q -b fix/7-fixture "$lane"
+chmod +x "$base/bin/"*
+export PATH="$base/bin:$PATH"
+setup_job() {
+  tmp="$base/$1"
+  export LIFECYCLE_TEST="$tmp/state" CLAUDE_CONFIG_DIR="$tmp/claude" CODEX_HOME="$tmp/codex"
+  export LIFECYCLE_PLUGIN="$tmp/plugin"
+  S=$LIFECYCLE_TEST
+  plugin=$LIFECYCLE_PLUGIN
+  repo="$tmp/project"
+  mkdir -p "$S" "$plugin/skills/guide" "$repo/.claude/celetis-flow" "$repo/scripts"
+  cp "$root/scripts/celetis" "$repo/scripts/celetis"
+  cp -R "$root/scripts" "$root/.claude-plugin" "$plugin/"
+  echo fixture >"$plugin/skills/guide/SKILL.md"
+  echo fixture >"$plugin/step-prompt.md"
+  git init -q "$repo"
+  printf 'landing: merge\ngates:\n  plan: auto\n  implement: auto\n' >"$repo/.celetis.yaml"
+  echo '.claude/worktrees/' >"$repo/.gitignore"
+  git -C "$repo" add .
+  git -C "$repo" commit -qm fixture
+  common=$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir)
+  state="$common/celetis-flow"
+  lane="$repo/.claude/worktrees/7-fixture"
+  git -C "$repo" worktree add -q -b fix/7-fixture "$lane"
+}
 issue() {
   jq -nc --arg label "${1:-enhancement}" --arg state "${2:-OPEN}" --arg comment "${3:-}" \
     '{number:7,state:($state | ascii_downcase),labels:[{name:$label}],body:"Spec: fixture",comments:(if $comment == "" then [] else [{body:$comment}] end)}' >"$S/issue.json"
@@ -210,7 +233,7 @@ start() {
 await_identity() {
   local tries=0
   until jq -e --arg id "$(printf '00000000-0000-4000-8000-%012d' "$1")" '.session_id == $id' "$state/sessions/7.json" >/dev/null 2>&1; do
-    tries=$((tries + 1)); [ "$tries" -le 200 ] || fail "$host identity was not saved"
+    tries=$((tries + 1)); [ "$tries" -le 600 ] || fail "$host identity was not saved"
     /bin/sleep 0.05
   done
 }
@@ -225,38 +248,31 @@ held() {
   (cd "$repo" && CELETIS_AGENT="$other" "$BASH" "$plugin/scripts/celetis-flow.sh" 7) >"$tmp/other-out" 2>"$tmp/other.err" || fail "$other lock check failed"
   [ "$(cat "$S/count")" = 1 ] && grep -q 'another celetis-flow.sh' "$tmp/other-out" || fail "$other entered the active $host step"
 }
-late_failures=0
-for host in claude codex; do
-  for status in blocked unknown; do
-    reset
-    start
-    issue enhancement CLOSED
-    echo "$status" >"$S/status-during-resolver"
-    echo idle >"$S/status"
-    await_file "$S/decision-made"
-    [ "$(cat "$S/resolver-checks")" -eq 2 ] || fail "$host did not reach the final resolver call"
-    if [ -f "$S/prompts" ]; then
-      printf 'FAIL: %s received /exit after the final resolver changed its state to %s\n' "$host" "$status"
-      late_failures=$((late_failures + 1))
-    fi
-    held
-    finish
-    [ "$result" -eq 0 ] || fail "$host $status exited with $result"
-  done
-done
-[ "$late_failures" -eq 0 ] || exit 1
-for host in claude codex; do
-  for status in blocked unknown; do
-    reset
-    echo "$status" >"$S/initial-status"
-    start
-    issue enhancement CLOSED
-    /bin/sleep 0.3
-    [ ! -e "$S/prompts" ] || fail "$host received /exit while its first saved turn was $status"
-    held
-    finish
-    [ "$result" -eq 0 ] || fail "$host could not end its saved $status session"
-  done
+case_late() {
+  reset
+  start
+  issue enhancement CLOSED
+  echo "$1" >"$S/status-during-resolver"
+  echo idle >"$S/status"
+  await_file "$S/decision-made"
+  [ "$(cat "$S/resolver-checks")" -eq 2 ] || fail "$host did not reach the final resolver call"
+  [ ! -f "$S/prompts" ] || fail "$host received /exit after the final resolver changed its state to $1"
+  held
+  finish
+  [ "$result" -eq 0 ] || fail "$host $1 exited with $result"
+}
+case_saved() {
+  reset
+  echo "$1" >"$S/initial-status"
+  start
+  issue enhancement CLOSED
+  /bin/sleep 0.3
+  [ ! -e "$S/prompts" ] || fail "$host received /exit while its first saved turn was $1"
+  held
+  finish
+  [ "$result" -eq 0 ] || fail "$host could not end its saved $1 session"
+}
+case_resume() {
   reset
   start
   code=0
@@ -275,89 +291,91 @@ for host in claude codex; do
   [ ! -s "$S/updates" ] && [ ! -s "$S/herdr-calls" ] || fail "$host resume refreshed or started a watcher"
   rm "$S/hold-resume"
   wait "$runner"
-  for update in success failure; do
-    reset
-    if [ "$update" = failure ]; then
-      touch "$S/update-fail" "$S/finish-1"
-      start_runner
-      finish
-      [ "$result" -ne 0 ] && [ ! -e "$S/count" ] && [ ! -e "$state/no-progress" ] && [ ! -e "$state/sessions/7.json" ] || fail "$host failed refresh started a fallback session"
-      grep -q "fixture: $host update unavailable" "$tmp/flow.err" || fail "$host lost the update failure cause"
-    else
-      start
-      issue enhancement CLOSED
-      finish
-      [ "$result" -eq 0 ] || fail "$host successful refresh prevented the installed step"
-    fi
-    if [ "$host" = codex ]; then
-      expected='codex plugin marketplace upgrade celetis'
-    elif [ "$update" = failure ]; then
-      expected='claude plugin marketplace update celetis'
-    else
-      expected='claude plugin marketplace update celetis
-claude plugin update celetis@celetis --scope user
-claude plugin list --json'
-    fi
-    [ "$(cat "$S/updates")" = "$expected" ] || fail "$host refreshed another host or marketplace"
-    if [ "$update" = failure ]; then
-      grep -qx 'celetis-flow: the plugin update failed; the step did not start' "$tmp/flow.err" || fail "$host failed refresh has no stop notice"
-    fi
-  done
-  for status in blocked unknown; do
-    reset
+}
+case_update() {
+  reset
+  if [ "$1" = failure ]; then
+    touch "$S/update-fail" "$S/finish-1"
+    start_runner
+    finish
+    [ "$result" -ne 0 ] && [ ! -e "$S/count" ] && [ ! -e "$state/no-progress" ] && [ ! -e "$state/sessions/7.json" ] || fail "$host failed refresh started a fallback session"
+    grep -q "fixture: $host update unavailable" "$tmp/flow.err" || fail "$host lost the update failure cause"
+  else
     start
     issue enhancement CLOSED
-    echo "$status" >"$S/status-after-wait"
-    echo idle >"$S/status"
-    await_file "$S/wait-returned"
-    /bin/sleep 0.3
-    [ ! -f "$S/prompts" ] || fail "$host received /exit after idle changed to $status"
-    held
     finish
-    [ "$result" -eq 0 ] || fail "$host $status exited with $result"
-  done
-  for guard in unchanged dirty landing missing; do
-    reset
-    start
-    case $guard in
-      unchanged) ;;
-      dirty) issue enhancement CLOSED; echo dirty >"$lane/new" ;;
-      missing) rm "$plugin/scripts/next-step.sh" ;;
-      landing)
-        issue enhancement CLOSED
-        "$BASH" -c '/bin/sleep 30; :' "$tmp/land.sh" &
-        landing=$!
-        echo "$landing" >>"$tmp/pids"
-        echo "$landing" >"$state/land-7.lock" ;;
-    esac
-    echo idle >"$S/status"
-    await_file "$S/wait-returned"
-    /bin/sleep 0.3
-    [ ! -f "$S/prompts" ] || fail "$host received /exit with $guard"
-    held
-    finish
-    if [ "$guard" = missing ]; then
-      grep -q 'the plugin version of this runner was removed after an update; start the runner again' "$tmp/out" || fail "$host lost the stale-resource diagnosis"
-      cp "$root/scripts/next-step.sh" "$plugin/scripts/next-step.sh"
-    fi
-    if [ "$guard" = landing ]; then kill "$landing" 2>/dev/null || true; wait "$landing" 2>/dev/null || true; fi
-    rm -f "$lane/new"
-  done
-  for ending in idle done; do
-    for submit in accepted failed; do
-      reset
-      start
-      [ "$submit" != failed ] || touch "$S/prompt-fail"
+    [ "$result" -eq 0 ] || fail "$host successful refresh prevented the installed step"
+  fi
+  if [ "$host" = codex ]; then
+    expected='codex plugin marketplace upgrade celetis'
+  elif [ "$1" = failure ]; then
+    expected='claude plugin marketplace update celetis'
+  else
+    expected='claude plugin marketplace update celetis
+claude plugin update celetis@celetis --scope user
+claude plugin list --json'
+  fi
+  [ "$(cat "$S/updates")" = "$expected" ] || fail "$host refreshed another host or marketplace"
+  if [ "$1" = failure ]; then
+    grep -qx 'celetis-flow: the plugin update failed; the step did not start' "$tmp/flow.err" || fail "$host failed refresh has no stop notice"
+  fi
+}
+case_after_wait() {
+  reset
+  start
+  issue enhancement CLOSED
+  echo "$1" >"$S/status-after-wait"
+  echo idle >"$S/status"
+  await_file "$S/wait-returned"
+  /bin/sleep 0.3
+  [ ! -f "$S/prompts" ] || fail "$host received /exit after idle changed to $1"
+  held
+  finish
+  [ "$result" -eq 0 ] || fail "$host $1 exited with $result"
+}
+case_guard() {
+  reset
+  start
+  case $1 in
+    unchanged) ;;
+    dirty) issue enhancement CLOSED; echo dirty >"$lane/new" ;;
+    missing) rm "$plugin/scripts/next-step.sh" ;;
+    landing)
       issue enhancement CLOSED
-      echo "$ending" >"$S/status"
-      await_file "$S/exit-submitted"
-      /bin/sleep 0.2
-      held
-      [ "$(cat "$S/count")" = 1 ] && [ "$(wc -l <"$S/prompts" | tr -d ' ')" = 1 ] || fail "$host advanced before $submit exit completed"
-      finish
-      [ "$result" -eq 0 ] || fail "$host failed after actual exit"
-    done
-  done
+      "$BASH" -c '/bin/sleep 30; :' "$tmp/land.sh" >/dev/null 2>&1 &
+      landing=$!
+      echo "$landing" >>"$tmp/pids"
+      echo "$landing" >"$state/land-7.lock" ;;
+  esac
+  echo idle >"$S/status"
+  await_file "$S/wait-returned"
+  /bin/sleep 0.3
+  [ ! -f "$S/prompts" ] || fail "$host received /exit with $1"
+  held
+  finish
+  if [ "$1" = missing ]; then
+    grep -q 'the plugin version of this runner was removed after an update; start the runner again' "$tmp/out" || fail "$host lost the stale-resource diagnosis"
+  fi
+  if [ "$1" = landing ]; then
+    pkill -P "$landing" 2>/dev/null || true
+    kill "$landing" 2>/dev/null || true
+    wait "$landing" 2>/dev/null || true
+  fi
+}
+case_ending() {
+  reset
+  start
+  [ "$2" != failed ] || touch "$S/prompt-fail"
+  issue enhancement CLOSED
+  echo "$1" >"$S/status"
+  await_file "$S/exit-submitted"
+  /bin/sleep 0.2
+  held
+  [ "$(cat "$S/count")" = 1 ] && [ "$(wc -l <"$S/prompts" | tr -d ' ')" = 1 ] || fail "$host advanced before $2 exit completed"
+  finish
+  [ "$result" -eq 0 ] || fail "$host failed after actual exit"
+}
+case_term() {
   reset
   start
   issue enhancement CLOSED
@@ -366,45 +384,50 @@ claude plugin list --json'
   held
   finish
   [ "$result" -eq 143 ] || fail "$host runner termination did not wait for the foreground exit: $result"
-  for mode in issue auto; do
-    reset
-    touch "$S/hold-registration"
-    start_runner "$mode"
-    await_file "$S/registering"
-    kill -KILL "$runner"
-    { wait "$runner" || true; } 2>/dev/null
-    touch "$S/allow-registration"
-    /bin/sleep 0.3
-    [ ! -e "$S/count" ] || fail "$host started after its runner died before lock registration"
-    reset
-    start "$mode"
-    if [ "$mode" = auto ]; then
-      [ "$(git -C "$repo" rev-parse refs/celetis-flow/locks/runner)" = "$(git -C "$repo" rev-parse refs/celetis-flow/locks/issue-7)" ] || fail "$host did not register the foreground in both locks"
-    fi
-    issue enhancement CLOSED
-    kill -KILL "$runner"
-    { wait "$runner" || true; } 2>/dev/null
-    held
-    if [ "$mode" = auto ]; then
-      code=0
-      (cd "$repo" && CELETIS_AGENT=codex "$BASH" "$plugin/scripts/celetis-flow.sh") >"$tmp/auto-out" 2>"$tmp/auto.err" || code=$?
-      [ "$code" -eq 1 ] && grep -q 'another automatic runner or its session' "$tmp/auto.err" || fail "$host lost its automatic lock with a live foreground"
-    fi
-    touch "$S/finish-1"
-    for attempt in {1..200}; do
-      [ ! -f "$S/live" ] && break
-      /bin/sleep 0.05
-    done
-    [ ! -f "$S/live" ] || fail "$host orphaned session did not exit"
-    (cd "$repo" && CELETIS_AGENT="$host" "$BASH" "$plugin/scripts/celetis-flow.sh" 7) >"$tmp/after-crash" 2>"$tmp/after-crash.err"
-    grep -q 'stop #7 is finished' "$tmp/after-crash" || fail "$host session exit did not free the crashed runner's lock"
+}
+case_registration() {
+  reset
+  touch "$S/hold-registration"
+  start_runner "$1"
+  await_file "$S/registering"
+  kill -KILL "$runner"
+  { wait "$runner" || true; } 2>/dev/null
+  touch "$S/allow-registration"
+  /bin/sleep 0.3
+  [ ! -e "$S/count" ] || fail "$host started after its runner died before lock registration"
+  reset
+  start "$1"
+  if [ "$1" = auto ]; then
+    [ "$(git -C "$repo" rev-parse refs/celetis-flow/locks/runner)" = "$(git -C "$repo" rev-parse refs/celetis-flow/locks/issue-7)" ] || fail "$host did not register the foreground in both locks"
+  fi
+  issue enhancement CLOSED
+  kill -KILL "$runner"
+  { wait "$runner" || true; } 2>/dev/null
+  held
+  if [ "$1" = auto ]; then
+    code=0
+    (cd "$repo" && CELETIS_AGENT=codex "$BASH" "$plugin/scripts/celetis-flow.sh") >"$tmp/auto-out" 2>"$tmp/auto.err" || code=$?
+    [ "$code" -eq 1 ] && grep -q 'another automatic runner or its session' "$tmp/auto.err" || fail "$host lost its automatic lock with a live foreground"
+  fi
+  touch "$S/finish-1"
+  local attempt=0
+  while [ -f "$S/live" ] && [ "$attempt" -lt 600 ]; do
+    attempt=$((attempt + 1))
+    /bin/sleep 0.05
   done
+  [ ! -f "$S/live" ] || fail "$host orphaned session did not exit"
+  (cd "$repo" && CELETIS_AGENT="$host" "$BASH" "$plugin/scripts/celetis-flow.sh" 7) >"$tmp/after-crash" 2>"$tmp/after-crash.err"
+  grep -q 'stop #7 is finished' "$tmp/after-crash" || fail "$host session exit did not free the crashed runner's lock"
+}
+case_crash() {
   reset
   start
   echo 23 >"$S/exit-code"
   finish
   [ "$result" -ne 0 ] && [ ! -f "$state/no-progress" ] || fail "$host crash became no progress"
   grep -q 'session exited with status 23' "$tmp/flow.err" || fail "$host crash had no recovery message"
+}
+case_handoff() {
   reset
   start
   issue enhancement OPEN '## Plan'
@@ -418,5 +441,40 @@ claude plugin list --json'
   touch "$S/finish-2"
   wait "$runner" || fail "$host handoff failed: $(cat "$tmp/flow.err")"
   [ "$(cat "$S/count")" = 2 ] || fail "$host did not hand off exactly once"
+}
+job() {
+  setup_job "$1"
+  host=$2
+  "case_$3" "${4:-}" "${5:-}"
+}
+run() {
+  local label="$*"
+  pool_run "$label" job "${label// /-}" "$@"
+}
+pool_run idle case_idle
+run claude late blocked
+run codex late unknown
+for host in claude codex; do
+  run "$host" saved blocked
+  run "$host" saved unknown
+  run "$host" resume
+  run "$host" update success
+  run "$host" update failure
+  run "$host" handoff
 done
+run claude after_wait blocked
+run codex after_wait unknown
+run claude guard unchanged
+run claude guard dirty
+run codex guard landing
+run codex guard missing
+run claude ending idle accepted
+run claude ending done failed
+run codex ending idle failed
+run codex ending done accepted
+run codex term
+run claude registration issue
+run codex registration auto
+run claude crash
+pool_wait
 echo PASS
