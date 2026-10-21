@@ -166,6 +166,21 @@ below shows the current form that it writes. Where a part stays by hand, its sec
   Setup stops on each tracker other than GitHub. With two hosts, the session also asks for the
   default host. For the landing and the default host, the session proposes the value of
   `.celetis.yaml` when the file has one.
+- After the landing, when `.celetis.yaml` has no `worktreeSetup`, the session proposes the
+  worktree setup: one script from the manifests, the lockfiles, the version pins, and the CI
+  workflows of the project. It shows the script, each ignored file that the script copies, each
+  credential path that it does not copy, each tool that each machine needs, and the checks that
+  the test runs. A `worktreeSetup` that is there, also an empty one, stays as it is, and setup
+  tests it.
+- Before any write, `scripts/celetis setup try` runs the script in a test lane,
+  `.claude/worktrees/setup-try`: a detached worktree at the local trunk plus a commit of the
+  wiring, which is the tree of a new lane after the push. There, the session runs the checks of
+  the project, and it checks the import of the package of the project, a clean `git status`, and
+  the hooks. Then it removes the test lane. A dirty path becomes a proposed `.gitignore` line. A
+  failure of the base becomes a proposed section `## Baseline of the checks` for `AGENTS.md`,
+  when `AGENTS.md` states no baseline rule. A proposed script that fails its test goes back to
+  the proposal, not to the write. Setup installs no tool and changes no hook: the report names
+  each missing tool and each hook that skips its checks in the test lane (ADR-0018).
 - Setup writes the part of a host only when you choose that host: `.claude/settings.json` and the
   line `@AGENTS.md` for Claude, and `.codex/rules/celetis.rules` for Codex.
 - Setup owns the launcher and `.codex/rules/celetis.rules` whole, and it writes each one again at
@@ -178,8 +193,16 @@ below shows the current form that it writes. Where a part stays by hand, its sec
   when your answer is the intended value.
 - Setup records each file and each entry that it owns in `.claude/celetis-flow/wiring.json`, so
   that a later run can tell them from the entries of the product.
+- The write adds only the parts that you approved: the script as `worktreeSetup`, the ignore
+  lines, and the baseline section. These three parts are product parts: setup writes each one
+  only when it is missing, and the record does not list it.
 - Setup shows the diff, and it commits and pushes the wiring only after your yes ("The wiring on
   the trunk"). It makes the labels at the write, before that question, so a no keeps them.
+- After the push step, setup lists each lane worktree that exists and offers to run the script
+  there with `scripts/celetis setup lane <path>`. It does this also after a no or a failed push,
+  and when no file changed. A lane branch with an older `.gitignore` can then show the new
+  environment as untracked, and the resolver stops its issue: a merge of the trunk into that
+  branch brings the ignore lines.
 
 ### Claude permissions: `.claude/settings.json`
 
@@ -301,8 +324,12 @@ a model session can start. The runner reports startup dialogs and leaves them fo
 Operational settings and setup are fields of `.celetis.yaml` (`docs/configuration.md`).
 Commands that need repository setup require this file and stop if it is missing or invalid.
 `/celetis:setup` makes the file with `host` and `landing` when there is none. It adds a missing
-`host` at the end of a valid file, or it stops when the file cannot take the line. It changes no
-field that is there. Each other field stays by hand.
+`host` at the end of a valid file, or it stops when the file cannot take the line. After your yes,
+it adds a missing `worktreeSetup` as a literal block at the end of the file; a new file holds
+`host`, `landing`, and then the block. The block must read back as the script, byte for byte, and
+each other value must stay the same. Else setup stops before any write, for example on a script
+with CRLF line endings or on a file with a `...` end marker: add the field by hand first. Setup
+changes no field that is there. Each other field stays by hand.
 
 | Field or file | What it holds | When omitted |
 |---|---|---|
@@ -473,8 +500,8 @@ has a separate acceptance result.
 
 The wiring must be on the trunk of `origin` before the first lane. A lane branch starts at the trunk
 of `origin`, so a file that is not there is in no lane worktree: the launcher, or `.celetis.yaml`,
-including a custom part. A file that git does not track also makes the main checkout dirty, and the
-resolver then stops each issue.
+including a custom part and the worktree setup. A file that git does not track also makes the main
+checkout dirty, and the resolver then stops each issue.
 
 Setup stops before any write when the index holds a staged change, or when a path that setup can
 write for either host has an uncommitted change. This includes each store file, also one that
@@ -623,7 +650,7 @@ and board form. Every skill call adds `--agent claude` or `--agent codex` before
 | `scripts/celetis capscore J V B N S X` | Resolves the six digits. `--json` gives portable scores and the host pair; Codex selects its main config profile by live runtime identity and needs `--runtime-models` |
 | `scripts/celetis celetis-flow [<n>...] \| --board \| --resume <n>` | The runner: the next step of each number, or the automatic runner with no number. `--board` prints the data of the board, and `--resume` opens the session of a step with no progress again |
 | `scripts/celetis root` | Prints the install folder of the plugin. The runner uses it after an update |
-| `scripts/celetis setup check \| write ... \| push` | The deterministic part of `/celetis:setup`: the checks, the write of the wiring, and the commit with the push. The first run in a project calls the launcher of the plugin, because the project has no launcher yet |
+| `scripts/celetis setup check \| write ... \| try ... \| try --remove \| lane <path> \| push` | The deterministic part of `/celetis:setup`: the checks, the write of the wiring, the test lane (`try` makes it and runs the worktree setup there, and `try --remove` removes it), the run of the worktree setup in a lane that exists (`lane`), and the commit with the push. The first run in a project calls the launcher of the plugin, because the project has no launcher yet |
 
 - The form has no `./`: the `allow` rule matches the text of the command.
 - Each sub-command gives the output and the exit code of its script.
