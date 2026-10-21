@@ -230,7 +230,7 @@ check() {
       rest=$(cat "$answer")
       rest=${rest//"$pull"/}
       rest=${rest//"$epic"/}
-      ! grep -qE '^[[:space:]]*[`$]?[[:space:]]*(git|cd) |git -C|&& git' <<<"$rest" ||
+      ! grep -qE '^[[:space:]]*(([-*+>]|[0-9]+[.)])[[:space:]]+)?[`$]?[[:space:]]*(git|cd) |git -C|&& git' <<<"$rest" ||
         what="$what, a command for the act of the maintainer"
     fi
     for s; do
