@@ -68,8 +68,8 @@ ADR-0016 limits required automation to the CLI hosts while keeping desktop invoc
 - `gh` (logged in), `jq`, Mike Farah's `yq` `>=4.54.1,<5`, `git` 2.31 or later,
   and Perl 5.14 or later on `PATH`.
   The runner uses only the standard library of Perl.
-- Git credentials for GitHub that need no prompt, an ssh key or a credential helper for https,
-  for the private plugin repository only.
+- Git credentials for GitHub that need no prompt, an ssh key or a credential helper for https: the
+  plugin repository is private.
 - Superpowers, installed and enabled on the selected host: the lanes call its `superpowers:*` skills.
 - herdr 0.9.3, for the step end of the runner and for the board. In another terminal the
   runner works too, but you leave each session with `/exit`.
