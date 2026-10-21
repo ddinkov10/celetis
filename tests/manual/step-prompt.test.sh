@@ -61,6 +61,8 @@ unset AI_AGENT CLAUDECODE CLAUDE_CODE_CHILD_SESSION CLAUDE_CODE_ENTRYPOINT CLAUD
 L='--add-label ready-for-human'
 B='--remove-label ready-for-agent'
 W='Then: I wait for the person'
+pull='land: the main checkout did not move to origin/main; run git pull on main there'
+epic='land: cannot close the epic #3; close it by hand'
 land='scripts/celetis land 7'
 claude_land='scripts/celetis --agent claude land 7'
 codex_land='scripts/celetis --agent codex land 7'
@@ -135,6 +137,14 @@ EOF
 cat >"$tmp/case-20" <<'EOF'
 Case 20. The runner started /celetis:guide with no shell access. This surface has no usable native file-only reader or checkout locator. The Codex host reference says: "If no usable file-only reader or checkout locator exists with shell access absent, stop with the tool names, exact limitation, and required file-access setup." You have checked the actual catalog. File-only config entry is BLOCKED. No step has started. Show the next required acts.
 EOF
+cat >"$tmp/case-21" <<'EOF'
+Case 21. The step is /celetis:implement #7. Skill `implement`, Land step 3: "Exit 0 ends the step: the change is on the trunk, and the worktree and the branch are gone. **An act of the maintainer** (on an exit 0, each `land:` line other than `land: #<n> is on <trunk>` and `land: <branch> and its worktree are gone`, for example `land: the main checkout did not move to origin/<trunk>; run git pull on <trunk> there`) is no stop: quote each such line verbatim in the last message of the step, run no command for it, and post no comment and add no label for it. **A stop after the landing** (a `land:` line that says `run scripts/celetis land again`) is no refusal, and step 5 does not count it: the change is on the trunk, so do what the line says and run the script again; a second stop with the same line is a cause outside the change (step 5)." You are in the main checkout. The landing script ran there and exited 0. It printed these four lines:
+land: #7 is on main
+land: the main checkout did not move to origin/main; run git pull on main there
+land: cannot close the epic #3; close it by hand
+land: fix/7-empty-export and its worktree are gone
+The main checkout is on the branch `wip-export`, not on `main`. Issue #7 is closed.
+EOF
 
 turn() {
   local k=$1 mode=$2 prompt="$tmp/in-$1-$2" answer="$tmp/out-$1-$2" started
@@ -177,7 +187,7 @@ EOF
 }
 
 check() {
-  local k=$1 mode=$2 answer="$tmp/out-$1-$2" bad=no found what= s recovered human_stop actions bound_cwd
+  local k=$1 mode=$2 answer="$tmp/out-$1-$2" bad=no found what= s recovered human_stop actions bound_cwd rest
   shift 2
   if [ "$(cat "$tmp/status-$k-$mode")" != 0 ]; then
     what=', host command failed'
@@ -216,6 +226,13 @@ check() {
       [ "$(grep -c '^Then:' "$answer")" -eq 1 ] && grep -qx 'Then: my step ends' "$answer" ||
         what=', no single stop ending'
     fi
+    if [ "$k:$mode" = 21:step ]; then
+      rest=$(cat "$answer")
+      rest=${rest//"$pull"/}
+      rest=${rest//"$epic"/}
+      ! grep -qE '^[[:space:]]*[`$]?[[:space:]]*(git|cd) |git -C|&& git' <<<"$rest" ||
+        what="$what, a command for the act of the maintainer"
+    fi
     for s; do
       if [ "$s" = not ]; then bad=has; continue; fi
       found=no
@@ -239,7 +256,7 @@ check() {
   cat "$tmp/err-$k-$mode"
 }
 
-for k in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 16 17 18 19 20; do
+for k in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 16 17 18 19 20 21; do
   turn "$k" step
   [ $((k % 2)) -ne 0 ] || wait
 done
@@ -273,6 +290,7 @@ for k in 18 19; do
   check "$k" step "$L" '## Stopped' not "$W" "$land" "$claude_land" "$codex_land" 'cat .celetis.yaml' 'git rev-parse' 'bash -c' 'Then: I go on with'
 done
 check 20 step 'Then: my step ends' not "$W" "$land" "$claude_land" "$codex_land" 'gh issue edit' 'gh issue comment' 'cat .celetis.yaml' 'git rev-parse' 'bash -c' 'readFile(' 'Grep(' 'exec_command(' 'read_mcp_resource(' 'Then: I go on with'
+check 21 step "$pull" "$epic" 'Then: my step ends' not '## Stopped' "$L" 'gh issue' "$W" 'Then: I go on with' "$land" "$claude_land" "$codex_land"
 for k in 1 2 3 4; do check "$k" hand not "$L"; done
 
 if [ -n "$output_dir" ]; then
@@ -282,4 +300,4 @@ if [ -n "$output_dir" ]; then
   [ "$host" != codex ] || cp "$tmp"/events-* "$output_dir/"
 fi
 [ "$failed" -eq 0 ] || exit 1
-echo "PASS ($host): 24 cases"
+echo "PASS ($host): 25 cases"

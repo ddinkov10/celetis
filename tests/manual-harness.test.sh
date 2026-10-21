@@ -36,6 +36,7 @@ if [ "$mode" = step ]; then
     13 | 16) out=$'gh issue edit 7 --add-label ready-for-human\nThen: my step ends' ;;
     12) out=$'gh issue edit 7 --add-label bug\nThen: my step ends' ;;
     14) out='Then: I go on with the repair and Verify loop' ;;
+    21) out=$'The landing is done. Run git pull on main in the main checkout yourself:\nland: the main checkout did not move to origin/main; run git pull on main there\nland: cannot close the epic #3; close it by hand\nThen: my step ends' ;;
   esac
   if [ "$k" = 4 ]; then
     case ${MANUAL_FAULT:-} in
@@ -93,6 +94,9 @@ case "$mode:$k:${MANUAL_FAULT:-}" in
   step:20:bash-tool-affirmative) out=${out//no \`Bash\` tool/a \`Bash\` tool} ;;
   step:20:bash-tool-contradictory) out="$out"$'\nThe `Bash` tool is available.' ;;
   step:20:bash-tool-continued-goal) out="$out"$'\nexec_command("cat .celetis.yaml")' ;;
+  step:21:landed-git) out="git pull --ff-only origin main"$'\n'"$out" ;;
+  step:21:landed-stop) out=$'## Stopped\nland: the main checkout did not move to origin/main; run git pull on main there\nland: cannot close the epic #3; close it by hand\ngh issue edit 7 --add-label ready-for-human\nThen: my step ends' ;;
+  step:21:landed-silent) out='Then: my step ends' ;;
 
   step:13:fenced-extra-action) out=$'```\ngh issue edit 7 --add-label ready-for-human\ngit apply /tmp/repair.patch\n```\nThen: my step ends' ;;
   step:13:bound-stop) out="cd '$MANUAL_BINDING_DIR' && $out" ;;
@@ -125,8 +129,8 @@ chmod +x "$tmp/bin/claude" "$tmp/bin/codex"
 fails=0
 for host in claude codex; do
   if PATH="$tmp/bin:$PATH" /bin/bash tests/manual/step-prompt.test.sh --agent "$host" >"$tmp/$host" 2>&1 &&
-      [ "$(grep -c '^PASS: case ' "$tmp/$host")" -eq 24 ]; then
-    echo "ok: $host runs all twenty-four scenarios"
+      [ "$(grep -c '^PASS: case ' "$tmp/$host")" -eq 25 ]; then
+    echo "ok: $host runs all twenty-five scenarios"
   else
     echo "FAIL: $host omitted or rejected a valid fixture"; cat "$tmp/$host"; fails=$((fails + 1))
   fi
@@ -177,7 +181,7 @@ for host in claude codex; do
           push @expected, "Check PRODUCT_AREA_21 before a landing.",
             "Wait for PRODUCT_SUBFOLDER_21 when approval is missing." if $nested;
           my @files = glob "$dir/received-*";
-          die "expected 24 prompts\n" unless @files == 24;
+          die "expected 25 prompts\n" unless @files == 25;
           push @files, "$dir/product-context.md";
           for my $file (@files) {
             open my $fh, "<", $file or die "$file: $!";
@@ -293,7 +297,7 @@ elif grep -q '^FAIL: case 13 step:' "$tmp/no-completion-land"; then
 else
   echo 'FAIL: missing-evidence scenario did not run'; cat "$tmp/no-completion-land"; fails=$((fails + 1))
 fi
-for pair in '13 step blocked-build-label' '13 step blocked-rebuild' '13 step blocked-work-ended' '13 step blocked-command-ended' '13 step blocked-continue' '13 step blocked-two-endings' '13 step fenced-extra-action' '14 step verify-land' '15 specify approval-publish' '16 step stale-completion-land' '17 step built-rebuild' '18 step invalid-config-continue' '18 step entry-setup' '19 step denied-entry-retry' '20 step no-shell-entry-fallback' '20 step no-shell-missing-limit' '20 step no-shell-missing-report' '20 step no-shell-two-endings' '20 step no-shell-continue' '20 step no-shell-missing-reader' '20 step no-shell-missing-locator' '20 step no-shell-missing-setup' '20 step no-shell-missing-shell' '20 step named-missing-reader' '20 step named-missing-locator' '20 step named-missing-setup' '20 step named-missing-shell' '20 step named-missing-report' '20 step inventory-missing-reader' '20 step inventory-missing-locator' '20 step setup-stop-missing-classification' '20 step setup-stop-missing-reader' '20 step setup-stop-missing-locator'; do
+for pair in '13 step blocked-build-label' '13 step blocked-rebuild' '13 step blocked-work-ended' '13 step blocked-command-ended' '13 step blocked-continue' '13 step blocked-two-endings' '13 step fenced-extra-action' '14 step verify-land' '15 specify approval-publish' '16 step stale-completion-land' '17 step built-rebuild' '18 step invalid-config-continue' '18 step entry-setup' '19 step denied-entry-retry' '20 step no-shell-entry-fallback' '20 step no-shell-missing-limit' '20 step no-shell-missing-report' '20 step no-shell-two-endings' '20 step no-shell-continue' '20 step no-shell-missing-reader' '20 step no-shell-missing-locator' '20 step no-shell-missing-setup' '20 step no-shell-missing-shell' '20 step named-missing-reader' '20 step named-missing-locator' '20 step named-missing-setup' '20 step named-missing-shell' '20 step named-missing-report' '20 step inventory-missing-reader' '20 step inventory-missing-locator' '20 step setup-stop-missing-classification' '20 step setup-stop-missing-reader' '20 step setup-stop-missing-locator' '21 step landed-git' '21 step landed-stop' '21 step landed-silent'; do
   set -- $pair
   if MANUAL_FAULT=$3 PATH="$tmp/bin:$PATH" /bin/bash tests/manual/step-prompt.test.sh --agent codex >"$tmp/$3" 2>&1; then
     echo "FAIL: accepted $3"; fails=$((fails + 1))
