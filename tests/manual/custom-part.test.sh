@@ -42,23 +42,22 @@ mkdir -p "$plugin" "$tmp/project/sub" "$tmp/outside" "$tmp/missing"
 cp -R "$root/skills" "$root/docs" "$root/scripts" "$root/.claude-plugin" "$root/hooks" "$plugin/"
 cp "$root/step-prompt.md" "$plugin/"
 cp -R "$root/tests/manual/native-observer" "$observer"
+selected() {
+  case " ${CUSTOM_PART_CASES:-$1} " in *" $1 "*) return 0 ;; esac
+  return 1
+}
 claude --version >"$tmp/version" 2>&1
 output_files+=("$tmp/version")
-: >"$tmp/plugin-sources"
-for source in docs/hosts/entry.md docs/hosts/claude.md docs/configuration.md \
-  skills/guide/SKILL.md skills/writing-for-agents/SKILL.md skills/lesson-review/SKILL.md skills/lesson/SKILL.md hooks/hooks.json hooks/entry.js; do
-  hash=$(shasum -a 256 <"$plugin/$source")
-  jq -cn --arg path "$plugin/$source" --arg source "$root/$source" --arg sha256 "${hash%% *}" \
-    '{path:$path,source:$source,sha256:$sha256}' >>"$tmp/plugin-sources"
-done
-plugin_sources=$(jq -s . "$tmp/plugin-sources")
-: >"$tmp/observer-sources"
-for source in .claude-plugin/plugin.json hooks/hooks.json hooks/register.js; do
-  hash=$(shasum -a 256 <"$observer/$source")
-  jq -cn --arg path "$observer/$source" --arg source "$root/tests/manual/native-observer/$source" --arg sha256 "${hash%% *}" \
-    '{path:$path,source:$source,sha256:$sha256}' >>"$tmp/observer-sources"
-done
-observer_sources=$(jq -s . "$tmp/observer-sources")
+sources() {
+  local base=$1 origin=$2
+  shift 2
+  (cd "$base" && shasum -a 256 "$@") | jq -Rsc --arg base "$base" --arg origin "$origin" '
+    [split("\n")[] | select(length > 0) | capture("^(?<sha256>[0-9a-f]{64}) [ *](?<file>.+)$") |
+      {path:($base + "/" + .file),source:($origin + "/" + .file),sha256}]'
+}
+plugin_sources=$(sources "$plugin" "$root" docs/hosts/entry.md docs/hosts/claude.md docs/configuration.md \
+  skills/guide/SKILL.md skills/writing-for-agents/SKILL.md skills/lesson-review/SKILL.md skills/lesson/SKILL.md hooks/hooks.json hooks/entry.js)
+observer_sources=$(sources "$observer" "$root/tests/manual/native-observer" .claude-plugin/plugin.json hooks/hooks.json hooks/register.js)
 git -C "$tmp/project" init -q
 git -C "$tmp/project" -c user.name=Test -c user.email=test@example.invalid commit -qm initial --allow-empty
 git -C "$tmp/project" worktree add -qb lane "$lane"
@@ -82,7 +81,7 @@ config "$tmp/project/sub" CUSTOM_FROM_SUBFOLDER
 config "$lane" CUSTOM_FROM_LANE
 for name in malformed duplicate-key wrong-type folded ambiguous unknown-field symlink missing-custom empty-custom empty-instruction handoff borrowed; do
   mkdir "$tmp/$name"
-  git -C "$tmp/$name" init -q
+  if selected "$name"; then git -C "$tmp/$name" init -q; fi
 done
 printf 'landing: pr\ncustom: [\n' >"$tmp/malformed/.celetis.yaml"
 printf 'landing: pr\ncustom:\n  guide: one\n  guide: two\n' >"$tmp/duplicate-key/.celetis.yaml"
@@ -112,6 +111,7 @@ EOF
 
 turn() {
   local name=$1 folder=$2 tools=$3 settings=$4 goal=$5 prompt=$5 checkout path source= hash= kind=missing git_kind=directory
+  selected "$name" || return 0
   [ "$name" = enter-worktree ] || prompt="$goal"$'\n\n'"$metadata_recording"
   output_files+=("$tmp/$name.input.json" "$tmp/$name.jsonl" "$tmp/$name.err" "$tmp/$name.status")
   checkout=$(git -C "$folder" rev-parse --show-toplevel 2>/dev/null || true)
@@ -235,6 +235,7 @@ PERL
 failed=0
 check() {
   local name=$1 marker=$2 checkout=${3:-} reads=${4:-1} answer good=yes markers status path entry_path field
+  case " ${CUSTOM_PART_CASES:-$name} " in *" $name "*) ;; *) return 0 ;; esac
   path=${checkout:+$checkout/.celetis.yaml}
   if [ ! -f "$tmp/$name.status" ]; then
     echo "ERROR: $name: missing client exit status"
@@ -553,4 +554,4 @@ for name in missing-custom empty-custom empty-instruction; do check "$name" '' "
 check handoff $'CUSTOM_FROM_ROOT\nCUSTOM_HANDOFF_WRITING' "$tmp/handoff" 2
 check borrowed $'CUSTOM_BORROWED_LESSON\nCUSTOM_BORROWED_REVIEW' "$tmp/borrowed" 2
 [ "$failed" -eq 0 ] || exit 1
-echo 'PASS: 24 native custom-entry cases'
+echo "PASS: ${CUSTOM_PART_CASES:-24 native custom-entry cases}"

@@ -2,6 +2,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 root=$PWD
+. "$root/tests/lib/pool.sh"
+unset CUSTOM_PART_CASES
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/bin"
@@ -275,223 +277,210 @@ jq -cn --arg path "$path" --arg answer "$answer" --arg entered "$entered" --arg 
 [ "${CUSTOM_FAULT:-}" != client-exit ] || exit 7
 MOCK
 chmod +x "$tmp/bin/claude"
-fails=0
-status=0
-CUSTOM_CALLS="$tmp/missing-config-calls" PATH="$tmp/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh --mcp-config obsolete >"$tmp/missing-config" 2>&1 || status=$?
-if [ "$status" -eq 2 ] && [ ! -f "$tmp/missing-config-calls" ] && grep -q '^usage:' "$tmp/missing-config"; then
-  echo 'ok: obsolete MCP option stops before a model client'
-else
-  echo 'FAIL: obsolete MCP option was accepted'; fails=$((fails + 1))
-fi
-if PATH="$tmp/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh --output-dir "$tmp/valid-evidence" >"$tmp/valid" 2>&1; then
-  echo 'ok: native custom-read fixtures pass'
-else
-  echo 'FAIL: rejected a valid custom-read fixture'; cat "$tmp/valid"; fails=$((fails + 1))
-fi
-if CUSTOM_METADATA_STYLE=path-map PATH="$tmp/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh >"$tmp/path-map" 2>&1; then
-  echo 'ok: exact path-to-kind metadata maps pass'
-else
-  echo 'FAIL: rejected exact path-to-kind metadata maps'; cat "$tmp/path-map"; fails=$((fails + 1))
-fi
-for style in relative relative-template relative-map path-object tuple; do
-  if CUSTOM_METADATA_STYLE=$style PATH="$tmp/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh >"$tmp/$style" 2>&1; then
-    echo "ok: bound $style metadata records pass"
+checker="$tmp/checker"
+sed -n '/^check() {$/,/^}$/p' tests/manual/custom-part.test.sh >"$checker"
+style_cases='no-shell worktree missing missing-lane symlink handoff enter-worktree denied-read'
+manual() {
+  PATH="$tmp/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh "$@"
+}
+passed() {
+  local log=$1 name
+  shift
+  sed '$d' "$log" >"$log.cases"
+  for name; do
+    grep -qx "PASS: $name" "$log.cases" || return 1
+  done
+}
+obsolete_option() {
+  local status=0
+  CUSTOM_CALLS="$tmp/missing-config-calls" manual --mcp-config obsolete >"$tmp/missing-config" 2>&1 || status=$?
+  if [ "$status" -eq 2 ] && [ ! -f "$tmp/missing-config-calls" ] && grep -q '^usage:' "$tmp/missing-config"; then
+    echo 'ok: obsolete MCP option stops before a model client'
   else
-    echo "FAIL: rejected bound $style metadata records"; cat "$tmp/$style"; fails=$((fails + 1))
+    echo 'FAIL: obsolete MCP option was accepted'; return 1
   fi
-done
-if CUSTOM_INVALID_STYLE=syntax PATH="$tmp/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh >"$tmp/syntax" 2>&1; then
-  echo 'ok: exact-path syntax error stops pass'
-else
-  echo 'FAIL: rejected syntax error stops'; cat "$tmp/syntax"; fails=$((fails + 1))
-fi
-streams=("$tmp/valid-evidence/"*.jsonl)
-if [ "${#streams[@]}" -eq 24 ] && [ -f "$tmp/valid-evidence/denied-read.input.json" ] &&
-    jq -e '.goal == "/celetis:guide see the next step of an issue" and
-      (.metadataRecording | startswith("For test evidence only, emit each actual lstat result")) and
-      .prompt == (.goal + "\n\n" + .metadataRecording) and
-      .tools == "Skill,Read,Glob,Grep" and (.settings.permissions.deny | length) == 1' \
-      "$tmp/valid-evidence/denied-read.input.json" >/dev/null &&
-    [ "$(cat "$tmp/valid-evidence/denied-read.status")" = 0 ]; then
-  echo 'ok: keeps the twenty-four case streams and denied-read inputs after PASS'
-else
-  echo 'FAIL: lost evidence after PASS'; fails=$((fails + 1))
-fi
-if jq -e '(.messages | length) == 2 and .messages[0].message.content == .goal and
-    (.messages[0].message.content | contains("Then wait for my guide invocation")) and
-    .messages[1].message.content == ("/celetis:guide see the next step of an issue\n\n" + .metadataRecording) and
-    (.metadataRecording | contains("CUSTOM_") or contains("Emit tool calls") or contains("/")) == false' "$tmp/valid-evidence/enter-worktree.input.json" >/dev/null &&
-    jq -se '[.[] | select(.type == "result")] as $turns | ($turns | length) == 2 and
-      ([$turns[].session_id] | unique | length) == 1' "$tmp/valid-evidence/enter-worktree.jsonl" >/dev/null; then
-  echo 'ok: worktree transition and direct skill selection use two user turns in one session'
-else
-  echo 'FAIL: worktree test did not preserve the two-turn native protocol'; fails=$((fails + 1))
-fi
-celetis_protocol_rc=0
-CUSTOM_FAULT=worktree-no-native-transition PATH="$tmp/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh --output-dir "$tmp/no-transition-evidence" >"$tmp/no-transition" 2>&1 || celetis_protocol_rc=$?
-if [ "$celetis_protocol_rc" -eq 2 ] && grep -q '^ERROR: enter-worktree: client exited with status 2$' "$tmp/no-transition" &&
-    [ "$(cat "$tmp/no-transition-evidence/enter-worktree.status")" = 2 ]; then
-  echo 'ok: missing native worktree transition stops the protocol'
-else
-  echo 'FAIL: missing native worktree transition did not stop the protocol'; fails=$((fails + 1))
-fi
-for fault in unrelated-block wrong-path missing-denial wrong-denial-id wrong-result-id missing-error read-succeeded later-read later-grep later-shell; do
-  if CUSTOM_FAULT=$fault PATH="$tmp/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh --output-dir "$tmp/$fault-evidence" >"$tmp/$fault" 2>&1; then
-    echo "FAIL: accepted $fault"; fails=$((fails + 1))
+}
+valid_run() {
+  if manual --output-dir "$tmp/valid-evidence" >"$tmp/valid" 2>&1; then
+    echo 'ok: native custom-read fixtures pass'
+  else
+    echo 'FAIL: rejected a valid custom-read fixture'; cat "$tmp/valid"; return 1
+  fi
+}
+style_run() {
+  local style=$1 pass=$2 fail=$3
+  if CUSTOM_PART_CASES=$style_cases CUSTOM_METADATA_STYLE=$style manual >"$tmp/$style" 2>&1 &&
+      passed "$tmp/$style" $style_cases; then
+    echo "ok: $pass"
+  else
+    echo "FAIL: $fail"; cat "$tmp/$style"; return 1
+  fi
+}
+syntax_run() {
+  if CUSTOM_PART_CASES=malformed CUSTOM_INVALID_STYLE=syntax manual >"$tmp/syntax" 2>&1 && passed "$tmp/syntax" malformed; then
+    echo 'ok: exact-path syntax error stops pass'
+  else
+    echo 'FAIL: rejected syntax error stops'; cat "$tmp/syntax"; return 1
+  fi
+}
+no_transition_run() {
+  local status=0
+  CUSTOM_PART_CASES=enter-worktree CUSTOM_FAULT=worktree-no-native-transition manual --output-dir "$tmp/no-transition-evidence" >"$tmp/no-transition" 2>&1 || status=$?
+  if [ "$status" -eq 2 ] && grep -q '^ERROR: enter-worktree: client exited with status 2$' "$tmp/no-transition" &&
+      [ "$(cat "$tmp/no-transition-evidence/enter-worktree.status")" = 2 ]; then
+    echo 'ok: missing native worktree transition stops the protocol'
+  else
+    echo 'FAIL: missing native worktree transition did not stop the protocol'; return 1
+  fi
+}
+denied_fault() {
+  local fault=$1 cases=denied-read
+  [ "$fault" != unrelated-block ] || cases=
+  if CUSTOM_PART_CASES=$cases CUSTOM_FAULT=$fault manual --output-dir "$tmp/$fault-evidence" >"$tmp/$fault" 2>&1; then
+    echo "FAIL: accepted $fault"; return 1
   elif grep -q '^FAIL: denied-read$' "$tmp/$fault" && [ "$(grep -c '^FAIL:' "$tmp/$fault")" -eq 1 ]; then
     echo "ok: rejects $fault"
   else
-    echo "FAIL: $fault failed outside denied-read"; cat "$tmp/$fault"; fails=$((fails + 1))
+    echo "FAIL: $fault failed outside denied-read"; cat "$tmp/$fault"; return 1
   fi
-done
-if [ -f "$tmp/unrelated-block-evidence/denied-read.jsonl" ] &&
-    [ -f "$tmp/unrelated-block-evidence/denied-read.err" ] &&
-    [ -f "$tmp/unrelated-block-evidence/denied-read.input.json" ] &&
-    [ "$(cat "$tmp/unrelated-block-evidence/denied-read.status")" = 0 ]; then
-  echo 'ok: keeps evidence after checker failure'
-else
-  echo 'FAIL: lost evidence after checker failure'; fails=$((fails + 1))
-fi
-for result in valid unrelated-block; do
-  files=("$tmp/$result-evidence/"*)
-  good=yes
-  [ "${#files[@]}" -eq 97 ] || good=no
-  for name in no-shell ask-cat deny-cat ask-git deny-git subfolder worktree outside missing missing-lane enter-worktree denied-read malformed duplicate-key wrong-type folded ambiguous unknown-field symlink missing-custom empty-custom empty-instruction handoff borrowed; do
-    for suffix in input.json jsonl err status; do
-      [ -f "$tmp/$result-evidence/$name.$suffix" ] || good=no
-    done
-  done
-  if [ "$good" = yes ]; then
-    echo "ok: $result keeps exactly the 97 generated files"
-  else
-    echo "FAIL: $result evidence includes unrelated files or omits generated files"; fails=$((fails + 1))
-  fi
-done
-for fault in bootstrap-wrong-path bootstrap-product-first bootstrap-product-skill success-wrong-path success-extra-read success-bare-command success-unrelated success-setup success-missing-result success-result-error startup-text startup-optional-text startup-borrowed-text startup-handoff-text invalid-continues invalid-missing-field invalid-missing-stop invalid-missing-validity git-directory-read git-file-early-read git-file-missing-kind worktree-session worktree-pre-entry-read metadata-missing metadata-missing-result metadata-wrong-id metadata-wrong-path metadata-string-only metadata-map-wrong-path metadata-map-missing-path metadata-map-wrong-kind metadata-map-missing-kind metadata-map-symlink metadata-relative-wrong-base metadata-relative-decoy-root metadata-relative-wrong-path metadata-relative-wrong-operand metadata-relative-wrong-kind metadata-relative-missing-link metadata-relative-symlink metadata-object-wrong-path metadata-object-missing-link metadata-object-symlink metadata-tuple-wrong-base metadata-tuple-wrong-path metadata-tuple-wrong-kind metadata-decoy-record metadata-missing-decoy-error metadata-symlink-bypass metadata-error metadata-late metadata-node-content metadata-node-process metadata-node-parser cache-without-prior-content cache-wrong-path handoff-missing-marker handoff-duplicate-marker handoff-unrelated-marker borrowed-reread symlink-followed; do
-  case $fault in
-    startup-text) target=no-shell ;;
-    startup-optional-text) target=missing ;;
-    startup-borrowed-text) target=borrowed ;;
-    startup-handoff-text) target=handoff ;;
-    metadata-missing-decoy-error) target=missing ;;
-    git-file-*|worktree-*) target=enter-worktree ;;
-    success-*|bootstrap-*|git-directory-*|metadata-*) target=no-shell ;;
-    invalid-*) target=malformed ;;
-    handoff-*) target=handoff ;;
-    borrowed-reread|cache-*) target=borrowed ;;
-    symlink-followed) target=symlink ;;
-  esac
-  if CUSTOM_FAULT=$fault PATH="$tmp/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh --output-dir "$tmp/$fault-evidence" >"$tmp/$fault" 2>&1; then
-    echo "FAIL: accepted $fault"; fails=$((fails + 1))
+}
+fault_run() {
+  local fault=$1 target=$2
+  if CUSTOM_PART_CASES=$target CUSTOM_FAULT=$fault manual --output-dir "$tmp/$fault-evidence" >"$tmp/$fault" 2>&1; then
+    echo "FAIL: accepted $fault"; return 1
   elif grep -q "^FAIL: $target$" "$tmp/$fault"; then
     echo "ok: rejects $fault"
   else
-    echo "FAIL: $fault did not reach the checker"; cat "$tmp/$fault"; fails=$((fails + 1))
+    echo "FAIL: $fault did not reach the checker"; cat "$tmp/$fault"; return 1
   fi
-done
-if jq -e '.config.path == (.cwd + "/.celetis.yaml") and
-    (.config.source | contains("custom:") and contains("UNRELATED_CUSTOM_MUST_NOT_RUN") and contains("SETUP_MUST_NOT_RUN")) and
-    (.config.sha256 | test("^[0-9a-f]{64}$")) and (.pluginSources | length) >= 5' "$tmp/valid-evidence/no-shell.input.json" >/dev/null &&
-    [ -f "$tmp/valid-evidence/version" ]; then
-  echo 'ok: preserves YAML sources, paths, hashes, restrictions, and runtime version'
-else
-  echo 'FAIL: missing native-entry source evidence'; fails=$((fails + 1))
-fi
-status=0
-CUSTOM_FAULT=client-exit PATH="$tmp/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh \
-  --output-dir "$tmp/client-exit-evidence" >"$tmp/client-exit" 2>&1 || status=$?
-files=("$tmp/client-exit-evidence/"*)
-if [ "$status" -eq 2 ] &&
-    grep -q '^ERROR: no-shell: client exited with status 7$' "$tmp/client-exit" &&
-    [ "${#files[@]}" -eq 5 ] &&
-    [ "$(cat "$tmp/client-exit-evidence/no-shell.status")" = 7 ] &&
-    [ -f "$tmp/client-exit-evidence/no-shell.err" ] &&
-    [ -f "$tmp/client-exit-evidence/no-shell.input.json" ] &&
-    jq -se 'any(.[]; .type == "result" and .is_error == false and
-      (.result | contains("CUSTOM_FROM_ROOT")))' "$tmp/client-exit-evidence/no-shell.jsonl" >/dev/null; then
-  echo 'ok: rejects a failed client with valid text and keeps its five generated artifacts'
-else
-  echo 'FAIL: accepted a failed client or lost its evidence'; cat "$tmp/client-exit"; fails=$((fails + 1))
-fi
-checker="$tmp/checker"
-sed -n '/^check() {$/,/^}$/p' tests/manual/custom-part.test.sh >"$checker"
-for fault in good missing-path missing-field missing-validity missing-stop affirmative contradictory continued-goal; do
-  folder="$tmp/folded-$fault"
+}
+client_exit_run() {
+  local status=0 files
+  CUSTOM_PART_CASES=no-shell CUSTOM_FAULT=client-exit manual --output-dir "$tmp/client-exit-evidence" >"$tmp/client-exit" 2>&1 || status=$?
+  files=("$tmp/client-exit-evidence/"*)
+  if [ "$status" -eq 2 ] &&
+      grep -q '^ERROR: no-shell: client exited with status 7$' "$tmp/client-exit" &&
+      [ "${#files[@]}" -eq 5 ] &&
+      [ "$(cat "$tmp/client-exit-evidence/no-shell.status")" = 7 ] &&
+      [ -f "$tmp/client-exit-evidence/no-shell.err" ] &&
+      [ -f "$tmp/client-exit-evidence/no-shell.input.json" ] &&
+      jq -se 'any(.[]; .type == "result" and .is_error == false and
+        (.result | contains("CUSTOM_FROM_ROOT")))' "$tmp/client-exit-evidence/no-shell.jsonl" >/dev/null; then
+    echo 'ok: rejects a failed client with valid text and keeps its five generated artifacts'
+  else
+    echo 'FAIL: accepted a failed client or lost its evidence'; cat "$tmp/client-exit"; return 1
+  fi
+}
+bound_run() {
+  if CUSTOM_PART_CASES=enter-worktree CUSTOM_BOUND_ROOT=only-config manual --output-dir "$tmp/bound-evidence" >"$tmp/bound" 2>&1 &&
+      passed "$tmp/bound" enter-worktree; then
+    echo 'ok: native current worktree binding needs only config metadata'
+  else
+    echo 'FAIL: rejected current native worktree binding without Git rediscovery'; cat "$tmp/bound"; return 1
+  fi
+}
+evidence_checks() {
+  local fails=0 streams files good result name suffix
+  streams=("$tmp/valid-evidence/"*.jsonl)
+  if [ "${#streams[@]}" -eq 24 ] && [ -f "$tmp/valid-evidence/denied-read.input.json" ] &&
+      jq -e '.goal == "/celetis:guide see the next step of an issue" and
+        (.metadataRecording | startswith("For test evidence only, emit each actual lstat result")) and
+        .prompt == (.goal + "\n\n" + .metadataRecording) and
+        .tools == "Skill,Read,Glob,Grep" and (.settings.permissions.deny | length) == 1' \
+        "$tmp/valid-evidence/denied-read.input.json" >/dev/null &&
+      [ "$(cat "$tmp/valid-evidence/denied-read.status")" = 0 ]; then
+    echo 'ok: keeps the twenty-four case streams and denied-read inputs after PASS'
+  else
+    echo 'FAIL: lost evidence after PASS'; fails=$((fails + 1))
+  fi
+  if jq -e '(.messages | length) == 2 and .messages[0].message.content == .goal and
+      (.messages[0].message.content | contains("Then wait for my guide invocation")) and
+      .messages[1].message.content == ("/celetis:guide see the next step of an issue\n\n" + .metadataRecording) and
+      (.metadataRecording | contains("CUSTOM_") or contains("Emit tool calls") or contains("/")) == false' "$tmp/valid-evidence/enter-worktree.input.json" >/dev/null &&
+      jq -se '[.[] | select(.type == "result")] as $turns | ($turns | length) == 2 and
+        ([$turns[].session_id] | unique | length) == 1' "$tmp/valid-evidence/enter-worktree.jsonl" >/dev/null; then
+    echo 'ok: worktree transition and direct skill selection use two user turns in one session'
+  else
+    echo 'FAIL: worktree test did not preserve the two-turn native protocol'; fails=$((fails + 1))
+  fi
+  if [ -f "$tmp/unrelated-block-evidence/denied-read.jsonl" ] &&
+      [ -f "$tmp/unrelated-block-evidence/denied-read.err" ] &&
+      [ -f "$tmp/unrelated-block-evidence/denied-read.input.json" ] &&
+      [ "$(cat "$tmp/unrelated-block-evidence/denied-read.status")" = 0 ]; then
+    echo 'ok: keeps evidence after checker failure'
+  else
+    echo 'FAIL: lost evidence after checker failure'; fails=$((fails + 1))
+  fi
+  for result in valid unrelated-block; do
+    files=("$tmp/$result-evidence/"*)
+    good=yes
+    [ "${#files[@]}" -eq 97 ] || good=no
+    for name in no-shell ask-cat deny-cat ask-git deny-git subfolder worktree outside missing missing-lane enter-worktree denied-read malformed duplicate-key wrong-type folded ambiguous unknown-field symlink missing-custom empty-custom empty-instruction handoff borrowed; do
+      for suffix in input.json jsonl err status; do
+        [ -f "$tmp/$result-evidence/$name.$suffix" ] || good=no
+      done
+    done
+    if [ "$good" = yes ]; then
+      echo "ok: $result keeps exactly the 97 generated files"
+    else
+      echo "FAIL: $result evidence includes unrelated files or omits generated files"; fails=$((fails + 1))
+    fi
+  done
+  if jq -e '.config.path == (.cwd + "/.celetis.yaml") and
+      (.config.source | contains("custom:") and contains("UNRELATED_CUSTOM_MUST_NOT_RUN") and contains("SETUP_MUST_NOT_RUN")) and
+      (.config.sha256 | test("^[0-9a-f]{64}$")) and (.pluginSources | length) >= 5' "$tmp/valid-evidence/no-shell.input.json" >/dev/null &&
+      [ -f "$tmp/valid-evidence/version" ]; then
+    echo 'ok: preserves YAML sources, paths, hashes, restrictions, and runtime version'
+  else
+    echo 'FAIL: missing native-entry source evidence'; fails=$((fails + 1))
+  fi
+  [ "$fails" -eq 0 ]
+}
+schema_fault() {
+  local name=$1 fault=$2 folder="$tmp/$1-$2" path answer field reject accept status=0
+  if [ "$name" = folded ]; then
+    field=custom.guide
+    reject=": the config schema doesn't accept folded blocks for instruction strings"
+    accept=': the config schema accepts folded blocks'
+  else
+    field=custom.unknown
+    reject=" has a field the schema doesn't allow"
+    accept=' has a field the schema allows'
+  fi
   mkdir "$folder"
-  cp "$tmp/valid-evidence/"folded.* "$folder/"
-  path=$(jq -r '.config.path' "$folder/folded.input.json")
-  answer="Config $path at custom.guide: the config schema doesn't accept folded blocks for instruction strings. Entry stopped."
+  cp "$tmp/valid-evidence/$name."* "$folder/"
+  path=$(jq -r '.config.path' "$folder/$name.input.json")
+  answer="Config $path at $field$reject. Entry stopped."
   case $fault in
     missing-path) answer=${answer//"$path"/} ;;
-    missing-field) answer=${answer//custom.guide/} ;;
-    missing-validity) answer="Config $path at custom.guide was read. Entry stopped." ;;
+    missing-field) answer=${answer//"$field"/} ;;
+    missing-validity) answer="Config $path at $field was read. Entry stopped." ;;
     missing-stop) answer=${answer// Entry stopped./} ;;
-    affirmative) answer="Config $path at custom.guide: the config schema accepts folded blocks. Entry stopped." ;;
+    affirmative) answer="Config $path at $field$accept. Entry stopped." ;;
     contradictory) answer="$answer This file is accepted as-is." ;;
     continued-goal) answer="$answer scripts/celetis --agent claude next-step" ;;
   esac
   jq -c --arg answer "$answer" '
     if .type == "result" then .result = $answer
     elif .type == "assistant" then .message.content |= map(if .type == "text" then .text = $answer else . end)
-    else . end' "$folder/folded.jsonl" >"$folder/changed"
-  mv "$folder/changed" "$folder/folded.jsonl"
-  status=0
+    else . end' "$folder/$name.jsonl" >"$folder/changed"
+  mv "$folder/changed" "$folder/$name.jsonl"
   (
     tmp=$folder
     failed=0
     source "$checker"
-    check folded invalid "${path%/.celetis.yaml}"
+    check "$name" invalid "${path%/.celetis.yaml}"
     exit "$failed"
   ) >"$folder/check.log" 2>&1 || status=$?
   if { [ "$fault" = good ] && [ "$status" -eq 0 ]; } ||
-      { [ "$fault" != good ] && [ "$status" -eq 1 ] && grep -q '^FAIL: folded$' "$folder/check.log"; }; then
-    echo "ok: folded schema rejection $fault"
+      { [ "$fault" != good ] && [ "$status" -eq 1 ] && grep -q "^FAIL: $name$" "$folder/check.log"; }; then
+    echo "ok: $name schema rejection $fault"
   else
-    echo "FAIL: folded schema rejection $fault"; cat "$folder/check.log"; fails=$((fails + 1))
+    echo "FAIL: $name schema rejection $fault"; cat "$folder/check.log"; return 1
   fi
-done
-for fault in good missing-path missing-field missing-validity missing-stop affirmative contradictory continued-goal; do
-  folder="$tmp/unknown-field-$fault"
-  mkdir "$folder"
-  cp "$tmp/valid-evidence/"unknown-field.* "$folder/"
-  path=$(jq -r '.config.path' "$folder/unknown-field.input.json")
-  answer="Config $path at custom.unknown has a field the schema doesn't allow. Entry stopped."
-  case $fault in
-    missing-path) answer=${answer//"$path"/} ;;
-    missing-field) answer=${answer//custom.unknown/} ;;
-    missing-validity) answer="Config $path at custom.unknown was read. Entry stopped." ;;
-    missing-stop) answer=${answer// Entry stopped./} ;;
-    affirmative) answer="Config $path at custom.unknown has a field the schema allows. Entry stopped." ;;
-    contradictory) answer="$answer This file is accepted as-is." ;;
-    continued-goal) answer="$answer scripts/celetis --agent claude next-step" ;;
-  esac
-  jq -c --arg answer "$answer" '
-    if .type == "result" then .result = $answer
-    elif .type == "assistant" then .message.content |= map(if .type == "text" then .text = $answer else . end)
-    else . end' "$folder/unknown-field.jsonl" >"$folder/changed"
-  mv "$folder/changed" "$folder/unknown-field.jsonl"
-  status=0
-  (
-    tmp=$folder
-    failed=0
-    source "$checker"
-    check unknown-field invalid "${path%/.celetis.yaml}"
-    exit "$failed"
-  ) >"$folder/check.log" 2>&1 || status=$?
-  if { [ "$fault" = good ] && [ "$status" -eq 0 ]; } ||
-      { [ "$fault" != good ] && [ "$status" -eq 1 ] && grep -q '^FAIL: unknown-field$' "$folder/check.log"; }; then
-    echo "ok: unknown-field schema rejection $fault"
-  else
-    echo "FAIL: unknown-field schema rejection $fault"; cat "$folder/check.log"; fails=$((fails + 1))
-  fi
-done
-if CUSTOM_BOUND_ROOT=only-config PATH="$tmp/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh --output-dir "$tmp/bound-evidence" >"$tmp/bound" 2>&1; then
-  echo 'ok: native current worktree binding needs only config metadata'
-else
-  echo 'FAIL: rejected current native worktree binding without Git rediscovery'; cat "$tmp/bound"; fails=$((fails + 1))
-fi
-for fault in absent mismatched error stale-session stale-binding old-result-after-transition missing-config-kind late-config-kind symlink-config; do
-  folder="$tmp/bound-$fault"
+}
+bound_fault() {
+  local fault=$1 folder="$tmp/bound-$1" status=0
   mkdir "$folder"
   cp "$tmp/bound-evidence/"enter-worktree.* "$folder/"
   jq -sc --arg fault "$fault" '
@@ -508,7 +497,6 @@ for fault in absent mismatched error stale-session stale-binding old-result-afte
     elif $fault == "symlink-config" then map(if .message.content[0].tool_use_id == "meta-1" then .message.content[0].content[0].text |= (fromjson | .symlink = true | tojson) else . end)
     else error("unknown fault") end | .[]' "$folder/enter-worktree.jsonl" >"$folder/changed"
   mv "$folder/changed" "$folder/enter-worktree.jsonl"
-  status=0
   (
     tmp=$folder
     lane=$(jq -r '.git.path | rtrimstr("/.git")' "$folder/enter-worktree.input.json")
@@ -520,14 +508,13 @@ for fault in absent mismatched error stale-session stale-binding old-result-afte
   if [ "$status" -eq 1 ] && grep -q '^FAIL: enter-worktree$' "$folder/check.log"; then
     echo "ok: rejects bound-root $fault"
   else
-    echo "FAIL: accepted bound-root $fault"; cat "$folder/check.log"; fails=$((fails + 1))
+    echo "FAIL: accepted bound-root $fault"; cat "$folder/check.log"; return 1
   fi
-done
-for fault in missing empty word negative range multiline; do
-  folder="$tmp/status-$fault"
+}
+status_fault() {
+  local fault=$1 folder="$tmp/status-$1" expected='invalid client exit status' status=0
   mkdir "$folder"
   cp "$tmp/valid-evidence/"no-shell.* "$folder/"
-  expected='invalid client exit status'
   case $fault in
     missing) rm "$folder/no-shell.status"; expected='missing client exit status' ;;
     empty) : >"$folder/no-shell.status" ;;
@@ -536,7 +523,6 @@ for fault in missing empty word negative range multiline; do
     range) printf '256\n' >"$folder/no-shell.status" ;;
     multiline) printf '0\n7\n' >"$folder/no-shell.status" ;;
   esac
-  status=0
   (
     tmp=$folder
     failed=0
@@ -546,8 +532,55 @@ for fault in missing empty word negative range multiline; do
   if [ "$status" -eq 2 ] && grep -q "^ERROR: no-shell: $expected$" "$tmp/status-$fault.log"; then
     echo "ok: rejects $fault client status"
   else
-    echo "FAIL: accepted $fault client status"; cat "$tmp/status-$fault.log"; fails=$((fails + 1))
+    echo "FAIL: accepted $fault client status"; cat "$tmp/status-$fault.log"; return 1
   fi
+}
+
+pool_run valid valid_run
+pool_run unrelated-block denied_fault unrelated-block
+pool_run obsolete-option obsolete_option
+pool_run path-map style_run path-map 'exact path-to-kind metadata maps pass' 'rejected exact path-to-kind metadata maps'
+for style in relative relative-template relative-map path-object tuple; do
+  pool_run "$style" style_run "$style" "bound $style metadata records pass" "rejected bound $style metadata records"
 done
-[ "$fails" -eq 0 ]
+pool_run syntax syntax_run
+pool_run no-transition no_transition_run
+for fault in wrong-path missing-denial wrong-denial-id wrong-result-id missing-error read-succeeded later-read later-grep later-shell; do
+  pool_run "$fault" denied_fault "$fault"
+done
+for fault in bootstrap-wrong-path bootstrap-product-first bootstrap-product-skill success-wrong-path success-extra-read success-bare-command success-unrelated success-setup success-missing-result success-result-error startup-text startup-optional-text startup-borrowed-text startup-handoff-text invalid-continues invalid-missing-field invalid-missing-stop invalid-missing-validity git-directory-read git-file-early-read git-file-missing-kind worktree-session worktree-pre-entry-read metadata-missing metadata-missing-result metadata-wrong-id metadata-wrong-path metadata-string-only metadata-map-wrong-path metadata-map-missing-path metadata-map-wrong-kind metadata-map-missing-kind metadata-map-symlink metadata-relative-wrong-base metadata-relative-decoy-root metadata-relative-wrong-path metadata-relative-wrong-operand metadata-relative-wrong-kind metadata-relative-missing-link metadata-relative-symlink metadata-object-wrong-path metadata-object-missing-link metadata-object-symlink metadata-tuple-wrong-base metadata-tuple-wrong-path metadata-tuple-wrong-kind metadata-decoy-record metadata-missing-decoy-error metadata-symlink-bypass metadata-error metadata-late metadata-node-content metadata-node-process metadata-node-parser cache-without-prior-content cache-wrong-path handoff-missing-marker handoff-duplicate-marker handoff-unrelated-marker borrowed-reread symlink-followed; do
+  case $fault in
+    startup-text) target=no-shell ;;
+    startup-optional-text) target=missing ;;
+    startup-borrowed-text) target=borrowed ;;
+    startup-handoff-text) target=handoff ;;
+    metadata-missing-decoy-error) target=missing ;;
+    git-file-*|worktree-*) target=enter-worktree ;;
+    success-*|bootstrap-*|git-directory-*|metadata-*) target=no-shell ;;
+    invalid-*) target=malformed ;;
+    handoff-*) target=handoff ;;
+    borrowed-reread|cache-*) target=borrowed ;;
+    symlink-followed) target=symlink ;;
+  esac
+  pool_run "$fault" fault_run "$fault" "$target"
+done
+pool_run client-exit client_exit_run
+pool_run bound bound_run
+failed=0
+pool_wait || failed=1
+
+pool_run evidence evidence_checks
+for name in folded unknown-field; do
+  for fault in good missing-path missing-field missing-validity missing-stop affirmative contradictory continued-goal; do
+    pool_run "$name-$fault" schema_fault "$name" "$fault"
+  done
+done
+for fault in absent mismatched error stale-session stale-binding old-result-after-transition missing-config-kind late-config-kind symlink-config; do
+  pool_run "bound-$fault" bound_fault "$fault"
+done
+for fault in missing empty word negative range multiline; do
+  pool_run "status-$fault" status_fault "$fault"
+done
+pool_wait || failed=1
+[ "$failed" -eq 0 ]
 echo PASS
