@@ -4,7 +4,7 @@ set -euo pipefail
 die() { printf 'setup: %s\n' "$1" >&2; exit 1; }
 warn() { printf 'setup: warning: %s\n' "$1"; }
 usage() {
-  echo 'usage: scripts/celetis setup check | write --hosts claude|codex|claude,codex [--default claude|codex] --landing pr|merge | push' >&2
+  echo 'usage: scripts/celetis setup check | write <options> | try <options> | try --remove | lane <path> | push; <options>: --hosts claude|codex|claude,codex [--default claude|codex] --landing pr|merge [--setup-file <file>] [--ignore <line>]... [--baseline-file <file>]' >&2
   exit 2
 }
 
@@ -80,23 +80,37 @@ has_host() { [[ " $hosts " == *" $1 "* ]]; }
 
 write_args() {
   local given=
-  hosts= landing=
+  hosts= landing= setup_file= baseline_file=
+  ignores=()
   while [ $# -gt 0 ]; do
     [ $# -ge 2 ] || usage
     case $1 in
       --hosts) hosts=$2 ;;
       --default) given=$2 ;;
       --landing) landing=$2 ;;
+      --setup-file) [ -n "$2" ] || usage; setup_file=$2 ;;
+      --ignore) [ -n "$2" ] || usage; ignores+=("$2") ;;
+      --baseline-file) [ -n "$2" ] || usage; baseline_file=$2 ;;
       *) usage ;;
     esac
     shift 2
   done
+  # The files are read after run_checks changes the directory.
+  case $setup_file in '' | /*) ;; *) setup_file=$PWD/$setup_file ;; esac
+  case $baseline_file in '' | /*) ;; *) baseline_file=$PWD/$baseline_file ;; esac
   case $hosts in
     claude | codex) [ -z "$given" ] || usage; default=$hosts ;;
     claude,codex) [ "$given" = claude ] || [ "$given" = codex ] || usage; default=$given; hosts='claude codex' ;;
     *) usage ;;
   esac
   [ "$landing" = pr ] || [ "$landing" = merge ] || usage
+}
+
+check_inputs() {
+  local file
+  for file in "$setup_file" "$baseline_file"; do
+    [ -z "$file" ] || { [ -f "$file" ] && [ -r "$file" ]; } || die "cannot read $file"
+  done
 }
 
 read_record() {
@@ -166,17 +180,36 @@ has_line() {
   ' "$1"
 }
 
-own_lines() {
+add_lines() {
   local file=$1 line
   shift
   [ -e "$file" ] || : >"$file"
   for line; do
-    own_line "$file" "$line"
     if ! has_line "$file" "$line"; then
       [ -z "$(tail -c1 "$file")" ] || echo >>"$file"
       printf '%s\n' "$line" >>"$file"
     fi
   done
+}
+
+own_lines() {
+  local file=$1 line
+  shift
+  for line; do own_line "$file" "$line"; done
+  add_lines "$file" "$@"
+}
+
+add_baseline() {
+  local heading
+  heading=$(head -n1 "$baseline_file")
+  if has_line AGENTS.md "$heading"; then
+    warn "AGENTS.md: $heading is there; setup leaves it"
+    return 0
+  fi
+  [ -z "$(tail -c1 AGENTS.md)" ] || echo >>AGENTS.md
+  [ -z "$(tail -n1 AGENTS.md)" ] || echo >>AGENTS.md
+  cat "$baseline_file" >>AGENTS.md
+  [ -z "$(tail -c1 "$baseline_file")" ] || echo >>AGENTS.md
 }
 
 own_section() {
@@ -314,18 +347,40 @@ config_key() {
   fi
 }
 
+setup_block() {
+  local text trimmed indent= chomp=-
+  text=$(cat "$setup_file"; echo x)
+  text=${text%x}
+  trimmed=${text%"${text##*[!$'\n']}"}
+  case $((${#text} - ${#trimmed})) in 0) ;; 1) chomp= ;; *) chomp=+ ;; esac
+  [ "$(awk 'length { print substr($0, 1, 1); exit }' "$setup_file")" != ' ' ] || indent=2
+  printf 'worktreeSetup: |%s%s\n' "$indent" "$chomp"
+  awk '{ print ($0 == "" ? "" : "  " $0) }' "$setup_file"
+}
+
+config_setup() {
+  if jq -e 'has("worktreeSetup")' "$scratch/config.json" >/dev/null; then
+    jq -e --rawfile want "$setup_file" '.worktreeSetup == $want' "$scratch/config.json" >/dev/null ||
+      warn "$config: worktreeSetup differs from the setup file; setup leaves it"
+  else
+    setup_block >"$scratch/config.block"
+  fi
+}
+
 config_plan() {
   local next
   : >"$scratch/config.keys"
   : >"$scratch/config.lines"
+  : >"$scratch/config.block"
   if [ -e "$config" ]; then
-    celetis_config_read "$top" >"$scratch/config.json" || die "cannot read $config; fix the cause above first"
+    celetis_config_read "$PWD" >"$scratch/config.json" || die "cannot read $config; fix the cause above first"
   else
     echo '{}' >"$scratch/config.json"
   fi
   config_key host "$default"
   config_key landing "$landing"
-  [ -s "$scratch/config.lines" ] || return 0
+  [ -z "$setup_file" ] || config_setup
+  [ -s "$scratch/config.lines" ] || [ -s "$scratch/config.block" ] || return 0
   mkdir "$scratch/yaml"
   if [ -e "$config" ]; then
     {
@@ -333,18 +388,26 @@ config_plan() {
       [ -z "$(tail -c1 "$config")" ] || echo
       cat "$scratch/config.lines"
     } >"$scratch/yaml/$config"
-    next=$(celetis_config_read "$scratch/yaml" 2>/dev/null) &&
-      [ "$(jq -S 'del(.host, .landing)' <<<"$next")" = "$(jq -S 'del(.host, .landing)' "$scratch/config.json")" ] ||
-      die "cannot add the line $(head -n1 "$scratch/config.lines") to $config; add it by hand first"
+    if [ -s "$scratch/config.lines" ]; then
+      next=$(celetis_config_read "$scratch/yaml" 2>/dev/null) &&
+        [ "$(jq -S 'del(.host, .landing)' <<<"$next")" = "$(jq -S 'del(.host, .landing)' "$scratch/config.json")" ] ||
+        die "cannot add the line $(head -n1 "$scratch/config.lines") to $config; add it by hand first"
+    fi
   else
     cp "$scratch/config.lines" "$scratch/yaml/$config"
   fi
+  [ -s "$scratch/config.block" ] || return 0
+  cat "$scratch/config.block" >>"$scratch/yaml/$config"
+  next=$(celetis_config_read "$scratch/yaml" 2>/dev/null) &&
+    jq -e --rawfile want "$setup_file" '.worktreeSetup == $want' <<<"$next" >/dev/null &&
+    [ "$(jq -S 'del(.worktreeSetup)' <<<"$next")" = "$(jq -S --arg host "$default" --arg landing "$landing" '.host //= $host | .landing //= $landing' "$scratch/config.json")" ] ||
+    die "cannot add worktreeSetup to $config; add it by hand first"
 }
 
 config_apply() {
   local key
   while IFS= read -r key; do own_entry "$config" "$(jq -nc --arg key "$key" '{path: [$key]}')"; done <"$scratch/config.keys"
-  [ ! -s "$scratch/config.lines" ] || cp "$scratch/yaml/$config" "$config"
+  [ ! -e "$scratch/yaml/$config" ] || cp "$scratch/yaml/$config" "$config"
 }
 
 codex_rules() {
@@ -376,12 +439,14 @@ write_files() {
     codex_rules >.codex/rules/celetis.rules
   fi
   own_lines .gitignore .claude/worktrees/ .claude/settings.local.json docs/superpowers/ .superpowers/ docs/lessons/_pending/
+  add_lines .gitignore ${ignores[@]+"${ignores[@]}"}
   own_lines .gitattributes 'scripts/celetis text eol=lf' '.celetis.yaml text eol=lf'
   own_section AGENTS.md '## Celetis flow' \
     "- The lanes are the skills of the plugin \`celetis\`, on the issues of \`$repo\`." \
     '- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `scripts/celetis land`.' \
     '- A lane never skips a step.' \
     '- The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.'
+  if [ -n "$baseline_file" ]; then add_baseline; fi
   if has_host claude; then
     for path in CLAUDE.md .claude/CLAUDE.md; do
       if [ -L "$path" ] && ! [ "$path" -ef AGENTS.md ]; then
@@ -450,19 +515,28 @@ report_changes() {
   if [ -z "$changed" ]; then echo 'setup: no file changed'; else sed 's/^/setup: changed /' <<<"$changed"; fi
 }
 
+plan_tree() {
+  check_inputs
+  read_record
+  check_paths
+  if has_host claude; then settings_plan; fi
+  config_plan
+}
+
+write_tree() {
+  write_files
+  make_stores
+  write_record
+}
+
 write() {
   write_args "$@"
   run_checks
   scratch=$(mktemp -d "${TMPDIR:-/tmp}/celetis.XXXXXX")
   trap 'rm -rf "$scratch"' EXIT
-  read_record
-  check_paths
-  if has_host claude; then settings_plan; fi
-  config_plan
+  plan_tree
   make_labels
-  write_files
-  make_stores
-  write_record
+  write_tree
   report_changes
 }
 

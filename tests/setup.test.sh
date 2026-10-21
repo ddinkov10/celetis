@@ -158,17 +158,21 @@ git -C "$proj" add other.txt
 stops "setup: the index holds staged changes; commit or unstage them first" check
 
 new_project usage
-want='usage: scripts/celetis setup check | write --hosts claude|codex|claude,codex [--default claude|codex] --landing pr|merge | push'
+want='usage: scripts/celetis setup check | write <options> | try <options> | try --remove | lane <path> | push; <options>: --hosts claude|codex|claude,codex [--default claude|codex] --landing pr|merge [--setup-file <file>] [--ignore <line>]... [--baseline-file <file>]'
 [ "$(code_of)" -eq 2 ] && [ "$(code_of bogus)" -eq 2 ] && [ "$(code_of check extra)" -eq 2 ] && [ "$(code_of push extra)" -eq 2 ] || fail "usage not refused"
 [[ $(err_of bogus) == "$want" ]] || fail "wrong usage line: $(err_of bogus)"
 
-
-want='usage: scripts/celetis setup check | write --hosts claude|codex|claude,codex [--default claude|codex] --landing pr|merge | push'
+want='usage: scripts/celetis setup check | write <options> | try <options> | try --remove | lane <path> | push; <options>: --hosts claude|codex|claude,codex [--default claude|codex] --landing pr|merge [--setup-file <file>] [--ignore <line>]... [--baseline-file <file>]'
 for args in "write --hosts claude,codex --landing pr" "write --hosts claude --default codex --landing pr" "write --hosts claude --landing squash" \
-  "write --hosts gitlab --landing pr" "write --hosts claude" "write --landing pr" "write --hosts claude --landing pr extra" "write --hosts claude,codex --default gitlab --landing pr"; do
+  "write --hosts gitlab --landing pr" "write --hosts claude" "write --landing pr" "write --hosts claude --landing pr extra" "write --hosts claude,codex --default gitlab --landing pr" \
+  "write --hosts codex --landing pr --setup-file" "write --hosts codex --landing pr --ignore" "write --hosts codex --landing pr --baseline-file"; do
   [ "$(code_of $args)" -eq 2 ] || fail "'$args' did not exit 2"
 done
+for option in --setup-file --ignore --baseline-file; do
+  [ "$(code_of write --hosts codex --landing pr "$option" '')" -eq 2 ] || fail "an empty value of $option did not exit 2"
+done
 [[ $(err_of write --hosts claude --default codex --landing pr) == "$want" ]] || fail "wrong usage line for write"
+[[ $(err_of write --hosts codex --landing pr --ignore '') == "$want" ]] || fail "wrong usage line for an empty --ignore"
 
 readme_fence() {
   awk -v heading="$1" 'index($0, heading) == 1 { seen = 1; next } seen && /^```/ { if (open) exit; open = 1; next } open' "$here/README.md"
@@ -721,6 +725,186 @@ git -C "$proj" checkout -- .celetis.yaml
 [ "$(grep -c $'\r' "$proj/.celetis.yaml")" -eq 1 ] || fail "the CRLF checkout fixture has no CR"
 run write --hosts claude --landing pr >/dev/null 2>"$tmp/err" || fail "write stopped on a CRLF checkout of an LF config: $(cat "$tmp/err")"
 bytes_are $'landing: pr\r\nhost: claude\n' .celetis.yaml
+
+setup_reads_back() {
+  jq -e --rawfile want "$1" '.worktreeSetup == $want' <<<"$(. "$plug/scripts/celetis" && celetis_config_read "$proj")" >/dev/null ||
+    fail "worktreeSetup differs from $1"
+}
+setup_case() {
+  new_project "setup$1"
+  printf '%s' "$2" >"$tmp/setup$1.sh"
+  run write --hosts codex --landing merge --setup-file "$tmp/setup$1.sh" >/dev/null 2>"$tmp/err" || fail "write failed for setup file $1: $(cat "$tmp/err")"
+  bytes_are $'host: codex\nlanding: merge\n'"$3" .celetis.yaml
+  setup_reads_back "$tmp/setup$1.sh"
+  [ "$(entries_of .celetis.yaml)" = "$(sorted <<<"$config_entries")" ] || fail "write recorded worktreeSetup for setup file $1"
+}
+setup_case 1 $'set -e\necho hi\n' $'worktreeSetup: |\n  set -e\n  echo hi\n'
+setup_case 2 $'set -e\necho hi' $'worktreeSetup: |-\n  set -e\n  echo hi\n'
+setup_case 3 $'echo hi\n\n\n' $'worktreeSetup: |+\n  echo hi\n\n\n'
+setup_case 4 $'   lead\nnext\n' $'worktreeSetup: |2\n     lead\n  next\n'
+setup_case 5 '' $'worktreeSetup: |-\n'
+setup_case 6 $'\n\necho hi\n\tindented\n' $'worktreeSetup: |\n\n\n  echo hi\n  \tindented\n'
+setup_case 7 $'# not a comment\necho "a: b" # c\n\necho done\n' $'worktreeSetup: |\n  # not a comment\n  echo "a: b" # c\n\n  echo done\n'
+setup_case 8 $'\n   \n  x\n' $'worktreeSetup: |2\n\n     \n    x\n'
+
+new_project setupappend
+printf 'landing: pr\ncustom:\n  bug: |-\n    Keep it small.' >"$proj/.celetis.yaml"
+commit_all product
+git -C "$proj" push -q origin main
+run write --hosts claude --landing pr --setup-file "$tmp/setup1.sh" >/dev/null
+bytes_are $'landing: pr\ncustom:\n  bug: |-\n    Keep it small.\nhost: claude\nworktreeSetup: |\n  set -e\n  echo hi\n' .celetis.yaml
+setup_reads_back "$tmp/setup1.sh"
+[ "$(. "$plug/scripts/celetis" && celetis_config_read "$proj" | jq -r .custom.bug)" = "Keep it small." ] || fail "the appended block broke the config"
+commit_all wiring
+git -C "$proj" push -q origin main
+[ "$(run write --hosts claude --landing pr --setup-file "$tmp/setup1.sh" 2>&1)" = "setup: no file changed" ] || fail "a rerun with an equal worktreeSetup changed a file or warned"
+
+new_project setupblockonly
+printf 'host: codex\nlanding: pr\nboard:\n  port: 4404' >"$proj/.celetis.yaml"
+commit_all product
+git -C "$proj" push -q origin main
+run write --hosts codex --landing pr --setup-file "$tmp/setup2.sh" >/dev/null
+bytes_are $'host: codex\nlanding: pr\nboard:\n  port: 4404\nworktreeSetup: |-\n  set -e\n  echo hi\n' .celetis.yaml
+setup_reads_back "$tmp/setup2.sh"
+[ "$(entries_of .celetis.yaml)" = "$(sorted <<<"$config_entries")" ] || fail "write recorded worktreeSetup for a hand-wired config"
+
+new_project setupdiffers
+printf 'host: codex\nlanding: merge\nworktreeSetup: ""\n' >"$proj/.celetis.yaml"
+commit_all product
+git -C "$proj" push -q origin main
+differs='setup: warning: .celetis.yaml: worktreeSetup differs from the setup file; setup leaves it'
+out=$(run write --hosts codex --landing merge --setup-file "$tmp/setup1.sh" 2>"$tmp/err") || fail "write failed on an empty worktreeSetup: $(cat "$tmp/err")"
+grep -qxF "$differs" <<<"$out" || fail "no warning for an empty worktreeSetup: $out"
+bytes_are $'host: codex\nlanding: merge\nworktreeSetup: ""\n' .celetis.yaml
+[ "$(entries_of .celetis.yaml)" = "$(sorted <<<"$config_entries")" ] || fail "write recorded a differing worktreeSetup"
+printf 'host: codex\nlanding: merge\nworktreeSetup: |-\n  echo other\n' >"$proj/.celetis.yaml"
+commit_all other
+out=$(run write --hosts codex --landing merge --setup-file "$tmp/setup1.sh")
+grep -qxF "$differs" <<<"$out" || fail "no warning for another worktreeSetup: $out"
+bytes_are $'host: codex\nlanding: merge\nworktreeSetup: |-\n  echo other\n' .celetis.yaml
+
+new_project setupsame
+printf 'host: codex\nlanding: merge\nworktreeSetup: |\n  set -e\n  echo hi\n' >"$proj/.celetis.yaml"
+commit_all product
+git -C "$proj" push -q origin main
+out=$(run write --hosts codex --landing merge --setup-file "$tmp/setup1.sh")
+! grep -q 'worktreeSetup' <<<"$out" || fail "write warned on an equal worktreeSetup: $out"
+bytes_are $'host: codex\nlanding: merge\nworktreeSetup: |\n  set -e\n  echo hi\n' .celetis.yaml
+
+new_project setupnone
+printf 'host: codex\nlanding: merge\nworktreeSetup: ""\n' >"$proj/.celetis.yaml"
+commit_all product
+git -C "$proj" push -q origin main
+out=$(run write --hosts codex --landing merge)
+! grep -q 'worktreeSetup' <<<"$out" || fail "write spoke of worktreeSetup with no setup file: $out"
+bytes_are $'host: codex\nlanding: merge\nworktreeSetup: ""\n' .celetis.yaml
+
+new_project setuprelative
+mkdir "$proj/sub"
+printf 'echo hi\n' >"$proj/sub/rel.sh"
+CWD=$proj/sub run write --hosts codex --landing pr --setup-file rel.sh >/dev/null 2>"$tmp/err" || fail "write failed on a relative setup file: $(cat "$tmp/err")"
+bytes_are $'host: codex\nlanding: pr\nworktreeSetup: |\n  echo hi\n' .celetis.yaml
+commit_all wiring
+CWD=$proj/sub LABELS= stops "setup: cannot read $proj/sub/missing.sh" write --hosts codex --landing pr --setup-file missing.sh
+
+no_add='setup: cannot add worktreeSetup to .celetis.yaml; add it by hand first'
+new_project setupcrlf
+printf 'set -e\r\necho hi\r\n' >"$tmp/setupcrlf.sh"
+: >"$LABEL_LOG"
+LABELS= stops "$no_add" write --hosts codex --landing pr --setup-file "$tmp/setupcrlf.sh"
+[ ! -s "$LABEL_LOG" ] || fail "a CRLF setup file left a label: $(cat "$LABEL_LOG")"
+clean_tree "a CRLF setup file left a file"
+printf '\tset -e\necho hi\n' >"$tmp/setuptab.sh"
+LABELS= stops "$no_add" write --hosts codex --landing pr --setup-file "$tmp/setuptab.sh"
+clean_tree "a setup file with a tab in its first line left a file"
+printf 'host: codex\nlanding: pr\n' >"$proj/.celetis.yaml"
+commit_all product
+LABELS= stops "$no_add" write --hosts codex --landing pr --setup-file "$tmp/setupcrlf.sh"
+[ ! -s "$LABEL_LOG" ] || fail "a CRLF setup file left a label: $(cat "$LABEL_LOG")"
+clean_tree "a CRLF setup file left a file in a config"
+
+new_project setupend
+printf 'host: codex\nlanding: pr\n...\n' >"$proj/.celetis.yaml"
+commit_all product
+LABELS= stops "$no_add" write --hosts codex --landing pr --setup-file "$tmp/setup1.sh"
+[ ! -s "$LABEL_LOG" ] || fail "a config with an end marker left a label: $(cat "$LABEL_LOG")"
+clean_tree "a config with an end marker left a file"
+[ "$(code_of write --hosts codex --landing pr)" -eq 0 ] || fail "write refused a config with an end marker and no setup file"
+
+new_project setupvalue
+printf 'host: claude\nlanding: pr\ncustom:\n  bug: |\n    Keep' >"$proj/.celetis.yaml"
+commit_all product
+LABELS= stops "$no_add" write --hosts claude --landing pr --setup-file "$tmp/setup1.sh"
+[ ! -s "$LABEL_LOG" ] || fail "a block that changes a value left a label: $(cat "$LABEL_LOG")"
+clean_tree "a block that changes a value left a file"
+
+new_project setupnoyq
+LABELS= PATH="$tmp/noyq:$PATH" stops "$no_add" write --hosts codex --landing pr --setup-file "$tmp/setup1.sh"
+clean_tree "a block check with no yq left a file"
+
+new_project ignorelines
+printf 'node_modules/\r\n.venv/' >"$proj/.gitignore"
+commit_all product
+run write --hosts codex --landing pr --ignore .venv/ --ignore .mypy_cache/ --ignore .claude/worktrees/ --ignore .mypy_cache/ >/dev/null
+bytes_are $'node_modules/\r\n.venv/\n.claude/worktrees/\n.claude/settings.local.json\ndocs/superpowers/\n.superpowers/\ndocs/lessons/_pending/\n.mypy_cache/\n' .gitignore
+[ "$(entries_of .gitignore)" = "$(jlines <<<"$ignores" | sorted)" ] || fail "write recorded an ignore line: $(entries_of .gitignore)"
+commit_all wiring
+git -C "$proj" push -q origin main
+[ "$(run write --hosts codex --landing pr --ignore .venv/ --ignore .mypy_cache/ 2>&1)" = "setup: no file changed" ] || fail "a rerun with ignore lines changed a file"
+
+new_project ignorenew
+run write --hosts codex --landing pr --ignore .venv/ >/dev/null
+bytes_are "$ignores"$'\n.venv/\n' .gitignore
+[ "$(entries_of .gitignore)" = "$(jlines <<<"$ignores" | sorted)" ] || fail "write recorded an ignore line in a new .gitignore: $(entries_of .gitignore)"
+
+baseline=$'## Baseline of the checks\n\n- mypy src/: 28 errors on 2026-10-20.\n'
+printf '%s' "$baseline" >"$tmp/baseline.md"
+baseline_is='## Baseline of the checks is there; setup leaves it'
+new_project baseline
+printf '# P\n- x\n' >"$proj/AGENTS.md"
+commit_all product
+out=$(run write --hosts codex --landing pr --baseline-file "$tmp/baseline.md" 2>"$tmp/err") || fail "write failed with a baseline: $(cat "$tmp/err")"
+! grep -q 'Baseline' <<<"$out" || fail "write warned on a missing baseline: $out"
+bytes_are $'# P\n- x\n\n'"$heading"$'\n\n'"$b"$'\n'"$baseline" AGENTS.md
+[ "$(entries_of AGENTS.md)" = "$(printf '%s\n%s' "$heading" "$b" | jlines | sorted)" ] || fail "write recorded the baseline: $(entries_of AGENTS.md)"
+commit_all wiring
+git -C "$proj" push -q origin main
+out=$(run write --hosts codex --landing pr --baseline-file "$tmp/baseline.md")
+grep -qxF "setup: warning: AGENTS.md: $baseline_is" <<<"$out" || fail "no warning for a baseline that is there: $out"
+clean_tree "a rerun with a baseline changed a file"
+
+new_project baselinenew
+run write --hosts codex --landing pr --baseline-file "$tmp/baseline.md" >/dev/null
+bytes_are "$heading"$'\n\n'"$b"$'\n'"$baseline" AGENTS.md
+new_project baselineopen
+printf '%s' "${baseline%$'\n'}" >"$tmp/baseline-open.md"
+printf '# P\n' >"$proj/AGENTS.md"
+commit_all product
+run write --hosts codex --landing pr --baseline-file "$tmp/baseline-open.md" >/dev/null
+bytes_are $'# P\n\n'"$heading"$'\n\n'"$b"$'\n'"$baseline" AGENTS.md
+new_project baselinenonl
+printf '%s\n\n%s\n- own rule' "$heading" "${b%$'\n'}" >"$proj/AGENTS.md"
+commit_all product
+run write --hosts codex --landing pr --baseline-file "$tmp/baseline.md" >/dev/null
+bytes_are "$heading"$'\n\n'"${b%$'\n'}"$'\n- own rule\n\n'"$baseline" AGENTS.md
+new_project baselineblank
+printf '%s\n\n%s\n' "$heading" "$b" >"$proj/AGENTS.md"
+commit_all product
+run write --hosts codex --landing pr --baseline-file "$tmp/baseline.md" >/dev/null
+bytes_are "$heading"$'\n\n'"$b"$'\n'"$baseline" AGENTS.md
+
+new_project baselinethere
+printf '%s\n\n%s\n## Baseline of the checks\n\n- own rule\n' "$heading" "$b" >"$proj/AGENTS.md"
+commit_all product
+out=$(run write --hosts codex --landing pr --baseline-file "$tmp/baseline.md")
+grep -qxF "setup: warning: AGENTS.md: $baseline_is" <<<"$out" || fail "no warning for a product baseline: $out"
+bytes_are "$heading"$'\n\n'"$b"$'\n## Baseline of the checks\n\n- own rule\n' AGENTS.md
+
+new_project baselinemissing
+LABELS= stops "setup: cannot read $tmp/missing.md" write --hosts codex --landing pr --baseline-file "$tmp/missing.md"
+clean_tree "a missing baseline file left a file"
+[ "$(code_of write --hosts codex --landing pr --baseline-file "$tmp")" -eq 1 ] || fail "write took a folder as a baseline file"
+[ ! -s "$LABEL_LOG" ] || fail "a missing input file left a label: $(cat "$LABEL_LOG")"
 
 [ ! -s "$LABEL_LOG" ] || fail "an earlier case made a label: $(cat "$LABEL_LOG")"
 new_project labels
