@@ -59,8 +59,13 @@ ADR-0016 limits required automation to the CLI hosts while keeping desktop invoc
   2026-10-14 (ADR-0012). Keep the clone path at 130 characters or less: a longer path goes past
   the 260 limit on Windows, and `scripts/celetis worktree <n>` then stops with `Filename too
   long`. `git config --global core.longpaths true` removes the limit.
-- The selected host CLI (`claude` or `codex`), `gh` (logged in), `jq`, Mike Farah's `yq`
-  `>=4.54.1,<5`, `git` 2.31 or later,
+- The selected host CLI: Claude Code 2.1.299 or later, or Codex CLI 0.162.1 or later. The Claude
+  entry hook reads the `skill.prompt` fields `source`, `pluginName`, and `path`, which came in
+  2.1.299; an older release stops each skill for hook setup. Codex 0.162.1 is the lowest release
+  on which the install, the refresh, and the lookup of the plugin were checked; an older release
+  is not supported. These versions are a floor, not proof of the full workflow
+  ([Acceptance status](docs/celetis-flow.md#acceptance-status)).
+- `gh` (logged in), `jq`, Mike Farah's `yq` `>=4.54.1,<5`, `git` 2.31 or later,
   and Perl 5.14 or later on `PATH`.
   The runner uses only the standard library of Perl.
 - Git credentials for GitHub that need no prompt, an ssh key or a credential helper for https: the
@@ -309,7 +314,8 @@ field that is there. Each other field stays by hand.
 | `custom.<skill>` | An addition to the skill procedure | No addition |
 
 - **Operational settings** come from the main checkout, including when a command starts in a
-  lane or subfolder. After a merge changes the config, run `git pull` in the main checkout.
+  lane or subfolder. `scripts/celetis land` moves the trunk of the main checkout; after a merge by
+  other means, or after its line `land: the main checkout did not move`, run `git pull` there.
 - **The gate of a step** comes from `gates.<step>`. An `auto` step starts by itself. A `me` step
   starts when you supply a number or press Run on the board. Old Git defaults have no effect.
 - **With the landing `pr`,** keep the repository setting `squash_merge_commit_title` at
@@ -521,8 +527,8 @@ host's skill selector. Native desktop selector acceptance is optional under
   lane checkout. Both hosts return to the main checkout for landing.
 - The landing puts the change on the trunk by the `landing` field of `.celetis.yaml`. With `pr`,
   `scripts/celetis land <n> '<subject>'` pushes the branch, opens the PR, waits up to 15 minutes
-  for the checks, and squash-merges when each check is green. It then removes the worktree and the
-  branch.
+  for the checks, and squash-merges when each check is green. It then moves the trunk of the main
+  checkout to the merge, and removes the worktree and the branch.
 - The other lanes are shorter. `/celetis:bug` finds the root cause, posts it as a `## Root cause`
   comment, and hands on to `plan`. `/celetis:chore` makes a change with no change of behavior: it
   verifies, commits, and lands in one session. `/celetis:hotfix` fixes broken production in one

@@ -115,21 +115,35 @@ the actual spawn arguments and returned child identity in the execution record. 
 scorer's resolved reviewer minimum. The profile owns that minimum; with no profile, it is
 rank 1/`medium`.
 
-Create a child with `dispatch.effort` explicitly set in the actual tool's fields, and with
-`dispatch.model` when it is not null. When `dispatch.model` is null (`line` shows `inherit`), send
-no `model` field and set `reasoning_effort` to `dispatch.effort`. The child then gets
-`[agents].default_subagent_model` when the user set it, else the parent's current model. Codex
-checks the effort against that model; a refused effort is a setup stop. Do not lower the effort or
-try another value. If overrides require an isolated context, use it. On a surface exposing
-`collaboration.spawn_agent`, the fields are `model`, `reasoning_effort`, and `fork_turns: "none"`.
+Create a child in an isolated context. Set `dispatch.effort` explicitly in the actual tool's
+fields, and set `dispatch.model` when it is not null. Codex selects one of two tool sets for each
+session: v2 when the `multi_agent_v2` feature is on, else the `multi_agent_version` of the session
+model in `codex debug models`, else v1 when the `multi_agent` feature is on. The session keeps that
+set, and a child inherits it. An old resumed or forked thread with no recorded set gets v1.
+
+- In the v1 set, the tools are in the `multi_agent_v1` namespace. The
+  `multi_agent_v1.spawn_agent` fields are `model`, `reasoning_effort`, and `fork_context: false`.
+  When the session model supports tool search, Codex defers these tools. If `spawn_agent`,
+  `wait_agent`, or `send_input` is not visible, do a tool search for it before a missing tool
+  stops dispatch.
+- In the v2 set, the default namespace is `collaboration`. The `collaboration.spawn_agent`
+  fields are `task_name`, `model`, `reasoning_effort`, and `fork_turns: "none"`.
+
+When `dispatch.model` is null (`line` shows `inherit`), send no `model` field and set
+`reasoning_effort` to `dispatch.effort`. The child then gets `[agents].default_subagent_model`
+when the user set it, else the parent's current model. Codex checks the effort against that
+model; a refused effort is a setup stop. Do not lower the effort or try another value.
+
 Keep the parent model unchanged. Give the child the exact lane path, relevant project
 instructions, its task text (not the whole plan), constraints and external facts, required
 skill/reference paths and custom additions, the gate, comment and commit rules, and return
 contract. An isolated child must read these instructions before acting.
 
 Repairs and scoped re-review use the same child's follow-up tool and recorded identity. Resolve
-the new pair before every retry. On a surface whose `collaboration.followup_task` has only
-`target` and `message`, it preserves the original pair: a changed-pair retry is **blocked**.
+the new pair before every retry. The two follow-up tools take no model and no effort:
+`multi_agent_v1.send_input` has `target`, `message` or `items`, and `interrupt`, and
+`collaboration.followup_task` has only `target` and `message`. Each keeps the original pair, so a
+changed-pair retry is **blocked**.
 A CAP line in that message does not change runtime settings. Stop with the old and required
 pairs and the tool limitation; retain the failure trail. Do not spawn a replacement and call it
 the same child. If a later surface supports changing both values on the same identity, verify

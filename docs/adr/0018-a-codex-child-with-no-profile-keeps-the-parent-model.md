@@ -48,12 +48,14 @@ Claude Code, a newly wired project needs no model setup for its first child.
   the model of the invoking step. Codex checks a requested effort against the supported levels of
   that model. An unsupported effort returns an error to the parent
   ([`child_config.rs`](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/core/src/agent/child_config.rs)).
-- Codex CLI 0.162.1: the default `spawn_agent` takes `model` and `reasoning_effort`
+- Codex CLI 0.162.1: the v1 tool `multi_agent_v1.spawn_agent` takes `model` and
+  `reasoning_effort`
   ([`spawn.rs`](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/core/src/tools/handlers/multi_agents/spawn.rs)).
-  The `multi_agent_v2` spawn tool also takes an optional `model` and `reasoning_effort`, and it
-  calls the same `prepare_agent_spawn_config`
+  The v2 tool `collaboration.spawn_agent` also takes an optional `model` and `reasoning_effort`,
+  and it calls the same `prepare_agent_spawn_config`
   ([`multi_agents_v2/spawn.rs`](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs)).
-  So an omitted model resolves the same way with both tools.
+  So an omitted model resolves the same way in both tool sets (`docs/hosts/codex.md`,
+  "Dispatch").
 - Codex CLI 0.162.1: `codex debug models` lists account-specific model IDs with no size order. On
   the machine of the maintainer, it lists 9 models, each with the efforts `low` to `max`. So only a
   profile can give the order of the model tiers.

@@ -31,7 +31,8 @@ apart from a path that starts with `~/` or `/`.
 ## Requirements
 
 - macOS or Linux, with bash 3.2 or later. There is no native Windows runner.
-- The selected host CLI (`claude` or `codex`), `gh` (logged in), `jq`, Mike Farah yq
+- The selected host CLI (`claude` 2.1.299 or later, or `codex` 0.162.1 or later; the README gives
+  the reason for each), `gh` (logged in), `jq`, Mike Farah yq
   `>=4.54.1,<5`, and `git` 2.31 or later on `PATH`. See `docs/configuration.md` for the pinned
   parser installation. When `gh` or `git` is missing, the script names it and exits 1. The runner also needs Perl 5.14 or later on `PATH`;
   its update helper uses only the standard library. The launcher needs the selected host and `jq` to find
@@ -48,8 +49,10 @@ apart from a path that starts with `~/` or `/`.
   recipes and product permissions. A Codex-only machine needs no Claude CLI.
 - The trunk of the main checkout is current. The trunk is the default branch of the repository on
   GitHub. The config comes from the main checkout of the product project, and so does the custom
-  part of a step that the script starts ("The config and the custom parts"): after a merge that
-  changes one of them, run `git pull` in the main checkout.
+  part of a step that the script starts ("The config and the custom parts"):
+  `scripts/celetis land` moves the trunk of the main checkout after each landing. After a merge by
+  other means, or after its line `land: the main checkout did not move`, run `git pull` in the
+  main checkout.
 - herdr 0.9.3, with the selected host's integration installed in its active configuration.
   Use `herdr integration status`; complete normal folder and inspected-hook trust before a run.
   The runner never answers those prompts. It ends a session only in a herdr pane. In another
