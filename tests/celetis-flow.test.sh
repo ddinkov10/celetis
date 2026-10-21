@@ -267,6 +267,14 @@ await_file() {
     /bin/sleep 0.05
   done
 }
+await_stop() {
+  local tries=0
+  until case $(ps -p "$1" -o stat= 2>/dev/null) in '' | *Z*) ;; *) false ;; esac; do
+    tries=$((tries + 1))
+    [ "$tries" -le 100 ] || fail "$2"
+    /bin/sleep 0.05
+  done
+}
 sessions() { calls claude-env | cut -d'|' -f1,2; }
 locks() { git -C "$repo" for-each-ref --format='%(refname)' refs/celetis-flow/locks | wc -l | tr -d ' '; }
 rows() { wc -l <"$st/no-progress" | tr -d ' '; }
@@ -351,8 +359,8 @@ for stage in marketplace update list; do
   phase=$stage
   [ "$stage" != list ] || phase='--agent claude root'
   [[ $err == *"timed out"* && $err == *"$phase"* && $err == *"fake claude plugin: error"* ]] || fail "a timeout must show its command and captured cause: [$err]"
-  case $(ps -p "$update_pid" -o stat= 2>/dev/null) in '' | *Z*) ;; *) fail "the timed-out update still runs: $update_pid" ;; esac
-  case $(ps -p "$update_child" -o stat= 2>/dev/null) in '' | *Z*) ;; *) fail "a timed-out update left a live descendant: $update_child" ;; esac
+  await_stop "$update_pid" "the timed-out update still runs: $update_pid"
+  await_stop "$update_child" "a timed-out update left a live descendant: $update_child"
   [ "$(locks)" -eq 0 ] || fail "a timed-out update left an issue lock"
 done
 
@@ -377,8 +385,8 @@ for boundary in timeout interruption; do
     echo "FAIL: Codex lookup $boundary lost or repeated its stderr: [$err]"
     lost_diagnostics=$((lost_diagnostics + 1))
   fi
-  case $(ps -p "$codex_pid" -o stat= 2>/dev/null) in '' | *Z*) ;; *) fail "Codex lookup $boundary left its app-server alive" ;; esac
-  case $(ps -p "$codex_child" -o stat= 2>/dev/null) in '' | *Z*) ;; *) fail "Codex lookup $boundary left a live descendant" ;; esac
+  await_stop "$codex_pid" "Codex lookup $boundary left its app-server alive"
+  await_stop "$codex_child" "Codex lookup $boundary left a live descendant"
   [ "$(printf '%s' "$tmp/codex pipes"/*)" = "$tmp/codex pipes/*" ] || fail "Codex lookup $boundary left temporary files"
   [ "$(locks)" -eq 0 ] || fail "Codex lookup $boundary left an issue lock"
   "$CELETIS_FLOW_TEST_PERL" -MFcntl=:flock -e 'open my $lock, ">>", $ARGV[0] or die $!; flock($lock, LOCK_EX | LOCK_NB) or die $!;' "$CODEX_HOME/celetis-update.lock" || fail "Codex lookup $boundary left the update lock held"
@@ -627,7 +635,7 @@ run_flow 7
 [ "$code" -eq 0 ] && [ "$(count claude-calls)" -eq 1 ] || fail "a runner exit must stop its update and release the shared lock: $code [$err]"
 [ "$((SECONDS - cancel_start))" -le 5 ] || fail "an interrupted update took more than 5 seconds to release its lock"
 ! kill -0 "$update_pid" 2>/dev/null || fail "an interrupted runner left its update alive"
-case $(ps -p "$update_child" -o stat= 2>/dev/null) in '' | *Z*) ;; *) fail "an interrupted runner left a live descendant" ;; esac
+await_stop "$update_child" "an interrupted runner left a live descendant"
 
 reset; issue 7 OPEN enhancement "Spec: x"; issue 8 OPEN enhancement "Spec: x"; touch "$S/hold-7"
 tag=a- start_flow 7; a=$flow_pid

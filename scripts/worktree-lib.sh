@@ -1,4 +1,16 @@
-# Sourced by scripts/worktree.sh and scripts/land.sh.
+# Sourced by scripts/worktree.sh, scripts/land.sh, and scripts/setup.sh.
+
+# The marker sits in the git dir: a file in the working tree would make a new worktree dirty.
+marker_of() { echo "$(git -C "$1" rev-parse --path-format=absolute --git-dir)/celetis-flow-setup-done"; }
+
+run_setup() {
+  local checkout=$1 config=$2 main=$3 setup
+  setup=$(printf '%s\n' "$config" | jq -jr '.worktreeSetup // ""'; printf '.')
+  setup=${setup%.}
+  [ -n "$setup" ] || return 0
+  (cd "$checkout" && bash -c "$setup" celetis-worktree-setup "$main" >&2) || return
+  touch "$(marker_of "$checkout")" || return 1
+}
 
 checkout_of() {
   git worktree list --porcelain | awk -v ref="refs/heads/$1" '

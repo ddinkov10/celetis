@@ -85,7 +85,8 @@ can receive terminal input. An omitted or empty script runs no setup.
 The main config is checked before Git prune, branch or worktree changes, runtime state creation,
 plugin updates, host sessions, and landing pushes. The runner checks it again before each new
 session. The worktree command also checks the lane config on every entry, including a lane with
-its setup marker. An unmarked lane runs setup once and receives the marker only after success.
+its setup marker. An unmarked lane runs setup once and receives the marker only after a script
+that is not empty succeeded. With an empty or missing `worktreeSetup`, the lane stays unmarked.
 A setup failure or invalid new lane config uses the existing cleanup: remove the new worktree
 and a branch created by the command; keep an existing branch or worktree for repair and retry.
 Old Git defaults have no effect; the cutover table below lists them.

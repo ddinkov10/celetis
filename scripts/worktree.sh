@@ -25,8 +25,6 @@ n=${1#\#}
 
 main=$(celetis_config_main)
 celetis_config_read "$main" >/dev/null
-# The marker sits in the git dir: a file in the working tree would make a new worktree dirty.
-marker_of() { echo "$(git -C "$1" rev-parse --path-format=absolute --git-dir)/celetis-flow-setup-done"; }
 git worktree prune
 from_pr=0
 branch=$(git branch --list --format='%(refname:lstrip=2)' "feat/$n-*" "fix/$n-*" "hotfix/$n-*" "chore/$n-*")
@@ -125,10 +123,5 @@ if [ -f "$(marker_of .)" ]; then
   echo "$path"
   exit 0
 fi
-setup=$(printf '%s\n' "$config" | jq -jr '.worktreeSetup // ""'; printf '.')
-setup=${setup%.}
-if [ -n "$setup" ]; then
-  bash -c "$setup" celetis-worktree-setup "$main" >&2 || fail ".celetis.yaml worktreeSetup"
-fi
-touch "$(marker_of .)" || fail "mark setup done"
+run_setup "$path" "$config" "$main" || fail ".celetis.yaml worktreeSetup"
 echo "$path"
