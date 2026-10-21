@@ -4,11 +4,13 @@ here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)
 host=claude
 output_dir=
+only=
 while [ $# -gt 0 ]; do
   case $1 in
     --agent) [ $# -ge 2 ] || exit 2; host=$2; shift 2 ;;
     --output-dir) [ $# -ge 2 ] || exit 2; output_dir=$2; shift 2 ;;
-    *) echo "usage: $0 [--agent claude|codex] [--output-dir DIR]" >&2; exit 2 ;;
+    --only) [ $# -ge 2 ] || exit 2; only=$2; shift 2 ;;
+    *) echo "usage: $0 [--agent claude|codex] [--output-dir DIR] [--only CASE:MODE]" >&2; exit 2 ;;
   esac
 done
 case $host in claude | codex) ;; *) echo "invalid agent: $host" >&2; exit 2 ;; esac
@@ -155,6 +157,7 @@ EOF
 
 turn() {
   local k=$1 mode=$2 prompt="$tmp/in-$1-$2" answer="$tmp/out-$1-$2" started
+  [ -z "$only" ] || [ "$only" = "$k:$mode" ] || return 0
   case $mode in
     step | specify) started='scripts/celetis celetis-flow started the session for issue #7.' ;;
     hand) started='A person started the session by hand for issue #7.' ;;
@@ -195,6 +198,7 @@ EOF
 
 check() {
   local k=$1 mode=$2 answer="$tmp/out-$1-$2" bad=no found what= s recovered human_stop actions bound_cwd rest
+  [ -z "$only" ] || [ "$only" = "$k:$mode" ] || return 0
   shift 2
   if [ "$(cat "$tmp/status-$k-$mode")" != 0 ]; then
     what=', host command failed'
@@ -298,4 +302,4 @@ if [ -n "$output_dir" ]; then
   [ "$host" != codex ] || cp "$tmp"/events-* "$output_dir/"
 fi
 [ "$failed" -eq 0 ] || exit 1
-echo "PASS ($host): 25 cases"
+if [ -n "$only" ]; then echo "PASS ($host): case $only"; else echo "PASS ($host): 25 cases"; fi
