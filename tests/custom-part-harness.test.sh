@@ -308,9 +308,10 @@ valid_run() {
   fi
 }
 style_run() {
-  local style=$1 pass=$2 fail=$3
-  if CUSTOM_PART_CASES=$style_cases CUSTOM_METADATA_STYLE=$style manual >"$tmp/$style" 2>&1 &&
-      passed "$tmp/$style" $style_cases; then
+  local style=$1 pass=$2 fail=$3 cases=$style_cases
+  [ "$style" != path-map ] || cases=
+  if CUSTOM_PART_CASES=$cases CUSTOM_METADATA_STYLE=$style manual >"$tmp/$style" 2>&1 &&
+      passed "$tmp/$style" $cases; then
     echo "ok: $pass"
   else
     echo "FAIL: $fail"; cat "$tmp/$style"; return 1

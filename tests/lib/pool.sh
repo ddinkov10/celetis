@@ -34,7 +34,7 @@ pool_wait() {
   local i=0 code failed=0
   while [ "$i" -lt "$pool_n" ]; do
     code=0
-    wait "${pool_pids[i]}" || code=$?
+    wait "${pool_pids[i]}" 2>/dev/null || code=$?
     [ ! -f "$pool_dir/$i.rc" ] || code=$(cat "$pool_dir/$i.rc")
     cat "$pool_dir/$i.log"
     if [ "$code" != 0 ]; then
