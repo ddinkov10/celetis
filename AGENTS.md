@@ -21,6 +21,9 @@ AGENT_BOARD=<checkout of ddinkov10/agent-board>/cli.mjs scripts/verify.sh
 - `tests/text.test.sh` reads tracked files only. Run `git add` on a new file before the gate.
 - Each script and each test also runs under bash 3.2, the `/bin/bash` of macOS. The gate runs each
   test as `PATH="/bin:$PATH" /bin/bash <test>`, so each inner `bash` reaches `/bin/bash` too.
+- Each test passes in 30 s or less alone (#81). A test with many independent cases runs them with
+  `tests/lib/pool.sh`. The gate runs the tests at the same time, so a test keeps its scratch state
+  private and writes nothing in the checkout.
 - `tests/manual/step-prompt.test.sh` is hand-run: it is not in the gate, and it uses tokens. Run it
   after a change of `step-prompt.md`, of "Celetis flow" below, or of a sentence that it quotes
   ("Traps").
