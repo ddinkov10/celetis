@@ -69,7 +69,7 @@ function codePoint(text: string, index: number): string {
 
 function yaml11Number(text: string): boolean {
   const digits = text.replaceAll("_", "");
-  return yaml11Int.test(digits) || yaml11Float.test(digits);
+  return /^[-+.0-9]/.test(text) && (yaml11Int.test(digits) || yaml11Float.test(digits));
 }
 
 function readSnapshot(file: string): Uint8Array {
@@ -200,7 +200,9 @@ function checkMetadata(nodes: NodeRecord[]): void {
     [
       "unsupported YAML tag",
       (node) =>
-        (!coreTags.includes(node.tag) || (typedTags.includes(node.tag) && typeof node.value === "string")) &&
+        (!coreTags.includes(node.tag) ||
+          (typedTags.includes(node.tag) && typeof node.value === "string") ||
+          ((node.kind === "map" || node.kind === "seq") && node.tag !== coreTag(node.kind))) &&
         node.path,
     ],
     [
@@ -224,7 +226,7 @@ function checkMetadata(nodes: NodeRecord[]): void {
       "need an integer",
       (node) =>
         !node.key &&
-        node.tag === coreTag("float") &&
+        (node.tag === coreTag("float") || /^[-+]?0[0-9]*[89][0-9]*$/.test(node.plain ?? "")) &&
         (at(node.path, "board.port") || at(node.path, "codexProfiles.*.reviewer.rank")) &&
         node.path,
     ],

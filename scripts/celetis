@@ -32,7 +32,7 @@ celetis_config_bun() (
 
 celetis_config_run() (
   case $2 in
-    /*) checkout=$2 ;;
+    /* | [A-Za-z]:/* | [A-Za-z]:\\*) checkout=$2 ;;
     *) checkout=$PWD/$2 ;;
   esac
   [ -f "$1" ] || celetis_config_stop "$checkout/.celetis.yaml" \

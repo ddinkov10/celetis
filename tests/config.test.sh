@@ -309,6 +309,18 @@ done
 for port in '"4403"' true 4403.5 4403.0 1023 65536; do
   invalid "invalid_port_$port" board.port < <(printf 'landing: pr\nboard: {port: %s}\n' "$port")
 done
+for port in 08080 09999 +08080; do
+  invalid "leading_zero_port_$port" board.port < <(printf 'landing: pr\nboard: {port: %s}\n' "$port")
+done
+check leading_zero_port_message test "$err" = "celetis: $repo/.celetis.yaml: board.port: need an integer"
+printf 'landing: pr\nboard: {port: 04404}\n' >"$repo/.celetis.yaml"
+valid leading_zero_port_without_8_or_9 '{"landing":"pr","board":{"port":4404}}'
+for tag in '!!null' '!<tag:yaml.org,2002:null>' '!!seq'; do
+  invalid "collection_tag_$tag" gates < <(printf 'landing: pr\ngates: %s {plan: me}\n' "$tag")
+done
+invalid collection_tag_block gates < <(printf 'landing: pr\ngates: !!null\n  plan: me\n')
+invalid collection_tag_slots codexProfiles.r.slots < <(printf 'landing: pr\ncodexProfiles: {r: {slots: !!null [a, a, a, a], reviewer: {rank: 1, effort: low}}}\n')
+check collection_tag_message test "$err" = "celetis: $repo/.celetis.yaml: codexProfiles.r.slots: unsupported YAML tag"
 invalid invalid_host host <<'EOF'
 landing: pr
 host: other
@@ -481,6 +493,8 @@ landing: pr
 custom: {bug: '1_000', plan: !!str 0b101}
 EOF
 valid quoted_yaml_1_1_number '{"landing":"pr","custom":{"bug":"1_000","plan":"0b101"}}'
+printf 'landing: pr\ncustom: {bug: _1}\n' >"$repo/.celetis.yaml"
+valid leading_underscore_text '{"landing":"pr","custom":{"bug":"_1"}}'
 invalid underscore_slot codexProfiles.r.slots.0 < <(printf 'landing: pr\ncodexProfiles: {r: {slots: [1_000, a, a, a], reviewer: {rank: 1, effort: low}}}\n')
 invalid underscore_runtime_key codexProfiles.1_000 < <(printf 'landing: pr\ncodexProfiles: {1_000: {slots: [a, a, a, a], reviewer: {rank: 1, effort: low}}}\n')
 invalid lone_surrogate custom.bug < <(printf 'landing: pr\ncustom: {bug: "\\ud800"}\n')
@@ -509,6 +523,17 @@ code=0
 out=$(/bin/bash -c 'source "$1"; celetis_config_read "$2"' _ "$tmp/copy/scripts/celetis" "$repo" 2>"$tmp/err") || code=$?
 check product_copy_names_the_plugin_launcher test "$code:$out" = '2:'
 check product_copy_message grep -qF 'source the launcher of the plugin, $(scripts/celetis root)/scripts/celetis' "$tmp/err"
+
+mkdir "$tmp/args"
+cat >"$tmp/args/bun" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$@"
+EOF
+chmod +x "$tmp/args/bun"
+for drive in 'C:/Users/me/repo' 'c:\Users\me\repo'; do
+  out=$(PATH="$tmp/args:$base_path" celetis_config_run "$celetis_reader" "$drive")
+  check "drive_path_$drive" test "$out" = "$celetis_reader"$'\n'"$drive"
+done
 
 printf 'landing: pr\n' >"$repo/.celetis.yaml"
 read_path="$tmp/no-parser"
