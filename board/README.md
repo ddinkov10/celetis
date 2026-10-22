@@ -88,7 +88,8 @@ and creates no config file. The checkout rules below still apply.
 **The port** is `PORT` of the environment, else `port` of the config, else 4403. A `PORT` that is no
 number, or that is `0`, counts as absent. The server listens on `127.0.0.1` only. Each repository
 has the default port 4403, so a second board on one machine exits 1 at its start. Give it another
-port, with `"port": 4404` in its config or with `PORT`:
+port. A start by hand takes `"port": 4404` in its stdin config. The `scripts/celetis board` start
+takes `board.port` of `.celetis.yaml`. `PORT` overrides both:
 
 ```bash
 PORT=4404 scripts/celetis board
@@ -742,8 +743,8 @@ the texts are `Open the issue` and `Read the issues again`.
 - A document with another `contract` value gives no issue card ("The errors").
 - **The config has no version.** A board refuses a key that it does not know, so a config for a
   newer board fails at the start with the name of the key.
-- The checker and this README are two forms of contract 1. `agent-board check` is the authority
-  when they differ.
+- The checker and this README are two forms of contract 1. `agent-board check --stdin` is the
+  authority when they differ.
 
 ## Limits
 
@@ -788,8 +789,8 @@ Of the cards and the page:
   folder is slower than the start of a session. One press at a time is safe.
 - A start of the server forgets the times of the Run and Resume presses.
 - When the `data` command does not end in 60 seconds, the status bar shows
-  `cannot read: Command failed: …`, and `agent-board check` prints the same cause. The text does not
-  name the limit.
+  `cannot read: Command failed: …`, and `agent-board check --config-stdin` prints the same cause.
+  The text does not name the limit.
 - The count of changed lines is against `origin/HEAD`. A clone with no `origin/HEAD` shows no count.
 - A notification shows only while the page is open in a tab. A browser that throttles a hidden tab
   can delay it by up to a minute.

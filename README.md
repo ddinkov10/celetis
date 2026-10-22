@@ -732,8 +732,8 @@ PORT=4500 scripts/celetis board
 
 The command takes no arguments. It validates the main checkout's `.celetis.yaml` and refuses a
 lane start before it starts `node`. It sends the fixed command lists through stdin to
-`node <plugin>/board/cli.mjs --config-stdin` in the main checkout. No second
-config file is made. The board validates the input and its executable paths.
+`node <plugin>/board/cli.mjs --config-stdin` in the main checkout, where `<plugin>` is the root
+of the installed plugin (`scripts/celetis root`). No second config file is made. The board validates the input and its executable paths.
 Only `board.port` comes from YAML; its default is 4403. `PORT` overrides it. This repository uses
 4404, so its board can run beside a board on 4403. Restart the board after a port change.
 After a plugin update, start each running board again.

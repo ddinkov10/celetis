@@ -29,6 +29,14 @@ these parts:
 - The call "The tests of this repository start the checker through the variable `AGENT_BOARD`,
   else through the pinned `npx` command", and the plan decision on `AGENT_BOARD`.
 
+From ADR-0015, "One repository YAML file owns Celetis setup", this part of its Decision:
+
+- The words "to the exact released board" and "The separate board package keeps its command/path
+  validator and contract 1". `scripts/celetis board` now sends the config to `board/cli.mjs` of
+  the same plugin. The validator and contract 1 stay, now in `board/` of the plugin. The board
+  still does not know YAML or Celetis field names. The storage decision of ADR-0015 stands, and
+  this record changes no other part of it.
+
 This record keeps contract 1, the config keys `data`, `run`, `resume`, and `port`, the five trust
 rules, and the flat layout, now under `board/`. ADR-0015 replaced Decision 5 before this record.
 
