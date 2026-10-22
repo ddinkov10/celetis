@@ -1,7 +1,7 @@
 import { expect, setDefaultTimeout } from 'bun:test';
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createLandingTests, subject } from './lib/land-fixture.ts';
+import { createLandingTests, registerLaneRefusals, subject } from './lib/land-fixture.ts';
 
 setDefaultTimeout(25_000);
 const landCase = createLandingTests();
@@ -40,58 +40,7 @@ for (const value of ['landing: rebase', '{}', 'not yaml: [', ''])
     expect(await f.logs()).toEqual([]);
   });
 
-for (const mode of ['merge'] as const) {
-  landCase(`lane_refusals: ${mode} GitHub unavailable`, mode, async (f) => {
-    await f.lane();
-    await f.put('gh-fail');
-    await f.land();
-    await f.refused('cannot read the default branch from GitHub');
-    expect(f.output()).toContain('HTTP 502');
-    expect(f.output().split('HTTP 502')).toHaveLength(2);
-  });
-  for (const other of ['', 'fix/17-other', 'prototype/7-look'])
-    landCase(`lane_refusals: ${mode} no matching lane ${other}`, mode, async (f) => {
-      if (other) await f.lane(other);
-      await f.land();
-      await f.refused('no lane branch matches #7; nothing to land');
-    });
-  landCase(`lane_refusals: ${mode} two lanes`, mode, async (f) => {
-    await f.lane();
-    await f.git(['branch', '-q', 'feat/7-crash', 'master']);
-    await f.land();
-    await f.refused('several branches match #7: feat/7-crash fix/7-crash; keep one');
-  });
-  landCase(`lane_refusals: ${mode} inside lane`, mode, async (f) => {
-    await f.lane();
-    await f.land(undefined, f.wt());
-    await f.refused(`leave ${f.wt()} first: run scripts/celetis land from the main checkout`);
-  });
-  landCase(`lane_refusals: ${mode} dirty lane`, mode, async (f) => {
-    await f.lane();
-    await writeFile(join(f.wt(), 'new.txt'), 'x');
-    await f.land();
-    await f.refused(`the lane worktree is dirty: ${f.wt()}; commit first`);
-  });
-  landCase(`lane_refusals: ${mode} no lane commit`, mode, async (f) => {
-    await f.lane();
-    await f.git(['reset', '-q', '--hard', 'origin/master'], f.wt());
-    await f.land();
-    await f.refused('fix/7-crash has no commit that master lacks; nothing to land');
-  });
-  landCase(`lane_refusals: ${mode} main on lane`, mode, async (f) => {
-    await f.git(['checkout', '-q', '-b', 'fix/7-crash']);
-    await f.git(['commit', '-q', '--allow-empty', '-m', 'work']);
-    await f.land();
-    await f.refused('switch the main checkout off fix/7-crash first');
-  });
-  landCase(`lane_refusals: ${mode} fetch error`, mode, async (f) => {
-    await f.lane();
-    await f.put('fetch-fail');
-    await f.land();
-    await f.refused('cannot fetch master from origin');
-    expect(f.output()).toContain('fatal: cannot fetch fixture origin');
-  });
-}
+registerLaneRefusals(landCase, 'merge');
 
 for (const condition of ['dirty', 'off trunk', 'ahead', 'behind', 'stale', 'rejected push'])
   landCase(`merge_refusals: ${condition}`, 'merge', async (f) => {

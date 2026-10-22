@@ -2,64 +2,13 @@ import { expect, setDefaultTimeout } from 'bun:test';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { command, isolatedArgs, root } from './lib/fixture.ts';
-import { createLandingTests, subject } from './lib/land-fixture.ts';
+import { createLandingTests, registerLaneRefusals, subject } from './lib/land-fixture.ts';
 
 setDefaultTimeout(25_000);
 const landCase = createLandingTests();
 const old = '0000000000000000000000000000000000000000';
 
-for (const mode of ['pr'] as const) {
-  landCase(`lane_refusals: ${mode} GitHub unavailable`, mode, async (f) => {
-    await f.lane();
-    await f.put('gh-fail');
-    await f.land();
-    await f.refused('cannot read the default branch from GitHub');
-    expect(f.output()).toContain('HTTP 502');
-    expect(f.output().split('HTTP 502')).toHaveLength(2);
-  });
-  for (const other of ['', 'fix/17-other', 'prototype/7-look'])
-    landCase(`lane_refusals: ${mode} no matching lane ${other}`, mode, async (f) => {
-      if (other) await f.lane(other);
-      await f.land();
-      await f.refused('no lane branch matches #7; nothing to land');
-    });
-  landCase(`lane_refusals: ${mode} two lanes`, mode, async (f) => {
-    await f.lane();
-    await f.git(['branch', '-q', 'feat/7-crash', 'master']);
-    await f.land();
-    await f.refused('several branches match #7: feat/7-crash fix/7-crash; keep one');
-  });
-  landCase(`lane_refusals: ${mode} inside lane`, mode, async (f) => {
-    await f.lane();
-    await f.land(undefined, f.wt());
-    await f.refused(`leave ${f.wt()} first: run scripts/celetis land from the main checkout`);
-  });
-  landCase(`lane_refusals: ${mode} dirty lane`, mode, async (f) => {
-    await f.lane();
-    await writeFile(join(f.wt(), 'new.txt'), 'x');
-    await f.land();
-    await f.refused(`the lane worktree is dirty: ${f.wt()}; commit first`);
-  });
-  landCase(`lane_refusals: ${mode} no lane commit`, mode, async (f) => {
-    await f.lane();
-    await f.git(['reset', '-q', '--hard', 'origin/master'], f.wt());
-    await f.land();
-    await f.refused('fix/7-crash has no commit that master lacks; nothing to land');
-  });
-  landCase(`lane_refusals: ${mode} main on lane`, mode, async (f) => {
-    await f.git(['checkout', '-q', '-b', 'fix/7-crash']);
-    await f.git(['commit', '-q', '--allow-empty', '-m', 'work']);
-    await f.land();
-    await f.refused('switch the main checkout off fix/7-crash first');
-  });
-  landCase(`lane_refusals: ${mode} fetch error`, mode, async (f) => {
-    await f.lane();
-    await f.put('fetch-fail');
-    await f.land();
-    await f.refused('cannot fetch master from origin');
-    expect(f.output()).toContain('fatal: cannot fetch fixture origin');
-  });
-}
+registerLaneRefusals(landCase, 'pr');
 
 landCase('pr_landing: exact request argv, verified SHA, real remote refs and epic closure', 'pr', async (f) => {
   await f.put('log-git');
@@ -389,3 +338,43 @@ landCase('streams: ordinary success warnings stay and explicit quiet calls stay 
     'fixture: gh warning PUT repos/{owner}/{repo}/pulls/9/merge',
   ]);
 });
+
+for (const stage of ['lane', 'prototype'])
+  landCase(`interrupted cleanup: SIGTERM during ${stage} removal stops later deletes`, 'pr', async (f) => {
+    await f.ready();
+    const prototype = join(f.repo, '.claude/worktrees/prototype-7-signal');
+    if (stage === 'prototype') {
+      await f.git(['worktree', 'add', '-q', '-b', 'prototype/7-signal', prototype, 'master']);
+      await f.git(['push', '-q', 'origin', 'prototype/7-signal']);
+    }
+    await f.put('log-git');
+    await f.put('hold-cleanup', stage === 'prototype' ? prototype : f.wt());
+    const child = f.start();
+    try {
+      await f.wait('cleanup-held');
+      expect(child.child.kill('SIGTERM')).toBe(true);
+      await Bun.sleep(50);
+    } finally {
+      await f.put('cleanup-release');
+      Object.assign(f.result, await child.done);
+    }
+    const calls = await f.logs('git-calls');
+    expect(await f.ref(f.branch()), JSON.stringify(calls)).toBe(true);
+    expect(calls.filter((args) => args[0] === 'branch' && args[1] === '-D')).toEqual([]);
+    await f.stopped();
+    expect(await f.ref(f.branch(), true)).toBe(false);
+    if (stage === 'prototype') {
+      expect(await f.has(prototype)).toBe(true);
+      expect(await f.ref('prototype/7-signal')).toBe(true);
+      expect(await f.ref('prototype/7-signal', true)).toBe(true);
+    }
+    await f.merged();
+    await f.land();
+    await f.landed();
+    expect(await f.calls('/pulls/[0-9]+/merge')).toHaveLength(1);
+    if (stage === 'prototype') {
+      expect(await f.has(prototype)).toBe(false);
+      expect(await f.ref('prototype/7-signal')).toBe(false);
+      expect(await f.ref('prototype/7-signal', true)).toBe(false);
+    }
+  });

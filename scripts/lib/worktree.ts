@@ -65,8 +65,10 @@ export async function runSetup(checkout: string, config: Config, main: string): 
   }
 }
 
-export async function worktrees(cwd: string): Promise<{ path: string; branch?: string }[]> {
-  const result = await run('git', ['worktree', 'list', '--porcelain', '-z'], { cwd });
+export async function worktrees(cwd: string, signal?: AbortSignal): Promise<{ path: string; branch?: string }[]> {
+  signal?.throwIfAborted();
+  const result = await run('git', ['worktree', 'list', '--porcelain', '-z'], { cwd, signal });
+  signal?.throwIfAborted();
   if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
   return result.stdout
     .split('\0\0')
@@ -80,19 +82,34 @@ export async function worktrees(cwd: string): Promise<{ path: string; branch?: s
     });
 }
 
-export async function checkoutOf(branch: string, cwd = process.cwd()): Promise<string> {
-  return (await worktrees(cwd)).find((tree) => tree.branch === branch)?.path ?? '';
+export async function checkoutOf(branch: string, cwd = process.cwd(), signal?: AbortSignal): Promise<string> {
+  return (await worktrees(cwd, signal)).find((tree) => tree.branch === branch)?.path ?? '';
 }
 
-export async function removeCheckout(checkout: string, cwd: string, force = false): Promise<void> {
-  const result = await run('git', ['worktree', 'remove', ...(force ? ['--force'] : []), checkout], { cwd });
+export async function removeCheckout(
+  checkout: string,
+  cwd: string,
+  force = false,
+  signal?: AbortSignal,
+): Promise<void> {
+  signal?.throwIfAborted();
+  const result = await run('git', ['worktree', 'remove', ...(force ? ['--force'] : []), checkout], { cwd, signal });
+  signal?.throwIfAborted();
   if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
   process.stderr.write(result.stdout + result.stderr);
 }
 
-export async function removeLane(n: string, branch: string, checkout: string, cwd: string): Promise<void> {
+export async function removeLane(
+  n: string,
+  branch: string,
+  checkout: string,
+  cwd: string,
+  signal?: AbortSignal,
+): Promise<void> {
   const git = async (args: string[], output = false) => {
-    const result = await run('git', args, { cwd });
+    signal?.throwIfAborted();
+    const result = await run('git', args, { cwd, signal });
+    signal?.throwIfAborted();
     if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
     if (output) process.stderr.write(result.stdout + result.stderr);
     return result.stdout.trimEnd();
@@ -100,10 +117,11 @@ export async function removeLane(n: string, branch: string, checkout: string, cw
   const prototypes = await git(['branch', '--list', '--format=%(refname:lstrip=2)', `prototype/${n}-*`]);
   const pushed = await git(['ls-remote', '--heads', 'origin', `refs/heads/prototype/${n}-*`]);
   for (const prototype of prototypes.split('\n').filter(Boolean)) {
-    const at = await checkoutOf(prototype, cwd);
+    const at = await checkoutOf(prototype, cwd, signal);
     if (at) {
-      await run('git', ['worktree', 'unlock', at], { cwd });
-      await removeCheckout(at, cwd);
+      signal?.throwIfAborted();
+      await run('git', ['worktree', 'unlock', at], { cwd, signal });
+      await removeCheckout(at, cwd, false, signal);
     }
     await git(['branch', '-D', prototype], true);
   }
@@ -113,8 +131,9 @@ export async function removeLane(n: string, branch: string, checkout: string, cw
       true,
     );
   if (checkout) {
-    await run('git', ['worktree', 'unlock', checkout], { cwd });
-    await removeCheckout(checkout, cwd);
+    signal?.throwIfAborted();
+    await run('git', ['worktree', 'unlock', checkout], { cwd, signal });
+    await removeCheckout(checkout, cwd, false, signal);
   }
   await git(['branch', '-D', branch], true);
 }

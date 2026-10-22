@@ -154,7 +154,7 @@ export async function main(argv: string[]): Promise<number> {
     ]);
     if (!branch) die(`no lane branch matches #${n}; nothing to land`);
     if (branch.includes('\n')) die(`several branches match #${n}: ${branch.replaceAll('\n', ' ')}; keep one`);
-    const checkout = await checkoutOf(branch, cwd);
+    const checkout = await checkoutOf(branch, cwd, abort.signal);
     if (checkout === main) die(`switch the main checkout off ${branch} first`);
     if (checkout) {
       if ((await git(['rev-parse', '--show-toplevel'])) === checkout)
@@ -440,7 +440,7 @@ export async function main(argv: string[]): Promise<number> {
       }
     }
     interrupted();
-    await removeLane(n, branch, checkout, cwd);
+    await removeLane(n, branch, checkout, cwd, abort.signal);
     interrupted();
     console.log(`land: ${branch} and its worktree are gone`);
     return 0;
