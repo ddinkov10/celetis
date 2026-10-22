@@ -41,11 +41,12 @@ Exactly one lane label per routed issue. The other labels mark waits and gates.
 
 - **Intent** — `/celetis:intake` writes the intent template as the body of a new issue, or as a comment headed `## Intent` on an existing one. A reporter's body is never rewritten by intake.
 - **Spec** — `specify` replaces the body with the design spec (`gh issue edit <n> --body-file`); its first line is `Spec: YYYY-MM-DD`. The body is the current truth for the item.
-- **Plan** — `plan` posts the implementation plan as a comment headed `## Plan`, then adds `ready-for-agent`. `implement` in a fresh context re-fetches the latest `## Plan` comment.
+- **Plan** — `plan` posts the implementation plan as a comment headed `## Plan`, then adds `ready-for-agent`. Its first section, `### Your steps`, lists the human acts of the lane in two lists: "During the build" (each act that the maintainer does while the build runs, the step that needs it, and its report) and "After the landing" (each check by hand on the built change; nothing in the lane waits for it). `implement` in a fresh context re-fetches the latest `## Plan` comment.
+- **Human steps done** — the maintainer reports the acts of "During the build" in one comment whose first line is `## Human steps done`, after the latest `## Plan` comment. The comment names each act that is done and each value that an act gives. `implement` reads each such comment after the latest `## Plan` comment. A session never writes it.
 - **Root cause** — `/celetis:bug` and `/celetis:hotfix` post the debugging report as a comment headed `## Root cause`.
 - **Prototype** — a look decision (`AGENTS.md` of the project) is recorded as a `## Prototype` section inside the spec (the issue body) or the `## Root cause` report, edited in place when that is already posted. It holds the question, the `prototype/<n>-<slug>` branch with its commit, one line per variant, and the verdict with its reason. The `## Root cause` comment on ddinkov10/fwrh_calculator#251 is the model.
 - **Built** — a `## Plan` comment with no `ready-for-agent` label: `plan` sets the label, and `implement` clears it when the change is built.
-- **Before landing** — a comment headed `## Before landing` names a human precondition, or a Verify scenario that a step session could not run; the issue carries `ready-for-human` until the maintainer did the act.
+- **Before landing** — a comment headed `## Before landing` names a human precondition that the plan did not name, an act of "During the build" with no report (its report form, and the scenarios that wait for it), or a Verify scenario that a step session could not run; the issue carries `ready-for-human` until the maintainer did the act.
 - **Landing refused** — a comment headed `## Landing refused` holds the output of `scripts/celetis land` at a stop; a step session then adds `ready-for-human`. The refusal is current while this comment is the last comment of the issue that starts with `## ` ("Resolving an issue's state").
 - **Stopped** — a comment headed `## Stopped` holds the reason of a stop of a step session for which its skill posts no comment (a refusal of `scripts/celetis worktree`, gate attempt 4 of `implement`, a blocked hotfix), and the act of the maintainer that lets the step go on; the issue carries `ready-for-human` until the maintainer did the act. `docs/celetis-flow.md`, "How a step runs", defines a step session.
 - **External facts of a dependency bump** — `/celetis:chore` posts a comment headed `## External facts`.
@@ -57,8 +58,7 @@ Local `docs/superpowers/` files are scratch; a fresh session re-fetches from the
 
 The main checkout's `.celetis.yaml` owns repository setup (ADR-0015). Its manual replacement
 and stopped old runners are a human precondition for the config cutover, as
-[`docs/configuration.md`](configuration.md#replace-the-old-setup) specifies. Keep the plugin
-change built and unlanded until that precondition and the required live checks have evidence.
+[`docs/configuration.md`](configuration.md#replace-the-old-setup) specifies.
 
 Trunk-based. Every issue is its own work item: one lane branch off the trunk, landed by `scripts/celetis land` with the `landing` field of the main checkout's `.celetis.yaml`: `pr` is one PR back to the trunk; `merge` is one squash commit on the trunk, with no PR. The trunk is the default branch of the repository on GitHub.
 
@@ -96,8 +96,18 @@ Read the existing event history with
 `actor`, `created_at`, and `label.name` ([GitHub event types](https://docs.github.com/en/rest/using-the-rest-api/issue-event-types)).
 A maintainer's later removal of `ready-for-human` is the workflow's completion signal. Without
 that event or a trusted human completion report, keep the change built, restore the human
-label using the existing comment as its reason, and stop. No new approval or record format is
-needed. Each required scenario still needs PASS; an unrun scenario has none.
+label using the existing comment as its reason, and stop. No new approval is needed. Each
+required scenario still needs PASS; an unrun scenario has none.
+
+When a `## Before landing` comment of this build names an act of "During the build", the evidence
+for that act is both: a `## Human steps done` comment after that comment that reports the act, and
+the maintainer's removal of `ready-for-human` after that comment. One or more such reports can
+cover the acts that the comment names. The next run of `implement` then runs the scenarios that
+waited for the acts, and lands on a PASS. For a precondition of the landing, no scenario runs. With
+the reports and the removal, the next run lands. An act of "During the build" with no report that
+no `## Before landing` comment of this build names stops the landing with a new such comment, also
+after an earlier stop of this build. Each `gh` call uses the maintainer's token, so the
+author of a comment proves nothing: the rule that a session never writes the report is the guard.
 
 ## Resolving an issue's state
 
