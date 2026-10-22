@@ -35,6 +35,8 @@ jobs:
         run: |
           awk '$3 == "pip" { print $4 }' tests/lib/tools.txt | xargs python3 -m pip install --quiet --target "$RUNNER_TEMP/gate-tools"
           echo "$RUNNER_TEMP/gate-tools/bin" >> "$GITHUB_PATH"
+          # The image has its own shellcheck in /usr/bin, and the suite puts /bin first on PATH.
+          awk '$3 == "pip" { print $1 }' tests/lib/tools.txt | xargs -I{} sudo ln -sf "$RUNNER_TEMP/gate-tools/bin/{}" /usr/bin/{}
           awk '$3 == "npm" { print $4 }' tests/lib/tools.txt | xargs npm install --global --no-audit --no-fund
       - if: matrix.bash == '3.2.57'
         id: bash-cache

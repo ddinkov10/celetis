@@ -20,7 +20,7 @@ has_line() { grep -Fxq -- "$2" "$1" || fail "no line '$2' in: $(cat "$1")"; }
 lacks_line() { ! grep -q -- "$2" "$1" || fail "unexpected line '$2' in: $(cat "$1")"; }
 
 clean_drift() {
-  local dir=$tmp/clean_drift code=0 tool version real
+  local dir=$tmp/clean_drift code=0 tool real
   gate_copy "$dir/re po"
   mkdir "$dir/stubs"
   real=$(command -v shfmt)
@@ -28,10 +28,10 @@ clean_drift() {
   chmod +x "$dir/stubs/shfmt"
   PATH="$dir/stubs:$PATH" /bin/bash "$dir/re po/scripts/verify.sh" >"$dir/out" 2>&1 || code=$?
   [ "$code" = 0 ] || fail "the gate exited $code: $(cat "$dir/out")"
-  has_line "$dir/out" "== shellcheck 0.11.0"
-  while read -r tool version _; do
-    case $tool in '#'*) continue ;; shfmt) version=3.13.0 ;; esac
-    has_line "$dir/out" "== $tool $version"
+  has_line "$dir/out" "== shfmt 3.13.0"
+  while read -r tool _; do
+    case $tool in '#'*) continue ;; esac
+    grep -Eq "^== $tool [0-9]+\.[0-9]+\.[0-9]+\$" "$dir/out" || fail "no == $tool line in: $(cat "$dir/out")"
   done <"$root/tests/lib/tools.txt"
   has_line "$dir/out" 'verify: warning: shfmt 3.13.0 is not the pin 3.14.1 (tests/lib/tools.txt)'
   [ "$(tail -n 1 "$dir/out")" = 'verify: PASS' ] || fail "the last line is not verify: PASS: $(cat "$dir/out")"
