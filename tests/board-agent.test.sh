@@ -116,7 +116,7 @@ case "$1 $2" in
 esac
 EOF
 chmod +x "$tmp/bin/"* "$tmp/stub/node"
-for command in bash jq yq bun git dirname mkdir cat mktemp mkfifo rm sleep mv ps touch perl date tr grep sed; do
+for command in bash jq bun git dirname mkdir cat mktemp mkfifo rm sleep mv ps touch perl date tr grep sed; do
   ln -s "$(command -v "$command")" "$tmp/bin/$command"
 done
 node=$(command -v node)

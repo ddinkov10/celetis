@@ -221,11 +221,11 @@ error 'invalid config with no profile' '.celetis.yaml'
 printf 'landing: merge\n' >"$tmp/project/.celetis.yaml"
 
 mkdir "$tmp/outside"
-yq() { printf 'unexpected yq call\n' >&2; return 99; }
-export -f yq
+bun() { printf 'unexpected bun call\n' >&2; return 99; }
+export -f bun
 codex_at "$tmp/outside" 1 0 2 1 1 0 --profile "$profile_path" --runtime-models "$CAP_RUNTIME_MODELS" --json
-check 'standalone explicit scoring needs no repository or yq' test "$code:$out:$err" = "0:$explicit_result:"
-unset -f yq
+check 'standalone explicit scoring needs no repository or Bun' test "$code:$out:$err" = "0:$explicit_result:"
+unset -f bun
 codex_at "$tmp/outside" 1 0 2 1 1 0 --json
 error 'outside a checkout with no profile' '--profile'
 export CAP_MODEL_PROFILE=$profile_path

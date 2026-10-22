@@ -423,7 +423,7 @@ for bad in missing invalid; do
   check "$bad main config starts no installed script" test ! -e "$LAUNCH_LOG"
   check "$bad main config reports the selected path" test "${err#*"$proj/.celetis.yaml"}" != "$err"
   run "$tmp/stub:$tmp/nobin" --agent claude root
-  expect "explicit installation root bypasses $bad project config without yq" "$plug" '' 0
+  expect "explicit installation root bypasses $bad project config without Bun" "$plug" '' 0
 done
 printf 'landing: merge\nhost: codex\n' >"$proj/.celetis.yaml"
 mv "$plug/scripts/lib" "$tmp/plugin-lib"
@@ -433,7 +433,7 @@ check 'the stop names the missing reader' test "${err#*"no config reader at $plu
 check 'a plugin with no config reader starts no installed script' test ! -e "$LAUNCH_LOG"
 mv "$tmp/plugin-lib" "$plug/scripts/lib"
 from="$tmp/outside" run "$tmp/stub:$tmp/nobin" --agent claude root
-expect 'explicit installation root works outside Git without yq' "$plug" '' 0
+expect 'explicit installation root works outside Git without Bun' "$plug" '' 0
 from="$tmp/outside" run "$stub" root
 expect 'outside Git has no required project defaults' "$plug" '' 0
 

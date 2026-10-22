@@ -129,7 +129,7 @@ lane() {
   git worktree add -q -b "$1" "$wt" origin/master
   echo "${2:-work}" >"$wt/${3:-work.txt}"
   if [ "${LANE_CONFLICT:-}" = 1 ]; then
-    other=pr; [ "$(yq .landing "$main/$config")" != pr ] || other=merge
+    other=pr; [ "$(sed -n 's/^landing: //p' "$main/$config")" != pr ] || other=merge
     printf 'landing: %s\n' "$other" >"$wt/$config"
   fi
   git -C "$wt" add -A
