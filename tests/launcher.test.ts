@@ -40,7 +40,11 @@ import {createInterface} from 'node:readline';
 appendFileSync(process.env.CALLS!,JSON.stringify(process.argv.slice(2))+'\n');
 if(JSON.stringify(process.argv.slice(2))!==JSON.stringify(['app-server','--stdio'])) process.exit(81);
 writeFileSync(process.env.PID_FILE!,String(process.pid));
-process.on('SIGTERM',()=>process.exit(0));
+if(process.env.CODEX_MODE==='cleanup signal')setInterval(()=>{},1000);
+process.on('SIGTERM',()=>{
+ if(process.env.CODEX_MODE==='cleanup signal')writeFileSync(process.env.CLEANUP_READY!,String(process.pid));
+ else process.exit(0);
+});
 for await(const line of createInterface({input:process.stdin})){
  appendFileSync(process.env.CALLS!,line+'\n');
  const {id,method}=JSON.parse(line);
@@ -272,27 +276,6 @@ test.concurrent(
     );
     await rm(join(f.dir, 'bin/claude'));
     expect(await p.launch(['--agent', 'claude', 'echo'])).toEqual({ code: 1, stdout: '', stderr: install });
-  }),
-);
-
-test.concurrent(
-  'discovery converts an installed Windows path with cygpath when available',
-  withProduct(async (f, p) => {
-    const cygpath = await f.stub(
-      'cygpath',
-      `if(process.argv[2]!=='-u'||process.argv[3]!=='C:\\\\plug')process.exit(82);console.log(process.env.PLUGIN);`,
-    );
-    expect(await command(cygpath, ['-u', 'C:\\plug'], { env: { ...p.env, PLUGIN: p.plugin } })).toEqual({
-      code: 0,
-      stdout: `${p.plugin}\n`,
-      stderr: '',
-    });
-    await p.setList([p.record('C:\\plug')]);
-    expect(await p.launch(['--agent', 'claude', 'echo', 'w'], { env: { PLUGIN: p.plugin } })).toEqual({
-      code: 0,
-      stdout: '[w]',
-      stderr: '',
-    });
   }),
 );
 
@@ -991,3 +974,52 @@ test.concurrent(
     }
   }),
 );
+
+for (const [signal, code, laterSignal] of [
+  ['SIGHUP', 129, 'SIGTERM'],
+  ['SIGINT', 130, 'SIGTERM'],
+  ['SIGTERM', 143, 'SIGINT'],
+] as const) {
+  test.concurrent(
+    `Codex cleanup preserves the first ${signal} status and stops before dispatch`,
+    withProduct(async (f, p) => {
+      const ready = join(f.dir, 'cleanup-ready');
+      const dispatched = join(f.dir, 'dispatched');
+      await f.write('plug in/scripts/echo.ts', 'await Bun.write(process.env.DISPATCH_MARK!,"ran");');
+      const child = spawn(p.executable, ['--agent', 'codex', 'echo'], {
+        cwd: f.repo,
+        env: { ...p.env, CODEX_MODE: 'cleanup signal', CLEANUP_READY: ready, DISPATCH_MARK: dispatched },
+        stdio: 'ignore',
+      });
+      const closed = new Promise<number | null>((resolve) => child.once('close', resolve));
+      let serverPid: number | undefined;
+      let later: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const deadline = Date.now() + 3000;
+        while (!(await Bun.file(ready).exists()) && Date.now() < deadline) await Bun.sleep(10);
+        const pid = Number(await readFile(ready, 'utf8'));
+        serverPid = pid;
+        child.kill(signal);
+        later = setTimeout(() => child.kill(laterSignal), 25);
+        const result = await closed;
+        let serverAlive = false;
+        try {
+          process.kill(pid, 0);
+          serverAlive = true;
+        } catch {}
+        expect({ code: result, serverAlive, dispatched: await Bun.file(dispatched).exists() }).toEqual({
+          code,
+          serverAlive: false,
+          dispatched: false,
+        });
+      } finally {
+        clearTimeout(later);
+        child.kill('SIGKILL');
+        if (serverPid !== undefined)
+          try {
+            process.kill(serverPid, 'SIGKILL');
+          } catch {}
+      }
+    }),
+  );
+}

@@ -82,9 +82,13 @@ export async function codexRequest(cwd: string, method: string, params: unknown)
     child.once('error', () => resolve());
   });
   const handlers = new Map<NodeJS.Signals, () => void>();
+  let interruption: HostError | undefined;
   const interrupted = new Promise<never>((_, reject) => {
     for (const signal of ['SIGHUP', 'SIGINT', 'SIGTERM'] as const) {
-      const handler = () => reject(new HostError('', 128 + constants.signals[signal]));
+      const handler = () => {
+        interruption ??= new HostError('', 128 + constants.signals[signal]);
+        reject(interruption);
+      };
       handlers.set(signal, handler);
       process.on(signal, handler);
     }
@@ -167,6 +171,7 @@ export async function codexRequest(cwd: string, method: string, params: unknown)
     child.stderr.destroy();
     for (const [signal, handler] of handlers) process.off(signal, handler);
   }
+  if (interruption) error = interruption;
   if (error || failure) {
     const detail = error instanceof Error ? error.message : (failure?.message ?? String(error));
     throw new HostError(
@@ -175,13 +180,6 @@ export async function codexRequest(cwd: string, method: string, params: unknown)
     );
   }
   return result;
-}
-
-async function nativePath(path: string, cwd: string): Promise<string> {
-  if (!Bun.which('cygpath', { PATH: childEnv().PATH })) return path;
-  const converted = await run('cygpath', ['-u', path], { cwd });
-  if (converted.code !== 0) throw new HostError(converted.stderr.trimEnd(), converted.code);
-  return converted.stdout.trimEnd();
 }
 
 export async function installedRoot(host: Host, cwd: string): Promise<string> {
@@ -211,7 +209,7 @@ export async function installedRoot(host: Host, cwd: string): Promise<string> {
     const record = matches.find((item) => item.scope === 'user') ?? matches[0];
     if (record?.enabled !== true || typeof record.installPath !== 'string' || !record.installPath)
       throw new HostError(missing);
-    return nativePath(record.installPath.replaceAll('\r', ''), cwd);
+    return record.installPath.replaceAll('\r', '');
   }
   const reply = await codexRequest(cwd, 'skills/list', { cwds: [cwd], forceReload: true });
   const invalid = () => new HostError('celetis: invalid Codex skills/list response');
@@ -249,7 +247,7 @@ export async function installedRoot(host: Host, cwd: string): Promise<string> {
     );
   if (roots.length > 1)
     throw new HostError('celetis: Codex reports multiple celetis package roots; fix the enabled installation');
-  const root = await nativePath(selected, cwd);
+  const root = selected;
   let manifest: unknown;
   try {
     manifest = JSON.parse(readFileSync(join(root, '.claude-plugin/plugin.json'), 'utf8'));
@@ -261,7 +259,7 @@ export async function installedRoot(host: Host, cwd: string): Promise<string> {
   )
     throw new HostError('celetis: Codex reports an invalid celetis package; reinstall the plugin');
   for (const item of paths) {
-    if (!(await stat(await nativePath(item.path, cwd)).catch(() => null))?.isFile())
+    if (!(await stat(item.path).catch(() => null))?.isFile())
       throw new HostError('celetis: Codex reports a missing installed skill; reinstall the plugin');
   }
   return root;
