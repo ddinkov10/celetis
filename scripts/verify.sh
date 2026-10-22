@@ -39,6 +39,7 @@ done <tests/lib/tools.txt
 shell_files=()
 biome_files=()
 node_files=()
+browser_files=()
 bun_files=()
 jq_files=()
 workflow_files=()
@@ -48,6 +49,10 @@ unknown=0
 while IFS= read -r path; do
   case $path in
     *.sh | scripts/celetis | board/fixtures/herdr) shell_files+=("$path") ;;
+    board/board.js | board/view.mjs | board/ui.mjs | board/panel.mjs | board/palette.mjs)
+      browser_files+=("$path")
+      node_files+=("$path")
+      ;;
     *.js | *.mjs)
       biome_files+=("$path")
       node_files+=("$path")
@@ -193,6 +198,25 @@ check_tsc() {
   fi
   echo "== tsc"
   tsc -p tsconfig.runtime.json --typeRoots "$npm_root/@types"
+  tsc -p board/tsconfig.json --typeRoots "$npm_root/@types"
+}
+check_browser() {
+  local scratch file bad=0
+  [ ${#browser_files[@]} -eq 0 ] && return 0
+  echo "== generated browser assets"
+  scratch=$(mktemp -d "${TMPDIR:-/tmp}/celetis-board.XXXXXX") || return 1
+  if ! BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros scripts/build.ts --outdir "$scratch"; then
+    rm -rf "$scratch"
+    return 1
+  fi
+  for file in "${browser_files[@]}"; do
+    if ! cmp -s "$file" "$scratch/$file" || [ -x "$file" ]; then
+      echo "verify: stale browser bytes or executable mode: $file"
+      bad=1
+    fi
+  done
+  rm -rf "$scratch"
+  [ "$bad" = 0 ]
 }
 pool_run shfmt check_shfmt
 pool_run biome check_biome
@@ -207,6 +231,7 @@ pool_run jq check_jq_syntax
 pool_run actionlint check_actionlint
 pool_run config check_config
 pool_run tsc check_tsc
+pool_run browser check_browser
 pool_run perl check_perl
 pool_run text check_text
 pool_run plugin check_plugin

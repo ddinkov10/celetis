@@ -26,6 +26,7 @@ test(
   withFixture(async (f) => {
     const checkout = join(f.dir, 'another checkout');
     await cp(join(root, 'scripts'), join(checkout, 'scripts'), { recursive: true });
+    await cp(join(root, 'board'), join(checkout, 'board'), { recursive: true });
     const first = join(f.dir, 'first');
     const second = join(f.dir, 'second');
     expect((await f.bun(build, ['--outdir', first])).code).toBe(0);
@@ -39,6 +40,7 @@ test(
   withFixture(async (f) => {
     const checkout = join(f.dir, 'checkout');
     await cp(join(root, 'scripts'), join(checkout, 'scripts'), { recursive: true });
+    await cp(join(root, 'board'), join(checkout, 'board'), { recursive: true });
     const entry = join(checkout, 'scripts/build.ts');
     const output = join(checkout, 'scripts/celetis');
     await rm(output);
@@ -68,6 +70,7 @@ for (const failure of ['missing import', 'syntax error']) {
     withFixture(async (f) => {
       const checkout = join(f.dir, 'checkout');
       await cp(join(root, 'scripts'), join(checkout, 'scripts'), { recursive: true });
+      await cp(join(root, 'board'), join(checkout, 'board'), { recursive: true });
       if (failure === 'missing import') await rm(join(checkout, 'scripts/lib/host.ts'));
       else await writeFile(join(checkout, 'scripts/launcher.ts'), 'export const = ;\n');
       const outdir = join(f.dir, 'out');

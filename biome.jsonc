@@ -7,8 +7,7 @@
   },
   "overrides": [
     {
-      // Test doubles of the Claude Code testing API, whose types exist only inside Claude Code (#83, Non-goals).
-      "includes": ["tests/**/*.ts"],
+      "includes": ["tests/**/*.ts", "board/*.test.ts", "board/test-support.ts"],
       "linter": { "rules": { "suspicious": { "noExplicitAny": "off", "noImplicitAnyLet": "off" } } }
     },
     {

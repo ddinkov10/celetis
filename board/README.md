@@ -32,10 +32,11 @@ The board has two inputs, and it holds no step, no stage, and no tracker name of
   prints it. The config names that command. The board reads the config from stdin only.
 
 The board is the folder `board/` of the plugin `celetis`, and `scripts/celetis board` starts it. It
-is one Node program with no dependency, no build step, and no lifecycle script, so it needs no
-install step. It runs from the plugin, so the repository that it shows needs no file of the board.
+is one Bun program with no dependency or lifecycle script. The plugin carries generated browser
+JavaScript. A product repository needs no build or install step. It runs from the plugin, so the
+repository that it shows needs no file of the board.
 The board has these three command forms, where `agent-board` stands for
-`node <plugin>/board/cli.mjs`:
+`bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/board/cli.ts`:
 
 | Form | Config source | Result |
 |---|---|---|
@@ -49,9 +50,8 @@ The board came from commit `95144d3` of its old repository
 **Requirements.**
 
 - macOS or Linux.
-- Node 22 from 22.18, or Node 24.2 or later, on `PATH`. On each other Node, for example Node 20 or
-  Node 23, the entry prints `agent-board: Node 22.18, or Node 24.2 or later, is necessary` and
-  exits 1.
+- Bun 1.4.2 or later. The entry prints `agent-board: Bun 1.4.2 or later is necessary` and exits 1
+  on an older Bun.
 - git 2.31 or later.
 - herdr 0.9 or later on `PATH` and a herdr server that runs, for the session cards and for each
   button.
@@ -67,19 +67,18 @@ board.
 
 Run `scripts/celetis board` in the main checkout of the repository, and open the URL that it
 prints. The README of the plugin, "The agent board", gives this start and its config.
-`scripts/celetis board` exits 1 with one line when `node` is not on `PATH`, or when the plugin has
-no file `<plugin>/board/cli.mjs`:
+`scripts/celetis board` uses the selected Bun runtime. It exits 1 with one line when the plugin
+has no file `<plugin>/board/cli.ts`:
 
 ```text
-celetis-board: node is not on PATH; the board needs Node 22.18, or Node 24.2 or later
-celetis-board: the plugin has no board/cli.mjs: <plugin>; reinstall the plugin
+celetis-board: the plugin has no board/cli.ts: <plugin>; reinstall the plugin
 ```
 
 To start the board from a checkout of the plugin at `<plugin>`, run this command in the main
 checkout of a repository. It starts the board with session cards only:
 
 ```bash
-printf '%s\n' '{}' | node <plugin>/board/cli.mjs --config-stdin
+printf '%s\n' '{}' | BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/board/cli.ts --config-stdin
 ```
 
 The board waits for EOF before it uses the config or listens on a port. It reads the input once
@@ -99,9 +98,9 @@ PORT=4404 scripts/celetis board
 
 ```text
 agent-board: repository /Users/me/code/shop
-agent-board: data    /Users/me/code/shop/scripts/flow.sh --board
-agent-board: run     /Users/me/code/shop/scripts/flow.sh {n}
-agent-board: resume  /Users/me/code/shop/scripts/flow.sh --resume {n}
+agent-board: data    /Users/me/code/shop/scripts/flow.ts --board
+agent-board: run     /Users/me/code/shop/scripts/flow.ts {n}
+agent-board: resume  /Users/me/code/shop/scripts/flow.ts --resume {n}
 agent-board: http://127.0.0.1:4403
 ```
 
@@ -114,14 +113,14 @@ checks in this order:
 
 | Case | Line | Exit |
 |---|---|---|
-| The Node is not 22 from 22.18, and not 24.2 or later | `agent-board: Node 22.18, or Node 24.2 or later, is necessary` | 1 |
+| Bun is older than 1.4.2 | `agent-board: Bun 1.4.2 or later is necessary` | 1 |
 | The arguments are not one of the three forms above, in that exact order | `usage: agent-board --config-stdin \| check --config-stdin \| check --stdin (scripts/celetis board starts the board)` | 2 |
 | The current folder is in no git checkout | `agent-board: the current folder is not in a git checkout` | 1 |
 | The git directory is not the folder `.git` of its parent: a bare repository, a submodule, or the folder `.git` itself | `agent-board: the git directory is not the folder .git of a checkout (a bare repository or a submodule)` | 1 |
 | The current checkout is not the main checkout: a lane worktree, or another linked worktree | `agent-board: start the board in the main checkout: <main>` | 1 |
 | Config stdin cannot be read, or its config has an error | `agent-board: config stdin: <message>` | 1 |
 | The port is in use | `agent-board: cannot listen on 127.0.0.1:<port>: the port is in use` | 1 |
-| The server cannot listen for another cause, for example `PORT=99999` | `agent-board: cannot listen on 127.0.0.1:<port>: <the message of Node>` | 1 |
+| The server cannot listen for another cause, for example `PORT=99999` | `agent-board: cannot listen on 127.0.0.1:<port>: <the message of Bun>` | 1 |
 
 Rows 3 to 5 are the three start rules. The main checkout is the parent folder of the git common
 directory of the current folder (`git rev-parse --path-format=absolute --git-common-dir`). A start
@@ -132,7 +131,7 @@ issue data, so it skips the checkout and config checks.
 **Start the board in the main checkout only.** A `node_modules/.bin` folder of the start folder or
 of its parent folders can be on `PATH`. In the main checkout, those are files of the trunk, with
 the trust of the config. A lane worktree holds the files of a branch, which do not have that trust.
-`scripts/celetis board` removes each `node_modules/.bin` item from `PATH` before it finds `node`.
+`scripts/celetis board` removes each `node_modules/.bin` item from `PATH` before a child command starts.
 The entry refuses a start in a checkout that is not the main checkout, and it removes each
 `node_modules/.bin` item from `PATH` before the server starts `herdr` or `git`.
 
@@ -163,9 +162,9 @@ producer execution, or server startup begins.
 
 ```json
 {
-  "data": ["scripts/flow.sh", "--board"],
-  "run": ["scripts/flow.sh", "{n}"],
-  "resume": ["scripts/flow.sh", "--resume", "{n}"],
+  "data": ["scripts/flow.ts", "--board"],
+  "run": ["scripts/flow.ts", "{n}"],
+  "resume": ["scripts/flow.ts", "--resume", "{n}"],
   "port": 4403
 }
 ```
@@ -449,16 +448,16 @@ passes `check` is a document that the board shows.
 | `agent-board check --stdin` | A contract 1 document from stdin. | In each folder, including outside Git. It reads no config. |
 
 ```bash
-scripts/flow.sh --board | node <plugin>/board/cli.mjs check --stdin
+scripts/flow.ts --board | BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/board/cli.ts check --stdin
 ```
 
 To supply a config with a producer command relative to the main checkout, run:
 
 ```bash
-printf '%s\n' '{"data":["scripts/flow.sh","--board"]}' | node <plugin>/board/cli.mjs check --config-stdin
+printf '%s\n' '{"data":["scripts/flow.ts","--board"]}' | BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/board/cli.ts check --config-stdin
 ```
 
-Here stdin holds the config, and `scripts/flow.sh --board` prints the issue document. With
+Here stdin holds the config, and `scripts/flow.ts --board` prints the issue document. With
 `check --stdin`, stdin holds that issue document directly. The two stdin flags cannot be combined,
 and `--config-stdin` must follow `check` for a check. Both stdin forms read once and wait for EOF.
 
@@ -521,8 +520,8 @@ of `{n}`. The shell of the pane reads each item as one word, so an item cannot a
 For the config of "The config" and the issue 12:
 
 ```text
-'/Users/me/code/shop/scripts/flow.sh' 12 && exit
-'/Users/me/code/shop/scripts/flow.sh' '--resume' 12 && exit
+'/Users/me/code/shop/scripts/flow.ts' 12 && exit
+'/Users/me/code/shop/scripts/flow.ts' '--resume' 12 && exit
 ```
 
 `&& exit` closes the tab when the command ends with no error. A command that fails leaves the tab
@@ -533,7 +532,7 @@ open with its message.
 ```text
 herdr workspace list
 herdr tab create --workspace <id> --cwd <main checkout> --label '#<n> <step>' --no-focus
-herdr pane run <pane> "'<main checkout>/scripts/flow.sh' <n> && exit"
+herdr pane run <pane> "'<main checkout>/scripts/flow.ts' <n> && exit"
 ```
 
 The workspace is the first one whose label is the folder name of the main checkout. When none has
@@ -751,7 +750,7 @@ the texts are `Open the issue` and `Read the issues again`.
 Of the distribution:
 
 - A start from a program with no terminal, for example a launch entry of a desktop app, needs
-  `node` and `herdr` on the `PATH` of that program. This is not checked. When such a start fails,
+  `bun` and `herdr` on the `PATH` of that program. This is not checked. When such a start fails,
   start the board in a terminal.
 - A Windows host has no support.
 
@@ -799,16 +798,16 @@ Of the cards and the page:
 
 ## Tests
 
-Run the suite of the board in a checkout of the plugin:
+Run the board tests in a checkout of the plugin:
 
 ```bash
-cd board && node --test
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros test board/*.test.ts tests/board.test.ts tests/board-agent.test.ts
 ```
 
-The board has no dependency, so the tests need no install step. They need git 2.32 or later, and
-they start no real herdr: `<plugin>/board/fixtures/herdr` is a stub. One test makes a git
-repository in a temporary folder with the fixtures `producer.sh`, `contract-1.json`, and `run.sh`,
-starts the real entry there, and asks the server over HTTP. The full suite of the plugin,
-`<plugin>/tests/suite.sh`, prints `== board: node --test` and runs the suite. The workflow of the
-plugin runs the full suite on Node 22 in its step `Full suite`, at each push to `main` and each
-pull request.
+The tests need no dependency install. They use git 2.32 or later, real private loopback servers,
+and TypeScript fixture processes. They start no real host or herdr session. The fixture files are
+`producer.ts`, `contract-1.json`, `run.ts`, and `herdr.ts` in `<plugin>/board/fixtures/`.
+
+Browser sources are `board.ts`, `view.ts`, `ui.ts`, `panel.ts`, and `palette.ts`. The pinned Bun
+1.4.2 build program, `<plugin>/scripts/build.ts`, generates their existing `.js` and `.mjs` URLs.
+It compiles every target before it writes any output. Plugin users run no build.
