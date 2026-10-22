@@ -1,68 +1,17 @@
-import { readFile, stat } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { ConfigError, readConfig } from './lib/config.ts';
-import { commonDir, type Host, HostError, installedRoot, mainCheckout, requireBun, selectHost } from './lib/host.ts';
+import { commonDir, HostError, installedRoot, mainCheckout, requireBun, selectHost } from './lib/host.ts';
 import { bunArgs, childEnv } from './lib/process.ts';
+import { selectSavedSession, serializeSession } from './lib/session.ts';
 
 async function resume(issue: string, explicit: string | undefined, cwd: string) {
   const n = issue.replace(/^#/, '');
   if (!/^[1-9][0-9]*$/.test(n)) throw new HostError('celetis: resume needs an issue number', 2);
   const common = await commonDir(cwd);
   const main = dirname(common);
-  const file = join(common, 'celetis-flow/sessions', `${n}.json`);
-  let source: string;
-  try {
-    source = await readFile(file, 'utf8');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    throw new HostError(
-      `celetis: #${n} has no current session record; start a new step with scripts/celetis celetis-flow ${n}`,
-    );
-  }
-  let record: unknown;
-  try {
-    record = JSON.parse(source);
-  } catch {}
-  const invalid = () =>
-    new HostError(
-      `celetis: invalid or obsolete session record ${file}; remove it and start a new step with scripts/celetis celetis-flow ${n}`,
-    );
-  if (record === null || typeof record !== 'object' || Array.isArray(record)) throw invalid();
-  const row = record as Record<string, unknown>;
-  if (
-    Object.keys(row).sort().join(',') !== 'checkout,host,issue,schema,session_id,step' ||
-    row.schema !== 1 ||
-    row.issue !== Number(n) ||
-    row.checkout !== main ||
-    (row.host !== 'claude' && row.host !== 'codex') ||
-    typeof row.step !== 'string' ||
-    !['triage', 'specify', 'bug', 'chore', 'hotfix', 'plan', 'implement'].includes(row.step) ||
-    !(
-      row.session_id === null ||
-      (typeof row.session_id === 'string' &&
-        /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(row.session_id))
-    )
-  )
-    throw invalid();
-  const host: Host = row.host;
-  if (explicit !== undefined && explicit !== host)
-    throw new HostError(`celetis: #${n} recorded host is ${host}; resume without --agent or use --agent ${host}`);
-  if (row.session_id === null) {
-    const recovery = host === 'claude' ? 'claude --resume' : 'codex resume --no-daemon';
-    throw new HostError(
-      `celetis: #${n} has no saved turn with a verified herdr identity; exact runner resume requires herdr identity. From the main checkout, run ${recovery} and select the saved session, or start a new step if none exists.`,
-    );
-  }
-  return {
-    host,
-    record: JSON.stringify(
-      Object.fromEntries(
-        Object.keys(row)
-          .sort()
-          .map((key) => [key, row[key]]),
-      ),
-    ),
-  };
+  const record = await selectSavedSession(main, Number(n), explicit);
+  return { host: record.host, record: serializeSession(record) };
 }
 
 export async function main(argv: string[]): Promise<number> {

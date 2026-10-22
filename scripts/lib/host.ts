@@ -73,10 +73,24 @@ function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-export async function codexRequest(cwd: string, method: string, params: unknown): Promise<unknown> {
+export async function codexRequest(
+  cwd: string,
+  method: string,
+  params: unknown,
+  inheritedFd?: number,
+): Promise<unknown> {
   const env = childEnv();
   if (!Bun.which('codex', { PATH: env.PATH })) throw new HostError('celetis: codex is not on PATH');
-  const child = spawn('codex', ['app-server', '--stdio'], { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
+  const child = spawn('codex', ['app-server', '--stdio'], {
+    cwd,
+    env,
+    stdio: ['pipe', 'pipe', 'pipe', ...(inheritedFd === undefined ? [] : [inheritedFd])],
+  });
+  if (!child.stdin || !child.stdout || !child.stderr)
+    throw new HostError('celetis: cannot open Codex app-server streams');
+  const input = child.stdin;
+  const output = child.stdout;
+  const errors = child.stderr;
   const exited = new Promise<void>((resolve) => {
     child.once('exit', () => resolve());
     child.once('error', () => resolve());
@@ -98,12 +112,12 @@ export async function codexRequest(cwd: string, method: string, params: unknown)
     failure = error;
   });
   let stderr = '';
-  child.stderr.setEncoding('utf8');
-  child.stderr.on('data', (data: string) => {
+  errors.setEncoding('utf8');
+  errors.on('data', (data: string) => {
     stderr += data;
   });
-  child.stdin.on('error', () => {});
-  const lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
+  input.on('error', () => {});
+  const lines = createInterface({ input: output, crlfDelay: Infinity });
   const iterator = lines[Symbol.asyncIterator]();
   async function reply(id: number, operation: string): Promise<Record<string, unknown>> {
     const deadline = Date.now() + 10_000;
@@ -138,7 +152,7 @@ export async function codexRequest(cwd: string, method: string, params: unknown)
       clearTimeout(timer);
     }
   }
-  const send = (value: unknown) => child.stdin.write(`${JSON.stringify(value)}\n`);
+  const send = (value: unknown) => input.write(`${JSON.stringify(value)}\n`);
   let error: unknown;
   let result: unknown;
   try {
@@ -155,7 +169,7 @@ export async function codexRequest(cwd: string, method: string, params: unknown)
     error = caught;
   } finally {
     lines.close();
-    child.stdin.destroy();
+    input.destroy();
     child.kill('SIGTERM');
     let timer: ReturnType<typeof setTimeout> | undefined;
     await Promise.race([
@@ -167,8 +181,8 @@ export async function codexRequest(cwd: string, method: string, params: unknown)
     clearTimeout(timer);
     if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
     await exited;
-    child.stdout.destroy();
-    child.stderr.destroy();
+    output.destroy();
+    errors.destroy();
     for (const [signal, handler] of handlers) process.off(signal, handler);
   }
   if (interruption) error = interruption;
@@ -182,12 +196,16 @@ export async function codexRequest(cwd: string, method: string, params: unknown)
   return result;
 }
 
-export async function installedRoot(host: Host, cwd: string): Promise<string> {
+export async function installedRoot(host: Host, cwd: string, inheritedFd?: number): Promise<string> {
   if (host === 'claude') {
     const missing =
       'celetis: the plugin is not installed; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis';
     if (!Bun.which('claude', { PATH: childEnv().PATH })) throw new HostError(missing);
-    const result = await run('claude', ['plugin', 'list', '--json'], { cwd });
+    const result = await run('claude', ['plugin', 'list', '--json'], {
+      cwd,
+      inheritedFd,
+      stderr: inheritedFd === undefined ? undefined : 'inherit',
+    });
     if (result.code !== 0) {
       throw new HostError(
         [
@@ -211,7 +229,7 @@ export async function installedRoot(host: Host, cwd: string): Promise<string> {
       throw new HostError(missing);
     return record.installPath.replaceAll('\r', '');
   }
-  const reply = await codexRequest(cwd, 'skills/list', { cwds: [cwd], forceReload: true });
+  const reply = await codexRequest(cwd, 'skills/list', { cwds: [cwd], forceReload: true }, inheritedFd);
   const invalid = () => new HostError('celetis: invalid Codex skills/list response');
   if (!object(reply) || !object(reply.result) || !Array.isArray(reply.result.data)) throw invalid();
   const records = reply.result.data.filter((item) => object(item) && item.cwd === cwd);
