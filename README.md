@@ -776,9 +776,9 @@ This repository test runtime is required even when product operations select Cod
 The checks need no model credentials or tokens and start no model turn.
 
 - **The verify gate** is `scripts/verify.sh`, the fast deterministic check of a change. It lints,
-  formats, and parses each tracked file, and it runs no test but the text rules. It sorts each
-  path of `git ls-files` into these checks, or into an exemption with its reason in the script.
-  A path that it cannot sort fails the gate.
+  formats, and parses each tracked file that has a row, and it runs no test but the text rules. It
+  sorts each path of `git ls-files` into these rows, or into an exemption with its reason in the
+  script. A path that it cannot sort fails the gate.
   - Each shell file: `shfmt`, ShellCheck, and `/bin/bash -n`.
   - Each JavaScript, TypeScript, JSON, and CSS file: Biome (format, lint, and import sort), and
     `node --check` on each `.js` and `.mjs` file.

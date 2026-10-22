@@ -18,7 +18,7 @@ scripts/verify.sh
 tests/suite.sh
 ```
 
-- The tools of the gate are the lines of `tests/lib/tools.txt`. On macOS, run
+- The pinned tools of the gate are the lines of `tests/lib/tools.txt`. On macOS, run
   `brew install shellcheck shfmt actionlint`. On Linux, run the first line below, then put
   `<dir>/bin` on `PATH`: a Python with the PEP 668 marker refuses `--user`. On Windows, run the
   first line with `py -m pip install --user` in place of `python3 -m pip install --target <dir>`.
@@ -127,9 +127,9 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
   resolver reads, a published spec, and a closed issue move the line. So each act of the skill after
   such an act is in the same turn.
 - **The hand-run test quotes the skills.** `tests/manual/step-prompt.test.sh` holds sentences of the
-  skills as verbatim text, and no test of the gate compares a quote with its skill. Before you
-  change a sentence of a skill, search that test for it. A change of a quoted sentence changes the
-  quote in the same commit, and the hand-run test runs again.
+  skills as verbatim text, and no test of the gate or the suite compares a quote with its skill.
+  Before you change a sentence of a skill, search that test for it. A change of a quoted sentence
+  changes the quote in the same commit, and the hand-run test runs again.
 - **The skills table and the commands table of `README.md` are written by hand.** A new skill, a
   removed skill, or a new sub-command of `scripts/` also changes the README, and no test fails when
   it does not.

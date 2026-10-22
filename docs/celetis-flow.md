@@ -698,15 +698,16 @@ The tests of the script, the resolver, `scripts/land.sh`, `scripts/worktree.sh`,
 the launcher, and the text of the plugin are in `tests/` of the plugin repository,
 `ddinkov10/celetis`: run them in a checkout of that repository. `scripts/verify.sh` is the verify
 gate of that repository, a fast deterministic check. It lints, formats, and parses each tracked
-file, and it runs no test but the text rules, `tests/text.test.sh`. Each path of `git ls-files`
-gets the checks of its row in the script, or an exemption with its reason there. A path with
-neither fails the gate, so a new file type cannot pass unchecked. `README.md`, "Tests", lists the
-rows. The gate runs its checks at the same time, and it takes about 7 s on 4 cores. Its last line
-is `verify: PASS`. The lines of `tests/lib/tools.txt` pin its tools. A missing tool fails the
-gate, and a version that differs from its pin prints a warning. The gate needs Claude's validator
-but starts no model turn. A product project needs none of these tools. Codex package checks use
-the shared manifest, file, link, and invocation metadata checks in `tests/text.test.sh` and the
-discovery fixtures in `tests/launcher.test.sh`. There is no Codex plugin-validation command.
+file that has a row, and it runs no test but the text rules, `tests/text.test.sh`. Each path of
+`git ls-files` gets the checks of its row in the script, or an exemption with its reason there. A
+path with neither fails the gate, so a new file type cannot pass unchecked. `README.md`, "Tests",
+lists the rows. The gate runs its checks at the same time, and it takes about 7 s on 4 cores. Its
+last line is `verify: PASS`. The lines of `tests/lib/tools.txt` pin its tools. A missing tool
+fails the gate, and a version that differs from its pin prints a warning. The gate needs Claude's
+validator but starts no model turn. A product project needs none of these tools. Codex package
+checks use the shared manifest, file, link, and invocation metadata checks in `tests/text.test.sh`
+and the discovery fixtures in `tests/launcher.test.sh`. There is no Codex plugin-validation
+command.
 
 `tests/suite.sh` is the full suite. It runs the board suite and each `tests/*.test.sh` at the same
 time, one job per core, and prints the output and the time of each test in glob order. Then it runs
@@ -719,7 +720,7 @@ job with two legs on `ubuntu-24.04`, bash 5 and bash 3.2.57. Each leg runs `scri
 then `tests/suite.sh`, and `scripts/celetis land` waits for both legs. The 3.2.57 leg builds bash
 3.2.57 from the GNU source with a pinned checksum, caches the build, and installs it as
 `/usr/bin/bash`, which is `/bin/bash` on the runner. So each later step of that leg, and each test,
-runs under bash 3.2.57. It uses no model credentials,
+runs under bash 3.2.57. The workflow uses no model credentials,
 host CLI, or token-consuming test. Live and model tests stay in `tests/manual/` or explicit
 acceptance runs. A deterministic PASS does not complete those scenarios. The board's tests are
 `board/*.test.mjs` of the plugin repository, and `(cd board && node --test)` runs them.

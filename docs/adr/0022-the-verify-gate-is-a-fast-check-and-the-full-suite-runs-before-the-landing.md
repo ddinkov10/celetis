@@ -19,17 +19,29 @@
 ## Supersedes
 
 From ADR-0012, "The harness is the Claude plugin `celetis`, and each product project wires it in",
-the words "Its verify gate is `scripts/verify.sh`: the script tests, with the contract check of the
-board, and `claude plugin validate`". The verify gate of this repository is still
-`scripts/verify.sh`, but it runs no script test now. `tests/suite.sh` runs the script tests and the
-contract check of the board.
+each part that says the gate of this repository runs a test:
+
+- In its Supersedes: "The gate of the plugin repository, which has the same file name, runs each
+  script test."
+- In its Supersedes: "Each script test runs in the gate and in the CI of the plugin repository."
+- Decision 16: "The verify gate on a machine runs the check."
+- In its Decision: "Its verify gate is `scripts/verify.sh`: the script tests, with the contract
+  check of the board, and `claude plugin validate`."
+- In its Decision: the words "the glob `tests/*.test.sh` of the gate and of the CI".
+- In its Consequences: "A change of the runner that breaks the contract passes the CI and fails the
+  verify gate on a machine."
+
+The verify gate of this repository is still `scripts/verify.sh`, but it runs no script test but the
+text rules now. `tests/suite.sh` runs the script tests, with the contract check of the board, and
+CI runs the suite on each pull request. So a change that breaks the contract fails the full suite,
+in CI and on a machine.
 
 From ADR-0020, "The board is a part of the plugin", the decision "The board suite runs in the gate,
 and in CI on Node 22", and its consequence "The verify gate needs Node 22.18, or Node 24.2 or
 later". `tests/suite.sh` runs `(cd board && node --test)`, and the workflow runs it in the step
 "Full suite" on Node 22. The suite needs that Node range now, not the gate.
 
-The rest of each record stands.
+This record changes no other part of either record.
 
 ## Context
 
@@ -117,10 +129,11 @@ reach it through Land of `implement`.
 | Each tracked file | the text rules, `tests/text.test.sh` |
 
 **The sort of each tracked path.** The gate sorts each path of `git ls-files` into a row, or into an
-exemption with its reason on its line in the script. A path with neither fails the gate with
-`verify: no check for <path>: add a row or an exemption in scripts/verify.sh`. So a new file type
-gets its row, and it cannot pass unchecked. A file that a check excludes, and a disabled rule, has
-its reason in the config file of the check or on its line.
+exemption with its reason on the comment line above its pattern in the script. A path with neither
+fails the gate with `verify: no check for <path>: add a row or an exemption in scripts/verify.sh`.
+So a new file type gets its row, and it cannot pass unchecked. A file that a check excludes has its
+reason in the config file of the check. A disabled rule has its reason in the config file or on its
+line.
 
 **The pins in one file.** `tests/lib/tools.txt` holds one line for each tool:
 `<command> <version> <installer> <package>`. The pins are ShellCheck 0.11.0, shfmt 3.14.1,
