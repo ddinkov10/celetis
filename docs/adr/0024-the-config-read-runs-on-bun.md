@@ -135,7 +135,7 @@ the parser and Bun diagnostics are new too.
   `codexProfiles` as an `unknown field`, where yq merged it away.
   It refuses text after `---` on its line: `put nothing after --- on its line`. yq refused
   `--- &r` and `--- !!map` before a block mapping. After `--- # c`, yq dropped the first key when
-  its value was a plain scalar or a flow collection. So yq lost that value, for example the `host`,
+  its value was a scalar or a flow collection. So yq lost that value, for example the `host`,
   a gate, or the port. yq read a flow mapping on the `---` line, and `--- # c` before a blank or
   comment line, as YAML 1.2 does.
   YAML 1.2 reads a plain `1e400` as a float that is not finite. So in a string field or a key, the
