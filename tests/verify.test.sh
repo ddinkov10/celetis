@@ -22,6 +22,8 @@ lacks_line() { ! grep -q -- "$2" "$1" || fail "unexpected line '$2' in: $(cat "$
 clean_drift() {
   local dir=$tmp/clean_drift code=0 tool real
   gate_copy "$dir/re po"
+  printf 'export const version: string = Bun.version;\n' >"$dir/re po/scripts/lib/ok.ts"
+  git -C "$dir/re po" add -A
   mkdir "$dir/stubs"
   real=$(command -v shfmt)
   printf '#!/bin/sh\nif [ "$1" = --version ]; then echo v3.13.0; exit 0; fi\nexec %s "$@"\n' "$real" >"$dir/stubs/shfmt"
@@ -34,6 +36,8 @@ clean_drift() {
     grep -Eq "^== $tool [0-9]+\.[0-9]+\.[0-9]+\$" "$dir/out" || fail "no == $tool line in: $(cat "$dir/out")"
   done <"$root/tests/lib/tools.txt"
   has_line "$dir/out" 'verify: warning: shfmt 3.13.0 is not the pin 3.14.1 (tests/lib/tools.txt)'
+  has_line "$dir/out" '== tsc'
+  lacks_line "$dir/out" '^== tsc: no TypeScript file'
   [ "$(tail -n 1 "$dir/out")" = 'verify: PASS' ] || fail "the last line is not verify: PASS: $(cat "$dir/out")"
 }
 
