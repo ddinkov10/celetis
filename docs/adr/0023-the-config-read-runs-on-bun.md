@@ -187,7 +187,7 @@ the parser and Bun diagnostics are new too.
 - The launcher has two parsers: `Bun.YAML` for the host hint and `yaml` for the full check. For
   each valid case of `tests/config.test.sh`, the test checks that both give the same `host`.
 - The plugin holds code of a third party. An update of `yaml` is a manual rebuild with the commands
-  of `scripts/lib/vendor/README.md`, and then a run of `scripts/verify.sh`.
+  of `scripts/lib/vendor/README.md`, and then a run of `scripts/verify.sh` and `tests/suite.sh`.
 - The Bun version on each machine of the maintainer, and the path form that `bun.exe` gets from
   Windows Git Bash, are not checked. They are checks by hand.
 

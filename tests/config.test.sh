@@ -520,7 +520,11 @@ check start_folder_preload_did_not_run test ! -e "$START_MARK"
 check start_folder_control_runs_the_preload test -e "$START_MARK"
 
 mkdir "$tmp/cache"
-cache_out=$(export HOME="$tmp/cache" XDG_CACHE_HOME="$tmp/cache"; unset BUN_RUNTIME_TRANSPILER_CACHE_PATH; celetis_config_read "$repo")
+cache_out=$(
+  export HOME="$tmp/cache" XDG_CACHE_HOME="$tmp/cache"
+  unset BUN_RUNTIME_TRANSPILER_CACHE_PATH
+  celetis_config_read "$repo"
+)
 check read_writes_no_cache_file test "$cache_out:$(find "$tmp/cache" ! -type d)" = '{"landing":"pr"}:'
 
 mkdir -p "$tmp/copy/scripts"
@@ -536,6 +540,7 @@ cat >"$tmp/args/bun" <<'EOF'
 printf '%s\n' "$@"
 EOF
 chmod +x "$tmp/args/bun"
+# shellcheck disable=SC2154 # scripts/celetis sets celetis_reader
 for drive in 'C:/Users/me/repo' 'c:\Users\me\repo'; do
   out=$(PATH="$tmp/args:$base_path" celetis_config_run "$celetis_reader" "$drive")
   check "drive_path_$drive" test "$out" = "$celetis_reader"$'\n'"$drive"

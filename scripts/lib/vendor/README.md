@@ -28,4 +28,4 @@ Rules:
 
 - Never edit `yaml.mjs` by hand.
 - An update runs the commands above again, with the new version, and updates this file and `yaml.d.mts`. Then it runs
-  the test suite, `scripts/verify.sh`.
+  the verify gate, `scripts/verify.sh`, and the full suite, `tests/suite.sh`.

@@ -5,7 +5,7 @@ unset SHELLCHECK_OPTS
 . tests/lib/pool.sh
 
 missing=0
-for tool in git perl jq node npm claude; do
+for tool in git perl jq node npm claude bun; do
   command -v "$tool" >/dev/null || {
     echo "verify: $tool is missing (README.md, \"Requirements\")"
     missing=1
@@ -75,6 +75,8 @@ while IFS= read -r path; do
     .editorconfig | .shellcheckrc | tests/lib/tools.txt) ;;
     # a font is binary; its licence is text that the text rules read
     board/fonts/*) ;;
+    # the text rules read the licence, and tsc reads the declarations through the import of scripts/lib/config.ts
+    scripts/lib/vendor/yaml.LICENSE | scripts/lib/vendor/yaml.d.mts) ;;
     # Biome 2.5.15 checks HTML only as an experimental feature, and the spec of #83 exempts HTML until it is stable
     *.html) ;;
     *)
