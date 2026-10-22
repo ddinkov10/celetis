@@ -16,7 +16,7 @@ type NodeRecord = {
   keys?: string[];
 };
 
-class ConfigError extends Error {
+export class ConfigError extends Error {
   field: string;
 
   constructor(path: Path, message: string) {
@@ -31,7 +31,7 @@ const coreTags = ['map', 'seq', 'str'].map(coreTag).concat(typedTags);
 const yaml11Int = /^[-+]?(?:0[bB][01]+|0[oO][0-7]+|0[xX][0-9a-fA-F]+|[0-9]+)$/;
 const yaml11Float = /^[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?$/;
 const notRegularFile = 'need a regular, readable file, with no symlink';
-const steps = ['triage', 'specify', 'bug', 'chore', 'hotfix', 'plan', 'implement'];
+const steps = ['triage', 'specify', 'bug', 'chore', 'hotfix', 'plan', 'implement'] as const;
 const skills = [
   'bug',
   'chore',
@@ -52,7 +52,23 @@ const skills = [
   'specify',
   'triage',
   'writing-for-agents',
-];
+] as const;
+
+export type Config = {
+  host?: 'claude' | 'codex';
+  landing: 'pr' | 'merge';
+  gates?: Partial<Record<(typeof steps)[number], 'me' | 'auto'>>;
+  board?: { port?: number };
+  worktreeSetup?: string;
+  custom?: Partial<Record<(typeof skills)[number], string>>;
+  codexProfiles?: Record<
+    string,
+    {
+      slots: [string, string, string, string];
+      reviewer: { rank: 0 | 1 | 2 | 3; effort: 'low' | 'medium' | 'high' | 'xhigh' };
+    }
+  >;
+};
 
 function field(path: Path): string {
   return path.join('.') || '<document>';
@@ -251,7 +267,7 @@ function object(value: unknown, path: Path): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function keysOnly(value: Record<string, unknown>, allowed: string[], path: Path): void {
+function keysOnly(value: Record<string, unknown>, allowed: readonly string[], path: Path): void {
   const unknown = Object.keys(value).find((key) => !allowed.includes(key));
   if (unknown !== undefined) throw new ConfigError([...path, unknown], 'unknown field');
 }
@@ -296,7 +312,7 @@ function profile(value: unknown, path: Path): void {
   oneOf(reviewer.effort, ['low', 'medium', 'high', 'xhigh'], [...reviewerPath, 'effort']);
 }
 
-function checkSchema(value: unknown): void {
+function checkSchema(value: unknown): asserts value is Config {
   const config = object(value, []);
   keysOnly(config, ['host', 'landing', 'gates', 'board', 'worktreeSetup', 'custom', 'codexProfiles'], []);
   required(config, 'landing', []);
@@ -326,20 +342,26 @@ function checkSchema(value: unknown): void {
   }
 }
 
-const file = `${process.argv[2]}/.celetis.yaml`;
-try {
+export function readConfig(checkout: string): Config {
   if (Bun.semver.order(Bun.version, floor) < 0) {
     throw new ConfigError([], `need Bun >=${floor} on PATH, found ${Bun.version}`);
   }
-  const doc = parseOne(decode(readSnapshot(file)));
+  const doc = parseOne(decode(readSnapshot(`${checkout}/.celetis.yaml`)));
   const nodes = collectNodes(doc);
   checkWellFormed(nodes);
   checkMetadata(nodes);
-  const config = doc.toJS();
+  const config: unknown = doc.toJS();
   checkSchema(config);
-  console.log(JSON.stringify(config));
-} catch (error) {
-  if (!(error instanceof ConfigError)) throw error;
-  console.error(`celetis: ${file}: ${error.field}: ${error.message}`);
-  process.exit(2);
+  return config;
+}
+
+if (import.meta.main) {
+  const checkout = process.argv[2] ?? 'undefined';
+  try {
+    console.log(JSON.stringify(readConfig(checkout)));
+  } catch (error) {
+    if (!(error instanceof ConfigError)) throw error;
+    console.error(`celetis: ${checkout}/.celetis.yaml: ${error.field}: ${error.message}`);
+    process.exit(2);
+  }
 }

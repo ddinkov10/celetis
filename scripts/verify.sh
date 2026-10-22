@@ -52,11 +52,11 @@ while IFS= read -r path; do
       biome_files+=("$path")
       node_files+=("$path")
       ;;
-    scripts/*.ts)
+    *.ts)
       biome_files+=("$path")
       bun_files+=("$path")
       ;;
-    *.ts | *.json | *.jsonc | *.css) biome_files+=("$path") ;;
+    *.json | *.jsonc | *.css) biome_files+=("$path") ;;
     *.jq) jq_files+=("$path") ;;
     .github/workflows/*.yml) workflow_files+=("$path") ;;
     .celetis.yaml) config_files+=("$path") ;;
@@ -188,11 +188,11 @@ check_config() {
 }
 check_tsc() {
   if [ ${#bun_files[@]} -eq 0 ]; then
-    echo "== tsc: no TypeScript file in scripts/"
+    echo "== tsc: no TypeScript file"
     return 0
   fi
   echo "== tsc"
-  tsc -p scripts/tsconfig.json --typeRoots "$npm_root/@types"
+  tsc -p tsconfig.runtime.json --typeRoots "$npm_root/@types"
 }
 pool_run shfmt check_shfmt
 pool_run biome check_biome

@@ -96,6 +96,7 @@ faults() {
   printf '.a |\n' >"$dir/re po/bad.jq"
   printf 'on: push\njobs:\n  a:\n    steps:\n      - run: echo x\n' >"$dir/re po/.github/workflows/bad.yml"
   printf "const n: number = 'a';\n" >"$dir/re po/scripts/lib/bad.ts"
+  printf "const value: number = 'a';\n" >"$dir/re po/tests/lib/bad.ts"
   printf 'landing: [\n' >"$dir/re po/.celetis.yaml"
   printf 'sub {\n' >"$dir/re po/bad.pl"
   git -C "$dir/re po" add -A
@@ -115,6 +116,7 @@ faults() {
   grep -Eq '^\.github/workflows/bad\.yml:[0-9]+:[0-9]+: .*\[syntax-check\]$' "$dir/out" || fail "actionlint does not name bad.yml: $(cat "$dir/out")"
   has_line "$dir/out" 'FAIL: actionlint (exit 1)'
   grep -Eq '^scripts/lib/bad\.ts\([0-9]+,[0-9]+\): error TS2322' "$dir/out" || fail "tsc does not name bad.ts: $(cat "$dir/out")"
+  grep -Eq '^tests/lib/bad\.ts\([0-9]+,[0-9]+\): error TS2322' "$dir/out" || fail "tsc does not name tests/lib/bad.ts: $(cat "$dir/out")"
   has_line "$dir/out" 'FAIL: tsc (exit 1)'
   grep -Fq "re po/.celetis.yaml: <document>: invalid YAML" "$dir/out" || fail "the config reader does not name .celetis.yaml: $(cat "$dir/out")"
   has_line "$dir/out" 'FAIL: config (exit 1)'
