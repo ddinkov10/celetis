@@ -69,11 +69,11 @@ ADR-0016 limits required automation to the CLI hosts while keeping desktop invoc
   and Perl 5.14 or later on `PATH`.
   The runner uses only the standard library of Perl.
 - Git credentials for GitHub that need no prompt, an ssh key or a credential helper for https: the
-  plugin repository and the package of the board are private.
+  plugin repository is private.
 - Superpowers, installed and enabled on the selected host: the lanes call its `superpowers:*` skills.
 - herdr 0.9.3, for the step end of the runner and for the board. In another terminal the
   runner works too, but you leave each session with `/exit`.
-- For the board: Node 22 from 22.18, or Node 24.2 or later, with `npx`, and a Chromium browser.
+- For the board: Node 22 from 22.18, or Node 24.2 or later, and a Chromium browser.
 
 `docs/celetis-flow.md` gives each requirement in full ("Requirements", and "The board").
 The [configuration reference](docs/configuration.md) gives the repository schema and the
@@ -646,7 +646,7 @@ and board form. Every skill call adds `--agent claude` or `--agent codex` before
 | `scripts/celetis worktree --remove <n>` | Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first |
 | `scripts/celetis land <n> '<subject>'` | Lands the change of the issue by the `landing` field of `.celetis.yaml`. It is the one landing path of an agent |
 | `scripts/celetis next-step <n> \| --open \| --json` | The resolver: the next step of one issue, of each open issue, or the rows for the board |
-| `scripts/celetis board` | Starts released agent-board v2.2.1 from the main YAML config; takes no arguments |
+| `scripts/celetis board` | Starts the board of the plugin (`board/`) with `node`, from the main YAML config; takes no arguments |
 | `scripts/celetis capscore J V B N S X` | Resolves the six digits. `--json` gives portable scores and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null |
 | `scripts/celetis celetis-flow [<n>...] \| --board \| --resume <n>` | The runner: the next step of each number, or the automatic runner with no number. `--board` prints the data of the board, and `--resume` opens the session of a step with no progress again |
 | `scripts/celetis root` | Prints the install folder of the plugin. The runner uses it after an update |
@@ -721,7 +721,7 @@ ADR-0012 holds the evidence for one fact and one limit of Claude updates:
 
 ## The agent board
 
-The board is the separate package `ddinkov10/agent-board`. It shows each agent session and the
+The board is `board/` of the plugin. It shows each agent session and the
 next step of each issue, and starts a step with one press. Start it in the main checkout or one
 of its subfolders, then open the URL on its last line:
 
@@ -731,11 +731,12 @@ PORT=4500 scripts/celetis board
 ```
 
 The command takes no arguments. It validates the main checkout's `.celetis.yaml` and refuses a
-lane start before it runs `npx`. It sends the fixed command lists through stdin to
-`npx --yes 'github:ddinkov10/agent-board#v2.2.1' --config-stdin` in the main checkout. No second
-config file is made. The released package validates the input and its executable paths.
+lane start before it starts `node`. It sends the fixed command lists through stdin to
+`node <plugin>/board/cli.mjs --config-stdin` in the main checkout, where `<plugin>` is the root
+of the installed plugin (`scripts/celetis root`). No second config file is made. The board validates the input and its executable paths.
 Only `board.port` comes from YAML; its default is 4403. `PORT` overrides it. This repository uses
 4404, so its board can run beside a board on 4403. Restart the board after a port change.
+After a plugin update, start each running board again.
 
 The producer prints contract 1. Its `agents` entries report executable availability for Claude
 and Codex. Sign-in, trust, and enabled plugin discovery need their own checks.
@@ -749,14 +750,15 @@ Resume uses `scripts/celetis celetis-flow --resume <n>` and the saved host and e
 even after the YAML default changes. Each command item is one argument; the board quotes it
 before it sends the command to herdr.
 
-Check issue data against the released contract in the main checkout:
+Check issue data against contract 1 in the main checkout. `scripts/celetis root` prints
+`<plugin>`:
 
 ```bash
-scripts/celetis celetis-flow --board | npx --yes 'github:ddinkov10/agent-board#v2.2.1' check --stdin
+scripts/celetis celetis-flow --board | node <plugin>/board/cli.mjs check --stdin
 ```
 
 `docs/celetis-flow.md`, "The board", gives the fixed command lists and card states.
-The [package README](https://github.com/ddinkov10/agent-board#readme) describes its page.
+[`board/README.md`](board/README.md) describes the page.
 Before the plugin cutover, the maintainer completes the [manual replacement](docs/configuration.md#replace-the-old-setup)
 for each product project and stops its old sessions, runners, and boards. Required CLI workflow
 acceptance remains open; optional desktop evidence is separate in
@@ -772,24 +774,21 @@ Both `tests/native-entry.test.sh` and `tests/native-observer.test.sh` need Claud
 This repository test runtime is required even when product operations select Codex.
 The checks need no model credentials or tokens and start no model turn.
 
-- **The full local gate** is `scripts/verify.sh`. It checks the Perl updater syntax, runs each
-  `tests/*.test.sh`, then `scripts/capscore.sh --test` and `claude plugin validate .`. Its last line
+- **The full local gate** is `scripts/verify.sh`. It checks the Perl updater syntax, runs the
+  board suite (`(cd board && node --test)`) and each `tests/*.test.sh`, then
+  `scripts/capscore.sh --test` and `claude plugin validate .`. Its last line
   is `verify: PASS`. It also needs Claude's validator, which starts no model turn.
+  The board suite needs Node 22.18, or Node 24.2 or later.
   Product projects use their own gate.
 
   ```bash
-  AGENT_BOARD=<checkout of agent-board>/cli.mjs scripts/verify.sh
+  scripts/verify.sh
   ```
-
-  `AGENT_BOARD` names the entry file of a local checkout of the board package, for the contract
-  check of the `--board` documents and the board-to-launcher integration test. With no value,
-  the integration test packs v2.2.1 in a temporary directory. This override is for the local
-  gate; released-package acceptance uses the exact GitHub tag through the new adapter.
-- **The workflow** `.github/workflows/test.yml` runs each `tests/*.test.sh` and
+- **The workflow** `.github/workflows/test.yml` runs the board suite, each `tests/*.test.sh`, and
   `scripts/capscore.sh --test`, plus the Perl syntax check, on Linux, for each pull request and
-  each push to `main`. It installs Node.js 22 and the pinned Claude test runtime before the tests. It sets
-  `CELETIS_FLOW_SKIP_BOARD_CHECK=1`, so it skips that contract check and the private-package
-  board-to-launcher integration test. The gate on a machine runs both.
+  each push to `main`. It installs Node.js 22 and the pinned Claude test runtime before the tests.
+  It does not skip the contract check of the `--board` documents or the board-to-launcher
+  integration test.
 - **The proof on bash 3.2.** The gate runs each test under the `/bin/bash` of macOS, with
   `PATH="/bin:$PATH"` so each inner `bash` reaches `/bin/bash` too:
 

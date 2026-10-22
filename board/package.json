@@ -1,0 +1,12 @@
+{
+  "name": "agent-board",
+  "private": true,
+  "type": "module",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": "^22.18.0 || >=24.2.0"
+  },
+  "bin": {
+    "agent-board": "cli.mjs"
+  }
+}

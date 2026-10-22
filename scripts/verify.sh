@@ -4,6 +4,8 @@ cd "$(dirname "$0")/.."
 . tests/lib/pool.sh
 echo "== scripts/plugin-update.pl syntax"
 perl -c scripts/plugin-update.pl
+echo "== board: node --test"
+(cd board && node --test)
 timed() {
   local start=$SECONDS
   echo "== $1"

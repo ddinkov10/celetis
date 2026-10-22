@@ -129,10 +129,10 @@ JSON remains in memory. No generated config file is written.
 ## Start the board
 
 Run `scripts/celetis board` in the main checkout or a subfolder. It takes no arguments and
-refuses a lane start before `npx`. It reads only the main config's `board.port`, default 4403,
+refuses a lane start before `node`. It reads only the main config's `board.port`, default 4403,
 and keeps `PORT` above that value. It supplies the fixed data, selected-agent Run, and
-saved-host Resume lists through stdin to released agent-board v2.2.1. The board validates
-that JSON and its executable paths. No board config file is made.
+saved-host Resume lists through stdin to `board/cli.mjs` of the installed plugin. The board
+validates that JSON and its executable paths. No board config file is made.
 The board displays the producer default as read-only. Change `host` in the main YAML to set
 the project default. A board Run choice applies only to that start; Resume uses its saved host.
 See [the board contract](celetis-flow.md#the-board) for the exact lists.
@@ -175,10 +175,10 @@ maintainer gives a trusted readiness report for this build. This lane changes no
 
 There is no old-layout reader, automatic migration, or dependency installer. `/celetis:setup`
 writes the wiring of a product project (`README.md`, "Wire a product project"); it does not
-migrate an old setup. The board dependency is the exact GitHub tag v2.2.1. Local `AGENT_BOARD`
-gate checks do not replace released-package acceptance. Stable installed resources, changed-pair
-child controls on required CLI surfaces, managed Claude setup, and complete child bootstrap keep
-their acceptance states in [Acceptance status](celetis-flow.md#acceptance-status). Native Codex
+migrate an old setup. A deterministic gate check does not replace the live board acceptance.
+Stable installed resources, changed-pair child controls on required CLI surfaces, managed Claude
+setup, and complete child bootstrap keep their acceptance states in
+[Acceptance status](celetis-flow.md#acceptance-status). Native Codex
 desktop binding is separate optional evidence; a desktop limit does not block otherwise complete
 required CLI checks. Active-surface validation and permission stops still apply to each requested
 operation.

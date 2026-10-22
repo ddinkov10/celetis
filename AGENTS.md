@@ -13,11 +13,10 @@ labels, the state of an issue, and the branches.
 `verify: PASS`.
 
 ```bash
-AGENT_BOARD=<checkout of ddinkov10/agent-board>/cli.mjs scripts/verify.sh
+scripts/verify.sh
 ```
 
-- `docs/celetis-flow.md`, "Check the harness", says what `AGENT_BOARD` does, and what the gate does
-  with no such variable.
+- The gate runs `(cd board && node --test)`, so it needs Node 22.18, or Node 24.2 or later.
 - `tests/text.test.sh` reads tracked files only. Run `git add` on a new file before the gate.
 - Each script and each test also runs under bash 3.2, the `/bin/bash` of macOS. The gate runs each
   test as `PATH="/bin:$PATH" /bin/bash <test>`, so each inner `bash` reaches `/bin/bash` too.
@@ -67,6 +66,13 @@ and a change on `main` is in use at once ("Traps").
   and in a terminal.
 - A change of `skills/`, `step-prompt.md`, or `scripts/` changes the behavior of each product
   project, so its lane is `bug` or `feature`, not `chore`.
+
+## The board
+
+`board/` is the board of the plugin (ADR-0020). For a change there, follow these two rules:
+
+- Keep the trust boundaries of `board/server.mjs` and `board/config.mjs`.
+- Check a UI change in Chromium at desktop width and at 375×812.
 
 ## External facts
 
