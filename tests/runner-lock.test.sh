@@ -9,7 +9,10 @@ unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID
 S=$LOCK_TEST
 mkdir -p "$S" "$tmp/bin" "$tmp/project"
 trap 'touch "$S/release" 2>/dev/null || true; wait 2>/dev/null || true; rm -rf "$tmp"' EXIT
-fail() { echo "FAIL: $1"; exit 1; }
+fail() {
+  echo "FAIL: $1"
+  exit 1
+}
 cat >"$tmp/bin/ps" <<'EOF'
 #!/bin/bash
 S=$LOCK_TEST
@@ -22,12 +25,12 @@ if [ "$2" = 90000001 ]; then
 fi
 if [ "$2" = 12345678 ]; then
   touch "$S/read-$CELETIS_AGENT"
-  for attempt in {1..200}; do
+  for _ in {1..200}; do
     [ ! -f "$S/read-claude" ] || [ ! -f "$S/read-codex" ] || break
     /bin/sleep 0.01
   done
   if [ "$CELETIS_AGENT" = codex ]; then
-    for attempt in {1..200}; do
+    for _ in {1..200}; do
       [ ! -f "$S/started-claude" ] || break
       /bin/sleep 0.01
     done
@@ -56,7 +59,7 @@ if [ "$1" = app-server ]; then
   exit 0
 fi
 touch "$S/started-$CELETIS_AGENT"
-for attempt in {1..200}; do
+for _ in {1..200}; do
   [ ! -f "$S/release" ] || exit 0
   /bin/sleep 0.05
 done
@@ -100,7 +103,7 @@ for name in issue-7 runner; do
   for host in claude codex; do
     (cd "$tmp/project" && CELETIS_AGENT="$host" exec "$BASH" "$root/scripts/celetis-flow.sh" "$@" >"$tmp/$host.out" 2>"$tmp/$host.err") &
   done
-  for attempt in {1..200}; do
+  for _ in {1..200}; do
     [ ! -f "$S/returned-codex" ] || break
     /bin/sleep 0.05
   done
@@ -121,7 +124,7 @@ rm -rf "$S" "$state"
 mkdir -p "$S" "$state"
 (cd "$tmp/project" && CELETIS_AGENT=claude exec "$BASH" "$root/scripts/celetis-flow.sh" 7 >"$tmp/claude.out" 2>"$tmp/claude.err") &
 runner=$!
-for attempt in {1..200}; do
+for _ in {1..200}; do
   [ ! -f "$S/started-claude" ] || break
   /bin/sleep 0.05
 done

@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Sourced by scripts/worktree.sh, scripts/land.sh, and scripts/setup.sh.
 
 # The marker sits in the git dir: a file in the working tree would make a new worktree dirty.
@@ -5,7 +6,10 @@ marker_of() { echo "$(git -C "$1" rev-parse --path-format=absolute --git-dir)/ce
 
 run_setup() {
   local checkout=$1 config=$2 main=$3 setup
-  setup=$(printf '%s\n' "$config" | jq -jr '.worktreeSetup // ""'; printf '.')
+  setup=$(
+    printf '%s\n' "$config" | jq -jr '.worktreeSetup // ""'
+    printf '.'
+  )
   setup=${setup%.}
   [ -n "$setup" ] || return 0
   (cd "$checkout" && bash -c "$setup" celetis-worktree-setup "$main" >&2) || return
@@ -33,6 +37,7 @@ remove_lane() {
     [ -z "$at" ] || remove_checkout "$at"
     git branch -D "$prototype" >&2
   done
+  # shellcheck disable=SC2086 # pushed is a list of branch names
   [ -z "$pushed" ] || git push -q origin --delete $pushed >&2
   [ -z "$checkout" ] || remove_checkout "$checkout"
   git branch -D "$branch" >&2

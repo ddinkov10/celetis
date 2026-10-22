@@ -7,13 +7,32 @@ output_dir=
 only=
 while [ $# -gt 0 ]; do
   case $1 in
-    --agent) [ $# -ge 2 ] || exit 2; host=$2; shift 2 ;;
-    --output-dir) [ $# -ge 2 ] || exit 2; output_dir=$2; shift 2 ;;
-    --only) [ $# -ge 2 ] || exit 2; only=$2; shift 2 ;;
-    *) echo "usage: $0 [--agent claude|codex] [--output-dir DIR] [--only CASE:MODE]" >&2; exit 2 ;;
+    --agent)
+      [ $# -ge 2 ] || exit 2
+      host=$2
+      shift 2
+      ;;
+    --output-dir)
+      [ $# -ge 2 ] || exit 2
+      output_dir=$2
+      shift 2
+      ;;
+    --only)
+      [ $# -ge 2 ] || exit 2
+      only=$2
+      shift 2
+      ;;
+    *)
+      echo "usage: $0 [--agent claude|codex] [--output-dir DIR] [--only CASE:MODE]" >&2
+      exit 2
+      ;;
   esac
 done
-case $host in claude | codex) ;; *) echo "invalid agent: $host" >&2; exit 2 ;; esac
+case $host in claude | codex) ;; *)
+  echo "invalid agent: $host" >&2
+  exit 2
+  ;;
+esac
 tmp=$(mktemp -d)
 if [ -n "$output_dir" ]; then
   mkdir -p "$output_dir"
@@ -21,7 +40,10 @@ if [ -n "$output_dir" ]; then
 fi
 trap 'kill $(jobs -p) 2>/dev/null || true; rm -rf "$tmp"' EXIT
 product_cwd=$(pwd -P)
-product_root=$(git rev-parse --show-toplevel) || { echo 'start this test in a product Git checkout' >&2; exit 2; }
+product_root=$(git rev-parse --show-toplevel) || {
+  echo 'start this test in a product Git checkout' >&2
+  exit 2
+}
 product_root=$(cd "$product_root" && pwd -P)
 directory=$product_cwd
 instruction_dirs=("$directory")
@@ -45,6 +67,7 @@ for directory in "${instruction_dirs[@]}"; do
     hash=$(shasum -a 256 <"$tmp/$snapshot")
     jq -nc --arg path "$instruction_file" --arg sha256 "${hash%% *}" --arg snapshot "$snapshot" \
       '{path:$path,sha256:$sha256,snapshot:$snapshot}' >>"$tmp/product-sources"
+    # shellcheck disable=SC2129 # the file appends one part at a time
     printf '\n# Instructions from %s\n\n' "$instruction_file" >>"$tmp/product-context.md"
     cat "$tmp/$snapshot" >>"$tmp/product-context.md"
     printf '\n' >>"$tmp/product-context.md"
@@ -70,7 +93,10 @@ claude_land='scripts/celetis --agent claude land 7'
 codex_land='scripts/celetis --agent codex land 7'
 expected_land=$claude_land
 other_land=$codex_land
-if [ "$host" = codex ]; then expected_land=$codex_land; other_land=$claude_land; fi
+if [ "$host" = codex ]; then
+  expected_land=$codex_land
+  other_land=$claude_land
+fi
 mkdir -p "$tmp/project"
 git -C "$tmp/project" init -q
 "$host" --version >"$tmp/version" 2>&1
@@ -249,7 +275,10 @@ check() {
         what="$what, the check by hand is not after the land lines"
     fi
     for s; do
-      if [ "$s" = not ]; then bad=has; continue; fi
+      if [ "$s" = not ]; then
+        bad=has
+        continue
+      fi
       found=no
       ! grep -qF -e "$s" "$answer" || found=has
       [ "$found" != "$bad" ] || what="$what, $bad \"$s\""

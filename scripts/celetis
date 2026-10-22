@@ -161,7 +161,10 @@ celetis_host_select() {
   fi
   case $host in
     claude | codex) export CELETIS_AGENT=$host ;;
-    *) printf 'celetis: invalid agent %s; use claude or codex\n' "$host" >&2; return 2 ;;
+    *)
+      printf 'celetis: invalid agent %s; use claude or codex\n' "$host" >&2
+      return 2
+      ;;
   esac
 }
 
@@ -180,7 +183,10 @@ celetis_session_validate() {
 
 celetis_session_load() {
   local issue=${1#\#} common file
-  [[ $issue =~ ^[1-9][0-9]*$ ]] || { echo 'celetis: resume needs an issue number' >&2; return 2; }
+  [[ $issue =~ ^[1-9][0-9]*$ ]] || {
+    echo 'celetis: resume needs an issue number' >&2
+    return 2
+  }
   common=$(git rev-parse --path-format=absolute --git-common-dir) || return 1
   file="$common/celetis-flow/sessions/$issue.json"
   if [ ! -f "$file" ]; then
@@ -231,10 +237,19 @@ celetis_codex_reply() {
             else error("invalid response") end
           elif (.method | type) == "string" then "other"
           else error("invalid notification") end
-      ' 2>/dev/null) || { echo 'celetis: invalid Codex app-server response' >&2; return 1; }
+      ' 2>/dev/null) || {
+        echo 'celetis: invalid Codex app-server response' >&2
+        return 1
+      }
       case $kind in
-        result) CELETIS_REPLY=$line; return 0 ;;
-        error) printf 'celetis: Codex %s failed: %s\n' "$method" "$(printf '%s\n' "$line" | jq -r '.error.message // "unknown error"')" >&2; return 1 ;;
+        result)
+          CELETIS_REPLY=$line
+          return 0
+          ;;
+        error)
+          printf 'celetis: Codex %s failed: %s\n' "$method" "$(printf '%s\n' "$line" | jq -r '.error.message // "unknown error"')" >&2
+          return 1
+          ;;
       esac
     else
       if [ "$SECONDS" -lt "$deadline" ]; then
@@ -250,17 +265,21 @@ celetis_codex_reply() {
 
 celetis_codex_request() (
   method=$1 params=$2
-  command -v codex >/dev/null 2>&1 || { echo 'celetis: codex is not on PATH' >&2; exit 1; }
+  command -v codex >/dev/null 2>&1 || {
+    echo 'celetis: codex is not on PATH' >&2
+    exit 1
+  }
   umask 077
   scratch=$(mktemp -d "${TMPDIR:-/tmp}/celetis.XXXXXX") || exit 1
   codex_pid=
+  # shellcheck disable=SC2329 # the EXIT trap calls it
   cleanup() {
     local status=$?
     if [ "$status" -ne 0 ] && [ -f "$scratch/stderr" ]; then cat "$scratch/stderr" >&2; fi
     exec 3>&- 4>&-
     if [ -n "$codex_pid" ]; then
       kill "$codex_pid" 2>/dev/null || true
-      for attempt in 1 2 3 4 5; do
+      for _ in 1 2 3 4 5; do
         kill -0 "$codex_pid" 2>/dev/null || break
         sleep 0.1
       done
@@ -304,11 +323,20 @@ celetis_codex_root() (
         | capture("^(?<root>.+)/skills/(?<skill>[a-z][a-z-]*)/SKILL[.]md$") as $path
         | if ("celetis:" + $path.skill) != $skill.name then error("invalid skill name")
           else {root:$path.root,path:.} end)
-  ' 2>/dev/null) || { echo 'celetis: invalid Codex skills/list response' >&2; exit 1; }
+  ' 2>/dev/null) || {
+    echo 'celetis: invalid Codex skills/list response' >&2
+    exit 1
+  }
   case $(printf '%s\n' "$candidates" | jq '[.[].root] | unique | length') in
-    0) echo 'celetis: Codex has no enabled celetis@celetis installation; install and enable the plugin in Codex' >&2; exit 1 ;;
+    0)
+      echo 'celetis: Codex has no enabled celetis@celetis installation; install and enable the plugin in Codex' >&2
+      exit 1
+      ;;
     1) ;;
-    *) echo 'celetis: Codex reports multiple celetis package roots; fix the enabled installation' >&2; exit 1 ;;
+    *)
+      echo 'celetis: Codex reports multiple celetis package roots; fix the enabled installation' >&2
+      exit 1
+      ;;
   esac
   dir=$(printf '%s\n' "$candidates" | jq -r '.[0].root')
   if command -v cygpath >/dev/null 2>&1; then dir=$(cygpath -u "$dir") || exit 1; fi
@@ -382,7 +410,8 @@ celetis_main() {
   case $name in
     worktree | celetis-flow | next-step | land | board)
       main=$(celetis_config_main) || return $?
-      celetis_config_read "$main" >/dev/null || return $? ;;
+      celetis_config_read "$main" >/dev/null || return $?
+      ;;
   esac
   if [ "$CELETIS_AGENT" = codex ]; then
     dir=$(celetis_codex_root) || return 1

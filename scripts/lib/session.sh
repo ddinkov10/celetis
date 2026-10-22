@@ -8,6 +8,7 @@ celetis_session_data() {
 
 celetis_session_write() (
   local issue=$1 step=$2 checkout=$3 id=$4 file temp
+  # shellcheck disable=SC2154 # the script that sources this file sets state
   file="$state/sessions/$issue.json"
   mkdir -p "$state/sessions" || exit 1
   temp=$(mktemp "$state/sessions/.$issue.XXXXXX") || exit 1

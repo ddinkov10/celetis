@@ -9,23 +9,38 @@ labels, the state of an issue, and the branches.
 
 ## Verify gate
 
-`scripts/verify.sh` is the verify gate of this repository. It passes when its last line is
-`verify: PASS`.
+`scripts/verify.sh` is the verify gate of this repository, the fast deterministic check. It passes
+when its last line is `verify: PASS`. `tests/suite.sh` is the full suite. It passes when its last
+line is `suite: PASS`. CI runs the gate and then the suite under bash 5 and under bash 3.2.57.
 
 ```bash
 scripts/verify.sh
+tests/suite.sh
 ```
 
-- The gate runs `(cd board && node --test)`, so it needs Node 22.18, or Node 24.2 or later.
-- `tests/text.test.sh` reads tracked files only. Run `git add` on a new file before the gate.
-- Each script and each test also runs under bash 3.2, the `/bin/bash` of macOS. The gate runs each
+- The pinned tools of the gate are the lines of `tests/lib/tools.txt`. On macOS, run
+  `brew install shellcheck shfmt actionlint`. On Linux, run the first line below, then put
+  `<dir>/bin` on `PATH`: a Python with the PEP 668 marker refuses `--user`. On Windows, run the
+  first line with `py -m pip install --user` in place of `python3 -m pip install --target <dir>`.
+  On each machine, run the second line.
+
+  ```bash
+  awk '$3 == "pip" { print $4 }' tests/lib/tools.txt | xargs python3 -m pip install --target <dir>
+  awk '$3 == "npm" { print $4 }' tests/lib/tools.txt | xargs npm install --global
+  ```
+- The gate checks `.celetis.yaml` with the config reader, so it needs Mike Farah yq on `PATH`, as
+  the reader does.
+- A new file type gets a row or an exemption in `scripts/verify.sh`.
+- The gate reads tracked files only. Run `git add` on a new file before the gate.
+- The suite runs `(cd board && node --test)`, so it needs Node 22.18, or Node 24.2 or later.
+- Each script and each test also runs under bash 3.2, the `/bin/bash` of macOS. The suite runs each
   test as `PATH="/bin:$PATH" /bin/bash <test>`, so each inner `bash` reaches `/bin/bash` too.
 - Each test passes in 30 s or less alone (#81). A test with many independent cases runs them with
-  `tests/lib/pool.sh`. The gate runs the tests at the same time, so a test keeps its scratch state
+  `tests/lib/pool.sh`. The suite runs the tests at the same time, so a test keeps its scratch state
   private and writes nothing in the checkout.
-- `tests/manual/step-prompt.test.sh` is hand-run: it is not in the gate, and it uses tokens. Run it
-  after a change of `step-prompt.md`, of "Celetis flow" below, or of a sentence that it quotes
-  ("Traps").
+- `tests/manual/step-prompt.test.sh` is hand-run: it is not in the gate or the suite, and it uses
+  tokens. Run it after a change of `step-prompt.md`, of "Celetis flow" below, or of a sentence that
+  it quotes ("Traps").
 
 ## General text
 
@@ -112,9 +127,9 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
   resolver reads, a published spec, and a closed issue move the line. So each act of the skill after
   such an act is in the same turn.
 - **The hand-run test quotes the skills.** `tests/manual/step-prompt.test.sh` holds sentences of the
-  skills as verbatim text, and no test of the gate compares a quote with its skill. Before you
-  change a sentence of a skill, search that test for it. A change of a quoted sentence changes the
-  quote in the same commit, and the hand-run test runs again.
+  skills as verbatim text, and no test of the gate or the suite compares a quote with its skill.
+  Before you change a sentence of a skill, search that test for it. A change of a quoted sentence
+  changes the quote in the same commit, and the hand-run test runs again.
 - **The skills table and the commands table of `README.md` are written by hand.** A new skill, a
   removed skill, or a new sub-command of `scripts/` also changes the README, and no test fails when
   it does not.

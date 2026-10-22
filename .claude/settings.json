@@ -5,10 +5,7 @@
       "Bash(scripts/celetis --agent claude land *)",
       "Bash(scripts/celetis --agent codex land *)"
     ],
-    "deny": [
-      "Bash(gh pr merge*)",
-      "PowerShell(gh pr merge*)"
-    ]
+    "deny": ["Bash(gh pr merge*)", "PowerShell(gh pr merge*)"]
   },
   "extraKnownMarketplaces": {
     "celetis": {

@@ -1,15 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-die() { printf 'land: %s\n' "$1" >&2; exit 1; }
+die() {
+  printf 'land: %s\n' "$1" >&2
+  exit 1
+}
 
 usage="usage: scripts/celetis land <issue number> '<type>(<area>): <what>', e.g. scripts/celetis land 415 'feat(agent-harness): the build step lands the change'"
 conventional='^[a-z]+(\([^()]+\))?!?: [^ ]'
-[ $# -eq 2 ] || { echo "$usage" >&2; exit 2; }
+[ $# -eq 2 ] || {
+  echo "$usage" >&2
+  exit 2
+}
 n=${1#\#}
 subject=$2
 [[ $n =~ ^[1-9][0-9]*$ && $subject =~ $conventional && $subject != *$'\n'* && $subject != *"(#$n)" ]] ||
-  { echo "$usage" >&2; exit 2; }
+  {
+    echo "$usage" >&2
+    exit 2
+  }
 
 here=$(cd "$(dirname "$0")" && pwd)
 . "$here/worktree-lib.sh"
@@ -94,7 +103,10 @@ buckets_of() {
 green() {
   # After a push, the PR starts its checks on $tip only when it shows $tip.
   [ "$(gh api "repos/{owner}/{repo}/pulls/$pr" --jq .head.sha 2>/dev/null)" = "$tip" ] ||
-    { buckets="the PR does not show $tip yet"; return 1; }
+    {
+      buckets="the PR does not show $tip yet"
+      return 1
+    }
   buckets=$(buckets_of "$tip" 2>/dev/null) || buckets=""
   case $buckets in
     pass | "pass skipping") return 0 ;;
@@ -157,7 +169,10 @@ close_epic() {
   [ "$state" = open ] || return 0
   open=$(gh api --paginate "repos/{owner}/{repo}/issues/$number/sub_issues" \
     --jq ".[] | select(.state == \"open\" and .number != $n) | .number" 2>&1) ||
-    { echo "land: cannot read the sub-issues of #$number; close the epic by hand: $open"; return 0; }
+    {
+      echo "land: cannot read the sub-issues of #$number; close the epic by hand: $open"
+      return 0
+    }
   [ -z "$open" ] || return 0
   close_issue "$number" "Each sub-issue is closed: #$n landed last." ||
     echo "land: cannot close the epic #$number; close it by hand"

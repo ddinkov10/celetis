@@ -5,19 +5,24 @@ root=$(dirname "$here")
 top=$(mktemp -d)
 . "$root/tests/lib/pool.sh"
 trap 'exit 143' HUP INT TERM
+# shellcheck disable=SC2154 # tests/lib/pool.sh sets pool_dir
 trap 'kill $(cat "$top/group-pids" 2>/dev/null) 2>/dev/null || true; wait; rm -rf "$top" ${pool_dir:+"$pool_dir"}' EXIT
 ln -s "$root" "$top/plug in"
 plugin="$top/plug in"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 export CELETIS_AGENT=claude
-export CELETIS_FLOW_TEST_PLUGIN="$plugin" CELETIS_FLOW_TEST_PERL="$(command -v perl)"
+CELETIS_FLOW_TEST_PERL=$(command -v perl)
+export CELETIS_FLOW_TEST_PLUGIN="$plugin" CELETIS_FLOW_TEST_PERL
 export CELETIS_TEST_HERDR_FIXTURES="$root/tests/fixtures/herdr"
 unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID
 bin="$top/bin"
 nobin="$top/nobin"
 mkdir -p "$bin" "$nobin"
 
-fail() { echo "FAIL: $1"; exit 1; }
+fail() {
+  echo "FAIL: $1"
+  exit 1
+}
 
 # The gh stub serves each issue from its own file, so the real resolver runs against it. It reads all of stdin, as a real command can.
 cat >"$bin/gh" <<'EOF'
@@ -186,6 +191,7 @@ export PATH="$bin:$PATH"
 group_init() {
   tmp="$top/$1"
   S="$tmp/state"
+  # shellcheck disable=SC2005 # the command substitution forks, so sh prints the PID of this subshell; bash 3.2 has no $BASHPID
   echo "$(exec sh -c 'echo "$PPID"')" >>"$top/group-pids"
   trap 'exit 143' HUP INT TERM
   # A test that fails must leave no runner alive: an automatic runner has no end of its own.
@@ -245,20 +251,26 @@ issue() {
 after() { into="$S/after/$1/$2" issue "$1" "${@:3}"; }
 
 start_flow() {
-  ( cd "${from:-$repo}" && PATH=${path:-$PATH} exec "$BASH" "$plugin/scripts/celetis-flow.sh" "$@" \
-    >"$tmp/${tag:-}out" 2>"$tmp/${tag:-}err" <"$tmp/stdin" ) &
+  (cd "${from:-$repo}" && PATH=${path:-$PATH} exec "$BASH" "$plugin/scripts/celetis-flow.sh" "$@" \
+    >"$tmp/${tag:-}out" 2>"$tmp/${tag:-}err" <"$tmp/stdin") &
   flow_pid=$!
   echo "$flow_pid" >>"$S/runner-pids"
 }
 end_flow() {
   set +e
-  { wait "$flow_pid"; code=$?; } 2>/dev/null
+  {
+    wait "$flow_pid"
+    code=$?
+  } 2>/dev/null
   set -e
   out=$(cat "$tmp/out")
   err=$(cat "$tmp/err")
   [ ! -e "$S/setup-ran" ] || fail "runner executed worktree setup"
 }
-run_flow() { start_flow "$@"; end_flow; }
+run_flow() {
+  start_flow "$@"
+  end_flow
+}
 
 calls() { cat "$S/$1" 2>/dev/null || true; }
 count() { calls "$1" | wc -l | tr -d ' '; }
@@ -281,7 +293,7 @@ await_file() {
 }
 await_stop() {
   local tries=0
-  until case $(ps -p "$1" -o stat= 2>/dev/null) in '' | *Z*) ;; *) false ;; esac; do
+  until case $(ps -p "$1" -o stat= 2>/dev/null) in '' | *Z*) ;; *) false ;; esac do
     tries=$((tries + 1))
     [ "$tries" -le 400 ] || fail "$2"
     /bin/sleep 0.05
@@ -311,15 +323,19 @@ checked() {
 group_config() {
   group_init config
   for bad in missing invalid; do
-    reset; issue 7 OPEN enhancement "Spec: x"
-    if [ "$bad" = missing ]; then rm "$repo/.celetis.yaml"
+    reset
+    issue 7 OPEN enhancement "Spec: x"
+    if [ "$bad" = missing ]; then
+      rm "$repo/.celetis.yaml"
     else printf 'landing: invalid\n' >"$repo/.celetis.yaml"; fi
     run_flow 7
     [ "$code" -eq 2 ] && [[ $err == *"$main/.celetis.yaml"* ]] || fail "$bad runner config was not refused: $code [$out] [$err]"
     [ ! -e "$st" ] && [ "$(locks)" -eq 0 ] && [ "$(count plugin-calls)" -eq 0 ] && [ "$(count claude-calls)" -eq 0 ] || fail "$bad runner config created state, took a lock, updated, or launched"
     cp "$tmp/flow-config" "$repo/.celetis.yaml"
   done
-  reset; issue 7 OPEN enhancement "Spec: x"; after 7 1 OPEN enhancement "Spec: x" "## Plan"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  after 7 1 OPEN enhancement "Spec: x" "## Plan"
   printf 'landing: invalid\n' >"$S/invalid-config"
   run_flow 7
   [ "$code" -eq 2 ] && [ "$(count claude-calls)" -eq 1 ] && [ "$(count plugin-calls)" -eq 3 ] && [ "$(locks)" -eq 0 ] || fail "runner did not validate config before its second session: $code [$out] [$err]"
@@ -327,19 +343,22 @@ group_config() {
 
   for args in abc 0 7x "#" "7 abc" -h --open "--board 7" "7 --board" --resume "--resume abc" "--resume 7 8" "7 --resume"; do
     reset
+    # shellcheck disable=SC2086 # args is a list of words
     run_flow $args
-    [ "$code" -eq 2 ] && [ -z "$out" ] && printf '%s' "$err" | grep -qxF "$usage" || fail "bad arguments [$args]: $code [$out] [$err]"
+    [ "$code" -eq 2 ] && [ -z "$out" ] && grep -qxF "$usage" <<<"$err" || fail "bad arguments [$args]: $code [$out] [$err]"
     [ -z "$(calls gh-calls)$(calls claude-calls)" ] || fail "a usage error called gh or claude: [$args]"
   done
 
-  reset; issue 7 OPEN enhancement "Spec: x"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
   path=$nobin run_flow 7
   [ "$code" -eq 1 ] && [ "$err" = "celetis: claude is not on PATH" ] && [ -z "$(calls gh-calls)" ] && [ ! -e "$st/no-progress" ] || fail "claude missing: $code [$out] [$err]"
 }
 
 group_chain() {
   group_init chain
-  reset; echo 1 >"$S/claude-exit"
+  reset
+  echo 1 >"$S/claude-exit"
   issue 7 OPEN bug "It breaks"
   after 7 1 OPEN bug "It breaks" "## Root cause"
   after 7 2 OPEN bug "It breaks" "## Root cause" "## Plan"
@@ -356,50 +375,64 @@ celetis-flow: stop #7 is finished." ] || fail "a start with a number must start 
   [ -z "$(calls herdr-calls)" ] || fail "outside herdr the script must make no herdr call: [$(calls herdr-calls)]"
   [ "$(locks)" -eq 0 ] && [ ! -e "$st/no-progress" ] || fail "a finished run left a lock or a row in the record"
 
-  reset; issue 9 OPEN enhancement "Spec: x"; issue 8 OPEN enhancement "Spec: x"
+  reset
+  issue 9 OPEN enhancement "Spec: x"
+  issue 8 OPEN enhancement "Spec: x"
   run_flow 9 '#8'
   [ "$code" -eq 0 ] && [ "$out" = "celetis-flow: start: /celetis:plan #9
 celetis-flow: no progress: /celetis:plan #9
 celetis-flow: start: /celetis:plan #8
 celetis-flow: no progress: /celetis:plan #8" ] || fail "numbers must keep their order, and a session that changes nothing is no progress: $code [$out] [$err]"
-  [ "$(cat "$st/no-progress")" = "9"$'\t'"run /celetis:plan #9
-8"$'\t'"run /celetis:plan #8" ] || fail "no progress must write one row: [$(cat "$st/no-progress")]"
+  [ "$(cat "$st/no-progress")" = "9"$'\t'"run /celetis:plan #9"$'\n'"8"$'\t'"run /celetis:plan #8" ] || fail "no progress must write one row: [$(cat "$st/no-progress")]"
   run_flow 9
   [ "$(count claude-calls)" -eq 3 ] && [ "$(rows)" -eq 2 ] || fail "a start with a number must ignore the record and add no second row"
 
-  reset; issue 7 OPEN epic ""
+  reset
+  issue 7 OPEN epic ""
   run_flow 7
   [ "$out" = "celetis-flow: stop #7 is an epic. Each child runs its own flow." ] && [ -z "$(calls claude-calls)" ] || fail "a stop line must end the issue with no session: [$out] [$err]"
 
-  reset; issue 7 OPEN enhancement "Spec: x"; mkdir -p "$S/after/7/1"; touch "$S/after/7/1/gh-fail"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  mkdir -p "$S/after/7/1"
+  touch "$S/after/7/1/gh-fail"
   run_flow 7
   [ "$out" = "celetis-flow: start: /celetis:plan #7
 celetis-flow: stop cannot read #7 from GitHub" ] && [ ! -e "$st/no-progress" ] || fail "GitHub down after a session is not no progress: [$out]"
 
-  reset; issue 4 CLOSED bug "old"
+  reset
+  issue 4 CLOSED bug "old"
   run_flow 4
   [ "$out" = "celetis-flow: stop #4 is finished." ] && [ -z "$(calls claude-calls)" ] || fail "a closed issue must start no session: [$out] [$(sessions)]"
 }
 
 group_installed() {
   group_init installed
-  reset; issue 7 OPEN enhancement "Spec: x"; touch "$S/plugin-fail"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  touch "$S/plugin-fail"
   run_flow 7
   [ "$code" -ne 0 ] && [ "$(count claude-calls)" -eq 0 ] && [ ! -e "$st/no-progress" ] || fail "a failed marketplace update must stop before the session: $code [$out] [$err]"
   [[ $err == *"claude plugin marketplace update celetis"* && $err == *"exit 1"* && $err == *"fake claude plugin: error"* ]] || fail "the failed command, status, and cause must reach stderr: [$err]"
   [ "$(calls plugin-calls)" = "plugin marketplace update celetis" ] && [ "$(locks)" -eq 0 ] || fail "a failed update must stop the chain and release its issue lock"
 
-  reset; issue 7 OPEN enhancement "Spec: x"; touch "$S/plugin-fail-update"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  touch "$S/plugin-fail-update"
   run_flow 7
   [ "$code" -ne 0 ] && [ "$(count claude-calls)" -eq 0 ] && [ ! -e "$st/no-progress" ] || fail "a failed plugin update must stop before the session: $code [$out] [$err]"
   [[ $err == *"claude plugin update celetis@celetis --scope user"* && $err == *"exit 23"* && $err == *"probe: update failed"* ]] || fail "the plugin update cause must reach stderr: [$err]"
   [ "$(calls plugin-calls)" = "$update" ] || fail "a failed plugin update must start no lookup: [$(calls plugin-calls)]"
 
-  reset; issue 7 OPEN enhancement "Spec: x"; touch "$S/plugin-fail-list"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  touch "$S/plugin-fail-list"
   run_flow 7
   [ "$code" -ne 0 ] && [ "$(count claude-calls)" -eq 0 ] && [[ $err == *"claude plugin list --json"* && $err == *"exit 23"* && $err == *"probe: list failed"* ]] || fail "a failed lookup must stop and show its command, status, and cause: $code [$err]"
 
-  reset; issue 7 OPEN enhancement "Spec: x"; after 7 1 OPEN enhancement "Spec: x" "## Plan"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  after 7 1 OPEN enhancement "Spec: x" "## Plan"
   run_flow 7
   [ "$(calls order)" = "$update
 $lookup
@@ -408,7 +441,10 @@ $update
 $lookup
 session /celetis:implement #7" ] || fail "the update must run before each of two sessions: [$(calls order)]"
 
-  reset; issue 7 OPEN enhancement "Spec: x"; after 7 1 OPEN enhancement "Spec: x" "## Plan"; plugin_list "$moved"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  after 7 1 OPEN enhancement "Spec: x" "## Plan"
+  plugin_list "$moved"
   run_flow 7
   [ "$(calls plugin-calls)" = "$update
 $lookup
@@ -426,20 +462,29 @@ celetis-flow: no progress: /celetis:implement #7" ] && [ -z "$err" ] || fail "th
   [ "$(calls claude-calls)" = "$(form 7 plan "$moved")
 $(form 7 implement "$moved")" ] || fail "the second of two sessions must keep the installed folder: [$(calls claude-calls)] [$err]"
 
-  reset; issue 7 OPEN enhancement "Spec: x"; after 7 1 OPEN enhancement "Spec: x" "## Plan"; plugin_list "$moved"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  after 7 1 OPEN enhancement "Spec: x" "## Plan"
+  plugin_list "$moved"
   echo oops >"$S/after/7/1/plugin-list"
   run_flow 7
   [ "$code" -ne 0 ] && [ "$(calls claude-calls)" = "$(form 7 plan "$moved")" ] && [ ! -e "$st/no-progress" ] || fail "a failed second lookup must stop before the second session: [$(calls claude-calls)] [$err]"
 
-  reset; issue 7 OPEN enhancement "Spec: x"; echo oops >"$S/plugin-list"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  echo oops >"$S/plugin-list"
   run_flow 7
   [ "$code" -ne 0 ] && [ "$(count claude-calls)" -eq 0 ] && [[ $err == *"invalid plugin list JSON"* && $err == *"oops"* ]] || fail "an invalid lookup must stop and show its cause: [$out] [$(calls claude-calls)] [$err]"
 
-  reset; issue 7 OPEN enhancement "Spec: x"; echo '[]' >"$S/plugin-list"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  echo '[]' >"$S/plugin-list"
   run_flow 7
   [ "$code" -ne 0 ] && [ "$(count claude-calls)" -eq 0 ] && [ -n "$err" ] || fail "an absent or invalid user installation must stop before the session: $code [[]] [$err]"
 
-  reset; issue 7 OPEN enhancement "Spec: x"; plugin_list "$bare"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  plugin_list "$bare"
   run_flow 7
   [ "$code" -ne 0 ] && [ "$(count claude-calls)" -eq 0 ] && [[ $err == *"step-prompt.md"* && $err == *"$bare"* ]] || fail "a folder without step text must stop and show its path: [$out] [$(calls claude-calls)] [$err]"
 }
@@ -447,7 +492,9 @@ $(form 7 implement "$moved")" ] || fail "the second of two sessions must keep th
 group_update_hang() {
   group_init update_hang
   for stage in marketplace update list; do
-    reset; issue 7 OPEN enhancement "Spec: x"; touch "$S/plugin-hang-$stage"
+    reset
+    issue 7 OPEN enhancement "Spec: x"
+    touch "$S/plugin-hang-$stage"
     start_flow 7
     await_file "$S/plugin-child"
     update_pid=$(cat "$S/plugin-pid")
@@ -469,7 +516,8 @@ group_codex_lookup() {
   mkdir -p "$tmp/codex pipes"
   lost_diagnostics=0
   for boundary in timeout interruption; do
-    reset; issue 7 OPEN enhancement "Spec: x"
+    reset
+    issue 7 OPEN enhancement "Spec: x"
     CELETIS_AGENT=codex TMPDIR="$tmp/codex pipes" start_flow 7
     await_file "$S/codex-child"
     codex_pid=$(cat "$S/codex-pid")
@@ -499,7 +547,8 @@ group_codex_lookup() {
 group_herdr() {
   group_init herdr
   reset
-  issue 7 OPEN bug "It breaks"; after 7 1 OPEN bug "It breaks" "## Root cause"
+  issue 7 OPEN bug "It breaks"
+  after 7 1 OPEN bug "It breaks" "## Root cause"
   issue 8 OPEN enhancement "Spec: x"
   export HERDR_ENV=1 HERDR_PANE_ID=w1:p4 HERDR_TAB_ID=w1:t2
   run_flow 7 8
@@ -521,10 +570,13 @@ agent wait w1:p4 --until idle --until done" ] || fail "in herdr the runner must 
 
 group_herdr_specify() {
   group_init herdr_specify
-  reset; issue 9 OPEN enhancement "An idea"; after 9 2 OPEN enhancement "Spec: x"
+  reset
+  issue 9 OPEN enhancement "An idea"
+  after 9 2 OPEN enhancement "Spec: x"
   set_gate plan me
   export HERDR_ENV=1 HERDR_PANE_ID=w1:p4 HERDR_TAB_ID=w1:t2
-  run_flow 9; first=$out
+  run_flow 9
+  first=$out
   run_flow 9
   unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID
   [ "$first" = "celetis-flow: start: /celetis:feature #9
@@ -541,7 +593,10 @@ agent prompt w1:p4 /exit" ] || fail "in herdr the runner must name its tab #9 sp
 group_herdr_end() {
   group_init herdr_end
   for end in "OPEN epic" "CLOSED wontfix"; do
-    reset; issue 9 OPEN enhancement "An idea"; after 9 1 $end "An idea"
+    reset
+    issue 9 OPEN enhancement "An idea"
+    # shellcheck disable=SC2086 # end is a list of words
+    after 9 1 $end "An idea"
     export HERDR_ENV=1 HERDR_PANE_ID=w1:p4 HERDR_TAB_ID=w1:t2
     run_flow 9
     unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID
@@ -556,7 +611,10 @@ trap 'kill $!' TERM
 /bin/sleep 30 &
 wait
 EOF
-  reset; issue 7 OPEN enhancement "Spec: x" "## Plan"; after 7 1 CLOSED enhancement "Spec: x" "## Plan"; touch "$S/hold-7"
+  reset
+  issue 7 OPEN enhancement "Spec: x" "## Plan"
+  after 7 1 CLOSED enhancement "Spec: x" "## Plan"
+  touch "$S/hold-7"
   export HERDR_ENV=1 HERDR_PANE_ID=w1:p4 HERDR_TAB_ID=w1:t2
   start_flow 7
   await 1
@@ -566,7 +624,8 @@ EOF
   rm "$S/hold-7"
   end_flow
   unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID
-  kill "$landing"; wait "$landing" 2>/dev/null || true
+  kill "$landing"
+  wait "$landing" 2>/dev/null || true
   [ "$out" = "celetis-flow: start: /celetis:implement #7
 celetis-flow: stop the landing of #7 runs; wait until scripts/celetis land ends" ] || fail "a landing that runs must hold the step end: [$out] [$err]"
   ! calls herdr-calls | grep -q '^agent prompt' || fail "the runner typed /exit while the landing ran: [$(calls herdr-calls)]"
@@ -575,12 +634,16 @@ celetis-flow: stop the landing of #7 runs; wait until scripts/celetis land ends"
 
 group_gates() {
   group_init gates
-  reset; issue 7 OPEN needs-triage "A typo"; after 7 1 OPEN chore "A typo"
+  reset
+  issue 7 OPEN needs-triage "A typo"
+  after 7 1 OPEN chore "A typo"
   run_flow 7
   [ "$code" -eq 0 ] && [ "$out" = "celetis-flow: start: /celetis:triage #7
 celetis-flow: the gate of chore is me: scripts/celetis celetis-flow 7 starts /celetis:chore #7" ] || fail "a me gate must end the issue: $code [$out] [$err]"
 
-  reset; issue 9 OPEN enhancement "An idea"; after 9 1 OPEN enhancement "Spec: x"
+  reset
+  issue 9 OPEN enhancement "An idea"
+  after 9 1 OPEN enhancement "Spec: x"
   run_flow 9
   [ "$code" -eq 0 ] && [ "$out" = "celetis-flow: start: /celetis:feature #9
 celetis-flow: start: /celetis:plan #9
@@ -589,7 +652,9 @@ celetis-flow: no progress: /celetis:plan #9" ] || fail "a feature with no spec m
 $(form 9 plan)" ] || fail "the session of specify must get the name specify and no step text, and each other session must get the step text: [$(calls claude-calls)]"
   [ -z "$(calls herdr-calls)" ] || fail "outside herdr the script must make no herdr call for specify: [$(calls herdr-calls)]"
 
-  reset; issue 9 OPEN needs-triage "An idea"; after 9 1 OPEN enhancement "An idea"
+  reset
+  issue 9 OPEN needs-triage "An idea"
+  after 9 1 OPEN enhancement "An idea"
   run_flow 9
   [ "$out" = "celetis-flow: start: /celetis:triage #9
 celetis-flow: the gate of specify is me: scripts/celetis celetis-flow 9 starts /celetis:feature #9" ] || fail "after an auto step, the default gate of specify must end the issue: [$out] [$err]"
@@ -602,20 +667,26 @@ celetis-flow: the gate of specify is me: scripts/celetis celetis-flow 9 starts /
 
 group_checkout() {
   group_init checkout
-  reset; issue 7 OPEN enhancement "Spec: x"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
   from=$lane run_flow 7
   [ "$(calls claude-calls)" = "$(form 7 plan)" ] && [ "$(calls claude-env)" = "7|/celetis:plan #7|$main|one" ] || fail "a start from a lane worktree must use the step text of the plugin, in the main checkout: [$(calls claude-calls)] [$(calls claude-env)]"
 
-  reset; issue 7 OPEN enhancement "Spec: x"; mkdir "$repo/sub"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  mkdir "$repo/sub"
   from=$repo/sub run_flow 7
   rmdir "$repo/sub"
   [ "$(calls claude-calls)" = "$(form 7 plan)" ] && [ "$(calls claude-env)" = "7|/celetis:plan #7|$main|one" ] || fail "a start from a subfolder of the repository: [$(calls claude-calls)] [$(calls claude-env)] [$err]"
 
-  reset; issue 7 OPEN enhancement "Spec: x"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
   from=$tmp run_flow 7
   [ "$code" -ne 0 ] && [ -z "$out" ] && [ -z "$(calls gh-calls)$(calls claude-calls)" ] || fail "a working directory outside the repository: $code [$out] [$err]"
 
-  reset; issue 7 OPEN enhancement "Spec: x"; echo dirty >"$repo/new.txt"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  echo dirty >"$repo/new.txt"
   run_flow 7
   [ "$out" = "celetis-flow: stop the working tree is dirty: $main; commit or stash first" ] || fail "a dirty tree: [$out] [$err]"
   run_flow
@@ -628,7 +699,8 @@ lock_free() {
 }
 group_update_lock() {
   group_init update_lock
-  reset; issue 7 OPEN enhancement "Spec: x"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
   mkdir -p "$CLAUDE_CONFIG_DIR"
   "$CELETIS_FLOW_TEST_PERL" -MFcntl=:flock -e '
     open my $lock, ">>", $ARGV[0] or die $!;
@@ -644,19 +716,23 @@ group_update_lock() {
   touch "$S/clock-jump"
   end_flow
   [ "$code" -ne 0 ] && [ "$(count claude-calls)" -eq 0 ] && [ "$(count plugin-calls)" -eq 0 ] && [[ $err == *"timed out"* && $err == *"lock"* ]] || fail "lock contention must share the deadline and start no update: $code [$err]"
-  kill -KILL "$lock_holder"; wait "$lock_holder" 2>/dev/null || true
+  kill -KILL "$lock_holder"
+  wait "$lock_holder" 2>/dev/null || true
   lock_holder=
   rm "$S/clock-jump"
   run_flow 7
   [ "$code" -eq 0 ] && [ "$(count claude-calls)" -eq 1 ] || fail "a killed lock holder must not leave a stale lock: $code [$err]"
 
-  reset; issue 7 OPEN enhancement "Spec: x"; touch "$S/plugin-hang-marketplace"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  touch "$S/plugin-hang-marketplace"
   tag=interrupted- start_flow 7
   await_file "$S/plugin-child"
   update_pid=$(cat "$S/plugin-pid")
   update_child=$(cat "$S/plugin-child")
   cancel_start=$SECONDS
-  kill -TERM "$flow_pid"; wait "$flow_pid" 2>/dev/null || true
+  kill -TERM "$flow_pid"
+  wait "$flow_pid" 2>/dev/null || true
   until lock_free || [ "$((SECONDS - cancel_start))" -gt 5 ]; do /bin/sleep 0.05; done
   lock_free && [ "$((SECONDS - cancel_start))" -le 5 ] || fail "an interrupted update took more than 5 seconds to release its lock"
   rm "$S/plugin-hang-marketplace"
@@ -671,10 +747,15 @@ group_shared_lock() {
   group_init shared_lock
   other_repo="$tmp/other repository"
   git clone -q "$repo" "$other_repo"
-  reset; issue 7 OPEN enhancement "Spec: x"; issue 8 OPEN enhancement "Spec: x"; touch "$S/hold-update"
-  tag=update-a- start_flow 7; a=$flow_pid
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  issue 8 OPEN enhancement "Spec: x"
+  touch "$S/hold-update"
+  tag=update-a- start_flow 7
+  a=$flow_pid
   await_file "$S/update-entered"
-  from=$other_repo tag=update-b- start_flow 8; b=$flow_pid
+  from=$other_repo tag=update-b- start_flow 8
+  b=$flow_pid
   await_count helpers 2
   /bin/sleep 0.2
   [ "$(count plugin-calls)" -eq 1 ] && [ ! -f "$S/update-overlap" ] || fail "different repositories must share the update lock: [$(calls plugin-calls)]"
@@ -682,12 +763,18 @@ group_shared_lock() {
   wait "$a" "$b"
   [ "$(count claude-calls)" -eq 2 ] && [ ! -f "$S/update-overlap" ] || fail "serialized updates must start both sessions without a collision"
 
-  reset; issue 7 OPEN enhancement "Spec: x"; issue 8 OPEN enhancement "Spec: x"; touch "$S/hold-update"
-  tag=killed-helper- start_flow 7; a=$flow_pid
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  issue 8 OPEN enhancement "Spec: x"
+  touch "$S/hold-update"
+  tag=killed-helper- start_flow 7
+  a=$flow_pid
   await_file "$S/update-entered"
   helper=$(head -1 "$S/helpers")
-  kill -KILL "$helper"; wait "$a" 2>/dev/null || true
-  from=$other_repo tag=surviving-command- start_flow 8; b=$flow_pid
+  kill -KILL "$helper"
+  wait "$a" 2>/dev/null || true
+  from=$other_repo tag=surviving-command- start_flow 8
+  b=$flow_pid
   await_count helpers 2
   /bin/sleep 0.2
   [ "$(count plugin-calls)" -eq 1 ] && [ ! -f "$S/update-overlap" ] || fail "a killed helper must keep a live command's lock"
@@ -698,16 +785,22 @@ group_shared_lock() {
 
 group_locks() {
   group_init locks
-  reset; issue 7 OPEN enhancement "Spec: x"; issue 8 OPEN enhancement "Spec: x"; touch "$S/hold-7"
-  tag=a- start_flow 7; a=$flow_pid
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  issue 8 OPEN enhancement "Spec: x"
+  touch "$S/hold-7"
+  tag=a- start_flow 7
+  a=$flow_pid
   await 1
   run_flow 7
   [ "$code" -eq 0 ] && [ "$out" = "celetis-flow: another celetis-flow.sh or its session (PID $a) works on #7" ] && [ "$(count claude-calls)" -eq 1 ] || fail "a second script must start no session for a locked issue: $code [$out] [$err]"
   run_flow
   [ "$(sessions)" = "7|/celetis:plan #7
 8|/celetis:plan #8" ] || fail "the automatic runner must leave a locked issue and take the next: [$(sessions)]"
-  issue 9 OPEN enhancement "Spec: x"; touch "$S/hold-9"
-  tag=b- start_flow; b=$flow_pid
+  issue 9 OPEN enhancement "Spec: x"
+  touch "$S/hold-9"
+  tag=b- start_flow
+  b=$flow_pid
   await 3
   run_flow
   [ "$code" -eq 1 ] && [ -z "$out" ] && [ "$err" = "celetis-flow: another automatic runner or its session has PID $b" ] || fail "a second automatic runner: $code [$out] [$err]"
@@ -716,8 +809,14 @@ group_locks() {
   [ "$(locks)" -eq 0 ] || fail "a script that ended left a lock"
 
   for stale in dead "$$" garbage; do
-    reset; issue 7 OPEN enhancement "Spec: x"; mkdir -p "$st"
-    if [ "$stale" = dead ]; then /bin/sleep 0 & stale=$!; wait "$stale"; fi
+    reset
+    issue 7 OPEN enhancement "Spec: x"
+    mkdir -p "$st"
+    if [ "$stale" = dead ]; then
+      /bin/sleep 0 &
+      stale=$!
+      wait "$stale"
+    fi
     owner=$(jq -nc --arg pid "$stale" '{runner:{pid:($pid | tonumber?),start:"stale"},session:null}' | git -C "$repo" hash-object -w --stdin)
     git -C "$repo" update-ref refs/celetis-flow/locks/issue-7 "$owner"
     run_flow 7
@@ -728,8 +827,11 @@ group_locks() {
 group_auto() {
   group_init auto
   reset
-  issue 4 CLOSED bug "old"; issue 5 OPEN bug "It breaks"; issue 6 OPEN epic ""
-  issue 7 OPEN enhancement "Spec: x"; issue 8 OPEN enhancement "Spec: x"
+  issue 4 CLOSED bug "old"
+  issue 5 OPEN bug "It breaks"
+  issue 6 OPEN epic ""
+  issue 7 OPEN enhancement "Spec: x"
+  issue 8 OPEN enhancement "Spec: x"
   after 7 1 OPEN enhancement "Spec: x" "## Plan"
   run_flow
   [ "$code" -eq 143 ] && [ "$out" = "celetis-flow: start: /celetis:plan #7
@@ -746,16 +848,23 @@ celetis-flow: no auto step can start; the runner asks again each 60 seconds" ] |
   [ "$out" = "celetis-flow: start: /celetis:implement #7
 celetis-flow: no progress: /celetis:implement #7" ] && [ "$(rows)" -eq 2 ] || fail "a start with a number must start a step that has a row: [$out]"
 
-  reset; issue 5 OPEN bug "It breaks"; echo 3 >"$S/sleep-limit"
+  reset
+  issue 5 OPEN bug "It breaks"
+  echo 3 >"$S/sleep-limit"
   run_flow
   [ "$out" = "celetis-flow: no auto step can start; the runner asks again each 60 seconds" ] && [ "$(count sleeps)" -eq 3 ] && [ -z "$(calls claude-calls)" ] || fail "the runner must print one line for the whole wait and start no me step: [$out]"
 
-  reset; touch "$S/gh-fail"; echo 2 >"$S/sleep-limit"
+  reset
+  touch "$S/gh-fail"
+  echo 2 >"$S/sleep-limit"
   run_flow
   [ "$out" = "celetis-flow: stop cannot read the open issues from GitHub" ] && [ "$(count sleeps)" -eq 2 ] || fail "GitHub down: [$out] [$err]"
-  printf '%s' "$err" | grep -q "HTTP 502" || fail "the message of gh must reach stderr: [$err]"
+  grep -q "HTTP 502" <<<"$err" || fail "the message of gh must reach stderr: [$err]"
 
-  reset; issue 7 OPEN enhancement "Spec: x"; touch "$S/view-fail-7"; echo 2 >"$S/sleep-limit"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  touch "$S/view-fail-7"
+  echo 2 >"$S/sleep-limit"
   run_flow
   [ "$out" = "celetis-flow: stop cannot read #7 from GitHub" ] && [ "$(count sleeps)" -eq 2 ] && [ -z "$(calls claude-calls)" ] && [ ! -e "$st/no-progress" ] || fail "an issue that cannot start must wait 60 seconds: [$out]"
 }
@@ -763,7 +872,10 @@ celetis-flow: no progress: /celetis:implement #7" ] && [ "$(rows)" -eq 2 ] || fa
 group_main_gates() {
   group_init main_gates
   printf 'landing: merge\n' >"$tmp/flow-config"
-  reset; issue 7 OPEN enhancement "Spec: x"; after 7 1 OPEN enhancement "Spec: x" "## Plan"; issue 9 OPEN enhancement "An idea"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  after 7 1 OPEN enhancement "Spec: x" "## Plan"
+  issue 9 OPEN enhancement "An idea"
   for step in triage specify bug chore hotfix plan implement; do git -C "$repo" config "celetis-flow.gate.$step" auto; done
   for from in "$repo" "$lane" "$repo/config-sub" "$lane/config-sub"; do
     run_flow --board
@@ -776,26 +888,38 @@ celetis-flow: the gate of implement is me: scripts/celetis celetis-flow 7 starts
   run_flow
   [ "$code" -eq 143 ] && [ "$(count claude-calls)" -eq 1 ] || fail "obsolete Git auto gates started a step: $code [$(calls claude-calls)]"
 
-  reset; issue 5 OPEN bug "It breaks"
+  reset
+  issue 5 OPEN bug "It breaks"
   set_gate bug auto
   run_flow
   [ "$(sessions)" = "5|/celetis:bug #5" ] || fail "YAML auto gate did not start its step: [$(sessions)]"
 }
 
 board_issues() {
-  issue 4 CLOSED bug "old"; issue 5 OPEN bug "It breaks"; issue 6 OPEN epic ""; issue 10 OPEN hotfix,needs-info ""
-  issue 7 OPEN enhancement "Spec: x"; issue 8 OPEN needs-triage "A typo"; issue 9 OPEN enhancement "An idea"
-  issue 11 OPEN chore,ready-for-human "" "## Landing refused"; issue 12 OPEN hotfix,ready-for-human "" "## Landing refused" "## Before landing"
+  issue 4 CLOSED bug "old"
+  issue 5 OPEN bug "It breaks"
+  issue 6 OPEN epic ""
+  issue 10 OPEN hotfix,needs-info ""
+  issue 7 OPEN enhancement "Spec: x"
+  issue 8 OPEN needs-triage "A typo"
+  issue 9 OPEN enhancement "An idea"
+  issue 11 OPEN chore,ready-for-human "" "## Landing refused"
+  issue 12 OPEN hotfix,ready-for-human "" "## Landing refused" "## Before landing"
   set_gate plan me
-  set_gate chore auto; set_gate specify auto
-  mkdir -p "$st"; printf '7\trun /celetis:plan #7\n' >"$st/no-progress"
+  set_gate chore auto
+  set_gate specify auto
+  mkdir -p "$st"
+  printf '7\trun /celetis:plan #7\n' >"$st/no-progress"
 }
 
 group_board() {
   group_init board
   reset
   board_issues
-  touch "$S/hold-5"; tag=a- start_flow 5; a=$flow_pid; await 1
+  touch "$S/hold-5"
+  tag=a- start_flow 5
+  a=$flow_pid
+  await 1
   echo x >"$lane/new.txt"
   : >"$S/gh-calls"
   run_flow --board
@@ -827,7 +951,8 @@ group_board() {
   run_flow --board
   [ "$(printf '%s' "$out" | jq -r .noRun)" = "The main checkout is dirty: $main. Commit or stash first." ] || fail "--board with a dirty main checkout: [$out]"
   checked
-  rm "$repo/new.txt" "$S/hold-5"; wait "$a" 2>/dev/null || true
+  rm "$repo/new.txt" "$S/hold-5"
+  wait "$a" 2>/dev/null || true
 }
 
 group_board_agent() {
@@ -851,12 +976,20 @@ group_board_agent() {
   [ "$code" -eq 0 ] && [ "$(doc '.agents.claude.available')" = false ] && [ "$(doc '.agents.claude.cause | type == "string" and length > 0')" = true ] && [ "$(doc '.agents.codex')" = '{"available":true,"cause":null}' ] || fail "the missing non-selected executable must be unavailable: $code [$out] [$err]"
   checked
   git -C "$repo" config celetis-flow.agent codex
-  (unset CELETIS_AGENT; run_flow --board; printf '%s' "$out" >"$tmp/preferred-board")
+  (
+    unset CELETIS_AGENT
+    run_flow --board
+    printf '%s' "$out" >"$tmp/preferred-board"
+  )
   [ "$(jq -c .defaultAgent "$tmp/preferred-board")" = '"claude"' ] || fail 'board must ignore the obsolete Git agent preference'
   yq -i '.host = "codex"' "$repo/.celetis.yaml"
   git -C "$repo" commit -qam board-codex-default
   git -C "$repo" config celetis-flow.agent claude
-  (unset CELETIS_AGENT; run_flow --board; printf '%s' "$out" >"$tmp/preferred-board")
+  (
+    unset CELETIS_AGENT
+    run_flow --board
+    printf '%s' "$out" >"$tmp/preferred-board"
+  )
   [ "$(jq -c .defaultAgent "$tmp/preferred-board")" = '"codex"' ] || fail 'the next board read must report the YAML host'
   yq -i 'del(.host)' "$repo/.celetis.yaml"
   git -C "$repo" commit -qam board-default-reset
@@ -867,25 +1000,35 @@ group_board_agent() {
 
 group_board_live() {
   group_init board_live
-  reset; issue 8 OPEN needs-triage "A typo"
-  touch "$S/hold-8"; tag=b- start_flow; b=$flow_pid; await 1
+  reset
+  issue 8 OPEN needs-triage "A typo"
+  touch "$S/hold-8"
+  tag=b- start_flow
+  b=$flow_pid
+  await 1
   run_flow --board
   [ "$code" -eq 0 ] && [ "$(doc .runner)" = true ] || fail "--board, a live automatic runner: $code [$out] [$err]"
   checked
-  rm "$S/hold-8"; wait "$b" 2>/dev/null || true
+  rm "$S/hold-8"
+  wait "$b" 2>/dev/null || true
 
-  reset; mkdir -p "$st"; printf '7\trun /celetis:plan #7\n' >"$st/no-progress"
+  reset
+  mkdir -p "$st"
+  printf '7\trun /celetis:plan #7\n' >"$st/no-progress"
   run_flow --resume 7
   [ "$code" -eq 1 ] && [[ $err == *'no current session record'* ]] && [ -z "$(calls claude-calls)" ] || fail "--resume must reject an obsolete name record: $code [$err]"
   [ "$(locks)" -eq 0 ] && [ -z "$(calls herdr-calls)" ] && [ -z "$(calls gh-calls)" ] && [ ! -e "$S/plugin-calls" ] || fail "--resume must take no lock, start no job, make no gh call, and update no plugin"
 
-  reset; issue 7 OPEN enhancement "Spec: x"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
   run_flow --board
   [ "$code" -eq 0 ] && [ ! -e "$S/plugin-calls" ] || fail "--board must update no plugin: $code [$(calls plugin-calls)] [$err]"
 
-  reset; issue 7 OPEN enhancement "Spec: x"; touch "$S/gh-fail"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  touch "$S/gh-fail"
   run_flow --board
-  [ "$code" -eq 1 ] && [ "$out" = "stop cannot read the issues from GitHub" ] && printf '%s' "$err" | grep -q "HTTP 502" || fail "--board with gh down: $code [$out] [$err]"
+  [ "$code" -eq 1 ] && [ "$out" = "stop cannot read the issues from GitHub" ] && grep -q "HTTP 502" <<<"$err" || fail "--board with gh down: $code [$out] [$err]"
 }
 
 group_stale() {
@@ -896,28 +1039,34 @@ group_stale() {
   mkdir -p "$stale"
   cp "$root/scripts/celetis-flow.sh" "$stale/"
   stale_msg="the plugin version of this runner was removed after an update; start the runner again"
-  reset; issue 7 OPEN enhancement "Spec: x"
-  ( cd "$repo" && PATH="$bin:$PATH" "$BASH" "$stale/celetis-flow.sh" 7 >"$tmp/stale-out" 2>"$tmp/stale-err" <"$tmp/stdin" ) || fail "a stale runner with numbers must exit 0"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  (cd "$repo" && PATH="$bin:$PATH" "$BASH" "$stale/celetis-flow.sh" 7 >"$tmp/stale-out" 2>"$tmp/stale-err" <"$tmp/stdin") || fail "a stale runner with numbers must exit 0"
   [ "$(cat "$tmp/stale-out")" = "celetis-flow: #7: $stale_msg" ] && [ ! -s "$tmp/stale-err" ] || fail "a stale runner with numbers must name the removed version: [$(cat "$tmp/stale-out")] [$(cat "$tmp/stale-err")]"
   [ -z "$(calls gh-calls)" ] || fail "a stale runner must not call gh: [$(calls gh-calls)]"
   set +e
-  ( cd "$repo" && PATH="$bin:$PATH" "$BASH" "$stale/celetis-flow.sh" --board >"$tmp/stale-out" 2>"$tmp/stale-err" <"$tmp/stdin" )
+  (cd "$repo" && PATH="$bin:$PATH" "$BASH" "$stale/celetis-flow.sh" --board >"$tmp/stale-out" 2>"$tmp/stale-err" <"$tmp/stdin")
   stale_code=$?
   set -e
   [ "$stale_code" -eq 1 ] && [ "$(cat "$tmp/stale-out")" = "stop $stale_msg" ] && [ ! -s "$tmp/stale-err" ] || fail "a stale --board must name the removed version: [$stale_code] [$(cat "$tmp/stale-out")] [$(cat "$tmp/stale-err")]"
-  reset; issue 7 OPEN enhancement "Spec: x"; echo 1 >"$S/sleep-limit"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  echo 1 >"$S/sleep-limit"
   set +e
-  ( cd "$repo" && PATH="$bin:$PATH" "$BASH" "$stale/celetis-flow.sh" >"$tmp/stale-out" 2>"$tmp/stale-err" <"$tmp/stdin" )
+  (cd "$repo" && PATH="$bin:$PATH" "$BASH" "$stale/celetis-flow.sh" >"$tmp/stale-out" 2>"$tmp/stale-err" <"$tmp/stdin")
   stale_code=$?
   set -e
   [ "$stale_code" -eq 1 ] && [ "$(cat "$tmp/stale-out")" = "celetis-flow: stop $stale_msg" ] && [ ! -s "$tmp/stale-err" ] && [ ! -e "$S/sleeps" ] || fail "a stale automatic runner must stop at once with the true cause: [$stale_code] [$(cat "$tmp/stale-out")] [$(cat "$tmp/stale-err")]"
-  reset; issue 7 OPEN enhancement "Spec: x"; issue 8 OPEN enhancement "Spec: x"
-  ( cd "$repo" && PATH="$bin:$PATH" "$BASH" "$stale/celetis-flow.sh" 7 8 >"$tmp/stale-out" 2>"$tmp/stale-err" <"$tmp/stdin" ) || fail "a stale runner with numbers must exit 0"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  issue 8 OPEN enhancement "Spec: x"
+  (cd "$repo" && PATH="$bin:$PATH" "$BASH" "$stale/celetis-flow.sh" 7 8 >"$tmp/stale-out" 2>"$tmp/stale-err" <"$tmp/stdin") || fail "a stale runner with numbers must exit 0"
   [ "$(cat "$tmp/stale-out")" = "celetis-flow: #7: $stale_msg
 celetis-flow: #8: $stale_msg" ] && [ ! -s "$tmp/stale-err" ] || fail "a stale runner must name the removed version per number in order"
   mkdir -p "$stale/next-step.sh"
-  reset; issue 7 OPEN enhancement "Spec: x"
-  ( cd "$repo" && PATH="$bin:$PATH" "$BASH" "$stale/celetis-flow.sh" 7 >"$tmp/stale-out" 2>"$tmp/stale-err" <"$tmp/stdin" ) || fail "a stale runner with numbers must exit 0"
+  reset
+  issue 7 OPEN enhancement "Spec: x"
+  (cd "$repo" && PATH="$bin:$PATH" "$BASH" "$stale/celetis-flow.sh" 7 >"$tmp/stale-out" 2>"$tmp/stale-err" <"$tmp/stdin") || fail "a stale runner with numbers must exit 0"
   [ "$(cat "$tmp/stale-out")" = "celetis-flow: #7: $stale_msg" ] && [ ! -s "$tmp/stale-err" ] || fail "a stale runner with a directory at next-step.sh must name the removed version: [$(cat "$tmp/stale-out")] [$(cat "$tmp/stale-err")]"
   [ -z "$(calls gh-calls)" ] || fail "a stale runner must not call gh: [$(calls gh-calls)]"
 

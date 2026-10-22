@@ -45,7 +45,7 @@ N+1. Too little time for the lane → the change does not ship tonight.
    - Each library call the fix adds is checked per `<plugin>/docs/docs-lookup.md`; the facts go
      in the micro-plan's `## External facts` section.
    - CAP line via `scripts/celetis capscore J V B N S X` — never hand-computed.
-   - Per-task gate line: the verify gate of the project (`AGENTS.md` names it) passes before the task's review.
+   - Per-task gate line: the verify gate of the project (`AGENTS.md` names it) passes before the task's review. The full suite runs once, on the tree that lands (Land step 3 of `implement`).
    - Verify phase: the red repro re-run post-fix, plus one error branch of any newly-enabled
      path (widened allow-list / enum / dispatch literal / flag).
    Fix crosses subsystems or unrolls a chain → not shim-able: full `celetis:plan`, or the change

@@ -2,7 +2,7 @@ let sequence = 0;
 
 function owned($, path) {
   const root = $.plugin.root.slice(0, $.plugin.root.lastIndexOf('/'));
-  return typeof path === 'string' && path.startsWith(root + '/');
+  return typeof path === 'string' && path.startsWith(`${root}/`);
 }
 
 function log($, event, id, input, result, origin) {
@@ -17,7 +17,7 @@ async function readResult(result) {
   if (result.result?.type === 'text') {
     const { content, ...file } = result.result.file;
     const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(content)));
-    const contentSha256 = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    const contentSha256 = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
     value.result = { ...result.result, file: { ...file, contentSha256 } };
   }
   return value;

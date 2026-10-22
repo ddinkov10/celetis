@@ -29,9 +29,16 @@ def resolve($n):
 def line($n): resolve($n).line;'
 
 usage="usage: scripts/celetis next-step <issue number> | --open | --json, e.g. scripts/celetis next-step 276"
-[ $# -eq 1 ] || { printf '%s\n' "$usage" >&2; exit 2; }
+[ $# -eq 1 ] || {
+  printf '%s\n' "$usage" >&2
+  exit 2
+}
 n=${1#\#}
-[ "$1" = --open ] || [ "$1" = --json ] || case $n in '' | *[!0-9]*) printf '%s\n' "$usage" >&2; exit 2 ;; esac
+[ "$1" = --open ] || [ "$1" = --json ] || case $n in '' | *[!0-9]*)
+  printf '%s\n' "$usage" >&2
+  exit 2
+  ;;
+esac
 
 . "$(dirname "$0")/celetis"
 common=$(git rev-parse --path-format=absolute --git-common-dir)
@@ -52,7 +59,8 @@ with_comments() {
   local issue number count
   while IFS= read -r issue; do
     read -r number count <<<"$(jq -r '"\(.number) \(.comments)"' <<<"$issue")"
-    { printf '%s\n' "$issue"
+    {
+      printf '%s\n' "$issue"
       [ "$count" = 0 ] ||
         gh api --paginate "repos/{owner}/{repo}/issues/$number/comments?per_page=100" --jq '.[] | tojson' </dev/null
     } | jq -cs '.[0] + {comments: .[1:]}' || return
@@ -68,7 +76,8 @@ with_pr_state() {
   local pr number sha
   while IFS= read -r pr; do
     read -r number sha <<<"$(jq -r '"\(.number) \(.head.sha)"' <<<"$pr")"
-    { printf '%s\n' "$pr"
+    {
+      printf '%s\n' "$pr"
       gh api --paginate "repos/{owner}/{repo}/commits/$sha/check-runs?per_page=100" \
         --jq '.check_runs[] | {run: {status, conclusion}} | tojson' </dev/null &&
         gh api --paginate "repos/{owner}/{repo}/commits/$sha/status?per_page=100" \
@@ -101,7 +110,10 @@ if [ "$1" = --json ]; then
       type: ([.labels[].name] | if index("bug") then "bug" elif index("enhancement") then "feature" elif index("chore") then "chore" elif index("hotfix") then "hotfix" else null end),
       updatedAt: .updated_at, closedAt: .closed_at, line: $r.line, state: $r.state, reason: $r.reason, act: $r.act,
       pr: ([$prs[] | select(.headRefName | contains("/\($n)-"))][0] | if . then {number, url, draft: .isDraft, checks, review} else null end)})') ||
-    { printf 'stop cannot read the issues from GitHub\n'; exit 1; }
+    {
+      printf 'stop cannot read the issues from GitHub\n'
+      exit 1
+    }
   main_dirty=
   ! dirty "$main" || main_dirty=$main
   lanes=
@@ -122,14 +134,20 @@ if [ "$1" = --open ]; then
   issues=$(open_issues) &&
     rows=$(printf '%s\n' "$issues" |
       jq -r "$RESOLVER"' sort_by(.number)[] | (.number | tostring) as $n | "\($n)\t\(line($n))"') ||
-    { printf 'stop cannot read the open issues from GitHub\n'; exit 1; }
+    {
+      printf 'stop cannot read the open issues from GitHub\n'
+      exit 1
+    }
   all=
   ! dirty "$main" || all=$(dirty_line "$main")
   while IFS=$'\t' read -r n line; do
     [ -n "$n" ] || continue
     ! landing "$n" || line=$(landing_line "$n")
     for wt in "$main"/.claude/worktrees/"$n"-*; do
-      ! dirty "$wt" || { line=$(dirty_line "$wt"); break; }
+      ! dirty "$wt" || {
+        line=$(dirty_line "$wt")
+        break
+      }
     done
     printf '%s\t%s\n' "$n" "${all:-$line}"
   done <<<"$rows"
@@ -137,11 +155,20 @@ if [ "$1" = --open ]; then
 fi
 
 for wt in "$main" "$main"/.claude/worktrees/"$n"-*; do
-  ! dirty "$wt" || { dirty_line "$wt"; exit 0; }
+  ! dirty "$wt" || {
+    dirty_line "$wt"
+    exit 0
+  }
 done
-! landing "$n" || { landing_line "$n"; exit 0; }
+! landing "$n" || {
+  landing_line "$n"
+  exit 0
+}
 
 # jq reads the JSON on stdin, not as an argument: a plan comment can exceed Windows' 32 KiB command-line limit.
 issue=$(gh api "repos/{owner}/{repo}/issues/$n" --jq tojson | with_comments) &&
   printf '%s\n' "$issue" | jq -r --arg n "$n" "$RESOLVER"' line($n)' ||
-  { printf 'stop cannot read #%s from GitHub\n' "$n"; exit 1; }
+  {
+    printf 'stop cannot read #%s from GitHub\n' "$n"
+    exit 1
+  }

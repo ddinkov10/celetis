@@ -6,8 +6,15 @@ output_dir=
 mcp_config='{"mcpServers":{}}'
 while [ $# -gt 0 ]; do
   case $1 in
-    --output-dir) [ $# -ge 2 ] || exit 2; output_dir=$2; shift 2 ;;
-    *) echo "usage: $0 [--output-dir DIR]" >&2; exit 2 ;;
+    --output-dir)
+      [ $# -ge 2 ] || exit 2
+      output_dir=$2
+      shift 2
+      ;;
+    *)
+      echo "usage: $0 [--output-dir DIR]" >&2
+      exit 2
+      ;;
   esac
 done
 metadata_recording='For test evidence only, emit each actual lstat result as JSON with its absolute path and boolean file, directory, and symlink fields from isFile(), isDirectory(), and isSymbolicLink() on that result. For an actual ENOENT error, emit its exact path and code.'
@@ -23,6 +30,7 @@ observer="$tmp/observer"
 output_files=()
 cleanup() {
   local status=$? file
+  # shellcheck disable=SC2046 # one word for each job PID
   kill $(jobs -p) 2>/dev/null || true
   if [ -n "$output_dir" ] && [ "${#output_files[@]}" -gt 0 ]; then
     for file in "${output_files[@]}"; do
@@ -117,9 +125,12 @@ turn() {
   checkout=$(git -C "$folder" rev-parse --show-toplevel 2>/dev/null || true)
   [ "$name" != enter-worktree ] || checkout=$lane
   path=${checkout:+$checkout/.celetis.yaml}
-  [ -z "$checkout" ] || [ ! -f "$checkout/.git" ] || git_kind=file
+  [ -z "$checkout" ] || [ ! -f "$checkout/.git" ] || git_kind='file'
   if [ -n "$path" ] && [ -f "$path" ]; then
-    source=$(cat "$path"; printf '\001')
+    source=$(
+      cat "$path"
+      printf '\001'
+    )
     source=${source%$'\001'}
     hash=$(shasum -a 256 <"$path")
     hash=${hash%% *}
@@ -222,10 +233,10 @@ warn $failure if $failure;
 exit($failure ? 2 : $exit);
 PERL
       else
-      claude -p --no-session-persistence --strict-mcp-config --mcp-config "$mcp_config" --setting-sources '' \
-        --plugin-dir "$observer" --plugin-dir "$plugin" --tools "$tools" --add-dir "$tmp" --permission-mode dontAsk \
-        --allowedTools mcp__node_repl__js \
-        --settings "$settings" --output-format stream-json --verbose "$prompt"
+        claude -p --no-session-persistence --strict-mcp-config --mcp-config "$mcp_config" --setting-sources '' \
+          --plugin-dir "$observer" --plugin-dir "$plugin" --tools "$tools" --add-dir "$tmp" --permission-mode dontAsk \
+          --allowedTools mcp__node_repl__js \
+          --settings "$settings" --output-format stream-json --verbose "$prompt"
       fi
     ) >"$tmp/$name.jsonl" 2>"$tmp/$name.err" || status=$?
     printf '%s\n' "$status" >"$tmp/$name.status"
@@ -459,7 +470,7 @@ check() {
   elif [ "$marker" = invalid ]; then
     grep -qF "$path" <<<"$answer" || good=no
     case $name in
-      malformed|ambiguous|symlink|null-config) field='<document>' ;;
+      malformed | ambiguous | symlink | null-config) field='<document>' ;;
       unknown-field) field=custom.unknown ;;
       *) field=custom.guide ;;
     esac

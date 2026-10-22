@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 pool_dir=
 pool_n=0
 pool_labels=()
@@ -21,7 +22,10 @@ pool_run() {
   done
   (
     set +e
-    (set -e; "$@") >"$pool_dir/$pool_n.log" 2>&1
+    (
+      set -e
+      "$@"
+    ) >"$pool_dir/$pool_n.log" 2>&1
     echo "$?" >"$pool_dir/$pool_n.tmp"
     mv "$pool_dir/$pool_n.tmp" "$pool_dir/$pool_n.rc"
   ) &
