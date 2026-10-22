@@ -1,0 +1,8 @@
+{
+  "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
+  "javascript": { "formatter": { "quoteStyle": "single" } },
+  "files": {
+    // A vendored bundle is a copy of upstream code (#85).
+    "includes": ["**", "!scripts/lib/vendor"]
+  }
+}

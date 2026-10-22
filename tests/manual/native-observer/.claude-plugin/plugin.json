@@ -1,1 +1,6 @@
-{"name":"celetis-entry-observer","version":"0.0.0","description":"Observe disposable native entry tests","author":{"name":"Test"}}
+{
+  "name": "celetis-entry-observer",
+  "version": "0.0.0",
+  "description": "Observe disposable native entry tests",
+  "author": { "name": "Test" }
+}

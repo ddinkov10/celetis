@@ -28,7 +28,10 @@ fail() {
 search() { git grep --no-color --no-column -n -I "$@" || [ $? -eq 1 ]; }
 
 # An explicit stop: bash 3.2 goes on after a loop whose input file is missing.
-[ -f "$allow" ] || { fail "$allow is missing"; exit 1; }
+[ -f "$allow" ] || {
+  fail "$allow is missing"
+  exit 1
+}
 entries=()
 while IFS= read -r entry || [ -n "$entry" ]; do entries[${#entries[@]}]=$entry; done <"$allow"
 used=()
@@ -169,7 +172,10 @@ seen=$nl
 while IFS= read -r cite; do
   [ -n "$cite" ] || continue
   path=${cite#*:*:"$root"}
-  is_tracked "$path" || { broken+=$cite$nl; continue; }
+  is_tracked "$path" || {
+    broken+=$cite$nl
+    continue
+  }
   [[ ${cite%%:*} =~ $skill_file ]] || continue
   from=${BASH_REMATCH[1]}
   [[ $path =~ $skill_file ]] || continue
@@ -209,7 +215,8 @@ while IFS= read -r link; do
   target=${link#*:*:](}
   target=${target%)}
   folder=$(cd "$(dirname "$from")/$(dirname "$target")" 2>/dev/null && pwd) || {
-    broken_links+=$link$nl; continue
+    broken_links+=$link$nl
+    continue
   }
   resolved="$folder/$(basename "$target")"
   is_tracked "${resolved#"$repo_root/"}" || broken_links+=$link$nl

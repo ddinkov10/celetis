@@ -6,7 +6,10 @@ tmp=$(mktemp -d)
 trap 'cd /; rm -rf "$tmp"' EXIT
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 
-fail() { echo "FAIL: $1"; exit 1; }
+fail() {
+  echo "FAIL: $1"
+  exit 1
+}
 
 plug="$tmp/plug in"
 mkdir -p "$tmp/bin" "$plug"
@@ -68,18 +71,32 @@ chmod +x "$tmp/bin/gh" "$tmp/bin/git"
 export PATH="$tmp/bin:$PATH" PRS='OPEN 0' OPEN_HEADS= ISSUE_LABELS=enhancement ISSUE_TITLE=Probe ISSUE_STATE=OPEN
 
 wt() { bash "$plug/worktree.sh" "$@"; }
-code_of() { set +e; wt "$@" >/dev/null 2>&1; local c=$?; set -e; echo "$c"; }
+code_of() {
+  set +e
+  wt "$@" >/dev/null 2>&1
+  local c=$?
+  set -e
+  echo "$c"
+}
 stderr_of() { wt "$@" 2>&1 >/dev/null || true; }
 has_ref() { git show-ref --verify --quiet "refs/heads/$1"; }
 on_origin() { git ls-remote --exit-code --heads origin "refs/heads/$1" >/dev/null; }
 branches() { git branch --list --format='%(refname:short)' "*/$1-*" | paste -sd ' ' -; }
 no_worktree() { ! compgen -G ".claude/worktrees/$1-*" >/dev/null; }
-slug_of() { local p; p=$(ISSUE_TITLE=$2 wt "$1") && echo "${p##*/$1-}"; }
+slug_of() {
+  local p
+  p=$(ISSUE_TITLE=$2 wt "$1") && echo "${p##*/$1-}"
+}
 setup=.celetis.yaml
 marker_of() { echo "$(git -C "$1" rev-parse --path-format=absolute --git-dir)/celetis-flow-setup-done"; }
 setup_runs() { wc -l <"$SETUP_LOG"; }
 only_api() { ! grep -qv '^api ' "$GH_LOG" || fail "gh called without api: $(grep -v '^api ' "$GH_LOG")"; }
-attempt() { set +e; wt "$@" >/dev/null 2>"$tmp/err"; code=$?; set -e; }
+attempt() {
+  set +e
+  wt "$@" >/dev/null 2>"$tmp/err"
+  code=$?
+  set -e
+}
 
 cat >"$tmp/expected-setup" <<'EOF'
 kept=kept
@@ -139,9 +156,11 @@ lane_new() {
 
   only_api
   for bad in missing invalid; do
-    if [ "$bad" = missing ]; then rm "$setup"
+    if [ "$bad" = missing ]; then
+      rm "$setup"
     else printf 'landing: invalid\n' >"$setup"; fi
-    : >"$GIT_LOG"; : >"$GH_LOG"
+    : >"$GIT_LOG"
+    : >"$GH_LOG"
     attempt 90
     [ "$code" -eq 2 ] || fail "$bad main config was not refused"
     [[ $(cat "$tmp/err") == *"$main/.celetis.yaml"* ]] || fail "$bad main config did not name its path"

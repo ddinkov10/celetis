@@ -1,0 +1,15 @@
+root = true
+
+[*]
+indent_style = space
+indent_size = 2
+
+# shfmt reads this file; a pattern with a / is anchored at this folder
+[*.sh]
+switch_case_indent = true
+
+[scripts/celetis]
+switch_case_indent = true
+
+[board/fixtures/herdr]
+switch_case_indent = true

@@ -108,10 +108,12 @@ chmod +x "$tmp/bin/claude" "$tmp/bin/codex"
 all_pass() {
   local host=$1
   if PATH="$tmp/bin:$PATH" /bin/bash tests/manual/step-prompt.test.sh --agent "$host" >"$tmp/$host" 2>&1 &&
-      [ "$(grep -c '^PASS: case ' "$tmp/$host")" -eq 25 ]; then
+    [ "$(grep -c '^PASS: case ' "$tmp/$host")" -eq 25 ]; then
     echo "ok: $host runs all twenty-five scenarios"
   else
-    echo "FAIL: $host omitted or rejected a valid fixture"; cat "$tmp/$host"; return 1
+    echo "FAIL: $host omitted or rejected a valid fixture"
+    cat "$tmp/$host"
+    return 1
   fi
 }
 fenced_named() {
@@ -119,14 +121,18 @@ fenced_named() {
   if MANUAL_STYLE=fenced-named PATH="$tmp/bin:$PATH" /bin/bash tests/manual/step-prompt.test.sh --agent "$host" >"$tmp/fenced-named-$host" 2>&1; then
     echo "ok: $host accepts fenced exact stops and named native setup"
   else
-    echo "FAIL: $host rejected fenced exact stops or named native setup"; cat "$tmp/fenced-named-$host"; return 1
+    echo "FAIL: $host rejected fenced exact stops or named native setup"
+    cat "$tmp/fenced-named-$host"
+    return 1
   fi
 }
 product_context() {
   local host=$1 folder=$2 evidence="$tmp/context-$1-${2//\//-}" run="$tmp/context-run-$1-${2//\//-}"
   if ! (cd "$tmp/product/$folder" && MANUAL_INPUTS="$evidence" PATH="$tmp/bin:$PATH" /bin/bash "$root/tests/manual/step-prompt.test.sh" \
-      --agent "$host" --output-dir "$evidence") >"$run" 2>&1; then
-    echo "FAIL: $host product-context run from $folder"; cat "$run"; return 1
+    --agent "$host" --output-dir "$evidence") >"$run" 2>&1; then
+    echo "FAIL: $host product-context run from $folder"
+    cat "$run"
+    return 1
   fi
   if perl -e '
         use strict; use warnings;
@@ -157,7 +163,7 @@ product_context() {
           }
         }
       ' "$evidence" "$([ "$folder" = . ] && echo 0 || echo 1)" &&
-      perl -MJSON::PP -MDigest::SHA=sha256_hex -e '
+    perl -MJSON::PP -MDigest::SHA=sha256_hex -e '
         use strict; use warnings;
         my ($dir, $cwd, $root, $nested) = @ARGV;
         sub read_file { open my $fh, "<", $_[0] or die "$!: $_[0]"; local $/; return <$fh>; }
@@ -178,7 +184,8 @@ product_context() {
       "$([ "$folder" = . ] && echo 0 || echo 1)"; then
     echo "ok: $host preserves product instructions from $folder"
   else
-    echo "FAIL: $host omitted or changed product instructions from $folder"; return 1
+    echo "FAIL: $host omitted or changed product instructions from $folder"
+    return 1
   fi
 }
 linked_checkout() {
@@ -187,24 +194,28 @@ linked_checkout() {
   git -C "$tmp/linked" worktree add -q --detach "$tmp/linked/.claude/worktrees/lane"
   printf '%s\n' 'Apply LINKED_PRODUCT_21 to this checkout.' >"$tmp/linked/.claude/worktrees/lane/AGENTS.md"
   if (cd "$tmp/linked/.claude/worktrees/lane" && PATH="$tmp/bin:$PATH" /bin/bash "$root/tests/manual/step-prompt.test.sh" \
-      --agent codex --output-dir "$tmp/linked-context") >"$tmp/linked-run" 2>&1 &&
-      grep -q 'LINKED_PRODUCT_21' "$tmp/linked-context/in-1-step" &&
-      ! grep -Eq 'PRODUCT_ROOT_21|OUTSIDE_PRODUCT_21' "$tmp/linked-context/in-1-step"; then
+    --agent codex --output-dir "$tmp/linked-context") >"$tmp/linked-run" 2>&1 &&
+    grep -q 'LINKED_PRODUCT_21' "$tmp/linked-context/in-1-step" &&
+    ! grep -Eq 'PRODUCT_ROOT_21|OUTSIDE_PRODUCT_21' "$tmp/linked-context/in-1-step"; then
     echo 'ok: a nested linked checkout excludes its physical parent instructions'
   else
-    echo 'FAIL: linked checkout product instructions'; cat "$tmp/linked-run"; return 1
+    echo 'FAIL: linked checkout product instructions'
+    cat "$tmp/linked-run"
+    return 1
   fi
 }
 empty_context() {
   mkdir -p "$tmp/empty"
   git -C "$tmp/empty" init -q
   if (cd "$tmp/empty" && PATH="$tmp/bin:$PATH" /bin/bash "$root/tests/manual/step-prompt.test.sh" \
-      --agent codex --output-dir "$tmp/empty-context") >"$tmp/empty-run" 2>&1 &&
-      jq -e '.sources == []' "$tmp/empty-context/product-context.json" >/dev/null 2>&1 &&
-      grep -q 'No product AGENTS.md was found.' "$tmp/empty-context/in-1-step"; then
+    --agent codex --output-dir "$tmp/empty-context") >"$tmp/empty-run" 2>&1 &&
+    jq -e '.sources == []' "$tmp/empty-context/product-context.json" >/dev/null 2>&1 &&
+    grep -q 'No product AGENTS.md was found.' "$tmp/empty-context/in-1-step"; then
     echo 'ok: no product instructions is explicit'
   else
-    echo 'FAIL: missing empty product context'; cat "$tmp/empty-run"; return 1
+    echo 'FAIL: missing empty product context'
+    cat "$tmp/empty-run"
+    return 1
   fi
 }
 unreadable_instructions() {
@@ -212,59 +223,75 @@ unreadable_instructions() {
   mkdir -p "$product/AGENTS.md"
   git -C "$product" init -q
   if (cd "$product" && MANUAL_CALLS="$tmp/unreadable-calls-$host" PATH="$tmp/bin:$PATH" \
-      /bin/bash "$root/tests/manual/step-prompt.test.sh" --agent "$host") >"$product.log" 2>&1; then
-    echo "FAIL: $host accepted unreadable product instructions"; return 1
+    /bin/bash "$root/tests/manual/step-prompt.test.sh" --agent "$host") >"$product.log" 2>&1; then
+    echo "FAIL: $host accepted unreadable product instructions"
+    return 1
   elif [ ! -e "$tmp/unreadable-calls-$host" ] && grep -q 'cannot read product instructions' "$product.log"; then
     echo "ok: $host stops on a product instruction read error before client startup"
   else
-    echo "FAIL: $host instruction read failed outside preparation"; cat "$product.log"; return 1
+    echo "FAIL: $host instruction read failed outside preparation"
+    cat "$product.log"
+    return 1
   fi
 }
 bound_stop() {
   local host=$1
   if MANUAL_FAULT=bound-stop MANUAL_BINDING_DIR="$(pwd -P)" PATH="$tmp/bin:$PATH" \
-      /bin/bash tests/manual/step-prompt.test.sh --agent "$host" --only 13:step >"$tmp/bound-$host" 2>&1 &&
-      grep -q '^PASS: case 13 step ' "$tmp/bound-$host"; then
+    /bin/bash tests/manual/step-prompt.test.sh --agent "$host" --only 13:step >"$tmp/bound-$host" 2>&1 &&
+    grep -q '^PASS: case 13 step ' "$tmp/bound-$host"; then
     echo "ok: $host accepts the required stop command bound to the exact product folder"
   else
-    echo "FAIL: $host rejected the stop command with its exact product binding"; cat "$tmp/bound-$host"; return 1
+    echo "FAIL: $host rejected the stop command with its exact product binding"
+    cat "$tmp/bound-$host"
+    return 1
   fi
 }
 rejects() {
   local fault=$1 k=$2 mode=$3
   if MANUAL_FAULT=$fault MANUAL_BINDING_DIR="$(pwd -P)" PATH="$tmp/bin:$PATH" \
-      /bin/bash tests/manual/step-prompt.test.sh --agent codex --only "$k:$mode" >"$tmp/$fault" 2>&1; then
-    echo "FAIL: accepted $fault"; return 1
+    /bin/bash tests/manual/step-prompt.test.sh --agent codex --only "$k:$mode" >"$tmp/$fault" 2>&1; then
+    echo "FAIL: accepted $fault"
+    return 1
   elif grep -q "^FAIL: case $k $mode:" "$tmp/$fault"; then
     echo "ok: rejects $fault"
   else
-    echo "FAIL: $fault failed outside its scenario"; cat "$tmp/$fault"; return 1
+    echo "FAIL: $fault failed outside its scenario"
+    cat "$tmp/$fault"
+    return 1
   fi
 }
 completed_reconnect() {
   if MANUAL_FAULT=reconnect PATH="$tmp/bin:$PATH" /bin/bash tests/manual/step-prompt.test.sh --agent codex --only 4:step >"$tmp/reconnect" 2>&1 &&
-      grep -q '^WARN: case 4 step recovered 1 service event(s)$' "$tmp/reconnect"; then
+    grep -q '^WARN: case 4 step recovered 1 service event(s)$' "$tmp/reconnect"; then
     echo 'ok: a completed reconnect is reported'
   else
-    echo 'FAIL: completed reconnect'; cat "$tmp/reconnect"; return 1
+    echo 'FAIL: completed reconnect'
+    cat "$tmp/reconnect"
+    return 1
   fi
 }
 landing_without_evidence() {
   if MANUAL_FAULT=no-completion-land PATH="$tmp/bin:$PATH" /bin/bash tests/manual/step-prompt.test.sh --agent codex --only 13:step >"$tmp/no-completion-land" 2>&1; then
-    echo 'FAIL: landed without completion evidence'; return 1
+    echo 'FAIL: landed without completion evidence'
+    return 1
   elif grep -q '^FAIL: case 13 step:' "$tmp/no-completion-land"; then
     echo 'ok: rejects landing without completion evidence'
   else
-    echo 'FAIL: missing-evidence scenario did not run'; cat "$tmp/no-completion-land"; return 1
+    echo 'FAIL: missing-evidence scenario did not run'
+    cat "$tmp/no-completion-land"
+    return 1
   fi
 }
 two_failed_checks() {
   if MANUAL_FAULT=form-two-faults PATH="$tmp/bin:$PATH" /bin/bash tests/manual/step-prompt.test.sh --agent codex --only 20:step >"$tmp/form-two-faults" 2>&1; then
-    echo 'FAIL: accepted form-two-faults'; return 1
+    echo 'FAIL: accepted form-two-faults'
+    return 1
   elif grep -qxF 'FAIL: case 20 step: missing "Fallback: NONE", missing "Issue: NOT POSTED"' "$tmp/form-two-faults"; then
     echo 'ok: names each failed check of case 20'
   else
-    echo 'FAIL: form-two-faults did not name each failed check'; cat "$tmp/form-two-faults"; return 1
+    echo 'FAIL: form-two-faults did not name each failed check'
+    cat "$tmp/form-two-faults"
+    return 1
   fi
 }
 mkdir -p "$tmp/product/area/sub" "$tmp/product/other"

@@ -16,7 +16,10 @@ pool_run board board
 for t in tests/*.test.sh; do
   pool_run "$t" timed "$t"
 done
-pool_wait || { echo "suite: FAIL"; exit 1; }
+pool_wait || {
+  echo "suite: FAIL"
+  exit 1
+}
 echo "== scripts/capscore.sh --test"
 PATH="/bin:$PATH" /bin/bash scripts/capscore.sh --test
 echo "suite: PASS"

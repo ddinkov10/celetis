@@ -3,10 +3,16 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-fail() { echo "FAIL: $1"; exit 1; }
+fail() {
+  echo "FAIL: $1"
+  exit 1
+}
 . "$root/tests/lib/pool.sh"
 
-slow_a() { /bin/sleep 0.3; echo a; }
+slow_a() {
+  /bin/sleep 0.3
+  echo a
+}
 pool_run first slow_a
 pool_run second echo b
 pool_run third echo c
@@ -24,7 +30,10 @@ out=$(cat "$tmp/out")
 pool_run good true
 pool_wait >/dev/null || fail "a pool of passing jobs failed"
 
-stops() { false; echo after; }
+stops() {
+  false
+  echo after
+}
 pool_run stops stops
 pool_wait >"$tmp/out" || true
 out=$(cat "$tmp/out")

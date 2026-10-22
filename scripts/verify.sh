@@ -5,7 +5,10 @@ cd "$(dirname "$0")/.."
 
 missing=0
 for tool in git perl jq node npm claude; do
-  command -v "$tool" >/dev/null || { echo "verify: $tool is missing (README.md, \"Requirements\")"; missing=1; }
+  command -v "$tool" >/dev/null || {
+    echo "verify: $tool is missing (README.md, \"Requirements\")"
+    missing=1
+  }
 done
 [ "$missing" = 0 ] || exit 1
 
@@ -44,8 +47,14 @@ unknown=0
 while IFS= read -r path; do
   case $path in
     *.sh | scripts/celetis | board/fixtures/herdr) shell_files+=("$path") ;;
-    *.js | *.mjs) biome_files+=("$path"); node_files+=("$path") ;;
-    scripts/*.ts) biome_files+=("$path"); bun_files+=("$path") ;;
+    *.js | *.mjs)
+      biome_files+=("$path")
+      node_files+=("$path")
+      ;;
+    scripts/*.ts)
+      biome_files+=("$path")
+      bun_files+=("$path")
+      ;;
     *.ts | *.json | *.jsonc | *.css) biome_files+=("$path") ;;
     *.jq) jq_files+=("$path") ;;
     .github/workflows/*.yml) workflow_files+=("$path") ;;
@@ -93,5 +102,8 @@ check_plugin() {
 pool_run perl check_perl
 pool_run text check_text
 pool_run plugin check_plugin
-pool_wait || { echo "verify: FAIL"; exit 1; }
+pool_wait || {
+  echo "verify: FAIL"
+  exit 1
+}
 echo "verify: PASS"

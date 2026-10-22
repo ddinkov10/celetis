@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-die() { printf 'setup: %s\n' "$1" >&2; exit 1; }
+die() {
+  printf 'setup: %s\n' "$1" >&2
+  exit 1
+}
 warn() { printf 'setup: warning: %s\n' "$1"; }
 usage() {
   echo 'usage: scripts/celetis setup check | write <options> | try <options> | try --remove | lane <path> | push; <options>: --hosts claude|codex|claude,codex [--default claude|codex] --landing pr|merge [--setup-file <file>] [--ignore <line>]... [--baseline-file <file>]' >&2
@@ -95,9 +98,18 @@ write_args() {
       --hosts) hosts=$2 ;;
       --default) given=$2 ;;
       --landing) landing=$2 ;;
-      --setup-file) [ -n "$2" ] || usage; setup_file=$2 ;;
-      --ignore) [ -n "$2" ] || usage; ignores+=("$2") ;;
-      --baseline-file) [ -n "$2" ] || usage; baseline_file=$2 ;;
+      --setup-file)
+        [ -n "$2" ] || usage
+        setup_file=$2
+        ;;
+      --ignore)
+        [ -n "$2" ] || usage
+        ignores+=("$2")
+        ;;
+      --baseline-file)
+        [ -n "$2" ] || usage
+        baseline_file=$2
+        ;;
       *) usage ;;
     esac
     shift 2
@@ -106,8 +118,15 @@ write_args() {
   case $setup_file in '' | /* | [A-Za-z]:/* | [A-Za-z]:\\*) ;; *) setup_file=$PWD/$setup_file ;; esac
   case $baseline_file in '' | /* | [A-Za-z]:/* | [A-Za-z]:\\*) ;; *) baseline_file=$PWD/$baseline_file ;; esac
   case $hosts in
-    claude | codex) [ -z "$given" ] || usage; default=$hosts ;;
-    claude,codex) [ "$given" = claude ] || [ "$given" = codex ] || usage; default=$given; hosts='claude codex' ;;
+    claude | codex)
+      [ -z "$given" ] || usage
+      default=$hosts
+      ;;
+    claude,codex)
+      [ "$given" = claude ] || [ "$given" = codex ] || usage
+      default=$given
+      hosts='claude codex'
+      ;;
     *) usage ;;
   esac
   [ "$landing" = pr ] || [ "$landing" = merge ] || usage
@@ -356,7 +375,10 @@ config_key() {
 
 setup_block() {
   local text trimmed indent= chomp=-
-  text=$(cat "$setup_file"; echo x)
+  text=$(
+    cat "$setup_file"
+    echo x
+  )
   text=${text%x}
   trimmed=${text%"${text##*[!$'\n']}"}
   case $((${#text} - ${#trimmed})) in 0) ;; 1) chomp= ;; *) chomp=+ ;; esac
@@ -572,7 +594,10 @@ push() {
     stage_paths "$changed"
     # No path here: git commit -- <path> takes the file mode from the working tree and drops the 100755 of git add --chmod.
     git commit -q -m "$wire_subject" ||
-      { git reset -q -- "${setup_paths[@]}"; die "the commit failed; the files stay uncommitted"; }
+      {
+        git reset -q -- "${setup_paths[@]}"
+        die "the commit failed; the files stay uncommitted"
+      }
   fi
   git push -q origin "refs/heads/$trunk:refs/heads/$trunk" || die "the push failed; the commit stays on the local $trunk"
 }
@@ -642,12 +667,28 @@ lane() {
 }
 
 case ${1:-} in
-  check) [ $# -eq 1 ] || usage; run_checks ;;
-  write) shift; write "$@" ;;
+  check)
+    [ $# -eq 1 ] || usage
+    run_checks
+    ;;
+  write)
+    shift
+    write "$@"
+    ;;
   try)
     shift
-    if [ "${1:-}" = --remove ]; then [ $# -eq 1 ] || usage; try_remove; else try "$@"; fi ;;
-  lane) [ $# -eq 2 ] && [ -n "$2" ] || usage; lane "$2" ;;
-  push) [ $# -eq 1 ] || usage; push ;;
+    if [ "${1:-}" = --remove ]; then
+      [ $# -eq 1 ] || usage
+      try_remove
+    else try "$@"; fi
+    ;;
+  lane)
+    [ $# -eq 2 ] && [ -n "$2" ] || usage
+    lane "$2"
+    ;;
+  push)
+    [ $# -eq 1 ] || usage
+    push
+    ;;
   *) usage ;;
 esac

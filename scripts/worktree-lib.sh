@@ -5,7 +5,10 @@ marker_of() { echo "$(git -C "$1" rev-parse --path-format=absolute --git-dir)/ce
 
 run_setup() {
   local checkout=$1 config=$2 main=$3 setup
-  setup=$(printf '%s\n' "$config" | jq -jr '.worktreeSetup // ""'; printf '.')
+  setup=$(
+    printf '%s\n' "$config" | jq -jr '.worktreeSetup // ""'
+    printf '.'
+  )
   setup=${setup%.}
   [ -n "$setup" ] || return 0
   (cd "$checkout" && bash -c "$setup" celetis-worktree-setup "$main" >&2) || return

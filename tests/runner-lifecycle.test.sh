@@ -20,7 +20,10 @@ cleanup() {
   rm -rf "$base"
 }
 trap cleanup EXIT
-fail() { printf 'FAIL: %s\n' "$1"; exit 1; }
+fail() {
+  printf 'FAIL: %s\n' "$1"
+  exit 1
+}
 case_idle() {
   source "$root/scripts/lib/session.sh"
   herdr() {
@@ -233,7 +236,8 @@ start() {
 await_identity() {
   local tries=0
   until jq -e --arg id "$(printf '00000000-0000-4000-8000-%012d' "$1")" '.session_id == $id' "$state/sessions/7.json" >/dev/null 2>&1; do
-    tries=$((tries + 1)); [ "$tries" -le 600 ] || fail "$host identity was not saved"
+    tries=$((tries + 1))
+    [ "$tries" -le 600 ] || fail "$host identity was not saved"
     /bin/sleep 0.05
   done
 }
@@ -338,14 +342,18 @@ case_guard() {
   start
   case $1 in
     unchanged) ;;
-    dirty) issue enhancement CLOSED; echo dirty >"$lane/new" ;;
+    dirty)
+      issue enhancement CLOSED
+      echo dirty >"$lane/new"
+      ;;
     missing) rm "$plugin/scripts/next-step.sh" ;;
     landing)
       issue enhancement CLOSED
       "$BASH" -c '/bin/sleep 30; :' "$tmp/land.sh" >/dev/null 2>&1 &
       landing=$!
       echo "$landing" >>"$tmp/pids"
-      echo "$landing" >"$state/land-7.lock" ;;
+      echo "$landing" >"$state/land-7.lock"
+      ;;
   esac
   echo idle >"$S/status"
   await_file "$S/wait-returned"

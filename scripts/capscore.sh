@@ -5,8 +5,11 @@ efforts=(low medium high xhigh max)
 MODELS=("${CC_MODELS[@]}")
 CURRENT_MODEL=""
 
-die() { printf 'capscore: %s\n' "$1" >&2; exit 2; }
-is_uint() { case "$1" in ''|*[!0-9]*) return 1;; *) return 0;; esac; }
+die() {
+  printf 'capscore: %s\n' "$1" >&2
+  exit 2
+}
+is_uint() { case "$1" in '' | *[!0-9]*) return 1 ;; *) return 0 ;; esac }
 need_value() { [ $# -ge 2 ] && [ -n "$2" ] || die "$1 needs a value"; }
 need_jq() { command -v jq >/dev/null 2>&1 || die 'jq is not on PATH; install jq for JSON output and Codex profiles'; }
 
@@ -27,7 +30,8 @@ USAGE
 }
 
 model_name() {
-  if [ "${#MODELS[@]}" -eq 1 ]; then printf '%s\n' "${MODELS[0]}"
+  if [ "${#MODELS[@]}" -eq 1 ]; then
+    printf '%s\n' "${MODELS[0]}"
   else printf '%s\n' "${MODELS[$1]}"; fi
 }
 
@@ -36,7 +40,8 @@ detect_current_model() {
   local db="${OPENCODE_DATA_DIR:-$HOME/.local/share/opencode}/opencode.db"
   [ -f "$db" ] || return 1
   local m cwd
-  cwd=$(pwd -P); cwd=${cwd//\'/\'\'}
+  cwd=$(pwd -P)
+  cwd=${cwd//\'/\'\'}
   m=$(sqlite3 "$db" "SELECT json_extract(data,'$.providerID') || '/' || json_extract(data,'$.modelID') FROM message WHERE json_extract(data,'$.modelID') IS NOT NULL AND json_extract(data,'$.path.cwd') = '${cwd}' ORDER BY time_created DESC LIMIT 1;" 2>/dev/null)
   if [ -z "$m" ] || [ "$m" = "/" ]; then
     m=$(sqlite3 "$db" "SELECT json_extract(data,'$.providerID') || '/' || json_extract(data,'$.modelID') FROM message WHERE json_extract(data,'$.modelID') IS NOT NULL ORDER BY time_created DESC LIMIT 1;" 2>/dev/null)
@@ -47,20 +52,39 @@ detect_current_model() {
 
 resolve_score() {
   local j=$1 v=$2 b=$3 n=$4 s=$5 x=$6 bias=$7 attempt=$8
-  local sum=$(( j + v + b + n + s + x )) m e
-  if [ "$attempt" -ge 4 ]; then echo STOP; return; fi
-
-  if   [ "$sum" -le 3 ];  then m=0; e=0
-  elif [ "$sum" -le 6 ];  then m=1; e=1
-  elif [ "$sum" -le 9 ];  then m=2; e=2
-  elif [ "$sum" -le 11 ]; then m=2; e=3
-  else                         m=3; e=4
+  local sum=$((j + v + b + n + s + x)) m e
+  if [ "$attempt" -ge 4 ]; then
+    echo STOP
+    return
   fi
-  if [ "$x" -eq 2 ]; then [ "$m" -lt 2 ] && m=2; [ "$e" -lt 2 ] && e=2; fi
+
+  if [ "$sum" -le 3 ]; then
+    m=0
+    e=0
+  elif [ "$sum" -le 6 ]; then
+    m=1
+    e=1
+  elif [ "$sum" -le 9 ]; then
+    m=2
+    e=2
+  elif [ "$sum" -le 11 ]; then
+    m=2
+    e=3
+  else
+    m=3
+    e=4
+  fi
+  if [ "$x" -eq 2 ]; then
+    [ "$m" -lt 2 ] && m=2
+    [ "$e" -lt 2 ] && e=2
+  fi
   if [ "$v" -eq 2 ]; then [ "$e" -lt 2 ] && e=2; fi
-  e=$(( e + bias ))
-  if   [ "$attempt" -eq 3 ]; then m=$(( m + 1 )); [ "$e" -lt 2 ] && e=2
-  elif [ "$attempt" -eq 2 ]; then e=$(( e + 1 ))
+  e=$((e + bias))
+  if [ "$attempt" -eq 3 ]; then
+    m=$((m + 1))
+    [ "$e" -lt 2 ] && e=2
+  elif [ "$attempt" -eq 2 ]; then
+    e=$((e + 1))
   fi
   [ "$m" -gt 3 ] && m=3
   [ "$e" -gt 4 ] && e=4
@@ -71,14 +95,19 @@ resolve_score() {
 resolve() {
   local score m e
   score=$(resolve_score "$@")
-  if [ "$score" = STOP ]; then echo STOP; return; fi
-  m=${score% *}; e=${score#* }
+  if [ "$score" = STOP ]; then
+    echo STOP
+    return
+  fi
+  m=${score% *}
+  e=${score#* }
   printf '%s/%s\n' "$(model_name "$m")" "${efforts[$e]}"
 }
 
 apply_score() {
   local score=$1 e reviewer_e=0
-  applied_rank=${score% *}; applied_e=${score#* }
+  applied_rank=${score% *}
+  applied_e=${score#* }
   if [ "$reviewer" = true ]; then
     [ "$applied_rank" -ge "$reviewer_rank" ] || applied_rank=$reviewer_rank
     for ((e = 0; e < ${#efforts[@]}; e++)); do
@@ -102,7 +131,9 @@ setup_codex_profile() {
     config=$(celetis_config_read "$main") || exit $?
     need_jq
     if printf '%s\n' "$config" | jq -e '(.codexProfiles // {}) | length == 0' >/dev/null; then
-      MODELS=(""); binding=; runtime=
+      MODELS=("")
+      binding=
+      runtime=
       return
     fi
   fi
@@ -167,70 +198,119 @@ run_tests() {
   local fails=0 total=0 got
   OPENCODE= CURRENT_MODEL= MODELS=(haiku sonnet opus fable)
   check() {
-    local desc=$1 exp=$2; shift 2
-    got=$(resolve "$@"); total=$(( total + 1 ))
-    if [ "$got" = "$exp" ]; then printf 'ok   %s\n' "$desc"
-    else printf 'FAIL %s : expected %s got %s\n' "$desc" "$exp" "$got"; fails=$(( fails + 1 )); fi
+    local desc=$1 exp=$2
+    shift 2
+    got=$(resolve "$@")
+    total=$((total + 1))
+    if [ "$got" = "$exp" ]; then
+      printf 'ok   %s\n' "$desc"
+    else
+      printf 'FAIL %s : expected %s got %s\n' "$desc" "$exp" "$got"
+      fails=$((fails + 1))
+    fi
   }
   check_err() {
-    local desc=$1; shift; total=$(( total + 1 ))
+    local desc=$1
+    shift
+    total=$((total + 1))
     if "$0" "$@" >/dev/null 2>&1; then
-      printf 'FAIL %s : expected non-zero exit\n' "$desc"; fails=$(( fails + 1 ))
+      printf 'FAIL %s : expected non-zero exit\n' "$desc"
+      fails=$((fails + 1))
     else printf 'ok   %s\n' "$desc"; fi
   }
 
-  check "band sum0 -> haiku/low"      haiku/low      0 0 0 0 0 0 0 1
-  check "band sum3 top-haiku"         haiku/low      1 1 1 0 0 0 0 1
-  check "band sum4 bottom-sonnet"     sonnet/medium  2 1 1 0 0 0 0 1
-  check "band sum6 top-sonnet"        sonnet/medium  2 1 1 1 1 0 0 1
-  check "band sum7 bottom-opus"       opus/high      2 1 2 1 1 0 0 1
-  check "band sum9 top-opus"          opus/high      2 2 2 2 1 0 0 1
-  check "band sum10 opus/xhigh"       opus/xhigh     2 2 2 2 2 0 0 1
-  check "band sum11 opus/xhigh"       opus/xhigh     2 2 2 2 2 1 0 1
-  check "band sum12 -> fable/max"     fable/max      2 2 2 2 2 2 0 1
+  check "band sum0 -> haiku/low" haiku/low 0 0 0 0 0 0 0 1
+  check "band sum3 top-haiku" haiku/low 1 1 1 0 0 0 0 1
+  check "band sum4 bottom-sonnet" sonnet/medium 2 1 1 0 0 0 0 1
+  check "band sum6 top-sonnet" sonnet/medium 2 1 1 1 1 0 0 1
+  check "band sum7 bottom-opus" opus/high 2 1 2 1 1 0 0 1
+  check "band sum9 top-opus" opus/high 2 2 2 2 1 0 0 1
+  check "band sum10 opus/xhigh" opus/xhigh 2 2 2 2 2 0 0 1
+  check "band sum11 opus/xhigh" opus/xhigh 2 2 2 2 2 1 0 1
+  check "band sum12 -> fable/max" fable/max 2 2 2 2 2 2 0 1
 
-  check "X=2 floor -> opus/high"      opus/high      0 0 0 0 0 2 0 1
-  check "V=2 floor -> effort high"    haiku/high     0 2 0 0 0 0 0 1
-  check "X=2 no-lower at sum10"       opus/xhigh     2 2 2 1 1 2 0 1
+  check "X=2 floor -> opus/high" opus/high 0 0 0 0 0 2 0 1
+  check "V=2 floor -> effort high" haiku/high 0 2 0 0 0 0 0 1
+  check "X=2 no-lower at sum10" opus/xhigh 2 2 2 1 1 2 0 1
 
-  check "b2 verify-gates example"     sonnet/xhigh   1 0 1 1 1 0 2 1
-  check "b2 type-lanes example"       opus/max       2 2 2 1 1 0 2 1
-  check "b2 at sum10 -> opus/max"     opus/max       2 2 2 2 2 0 2 1
-  check "sum12 keeps fable/max +b2"   fable/max      2 2 2 2 2 2 2 1
-  check "b2 attempt3 no fable/max<12" fable/xhigh    2 2 2 2 2 0 2 3
+  check "b2 verify-gates example" sonnet/xhigh 1 0 1 1 1 0 2 1
+  check "b2 type-lanes example" opus/max 2 2 2 1 1 0 2 1
+  check "b2 at sum10 -> opus/max" opus/max 2 2 2 2 2 0 2 1
+  check "sum12 keeps fable/max +b2" fable/max 2 2 2 2 2 2 2 1
+  check "b2 attempt3 no fable/max<12" fable/xhigh 2 2 2 2 2 0 2 3
 
-  check "attempt2 effort +1"          sonnet/high    2 1 1 0 0 0 0 2
-  check "attempt3 model+1 effort>=hi" opus/high      2 1 1 0 0 0 0 3
-  check "attempt3 from haiku"         sonnet/high    0 0 0 0 0 0 0 3
-  check "attempt4 -> STOP"            STOP           0 0 0 0 0 0 0 4
-  check "model clamps at fable"       fable/high     2 1 2 1 1 0 0 3
+  check "attempt2 effort +1" sonnet/high 2 1 1 0 0 0 0 2
+  check "attempt3 model+1 effort>=hi" opus/high 2 1 1 0 0 0 0 3
+  check "attempt3 from haiku" sonnet/high 0 0 0 0 0 0 0 3
+  check "attempt4 -> STOP" STOP 0 0 0 0 0 0 0 4
+  check "model clamps at fable" fable/high 2 1 2 1 1 0 0 3
 
-  check_err "digit>2 rejected"        3 0 0 0 0 0
-  check_err "too few digits"          1 1 1
-  check_err "non-numeric digit"       a 0 0 0 0 0
-  check_err "bad --bias"              1 1 1 1 1 1 --bias x
-  check_err "attempt<1 rejected"      1 1 1 1 1 1 --attempt 0
+  check_err "digit>2 rejected" 3 0 0 0 0 0
+  check_err "too few digits" 1 1 1
+  check_err "non-numeric digit" a 0 0 0 0 0
+  check_err "bad --bias" 1 1 1 1 1 1 --bias x
+  check_err "attempt<1 rejected" 1 1 1 1 1 1 --attempt 0
 
-  printf '\n%d/%d passed\n' "$(( total - fails ))" "$total"
+  printf '\n%d/%d passed\n' "$((total - fails))" "$total"
   [ "$fails" -eq 0 ]
 }
 
-bias=""; attempt=1; digits=""; selected_host=""; json=false; reviewer=false
-profile=${CAP_MODEL_PROFILE-}; runtime_models=${CAP_RUNTIME_MODELS:-}; profile_supplied=false
+bias=""
+attempt=1
+digits=""
+selected_host=""
+json=false
+reviewer=false
+profile=${CAP_MODEL_PROFILE-}
+runtime_models=${CAP_RUNTIME_MODELS:-}
+profile_supplied=false
 [ "${CAP_MODEL_PROFILE+x}" = x ] && profile_supplied=true
 [ $# -gt 0 ] || die 'need six digits J V B N S X (or --test); see docs/capability.md of the plugin celetis'
 while [ $# -gt 0 ]; do
   case "$1" in
-    --test) run_tests; exit $? ;;
-    -h|--help) usage; exit 0 ;;
+    --test)
+      run_tests
+      exit $?
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
     --json) json=true ;;
     --reviewer) reviewer=true ;;
-    --bias) need_value "$@"; shift; bias=$1; is_uint "$bias" || die '--bias needs a non-negative integer' ;;
-    --attempt) need_value "$@"; shift; attempt=$1; is_uint "$attempt" || die '--attempt needs a positive integer' ;;
-    --agent) need_value "$@"; shift; selected_host=$1 ;;
-    --profile) need_value "$@"; shift; profile=$1; profile_supplied=true ;;
-    --runtime-models) need_value "$@"; shift; runtime_models=$1 ;;
-    --current-model) need_value "$@"; shift; CURRENT_MODEL=$1 ;;
+    --bias)
+      need_value "$@"
+      shift
+      bias=$1
+      is_uint "$bias" || die '--bias needs a non-negative integer'
+      ;;
+    --attempt)
+      need_value "$@"
+      shift
+      attempt=$1
+      is_uint "$attempt" || die '--attempt needs a positive integer'
+      ;;
+    --agent)
+      need_value "$@"
+      shift
+      selected_host=$1
+      ;;
+    --profile)
+      need_value "$@"
+      shift
+      profile=$1
+      profile_supplied=true
+      ;;
+    --runtime-models)
+      need_value "$@"
+      shift
+      runtime_models=$1
+      ;;
+    --current-model)
+      need_value "$@"
+      shift
+      CURRENT_MODEL=$1
+      ;;
     -*) die "unknown flag: $1" ;;
     *) digits="$digits $1" ;;
   esac
@@ -247,7 +327,7 @@ set -- $digits
 [ $# -eq 6 ] || die "need exactly six digits J V B N S X, got $#"
 for d in "$@"; do is_uint "$d" && [ "$d" -le 2 ] || die "digit out of range (0-2): $d"; done
 j=$1 v=$2 b=$3 n=$4 s=$5 x=$6
-sum=$(( j + v + b + n + s + x ))
+sum=$((j + v + b + n + s + x))
 label="CAP: J$j V$v B$b N$n S$s X$x = $sum"
 [ "$bias" -eq 0 ] || label="$label +b$bias"
 score=$(resolve_score "$j" "$v" "$b" "$n" "$s" "$x" "$bias" "$attempt")
@@ -257,26 +337,32 @@ if [ "$score" = STOP ]; then
   line="$label → STOP (attempt $attempt: escalate to user with failure trail)"
 else
   status=ready
-  rank=${score% *}; effort=${efforts[${score#* }]}
+  rank=${score% *}
+  effort=${efforts[${score#* }]}
   source "$(cd "$(dirname "$0")" && pwd)/lib/host.sh"
-  if [ -n "$selected_host" ]; then celetis_host_select "$selected_host" || exit $?
+  if [ -n "$selected_host" ]; then
+    celetis_host_select "$selected_host" || exit $?
   else celetis_host_select || exit $?; fi
   host=$CELETIS_AGENT
-  reviewer_rank=1; reviewer_effort=medium
+  reviewer_rank=1
+  reviewer_effort=medium
   if [ "$host" = codex ]; then
     setup_codex_profile
   elif [ "${OPENCODE:-}" = 1 ]; then
     host=opencode
     CURRENT_MODEL=${CURRENT_MODEL:-${CAP_CURRENT_MODEL:-}}
-    if [ -n "$CURRENT_MODEL" ]; then MODELS=("$CURRENT_MODEL")
+    if [ -n "$CURRENT_MODEL" ]; then
+      MODELS=("$CURRENT_MODEL")
     elif detected=$(detect_current_model); then MODELS=("$detected"); fi
   fi
   if [ "$host" = codex ]; then
-    previous_model=; previous_e=0
+    previous_model=
+    previous_e=0
     for ((retry = 1; retry <= attempt; retry++)); do
       apply_score "$(resolve_score "$j" "$v" "$b" "$n" "$s" "$x" "$bias" "$retry")"
       if [ "$model" = "$previous_model" ] && [ "$applied_e" -lt "$previous_e" ]; then applied_e=$previous_e; fi
-      previous_model=$model; previous_e=$applied_e
+      previous_model=$model
+      previous_e=$applied_e
     done
   else
     apply_score "$score"

@@ -143,9 +143,13 @@ for bad in external lane missing mode directory; do
     external) ln -s "$tmp/saved-launcher" "$repo/scripts/celetis" ;;
     lane)
       cp "$tmp/saved-launcher" "$repo/.claude/worktrees/lane/launcher"
-      ln -s "$repo/.claude/worktrees/lane/launcher" "$repo/scripts/celetis" ;;
+      ln -s "$repo/.claude/worktrees/lane/launcher" "$repo/scripts/celetis"
+      ;;
     missing) ;;
-    mode) cp "$tmp/saved-launcher" "$repo/scripts/celetis"; chmod -x "$repo/scripts/celetis" ;;
+    mode)
+      cp "$tmp/saved-launcher" "$repo/scripts/celetis"
+      chmod -x "$repo/scripts/celetis"
+      ;;
     directory) mkdir "$repo/scripts/celetis" ;;
   esac
   rm "$BOARD_PRODUCER_LOG"

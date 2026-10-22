@@ -9,7 +9,10 @@ unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID
 S=$LOCK_TEST
 mkdir -p "$S" "$tmp/bin" "$tmp/project"
 trap 'touch "$S/release" 2>/dev/null || true; wait 2>/dev/null || true; rm -rf "$tmp"' EXIT
-fail() { echo "FAIL: $1"; exit 1; }
+fail() {
+  echo "FAIL: $1"
+  exit 1
+}
 cat >"$tmp/bin/ps" <<'EOF'
 #!/bin/bash
 S=$LOCK_TEST

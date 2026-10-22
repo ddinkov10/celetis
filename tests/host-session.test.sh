@@ -144,7 +144,10 @@ printf 'landing: merge\n' >"$template/.celetis.yaml"
 git -C "$template" add .
 git -C "$template" commit -qm fixture
 uuid=01a139fc-2ffa-74c0-9b14-e35e23339910
-fail() { printf 'FAIL: %s\n' "$1"; exit 1; }
+fail() {
+  printf 'FAIL: %s\n' "$1"
+  exit 1
+}
 reset() {
   rm -rf "$S" "$common/celetis-flow" "$CLAUDE_CONFIG_DIR"
   mkdir -p "$S"
@@ -168,7 +171,8 @@ new_case() {
 run() {
   code=0
   (cd "$repo" && PATH="${test_path:-$PATH}" CELETIS_AGENT="${test_host:-claude}" "$BASH" "$plugin/scripts/celetis-flow.sh" "$@" < <(printf 'terminal input\n')) >"$dir/out" 2>"$dir/err" || code=$?
-  out=$(cat "$dir/out"); err=$(cat "$dir/err")
+  out=$(cat "$dir/out")
+  err=$(cat "$dir/err")
 }
 other_of() { if [ "$1" = codex ]; then echo claude; else echo codex; fi; }
 
@@ -277,7 +281,9 @@ exact_resume() {
   export HERDR_ENV=1 HERDR_PANE_ID=w1:p1
   test_host=$host run 7
   [ "$code" -eq 0 ] && jq -e --arg id "$uuid" '.session_id == $id' "$record" >/dev/null || fail "$host did not save the reported identity: $code [$err]"
-  : >"$S/calls"; : >"$S/herdr-calls"; : >"$S/updates"
+  : >"$S/calls"
+  : >"$S/herdr-calls"
+  : >"$S/updates"
   test_host=$other run --resume 7
   [ "$code" -eq 0 ] || fail "$host exact resume: $code [$err]"
   jq -e --arg h "$host" --arg id "$uuid" --arg cwd "$repo" '.host == $h and .cwd == $cwd and .args == (if $h == "codex" then ["resume","--no-daemon",$id] else ["--resume",$id] end)' "$S/calls" >/dev/null || fail "resume used the wrong host, mode or identity"
@@ -317,7 +323,7 @@ bad_records() {
     run --resume 7
     [ "$code" -ne 0 ] && [[ $err == *'invalid or obsolete session record'* ]] || fail "bad record accepted: $expression [$err]"
   done
-  for invalid in '{"schema":0}' '{}' '[]' 'invalid' '{"schema":1,"host":"other"}' ; do
+  for invalid in '{"schema":0}' '{}' '[]' 'invalid' '{"schema":1,"host":"other"}'; do
     printf '%s\n' "$invalid" >"$record"
     run --resume 7
     [ "$code" -ne 0 ] && [[ $err == *'invalid or obsolete session record'* ]] || fail "bad record accepted: $invalid [$err]"
@@ -347,10 +353,14 @@ identity_failure() {
     no-id) : >"$S/id" ;;
     bad-id) echo --last >"$S/id" ;;
     stale-id) cp "$S/id" "$S/prior-id" ;;
-    unsaved-*) echo "${failure#unsaved-}" >"$S/status"; touch "$S/no-save" ;;
+    unsaved-*)
+      echo "${failure#unsaved-}" >"$S/status"
+      touch "$S/no-save"
+      ;;
     wrong-host)
       other=$(other_of "$host")
-      printf '.result.agent |= (.agent="%s" | .agent_session.agent="%s")\n' "$other" "$other" >"$S/herdr-filter" ;;
+      printf '.result.agent |= (.agent="%s" | .agent_session.agent="%s")\n' "$other" "$other" >"$S/herdr-filter"
+      ;;
     wrong-session-host) echo '.result.agent.agent_session.agent="other"' >"$S/herdr-filter" ;;
     wrong-kind) echo '.result.agent.agent_session.kind="name"' >"$S/herdr-filter" ;;
     malformed-identity) echo '.result.agent.agent_session="invalid"' >"$S/herdr-filter" ;;

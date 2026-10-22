@@ -83,10 +83,12 @@ for fault in valid missing-host-hash bad-host-hash missing-config-hash bad-confi
     exit "$failed"
   ) >"$tmp/$fault.log" 2>&1 || celetis_case_status=$?
   if { [[ $fault = valid || $fault = *-good ]] && [ "$celetis_case_status" -eq 0 ]; } ||
-      { [[ $fault != valid && $fault != *-good ]] && [ "$celetis_case_status" -eq 1 ]; }; then
+    { [[ $fault != valid && $fault != *-good ]] && [ "$celetis_case_status" -eq 1 ]; }; then
     echo "ok: $fault"
   else
-    echo "FAIL: $fault ($celetis_case_status)"; cat "$tmp/$fault.log"; celetis_fails=$((celetis_fails + 1))
+    echo "FAIL: $fault ($celetis_case_status)"
+    cat "$tmp/$fault.log"
+    celetis_fails=$((celetis_fails + 1))
   fi
 done
 [ "$celetis_fails" -eq 0 ]

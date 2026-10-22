@@ -9,16 +9,25 @@ if [ $# -eq 1 ] && [ "$1" = --board ]; then
 elif [ $# -eq 2 ] && [ "$1" = --resume ]; then
   mode=resume
   issues=${2#\#}
-  [[ $issues =~ ^[1-9][0-9]*$ ]] || { echo "$usage" >&2; exit 2; }
+  [[ $issues =~ ^[1-9][0-9]*$ ]] || {
+    echo "$usage" >&2
+    exit 2
+  }
 else
   for arg; do
     n=${arg#\#}
-    [[ $n =~ ^[1-9][0-9]*$ ]] || { echo "$usage" >&2; exit 2; }
+    [[ $n =~ ^[1-9][0-9]*$ ]] || {
+      echo "$usage" >&2
+      exit 2
+    }
     issues="$issues $n"
   done
 fi
 
-die() { printf 'celetis-flow: %s\n' "$1" >&2; exit 1; }
+die() {
+  printf 'celetis-flow: %s\n' "$1" >&2
+  exit 1
+}
 
 for tool in jq git; do
   command -v "$tool" >/dev/null 2>&1 || die "$tool is not on PATH"
@@ -216,7 +225,10 @@ end_when_done() {
   done
   id=$(jq -r .session_id "$state/sessions/$n.json")
   while herdr agent wait "$HERDR_PANE_ID" --until idle --until done >/dev/null 2>&1; do
-    if gone; then say "$(stale_n "$n")"; return 1; fi
+    if gone; then
+      say "$(stale_n "$n")"
+      return 1
+    fi
     if celetis_session_idle "$id"; then
       line=$("$next" "$n" </dev/null) || line=$start_line
       case $line in
@@ -226,7 +238,8 @@ end_when_done() {
             herdr agent prompt "$HERDR_PANE_ID" /exit >/dev/null 2>&1 ||
               printf 'celetis-flow: #%s cannot submit /exit; the session stays open. Exit it in this pane when ready.\n' "$n" >&2
             return 0
-          fi ;;
+          fi
+          ;;
       esac
     fi
     herdr agent wait "$HERDR_PANE_ID" --until working --until blocked --timeout 5000 >/dev/null 2>&1 || true
@@ -280,15 +293,27 @@ wait_session() {
 
 run_issue() {
   local n=$1 first=$2 line last= prompt step watcher watch_dir prior_id started_at exit_code=0
-  take "issue-$n" || { say "another celetis-flow.sh or its session (PID $holder) works on #$n"; return 0; }
+  take "issue-$n" || {
+    say "another celetis-flow.sh or its session (PID $holder) works on #$n"
+    return 0
+  }
   while :; do
-    if gone; then say "$(stale_n "$n")"; break; fi
+    if gone; then
+      say "$(stale_n "$n")"
+      break
+    fi
     config=$(celetis_config_read "$main") || exit $?
     line=$("$next" "$n" </dev/null) || true
     case $line in
       "run "*) ;;
-      "") say "#$n: next-step.sh printed no line"; break ;;
-      *) say "$line"; break ;;
+      "")
+        say "#$n: next-step.sh printed no line"
+        break
+        ;;
+      *)
+        say "$line"
+        break
+        ;;
     esac
     prompt=${line#run }
     if [ "$line" = "$last" ]; then
@@ -306,7 +331,10 @@ run_issue() {
     say "start: $prompt"
     started=1
     update_plugin
-    if gone || { [ "$step" != specify ] && [ ! -f "$root/step-prompt.md" ]; }; then say "$(stale_n "$n")"; break; fi
+    if gone || { [ "$step" != specify ] && [ ! -f "$root/step-prompt.md" ]; }; then
+      say "$(stale_n "$n")"
+      break
+    fi
     celetis_host_arguments "$n" "$step" "$prompt" "$root" || die "cannot read the step instructions; start the runner again"
     celetis_session_write "$n" "$step" "$main" "" || die "cannot write the session record for #$n"
     watcher=
@@ -348,8 +376,14 @@ if [ "$mode" = resume ]; then
 fi
 
 if [ "$mode" = board ]; then
-  if gone; then printf '%s\n' "$stale"; exit 1; fi
-  doc=$("$next" --json </dev/null) || { printf '%s\n' "${doc:-stop cannot read the issues from GitHub}"; exit 1; }
+  if gone; then
+    printf '%s\n' "$stale"
+    exit 1
+  fi
+  doc=$("$next" --json </dev/null) || {
+    printf '%s\n' "${doc:-stop cannot read the issues from GitHub}"
+    exit 1
+  }
   extra=
   while IFS=$'\t' read -r n line; do
     step=
@@ -400,7 +434,10 @@ fi
 take runner || die "another automatic runner or its session has PID $holder"
 while :; do
   pick=
-  if gone; then say "$stale"; exit 1; fi
+  if gone; then
+    say "$stale"
+    exit 1
+  fi
   config=$(celetis_config_read "$main") || exit $?
   if rows=$("$next" --open </dev/null); then
     while IFS=$'\t' read -r n line; do
