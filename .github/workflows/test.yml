@@ -5,7 +5,12 @@ on:
   pull_request:
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: test (bash ${{ matrix.bash }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        bash: ["5", "3.2.57"]
     env:
       DISABLE_UPDATES: "1"
     steps:
@@ -26,7 +31,53 @@ jobs:
           chmod +x "$RUNNER_TEMP/yq"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/yq" --version
+      - name: Probe the checksum of bash 3.2.57
+        id: probe
+        if: matrix.bash == '3.2.57'
+        run: |
+          mkdir "$RUNNER_TEMP/bash-probe"
+          cd "$RUNNER_TEMP/bash-probe"
+          curl --fail --location --remote-name https://ftp.gnu.org/gnu/bash/bash-3.2.57.tar.gz
+          curl --fail --location --remote-name https://ftp.gnu.org/gnu/bash/bash-3.2.57.tar.gz.sig
+          curl --fail --location --remote-name https://ftp.gnu.org/gnu/gnu-keyring.gpg
+          curl --fail --location --output kernel.tar.gz https://mirrors.kernel.org/gnu/bash/bash-3.2.57.tar.gz
+          gnu=$(sha256sum bash-3.2.57.tar.gz | cut -d ' ' -f 1)
+          kernel=$(sha256sum kernel.tar.gz | cut -d ' ' -f 1)
+          if [ "$gnu" != "$kernel" ]; then
+            echo "::error title=bash-3.2.57.tar.gz sha256::ftp.gnu.org has $gnu, mirrors.kernel.org has $kernel"
+            exit 1
+          fi
+          gpgv --keyring ./gnu-keyring.gpg bash-3.2.57.tar.gz.sig bash-3.2.57.tar.gz
+          echo "::notice title=bash-3.2.57.tar.gz sha256::$gnu"
+          echo "sha256=$gnu" >> "$GITHUB_OUTPUT"
+      - if: matrix.bash == '3.2.57'
+        id: bash-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/bash-build
+          key: bash-3.2.57-ubuntu-24.04
+      - name: Build bash 3.2.57
+        if: matrix.bash == '3.2.57' && steps.bash-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir "$RUNNER_TEMP/bash-src"
+          cd "$RUNNER_TEMP/bash-src"
+          curl --fail --location --remote-name https://ftp.gnu.org/gnu/bash/bash-3.2.57.tar.gz
+          echo '${{ steps.probe.outputs.sha256 }}  bash-3.2.57.tar.gz' | sha256sum --check --strict
+          tar -xzf bash-3.2.57.tar.gz
+          cd bash-3.2.57
+          if ! { ./configure --without-bash-malloc --disable-nls && make -j"$(nproc)"; } > build.log 2>&1; then
+            tail -n 50 build.log
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/bash-build"
+          cp bash "$RUNNER_TEMP/bash-build/bash"
+      - name: Install bash 3.2.57 as /usr/bin/bash
+        if: matrix.bash == '3.2.57'
+        run: |
+          sudo install -m 0755 "$RUNNER_TEMP/bash-build/bash" /usr/bin/bash.new
+          sudo mv -f /usr/bin/bash.new /usr/bin/bash
       - name: Board tests
         working-directory: board
         run: node --test
+      - run: /bin/bash --version
       - run: scripts/verify.sh
