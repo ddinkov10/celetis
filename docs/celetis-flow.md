@@ -272,6 +272,14 @@ absence alone does not clear the precondition. For a hotfix whose landing
 stopped, the checklist of step 7 of `skills/hotfix/SKILL.md` of the plugin holds your acts: you land
 with `scripts/celetis land` in your own shell, and the step does not run again.
 
+**The human acts of a plan.** The plan names them in its first section, `### Your steps`. Do each
+act of "During the build" while the build runs, and report the acts in one `## Human steps done`
+comment. A build that needs an act with no report runs each other scenario. Then it stops with one
+`## Before landing` comment that names each such act, its report form, and the scenarios that wait
+for it. Post the report, then remove `ready-for-human`: the next run of `/celetis:implement` runs
+those scenarios and lands on a PASS. A check of "After the landing" is no stop. The last message of
+`/celetis:implement` quotes it after the landing, and a FAIL is a new bug (`/celetis:bug`).
+
 A `specify` session starts with the line `run /celetis:feature #<n>`. The paths of `specify` give
 three lines that end it: `run /celetis:plan #<n>` (the spec is on the issue),
 `stop #<n> is an epic. Each child runs its own flow.` (the scope check made the issue an epic), and
