@@ -87,7 +87,6 @@ faults() {
   printf 'if true;then echo x;fi\n' >"$dir/re po/bad-format.sh"
   printf 'const a = {b:1}\n' >"$dir/re po/bad-format.js"
   printf '#!/usr/bin/env bash\necho $1\n' >"$dir/re po/bad-lint.sh"
-  printf "const a = 'x';\nexport const b = a + 'y';\n" >"$dir/re po/bad-lint.mjs"
   git -C "$dir/re po" add -A
   /bin/bash "$dir/re po/scripts/verify.sh" >"$dir/out" 2>&1 || code=$?
   [ "$code" = 1 ] || fail "the gate exited $code: $(cat "$dir/out")"
@@ -96,7 +95,6 @@ faults() {
   has_line "$dir/out" 'bad-lint.sh:2:6: note: Double quote to prevent globbing and word splitting. [SC2086]'
   has_line "$dir/out" 'verify: shellcheck bad-lint.sh: fix each finding above, or disable its rule with a reason'
   grep -q 'bad-format.js' "$dir/out" || fail "Biome does not name bad-format.js: $(cat "$dir/out")"
-  grep -q 'bad-lint.mjs' "$dir/out" || fail "Biome does not name bad-lint.mjs: $(cat "$dir/out")"
   lacks_line "$dir/out" '^verify: PASS'
 }
 
@@ -104,11 +102,14 @@ parse_fault() {
   local dir=$tmp/parse_fault code=0
   gate_copy "$dir/re po"
   printf 'if then\n' >"$dir/re po/bad-parse.sh"
+  printf "const a = 'x';\nexport const b = a + 'y';\n" >"$dir/re po/bad-lint.mjs"
   git -C "$dir/re po" add -A
   /bin/bash "$dir/re po/scripts/verify.sh" >"$dir/out" 2>&1 || code=$?
   [ "$code" = 1 ] || fail "the gate exited $code: $(cat "$dir/out")"
   grep -q 'bad-parse.sh:1:1: ' "$dir/out" || fail "shfmt does not name the parse error of bad-parse.sh: $(cat "$dir/out")"
   lacks_line "$dir/out" 'verify: run shfmt -w bad-parse.sh'
+  has_line "$dir/out" 'verify: fix each file that Biome names above with biome check --write <file>'
+  grep -q 'bad-lint.mjs' "$dir/out" || fail "Biome does not name bad-lint.mjs: $(cat "$dir/out")"
   lacks_line "$dir/out" '^verify: PASS'
 }
 

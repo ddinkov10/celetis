@@ -121,7 +121,7 @@ check_biome() {
   out=$(biome check --error-on-warnings --max-diagnostics=none "${biome_files[@]}" 2>&1) || bad=1
   echo "$out"
   # Biome exits 0 on an info finding
-  if echo "$out" | grep -Eq '^Found .* info'; then bad=1; fi
+  if grep -Eq '^Found .* info' <<<"$out"; then bad=1; fi
   [ "$bad" = 0 ] || {
     echo "verify: fix each file that Biome names above with biome check --write <file>"
     return 1
