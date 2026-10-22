@@ -21,7 +21,7 @@ board:
 | `landing` | Required: `pr` or `merge` | None |
 | `gates` | Mapping from a step name to `me` or `auto` | `me` for each omitted step |
 | `board` | Mapping with optional `port`, an integer from 1024 to 65535 | Port 4403 |
-| `worktreeSetup` | One Bash script string | No setup |
+| `worktreeSetup` | One TypeScript program string | No setup |
 | `custom` | Mapping from a Celetis skill stem to an instruction string | No addition for an omitted skill |
 | `codexProfiles` | Mapping from a runtime identity to its profile | Each Codex child keeps the parent's model |
 
@@ -67,20 +67,21 @@ Quotes, backslashes, Unicode, blank lines, and parsed trailing newlines stay int
 ```yaml
 landing: pr
 worktreeSetup: |
-  set -e
-  printf '%s\n' "$1"
+  console.log(process.argv[2]);
 custom:
   bug: |-
     Keep the change small.
 ```
 
-The setup script runs in one Bash process in the new lane checkout. Its first positional
-argument is the main checkout. Its output goes to stderr and its exit status decides success.
-Reading the config or entering a skill does not execute setup. Shell consumers that extract
-text use `jq -jr` and a sentinel because command substitution removes trailing newlines.
-The worktree command removes exactly the sentinel and runs
-`bash -c "$setup" celetis-worktree-setup "$main"`. The script keeps inherited stdin, so `read`
-can receive terminal input. An omitted or empty script runs no setup.
+The setup program runs on the selected Bun in the new lane checkout. Celetis writes the exact
+parsed string to a private 0600 TypeScript file outside the canonical main checkout and lane.
+`process.argv[2]` is the absolute main checkout. Stdin, stdout and stderr stay inherited. The
+worktree command adds an LF separator after nonempty setup output and prints the final absolute
+lane path. `setup try` prints its path even when preparation or execution fails.
+Pass each external executable and its arguments as an array. Check its exit status and stop on
+failure. Variables and functions share one program. Reading the config or entering a skill
+executes no setup. An omitted or empty program runs no setup. Signals stop the owned child and
+remove the temporary file; the existing marker and lane cleanup rules remain below.
 
 The main config is checked before Git prune, branch or worktree changes, runtime state creation,
 plugin updates, host sessions, and landing pushes. The runner checks it again before each new
@@ -113,21 +114,26 @@ tags can pass the parser check; the field schema then limits each value. Non-fin
 are not accepted. Script and instruction strings cannot contain NUL.
 Plain `yes` and `on` are strings under YAML 1.2.
 
-Source the launcher of the plugin, `$(scripts/celetis root)/scripts/celetis`, to use these
-functions. The source itself starts no installation discovery.
+Import `readConfig` and `ConfigError` from `scripts/lib/config.ts` of the plugin for typed
+configuration reads. Importing the module starts no installation discovery or setup.
+`readConfig(CHECKOUT)` reads only that checkout's `.celetis.yaml`, validates it, and returns the
+object without inserted defaults. `mainCheckout` in `scripts/lib/host.ts` resolves the main
+checkout and reports a failed Git lookup. The former Bash sourcing interface is removed.
 
-- `celetis_config_main` prints the absolute main checkout path. A failed Git lookup returns
-  a nonzero status.
-- `celetis_config_read CHECKOUT` reads only `CHECKOUT/.celetis.yaml`. It prints one compact,
-  validated JSON object. It does not insert defaults, select a host, or execute text.
-  An invalid or missing config returns status 2 with empty stdout. Its diagnostic names the
-  selected file and field; syntax and root errors use `<document>`.
+The reader CLI runs as:
 
-The reader is `scripts/lib/config.ts` of the plugin, and it runs on Bun. With no `bun` on
-`PATH`, or with a Bun older than 1.4.2, `celetis_config_read` returns status 2 and names the
-floor. A copy of the launcher in a product project has no reader beside it. When a script
-sources that copy, `celetis_config_read` returns status 2 with a line that names the launcher
-of the plugin.
+```sh
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/scripts/lib/config.ts CHECKOUT
+```
+
+It prints one compact validated JSON object and LF. Invalid or missing configuration exits 2
+with empty stdout. Its diagnostic names the selected path and field; syntax and root errors
+use `<document>`. A below-floor Bun that can execute the launcher exits 2. Missing, broken,
+or nonexecutable Bun uses the native env/kernel diagnostic and status. There is no interpreter
+wrapper. The launcher of a product project is one generated executable file; its installed
+commands use TypeScript and local imports. Child Celetis programs use the selected
+`process.execPath`, with environment/config/preload/macro/package isolation before control code
+starts, disabled transpiler cache, and `DO_NOT_TRACK=1`.
 
 The reader uses one private YAML snapshot for metadata checks and JSON conversion. It checks
 document, key, node, and style metadata before JSON conversion can remove YAML information.
@@ -147,9 +153,9 @@ After it finds the plugin, the reader of the plugin checks the whole main config
 ## Start the board
 
 Run `scripts/celetis board` in the main checkout or a subfolder. It takes no arguments and
-refuses a lane start before `node`. It reads only the main config's `board.port`, default 4403,
+refuses a lane start before it starts the board. It reads only the main config's `board.port`, default 4403,
 and keeps `PORT` above that value. It supplies the fixed data, selected-agent Run, and
-saved-host Resume lists through stdin to `board/cli.mjs` of the installed plugin. The board
+saved-host Resume lists through stdin to `board/cli.ts` of the installed plugin. The board
 validates that JSON and its executable paths. No board config file is made.
 The board displays the producer default as read-only. Change `host` in the main YAML to set
 the project default. A board Run choice applies only to that start; Resume uses its saved host.
@@ -162,8 +168,8 @@ runner refresh. The maintainer must prepare every affected product project and s
 sessions, runners, and boards before the plugin lands. Keep the change unlanded until the
 maintainer gives a trusted readiness report for this build. This lane changes no other project.
 
-1. Install Bun 1.4.2 or later on each machine and CI job that runs a shell consumer, using
-   the instructions below. Keep `jq` on `PATH`.
+1. Install Bun 1.4.2 or later on each machine and CI job that runs Celetis commands, using
+   the instructions below.
 2. Review each old input and prepare one `.celetis.yaml` in that product's main checkout:
 
    | Old input | Replacement |
@@ -172,7 +178,7 @@ maintainer gives a trusted readiness report for this build. This lane changes no
    | Git `celetis-flow.gate.<step>` and `.claude/celetis-flow/gates.json` | YAML `gates.<step>`. Write each intended `auto`; omitted steps now use `me`. |
    | `.claude/celetis-flow/landing.json` | Required YAML `landing`. |
    | `.claude/celetis-flow/board.json` | YAML `board.port` only. The adapter supplies all three fixed command lists. |
-   | `.claude/celetis-flow/worktree-setup.sh` | Complete script body in a literal `worktreeSetup` string. It still runs in one lane Bash process with main as `$1`. |
+   | `.claude/celetis-flow/worktree-setup.sh` | Rewrite its complete program as TypeScript in a literal `worktreeSetup` string. Check external command statuses. Main is `process.argv[2]`. |
    | Each `.claude/celetis-flow/custom/<skill>.md` | Complete instruction text in `custom.<skill>`, with its parsed line breaks and trailing newlines. |
    | Each repository-owned `--profile` or `CAP_MODEL_PROFILE` JSON input | Its `slots` and `reviewer` under `codexProfiles.<runtime>`. Use the matching runtime identity as the key; omit the old `schema` and `runtime` fields. |
 
@@ -180,7 +186,9 @@ maintainer gives a trusted readiness report for this build. This lane changes no
    profile against the active dispatch surface's current model/effort allowlist. Supply no
    placeholder or bundled model defaults. Explicit profile files remain available for one-run
    or standalone scoring; remove a persistent override when the main YAML should own selection.
-3. Copy the changed standalone `scripts/celetis` from the reviewed plugin package. A plugin
+3. Stop each old Celetis process before this runtime cutover. Build delivery with exactly Bun
+   1.4.2 in the plugin checkout and compare generated bytes and modes with `scripts/build.ts --check`.
+   Copy the changed standalone `scripts/celetis` from the reviewed plugin package. A plugin
    refresh does not update that product file. The public controls are `--agent` and
    `CELETIS_AGENT`; YAML and saved session records still use the key `host`.
 4. Remove the old Celetis setup files and obsolete Git defaults after their values are accounted
@@ -203,7 +211,7 @@ operation.
 
 ## Install Bun
 
-Shell readers need Bun 1.4.2 or later on `PATH`, together with `jq`. The plugin does not
+Celetis commands need Bun 1.4.2 or later on `PATH`. The plugin does not
 install dependencies. CI pins Bun 1.4.2. The YAML parser of the reader, the `yaml` package
 2.9.1, comes with the plugin in `scripts/lib/vendor/`, so a read installs no package.
 
@@ -225,8 +233,8 @@ To install one version, give its tag to the installer:
 curl -fsSL https://bun.com/install | bash -s "bun-v1.4.2"
 ```
 
-On a Windows host, run this command in PowerShell. A session by hand then runs the scripts in
-Git Bash.
+The official Windows installer runs in PowerShell. Native host paths replace the former
+Git Bash translation; native Windows runner acceptance is still open.
 
 ```powershell
 powershell -c "irm bun.sh/install.ps1|iex"

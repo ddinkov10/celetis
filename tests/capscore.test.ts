@@ -1,11 +1,13 @@
-import { expect, setDefaultTimeout, test } from 'bun:test';
+import { expect, setDefaultTimeout } from 'bun:test';
 import { join } from 'node:path';
 import { command, type Fixture, root, withFixture } from './lib/fixture.ts';
 
+import { referenceTests } from './lib/reference.ts';
+
+const { test, expected } = referenceTests('capscore');
 setDefaultTimeout(25_000);
 
 const entry = join(root, 'scripts/capscore.ts');
-const baseline = join(root, 'scripts/capscore.sh');
 const profile = {
   schema: 1,
   runtime: 'fixture-desktop@1',
@@ -45,7 +47,7 @@ async function scorer(f: Fixture) {
   const run = async (args: string[], extra: NodeJS.ProcessEnv = {}, cwd = f.repo) => {
     const options = { cwd, env: { ...env, ...extra } };
     const result = await f.bun(entry, args, options);
-    const old = await command('/bin/bash', [baseline, ...args], options);
+    const old = await expected(f.dir);
     expect(result.code).toBe(old.code);
     expect(result.stdout).toBe(old.stdout);
     if (result.code === 0) expect(result.stderr).toBe(old.stderr);
@@ -646,7 +648,7 @@ test(
     expect(result.code).toBe(2);
     expect(result.stdout).toBe('');
     expect(result.stderr).toContain('reviewer needs rank 0-3 and effort low, medium, high or xhigh');
-    const old = await command('/bin/bash', [baseline, ...args], { cwd: f.repo, env: s.env });
+    const old = await expected(f.dir);
     expect(old.code).toBe(0);
     expect(old.stdout).toBe('CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → standard/xhigh\n');
   }),

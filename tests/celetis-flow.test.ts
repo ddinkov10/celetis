@@ -2,7 +2,7 @@ import { expect, setDefaultTimeout, test } from 'bun:test';
 import { closeSync, openSync } from 'node:fs';
 import { cp, mkdir, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { check } from '../board/contract.mjs';
+import { check } from '../board/contract.ts';
 import { tryFlock } from '../scripts/lib/update-lock.ts';
 import { command, isolatedArgs, root } from './lib/fixture.ts';
 import { type RunnerFixture, runnerCase, stepText, updateTestClock } from './lib/runner-fixture.ts';

@@ -1,5 +1,6 @@
 import { access, constants, lstat, realpath } from 'node:fs/promises';
 import { isAbsolute, join, sep } from 'node:path';
+import { bindRuntime } from './runtime.ts';
 import type { Command, Config } from './types.ts';
 
 export class ConfigError extends Error {
@@ -49,7 +50,7 @@ const readList = async (main: string, key: string, list: unknown): Promise<Comma
   await checkFile(main, real, subject);
   await access(real, constants.X_OK).catch(() => refuse(`${subject} is not executable`));
   if (CONTROL.test(real)) refuse(control);
-  return [real, ...rest];
+  return bindRuntime([real, ...rest]);
 };
 
 export const parseConfig = async (main: string, source: string, subject: string): Promise<Config> => {

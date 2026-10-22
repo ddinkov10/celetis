@@ -1,4 +1,5 @@
 {
   "extends": "../tsconfig.runtime.json",
-  "include": ["**/*.ts"]
+  "include": ["**/*.ts"],
+  "exclude": ["lib/vendor"]
 }

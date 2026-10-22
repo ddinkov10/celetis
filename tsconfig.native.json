@@ -1,7 +1,7 @@
 {
   "include": ["hooks/**/*.ts", "tests/manual/native-observer/hooks/**/*.ts", "tests/types/native-host.d.ts"],
   "compilerOptions": {
-    "lib": ["ESNext", "DOM"],
+    "lib": ["ESNext"],
     "target": "ESNext",
     "module": "Preserve",
     "moduleDetection": "force",

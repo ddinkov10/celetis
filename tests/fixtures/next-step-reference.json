@@ -1,0 +1,544 @@
+{
+  "baseline": "4fe5554c4c09ec522aae410afde6a298787a04a9",
+  "source": "scripts/next-step.sh",
+  "sourceSha256": "e2ca6431dbe194686e887c9259ad8eaa6cac45317ba53ecad55cf6807794e11c",
+  "cases": {
+    "every resolver state and open-row precedence matches the baseline": [
+      {
+        "code": 0,
+        "stdout": "stop #7 is closed as wontfix.\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "stop #7 is finished.\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "stop #7 is finished.\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "stop #7 is closed as wontfix.\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "stop #7 needs info. Answer the questions on the issue, then remove the label.\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\tstop #7 needs info. Answer the questions on the issue, then remove the label.\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "stop #7 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label.\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\tstop #7 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label.\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "stop #7 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label.\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\tstop #7 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label.\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "stop #7 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label.\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\tstop #7 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label.\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "stop #7 is an epic. Each child runs its own flow.\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\tstop #7 is an epic. Each child runs its own flow.\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:triage #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\trun /celetis:triage #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:feature #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\trun /celetis:feature #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:feature #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\trun /celetis:feature #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "stop #7 needs info. Answer the questions on the issue, then remove the label.\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\tstop #7 needs info. Answer the questions on the issue, then remove the label.\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:bug #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\trun /celetis:bug #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:chore #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\trun /celetis:chore #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:hotfix #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\trun /celetis:hotfix #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:plan #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\trun /celetis:plan #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:plan #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\trun /celetis:plan #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:plan #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\trun /celetis:plan #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:implement #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\trun /celetis:implement #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:implement #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\trun /celetis:implement #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:chore #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\trun /celetis:chore #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:implement #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\trun /celetis:implement #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:implement #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\trun /celetis:implement #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:feature #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\trun /celetis:feature #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:implement #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:chore #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\trun /celetis:triage #7\n8\trun /celetis:implement #8\n9\tstop #9 is an epic. Each child runs its own flow.\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    ],
+    "usage and config errors stop before GitHub or setup": [
+      {
+        "code": 2,
+        "stdout": "",
+        "stderr": "usage: scripts/celetis next-step <issue number> | --open | --json, e.g. scripts/celetis next-step 276\n"
+      },
+      {
+        "code": 2,
+        "stdout": "",
+        "stderr": "usage: scripts/celetis next-step <issue number> | --open | --json, e.g. scripts/celetis next-step 276\n"
+      },
+      {
+        "code": 2,
+        "stdout": "",
+        "stderr": "usage: scripts/celetis next-step <issue number> | --open | --json, e.g. scripts/celetis next-step 276\n"
+      },
+      {
+        "code": 2,
+        "stdout": "",
+        "stderr": "usage: scripts/celetis next-step <issue number> | --open | --json, e.g. scripts/celetis next-step 276\n"
+      },
+      {
+        "code": 2,
+        "stdout": "",
+        "stderr": "usage: scripts/celetis next-step <issue number> | --open | --json, e.g. scripts/celetis next-step 276\n"
+      },
+      {
+        "code": 2,
+        "stdout": "",
+        "stderr": "usage: scripts/celetis next-step <issue number> | --open | --json, e.g. scripts/celetis next-step 276\n"
+      },
+      {
+        "code": 2,
+        "stdout": "",
+        "stderr": "usage: scripts/celetis next-step <issue number> | --open | --json, e.g. scripts/celetis next-step 276\n"
+      },
+      {
+        "code": 2,
+        "stdout": "",
+        "stderr": "usage: scripts/celetis next-step <issue number> | --open | --json, e.g. scripts/celetis next-step 276\n"
+      },
+      {
+        "code": 2,
+        "stdout": "",
+        "stderr": "celetis: <scratch>/repo dir/.celetis.yaml: <document>: need a regular, readable file, with no symlink\n"
+      },
+      {
+        "code": 2,
+        "stdout": "",
+        "stderr": "celetis: <scratch>/repo dir/.celetis.yaml: landing: invalid value\n"
+      },
+      {
+        "code": 128,
+        "stdout": "",
+        "stderr": "fatal: not a git repository (or any of the parent directories): .git\n"
+      }
+    ],
+    "dirty main and matching lanes keep refusal and landing precedence": [
+      {
+        "code": 0,
+        "stdout": "stop the working tree is dirty: <scratch>/repo dir/.claude/worktrees/7-crash; commit or stash first\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "stop the working tree is dirty: <scratch>/repo dir/.claude/worktrees/7-crash; commit or stash first\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\tstop the working tree is dirty: <scratch>/repo dir/.claude/worktrees/7-crash; commit or stash first\n8\trun /celetis:chore #8\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "stop the working tree is dirty: <scratch>/repo dir; commit or stash first\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "stop the working tree is dirty: <scratch>/repo dir; commit or stash first\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\tstop the working tree is dirty: <scratch>/repo dir; commit or stash first\n8\tstop the working tree is dirty: <scratch>/repo dir; commit or stash first\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "{\n  \"noRun\": \"The main checkout is dirty: <scratch>/repo dir. Commit or stash first.\",\n  \"issues\": [\n    {\n      \"number\": 7,\n      \"title\": \"Issue 7\",\n      \"url\": \"https://github.com/o/r/issues/7\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #7\",\n      \"state\": \"dirty\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": null,\n      \"path\": \"<scratch>/repo dir/.claude/worktrees/7-crash\"\n    },\n    {\n      \"number\": 8,\n      \"title\": \"Issue 8\",\n      \"url\": \"https://github.com/o/r/issues/8\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #8\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": null\n    }\n  ]\n}\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:bug #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:bug #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:bug #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "{\n  \"noRun\": null,\n  \"issues\": [\n    {\n      \"number\": 7,\n      \"title\": \"Issue 7\",\n      \"url\": \"https://github.com/o/r/issues/7\",\n      \"type\": \"feature\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"stop #7 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"state\": \"dirty\",\n      \"reason\": \"landing refused\",\n      \"act\": \"Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"pr\": null,\n      \"path\": \"<scratch>/repo dir/.claude/worktrees/7-crash\"\n    }\n  ]\n}\n",
+        "stderr": ""
+      }
+    ],
+    "landing locks recognize land.ts and reject stale or unrelated owners": [
+      {
+        "code": 0,
+        "stdout": "run /celetis:implement #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:implement #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:implement #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:implement #7\n",
+        "stderr": ""
+      }
+    ],
+    "board JSON keeps first PR, mixed checks and latest effective review": [
+      {
+        "code": 0,
+        "stdout": "{\n  \"noRun\": null,\n  \"issues\": [\n    {\n      \"number\": 7,\n      \"title\": \"Issue 7\",\n      \"url\": \"https://github.com/o/r/issues/7\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #7\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": null\n    },\n    {\n      \"number\": 8,\n      \"title\": \"Issue 8\",\n      \"url\": \"https://github.com/o/r/issues/8\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #8\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": {\n        \"number\": 22,\n        \"url\": \"https://github.com/o/r/pull/22\",\n        \"draft\": false,\n        \"checks\": \"fail\",\n        \"review\": \"changes\"\n      }\n    },\n    {\n      \"number\": 9,\n      \"title\": \"Issue 9\",\n      \"url\": \"https://github.com/o/r/issues/9\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #9\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": {\n        \"number\": 24,\n        \"url\": \"https://github.com/o/r/pull/24\",\n        \"draft\": true,\n        \"checks\": \"pending\",\n        \"review\": \"required\"\n      }\n    },\n    {\n      \"number\": 10,\n      \"title\": \"Issue 10\",\n      \"url\": \"https://github.com/o/r/issues/10\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #10\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": {\n        \"number\": 25,\n        \"url\": \"https://github.com/o/r/pull/25\",\n        \"draft\": false,\n        \"checks\": \"pass\",\n        \"review\": \"approved\"\n      }\n    },\n    {\n      \"number\": 11,\n      \"title\": \"Issue 11\",\n      \"url\": \"https://github.com/o/r/issues/11\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #11\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": {\n        \"number\": 26,\n        \"url\": \"https://github.com/o/r/pull/26\",\n        \"draft\": false,\n        \"checks\": \"fail\",\n        \"review\": null\n      }\n    },\n    {\n      \"number\": 12,\n      \"title\": \"Issue 12\",\n      \"url\": \"https://github.com/o/r/issues/12\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #12\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": {\n        \"number\": 27,\n        \"url\": \"https://github.com/o/r/pull/27\",\n        \"draft\": false,\n        \"checks\": null,\n        \"review\": null\n      }\n    }\n  ]\n}\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "{\n  \"noRun\": null,\n  \"issues\": [\n    {\n      \"number\": 7,\n      \"title\": \"Issue 7\",\n      \"url\": \"https://github.com/o/r/issues/7\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #7\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": {\n        \"number\": 31,\n        \"url\": \"https://github.com/o/r/pull/31\",\n        \"draft\": false,\n        \"checks\": \"fail\",\n        \"review\": \"approved\"\n      }\n    },\n    {\n      \"number\": 8,\n      \"title\": \"Issue 8\",\n      \"url\": \"https://github.com/o/r/issues/8\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #8\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": {\n        \"number\": 32,\n        \"url\": \"https://github.com/o/r/pull/32\",\n        \"draft\": false,\n        \"checks\": \"pending\",\n        \"review\": \"changes\"\n      }\n    },\n    {\n      \"number\": 9,\n      \"title\": \"Issue 9\",\n      \"url\": \"https://github.com/o/r/issues/9\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #9\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": {\n        \"number\": 33,\n        \"url\": \"https://github.com/o/r/pull/33\",\n        \"draft\": false,\n        \"checks\": null,\n        \"review\": \"changes\"\n      }\n    },\n    {\n      \"number\": 10,\n      \"title\": \"Issue 10\",\n      \"url\": \"https://github.com/o/r/issues/10\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #10\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": {\n        \"number\": 34,\n        \"url\": \"https://github.com/o/r/pull/34\",\n        \"draft\": false,\n        \"checks\": null,\n        \"review\": \"approved\"\n      }\n    },\n    {\n      \"number\": 11,\n      \"title\": \"Issue 11\",\n      \"url\": \"https://github.com/o/r/issues/11\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #11\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": {\n        \"number\": 35,\n        \"url\": \"https://github.com/o/r/pull/35\",\n        \"draft\": false,\n        \"checks\": null,\n        \"review\": null\n      }\n    },\n    {\n      \"number\": 12,\n      \"title\": \"Issue 12\",\n      \"url\": \"https://github.com/o/r/issues/12\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #12\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": {\n        \"number\": 36,\n        \"url\": \"https://github.com/o/r/pull/36\",\n        \"draft\": false,\n        \"checks\": null,\n        \"review\": \"required\"\n      }\n    },\n    {\n      \"number\": 13,\n      \"title\": \"Issue 13\",\n      \"url\": \"https://github.com/o/r/issues/13\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #13\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": {\n        \"number\": 37,\n        \"url\": \"https://github.com/o/r/pull/37\",\n        \"draft\": false,\n        \"checks\": null,\n        \"review\": \"required\"\n      }\n    },\n    {\n      \"number\": 14,\n      \"title\": \"Issue 14\",\n      \"url\": \"https://github.com/o/r/issues/14\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #14\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": {\n        \"number\": 38,\n        \"url\": \"https://github.com/o/r/pull/38\",\n        \"draft\": false,\n        \"checks\": null,\n        \"review\": null\n      }\n    }\n  ]\n}\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "{\n  \"noRun\": null,\n  \"issues\": [\n    {\n      \"number\": 7,\n      \"title\": \"Issue 7\",\n      \"url\": \"https://github.com/o/r/issues/7\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #7\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": {\n        \"number\": 31,\n        \"url\": \"https://github.com/o/r/pull/31\",\n        \"draft\": false,\n        \"checks\": \"fail\",\n        \"review\": null\n      }\n    }\n  ]\n}\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "{\n  \"noRun\": null,\n  \"issues\": [\n    {\n      \"number\": 7,\n      \"title\": \"Issue 7\",\n      \"url\": \"https://github.com/o/r/issues/7\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #7\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": {\n        \"number\": 31,\n        \"url\": \"https://github.com/o/r/pull/31\",\n        \"draft\": false,\n        \"checks\": \"fail\",\n        \"review\": null\n      }\n    }\n  ]\n}\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "{\n  \"noRun\": null,\n  \"issues\": [\n    {\n      \"number\": 7,\n      \"title\": \"Issue 7\",\n      \"url\": \"https://github.com/o/r/issues/7\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #7\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": {\n        \"number\": 31,\n        \"url\": \"https://github.com/o/r/pull/31\",\n        \"draft\": false,\n        \"checks\": \"fail\",\n        \"review\": null\n      }\n    }\n  ]\n}\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "{\n  \"noRun\": null,\n  \"issues\": [\n    {\n      \"number\": 7,\n      \"title\": \"Issue 7\",\n      \"url\": \"https://github.com/o/r/issues/7\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #7\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": {\n        \"number\": 31,\n        \"url\": \"https://github.com/o/r/pull/31\",\n        \"draft\": false,\n        \"checks\": \"fail\",\n        \"review\": null\n      }\n    }\n  ]\n}\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "{\n  \"noRun\": null,\n  \"issues\": [\n    {\n      \"number\": 7,\n      \"title\": \"Issue 7\",\n      \"url\": \"https://github.com/o/r/issues/7\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #7\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": {\n        \"number\": 31,\n        \"url\": \"https://github.com/o/r/pull/31\",\n        \"draft\": false,\n        \"checks\": \"fail\",\n        \"review\": null\n      }\n    }\n  ]\n}\n",
+        "stderr": ""
+      }
+    ],
+    "board refusal reasons use the last level-two heading": [
+      {
+        "code": 0,
+        "stdout": "{\n  \"noRun\": null,\n  \"issues\": [\n    {\n      \"number\": 7,\n      \"title\": \"Issue 7\",\n      \"url\": \"https://github.com/o/r/issues/7\",\n      \"type\": \"feature\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"stop #7 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"state\": \"blocked\",\n      \"reason\": \"landing refused\",\n      \"act\": \"Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"pr\": null\n    },\n    {\n      \"number\": 8,\n      \"title\": \"Issue 8\",\n      \"url\": \"https://github.com/o/r/issues/8\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"stop #8 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"state\": \"blocked\",\n      \"reason\": \"landing refused\",\n      \"act\": \"Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"pr\": null\n    },\n    {\n      \"number\": 9,\n      \"title\": \"Issue 9\",\n      \"url\": \"https://github.com/o/r/issues/9\",\n      \"type\": \"hotfix\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"stop #9 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"state\": \"blocked\",\n      \"reason\": \"landing refused\",\n      \"act\": \"Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"pr\": null\n    },\n    {\n      \"number\": 10,\n      \"title\": \"Issue 10\",\n      \"url\": \"https://github.com/o/r/issues/10\",\n      \"type\": \"feature\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"stop #10 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"state\": \"blocked\",\n      \"reason\": \"landing refused\",\n      \"act\": \"Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"pr\": null\n    },\n    {\n      \"number\": 11,\n      \"title\": \"Issue 11\",\n      \"url\": \"https://github.com/o/r/issues/11\",\n      \"type\": \"feature\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"stop #11 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"state\": \"blocked\",\n      \"reason\": \"ready for your step\",\n      \"act\": \"Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"pr\": null\n    },\n    {\n      \"number\": 12,\n      \"title\": \"Issue 12\",\n      \"url\": \"https://github.com/o/r/issues/12\",\n      \"type\": \"feature\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"stop #12 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"state\": \"blocked\",\n      \"reason\": \"ready for your step\",\n      \"act\": \"Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"pr\": null\n    },\n    {\n      \"number\": 13,\n      \"title\": \"Issue 13\",\n      \"url\": \"https://github.com/o/r/issues/13\",\n      \"type\": \"feature\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"stop #13 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"state\": \"blocked\",\n      \"reason\": \"ready for your step\",\n      \"act\": \"Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"pr\": null\n    },\n    {\n      \"number\": 14,\n      \"title\": \"Issue 14\",\n      \"url\": \"https://github.com/o/r/issues/14\",\n      \"type\": \"feature\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"stop #14 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"state\": \"blocked\",\n      \"reason\": \"ready for your step\",\n      \"act\": \"Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"pr\": null\n    },\n    {\n      \"number\": 15,\n      \"title\": \"Issue 15\",\n      \"url\": \"https://github.com/o/r/issues/15\",\n      \"type\": \"feature\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"stop #15 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"state\": \"blocked\",\n      \"reason\": \"ready for your step\",\n      \"act\": \"Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"pr\": null\n    },\n    {\n      \"number\": 16,\n      \"title\": \"Issue 16\",\n      \"url\": \"https://github.com/o/r/issues/16\",\n      \"type\": \"feature\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"stop #16 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"state\": \"blocked\",\n      \"reason\": \"ready for your step\",\n      \"act\": \"Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"pr\": null\n    },\n    {\n      \"number\": 17,\n      \"title\": \"Issue 17\",\n      \"url\": \"https://github.com/o/r/issues/17\",\n      \"type\": \"feature\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"stop #17 needs info. Answer the questions on the issue, then remove the label.\",\n      \"state\": \"blocked\",\n      \"reason\": \"needs info\",\n      \"act\": \"Answer the questions on the issue, then remove the label.\",\n      \"pr\": null\n    },\n    {\n      \"number\": 18,\n      \"title\": \"Issue 18\",\n      \"url\": \"https://github.com/o/r/issues/18\",\n      \"type\": \"feature\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:implement #18\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": null\n    },\n    {\n      \"number\": 19,\n      \"title\": \"Issue 19\",\n      \"url\": \"https://github.com/o/r/issues/19\",\n      \"type\": \"feature\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": \"<date:0>\",\n      \"line\": \"stop #19 is finished.\",\n      \"state\": \"done\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": null\n    }\n  ]\n}\n",
+        "stderr": ""
+      }
+    ],
+    "closed window, pagination, metadata and non-issue filtering keep all rows": [
+      {
+        "code": 0,
+        "stdout": "7\trun /celetis:chore #7\n12\tstop #12 is an epic. Each child runs its own flow.\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "{\n  \"noRun\": null,\n  \"issues\": [\n    {\n      \"number\": 7,\n      \"title\": \"Issue 7\",\n      \"url\": \"https://github.com/o/r/issues/7\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #7\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": null\n    },\n    {\n      \"number\": 9,\n      \"title\": \"Issue 9\",\n      \"url\": \"https://github.com/o/r/issues/9\",\n      \"type\": \"bug\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": \"<date:0>\",\n      \"line\": \"stop #9 is finished.\",\n      \"state\": \"done\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": null\n    }\n  ]\n}\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "7\trun /celetis:implement #7\n8\trun /celetis:chore #8\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "{\n  \"noRun\": null,\n  \"issues\": [\n    {\n      \"number\": 7,\n      \"title\": \"Issue 7\",\n      \"url\": \"https://github.com/o/r/issues/7\",\n      \"type\": \"bug\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:implement #7\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": {\n        \"number\": 23,\n        \"url\": \"https://github.com/o/r/pull/23\",\n        \"draft\": false,\n        \"checks\": \"pending\",\n        \"review\": null\n      }\n    },\n    {\n      \"number\": 8,\n      \"title\": \"Issue 8\",\n      \"url\": \"https://github.com/o/r/issues/8\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #8\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": {\n        \"number\": 21,\n        \"url\": \"https://github.com/o/r/pull/21\",\n        \"draft\": false,\n        \"checks\": \"fail\",\n        \"review\": \"changes\"\n      }\n    },\n    {\n      \"number\": 9,\n      \"title\": \"Issue 9\",\n      \"url\": \"https://github.com/o/r/issues/9\",\n      \"type\": \"bug\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": \"<date:0>\",\n      \"line\": \"stop #9 is finished.\",\n      \"state\": \"done\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": null\n    },\n    {\n      \"number\": 10,\n      \"title\": \"Issue 10\",\n      \"url\": \"https://github.com/o/r/issues/10\",\n      \"type\": \"bug\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": \"<date:0>\",\n      \"line\": \"stop #10 is finished.\",\n      \"state\": \"done\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": null\n    }\n  ]\n}\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "{\n  \"noRun\": null,\n  \"issues\": [\n    {\n      \"number\": 7,\n      \"title\": \"Issue 7\",\n      \"url\": \"https://github.com/o/r/issues/7\",\n      \"type\": \"bug\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"stop #7 needs info. Answer the questions on the issue, then remove the label.\",\n      \"state\": \"blocked\",\n      \"reason\": \"needs info\",\n      \"act\": \"Answer the questions on the issue, then remove the label.\",\n      \"pr\": null\n    },\n    {\n      \"number\": 8,\n      \"title\": \"Issue 8\",\n      \"url\": \"https://github.com/o/r/issues/8\",\n      \"type\": \"hotfix\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"stop #8 is ready-for-human. Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"state\": \"blocked\",\n      \"reason\": \"ready for your step\",\n      \"act\": \"Do the human step (e.g. the hotfix ship checklist), then remove the label.\",\n      \"pr\": null\n    },\n    {\n      \"number\": 10,\n      \"title\": \"Issue 10\",\n      \"url\": \"https://github.com/o/r/issues/10\",\n      \"type\": \"bug\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": \"<date:0>\",\n      \"line\": \"stop #10 is finished.\",\n      \"state\": \"done\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": null\n    },\n    {\n      \"number\": 12,\n      \"title\": \"Issue 12\",\n      \"url\": \"https://github.com/o/r/issues/12\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #12\",\n      \"state\": \"dirty\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": null,\n      \"path\": \"<scratch>/repo dir/.claude/worktrees/12-batch\"\n    }\n  ]\n}\n",
+        "stderr": ""
+      }
+    ],
+    "each GitHub read failure retains its diagnostic and stops output": [
+      {
+        "code": 1,
+        "stdout": "stop cannot read #7 from GitHub\n",
+        "stderr": "HTTP 502\n"
+      },
+      {
+        "code": 1,
+        "stdout": "stop cannot read the open issues from GitHub\n",
+        "stderr": "HTTP 502\n"
+      },
+      {
+        "code": 1,
+        "stdout": "stop cannot read the issues from GitHub\n",
+        "stderr": "HTTP 502\n"
+      },
+      {
+        "code": 1,
+        "stdout": "stop cannot read #7 from GitHub\n",
+        "stderr": "HTTP 502\n"
+      },
+      {
+        "code": 1,
+        "stdout": "stop cannot read the open issues from GitHub\n",
+        "stderr": "HTTP 502\n"
+      },
+      {
+        "code": 1,
+        "stdout": "stop cannot read the issues from GitHub\n",
+        "stderr": "HTTP 502\n"
+      },
+      {
+        "code": 1,
+        "stdout": "stop cannot read #7 from GitHub\n",
+        "stderr": "no issue\n"
+      },
+      {
+        "code": 1,
+        "stdout": "stop cannot read the issues from GitHub\n",
+        "stderr": "HTTP 502\n"
+      },
+      {
+        "code": 1,
+        "stdout": "stop cannot read the issues from GitHub\n",
+        "stderr": "HTTP 502\n"
+      },
+      {
+        "code": 1,
+        "stdout": "stop cannot read the issues from GitHub\n",
+        "stderr": "HTTP 502\n"
+      }
+    ],
+    "duplicate issue pages keep the first record, as in the baseline": [
+      {
+        "code": 0,
+        "stdout": "{\n  \"noRun\": null,\n  \"issues\": [\n    {\n      \"number\": 7,\n      \"title\": \"Issue 7\",\n      \"url\": \"https://github.com/o/r/issues/7\",\n      \"type\": \"chore\",\n      \"updatedAt\": \"<date:0>\",\n      \"closedAt\": null,\n      \"line\": \"run /celetis:chore #7\",\n      \"state\": \"ready\",\n      \"reason\": null,\n      \"act\": null,\n      \"pr\": null\n    }\n  ]\n}\n",
+        "stderr": ""
+      }
+    ],
+    "real process landing owner stays live until land.ts exits": [
+      {
+        "code": 0,
+        "stdout": "run /celetis:implement #7\n",
+        "stderr": ""
+      },
+      {
+        "code": 0,
+        "stdout": "run /celetis:implement #7\n",
+        "stderr": ""
+      }
+    ],
+    "a failed landing process query leaves the lock unowned": [
+      {
+        "code": 0,
+        "stdout": "run /celetis:implement #7\n",
+        "stderr": ""
+      }
+    ]
+  }
+}

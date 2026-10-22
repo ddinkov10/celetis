@@ -1,13 +1,15 @@
-import { expect, setDefaultTimeout, test } from 'bun:test';
+import { expect, setDefaultTimeout } from 'bun:test';
 import { spawn } from 'node:child_process';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { command, type Fixture, isolatedArgs, root, withFixture } from './lib/fixture.ts';
 
+import { referenceTests } from './lib/reference.ts';
+
+const { test, expected } = referenceTests('next-step');
 setDefaultTimeout(25_000);
 
 const entry = join(root, 'scripts/next-step.ts');
-const baseline = join(root, 'scripts/next-step.sh');
 const usage = 'usage: scripts/celetis next-step <issue number> | --open | --json, e.g. scripts/celetis next-step 276\n';
 const info = 'Answer the questions on the issue, then remove the label.';
 const act = 'Do the human step (e.g. the hotfix ship checklist), then remove the label.';
@@ -66,13 +68,12 @@ async function resolver(f: Fixture, realPs = false) {
   await f.stub(
     'gh',
     String.raw`import {readFileSync,appendFileSync} from 'node:fs';
-import {spawnSync} from 'node:child_process';
 await Bun.stdin.text();
 const args = process.argv.slice(2); appendFileSync(process.env.GH_LOG!,JSON.stringify(args)+'\n');
 const s = JSON.parse(readFileSync(process.env.GH_STATE!,'utf8'));
 if(args.shift() !== 'api') {console.error('HTTP 403: GitHub GraphQL is not available from Claude Code sessions');process.exit(1);}
-const paginate=args.includes('--paginate'),slurp=args.includes('--slurp'), ji=args.indexOf('--jq');
-const filter=ji<0?null:args[ji+1]; const endpoint=args.find((v,i)=>!v.startsWith('-')&&(ji<0||i!==ji+1))!;
+const paginate=args.includes('--paginate'),slurp=args.includes('--slurp');
+const endpoint=args.find(v=>!v.startsWith('-'))!;
 const path=endpoint.split('?')[0].replace('repos/{owner}/{repo}/','');
 if(s.fail==='all'||s.fail===path){console.error('HTTP 502');process.exit(1);}
 const issues=s.issues??[],prs=s.prs??[];
@@ -87,8 +88,7 @@ else if(/^pulls\/\d+\/reviews$/.test(path)){value=prs.find(p=>p.number===Number(
 else {console.error('unexpected endpoint '+endpoint);process.exit(1);}
 if(list&&(!paginate||!endpoint.includes('per_page=100'))){console.error('list needs pagination');process.exit(1);}
 const pages=[];if(list){const size=s.pageSize??100;for(let i=0;i<value.length;i+=size)pages.push(wrap(value.slice(i,i+size)));if(!pages.length)pages.push(wrap([]));}
-if(filter){for(const v of list?pages:[value]){const r=spawnSync('jq',['-r',filter],{input:JSON.stringify(v),encoding:'utf8'});process.stdout.write(r.stdout);if(r.status){process.stderr.write(r.stderr);process.exit(r.status);}}}
-else {if(list&&!slurp){console.error('typed pagination needs --slurp');process.exit(1);}console.log(JSON.stringify(list?pages:value));}`,
+if(list&&!slurp){console.error('typed pagination needs --slurp');process.exit(1);}console.log(JSON.stringify(list?pages:value));`,
   );
   if (!realPs)
     await f.stub(
@@ -111,7 +111,7 @@ else {if(list&&!slurp){console.error('typed pagination needs --slurp');process.e
     const result = await f.bun(entry, args, { cwd, env });
     const calls = await readFile(log, 'utf8').catch(() => '');
     if (compare) {
-      const old = await command('/bin/bash', [baseline, ...args], { cwd, env });
+      const old = await expected(f.dir, await readFile(stateFile, 'utf8'));
       expect(result.code).toBe(old.code);
       expect(result.stdout).toBe(old.stdout);
       expect(result.stderr).toBe(old.stderr);
@@ -384,7 +384,7 @@ test(
       .map((l) => (JSON.parse(l) as string[]).find((v) => v.startsWith('repos/')) as string);
     for (const n of [21, 22, 23, 24, 25, 26, 27])
       for (const path of [`commits/sha${n}/check-runs`, `commits/sha${n}/status`, `pulls/${n}/reviews`])
-        expect(paths.filter((p) => p === `repos/{owner}/{repo}/${path}?per_page=100`)).toHaveLength(2);
+        expect(paths.filter((p) => p === `repos/{owner}/{repo}/${path}?per_page=100`)).toHaveLength(1);
     expect(paths.some((p) => p.includes('sha28'))).toBe(false);
     const reviewPrs = [
       pr(

@@ -1,5 +1,6 @@
 import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import { bunShebang } from './lib/process.ts';
 
 const pin = '1.4.2';
 const root = dirname(import.meta.dir);
@@ -17,8 +18,6 @@ const browserTargets = ['board', 'view', 'ui', 'panel', 'palette'].map((name) =>
   output: `board/${name === 'board' ? 'board.js' : `${name}.mjs`}`,
   mode: 0o644,
 }));
-const shebang =
-  '#!/usr/bin/env -S BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros';
 
 export async function main(args: string[]): Promise<number> {
   if (Bun.version !== pin) {
@@ -44,7 +43,7 @@ export async function main(args: string[]): Promise<number> {
       naming: target.output,
       minify: false,
       sourcemap: 'none',
-      banner: target.entry.startsWith('scripts/') ? shebang : undefined,
+      banner: target.entry.startsWith('scripts/') ? bunShebang : undefined,
       plugins: browser
         ? [
             {

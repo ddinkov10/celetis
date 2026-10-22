@@ -30,20 +30,18 @@ apart from a path that starts with `~/` or `/`.
 
 ## Requirements
 
-- macOS or Linux, with bash 3.2 or later. There is no native Windows runner.
+- macOS or Linux, with Bun 1.4.2 or later. There is no native Windows runner.
 - The selected host CLI (`claude` 2.1.299 or later, or `codex` 0.162.1 or later; the README gives
-  the reason for each), `gh` (logged in), `jq`, Bun 1.4.2 or later,
+  the reason for each), `gh` (logged in), Bun 1.4.2 or later,
   and `git` 2.31 or later on `PATH`. See `docs/configuration.md` for the install of
-  Bun. When `gh` or `git` is missing, the script names it and exits 1. The runner also needs Perl 5.14 or later on `PATH`;
-  its update helper uses only the standard library. The launcher needs the selected host and `jq` to find
-  the plugin (the next item). When `jq` is missing, the launcher prints `celetis: jq is not on PATH` and
-  exits 1. In a Git checkout, when neither `--agent` nor `CELETIS_AGENT` names the host, the
-  launcher also needs Bun to read `host` of the main config before it finds the plugin.
+  Bun. A missing external command keeps its diagnostic and failure status. The generated launcher
+  uses the selected host's enabled installation metadata to find the plugin. Child Celetis
+  programs keep the selected Bun and all startup isolation flags. No jq or Perl runtime is needed.
 - The scripts use only the REST API of GitHub (`gh api`), so they also work where a proxy refuses
   GraphQL, as in a Claude Code cloud session.
 - The plugin `celetis@celetis`, installed on the machine, and the launcher `scripts/celetis` in the
   product project. The scripts and the step text come from the installed plugin:
-  `scripts/celetis <name> <arguments>` runs `scripts/<name>.sh` of that plugin with those arguments.
+  `scripts/celetis <name> <arguments>` runs `scripts/<name>.ts` of that plugin with those arguments.
   The selected host must report a current enabled installation. Missing, disabled, malformed,
   or ambiguous metadata stops lookup. Codex lookup uses `skills/list` on a short-lived local
   app-server connection; it starts no model turn. The README holds the separate installation
@@ -117,7 +115,7 @@ trees: `done`, `blocked` with `reason` and `act`, `ready`, or `dirty` with `path
 `noRun` text for a dirty main checkout. `--board` adds what the runner knows: `starting` for a lock
 that a live script holds, `stuck` with its `act` for a row of the record, the `step`, `started`,
 and `urgent` of each row, `runner`, `tracker`, and `flow` with the gate of each step. "The board"
-gives the value of each field. When `gh` or `jq` fails, the form prints
+gives the value of each field. When a tracker request or its data conversion fails, the form prints
 `stop cannot read the issues from GitHub` and exits 1. The board is its reader: the adapter supplies this form as `data`.
 
 **The form `--resume <n>`** reopens the exact session from
@@ -193,12 +191,12 @@ lookup. When a command fails, the script shows the command, its exit status, and
 exits 1. A timeout names the operation that did not finish and shows its captured output. The
 script starts no session and writes no row to `no-progress` on an update failure.
 
-The helper `scripts/plugin-update.pl` holds an operating-system file lock at
+The helper `scripts/plugin-update.ts` holds an operating-system file lock at
 `<selected host configuration directory>/celetis-update.lock`. Claude uses `CLAUDE_CONFIG_DIR`
 or `~/.claude`; Codex uses `CODEX_HOME` or `~/.codex`. This lock is shared by runners in different
 product projects that use the same host configuration. The lock file stays on disk; its existence does not mean
 that an update runs. The operating system releases a lock when its last holder exits.
-This one Perl helper accepts the runner PID and selected host. Both hosts use the same deadline,
+This TypeScript helper accepts the runner PID and selected host. Both hosts use the same deadline,
 lock, process-group cleanup, and validated launcher lookup.
 
 On a timeout, an interruption, or runner exit, the helper terminates the command's process group
@@ -226,7 +224,7 @@ board links the session to the issue. It also starts a job in the background tha
 2. It waits until the agent is ready for the next prompt:
    `herdr agent wait <pane> --until idle --until done`.
 3. It verifies the current host, identity, readiness, and idle/done state, then reads
-   `next-step.sh <n>`. A changed `run` line or `stop #<n> ` line permits an exit check. The job
+   `next-step.ts <n>`. A changed `run` line or `stop #<n> ` line permits an exit check. The job
    reads the resolver again, then makes a final session-state check before it submits `/exit`.
    A blocked or unknown state gets no exit. A failed submission leaves the session open and
    prints a recovery action.
@@ -346,9 +344,12 @@ inputs remain available outside a repository. They need no project config.
 (`docs/issue-tracker.md`, "Branches, PRs, merge"). A new branch starts at the freshly fetched trunk
 of `origin`. `gh api 'repos/{owner}/{repo}' --jq .default_branch` gives the trunk when the command creates a
 new branch. The command checks `.celetis.yaml` in the lane before setup. It reads `worktreeSetup`
-as one string and runs `bash -c "$setup" celetis-worktree-setup "$main"` in the lane. `$1` is the
-main checkout. Multiline scripts share variables and functions, preserve their text bytes,
-and keep inherited stdin. All output goes to stderr; stdout holds only the successful lane path.
+as one TypeScript string and writes its exact bytes to a private 0600 temporary file outside
+both the main checkout and lane. The selected Bun runs it in the lane. `process.argv[2]` is the
+absolute main checkout. Stdin, stdout, and stderr stay inherited. Check each external command
+status and stop on failure. After nonempty setup output, the command prints an LF separator and
+the final absolute lane path. `setup try` also prints its path after preparation or execution
+failure. Signals remove the temporary file and stop the owned child.
 An omitted or empty setup runs no script.
 
 A failed setup or invalid new lane config prints `worktree setup failed:`, removes a new
@@ -395,7 +396,7 @@ The board stays independent of YAML and Celetis field names. ADR-0009 keeps cont
 command/path trust rules. ADR-0015 replaces the config storage, and ADR-0020 makes the board a part
 of the plugin.
 
-**Requirements.** Node 22 from 22.18, or Node 24.2 or later; Git 2.31 or later; herdr 0.9.3 and a
+**Requirements.** Bun 1.4.2 or later; Git 2.31 or later; herdr 0.9.3 and a
 running server; and a Chromium browser. The board needs no GitHub credentials of its own.
 The script requirements above apply to its commands too.
 
@@ -407,20 +408,19 @@ PORT=4500 scripts/celetis board
 ```
 
 The adapter takes no arguments. It validates `.celetis.yaml` from the main checkout, refuses a
-lane start, then runs in the main checkout. Before it finds `node`, it removes each
-`node_modules/.bin` entry from `PATH`, so a product project cannot put its own `node` first.
-The main checkout must still be trusted. The adapter sends one JSON object to
-`node <plugin>/board/cli.mjs --config-stdin`, where `<plugin>` is the root of the installed
-plugin (`scripts/celetis root`). It makes no config file.
-`--config-stdin` is config input; `check --stdin` remains contract-1 issue-data input.
-The adapter exits 1 with one line when `node` is not on `PATH`, or when the plugin has no
-`board/cli.mjs`:
+lane start, then runs in the main checkout. It removes each `node_modules/.bin` entry from
+`PATH` before executable lookup. The main checkout must still be trusted. The adapter starts
+`board/cli.ts` with the selected `process.execPath` and the isolated Bun flags. It sends the
+same four-key JSON object through stdin and makes no config file. `--config-stdin` is config
+input; `check --stdin` remains contract-1 issue-data input. A missing installed `board/cli.ts`
+stops with its path and the instruction to reinstall the plugin.
 
-```text
-celetis-board: node is not on PATH; the board needs Node 22.18, or Node 24.2 or later
-celetis-board: the plugin has no board/cli.mjs: <plugin>; reinstall the plugin
-```
-
+Each configured first item must still be relative, executable, regular, and inside the main
+checkout, with no lane or external realpath. After those checks, the exact isolated Bun shebang
+declares a Bun program. The board binds that validated file to its selected `process.execPath`
+and all isolation flags for data, Run and Resume. Other valid executable producers keep their
+native command. An absolute interpreter in JSON cannot bypass validation. ADR-0025 records
+this runtime binding.
 The board prints its repository, commands, and URL. Open that URL. It reads this input once at
 startup and validates each executable inside the main checkout, with no lane or external path.
 An invalid config or executable stops startup. A busy port also stops it.
@@ -505,7 +505,7 @@ Each row also has `number`, `title`, `url`, `updatedAt`, `closedAt`, and these f
 `<plugin>`:
 
 ```bash
-scripts/celetis celetis-flow --board | node <plugin>/board/cli.mjs check --stdin
+scripts/celetis celetis-flow --board | bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/board/cli.ts check --stdin
 ```
 
 The checker prints `agent-board: contract 1, <count> issues, ok` and exits 0, or it prints one line
@@ -597,7 +597,7 @@ results as of 2026-10-20, not a certified minimum-version range:
 | herdr 0.9.3 | The installed integrations report Claude v10 and Codex v8. Later reviewed-source Codex checks passed valid startup, real no-progress, and native exact Resume with a saved second turn. The resumed herdr reply still lacked `agent_session`. Claude recovery, compaction, and full workflow checks remain open |
 | agent-board 2.0.0, tag commit `e36283b` (earlier storage) | Contract 1 and the current config path passed. Released-browser Open shell and partial Claude Run/Go passed. The earlier Codex Run stopped on a local-marketplace setup error; Claude later stopped on quota. Later reviewed-source Codex Run, Resume, and Go passed with the correct issue and pane. Full acceptance remains open |
 | `board/` of the plugin, from source commit `95144d3` (ADR-0020) | The board code of `95144d3` is the code of the release commit `2014361f365e03e18169ed75d602b729e25e03bb`. That release records a 322-test gate and read-only default-agent controls. The adapter and fixture Run/Resume checks of that release have separate evidence. Real browser/Herdr Run and Resume remain open |
-| Bash 3.2.57, Perl 5.34.1, Node 26.11.1 | Used for the local deterministic gate and released-board checks. The scripts retain Bash 3.2 and Perl 5.14 as their language requirements |
+| Bash 3.2.57, Perl 5.34.1, Node 26.11.1 | Historical gate and released-board evidence before ADR-0025. Current commands and tests require Bun 1.4.2 or later |
 
 The later Codex board checks used reviewed commit `626881b`; the
 [public evidence record](https://github.com/ddinkov10/celetis/issues/21#issuecomment-6187619525)
@@ -678,7 +678,7 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   the tab with the message of the script. A Run press whose session ends at once thus leaves no
   message: start `scripts/celetis celetis-flow <n>` in a terminal to see it.
 - A start of the board from the entry `board` of `.claude/launch.json`, in a project that has such
-  an entry, needs `node`, `herdr`, and the tools of the script on the `PATH` of the desktop app,
+  an entry, needs `bun`, `herdr`, and the tools of the command on the `PATH` of the desktop app,
   and no git credentials. This is not checked: the desktop app reads
   `.claude/launch.json` of the main checkout, so the build of a lane cannot start the entry `board`
   of its branch. When that entry does not start the board, start the board in a terminal.
@@ -697,68 +697,38 @@ model profiles, and permissions; a missing tool or denied read stops that operat
 
 ## Check the harness
 
-The tests of the script, the resolver, `scripts/land.sh`, `scripts/worktree.sh`, `scripts/setup.sh`,
-the launcher, and the text of the plugin are in `tests/` of the plugin repository,
-`ddinkov10/celetis`: run them in a checkout of that repository. `scripts/verify.sh` is the verify
-gate of that repository, a fast deterministic check. It lints, formats, and parses each tracked
-file that has a row, and it runs no test but the text rules, `tests/text.test.sh`. Each path of
-`git ls-files` gets the checks of its row in the script, or an exemption with its reason there. A
-path with neither fails the gate, so a new file type cannot pass unchecked. `README.md`, "Tests",
-lists the rows. The gate runs its checks at the same time, and it takes about 7 s on 4 cores. Its
-last line is `verify: PASS`. The lines of `tests/lib/tools.txt` pin its tools. A missing tool
-fails the gate, and a version that differs from its pin prints a warning. The gate needs Claude's
-validator but starts no model turn. A product project needs none of these tools. Codex package
-checks use the shared manifest, file, link, and invocation metadata checks in `tests/text.test.sh`
-and the discovery fixtures in `tests/launcher.test.sh`. There is no Codex plugin-validation
-command.
+Run repository checks in a checkout of `ddinkov10/celetis`. The fast gate is `scripts/verify.ts`.
+It classifies every tracked path, runs Biome and three strict type environments, native
+actionlint, YAML and plugin validation, general-text tests, and generated byte/mode comparison.
+It installs nothing and runs no full suite. Exact file roles distinguish generated delivery,
+unchanged vendor code, non-executed baseline evidence and file exemptions.
 
-`tests/suite.sh` is the full suite. It runs the board suite and each `tests/*.test.sh` at the same
-time, one job per core, and prints the output and the time of each test in glob order. Then it runs
-`scripts/capscore.sh --test`. Its last line is `suite: PASS`. The board suite needs Node 22.18, or
-Node 24.2 or later. A lane runs the gate after each task. The full suite runs once, on the tree
-that lands: the landing of this repository is `pr`, so CI runs it on the lane PR.
+`tests/suite.ts` discovers each automatic Bun test entry, including the three landing entries,
+all board and adapter entries, and native/manual deterministic harnesses. Bounded file workers
+have a 30-second deadline, propagate failure, and clean child groups on signals. The token-using
+manual programs have no test suffix and stay excluded. Each file uses private scratch state.
+The final line is `suite: PASS`. A lane runs the gate after each task. The full suite runs once
+on the tree that lands, through the lane PR's Linux CI job.
 
-The workflow `.github/workflows/test.yml` runs for each pull request and push to `main`. It has one
-job with two legs on `ubuntu-24.04`, bash 5 and bash 3.2.57. Each leg runs `scripts/verify.sh` and
-then `tests/suite.sh`, and `scripts/celetis land` waits for both legs. The 3.2.57 leg builds bash
-3.2.57 from the GNU source with a pinned checksum, caches the build, and installs it as
-`/usr/bin/bash`, which is `/bin/bash` on the runner. So each later step of that leg, and each test,
-runs under bash 3.2.57. The workflow uses no model credentials,
-host CLI, or token-consuming test. Live and model tests stay in `tests/manual/` or explicit
-acceptance runs. A deterministic PASS does not complete those scenarios. The board's tests are
-`board/*.test.mjs` of the plugin repository, and `(cd board && node --test)` runs them.
+The workflow uses Bun 1.4.2 on Linux, with separate `Verify gate` and `Full suite` steps. A
+macOS/Linux process subset exercises actual locks, cleanup and runner lifecycle checks. It adds
+no second full-suite run. The private TypeScript installer checks the official actionlint hash
+and installs pinned JavaScript tools with Bun. Checks resolve package/type metadata from the
+filesystem and run JavaScript tool entries on the selected Bun. No model credentials are needed.
 
-```bash
-scripts/verify.sh
-tests/suite.sh
-(cd board && node --test)
-bash tests/celetis-flow.test.sh
-bash tests/next-step.test.sh
-bash tests/land.test.sh
-bash tests/worktree.test.sh
-bash tests/setup.test.sh
-bash tests/launcher.test.sh
-bash tests/text.test.sh
-bash tests/manual/step-prompt.test.sh --agent claude
-bash tests/manual/step-prompt.test.sh --agent codex
+```sh
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros scripts/verify.ts
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros tests/suite.ts
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros test board/cli.test.ts tests/board-agent.test.ts
 ```
 
-`bash tests/celetis-flow.test.sh` gives each `--board` document of its stub world to
-`node <checkout>/board/cli.mjs check --stdin`, the checker of the board in the same checkout, so
-the test fails when the script leaves contract 1. For the document of the real issues, "The board"
-gives the `check` command.
+The runner's board-data tests use `board/cli.ts check --stdin`, so an invalid contract 1 fails.
+The real adapter test exercises data, both Run agents, errors, and exact saved-host Resume through
+the generated product launcher with no Bun on PATH and with a wrong Bun shadow. The generic
+producer and HTTP trust boundaries stay in place. Native tests run against source and generated
+exports on Bun; the actual hook stays in its host. These checks do not prove live acceptance.
 
-`bash tests/board-agent.test.sh` loads `board/` of a copy of the plugin and checks default changes,
-Run overrides, refusals, and exact Resume through the product launcher, with real Git and a local
-HTTP server. The workflow runs both tests and the board suite.
-
-Tests and scripts can start another `bash` from `PATH`. The suite runs each test as
-`PATH="/bin:$PATH" /bin/bash <test>`: the `/bin/bash` of the machine runs the test, and the `PATH`
-makes each inner `bash` reach it too. The 3.2.57 leg of the workflow proves bash 3.2 on each pull
-request. A bash built on Linux is not Apple's build, so on a Mac, `/bin/bash tests/suite.sh` proves
-Apple's bash 3.2.
-
-`bash tests/manual/step-prompt.test.sh --agent claude|codex` checks the step text. Select one host;
+`bun --no-env-file --no-install --config=/dev/null --no-macros tests/manual/step-prompt.ts --agent claude|codex` checks the step text. Select one host;
 the `|` is notation, not a shell command. It runs fixed cases in that host's headless turns,
 so it needs that host to be logged in, it uses tokens, and the
 answer of a model can differ between runs. Start it in a product Git checkout or one of its
@@ -772,7 +742,7 @@ discovery. With `--output-dir DIR`, the test saves the instruction files, their 
 the combined instruction text, and each prompt with its result. Run the test after each
 change of `step-prompt.md`, and run it in a product project after each change of the part of its
 `AGENTS.md` on the celetis flow. In a product project, start it in the main checkout as
-`bash "$(scripts/celetis --agent codex root)/tests/manual/step-prompt.test.sh" --agent codex`, or
+`bun --no-env-file --no-install --config=/dev/null --no-macros "$(scripts/celetis --agent codex root)/tests/manual/step-prompt.ts" --agent codex`, or
 use `claude` in both places. The test then reads the step text of the installed plugin.
 For Claude, the script sets `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`, because the
 git status snapshot of a turn holds the branch name and the last commit subjects, and these can
@@ -781,7 +751,7 @@ state the behavior that a case asserts. A turn with the step text starts with
 no text on auto mode in its context, so the test does not show how auto mode acts on a session
 (ADR-0011).
 
-`tests/manual/custom-part.test.sh` is the separate 24-case Claude test for native `Read`,
+`tests/manual/custom-part.ts` is the separate 24-case Claude test for native `Read`,
 missing files, denied reads, and checkout changes. Codex explicit-file and denied-read probes
 need their own recorded tool results; a text-only answer cannot prove a file was read. The
 explicit-only metadata of `guide` and `setup` is part of the deterministic package check, while

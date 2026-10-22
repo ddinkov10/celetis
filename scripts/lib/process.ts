@@ -2,6 +2,9 @@ import { type ExecFileOptions, execFile, spawn } from 'node:child_process';
 import { constants } from 'node:os';
 import { delimiter } from 'node:path';
 
+export const bunShebang =
+  '#!/usr/bin/env -S BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros';
+
 export function childEnv(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {
     ...source,

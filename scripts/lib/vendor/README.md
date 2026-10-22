@@ -28,4 +28,5 @@ Rules:
 
 - Never edit `yaml.mjs` by hand.
 - An update runs the commands above again, with the new version, and updates this file and `yaml.d.mts`. Then it runs
-  the verify gate, `scripts/verify.sh`, and the full suite, `tests/suite.sh`.
+  the verify gate, `bun --no-env-file --no-install --config=/dev/null --no-macros scripts/verify.ts`, and the full suite,
+  `bun --no-env-file --no-install --config=/dev/null --no-macros tests/suite.ts`.

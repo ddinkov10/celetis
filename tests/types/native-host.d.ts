@@ -4,6 +4,16 @@ export interface Metadata {
   size?: number;
   mtimeMs?: number;
 }
+
+declare global {
+  const crypto: {
+    randomUUID(): string;
+    subtle: { digest(algorithm: string, data: Uint8Array): Promise<ArrayBuffer> };
+  };
+  class TextEncoder {
+    encode(input?: string): Uint8Array;
+  }
+}
 export interface NativeFailure {
   kind: string;
   message?: string;

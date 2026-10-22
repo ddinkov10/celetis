@@ -373,13 +373,18 @@ the JSON gives `cannot read: the data is not JSON`.
 ```
 
 `<plugin>/board/fixtures/contract-1.json` is a document of the same shape, and the tests of the
-board use it. `<plugin>/board/fixtures/producer.sh` is the model of a producer: a file that the
+board use it. `<plugin>/board/fixtures/producer.ts` is the model of a producer: a file that the
 user can execute, which prints one document on stdout and exits 0.
 
-```sh
-#!/bin/sh
-cat "$(dirname "$0")/contract-1.json"
+```ts
+process.stdout.write(await Bun.file(new URL('./contract-1.json', import.meta.url)).text());
 ```
+
+The configured first item remains a relative executable path in the main checkout. After all
+path and execute checks, a program with the exact isolated Bun shebang uses the board's selected
+Bun and all isolation flags. This also applies to Run and Resume. Other valid producers keep
+their native executable. The four stdin keys and the generic producer boundary stay unchanged;
+an absolute interpreter path in JSON is refused. See ADR-0025 of the plugin `celetis`.
 
 A producer of a repository reads its tracker in place of the file. Name it as `data` in the config,
 and check its output with `agent-board check --config-stdin` ("`check`").

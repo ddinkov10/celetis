@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
-import { chmod, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { AGENT, ConfigError, NUMBER, parseConfig } from './config.ts';
+import { runData } from './server.ts';
 import { test } from './test-support.ts';
 
 const LANE = '.claude/worktrees/7-x';
@@ -49,6 +50,18 @@ const refuses = (operation: any, message: any) =>
   });
 
 const refuse = (w: any, config: any, message: any) => refuses(read(w, config), message);
+
+test('a validated generic native binary keeps its executable command', async (t) => {
+  const w = await checkout(t);
+  const target = join(w.main, 'scripts/native');
+  const executable = Bun.which('true');
+  assert.ok(executable);
+  await cp(executable, target);
+  await chmod(target, 0o755);
+  const config = await read(w, { data: ['scripts/native'] });
+  assert.deepEqual(config.data, [target]);
+  assert.deepEqual(await runData(w.main, config.data), { output: '', error: null });
+});
 
 const REFUSALS: any[] = [
   ['the input is not JSON', '{"data": [,]}'],

@@ -1,13 +1,25 @@
 {
-  "include": ["scripts/**/*.ts", "tests/**/*.ts"],
-  "exclude": ["tests/manual/native-observer/hooks/**"],
+  "include": ["**/*.ts"],
+  "exclude": [
+    "node_modules",
+    ".claude",
+    ".superpowers",
+    "hooks/**",
+    "tests/manual/native-observer/hooks/**",
+    "tests/types/**",
+    "board/board.ts",
+    "board/view.ts",
+    "board/ui.ts",
+    "board/panel.ts",
+    "board/palette.ts"
+  ],
   "compilerOptions": {
     "lib": ["ESNext"],
     "target": "ESNext",
     "module": "Preserve",
     "moduleDetection": "force",
     "moduleResolution": "bundler",
-    "allowJs": true,
+    "allowJs": false,
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
