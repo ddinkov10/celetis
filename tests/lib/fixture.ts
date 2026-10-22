@@ -9,7 +9,7 @@ export const isolatedArgs = ['--no-env-file', '--no-install', '--config=/dev/nul
 
 export function command(file: string, args: string[], options: ExecFileOptions = {}) {
   return new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
-    execFile(
+    const child = execFile(
       file,
       args,
       {
@@ -29,6 +29,7 @@ export function command(file: string, args: string[], options: ExecFileOptions =
         resolve({ code: typeof error?.code === 'number' ? error.code : error ? 1 : 0, stdout, stderr });
       },
     );
+    child.stdin?.end();
   });
 }
 

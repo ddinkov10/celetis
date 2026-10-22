@@ -46,6 +46,7 @@ export function run(
         });
       },
     );
+    child.stdin?.end();
     child.once('exit', (code, signal) => {
       if (code !== 0 || signal) {
         child.stdout?.destroy();

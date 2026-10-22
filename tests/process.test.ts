@@ -349,3 +349,15 @@ test(
     expect(await readdir(f.home, { recursive: true })).toEqual([]);
   }),
 );
+
+test(
+  'captured commands receive stdin EOF',
+  withFixture(async (f) => {
+    const child = await f.stub('stdin-eof', 'console.log((await Bun.stdin.text()).length);');
+    expect(await run(process.execPath, bunArgs(child, []), { env: f.env, timeout: 250 })).toEqual({
+      code: 0,
+      stdout: '0\n',
+      stderr: '',
+    });
+  }),
+);
