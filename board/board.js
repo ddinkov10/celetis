@@ -1,6 +1,7 @@
+import { openMenu, openPalette, setupMenu, setupPalette } from './palette.mjs';
+import { drawPanel } from './panel.mjs';
 import {
   $,
-  SERVER_DOWN,
   actionButton,
   copy,
   el,
@@ -9,16 +10,15 @@ import {
   link,
   mark,
   post,
+  SERVER_DOWN,
   store,
   timed,
   toast,
 } from './ui.mjs';
-import { drawPanel } from './panel.mjs';
-import { openMenu, openPalette, setupMenu, setupPalette } from './palette.mjs';
 import {
-  COLUMNS,
   age,
   agentOf,
+  COLUMNS,
   cleanCause,
   favicon,
   groupNeeds,
@@ -375,7 +375,9 @@ const actLine = (card) => {
   const code = el('code');
   shortPath(card.act)
     .split('/')
-    .forEach((part, index) => code.append(...(index ? [el('wbr'), `/${part}`] : [part])));
+    .forEach((part, index) => {
+      code.append(...(index ? [el('wbr'), `/${part}`] : [part]));
+    });
   code.title = card.act;
   node.append(
     code,
@@ -980,7 +982,7 @@ const boardActions = () => [
 const paletteItems = () => {
   if (!data) return [];
   const items = [];
-  const add = (group, card, key, action) =>
+  const add = (group, card, _key, action) =>
     items.push({
       group,
       number: card.number,

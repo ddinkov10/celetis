@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { NODE_NEEDED, cleanPath, isNodeOk } from './runtime.mjs';
+import { cleanPath, isNodeOk, NODE_NEEDED } from './runtime.mjs';
 
 test('the board needs Node 22 from 22.18, or Node 24.2 or later', () => {
   for (const version of ['22.18.0', '22.23.3', '24.2.0', '25.0.0', '26.8.2'])

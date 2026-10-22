@@ -163,7 +163,9 @@ export const check = (doc) => {
   }
   if (report.field('issues', doc.issues, ARRAY)) {
     const seen = new Set();
-    doc.issues.forEach((issue, index) => checkIssue(issue, `issues[${index}]`, seen, report, names));
+    doc.issues.forEach((issue, index) => {
+      checkIssue(issue, `issues[${index}]`, seen, report, names);
+    });
   }
   return report.failures;
 };

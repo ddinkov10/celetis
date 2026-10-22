@@ -86,11 +86,11 @@ const REFUSALS = [
   ['"data": an item has "{" or "}"', { data: ['scripts/data.sh', '{agent}'] }],
   ['"run" has no {n} item', { run: ['scripts/run.sh', '{agent}'] }],
 ];
-REFUSALS.forEach(([message, config], index) =>
+REFUSALS.forEach(([message, config], index) => {
   test(`refusal ${index}: ${message}`, async (t) => {
     await refuse(await checkout(t), config, message);
-  }),
-);
+  });
+});
 
 test('shared config uses the supplied subject for JSON and root refusals', async (t) => {
   const w = await checkout(t);

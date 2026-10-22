@@ -1,14 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  agentOf,
   age,
+  agentOf,
   cleanCause,
   diffText,
-  gateOf,
-  shortPath,
   favicon,
   filterItems,
+  gateOf,
   groupNeeds,
   keyOf,
   laneTrack,
@@ -17,6 +16,7 @@ import {
   pipeline,
   prFacts,
   runTitle,
+  shortPath,
   signature,
   stateLabel,
   tail,

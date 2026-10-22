@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { NODE_NEEDED, cleanPath, isNodeOk } from './runtime.mjs';
+import { cleanPath, isNodeOk, NODE_NEEDED } from './runtime.mjs';
 
 const stop = (line, code = 1) => {
   console.error(line);

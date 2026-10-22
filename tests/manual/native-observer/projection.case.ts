@@ -1,5 +1,6 @@
 import { expect, test } from 'claude-code/testing';
 import { register } from './hooks/register.js';
+
 const filePath = decodeURIComponent(new URL('./project/.celetis.yaml', import.meta.url).pathname);
 const metadataClient = {
   name: 'metadata-client',
@@ -24,7 +25,7 @@ test('compact observation hashes content and preserves the actual result', async
   };
   const logs: any[] = [];
   on('tool.call', () => result);
-  on('ui.log', ($, e) => {
+  on('ui.log', (_$, e) => {
     logs.push(JSON.parse(e.text));
     return { value: undefined };
   });
@@ -45,7 +46,7 @@ test('native error observation retains exact permission text', async ($, on) => 
   };
   const logs: any[] = [];
   on('tool.call', () => result);
-  on('ui.log', ($, e) => {
+  on('ui.log', (_$, e) => {
     logs.push(JSON.parse(e.text));
     return { value: undefined };
   });
@@ -54,11 +55,11 @@ test('native error observation retains exact permission text', async ($, on) => 
 });
 
 for (const code of ['ENOENT', 'EACCES']) {
-  test('metadata observation preserves native ' + code + ' rejection', { plugins: [metadataClient] }, async ($, on) => {
+  test(`metadata observation preserves native ${code} rejection`, { plugins: [metadataClient] }, async ($, on) => {
     const logs: any[] = [];
-    const path = filePath + '.' + code;
+    const path = `${filePath}.${code}`;
     on('fs.stat', () => ({ deny: code }));
-    on('ui.log', ($, e) => {
+    on('ui.log', (_$, e) => {
       logs.push(JSON.parse(e.text));
       return { value: undefined };
     });
@@ -82,7 +83,7 @@ for (const code of ['ENOENT', 'EACCES']) {
     expect(result.result.deny.endsWith(code)).toBe(true);
   });
 
-  test('thrown metadata ' + code + ' is logged and rethrown unchanged', async () => {
+  test(`thrown metadata ${code} is logged and rethrown unchanged`, async () => {
     const handlers: any = {};
     register((event, ...args) => {
       handlers[event] = args[args.length - 1];
@@ -96,7 +97,7 @@ for (const code of ['ENOENT', 'EACCES']) {
         },
       },
     };
-    const error = new Error('fs.stat: ' + code);
+    const error = new Error(`fs.stat: ${code}`);
     const next = Object.assign(
       async () => {
         throw error;

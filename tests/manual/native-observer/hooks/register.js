@@ -2,7 +2,7 @@ let sequence = 0;
 
 function owned($, path) {
   const root = $.plugin.root.slice(0, $.plugin.root.lastIndexOf('/'));
-  return typeof path === 'string' && path.startsWith(root + '/');
+  return typeof path === 'string' && path.startsWith(`${root}/`);
 }
 
 function log($, event, id, input, result, origin) {

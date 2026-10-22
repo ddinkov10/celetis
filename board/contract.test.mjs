@@ -223,12 +223,12 @@ const RULES = [
     },
   ],
 ];
-RULES.forEach(([place, change], index) =>
+RULES.forEach(([place, change], index) => {
   test(`rule ${index}: a bad ${place} is refused at its place`, () => {
     const failures = bad(change);
     assert.ok(failures.length > 0 && failures[0].startsWith(`${place}: `), failures.join('\n'));
-  }),
-);
+  });
+});
 
 test('a failure names the place and the rule, and each failure has its own line', () => {
   assert.deepEqual(bad(row(0, { state: 'waiting' })), ['issues[0].state: "waiting" is not a state of contract 1']);

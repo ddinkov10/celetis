@@ -1,5 +1,5 @@
 function joined(folder, name) {
-  return folder.replace(/[\\/]$/, '') + '/' + name;
+  return `${folder.replace(/[\\/]$/, '')}/${name}`;
 }
 
 function parent(folder) {
@@ -7,7 +7,7 @@ function parent(folder) {
     ? Math.max(folder.lastIndexOf('/'), folder.lastIndexOf('\\'))
     : folder.lastIndexOf('/');
   const value = folder.slice(0, cut);
-  return /^[A-Za-z]:$/.test(value) ? value + '/' : value || '/';
+  return /^[A-Za-z]:$/.test(value) ? `${value}/` : value || '/';
 }
 
 function target(root, path) {
@@ -20,7 +20,7 @@ function target(root, path) {
 const stopInstruction = '\nReport this entry block only. Do not give goal advice or use another access path.';
 
 function stopped(error) {
-  return 'Celetis entry stopped: ' + (error?.message || String(error)) + stopInstruction;
+  return `Celetis entry stopped: ${error?.message || String(error)}${stopInstruction}`;
 }
 
 async function* nativeStop(error, e) {
@@ -35,16 +35,16 @@ async function metadata($, path) {
     return await $.fs.stat(path);
   } catch (error) {
     if (/\bENOENT$/.test(error.message)) return null;
-    throw new Error(path + ' <document>: ' + (error.message || String(error)), { cause: error });
+    throw new Error(`${path} <document>: ${error.message || String(error)}`, { cause: error });
   }
 }
 
 async function read($, path, complete) {
   const answer = await $.tool.call({ tool: 'Read', file_path: path });
-  if (answer.deny || answer.isError) throw new Error(path + ' <document>: ' + (answer.deny || answer.text));
+  if (answer.deny || answer.isError) throw new Error(`${path} <document>: ${answer.deny || answer.text}`);
   const result = answer.result;
   const file = result?.file;
-  if (file?.filePath !== path) throw new Error(path + ' <document>: native Read returned a different path');
+  if (file?.filePath !== path) throw new Error(`${path} <document>: native Read returned a different path`);
   if (
     result.type === 'text' &&
     typeof file.content === 'string' &&
@@ -58,7 +58,7 @@ async function read($, path, complete) {
     return answer;
   }
   if (result.type === 'file_unchanged' && result.source !== 'seeded' && complete.has(path)) return answer;
-  throw new Error(path + ' <document>: native Read did not return the complete file');
+  throw new Error(`${path} <document>: native Read did not return the complete file`);
 }
 
 async function checkout($, complete, gitFiles, agentId) {
@@ -68,19 +68,19 @@ async function checkout($, complete, gitFiles, agentId) {
     const stat = await metadata($, path);
     if (stat?.kind === 'dir') return folder;
     if (stat) {
-      if (stat.kind !== 'file' || stat.isLink !== false) throw new Error(path + ' <document>: invalid Git boundary');
+      if (stat.kind !== 'file' || stat.isLink !== false) throw new Error(`${path} <document>: invalid Git boundary`);
       const answer = await read($, path, complete);
       let directory;
       if (answer.result.type === 'text') {
         const value = /^gitdir: ([^\r\n]+)\r?\n?$/.exec(answer.result.file.content)?.[1];
-        if (!value) throw new Error(path + ' <document>: invalid gitdir');
+        if (!value) throw new Error(`${path} <document>: invalid gitdir`);
         directory = /^(\/|[A-Za-z]:[\\/])/.test(value) ? value : joined(folder, value);
       } else {
         const previous = gitFiles.get(path);
         if (previous?.size === stat.size && previous.mtimeMs === stat.mtimeMs) directory = previous.directory;
       }
       if (!directory || (await metadata($, directory))?.kind !== 'dir') {
-        throw new Error(path + ' <document>: invalid gitdir directory');
+        throw new Error(`${path} <document>: invalid gitdir directory`);
       }
       gitFiles.set(path, { directory, size: stat.size, mtimeMs: stat.mtimeMs });
       return folder;
@@ -105,11 +105,11 @@ async function load($, name, state, agentId) {
     const stat = await metadata($, path);
     if (stat) {
       if (stat.isLink !== false || stat.kind !== 'file')
-        throw new Error(path + ' <document>: config must be a regular file, not a symlink');
+        throw new Error(`${path} <document>: config must be a regular file, not a symlink`);
       config = await read($, path, complete);
     } else config = { path, absent: 'ENOENT' };
   }
-  return { data: { skill: 'celetis:' + name, resources, root, config }, complete, gitFiles };
+  return { data: { skill: `celetis:${name}`, resources, root, config }, complete, gitFiles };
 }
 
 function context(data) {
@@ -136,9 +136,9 @@ export function register(on) {
     return loops.get(agentId);
   }
   function expansion(name, text, error) {
-    const ticket = '<celetis-entry:' + crypto.randomUUID() + '>';
+    const ticket = `<celetis-entry:${crypto.randomUUID()}>`;
     pending.set(ticket, { name, error });
-    return { text: ticket + '\n' + text };
+    return { text: `${ticket}\n${text}` };
   }
   function owned(e) {
     return e.message.content.flatMap((block, index) => {
@@ -161,16 +161,16 @@ export function register(on) {
       },
     };
   }
-  on('turn.step', async function* ($, e, next) {
+  on('turn.step', async function* (_$, e, next) {
     const error = loops.get(e.agentId)?.entry.error;
     return yield* error ? nativeStop(error, e) : next(e);
-  }).catch(async function* ($, e, next) {
+  }).catch(async function* (_$, e, next) {
     const error = loops.get(e.agentId)?.entry.error;
     if (!next.called && error) return yield* nativeStop(error, e);
   });
   on('skill.prompt', async ($, e, next) => {
     const name = target($.plugin.root, e.path);
-    if (!name || e.source !== 'plugin' || e.pluginName !== 'celetis' || e.skill !== 'celetis:' + name) {
+    if (!name || e.source !== 'plugin' || e.pluginName !== 'celetis' || e.skill !== `celetis:${name}`) {
       return expansion(undefined, (await next(e)).text);
     }
     try {
@@ -181,7 +181,7 @@ export function register(on) {
     }
   }).catch(($, e, next) => {
     const name = target($.plugin.root, e.path);
-    return name && e.source === 'plugin' && e.pluginName === 'celetis' && e.skill === 'celetis:' + name
+    return name && e.source === 'plugin' && e.pluginName === 'celetis' && e.skill === `celetis:${name}`
       ? expansion(name, '', stopped(next.error))
       : next(e);
   });
@@ -242,7 +242,7 @@ export function register(on) {
           loaded = await load($, request.name, current, e.agentId);
           if (current.entry !== entry || entry.error) throw new Error(entry.error || 'entry changed while loading');
           entry.root = loaded.data.root;
-          text = context(loaded.data) + '\n\n' + block.text.slice(end + 1);
+          text = `${context(loaded.data)}\n\n${block.text.slice(end + 1)}`;
         }
       } catch (error) {
         text = stopped(error);
@@ -256,7 +256,7 @@ export function register(on) {
     }
     if (bound) pending.delete(ticket);
     return result;
-  }).catch(($, e, next) => {
+  }).catch((_$, e, next) => {
     const blocks = owned(e);
     if (!blocks.length) return next(e);
     const text = stopped(next.error.message || 'native entry hook exceeded its budget');
@@ -291,7 +291,7 @@ export function register(on) {
     try {
       const result = await next(e);
       if (result.deny || result.isError) {
-        failure = stopped(e.file_path + ' <document>: ' + (result.deny || result.text));
+        failure = stopped(`${e.file_path} <document>: ${result.deny || result.text}`);
         if (current.entry === entry) entry.error = failure;
         return result;
       }
