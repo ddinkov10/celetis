@@ -54,9 +54,12 @@ Before landing or removing a lane, call `ExitWorktree` with keep, then verify th
 Keep the lane until the script removes it. If these tools are unavailable, stop for setup.
 
 The `worktree` command can take ten minutes. Run `land` from the main checkout as a background
-Bash command and wait for its completion through the task/output tool. Checks may take fifteen
-minutes; do not treat a tool timeout as a completed landing or launch a second concurrent one.
-Keep the landing command's exact spelling because the project's permission rule can name it.
+Bash command with `run_in_background` and a `timeout` of `3600000` (60 minutes), and wait for its
+completion through the task/output tool. The checks and one re-run of a failed check may take
+thirty minutes, and an unattended session stops a background command at 30 minutes when no
+`timeout` is given; do not treat a tool timeout as a completed landing or launch a second
+concurrent one. Keep the landing command's exact spelling because the project's permission rule
+can name it.
 
 ## Dispatch
 

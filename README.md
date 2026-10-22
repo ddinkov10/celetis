@@ -559,7 +559,9 @@ host's skill selector. Native desktop selector acceptance is optional under
   lane checkout. Both hosts return to the main checkout for landing.
 - The landing puts the change on the trunk by the `landing` field of `.celetis.yaml`. With `pr`,
   `scripts/celetis land <n> '<subject>'` pushes the branch, opens the PR, waits up to 15 minutes
-  for the checks, and squash-merges when each check is green. It then moves the trunk of the main
+  for the checks, and squash-merges when each check is green. Before the merge, when each red check
+  is a GitHub Actions check that failed or timed out, the failed jobs of their workflow runs get one
+  re-run for each commit, with up to 15 more minutes of wait. It then moves the trunk of the main
   checkout to the merge, and removes the worktree and the branch.
 - The other lanes are shorter. `/celetis:bug` finds the root cause, posts it as a `## Root cause`
   comment, and hands on to `plan`. `/celetis:chore` makes a change with no change of behavior: it

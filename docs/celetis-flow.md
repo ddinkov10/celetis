@@ -295,7 +295,7 @@ the epic and removes the worktree. While it runs, `scripts/celetis next-step <n>
 `stop the landing of #<n> runs; wait until scripts/celetis land ends`. That line does not start with
 `stop #<n> `, so the job does not end the session. herdr 0.9.3 reads an agent that waits for a
 background command as `done`, then `idle` (read on a live herdr on 2026-10-11). So while the script
-runs, for up to 15 minutes, the board shows the session in Needs you as `turn ended`: do not leave
+runs, for up to 30 minutes, the board shows the session in Needs you as `turn ended`: do not leave
 that session. If a session ended during a landing, wait until `scripts/celetis next-step <n>` prints
 another line, and then run `scripts/celetis land <n> '<subject>'` again from the main checkout: it
 completes the landing. After the merge the issue is finished, so Run and
@@ -545,6 +545,8 @@ not grant permissions. Retain each product project's own restricted acts.
 
 The landing script is the required agent path. With `pr`, it merges only the issue's lane PR on
 the trunk, at the checked commit, with every check passed or skipped and at least one PASS.
+When each red check is a check of GitHub Actions that failed or timed out, it re-runs the failed
+jobs of their workflow runs once for each commit before it refuses (ADR-0023).
 The main and lane checkout guards apply on both hosts. Host rules do not inspect the commands
 inside an allowed script or enforce every alternate command spelling. Codex prefix rules govern
 requests outside its sandbox; they do not create a stronger sandbox. A host refusal remains a
