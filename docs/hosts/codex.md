@@ -78,12 +78,12 @@ child inherit that checkout for lane edits.
 Before landing or removal, set command context to the recorded main checkout, verify its root
 and trunk, and read its applicable instructions. Keep the lane on disk. Run
 `scripts/celetis --agent codex land <n> '<subject>'` there using the command tool's persistent
-session/background support. Wait on the returned session identifier until exit; the checks may
-take fifteen minutes. A yield is not completion. Do not start another landing while it runs.
-With `exec_command`, retain `session_id` and use `write_stdin` to collect completion. When the
-tool wrapper itself yields, finish its `wait` first to obtain that session identifier. If the
-surface cannot keep a command alive and observe its exit, stop for setup. Repairs rebind the
-lane through `worktree`; no new app worktree is needed.
+session/background support. Wait on the returned session identifier until exit; the checks and
+one re-run of a failed check may take thirty minutes. A yield is not completion. Do not start
+another landing while it runs. With `exec_command`, retain `session_id` and use `write_stdin` to
+collect completion. When the tool wrapper itself yields, finish its `wait` first to obtain that
+session identifier. If the surface cannot keep a command alive and observe its exit, stop for
+setup. Repairs rebind the lane through `worktree`; no new app worktree is needed.
 
 ## Dispatch
 
