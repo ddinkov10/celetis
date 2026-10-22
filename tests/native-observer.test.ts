@@ -1,4 +1,9 @@
 import { test as bunTest, describe, expect } from 'bun:test';
+import { execFile } from 'node:child_process';
+import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { type NativeOn, type NativeTools, nativeHost, type Register } from './lib/native-host.ts';
 
 const observerModules = {
@@ -16,16 +21,17 @@ for (const delivery of ['source', 'generated'] as const)
         const module = await import(observerModules[delivery].href);
         register = module.register;
         const { $, on } = nativeHost([
-          { register, root: new URL('./manual/native-observer/', import.meta.url).pathname.replace(/\/$/, '') },
+          {
+            register,
+            root: fileURLToPath(new URL('./manual/native-observer/', import.meta.url)).replace(/[\\/]$/, ''),
+          },
           ...(run ? options.plugins : []),
         ]);
         await (run ?? options)($, on);
       });
     }
 
-    const filePath = decodeURIComponent(
-      new URL('./manual/native-observer/project/.celetis.yaml', import.meta.url).pathname,
-    );
+    const filePath = fileURLToPath(new URL('./manual/native-observer/project/.celetis.yaml', import.meta.url));
     const metadataClient = {
       name: 'metadata-client',
       register(on: any) {
@@ -150,3 +156,51 @@ for (const delivery of ['source', 'generated'] as const)
       });
     }
   });
+
+bunTest('observer contracts preserve filesystem paths in a spaced checkout', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'celetis-observer.'));
+  const checkout = join(dir, 'space checkout');
+  try {
+    for (const path of [
+      'tests/native-observer.test.ts',
+      'tests/lib/native-host.ts',
+      'tests/manual/native-observer/hooks/register.ts',
+      'tests/manual/native-observer/hooks/register.js',
+    ]) {
+      const output = join(checkout, path);
+      await mkdir(dirname(output), { recursive: true });
+      await cp(fileURLToPath(new URL(`../${path}`, import.meta.url)), output);
+    }
+    const result = await new Promise<{ code: number; output: string }>((resolve) => {
+      const child = execFile(
+        process.execPath,
+        [
+          '--no-env-file',
+          '--no-install',
+          '--config=/dev/null',
+          '--no-macros',
+          'test',
+          'tests/native-observer.test.ts',
+          '--test-name-pattern',
+          'compact observation',
+        ],
+        {
+          cwd: checkout,
+          timeout: 5_000,
+          encoding: 'utf8',
+          env: { ...process.env, BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0', DO_NOT_TRACK: '1' },
+        },
+        (error, stdout, stderr) => {
+          resolve({ code: typeof error?.code === 'number' ? error.code : error ? 1 : 0, output: stdout + stderr });
+        },
+      );
+      child.stdin?.end();
+    });
+    expect(result.code).toBe(0);
+    expect(result.output).toContain('2 pass');
+    expect(result.output).toContain('0 fail');
+    expect(result.output).toContain('11 filtered out');
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
