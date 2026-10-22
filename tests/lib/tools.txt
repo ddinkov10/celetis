@@ -1,5 +1,3 @@
-# The tools of scripts/verify.ts: <command> <version> <installer> <package>.
-# The private installer reads these pins. The gate warns on local version drift.
 actionlint 1.7.12 native rhysd/actionlint@v1.7.12
 biome 2.5.15 bun @biomejs/biome@2.5.15
 tsc 7.0.2 bun typescript@7.0.2
