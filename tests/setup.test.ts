@@ -661,8 +661,24 @@ test.concurrent(
     );
     expect(await read(f, '.gitattributes')).toBe(`* text=auto eol=lf\n${attributes}`);
     for (const [p, text] of Object.entries(files)) if (p !== '.gitattributes') expect(await read(f, p), p).toBe(text);
-    expect((await record(f)).answers).toEqual({ hosts: ['claude', 'codex'], tracker: 'github' });
-    expect(sorted(await entries(f, '.claude/settings.json'))).toEqual(sorted(settingsEntries));
+    const own = await record(f);
+    expect([...own.files, ...Object.keys(own.entries)].some((path: string) => path.startsWith('docs/'))).toBe(false);
+    own.files.sort();
+    own.entries = Object.fromEntries(
+      Object.entries(own.entries).map(([file, values]) => [file, sorted(values as unknown[])]),
+    );
+    expect(own).toEqual({
+      schema: 1,
+      answers: { hosts: ['claude', 'codex'], tracker: 'github' },
+      files: ['.claude/celetis-flow/wiring.json', '.codex/rules/celetis.rules', 'scripts/celetis'],
+      entries: {
+        '.gitignore': sorted(ignores),
+        '.gitattributes': sorted(attributes.trimEnd().split('\n')),
+        'AGENTS.md': sorted([heading, ...flow]),
+        '.claude/settings.json': sorted(settingsEntries),
+        '.celetis.yaml': sorted(configEntries),
+      },
+    });
   }),
 );
 

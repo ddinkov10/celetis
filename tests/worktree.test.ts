@@ -44,7 +44,7 @@ test.concurrent(
     const r = await f.worktree(['1'], { env: { SETUP_STDOUT: 'stdout-noise' } });
     expect(r.code, r.stderr).toBe(0);
     expect(r.stdout).toBe(`stdout-noise\n${lane}\n`);
-    expect(r.stderr).toContain('noise "quoted"');
+    expect(r.stderr.split('\n')).toContain('noise "quoted" \\slash');
     expect(await f.git(['branch', '--show-current'], lane)).toBe('feat/1-probe');
     expect(await f.git(['rev-parse', 'HEAD'], lane)).toBe(upstream);
     expect(
@@ -364,7 +364,11 @@ test.concurrent(
       { prFail: false, issueFail: true },
     ]) {
       await f.update(state);
-      await denied(f, ['--remove', '1']);
+      const result = await denied(f, ['--remove', '1']);
+      if (state.prs === '' && state.state === 'open') {
+        expect(result.stderr).toContain('#1 is open');
+        expect(result.stderr).toContain('no merged PR');
+      }
       await kept();
     }
     const calls = await f.calls();
@@ -422,16 +426,31 @@ test.concurrent(
     await f.git(['branch', 'prototype/1-sketch', 'main']);
     await f.git(['push', '-q', 'origin', 'prototype/1-sketch']);
     expect((await f.worktree(['--remove', '1'], { cwd: lane })).code).toBe(1);
+    expect(await exists(lane)).toBe(true);
+    expect((await ref(f, 'feat/1-probe')).code).toBe(0);
+    expect((await ref(f, 'prototype/1-sketch')).code).toBe(0);
+    expect(await f.git(['ls-remote', '--exit-code', 'origin', 'refs/heads/prototype/1-sketch'])).not.toBe('');
     await f.git(['commit', '-q', '--allow-empty', '-m', 'local-only'], lane);
     await f.git(['branch', '-f', 'prototype/1-sketch', 'feat/1-probe']);
     await f.git(['push', '-q', '-f', 'origin', 'prototype/1-sketch']);
     await denied(f, ['--remove', '1'], 'git push origin feat/1-probe');
     expect(await exists(lane)).toBe(true);
+    expect((await ref(f, 'feat/1-probe')).code).toBe(0);
     expect((await ref(f, 'prototype/1-sketch')).code).toBe(0);
+    expect(await f.git(['ls-remote', '--exit-code', 'origin', 'refs/heads/prototype/1-sketch'])).not.toBe('');
     await f.git(['push', '-q', 'origin', 'feat/1-probe']);
     expect((await f.worktree(['--remove', '1'])).code).toBe(0);
     expect(await exists(lane)).toBe(false);
+    expect((await ref(f, 'feat/1-probe')).code).toBe(1);
     expect((await ref(f, 'prototype/1-sketch')).code).toBe(1);
+    expect(
+      (
+        await command('git', ['ls-remote', '--exit-code', 'origin', 'refs/heads/prototype/1-sketch'], {
+          cwd: f.repo,
+          env: f.env,
+        })
+      ).code,
+    ).toBe(2);
   }),
 );
 
