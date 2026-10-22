@@ -32,7 +32,7 @@ if [ "$mode" = step ]; then
     10 | 17)
       if [ -n "$answer" ]; then out=$'scripts/celetis --agent codex land 7 subject\nThen: my step ends'
       else out=$'scripts/celetis --agent claude land 7 subject\nThen: my step ends'; fi ;;
-    11) out=$'gh issue edit 7 --add-label ready-for-agent\nThen: my step ends' ;;
+    11) out=$'gh issue edit 7 --add-label ready-for-agent\nDuring the build: HUMAN_PREP_11\nAfter the landing: HAND_CHECK_11\nRun /celetis:implement #7 in a fresh context.\nThen: my step ends' ;;
     13 | 16) out=$'gh issue edit 7 --add-label ready-for-human\nThen: my step ends' ;;
     12) out=$'gh issue edit 7 --add-label bug\nThen: my step ends' ;;
     14) out='Then: I go on with the repair and Verify loop' ;;
@@ -76,6 +76,8 @@ case "$mode:$k:${MANUAL_FAULT:-}" in
   step:21:landed-stop) out=$'## Stopped\nland: the main checkout did not move to origin/main; run git pull on main there\nland: cannot close the epic #3; close it by hand\ngh issue edit 7 --add-label ready-for-human\nThen: my step ends' ;;
   step:21:landed-silent) out='Then: my step ends' ;;
 
+  step:11:plan-no-lists) out=$'gh issue edit 7 --add-label ready-for-agent\nRun /celetis:implement #7 in a fresh context.\nThen: my step ends' ;;
+  step:11:plan-lists-late) out=$'gh issue edit 7 --add-label ready-for-agent\nRun /celetis:implement #7 in a fresh context.\nDuring the build: HUMAN_PREP_11\nAfter the landing: HAND_CHECK_11\nThen: my step ends' ;;
   step:13:fenced-extra-action) out=$'```\ngh issue edit 7 --add-label ready-for-human\ngit apply /tmp/repair.patch\n```\nThen: my step ends' ;;
   step:13:bound-stop) out="cd '$MANUAL_BINDING_DIR' && $out" ;;
   step:13:wrong-bound-stop) out="cd '/tmp/wrong-product' && $out" ;;
@@ -288,7 +290,7 @@ for fault in wrong-bound-stop bound-work-stop; do pool_run "rejects $fault" reje
 for fault in land-bare land-claude land-codex tool error exit incomplete; do pool_run "rejects $fault" rejects "$fault" 4 step; done
 pool_run completed_reconnect completed_reconnect
 pool_run landing_without_evidence landing_without_evidence
-for pair in '13 step blocked-build-label' '13 step blocked-rebuild' '13 step blocked-work-ended' '13 step blocked-command-ended' '13 step blocked-continue' '13 step blocked-two-endings' '13 step fenced-extra-action' '14 step verify-land' '15 specify approval-publish' '16 step stale-completion-land' '17 step built-rebuild' '18 step invalid-config-continue' '18 step entry-setup' '19 step denied-entry-retry' '20 step form-fallback' '20 step form-posted' '20 step form-continue' '20 step form-two-endings' '20 step form-extra-act' '20 step form-empty-tools' '20 step form-empty-limit' '20 step form-empty-setup' '20 step form-markdown' '20 step form-prose' '21 step landed-git' '21 step landed-stop' '21 step landed-silent' '21 step landed-git-list'; do
+for pair in '11 step plan-no-lists' '11 step plan-lists-late' '13 step blocked-build-label' '13 step blocked-rebuild' '13 step blocked-work-ended' '13 step blocked-command-ended' '13 step blocked-continue' '13 step blocked-two-endings' '13 step fenced-extra-action' '14 step verify-land' '15 specify approval-publish' '16 step stale-completion-land' '17 step built-rebuild' '18 step invalid-config-continue' '18 step entry-setup' '19 step denied-entry-retry' '20 step form-fallback' '20 step form-posted' '20 step form-continue' '20 step form-two-endings' '20 step form-extra-act' '20 step form-empty-tools' '20 step form-empty-limit' '20 step form-empty-setup' '20 step form-markdown' '20 step form-prose' '21 step landed-git' '21 step landed-stop' '21 step landed-silent' '21 step landed-git-list'; do
   set -- $pair
   pool_run "rejects $3" rejects "$3" "$1" "$2"
 done

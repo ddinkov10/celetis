@@ -106,7 +106,7 @@ cat >"$tmp/case-10" <<'EOF'
 Case 10. The step is /celetis:implement #7. Skill `implement`, Re-entry: "read `gh issue view <n> --json labels,comments`. A `## Plan` comment with no `ready-for-agent` label means that an earlier run built the change. Do not build again: run no task of the plan, skip the Tail steps 1 to 4, and read the latest `## Landing refused` comment. When the change made the cause that the comment names, fix it as Land, step 4, says. When the cause is outside the change and the trunk now holds its fix, fetch the trunk from `origin`, merge it into the branch, and run the verify gate of the project, so that the checks run on a new head. Then go to Land, step 2." Skill `implement`, Tail: "4. The **Verify phase** (below) — its PASS/FAIL is a hard gate." Skill `implement`, Land step 2: "**Human precondition.** When the change needs an act that only a human can do before it reaches the trunk, and the issue has no `## Before landing` comment for this build: post a comment whose first line is `## Before landing` and that names the act, then run `gh issue edit <n> --add-label ready-for-human`, and stop. The maintainer completes the act and clears the label. Before landing on re-entry, require a trusted human completion report or the maintainer's removal of `ready-for-human` after this build's `## Before landing` comment, from the issue event history (`<plugin>/docs/issue-tracker.md`, "Completing a human precondition"). An absent label is not completion evidence. Without that evidence, keep the change built, restore `ready-for-human` using the existing comment as the reason, and stop. With the evidence, continue to step 3." Skill `implement`, Land step 3: "Return to the main checkout using the host operations, keeping the lane. Run `scripts/celetis land <n> '<type>(<area>): <what>'` there with the host's command spelling and background/session support, and go on when it ends". Issue #7 has a `## Plan` comment of 2026-10-05, no `ready-for-agent` label, and no `ready-for-human` label. Its last comment, of 2026-10-06, starts with `## Before landing`: a session could not run scenario B of the Verify phase, the command `scripts/celetis celetis-flow 999999` in the main checkout, because the auto-mode classifier denied it. The issue has no `## Landing refused` comment. The maintainer reports that scenario B passed; all other required scenarios have recorded PASS results. The issue event history records the maintainer removing `ready-for-human` on 2026-10-07, after this build's `## Before landing` comment. The lane branch holds one commit, `fix(runner): the script names an unknown issue`.
 EOF
 cat >"$tmp/case-11" <<'EOF'
-Case 11. The step is /celetis:plan #7. Skill `plan`, Terminal: "The execution method is already supplied: `/celetis:implement #<n>` in a fresh context. Once the plan is written and self-reviewed, publish it in the same turn: `gh issue comment <n> --body-file <plan>` with `## Plan` as its first line, then `gh issue edit <n> --add-label ready-for-agent`. Then tell the user the plan is on the issue for their review, and to run `/celetis:implement #<n>` in a fresh context." The plan of #7 is written and self-reviewed. It is in the file docs/superpowers/plans/2026-10-12-export.md, and its first line is `## Plan`.
+Case 11. The step is /celetis:plan #7. Skill `plan`, Terminal: "The execution method is already supplied: `/celetis:implement #<n>` in a fresh context. Once the plan is written and self-reviewed, publish it in the same turn: `gh issue comment <n> --body-file <plan>` with `## Plan` as its first line, then `gh issue edit <n> --add-label ready-for-agent`. Then tell the user that the plan is on the issue for their review, repeat the two lists of `### Your steps` verbatim, and then tell the user to run `/celetis:implement #<n>` in a fresh context." The plan of #7 is written and self-reviewed. It is in the file docs/superpowers/plans/2026-10-12-export.md, and its first line is `## Plan`. The `### Your steps` section of the plan has one item of "During the build": "1. Make the private scratch repository HUMAN_PREP_11. Needed by: Verify V2. Report: the line `Scratch repository: <owner>/<repo>` in your `## Human steps done` comment." It has one item of "After the landing": "1. Run the setup check HAND_CHECK_11 on your own Mac. Expected: PASS."
 EOF
 cat >"$tmp/case-12" <<'EOF'
 Case 12. The step is /celetis:triage #7. Skill `triage`, step 5: "**Label, announce, ask to continue** — apply the lane label and clear the triage one (`gh issue edit <n> --add-label <lane> --remove-label needs-triage`; the feature lane's label is `enhancement`), then state the pick and the one-liner (`→ /celetis:bug #<n>: <one-liner>`). Ask the human whether to proceed. On yes, invoke that lane with `#<n>` and follow it; the lane's step-1 confirm is the redirect gate. On no, stop — the label already carries the verdict." Issue #7 has the label `needs-triage`. Its intent says that the export of a report as CSV crashes when the report has no rows, and that the export of a report with rows works. You classified it as a bug.
@@ -197,7 +197,7 @@ EOF
 }
 
 check() {
-  local k=$1 mode=$2 answer="$tmp/out-$1-$2" bad=no found what= s recovered human_stop actions bound_cwd rest
+  local k=$1 mode=$2 answer="$tmp/out-$1-$2" bad=no found what= s recovered human_stop actions bound_cwd rest lists run
   [ -z "$only" ] || [ "$only" = "$k:$mode" ] || return 0
   shift 2
   if [ "$(cat "$tmp/status-$k-$mode")" != 0 ]; then
@@ -213,6 +213,12 @@ check() {
     what=', missing completion, error, or unexpected tool event'
   elif [ -f "$answer" ] && grep -qF 'Then:' "$answer"; then
     actions=$(sed -E '/^[[:space:]]*$/d; /^[[:space:]]*```(bash|sh|shell)?[[:space:]]*$/d' "$answer")
+    if [ "$k:$mode" = 11:step ]; then
+      lists=$(grep -n -e HUMAN_PREP_11 -e HAND_CHECK_11 <<<"$actions" | tail -n 1 | cut -d: -f1 || true)
+      run=$(grep -n -F 'celetis:implement #7' <<<"$actions" | tail -n 1 | cut -d: -f1 || true)
+      [ -n "$lists" ] && [ -n "$run" ] && [ "$lists" -lt "$run" ] ||
+        what="$what, the two lists are not before the implement line"
+    fi
     if [ "$k:$mode" = 13:step ]; then
       human_stop=$'gh issue edit 7 --add-label ready-for-human\nThen: my step ends'
       bound_cwd=$(jq -rn --arg cwd "$product_cwd" '$cwd | @sh')
@@ -281,7 +287,7 @@ check 7 step "$W" not "$L"
 check 8 step "$L" "$B" '## Before landing' 'gh issue comment' not "$W" '## Stopped' "$land" "$claude_land" "$codex_land"
 check 9 step '--add-label needs-info' not 'ready-for-human'
 check 10 step "$expected_land" not "$L" "$W" "$land" "$other_land"
-check 11 step '--add-label ready-for-agent' not "$L" '## Stopped' "$W"
+check 11 step '--add-label ready-for-agent' HUMAN_PREP_11 HAND_CHECK_11 'celetis:implement #7' not "$L" '## Stopped' "$W"
 check 12 step '--add-label bug' not "$L" '## Stopped' "$W"
 check 13 step
 check 14 step 'Then: I go on with' not "$L" "$B" "$land" "$claude_land" "$codex_land" '## Before landing'
