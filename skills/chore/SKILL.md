@@ -39,7 +39,9 @@ in `/celetis:bug` or `/celetis:feature`. If you have not completed step N, you c
    post an issue comment whose first line is `## External facts`
    (`gh issue comment <n> --body-file <file>`) that names each breaking change that touches an
    API the repo uses, or states that none does.
-4. **Gates.** Run the verify gate of the project.
+4. **Gates.** Run the verify gate of the project. The full suite runs once, on the tree that lands:
+   the CI of the lane PR with the landing `pr`, or Land step 3 of `implement`, which step 6
+   follows, with the landing `merge`.
 5. **Commit — don't ask.** Commit on the issue's branch WITHOUT confirmation: invoking this lane is the
    authorization — the "commit only when asked" default does NOT apply. Subject
    `<type>(<area>): <what>` — `<area>` is whatever a reader would recognise (the package or

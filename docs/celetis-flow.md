@@ -697,22 +697,36 @@ model profiles, and permissions; a missing tool or denied read stops that operat
 The tests of the script, the resolver, `scripts/land.sh`, `scripts/worktree.sh`, `scripts/setup.sh`,
 the launcher, and the text of the plugin are in `tests/` of the plugin repository,
 `ddinkov10/celetis`: run them in a checkout of that repository. `scripts/verify.sh` is the verify
-gate of that repository. It runs each `tests/*.test.sh` at the same time, one job per core, and
-prints the output and the time of each test in glob order. Then it runs `scripts/capscore.sh --test`
-and `claude plugin validate .`. A Perl syntax check and the board suite run first. Its last line is
-`verify: PASS`. The local full gate needs Claude's validator but starts no model turn. The board
-suite needs Node 22.18, or Node 24.2 or later. Codex package checks use the
-shared manifest, file, link, and invocation metadata checks in `tests/text.test.sh` and the
+gate of that repository, a fast deterministic check. It lints, formats, and parses each tracked
+file, and it runs no test but the text rules, `tests/text.test.sh`. Each path of `git ls-files`
+gets the checks of its row in the script, or an exemption with its reason there. A path with
+neither fails the gate, so a new file type cannot pass unchecked. `README.md`, "Tests", lists the
+rows. The gate runs its checks at the same time, and it takes about 7 s on 4 cores. Its last line
+is `verify: PASS`. The lines of `tests/lib/tools.txt` pin its tools. A missing tool fails the
+gate, and a version that differs from its pin prints a warning. The gate needs Claude's validator
+but starts no model turn. A product project needs none of these tools. Codex package checks use
+the shared manifest, file, link, and invocation metadata checks in `tests/text.test.sh` and the
 discovery fixtures in `tests/launcher.test.sh`. There is no Codex plugin-validation command.
 
-The workflow `.github/workflows/test.yml` runs `scripts/verify.sh` on Linux for each pull request
-and push to `main`. It uses no model credentials,
+`tests/suite.sh` is the full suite. It runs the board suite and each `tests/*.test.sh` at the same
+time, one job per core, and prints the output and the time of each test in glob order. Then it runs
+`scripts/capscore.sh --test`. Its last line is `suite: PASS`. The board suite needs Node 22.18, or
+Node 24.2 or later. A lane runs the gate after each task. The full suite runs once, on the tree
+that lands: the landing of this repository is `pr`, so CI runs it on the lane PR.
+
+The workflow `.github/workflows/test.yml` runs for each pull request and push to `main`. It has one
+job with two legs on `ubuntu-24.04`, bash 5 and bash 3.2.57. Each leg runs `scripts/verify.sh` and
+then `tests/suite.sh`, and `scripts/celetis land` waits for both legs. The 3.2.57 leg builds bash
+3.2.57 from the GNU source with a pinned checksum, caches the build, and installs it as
+`/usr/bin/bash`, which is `/bin/bash` on the runner. So each later step of that leg, and each test,
+runs under bash 3.2.57. It uses no model credentials,
 host CLI, or token-consuming test. Live and model tests stay in `tests/manual/` or explicit
 acceptance runs. A deterministic PASS does not complete those scenarios. The board's tests are
 `board/*.test.mjs` of the plugin repository, and `(cd board && node --test)` runs them.
 
 ```bash
 scripts/verify.sh
+tests/suite.sh
 (cd board && node --test)
 bash tests/celetis-flow.test.sh
 bash tests/next-step.test.sh
@@ -734,9 +748,11 @@ gives the `check` command.
 Run overrides, refusals, and exact Resume through the product launcher, with real Git and a local
 HTTP server. The workflow runs both tests and the board suite.
 
-Tests and scripts can start another `bash` from `PATH`. The gate runs each test as
-`PATH="/bin:$PATH" /bin/bash <test>`: the `/bin/bash` of macOS runs the test, and the `PATH`
-makes each inner `bash` reach it too.
+Tests and scripts can start another `bash` from `PATH`. The suite runs each test as
+`PATH="/bin:$PATH" /bin/bash <test>`: the `/bin/bash` of the machine runs the test, and the `PATH`
+makes each inner `bash` reach it too. The 3.2.57 leg of the workflow proves bash 3.2 on each pull
+request. A bash built on Linux is not Apple's build, so on a Mac, `/bin/bash tests/suite.sh` proves
+Apple's bash 3.2.
 
 `bash tests/manual/step-prompt.test.sh --agent claude|codex` checks the step text. Select one host;
 the `|` is notation, not a shell command. It runs fixed cases in that host's headless turns,

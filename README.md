@@ -422,7 +422,8 @@ The plugin names a role, and the `AGENTS.md` of the project names the thing. It 
 
 | What `AGENTS.md` names | Who reads it |
 |---|---|
-| **The verify gate:** the command that proves a change, and how to read its result | `plan`, `implement`, `chore`, `hotfix`, and `guide` say "the verify gate of the project", and `scripts/celetis land` names it in a refusal |
+| **The verify gate:** the one fast deterministic check of a change (lint, format, syntax, and config checks, with no test run), and how to read its result | `plan`, `implement`, `chore`, `hotfix`, and `guide` say "the verify gate of the project", and `scripts/celetis land` names it in a refusal |
+| **The full suite,** with the landing `merge` only: the command that runs each test. With no such line, the verify gate is the full suite | `implement` (Land step 3), and `chore` and `hotfix` through it |
 | **The architecture and the traps:** the shape of the project in the root file, and the traps of each subsystem in the `AGENTS.md` of its folder. They are the domain knowledge: the plugin has no domain skill (ADR-0006) | `specify`, `bug`, `hotfix`, `plan`, `chore`, and `critic-loop` |
 | **The design document and the look decision,** in a project with a UI: the document that holds the design rules, and how a session builds the options of a look decision and hands them over, with the dev server of the project | `specify` and `bug`; the two items "Prototype" of `docs/issue-tracker.md`, in "What lives on the issue" and in "Branches, PRs, merge" |
 | **The installed version of a dependency:** how a session reads it, and the documents that an installed package ships | `docs/docs-lookup.md`, which `specify`, `plan`, `bug`, `hotfix`, and `chore` cite |
@@ -774,26 +775,51 @@ Both `tests/native-entry.test.sh` and `tests/native-observer.test.sh` need Claud
 This repository test runtime is required even when product operations select Codex.
 The checks need no model credentials or tokens and start no model turn.
 
-- **The full local gate** is `scripts/verify.sh`. It checks the Perl updater syntax, runs the
-  board suite (`(cd board && node --test)`) and each `tests/*.test.sh`, then
-  `scripts/capscore.sh --test` and `claude plugin validate .`. Its last line
-  is `verify: PASS`. It also needs Claude's validator, which starts no model turn.
-  The board suite needs Node 22.18, or Node 24.2 or later.
-  Product projects use their own gate.
+- **The verify gate** is `scripts/verify.sh`, the fast deterministic check of a change. It lints,
+  formats, and parses each tracked file, and it runs no test but the text rules. It sorts each
+  path of `git ls-files` into these checks, or into an exemption with its reason in the script.
+  A path that it cannot sort fails the gate.
+  - Each shell file: `shfmt`, ShellCheck, and `/bin/bash -n`.
+  - Each JavaScript, TypeScript, JSON, and CSS file: Biome (format, lint, and import sort), and
+    `node --check` on each `.js` and `.mjs` file.
+  - Each TypeScript file on Bun in `scripts/`: `tsc` with `scripts/tsconfig.json`.
+  - Each jq program: `jq -f <file> /dev/null`.
+  - Each workflow: actionlint.
+  - `.celetis.yaml`: the config reader `celetis_config_read`.
+  - The Perl updater: `perl -c`.
+  - The plugin manifest: `claude plugin validate .`, which starts no model turn.
+  - Each tracked file: the text rules, `tests/text.test.sh`.
+
+  The gate runs the checks at the same time, and it takes about 7 s on 4 cores. Its last line is
+  `verify: PASS`. The lines of `tests/lib/tools.txt` pin its tools, and `AGENTS.md`, "Verify
+  gate", gives their install. A missing tool fails the gate. A version that differs from its pin
+  prints a warning. Product projects use their own gate, and a product project needs none of these
+  tools.
 
   ```bash
   scripts/verify.sh
   ```
-- **The workflow** `.github/workflows/test.yml` runs the board suite, each `tests/*.test.sh`, and
-  `scripts/capscore.sh --test`, plus the Perl syntax check, on Linux, for each pull request and
-  each push to `main`. It installs Node.js 22 and the pinned Claude test runtime before the tests.
-  It does not skip the contract check of the `--board` documents or the board-to-launcher
-  integration test.
-- **The proof on bash 3.2.** The gate runs each test under the `/bin/bash` of macOS, with
-  `PATH="/bin:$PATH"` so each inner `bash` reaches `/bin/bash` too:
+- **The full suite** is `tests/suite.sh`. It runs the board suite (`(cd board && node --test)`)
+  and each `tests/*.test.sh` at the same time, then `scripts/capscore.sh --test`. Its last line is
+  `suite: PASS`. The board suite needs Node 22.18, or Node 24.2 or later.
 
   ```bash
-  PATH="/bin:$PATH" /bin/bash tests/<name>.test.sh
+  tests/suite.sh
+  ```
+- **The workflow** `.github/workflows/test.yml` runs for each pull request and each push to
+  `main`. It has one job with two legs on `ubuntu-24.04`, bash 5 and bash 3.2.57, and each leg is
+  a check of its own. Each leg installs Node.js 22, the pinned Claude test runtime, Mike Farah yq,
+  and the tools of `tests/lib/tools.txt`. Then it runs the step "Verify gate"
+  (`scripts/verify.sh`) and the step "Full suite" (`tests/suite.sh`). The 3.2.57 leg builds bash
+  3.2.57 from the GNU source with a pinned checksum, caches the build, and installs it as
+  `/usr/bin/bash`, which is `/bin/bash` on the runner. The workflow does not skip the contract
+  check of the `--board` documents or the board-to-launcher integration test.
+- **The proof on bash 3.2.** The suite runs each test as `PATH="/bin:$PATH" /bin/bash <test>`, so
+  each inner `bash` reaches `/bin/bash` too. The 3.2.57 leg of the workflow proves bash 3.2 on
+  each pull request. On a Mac, this command proves Apple's bash 3.2, which is `/bin/bash` there:
+
+  ```bash
+  /bin/bash tests/suite.sh
   ```
 - **The text test,** `tests/text.test.sh`, holds the rules of the general text. It fails on a word
   of its list of product words in a file that is no record of `docs/adr/`. It fails on an ADR
