@@ -67,11 +67,19 @@ and it gives a failed check one re-run before the refusal.
     re-run call, the list was empty. Then it held `ok` (a new id, `success`) and `test` (a new id,
     `queued`). It held `after` only after `test` passed, so for some seconds the list was all green
     while the re-run still ran. The run read `status` `completed` only after its last job.
+  - In attempt 1 of workflow run 39694378726, `ok` and `test` were created at 23:35:22Z. `test`
+    ended with `failure` at 23:35:28Z, and GitHub created `after` in that same second, as
+    `skipped`. So a first attempt also lists a job with `needs` only when that need ends, and for
+    a moment the list can show no pending check while the workflow run still runs. Read with
+    `gh api 'repos/{owner}/{repo}/actions/runs/39694378726/attempts/1/jobs'` on 2026-10-22.
   - At the end, the default list (`filter=latest`) held only the check runs of attempt 2, and
     `filter=all` held the check runs of both attempts. The workflow run id and the check suite id
     stayed the same.
   - The `details_url` of the failed check run of attempt 1 stays valid after the re-run:
     `GET actions/jobs/119547037125` reads `run_attempt` 1 and `conclusion` `failure`.
+- GitHub refuses a re-run of a workflow run that still runs: "This workflow is already running", as
+  reported in https://github.com/orgs/community/discussions/67654. This repository did not test it
+  live.
 - `GET repos/{owner}/{repo}/actions/runs?head_sha=<tip>` finds the workflow run of a PR head. The
   `check_suite_id` 107558474680 of the `pull_request` run 39687075224 is the `check_suite.id` of
   the check run `test` of PR #86 (app `github-actions`, read on 2026-10-21).
@@ -91,18 +99,23 @@ and it gives a failed check one re-run before the refusal.
 decides a re-run: the script decides it, as it decides the merge (ADR-0008). The merge rule of
 ADR-0001 stands.
 
-**The conditions of a re-run.** When the first wait ends with no pending check and a red check,
-the script reads the check runs, the commit statuses, and the workflow runs of the tip once. It
+**The conditions of a re-run.** When a poll of the first wait finds no pending check and a red
+check, the script reads the check runs, the commit statuses, and the workflow runs of the tip. It
 re-runs only when each of these conditions holds:
 
 - Each red check is a check run of GitHub Actions (app `github-actions`) with the conclusion
   `failure` or `timed_out`.
 - No commit status is red.
 - The workflow run of each red check run reads `run_attempt` 1.
+- The workflow run of each red check run reads `status` `completed`.
 
-Else the script refuses at once, with the same line as before this change: a `cancelled` or
-`action_required` check, a red commit status, a red check of another app, or a workflow run at
-attempt 2 or more. GitHub cannot re-run a commit status or a check run of another app. A
+When one of the first three conditions does not hold, the script refuses at once, with the same
+line as before this change: a `cancelled` or `action_required` check, a red commit status, a red
+check of another app, or a workflow run at attempt 2 or more. When only the last condition does not
+hold, the script posts nothing and counts the poll as pending, within the same 60 polls of the
+first wait, and the next red poll decides again. GitHub refuses a re-run of a workflow run that
+still runs, and such a run can still add a job with `needs`. GitHub cannot re-run a commit status
+or a check run of another app. A
 `cancelled` check did not run to its end, for example because a person or a newer run stopped it,
 and an `action_required` check waits for an approval. So a re-run of either of these two does not
 tell whether a failure was random.
@@ -121,8 +134,9 @@ first wait. Right after the re-run call, the list can be empty or show only the 
 and such a list can read green.
 
 **`run_attempt` is the count.** The script keeps no state: no file, no git config, and no comment
-counts a re-run. A workflow run at attempt 2 or more gets no re-run, so a later run of the script
-on the same tip re-runs nothing, and a re-run that the maintainer started by hand counts too. A new
+counts a re-run. A workflow run at attempt 2 or more gets no re-run. So after a re-run call that
+GitHub accepted, a later run of the script on the same tip re-runs nothing, and a re-run that the
+maintainer started by hand counts too. A new
 commit gets new workflow runs at attempt 1, so it gets its own one re-run.
 
 **The lines.** Each refusal still prints exactly one line that starts with `land: ` and exits 1. It
@@ -132,6 +146,8 @@ leaves the trunk, the lane branch, the worktree, the pushed branch, and the open
   `land: PR #<pr> has a check that is not green after the re-run (<buckets>): <url>`.
 - A re-run call that GitHub refuses: the error of `gh`, then
   `land: GitHub refused the re-run of the failed checks of PR #<pr>: <url>`.
+- A first wait that runs out while the workflow run of a red check run is not `completed`:
+  `land: the checks of PR #<pr> did not finish in 15 minutes (the workflow run of a failed check is not done): <url>`.
 - A second wait that runs out:
   `land: the checks of PR #<pr> did not finish in 15 minutes after the re-run (<buckets>): <url>`.
   While a re-run workflow run is not done, `<buckets>` is `the re-run is not done`.
@@ -192,12 +208,14 @@ keeps polling the command with `write_stdin` until it exits: Codex ends no proce
 - The report line comes only from the run that merges. When the removal stops after the merge, the
   session runs the script again, and that second run completes the landing with no report line.
   The line is then only in the output of the first run.
-- In attempt 2, GitHub listed the check run of a job with `needs` only after the job that it needs
-  passed. It is not known whether a first attempt does the same before the first wait ends. If it
-  does, the first wait can read a green list before that job is listed, as before this change.
-- A product project whose CI matrix keeps GitHub's default `fail-fast: true` gets `cancelled`
-  sibling jobs after one failed job. A `cancelled` check gets no re-run, so that project gets the
-  same refusal as before this change. This repository sets `fail-fast: false`.
+- In attempt 1 and in attempt 2, GitHub listed the check run of a job with `needs` only when the
+  job that it needs ended. So the first wait can read a green list before such a job is listed, as
+  before this change. With a red check, the script waits for the completed workflow run before it
+  decides on a re-run.
+- A product project whose CI matrix keeps GitHub's default `fail-fast: true` can get `cancelled`
+  sibling jobs after one failed job: GitHub cancels only the matrix jobs that are still queued or
+  running. A `cancelled` check gets no re-run, so that project gets the same refusal as before this
+  change. This repository sets `fail-fast: false`.
 
 ## Reconsider when
 
@@ -205,5 +223,5 @@ keeps polling the command with `write_stdin` until it exits: Codex ends no proce
 - A project needs a re-run of a check of another app.
 - One re-run is not enough: a check fails again on its re-run, and a re-run by hand then passes.
 - The report lines name the same test again and again.
-- Claude Code lowers the limit of a background command below the longest landing, or Codex ends a
-  process by its age.
+- Claude Code lowers the maximum `timeout` of a background command (2 hours in 2.1.307) below the
+  `3600000` (60 minutes) that the session passes, or Codex ends a process by its age.
