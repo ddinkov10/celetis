@@ -54,8 +54,8 @@ The spec and the plan of #85 found these facts on Bun 1.4.2, on 2026-10-21 and 2
 - Bun reads `bunfig.toml` and runs its `preload` only from its working folder. It loads `.env`
   only from there too. `bun -e` acts in the same way. A `preload` in `~/.bunfig.toml` or
   `$XDG_CONFIG_HOME/.bunfig.toml` did not run.
-- Bun does not transpile a file that starts with `// @bun`. A read with the vendored bundle wrote
-  no file to the transpiler cache.
+- Bun does not transpile the bundle, because it starts with `// @bun`. Bun still writes the
+  transpiled `config.ts` to its global cache. So the launcher turns the cache off.
 - `Bun.semver.satisfies("1.5.0-canary.1", ">=1.4.2")` is `false`. `Bun.semver.order` puts that
   prerelease after `1.4.2`.
 - A Claude Code cloud session has Bun 1.4.2. The Codex cloud image has Bun 1.2.10.
@@ -87,9 +87,9 @@ function keeps its input, its output, its exit status, its diagnostics, and its 
   `yaml.d.mts`, and a `README.md` with the integrity, the hash, and the build command. The reader
   imports the bundle by a relative path, so Bun looks up and installs no package.
 - **The floor.** The floor is Bun 1.4.2, the version of a Claude Code cloud session, with no upper
-  bound. It is in two places of code: `celetis_bun_floor=1.4.2` in `scripts/celetis`, and
-  `const floor = "1.4.2";` in `scripts/lib/config.ts`. The copy of the launcher in a product
-  project cannot import plugin code, so both places are necessary. The test `bun_floor_agrees`
+  bound. It is in two places of code: `celetis_bun_floor=1.4.2` in `scripts/celetis`, and the
+  constant `floor` of `scripts/lib/config.ts`. The copy of the launcher in a product project
+  cannot import plugin code, so both places are necessary. The test `bun_floor_agrees`
   keeps them equal, and CI pins `bun-version: 1.4.2`. The check is
   `Bun.semver.order(Bun.version, floor) < 0`, because `Bun.semver.satisfies` refuses each
   prerelease.
@@ -97,8 +97,9 @@ function keeps its input, its output, its exit status, its diagnostics, and its 
   reader for the full read, and `/` for the host hint. So a `bunfig.toml` preload and a `.env`
   file of a product project have no effect. The `cd` needs no flag, so an old Bun reaches the
   floor check, not a flag error.
-- **No transpiler cache.** The launcher sets `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0`, so a read
-  writes no file.
+- **No transpiler cache.** Bun does not transpile the bundle, but it still writes the transpiled
+  `config.ts` to its global cache. So the launcher sets `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0`, and
+  a read writes no file. The test `read_writes_no_cache_file` guards this.
 - **The host hint.** When neither `--agent` nor `CELETIS_AGENT` names the host, the launcher reads
   only `host` of the main `.celetis.yaml`, with `Bun.YAML.parse`. This needs no package, so the
   copy of the launcher in a product project selects the host before it finds the plugin.
@@ -125,9 +126,9 @@ the parser and Bun diagnostics are new too.
   in a flow collection or in a double-quoted continuation line. It also refuses two `...` markers,
   and a BOM at the start of the line after `---`. It refuses a quoted `"<<"` key outside
   `codexProfiles` as an `unknown field`, where yq merged it away.
-- **The new reader accepts more.** It accepts YAML 1.2 syntax that go-yaml, the parser of yq,
-  refuses, and no parsed value changes. The cases are a tab in a blank or comment line after a
-  plain scalar, after the indent of the first line of a block scalar, or right after a block `-`.
+- **The new reader accepts more.** It accepts YAML 1.2 input that today's reader refuses. The
+  cases are a tab in a blank or comment line after a plain scalar, after the indent of the first
+  line of a block scalar, or right after a block `-`.
   They are also a comment, an anchor, or a tag on the `---` line (`--- # c`, `--- &r`,
   `--- !!map`), and the tag `!` on a collection. Other cases are a surrogate-pair escape, a
   reserved directive (`%FOO bar`), a directive after `...` at the end of the file, the `\/` escape,
@@ -139,9 +140,10 @@ the parser and Bun diagnostics are new too.
   `jq: error (at <stdin>:1): ` prefix. A file that both readers refuse can get another field or
   message: `!!int abc`, `port: 1e999`, `custom: {bug: 1_000}`, `!!null {…}`, or a lone surrogate
   escape. Integer-like keys, such as a quoted `"1"`, come first in the JSON, so the first unknown
-  key can differ. A DEL from an escape is raw in the JSON, where jq wrote `\u007f`. A quoted
-  `"<<"` key under `codexProfiles` stays an ordinary runtime key. yq merged it away, which is a
-  defect of yq.
+  key can differ. A DEL from an escape is raw in the JSON, where jq wrote `\u007f`.
+- **Another JSON value.** A quoted `"<<"` key under `codexProfiles` stays an ordinary runtime key,
+  so `codexProfiles` is `{"<<": …}` in the JSON. yq merged the key away and gave `{}`, which is a
+  defect of yq. V2 found no other valid file with another JSON value.
 - **The launcher.** `root`, `capscore`, and `setup` no longer stop at the launcher when the file
   parses but fails a strict rule, because the host hint reads only `host`. `capscore` and `setup`
   still run the strict read where they use the config. A `host` that is not a string, such as
@@ -169,8 +171,8 @@ the parser and Bun diagnostics are new too.
 
 ## Consequences
 
-- yq goes from each machine and each CI job. jq stays for the other scripts, and Perl stays for
-  the update helper of the runner.
+- After the cutover, yq goes from each machine and each CI job. jq stays for the other scripts,
+  and Perl stays for the update helper of the runner.
 - The strict checks are typed code in one file, not jq programs in strings.
 - A read is faster: 38 to 39 ms against 54 to 56 ms on one machine.
 - Each machine that runs Celetis needs Bun 1.4.2 or later. The Codex cloud image has Bun 1.2.10.

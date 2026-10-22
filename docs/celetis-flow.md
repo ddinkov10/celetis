@@ -37,7 +37,8 @@ apart from a path that starts with `~/` or `/`.
   Bun. When `gh` or `git` is missing, the script names it and exits 1. The runner also needs Perl 5.14 or later on `PATH`;
   its update helper uses only the standard library. The launcher needs the selected host and `jq` to find
   the plugin (the next item). When `jq` is missing, the launcher prints `celetis: jq is not on PATH` and
-  exits 1.
+  exits 1. In a Git checkout, when neither `--agent` nor `CELETIS_AGENT` names the host, the
+  launcher also needs Bun to read `host` of the main config before it finds the plugin.
 - The scripts use only the REST API of GitHub (`gh api`), so they also work where a proxy refuses
   GraphQL, as in a Claude Code cloud session.
 - The plugin `celetis@celetis`, installed on the machine, and the launcher `scripts/celetis` in the

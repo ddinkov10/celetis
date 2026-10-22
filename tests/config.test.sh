@@ -519,6 +519,10 @@ check start_folder_preload_did_not_run test ! -e "$START_MARK"
 (cd "$tmp/start" && bun -e 1)
 check start_folder_control_runs_the_preload test -e "$START_MARK"
 
+mkdir "$tmp/cache"
+cache_out=$(export HOME="$tmp/cache" XDG_CACHE_HOME="$tmp/cache"; unset BUN_RUNTIME_TRANSPILER_CACHE_PATH; celetis_config_read "$repo")
+check read_writes_no_cache_file test "$cache_out:$(find "$tmp/cache" ! -type d)" = '{"landing":"pr"}:'
+
 mkdir -p "$tmp/copy/scripts"
 cp "$launcher" "$tmp/copy/scripts/celetis"
 code=0

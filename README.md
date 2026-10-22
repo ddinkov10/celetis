@@ -656,7 +656,9 @@ and board form. Every skill call adds `--agent claude` or `--agent codex` before
 - Each sub-command gives the output and the exit code of its script.
 - Run a command in a checkout of the product project: the plugin holds the scripts, so only the
   current folder names the project. `capscore` and `root` run in each folder.
-- The launcher needs the selected host CLI and `jq`. Project commands also need Bun
+- The launcher needs the selected host CLI and `jq`. In a Git checkout, when neither `--agent` nor
+  `CELETIS_AGENT` names the host, it also needs Bun to read `host` of the main config. Project
+  commands also need Bun
   and valid config described in `docs/configuration.md`. A missing tool or invalid installation
   stops with a setup action. Codex commands require no Claude binary. The current metadata must
   explicitly mark the installation enabled; missing fields are not an old-format fallback.

@@ -23,7 +23,7 @@ scripts/verify.sh
   gate runs each test as `PATH="/bin:$PATH" /bin/bash <test>`, so each inner `bash` reaches
   `/bin/bash` too.
 - A TypeScript file of `scripts/lib/` runs on Bun 1.4.2 or later. `scripts/lib/vendor/` holds
-  vendored code: update it only with the commands of its `README.md`.
+  vendored code: update it only as its `README.md` says.
 - Each test passes in 30 s or less alone (#81). A test with many independent cases runs them with
   `tests/lib/pool.sh`. The gate runs the tests at the same time, so a test keeps its scratch state
   private and writes nothing in the checkout.
