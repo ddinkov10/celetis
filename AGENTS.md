@@ -28,13 +28,17 @@ tests/suite.sh
   awk '$3 == "pip" { print $4 }' tests/lib/tools.txt | xargs python3 -m pip install --target <dir>
   awk '$3 == "npm" { print $4 }' tests/lib/tools.txt | xargs npm install --global
   ```
-- The gate checks `.celetis.yaml` with the config reader, so it needs Mike Farah yq on `PATH`, as
-  the reader does.
+- The gate checks `.celetis.yaml` with the config reader, so it needs Bun 1.4.2 or later on
+  `PATH`, as the reader does.
 - A new file type gets a row or an exemption in `scripts/verify.sh`.
-- The gate reads tracked files only. Run `git add` on a new file before the gate.
+- The gate takes its file list from `git ls-files`. Run `git add` on a new file before the gate.
 - The suite runs `(cd board && node --test)`, so it needs Node 22.18, or Node 24.2 or later.
-- Each script and each test also runs under bash 3.2, the `/bin/bash` of macOS. The suite runs each
-  test as `PATH="/bin:$PATH" /bin/bash <test>`, so each inner `bash` reaches `/bin/bash` too.
+- The tests run the config reader, so the suite also needs Bun 1.4.2 or later on `PATH`.
+- Each Bash file, a script or a test, also runs under bash 3.2, the `/bin/bash` of macOS. The
+  suite runs each test as `PATH="/bin:$PATH" /bin/bash <test>`, so each inner `bash` reaches
+  `/bin/bash` too.
+- A TypeScript file of `scripts/lib/` runs on Bun 1.4.2 or later. `scripts/lib/vendor/` holds
+  vendored code: update it only as its `README.md` says.
 - Each test passes in 30 s or less alone (#81). A test with many independent cases runs them with
   `tests/lib/pool.sh`. The suite runs the tests at the same time, so a test keeps its scratch state
   private and writes nothing in the checkout.

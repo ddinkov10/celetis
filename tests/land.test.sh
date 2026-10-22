@@ -144,7 +144,7 @@ lane() {
   echo "${2:-work}" >"$wt/${3:-work.txt}"
   if [ "${LANE_CONFLICT:-}" = 1 ]; then
     other='pr'
-    [ "$(yq .landing "$main/$config")" != pr ] || other=merge
+    [ "$(sed -n 's/^landing: //p' "$main/$config")" != pr ] || other=merge
     printf 'landing: %s\n' "$other" >"$wt/$config"
   fi
   git -C "$wt" add -A

@@ -65,9 +65,9 @@ ADR-0016 limits required automation to the CLI hosts while keeping desktop invoc
   on which the install, the refresh, and the lookup of the plugin were checked; an older release
   is not supported. These versions are a floor, not proof of the full workflow
   ([Acceptance status](docs/celetis-flow.md#acceptance-status)).
-- `gh` (logged in), `jq`, Mike Farah's `yq` `>=4.54.1,<5`, `git` 2.31 or later,
+- `gh` (logged in), `jq`, Bun 1.4.2 or later, `git` 2.31 or later,
   and Perl 5.14 or later on `PATH`.
-  The runner uses only the standard library of Perl.
+  The config reader runs on Bun. The runner uses only the standard library of Perl.
 - Git credentials for GitHub that need no prompt, an ssh key or a credential helper for https: the
   plugin repository is private.
 - Superpowers, installed and enabled on the selected host: the lanes call its `superpowers:*` skills.
@@ -77,7 +77,7 @@ ADR-0016 limits required automation to the CLI hosts while keeping desktop invoc
 
 `docs/celetis-flow.md` gives each requirement in full ("Requirements", and "The board").
 The [configuration reference](docs/configuration.md) gives the repository schema and the
-`yq` v4.54.1 download commands for macOS and Linux.
+commands that install Bun.
 
 ## Wire a product project
 
@@ -659,7 +659,9 @@ and board form. Every skill call adds `--agent claude` or `--agent codex` before
 - Each sub-command gives the output and the exit code of its script.
 - Run a command in a checkout of the product project: the plugin holds the scripts, so only the
   current folder names the project. `capscore` and `root` run in each folder.
-- The launcher needs the selected host CLI and `jq`. Project commands also need the parser
+- The launcher needs the selected host CLI and `jq`. In a Git checkout, when neither `--agent` nor
+  `CELETIS_AGENT` names the host, it also needs Bun to read `host` of the main config. Project
+  commands also need Bun
   and valid config described in `docs/configuration.md`. A missing tool or invalid installation
   stops with a setup action. Codex commands require no Claude binary. The current metadata must
   explicitly mark the installation enabled; missing fields are not an old-format fallback.
@@ -787,7 +789,7 @@ The checks need no model credentials or tokens and start no model turn.
   - Each TypeScript file on Bun in `scripts/`: `tsc` with `scripts/tsconfig.json`.
   - Each jq program: `jq -f <file> /dev/null`.
   - Each workflow: actionlint.
-  - `.celetis.yaml`: the config reader `celetis_config_read`.
+  - `.celetis.yaml`: the config reader `celetis_config_read`, which runs on Bun 1.4.2 or later.
   - The Perl updater: `perl -c`.
   - The plugin manifest: `claude plugin validate .`, which starts no model turn.
   - Each tracked file: the text rules, `tests/text.test.sh`.
@@ -803,15 +805,16 @@ The checks need no model credentials or tokens and start no model turn.
   ```
 - **The full suite** is `tests/suite.sh`. It runs the board suite (`(cd board && node --test)`)
   and each `tests/*.test.sh` at the same time, then `scripts/capscore.sh --test`. Its last line is
-  `suite: PASS`. The board suite needs Node 22.18, or Node 24.2 or later.
+  `suite: PASS`. The board suite needs Node 22.18, or Node 24.2 or later. The tests need Bun 1.4.2
+  or later.
 
   ```bash
   tests/suite.sh
   ```
 - **The workflow** `.github/workflows/test.yml` runs for each pull request and each push to
   `main`. It has one job with two legs on `ubuntu-24.04`, bash 5 and bash 3.2.57, and each leg is
-  a check of its own. Each leg installs Node.js 22, the pinned Claude test runtime, Mike Farah yq,
-  and the tools of `tests/lib/tools.txt`. Then it runs the step "Verify gate"
+  a check of its own. Each leg installs Node.js 22, the pinned Claude test runtime, Bun 1.4.2, and
+  the tools of `tests/lib/tools.txt`. Then it runs the step "Verify gate"
   (`scripts/verify.sh`) and the step "Full suite" (`tests/suite.sh`). The 3.2.57 leg builds bash
   3.2.57 from the GNU source with a pinned checksum, caches the build, and installs it as
   `/usr/bin/bash`, which is `/bin/bash` on the runner. The workflow does not skip the contract

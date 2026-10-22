@@ -14,8 +14,9 @@ fail() {
 
 fixtures=$base/fixtures
 plug="$fixtures/plug in"
-mkdir -p "$fixtures/bin" "$fixtures/noyq" "$plug/scripts" "$plug/docs/adr"
+mkdir -p "$fixtures/bin" "$fixtures/nobun" "$plug/scripts" "$plug/docs/adr"
 cp "$here/scripts/setup.sh" "$here/scripts/celetis" "$here/scripts/worktree-lib.sh" "$plug/scripts/"
+cp -R "$here/scripts/lib" "$plug/scripts/"
 cp "$here/docs/adr/README.md" "$here/docs/adr/template.md" "$plug/docs/adr/"
 cat >"$fixtures/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -61,8 +62,8 @@ case "$endpoint" in
 esac
 EOF
 chmod +x "$fixtures/bin/gh"
-printf '#!/bin/sh\nexit 1\n' >"$fixtures/noyq/yq"
-chmod +x "$fixtures/noyq/yq"
+printf '#!/bin/sh\nexit 1\n' >"$fixtures/nobun/bun"
+chmod +x "$fixtures/nobun/bun"
 all_labels='needs-triage bug enhancement hotfix chore epic needs-info ready-for-agent ready-for-human wontfix'
 export PATH="$fixtures/bin:$PATH" REPO=acme/widgets TRUNK=main LABELS=$all_labels
 
@@ -818,19 +819,19 @@ case_configvalue() {
   clean_tree "a line that changes a value left a file"
 }
 
-case_confignoyq() {
-  new_project confignoyq
-  PATH="$fixtures/noyq:$PATH" run write --hosts codex --landing merge >/dev/null 2>"$tmp/err" || fail "write needed yq for a new config: $(cat "$tmp/err")"
+case_confignobun() {
+  new_project confignobun
+  PATH="$fixtures/nobun:$PATH" run write --hosts codex --landing merge >/dev/null 2>"$tmp/err" || fail "write needed Bun for a new config: $(cat "$tmp/err")"
   bytes_are $'host: codex\nlanding: merge\n' .celetis.yaml
 }
 
-case_confignoyqread() {
-  new_project confignoyqread
+case_confignobunread() {
+  new_project confignobunread
   printf 'landing: pr\n' >"$proj/.celetis.yaml"
   commit_all product
-  LABELS= PATH="$fixtures/noyq:$PATH" stops_after 'cannot read the yq version' 'setup: cannot read .celetis.yaml; fix the cause above first' write --hosts codex --landing pr
-  [ ! -s "$LABEL_LOG" ] || fail "a config read with no yq left a label: $(cat "$LABEL_LOG")"
-  clean_tree "a config read with no yq left a file"
+  LABELS= PATH="$fixtures/nobun:$PATH" stops_after 'Bun stopped with exit 1' 'setup: cannot read .celetis.yaml; fix the cause above first' write --hosts codex --landing pr
+  [ ! -s "$LABEL_LOG" ] || fail "a config read with no Bun left a label: $(cat "$LABEL_LOG")"
+  clean_tree "a config read with no Bun left a file"
 }
 
 case_configcrlf() {
@@ -972,9 +973,9 @@ case_setupcrlf() {
   LABELS= stops "$no_add" write --hosts codex --landing pr --setup-file "$tmp/setupcrlf.sh"
   [ ! -s "$LABEL_LOG" ] || fail "a CRLF setup file left a label: $(cat "$LABEL_LOG")"
   clean_tree "a CRLF setup file left a file"
-  printf '\tset -e\necho hi\n' >"$tmp/setuptab.sh"
-  LABELS= stops_after 'invalid YAML' "$no_add" write --hosts codex --landing pr --setup-file "$tmp/setuptab.sh"
-  clean_tree "a setup file with a tab in its first line left a file"
+  printf 'set -e\necho \033[1mhi\n' >"$tmp/setupesc.sh"
+  LABELS= stops_after 'invalid character U+001B' "$no_add" write --hosts codex --landing pr --setup-file "$tmp/setupesc.sh"
+  clean_tree "a setup file with a raw control character left a file"
   printf 'host: codex\nlanding: pr\n' >"$proj/.celetis.yaml"
   commit_all product
   LABELS= stops "$no_add" write --hosts codex --landing pr --setup-file "$tmp/setupcrlf.sh"
@@ -986,7 +987,7 @@ case_setupend() {
   new_project setupend
   printf 'host: codex\nlanding: pr\n...\n' >"$proj/.celetis.yaml"
   commit_all product
-  LABELS= stops_after 'invalid YAML' "$no_add" write --hosts codex --landing pr --setup-file "$fixtures/setup1.sh"
+  LABELS= stops_after 'need one YAML document' "$no_add" write --hosts codex --landing pr --setup-file "$fixtures/setup1.sh"
   [ ! -s "$LABEL_LOG" ] || fail "a config with an end marker left a label: $(cat "$LABEL_LOG")"
   clean_tree "a config with an end marker left a file"
   [ "$(code_of write --hosts codex --landing pr)" -eq 0 ] || fail "write refused a config with an end marker and no setup file"
@@ -1001,10 +1002,10 @@ case_setupvalue() {
   clean_tree "a block that changes a value left a file"
 }
 
-case_setupnoyq() {
-  new_project setupnoyq
-  LABELS= PATH="$fixtures/noyq:$PATH" stops_after 'cannot read the yq version' "$no_add" write --hosts codex --landing pr --setup-file "$fixtures/setup1.sh"
-  clean_tree "a block check with no yq left a file"
+case_setupnobun() {
+  new_project setupnobun
+  LABELS= PATH="$fixtures/nobun:$PATH" stops_after 'Bun stopped with exit 1' "$no_add" write --hosts codex --landing pr --setup-file "$fixtures/setup1.sh"
+  clean_tree "a block check with no Bun left a file"
 }
 
 case_ignorelines() {

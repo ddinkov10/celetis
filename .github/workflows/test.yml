@@ -24,13 +24,9 @@ jobs:
             @anthropic-ai/claude-code@2.1.302
           echo "$RUNNER_TEMP/claude/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/claude/bin/claude" --version
-      - name: Install Mike Farah yq v4.54.1
-        run: |
-          curl --fail --location --output "$RUNNER_TEMP/yq" \
-            https://github.com/mikefarah/yq/releases/download/v4.54.1/yq_linux_amd64
-          chmod +x "$RUNNER_TEMP/yq"
-          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/yq" --version
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
       - name: Install the tools of the verify gate
         run: |
           awk '$3 == "pip" { print $4 }' tests/lib/tools.txt | xargs python3 -m pip install --quiet --target "$RUNNER_TEMP/gate-tools"

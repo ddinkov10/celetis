@@ -11,6 +11,7 @@ fails=0
 plug="$tmp/plug in"
 proj="$tmp/proj dir"
 mkdir -p "$plug/scripts" "$plug/skills/guide" "$plug/.claude-plugin" "$proj/scripts" "$tmp/stub" "$tmp/oops" "$tmp/nobin" "$tmp/nojq" "$tmp/cyg" "$tmp/codex" "$tmp/pipes"
+cp -R "$here/../scripts/lib" "$plug/scripts/"
 cp "$launcher" "$proj/scripts/celetis"
 celetis="$proj/scripts/celetis"
 printf '%s\n' '{"name":"celetis"}' >"$plug/.claude-plugin/plugin.json"
@@ -267,6 +268,54 @@ expect 'environment agent overrides the project agent' claude '' 0
 CELETIS_AGENT=claude GIT_AGENT=codex run "$both" --agent codex host
 expect 'explicit agent overrides environment and project' codex '' 0
 
+printf 'landing: merge\nhost: [\n' >"$proj/.celetis.yaml"
+run "$both" host
+check 'invalid YAML stops the host read' test "$code:$out" = '2:'
+check 'the host read names the file and the parse' test "${err#"celetis: $proj/.celetis.yaml: <document>: invalid YAML: "}" != "$err"
+run "$both" --agent codex host
+expect 'an explicit agent reads no config' codex '' 0
+CELETIS_AGENT=codex run "$both" host
+expect 'an environment agent reads no config' codex '' 0
+printf 'landing: merge\nhost: codex\n' >"$proj/.celetis.yaml"
+run "$tmp/stub:$tmp/nobin" host
+expect 'the host read needs Bun' '' "celetis: $proj/.celetis.yaml: <document>: need Bun >=1.4.2 on PATH" 2
+{
+  printf 'landing: merge\na0: &a0 [x, x]\n'
+  i=1
+  while [ "$i" -le 16 ]; do
+    printf 'a%s: &a%s [*a%s, *a%s]\n' "$i" "$i" "$((i - 1))" "$((i - 1))"
+    i=$((i + 1))
+  done
+  printf 'host: *a16\n'
+} >"$proj/.celetis.yaml"
+run "$both" host
+check 'an alias tree as host stops with one short line' test "$code:$out:$err" = '2::celetis: invalid agent a sequence; use claude or codex'
+printf 'landing: merge\nhost: {name: codex}\n' >"$proj/.celetis.yaml"
+run "$both" host
+check 'a mapping as host stops with one short line' test "$code:$out:$err" = '2::celetis: invalid agent a mapping; use claude or codex'
+printf 'landing: merge\nhost: codex\nextra: x\n' >"$proj/.celetis.yaml"
+run "$both" root
+expect 'a strict-rule failure does not stop root' "$plug" '' 0
+mv "$proj/.celetis.yaml" "$tmp/real-config.yaml"
+printf 'landing: merge\nhost: codex\n' >"$tmp/real-config.yaml"
+ln -s "$tmp/real-config.yaml" "$proj/.celetis.yaml"
+run "$both" host
+expect 'a symlink stops the host read' '' "celetis: $proj/.celetis.yaml: <document>: need a regular, readable file, with no symlink" 2
+rm "$proj/.celetis.yaml"
+printf 'landing: merge\nhost: codex\n' >"$proj/.celetis.yaml"
+export START_MARK="$tmp/start-ran"
+printf 'preload = ["./mark.js"]\n' >"$proj/sub/bunfig.toml"
+printf 'require("node:fs").writeFileSync(process.env.START_MARK, "ran")\n' >"$proj/sub/mark.js"
+printf 'CELETIS_AGENT=claude\n' >"$proj/sub/.env"
+from="$proj/sub" skills "$(skill "$plug/skills/guide/SKILL.md")"
+from="$proj/sub" run "$both" host
+expect 'a bunfig.toml and a .env of the start folder change no host' codex '' 0
+check 'the preload of the start folder did not run' test ! -e "$START_MARK"
+(cd "$proj/sub" && bun -e 1)
+check 'control: a plain bun runs that preload' test -e "$START_MARK"
+rm -f "$START_MARK" "$proj/sub/bunfig.toml" "$proj/sub/mark.js" "$proj/sub/.env"
+skills "$(skill "$plug/skills/guide/SKILL.md")"
+
 CELETIS_HOST=claude GIT_AGENT=claude run "$both" host
 expect 'obsolete environment and Git agent cannot override YAML' codex '' 0
 run "$both" --host codex host
@@ -395,11 +444,16 @@ for bad in missing invalid; do
   check "$bad main config starts no installed script" test ! -e "$LAUNCH_LOG"
   check "$bad main config reports the selected path" test "${err#*"$proj/.celetis.yaml"}" != "$err"
   run "$tmp/stub:$tmp/nobin" --agent claude root
-  expect "explicit installation root bypasses $bad project config without yq" "$plug" '' 0
+  expect "explicit installation root bypasses $bad project config without Bun" "$plug" '' 0
 done
 printf 'landing: merge\nhost: codex\n' >"$proj/.celetis.yaml"
+mv "$plug/scripts/lib" "$tmp/plugin-lib"
+run "$both" --agent claude next-step 7
+expect 'a plugin with no config reader asks for a plugin update' '' "celetis: the plugin at $plug has no config reader; update the plugin" 2
+check 'a plugin with no config reader starts no installed script' test ! -e "$LAUNCH_LOG"
+mv "$tmp/plugin-lib" "$plug/scripts/lib"
 from="$tmp/outside" run "$tmp/stub:$tmp/nobin" --agent claude root
-expect 'explicit installation root works outside Git without yq' "$plug" '' 0
+expect 'explicit installation root works outside Git without Bun' "$plug" '' 0
 from="$tmp/outside" run "$stub" root
 expect 'outside Git has no required project defaults' "$plug" '' 0
 

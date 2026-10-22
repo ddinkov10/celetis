@@ -42,7 +42,7 @@ stale="stop the plugin version of this runner was removed after an update; start
 stale_n() { printf '#%s: the plugin version of this runner was removed after an update; start the runner again' "$1"; }
 gone() {
   local file
-  for file in "$next" "$here/celetis" "$here/lib/host.sh" "$here/lib/session.sh" "$here/plugin-update.pl"; do
+  for file in "$next" "$here/celetis" "$here/lib/config.ts" "$here/lib/host.sh" "$here/lib/session.sh" "$here/lib/vendor/yaml.mjs" "$here/plugin-update.pl"; do
     [ -f "$file" ] || return 0
   done
   return 1

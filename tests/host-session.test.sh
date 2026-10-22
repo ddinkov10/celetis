@@ -136,7 +136,7 @@ EOF
 printf '#!/bin/bash\nexit 0\n' >"$tmp/bin/gh"
 printf '#!/bin/bash\nexec /bin/sleep 0.05\n' >"$tmp/bin/sleep"
 chmod +x "$tmp/bin/"* "$plugin/scripts/next-step.sh"
-for command in bash jq yq git dirname mkdir cat mktemp mkfifo rm mv ps touch perl date; do ln -s "$(command -v "$command")" "$tmp/codex-only/$command"; done
+for command in bash jq bun git dirname mkdir cat mktemp mkfifo rm mv ps touch perl date; do ln -s "$(command -v "$command")" "$tmp/codex-only/$command"; done
 for command in codex gh sleep; do ln -s "$tmp/bin/$command" "$tmp/codex-only/$command"; done
 export PATH="$tmp/bin:$PATH"
 git init -q "$template"
@@ -447,7 +447,7 @@ project_default() {
   code=0
   (cd "$repo" && unset CELETIS_AGENT && GIT_CONFIG_COUNT=0 scripts/celetis celetis-flow 7 < <(printf 'terminal input\n')) >"$dir/out" 2>"$dir/err" || code=$?
   [ "$code" -eq 0 ] && jq -e --arg h "$host" '.host == $h' "$S/calls" >/dev/null && jq -e --arg h "$host" '.host == $h' "$record" >/dev/null || fail "the current project default did not select and retain $host: $code [$(cat "$dir/err")]"
-  [ "$(yq -r .host "$repo/.celetis.yaml")" = "$other" ] || fail "the project preference did not change after $host started"
+  [ "$(sed -n 's/^host: //p' "$repo/.celetis.yaml")" = "$other" ] || fail "the project preference did not change after $host started"
   unset HERDR_ENV HERDR_PANE_ID
   : >"$S/calls"
   code=0

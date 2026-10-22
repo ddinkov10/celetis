@@ -32,12 +32,13 @@ apart from a path that starts with `~/` or `/`.
 
 - macOS or Linux, with bash 3.2 or later. There is no native Windows runner.
 - The selected host CLI (`claude` 2.1.299 or later, or `codex` 0.162.1 or later; the README gives
-  the reason for each), `gh` (logged in), `jq`, Mike Farah yq
-  `>=4.54.1,<5`, and `git` 2.31 or later on `PATH`. See `docs/configuration.md` for the pinned
-  parser installation. When `gh` or `git` is missing, the script names it and exits 1. The runner also needs Perl 5.14 or later on `PATH`;
+  the reason for each), `gh` (logged in), `jq`, Bun 1.4.2 or later,
+  and `git` 2.31 or later on `PATH`. See `docs/configuration.md` for the install of
+  Bun. When `gh` or `git` is missing, the script names it and exits 1. The runner also needs Perl 5.14 or later on `PATH`;
   its update helper uses only the standard library. The launcher needs the selected host and `jq` to find
   the plugin (the next item). When `jq` is missing, the launcher prints `celetis: jq is not on PATH` and
-  exits 1.
+  exits 1. In a Git checkout, when neither `--agent` nor `CELETIS_AGENT` names the host, the
+  launcher also needs Bun to read `host` of the main config before it finds the plugin.
 - The scripts use only the REST API of GitHub (`gh api`), so they also work where a proxy refuses
   GraphQL, as in a Claude Code cloud session.
 - The plugin `celetis@celetis`, installed on the machine, and the launcher `scripts/celetis` in the
@@ -370,7 +371,7 @@ Each `SKILL.md` starts with the common host entry, which reads the whole config 
 native file tools before any step or answer and applies only its target string (ADR-0013).
 Claude's native hook supplies metadata and permission-checked `Read` results before the
 model sees the entry; filename search alone proves no file kind. Codex uses supported file-only operations on its actual surface. The agent
-interprets the schema in `docs/configuration.md`, with no shell, `yq`, or
+interprets the schema in `docs/configuration.md`, with no shell or
 new parser operation. Native entry executes no setup and proves no deterministic parser check.
 `docs/hosts/entry.md` and the selected host reference own the entry rules.
 

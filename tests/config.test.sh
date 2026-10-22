@@ -11,7 +11,7 @@ git -C "$repo" init -q
 git -C "$repo" -c user.name=Fixture -c user.email=fixture@example.test commit --allow-empty -qm fixture
 fails=0
 cases=0
-real_yq=$(command -v yq)
+real_bun=$(command -v bun)
 base_path=$PATH
 read_path=$PATH
 
@@ -30,6 +30,15 @@ check() {
 run_read() {
   code=0
   out=$(PATH="$read_path" celetis_config_read "$repo" 2>"$tmp/err") || code=$?
+  err=$(cat "$tmp/err")
+  if [ "$code" -eq 0 ]; then
+    check "host_hint_$cases" test "$(PATH="$read_path" celetis_config_host "$repo")" = "$(jq -r '.host // "claude"' <<<"$out")"
+  fi
+}
+
+run_host() {
+  code=0
+  out=$(PATH="$read_path" celetis_config_host "$repo" 2>"$tmp/err") || code=$?
   err=$(cat "$tmp/err")
 }
 
@@ -124,6 +133,20 @@ check literal_strip test "$(printf '%s' "$out" | jq -c .custom.bug)" = '"A \"quo
 printf 'Добър ден.\n\nEnd.\n\n\n' >"$tmp/literal-want"
 printf '%s' "$out" | jq -j .custom.plan >"$tmp/literal-got"
 check literal_unicode_blank_trailing_lines cmp -s "$tmp/literal-want" "$tmp/literal-got"
+printf 'landing: pr\ncustom:\n  bug: |\n    Keep' >"$repo/.celetis.yaml"
+valid literal_ends_the_file '{"landing":"pr","custom":{"bug":"Keep"}}'
+printf 'landing: pr\ncustom:\n  bug: |+\n    Keep' >"$repo/.celetis.yaml"
+valid literal_keep_ends_the_file '{"landing":"pr","custom":{"bug":"Keep"}}'
+printf 'landing: pr\ncustom:\n  bug: |\n    Keep\n      ' >"$repo/.celetis.yaml"
+valid literal_spaces_end_the_file '{"landing":"pr","custom":{"bug":"Keep\n  "}}'
+printf 'landing: pr\ncustom:\n  bug: |\n    Keep\n    ' >"$repo/.celetis.yaml"
+valid literal_indent_ends_the_file '{"landing":"pr","custom":{"bug":"Keep\n"}}'
+printf 'landing: pr\ncustom:\n  bug: |\n    Keep\r' >"$repo/.celetis.yaml"
+valid literal_carriage_return_ends_the_file '{"landing":"pr","custom":{"bug":"Keep\n"}}'
+printf 'landing: pr\ncustom:\n  bug: "Keep\\n"' >"$repo/.celetis.yaml"
+valid quoted_break_ends_the_file '{"landing":"pr","custom":{"bug":"Keep\n"}}'
+printf 'landing: pr\ncustom:\n  bug: |\n    \ta\n' >"$repo/.celetis.yaml"
+valid literal_tab_after_indent '{"landing":"pr","custom":{"bug":"\ta\n"}}'
 cat >"$repo/.celetis.yaml" <<'EOF'
 landing: pr
 worktreeSetup: ""
@@ -189,22 +212,27 @@ run_read
 check symlink_config invalid_result '<document>'
 rm "$repo/.celetis.yaml"
 printf 'landing: pr\n' >"$repo/.celetis.yaml"
-cp "$launcher" "$tmp/reader"
+mkdir "$tmp/reader"
+cp "$launcher" "$tmp/reader/celetis"
+cp -R "$here/../scripts/lib" "$tmp/reader/lib"
 chmod 755 "$tmp" "$repo"
 chmod 000 "$repo/.celetis.yaml"
 denied=0
 perl -e 'open my $f, "<", $ARGV[0] or exit 1; exit 0' "$repo/.celetis.yaml" 2>"$tmp/probe-err" || denied=$?
 if [ "$denied" -eq 0 ] && [ "$(id -u)" -eq 0 ]; then
+  mkdir "$tmp/nobody-bin"
+  cp "$(command -v bun)" "$tmp/nobody-bin/bun"
+  chmod -R a+rX "$tmp/reader" "$tmp/nobody-bin"
   denied=0
   perl -e '$< = $> = 65534; open my $f, "<", $ARGV[0] or exit 1; exit 0' "$repo/.celetis.yaml" 2>"$tmp/probe-err" || denied=$?
   code=0
-  out=$(perl -e '$< = $> = 65534; exec @ARGV or die $!' /bin/bash -c 'source "$1"; celetis_config_read "$2"' _ "$tmp/reader" "$repo" 2>"$tmp/err") || code=$?
+  out=$(PATH="$tmp/nobody-bin:$PATH" perl -e '$< = $> = 65534; exec @ARGV or die $!' /bin/bash -c 'source "$1"; celetis_config_read "$2"' _ "$tmp/reader/celetis" "$repo" 2>"$tmp/err") || code=$?
   err=$(cat "$tmp/err")
 else
   run_read
 fi
 check permission_fixture_denies_actual_read test "$denied" -ne 0
-check unreadable_config invalid_result '<document>'
+check unreadable_config invalid_result 'cannot open the file'
 chmod 600 "$repo/.celetis.yaml"
 
 invalid empty_config '<document>' </dev/null
@@ -220,6 +248,15 @@ invalid empty_second_document '<document>' <<'EOF'
 landing: pr
 ---
 EOF
+for marker in '# c' '&r' '!!map'; do
+  invalid "document_start_$marker" '<document>: put nothing after --- on its line' < <(printf -- '--- %s\nhost: codex\nlanding: pr\n' "$marker")
+done
+printf -- '---\nhost: codex\nlanding: pr\n' >"$repo/.celetis.yaml"
+valid document_start_alone '{"host":"codex","landing":"pr"}'
+for directive in '%YAML 1.2' '%TAG ! tag:x,2026:' '%FOO bar'; do
+  invalid "directive_after_end_$directive" '<document>: need one YAML document' < <(printf 'landing: pr\n...\n%s\n' "$directive")
+done
+invalid bom_directive_after_end '<document>: need one YAML document' < <(printf 'landing: pr\n...\n\357\273\277%%YAML 1.2\n')
 invalid sequence_root '<document>' <<'EOF'
 - landing
 - pr
@@ -281,6 +318,18 @@ done
 for port in '"4403"' true 4403.5 4403.0 1023 65536; do
   invalid "invalid_port_$port" board.port < <(printf 'landing: pr\nboard: {port: %s}\n' "$port")
 done
+for port in 08080 09999 +08080; do
+  invalid "leading_zero_port_$port" board.port < <(printf 'landing: pr\nboard: {port: %s}\n' "$port")
+done
+check leading_zero_port_message test "$err" = "celetis: $repo/.celetis.yaml: board.port: need an integer"
+printf 'landing: pr\nboard: {port: 04404}\n' >"$repo/.celetis.yaml"
+valid leading_zero_port_without_8_or_9 '{"landing":"pr","board":{"port":4404}}'
+for tag in '!!null' '!<tag:yaml.org,2002:null>' '!!seq'; do
+  invalid "collection_tag_$tag" gates < <(printf 'landing: pr\ngates: %s {plan: me}\n' "$tag")
+done
+invalid collection_tag_block gates < <(printf 'landing: pr\ngates: !!null\n  plan: me\n')
+invalid collection_tag_slots codexProfiles.r.slots < <(printf 'landing: pr\ncodexProfiles: {r: {slots: !!null [a, a, a, a], reviewer: {rank: 1, effort: low}}}\n')
+check collection_tag_message test "$err" = "celetis: $repo/.celetis.yaml: codexProfiles.r.slots: unsupported YAML tag"
 invalid invalid_host host <<'EOF'
 landing: pr
 host: other
@@ -397,6 +446,7 @@ for rank in null '"1"' true 1.5 -1 4; do
     printf 'landing: pr\ncodexProfiles:\n  desktop:\n    slots: [a, b, c, d]\n    reviewer: {rank: %s, effort: medium}\n' "$rank"
   )
 done
+invalid negative_zero_rank 'codexProfiles.desktop.reviewer.rank: need an integer' < <(printf 'landing: pr\ncodexProfiles:\n  desktop:\n    slots: [a, b, c, d]\n    reviewer: {rank: -0, effort: medium}\n')
 invalid invalid_reviewer_effort codexProfiles.desktop.reviewer.effort <<'EOF'
 landing: pr
 codexProfiles:
@@ -437,50 +487,130 @@ landing: pr
 codexProfiles:
   desktop: {slots: [a, b, c, d], reviewer: {rank: 1}}
 EOF
-
-for tool in jq perl mktemp rm dirname cat; do
-  ln -s "$(command -v "$tool")" "$tmp/no-parser/$tool"
+invalid invalid_utf8 '<document>' < <(printf 'landing: pr\ncustom: {bug: "\377"}\n')
+invalid raw_escape '<document>' < <(printf 'landing: pr\ncustom:\n  bug: |\n    a\033b\n')
+invalid line_separator '<document>' < <(printf 'landing: pr\ncustom:\n  bug: |\n    a\342\200\250b\n')
+invalid underscore_port board.port < <(printf 'landing: pr\nboard: {port: 4_404}\n')
+for value in '!!float 12' '!!int abc' '!!bool yes' '!!null abc'; do
+  invalid "unresolved_tag_$value" custom.bug < <(printf 'landing: pr\ncustom: {bug: %s}\n' "$value")
 done
+for probe in underscore_text:1_000 binary_text:0b101 upper_hex_text:0X1A signed_hex_text:-0x1A underscore_float_text:1_0.5; do
+  invalid "${probe%%:*}" custom.bug < <(printf 'landing: pr\ncustom: {bug: %s}\n' "${probe#*:}")
+done
+check yaml_1_1_number_message test "$err" = "celetis: $repo/.celetis.yaml: custom.bug: quote this value: YAML 1.1 reads it as a number"
+cat >"$repo/.celetis.yaml" <<'EOF'
+landing: pr
+custom: {bug: '1_000', plan: !!str 0b101}
+EOF
+valid quoted_yaml_1_1_number '{"landing":"pr","custom":{"bug":"1_000","plan":"0b101"}}'
+printf 'landing: pr\ncustom: {bug: _1}\n' >"$repo/.celetis.yaml"
+valid leading_underscore_text '{"landing":"pr","custom":{"bug":"_1"}}'
+invalid underscore_slot codexProfiles.r.slots.0 < <(printf 'landing: pr\ncodexProfiles: {r: {slots: [1_000, a, a, a], reviewer: {rank: 1, effort: low}}}\n')
+invalid underscore_runtime_key codexProfiles.1_000 < <(printf 'landing: pr\ncodexProfiles: {1_000: {slots: [a, a, a, a], reviewer: {rank: 1, effort: low}}}\n')
+invalid merge_runtime_key 'codexProfiles.<<: mapping keys must be strings' < <(printf 'landing: pr\ncodexProfiles:\n  <<: {slots: [a, a, a, a], reviewer: {rank: 1, effort: low}}\n')
+invalid merge_value_text 'custom.bug: unsupported YAML tag' < <(printf 'landing: pr\ncustom: {bug: <<}\n')
+invalid lone_surrogate custom.bug < <(printf 'landing: pr\ncustom: {bug: "\\ud800"}\n')
+check lone_surrogate_message test "$err" = "celetis: $repo/.celetis.yaml: custom.bug: invalid character U+D800"
+printf '%%YAML 1.1\n---\nlanding: pr\nworktreeSetup: yes\n' >"$repo/.celetis.yaml"
+valid yaml_1_1_directive_keeps_strings '{"landing":"pr","worktreeSetup":"yes"}'
+floor=$(sed -n 's/^celetis_bun_floor=//p' "$launcher")
+check bun_floor_is_set test -n "$floor"
+check bun_floor_agrees test "$floor" = "$(sed -n "s/^const floor = [\"']\(.*\)[\"'];\$/\1/p" "$here/../scripts/lib/config.ts")"
+
+mkdir "$tmp/start"
+printf 'preload = ["./mark.js"]\n' >"$tmp/start/bunfig.toml"
+printf 'require("node:fs").writeFileSync(process.env.START_MARK, "ran")\n' >"$tmp/start/mark.js"
+printf 'CELETIS_START=loaded\n' >"$tmp/start/.env"
+export START_MARK="$tmp/start-ran"
+printf 'landing: pr\n' >"$repo/.celetis.yaml"
+start_out=$(cd "$tmp/start" && celetis_config_read "$repo" && celetis_config_host "$repo")
+check start_folder_has_no_effect test "$start_out" = $'{"landing":"pr"}\nclaude'
+check start_folder_preload_did_not_run test ! -e "$START_MARK"
+(cd "$tmp/start" && bun -e 1)
+check start_folder_control_runs_the_preload test -e "$START_MARK"
+
+mkdir "$tmp/cache"
+cache_out=$(
+  export HOME="$tmp/cache" XDG_CACHE_HOME="$tmp/cache"
+  unset BUN_RUNTIME_TRANSPILER_CACHE_PATH
+  celetis_config_read "$repo"
+)
+check read_writes_no_cache_file test "$cache_out:$(find "$tmp/cache" ! -type d)" = '{"landing":"pr"}:'
+
+mkdir -p "$tmp/copy/scripts"
+cp "$launcher" "$tmp/copy/scripts/celetis"
+code=0
+out=$(/bin/bash -c 'source "$1"; celetis_config_read "$2"' _ "$tmp/copy/scripts/celetis" "$repo" 2>"$tmp/err") || code=$?
+check product_copy_names_the_plugin_launcher test "$code:$out" = '2:'
+check product_copy_message grep -qF 'source the launcher of the plugin, $(scripts/celetis root)/scripts/celetis' "$tmp/err"
+
+mkdir "$tmp/args"
+cat >"$tmp/args/bun" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$@"
+EOF
+chmod +x "$tmp/args/bun"
+# shellcheck disable=SC2154 # scripts/celetis sets celetis_reader
+for drive in 'C:/Users/me/repo' 'c:\Users\me\repo'; do
+  out=$(PATH="$tmp/args:$base_path" celetis_config_run "$celetis_reader" "$drive")
+  check "drive_path_$drive" test "$out" = "$celetis_reader"$'\n'"$drive"
+done
+mkdir "$tmp/env"
+printf '#!/bin/sh\nenv\n' >"$tmp/env/bun"
+chmod +x "$tmp/env/bun"
+env_out=$(
+  unset DO_NOT_TRACK
+  PATH="$tmp/env:$base_path" celetis_config_read "$repo"
+  PATH="$tmp/env:$base_path" celetis_config_host "$repo"
+)
+check bun_sends_no_crash_report test "$(grep -cx DO_NOT_TRACK=1 <<<"$env_out")" -eq 2
+
 printf 'landing: pr\n' >"$repo/.celetis.yaml"
 read_path="$tmp/no-parser"
 run_read
-check missing_parser invalid_result yq
+check missing_bun invalid_result 'need Bun >=1.4.2 on PATH'
 read_path="$tmp/parser:$base_path"
-cat >"$tmp/parser/yq" <<'EOF'
+cat >"$tmp/parser/bun" <<'EOF'
 #!/bin/bash
-if [ "$1" = --version ]; then
-  printf '%s\n' "$PARSER_VERSION"
-else
-  exec "$REAL_YQ" "$@"
-fi
+exec "$REAL_BUN" --define "Bun.version:\"$FAKE_BUN_VERSION\"" "$@"
 EOF
-chmod +x "$tmp/parser/yq"
-export REAL_YQ="$real_yq" PARSER_VERSION
-for version in 'yq 3.4.3' 'yq (https://github.com/mikefarah/yq/) version v3.4.1' 'yq (https://github.com/mikefarah/yq/) version v5.0.0' 'yq (https://github.com/mikefarah/yq/) version v4.54.0' 'yq (https://github.com/mikefarah/yq/) version v4.53.9'; do
-  PARSER_VERSION=$version
+chmod +x "$tmp/parser/bun"
+export REAL_BUN="$real_bun" FAKE_BUN_VERSION
+for version in 0.9.0 1.2.10 1.4.1 1.4.2-canary.1; do
+  FAKE_BUN_VERSION=$version
   run_read
-  check "unsupported_parser_$version" invalid_result yq
+  check "old_bun_$version" invalid_result "need Bun >=1.4.2 on PATH, found $version"
+  run_host
+  check "old_bun_host_hint_$version" invalid_result "need Bun >=1.4.2 on PATH, found $version"
 done
-PARSER_VERSION='yq (https://github.com/mikefarah/yq/) version v4.55.0'
-valid newer_v4_parser '{"landing":"pr"}'
+for version in 1.4.3 1.5.0-canary.1 2.0.0; do
+  FAKE_BUN_VERSION=$version
+  valid "newer_bun_$version" '{"landing":"pr"}'
+done
+mkdir "$tmp/broken"
+printf '#!/bin/sh\nexit 1\n' >"$tmp/broken/bun"
+chmod +x "$tmp/broken/bun"
+read_path="$tmp/broken:$base_path"
+run_read
+check broken_bun invalid_result 'Bun stopped with exit 1'
+run_host
+check broken_bun_host_hint invalid_result 'Bun stopped with exit 1'
 
-cat >"$repo/.celetis.yaml" <<'EOF'
-host: codex
-landing: pr
-board: {port: 4404}
+mkdir "$tmp/swap"
+cat >"$tmp/swap.mjs" <<'EOF'
+import fs from "node:fs";
+const open = fs.openSync;
+fs.openSync = (path, ...rest) => {
+  if (String(path) === process.env.SWAP_FILE) fs.renameSync(process.env.SWAP_FROM, process.env.SWAP_FILE);
+  return open(path, ...rest);
+};
 EOF
-export CONFIG_FILE="$repo/.celetis.yaml" PARSER_MARKER="$tmp/parser-used"
-cat >"$tmp/parser/yq" <<'EOF'
-#!/bin/bash
-"$REAL_YQ" "$@"
-code=$?
-if [ "$1" != --version ] && [ ! -e "$PARSER_MARKER" ]; then
-  printf 'landing: pr\nlanding: merge\n' >"$CONFIG_FILE"
-  : >"$PARSER_MARKER"
-fi
-exit "$code"
-EOF
-valid single_snapshot "$minimal"
+printf '#!/bin/bash\nexec "$REAL_BUN" --preload "$SWAP_PRELOAD" "$@"\n' >"$tmp/swap/bun"
+chmod +x "$tmp/swap/bun"
+printf 'landing: pr\n' >"$repo/.celetis.yaml"
+printf 'landing: merge\n' >"$tmp/other.yaml"
+read_path="$tmp/swap:$base_path" SWAP_FILE="$repo/.celetis.yaml" SWAP_FROM="$tmp/other.yaml" SWAP_PRELOAD="$tmp/swap.mjs" run_read
+check file_changed_during_read invalid_result 'the file changed during the read'
 
 printf '%s cases; %s failures\n' "$cases" "$fails"
 [ "$fails" -eq 0 ]

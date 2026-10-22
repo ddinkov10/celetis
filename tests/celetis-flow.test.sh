@@ -185,7 +185,7 @@ ln -s "$(command -v jq)" "$nobin/jq"
 ln -s "$(command -v git)" "$nobin/git"
 ln -s "$(command -v dirname)" "$nobin/dirname"
 ln -s "$(command -v mkdir)" "$nobin/mkdir"
-for tool in yq perl mktemp rm cat; do ln -s "$(command -v "$tool")" "$nobin/$tool"; done
+for tool in bun perl mktemp rm cat; do ln -s "$(command -v "$tool")" "$nobin/$tool"; done
 export PATH="$bin:$PATH"
 
 group_init() {
@@ -235,7 +235,7 @@ reset() {
   fi
 }
 set_gate() {
-  yq -i ".gates.$1 = \"$2\"" "$repo/.celetis.yaml"
+  STEP=$1 VALUE=$2 perl -0pi -e '$l = "  $ENV{STEP}: $ENV{VALUE}\n"; s/^  \Q$ENV{STEP}\E: .*\n/$l/m or s/^gates:\n/gates:\n$l/m or $_ .= "gates:\n$l"' "$repo/.celetis.yaml"
   git -C "$repo" commit -qam gate-config
 }
 
@@ -969,7 +969,7 @@ group_board_agent() {
   [ "$code" -eq 0 ] && [ "$(doc 'del(.defaultAgent)')" = "$(printf '%s' "$board" | jq -c 'del(.defaultAgent)')" ] && [ ! -e "$S/codex-calls" ] || fail "only the default agent may change in the board document: $code [$out] [$err]"
   checked
   mkdir "$tmp/board-bin"
-  for command in bash jq yq perl mktemp rm git dirname mkdir cat date grep wc ps; do ln -s "$(command -v "$command")" "$tmp/board-bin/$command"; done
+  for command in bash jq bun perl mktemp rm git dirname mkdir cat date grep wc ps; do ln -s "$(command -v "$command")" "$tmp/board-bin/$command"; done
   ln -s "$bin/gh" "$tmp/board-bin/gh"
   ln -s "$bin/codex" "$tmp/board-bin/codex"
   CELETIS_AGENT=codex path="$tmp/board-bin" run_flow --board
@@ -982,7 +982,7 @@ group_board_agent() {
     printf '%s' "$out" >"$tmp/preferred-board"
   )
   [ "$(jq -c .defaultAgent "$tmp/preferred-board")" = '"claude"' ] || fail 'board must ignore the obsolete Git agent preference'
-  yq -i '.host = "codex"' "$repo/.celetis.yaml"
+  printf 'host: codex\n' >>"$repo/.celetis.yaml"
   git -C "$repo" commit -qam board-codex-default
   git -C "$repo" config celetis-flow.agent claude
   (
@@ -991,7 +991,7 @@ group_board_agent() {
     printf '%s' "$out" >"$tmp/preferred-board"
   )
   [ "$(jq -c .defaultAgent "$tmp/preferred-board")" = '"codex"' ] || fail 'the next board read must report the YAML host'
-  yq -i 'del(.host)' "$repo/.celetis.yaml"
+  perl -ni -e 'print unless /^host: /' "$repo/.celetis.yaml"
   git -C "$repo" commit -qam board-default-reset
   git -C "$repo" config --unset celetis-flow.agent
   documented_act=$(sed -n 's/.*| `stuck` | `act`: `\(.*\)` |/\1/p' "$root/docs/celetis-flow.md")

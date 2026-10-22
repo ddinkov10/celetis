@@ -2,7 +2,7 @@
 disable=SC1007
 # the code uses a && b || c on purpose: c runs when a or b fails, as in check && check || fail
 disable=SC2015
-# jq, Perl, sed, and shell programs, and Markdown with backticks, are in single quotes on purpose
+# jq, Perl, sed, Bun, and shell programs, and Markdown with backticks, are in single quotes on purpose
 disable=SC2016
 # cases and functions run in subshells on purpose; the flow analysis also reports scratch of scripts/setup.sh, which the main shell sets once
 disable=SC2030,SC2031
