@@ -65,8 +65,10 @@ it before the build, because the change does not exist yet.
 1. Each check that needs the maintainer's hands on the built change runs after the landing. The
    lane does not wait for it at the end.
 2. Each act that prepares a check moves to plan time, for example a scratch repository, an
-   install, or a secret. The maintainer does it while the build runs. A precondition of the
-   landing that the plan can see is treated in the same way.
+   install, or a secret. The maintainer does it while the build runs.
+
+The design treats a precondition of the landing that the plan can see in the same way
+(assumption 5 of the spec).
 
 **Three kinds of human act.** The plan sorts each human act that it can see into one kind:
 
@@ -113,9 +115,9 @@ and each value that an act gives. A session never writes it.
 
 ## Alternatives considered
 
-- **A follow-up issue for each lane.** Rejected on the decision card of the maintainer, "A section
-  of the plan only": it needs a new act after the landing, when the runner can end the session
-  first.
+- **A follow-up issue for each lane.** Rejected in the design session (assumption 1 of the spec,
+  the recommended option of the second decision card, "A section of the plan only"): it needs a new
+  act after the landing, when the runner can end the session first.
 - **The checks before the landing, as before.** Rejected: the waits of #41 and #42.
 - **A dependent check moves after the landing when its report is missing.** Rejected: the
   maintainer was told at plan time, and a precondition of the landing protects the trunk.
