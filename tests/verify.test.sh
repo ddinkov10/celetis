@@ -87,6 +87,12 @@ faults() {
   printf 'if true;then echo x;fi\n' >"$dir/re po/bad-format.sh"
   printf 'const a = {b:1}\n' >"$dir/re po/bad-format.js"
   printf '#!/usr/bin/env bash\necho $1\n' >"$dir/re po/bad-lint.sh"
+  printf 'if true; then\n' >"$dir/re po/bad-syntax.sh"
+  printf 'export const = 1\n' >"$dir/re po/bad-syntax.mjs"
+  printf '.a |\n' >"$dir/re po/bad.jq"
+  printf 'on: push\njobs:\n  a:\n    steps:\n      - run: echo x\n' >"$dir/re po/.github/workflows/bad.yml"
+  printf "const n: number = 'a';\n" >"$dir/re po/scripts/lib/bad.ts"
+  printf 'landing: [\n' >"$dir/re po/.celetis.yaml"
   git -C "$dir/re po" add -A
   /bin/bash "$dir/re po/scripts/verify.sh" >"$dir/out" 2>&1 || code=$?
   [ "$code" = 1 ] || fail "the gate exited $code: $(cat "$dir/out")"
@@ -95,6 +101,18 @@ faults() {
   has_line "$dir/out" 'bad-lint.sh:2:6: note: Double quote to prevent globbing and word splitting. [SC2086]'
   has_line "$dir/out" 'verify: shellcheck bad-lint.sh: fix each finding above, or disable its rule with a reason'
   grep -q 'bad-format.js' "$dir/out" || fail "Biome does not name bad-format.js: $(cat "$dir/out")"
+  has_line "$dir/out" 'verify: bad-syntax.sh: syntax error (/bin/bash -n)'
+  has_line "$dir/out" 'FAIL: bash -n (exit 1)'
+  has_line "$dir/out" 'verify: bad-syntax.mjs: syntax error (node --check)'
+  has_line "$dir/out" 'FAIL: node --check (exit 1)'
+  has_line "$dir/out" 'verify: bad.jq: syntax error (jq)'
+  has_line "$dir/out" 'FAIL: jq (exit 1)'
+  grep -Eq '^\.github/workflows/bad\.yml:[0-9]+:[0-9]+: .*\[syntax-check\]$' "$dir/out" || fail "actionlint does not name bad.yml: $(cat "$dir/out")"
+  has_line "$dir/out" 'FAIL: actionlint (exit 1)'
+  grep -Eq '^scripts/lib/bad\.ts\([0-9]+,[0-9]+\): error TS2322' "$dir/out" || fail "tsc does not name bad.ts: $(cat "$dir/out")"
+  has_line "$dir/out" 'FAIL: tsc (exit 1)'
+  grep -Fq "re po/.celetis.yaml: <document>: invalid YAML" "$dir/out" || fail "the config reader does not name .celetis.yaml: $(cat "$dir/out")"
+  has_line "$dir/out" 'FAIL: config (exit 1)'
   lacks_line "$dir/out" '^verify: PASS'
 }
 

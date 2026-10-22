@@ -134,6 +134,63 @@ check_shellcheck() {
     return 1
   }
 }
+check_bash_syntax() {
+  local file bad=0
+  [ ${#shell_files[@]} -eq 0 ] && return 0
+  echo "== bash -n"
+  for file in "${shell_files[@]}"; do
+    /bin/bash -n "$file" || {
+      echo "verify: $file: syntax error (/bin/bash -n)"
+      bad=1
+    }
+  done
+  [ "$bad" = 0 ]
+}
+check_node_syntax() {
+  local file bad=0
+  [ ${#node_files[@]} -eq 0 ] && return 0
+  echo "== node --check"
+  for file in "${node_files[@]}"; do
+    node --check "$file" || {
+      echo "verify: $file: syntax error (node --check)"
+      bad=1
+    }
+  done
+  [ "$bad" = 0 ]
+}
+check_jq_syntax() {
+  local file bad=0
+  [ ${#jq_files[@]} -eq 0 ] && return 0
+  echo "== jq -f"
+  for file in "${jq_files[@]}"; do
+    jq -f "$file" /dev/null || {
+      echo "verify: $file: syntax error (jq)"
+      bad=1
+    }
+  done
+  [ "$bad" = 0 ]
+}
+check_actionlint() {
+  [ ${#workflow_files[@]} -eq 0 ] && return 0
+  echo "== actionlint"
+  actionlint "${workflow_files[@]}"
+}
+check_config() {
+  [ ${#config_files[@]} -eq 0 ] && return 0
+  echo "== celetis_config_read"
+  (. scripts/celetis && celetis_config_read "$PWD" >/dev/null) || {
+    echo "verify: .celetis.yaml: fix the error above"
+    return 1
+  }
+}
+check_tsc() {
+  if [ ${#bun_files[@]} -eq 0 ]; then
+    echo "== tsc: no TypeScript file in scripts/"
+    return 0
+  fi
+  echo "== tsc"
+  tsc -p scripts/tsconfig.json --typeRoots "$npm_root/@types"
+}
 pool_run shfmt check_shfmt
 pool_run biome check_biome
 if [ ${#shell_files[@]} -gt 0 ]; then
@@ -141,6 +198,12 @@ if [ ${#shell_files[@]} -gt 0 ]; then
     pool_run "shellcheck $file" check_shellcheck "$file"
   done
 fi
+pool_run "bash -n" check_bash_syntax
+pool_run "node --check" check_node_syntax
+pool_run jq check_jq_syntax
+pool_run actionlint check_actionlint
+pool_run config check_config
+pool_run tsc check_tsc
 pool_run perl check_perl
 pool_run text check_text
 pool_run plugin check_plugin
