@@ -267,7 +267,8 @@ scenario, the act is a run of the scenario. After a PASS, the next run of `/cele
 the built change. After a FAIL, keep the label: put the result on the issue, run
 `/celetis:plan #<n>` in a session of your own, and remove the label when the new plan is on the
 issue. Re-entry requires completion evidence for the current build: the maintainer's later
-label-removal event or a trusted completion report, as `docs/issue-tracker.md` specifies. Label
+label-removal event or a trusted completion report, and both for an act of "During the build", as
+`docs/issue-tracker.md` specifies. Label
 absence alone does not clear the precondition. For a hotfix whose landing
 stopped, the checklist of step 7 of `skills/hotfix/SKILL.md` of the plugin holds your acts: you land
 with `scripts/celetis land` in your own shell, and the step does not run again.

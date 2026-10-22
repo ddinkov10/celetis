@@ -104,11 +104,14 @@ and each value that an act gives. A session never writes it.
   report form, and the scenarios that wait for it. Then it runs
   `gh issue edit <n> --remove-label ready-for-agent --add-label ready-for-human` as the last act,
   and stops.
-- Land, step 2: an act of "During the build" is done when the report holds it. When a
-  `## Before landing` comment names such an act, the landing needs both a later report of the act
-  and the maintainer's removal of `ready-for-human`.
-- Re-entry: with that report and that removal, the session runs the Verify scenarios that waited
-  for the act. It goes to Land, step 2 on a PASS. A FAIL loops back to a fix.
+- Land, step 2: an act of "During the build" is done when the report holds it. An act with no
+  report that no `## Before landing` comment of this build names stops the landing with a new such
+  comment, also after an earlier stop of this build. When a `## Before landing` comment of this
+  build names such an act, the landing needs both for that act: a report after that comment, and
+  the maintainer's removal of `ready-for-human` after that comment.
+- Re-entry: when one or more reports after that comment report each act that it names, and the
+  maintainer removed `ready-for-human` after it, the session runs the Verify scenarios that waited
+  for those acts. It goes to Land, step 2 on a PASS. A FAIL loops back to a fix.
 - Land, step 3: a check by hand is no stop. On an exit 0 of `scripts/celetis land`, the last
   message quotes the "After the landing" list verbatim after the quoted `land:` lines. The session
   runs no command for it, posts no comment, and adds no label.

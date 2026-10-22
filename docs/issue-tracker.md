@@ -42,7 +42,7 @@ Exactly one lane label per routed issue. The other labels mark waits and gates.
 - **Intent** — `/celetis:intake` writes the intent template as the body of a new issue, or as a comment headed `## Intent` on an existing one. A reporter's body is never rewritten by intake.
 - **Spec** — `specify` replaces the body with the design spec (`gh issue edit <n> --body-file`); its first line is `Spec: YYYY-MM-DD`. The body is the current truth for the item.
 - **Plan** — `plan` posts the implementation plan as a comment headed `## Plan`, then adds `ready-for-agent`. Its first section, `### Your steps`, lists the human acts of the lane in two lists: "During the build" (each act that the maintainer does while the build runs, the step that needs it, and its report) and "After the landing" (each check by hand on the built change; nothing in the lane waits for it). `implement` in a fresh context re-fetches the latest `## Plan` comment.
-- **Human steps done** — the maintainer reports the acts of "During the build" in one comment whose first line is `## Human steps done`, after the latest `## Plan` comment. The comment names each act that is done and each value that an act gives. `implement` reads the latest such comment. A session never writes it.
+- **Human steps done** — the maintainer reports the acts of "During the build" in one comment whose first line is `## Human steps done`, after the latest `## Plan` comment. The comment names each act that is done and each value that an act gives. `implement` reads each such comment after the latest `## Plan` comment. A session never writes it.
 - **Root cause** — `/celetis:bug` and `/celetis:hotfix` post the debugging report as a comment headed `## Root cause`.
 - **Prototype** — a look decision (`AGENTS.md` of the project) is recorded as a `## Prototype` section inside the spec (the issue body) or the `## Root cause` report, edited in place when that is already posted. It holds the question, the `prototype/<n>-<slug>` branch with its commit, one line per variant, and the verdict with its reason. The `## Root cause` comment on ddinkov10/fwrh_calculator#251 is the model.
 - **Built** — a `## Plan` comment with no `ready-for-agent` label: `plan` sets the label, and `implement` clears it when the change is built.
@@ -96,14 +96,17 @@ Read the existing event history with
 `actor`, `created_at`, and `label.name` ([GitHub event types](https://docs.github.com/en/rest/using-the-rest-api/issue-event-types)).
 A maintainer's later removal of `ready-for-human` is the workflow's completion signal. Without
 that event or a trusted human completion report, keep the change built, restore the human
-label using the existing comment as its reason, and stop. No new approval or record format is
-needed. Each required scenario still needs PASS; an unrun scenario has none.
+label using the existing comment as its reason, and stop. No new approval is needed. Each
+required scenario still needs PASS; an unrun scenario has none.
 
-For a `## Before landing` comment that names an act of "During the build", the evidence is both:
-a `## Human steps done` comment after that comment that reports the act, and the maintainer's
-later removal of `ready-for-human`. The next run of `implement` then runs the scenarios that
-waited for the act, and lands on a PASS. For a precondition of the landing, no scenario runs. With
-the report and the removal, the next run lands. Each `gh` call uses the maintainer's token, so the
+When a `## Before landing` comment of this build names an act of "During the build", the evidence
+for that act is both: a `## Human steps done` comment after that comment that reports the act, and
+the maintainer's removal of `ready-for-human` after that comment. One or more such reports can
+cover the acts that the comment names. The next run of `implement` then runs the scenarios that
+waited for the acts, and lands on a PASS. For a precondition of the landing, no scenario runs. With
+the reports and the removal, the next run lands. An act of "During the build" with no report that
+no `## Before landing` comment of this build names stops the landing with a new such comment, also
+after an earlier stop of this build. Each `gh` call uses the maintainer's token, so the
 author of a comment proves nothing: the rule that a session never writes the report is the guard.
 
 ## Resolving an issue's state
