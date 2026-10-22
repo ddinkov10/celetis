@@ -42,7 +42,29 @@ Bias:         <n>
 
 **Tasks are gated.** State in the plan — a per-task line or a Global Constraint — that each implementation task must pass the verify gate of the project before its review.
 
-**Add a final Verify phase — how the feature is proven on the project's own runtime.** The concrete shape is project-specific (on-device E2E for an app, a live browser flow for web, a script that exercises the service for a backend). State the scenario(s) and the below-the-UI oracle (probes/disk/logcat/HTTP) in this phase.
+**Open the plan with `### Your steps`.** It is the first section of the plan: after the `## Plan` line, before the header of `superpowers:writing-plans`. It names each human act of the lane that the plan can see, in two lists:
+- **During the build**: each act that prepares an agent check (for example a scratch repository, an install, or a secret), and each precondition of the landing (for example an environment variable that the new code reads). An item names the act, the step that needs it (a Verify scenario, or Land), and its report: a line of the maintainer's comment whose first line is `## Human steps done`.
+- **After the landing**: each check by hand on the built change. An item names its commands and its expected result.
+
+A list with no item is one line: `**During the build.** None.` or `**After the landing.** None.` A list with items has this form:
+
+```markdown
+### Your steps
+
+**During the build.** Do these now. The build does not wait for you until it needs them.
+
+1. <the act>. Needed by: <Verify Vn, or Land>.
+   Report: the line `<the line>` in your `## Human steps done` comment.
+
+**After the landing.** Run these after `/celetis:implement #<n>` lands the change. A FAIL is a new
+bug: run `/celetis:bug` with the result.
+
+1. <the check>: <the commands>. Expected: <the result>.
+```
+
+**Sort each check by its kind, not by the abilities of one session.** A check by hand needs what only a person has: the person's own signed-in account or a second identity, the person's own machine or device, or the person's judgment of a live result. It goes to "After the landing", never to the Verify phase. Each other check is a Verify scenario, also when it needs an act of "During the build". When you are not sure, the check stays in the Verify phase: a wrong sort to Verify costs a wait, and a wrong sort to "After the landing" removes a gate.
+
+**Add a final Verify phase — how the feature is proven on the project's own runtime.** The concrete shape is project-specific (on-device E2E for an app, a live browser flow for web, a script that exercises the service for a backend). State the scenario(s) and the below-the-UI oracle (probes/disk/logcat/HTTP) in this phase. An agent runs each scenario. A scenario that needs an act of "During the build" names that act. Only such a scenario can wait for the maintainer: with no report of the act, `implement` stops with `## Before landing`.
 
 **Name the reference.** State the external, named behavior the fix is measured against — the platform's own native flow for the same action, a shipped sibling feature, a competitor's equivalent. The phase exits only when the fix is at least as good as that reference; never leave the bar as an adjective.
 
@@ -52,4 +74,4 @@ Bias:         <n>
 
 ## Terminal
 
-The execution method is already supplied: `/celetis:implement #<n>` in a fresh context. Once the plan is written and self-reviewed, publish it in the same turn: `gh issue comment <n> --body-file <plan>` with `## Plan` as its first line, then `gh issue edit <n> --add-label ready-for-agent`. Then tell the user the plan is on the issue for their review, and to run `/celetis:implement #<n>` in a fresh context.
+The execution method is already supplied: `/celetis:implement #<n>` in a fresh context. Once the plan is written and self-reviewed, publish it in the same turn: `gh issue comment <n> --body-file <plan>` with `## Plan` as its first line, then `gh issue edit <n> --add-label ready-for-agent`. Then tell the user that the plan is on the issue for their review, repeat the two lists of `### Your steps` verbatim, and then tell the user to run `/celetis:implement #<n>` in a fresh context.

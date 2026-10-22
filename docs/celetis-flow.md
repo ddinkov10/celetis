@@ -267,10 +267,19 @@ scenario, the act is a run of the scenario. After a PASS, the next run of `/cele
 the built change. After a FAIL, keep the label: put the result on the issue, run
 `/celetis:plan #<n>` in a session of your own, and remove the label when the new plan is on the
 issue. Re-entry requires completion evidence for the current build: the maintainer's later
-label-removal event or a trusted completion report, as `docs/issue-tracker.md` specifies. Label
+label-removal event or a trusted completion report, and both for an act of "During the build", as
+`docs/issue-tracker.md` specifies. Label
 absence alone does not clear the precondition. For a hotfix whose landing
 stopped, the checklist of step 7 of `skills/hotfix/SKILL.md` of the plugin holds your acts: you land
 with `scripts/celetis land` in your own shell, and the step does not run again.
+
+**The human acts of a plan.** The plan names them in its first section, `### Your steps`. Do each
+act of "During the build" while the build runs, and report the acts in one `## Human steps done`
+comment. A build that needs an act with no report runs each other scenario. Then it stops with one
+`## Before landing` comment that names each such act, its report form, and the scenarios that wait
+for it. Post the report, then remove `ready-for-human`: the next run of `/celetis:implement` runs
+those scenarios and lands on a PASS. A check of "After the landing" is no stop. The last message of
+`/celetis:implement` quotes it after the landing, and a FAIL is a new bug (`/celetis:bug`).
 
 A `specify` session starts with the line `run /celetis:feature #<n>`. The paths of `specify` give
 three lines that end it: `run /celetis:plan #<n>` (the spec is on the issue),
