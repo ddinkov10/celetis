@@ -2,7 +2,7 @@
 
 Store Celetis setup in one regular, readable `.celetis.yaml` at the checkout root. A symlink is
 not allowed. Do not search parent folders or combine files. Use one YAML 1.2 document with a
-mapping root. Comments are allowed.
+mapping root. Comments are allowed. Put nothing after a `---` marker on its line.
 
 This repository uses:
 

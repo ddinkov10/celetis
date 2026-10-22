@@ -140,6 +140,11 @@ function parseOne(source: string): Document {
   }
   const [doc] = docs;
   if (docs.length !== 1 || !doc) throw new ConfigError([], 'need one YAML document');
+  // yaml 2.9.1 drops a directive after the last document; YAML 1.2 needs a document after each directive.
+  if (/^\uFEFF?%/m.test(source.slice(doc.range[2]))) throw new ConfigError([], 'need one YAML document');
+  if (doc.directives.docStart && /^---[ \t]*[^ \t\r\n]/.test(source.slice(doc.range[0]))) {
+    throw new ConfigError([], 'put nothing after --- on its line');
+  }
   removeAddedBreak(doc, source);
   return doc;
 }
@@ -226,7 +231,7 @@ function checkMetadata(nodes: NodeRecord[]): void {
       'need an integer',
       (node) =>
         !node.key &&
-        (node.tag === coreTag('float') || /^[-+]?0[0-9]*[89][0-9]*$/.test(node.plain ?? '')) &&
+        (node.tag === coreTag('float') || node.plain === '-0' || /^[-+]?0[0-7]*[89][0-9]*$/.test(node.plain ?? '')) &&
         (at(node.path, 'board.port') || at(node.path, 'codexProfiles.*.reviewer.rank')) &&
         node.path,
     ],

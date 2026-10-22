@@ -22,7 +22,7 @@ celetis_config_bun() (
   shift 2
   command -v bun >/dev/null 2>&1 || celetis_config_stop "$file" "need Bun >=$celetis_bun_floor on PATH"
   code=0
-  out=$(cd "$folder" && BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 bun "$@") || code=$?
+  out=$(cd "$folder" && BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun "$@") || code=$?
   case $code in
     0) printf '%s\n' "$out" ;;
     2) exit 2 ;;
@@ -55,7 +55,7 @@ celetis_config_host() (
     let config;
     try { config = Bun.YAML.parse(await Bun.file(file).text()); } catch (error) { stop(`invalid YAML: ${String(error.message).split("\n")[0]}`); }
     const host = config !== null && typeof config === "object" && !Array.isArray(config) && Object.hasOwn(config, "host") ? config.host : "claude";
-    console.log(typeof host === "string" ? host : JSON.stringify(host));
+    console.log(Array.isArray(host) ? "a sequence" : host !== null && typeof host === "object" ? "a mapping" : String(host));
   '
   celetis_config_bun "$file" / -e "$program" "$celetis_bun_floor" "$file"
 )
@@ -328,6 +328,10 @@ celetis_main() {
   case $name in
     worktree | celetis-flow | next-step | land | board)
       main=$(celetis_config_main) || return $?
+      if [ ! -f "$dir/scripts/lib/config.ts" ]; then
+        echo "celetis: the plugin at $dir has no config reader; update the plugin" >&2
+        return 2
+      fi
       celetis_config_run "$dir/scripts/lib/config.ts" "$main" >/dev/null || return $?
       ;;
   esac

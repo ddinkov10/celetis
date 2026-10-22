@@ -248,6 +248,15 @@ invalid empty_second_document '<document>' <<'EOF'
 landing: pr
 ---
 EOF
+for marker in '# c' '&r' '!!map'; do
+  invalid "document_start_$marker" '<document>: put nothing after --- on its line' < <(printf -- '--- %s\nhost: codex\nlanding: pr\n' "$marker")
+done
+printf -- '---\nhost: codex\nlanding: pr\n' >"$repo/.celetis.yaml"
+valid document_start_alone '{"host":"codex","landing":"pr"}'
+for directive in '%YAML 1.2' '%TAG ! tag:x,2026:' '%FOO bar'; do
+  invalid "directive_after_end_$directive" '<document>: need one YAML document' < <(printf 'landing: pr\n...\n%s\n' "$directive")
+done
+invalid bom_directive_after_end '<document>: need one YAML document' < <(printf 'landing: pr\n...\n\357\273\277%%YAML 1.2\n')
 invalid sequence_root '<document>' <<'EOF'
 - landing
 - pr
@@ -437,6 +446,7 @@ for rank in null '"1"' true 1.5 -1 4; do
     printf 'landing: pr\ncodexProfiles:\n  desktop:\n    slots: [a, b, c, d]\n    reviewer: {rank: %s, effort: medium}\n' "$rank"
   )
 done
+invalid negative_zero_rank 'codexProfiles.desktop.reviewer.rank: need an integer' < <(printf 'landing: pr\ncodexProfiles:\n  desktop:\n    slots: [a, b, c, d]\n    reviewer: {rank: -0, effort: medium}\n')
 invalid invalid_reviewer_effort codexProfiles.desktop.reviewer.effort <<'EOF'
 landing: pr
 codexProfiles:
@@ -545,6 +555,15 @@ for drive in 'C:/Users/me/repo' 'c:\Users\me\repo'; do
   out=$(PATH="$tmp/args:$base_path" celetis_config_run "$celetis_reader" "$drive")
   check "drive_path_$drive" test "$out" = "$celetis_reader"$'\n'"$drive"
 done
+mkdir "$tmp/env"
+printf '#!/bin/sh\nenv\n' >"$tmp/env/bun"
+chmod +x "$tmp/env/bun"
+env_out=$(
+  unset DO_NOT_TRACK
+  PATH="$tmp/env:$base_path" celetis_config_read "$repo"
+  PATH="$tmp/env:$base_path" celetis_config_host "$repo"
+)
+check bun_sends_no_crash_report test "$(grep -cx DO_NOT_TRACK=1 <<<"$env_out")" -eq 2
 
 printf 'landing: pr\n' >"$repo/.celetis.yaml"
 read_path="$tmp/no-parser"

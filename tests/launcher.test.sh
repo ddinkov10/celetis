@@ -279,6 +279,20 @@ expect 'an environment agent reads no config' codex '' 0
 printf 'landing: merge\nhost: codex\n' >"$proj/.celetis.yaml"
 run "$tmp/stub:$tmp/nobin" host
 expect 'the host read needs Bun' '' "celetis: $proj/.celetis.yaml: <document>: need Bun >=1.4.2 on PATH" 2
+{
+  printf 'landing: merge\na0: &a0 [x, x]\n'
+  i=1
+  while [ "$i" -le 16 ]; do
+    printf 'a%s: &a%s [*a%s, *a%s]\n' "$i" "$i" "$((i - 1))" "$((i - 1))"
+    i=$((i + 1))
+  done
+  printf 'host: *a16\n'
+} >"$proj/.celetis.yaml"
+run "$both" host
+check 'an alias tree as host stops with one short line' test "$code:$out:$err" = '2::celetis: invalid agent a sequence; use claude or codex'
+printf 'landing: merge\nhost: {name: codex}\n' >"$proj/.celetis.yaml"
+run "$both" host
+check 'a mapping as host stops with one short line' test "$code:$out:$err" = '2::celetis: invalid agent a mapping; use claude or codex'
 printf 'landing: merge\nhost: codex\nextra: x\n' >"$proj/.celetis.yaml"
 run "$both" root
 expect 'a strict-rule failure does not stop root' "$plug" '' 0
@@ -435,8 +449,7 @@ done
 printf 'landing: merge\nhost: codex\n' >"$proj/.celetis.yaml"
 mv "$plug/scripts/lib" "$tmp/plugin-lib"
 run "$both" --agent claude next-step 7
-check 'a plugin with no config reader stops a project command' test "$code" -eq 2
-check 'the stop names the missing reader' test "${err#*"no config reader at $plug/scripts/lib/config.ts"}" != "$err"
+expect 'a plugin with no config reader asks for a plugin update' '' "celetis: the plugin at $plug has no config reader; update the plugin" 2
 check 'a plugin with no config reader starts no installed script' test ! -e "$LAUNCH_LOG"
 mv "$tmp/plugin-lib" "$plug/scripts/lib"
 from="$tmp/outside" run "$tmp/stub:$tmp/nobin" --agent claude root

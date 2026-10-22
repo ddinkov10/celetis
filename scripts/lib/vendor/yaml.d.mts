@@ -41,7 +41,9 @@ export interface CollectionTag {
 
 export interface Document {
   contents: unknown;
+  directives: { docStart: true | null };
   errors: Error[];
+  range: [number, number, number];
   schema: { tags: Array<CollectionTag | ScalarTag> };
   toJS(): unknown;
 }

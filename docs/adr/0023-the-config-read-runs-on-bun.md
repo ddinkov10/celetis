@@ -31,8 +31,8 @@ This had three costs:
 
 - Each machine and each CI job installed a pinned yq only for this function.
 - The name `yq` is not unique. In the Claude Code cloud session of the plan, `/bin/yq` is a Python
-  yq, and the gate puts `/bin` first on `PATH`. There, the config reads of 14 test files stopped
-  with `need Mike Farah yq >=4.54.1,<5 on PATH`.
+  yq, and the test run of that time put `/bin` first on `PATH`. There, the config reads of 14 test
+  files stopped with `need Mike Farah yq >=4.54.1,<5 on PATH`.
 - One read took 69 ms in the decision study, and 44 ms on the machine of the spec.
 
 The maintainer wants a fast-moving project, with short build and verification times. The decision
@@ -68,8 +68,9 @@ the new reader on one machine: a Linux cloud container with 4 cores, and Bun 1.4
 - V3, the time: each mean is of 20 reads of this repository's `.celetis.yaml`, after one warm-up
   read. In two runs, today's reader took 54 ms and 56 ms. The new reader took 39 ms and 38 ms.
 - V2, the two readers: both readers read each case of `tests/config.test.sh`, the extra inputs of
-  the plan, and a corpus of 285 probe inputs. V2 found no difference outside the list in "The
-  intended differences" below.
+  the plan, and a corpus of 285 probe inputs. The final review of #85 ran both readers on about
+  2080 more inputs: 1968 generated inputs and about 110 inputs by hand. "The intended differences"
+  below lists each difference that these runs found.
 
 ## Decision
 
@@ -80,7 +81,9 @@ function keeps its input, its output, its exit status, its diagnostics, and its 
 - **The reader.** It reads the bytes of the file once, after a check that the open file is the file
   of the first `lstat`. It decodes the bytes as strict UTF-8. It refuses each character outside the
   printable set of YAML 1.2, and U+0085, U+2028, and U+2029. Then it parses with the vendored
-  `yaml`, walks the tree with today's metadata rules, and checks the schema as typed code. It
+  `yaml`, walks the tree with today's metadata rules, and checks the schema as typed code. At
+  `board.port` and `rank`, go-yaml reads a plain `-0` and a leading-zero integer with an 8 or a 9,
+  such as `08080`, as a float. So the reader refuses them with `need an integer`, as today. It
   prints one compact JSON object, or one line `celetis: <file>: <field>: <message>` with exit 2.
 - **The vendored bundle.** `scripts/lib/vendor/yaml.mjs` is a readable ES module bundle of the npm
   release `yaml` 2.9.1, built with `bun build`. Beside it are the license, a hand-written
@@ -100,6 +103,10 @@ function keeps its input, its output, its exit status, its diagnostics, and its 
 - **No transpiler cache.** Bun does not transpile the bundle, but it still writes the transpiled
   `config.ts` to its global cache. So the launcher sets `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0`, and
   a read writes no file. The test `read_writes_no_cache_file` guards this.
+- **No crash report.** On macOS and Windows, Bun 1.4.2 uploads a crash report to `bun.report` by
+  default. The host hint gives the file of a product project to the native `Bun.YAML.parse`. So
+  the launcher also sets `DO_NOT_TRACK=1`, and a crash of Bun sends no report. The test
+  `bun_sends_no_crash_report` guards this.
 - **The host hint.** When neither `--agent` nor `CELETIS_AGENT` names the host, the launcher reads
   only `host` of the main `.celetis.yaml`, with `Bun.YAML.parse`. This needs no package, so the
   copy of the launcher in a product project selects the host before it finds the plugin.
@@ -126,29 +133,40 @@ the parser and Bun diagnostics are new too.
   in a flow collection or in a double-quoted continuation line. It also refuses two `...` markers,
   and a BOM at the start of the line after `---`. It refuses a quoted `"<<"` key outside
   `codexProfiles` as an `unknown field`, where yq merged it away.
+  It refuses text after `---` on its line: `put nothing after --- on its line`. yq refused
+  `--- &r` and `--- !!map` before a block mapping. After `--- # c`, yq dropped the first key when
+  its value was a plain scalar or a flow collection. So yq lost that value, for example the `host`,
+  a gate, or the port. yq read a flow mapping on the `---` line, and `--- # c` before a blank or
+  comment line, as YAML 1.2 does.
+  YAML 1.2 reads a plain `1e400` as a float that is not finite. So in a string field or a key, the
+  reader refuses it with `non-finite numbers are not allowed` or `mapping keys must be strings`.
+  yq read the string "1e400". The reader refuses a lone `?` or `-` as a value in a flow mapping
+  (`{bug: ?}`, `{bug: -}`) as invalid YAML, where yq read a string.
 - **The new reader accepts more.** It accepts YAML 1.2 input that today's reader refuses. The
   cases are a tab in a blank or comment line after a plain scalar, after the indent of the first
-  line of a block scalar, or right after a block `-`.
-  They are also a comment, an anchor, or a tag on the `---` line (`--- # c`, `--- &r`,
-  `--- !!map`), and the tag `!` on a collection. Other cases are a surrogate-pair escape, a
-  reserved directive (`%FOO bar`), a directive after `...` at the end of the file, the `\/` escape,
-  and a plain `:x` in a flow mapping. These cases follow YAML 1.2 on purpose. The one exception is
-  the directive at the end, a leniency of `yaml` 2.9.1 that reads the document before it as usual.
-  An emulation of the layout quirks of go-yaml costs about 30 lines of parser-quirk code, and it
-  changes no parsed value.
+  line of a block scalar, or right after a block `-`. They are also the tag `!` on a collection, a
+  surrogate-pair escape, a reserved directive (`%FOO bar`) before `---`, a BOM before a comment
+  line after `...`, the `\/` escape, and a plain `:x` in a flow mapping. A tagged empty value in a
+  flow mapping, `{bug: !!str}`, is the empty string. These cases follow YAML 1.2 on purpose. An
+  emulation of the layout quirks of go-yaml costs about 30 lines of parser-quirk code.
 - **The same result, with another message or JSON form.** A schema message has no
   `jq: error (at <stdin>:1): ` prefix. A file that both readers refuse can get another field or
-  message: `!!int abc`, `port: 1e999`, `custom: {bug: 1_000}`, `!!null {…}`, or a lone surrogate
-  escape. Integer-like keys, such as a quoted `"1"`, come first in the JSON, so the first unknown
+  message: `!!int abc`, `port: 1e999`, `custom: {bug: 1_000}`, `!!null {…}`, a lone surrogate
+  escape, or a directive after `...` at the end of the file (`need one YAML document`).
+  Integer-like keys, such as a quoted `"1"`, come first in the JSON, so the first unknown
   key can differ. A DEL from an escape is raw in the JSON, where jq wrote `\u007f`.
 - **Another JSON value.** A quoted `"<<"` key under `codexProfiles` stays an ordinary runtime key,
   so `codexProfiles` is `{"<<": …}` in the JSON. yq merged the key away and gave `{}`, which is a
-  defect of yq. V2 found no other valid file with another JSON value.
+  defect of yq.
 - **The launcher.** `root`, `capscore`, and `setup` no longer stop at the launcher when the file
   parses but fails a strict rule, because the host hint reads only `host`. `capscore` and `setup`
   still run the strict read where they use the config. A `host` that is not a string, such as
-  `host: null`, stops the host hint with `invalid agent null`. Today, the strict read stopped first
-  with `host: invalid value`.
+  `host: null`, stops the host hint with `invalid agent null`. A mapping or a sequence gives
+  `invalid agent a mapping` or `invalid agent a sequence`. Today, the strict read stopped first
+  with `host: invalid value`. The host hint refuses two inputs that the strict reader accepts: a
+  plain `:x` key in a flow mapping, and a BOM at the start of a `---` line that is not the first
+  line. Then the launcher stops with `invalid YAML`. Today's reader refused the first input and
+  accepted the second.
 
 ## Alternatives considered
 
@@ -180,7 +198,7 @@ the parser and Bun diagnostics are new too.
 - A product project gets the new launcher when it runs `/celetis:setup`. Until then, its old
   launcher reads with yq, and each plugin script reads with Bun. So keep yq on a machine until each
   of its product projects has the new launcher. A new launcher with an old plugin stops with
-  `no config reader at …`.
+  `the plugin at … has no config reader; update the plugin`.
 - A product script that sources its copy of `scripts/celetis` and calls `celetis_config_read`
   stops, with a line that names the launcher of the plugin. No product repository was checked for
   such a script.
