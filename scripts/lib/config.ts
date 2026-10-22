@@ -123,7 +123,6 @@ function lastNode(node: unknown): unknown {
 }
 
 // When the file has no final line break, yaml 2.9.1 still ends the last block scalar with one; YAML 1.2 does not.
-// The last line belongs to the block when its removal changes the value.
 function removeAddedBreak(doc: Document, source: string): void {
   const node = lastNode(doc.contents);
   if (!isScalar(node) || !node.type?.startsWith('BLOCK') || typeof node.value !== 'string' || /[\r\n]$/.test(source)) {
