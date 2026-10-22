@@ -651,3 +651,79 @@ test(
     expect(old.stdout).toBe('CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → standard/xhigh\n');
   }),
 );
+
+test(
+  'numeric inputs keep the exact maximum safe integer and STOP lookup order',
+  withFixture(async (f) => {
+    const s = await scorer(f);
+    const maximum = '9007199254740991';
+    for (const [args, env] of [
+      [[...digits, '--bias', maximum], {}],
+      [digits, { CAP_EFFORT_BIAS: maximum }],
+    ] as [string[], NodeJS.ProcessEnv][]) {
+      const value = await s.json(args, env);
+      expect(value.bias).toBe(9007199254740991);
+      expect(Number.isSafeInteger(value.bias)).toBe(true);
+      expect(value.line).toBe('CAP: J1 V0 B2 N1 S1 X0 = 5 +b9007199254740991 → sonnet/max');
+    }
+    expect((await s.json([...digits, '--bias', '1'], { CAP_EFFORT_BIAS: '9'.repeat(400) })).bias).toBe(1);
+    await f.config('invalid: [\n');
+    await f.stub('git', "await Bun.write(process.env.NUMERIC_LOOKUP!, 'called'); process.exit(97);");
+    const env = {
+      PATH: `${join(f.dir, 'bin')}:${process.env.PATH}`,
+      NUMERIC_LOOKUP: join(f.dir, 'lookup-called'),
+      CAP_MODEL_PROFILE: '',
+      CAP_RUNTIME_MODELS: join(f.dir, 'missing-runtime'),
+    };
+    const result = await s.run(['--agent', 'other', ...digits, '--attempt', maximum, '--json'], env);
+    const value = JSON.parse(result.stdout);
+    expect(value).toMatchObject({ status: 'stop', attempt: 9007199254740991, host: null, dispatch: null });
+    expect(result.stdout).toContain('"attempt":9007199254740991');
+    expect(value.line).toBe(
+      'CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → STOP (attempt 9007199254740991: escalate to user with failure trail)',
+    );
+    expect(await Bun.file(join(f.dir, 'lookup-called')).exists()).toBe(false);
+  }),
+);
+
+for (const [kind, value] of [
+  ['first unsafe integer', '9007199254740992'],
+  ['reported overflow', '9223372036854775808'],
+  ['much larger decimal', '9'.repeat(400)],
+] as const) {
+  for (const source of ['--bias', '--attempt', 'CAP_EFFORT_BIAS']) {
+    test(
+      `${source} rejects ${kind} before lookup or numeric JSON output`,
+      withFixture(async (f) => {
+        const s = await scorer(f);
+        await f.config('invalid: [\n');
+        await f.stub('git', "await Bun.write(process.env.NUMERIC_LOOKUP!, 'called'); process.exit(97);");
+        const env = {
+          ...s.env,
+          PATH: `${join(f.dir, 'bin')}:${process.env.PATH}`,
+          NUMERIC_LOOKUP: join(f.dir, 'lookup-called'),
+          CAP_MODEL_PROFILE: '',
+          CAP_RUNTIME_MODELS: join(f.dir, 'missing-runtime'),
+          ...(source === 'CAP_EFFORT_BIAS' ? { CAP_EFFORT_BIAS: value } : {}),
+        };
+        const args = [
+          '--agent',
+          'other',
+          ...digits,
+          ...(source === 'CAP_EFFORT_BIAS' ? [] : [source, value]),
+          ...(source === '--attempt' ? [] : ['--attempt', '4']),
+          '--json',
+        ];
+        const result = await f.bun(entry, args, { cwd: f.repo, env });
+        const diagnostic =
+          source === '--attempt'
+            ? '--attempt needs a positive integer'
+            : source === '--bias'
+              ? '--bias needs a non-negative integer'
+              : 'CAP_EFFORT_BIAS must be a non-negative integer';
+        expect(result).toEqual({ code: 2, stdout: '', stderr: `capscore: ${diagnostic}\n` });
+        expect(await Bun.file(join(f.dir, 'lookup-called')).exists()).toBe(false);
+      }),
+    );
+  }
+}

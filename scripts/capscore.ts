@@ -273,10 +273,12 @@ export async function main(argv: string[]): Promise<number> {
         const value = argv[++i];
         if (!value) throw new ScoreError(`${arg} needs a value`);
         if (arg === '--bias') {
-          if (!/^\d+$/.test(value)) throw new ScoreError('--bias needs a non-negative integer');
+          if (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)))
+            throw new ScoreError('--bias needs a non-negative integer');
           biasText = value;
         } else if (arg === '--attempt') {
-          if (!/^\d+$/.test(value)) throw new ScoreError('--attempt needs a positive integer');
+          if (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)))
+            throw new ScoreError('--attempt needs a positive integer');
           attemptText = value;
         } else if (arg === '--agent') agent = value;
         else if (arg === '--profile') profile = value;
@@ -287,7 +289,8 @@ export async function main(argv: string[]): Promise<number> {
     }
     if (biasText === undefined) {
       biasText = process.env.CAP_EFFORT_BIAS || '2';
-      if (!/^\d+$/.test(biasText)) throw new ScoreError('CAP_EFFORT_BIAS must be a non-negative integer');
+      if (!/^\d+$/.test(biasText) || !Number.isSafeInteger(Number(biasText)))
+        throw new ScoreError('CAP_EFFORT_BIAS must be a non-negative integer');
     }
     const bias = Number(biasText);
     const attempt = Number(attemptText);
