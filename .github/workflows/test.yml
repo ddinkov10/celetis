@@ -31,6 +31,11 @@ jobs:
           chmod +x "$RUNNER_TEMP/yq"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/yq" --version
+      - name: Install the tools of the verify gate
+        run: |
+          awk '$3 == "pip" { print $4 }' tests/lib/tools.txt | xargs python3 -m pip install --quiet --target "$RUNNER_TEMP/gate-tools"
+          echo "$RUNNER_TEMP/gate-tools/bin" >> "$GITHUB_PATH"
+          awk '$3 == "npm" { print $4 }' tests/lib/tools.txt | xargs npm install --global --no-audit --no-fund
       - if: matrix.bash == '3.2.57'
         id: bash-cache
         uses: actions/cache@v4
@@ -57,8 +62,8 @@ jobs:
         run: |
           sudo install -m 0755 "$RUNNER_TEMP/bash-build/bash" /usr/bin/bash.new
           sudo mv -f /usr/bin/bash.new /usr/bin/bash
-      - name: Board tests
-        working-directory: board
-        run: node --test
       - run: /bin/bash --version
-      - run: scripts/verify.sh
+      - name: Verify gate
+        run: scripts/verify.sh
+      - name: Full suite
+        run: tests/suite.sh
