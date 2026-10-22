@@ -104,10 +104,14 @@ check_shfmt() {
   [ ${#shell_files[@]} -eq 0 ] && return 0
   echo "== shfmt -l"
   while IFS= read -r file; do
-    shfmt -d "$file" || true
-    echo "verify: run shfmt -w $file"
+    if [ -f "$file" ]; then
+      shfmt -d "$file" || true
+      echo "verify: run shfmt -w $file"
+    else
+      echo "$file"
+    fi
     bad=1
-  done < <(shfmt -l "${shell_files[@]}")
+  done < <(shfmt -l "${shell_files[@]}" 2>&1)
   [ "$bad" = 0 ]
 }
 check_biome() {
