@@ -144,7 +144,7 @@ wait_green() {
   return 1
 }
 
-# The run_attempt of GitHub is the only record of a re-run, so a later run of the script on this tip re-runs nothing.
+# The run_attempt of GitHub is the only record of a re-run: a workflow run at attempt 2 or more gets no re-run.
 rerun_failed() {
   local red statuses runs app conclusion suite details name run
   red=$(gh api --paginate "repos/{owner}/{repo}/commits/$tip/check-runs?per_page=100" --jq '.check_runs[] |
