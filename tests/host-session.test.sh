@@ -459,7 +459,9 @@ project_default() {
   [ "$code" -ne 0 ] && [ ! -s "$S/calls" ] && [[ $(cat "$dir/err") == *"recorded host is $host"* ]] || fail "an explicit agent request switched the saved $host session"
 }
 
+# shellcheck disable=SC2086 # c is a host and a status, two words
 for c in 'claude idle' 'claude working' 'claude unknown' 'codex done' 'codex blocked'; do pool_run "status $c" saved_status $c; done
+# shellcheck disable=SC2086 # c is a host and a pane id, two words
 for c in 'claude w1:p1' 'claude w1:pE' 'claude wa0:pz9' 'codex wW:p14' 'codex wW:pE'; do pool_run "pane $c" valid_pane $c; done
 for host in claude codex; do
   pool_run "prior host $host" prior_host "$host"

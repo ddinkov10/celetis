@@ -543,6 +543,7 @@ changed_paths() { git status --porcelain --untracked-files=all -- "${setup_paths
 report_changes() {
   local changed
   changed=$(changed_paths)
+  # shellcheck disable=SC2001 # sed puts the prefix on each line of the list
   if [ -z "$changed" ]; then echo 'setup: no file changed'; else sed 's/^/setup: changed /' <<<"$changed"; fi
 }
 

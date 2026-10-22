@@ -15,6 +15,7 @@ cleanup() {
   pids=$(cat "$base"/*/pids 2>/dev/null | paste -sd , -)
   if [ -n "$pids" ]; then
     pkill -P "$pids" 2>/dev/null || true
+    # shellcheck disable=SC2086 # pids is a list of PIDs
     kill ${pids//,/ } 2>/dev/null || true
   fi
   rm -rf "$base"
@@ -26,13 +27,14 @@ fail() {
 }
 case_idle() {
   source "$root/scripts/lib/session.sh"
+  # shellcheck disable=SC2329 # scripts/lib/session.sh calls the stub
   herdr() {
     [ "$*" = "agent get $HERDR_PANE_ID" ] || return 1
     jq "$filter" "$CELETIS_TEST_HERDR_FIXTURES/$CELETIS_AGENT.json"
   }
   for CELETIS_AGENT in claude codex; do
     id=$(jq -r .result.agent.agent_session.value "$CELETIS_TEST_HERDR_FIXTURES/$CELETIS_AGENT.json")
-    for status in idle done; do
+    for status in idle 'done'; do
       filter=".result.agent.agent_status=\"$status\""
       celetis_session_idle "$id" || fail "$CELETIS_AGENT $status was not idle with the current herdr reply"
     done
@@ -477,9 +479,9 @@ run claude guard dirty
 run codex guard landing
 run codex guard missing
 run claude ending idle accepted
-run claude ending done failed
+run claude ending 'done' failed
 run codex ending idle failed
-run codex ending done accepted
+run codex ending 'done' accepted
 run codex term
 run claude registration issue
 run codex registration auto

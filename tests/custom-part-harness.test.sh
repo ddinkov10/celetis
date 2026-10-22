@@ -313,6 +313,7 @@ valid_run() {
 style_run() {
   local style=$1 pass=$2 fail=$3 cases=$style_cases
   [ "$style" != path-map ] || cases=
+  # shellcheck disable=SC2086 # cases is a list of case names
   if CUSTOM_PART_CASES=$cases CUSTOM_METADATA_STYLE=$style manual >"$tmp/$style" 2>&1 &&
     passed "$tmp/$style" $cases; then
     echo "ok: $pass"

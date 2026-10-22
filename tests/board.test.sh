@@ -8,7 +8,8 @@ repo="$tmp/main checkout"
 capture="$tmp/capture"
 mkdir -p "$repo/scripts" "$repo/sub" "$repo/board" "$tmp/bin"
 repo=$(cd "$repo" && pwd -P)
-export BOARD_CAPTURE="$capture" BOARD_REAL_NODE="$(command -v node)" BOARD_FLOW="$root/scripts/celetis-flow.sh"
+BOARD_REAL_NODE=$(command -v node)
+export BOARD_CAPTURE="$capture" BOARD_REAL_NODE BOARD_FLOW="$root/scripts/celetis-flow.sh"
 export BOARD_PRODUCER_LOG="$tmp/producer"
 unset PORT CELETIS_AGENT
 cat >"$tmp/bin/node" <<'EOF'

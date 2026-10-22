@@ -136,7 +136,7 @@ lane() {
   git worktree add -q -b "$1" "$wt" origin/master
   echo "${2:-work}" >"$wt/${3:-work.txt}"
   if [ "${LANE_CONFLICT:-}" = 1 ]; then
-    other=pr
+    other='pr'
     [ "$(yq .landing "$main/$config")" != pr ] || other=merge
     printf 'landing: %s\n' "$other" >"$wt/$config"
   fi
@@ -173,6 +173,7 @@ prs() {
 on_base() { json prs "$(jq -c --argjson pr "$1" --arg base "$2" '(.[] | select(.number == $pr)).base.ref = $base' "$S/prs.json")"; }
 merged() { json merged "[{\"state\":\"closed\",\"merged_at\":\"2026-10-19T00:00:00Z\",\"base\":{\"ref\":\"${2:-master}\"},\"head\":{\"ref\":\"$branch\",\"sha\":\"$1\"}}]"; }
 checks() {
+  # shellcheck disable=SC2086 # $1 is a list of check states
   json "${2:-checks}" "$(jq -cn '{check_runs: [$ARGS.positional[] | {pass: "success", fail: "failure", skipping: "skipped", cancel: "cancelled"}[.] as $c |
     {status: (if $c then "completed" else "in_progress" end), conclusion: $c}]}' --args $1)"
 }
@@ -254,44 +255,44 @@ usage_and_config() {
 
 lane_refusals() {
   local m=$1
-  fresh $m
+  fresh "$m"
   lane fix/7-crash
   touch "$S/gh-fail"
   land 7 'fix(x): y'
   refused "cannot read the default branch from GitHub" "$m: gh down"
   has "HTTP 502" "$m: gh down"
-  fresh $m
+  fresh "$m"
   land 7 'fix(x): y'
   refused "no lane branch matches #7; nothing to land" "$m: no lane branch"
-  fresh $m
+  fresh "$m"
   lane fix/17-other
   land 7 'fix(x): y'
   refused "no lane branch matches #7" "$m: the branch of #17"
-  fresh $m
+  fresh "$m"
   lane prototype/7-look
   land 7 'fix(x): y'
   refused "no lane branch matches #7" "$m: a prototype branch"
-  fresh $m
+  fresh "$m"
   lane fix/7-crash
   git branch -q feat/7-crash master
   land 7 'fix(x): y'
   refused "several branches match #7: feat/7-crash fix/7-crash; keep one" "$m: two lane branches"
-  fresh $m
+  fresh "$m"
   lane fix/7-crash
   from=$wt
   land 7 'fix(x): y'
   refused "leave $wt first: run scripts/celetis land from the main checkout" "$m: inside the lane worktree"
-  fresh $m
+  fresh "$m"
   lane fix/7-crash
   echo x >"$wt/new.txt"
   land 7 'fix(x): y'
   refused "the lane worktree is dirty: $wt; commit first" "$m: a dirty lane worktree"
-  fresh $m
+  fresh "$m"
   lane fix/7-crash
   git -C "$wt" reset -q --hard origin/master
   land 7 'fix(x): y'
   refused "fix/7-crash has no commit that master lacks; nothing to land" "$m: a branch with no commit"
-  fresh $m
+  fresh "$m"
   git checkout -q -b fix/7-crash
   git commit -q --allow-empty -m work
   land 7 'fix(x): y'

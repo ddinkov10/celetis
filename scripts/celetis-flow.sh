@@ -224,7 +224,7 @@ end_when_done() {
     sleep 1
   done
   id=$(jq -r .session_id "$state/sessions/$n.json")
-  while herdr agent wait "$HERDR_PANE_ID" --until idle --until done >/dev/null 2>&1; do
+  while herdr agent wait "$HERDR_PANE_ID" --until idle --until 'done' >/dev/null 2>&1; do
     if gone; then
       say "$(stale_n "$n")"
       return 1

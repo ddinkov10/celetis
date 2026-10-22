@@ -42,6 +42,7 @@ case $out in *after*) fail "a job went on after a failed command" ;; esac
 mkdir "$tmp/live"
 busy() {
   touch "$tmp/live/$1"
+  # shellcheck disable=SC2012 # the names are job numbers
   ls "$tmp/live" | wc -l | tr -d ' ' >"$tmp/count-$1"
   /bin/sleep 0.2
   rm "$tmp/live/$1"

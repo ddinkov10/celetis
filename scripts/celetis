@@ -272,13 +272,14 @@ celetis_codex_request() (
   umask 077
   scratch=$(mktemp -d "${TMPDIR:-/tmp}/celetis.XXXXXX") || exit 1
   codex_pid=
+  # shellcheck disable=SC2329 # the EXIT trap calls it
   cleanup() {
     local status=$?
     if [ "$status" -ne 0 ] && [ -f "$scratch/stderr" ]; then cat "$scratch/stderr" >&2; fi
     exec 3>&- 4>&-
     if [ -n "$codex_pid" ]; then
       kill "$codex_pid" 2>/dev/null || true
-      for attempt in 1 2 3 4 5; do
+      for _ in 1 2 3 4 5; do
         kill -0 "$codex_pid" 2>/dev/null || break
         sleep 0.1
       done

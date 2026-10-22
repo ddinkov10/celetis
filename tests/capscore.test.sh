@@ -225,6 +225,7 @@ error 'invalid config with no profile' '.celetis.yaml'
 printf 'landing: merge\n' >"$tmp/project/.celetis.yaml"
 
 mkdir "$tmp/outside"
+# shellcheck disable=SC2329 # the stub must not run: the test proves that no yq call happens
 yq() {
   printf 'unexpected yq call\n' >&2
   return 99

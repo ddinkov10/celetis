@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# shellcheck disable=SC2034 # the sourced check function reads root
 root=$PWD
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT

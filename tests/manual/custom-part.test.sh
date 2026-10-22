@@ -30,6 +30,7 @@ observer="$tmp/observer"
 output_files=()
 cleanup() {
   local status=$? file
+  # shellcheck disable=SC2046 # one word for each job PID
   kill $(jobs -p) 2>/dev/null || true
   if [ -n "$output_dir" ] && [ "${#output_files[@]}" -gt 0 ]; then
     for file in "${output_files[@]}"; do
@@ -124,7 +125,7 @@ turn() {
   checkout=$(git -C "$folder" rev-parse --show-toplevel 2>/dev/null || true)
   [ "$name" != enter-worktree ] || checkout=$lane
   path=${checkout:+$checkout/.celetis.yaml}
-  [ -z "$checkout" ] || [ ! -f "$checkout/.git" ] || git_kind=file
+  [ -z "$checkout" ] || [ ! -f "$checkout/.git" ] || git_kind='file'
   if [ -n "$path" ] && [ -f "$path" ]; then
     source=$(
       cat "$path"

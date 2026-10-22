@@ -67,6 +67,7 @@ for directory in "${instruction_dirs[@]}"; do
     hash=$(shasum -a 256 <"$tmp/$snapshot")
     jq -nc --arg path "$instruction_file" --arg sha256 "${hash%% *}" --arg snapshot "$snapshot" \
       '{path:$path,sha256:$sha256,snapshot:$snapshot}' >>"$tmp/product-sources"
+    # shellcheck disable=SC2129 # the file appends one part at a time
     printf '\n# Instructions from %s\n\n' "$instruction_file" >>"$tmp/product-context.md"
     cat "$tmp/$snapshot" >>"$tmp/product-context.md"
     printf '\n' >>"$tmp/product-context.md"

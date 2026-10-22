@@ -316,6 +316,7 @@ for fault in land-bare land-claude land-codex tool error exit incomplete; do poo
 pool_run completed_reconnect completed_reconnect
 pool_run landing_without_evidence landing_without_evidence
 for pair in '13 step blocked-build-label' '13 step blocked-rebuild' '13 step blocked-work-ended' '13 step blocked-command-ended' '13 step blocked-continue' '13 step blocked-two-endings' '13 step fenced-extra-action' '14 step verify-land' '15 specify approval-publish' '16 step stale-completion-land' '17 step built-rebuild' '18 step invalid-config-continue' '18 step entry-setup' '19 step denied-entry-retry' '20 step form-fallback' '20 step form-posted' '20 step form-continue' '20 step form-two-endings' '20 step form-extra-act' '20 step form-empty-tools' '20 step form-empty-limit' '20 step form-empty-setup' '20 step form-markdown' '20 step form-prose' '21 step landed-git' '21 step landed-stop' '21 step landed-silent' '21 step landed-git-list'; do
+  # shellcheck disable=SC2086 # pair is a list of arguments
   set -- $pair
   pool_run "rejects $3" rejects "$3" "$1" "$2"
 done

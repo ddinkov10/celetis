@@ -5,12 +5,14 @@ root=$(dirname "$here")
 top=$(mktemp -d)
 . "$root/tests/lib/pool.sh"
 trap 'exit 143' HUP INT TERM
+# shellcheck disable=SC2154 # tests/lib/pool.sh sets pool_dir
 trap 'kill $(cat "$top/group-pids" 2>/dev/null) 2>/dev/null || true; wait; rm -rf "$top" ${pool_dir:+"$pool_dir"}' EXIT
 ln -s "$root" "$top/plug in"
 plugin="$top/plug in"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 export CELETIS_AGENT=claude
-export CELETIS_FLOW_TEST_PLUGIN="$plugin" CELETIS_FLOW_TEST_PERL="$(command -v perl)"
+CELETIS_FLOW_TEST_PERL=$(command -v perl)
+export CELETIS_FLOW_TEST_PLUGIN="$plugin" CELETIS_FLOW_TEST_PERL
 export CELETIS_TEST_HERDR_FIXTURES="$root/tests/fixtures/herdr"
 unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID
 bin="$top/bin"
@@ -189,6 +191,7 @@ export PATH="$bin:$PATH"
 group_init() {
   tmp="$top/$1"
   S="$tmp/state"
+  # shellcheck disable=SC2005 # the command substitution forks, so sh prints the PID of this subshell; bash 3.2 has no $BASHPID
   echo "$(exec sh -c 'echo "$PPID"')" >>"$top/group-pids"
   trap 'exit 143' HUP INT TERM
   # A test that fails must leave no runner alive: an automatic runner has no end of its own.
@@ -340,6 +343,7 @@ group_config() {
 
   for args in abc 0 7x "#" "7 abc" -h --open "--board 7" "7 --board" --resume "--resume abc" "--resume 7 8" "7 --resume"; do
     reset
+    # shellcheck disable=SC2086 # args is a list of words
     run_flow $args
     [ "$code" -eq 2 ] && [ -z "$out" ] && printf '%s' "$err" | grep -qxF "$usage" || fail "bad arguments [$args]: $code [$out] [$err]"
     [ -z "$(calls gh-calls)$(calls claude-calls)" ] || fail "a usage error called gh or claude: [$args]"
@@ -379,8 +383,7 @@ celetis-flow: stop #7 is finished." ] || fail "a start with a number must start 
 celetis-flow: no progress: /celetis:plan #9
 celetis-flow: start: /celetis:plan #8
 celetis-flow: no progress: /celetis:plan #8" ] || fail "numbers must keep their order, and a session that changes nothing is no progress: $code [$out] [$err]"
-  [ "$(cat "$st/no-progress")" = "9"$'\t'"run /celetis:plan #9
-8"$'\t'"run /celetis:plan #8" ] || fail "no progress must write one row: [$(cat "$st/no-progress")]"
+  [ "$(cat "$st/no-progress")" = "9"$'\t'"run /celetis:plan #9"$'\n'"8"$'\t'"run /celetis:plan #8" ] || fail "no progress must write one row: [$(cat "$st/no-progress")]"
   run_flow 9
   [ "$(count claude-calls)" -eq 3 ] && [ "$(rows)" -eq 2 ] || fail "a start with a number must ignore the record and add no second row"
 
@@ -592,6 +595,7 @@ group_herdr_end() {
   for end in "OPEN epic" "CLOSED wontfix"; do
     reset
     issue 9 OPEN enhancement "An idea"
+    # shellcheck disable=SC2086 # end is a list of words
     after 9 1 $end "An idea"
     export HERDR_ENV=1 HERDR_PANE_ID=w1:p4 HERDR_TAB_ID=w1:t2
     run_flow 9

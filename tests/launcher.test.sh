@@ -24,7 +24,8 @@ echo 'printf "%s" "$CELETIS_AGENT"' >"$plug/scripts/host.sh"
 
 export LIST="$tmp/list.json"
 export SKILLS="$tmp/skills.json" CALLS="$tmp/calls" PID_FILE="$tmp/pid"
-export REAL_GIT="$(command -v git)"
+REAL_GIT=$(command -v git)
+export REAL_GIT
 export GIT_HOST= CODEX_MODE= TMPDIR="$tmp/pipes" LOOKUP_FAIL=0
 unset CELETIS_AGENT CELETIS_HOST GIT_AGENT
 cat >"$tmp/stub/claude" <<'EOF'

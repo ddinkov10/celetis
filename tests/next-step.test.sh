@@ -146,6 +146,7 @@ json_calls() {
     echo 'repos/{owner}/{repo}/issues?state=open&per_page=100'
     echo 'repos/{owner}/{repo}/issues?state=closed&since=<date>T00:00:00Z&per_page=100'
     echo 'repos/{owner}/{repo}/pulls?state=open&per_page=100'
+    # shellcheck disable=SC2086 # $1 is a list of issue numbers, empty for none
     comments_calls $1
     for n in $2; do
       echo "repos/{owner}/{repo}/commits/sha$n/check-runs?per_page=100"
@@ -258,6 +259,7 @@ printf '%s' "$err" | grep -q "no issue" || fail "gh's own message must reach std
 reset
 issue open chore ""
 for args in "" abc 7abc "#" "7 8" --all "--open 7" "--json 7"; do
+  # shellcheck disable=SC2086 # args is a list of words
   run_next $args
   [ "$code" -eq 2 ] && [ -z "$out" ] && printf '%s' "$err" | grep -qxF "usage: scripts/celetis next-step <issue number> | --open | --json, e.g. scripts/celetis next-step 276" || fail "bad arguments [$args]: $code [$out] $err"
 done

@@ -89,6 +89,7 @@ code_of() {
   set -e
   echo "$c"
 }
+# shellcheck disable=SC2069 # 2>&1 >/dev/null keeps stderr and drops stdout on purpose
 err_of() { run "$@" 2>&1 >/dev/null || true; }
 capture() {
   cap_code=0
@@ -209,6 +210,7 @@ case_usage() {
   for args in "write --hosts claude,codex --landing pr" "write --hosts claude --default codex --landing pr" "write --hosts claude --landing squash" \
     "write --hosts gitlab --landing pr" "write --hosts claude" "write --landing pr" "write --hosts claude --landing pr extra" "write --hosts claude,codex --default gitlab --landing pr" \
     "write --hosts codex --landing pr --setup-file" "write --hosts codex --landing pr --ignore" "write --hosts codex --landing pr --baseline-file"; do
+    # shellcheck disable=SC2086 # args is a list of words
     [ "$(code_of $args)" -eq 2 ] || fail "'$args' did not exit 2"
   done
   for option in --setup-file --ignore --baseline-file; do
@@ -1465,6 +1467,7 @@ run_case() {
 
 cases=$(declare -F | sed -n 's/^declare -f case_//p')
 [ -n "$cases" ] || fail "no case found"
+# shellcheck disable=SC2034 # tests/lib/pool.sh reads POOL_JOBS
 POOL_JOBS=24
 for name in $(grep '^try' <<<"$cases") $(grep -v '^try' <<<"$cases"); do
   pool_run "case_$name" run_case "$name"

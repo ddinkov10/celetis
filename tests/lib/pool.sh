@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 pool_dir=
 pool_n=0
 pool_labels=()

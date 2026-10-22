@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Sourced by scripts/worktree.sh, scripts/land.sh, and scripts/setup.sh.
 
 # The marker sits in the git dir: a file in the working tree would make a new worktree dirty.
@@ -36,6 +37,7 @@ remove_lane() {
     [ -z "$at" ] || remove_checkout "$at"
     git branch -D "$prototype" >&2
   done
+  # shellcheck disable=SC2086 # pushed is a list of branch names
   [ -z "$pushed" ] || git push -q origin --delete $pushed >&2
   [ -z "$checkout" ] || remove_checkout "$checkout"
   git branch -D "$branch" >&2

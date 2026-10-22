@@ -86,11 +86,14 @@ faults() {
   gate_copy "$dir/re po"
   printf 'if true;then echo x;fi\n' >"$dir/re po/bad-format.sh"
   printf 'const a = {b:1}\n' >"$dir/re po/bad-format.js"
+  printf '#!/usr/bin/env bash\necho $1\n' >"$dir/re po/bad-lint.sh"
   git -C "$dir/re po" add -A
   /bin/bash "$dir/re po/scripts/verify.sh" >"$dir/out" 2>&1 || code=$?
   [ "$code" = 1 ] || fail "the gate exited $code: $(cat "$dir/out")"
   has_line "$dir/out" 'verify: run shfmt -w bad-format.sh'
   has_line "$dir/out" 'verify: fix each file that Biome names above with biome check --write <file>'
+  has_line "$dir/out" 'bad-lint.sh:2:6: note: Double quote to prevent globbing and word splitting. [SC2086]'
+  has_line "$dir/out" 'verify: shellcheck bad-lint.sh: fix each finding above, or disable its rule with a reason'
   grep -q 'bad-format.js' "$dir/out" || fail "Biome does not name bad-format.js: $(cat "$dir/out")"
   lacks_line "$dir/out" '^verify: PASS'
 }

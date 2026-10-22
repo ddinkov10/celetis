@@ -122,8 +122,20 @@ check_biome() {
     return 1
   }
 }
+check_shellcheck() {
+  echo "== shellcheck: $1"
+  shellcheck -f gcc "$1" || {
+    echo "verify: shellcheck $1: fix each finding above, or disable its rule with a reason"
+    return 1
+  }
+}
 pool_run shfmt check_shfmt
 pool_run biome check_biome
+if [ ${#shell_files[@]} -gt 0 ]; then
+  for file in "${shell_files[@]}"; do
+    pool_run "shellcheck $file" check_shellcheck "$file"
+  done
+fi
 pool_run perl check_perl
 pool_run text check_text
 pool_run plugin check_plugin
