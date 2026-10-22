@@ -99,6 +99,27 @@ check_plugin() {
   echo "== claude plugin validate"
   claude plugin validate .
 }
+check_shfmt() {
+  local file bad=0
+  [ ${#shell_files[@]} -eq 0 ] && return 0
+  echo "== shfmt -l"
+  while IFS= read -r file; do
+    shfmt -d "$file" || true
+    echo "verify: run shfmt -w $file"
+    bad=1
+  done < <(shfmt -l "${shell_files[@]}")
+  [ "$bad" = 0 ]
+}
+check_biome() {
+  [ ${#biome_files[@]} -eq 0 ] && return 0
+  echo "== biome check"
+  biome check --linter-enabled=false --assist-enabled=false --max-diagnostics=none "${biome_files[@]}" || {
+    echo "verify: fix each file that Biome names above with biome check --write <file>"
+    return 1
+  }
+}
+pool_run shfmt check_shfmt
+pool_run biome check_biome
 pool_run perl check_perl
 pool_run text check_text
 pool_run plugin check_plugin

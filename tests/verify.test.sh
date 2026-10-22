@@ -81,7 +81,21 @@ unknown_path() {
   lacks_line "$dir/out" '^verify: PASS'
 }
 
-for case_name in clean_drift tools_missing tools_missing_bun_types unknown_path; do
+faults() {
+  local dir=$tmp/faults code=0
+  gate_copy "$dir/re po"
+  printf 'if true;then echo x;fi\n' >"$dir/re po/bad-format.sh"
+  printf 'const a = {b:1}\n' >"$dir/re po/bad-format.js"
+  git -C "$dir/re po" add -A
+  /bin/bash "$dir/re po/scripts/verify.sh" >"$dir/out" 2>&1 || code=$?
+  [ "$code" = 1 ] || fail "the gate exited $code: $(cat "$dir/out")"
+  has_line "$dir/out" 'verify: run shfmt -w bad-format.sh'
+  has_line "$dir/out" 'verify: fix each file that Biome names above with biome check --write <file>'
+  grep -q 'bad-format.js' "$dir/out" || fail "Biome does not name bad-format.js: $(cat "$dir/out")"
+  lacks_line "$dir/out" '^verify: PASS'
+}
+
+for case_name in clean_drift tools_missing tools_missing_bun_types unknown_path faults; do
   pool_run "$case_name" "$case_name"
 done
 pool_wait || exit 1
