@@ -322,7 +322,7 @@ if [ -z "$bias" ]; then
 fi
 [ "$attempt" -ge 1 ] || die '--attempt needs a positive integer'
 
-# shellcheck disable=SC2086
+# shellcheck disable=SC2086 # digits is a list of six words
 set -- $digits
 [ $# -eq 6 ] || die "need exactly six digits J V B N S X, got $#"
 for d in "$@"; do is_uint "$d" && [ "$d" -le 2 ] || die "digit out of range (0-2): $d"; done

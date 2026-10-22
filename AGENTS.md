@@ -31,7 +31,7 @@ tests/suite.sh
 - The gate checks `.celetis.yaml` with the config reader, so it needs Mike Farah yq on `PATH`, as
   the reader does.
 - A new file type gets a row or an exemption in `scripts/verify.sh`.
-- `tests/text.test.sh` reads tracked files only. Run `git add` on a new file before the gate.
+- The gate reads tracked files only. Run `git add` on a new file before the gate.
 - The suite runs `(cd board && node --test)`, so it needs Node 22.18, or Node 24.2 or later.
 - Each script and each test also runs under bash 3.2, the `/bin/bash` of macOS. The suite runs each
   test as `PATH="/bin:$PATH" /bin/bash <test>`, so each inner `bash` reaches `/bin/bash` too.

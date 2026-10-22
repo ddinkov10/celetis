@@ -71,7 +71,7 @@ the trunk head. The repository had no lint and no format check of its code.
 - Biome 2.5.15 exits 0 on an info finding, also with `--error-on-warnings`. It processes no YAML
   file. Its changelog calls its HTML formatter experimental, and no entry up to 2.5.15 makes it
   stable.
-- ShellCheck 0.11.0 shows some findings in a run on one file that a run on many files hides.
+- ShellCheck 0.11.0 runs on one file at a time, so the result for a file does not depend on the other files. A run on many files gave 3 findings that were false positives across files.
 - The results on the lane branch:
   - The gate takes about 7 s on 4 cores. In CI, the step "Verify gate" took 9 s to 13 s, and the
     step "Full suite" took about 3 min to 5 min.

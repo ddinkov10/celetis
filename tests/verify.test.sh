@@ -28,7 +28,7 @@ clean_drift() {
   real=$(command -v shfmt)
   printf '#!/bin/sh\nif [ "$1" = --version ]; then echo v3.13.0; exit 0; fi\nexec %s "$@"\n' "$real" >"$dir/stubs/shfmt"
   chmod +x "$dir/stubs/shfmt"
-  PATH="$dir/stubs:$PATH" /bin/bash "$dir/re po/scripts/verify.sh" >"$dir/out" 2>&1 || code=$?
+  SHELLCHECK_OPTS=--enable=all PATH="$dir/stubs:$PATH" /bin/bash "$dir/re po/scripts/verify.sh" >"$dir/out" 2>&1 || code=$?
   [ "$code" = 0 ] || fail "the gate exited $code: $(cat "$dir/out")"
   has_line "$dir/out" "== shfmt 3.13.0"
   while read -r tool _; do
@@ -97,6 +97,7 @@ faults() {
   printf 'on: push\njobs:\n  a:\n    steps:\n      - run: echo x\n' >"$dir/re po/.github/workflows/bad.yml"
   printf "const n: number = 'a';\n" >"$dir/re po/scripts/lib/bad.ts"
   printf 'landing: [\n' >"$dir/re po/.celetis.yaml"
+  printf 'sub {\n' >"$dir/re po/bad.pl"
   git -C "$dir/re po" add -A
   /bin/bash "$dir/re po/scripts/verify.sh" >"$dir/out" 2>&1 || code=$?
   [ "$code" = 1 ] || fail "the gate exited $code: $(cat "$dir/out")"
@@ -104,7 +105,7 @@ faults() {
   has_line "$dir/out" 'verify: fix each file that Biome names above with biome check --write <file>'
   has_line "$dir/out" 'bad-lint.sh:2:6: note: Double quote to prevent globbing and word splitting. [SC2086]'
   has_line "$dir/out" 'verify: shellcheck bad-lint.sh: fix each finding above, or disable its rule with a reason'
-  grep -q 'bad-format.js' "$dir/out" || fail "Biome does not name bad-format.js: $(cat "$dir/out")"
+  grep -q '^bad-format.js format ' "$dir/out" || fail "Biome does not report the format of bad-format.js: $(cat "$dir/out")"
   has_line "$dir/out" 'verify: bad-syntax.sh: syntax error (/bin/bash -n)'
   has_line "$dir/out" 'FAIL: bash -n (exit 1)'
   has_line "$dir/out" 'verify: bad-syntax.mjs: syntax error (node --check)'
@@ -117,6 +118,7 @@ faults() {
   has_line "$dir/out" 'FAIL: tsc (exit 1)'
   grep -Fq "re po/.celetis.yaml: <document>: invalid YAML" "$dir/out" || fail "the config reader does not name .celetis.yaml: $(cat "$dir/out")"
   has_line "$dir/out" 'FAIL: config (exit 1)'
+  has_line "$dir/out" 'FAIL: perl (exit 255)'
   lacks_line "$dir/out" '^verify: PASS'
 }
 
@@ -129,6 +131,7 @@ parse_fault() {
   /bin/bash "$dir/re po/scripts/verify.sh" >"$dir/out" 2>&1 || code=$?
   [ "$code" = 1 ] || fail "the gate exited $code: $(cat "$dir/out")"
   grep -q 'bad-parse.sh:1:1: ' "$dir/out" || fail "shfmt does not name the parse error of bad-parse.sh: $(cat "$dir/out")"
+  has_line "$dir/out" 'FAIL: shfmt (exit 1)'
   lacks_line "$dir/out" 'verify: run shfmt -w bad-parse.sh'
   has_line "$dir/out" 'verify: fix each file that Biome names above with biome check --write <file>'
   grep -q 'bad-lint.mjs' "$dir/out" || fail "Biome does not name bad-lint.mjs: $(cat "$dir/out")"
