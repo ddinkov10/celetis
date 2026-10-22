@@ -45,7 +45,11 @@ error() {
   check "$1 explains the repair" test "${err#*"$2"}" != "$err"
 }
 codex_run() { run --agent codex "$@"; }
-codex_at() { local location=$1; shift; run_at "$location" --agent codex "$@"; }
+codex_at() {
+  local location=$1
+  shift
+  run_at "$location" --agent codex "$@"
+}
 retry_sequence() {
   local label=$1 profile_path=$2 expected=$3 records= retry
   shift 3
@@ -221,7 +225,11 @@ error 'invalid config with no profile' '.celetis.yaml'
 printf 'landing: merge\n' >"$tmp/project/.celetis.yaml"
 
 mkdir "$tmp/outside"
-bun() { printf 'unexpected bun call\n' >&2; return 99; }
+# shellcheck disable=SC2329 # the stub must not run: the test proves that no Bun call happens
+bun() {
+  printf 'unexpected bun call\n' >&2
+  return 99
+}
 export -f bun
 codex_at "$tmp/outside" 1 0 2 1 1 0 --profile "$profile_path" --runtime-models "$CAP_RUNTIME_MODELS" --json
 check 'standalone explicit scoring needs no repository or Bun' test "$code:$out:$err" = "0:$explicit_result:"

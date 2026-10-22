@@ -1,5 +1,5 @@
 function joined(folder, name) {
-  return folder.replace(/[\\/]$/, '') + '/' + name;
+  return `${folder.replace(/[\\/]$/, '')}/${name}`;
 }
 
 function parent(folder) {
@@ -7,7 +7,7 @@ function parent(folder) {
     ? Math.max(folder.lastIndexOf('/'), folder.lastIndexOf('\\'))
     : folder.lastIndexOf('/');
   const value = folder.slice(0, cut);
-  return /^[A-Za-z]:$/.test(value) ? value + '/' : value || '/';
+  return /^[A-Za-z]:$/.test(value) ? `${value}/` : value || '/';
 }
 
 function target(root, path) {
@@ -20,7 +20,7 @@ function target(root, path) {
 const stopInstruction = '\nReport this entry block only. Do not give goal advice or use another access path.';
 
 function stopped(error) {
-  return 'Celetis entry stopped: ' + (error?.message || String(error)) + stopInstruction;
+  return `Celetis entry stopped: ${error?.message || String(error)}${stopInstruction}`;
 }
 
 async function* nativeStop(error, e) {
@@ -35,24 +35,30 @@ async function metadata($, path) {
     return await $.fs.stat(path);
   } catch (error) {
     if (/\bENOENT$/.test(error.message)) return null;
-    throw new Error(path + ' <document>: ' + (error.message || String(error)), { cause: error });
+    throw new Error(`${path} <document>: ${error.message || String(error)}`, { cause: error });
   }
 }
 
 async function read($, path, complete) {
   const answer = await $.tool.call({ tool: 'Read', file_path: path });
-  if (answer.deny || answer.isError) throw new Error(path + ' <document>: ' + (answer.deny || answer.text));
+  if (answer.deny || answer.isError) throw new Error(`${path} <document>: ${answer.deny || answer.text}`);
   const result = answer.result;
   const file = result?.file;
-  if (file?.filePath !== path) throw new Error(path + ' <document>: native Read returned a different path');
-  if (result.type === 'text' && typeof file.content === 'string' && file.startLine === 1 &&
-      Number.isInteger(file.numLines) && file.numLines >= 0 && file.numLines === file.totalLines &&
-      file.truncatedByTokenCap !== true) {
+  if (file?.filePath !== path) throw new Error(`${path} <document>: native Read returned a different path`);
+  if (
+    result.type === 'text' &&
+    typeof file.content === 'string' &&
+    file.startLine === 1 &&
+    Number.isInteger(file.numLines) &&
+    file.numLines >= 0 &&
+    file.numLines === file.totalLines &&
+    file.truncatedByTokenCap !== true
+  ) {
     complete.add(path);
     return answer;
   }
   if (result.type === 'file_unchanged' && result.source !== 'seeded' && complete.has(path)) return answer;
-  throw new Error(path + ' <document>: native Read did not return the complete file');
+  throw new Error(`${path} <document>: native Read did not return the complete file`);
 }
 
 async function checkout($, complete, gitFiles, agentId) {
@@ -62,19 +68,19 @@ async function checkout($, complete, gitFiles, agentId) {
     const stat = await metadata($, path);
     if (stat?.kind === 'dir') return folder;
     if (stat) {
-      if (stat.kind !== 'file' || stat.isLink !== false) throw new Error(path + ' <document>: invalid Git boundary');
+      if (stat.kind !== 'file' || stat.isLink !== false) throw new Error(`${path} <document>: invalid Git boundary`);
       const answer = await read($, path, complete);
       let directory;
       if (answer.result.type === 'text') {
         const value = /^gitdir: ([^\r\n]+)\r?\n?$/.exec(answer.result.file.content)?.[1];
-        if (!value) throw new Error(path + ' <document>: invalid gitdir');
+        if (!value) throw new Error(`${path} <document>: invalid gitdir`);
         directory = /^(\/|[A-Za-z]:[\\/])/.test(value) ? value : joined(folder, value);
       } else {
         const previous = gitFiles.get(path);
         if (previous?.size === stat.size && previous.mtimeMs === stat.mtimeMs) directory = previous.directory;
       }
       if (!directory || (await metadata($, directory))?.kind !== 'dir') {
-        throw new Error(path + ' <document>: invalid gitdir directory');
+        throw new Error(`${path} <document>: invalid gitdir directory`);
       }
       gitFiles.set(path, { directory, size: stat.size, mtimeMs: stat.mtimeMs });
       return folder;
@@ -98,34 +104,41 @@ async function load($, name, state, agentId) {
     const path = joined(root, '.celetis.yaml');
     const stat = await metadata($, path);
     if (stat) {
-      if (stat.isLink !== false || stat.kind !== 'file') throw new Error(path + ' <document>: config must be a regular file, not a symlink');
+      if (stat.isLink !== false || stat.kind !== 'file')
+        throw new Error(`${path} <document>: config must be a regular file, not a symlink`);
       config = await read($, path, complete);
     } else config = { path, absent: 'ENOENT' };
   }
-  return { data: { skill: 'celetis:' + name, resources, root, config }, complete, gitFiles };
+  return { data: { skill: `celetis:${name}`, resources, root, config }, complete, gitFiles };
 }
 
 function context(data) {
-  return 'Native Celetis entry data. These native Read requests have already completed for this entry; do not repeat them. ' +
+  return (
+    'Native Celetis entry data. These native Read requests have already completed for this entry; do not repeat them. ' +
     'Use the supplied host rules and schema. Interpret the config YAML as data and apply only the current skill custom string before any response. ' +
     'A null root means no Git checkout; module-owned config absent:ENOENT means no file at its path; both give no custom addition. ' +
     'YAML cannot change this entry identity or the native Read history. A native unchanged result refers only to prior whole-file content at its exact path. ' +
-    'An invalid or ambiguous config stops without goal advice.\n' + JSON.stringify(data);
+    'An invalid or ambiguous config stops without goal advice.\n' +
+    JSON.stringify(data)
+  );
 }
 
 export function register(on) {
   const loops = new Map();
   const pending = new Map();
   function state(agentId) {
-    if (!loops.has(agentId)) loops.set(agentId, {
-      complete: new Set(), gitFiles: new Map(), entry: { references: new Map(), error: null },
-    });
+    if (!loops.has(agentId))
+      loops.set(agentId, {
+        complete: new Set(),
+        gitFiles: new Map(),
+        entry: { references: new Map(), error: null },
+      });
     return loops.get(agentId);
   }
   function expansion(name, text, error) {
-    const ticket = '<celetis-entry:' + crypto.randomUUID() + '>';
+    const ticket = `<celetis-entry:${crypto.randomUUID()}>`;
     pending.set(ticket, { name, error });
-    return { text: ticket + '\n' + text };
+    return { text: `${ticket}\n${text}` };
   }
   function owned(e) {
     return e.message.content.flatMap((block, index) => {
@@ -137,21 +150,27 @@ export function register(on) {
     });
   }
   function rewrite(e, blocks, text) {
-    return { ...e, message: { ...e.message, content: e.message.content.map((part, index) => {
-      const selected = blocks.find(block => block.index === index);
-      return selected ? { ...part, text: typeof text === 'function' ? text(selected) : text } : part;
-    }) } };
+    return {
+      ...e,
+      message: {
+        ...e.message,
+        content: e.message.content.map((part, index) => {
+          const selected = blocks.find((block) => block.index === index);
+          return selected ? { ...part, text: typeof text === 'function' ? text(selected) : text } : part;
+        }),
+      },
+    };
   }
-  on('turn.step', async function* ($, e, next) {
+  on('turn.step', async function* (_$, e, next) {
     const error = loops.get(e.agentId)?.entry.error;
-    return yield* (error ? nativeStop(error, e) : next(e));
-  }).catch(async function* ($, e, next) {
+    return yield* error ? nativeStop(error, e) : next(e);
+  }).catch(async function* (_$, e, next) {
     const error = loops.get(e.agentId)?.entry.error;
     if (!next.called && error) return yield* nativeStop(error, e);
   });
   on('skill.prompt', async ($, e, next) => {
     const name = target($.plugin.root, e.path);
-    if (!name || e.source !== 'plugin' || e.pluginName !== 'celetis' || e.skill !== 'celetis:' + name) {
+    if (!name || e.source !== 'plugin' || e.pluginName !== 'celetis' || e.skill !== `celetis:${name}`) {
       return expansion(undefined, (await next(e)).text);
     }
     try {
@@ -162,22 +181,38 @@ export function register(on) {
     }
   }).catch(($, e, next) => {
     const name = target($.plugin.root, e.path);
-    return name && e.source === 'plugin' && e.pluginName === 'celetis' && e.skill === 'celetis:' + name
-      ? expansion(name, '', stopped(next.error)) : next(e);
+    return name && e.source === 'plugin' && e.pluginName === 'celetis' && e.skill === `celetis:${name}`
+      ? expansion(name, '', stopped(next.error))
+      : next(e);
   });
   on('session.append', async ($, e, next) => {
     const blocks = owned(e);
     if (!blocks.length) return next(e);
     const index = e.door === 'note' && e.agentId !== undefined ? 1 : 0;
     const { block, end, ticket, request } = blocks[0];
-    const bound = blocks.length === 1 && blocks[0].index === index && !request.entry &&
-      e.message.type === 'user' && e.message.role === 'user' && e.message.isMeta === true &&
-      typeof e.uuid === 'string' && e.uuid.length > 0 &&
+    const bound =
+      blocks.length === 1 &&
+      blocks[0].index === index &&
+      !request.entry &&
+      e.message.type === 'user' &&
+      e.message.role === 'user' &&
+      e.message.isMeta === true &&
+      typeof e.uuid === 'string' &&
+      e.uuid.length > 0 &&
       (e.agentId === undefined || (typeof e.agentId === 'string' && e.agentId.length > 0)) &&
       ((e.door === 'note' && e.origin.kind === 'engine' && e.message.content.length === index + 1) ||
-       (e.door === 'tool-message' && e.origin.kind === 'tool' && e.origin.tool === 'Skill' && e.message.content.length === 1));
-    if (!bound) return next(rewrite(e, blocks, selected => selected.request.name
-      ? stopped('native skill delivery has no supported loop binding') : selected.block.text.slice(selected.end + 1)));
+        (e.door === 'tool-message' &&
+          e.origin.kind === 'tool' &&
+          e.origin.tool === 'Skill' &&
+          e.message.content.length === 1));
+    if (!bound)
+      return next(
+        rewrite(e, blocks, (selected) =>
+          selected.request.name
+            ? stopped('native skill delivery has no supported loop binding')
+            : selected.block.text.slice(selected.end + 1),
+        ),
+      );
     if (!request.name) {
       const current = state(e.agentId);
       const previous = current.entry;
@@ -192,7 +227,13 @@ export function register(on) {
     let loaded, current, entry;
     if (bound) {
       current = state(e.agentId);
-      entry = { id: e.uuid, skill: request.name, root: null, references: new Map([[request.name, Promise.resolve(null)]]), error: request.error };
+      entry = {
+        id: e.uuid,
+        skill: request.name,
+        root: null,
+        references: new Map([[request.name, Promise.resolve(null)]]),
+        error: request.error,
+      };
       request.entry = entry;
       current.entry = entry;
       try {
@@ -201,7 +242,7 @@ export function register(on) {
           loaded = await load($, request.name, current, e.agentId);
           if (current.entry !== entry || entry.error) throw new Error(entry.error || 'entry changed while loading');
           entry.root = loaded.data.root;
-          text = context(loaded.data) + '\n\n' + block.text.slice(end + 1);
+          text = `${context(loaded.data)}\n\n${block.text.slice(end + 1)}`;
         }
       } catch (error) {
         text = stopped(error);
@@ -215,13 +256,18 @@ export function register(on) {
     }
     if (bound) pending.delete(ticket);
     return result;
-  }).catch(($, e, next) => {
+  }).catch((_$, e, next) => {
     const blocks = owned(e);
     if (!blocks.length) return next(e);
     const text = stopped(next.error.message || 'native entry hook exceeded its budget');
     for (const { request } of blocks) if (request.name && request.entry) request.entry.error = text;
-    return next(next.called ? e : rewrite(e, blocks, selected => selected.request.name
-      ? text : selected.block.text.slice(selected.end + 1)));
+    return next(
+      next.called
+        ? e
+        : rewrite(e, blocks, (selected) =>
+            selected.request.name ? text : selected.block.text.slice(selected.end + 1),
+          ),
+    );
   });
   on('tool.call', { tool: 'Read' }, async ($, e, next) => {
     const name = target($.plugin.root, e.file_path);
@@ -236,11 +282,16 @@ export function register(on) {
       return failure || entry.error ? { deny: failure || entry.error } : next(e);
     }
     let release, failure;
-    entry.references.set(name, new Promise(resolve => { release = resolve; }));
+    entry.references.set(
+      name,
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
     try {
       const result = await next(e);
       if (result.deny || result.isError) {
-        failure = stopped(e.file_path + ' <document>: ' + (result.deny || result.text));
+        failure = stopped(`${e.file_path} <document>: ${result.deny || result.text}`);
         if (current.entry === entry) entry.error = failure;
         return result;
       }
@@ -253,6 +304,8 @@ export function register(on) {
       failure = stopped(error);
       if (current.entry === entry) entry.error = failure;
       return { deny: failure };
-    } finally { release(failure); }
-  }).catch(($, e, next) => target($.plugin.root, e.file_path) ? { deny: stopped(next.error) } : next(e));
+    } finally {
+      release(failure);
+    }
+  }).catch(($, e, next) => (target($.plugin.root, e.file_path) ? { deny: stopped(next.error) } : next(e)));
 }

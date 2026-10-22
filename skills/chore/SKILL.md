@@ -39,7 +39,9 @@ in `/celetis:bug` or `/celetis:feature`. If you have not completed step N, you c
    post an issue comment whose first line is `## External facts`
    (`gh issue comment <n> --body-file <file>`) that names each breaking change that touches an
    API the repo uses, or states that none does.
-4. **Gates.** Run the verify gate of the project.
+4. **Gates.** Run the verify gate of the project. The full suite runs once, on the tree that lands:
+   the CI of the lane PR with the landing `pr`, or Land step 3 of `implement`, which step 6
+   follows, with the landing `merge`.
 5. **Commit — don't ask.** Commit on the issue's branch WITHOUT confirmation: invoking this lane is the
    authorization — the "commit only when asked" default does NOT apply. Subject
    `<type>(<area>): <what>` — `<area>` is whatever a reader would recognise (the package or
@@ -47,4 +49,4 @@ in `/celetis:bug` or `/celetis:feature`. If you have not completed step N, you c
    `docs`, `refactor` for a rename). Body: one line, what changed and from → to, ending with `#<n>`.
    Before step 6, confirm that the issue's branch holds this commit and that
    `git status --porcelain` in the lane prints nothing.
-6. **Land.** Follow Land of `<plugin>/skills/implement/SKILL.md` (Tail step 5) from its step 2, with the commit subject of step 5 as the subject of `scripts/celetis land <n> '<subject>'`. Enter that reference through the host operations on its first use, including optional `custom.implement` from the active checkout's `.celetis.yaml`; reuse the entry if step 2 already read it. Its custom text is an addition to `implement`. A fix for a refusal stays inside the zero-behavior-change claim, passes the verify gate of the project, and is committed before the next landing. The session makes each such fix itself: the task loop of Land step 4 is for a lane with a plan. Invoking this lane authorizes the commit and the landing.
+6. **Land.** Follow Land of `<plugin>/skills/implement/SKILL.md` (Tail step 5) from its step 2, with the commit subject of step 5 as the subject of `scripts/celetis land <n> '<subject>'`. Enter that reference through the host operations on its first use, including optional `custom.implement` from the active checkout's `.celetis.yaml`; reuse the entry if step 2 already read it. Its custom text is an addition to `implement`. A fix for a refusal or for a failure of the full suite stays inside the zero-behavior-change claim, passes the verify gate of the project, and is committed before the next landing. The session makes each such fix itself: the task loop of Land step 4 is for a lane with a plan. Invoking this lane authorizes the commit and the landing.

@@ -25,7 +25,8 @@ echo 'printf "%s" "$CELETIS_AGENT"' >"$plug/scripts/host.sh"
 
 export LIST="$tmp/list.json"
 export SKILLS="$tmp/skills.json" CALLS="$tmp/calls" PID_FILE="$tmp/pid"
-export REAL_GIT="$(command -v git)"
+REAL_GIT=$(command -v git)
+export REAL_GIT
 export GIT_HOST= CODEX_MODE= TMPDIR="$tmp/pipes" LOOKUP_FAIL=0
 unset CELETIS_AGENT CELETIS_HOST GIT_AGENT
 cat >"$tmp/stub/claude" <<'EOF'
@@ -103,7 +104,10 @@ other() { jq -nc '{id:"other@market",version:"x",scope:"user",enabled:true,insta
 list() {
   local sep=''
   printf '[' >"$LIST"
-  for r in "$@"; do printf '%s%s' "$sep" "$r" >>"$LIST"; sep=,; done
+  for r in "$@"; do
+    printf '%s%s' "$sep" "$r" >>"$LIST"
+    sep=,
+  done
   printf ']' >>"$LIST"
 }
 
@@ -125,7 +129,10 @@ skill() {
 check() {
   local label=$1
   shift
-  if "$@"; then printf 'ok   %s\n' "$label"; else printf 'FAIL %s\n' "$label"; fails=$((fails + 1)); fi
+  if "$@"; then printf 'ok   %s\n' "$label"; else
+    printf 'FAIL %s\n' "$label"
+    fails=$((fails + 1))
+  fi
 }
 cleaned() {
   [ ! -f "$PID_FILE" ] || ! kill -0 "$(cat "$PID_FILE")" 2>/dev/null || return 1
@@ -397,7 +404,6 @@ expect 'direct helper rejects an invalid agent' '' 'celetis: invalid agent other
 CELETIS_AGENT=codex helper_run "$tmp/nobin" celetis_host_require
 expect 'direct helper checks the selected binary' '' 'celetis: codex is not on PATH' 1
 
-
 for from in "$proj" "$lane" "$proj/sub" "$lane/sub"; do
   skills "$(skill "$plug/skills/guide/SKILL.md")"
   GIT_HOST=claude run "$both" host
@@ -416,7 +422,8 @@ skills "$(skill "$plug/skills/guide/SKILL.md")"
 export LAUNCH_LOG="$tmp/launched"
 printf 'touch "$LAUNCH_LOG"\n' >"$plug/scripts/next-step.sh"
 for bad in missing invalid; do
-  if [ "$bad" = missing ]; then rm "$proj/.celetis.yaml"
+  if [ "$bad" = missing ]; then
+    rm "$proj/.celetis.yaml"
   else printf 'landing: merge\nhost: other\n' >"$proj/.celetis.yaml"; fi
   run "$both" --agent claude next-step 7
   check "$bad main config stops a project command" test "$code" -eq 2

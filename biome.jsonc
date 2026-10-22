@@ -1,0 +1,27 @@
+{
+  "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
+  "javascript": { "formatter": { "quoteStyle": "single" } },
+  "files": {
+    // A vendored bundle is a copy of upstream code (#85).
+    "includes": ["**", "!scripts/lib/vendor"]
+  },
+  "overrides": [
+    {
+      // Test doubles of the Claude Code testing API, whose types exist only inside Claude Code (#83, Non-goals).
+      "includes": ["tests/**/*.ts"],
+      "linter": { "rules": { "suspicious": { "noExplicitAny": "off", "noImplicitAnyLet": "off" } } }
+    },
+    {
+      // The board removes control characters from agent and terminal text; each such regex matches them on purpose (#84).
+      "includes": ["board/**"],
+      "linter": { "rules": { "suspicious": { "noControlCharactersInRegex": "off" } } }
+    },
+    {
+      // The rule order of board.css sets its cascade, and a reorder changes the board UI (#84).
+      "includes": ["board/board.css"],
+      "linter": {
+        "rules": { "style": { "noDescendingSpecificity": "off" }, "complexity": { "noImportantStyles": "off" } }
+      }
+    }
+  ]
+}

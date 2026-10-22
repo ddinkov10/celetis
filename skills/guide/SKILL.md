@@ -31,7 +31,7 @@ Execute no recommended action and invoke no other skill. Goal: the invocation in
 | land a change whose landing stopped (`## Landing refused`) | the build step again, `/celetis:implement <#>` or `/celetis:chore <#>`: it lands the change and does not build it again |
 | score the current diff before asking for review | `/celetis:critic-loop` |
 | record a decision or a lesson | `/celetis:record-architecture-decisions`, `/celetis:lesson` |
-| prove work is done before claiming it | the verify gate of the project (`AGENTS.md` names it) |
+| prove work is done before claiming it | the verify gate of the project (`AGENTS.md` names it) after each change, and the full suite once, on the tree that lands |
 | merge a PR by hand | you: `gh pr merge --squash` in your own shell, or on GitHub; an agent lands a change only with `scripts/celetis land`, which its build step runs |
 
 No row fits → `/celetis:intake`; the intent and `/celetis:triage` sort it into a lane.

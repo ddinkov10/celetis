@@ -15,21 +15,26 @@ cleanup() {
   pids=$(cat "$base"/*/pids 2>/dev/null | paste -sd , -)
   if [ -n "$pids" ]; then
     pkill -P "$pids" 2>/dev/null || true
+    # shellcheck disable=SC2086 # pids is a list of PIDs
     kill ${pids//,/ } 2>/dev/null || true
   fi
   rm -rf "$base"
 }
 trap cleanup EXIT
-fail() { printf 'FAIL: %s\n' "$1"; exit 1; }
+fail() {
+  printf 'FAIL: %s\n' "$1"
+  exit 1
+}
 case_idle() {
   source "$root/scripts/lib/session.sh"
+  # shellcheck disable=SC2329 # scripts/lib/session.sh calls the stub
   herdr() {
     [ "$*" = "agent get $HERDR_PANE_ID" ] || return 1
     jq "$filter" "$CELETIS_TEST_HERDR_FIXTURES/$CELETIS_AGENT.json"
   }
   for CELETIS_AGENT in claude codex; do
     id=$(jq -r .result.agent.agent_session.value "$CELETIS_TEST_HERDR_FIXTURES/$CELETIS_AGENT.json")
-    for status in idle done; do
+    for status in idle 'done'; do
       filter=".result.agent.agent_status=\"$status\""
       celetis_session_idle "$id" || fail "$CELETIS_AGENT $status was not idle with the current herdr reply"
     done
@@ -233,7 +238,8 @@ start() {
 await_identity() {
   local tries=0
   until jq -e --arg id "$(printf '00000000-0000-4000-8000-%012d' "$1")" '.session_id == $id' "$state/sessions/7.json" >/dev/null 2>&1; do
-    tries=$((tries + 1)); [ "$tries" -le 600 ] || fail "$host identity was not saved"
+    tries=$((tries + 1))
+    [ "$tries" -le 600 ] || fail "$host identity was not saved"
     /bin/sleep 0.05
   done
 }
@@ -338,14 +344,18 @@ case_guard() {
   start
   case $1 in
     unchanged) ;;
-    dirty) issue enhancement CLOSED; echo dirty >"$lane/new" ;;
+    dirty)
+      issue enhancement CLOSED
+      echo dirty >"$lane/new"
+      ;;
     missing) rm "$plugin/scripts/next-step.sh" ;;
     landing)
       issue enhancement CLOSED
       "$BASH" -c '/bin/sleep 30; :' "$tmp/land.sh" >/dev/null 2>&1 &
       landing=$!
       echo "$landing" >>"$tmp/pids"
-      echo "$landing" >"$state/land-7.lock" ;;
+      echo "$landing" >"$state/land-7.lock"
+      ;;
   esac
   echo idle >"$S/status"
   await_file "$S/wait-returned"
@@ -469,9 +479,9 @@ run claude guard dirty
 run codex guard landing
 run codex guard missing
 run claude ending idle accepted
-run claude ending done failed
+run claude ending 'done' failed
 run codex ending idle failed
-run codex ending done accepted
+run codex ending 'done' accepted
 run codex term
 run claude registration issue
 run codex registration auto

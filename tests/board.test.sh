@@ -8,7 +8,8 @@ repo="$tmp/main checkout"
 capture="$tmp/capture"
 mkdir -p "$repo/scripts" "$repo/sub" "$repo/board" "$tmp/bin"
 repo=$(cd "$repo" && pwd -P)
-export BOARD_CAPTURE="$capture" BOARD_REAL_NODE="$(command -v node)" BOARD_FLOW="$root/scripts/celetis-flow.sh"
+BOARD_REAL_NODE=$(command -v node)
+export BOARD_CAPTURE="$capture" BOARD_REAL_NODE BOARD_FLOW="$root/scripts/celetis-flow.sh"
 export BOARD_PRODUCER_LOG="$tmp/producer"
 unset PORT CELETIS_AGENT
 cat >"$tmp/bin/node" <<'EOF'
@@ -143,9 +144,13 @@ for bad in external lane missing mode directory; do
     external) ln -s "$tmp/saved-launcher" "$repo/scripts/celetis" ;;
     lane)
       cp "$tmp/saved-launcher" "$repo/.claude/worktrees/lane/launcher"
-      ln -s "$repo/.claude/worktrees/lane/launcher" "$repo/scripts/celetis" ;;
+      ln -s "$repo/.claude/worktrees/lane/launcher" "$repo/scripts/celetis"
+      ;;
     missing) ;;
-    mode) cp "$tmp/saved-launcher" "$repo/scripts/celetis"; chmod -x "$repo/scripts/celetis" ;;
+    mode)
+      cp "$tmp/saved-launcher" "$repo/scripts/celetis"
+      chmod -x "$repo/scripts/celetis"
+      ;;
     directory) mkdir "$repo/scripts/celetis" ;;
   esac
   rm "$BOARD_PRODUCER_LOG"

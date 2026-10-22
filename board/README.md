@@ -808,7 +808,7 @@ cd board && node --test
 The board has no dependency, so the tests need no install step. They need git 2.32 or later, and
 they start no real herdr: `<plugin>/board/fixtures/herdr` is a stub. One test makes a git
 repository in a temporary folder with the fixtures `producer.sh`, `contract-1.json`, and `run.sh`,
-starts the real entry there, and asks the server over HTTP. The verify gate of the plugin,
-`<plugin>/scripts/verify.sh`, prints `== board: node --test` and runs the suite after its Perl
-syntax check. The workflow of the plugin runs the suite on Node 22 in its step `Board tests`, at
-each push to `main` and each pull request.
+starts the real entry there, and asks the server over HTTP. The full suite of the plugin,
+`<plugin>/tests/suite.sh`, prints `== board: node --test` and runs the suite. The workflow of the
+plugin runs the full suite on Node 22 in its step `Full suite`, at each push to `main` and each
+pull request.

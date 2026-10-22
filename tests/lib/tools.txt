@@ -1,0 +1,8 @@
+# The tools of scripts/verify.sh: <command> <version> <installer> <package>.
+# CI installs each package. The gate warns when a local version differs from its pin.
+shellcheck 0.11.0 pip shellcheck-py==0.11.0.1
+shfmt 3.14.1 pip shfmt-py==4.2.0
+actionlint 1.7.12 pip actionlint-py==1.7.12.25
+biome 2.5.15 npm @biomejs/biome@2.5.15
+tsc 7.0.2 npm typescript@7.0.2
+@types/bun 1.4.2 npm @types/bun@1.4.2

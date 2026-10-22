@@ -48,7 +48,7 @@ if [ -z "$branch" ]; then
       "  ") refuse "#$n has no lane label; run /celetis:triage #$n first" ;;
       *) refuse "#$n has several lane labels ($lanes); keep one" ;;
     esac
-    slug=$(head -n 1 <<<"$issue" | LC_ALL=C tr 'A-Z' 'a-z' | LC_ALL=C sed -E 's/[^a-z0-9]+/-/g; s/^-//; s/-$//')
+    slug=$(head -n 1 <<<"$issue" | LC_ALL=C tr '[:upper:]' '[:lower:]' | LC_ALL=C sed -E 's/[^a-z0-9]+/-/g; s/^-//; s/-$//')
     # 30 characters keep .claude/worktrees/<n>-<slug>/ plus the deepest path of a project inside Windows path limits.
     if [ ${#slug} -gt 30 ]; then
       slug=${slug:0:31}

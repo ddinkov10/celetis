@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-[ $# -eq 0 ] || { echo 'usage: scripts/celetis board' >&2; exit 2; }
+[ $# -eq 0 ] || {
+  echo 'usage: scripts/celetis board' >&2
+  exit 2
+}
 plugin=$(cd "$(dirname "$0")/.." && pwd)
 source "$plugin/scripts/celetis"
 clean= rest=$PATH:
