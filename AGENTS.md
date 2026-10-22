@@ -17,9 +17,13 @@ scripts/verify.sh
 ```
 
 - The gate runs `(cd board && node --test)`, so it needs Node 22.18, or Node 24.2 or later.
+- The tests run the config reader, so the gate also needs Bun 1.4.2 or later on `PATH`.
 - `tests/text.test.sh` reads tracked files only. Run `git add` on a new file before the gate.
-- Each script and each test also runs under bash 3.2, the `/bin/bash` of macOS. The gate runs each
-  test as `PATH="/bin:$PATH" /bin/bash <test>`, so each inner `bash` reaches `/bin/bash` too.
+- Each Bash file, a script or a test, also runs under bash 3.2, the `/bin/bash` of macOS. The
+  gate runs each test as `PATH="/bin:$PATH" /bin/bash <test>`, so each inner `bash` reaches
+  `/bin/bash` too.
+- A TypeScript file of `scripts/lib/` runs on Bun 1.4.2 or later. `scripts/lib/vendor/` holds
+  vendored code: update it only with the commands of its `README.md`.
 - Each test passes in 30 s or less alone (#81). A test with many independent cases runs them with
   `tests/lib/pool.sh`. The gate runs the tests at the same time, so a test keeps its scratch state
   private and writes nothing in the checkout.

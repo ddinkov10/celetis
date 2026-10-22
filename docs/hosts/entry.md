@@ -45,7 +45,7 @@ skill. Preserve its parsed string, including literal block lines and trailing ne
 Other custom values and `worktreeSetup` are data; entry executes no setup.
 
 Use native file access for both checkout location and the config read, including with no shell
-access. Entry invokes no shell, `yq`, or new parser operation. A native read proves no
+access. Entry invokes no shell or new parser operation. A native read proves no
 deterministic parser check. If the file is invalid, ambiguous, unreadable, or a symlink, stop
 and report its absolute path and offending field; syntax or root errors use `<document>`.
 An explicit missing config or no checkout is harmless. An omitted or empty custom mapping,

@@ -100,7 +100,7 @@ Commands that need repository setup require a valid file.
 Native skill entry reads the whole file once through the running host's supported file tools,
 then interprets this schema and applies only `custom.<skill>`. Keep the parsed string intact.
 Other custom strings and `worktreeSetup` remain data. Entry executes no setup and invokes no
-shell, `yq`, or new parser operation. An ambiguous interpretation stops with the selected
+shell or new parser operation. An ambiguous interpretation stops with the selected
 file and field. A native read is not a deterministic parser PASS. The shared
 [host entry](hosts/entry.md) owns the exact-once rule for handoffs and borrowed references.
 
@@ -113,7 +113,8 @@ tags can pass the parser check; the field schema then limits each value. Non-fin
 are not accepted. Script and instruction strings cannot contain NUL.
 Plain `yes` and `on` are strings under YAML 1.2.
 
-Source `scripts/celetis` to use these functions without starting installation discovery:
+Source the launcher of the plugin, `$(scripts/celetis root)/scripts/celetis`, to use these
+functions. The source itself starts no installation discovery.
 
 - `celetis_config_main` prints the absolute main checkout path. A failed Git lookup returns
   a nonzero status.
@@ -122,9 +123,26 @@ Source `scripts/celetis` to use these functions without starting installation di
   An invalid or missing config returns status 2 with empty stdout. Its diagnostic names the
   selected file and field; syntax and root errors use `<document>`.
 
+The reader is `scripts/lib/config.ts` of the plugin, and it runs on Bun. With no `bun` on
+`PATH`, or with a Bun older than 1.4.2, `celetis_config_read` returns status 2 and names the
+floor. A copy of the launcher in a product project has no reader beside it. When a script
+sources that copy, `celetis_config_read` returns status 2 with a line that names the launcher
+of the plugin.
+
 The reader uses one private YAML snapshot for metadata checks and JSON conversion. It checks
 document, key, node, and style metadata before JSON conversion can remove YAML information.
 JSON remains in memory. No generated config file is written.
+
+The reader refuses invalid UTF-8. It refuses each character outside the printable set of
+YAML 1.2, and U+0085, U+2028, and U+2029. A comment is no exception. These errors use
+`<document>`. A plain value in the YAML 1.1 timestamp form, such as `2026-10-16`, is an error.
+A plain value or key in a YAML 1.1 number form that YAML 1.2 reads as a string, such as `4_404`
+or `0b101`, is an error too. Quote such a value to keep it as a string.
+
+Before it finds the plugin, the launcher of a product project reads only `host` of the main
+config. It reads `host` only when neither `--agent` nor `CELETIS_AGENT` names the host.
+After it finds the plugin, the reader of the plugin checks the whole main config before
+`worktree`, `celetis-flow`, `next-step`, `land`, and `board`.
 
 ## Start the board
 
@@ -144,7 +162,7 @@ runner refresh. The maintainer must prepare every affected product project and s
 sessions, runners, and boards before the plugin lands. Keep the change unlanded until the
 maintainer gives a trusted readiness report for this build. This lane changes no other project.
 
-1. Install Mike Farah yq v4.54.1 on each machine and CI job that runs a shell consumer, using
+1. Install Bun 1.4.2 or later on each machine and CI job that runs a shell consumer, using
    the instructions below. Keep `jq` on `PATH`.
 2. Review each old input and prepare one `.celetis.yaml` in that product's main checkout:
 
@@ -183,42 +201,46 @@ desktop binding is separate optional evidence; a desktop limit does not block ot
 required CLI checks. Active-surface validation and permission stops still apply to each requested
 operation.
 
-## Install the parser
+## Install Bun
 
-Shell readers need [Mike Farah's yq](https://github.com/mikefarah/yq) `>=4.54.1,<5` on
-`PATH`, together with `jq`. Another implementation named `yq` is not accepted.
-The plugin does not install dependencies. CI and these machine instructions pin
-[release v4.54.1](https://github.com/mikefarah/yq/releases/tag/v4.54.1).
+Shell readers need Bun 1.4.2 or later on `PATH`, together with `jq`. The plugin does not
+install dependencies. CI pins Bun 1.4.2. The YAML parser of the reader, the `yaml` package
+2.9.1, comes with the plugin in `scripts/lib/vendor/`, so a read installs no package.
 
-Select the release asset for the machine:
-
-| Platform | `asset` value |
-| --- | --- |
-| macOS, Apple Silicon | `yq_darwin_arm64` |
-| macOS, Intel | `yq_darwin_amd64` |
-| Linux, x86-64 | `yq_linux_amd64` |
-| Linux, ARM64 | `yq_linux_arm64` |
-
-Set `asset` to that value, then run:
+Install Bun with Homebrew:
 
 ```bash
-asset=yq_darwin_arm64
-mkdir -p "$HOME/.local/bin"
-curl --fail --location --output "$HOME/.local/bin/yq" \
-  "https://github.com/mikefarah/yq/releases/download/v4.54.1/$asset"
-chmod +x "$HOME/.local/bin/yq"
-export PATH="$HOME/.local/bin:$PATH"
-yq --version
+brew install oven-sh/bun/bun
 ```
 
-The last command must print:
+Or use the official installer on macOS or Linux. On Linux, the installer needs `unzip`.
 
-```text
-yq (https://github.com/mikefarah/yq/) version v4.54.1
+```bash
+curl -fsSL https://bun.com/install | bash
 ```
 
-The parser behavior is documented in the official
-[YAML conversion](https://mikefarah.gitbook.io/yq/usage/convert),
-[key metadata](https://mikefarah.gitbook.io/yq/operators/keys),
-and [document index](https://mikefarah.gitbook.io/yq/operators/document-index) references.
-[YAML 1.2.2](https://yaml.org/spec/1.2.2/) defines literal block behavior.
+To install one version, give its tag to the installer:
+
+```bash
+curl -fsSL https://bun.com/install | bash -s "bun-v1.4.2"
+```
+
+On a Windows host, run this command in PowerShell. A session by hand then runs the scripts in
+Git Bash.
+
+```powershell
+powershell -c "irm bun.sh/install.ps1|iex"
+```
+
+Then run:
+
+```bash
+bun --version
+```
+
+The command must print 1.4.2 or a later version. When the shell does not find `bun` after the
+official installer, add `$HOME/.bun/bin` to `PATH`. To update an older Bun, run `bun upgrade`,
+or `brew upgrade bun` after a Homebrew install.
+
+The [Bun installation page](https://github.com/oven-sh/bun/blob/main/docs/installation.mdx)
+gives each method. [YAML 1.2.2](https://yaml.org/spec/1.2.2/) defines literal block behavior.

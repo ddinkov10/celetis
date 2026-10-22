@@ -65,9 +65,9 @@ ADR-0016 limits required automation to the CLI hosts while keeping desktop invoc
   on which the install, the refresh, and the lookup of the plugin were checked; an older release
   is not supported. These versions are a floor, not proof of the full workflow
   ([Acceptance status](docs/celetis-flow.md#acceptance-status)).
-- `gh` (logged in), `jq`, Mike Farah's `yq` `>=4.54.1,<5`, `git` 2.31 or later,
+- `gh` (logged in), `jq`, Bun 1.4.2 or later, `git` 2.31 or later,
   and Perl 5.14 or later on `PATH`.
-  The runner uses only the standard library of Perl.
+  The config reader runs on Bun. The runner uses only the standard library of Perl.
 - Git credentials for GitHub that need no prompt, an ssh key or a credential helper for https: the
   plugin repository is private.
 - Superpowers, installed and enabled on the selected host: the lanes call its `superpowers:*` skills.
@@ -77,7 +77,7 @@ ADR-0016 limits required automation to the CLI hosts while keeping desktop invoc
 
 `docs/celetis-flow.md` gives each requirement in full ("Requirements", and "The board").
 The [configuration reference](docs/configuration.md) gives the repository schema and the
-`yq` v4.54.1 download commands for macOS and Linux.
+commands that install Bun.
 
 ## Wire a product project
 
@@ -656,7 +656,7 @@ and board form. Every skill call adds `--agent claude` or `--agent codex` before
 - Each sub-command gives the output and the exit code of its script.
 - Run a command in a checkout of the product project: the plugin holds the scripts, so only the
   current folder names the project. `capscore` and `root` run in each folder.
-- The launcher needs the selected host CLI and `jq`. Project commands also need the parser
+- The launcher needs the selected host CLI and `jq`. Project commands also need Bun
   and valid config described in `docs/configuration.md`. A missing tool or invalid installation
   stops with a setup action. Codex commands require no Claude binary. The current metadata must
   explicitly mark the installation enabled; missing fields are not an old-format fallback.
@@ -786,7 +786,8 @@ The checks need no model credentials or tokens and start no model turn.
   ```
 - **The workflow** `.github/workflows/test.yml` runs the board suite, each `tests/*.test.sh`, and
   `scripts/capscore.sh --test`, plus the Perl syntax check, on Linux, for each pull request and
-  each push to `main`. It installs Node.js 22 and the pinned Claude test runtime before the tests.
+  each push to `main`. It installs Node.js 22, Bun 1.4.2, and the pinned Claude test runtime
+  before the tests.
   It does not skip the contract check of the `--board` documents or the board-to-launcher
   integration test.
 - **The proof on bash 3.2.** The gate runs each test under the `/bin/bash` of macOS, with
