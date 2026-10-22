@@ -55,7 +55,11 @@ export async function fixture() {
     config: (source: string | Uint8Array) => write('repo dir/.celetis.yaml', source),
     read: (path: string) => readFile(join(dir, path), 'utf8'),
     stub: (name: string, source: string) =>
-      write(`bin/${name}`, `#!/usr/bin/env -S ${process.execPath} ${isolatedArgs.join(' ')}\n${source}\n`, 0o755),
+      write(
+        `bin/${name}`,
+        `#!/usr/bin/env -S "${process.execPath.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll(' ', '\\_')}" ${isolatedArgs.join(' ')}\n${source}\n`,
+        0o755,
+      ),
     bun: (entry: string, args: string[] = [], options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}) =>
       command(process.execPath, [...isolatedArgs, entry, ...args], {
         cwd: dir,

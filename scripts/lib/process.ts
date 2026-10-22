@@ -2,14 +2,9 @@ import { type ExecFileOptions, execFile } from 'node:child_process';
 import { constants } from 'node:os';
 import { delimiter } from 'node:path';
 
-export function run(
-  file: string,
-  args: string[],
-  options: ExecFileOptions = {},
-): Promise<{ code: number; stdout: string; stderr: string }> {
-  const maxBuffer = options.maxBuffer ?? 64 * 1024 * 1024;
+export function childEnv(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {
-    ...(options.env ?? process.env),
+    ...source,
     BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
     DO_NOT_TRACK: '1',
   };
@@ -18,6 +13,16 @@ export function run(
       .filter((item) => !/node_modules\/\.bin\/*$/.test(item.replaceAll('\\', '/')))
       .join(delimiter);
   }
+  return env;
+}
+
+export function run(
+  file: string,
+  args: string[],
+  options: ExecFileOptions = {},
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  const maxBuffer = options.maxBuffer ?? 64 * 1024 * 1024;
+  const env = childEnv(options.env);
   return new Promise((resolve) => {
     const child = execFile(
       file,

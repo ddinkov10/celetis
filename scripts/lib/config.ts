@@ -3,6 +3,8 @@ import { type Document, isAlias, isMap, isScalar, isSeq, parseAllDocuments } fro
 
 const floor = '1.4.2';
 
+export { floor as bunFloor };
+
 type Path = (string | number)[];
 
 type NodeRecord = {
@@ -88,7 +90,7 @@ function yaml11Number(text: string): boolean {
   return /^[-+.0-9]/.test(text) && (yaml11Int.test(digits) || yaml11Float.test(digits));
 }
 
-function readSnapshot(file: string): Uint8Array {
+export function readSnapshot(file: string): Uint8Array {
   let before: fs.BigIntStats;
   try {
     before = fs.lstatSync(file, { bigint: true });
