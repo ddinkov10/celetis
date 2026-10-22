@@ -454,6 +454,9 @@ test('config stdin keeps port selection and listen errors', async t => {
     assert.deepEqual(await cli(['--config-stdin'], { cwd: folder, env: { PORT }, input }), inUse(configPort))
   }
   const configured = await freePort()
+  assert.deepEqual(await cli(['--config-stdin'], {
+    cwd: folder, env: { PORT: String(port) }, input: JSON.stringify({ port: configured }),
+  }), inUse(port))
   const fromConfig = await serve(t, folder, { PORT: undefined }, {
     args: ['--config-stdin'], input: JSON.stringify({ port: configured }), port: configured,
   })
