@@ -145,6 +145,8 @@ printf 'landing: pr\ncustom:\n  bug: |\n    Keep\r' >"$repo/.celetis.yaml"
 valid literal_carriage_return_ends_the_file '{"landing":"pr","custom":{"bug":"Keep\n"}}'
 printf 'landing: pr\ncustom:\n  bug: "Keep\\n"' >"$repo/.celetis.yaml"
 valid quoted_break_ends_the_file '{"landing":"pr","custom":{"bug":"Keep\n"}}'
+printf 'landing: pr\ncustom:\n  bug: |\n    \ta\n' >"$repo/.celetis.yaml"
+valid literal_tab_after_indent '{"landing":"pr","custom":{"bug":"\ta\n"}}'
 cat >"$repo/.celetis.yaml" <<'EOF'
 landing: pr
 worktreeSetup: ""
@@ -470,6 +472,19 @@ invalid underscore_port board.port < <(printf 'landing: pr\nboard: {port: 4_404}
 for value in '!!float 12' '!!int abc' '!!bool yes' '!!null abc'; do
   invalid "unresolved_tag_$value" custom.bug < <(printf 'landing: pr\ncustom: {bug: %s}\n' "$value")
 done
+for probe in underscore_text:1_000 binary_text:0b101 upper_hex_text:0X1A signed_hex_text:-0x1A underscore_float_text:1_0.5; do
+  invalid "${probe%%:*}" custom.bug < <(printf 'landing: pr\ncustom: {bug: %s}\n' "${probe#*:}")
+done
+check yaml_1_1_number_message test "$err" = "celetis: $repo/.celetis.yaml: custom.bug: quote this value: YAML 1.1 reads it as a number"
+cat >"$repo/.celetis.yaml" <<'EOF'
+landing: pr
+custom: {bug: '1_000', plan: !!str 0b101}
+EOF
+valid quoted_yaml_1_1_number '{"landing":"pr","custom":{"bug":"1_000","plan":"0b101"}}'
+invalid underscore_slot codexProfiles.r.slots.0 < <(printf 'landing: pr\ncodexProfiles: {r: {slots: [1_000, a, a, a], reviewer: {rank: 1, effort: low}}}\n')
+invalid underscore_runtime_key codexProfiles.1_000 < <(printf 'landing: pr\ncodexProfiles: {1_000: {slots: [a, a, a, a], reviewer: {rank: 1, effort: low}}}\n')
+invalid lone_surrogate custom.bug < <(printf 'landing: pr\ncustom: {bug: "\\ud800"}\n')
+check lone_surrogate_message test "$err" = "celetis: $repo/.celetis.yaml: custom.bug: invalid character U+D800"
 printf '%%YAML 1.1\n---\nlanding: pr\nworktreeSetup: yes\n' >"$repo/.celetis.yaml"
 valid yaml_1_1_directive_keeps_strings '{"landing":"pr","worktreeSetup":"yes"}'
 floor=$(sed -n 's/^celetis_bun_floor=//p' "$launcher")

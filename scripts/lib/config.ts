@@ -12,6 +12,7 @@ type NodeRecord = {
   tag: string;
   style?: string;
   value?: unknown;
+  plain?: string;
   keys?: string[];
 };
 
@@ -27,6 +28,8 @@ class ConfigError extends Error {
 const coreTag = (name: string) => `tag:yaml.org,2002:${name}`;
 const typedTags = ["null", "bool", "int", "float"].map(coreTag);
 const coreTags = ["map", "seq", "str"].map(coreTag).concat(typedTags);
+const yaml11Int = /^[-+]?(?:0[bB][01]+|0[oO][0-7]+|0[xX][0-9a-fA-F]+|[0-9]+)$/;
+const yaml11Float = /^[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?$/;
 const notRegularFile = "need a regular, readable file, with no symlink";
 const steps = ["triage", "specify", "bug", "chore", "hotfix", "plan", "implement"];
 const skills = [
@@ -58,6 +61,15 @@ function field(path: Path): string {
 function at(path: Path, pattern: string): boolean {
   const parts = pattern.split(".");
   return path.length === parts.length && parts.every((part, index) => part === "*" || part === path[index]);
+}
+
+function codePoint(text: string, index: number): string {
+  return `U+${text.codePointAt(index)?.toString(16).toUpperCase().padStart(4, "0")}`;
+}
+
+function yaml11Number(text: string): boolean {
+  const digits = text.replaceAll("_", "");
+  return yaml11Int.test(digits) || yaml11Float.test(digits);
 }
 
 function readSnapshot(file: string): Uint8Array {
@@ -94,9 +106,8 @@ function decode(bytes: Uint8Array): string {
   }
   const index = decoded.search(/[^\t\n\r\x20-\x7e\xa0-\u2027\u202a-\ud7ff\ue000-\ufffd\u{10000}-\u{10ffff}]/u);
   if (index >= 0) {
-    const point = decoded.codePointAt(index)?.toString(16).toUpperCase().padStart(4, "0");
     const line = decoded.slice(0, index).split("\n").length;
-    throw new ConfigError([], `invalid character U+${point} at line ${line}`);
+    throw new ConfigError([], `invalid character ${codePoint(decoded, index)} at line ${line}`);
   }
   return decoded;
 }
@@ -145,8 +156,9 @@ function collectNodes(doc: Document): NodeRecord[] {
     if (isAlias(node)) {
       nodes.push({ path, key, kind: "alias", tag: "" });
     } else if (isScalar(node)) {
-      const tag = node.tag ?? (node.type === "PLAIN" ? plainTag(doc, node.source ?? "") : coreTag("str"));
-      nodes.push({ path, key, kind: "scalar", tag, style: node.type, value: node.value });
+      const plain = node.tag === undefined && node.type === "PLAIN" ? (node.source ?? "") : undefined;
+      const tag = node.tag ?? (plain === undefined ? coreTag("str") : plainTag(doc, plain));
+      nodes.push({ path, key, kind: "scalar", tag, style: node.type, value: node.value, plain });
     } else if (isMap(node)) {
       const keys = node.items.flatMap((pair) => (isScalar(pair.key) ? [pair.key.source ?? ""] : []));
       nodes.push({ path, key, kind: "map", tag: node.tag ?? coreTag("map"), keys });
@@ -162,6 +174,14 @@ function collectNodes(doc: Document): NodeRecord[] {
   };
   visit(doc.contents, [], false);
   return nodes;
+}
+
+function checkWellFormed(nodes: NodeRecord[]): void {
+  for (const { path, value } of nodes) {
+    if (typeof value !== "string") continue;
+    const index = value.search(/\p{Cs}/u);
+    if (index >= 0) throw new ConfigError(path, `invalid character ${codePoint(value, index)}`);
+  }
 }
 
 function checkMetadata(nodes: NodeRecord[]): void {
@@ -182,6 +202,10 @@ function checkMetadata(nodes: NodeRecord[]): void {
       (node) =>
         (!coreTags.includes(node.tag) || (typedTags.includes(node.tag) && typeof node.value === "string")) &&
         node.path,
+    ],
+    [
+      "quote this value: YAML 1.1 reads it as a number",
+      (node) => node.tag === coreTag("str") && node.plain !== undefined && yaml11Number(node.plain) && node.path,
     ],
     [
       "non-finite numbers are not allowed",
@@ -301,7 +325,9 @@ try {
     throw new ConfigError([], `need Bun >=${floor} on PATH, found ${Bun.version}`);
   }
   const doc = parseOne(decode(readSnapshot(file)));
-  checkMetadata(collectNodes(doc));
+  const nodes = collectNodes(doc);
+  checkWellFormed(nodes);
+  checkMetadata(nodes);
   const config = doc.toJS();
   checkSchema(config);
   console.log(JSON.stringify(config));
