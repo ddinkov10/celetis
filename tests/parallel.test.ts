@@ -122,7 +122,9 @@ test('suite discovers every automatic entry and excludes token programs', async 
     'tests/manual-cleanup.test.ts',
   ])
     expect(files).toContain(file);
-  expect(files.filter((file) => file.startsWith('board/'))).toHaveLength(11);
+  expect(files.filter((file) => file.startsWith('board/'))).toHaveLength(12);
+  const { processEntries } = await import(join(root, 'tests/suite.ts'));
+  expect(processEntries).toContain('board/realpath.test.ts');
   expect(files).not.toContain('tests/manual/step-prompt.ts');
   expect(files).not.toContain('tests/manual/custom-part.ts');
   expect(new Set(files).size).toBe(files.length);

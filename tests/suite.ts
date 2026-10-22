@@ -4,6 +4,7 @@ import { type JobResult, printJobs, runJobs } from '../scripts/lib/parallel.ts';
 import { bunArgs } from '../scripts/lib/process.ts';
 
 export const processEntries = [
+  'board/realpath.test.ts',
   'tests/process.test.ts',
   'tests/runner-lock.test.ts',
   'tests/runner-lifecycle.test.ts',

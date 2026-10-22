@@ -1,5 +1,6 @@
-import { access, constants, lstat, realpath } from 'node:fs/promises';
+import { access, constants, lstat } from 'node:fs/promises';
 import { isAbsolute, join, sep } from 'node:path';
+import { realpath } from './realpath.ts';
 import { bindRuntime } from './runtime.ts';
 import type { Command, Config } from './types.ts';
 
@@ -46,7 +47,10 @@ const readList = async (main: string, key: string, list: unknown): Promise<Comma
     if (!rest.includes(NUMBER)) refuse(`"${key}" has no {n} item`);
   }
   const subject = `"${key}": ${first}`;
-  const real = await realpath(join(main, first)).catch(() => refuse(`${subject} does not exist`));
+  const real = await realpath(join(main, first)).catch((error: NodeJS.ErrnoException) => {
+    if (!error.code) throw error;
+    return refuse(`${subject} does not exist`);
+  });
   await checkFile(main, real, subject);
   await access(real, constants.X_OK).catch(() => refuse(`${subject} is not executable`));
   if (CONTROL.test(real)) refuse(control);
