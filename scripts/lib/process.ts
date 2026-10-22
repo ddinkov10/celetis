@@ -16,6 +16,12 @@ export function childEnv(source: NodeJS.ProcessEnv = process.env): NodeJS.Proces
   return env;
 }
 
+function limitOutput(text: string, bytes: number): string {
+  return new TextDecoder('utf-8', { ignoreBOM: true }).decode(Buffer.from(text).subarray(0, bytes), {
+    stream: true,
+  });
+}
+
 export function run(
   file: string,
   args: string[],
@@ -32,30 +38,38 @@ export function run(
       });
       let stdout = '';
       let stderr = '';
-      let failed = false;
+      let failure: Error | undefined;
+      const full = new Set<string>();
       for (const [name, stream] of [
         ['stdout', child.stdout],
         ['stderr', child.stderr],
       ] as const) {
         stream?.setEncoding('utf8');
         stream?.on('data', (data: string) => {
-          if (name === 'stdout') stdout += data;
-          else stderr += data;
-          if (Buffer.byteLength(stdout) > maxBuffer || Buffer.byteLength(stderr) > maxBuffer) {
-            failed = true;
-            child.kill();
+          if (full.has(name)) return;
+          const captured = name === 'stdout' ? stdout : stderr;
+          const remaining = maxBuffer - Buffer.byteLength(captured);
+          const overflow = Buffer.from(data).length > remaining;
+          const chunk = overflow ? limitOutput(data, remaining) : data;
+          if (name === 'stdout') stdout += chunk;
+          else stderr += chunk;
+          if (overflow) {
+            full.add(name);
+            if (!failure) {
+              failure = new RangeError(`${name} maxBuffer length exceeded`);
+              child.kill();
+            }
           }
         });
       }
       child.once('error', (error) => {
-        failed = true;
-        stderr += error.message;
+        failure ??= error;
       });
       child.once('close', (code, signal) =>
         resolve({
-          code: failed ? 1 : (code ?? (signal ? 128 + constants.signals[signal] : 1)),
-          stdout: Buffer.from(stdout).subarray(0, maxBuffer).toString(),
-          stderr: Buffer.from(stderr).subarray(0, maxBuffer).toString(),
+          code: failure ? 1 : (code ?? (signal ? 128 + constants.signals[signal] : 1)),
+          stdout,
+          stderr: stderr || failure?.message || '',
         }),
       );
       child.once('exit', (code, signal) => {
@@ -73,12 +87,8 @@ export function run(
       { ...options, env, encoding: 'utf8', maxBuffer, shell: false },
       (error, stdout, stderr) => {
         if (error?.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {
-          const limit = (text: string) =>
-            new TextDecoder('utf-8', { ignoreBOM: true }).decode(Buffer.from(text).subarray(0, maxBuffer), {
-              stream: true,
-            });
-          stdout = limit(stdout);
-          stderr = limit(stderr);
+          stdout = limitOutput(stdout, maxBuffer);
+          stderr = limitOutput(stderr, maxBuffer);
         }
         const code =
           typeof error?.code === 'number' ? error.code : error?.signal ? 128 + constants.signals[error.signal] : 1;

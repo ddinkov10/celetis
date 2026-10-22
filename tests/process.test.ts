@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { closeSync, openSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { delimiter, join } from 'node:path';
 import { bunArgs, run } from '../scripts/lib/process.ts';
@@ -114,6 +115,74 @@ test(
     expect(result.code).not.toBe(0);
     expect(result.stdout).toBe('λ');
     expect(Buffer.byteLength(result.stdout)).toBeLessThanOrEqual(3);
+  }),
+);
+
+for (const stream of ['stdout', 'stderr'] as const) {
+  test(
+    `descriptor capture bounds ${stream} after a child writes again after TERM`,
+    withFixture(async (f) => {
+      const marker = join(f.dir, 'after-term');
+      const child = await f.write(
+        'overflow.ts',
+        `import {writeFileSync} from 'node:fs';
+const output=process.${stream};
+output.on('error',()=>{});
+let wroteAfterTerm=false;
+process.on('SIGTERM',()=>{if(wroteAfterTerm)return;wroteAfterTerm=true;output.write('λ'.repeat(64),error=>writeFileSync(${JSON.stringify(marker)},error?.message??'written after TERM'));});
+output.write('λ'.repeat(3));
+await Bun.sleep(25);
+output.write('λ'.repeat(64));
+await Bun.sleep(150);
+process.exit(0);`,
+      );
+      const retainedByteCounts: number[] = [];
+      const byteLength = Buffer.byteLength;
+      const fd = openSync('/dev/null', 'r');
+      let result: Awaited<ReturnType<typeof run>>;
+      try {
+        Buffer.byteLength = (value, encoding) => {
+          const length = byteLength(value, encoding);
+          if (typeof value === 'string' && /^λ+$/.test(value)) retainedByteCounts.push(length);
+          return length;
+        };
+        result = await run(process.execPath, bunArgs(child, []), {
+          env: f.env,
+          inheritedFd: fd,
+          maxBuffer: 17,
+        });
+      } finally {
+        Buffer.byteLength = byteLength;
+        closeSync(fd);
+      }
+      expect(await f.read('after-term')).toBe('written after TERM');
+      expect(retainedByteCounts.length).toBeGreaterThan(0);
+      expect(Math.max(...retainedByteCounts)).toBeLessThanOrEqual(17);
+      expect(result.code).toBe(1);
+      expect(result[stream]).toBe('λ'.repeat(8));
+      if (stream === 'stdout') expect(result.stderr).toContain('stdout maxBuffer');
+      else expect(result.stdout).toBe('');
+    }),
+  );
+}
+
+test(
+  'descriptor capture decodes split UTF-8 without exceeding the limit',
+  withFixture(async (f) => {
+    const child = await f.write(
+      'split.ts',
+      'process.stdout.write(new Uint8Array([0xce])); await Bun.sleep(10); process.stdout.write(new Uint8Array([0xbb]));',
+    );
+    const fd = openSync('/dev/null', 'r');
+    try {
+      expect(await run(process.execPath, bunArgs(child, []), { env: f.env, inheritedFd: fd, maxBuffer: 2 })).toEqual({
+        code: 0,
+        stdout: 'λ',
+        stderr: '',
+      });
+    } finally {
+      closeSync(fd);
+    }
   }),
 );
 

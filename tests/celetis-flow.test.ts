@@ -480,7 +480,8 @@ test.concurrent(
       title: 'Issue 4',
       url: 'https://example.test/issues/4',
     });
-    expect(row(4).closedAt).toBeTruthy();
+    const closedIssue = JSON.parse(await f.read('issue-4.json')) as { closed_at: string };
+    expect(row(4).closedAt).toBe(closedIssue.closed_at);
     expect(row(5)).toMatchObject({ state: 'starting', step: 'bug' });
     expect(row(7)).toMatchObject({ type: 'feature', state: 'dirty', step: 'plan', path: lane, started: true });
     expect(row(8)).toMatchObject({ state: 'ready', step: 'triage', started: false, urgent: false });
