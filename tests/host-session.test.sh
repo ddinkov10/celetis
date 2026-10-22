@@ -136,7 +136,7 @@ EOF
 printf '#!/bin/bash\nexit 0\n' >"$tmp/bin/gh"
 printf '#!/bin/bash\nexec /bin/sleep 0.05\n' >"$tmp/bin/sleep"
 chmod +x "$tmp/bin/"* "$plugin/scripts/next-step.sh"
-for command in bash jq yq git dirname mkdir cat mktemp mkfifo rm mv ps touch perl date; do ln -s "$(command -v "$command")" "$tmp/codex-only/$command"; done
+for command in bash jq yq bun git dirname mkdir cat mktemp mkfifo rm mv ps touch perl date; do ln -s "$(command -v "$command")" "$tmp/codex-only/$command"; done
 for command in codex gh sleep; do ln -s "$tmp/bin/$command" "$tmp/codex-only/$command"; done
 export PATH="$tmp/bin:$PATH"
 git init -q "$template"

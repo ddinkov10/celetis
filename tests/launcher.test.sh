@@ -260,6 +260,40 @@ expect 'environment agent overrides the project agent' claude '' 0
 CELETIS_AGENT=claude GIT_AGENT=codex run "$both" --agent codex host
 expect 'explicit agent overrides environment and project' codex '' 0
 
+printf 'landing: merge\nhost: [\n' >"$proj/.celetis.yaml"
+run "$both" host
+check 'invalid YAML stops the host read' test "$code:$out" = '2:'
+check 'the host read names the file and the parse' test "${err#"celetis: $proj/.celetis.yaml: <document>: invalid YAML: "}" != "$err"
+run "$both" --agent codex host
+expect 'an explicit agent reads no config' codex '' 0
+CELETIS_AGENT=codex run "$both" host
+expect 'an environment agent reads no config' codex '' 0
+printf 'landing: merge\nhost: codex\n' >"$proj/.celetis.yaml"
+run "$tmp/stub:$tmp/nobin" host
+expect 'the host read needs Bun' '' "celetis: $proj/.celetis.yaml: <document>: need Bun >=1.4.2 on PATH" 2
+printf 'landing: merge\nhost: codex\nextra: x\n' >"$proj/.celetis.yaml"
+run "$both" root
+expect 'a strict-rule failure does not stop root' "$plug" '' 0
+mv "$proj/.celetis.yaml" "$tmp/real-config.yaml"
+printf 'landing: merge\nhost: codex\n' >"$tmp/real-config.yaml"
+ln -s "$tmp/real-config.yaml" "$proj/.celetis.yaml"
+run "$both" host
+expect 'a symlink stops the host read' '' "celetis: $proj/.celetis.yaml: <document>: need a regular, readable file, with no symlink" 2
+rm "$proj/.celetis.yaml"
+printf 'landing: merge\nhost: codex\n' >"$proj/.celetis.yaml"
+export START_MARK="$tmp/start-ran"
+printf 'preload = ["./mark.js"]\n' >"$proj/sub/bunfig.toml"
+printf 'require("node:fs").writeFileSync(process.env.START_MARK, "ran")\n' >"$proj/sub/mark.js"
+printf 'CELETIS_AGENT=claude\n' >"$proj/sub/.env"
+from="$proj/sub" skills "$(skill "$plug/skills/guide/SKILL.md")"
+from="$proj/sub" run "$both" host
+expect 'a bunfig.toml and a .env of the start folder change no host' codex '' 0
+check 'the preload of the start folder did not run' test ! -e "$START_MARK"
+(cd "$proj/sub" && bun -e 1)
+check 'control: a plain bun runs that preload' test -e "$START_MARK"
+rm -f "$START_MARK" "$proj/sub/bunfig.toml" "$proj/sub/mark.js" "$proj/sub/.env"
+skills "$(skill "$plug/skills/guide/SKILL.md")"
+
 CELETIS_HOST=claude GIT_AGENT=claude run "$both" host
 expect 'obsolete environment and Git agent cannot override YAML' codex '' 0
 run "$both" --host codex host

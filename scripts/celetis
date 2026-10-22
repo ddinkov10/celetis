@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+celetis_bun_floor=1.4.2
+
 celetis_config_main() {
   local common
   common=$(git rev-parse --path-format=absolute --git-common-dir) || return 1
@@ -146,8 +148,36 @@ celetis_config_read() (
   printf '%s\n' "$config"
 )
 
+celetis_config_host() (
+  file="$1/.celetis.yaml"
+  celetis_config_error() {
+    printf 'celetis: %s: %s\n' "$file" "$*" >&2
+    exit 2
+  }
+  [ -f "$file" ] && [ -r "$file" ] && [ ! -L "$file" ] ||
+    celetis_config_error '<document>: need a regular, readable file, with no symlink'
+  command -v bun >/dev/null 2>&1 ||
+    celetis_config_error "<document>: need Bun >=$celetis_bun_floor on PATH"
+  program='
+    const [floor, file] = process.argv.slice(1);
+    const stop = (message) => { console.error(`celetis: ${file}: <document>: ${message}`); process.exit(2); };
+    if (Bun.semver.order(Bun.version, floor) < 0) stop(`need Bun >=${floor} on PATH, found ${Bun.version}`);
+    let config;
+    try { config = Bun.YAML.parse(await Bun.file(file).text()); } catch (error) { stop(`invalid YAML: ${String(error.message).split("\n")[0]}`); }
+    const host = config !== null && typeof config === "object" && !Array.isArray(config) && Object.hasOwn(config, "host") ? config.host : "claude";
+    console.log(typeof host === "string" ? host : JSON.stringify(host));
+  '
+  code=0
+  host=$(cd / && BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 bun -e "$program" "$celetis_bun_floor" "$file") || code=$?
+  case $code in
+    0) printf '%s\n' "$host" ;;
+    2) exit 2 ;;
+    *) celetis_config_error "<document>: Bun stopped with exit $code; need Bun >=$celetis_bun_floor on PATH" ;;
+  esac
+)
+
 celetis_host_select() {
-  local host main config
+  local host main
   if [ $# -gt 0 ]; then
     host=$1
   elif [ "${CELETIS_AGENT+x}" = x ]; then
@@ -155,8 +185,7 @@ celetis_host_select() {
   else
     host=claude
     if main=$(celetis_config_main 2>/dev/null); then
-      config=$(celetis_config_read "$main") || return $?
-      host=$(printf '%s\n' "$config" | jq -r '.host // "claude"') || return $?
+      host=$(celetis_config_host "$main") || return $?
     fi
   fi
   case $host in

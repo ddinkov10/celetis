@@ -180,7 +180,7 @@ ln -s "$(command -v jq)" "$nobin/jq"
 ln -s "$(command -v git)" "$nobin/git"
 ln -s "$(command -v dirname)" "$nobin/dirname"
 ln -s "$(command -v mkdir)" "$nobin/mkdir"
-for tool in yq perl mktemp rm cat; do ln -s "$(command -v "$tool")" "$nobin/$tool"; done
+for tool in yq bun perl mktemp rm cat; do ln -s "$(command -v "$tool")" "$nobin/$tool"; done
 export PATH="$bin:$PATH"
 
 group_init() {
@@ -844,7 +844,7 @@ group_board_agent() {
   [ "$code" -eq 0 ] && [ "$(doc 'del(.defaultAgent)')" = "$(printf '%s' "$board" | jq -c 'del(.defaultAgent)')" ] && [ ! -e "$S/codex-calls" ] || fail "only the default agent may change in the board document: $code [$out] [$err]"
   checked
   mkdir "$tmp/board-bin"
-  for command in bash jq yq perl mktemp rm git dirname mkdir cat date grep wc ps; do ln -s "$(command -v "$command")" "$tmp/board-bin/$command"; done
+  for command in bash jq yq bun perl mktemp rm git dirname mkdir cat date grep wc ps; do ln -s "$(command -v "$command")" "$tmp/board-bin/$command"; done
   ln -s "$bin/gh" "$tmp/board-bin/gh"
   ln -s "$bin/codex" "$tmp/board-bin/codex"
   CELETIS_AGENT=codex path="$tmp/board-bin" run_flow --board
