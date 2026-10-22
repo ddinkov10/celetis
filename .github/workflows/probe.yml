@@ -1,0 +1,8 @@
+name: probe
+on: pull_request
+jobs:
+  probe:
+    if: github.head_ref == 'chore/93-probe'
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "$GITHUB_RUN_ATTEMPT" -ge 2
