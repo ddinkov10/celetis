@@ -128,6 +128,7 @@ green() {
     skipping) die "no check ran on PR #$pr: each check was skipped: $url" ;;
     *)
       [ -z "$reruns" ] || die "PR #$pr has a check that is not green after the re-run ($buckets): $url"
+      rerun_pick || return 1
       return 2
       ;;
   esac
@@ -145,29 +146,32 @@ wait_green() {
 }
 
 # The run_attempt of GitHub is the only record of a re-run: a workflow run at attempt 2 or more gets no re-run.
-rerun_failed() {
-  local red statuses runs app conclusion suite details name run
+rerun_pick() {
+  local red statuses runs app conclusion suite details name run ids= lines= busy=
   red=$(gh api --paginate "repos/{owner}/{repo}/commits/$tip/check-runs?per_page=100" --jq '.check_runs[] |
     select(.status == "completed" and (.conclusion | IN("failure", "timed_out", "action_required", "cancelled"))) |
     "\(.app.slug) \(.conclusion) \(.check_suite.id) \(.id) \(.details_url) \(.name)"') &&
     statuses=$(gh api --paginate "repos/{owner}/{repo}/commits/$tip/status?per_page=100" --jq '.statuses[] | select(.state | IN("error", "failure")) | .state') &&
-    runs=$(gh api --paginate "repos/{owner}/{repo}/actions/runs?head_sha=$tip&per_page=100" --jq '.workflow_runs[] | "\(.check_suite_id) \(.id) \(.run_attempt)"') &&
+    runs=$(gh api --paginate "repos/{owner}/{repo}/actions/runs?head_sha=$tip&per_page=100" --jq '.workflow_runs[] | "\(.check_suite_id) \(.id) \(.run_attempt) \(.status)"') &&
     [ -n "$red" ] && [ -z "$statuses" ] || die "PR #$pr has a check that is not green ($buckets): $url"
   while read -r app conclusion suite _ details name; do
     [ "$app" = github-actions ] && [[ $conclusion == failure || $conclusion == timed_out ]] &&
-      run=$(grep -E "^$suite [0-9]+ 1\$" <<<"$runs" | cut -d' ' -f2) ||
+      run=$(grep -E "^$suite [0-9]+ 1 " <<<"$runs" | cut -d' ' -f2) ||
       die "PR #$pr has a check that is not green ($buckets): $url"
-    [[ " $reruns " == *" $run "* ]] || reruns="${reruns:+$reruns }$run"
-    flaky="$flaky$details $name"$'\n'
+    grep -qxF "$suite $run 1 completed" <<<"$runs" || busy=1
+    [[ " $ids " == *" $run "* ]] || ids="${ids:+$ids }$run"
+    lines="$lines$details $name"$'\n'
   done <<<"$red"
-  for run in $reruns; do
-    gh api --silent -X POST "repos/{owner}/{repo}/actions/runs/$run/rerun-failed-jobs" ||
-      die "GitHub refused the re-run of the failed checks of PR #$pr: $url"
-  done
+  # GitHub refuses to re-run a workflow run that still runs, and it lists a job with needs only when that need ends.
+  [ -z "$busy" ] || {
+    buckets="the workflow run of a failed check is not done"
+    return 1
+  }
+  reruns=$ids flaky=$lines
 }
 
 land_pr() {
-  local merged open lane head base status
+  local merged open lane head base status run
   merged=$(gh api --paginate "repos/{owner}/{repo}/pulls?head={owner}:$(jq -rn --arg b "$branch" '$b | @uri')&state=closed&per_page=100" \
     --jq '.[] | select(.merged_at) | "\(.base.ref) \(.head.sha)"') || die "cannot list the PRs of $branch on GitHub"
   ! grep -qxF "$trunk $tip" <<<"$merged" || return 0
@@ -192,7 +196,10 @@ land_pr() {
   status=0
   wait_green || status=$?
   if [ "$status" -eq 2 ]; then
-    rerun_failed
+    for run in $reruns; do
+      gh api --silent -X POST "repos/{owner}/{repo}/actions/runs/$run/rerun-failed-jobs" ||
+        die "GitHub refused the re-run of the failed checks of PR #$pr: $url"
+    done
     echo "Waiting up to 15 more minutes for the re-run of the failed checks of PR #$pr at $tip"
     status=0
     wait_green || status=$?

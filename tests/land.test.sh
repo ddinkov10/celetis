@@ -83,7 +83,7 @@ case "$method $endpoint" in
     [ ! -f "$S/auto-delete" ] || git --git-dir="$ORIGIN" update-ref -d "refs/heads/$(cat "$S/auto-delete")" ;;
   "GET $repo/commits/"*"/check-runs?"*) list "$(nth polls checks)" ;;
   "GET $repo/commits/"*"/status?"*) list status ;;
-  "GET $repo/actions/runs?head_sha="*) list runs ;;
+  "GET $repo/actions/runs?head_sha="*) list "$(nth run-lists runs)" ;;
   "GET $repo/actions/runs/"*) answer "$(nth run-polls run)" ;;
   "POST $repo/actions/runs/"*/rerun-failed-jobs)
     run=${path%/rerun-failed-jobs}
@@ -186,7 +186,7 @@ checks() {
     {id: (100 + .key), name: "job \(.key)", app: {slug: ($app // "github-actions")}, check_suite: {id: 50},
       details_url: "https://github.com/o/r/actions/runs/5/job/\(100 + .key)", status: (if $c then "completed" else "in_progress" end), conclusion: $c}]}' --args $1)"
 }
-runs_at() { json runs "{\"workflow_runs\":[{\"check_suite_id\":50,\"id\":5,\"run_attempt\":$1}]}"; }
+runs_at() { json "${2:-runs}" "{\"workflow_runs\":[{\"check_suite_id\":50,\"id\":5,\"run_attempt\":$1,\"status\":\"${3:-completed}\"}]}"; }
 
 origin_master() { git --git-dir="$ORIGIN" rev-parse master; }
 has_ref() { git show-ref --verify --quiet "refs/heads/$1"; }
@@ -789,7 +789,7 @@ rerun_refusals() {
   prs fix/7-crash 9
   checks "fail fail"
   json checks "$(jq -c '.check_runs[1].check_suite.id = 51' "$S/checks.json")"
-  json runs '{"workflow_runs":[{"check_suite_id":50,"id":5,"run_attempt":1},{"check_suite_id":51,"id":6,"run_attempt":2}]}'
+  json runs '{"workflow_runs":[{"check_suite_id":50,"id":5,"run_attempt":1,"status":"completed"},{"check_suite_id":51,"id":6,"run_attempt":2,"status":"completed"}]}'
   rerun_refusal fail "failed checks of two runs, one at attempt 2"
   fresh pr
   lane fix/7-crash
@@ -798,6 +798,70 @@ rerun_refusals() {
   checks "pass pass" checks-2
   runs_at 1
   rerun_refusal "fail pass" "a failed check that is gone at the re-run decision"
+  fresh pr
+  lane fix/7-crash
+  prs fix/7-crash 9
+  checks "fail pass"
+  runs_at 1
+  touch "$S/fail-GET-runs"
+  rerun_refusal "fail pass" "a failed check whose workflow runs cannot be read"
+}
+
+rerun_run_not_done() {
+  fresh pr
+  lane fix/7-crash
+  prs fix/7-crash 9
+  checks "fail pass"
+  checks "pass pass" checks-5
+  runs_at 1 runs in_progress
+  runs_at 1 runs-2
+  land 7 'fix(x): y'
+  landed "pr: a failed check of a workflow run that still runs"
+  [ "$(cat "$S/reruns")" = 5 ] || fail "pr: a failed check of a workflow run that still runs re-ran [$(cat "$S/reruns")], not 5 once"
+  [ "$(grep -oE 'head_sha=|rerun-failed-jobs|/pulls/9/merge' "$S/gh-calls" | paste -sd ' ' -)" = "head_sha= head_sha= rerun-failed-jobs /pulls/9/merge" ] ||
+    fail "pr: a failed check of a workflow run that still runs re-ran before the run was done: $(cat "$S/gh-calls")"
+  has "land: the check job 0 of PR #9 failed, then passed on its re-run; look for a flaky test: https://github.com/o/r/actions/runs/5/job/100" "pr: a failed check of a workflow run that still runs"
+}
+
+rerun_run_never_done() {
+  fresh pr
+  lane fix/7-crash
+  prs fix/7-crash 9
+  checks "fail pass"
+  runs_at 1 runs in_progress
+  land 7 'fix(x): y'
+  refused "the checks of PR #9 did not finish in 15 minutes (the workflow run of a failed check is not done): https://github.com/o/r/pull/9" "pr: a failed check of a workflow run that never ends"
+  [ ! -f "$S/reruns" ] && [ "$(cat "$S/run-lists")" -eq 60 ] || fail "pr: a failed check of a workflow run that never ends re-ran, or read the runs $(cat "$S/run-lists") times, not 60"
+}
+
+rerun_two_runs() {
+  fresh pr
+  lane fix/7-crash
+  prs fix/7-crash 9
+  checks "fail fail pass"
+  json checks "$(jq -c '.check_runs[1] |= (.check_suite.id = 51 | .details_url = "https://github.com/o/r/actions/runs/6/job/101")' "$S/checks.json")"
+  checks "pass pass pass" checks-3
+  json runs '{"workflow_runs":[{"check_suite_id":50,"id":5,"run_attempt":1,"status":"completed"},{"check_suite_id":51,"id":6,"run_attempt":1,"status":"completed"}]}'
+  land 7 'fix(x): y'
+  landed "pr: failed checks of two workflow runs"
+  [ "$(cat "$S/reruns")" = $'5\n6' ] || fail "pr: failed checks of two workflow runs re-ran [$(cat "$S/reruns")], not 5 and 6"
+  [ "$(calls 'actions/runs/5 ')" -eq 1 ] && [ "$(calls 'actions/runs/6 ')" -eq 1 ] || fail "pr: failed checks of two workflow runs did not read each re-run: $(cat "$S/gh-calls")"
+  has "land: the check job 0 of PR #9 failed, then passed on its re-run; look for a flaky test: https://github.com/o/r/actions/runs/5/job/100" "pr: failed checks of two workflow runs"
+  has "land: the check job 1 of PR #9 failed, then passed on its re-run; look for a flaky test: https://github.com/o/r/actions/runs/6/job/101" "pr: failed checks of two workflow runs"
+}
+
+rerun_merge_rejected() {
+  fresh pr
+  lane fix/7-crash
+  prs fix/7-crash 9
+  checks "fail pass"
+  checks "pass pass" checks-3
+  runs_at 1
+  echo "head branch was modified" >"$S/merge-fail"
+  land 7 'fix(x): y'
+  [ "$status" -eq 1 ] && [ "$(grep -c '^land: ' <<<"$out")" -eq 1 ] || fail "pr: a merge that GitHub rejects after a re-run exit $status, or more than one land: line: $out"
+  has "land: cannot merge PR #9 at $tip; the PR stays open" "pr: a merge that GitHub rejects after a re-run"
+  kept "pr: a merge that GitHub rejects after a re-run"
 }
 
 rerun_github_refuses() {
@@ -923,6 +987,7 @@ run() { pool_run "$1" group "$@"; }
 
 template merge
 template pr
+run rerun_run_never_done rerun_run_never_done
 run checks_none checks_none
 run checks_pending checks_pending
 run status_pending status_pending
@@ -936,6 +1001,9 @@ run rerun_two_in_one_run rerun_two_in_one_run
 run rerun_stale_first_poll rerun_stale_first_poll
 run rerun_fails_again rerun_fails_again
 run rerun_github_refuses rerun_github_refuses
+run rerun_run_not_done rerun_run_not_done
+run rerun_two_runs rerun_two_runs
+run rerun_merge_rejected rerun_merge_rejected
 run usage_and_config usage_and_config
 run lane_refusals-merge lane_refusals merge
 run lane_refusals-pr lane_refusals pr
