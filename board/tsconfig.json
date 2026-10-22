@@ -2,5 +2,5 @@
   "extends": "../tsconfig.runtime.json",
   "include": ["board.ts", "view.ts", "ui.ts", "panel.ts", "palette.ts", "types.ts"],
   "exclude": [],
-  "compilerOptions": { "lib": ["ESNext", "DOM", "DOM.Iterable"] }
+  "compilerOptions": { "lib": ["ESNext", "DOM", "DOM.Iterable"], "types": [] }
 }

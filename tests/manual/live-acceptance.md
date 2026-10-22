@@ -52,14 +52,15 @@ Before landing, require the maintainer's readiness report for the
 
 ## Model suites and saved results
 
-These commands use model tokens. Run them only when the selected host can accept the work:
+These commands use model tokens. Run them only when the selected host can accept the work.
+Use the selected Bun executable on PATH:
 
 ```bash
-PATH="/bin:$PATH" /bin/bun --no-env-file --no-install --config=/dev/null --no-macros tests/manual/step-prompt.ts \
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros tests/manual/step-prompt.ts \
   --agent claude --output-dir <new-evidence-directory>
-PATH="/bin:$PATH" /bin/bun --no-env-file --no-install --config=/dev/null --no-macros tests/manual/step-prompt.ts \
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros tests/manual/step-prompt.ts \
   --agent codex --output-dir <new-evidence-directory>
-PATH="/bin:$PATH" /bin/bun --no-env-file --no-install --config=/dev/null --no-macros tests/manual/custom-part.ts \
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros tests/manual/custom-part.ts \
   --output-dir <new-evidence-directory>
 ```
 

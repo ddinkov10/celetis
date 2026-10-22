@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { cp, mkdir, readFile, stat, symlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { findTools } from '../scripts/install-tools.ts';
 import { command, isolatedArgs, root, withFixture } from './lib/fixture.ts';
 
 const gate = 'scripts/verify.ts';
@@ -162,6 +163,30 @@ test(
   }),
   29_000,
 );
+
+for (const [name, expression] of [
+  ['Bun', 'Bun.version'],
+  ['process', 'process.execPath'],
+  ['Buffer', "Buffer.from('browser')"],
+] as const)
+  test(
+    `browser project rejects ${name} in its included board source`,
+    withFixture(async (f) => {
+      const checkout = await gateCopy(f);
+      const source = join(checkout, 'board/board.ts');
+      await writeFile(source, `${await readFile(source, 'utf8')}\nexport const runtimeProbe = ${expression};\n`);
+      const tools = await findTools();
+      const result = await command(
+        tools.tsc.file,
+        [...tools.tsc.args, '-p', 'board/tsconfig.json', '--typeRoots', tools.typeRoots],
+        { cwd: checkout },
+      );
+      expect(result.code, output(result)).not.toBe(0);
+      expect(output(result)).toContain('board/board.ts');
+      expect(output(result)).toContain(`Cannot find name '${name}'`);
+    }),
+    29_000,
+  );
 
 test('final tracked tree contains no obsolete language programs or unexplained JavaScript', async () => {
   const paths = await tracked();
