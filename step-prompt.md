@@ -49,3 +49,6 @@ Bind commands and file edits to the lane path; return to the main checkout for l
    `## Before landing` comment for this build. An absent `ready-for-human` label is not completion
    evidence. Without evidence, restore that label as the last act, using the existing comment
    as the reason, and stop. With evidence, skip the old Verify phase and go to Land, step 2.
+   A `## Before landing` comment that names an act of "During the build" of the plan is the
+   exception: follow the re-entry rule of the skill, which runs the scenarios that waited for that
+   act.
