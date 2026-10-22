@@ -100,6 +100,18 @@ buckets_of() {
   } | LC_ALL=C sort -u | paste -sd ' ' -
 }
 
+reruns= flaky=
+rerun_done() {
+  local id
+  for id in $reruns; do
+    [ "$(gh api "repos/{owner}/{repo}/actions/runs/$id" --jq '.run_attempt >= 2 and .status == "completed"' 2>/dev/null)" = true ] ||
+      {
+        buckets="the re-run is not done"
+        return 1
+      }
+  done
+}
+
 green() {
   # After a push, the PR starts its checks on $tip only when it shows $tip.
   [ "$(gh api "repos/{owner}/{repo}/pulls/$pr" --jq .head.sha 2>/dev/null)" = "$tip" ] ||
@@ -107,26 +119,55 @@ green() {
       buckets="the PR does not show $tip yet"
       return 1
     }
+  # Right after a re-run call, the check list can be empty or show only the jobs that passed.
+  rerun_done || return 1
   buckets=$(buckets_of "$tip" 2>/dev/null) || buckets=""
   case $buckets in
     pass | "pass skipping") return 0 ;;
     "" | *pending*) return 1 ;;
     skipping) die "no check ran on PR #$pr: each check was skipped: $url" ;;
-    *) die "PR #$pr has a check that is not green ($buckets): $url" ;;
+    *)
+      [ -z "$reruns" ] || die "PR #$pr has a check that is not green after the re-run ($buckets): $url"
+      return 2
+      ;;
   esac
 }
 
 wait_green() {
-  local i
+  local i status
   for ((i = 0; i < 60; i++)); do
-    green && return 0
+    status=0
+    green || status=$?
+    [ "$status" -eq 1 ] || return "$status"
     sleep 15
   done
   return 1
 }
 
+# The run_attempt of GitHub is the only record of a re-run, so a later run of the script on this tip re-runs nothing.
+rerun_failed() {
+  local red statuses runs app conclusion suite details name run
+  red=$(gh api --paginate "repos/{owner}/{repo}/commits/$tip/check-runs?per_page=100" --jq '.check_runs[] |
+    select(.status == "completed" and (.conclusion | IN("failure", "timed_out", "action_required", "cancelled"))) |
+    "\(.app.slug) \(.conclusion) \(.check_suite.id) \(.id) \(.details_url) \(.name)"') &&
+    statuses=$(gh api --paginate "repos/{owner}/{repo}/commits/$tip/status?per_page=100" --jq '.statuses[] | select(.state | IN("error", "failure")) | .state') &&
+    runs=$(gh api --paginate "repos/{owner}/{repo}/actions/runs?head_sha=$tip&per_page=100" --jq '.workflow_runs[] | "\(.check_suite_id) \(.id) \(.run_attempt)"') &&
+    [ -n "$red" ] && [ -z "$statuses" ] || die "PR #$pr has a check that is not green ($buckets): $url"
+  while read -r app conclusion suite _ details name; do
+    [ "$app" = github-actions ] && [[ $conclusion == failure || $conclusion == timed_out ]] &&
+      run=$(grep -E "^$suite [0-9]+ 1\$" <<<"$runs" | cut -d' ' -f2) ||
+      die "PR #$pr has a check that is not green ($buckets): $url"
+    [[ " $reruns " == *" $run "* ]] || reruns="${reruns:+$reruns }$run"
+    flaky="$flaky$details $name"$'\n'
+  done <<<"$red"
+  for run in $reruns; do
+    gh api --silent -X POST "repos/{owner}/{repo}/actions/runs/$run/rerun-failed-jobs" ||
+      die "GitHub refused the re-run of the failed checks of PR #$pr: $url"
+  done
+}
+
 land_pr() {
-  local merged open lane head base
+  local merged open lane head base status
   merged=$(gh api --paginate "repos/{owner}/{repo}/pulls?head={owner}:$(jq -rn --arg b "$branch" '$b | @uri')&state=closed&per_page=100" \
     --jq '.[] | select(.merged_at) | "\(.base.ref) \(.head.sha)"') || die "cannot list the PRs of $branch on GitHub"
   ! grep -qxF "$trunk $tip" <<<"$merged" || return 0
@@ -148,8 +189,19 @@ land_pr() {
     [[ $pr =~ ^[0-9]+$ ]] || die "cannot read the number of the new PR: $url"
   fi
   echo "Waiting up to 15 minutes for the checks of PR #$pr at $tip"
-  wait_green || die "the checks of PR #$pr did not finish in 15 minutes (${buckets:-no check runs}): $url"
+  status=0
+  wait_green || status=$?
+  if [ "$status" -eq 2 ]; then
+    rerun_failed
+    echo "Waiting up to 15 more minutes for the re-run of the failed checks of PR #$pr at $tip"
+    status=0
+    wait_green || status=$?
+  fi
+  [ "$status" -eq 0 ] || die "the checks of PR #$pr did not finish in 15 minutes${reruns:+ after the re-run} (${buckets:-no check runs}): $url"
   gh api --silent -X PUT "repos/{owner}/{repo}/pulls/$pr/merge" -f merge_method=squash -f sha="$tip" || die "cannot merge PR #$pr at $tip; the PR stays open: $url"
+  printf '%s' "$flaky" | while read -r details name; do
+    echo "land: the check $name of PR #$pr failed, then passed on its re-run; look for a flaky test: $details"
+  done
 }
 
 pull_main() {
