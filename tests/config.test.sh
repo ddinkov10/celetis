@@ -497,6 +497,8 @@ printf 'landing: pr\ncustom: {bug: _1}\n' >"$repo/.celetis.yaml"
 valid leading_underscore_text '{"landing":"pr","custom":{"bug":"_1"}}'
 invalid underscore_slot codexProfiles.r.slots.0 < <(printf 'landing: pr\ncodexProfiles: {r: {slots: [1_000, a, a, a], reviewer: {rank: 1, effort: low}}}\n')
 invalid underscore_runtime_key codexProfiles.1_000 < <(printf 'landing: pr\ncodexProfiles: {1_000: {slots: [a, a, a, a], reviewer: {rank: 1, effort: low}}}\n')
+invalid merge_runtime_key 'codexProfiles.<<: mapping keys must be strings' < <(printf 'landing: pr\ncodexProfiles:\n  <<: {slots: [a, a, a, a], reviewer: {rank: 1, effort: low}}\n')
+invalid merge_value_text 'custom.bug: unsupported YAML tag' < <(printf 'landing: pr\ncustom: {bug: <<}\n')
 invalid lone_surrogate custom.bug < <(printf 'landing: pr\ncustom: {bug: "\\ud800"}\n')
 check lone_surrogate_message test "$err" = "celetis: $repo/.celetis.yaml: custom.bug: invalid character U+D800"
 printf '%%YAML 1.1\n---\nlanding: pr\nworktreeSetup: yes\n' >"$repo/.celetis.yaml"

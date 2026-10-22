@@ -157,7 +157,8 @@ function collectNodes(doc: Document): NodeRecord[] {
       nodes.push({ path, key, kind: "alias", tag: "" });
     } else if (isScalar(node)) {
       const plain = node.tag === undefined && node.type === "PLAIN" ? (node.source ?? "") : undefined;
-      const tag = node.tag ?? (plain === undefined ? coreTag("str") : plainTag(doc, plain));
+      const tag =
+        node.tag ?? (plain === undefined ? coreTag("str") : plain === "<<" ? coreTag("merge") : plainTag(doc, plain));
       nodes.push({ path, key, kind: "scalar", tag, style: node.type, value: node.value, plain });
     } else if (isMap(node)) {
       const keys = node.items.flatMap((pair) => (isScalar(pair.key) ? [pair.key.source ?? ""] : []));
