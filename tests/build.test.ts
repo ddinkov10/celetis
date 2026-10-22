@@ -27,6 +27,10 @@ test(
     const checkout = join(f.dir, 'another checkout');
     await cp(join(root, 'scripts'), join(checkout, 'scripts'), { recursive: true });
     await cp(join(root, 'board'), join(checkout, 'board'), { recursive: true });
+    await cp(join(root, 'hooks'), join(checkout, 'hooks'), { recursive: true });
+    await cp(join(root, 'tests/manual/native-observer'), join(checkout, 'tests/manual/native-observer'), {
+      recursive: true,
+    });
     const first = join(f.dir, 'first');
     const second = join(f.dir, 'second');
     expect((await f.bun(build, ['--outdir', first])).code).toBe(0);
@@ -41,6 +45,10 @@ test(
     const checkout = join(f.dir, 'checkout');
     await cp(join(root, 'scripts'), join(checkout, 'scripts'), { recursive: true });
     await cp(join(root, 'board'), join(checkout, 'board'), { recursive: true });
+    await cp(join(root, 'hooks'), join(checkout, 'hooks'), { recursive: true });
+    await cp(join(root, 'tests/manual/native-observer'), join(checkout, 'tests/manual/native-observer'), {
+      recursive: true,
+    });
     const entry = join(checkout, 'scripts/build.ts');
     const output = join(checkout, 'scripts/celetis');
     await rm(output);
@@ -71,6 +79,10 @@ for (const failure of ['missing import', 'syntax error']) {
       const checkout = join(f.dir, 'checkout');
       await cp(join(root, 'scripts'), join(checkout, 'scripts'), { recursive: true });
       await cp(join(root, 'board'), join(checkout, 'board'), { recursive: true });
+      await cp(join(root, 'hooks'), join(checkout, 'hooks'), { recursive: true });
+      await cp(join(root, 'tests/manual/native-observer'), join(checkout, 'tests/manual/native-observer'), {
+        recursive: true,
+      });
       if (failure === 'missing import') await rm(join(checkout, 'scripts/lib/host.ts'));
       else await writeFile(join(checkout, 'scripts/launcher.ts'), 'export const = ;\n');
       const outdir = join(f.dir, 'out');
@@ -91,3 +103,22 @@ test(
     expect(await Bun.file(join(f.dir, 'out/scripts/celetis')).exists()).toBe(false);
   }),
 );
+
+for (const native of ['hooks/entry.js', 'tests/manual/native-observer/hooks/register.js']) {
+  test(
+    `native build is reproducible, readable, and contains no Bun or Node runtime imports: ${native}`,
+    withFixture(async (f) => {
+      const first = join(f.dir, 'first');
+      const second = join(f.dir, 'second');
+      expect((await f.bun(build, ['--outdir', first])).code).toBe(0);
+      expect((await f.bun(build, ['--outdir', second])).code).toBe(0);
+      const nativeModuleText = await readFile(join(first, native), 'utf8');
+      expect(nativeModuleText).toBe(await readFile(join(second, native), 'utf8'));
+      expect(nativeModuleText).toBe(await readFile(join(root, native), 'utf8'));
+      expect(nativeModuleText).not.toMatch(/(?:from|import\s*\()\s*['"](?:bun:|node:)/);
+      expect(nativeModuleText.split('\n').length).toBeGreaterThan(20);
+      expect((await stat(join(first, native))).mode & 0o777).toBe(0o644);
+      expect(typeof (await import(join(first, native))).register).toBe('function');
+    }),
+  );
+}

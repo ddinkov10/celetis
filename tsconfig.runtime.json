@@ -1,6 +1,6 @@
 {
   "include": ["scripts/**/*.ts", "tests/**/*.ts"],
-  "exclude": ["tests/native-entry.test.ts", "tests/manual/native-observer/**"],
+  "exclude": ["tests/manual/native-observer/hooks/**"],
   "compilerOptions": {
     "lib": ["ESNext"],
     "target": "ESNext",

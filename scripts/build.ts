@@ -4,6 +4,14 @@ import { dirname, join, resolve } from 'node:path';
 const pin = '1.4.2';
 const root = dirname(import.meta.dir);
 const targets = [{ entry: 'scripts/launcher.ts', output: 'scripts/celetis', mode: 0o755 }];
+const nativeTargets = [
+  { entry: 'hooks/entry.ts', output: 'hooks/entry.js', mode: 0o644 },
+  {
+    entry: 'tests/manual/native-observer/hooks/register.ts',
+    output: 'tests/manual/native-observer/hooks/register.js',
+    mode: 0o644,
+  },
+];
 const browserTargets = ['board', 'view', 'ui', 'panel', 'palette'].map((name) => ({
   entry: `board/${name}.ts`,
   output: `board/${name === 'board' ? 'board.js' : `${name}.mjs`}`,
@@ -26,17 +34,17 @@ export async function main(args: string[]): Promise<number> {
   process.chdir(root);
   let code = 0;
   const built: { output: string; mode: number; bytes: Buffer }[] = [];
-  for (const target of [...targets, ...browserTargets]) {
+  for (const target of [...targets, ...browserTargets, ...nativeTargets]) {
     const browser = target.entry.startsWith('board/');
     const result = await Bun.build({
       entrypoints: [join(root, target.entry)],
       root,
-      target: browser ? 'browser' : 'bun',
+      target: target.entry.startsWith('scripts/') ? 'bun' : 'browser',
       format: 'esm',
       naming: target.output,
       minify: false,
       sourcemap: 'none',
-      banner: browser ? undefined : shebang,
+      banner: target.entry.startsWith('scripts/') ? shebang : undefined,
       plugins: browser
         ? [
             {
