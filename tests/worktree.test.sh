@@ -11,6 +11,7 @@ fail() { echo "FAIL: $1"; exit 1; }
 plug="$tmp/plug in"
 mkdir -p "$tmp/bin" "$plug"
 cp "$here/scripts/celetis" "$here/scripts/worktree.sh" "$here/scripts/worktree-lib.sh" "$plug/"
+cp -R "$here/scripts/lib" "$plug/"
 cat >"$tmp/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >>"$GH_LOG"

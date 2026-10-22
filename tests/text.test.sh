@@ -261,6 +261,7 @@ package_missing=
 for path in .claude-plugin/plugin.json .claude-plugin/marketplace.json scripts/celetis \
   scripts/celetis-flow.sh scripts/next-step.sh scripts/worktree.sh scripts/land.sh scripts/setup.sh \
   scripts/capscore.sh scripts/plugin-update.pl scripts/lib/host.sh scripts/lib/session.sh \
+  scripts/lib/config.ts scripts/lib/vendor/yaml.mjs scripts/lib/vendor/yaml.LICENSE \
   step-prompt.md docs/capability.md docs/docs-lookup.md docs/adr/README.md docs/adr/template.md; do
   is_tracked "$path" && [ -f "$path" ] || package_missing+=$path$nl
 done

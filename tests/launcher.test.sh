@@ -11,6 +11,7 @@ fails=0
 plug="$tmp/plug in"
 proj="$tmp/proj dir"
 mkdir -p "$plug/scripts" "$plug/skills/guide" "$plug/.claude-plugin" "$proj/scripts" "$tmp/stub" "$tmp/oops" "$tmp/nobin" "$tmp/nojq" "$tmp/cyg" "$tmp/codex" "$tmp/pipes"
+cp -R "$here/../scripts/lib" "$plug/scripts/"
 cp "$launcher" "$proj/scripts/celetis"
 celetis="$proj/scripts/celetis"
 printf '%s\n' '{"name":"celetis"}' >"$plug/.claude-plugin/plugin.json"
@@ -425,6 +426,12 @@ for bad in missing invalid; do
   expect "explicit installation root bypasses $bad project config without yq" "$plug" '' 0
 done
 printf 'landing: merge\nhost: codex\n' >"$proj/.celetis.yaml"
+mv "$plug/scripts/lib" "$tmp/plugin-lib"
+run "$both" --agent claude next-step 7
+check 'a plugin with no config reader stops a project command' test "$code" -eq 2
+check 'the stop names the missing reader' test "${err#*"no config reader at $plug/scripts/lib/config.ts"}" != "$err"
+check 'a plugin with no config reader starts no installed script' test ! -e "$LAUNCH_LOG"
+mv "$tmp/plugin-lib" "$plug/scripts/lib"
 from="$tmp/outside" run "$tmp/stub:$tmp/nobin" --agent claude root
 expect 'explicit installation root works outside Git without yq' "$plug" '' 0
 from="$tmp/outside" run "$stub" root

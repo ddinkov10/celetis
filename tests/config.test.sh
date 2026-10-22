@@ -11,7 +11,7 @@ git -C "$repo" init -q
 git -C "$repo" -c user.name=Fixture -c user.email=fixture@example.test commit --allow-empty -qm fixture
 fails=0
 cases=0
-real_yq=$(command -v yq)
+real_bun=$(command -v bun)
 base_path=$PATH
 read_path=$PATH
 
@@ -30,6 +30,15 @@ check() {
 run_read() {
   code=0
   out=$(PATH="$read_path" celetis_config_read "$repo" 2>"$tmp/err") || code=$?
+  err=$(cat "$tmp/err")
+  if [ "$code" -eq 0 ]; then
+    check "host_hint_$cases" test "$(PATH="$read_path" celetis_config_host "$repo")" = "$(jq -r '.host // "claude"' <<<"$out")"
+  fi
+}
+
+run_host() {
+  code=0
+  out=$(PATH="$read_path" celetis_config_host "$repo" 2>"$tmp/err") || code=$?
   err=$(cat "$tmp/err")
 }
 
@@ -124,6 +133,18 @@ check literal_strip test "$(printf '%s' "$out" | jq -c .custom.bug)" = '"A \"quo
 printf 'Добър ден.\n\nEnd.\n\n\n' >"$tmp/literal-want"
 printf '%s' "$out" | jq -j .custom.plan >"$tmp/literal-got"
 check literal_unicode_blank_trailing_lines cmp -s "$tmp/literal-want" "$tmp/literal-got"
+printf 'landing: pr\ncustom:\n  bug: |\n    Keep' >"$repo/.celetis.yaml"
+valid literal_ends_the_file '{"landing":"pr","custom":{"bug":"Keep"}}'
+printf 'landing: pr\ncustom:\n  bug: |+\n    Keep' >"$repo/.celetis.yaml"
+valid literal_keep_ends_the_file '{"landing":"pr","custom":{"bug":"Keep"}}'
+printf 'landing: pr\ncustom:\n  bug: |\n    Keep\n      ' >"$repo/.celetis.yaml"
+valid literal_spaces_end_the_file '{"landing":"pr","custom":{"bug":"Keep\n  "}}'
+printf 'landing: pr\ncustom:\n  bug: |\n    Keep\n    ' >"$repo/.celetis.yaml"
+valid literal_indent_ends_the_file '{"landing":"pr","custom":{"bug":"Keep\n"}}'
+printf 'landing: pr\ncustom:\n  bug: |\n    Keep\r' >"$repo/.celetis.yaml"
+valid literal_carriage_return_ends_the_file '{"landing":"pr","custom":{"bug":"Keep\n"}}'
+printf 'landing: pr\ncustom:\n  bug: "Keep\\n"' >"$repo/.celetis.yaml"
+valid quoted_break_ends_the_file '{"landing":"pr","custom":{"bug":"Keep\n"}}'
 cat >"$repo/.celetis.yaml" <<'EOF'
 landing: pr
 worktreeSetup: ""
@@ -189,22 +210,27 @@ run_read
 check symlink_config invalid_result '<document>'
 rm "$repo/.celetis.yaml"
 printf 'landing: pr\n' >"$repo/.celetis.yaml"
-cp "$launcher" "$tmp/reader"
+mkdir "$tmp/reader"
+cp "$launcher" "$tmp/reader/celetis"
+cp -R "$here/../scripts/lib" "$tmp/reader/lib"
 chmod 755 "$tmp" "$repo"
 chmod 000 "$repo/.celetis.yaml"
 denied=0
 perl -e 'open my $f, "<", $ARGV[0] or exit 1; exit 0' "$repo/.celetis.yaml" 2>"$tmp/probe-err" || denied=$?
 if [ "$denied" -eq 0 ] && [ "$(id -u)" -eq 0 ]; then
+  mkdir "$tmp/nobody-bin"
+  cp "$(command -v bun)" "$tmp/nobody-bin/bun"
+  chmod -R a+rX "$tmp/reader" "$tmp/nobody-bin"
   denied=0
   perl -e '$< = $> = 65534; open my $f, "<", $ARGV[0] or exit 1; exit 0' "$repo/.celetis.yaml" 2>"$tmp/probe-err" || denied=$?
   code=0
-  out=$(perl -e '$< = $> = 65534; exec @ARGV or die $!' /bin/bash -c 'source "$1"; celetis_config_read "$2"' _ "$tmp/reader" "$repo" 2>"$tmp/err") || code=$?
+  out=$(PATH="$tmp/nobody-bin:$PATH" perl -e '$< = $> = 65534; exec @ARGV or die $!' /bin/bash -c 'source "$1"; celetis_config_read "$2"' _ "$tmp/reader/celetis" "$repo" 2>"$tmp/err") || code=$?
   err=$(cat "$tmp/err")
 else
   run_read
 fi
 check permission_fixture_denies_actual_read test "$denied" -ne 0
-check unreadable_config invalid_result '<document>'
+check unreadable_config invalid_result 'cannot open the file'
 chmod 600 "$repo/.celetis.yaml"
 
 invalid empty_config '<document>' </dev/null
@@ -437,50 +463,84 @@ landing: pr
 codexProfiles:
   desktop: {slots: [a, b, c, d], reviewer: {rank: 1}}
 EOF
-
-for tool in jq perl mktemp rm dirname cat; do
-  ln -s "$(command -v "$tool")" "$tmp/no-parser/$tool"
+invalid invalid_utf8 '<document>' < <(printf 'landing: pr\ncustom: {bug: "\377"}\n')
+invalid raw_escape '<document>' < <(printf 'landing: pr\ncustom:\n  bug: |\n    a\033b\n')
+invalid line_separator '<document>' < <(printf 'landing: pr\ncustom:\n  bug: |\n    a\342\200\250b\n')
+invalid underscore_port board.port < <(printf 'landing: pr\nboard: {port: 4_404}\n')
+for value in '!!float 12' '!!int abc' '!!bool yes' '!!null abc'; do
+  invalid "unresolved_tag_$value" custom.bug < <(printf 'landing: pr\ncustom: {bug: %s}\n' "$value")
 done
+printf '%%YAML 1.1\n---\nlanding: pr\nworktreeSetup: yes\n' >"$repo/.celetis.yaml"
+valid yaml_1_1_directive_keeps_strings '{"landing":"pr","worktreeSetup":"yes"}'
+floor=$(sed -n 's/^celetis_bun_floor=//p' "$launcher")
+check bun_floor_is_set test -n "$floor"
+check bun_floor_agrees test "$floor" = "$(sed -n "s/^const floor = [\"']\(.*\)[\"'];\$/\1/p" "$here/../scripts/lib/config.ts")"
+
+mkdir "$tmp/start"
+printf 'preload = ["./mark.js"]\n' >"$tmp/start/bunfig.toml"
+printf 'require("node:fs").writeFileSync(process.env.START_MARK, "ran")\n' >"$tmp/start/mark.js"
+printf 'CELETIS_START=loaded\n' >"$tmp/start/.env"
+export START_MARK="$tmp/start-ran"
+printf 'landing: pr\n' >"$repo/.celetis.yaml"
+start_out=$(cd "$tmp/start" && celetis_config_read "$repo" && celetis_config_host "$repo")
+check start_folder_has_no_effect test "$start_out" = $'{"landing":"pr"}\nclaude'
+check start_folder_preload_did_not_run test ! -e "$START_MARK"
+(cd "$tmp/start" && bun -e 1)
+check start_folder_control_runs_the_preload test -e "$START_MARK"
+
+mkdir -p "$tmp/copy/scripts"
+cp "$launcher" "$tmp/copy/scripts/celetis"
+code=0
+out=$(/bin/bash -c 'source "$1"; celetis_config_read "$2"' _ "$tmp/copy/scripts/celetis" "$repo" 2>"$tmp/err") || code=$?
+check product_copy_names_the_plugin_launcher test "$code:$out" = '2:'
+check product_copy_message grep -qF 'source the launcher of the plugin, $(scripts/celetis root)/scripts/celetis' "$tmp/err"
+
 printf 'landing: pr\n' >"$repo/.celetis.yaml"
 read_path="$tmp/no-parser"
 run_read
-check missing_parser invalid_result yq
+check missing_bun invalid_result 'need Bun >=1.4.2 on PATH'
 read_path="$tmp/parser:$base_path"
-cat >"$tmp/parser/yq" <<'EOF'
+cat >"$tmp/parser/bun" <<'EOF'
 #!/bin/bash
-if [ "$1" = --version ]; then
-  printf '%s\n' "$PARSER_VERSION"
-else
-  exec "$REAL_YQ" "$@"
-fi
+exec "$REAL_BUN" --define "Bun.version:\"$FAKE_BUN_VERSION\"" "$@"
 EOF
-chmod +x "$tmp/parser/yq"
-export REAL_YQ="$real_yq" PARSER_VERSION
-for version in 'yq 3.4.3' 'yq (https://github.com/mikefarah/yq/) version v3.4.1' 'yq (https://github.com/mikefarah/yq/) version v5.0.0' 'yq (https://github.com/mikefarah/yq/) version v4.54.0' 'yq (https://github.com/mikefarah/yq/) version v4.53.9'; do
-  PARSER_VERSION=$version
+chmod +x "$tmp/parser/bun"
+export REAL_BUN="$real_bun" FAKE_BUN_VERSION
+for version in 0.9.0 1.2.10 1.4.1 1.4.2-canary.1; do
+  FAKE_BUN_VERSION=$version
   run_read
-  check "unsupported_parser_$version" invalid_result yq
+  check "old_bun_$version" invalid_result "need Bun >=1.4.2 on PATH, found $version"
+  run_host
+  check "old_bun_host_hint_$version" invalid_result "need Bun >=1.4.2 on PATH, found $version"
 done
-PARSER_VERSION='yq (https://github.com/mikefarah/yq/) version v4.55.0'
-valid newer_v4_parser '{"landing":"pr"}'
+for version in 1.4.3 1.5.0-canary.1 2.0.0; do
+  FAKE_BUN_VERSION=$version
+  valid "newer_bun_$version" '{"landing":"pr"}'
+done
+mkdir "$tmp/broken"
+printf '#!/bin/sh\nexit 1\n' >"$tmp/broken/bun"
+chmod +x "$tmp/broken/bun"
+read_path="$tmp/broken:$base_path"
+run_read
+check broken_bun invalid_result 'Bun stopped with exit 1'
+run_host
+check broken_bun_host_hint invalid_result 'Bun stopped with exit 1'
 
-cat >"$repo/.celetis.yaml" <<'EOF'
-host: codex
-landing: pr
-board: {port: 4404}
+mkdir "$tmp/swap"
+cat >"$tmp/swap.mjs" <<'EOF'
+import fs from "node:fs";
+const open = fs.openSync;
+fs.openSync = (path, ...rest) => {
+  if (String(path) === process.env.SWAP_FILE) fs.renameSync(process.env.SWAP_FROM, process.env.SWAP_FILE);
+  return open(path, ...rest);
+};
 EOF
-export CONFIG_FILE="$repo/.celetis.yaml" PARSER_MARKER="$tmp/parser-used"
-cat >"$tmp/parser/yq" <<'EOF'
-#!/bin/bash
-"$REAL_YQ" "$@"
-code=$?
-if [ "$1" != --version ] && [ ! -e "$PARSER_MARKER" ]; then
-  printf 'landing: pr\nlanding: merge\n' >"$CONFIG_FILE"
-  : >"$PARSER_MARKER"
-fi
-exit "$code"
-EOF
-valid single_snapshot "$minimal"
+printf '#!/bin/bash\nexec "$REAL_BUN" --preload "$SWAP_PRELOAD" "$@"\n' >"$tmp/swap/bun"
+chmod +x "$tmp/swap/bun"
+printf 'landing: pr\n' >"$repo/.celetis.yaml"
+printf 'landing: merge\n' >"$tmp/other.yaml"
+read_path="$tmp/swap:$base_path" SWAP_FILE="$repo/.celetis.yaml" SWAP_FROM="$tmp/other.yaml" SWAP_PRELOAD="$tmp/swap.mjs" run_read
+check file_changed_during_read invalid_result 'the file changed during the read'
 
 printf '%s cases; %s failures\n' "$cases" "$fails"
 [ "$fails" -eq 0 ]
