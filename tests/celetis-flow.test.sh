@@ -345,7 +345,7 @@ group_config() {
     reset
     # shellcheck disable=SC2086 # args is a list of words
     run_flow $args
-    [ "$code" -eq 2 ] && [ -z "$out" ] && printf '%s' "$err" | grep -qxF "$usage" || fail "bad arguments [$args]: $code [$out] [$err]"
+    [ "$code" -eq 2 ] && [ -z "$out" ] && grep -qxF "$usage" <<<"$err" || fail "bad arguments [$args]: $code [$out] [$err]"
     [ -z "$(calls gh-calls)$(calls claude-calls)" ] || fail "a usage error called gh or claude: [$args]"
   done
 
@@ -859,7 +859,7 @@ celetis-flow: no progress: /celetis:implement #7" ] && [ "$(rows)" -eq 2 ] || fa
   echo 2 >"$S/sleep-limit"
   run_flow
   [ "$out" = "celetis-flow: stop cannot read the open issues from GitHub" ] && [ "$(count sleeps)" -eq 2 ] || fail "GitHub down: [$out] [$err]"
-  printf '%s' "$err" | grep -q "HTTP 502" || fail "the message of gh must reach stderr: [$err]"
+  grep -q "HTTP 502" <<<"$err" || fail "the message of gh must reach stderr: [$err]"
 
   reset
   issue 7 OPEN enhancement "Spec: x"
@@ -1028,7 +1028,7 @@ group_board_live() {
   issue 7 OPEN enhancement "Spec: x"
   touch "$S/gh-fail"
   run_flow --board
-  [ "$code" -eq 1 ] && [ "$out" = "stop cannot read the issues from GitHub" ] && printf '%s' "$err" | grep -q "HTTP 502" || fail "--board with gh down: $code [$out] [$err]"
+  [ "$code" -eq 1 ] && [ "$out" = "stop cannot read the issues from GitHub" ] && grep -q "HTTP 502" <<<"$err" || fail "--board with gh down: $code [$out] [$err]"
 }
 
 group_stale() {

@@ -188,7 +188,7 @@ land() {
   out=$(cd "${from:-$main}" && "$BASH" "$land_sh" "$@" 2>&1) || status=$?
   [[ $out != *"/land.sh: line "* ]] || fail "land.sh printed an error of bash: $out"
 }
-has() { printf '%s\n' "$out" | grep -qF -- "$1" || fail "$2: missing [$1] in: $out"; }
+has() { grep -qF -- "$1" <<<"$out" || fail "$2: missing [$1] in: $out"; }
 no_lock() { ! ls "$main"/.git/celetis-flow/*.lock >/dev/null 2>&1 || fail "$1 left its lock"; }
 kept() {
   [ "$(origin_master) $(git rev-parse master)" = "$before" ] || fail "$1 moved the trunk"

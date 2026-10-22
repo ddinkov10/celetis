@@ -249,19 +249,19 @@ issue open bug ""
 touch "$S/gh-fail"
 run_next 7
 [ "$code" -eq 1 ] && one_line "stop cannot read #7 from GitHub" || fail "gh failure: $code [$out] $err"
-printf '%s' "$err" | grep -q "HTTP 502" || fail "gh's own message must reach stderr: $err"
+grep -q "HTTP 502" <<<"$err" || fail "gh's own message must reach stderr: $err"
 
 reset
 run_next 7
 [ "$code" -eq 1 ] && one_line "stop cannot read #7 from GitHub" || fail "missing issue: $code [$out] $err"
-printf '%s' "$err" | grep -q "no issue" || fail "gh's own message must reach stderr: $err"
+grep -q "no issue" <<<"$err" || fail "gh's own message must reach stderr: $err"
 
 reset
 issue open chore ""
 for args in "" abc 7abc "#" "7 8" --all "--open 7" "--json 7"; do
   # shellcheck disable=SC2086 # args is a list of words
   run_next $args
-  [ "$code" -eq 2 ] && [ -z "$out" ] && printf '%s' "$err" | grep -qxF "usage: scripts/celetis next-step <issue number> | --open | --json, e.g. scripts/celetis next-step 276" || fail "bad arguments [$args]: $code [$out] $err"
+  [ "$code" -eq 2 ] && [ -z "$out" ] && grep -qxF "usage: scripts/celetis next-step <issue number> | --open | --json, e.g. scripts/celetis next-step 276" <<<"$err" || fail "bad arguments [$args]: $code [$out] $err"
 done
 [ ! -f "$S/gh-calls" ] || fail "a usage error called gh: $(cat "$S/gh-calls")"
 
@@ -381,7 +381,7 @@ open_issue 7 chore ""
 touch "$S/gh-fail"
 run_next --open
 [ "$code" -eq 1 ] && one_line "stop cannot read the open issues from GitHub" || fail "--open with gh down: $code [$out] $err"
-printf '%s' "$err" | grep -q "HTTP 502" || fail "gh's own message must reach stderr: $err"
+grep -q "HTTP 502" <<<"$err" || fail "gh's own message must reach stderr: $err"
 
 mkdir -p "$tmp/install dir/scripts"
 cat >"$tmp/install dir/scripts/land.sh" <<'EOF'
@@ -560,7 +560,7 @@ for part in commits-sha21-check-runs commits-sha21-status pulls-21-reviews; do
   touch "$S/fail-$part"
   run_next --json
   [ "$code" -eq 1 ] && one_line "stop cannot read the issues from GitHub" || fail "--json, a read of $part fails: $code [$out] $err"
-  printf '%s' "$err" | grep -q "HTTP 502" || fail "gh's own message must reach stderr: $err"
+  grep -q "HTTP 502" <<<"$err" || fail "gh's own message must reach stderr: $err"
 done
 
 echo "PASS"
