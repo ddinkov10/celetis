@@ -29,14 +29,17 @@ if [ "$mode" = step ]; then
     5 | 7 | 15) out='Then: I wait for the person' ;;
     6) out=$'Fix the cause\ngh issue edit 7 --add-label ready-for-human\nThen: my step ends' ;;
     9) out=$'gh issue edit 7 --add-label needs-info\nThen: my step ends' ;;
-    10 | 17)
+    10)
+      if [ -n "$answer" ]; then out=$'tests/live/scratch.sh o/scratch-10\nscripts/celetis --agent codex land 7 subject\nThen: my step ends'
+      else out=$'tests/live/scratch.sh o/scratch-10\nscripts/celetis --agent claude land 7 subject\nThen: my step ends'; fi ;;
+    17)
       if [ -n "$answer" ]; then out=$'scripts/celetis --agent codex land 7 subject\nThen: my step ends'
       else out=$'scripts/celetis --agent claude land 7 subject\nThen: my step ends'; fi ;;
     11) out=$'gh issue edit 7 --add-label ready-for-agent\nDuring the build: HUMAN_PREP_11\nAfter the landing: HAND_CHECK_11\nRun /celetis:implement #7 in a fresh context.\nThen: my step ends' ;;
     13 | 16) out=$'gh issue edit 7 --add-label ready-for-human\nThen: my step ends' ;;
     12) out=$'gh issue edit 7 --add-label bug\nThen: my step ends' ;;
     14) out='Then: I go on with the repair and Verify loop' ;;
-    21) out=$'The landing is done. Run git pull on main in the main checkout yourself:\nland: the main checkout did not move to origin/main; run git pull on main there\nland: cannot close the epic #3; close it by hand\nThen: my step ends' ;;
+    21) out=$'The landing is done. Run git pull on main in the main checkout yourself:\nland: the main checkout did not move to origin/main; run git pull on main there\nland: cannot close the epic #3; close it by hand\n1. Run the setup check HAND_CHECK_21 in a scratch project on your own Mac. Expected: PASS.\nThen: my step ends' ;;
   esac
   if [ "$k" = 4 ]; then
     case ${MANUAL_FAULT:-} in
@@ -75,7 +78,11 @@ case "$mode:$k:${MANUAL_FAULT:-}" in
   step:21:landed-git-list) out=$'1. git switch main\n'"$out" ;;
   step:21:landed-stop) out=$'## Stopped\nland: the main checkout did not move to origin/main; run git pull on main there\nland: cannot close the epic #3; close it by hand\ngh issue edit 7 --add-label ready-for-human\nThen: my step ends' ;;
   step:21:landed-silent) out='Then: my step ends' ;;
+  step:21:landed-no-hand-check) out=$'The landing is done. Run git pull on main in the main checkout yourself:\nland: the main checkout did not move to origin/main; run git pull on main there\nland: cannot close the epic #3; close it by hand\nThen: my step ends' ;;
+  step:21:landed-hand-check-first) out=$'The landing is done. Run git pull on main in the main checkout yourself:\n1. Run the setup check HAND_CHECK_21 in a scratch project on your own Mac. Expected: PASS.\nland: the main checkout did not move to origin/main; run git pull on main there\nland: cannot close the epic #3; close it by hand\nThen: my step ends' ;;
 
+  step:8:two-comments) out=$'## Before landing\ngh issue comment 7 --body-file /tmp/reason\ngh issue comment 7 --body-file /tmp/reason-c\ngh issue edit 7 --remove-label ready-for-agent --add-label ready-for-human\nThen: my step ends' ;;
+  step:10:skip-waiting) out=${out#tests/live/scratch.sh o/scratch-10} ;;
   step:11:plan-no-lists) out=$'gh issue edit 7 --add-label ready-for-agent\nRun /celetis:implement #7 in a fresh context.\nThen: my step ends' ;;
   step:11:plan-lists-late) out=$'gh issue edit 7 --add-label ready-for-agent\nRun /celetis:implement #7 in a fresh context.\nDuring the build: HUMAN_PREP_11\nAfter the landing: HAND_CHECK_11\nThen: my step ends' ;;
   step:13:fenced-extra-action) out=$'```\ngh issue edit 7 --add-label ready-for-human\ngit apply /tmp/repair.patch\n```\nThen: my step ends' ;;
@@ -91,6 +98,7 @@ case "$mode:$k:${MANUAL_FAULT:-}" in
   step:14:verify-land | step:16:stale-completion-land) out="$out"$'\nscripts/celetis --agent codex land 7 subject' ;;
   step:15:approval-publish) out="$out"$'\ngh issue edit 7 --body-file /tmp/spec' ;;
   step:17:built-rebuild) out="$out"$'\ngh issue edit 7 --add-label ready-for-agent' ;;
+  step:17:reported-act-stop) out=$'gh issue comment 7 --body-file /tmp/reason\n'"$out" ;;
 esac
 if [ -z "$answer" ]; then printf '%s\n' "$out"; exit 0; fi
 printf '%s\n' "$out" >"$answer"
@@ -290,7 +298,7 @@ for fault in wrong-bound-stop bound-work-stop; do pool_run "rejects $fault" reje
 for fault in land-bare land-claude land-codex tool error exit incomplete; do pool_run "rejects $fault" rejects "$fault" 4 step; done
 pool_run completed_reconnect completed_reconnect
 pool_run landing_without_evidence landing_without_evidence
-for pair in '11 step plan-no-lists' '11 step plan-lists-late' '13 step blocked-build-label' '13 step blocked-rebuild' '13 step blocked-work-ended' '13 step blocked-command-ended' '13 step blocked-continue' '13 step blocked-two-endings' '13 step fenced-extra-action' '14 step verify-land' '15 specify approval-publish' '16 step stale-completion-land' '17 step built-rebuild' '18 step invalid-config-continue' '18 step entry-setup' '19 step denied-entry-retry' '20 step form-fallback' '20 step form-posted' '20 step form-continue' '20 step form-two-endings' '20 step form-extra-act' '20 step form-empty-tools' '20 step form-empty-limit' '20 step form-empty-setup' '20 step form-markdown' '20 step form-prose' '21 step landed-git' '21 step landed-stop' '21 step landed-silent' '21 step landed-git-list'; do
+for pair in '8 step two-comments' '10 step skip-waiting' '11 step plan-no-lists' '11 step plan-lists-late' '13 step blocked-build-label' '13 step blocked-rebuild' '13 step blocked-work-ended' '13 step blocked-command-ended' '13 step blocked-continue' '13 step blocked-two-endings' '13 step fenced-extra-action' '14 step verify-land' '15 specify approval-publish' '16 step stale-completion-land' '17 step built-rebuild' '17 step reported-act-stop' '18 step invalid-config-continue' '18 step entry-setup' '19 step denied-entry-retry' '20 step form-fallback' '20 step form-posted' '20 step form-continue' '20 step form-two-endings' '20 step form-extra-act' '20 step form-empty-tools' '20 step form-empty-limit' '20 step form-empty-setup' '20 step form-markdown' '20 step form-prose' '21 step landed-git' '21 step landed-stop' '21 step landed-silent' '21 step landed-git-list' '21 step landed-no-hand-check' '21 step landed-hand-check-first'; do
   set -- $pair
   pool_run "rejects $3" rejects "$3" "$1" "$2"
 done
