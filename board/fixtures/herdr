@@ -1,0 +1,13 @@
+#!/bin/sh
+printf '%s\n' "$*" >>"${HERDR_LOG:-/dev/null}"
+case "$1 $2" in
+  'api snapshot')
+    if [ -n "${HERDR_AGENT_CWD:-}" ]; then
+      printf '{"result":{"snapshot":{"tabs":[{"tab_id":"t1","label":"#7"}],"agents":[{"terminal_id":"s1","pane_id":"w1:p7","tab_id":"t1","agent":"claude","agent_status":"working","cwd":"%s"}]}}}\n' "$HERDR_AGENT_CWD"
+    else
+      printf '{"result":{"snapshot":{"tabs":[],"agents":[]}}}\n'
+    fi ;;
+  'workspace list') printf '{"result":{"workspaces":[{"label":"%s","workspace_id":"w1"}]}}\n' "${HERDR_WORKSPACE:-}" ;;
+  'tab create') printf '{"result":{"tab":{"tab_id":"w1:t1"},"root_pane":{"pane_id":"w1:p1"}}}\n' ;;
+  *) printf '{"result":{}}\n' ;;
+esac

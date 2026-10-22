@@ -7,7 +7,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      CELETIS_FLOW_SKIP_BOARD_CHECK: "1"
       DISABLE_UPDATES: "1"
     steps:
       - uses: actions/checkout@v4
@@ -27,4 +26,7 @@ jobs:
           chmod +x "$RUNNER_TEMP/yq"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/yq" --version
+      - name: Board tests
+        working-directory: board
+        run: node --test
       - run: scripts/verify.sh
