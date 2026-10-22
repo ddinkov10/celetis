@@ -74,7 +74,7 @@ while IFS= read -r path; do
     .editorconfig | .shellcheckrc | tests/lib/tools.txt) ;;
     # a font is binary; its licence is text that the text rules read
     board/fonts/*) ;;
-    # Biome 2.5.15 checks HTML only as an experimental feature, and the spec of #83 exempts HTML until it is stable
+    # Biome checks HTML only as an experimental feature, and the spec of #83 exempts HTML until it is stable
     *.html) ;;
     *)
       echo "verify: no check for $path: add a row or an exemption in scripts/verify.sh"

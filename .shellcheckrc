@@ -6,5 +6,5 @@ disable=SC2015
 disable=SC2016
 # cases and functions run in subshells on purpose; the flow analysis also reports scratch of scripts/setup.sh, which the main shell sets once
 disable=SC2030,SC2031
-# the scripts source files by a path that they compute at run time; following them doubled the time of ShellCheck (4.7 s to 9.2 s on 4 cores) for 11 of 13 notes
+# the scripts source files by a path that they compute at run time; following them doubles the time of ShellCheck (4.7 s to 9.2 s)
 disable=SC1090,SC1091
