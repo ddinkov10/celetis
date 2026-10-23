@@ -1,0 +1,54 @@
+{"runtime":"1.4.2","platform":"darwin","parallelism":8,"workers":1}
+bun test v1.4.2 (744846f84)
+
+tests/parallel.test.ts:
+150 |     const { suite } = await import(join(root, 'tests/suite.ts'));
+151 |     const source = `import {test,expect} from 'bun:test';import {mkdir,rm} from 'node:fs/promises';import {join} from 'node:path';test('exclusive file allocation',async()=>{const active=join(process.cwd(),'active');await mkdir(active);try{await Bun.sleep(200);expect(true).toBe(true);}finally{await rm(active,{recursive:true});}});`;
+152 |     await f.write('repo dir/one.test.ts', source);
+153 |     await f.write('repo dir/two.test.ts', source);
+154 |     const result = await suite({ root: f.repo, output: () => {} });
+155 |     expect(result.code, result.results.map((entry) => entry.output).join('\n')).toBe(0);
+                                                                                      ^
+error: bun test v1.4.2 (744846f84)
+
+one.test.ts:
+(pass) exclusive file allocation [203.51ms]
+
+ 1 pass
+ 0 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [215.00ms]
+
+bun test v1.4.2 (744846f84)
+
+two.test.ts:
+1 | import {test,expect} from 'bun:test';import {mkdir,rm} from 'node:fs/promises';import {join} from 'node:path';test('exclusive file allocation',async()=>{const active=join(process.cwd(),'active');await mkdir(active);try{await Bun.sleep(200);expect(true).toBe(true);}finally{await rm(active,{recursive:true});}});
+                                                                                                                                                                                                             ^
+EEXIST: file already exists, mkdir '/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-runtime.PiBseL/repo dir/active'
+    path: "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-runtime.PiBseL/repo dir/active",
+ syscall: "mkdir",
+   errno: -17,
+    code: "EEXIST"
+
+      at async <anonymous> (/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-runtime.PiBseL/repo dir/two.test.ts:1:202)
+(fail) exclusive file allocation [1.03ms]
+
+ 0 pass
+ 1 fail
+Ran 1 test across 1 file. [11.00ms]
+
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/tests/parallel.test.ts:155:81)
+      at async <anonymous> (/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/tests/lib/fixture.ts:99:13)
+(fail) suite default runs one file worker at a time [330.15ms]
+
+ 0 pass
+ 10 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [335.00ms]
+FAIL: tests/parallel.test.ts=suite default runs one file worker (exit 1)
+{"label":"tests/parallel.test.ts=suite default runs one file worker","code":1,"elapsedMs":442.765709,"timedOut":false}

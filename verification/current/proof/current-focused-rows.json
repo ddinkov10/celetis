@@ -1,0 +1,2786 @@
+[
+  {
+    "file": "tests/parallel.test.ts",
+    "case": "pool output stays in start order"
+  },
+  {
+    "file": "tests/parallel.test.ts",
+    "case": "pool reports failed children and resets for a passing phase"
+  },
+  {
+    "file": "tests/parallel.test.ts",
+    "case": "pool stops a failing program before its later output"
+  },
+  {
+    "file": "tests/parallel.test.ts",
+    "case": "pool limits six independent jobs to two active children"
+  },
+  {
+    "file": "tests/parallel.test.ts",
+    "case": "pool second phase prints only the new output"
+  },
+  {
+    "file": "tests/parallel.test.ts",
+    "case": "suite discovers every automatic entry and excludes token programs"
+  },
+  {
+    "file": "tests/parallel.test.ts",
+    "case": "suite fails on a worker test failure"
+  },
+  {
+    "file": "tests/parallel.test.ts",
+    "case": "pool deadline stops a worker and its TERM-ignoring descendant"
+  },
+  {
+    "file": "tests/parallel.test.ts",
+    "case": "pool SIGINT stops active children and does not start queued jobs"
+  },
+  {
+    "file": "tests/parallel.test.ts",
+    "case": "pool SIGTERM stops active children and does not start queued jobs"
+  },
+  {
+    "file": "tests/install-tools.test.ts",
+    "case": "installer pins package arguments and checks the native actionlint archive"
+  },
+  {
+    "file": "tests/install-tools.test.ts",
+    "case": "installer preserves an existing destination after hash mismatch"
+  },
+  {
+    "file": "tests/install-tools.test.ts",
+    "case": "installer preserves an existing destination after download failure"
+  },
+  {
+    "file": "tests/install-tools.test.ts",
+    "case": "installer preserves an existing destination after package failure"
+  },
+  {
+    "file": "tests/install-tools.test.ts",
+    "case": "installer preserves an existing destination after extract failure"
+  },
+  {
+    "file": "tests/install-tools.test.ts",
+    "case": "installer rejects unsupported platforms before download or processes"
+  },
+  {
+    "file": "tests/install-tools.test.ts",
+    "case": "tool lookup uses package metadata and runs JavaScript tools through selected Bun"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "general product words have exact used allowances"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "ADR records start at 0001 with no gap and at least 14 records"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "copied ADR 0001 retains its source line"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "copied ADR 0002 retains its source line"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "copied ADR 0003 retains its source line"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "copied ADR 0004 retains its source line"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "copied ADR 0005 retains its source line"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "copied ADR 0006 retains its source line"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "copied ADR 0007 retains its source line"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "copied ADR 0008 retains its source line"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "copied ADR 0009 retains its source line"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "copied ADR 0010 retains its source line"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "copied ADR 0011 retains its source line"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "each local ADR reference names a record"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "each skill file belongs to a known skill"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "skill intake retains its frontmatter and common Host entry"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "skill triage retains its frontmatter and common Host entry"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "skill feature retains its frontmatter and common Host entry"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "skill bug retains its frontmatter and common Host entry"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "skill hotfix retains its frontmatter and common Host entry"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "skill chore retains its frontmatter and common Host entry"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "skill specify retains its frontmatter and common Host entry"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "skill plan retains its frontmatter and common Host entry"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "skill implement retains its frontmatter and common Host entry"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "skill critic-loop retains its frontmatter and common Host entry"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "skill polishing-code-comments retains its frontmatter and common Host entry"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "skill lesson retains its frontmatter and common Host entry"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "skill lesson-review retains its frontmatter and common Host entry"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "skill record-architecture-decisions retains its frontmatter and common Host entry"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "skill doc-drift-sync retains its frontmatter and common Host entry"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "skill prototype retains its frontmatter and common Host entry"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "skill writing-for-agents retains its frontmatter and common Host entry"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "skill guide retains its frontmatter and common Host entry"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "skill setup retains its frontmatter and common Host entry"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "active instructions use current folders, flow name, and public commands"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "commands use REST without GraphQL or search paths"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "plugin citations resolve and borrowed skills include their custom entry"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "bundled Markdown links resolve to tracked files"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "Host entry preserves its native YAML contract"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "host resources and human guide contracts remain available"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "plugin and marketplace manifests preserve one unversioned root package"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "all shared package resources are tracked"
+  },
+  {
+    "file": "tests/text.test.ts",
+    "case": "Claude permission rules retain landing forms and deny direct merges"
+  },
+  {
+    "file": "tests/build.test.ts",
+    "case": "build creates one deterministic executable without changing the public launcher"
+  },
+  {
+    "file": "tests/build.test.ts",
+    "case": "a build from another checkout path has the same bytes"
+  },
+  {
+    "file": "tests/build.test.ts",
+    "case": "check reports missing, stale, and nonexecutable outputs without writes"
+  },
+  {
+    "file": "tests/build.test.ts",
+    "case": "build fails before delivery for a missing import"
+  },
+  {
+    "file": "tests/build.test.ts",
+    "case": "build fails before delivery for a syntax error"
+  },
+  {
+    "file": "tests/build.test.ts",
+    "case": "generation rejects a Bun version other than the exact pin"
+  },
+  {
+    "file": "tests/build.test.ts",
+    "case": "native build is reproducible, readable, and contains no Bun or Node runtime imports: hooks/entry.js"
+  },
+  {
+    "file": "tests/build.test.ts",
+    "case": "native build is reproducible, readable, and contains no Bun or Node runtime imports: tests/manual/native-observer/hooks/register.js"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "clean_drift: gate reports each installed pin, warns on drift, and ends with PASS"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "tools_missing: gate stops before checks when a pinned executable is absent"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "tools_missing_bun_types: gate names the missing package directory before checks"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "unknown_path: gate refuses a tracked file without a check or a role"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "faults: gate propagates independent formatting, workflow, runtime, DOM, native, config, plugin, and text failures"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "parse_fault: gate reports Bun parse and Biome lint failures"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "final tracked tree contains no obsolete language programs or unexplained JavaScript"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "final assertion map has no missing replacement or live removed-path caller"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "build --check preserves every tracked byte and mode"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "classifier refuses unexplained hidden-executable"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "classifier refuses unexplained hidden-perl"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "classifier refuses unexplained hidden-jq"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "classifier refuses unexplained hidden-node"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "classifier refuses unexplained obsolete.sh"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "classifier refuses unexplained obsolete.pl"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "classifier refuses unexplained obsolete.jq"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "classifier refuses unexplained authored.mjs"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "classifier refuses unexplained script.js"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "classifier refuses unexplained extra.txt"
+  },
+  {
+    "file": "board/build.test.ts",
+    "case": "the pinned build emits the browser module graph with its public URLs and identical assets"
+  },
+  {
+    "file": "board/build.test.ts",
+    "case": "a browser build failure (missing source) delivers no partial output"
+  },
+  {
+    "file": "board/build.test.ts",
+    "case": "a browser build failure (syntax error) delivers no partial output"
+  },
+  {
+    "file": "board/cli.test.ts",
+    "case": "the fixture repository: the start prints each command, the cards of the producer show, and Run types the run script with the number"
+  },
+  {
+    "file": "board/cli.test.ts",
+    "case": "with an empty config, the start prints the repository and the URL, serves the page, and the board shows the sessions of the repository only"
+  },
+  {
+    "file": "board/cli.test.ts",
+    "case": "the start prints each command of the config"
+  },
+  {
+    "file": "board/cli.test.ts",
+    "case": "all config forms enforce the same checkout guards"
+  },
+  {
+    "file": "board/cli.test.ts",
+    "case": "a start in a subfolder of the main checkout, or through a symbolic link to it, prints the real path of the repository"
+  },
+  {
+    "file": "board/cli.test.ts",
+    "case": "a git and a herdr in a node_modules/.bin folder of the start folder do not run, with that folder first on PATH"
+  },
+  {
+    "file": "board/cli.test.ts",
+    "case": "issue data stdin stays independent"
+  },
+  {
+    "file": "board/cli.test.ts",
+    "case": "only the three public argument tuples are accepted"
+  },
+  {
+    "file": "board/cli.test.ts",
+    "case": "Bun below the floor stops before each other act: nope"
+  },
+  {
+    "file": "board/cli.test.ts",
+    "case": "Bun below the floor stops before each other act: --config-stdin"
+  },
+  {
+    "file": "board/cli.test.ts",
+    "case": "Bun below the floor stops before each other act: check --config-stdin"
+  },
+  {
+    "file": "board/cli.test.ts",
+    "case": "config stdin serves and checks"
+  },
+  {
+    "file": "board/cli.test.ts",
+    "case": "config stdin waits for EOF and accepts chunks"
+  },
+  {
+    "file": "board/cli.test.ts",
+    "case": "config stdin reports each bad input without starting work"
+  },
+  {
+    "file": "board/cli.test.ts",
+    "case": "config stdin catches read failures"
+  },
+  {
+    "file": "board/cli.test.ts",
+    "case": "config stdin enforces executable security in the real CLI"
+  },
+  {
+    "file": "board/cli.test.ts",
+    "case": "config stdin keeps port selection and listen errors"
+  },
+  {
+    "file": "board/cli.test.ts",
+    "case": "config stdin preserves missing data and producer results"
+  },
+  {
+    "file": "board/cli.test.ts",
+    "case": "stdin config keeps startup safeguards and terminal actions"
+  },
+  {
+    "file": "board/cli.test.ts",
+    "case": "default changes leave producer configuration unchanged"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "a validated generic native binary keeps its executable command"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 0: the input is not JSON"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 1: the input is not a JSON object"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 2: \"shell\" is not a key of the config"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 3: \"a\\nb\" is not a key of the config"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 4: \"data\" is not a list of strings with one item or more"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 5: \"run\" is not a list of strings with one item or more"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 6: \"run\" is not a list of strings with one item or more"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 7: \"resume\" is not a list of strings with one item or more"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 8: \"port\" is not an integer from 1024 to 65535"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 9: \"port\" is not an integer from 1024 to 65535"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 10: \"port\" is not an integer from 1024 to 65535"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 11: \"port\" is not an integer from 1024 to 65535"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 12: \"port\" is not an integer from 1024 to 65535"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 13: \"data\": the first item is an absolute path"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 14: \"data\": the first item has a \"..\" part"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 15: \"data\": scripts/none.sh does not exist"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 16: \"data\": scripts is not a regular file"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 17: \"data\": scripts/plain.txt is not executable"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 18: \"data\": scripts/out.sh resolves to a place outside the main checkout"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 19: \"data\": .claude/worktrees/7-x/data.sh resolves into a lane worktree"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 20: \"data\": scripts/lane.sh resolves into a lane worktree"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 21: \"run\": an item or a path has a control character"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 22: \"run\": an item or a path has a control character"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 23: \"data\": an item or a path has a control character"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 24: \"data\": an item or a path has a control character"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 25: \"run\": an item has \"{\" or \"}\" and is not {n}"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 26: \"resume\": an item has \"{\" or \"}\" and is not {n}"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 27: \"run\" has no {n} item"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 28: \"run\" has no {n} item"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 29: \"resume\" has no {n} item"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 30: \"data\": an item has \"{\" or \"}\""
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 31: \"run\": an item has \"{\" or \"}\" and is not {n}"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 32: \"run\": an item has \"{\" or \"}\" and is not {n}"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 33: \"run\": an item has \"{\" or \"}\" and is not {n}"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 34: \"resume\": an item has \"{\" or \"}\" and is not {n}"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 35: \"data\": an item has \"{\" or \"}\""
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "refusal 36: \"run\" has no {n} item"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "shared config uses the supplied subject for JSON and root refusals"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "shared config keeps optional fields and resolves commands"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "shared config rejects supplied invalid fields"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "shared config keeps placeholder rules"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "shared config keeps executable boundaries"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "shared config rejects control characters"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "shared config keeps the port range"
+  },
+  {
+    "file": "board/config.test.ts",
+    "case": "the status text of a board with no data says that the config has no data"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "the example of the spec is a document of contract 1"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 0: a bad tracker is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 1: a bad tracker is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 2: a bad flow.lanes is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 3: a bad flow.lanes.Bug is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 4: a bad flow.lanes.chore is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 5: a bad flow.lanes.chore[1] is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 6: a bad flow.stages is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 7: a bad flow.stages[0].name is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 8: a bad flow.stages[1].steps[0] is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 9: a bad flow.lanes.chore[2] is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 10: a bad flow.stages[2].steps[1] is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 11: a bad flow.steps.review is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 12: a bad flow.steps.plan.gate is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 13: a bad flow.steps.plan.hint is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 14: a bad noRun is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 15: a bad noRun is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 16: a bad runner is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 17: a bad issues is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 18: a bad issues[0] is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 19: a bad issues[0].number is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 20: a bad issues[0].number is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 21: a bad issues[0].number is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 22: a bad issues[1].number is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 23: a bad issues[0].title is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 24: a bad issues[0].url is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 25: a bad issues[0].type is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 26: a bad issues[0].step is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 27: a bad issues[0].step is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 28: a bad issues[0].step is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 29: a bad issues[0].started is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 30: a bad issues[0].urgent is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 31: a bad issues[0].updatedAt is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 32: a bad issues[2].closedAt is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 33: a bad issues[0].path is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 34: a bad issues[0].path is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 35: a bad issues[1].reason is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 36: a bad issues[1].reason is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 37: a bad issues[1].act is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 38: a bad issues[0].pr is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 39: a bad issues[0].pr.number is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 40: a bad issues[0].pr.url is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 41: a bad issues[0].pr.draft is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 42: a bad issues[0].pr.checks is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 43: a bad issues[0].pr.review is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 44: a bad agents is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 45: a bad agents.Claude is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 46: a bad agents.claude.available is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 47: a bad agents.claude.available is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 48: a bad agents.claude.cause is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 49: a bad agents.claude.cause is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 50: a bad agents.claude.cause is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 51: a bad defaultAgent is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 52: a bad defaultAgent is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "rule 53: a bad defaultAgent is refused at its place"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "a failure names the place and the rule, and each failure has its own line"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "a step is in a lane one time at most, and in the stages one time at most"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "readDocument tells a document of another contract from each other failure"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "an absent field, a null, an unknown field, and a step outside the lane of its type pass"
+  },
+  {
+    "file": "board/contract.test.ts",
+    "case": "agents and defaultAgent pass when absent, good, and fail at their place when bad"
+  },
+  {
+    "file": "board/package.test.ts",
+    "case": "the package has its name, no version, the module type, the licence, the Bun range, and one command"
+  },
+  {
+    "file": "board/package.test.ts",
+    "case": "the package is private, so npm does not publish it to the public registry"
+  },
+  {
+    "file": "board/package.test.ts",
+    "case": "the package has no script, no dependency, and no workspace"
+  },
+  {
+    "file": "board/package.test.ts",
+    "case": "the entry starts with the isolated Bun line and has an execute bit"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "done is in Done, with closedAt as its time"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "starting is in Running"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "dirty is in Needs you with its path"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "stuck is in Needs you with the act of its row"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "blocked is in Needs you with its reason"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "ready and started is in Needs you"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "ready and urgent is in Needs you"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "ready is in Idle"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "a working session is in Running and a waiting session is in Needs you"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "each state of a herdr agent has its column, its state, and what it waits for"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "a state of a herdr agent that is a key that each object inherits is an unknown state"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "sessionsOf reads the issue and the step from the tab label, and keeps only the agents in the repository"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "the state of a session wins over the state of its issue, Done included"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "two live sessions on one issue make two cards, and the issue makes none"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "a session card names the agent that herdr found, and an issue card names none"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "a session card carries the screen lines and the folder of its pane"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "each card carries the pull request of its issue"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "an urgent card is before every other card in Needs you, and a dialog comes before other waits"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "a session with no issue shows its tab label"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "a session whose issue is not in the data keeps its number"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "no card has Run or Resume while the data gives a noRun text, and Run and Resume each need their entry of the config"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "an urgent card is first in Needs you, and the session of an urgent issue too"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "a card has no Run or Resume after a press"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "a press holds Run for 30 seconds, or until the starting row or a session of the issue shows"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "Needs you has the longest wait first"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "Running has the newest first"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "Idle has the highest number first, and Done has the last close first"
+  },
+  {
+    "file": "board/place.test.ts",
+    "case": "no data of the issues gives the session cards only"
+  },
+  {
+    "file": "board/process.test.ts",
+    "case": "the board stdout process output has its exact 64 MiB limit"
+  },
+  {
+    "file": "board/process.test.ts",
+    "case": "the board stderr process output has its exact 64 MiB limit"
+  },
+  {
+    "file": "board/runtime.test.ts",
+    "case": "runtime binding preserves an execute-only native command without a read permission condition"
+  },
+  {
+    "file": "board/runtime.test.ts",
+    "case": "Bun 1.4.2 meets the board floor"
+  },
+  {
+    "file": "board/runtime.test.ts",
+    "case": "Bun 1.4.3 meets the board floor"
+  },
+  {
+    "file": "board/runtime.test.ts",
+    "case": "Bun 1.5.0 meets the board floor"
+  },
+  {
+    "file": "board/runtime.test.ts",
+    "case": "Bun 2.0.0 meets the board floor"
+  },
+  {
+    "file": "board/runtime.test.ts",
+    "case": "Bun 1.4.1 is below the board floor"
+  },
+  {
+    "file": "board/runtime.test.ts",
+    "case": "Bun 1.3.99 is below the board floor"
+  },
+  {
+    "file": "board/runtime.test.ts",
+    "case": "Bun 0.9.0 is below the board floor"
+  },
+  {
+    "file": "board/runtime.test.ts",
+    "case": "the Bun floor diagnostic names the supported runtime"
+  },
+  {
+    "file": "board/runtime.test.ts",
+    "case": "the entry removes each node_modules/.bin item from PATH"
+  },
+  {
+    "file": "board/runtime.test.ts",
+    "case": "cleanPath splits the value at the delimiter of the caller"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "GET /api/board reads the data with the data command of the config and places the cards"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "the first request waits for the first read of the data"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "the data of the issues is read again only when it is older than 60 seconds"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "the end of a session starts one read of the issues, and the card of the issue gets Run"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a read that fails keeps the last good data and names the error"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a data command that gives a row with a state outside the six keeps the cards of the last good read, and the error is its first cause"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a data command that gives a URL that is not https:// or http:// keeps the cards of the last good read, and the error is its first cause"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a data command that gives a lane key that is not lowercase letters keeps the cards of the last good read, and the error is its first cause"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a data command that gives a step name that is not lowercase letters keeps the cards of the last good read, and the error is its first cause"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a data command that exits 0 with no output keeps the cards of the last good read, and the error is its first cause"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a data command that exits 0 with a text line before the JSON keeps the cards of the last good read, and the error is its first cause"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a data command that exits 1 with a line on stdout and no stderr keeps the cards of the last good read, and the error is its first cause"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a data command that exits 3 with no output keeps the cards of the last good read, and the error is its first cause"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a document with another contract drops the last good read: no issue card, and the session cards stay"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a first read that fails gives the error and no issue card"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "with no data entry in the config, the board reads nothing and shows the session cards only"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a herdr agent of the repository takes the place of its issue, and an agent of another folder makes no card"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "the step word of a tab label counts only when the flow of the data names that step"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "each session card shows the last lines of its pane with no rule, box, or control characters, and a local read does not read them again"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a session keeps its since while its state stays, idle and done count as one state, and a new state starts a new since"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "Run makes one tab with no focus and runs the run command of the config in it"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "Run on a card with the step specify runs the run command, as on each other card"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "POST /api/run with absent agent uses the default in every {agent} item"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "POST /api/run with an available override substitutes the override"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "an in-flight Run keeps its resolved agent while the next press uses the new default"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "POST /api/run with unknown/unavailable/no-effective agent gets 409 with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "POST /api/run with absent agent and legacy config runs the legacy line"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "POST /api/run with an explicit agent and legacy config gets 409 with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "with an {agent} run, the current 409s still hold with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "the shell of a pane reads each item of the line as one word: a path with a space and a quote, and items with shell characters"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "Run makes the workspace of the repository when no workspace has its label"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "Run is refused for a card with no Run, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "with no run entry in the config, no card has that press, and the press gets 409 with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "with no resume entry in the config, no card has that press, and the press gets 409 with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "with a noRun text in the data, the board passes it on, no card has Run or Resume, and each press gets 409 with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a press that the state of the row does not allow, and a press on an issue with a session, get 409 with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "two Run presses at the same moment make one tab"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a run press and a run press on one issue make one tab when each reads its card before the other starts"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a resume press and a resume press on one issue make one tab when each reads its card before the other starts"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a run press and a resume press on one issue make one tab when each reads its card before the other starts"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a herdr call that exits with an error gives 502 with its first line, and the card keeps Run"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a herdr call that is not on PATH gives 502 with its first line, and the card keeps Run"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a herdr call that prints an error as JSON gives 502 with its first line, and the card keeps Run"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a herdr call that exits 1 with an error as JSON on stderr gives 502 with its first line, and the card keeps Run"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a herdr call that gives a list with no workspaces array gives 502 with its first line, and the card keeps Run"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a herdr call that gives a list that is not JSON gives 502 with its first line, and the card keeps Run"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "the id of the workspace goes into no herdr command when it is not a safe id: the press gets 502, and the card keeps Run"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "the pane id of a new tab goes into no herdr command when it is not a safe id: the press gets 502, and the card keeps Run"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "the pane id of a new workspace goes into no herdr command when it is not a safe id: the press gets 502, and the card keeps Run"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "the tab id of a new workspace goes into no herdr command when it is not a safe id: the press gets 502, and the card keeps Run"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "Go focuses the pane of the agent, found again in herdr by its terminal id"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "GET /api/board passes on agents and defaultAgent, null when the document lacks them"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "the board passes on the flow, the runner, and the state of herdr, and reads herdr at each request"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a herdr that does not run shows as down with the first line of its error, and the issue cards stay"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a herdr that gives an error as JSON shows as down with the first line of its error, and the issue cards stay"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a herdr that gives no snapshot shows as down with the first line of its error, and the issue cards stay"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a local read uses the data it has: no read of the issues when it is old, and none when a session ends"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a session shows the lines changed in the lane worktree of its issue, or else in its folder, read each 15 seconds at most"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "Resume makes one tab with the focus and runs the resume command of the config in it"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "Open shell opens a tab in the dirty lane worktree of the issue, and nowhere else"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a press takes the number or the session id of the request, and no other field of it"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "another Host gets 403 and one line, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "the right name with another port gets 403 and one line, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a POST with no Origin gets 403 and one line, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a POST with another Origin gets 403 and one line, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a POST of a DNS-rebinding page gets 403 and one line, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a POST with a form content type gets 403 and one line, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a POST with a content type that only starts with application/json gets 403 and one line, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a body that is not JSON gets 400 and one line, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a body of null gets 400 and one line, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a number that is not digits gets 400 and one line, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a Resume number that is not digits gets 400 and one line, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "an Open shell number that is not digits gets 400 and one line, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a Resume POST with another Origin gets 403 and one line, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a number of zero gets 400 and one line, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a number of 24 digits gets 409 and one line, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a body over 1024 characters gets 400 and one line, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a path that the table does not name gets 404 and one line, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a file of the board that is not of the page gets 404 and one line, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a GET of a POST path gets 404 and one line, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "a POST of the page gets 404 and one line, with no herdr call"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "the Host localhost with the port of the server is accepted"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "the content type application/json with a parameter is accepted"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "run starts a command with no shell, and gives its exit status, its output, and the cause of a command that does not start"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "runData starts the data command in the main checkout with the limit of 60 seconds, and gives its output or its first cause"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "each read and each press starts herdr, git, or the data command only, with no shell, and writes nothing in the main checkout"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "the server serves the files of the page with the policy of the page"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "the page writes text only"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "POST /api/agent refuses default changes without a write"
+  },
+  {
+    "file": "board/server.test.ts",
+    "case": "POST /api/agent joins the trust checks with no git call"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "Needs you groups its cards by reason and keeps their order inside each group"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "the lane track marks the steps before the current one as done"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "the title of Run adds the hint of the step"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "a blocked card shows its reason"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "the lane track is absent when the lane or the step is unknown"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "a card with no type has no lane track when a lane has the key null"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "an agent shows its name and letter, and an unknown agent shows its own id"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "an agent whose id is a key that each object inherits shows its own id"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "an age is coarse by default and counts seconds when it is fine"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "a key is a valid identifier from the issue number, else from the session id"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "the tab names the repository and counts what needs you"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "the tone of the tab icon follows the most urgent column"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "the input and ready groups of Needs you are compact rows, and the others are full cards"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "a waiting session names what it waits for, and a session that herdr cannot read says so"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "the signature of a card changes with its column, its state, its step, and what it waits for"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "a notice names the issue and the reason, and its body is the title"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "the tail counts the cards below the fold by group, and is empty when none is"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "the diff text and the facts of a pull request"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "the pipeline places each issue at its step, holds the issues with no step, and keeps the sessions with no issue apart"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "the search matches a number from its first digits, the exact number first, and words anywhere"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "a worktree path shows from .claude/worktrees on, and another path stays whole"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "palette search finds Run choices and the unavailable default action"
+  },
+  {
+    "file": "board/view.test.ts",
+    "case": "a cause shows its first line with no controls and 200 characters at most"
+  },
+  {
+    "file": "board/words.test.ts",
+    "case": "no file of the board holds a word of one flow or of one tracker"
+  },
+  {
+    "file": "tests/board-agent.test.ts",
+    "case": "board data, Run and saved-host Resume use selected Bun with absent Bun on PATH"
+  },
+  {
+    "file": "tests/board-agent.test.ts",
+    "case": "board data, Run and saved-host Resume use selected Bun with shadow Bun on PATH"
+  },
+  {
+    "file": "tests/board.test.ts",
+    "case": "board adapter keeps its stdin contract, main path, port, child status, and clean PATH"
+  },
+  {
+    "file": "tests/board.test.ts",
+    "case": "board adapter refuses a missing entry, lane starts, extra arguments, and invalid main YAML"
+  },
+  {
+    "file": "tests/board.test.ts",
+    "case": "the board adapter checks the real producer and refuses executable escapes without running them"
+  },
+  {
+    "file": "tests/capscore.test.ts",
+    "case": "portable schema, host selection, bias and reviewer routing stay exact"
+  },
+  {
+    "file": "tests/capscore.test.ts",
+    "case": "all internal score vectors keep their exact portable result"
+  },
+  {
+    "file": "tests/capscore.test.ts",
+    "case": "main profiles, explicit profiles and parent model preserve lookup precedence"
+  },
+  {
+    "file": "tests/capscore.test.ts",
+    "case": "Codex retry floors follow the applied model and reviewer clamp"
+  },
+  {
+    "file": "tests/capscore.test.ts",
+    "case": "STOP precedes config, host, profile and database lookup"
+  },
+  {
+    "file": "tests/capscore.test.ts",
+    "case": "invalid profiles and runtime allowlists fail before a result"
+  },
+  {
+    "file": "tests/capscore.test.ts",
+    "case": "invalid scorer arguments reject every original value and numeric edge"
+  },
+  {
+    "file": "tests/capscore.test.ts",
+    "case": "array-valued reviewer effort fails the published profile schema"
+  },
+  {
+    "file": "tests/capscore.test.ts",
+    "case": "numeric inputs keep the exact maximum safe integer and STOP lookup order"
+  },
+  {
+    "file": "tests/capscore.test.ts",
+    "case": "--bias rejects first unsafe integer before lookup or numeric JSON output"
+  },
+  {
+    "file": "tests/capscore.test.ts",
+    "case": "--attempt rejects first unsafe integer before lookup or numeric JSON output"
+  },
+  {
+    "file": "tests/capscore.test.ts",
+    "case": "CAP_EFFORT_BIAS rejects first unsafe integer before lookup or numeric JSON output"
+  },
+  {
+    "file": "tests/capscore.test.ts",
+    "case": "--bias rejects reported overflow before lookup or numeric JSON output"
+  },
+  {
+    "file": "tests/capscore.test.ts",
+    "case": "opencode uses explicit model, environment, cwd database and fallback in order"
+  },
+  {
+    "file": "tests/capscore.test.ts",
+    "case": "--attempt rejects reported overflow before lookup or numeric JSON output"
+  },
+  {
+    "file": "tests/capscore.test.ts",
+    "case": "CAP_EFFORT_BIAS rejects reported overflow before lookup or numeric JSON output"
+  },
+  {
+    "file": "tests/capscore.test.ts",
+    "case": "--bias rejects much larger decimal before lookup or numeric JSON output"
+  },
+  {
+    "file": "tests/capscore.test.ts",
+    "case": "--attempt rejects much larger decimal before lookup or numeric JSON output"
+  },
+  {
+    "file": "tests/capscore.test.ts",
+    "case": "CAP_EFFORT_BIAS rejects much larger decimal before lookup or numeric JSON output"
+  },
+  {
+    "file": "tests/next-step.test.ts",
+    "case": "usage and config errors stop before GitHub or setup"
+  },
+  {
+    "file": "tests/next-step.test.ts",
+    "case": "dirty main and matching lanes keep refusal and landing precedence"
+  },
+  {
+    "file": "tests/next-step.test.ts",
+    "case": "landing locks recognize land.ts and reject stale or unrelated owners"
+  },
+  {
+    "file": "tests/next-step.test.ts",
+    "case": "every resolver state and open-row precedence matches the baseline"
+  },
+  {
+    "file": "tests/next-step.test.ts",
+    "case": "board refusal reasons use the last level-two heading"
+  },
+  {
+    "file": "tests/next-step.test.ts",
+    "case": "board JSON keeps first PR, mixed checks and latest effective review"
+  },
+  {
+    "file": "tests/next-step.test.ts",
+    "case": "closed window, pagination, metadata and non-issue filtering keep all rows"
+  },
+  {
+    "file": "tests/next-step.test.ts",
+    "case": "each GitHub read failure retains its diagnostic and stops output"
+  },
+  {
+    "file": "tests/next-step.test.ts",
+    "case": "command imports expose main without discovery or output"
+  },
+  {
+    "file": "tests/next-step.test.ts",
+    "case": "duplicate issue pages keep the first record, as in the baseline"
+  },
+  {
+    "file": "tests/next-step.test.ts",
+    "case": "real process landing owner stays live until land.ts exits"
+  },
+  {
+    "file": "tests/next-step.test.ts",
+    "case": "a failed landing process query leaves the lock unowned"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "usage [\"0\"]"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "usage [\"#\"]"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "usage [\"--board\",\"7\"]"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "usage [\"7\",\"abc\"]"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "usage [\"abc\"]"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "usage [\"-h\"]"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "usage [\"--open\"]"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "usage [\"7x\"]"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "usage [\"7\",\"--board\"]"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "usage [\"--resume\"]"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "usage [\"--resume\",\"abc\"]"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "usage [\"--resume\",\"7\",\"8\"]"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "usage [\"7\",\"--resume\"]"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "config invalid stops before state and effects"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "config missing stops before state and effects"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "chain stop epic"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "chain stop closed"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "config is read again before the second session"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "chain starts the requested me step and each auto step despite nonzero exits after progress"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "installed update failure keeps command, exit, cause and stops the chain"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "chain GitHub failure after a session never writes no progress"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "installed marketplace failure keeps command, exit, cause and stops the chain"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "chain preserves number order and exactly one no-progress row per step"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "installed list failure keeps command, exit, cause and stops the chain"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "installed refresh runs before each session and uses only the new instruction root"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "installed invalid lookup oops stops before host"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "installed invalid lookup [] stops before host"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "checkout outside binds the main checkout"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "installed missing step text names the root and stops before host"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "checkout dirty main starts no session"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "gates needs-triage to chore"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "installed second lookup failure cannot start the second session or record no progress"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "gates needs-triage to feature"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "gates enhancement to plan"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "auto waits after no-auto without repeated output or sessions"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "auto waits after gh-fail without repeated output or sessions"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "checkout lane binds the main checkout"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "auto waits after view-fail without repeated output or sessions"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "stale resources [\"7\"] preserve diagnostics"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "stale resources [\"7\",\"8\"] preserve diagnostics"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "checkout subfolder binds the main checkout"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "stale resources [\"--board\"] preserve diagnostics"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "stale resources [] preserve diagnostics"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "auto waits after dirty without repeated output or sessions"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "board_agent changes only defaultAgent and reads each current YAML host"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "auto selects ordered auto gates, reloads lists, records rows and keeps inherited stdin"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "main_gates ignores lane config and obsolete Git gates, and YAML enables the selected step"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "board_live reports the automatic lock and stops on GitHub failure"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "stale diagnostics cover a directory at the resolver path and delivery source modes"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "documented recovery command and the retired tracked setup state stay exact"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "board contract 1 keeps issue precedence, fields, flow, locks, lists and no mutation"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "update_hang marketplace keeps the 120 second total deadline and removes real descendants"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "update_hang update keeps the 120 second total deadline and removes real descendants"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "board_agent missing non-selected host is unavailable and missing selected host stops before GitHub"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "update_hang list keeps the 120 second total deadline and removes real descendants"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "codex_lookup timeout retains diagnostics once, releases locks, and creates no session state"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "codex_lookup interruption retains diagnostics once, releases locks, and creates no session state"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "automatic 60 second clock no-auto repeats the resolver without duplicate output"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "automatic 60 second clock gh-fail repeats the resolver without duplicate output"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "automatic 60 second clock view-fail repeats the resolver without duplicate output"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "automatic lock checks precede stuck rows and skip a live issue for the next auto issue"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "herdr_end open epic ends the current specify session"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "herdr_end closed wontfix ends the current specify session"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "update_lock wait uses the same deadline, runs no command, and leaves no stale lock after owner death"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "herdr_specify no spec records no progress and a published spec stops at the plan gate"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "herdr names each tab, carries the issue chain and exits only a completed step"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "shared_lock two repository runners"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "shared_lock two repository runners keep a surviving update lock after helper SIGKILL"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "main_gates obsolete Git auto values cannot enable bug but YAML can"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "case": "main_gates obsolete Git auto values cannot enable specify but YAML can"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > known symlink error is an exact native stop without a model request"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > metadataError entry error stops before the next model or file request"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > denied entry error stops before the next model or file request"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > partial entry error stops before the next model or file request"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > invalidGit entry error stops before the next model or file request"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > native stop retains error text that resembles its fixed instruction suffix"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > valid and unrelated native streams pass through unchanged"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > a successful new celetis invocation releases the native stop"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > a successful new external invocation releases the native stop"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > unsupported external delivery retains the failed entry native stop"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > known entry errors stop only their native destination loop"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > unrelated native model failure is not converted to an entry error"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > entry reads whole config once before expanding the procedure"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > current native root wins over stale cwd and main repository root"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > startup subfolder locates its nearest Git boundary"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > outside entry makes no config content call"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > missing entry makes no config content call"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > linked checkout config absence stays explicit at its exact path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > supplied YAML null remains file data instead of native absence"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > metadata denial names its selected path and document field: /repo/.celetis.yaml"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > metadata denial names its selected path and document field: /repo/.git"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > metadata denial names its selected path and document field: /shared/worktrees/lane"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > symlink stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > missingLink stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > metadataError stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > denied stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > partial stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > tokenCap stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > missingContent stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > missingCounts stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > wrongPath stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > invalidGit stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > gitdirNotDirectory stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > handoff and repeated reference entries each request fresh whole config"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > exact installed borrowed skill Read receives its own entry data"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > full later reference consultation reuses its first entry"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > partial later reference consultation reuses its first entry"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > own skill full and section consultations do not repeat entry"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > intentional same-target invocation starts fresh references"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > a native external invocation starts fresh references without Celetis reads"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > external invocation membership stays in its native destination loop"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > a successful external invocation ends a failed Celetis invocation"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > unsupported external delivery does not establish an invocation boundary"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > external skill.prompt downstream failure stays native"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > external session.append downstream failure stays native"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > unsupported mixed delivery stops only the owned Celetis procedure"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > late binding preserves current and borrowed entries but new targets use the lane"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > native destinations keep reference membership in their own loop"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > child starts from its native cwd while the session root still names main"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > another loop cannot use main config unchanged proof"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > another loop cannot use main static-resource unchanged proof"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > concurrent later reference reads share the first reservation"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > stale reference load cannot replace a newer invocation or its proof"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > failed invocation stays stopped until an intentional invocation"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > failed reference stays stopped until an intentional invocation"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > a copied expansion cannot bind through wrong origin"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > a copied expansion cannot bind through wrong door"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > a copied expansion cannot bind through wrong metadata"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > a copied expansion cannot bind through wrong uuid"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > a copied expansion cannot bind through wrong slot"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > owned append throw catch replaces only its pending block"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > owned append timeout catch replaces only its pending block"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > unrelated append failure keeps native behavior"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > a delivered expansion is consumed once while a fresh expansion enters again"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > other paths and namespaces do not preload a project config"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > config text cannot forge an entry or suppress a later read"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > native unchanged result requires a prior matching complete read"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > native unchanged result without prior full content stops"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > seeded unchanged result stops even after an own complete read"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "source > unrelated downstream Read failure keeps native behavior"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > known symlink error is an exact native stop without a model request"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > metadataError entry error stops before the next model or file request"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > denied entry error stops before the next model or file request"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > partial entry error stops before the next model or file request"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > invalidGit entry error stops before the next model or file request"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > native stop retains error text that resembles its fixed instruction suffix"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > valid and unrelated native streams pass through unchanged"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > a successful new celetis invocation releases the native stop"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > a successful new external invocation releases the native stop"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > unsupported external delivery retains the failed entry native stop"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > known entry errors stop only their native destination loop"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > unrelated native model failure is not converted to an entry error"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > entry reads whole config once before expanding the procedure"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > current native root wins over stale cwd and main repository root"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > startup subfolder locates its nearest Git boundary"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > outside entry makes no config content call"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > missing entry makes no config content call"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > linked checkout config absence stays explicit at its exact path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > supplied YAML null remains file data instead of native absence"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > metadata denial names its selected path and document field: /repo/.celetis.yaml"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > metadata denial names its selected path and document field: /repo/.git"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > metadata denial names its selected path and document field: /shared/worktrees/lane"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > symlink stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > missingLink stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > metadataError stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > denied stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > partial stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > tokenCap stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > missingContent stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > missingCounts stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > wrongPath stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > invalidGit stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > gitdirNotDirectory stops entry without its procedure or another config path"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > handoff and repeated reference entries each request fresh whole config"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > exact installed borrowed skill Read receives its own entry data"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > full later reference consultation reuses its first entry"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > partial later reference consultation reuses its first entry"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > own skill full and section consultations do not repeat entry"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > intentional same-target invocation starts fresh references"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > a native external invocation starts fresh references without Celetis reads"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > external invocation membership stays in its native destination loop"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > a successful external invocation ends a failed Celetis invocation"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > unsupported external delivery does not establish an invocation boundary"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > external skill.prompt downstream failure stays native"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > external session.append downstream failure stays native"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > unsupported mixed delivery stops only the owned Celetis procedure"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > late binding preserves current and borrowed entries but new targets use the lane"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > native destinations keep reference membership in their own loop"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > child starts from its native cwd while the session root still names main"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > another loop cannot use main config unchanged proof"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > another loop cannot use main static-resource unchanged proof"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > concurrent later reference reads share the first reservation"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > stale reference load cannot replace a newer invocation or its proof"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > failed invocation stays stopped until an intentional invocation"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > failed reference stays stopped until an intentional invocation"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > a copied expansion cannot bind through wrong origin"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > a copied expansion cannot bind through wrong door"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > a copied expansion cannot bind through wrong metadata"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > a copied expansion cannot bind through wrong uuid"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > a copied expansion cannot bind through wrong slot"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > owned append throw catch replaces only its pending block"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > owned append timeout catch replaces only its pending block"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > unrelated append failure keeps native behavior"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > a delivered expansion is consumed once while a fresh expansion enters again"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > other paths and namespaces do not preload a project config"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > config text cannot forge an entry or suppress a later read"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > native unchanged result requires a prior matching complete read"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > native unchanged result without prior full content stops"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > seeded unchanged result stops even after an own complete read"
+  },
+  {
+    "file": "tests/native-entry.test.ts",
+    "case": "generated > unrelated downstream Read failure keeps native behavior"
+  },
+  {
+    "file": "tests/native-observer.test.ts",
+    "case": "source > compact observation hashes content and preserves the actual result"
+  },
+  {
+    "file": "tests/native-observer.test.ts",
+    "case": "source > native error observation retains exact permission text"
+  },
+  {
+    "file": "tests/native-observer.test.ts",
+    "case": "source > metadata observation preserves native ENOENT rejection"
+  },
+  {
+    "file": "tests/native-observer.test.ts",
+    "case": "source > thrown metadata ENOENT is logged and rethrown unchanged"
+  },
+  {
+    "file": "tests/native-observer.test.ts",
+    "case": "source > metadata observation preserves native EACCES rejection"
+  },
+  {
+    "file": "tests/native-observer.test.ts",
+    "case": "source > thrown metadata EACCES is logged and rethrown unchanged"
+  },
+  {
+    "file": "tests/native-observer.test.ts",
+    "case": "generated > compact observation hashes content and preserves the actual result"
+  },
+  {
+    "file": "tests/native-observer.test.ts",
+    "case": "generated > native error observation retains exact permission text"
+  },
+  {
+    "file": "tests/native-observer.test.ts",
+    "case": "generated > metadata observation preserves native ENOENT rejection"
+  },
+  {
+    "file": "tests/native-observer.test.ts",
+    "case": "generated > thrown metadata ENOENT is logged and rethrown unchanged"
+  },
+  {
+    "file": "tests/native-observer.test.ts",
+    "case": "generated > metadata observation preserves native EACCES rejection"
+  },
+  {
+    "file": "tests/native-observer.test.ts",
+    "case": "generated > thrown metadata EACCES is logged and rethrown unchanged"
+  },
+  {
+    "file": "tests/native-observer.test.ts",
+    "case": "observer contracts preserve filesystem paths in a spaced checkout"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection regular valid"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection regular missing-host-hash"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection regular bad-host-hash"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection regular missing-config-hash"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection regular bad-config-hash"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection regular wrong-read-path"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection regular missing-meta-start"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection regular late-metadata"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection regular wrong-meta-path"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection regular wrong-result-id"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection regular fake-observer"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection regular missing-counts"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection regular token-cap"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection absent good"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection absent no-result"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection absent wrong-id"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection absent non-enoent"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection absent early-text"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection absent wrong-origin"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection absent wrong-path"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection denied good"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection denied no-result"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection denied wrong-id"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection denied wrong-path"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection denied not-permission"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection denied model-claim"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection denied later-read"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection denied missing-start"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "native projection denied not-error"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "projectEvents retains native IDs, compact results, denials, and deduplicates ordinary calls"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "projector rejects an unmatched origin observation"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "projector rejects an unmatched session observation"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "projector rejects an unmatched input observation"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "projector rejects an unmatched later-start observation"
+  },
+  {
+    "file": "tests/native-events-harness.test.ts",
+    "case": "projector rejects an unmatched malformed observation"
+  },
+  {
+    "file": "tests/native-host.test.ts",
+    "case": "hook chains retain registration order, filtered calls, and plugin origins"
+  },
+  {
+    "file": "tests/native-host.test.ts",
+    "case": "caught downstream exceptions retain called state and error details"
+  },
+  {
+    "file": "tests/native-host.test.ts",
+    "case": "metadata denials reject while denied tool replies stay intact"
+  },
+  {
+    "file": "tests/native-host.test.ts",
+    "case": "session delivery preserves its complete input and nested destination"
+  },
+  {
+    "file": "tests/native-host.test.ts",
+    "case": "turn chains preserve every yielded chunk and the generator return value"
+  },
+  {
+    "file": "tests/native-host.test.ts",
+    "case": "uncaught turn failures propagate after the hook catch yields no replacement"
+  },
+  {
+    "file": "tests/native-modules.test.ts",
+    "case": "source and generated module identities are distinct: hooks/entry.js"
+  },
+  {
+    "file": "tests/native-modules.test.ts",
+    "case": "source and generated module identities are distinct: tests/manual/native-observer/hooks/register.js"
+  },
+  {
+    "file": "tests/native-modules.test.ts",
+    "case": "native type environment rejects Bun globals"
+  },
+  {
+    "file": "tests/native-modules.test.ts",
+    "case": "native compile failure writes no earlier delivery target"
+  },
+  {
+    "file": "board/realpath.test.ts",
+    "case": "a mode-0111 native producer keeps canonical data, Run and Resume paths without source read permission"
+  },
+  {
+    "file": "board/realpath.test.ts",
+    "case": "importing native realpath does not load libc and a missing primitive stops the operation"
+  },
+  {
+    "file": "board/realpath.test.ts",
+    "case": "native realpath keeps missing-path, symlink-loop and NUL refusals"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "browser project rejects Bun in its included board source"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "browser project rejects process in its included board source"
+  },
+  {
+    "file": "tests/verify.test.ts",
+    "case": "browser project rejects Buffer in its included board source"
+  },
+  {
+    "file": "board/runtime.test.ts",
+    "case": "declared Bun runtime binding sets both controls before its first process starts"
+  },
+  {
+    "file": "tests/board-agent.test.ts",
+    "case": "Run and Resume set the first Bun environment for workspace creation with absent terminal controls"
+  },
+  {
+    "file": "tests/board-agent.test.ts",
+    "case": "Run and Resume set the first Bun environment for workspace creation with hostile terminal controls"
+  },
+  {
+    "file": "tests/board-agent.test.ts",
+    "case": "Run and Resume set the first Bun environment for tab creation with absent terminal controls"
+  },
+  {
+    "file": "tests/board-agent.test.ts",
+    "case": "Run and Resume set the first Bun environment for tab creation with hostile terminal controls"
+  },
+  {
+    "file": "tests/host-identity.test.ts",
+    "case": "successful claude foreground exit cancels only the active watcher resolver"
+  },
+  {
+    "file": "tests/host-identity.test.ts",
+    "case": "successful codex foreground exit cancels only the active watcher resolver"
+  },
+  {
+    "file": "tests/process.test.ts",
+    "case": "process cancellation retains exact child stderr \"\""
+  },
+  {
+    "file": "tests/process.test.ts",
+    "case": "process cancellation retains exact child stderr \"warning before cancellation\\n\""
+  },
+  {
+    "file": "tests/process.test.ts",
+    "case": "process cancellation retains exact child stderr \"The operation was aborted\\n\""
+  },
+  {
+    "file": "tests/parallel.test.ts",
+    "case": "suite default runs one file worker at a time"
+  }
+]

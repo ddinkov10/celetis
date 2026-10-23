@@ -1,0 +1,42 @@
+{"runtime":"1.4.2","platform":"darwin","parallelism":8,"workers":1}
+bun test v1.4.2 (744846f84)
+
+tests/host-session.test.ts:
+428 |       await f.wait('watcher-resolver');
+429 |       const resolver = Number(await f.read('watcher-resolver'));
+430 |       await f.put('finish-1');
+431 |       const result = await running.result;
+432 |       expect(result.code, result.stderr).toBe(0);
+433 |       expect(result.stderr).toBe('');
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: ""
+Received: "The operation was aborted"
+
+      at <anonymous> (/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/tests/host-session.test.ts:433:29)
+      at async <anonymous> (/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/tests/lib/runner-fixture.ts:319:13)
+(fail) successful codex foreground exit cancels only the active watcher resolver [1651.82ms]
+428 |       await f.wait('watcher-resolver');
+429 |       const resolver = Number(await f.read('watcher-resolver'));
+430 |       await f.put('finish-1');
+431 |       const result = await running.result;
+432 |       expect(result.code, result.stderr).toBe(0);
+433 |       expect(result.stderr).toBe('');
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: ""
+Received: "The operation was aborted"
+
+      at <anonymous> (/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/tests/host-session.test.ts:433:29)
+      at async <anonymous> (/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/tests/lib/runner-fixture.ts:319:13)
+(fail) successful claude foreground exit cancels only the active watcher resolver [1830.80ms]
+
+ 0 pass
+ 80 filtered out
+ 2 fail
+ 8 expect() calls
+Ran 2 tests across 1 file. [1.86s]
+FAIL: tests/host-session.test.ts=successful .* foreground exit cancels (exit 1)
+{"label":"tests/host-session.test.ts=successful .* foreground exit cancels","code":1,"elapsedMs":1972.367834,"timedOut":false}

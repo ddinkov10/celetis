@@ -1,0 +1,20 @@
+[
+  {
+    "file": "tests/board-agent.test.ts",
+    "onlyApprovedChange": true,
+    "baseSha256": "4a90f580e445dbd1dd51b85af9a3c9801fda1cb78c66db4c1dcc9def5b3004f5",
+    "restoredSha256": "4a90f580e445dbd1dd51b85af9a3c9801fda1cb78c66db4c1dcc9def5b3004f5"
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "onlyApprovedChange": true,
+    "baseSha256": "30cc1a36a0c09a3d73d480effbf0456ea9b8bd9642bcd4e66e23704f10f143de",
+    "restoredSha256": "30cc1a36a0c09a3d73d480effbf0456ea9b8bd9642bcd4e66e23704f10f143de"
+  },
+  {
+    "file": "tests/lib/runner-fixture.ts",
+    "onlyApprovedChange": true,
+    "baseSha256": "04a5563376d1178d4ef7d48f29e73b639931c390aeff3c9b5c9d8eb27dffb532",
+    "restoredSha256": "04a5563376d1178d4ef7d48f29e73b639931c390aeff3c9b5c9d8eb27dffb532"
+  }
+]

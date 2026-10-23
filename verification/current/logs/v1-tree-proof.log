@@ -1,0 +1,68 @@
+{
+  "reviewedCandidates": {
+    "board/config.test.ts": "negative-data shell:true config refusal case, not an executor",
+    "scripts/setup.ts": "RegExp template ends in an end-anchor; no Bun Shell call"
+  },
+  "status": "PASS",
+  "head": "b6053743e492dde0624207c90fc3a23cdeeca57a",
+  "trackedPaths": 224,
+  "typescriptFiles": 113,
+  "roleCounts": {
+    "biome": 20,
+    "config": 1,
+    "generated": 8,
+    "role": 13,
+    "text": 68,
+    "typescript": 113,
+    "workflow": 1
+  },
+  "generatedFiles": [
+    "scripts/celetis",
+    "board/board.js",
+    "board/view.mjs",
+    "board/ui.mjs",
+    "board/panel.mjs",
+    "board/palette.mjs",
+    "hooks/entry.js",
+    "tests/manual/native-observer/hooks/register.js"
+  ],
+  "explicitRoles": 17,
+  "prohibited": [],
+  "embeddedCandidates": [
+    "board/config.test.ts",
+    "scripts/setup.ts"
+  ],
+  "automaticEntries": 52,
+  "discoveredEntries": 52,
+  "discoveryEqualsTracked": true,
+  "processEntries": [
+    "board/realpath.test.ts",
+    "tests/process.test.ts",
+    "tests/runner-lock.test.ts",
+    "tests/runner-lifecycle.test.ts",
+    "tests/runner-startup.test.ts",
+    "tests/host-session.test.ts",
+    "tests/host-observation.test.ts",
+    "tests/host-identity.test.ts",
+    "tests/host-resume.test.ts"
+  ],
+  "trackedAssertionRows": 323,
+  "missingAssertions": [],
+  "removedPaths": 58,
+  "liveCallers": [],
+  "historicalExceptions": 28,
+  "mapSha256": "2064e437347fc7d7c69db9f2ae54a0cdfe8ddb90165527fcddac1ff30832b437",
+  "mapBytes": 1071693,
+  "mapLines": 7020,
+  "sections": 57,
+  "currentFocusedRows": 696,
+  "hostCaseLocations": 82,
+  "hostMapMatchesInventory": true,
+  "mappedAutomaticEntries": 29,
+  "missingCurrentFiles": [],
+  "missingAutomaticEntries": [],
+  "baselineTestFiles": 32,
+  "baselineLiteralSpellingsAbsent": [
+    "tests/manual/step-prompt.test.sh"
+  ]
+}

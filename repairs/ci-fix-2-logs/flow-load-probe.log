@@ -1,0 +1,80 @@
+PROBE {"mode":"flow","root":"/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl","pattern":"auto selects ordered|^installed |^gates |^chain |^checkout ","runtime":"1.4.2"}
+bun test v1.4.2 (744846f84)
+
+../../../../../../../../private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/probe.test.ts:
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.97dRT5","at":1792751278533,"data":"celetis-flow: start: /celetis:plan #7\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.PNgPpS","at":1792751278700,"data":"celetis-flow: stop #7 is finished.\n"}
+(pass) chain stop closed [833.41ms]
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.a7e8Ta","at":1792751278895,"data":"celetis-flow: start: /celetis:bug #7\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.73v6Rc","at":1792751279064,"data":"celetis-flow: start: /celetis:plan #9\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.OeI9m4","at":1792751279244,"data":"celetis-flow: start: /celetis:plan #7\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.XQ2pZX","at":1792751279411,"data":"celetis-flow: stop #7 is an epic. Each child runs its own flow.\n"}
+(pass) chain stop epic [1543.34ms]
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.L6B6A0","at":1792751279586,"data":"celetis-flow: start: /celetis:plan #7\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.3w0xg4","at":1792751279754,"data":"celetis-flow: start: /celetis:plan #7\n"}
+(pass) installed update failure keeps command, exit, cause and stops the chain [2155.29ms]
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.Oe4UPC","at":1792751280280,"data":"celetis-flow: start: /celetis:plan #7\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.a7e8Ta","at":1792751280430,"data":"celetis-flow: start: /celetis:plan #7\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.73v6Rc","at":1792751280792,"data":"celetis-flow: no progress: /celetis:plan #9\n"}
+(pass) installed list failure keeps command, exit, cause and stops the chain [2917.85ms]
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.a7e8Ta","at":1792751280835,"data":"celetis-flow: start: /celetis:implement #7\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.73v6Rc","at":1792751280890,"data":"celetis-flow: start: /celetis:plan #8\n"}
+(pass) installed marketplace failure keeps command, exit, cause and stops the chain [2993.34ms]
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.8NrM67","at":1792751281040,"data":"celetis-flow: start: /celetis:plan #7\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.73v6Rc","at":1792751281281,"data":"celetis-flow: no progress: /celetis:plan #8\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.a7e8Ta","at":1792751281291,"data":"celetis-flow: stop #7 is finished.\n"}
+(pass) chain starts the requested me step and each auto step despite nonzero exits after progress [3428.93ms]
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.73v6Rc","at":1792751281453,"data":"celetis-flow: start: /celetis:plan #9\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.wIWF8T","at":1792751281459,"data":"celetis-flow: start: /celetis:plan #7\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.3w0xg4","at":1792751281536,"data":"celetis-flow: stop cannot read #7 from GitHub\n"}
+(pass) chain GitHub failure after a session never writes no progress [3667.01ms]
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.73v6Rc","at":1792751281824,"data":"celetis-flow: no progress: /celetis:plan #9\n"}
+(pass) chain preserves number order and exactly one no-progress row per step [3954.91ms]
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.1E4fM0","at":1792751281967,"data":"celetis-flow: start: /celetis:plan #7\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.Oe4UPC","at":1792751282019,"data":"celetis-flow: start: /celetis:implement #7\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.Oe4UPC","at":1792751282397,"data":"celetis-flow: no progress: /celetis:implement #7\n"}
+(pass) installed refresh runs before each session and uses only the new instruction root [4525.91ms]
+(pass) installed invalid lookup oops stops before host [4547.08ms]
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.dc9jw9","at":1792751282518,"data":"celetis-flow: start: /celetis:plan #7\n"}
+(pass) installed invalid lookup [] stops before host [5134.86ms]
+(pass) checkout outside binds the main checkout [5253.51ms]
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.DvbWcs","at":1792751283281,"data":"celetis-flow: start: /celetis:triage #7\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.T9K8tt","at":1792751283336,"data":"celetis-flow: stop the working tree is dirty: /private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.T9K8tt/repo dir; commit or stash first\n"}
+(pass) checkout dirty main starts no session [5463.37ms]
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.G5Dryo","at":1792751283720,"data":"celetis-flow: start: /celetis:feature #7\n"}
+(pass) installed missing step text names the root and stops before host [6470.67ms]
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.LjbB1f","at":1792751284600,"data":"celetis-flow: start: /celetis:triage #7\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.UgtYzb","at":1792751285178,"data":"celetis-flow: start: /celetis:plan #7\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.dc9jw9","at":1792751285308,"data":"celetis-flow: start: /celetis:implement #7\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.74T0HJ","at":1792751285361,"data":"celetis-flow: start: /celetis:plan #7\n"}
+(pass) installed second lookup failure cannot start the second session or record no progress [7677.04ms]
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.DvbWcs","at":1792751285921,"data":"celetis-flow: the gate of chore is me: scripts/celetis celetis-flow 7 starts /celetis:chore #7\n"}
+(pass) gates needs-triage to chore [8050.21ms]
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.TdhYkq","at":1792751285960,"data":"celetis-flow: start: /celetis:plan #7\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.G5Dryo","at":1792751286442,"data":"celetis-flow: start: /celetis:plan #7\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.LjbB1f","at":1792751286605,"data":"celetis-flow: the gate of specify is me: scripts/celetis celetis-flow 7 starts /celetis:feature #7\n"}
+(pass) gates needs-triage to feature [8734.92ms]
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.UgtYzb","at":1792751286753,"data":"celetis-flow: no progress: /celetis:plan #7\n"}
+(pass) checkout subfolder binds the main checkout [8883.40ms]
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.G5Dryo","at":1792751286863,"data":"celetis-flow: no progress: /celetis:plan #7\n"}
+(pass) gates enhancement to plan [8992.08ms]
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.74T0HJ","at":1792751286993,"data":"celetis-flow: no progress: /celetis:plan #7\n"}
+(pass) checkout lane binds the main checkout [9122.73ms]
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.TdhYkq","at":1792751287114,"data":"celetis-flow: start: /celetis:implement #7\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.TdhYkq","at":1792751287491,"data":"celetis-flow: no progress: /celetis:implement #7\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.TdhYkq","at":1792751287670,"data":"celetis-flow: start: /celetis:plan #8\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.TdhYkq","at":1792751288030,"data":"celetis-flow: no progress: /celetis:plan #8\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.TdhYkq","at":1792751288135,"data":"celetis-flow: no auto step can start; the runner asks again each 60 seconds\n"}
+AUTO_PHASE {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.TdhYkq","waitMs":4703,"output":{"stdout":"celetis-flow: start: /celetis:plan #7\nceletis-flow: start: /celetis:implement #7\nceletis-flow: no progress: /celetis:implement #7\nceletis-flow: start: /celetis:plan #8\nceletis-flow: no progress: /celetis:plan #8\nceletis-flow: no auto step can start; the runner asks again each 60 seconds\n","stderr":""}}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.TdhYkq","at":1792751288356,"data":"celetis-flow: start: /celetis:implement #7\n"}
+OUTPUT {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.TdhYkq","at":1792751288733,"data":"celetis-flow: no progress: /celetis:implement #7\n"}
+TRACE {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.Di0Ldl/tmp/celetis-runtime.TdhYkq","events":[{"event":"live","host":"claude","k":1,"observed":false,"at":1792751287018},{"event":"exit","host":"claude","k":1,"at":1792751287026},{"event":"live","host":"claude","k":2,"observed":false,"at":1792751287396},{"event":"exit","host":"claude","k":2,"at":1792751287403},{"event":"live","host":"claude","k":3,"observed":false,"at":1792751287951},{"event":"exit","host":"claude","k":3,"at":1792751287959},{"event":"live","host":"claude","k":4,"observed":false,"at":1792751288639},{"event":"exit","host":"claude","k":4,"at":1792751288647}]}
+(pass) auto selects ordered auto gates, reloads lists, records rows and keeps inherited stdin [10030.76ms]
+
+ 21 pass
+ 49 filtered out
+ 0 fail
+ 164 expect() calls
+Ran 21 tests across 1 file. [10.89s]
+RESULT {"label":"flow","code":0,"elapsedMs":10998.912042,"timedOut":false}
+CLEANUP {"remaining":[],"scratch":[]}

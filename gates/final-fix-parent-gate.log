@@ -1,0 +1,89 @@
+== actionlint 1.7.12
+== biome 2.5.15
+== tsc 7.0.2
+== @types/bun 1.4.2
+== tsc
+== biome check
+== actionlint
+== config
+== tsc runtime
+== tsc browser
+== tsc native
+== build
+== text
+== plugin
+Checked 127 files in 338ms. No fixes applied.
+{"host":"claude","landing":"pr","board":{"port":4404}}
+bun test v1.4.2 (744846f84)
+
+tests/text.test.ts:
+(pass) general product words have exact used allowances [13.39ms]
+(pass) ADR records start at 0001 with no gap and at least 14 records [0.24ms]
+(pass) copied ADR 0001 retains its source line [0.04ms]
+(pass) copied ADR 0002 retains its source line
+(pass) copied ADR 0003 retains its source line
+(pass) copied ADR 0004 retains its source line
+(pass) copied ADR 0005 retains its source line [0.01ms]
+(pass) copied ADR 0006 retains its source line
+(pass) copied ADR 0007 retains its source line
+(pass) copied ADR 0008 retains its source line [0.03ms]
+(pass) copied ADR 0009 retains its source line [0.02ms]
+(pass) copied ADR 0010 retains its source line [0.01ms]
+(pass) copied ADR 0011 retains its source line [0.02ms]
+(pass) each local ADR reference names a record [2.51ms]
+(pass) each skill file belongs to a known skill [0.10ms]
+(pass) skill intake retains its frontmatter and common Host entry [0.41ms]
+(pass) skill triage retains its frontmatter and common Host entry [0.04ms]
+(pass) skill feature retains its frontmatter and common Host entry [0.02ms]
+(pass) skill bug retains its frontmatter and common Host entry [0.02ms]
+(pass) skill hotfix retains its frontmatter and common Host entry [0.01ms]
+(pass) skill chore retains its frontmatter and common Host entry [0.01ms]
+(pass) skill specify retains its frontmatter and common Host entry [0.02ms]
+(pass) skill plan retains its frontmatter and common Host entry [0.02ms]
+(pass) skill implement retains its frontmatter and common Host entry [0.03ms]
+(pass) skill critic-loop retains its frontmatter and common Host entry [0.02ms]
+(pass) skill polishing-code-comments retains its frontmatter and common Host entry [0.02ms]
+(pass) skill lesson retains its frontmatter and common Host entry [0.02ms]
+(pass) skill lesson-review retains its frontmatter and common Host entry [0.01ms]
+(pass) skill record-architecture-decisions retains its frontmatter and common Host entry [0.01ms]
+(pass) skill doc-drift-sync retains its frontmatter and common Host entry [0.02ms]
+(pass) skill prototype retains its frontmatter and common Host entry [0.02ms]
+(pass) skill writing-for-agents retains its frontmatter and common Host entry [0.02ms]
+(pass) skill guide retains its frontmatter and common Host entry [0.01ms]
+(pass) skill setup retains its frontmatter and common Host entry [0.02ms]
+(pass) active instructions use current folders, flow name, and public commands [2.76ms]
+(pass) commands use REST without GraphQL or search paths [1.58ms]
+(pass) plugin citations resolve and borrowed skills include their custom entry [0.55ms]
+(pass) bundled Markdown links resolve to tracked files [0.21ms]
+(pass) Host entry preserves its native YAML contract [0.16ms]
+(pass) host resources and human guide contracts remain available [0.55ms]
+(pass) plugin and marketplace manifests preserve one unversioned root package [0.09ms]
+(pass) all shared package resources are tracked [0.03ms]
+(pass) Claude permission rules retain landing forms and deny direct merges [0.04ms]
+
+ 43 pass
+ 0 fail
+ 321 expect() calls
+Ran 43 tests across 1 file. [44.00ms]
+Validating marketplace manifest: /Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/.claude-plugin/marketplace.json
+
+⚠ Found 1 warning:
+
+  ❯ plugins[0] plugin.json → version: No version specified. Consider adding a version following semver (e.g., "1.0.0")
+
+Validating plugin: /Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/.claude-plugin/plugin.json
+
+⚠ Found 1 warning:
+
+  ❯ version: No version specified. Consider adding a version following semver (e.g., "1.0.0")
+
+Validating hooks: /Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/hooks/hooks.json
+
+  ❯ ./entry.js hooks: turn.step, skill.prompt, session.append, tool.call{tool=Read}
+  ❯ ./entry.js hooks on skill.prompt do not run in a plugin a person installs where an organization manages Claude Code: there, these events pass over the plugins you install, and only a plugin the organization lists in managed settings runs them
+  ❯ ./entry.js gating hook with .catch: session.append
+  ❯ ./entry.js gating hook with .catch: tool.call{tool=Read}
+  ❯ ./entry.js calls: $.fs.stat (via metadata), $.session.cwd (via checkout), $.session.root (via checkout), $.tool.call (via read)
+
+✔ Validation passed with warnings
+verify: PASS

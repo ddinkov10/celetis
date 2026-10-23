@@ -1,0 +1,86 @@
+{
+  "linux": {
+    "pass": true,
+    "cases": 169,
+    "files": [
+      {
+        "path": "board/realpath.test.ts",
+        "seconds": 0.166
+      },
+      {
+        "path": "tests/process.test.ts",
+        "seconds": 1.6
+      },
+      {
+        "path": "tests/runner-lock.test.ts",
+        "seconds": 10.184
+      },
+      {
+        "path": "tests/runner-lifecycle.test.ts",
+        "seconds": 15.281
+      },
+      {
+        "path": "tests/runner-startup.test.ts",
+        "seconds": 5.156
+      },
+      {
+        "path": "tests/host-session.test.ts",
+        "seconds": 6.71
+      },
+      {
+        "path": "tests/host-observation.test.ts",
+        "seconds": 5.977
+      },
+      {
+        "path": "tests/host-identity.test.ts",
+        "seconds": 8.303
+      },
+      {
+        "path": "tests/host-resume.test.ts",
+        "seconds": 6.884
+      }
+    ]
+  },
+  "macos": {
+    "pass": true,
+    "cases": 169,
+    "files": [
+      {
+        "path": "board/realpath.test.ts",
+        "seconds": 0.144
+      },
+      {
+        "path": "tests/process.test.ts",
+        "seconds": 1.306
+      },
+      {
+        "path": "tests/runner-lock.test.ts",
+        "seconds": 7.797
+      },
+      {
+        "path": "tests/runner-lifecycle.test.ts",
+        "seconds": 3.791
+      },
+      {
+        "path": "tests/runner-startup.test.ts",
+        "seconds": 2.091
+      },
+      {
+        "path": "tests/host-session.test.ts",
+        "seconds": 2.21
+      },
+      {
+        "path": "tests/host-observation.test.ts",
+        "seconds": 1.843
+      },
+      {
+        "path": "tests/host-identity.test.ts",
+        "seconds": 2.257
+      },
+      {
+        "path": "tests/host-resume.test.ts",
+        "seconds": 1.907
+      }
+    ]
+  }
+}

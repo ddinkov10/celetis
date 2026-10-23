@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-10-23T10:47:11.255416+00:00",
+  "head": "b6053743e492dde0624207c90fc3a23cdeeca57a",
+  "branch": "feat/96-intent-the-whole-toolchain",
+  "trackedStatus": "",
+  "trackedPaths": 224,
+  "sameTrackedBytesAndModes": true,
+  "lastOwnedProcessCapture": [
+    "== 2026-10-23T10:46:37.435Z final macOS group",
+    "(no observed test descendants)"
+  ]
+}
+Cases: 239 pass; 0 fail; assertions: 2055
+board/realpath.test.ts 0 0.839s 3 8 scratch 0
+tests/process.test.ts 0 4.812s 29 91 scratch 0
+tests/runner-lock.test.ts 0 11.257s 23 160 scratch 3
+tests/runner-lifecycle.test.ts 0 13.317s 26 228 scratch 0
+tests/runner-startup.test.ts 0 5.092s 6 54 scratch 0
+tests/host-session.test.ts 0 5.097s 26 215 scratch 0
+tests/host-observation.test.ts 0 6.165s 16 120 scratch 0
+tests/host-identity.test.ts 0 9.149s 24 204 scratch 0
+tests/host-resume.test.ts 0 4.845s 16 315 scratch 0
+tests/celetis-flow.test.ts 0 19.891s 70 660 scratch 0
+Current82 host names/locations and70 flow/26 lifecycle names match retained inventories.

@@ -1,0 +1,17 @@
+== tests/board-agent.test.ts
+bun test v1.4.2 (744846f84)
+
+tests/board-agent.test.ts:
+(pass) Run and Resume set the first Bun environment for workspace creation with absent terminal controls [161.59ms]
+(pass) Run and Resume set the first Bun environment for workspace creation with hostile terminal controls [86.21ms]
+(pass) Run and Resume set the first Bun environment for tab creation with absent terminal controls [87.28ms]
+(pass) Run and Resume set the first Bun environment for tab creation with hostile terminal controls [77.80ms]
+(pass) board data, Run and saved-host Resume use selected Bun with absent Bun on PATH [8984.74ms]
+(pass) board data, Run and saved-host Resume use selected Bun with shadow Bun on PATH [8247.69ms]
+
+ 6 pass
+ 0 fail
+ 148 expect() calls
+Ran 6 tests across 1 file. [17.67s]
+-- tests/board-agent.test.ts: 17.791 s
+suite: PASS

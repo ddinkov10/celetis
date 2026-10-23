@@ -1,0 +1,14 @@
+{
+  "previousProofRoot": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci-head.3jyqlkwu",
+  "previousManifest": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci-head.3jyqlkwu/proof-manifest.json",
+  "previousManifestSha256": "552017cdf8641eceac235b69535573b090513d59e7557a34dfec28282bb0122c",
+  "priorProofRoots": [
+    "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify.s9qkv0f5",
+    "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-new-head.vuga5sx8"
+  ],
+  "newSetupError": {
+    "path": "history/inventory-setup-error.txt",
+    "sha256": "ac691a200e9888fe0def16e82dd414f8116b2df2bd4633f6acccd615ed52ff5d",
+    "purpose": "Retained second-repair private inventory bookkeeping error; corrected anchored extraction is separate proof."
+  }
+}

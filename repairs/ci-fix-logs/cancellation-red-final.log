@@ -1,0 +1,36 @@
+{"runtime":"1.4.2","platform":"darwin","parallelism":8,"workers":1}
+bun test v1.4.2 (744846f84)
+
+tests/process.test.ts:
+246 |         } catch {
+247 |           break;
+248 |         }
+249 |         await Bun.sleep(10);
+250 |       }
+251 |       expect(actual).toEqual({ code: 1, stdout: '', stderr });
+                           ^
+error: expect(received).toEqual(expected)
+
+  {
+    "code": 1,
+-   "stderr": "",
++   "stderr": "The operation was aborted",
+    "stdout": "",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/tests/process.test.ts:251:22)
+      at async <anonymous> (/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/tests/lib/fixture.ts:99:13)
+(fail) process cancellation retains exact child stderr "" [50.71ms]
+(pass) process cancellation retains exact child stderr "warning before cancellation\n" [35.76ms]
+(pass) process cancellation retains exact child stderr "The operation was aborted\n" [37.00ms]
+
+ 2 pass
+ 26 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 3 tests across 1 file. [131.00ms]
+FAIL: tests/process.test.ts=process cancellation retains (exit 1)
+{"label":"tests/process.test.ts=process cancellation retains","code":1,"elapsedMs":239.911041,"timedOut":false}

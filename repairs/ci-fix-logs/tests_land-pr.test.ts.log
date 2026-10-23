@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+tests/land-pr.test.ts:
+(pass) interrupted cleanup: SIGTERM during lane removal stops later deletes [2209.51ms]
+(pass) interrupted cleanup: SIGTERM during prototype removal stops later deletes [2543.09ms]
+
+ 2 pass
+ 49 filtered out
+ 0 fail
+ 66 expect() calls
+Ran 2 tests across 1 file. [2.76s]

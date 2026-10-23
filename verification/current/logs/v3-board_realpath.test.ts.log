@@ -1,0 +1,14 @@
+== board/realpath.test.ts
+bun test v1.4.2 (744846f84)
+
+board/realpath.test.ts:
+(pass) a mode-0111 native producer keeps canonical data, Run and Resume paths without source read permission [672.29ms]
+(pass) importing native realpath does not load libc and a missing primitive stops the operation [27.31ms]
+(pass) native realpath keeps missing-path, symlink-loop and NUL refusals [2.77ms]
+
+ 3 pass
+ 0 fail
+ 8 expect() calls
+Ran 3 tests across 1 file. [729.00ms]
+-- board/realpath.test.ts: 0.839 s
+suite: PASS

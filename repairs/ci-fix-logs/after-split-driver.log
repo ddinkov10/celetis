@@ -1,0 +1,62 @@
+CHECK_START tests/host-session.test.ts complete file Bun=1.4.2 TMPDIR=/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.XOXint/tests_host-session.test.ts
+CHECK_RESULT [{"label":"tests/host-session.test.ts","code":0,"elapsedMs":6185.754083000001,"timedOut":false}]
+ 26 pass
+ 0 fail
+Ran 26 tests across 1 file. [6.07s]
+suite: PASS
+CHECK_CLEANUP {"file":"tests/host-session.test.ts","remaining":[],"leftovers":[]}
+CHECK_START tests/host-observation.test.ts complete file Bun=1.4.2 TMPDIR=/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.XOXint/tests_host-observation.test.ts
+CHECK_RESULT [{"label":"tests/host-observation.test.ts","code":0,"elapsedMs":7592.637917,"timedOut":false}]
+ 16 pass
+ 0 fail
+Ran 16 tests across 1 file. [7.48s]
+suite: PASS
+CHECK_CLEANUP {"file":"tests/host-observation.test.ts","remaining":[],"leftovers":[]}
+CHECK_START tests/host-identity.test.ts complete file Bun=1.4.2 TMPDIR=/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.XOXint/tests_host-identity.test.ts
+CHECK_RESULT [{"label":"tests/host-identity.test.ts","code":0,"elapsedMs":10831.254875,"timedOut":false}]
+ 24 pass
+ 0 fail
+Ran 24 tests across 1 file. [10.72s]
+suite: PASS
+CHECK_CLEANUP {"file":"tests/host-identity.test.ts","remaining":[],"leftovers":[]}
+CHECK_START tests/host-resume.test.ts complete file Bun=1.4.2 TMPDIR=/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.XOXint/tests_host-resume.test.ts
+CHECK_RESULT [{"label":"tests/host-resume.test.ts","code":0,"elapsedMs":6375.644541999998,"timedOut":false}]
+ 16 pass
+ 0 fail
+Ran 16 tests across 1 file. [6.27s]
+suite: PASS
+CHECK_CLEANUP {"file":"tests/host-resume.test.ts","remaining":[],"leftovers":[]}
+CHECK_START tests/parallel.test.ts complete file Bun=1.4.2 TMPDIR=/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.XOXint/tests_parallel.test.ts
+CHECK_RESULT [{"label":"tests/parallel.test.ts","code":0,"elapsedMs":4098.169167000004,"timedOut":false}]
+ 11 pass
+ 0 fail
+Ran 11 tests across 1 file. [3.99s]
+suite: PASS
+CHECK_CLEANUP {"file":"tests/parallel.test.ts","remaining":[],"leftovers":[]}
+CHECK_START tests/celetis-flow.test.ts complete file Bun=1.4.2 TMPDIR=/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.XOXint/tests_celetis-flow.test.ts
+CHECK_RESULT [{"label":"tests/celetis-flow.test.ts","code":0,"elapsedMs":21817.516874999994,"timedOut":false}]
+ 70 pass
+ 0 fail
+Ran 70 tests across 1 file. [21.71s]
+suite: PASS
+CHECK_CLEANUP {"file":"tests/celetis-flow.test.ts","remaining":[],"leftovers":[]}
+CHECK_START tests/runner-startup.test.ts complete file Bun=1.4.2 TMPDIR=/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.XOXint/tests_runner-startup.test.ts
+CHECK_RESULT [{"label":"tests/runner-startup.test.ts","code":0,"elapsedMs":7248.251875000002,"timedOut":false}]
+ 6 pass
+ 0 fail
+Ran 6 tests across 1 file. [7.14s]
+suite: PASS
+CHECK_CLEANUP {"file":"tests/runner-startup.test.ts","remaining":[],"leftovers":[]}
+CHECK_START tests/land-checks.test.ts complete file Bun=1.4.2 TMPDIR=/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.XOXint/tests_land-checks.test.ts
+CHECK_RESULT [{"label":"tests/land-checks.test.ts","code":0,"elapsedMs":18780.713958,"timedOut":false}]
+ 36 pass
+ 0 fail
+Ran 36 tests across 1 file. [18.67s]
+suite: PASS
+CHECK_CLEANUP {"file":"tests/land-checks.test.ts","remaining":[],"leftovers":[]}
+CHECK_START tests/land-pr.test.ts interrupted cleanup Bun=1.4.2 TMPDIR=/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.XOXint/tests_land-pr.test.ts
+CHECK_RESULT [{"label":"tests/land-pr.test.ts","code":0,"elapsedMs":2864.232124999995,"timedOut":false}]
+ 2 pass
+ 0 fail
+Ran 2 tests across 1 file. [2.76s]
+CHECK_CLEANUP {"file":"tests/land-pr.test.ts","remaining":[],"leftovers":[]}

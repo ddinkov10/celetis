@@ -1,0 +1,17 @@
+== tests/runner-startup.test.ts
+bun test v1.4.2 (744846f84)
+
+tests/runner-startup.test.ts:
+(pass) update claude failure keeps exact host sequence and stop behavior [3152.91ms]
+(pass) update codex failure keeps exact host sequence and stop behavior [3555.90ms]
+(pass) update codex success keeps exact host sequence and stop behavior [5300.82ms]
+(pass) update claude success keeps exact host sequence and stop behavior [5905.53ms]
+(pass) registration claude issue starts only after both refs commit [6692.77ms]
+(pass) registration codex auto starts only after both refs commit [7132.24ms]
+
+ 6 pass
+ 0 fail
+ 54 expect() calls
+Ran 6 tests across 1 file. [7.14s]
+-- tests/runner-startup.test.ts: 7.248 s
+suite: PASS

@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-10-23T10:47:11.255416+00:00",
+  "head": "b6053743e492dde0624207c90fc3a23cdeeca57a",
+  "branch": "feat/96-intent-the-whole-toolchain",
+  "trackedStatus": "",
+  "trackedPaths": 224,
+  "sameTrackedBytesAndModes": true,
+  "lastOwnedProcessCapture": [
+    "== 2026-10-23T10:46:37.435Z final macOS group",
+    "(no observed test descendants)"
+  ]
+}

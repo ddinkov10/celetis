@@ -1,0 +1,35 @@
+== tests/host-identity.test.ts
+bun test v1.4.2 (744846f84)
+
+tests/host-identity.test.ts:
+(pass) identity_failure codex no-save preserves startup diagnostics and refuses resume [2534.20ms]
+(pass) identity_failure claude unsaved-blocked preserves startup diagnostics and refuses resume [2628.04ms]
+(pass) identity_failure claude wrong-host preserves startup diagnostics and refuses resume [2678.43ms]
+(pass) identity_failure claude no-save preserves startup diagnostics and refuses resume [2955.67ms]
+(pass) identity_failure codex unsaved-unknown preserves startup diagnostics and refuses resume [3318.37ms]
+(pass) identity_failure claude foreign-checkout preserves startup diagnostics and refuses resume [3481.68ms]
+(pass) identity_failure codex unsaved-blocked preserves startup diagnostics and refuses resume [3790.88ms]
+(pass) identity_failure claude unsaved-unknown preserves startup diagnostics and refuses resume [3914.51ms]
+(pass) identity_failure codex foreign-checkout preserves startup diagnostics and refuses resume [6009.70ms]
+(pass) identity_failure codex wrong-host preserves startup diagnostics and refuses resume [6252.60ms]
+(pass) identity_failure claude no-id preserves startup diagnostics and refuses resume [6666.07ms]
+(pass) identity_failure claude stale-id preserves startup diagnostics and refuses resume [6923.24ms]
+(pass) identity_failure claude wrong-session-host preserves startup diagnostics and refuses resume [6989.94ms]
+(pass) identity_failure claude malformed-identity preserves startup diagnostics and refuses resume [7272.72ms]
+(pass) identity_failure claude invalid-status preserves startup diagnostics and refuses resume [7582.44ms]
+(pass) identity_failure codex bad-id preserves startup diagnostics and refuses resume [7883.31ms]
+(pass) identity_failure codex bad-json preserves startup diagnostics and refuses resume [9325.12ms]
+(pass) identity_failure codex wrong-kind preserves startup diagnostics and refuses resume [9659.77ms]
+(pass) identity_failure codex missing-status preserves startup diagnostics and refuses resume [9810.04ms]
+(pass) codex_persistence wrong-saved-id [10083.43ms]
+(pass) codex_persistence ephemeral [7731.62ms]
+(pass) successful claude foreground exit cancels only the active watcher resolver [7748.86ms]
+(pass) successful codex foreground exit cancels only the active watcher resolver [7919.12ms]
+(pass) identity discovery keeps its 60 second deadline and startup trust diagnostic [7761.47ms]
+
+ 24 pass
+ 0 fail
+ 204 expect() calls
+Ran 24 tests across 1 file. [10.72s]
+-- tests/host-identity.test.ts: 10.831 s
+suite: PASS

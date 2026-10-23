@@ -1,0 +1,40 @@
+== tests/process.test.ts
+bun test v1.4.2 (744846f84)
+
+tests/process.test.ts:
+(pass) process runs in a private repository [65.32ms]
+(pass) process preserves argv and failed status [1548.11ms]
+(pass) process options cannot enable a shell [941.12ms]
+(pass) process collects concurrent stdout and stderr [1226.42ms]
+(pass) process decodes split UTF-8 output [1877.87ms]
+(pass) process keeps complete output on child failure [31.36ms]
+(pass) process keeps the 64 MiB result limit [1411.91ms]
+(pass) process accepts a smaller result limit [982.52ms]
+(pass) process result limit counts UTF-8 bytes [28.04ms]
+(pass) descriptor capture bounds stdout after a child writes again after TERM [204.47ms]
+(pass) descriptor capture bounds stderr after a child writes again after TERM [217.40ms]
+(pass) descriptor capture decodes split UTF-8 without exceeding the limit [43.51ms]
+(pass) process preserves signal exit status [1705.55ms]
+(pass) process reports a missing executable [2.64ms]
+(pass) process timeout stops its child [158.90ms]
+(pass) process cancellation retains exact child stderr "" [55.34ms]
+(pass) process cancellation retains exact child stderr "warning before cancellation\n" [48.42ms]
+(pass) process cancellation retains exact child stderr "The operation was aborted\n" [35.39ms]
+(pass) failed child does not wait for a descendant output pipe [17.85ms]
+(pass) invalid config starts no product preload [61.24ms]
+(pass) invalid config starts no global preload [64.05ms]
+(pass) Bun children ignore the product environment file [23.37ms]
+(pass) invalid config starts no product macro [41.38ms]
+(pass) process lookup excludes product node_modules/.bin [2865.85ms]
+(pass) invalid config starts no shadow executable [33.73ms]
+(pass) Bun child arguments preserve entry and argument boundaries [14.82ms]
+(pass) Bun children write no cache and send no crash report [35.34ms]
+(pass) Bun children do not install missing packages [12.86ms]
+(pass) captured commands receive stdin EOF [13.40ms]
+
+ 29 pass
+ 0 fail
+ 91 expect() calls
+Ran 29 tests across 1 file. [13.78s]
+-- tests/process.test.ts: 13.899 s
+suite: PASS

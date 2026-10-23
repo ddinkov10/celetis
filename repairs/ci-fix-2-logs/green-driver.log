@@ -1,0 +1,24 @@
+START {"file":"tests/board-agent.test.ts","temp":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two-green.rAAqvK/tests_board-agent.test.ts","runtime":"1.4.2"}
+RESULT [{"label":"tests/board-agent.test.ts","code":0,"elapsedMs":17791.055667,"timedOut":false}]
+ 6 pass
+ 0 fail
+ 148 expect() calls
+Ran 6 tests across 1 file. [17.67s]
+suite: PASS
+CLEANUP {"file":"tests/board-agent.test.ts","remaining":[],"leftovers":[]}
+START {"file":"tests/celetis-flow.test.ts","temp":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two-green.rAAqvK/tests_celetis-flow.test.ts","runtime":"1.4.2"}
+RESULT [{"label":"tests/celetis-flow.test.ts","code":0,"elapsedMs":20144.931834000003,"timedOut":false}]
+ 70 pass
+ 0 fail
+ 660 expect() calls
+Ran 70 tests across 1 file. [20.04s]
+suite: PASS
+CLEANUP {"file":"tests/celetis-flow.test.ts","remaining":[],"leftovers":[]}
+START {"file":"tests/runner-lifecycle.test.ts","temp":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two-green.rAAqvK/tests_runner-lifecycle.test.ts","runtime":"1.4.2"}
+RESULT [{"label":"tests/runner-lifecycle.test.ts","code":0,"elapsedMs":13273.264374999999,"timedOut":false}]
+ 26 pass
+ 0 fail
+ 228 expect() calls
+Ran 26 tests across 1 file. [13.16s]
+suite: PASS
+CLEANUP {"file":"tests/runner-lifecycle.test.ts","remaining":[],"leftovers":[]}

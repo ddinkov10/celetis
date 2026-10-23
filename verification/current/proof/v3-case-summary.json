@@ -1,0 +1,118 @@
+[
+  {
+    "file": "board/realpath.test.ts",
+    "code": 0,
+    "seconds": 0.839069667,
+    "passes": 3,
+    "failures": 0,
+    "assertions": 8,
+    "remainingProcesses": 0,
+    "scratchEntries": []
+  },
+  {
+    "file": "tests/process.test.ts",
+    "code": 0,
+    "seconds": 4.812224209,
+    "passes": 29,
+    "failures": 0,
+    "assertions": 91,
+    "remainingProcesses": 0,
+    "scratchEntries": []
+  },
+  {
+    "file": "tests/runner-lock.test.ts",
+    "code": 0,
+    "seconds": 11.256681124999998,
+    "passes": 23,
+    "failures": 0,
+    "assertions": 160,
+    "remainingProcesses": 0,
+    "scratchEntries": [
+      {
+        "path": "celetis-update.SFBZBN",
+        "kind": "directory",
+        "bytes": null
+      },
+      {
+        "path": "celetis-update.SFBZBN/stdout",
+        "kind": "file",
+        "bytes": 0
+      },
+      {
+        "path": "celetis-update.SFBZBN/stderr",
+        "kind": "file",
+        "bytes": 0
+      }
+    ]
+  },
+  {
+    "file": "tests/runner-lifecycle.test.ts",
+    "code": 0,
+    "seconds": 13.316506999999998,
+    "passes": 26,
+    "failures": 0,
+    "assertions": 228,
+    "remainingProcesses": 0,
+    "scratchEntries": []
+  },
+  {
+    "file": "tests/runner-startup.test.ts",
+    "code": 0,
+    "seconds": 5.092110042,
+    "passes": 6,
+    "failures": 0,
+    "assertions": 54,
+    "remainingProcesses": 0,
+    "scratchEntries": []
+  },
+  {
+    "file": "tests/host-session.test.ts",
+    "code": 0,
+    "seconds": 5.096546458000004,
+    "passes": 26,
+    "failures": 0,
+    "assertions": 215,
+    "remainingProcesses": 0,
+    "scratchEntries": []
+  },
+  {
+    "file": "tests/host-observation.test.ts",
+    "code": 0,
+    "seconds": 6.165112915999998,
+    "passes": 16,
+    "failures": 0,
+    "assertions": 120,
+    "remainingProcesses": 0,
+    "scratchEntries": []
+  },
+  {
+    "file": "tests/host-identity.test.ts",
+    "code": 0,
+    "seconds": 9.14891775,
+    "passes": 24,
+    "failures": 0,
+    "assertions": 204,
+    "remainingProcesses": 0,
+    "scratchEntries": []
+  },
+  {
+    "file": "tests/host-resume.test.ts",
+    "code": 0,
+    "seconds": 4.845056541999998,
+    "passes": 16,
+    "failures": 0,
+    "assertions": 315,
+    "remainingProcesses": 0,
+    "scratchEntries": []
+  },
+  {
+    "file": "tests/celetis-flow.test.ts",
+    "code": 0,
+    "seconds": 19.891381791,
+    "passes": 70,
+    "failures": 0,
+    "assertions": 660,
+    "remainingProcesses": 0,
+    "scratchEntries": []
+  }
+]

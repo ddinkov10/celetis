@@ -1,0 +1,122 @@
+{
+  "status": "PASS",
+  "head": "b6053743e492dde0624207c90fc3a23cdeeca57a",
+  "bun": "1.4.2",
+  "os": "darwin",
+  "arch": "arm64",
+  "selected": [
+    "board/realpath.test.ts",
+    "tests/process.test.ts",
+    "tests/runner-lock.test.ts",
+    "tests/runner-lifecycle.test.ts",
+    "tests/runner-startup.test.ts",
+    "tests/host-session.test.ts",
+    "tests/host-observation.test.ts",
+    "tests/host-identity.test.ts",
+    "tests/host-resume.test.ts",
+    "tests/celetis-flow.test.ts"
+  ],
+  "effectiveDefaultWorkers": 1,
+  "timeoutMs": 30000,
+  "observedDescendantPids": 1516,
+  "survivors": [],
+  "trackedClean": true,
+  "results": [
+    {
+      "file": "board/realpath.test.ts",
+      "code": 0,
+      "elapsedMs": 839.069667,
+      "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/v3-board_realpath.test.ts.log",
+      "descendantsAfter": [],
+      "scratchEntries": []
+    },
+    {
+      "file": "tests/process.test.ts",
+      "code": 0,
+      "elapsedMs": 4812.224209,
+      "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/v3-tests_process.test.ts.log",
+      "descendantsAfter": [],
+      "scratchEntries": []
+    },
+    {
+      "file": "tests/runner-lock.test.ts",
+      "code": 0,
+      "elapsedMs": 11256.681125,
+      "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/v3-tests_runner-lock.test.ts.log",
+      "descendantsAfter": [],
+      "scratchEntries": [
+        {
+          "path": "celetis-update.SFBZBN",
+          "kind": "directory",
+          "bytes": null
+        },
+        {
+          "path": "celetis-update.SFBZBN/stdout",
+          "kind": "file",
+          "bytes": 0
+        },
+        {
+          "path": "celetis-update.SFBZBN/stderr",
+          "kind": "file",
+          "bytes": 0
+        }
+      ]
+    },
+    {
+      "file": "tests/runner-lifecycle.test.ts",
+      "code": 0,
+      "elapsedMs": 13316.506999999998,
+      "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/v3-tests_runner-lifecycle.test.ts.log",
+      "descendantsAfter": [],
+      "scratchEntries": []
+    },
+    {
+      "file": "tests/runner-startup.test.ts",
+      "code": 0,
+      "elapsedMs": 5092.110042,
+      "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/v3-tests_runner-startup.test.ts.log",
+      "descendantsAfter": [],
+      "scratchEntries": []
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "code": 0,
+      "elapsedMs": 5096.546458000004,
+      "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/v3-tests_host-session.test.ts.log",
+      "descendantsAfter": [],
+      "scratchEntries": []
+    },
+    {
+      "file": "tests/host-observation.test.ts",
+      "code": 0,
+      "elapsedMs": 6165.112915999998,
+      "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/v3-tests_host-observation.test.ts.log",
+      "descendantsAfter": [],
+      "scratchEntries": []
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "code": 0,
+      "elapsedMs": 9148.91775,
+      "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/v3-tests_host-identity.test.ts.log",
+      "descendantsAfter": [],
+      "scratchEntries": []
+    },
+    {
+      "file": "tests/host-resume.test.ts",
+      "code": 0,
+      "elapsedMs": 4845.056541999998,
+      "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/v3-tests_host-resume.test.ts.log",
+      "descendantsAfter": [],
+      "scratchEntries": []
+    },
+    {
+      "file": "tests/celetis-flow.test.ts",
+      "code": 0,
+      "elapsedMs": 19891.381791,
+      "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/v3-tests_celetis-flow.test.ts.log",
+      "descendantsAfter": [],
+      "scratchEntries": []
+    }
+  ]
+}

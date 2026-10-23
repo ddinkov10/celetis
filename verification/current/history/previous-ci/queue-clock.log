@@ -1,0 +1,20 @@
+bun test v1.4.2 (744846f84)
+
+.superpowers/sdd/96/ci-fix-logs/queue-clock.test.ts:
+{"name":"first","phase":"entered","elapsedMs":3.8245840000000015}
+{"name":"first","phase":"admitted","elapsedMs":5.904500000000006}
+{"name":"second","phase":"entered","elapsedMs":9.387834000000005}
+{"name":"second","phase":"queued","elapsedMs":9.397917}
+{"name":"third","phase":"entered","elapsedMs":11.840250000000005}
+{"name":"third","phase":"queued","elapsedMs":11.846917000000005}
+{"name":"first","phase":"released","elapsedMs":91.164292}
+{"name":"second","phase":"admitted","elapsedMs":91.619334}
+(pass) first [90.34ms]
+(fail) second [151.34ms]
+  ^ this test timed out after 150ms.
+(fail) third [150.12ms]
+  ^ this test timed out after 150ms.
+
+ 1 pass
+ 2 fail
+Ran 3 tests across 1 file. [210.00ms]

@@ -1,0 +1,24 @@
+[
+  {
+    "file": "tests/host-session.test.ts",
+    "originalBytesRetained": true,
+    "beforeSha256": "404aac9a2e017ab635c16a88cacdcbbac68cc3728c0147191a5b40fadb5658a3",
+    "restoredSha256": "404aac9a2e017ab635c16a88cacdcbbac68cc3728c0147191a5b40fadb5658a3"
+  },
+  {
+    "file": "tests/process.test.ts",
+    "originalBytesRetained": true,
+    "beforeSha256": "251bee357fa1b76b9b2e718b0029eed8294a62de06a1939e21e6cdbf0c991548",
+    "restoredSha256": "251bee357fa1b76b9b2e718b0029eed8294a62de06a1939e21e6cdbf0c991548"
+  },
+  {
+    "file": "tests/parallel.test.ts",
+    "originalBytesRetained": true,
+    "beforeSha256": "a8068b091f492049b4f6bd78492934bb5453384ef092cf44198cba2893cd338b",
+    "restoredSha256": "a8068b091f492049b4f6bd78492934bb5453384ef092cf44198cba2893cd338b"
+  },
+  {
+    "file": "tests/launcher.test.ts",
+    "onlyStderrDiagnosticChanged": true
+  }
+]

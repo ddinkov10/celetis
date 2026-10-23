@@ -1,0 +1,162 @@
+{
+  "provider": "Controller-observed GitHub Actions, not local execution",
+  "run": 39941193404,
+  "url": "https://github.com/ddinkov10/celetis/actions/runs/39941193404",
+  "head": "b6053743e492dde0624207c90fc3a23cdeeca57a",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "name": "test",
+      "conclusion": "success",
+      "url": "https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750509"
+    },
+    {
+      "name": "process (macos-14)",
+      "conclusion": "success",
+      "url": "https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750996"
+    },
+    {
+      "name": "process (ubuntu-24.04)",
+      "conclusion": "success",
+      "url": "https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372751121"
+    }
+  ],
+  "linuxFullSuite": {
+    "files": 52,
+    "cases": 1851,
+    "reportedExpectCalls": 13924,
+    "failures": 0,
+    "maxFile": {
+      "path": "tests/celetis-flow.test.ts",
+      "seconds": 27.477
+    }
+  },
+  "process": {
+    "linux": {
+      "pass": true,
+      "cases": 169,
+      "files": [
+        {
+          "path": "board/realpath.test.ts",
+          "seconds": 0.166
+        },
+        {
+          "path": "tests/process.test.ts",
+          "seconds": 1.6
+        },
+        {
+          "path": "tests/runner-lock.test.ts",
+          "seconds": 10.184
+        },
+        {
+          "path": "tests/runner-lifecycle.test.ts",
+          "seconds": 15.281
+        },
+        {
+          "path": "tests/runner-startup.test.ts",
+          "seconds": 5.156
+        },
+        {
+          "path": "tests/host-session.test.ts",
+          "seconds": 6.71
+        },
+        {
+          "path": "tests/host-observation.test.ts",
+          "seconds": 5.977
+        },
+        {
+          "path": "tests/host-identity.test.ts",
+          "seconds": 8.303
+        },
+        {
+          "path": "tests/host-resume.test.ts",
+          "seconds": 6.884
+        }
+      ]
+    },
+    "macos": {
+      "pass": true,
+      "cases": 169,
+      "files": [
+        {
+          "path": "board/realpath.test.ts",
+          "seconds": 0.144
+        },
+        {
+          "path": "tests/process.test.ts",
+          "seconds": 1.306
+        },
+        {
+          "path": "tests/runner-lock.test.ts",
+          "seconds": 7.797
+        },
+        {
+          "path": "tests/runner-lifecycle.test.ts",
+          "seconds": 3.791
+        },
+        {
+          "path": "tests/runner-startup.test.ts",
+          "seconds": 2.091
+        },
+        {
+          "path": "tests/host-session.test.ts",
+          "seconds": 2.21
+        },
+        {
+          "path": "tests/host-observation.test.ts",
+          "seconds": 1.843
+        },
+        {
+          "path": "tests/host-identity.test.ts",
+          "seconds": 2.257
+        },
+        {
+          "path": "tests/host-resume.test.ts",
+          "seconds": 1.907
+        }
+      ]
+    }
+  },
+  "files": [
+    {
+      "path": "ci-run-third.json",
+      "sha256": "533983aff9a071de347425535393850da8eb5466ce82e08aecd7465869c7506f"
+    },
+    {
+      "path": "ci-third-suite-results.json",
+      "sha256": "27a864fd0a41f566f2333a0b581e63c526ea86a09fcaad70bfc2362e35ec699e"
+    },
+    {
+      "path": "ci-third-process-results.json",
+      "sha256": "a98fc0c6804470524590ca5a425d557b4373df828eb690b8a383091ceb5a6ca9"
+    },
+    {
+      "path": "ci-third-test.log",
+      "sha256": "732bad72638689fad4b60e37bab5192ad80884cad1d043798b9c362d9dedc239"
+    },
+    {
+      "path": "ci-third-test-clean.log",
+      "sha256": "57c45607703e0814ccc4fa9b20e8012418d5bf34ccb1fdd86ec6b8677f08555e"
+    },
+    {
+      "path": "ci-third-linux.log",
+      "sha256": "a44ba88c0cb2801a758d81e3372ae398edfc0240cb6aaf2117c3ed874b47a242"
+    },
+    {
+      "path": "ci-third-linux-clean.log",
+      "sha256": "b424f48f1eb06d8b7d9386ab9b61ec73a7f30cf5b51d21d39e301529ad114f54"
+    },
+    {
+      "path": "ci-third-macos.log",
+      "sha256": "6aa6c589a3c642d9c310f12032b74501d6946bcfdd2819a1a4070842c670e4ab"
+    },
+    {
+      "path": "ci-third-macos-clean.log",
+      "sha256": "85e346b5846cd3bc2d186d13e92fd7d57458f7be5834363e79b67531f223a7b7"
+    },
+    {
+      "path": "ci-third-watch.log",
+      "sha256": "51c23d830865935d4373623b5a695b2e75c2a2a6be643bcdf7cb698ae8b5a618"
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+[
+  {
+    "line": 70,
+    "text": "Run focused task tests and the verify gate; run the full suite through final CI only \u2014 the plan and celetis:implement override the generic implementer template \u2014 an integration failure can appear at final CI."
+  },
+  {
+    "line": 71,
+    "text": "Keep old entrypoints until Task 9 only \u2014 the plan requires working internal layers and one complete cutover \u2014 intermediate commits must not land."
+  },
+  {
+    "line": 85,
+    "text": "Move Bash-only config harness assertions for launcher functions to Task 2, where their TypeScript interfaces arrive; Task 1 ports strict-reader/process/startup assertions and records every moved case as pending Task 2 \u2014 the complete final coverage contract and working-layer requirement take precedence over the Task 1 case allocation \u2014 missing final launcher assertions would block final verification. Keep existing config.test.sh coverage during the transition; add no new shell fixtures."
+  },
+  {
+    "line": 109,
+    "text": "Missing or broken Bun uses the env/kernel diagnostic and exit status from the required isolated Bun shebang; below-floor Bun that can execute the launcher keeps status 2 \u2014 the spec permits runtime changes and forbids an interpreter wrapper \u2014 users without a working Bun receive the native startup diagnostic instead of the old Celetis Bash-wrapper message. Task 2 must map each old assertion to failure-before-discovery/config-side-effects/dispatch, and record actual OS statuses."
+  },
+  {
+    "line": 133,
+    "text": "Remove cygpath conversion and use native host paths; map its old assertions to removal of the Bash/MSYS runtime dependency \u2014 the user forbids compatibility paths, Bun has no Bash/MSYS path consumer, and the spec adds no native Windows runner \u2014 MSYS-style translated installation output is no longer supplied. This resolves the broad instruction to port old discovery behavior against the binding runtime and no-compatibility requirements."
+  },
+  {
+    "line": 162,
+    "text": "Reject non-string reviewer.effort values, including [\"medium\"], in the typed scorer \u2014 the published profile schema permits only string effort and the user forbids backward compatibility with obsolete paths/quirks \u2014 malformed profiles that jq accidentally accepted now fail validation; valid profiles keep their behavior. Record the deliberate baseline divergence rather than weakening the schema or claiming exact parity for that new malformed-input probe."
+  },
+  {
+    "line": 170,
+    "text": "Scorer bias and attempt inputs must be JavaScript safe integers before scoring or serialization: bias 0..9007199254740991, attempt 1..9007199254740991. Apply the same bound to CAP_EFFORT_BIAS \u2014 schema-1 numeric fields and the line must record the same value, and Bun uses JavaScript numbers \u2014 oversized values that old Bash sometimes accepted now fail validation. Preserve normal scoring arithmetic and existing diagnostic text; do not emulate Bash overflow or add arbitrary-precision machinery. Record the explicit bound for Task 9 documentation."
+  },
+  {
+    "line": 245,
+    "text": "Keep the truthful Task 5 test chronology and continue after the required code and assertion fixes; do not manufacture retroactive RED evidence \u2014 the full test-first sequence was missed, and a later replay cannot change that history. Baseline assertion review and real-process regressions remain the evidence for this port \u2014 tests added after code can fit the implementation; final review must assess this process risk. New review fixes must use a complete failing test before implementation."
+  },
+  {
+    "line": 273,
+    "text": "Split the landing cases by landing mode into tests/land.test.ts and tests/land-pr.test.ts with one private fixture helper, preserving all 126 cases and assertions \u2014 the hard 30-second file limit takes precedence over the plan single-file allocation, and two fixture optimizations did not meet it \u2014 the final suite must discover both files, and the map must name each moved case. Avoid further scheduling or clone infrastructure; revert unhelpful fixture complexity."
+  },
+  {
+    "line": 280,
+    "text": "Split PR check/rerun cases into tests/land-checks.test.ts while keeping PR merge/cleanup in tests/land-pr.test.ts and local merge in tests/land.test.ts \u2014 the PR file varies from 24.01 to 32.51 seconds, so the two-file allocation has insufficient margin \u2014 one more entry must be discovered by the final suite and named in the map. Keep one private helper and all assertions; change no production timing."
+  },
+  {
+    "line": 330,
+    "text": "Complete the board producer/Run/Resume selected-Bun binding in Task 9 with the generated public launcher cutover \u2014 Task 7 deliberately retains the old Bash launcher, which cannot be run as Bun source, while the adapter-to-CLI binding is already verified \u2014 the intermediate typed adapter still needs Bun on PATH for those public commands; no intermediate tree may land. Task 9 must add an end-to-end no-Bun-on-PATH regression, retain validation of the actual launcher realpath/executable/lane boundary before any Bun wrapping, and use process.execPath with isolated flags for each Celetis child. Do not add language detection, a fallback, or a weaker generic producer boundary."
+  },
+  {
+    "line": 391,
+    "text": "Use one unconditional POSIX libc realpath wrapper for the board command canonicalization point, after all five standard Bun realpath forms fail on a valid execute-only producer and the pinned-runtime native prototype preserves canonical symlink targets and permission errors. Keep every main/lane/regular/executable/control check and no permission-triggered fallback or handwritten resolver. This preserves the baseline contract on the required Bun floor \u2014 the cost is experimental Bun FFI and explicit supported-platform libc bindings at the board trust boundary; final review and Linux/macOS CI must assess that risk."
+  },
+  {
+    "line": 425,
+    "text": "Preserve the baseline board execFile multibyte truncation behavior in #96 instead of adding a stricter capture postcondition. Actual Bun 1.4.2 and supported reference Node 26.12.0 return the same 34-byte result with maxBuffer:17 and lambda output, so there is no proved port regression; this lane preserves the current operational contract. The cost is that the existing board executor can retain output beyond its nominal byte cap at a multibyte boundary. The general process helper keeps its already verified byte bounds."
+  },
+  {
+    "line": 445,
+    "text": "Split the 32 runner lifecycle cases into six registration/update-startup cases in tests/runner-startup.test.ts and 26 remaining lifecycle cases, sharing the existing private helpers. The hard 30-second file limit and actual progress/timing evidence justify changing the plan allocation. Preserve every case name, assertion, production wait and timeout; include the new entry in automatic discovery and the process subset. The cost is one more test entry and shared fixture wiring whose inventory and concurrent scheduling must stay correct."
+  },
+  {
+    "line": 454,
+    "text": "Prepare a draft lane PR on the reviewed, gated and locally verified final candidate so the planned Linux CI can supply the required Linux process proof and one full suite before the maintainer cutover report. No local Linux executor exists. Keep the PR draft and unmerged; scripts/celetis land remains the only merge path. The cost is an unmerged remote review artifact and CI resource use before the human landing precondition is complete."
+  },
+  {
+    "line": 461,
+    "text": "Run one automatic test file at a time by default, while retaining the existing bounded fixture pools inside each file and explicit worker support. The same unchanged heavy pair measures land-checks 23.541s and host-session 29.658s with two workers, versus 15.052s and 22.138s with one worker. The failed Linux full suite exhausts fixed waits and file/case limits during overlapping heavy entries. Keep every assertion, production wait and 25s/30s deadline; add an effective-default regression and update only the unmerged ADR-0025 description. The cost is longer total suite time. New-head Linux CI must prove the allocation rather than treating local timing as Linux acceptance."
+  },
+  {
+    "line": 464,
+    "text": "Split the amended82 host-session cases by existing concerns into26 launch/unmanaged cases,16 saved observations,24 identity cases and16 Resume/input cases. Keep one extracted existing helper and the runnerCase pool of8; preserve all names, bodies, assertions, waits and25s/30s limits. Add all four entries to process selection and discovery, with mechanical preservation evidence and individual runtime proof. The actual standalone cutoff and admitted/queued case evidence justify this allocation. The cost is three additional test entries and shared fixture wiring; final-head CI must prove the allocation on Linux."
+  },
+  {
+    "line": 466,
+    "text": "Publish the complete ignored port map and selected implementation/runtime reports on a new private evidence branch in ddinkov10/celetis after technical checks pass. The plan requires publication before Land, the repository is private, and the map must not enter the product branch. Use a unique codex/evidence-96-<final-head> ref with no PR or merge, preserve report history and proof manifests, and include only task-owned process captures rather than global process tables. Keep a local archive before removing only this SDD workspace. The cost is one extra private Git ref and retained artifact storage; a public or unlisted gist would expose private source evidence and is not acceptable."
+  },
+  {
+    "line": 486,
+    "text": "Use Bun test.serial for only the fixed5s three-session automatic-runner case, replacing test.concurrent without a new file or scheduler. In a controlled21-case/164-assertion group with the same fixture pool8 and unchanged waits, its window measures4703ms concurrent versus2134ms serial; file times10.999s versus9.863s. The actual full-file Linux and macOS failures remain the RED evidence; both controlled measurements passed. Preserve all70 names/bodies, file layout and25s/30s limits. The cost is exclusive file time for this one case; current-head CI must prove the complete result."
+  }
+]

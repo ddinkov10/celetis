@@ -1,0 +1,64 @@
+{"runtime":"1.4.2","platform":"darwin","parallelism":8,"workers":1}
+bun test v1.4.2 (744846f84)
+
+tests/process.test.ts:
+235 |           await Bun.sleep(10);
+236 |         }
+237 |       } finally {
+238 |         cancel.abort();
+239 |       }
+240 |       expect(await result).toEqual({ code: 1, stdout: '', stderr });
+                                 ^
+error: expect(received).toEqual(expected)
+
+  {
+    "code": 1,
+-   "stderr": "",
++   "stderr": "The operation was aborted",
+    "stdout": "",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/tests/process.test.ts:240:28)
+      at async <anonymous> (/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/tests/lib/fixture.ts:99:13)
+(fail) process cancellation retains exact child stderr "" [37.48ms]
+237 |       } finally {
+238 |         cancel.abort();
+239 |       }
+240 |       expect(await result).toEqual({ code: 1, stdout: '', stderr });
+241 |       const pid = Number(await f.read('pid'));
+242 |       expect(() => process.kill(pid, 0)).toThrow();
+                                               ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: true
+
+      at <anonymous> (/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/tests/process.test.ts:242:42)
+      at async <anonymous> (/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/tests/lib/fixture.ts:99:13)
+(fail) process cancellation retains exact child stderr "warning before cancellation\n" [25.90ms]
+237 |       } finally {
+238 |         cancel.abort();
+239 |       }
+240 |       expect(await result).toEqual({ code: 1, stdout: '', stderr });
+241 |       const pid = Number(await f.read('pid'));
+242 |       expect(() => process.kill(pid, 0)).toThrow();
+                                               ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: true
+
+      at <anonymous> (/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/tests/process.test.ts:242:42)
+      at async <anonymous> (/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/tests/lib/fixture.ts:99:13)
+(fail) process cancellation retains exact child stderr "The operation was aborted\n" [24.94ms]
+
+ 0 pass
+ 26 filtered out
+ 3 fail
+ 5 expect() calls
+Ran 3 tests across 1 file. [102.00ms]
+FAIL: tests/process.test.ts=process cancellation retains (exit 1)
+{"label":"tests/process.test.ts=process cancellation retains","code":1,"elapsedMs":223.265458,"timedOut":false}

@@ -1,0 +1,29 @@
+{
+  "groups": [
+    {
+      "file": "tests/host-session.test.ts",
+      "sameCaseCode": true,
+      "registrations": 6
+    },
+    {
+      "file": "tests/host-observation.test.ts",
+      "sameCaseCode": true,
+      "registrations": 5
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "sameCaseCode": true,
+      "registrations": 4
+    },
+    {
+      "file": "tests/host-resume.test.ts",
+      "sameCaseCode": true,
+      "registrations": 7
+    }
+  ],
+  "sameSavedHelpers": true,
+  "sameRegistrationNames": true,
+  "beforeRegistrations": 22,
+  "afterRegistrations": 22,
+  "runnerPoolUnchanged": true
+}

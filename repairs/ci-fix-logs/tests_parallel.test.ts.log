@@ -1,0 +1,22 @@
+== tests/parallel.test.ts
+bun test v1.4.2 (744846f84)
+
+tests/parallel.test.ts:
+(pass) pool output stays in start order [417.69ms]
+(pass) pool reports failed children and resets for a passing phase [234.06ms]
+(pass) pool stops a failing program before its later output [122.03ms]
+(pass) pool limits six independent jobs to two active children [1049.67ms]
+(pass) pool second phase prints only the new output [241.40ms]
+(pass) suite discovers every automatic entry and excludes token programs [19.26ms]
+(pass) suite fails on a worker test failure [121.04ms]
+(pass) suite default runs one file worker at a time [663.66ms]
+(pass) pool deadline stops a worker and its TERM-ignoring descendant [613.46ms]
+(pass) pool SIGINT stops active children and does not start queued jobs [251.42ms]
+(pass) pool SIGTERM stops active children and does not start queued jobs [248.68ms]
+
+ 11 pass
+ 0 fail
+ 54 expect() calls
+Ran 11 tests across 1 file. [3.99s]
+-- tests/parallel.test.ts: 4.098 s
+suite: PASS

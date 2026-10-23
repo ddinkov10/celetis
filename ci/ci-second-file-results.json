@@ -1,0 +1,224 @@
+{
+  "head": "7d9366d5ee04b879bcb75d9a7a91cafb654a3118",
+  "workflow": 39937967098,
+  "files": [
+    {
+      "path": "board/build.test.ts",
+      "seconds": 0.232
+    },
+    {
+      "path": "board/cli.test.ts",
+      "seconds": 6.928
+    },
+    {
+      "path": "board/config.test.ts",
+      "seconds": 0.198
+    },
+    {
+      "path": "board/contract.test.ts",
+      "seconds": 0.128
+    },
+    {
+      "path": "board/package.test.ts",
+      "seconds": 0.114
+    },
+    {
+      "path": "board/place.test.ts",
+      "seconds": 0.119
+    },
+    {
+      "path": "board/process.test.ts",
+      "seconds": 0.816
+    },
+    {
+      "path": "board/realpath.test.ts",
+      "seconds": 0.148
+    },
+    {
+      "path": "board/runtime.test.ts",
+      "seconds": 0.132
+    },
+    {
+      "path": "board/server.test.ts",
+      "seconds": 0.707
+    },
+    {
+      "path": "board/view.test.ts",
+      "seconds": 0.118
+    },
+    {
+      "path": "board/words.test.ts",
+      "seconds": 0.115
+    },
+    {
+      "path": "tests/board-agent.test.ts",
+      "seconds": 8.634
+    },
+    {
+      "path": "tests/board.test.ts",
+      "seconds": 1.68
+    },
+    {
+      "path": "tests/build.test.ts",
+      "seconds": 0.651
+    },
+    {
+      "path": "tests/capscore.test.ts",
+      "seconds": 4.188
+    },
+    {
+      "path": "tests/celetis-flow.test.ts",
+      "seconds": 18.945
+    },
+    {
+      "path": "tests/config.test.ts",
+      "seconds": 3.288
+    },
+    {
+      "path": "tests/custom-part-denials.test.ts",
+      "seconds": 1.281
+    },
+    {
+      "path": "tests/custom-part-harness.test.ts",
+      "seconds": 0.154
+    },
+    {
+      "path": "tests/custom-part-metadata.test.ts",
+      "seconds": 3.745
+    },
+    {
+      "path": "tests/custom-part-program.test.ts",
+      "seconds": 1.685
+    },
+    {
+      "path": "tests/custom-part-rejections.test.ts",
+      "seconds": 3.664
+    },
+    {
+      "path": "tests/host-identity.test.ts",
+      "seconds": 5.958
+    },
+    {
+      "path": "tests/host-observation.test.ts",
+      "seconds": 4.213
+    },
+    {
+      "path": "tests/host-resume.test.ts",
+      "seconds": 5.009
+    },
+    {
+      "path": "tests/host-session.test.ts",
+      "seconds": 4.951
+    },
+    {
+      "path": "tests/install-tools.test.ts",
+      "seconds": 0.126
+    },
+    {
+      "path": "tests/land-checks.test.ts",
+      "seconds": 17.302
+    },
+    {
+      "path": "tests/land-pr.test.ts",
+      "seconds": 9.263
+    },
+    {
+      "path": "tests/land.test.ts",
+      "seconds": 4.61
+    },
+    {
+      "path": "tests/launcher.test.ts",
+      "seconds": 13.387
+    },
+    {
+      "path": "tests/manual-cleanup.test.ts",
+      "seconds": 0.456
+    },
+    {
+      "path": "tests/manual-harness.test.ts",
+      "seconds": 5.492
+    },
+    {
+      "path": "tests/manual-rejections.test.ts",
+      "seconds": 3.459
+    },
+    {
+      "path": "tests/manual-runtime.test.ts",
+      "seconds": 0.122
+    },
+    {
+      "path": "tests/manual-step-checks.test.ts",
+      "seconds": 0.117
+    },
+    {
+      "path": "tests/native-entry.test.ts",
+      "seconds": 0.159
+    },
+    {
+      "path": "tests/native-events-harness.test.ts",
+      "seconds": 0.129
+    },
+    {
+      "path": "tests/native-host.test.ts",
+      "seconds": 0.111
+    },
+    {
+      "path": "tests/native-modules.test.ts",
+      "seconds": 0.206
+    },
+    {
+      "path": "tests/native-observer.test.ts",
+      "seconds": 0.143
+    },
+    {
+      "path": "tests/next-step.test.ts",
+      "seconds": 6.156
+    },
+    {
+      "path": "tests/parallel.test.ts",
+      "seconds": 3.808
+    },
+    {
+      "path": "tests/process.test.ts",
+      "seconds": 1.394
+    },
+    {
+      "path": "tests/runner-lifecycle.test.ts",
+      "seconds": 11.653
+    },
+    {
+      "path": "tests/runner-lock.test.ts",
+      "seconds": 9.371
+    },
+    {
+      "path": "tests/runner-startup.test.ts",
+      "seconds": 4.094
+    },
+    {
+      "path": "tests/setup.test.ts",
+      "seconds": 18.34
+    },
+    {
+      "path": "tests/text.test.ts",
+      "seconds": 0.156
+    },
+    {
+      "path": "tests/verify.test.ts",
+      "seconds": 7.263
+    },
+    {
+      "path": "tests/worktree.test.ts",
+      "seconds": 6.466
+    }
+  ],
+  "failures": [
+    {
+      "path": "tests/board-agent.test.ts",
+      "code": 1
+    },
+    {
+      "path": "tests/celetis-flow.test.ts",
+      "code": 1
+    }
+  ]
+}

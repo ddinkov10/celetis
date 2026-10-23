@@ -1,0 +1,42 @@
+PROBE {"mode":"board","root":"/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.nf9LdD","pattern":"shadow Bun on PATH","runtime":"1.4.2"}
+bun test v1.4.2 (744846f84)
+
+../../../../../../../../private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.nf9LdD/probe.test.ts:
+TRACE {"fixture":"/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.nf9LdD/tmp/celetis-runtime.unDwY4","events":[{"event":"live","host":"claude","k":1,"observed":false,"at":1792751262173},{"event":"getLive","observed":false,"settled":false,"at":1792751262178},{"event":"exit","host":"claude","k":1,"at":1792751262248},{"event":"rpc","method":"initialize","saved":true,"id":"00000000-0000-4000-8000-000000000006","created":"1792751262","at":1792751262737},{"event":"rpc","method":"skills/list","saved":true,"id":"00000000-0000-4000-8000-000000000006","created":"1792751262","at":1792751262738},{"event":"rpc","method":"initialize","saved":true,"id":"00000000-0000-4000-8000-000000000006","created":"1792751262","at":1792751263065},{"event":"rpc","method":"skills/list","saved":true,"id":"00000000-0000-4000-8000-000000000006","created":"1792751262","at":1792751263066},{"event":"rpc","method":"initialize","saved":true,"id":"00000000-0000-4000-8000-000000000007","created":"1792751262","at":1792751263462},{"event":"rpc","method":"skills/list","saved":true,"id":"00000000-0000-4000-8000-000000000007","created":"1792751262","at":1792751263462},{"event":"live","host":"claude","k":2,"observed":true,"at":1792751264034},{"event":"getLive","observed":true,"settled":false,"at":1792751264038},{"event":"exit","host":"claude","k":2,"at":1792751264050},{"event":"rpc","method":"initialize","saved":true,"id":"00000000-0000-4000-8000-000000000008","created":"1792751264","at":1792751264361},{"event":"rpc","method":"skills/list","saved":true,"id":"00000000-0000-4000-8000-000000000008","created":"1792751264","at":1792751264362},{"event":"rpc","method":"initialize","saved":true,"id":"00000000-0000-4000-8000-000000000008","created":"1792751264","at":1792751264380},{"event":"rpc","method":"skills/list","saved":true,"id":"00000000-0000-4000-8000-000000000008","created":"1792751264","at":1792751264381},{"event":"rpc","method":"initialize","saved":true,"id":"00000000-0000-4000-8000-000000000008","created":"1792751264","at":1792751264726},{"event":"rpc","method":"skills/list","saved":true,"id":"00000000-0000-4000-8000-000000000008","created":"1792751264","at":1792751264727},{"event":"rpc","method":"initialize","saved":true,"id":"00000000-0000-4000-8000-000000000008","created":"1792751264","at":1792751264759},{"event":"rpc","method":"config/read","saved":true,"id":"00000000-0000-4000-8000-000000000008","created":"1792751264","at":1792751264760},{"event":"live","host":"codex","k":3,"observed":true,"at":1792751265033},{"event":"getLive","observed":true,"settled":false,"at":1792751265035},{"event":"exit","host":"codex","k":3,"at":1792751265048}]}
+310 |       await ok('refresh');
+311 |       assert.equal((await producer()).defaultAgent, 'codex');
+312 |       await launched('run', { number: 7, agent: 'claude' });
+313 |       assert.equal((await calls()).at(-1).host, 'claude');
+314 |       assert.equal(await localConfig(), before, 'Run must not change any local Git setting');
+315 |       await launched('run', { number: 8 });
+                  ^
+AssertionError: celetis-flow: start: /celetis:plan #6
+celetis-flow: no progress: /celetis:plan #6
+celetis-flow: start: /celetis:plan #7
+celetis-flow: no progress: /celetis:plan #7
+celetis-flow: start: /celetis:plan #8
+celetis-flow: #8 codex startup: the session ended before a saved turn had a verified identity. Check the version, trust, and sign-in prompts in this pane. Complete the required action, then start the step again. Manual recovery: codex resume --no-daemon from the main checkout.
+Update, trust, or sign-in action is required.
+
+
+'1' !== '0'
+
+ generatedMessage: false,
+     actual: "1",
+   expected: "0",
+   operator: "strictEqual",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-two.nf9LdD/probe.test.ts:315:13
+      at processTicksAndRejections (native:7:39)
+(fail) board data, Run and saved-host Resume use selected Bun with shadow Bun on PATH [7770.57ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 11 expect() calls
+Ran 1 test across 1 file. [7.82s]
+FAIL: board (exit 1)
+RESULT {"label":"board","code":1,"elapsedMs":7936.802458,"timedOut":false}
+CLEANUP {"remaining":[],"scratch":[]}

@@ -1,0 +1,27 @@
+== tests/host-observation.test.ts
+bun test v1.4.2 (744846f84)
+
+tests/host-observation.test.ts:
+(pass) valid_pane claude w1:pE [2051.59ms]
+(pass) valid_pane claude wa0:pz9 [2177.57ms]
+(pass) saved_status claude idle [2584.19ms]
+(pass) saved_status codex blocked [2774.11ms]
+(pass) saved_status codex done [2997.87ms]
+(pass) saved_status claude unknown [3085.80ms]
+(pass) valid_pane claude w1:p1 [3088.65ms]
+(pass) saved_status claude working [3458.20ms]
+(pass) valid_pane codex wW:p14 [4687.35ms]
+(pass) valid_pane codex wW:pE [4858.48ms]
+(pass) prior_host claude [5342.77ms]
+(pass) old_session claude rejects a saved turn from before startup [5378.39ms]
+(pass) old_pane_identity claude is replaced by the current UUID [5503.03ms]
+(pass) prior_host codex [5897.95ms]
+(pass) old_session codex rejects a saved turn from before startup [5931.04ms]
+(pass) old_pane_identity codex is replaced by the current UUID [6051.22ms]
+
+ 16 pass
+ 0 fail
+ 120 expect() calls
+Ran 16 tests across 1 file. [6.06s]
+-- tests/host-observation.test.ts: 6.165 s
+suite: PASS

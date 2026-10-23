@@ -1,0 +1,76 @@
+Refreshing checks status every 20 seconds. Press Ctrl+C to quit.
+
+process (macos-14)	pending	0	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750996	
+process (ubuntu-24.04)	pending	0	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372751121	
+test	pending	0	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750509	
+Refreshing checks status every 20 seconds. Press Ctrl+C to quit.
+
+process (ubuntu-24.04)	pending	0	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372751121	
+test	pending	0	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750509	
+process (macos-14)	pass	29s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750996	
+Refreshing checks status every 20 seconds. Press Ctrl+C to quit.
+
+process (ubuntu-24.04)	pending	0	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372751121	
+test	pending	0	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750509	
+process (macos-14)	pass	29s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750996	
+Refreshing checks status every 20 seconds. Press Ctrl+C to quit.
+
+test	pending	0	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750509	
+process (macos-14)	pass	29s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750996	
+process (ubuntu-24.04)	pass	1m7s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372751121	
+Refreshing checks status every 20 seconds. Press Ctrl+C to quit.
+
+test	pending	0	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750509	
+process (macos-14)	pass	29s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750996	
+process (ubuntu-24.04)	pass	1m7s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372751121	
+Refreshing checks status every 20 seconds. Press Ctrl+C to quit.
+
+test	pending	0	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750509	
+process (macos-14)	pass	29s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750996	
+process (ubuntu-24.04)	pass	1m7s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372751121	
+Refreshing checks status every 20 seconds. Press Ctrl+C to quit.
+
+test	pending	0	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750509	
+process (macos-14)	pass	29s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750996	
+process (ubuntu-24.04)	pass	1m7s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372751121	
+Refreshing checks status every 20 seconds. Press Ctrl+C to quit.
+
+test	pending	0	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750509	
+process (macos-14)	pass	29s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750996	
+process (ubuntu-24.04)	pass	1m7s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372751121	
+Refreshing checks status every 20 seconds. Press Ctrl+C to quit.
+
+test	pending	0	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750509	
+process (macos-14)	pass	29s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750996	
+process (ubuntu-24.04)	pass	1m7s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372751121	
+Refreshing checks status every 20 seconds. Press Ctrl+C to quit.
+
+test	pending	0	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750509	
+process (macos-14)	pass	29s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750996	
+process (ubuntu-24.04)	pass	1m7s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372751121	
+Refreshing checks status every 20 seconds. Press Ctrl+C to quit.
+
+test	pending	0	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750509	
+process (macos-14)	pass	29s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750996	
+process (ubuntu-24.04)	pass	1m7s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372751121	
+Refreshing checks status every 20 seconds. Press Ctrl+C to quit.
+
+test	pending	0	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750509	
+process (macos-14)	pass	29s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750996	
+process (ubuntu-24.04)	pass	1m7s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372751121	
+Refreshing checks status every 20 seconds. Press Ctrl+C to quit.
+
+test	pending	0	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750509	
+process (macos-14)	pass	29s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750996	
+process (ubuntu-24.04)	pass	1m7s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372751121	
+Refreshing checks status every 20 seconds. Press Ctrl+C to quit.
+
+test	pending	0	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750509	
+process (macos-14)	pass	29s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750996	
+process (ubuntu-24.04)	pass	1m7s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372751121	
+process (macos-14)	pass	29s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750996	
+process (ubuntu-24.04)	pass	1m7s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372751121	
+test	pass	4m59s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750509	
+process (macos-14)	pass	29s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750996	
+process (ubuntu-24.04)	pass	1m7s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372751121	
+test	pass	4m59s	https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750509	

@@ -1,0 +1,1 @@
+The first private name-inventory extractor searched for an unanchored "== " separator. It matched the failed board assertion's "!== " operator before the failed case line, so it read five CI names and the comparison stopped. No inventory PASS was recorded. inventory.py anchors the next entry to a newline and reads all six original names.

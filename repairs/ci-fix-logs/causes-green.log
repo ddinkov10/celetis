@@ -1,0 +1,37 @@
+{"runtime":"1.4.2","platform":"darwin","parallelism":8,"workers":1}
+bun test v1.4.2 (744846f84)
+
+tests/process.test.ts:
+(pass) process cancellation retains exact child stderr "" [48.80ms]
+(pass) process cancellation retains exact child stderr "warning before cancellation\n" [37.00ms]
+(pass) process cancellation retains exact child stderr "The operation was aborted\n" [37.60ms]
+
+ 3 pass
+ 26 filtered out
+ 0 fail
+ 6 expect() calls
+Ran 3 tests across 1 file. [136.00ms]
+bun test v1.4.2 (744846f84)
+
+tests/host-session.test.ts:
+(pass) successful codex foreground exit cancels only the active watcher resolver [1590.60ms]
+(pass) successful claude foreground exit cancels only the active watcher resolver [1654.92ms]
+
+ 2 pass
+ 80 filtered out
+ 0 fail
+ 18 expect() calls
+Ran 2 tests across 1 file. [1.68s]
+bun test v1.4.2 (744846f84)
+
+tests/parallel.test.ts:
+(pass) suite default runs one file worker at a time [675.88ms]
+
+ 1 pass
+ 10 filtered out
+ 0 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [685.00ms]
+{"label":"tests/process.test.ts=process cancellation retains","code":0,"elapsedMs":253.92833299999998,"timedOut":false}
+{"label":"tests/host-session.test.ts=successful .* foreground exit cancels","code":0,"elapsedMs":1795.4154580000002,"timedOut":false}
+{"label":"tests/parallel.test.ts=suite default runs one file worker","code":0,"elapsedMs":797.3601659999999,"timedOut":false}

@@ -1,0 +1,74 @@
+[
+  {
+    "path": "scripts/celetis",
+    "byteEquality": true,
+    "modes": [
+      "0755",
+      "0755",
+      "0755"
+    ]
+  },
+  {
+    "path": "board/board.js",
+    "byteEquality": true,
+    "modes": [
+      "0644",
+      "0644",
+      "0644"
+    ]
+  },
+  {
+    "path": "board/view.mjs",
+    "byteEquality": true,
+    "modes": [
+      "0644",
+      "0644",
+      "0644"
+    ]
+  },
+  {
+    "path": "board/ui.mjs",
+    "byteEquality": true,
+    "modes": [
+      "0644",
+      "0644",
+      "0644"
+    ]
+  },
+  {
+    "path": "board/panel.mjs",
+    "byteEquality": true,
+    "modes": [
+      "0644",
+      "0644",
+      "0644"
+    ]
+  },
+  {
+    "path": "board/palette.mjs",
+    "byteEquality": true,
+    "modes": [
+      "0644",
+      "0644",
+      "0644"
+    ]
+  },
+  {
+    "path": "hooks/entry.js",
+    "byteEquality": true,
+    "modes": [
+      "0644",
+      "0644",
+      "0644"
+    ]
+  },
+  {
+    "path": "tests/manual/native-observer/hooks/register.js",
+    "byteEquality": true,
+    "modes": [
+      "0644",
+      "0644",
+      "0644"
+    ]
+  }
+]

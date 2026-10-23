@@ -1,0 +1,250 @@
+[
+  {
+    "label": "uname",
+    "cwd": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain",
+    "argv": [
+      "uname",
+      "-a"
+    ],
+    "code": 0,
+    "elapsedSeconds": 0.002335,
+    "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/uname.log"
+  },
+  {
+    "label": "sw-vers",
+    "cwd": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain",
+    "argv": [
+      "sw_vers"
+    ],
+    "code": 0,
+    "elapsedSeconds": 0.011441,
+    "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/sw-vers.log"
+  },
+  {
+    "label": "bun-version",
+    "cwd": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain",
+    "argv": [
+      "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/bun-floor/node_modules/@oven/bun-darwin-aarch64/bin/bun",
+      "--version"
+    ],
+    "code": 0,
+    "elapsedSeconds": 0.008705,
+    "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/bun-version.log"
+  },
+  {
+    "label": "bun-revision",
+    "cwd": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain",
+    "argv": [
+      "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/bun-floor/node_modules/@oven/bun-darwin-aarch64/bin/bun",
+      "--revision"
+    ],
+    "code": 0,
+    "elapsedSeconds": 0.006138,
+    "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/bun-revision.log"
+  },
+  {
+    "label": "codex-version",
+    "cwd": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain",
+    "argv": [
+      "/opt/homebrew/bin/codex",
+      "--version"
+    ],
+    "code": 0,
+    "elapsedSeconds": 0.060368,
+    "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/codex-version.log"
+  },
+  {
+    "label": "claude-version",
+    "cwd": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain",
+    "argv": [
+      "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/task9-tools/bin/claude",
+      "--version"
+    ],
+    "code": 0,
+    "elapsedSeconds": 0.202369,
+    "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/claude-version.log"
+  },
+  {
+    "label": "gh-version",
+    "cwd": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain",
+    "argv": [
+      "/opt/homebrew/bin/gh",
+      "--version"
+    ],
+    "code": 0,
+    "elapsedSeconds": 0.052287,
+    "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/gh-version.log"
+  },
+  {
+    "label": "herdr-version",
+    "cwd": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain",
+    "argv": [
+      "/Users/dinq/.local/bin/herdr",
+      "--version"
+    ],
+    "code": 0,
+    "elapsedSeconds": 0.012609,
+    "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/herdr-version.log"
+  },
+  {
+    "label": "copy-a-clone",
+    "cwd": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain",
+    "argv": [
+      "git",
+      "clone",
+      "--no-hardlinks",
+      "--no-checkout",
+      "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain",
+      "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/copy-a"
+    ],
+    "code": 0,
+    "elapsedSeconds": 0.135082,
+    "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/copy-a-clone.log"
+  },
+  {
+    "label": "copy-a-checkout",
+    "cwd": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/copy-a",
+    "argv": [
+      "git",
+      "checkout",
+      "--detach",
+      "b6053743e492dde0624207c90fc3a23cdeeca57a"
+    ],
+    "code": 0,
+    "elapsedSeconds": 0.04982,
+    "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/copy-a-checkout.log"
+  },
+  {
+    "label": "copy-b-clone",
+    "cwd": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain",
+    "argv": [
+      "git",
+      "clone",
+      "--no-hardlinks",
+      "--no-checkout",
+      "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain",
+      "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/different absolute path/copy-b"
+    ],
+    "code": 0,
+    "elapsedSeconds": 0.080678,
+    "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/copy-b-clone.log"
+  },
+  {
+    "label": "copy-b-checkout",
+    "cwd": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/different absolute path/copy-b",
+    "argv": [
+      "git",
+      "checkout",
+      "--detach",
+      "b6053743e492dde0624207c90fc3a23cdeeca57a"
+    ],
+    "code": 0,
+    "elapsedSeconds": 0.049688,
+    "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/copy-b-checkout.log"
+  },
+  {
+    "label": "copy-a-build",
+    "cwd": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/copy-a",
+    "argv": [
+      "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/bun-floor/node_modules/@oven/bun-darwin-aarch64/bin/bun",
+      "--no-env-file",
+      "--no-install",
+      "--config=/dev/null",
+      "--no-macros",
+      "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/copy-a/scripts/build.ts"
+    ],
+    "code": 0,
+    "elapsedSeconds": 0.121588,
+    "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/copy-a-build.log"
+  },
+  {
+    "label": "copy-b-build",
+    "cwd": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/different absolute path/copy-b",
+    "argv": [
+      "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/bun-floor/node_modules/@oven/bun-darwin-aarch64/bin/bun",
+      "--no-env-file",
+      "--no-install",
+      "--config=/dev/null",
+      "--no-macros",
+      "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/different absolute path/copy-b/scripts/build.ts"
+    ],
+    "code": 0,
+    "elapsedSeconds": 0.028028,
+    "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/copy-b-build.log"
+  },
+  {
+    "label": "source-build-check",
+    "cwd": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain",
+    "argv": [
+      "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/bun-floor/node_modules/@oven/bun-darwin-aarch64/bin/bun",
+      "--no-env-file",
+      "--no-install",
+      "--config=/dev/null",
+      "--no-macros",
+      "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/scripts/build.ts",
+      "--check"
+    ],
+    "code": 0,
+    "elapsedSeconds": 0.027021,
+    "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/source-build-check.log"
+  },
+  {
+    "label": "source-gate",
+    "cwd": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain",
+    "argv": [
+      "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/bun-floor/node_modules/@oven/bun-darwin-aarch64/bin/bun",
+      "--no-env-file",
+      "--no-install",
+      "--config=/dev/null",
+      "--no-macros",
+      "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/scripts/verify.ts"
+    ],
+    "code": 0,
+    "elapsedSeconds": 1.213715,
+    "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/source-gate.log"
+  },
+  {
+    "label": "corrupt-clone",
+    "cwd": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain",
+    "argv": [
+      "git",
+      "clone",
+      "--no-hardlinks",
+      "--no-checkout",
+      "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain",
+      "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/separate-corrupt-copy"
+    ],
+    "code": 0,
+    "elapsedSeconds": 0.080063,
+    "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/corrupt-clone.log"
+  },
+  {
+    "label": "corrupt-checkout",
+    "cwd": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/separate-corrupt-copy",
+    "argv": [
+      "git",
+      "checkout",
+      "--detach",
+      "b6053743e492dde0624207c90fc3a23cdeeca57a"
+    ],
+    "code": 0,
+    "elapsedSeconds": 0.04771,
+    "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/corrupt-checkout.log"
+  },
+  {
+    "label": "corrupt-build-check",
+    "cwd": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/separate-corrupt-copy",
+    "argv": [
+      "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/bun-floor/node_modules/@oven/bun-darwin-aarch64/bin/bun",
+      "--no-env-file",
+      "--no-install",
+      "--config=/dev/null",
+      "--no-macros",
+      "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/separate-corrupt-copy/scripts/build.ts",
+      "--check"
+    ],
+    "code": 1,
+    "elapsedSeconds": 0.027962,
+    "log": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/logs/corrupt-build-check.log"
+  }
+]

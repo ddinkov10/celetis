@@ -1,0 +1,27 @@
+{"runtime":"1.4.2","platform":"darwin","parallelism":8,"workers":1}
+bun test v1.4.2 (744846f84)
+
+tests/launcher.test.ts:
+671 |       session_id: '12345678-1234-1234-1234-123456789abc',
+672 |     };
+673 |     await f.write('shared/control/celetis-flow/sessions/7.json', JSON.stringify(record));
+674 |     await f.write('plug in/scripts/celetis-flow.ts', 'console.log(process.env.CELETIS_RESUME_RECORD);');
+675 |     const result = await p.launch(['celetis-flow', '--resume', '7']);
+676 |     expect(result.code, result.stderr).toBe(0);
+                                             ^
+error: fatal: not a git repository (or any of the parent directories): .git
+
+
+Expected: 0
+Received: 128
+
+      at <anonymous> (/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/tests/launcher.test.ts:676:40)
+(fail) Resume reads the exact Git common directory [81.22ms]
+
+ 0 pass
+ 66 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [132.00ms]
+FAIL: tests/launcher.test.ts=Resume reads the exact Git common directory (exit 1)
+{"label":"tests/launcher.test.ts=Resume reads the exact Git common directory","code":1,"elapsedMs":239.424958,"timedOut":false}

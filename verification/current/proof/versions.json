@@ -1,0 +1,24 @@
+{
+  "os": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+  "uname": "Darwin Dinkos-MacBook-Air.local 25.4.0 Darwin Kernel Version 25.4.0: Thu Mar 19 19:32:36 PDT 2026; root:xnu-12377.101.15~1/RELEASE_ARM64_T8103 arm64",
+  "swVers": "ProductName:\t\tmacOS\nProductVersion:\t\t26.4.1\nBuildVersion:\t\t25E253",
+  "bunPath": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/bun-floor/node_modules/@oven/bun-darwin-aarch64/bin/bun",
+  "bun": "1.4.2",
+  "bunRevision": "1.4.2+744846f84",
+  "codex": {
+    "path": "/opt/homebrew/bin/codex",
+    "version": "WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\ncodex-cli 0.163.0"
+  },
+  "claude": {
+    "path": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/task9-tools/bin/claude",
+    "version": "2.1.302 (Claude Code)"
+  },
+  "gh": {
+    "path": "/opt/homebrew/bin/gh",
+    "version": "gh version 2.102.1 (2026-10-20)\nhttps://github.com/cli/cli/releases/tag/v2.102.1"
+  },
+  "herdr": {
+    "path": "/Users/dinq/.local/bin/herdr",
+    "version": "herdr 0.9.3"
+  }
+}

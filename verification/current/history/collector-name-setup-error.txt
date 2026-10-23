@@ -1,0 +1,8 @@
+Observed private collector failure after the complete final source snapshot and after all current tests had passed:
+
+Traceback (most recent call last):
+  File "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/collect-final-proof.py", line 31, in <module>
+    assert preservation[file]['sameExpandedNames'] and not preservation[file]['duplicates']
+AssertionError
+
+The elapsed-time regex was greedy. It removed expanded array parameters as well as the final time, so distinct usage and stale-resource cases appeared to have duplicate names. The raw test log still has 70 pass, 0 fail and 660 assertions. Only the private name parser was corrected. No test was retried. The final tracked source snapshot was complete before this bookkeeping failure.

@@ -1,0 +1,37 @@
+== tests/runner-lifecycle.test.ts
+bun test v1.4.2 (744846f84)
+
+tests/runner-lifecycle.test.ts:
+(pass) idle claude pins all accepted and unsafe replies [1.88ms]
+(pass) idle codex pins all accepted and unsafe replies [0.25ms]
+(pass) saved codex blocked stays open [3914.64ms]
+(pass) late claude blocked repeats resolver and checks idle again [4089.70ms]
+(pass) late codex unknown repeats resolver and checks idle again [4395.52ms]
+(pass) saved claude blocked stays open [4419.29ms]
+(pass) saved claude unknown stays open [4600.03ms]
+(pass) resume claude holds the issue without watcher, runner lock or refresh [5079.26ms]
+(pass) saved codex unknown stays open [5177.51ms]
+(pass) handoff claude starts the next saved session exactly once [5610.95ms]
+(pass) resume codex holds the issue without watcher, runner lock or refresh [7752.29ms]
+(pass) after_wait claude blocked blocks exit [7893.79ms]
+(pass) handoff codex starts the next saved session exactly once [8480.53ms]
+(pass) after_wait codex unknown blocks exit [8517.38ms]
+(pass) guard claude unchanged blocks exit [8617.41ms]
+(pass) guard claude dirty blocks exit [8947.09ms]
+(pass) guard codex landing blocks exit [9293.00ms]
+(pass) guard codex missing blocks exit [9447.70ms]
+(pass) ending claude idle accepted waits for foreground exit [11068.60ms]
+(pass) ending claude done failed waits for foreground exit [11940.59ms]
+(pass) ending codex idle failed waits for foreground exit [12453.38ms]
+(pass) term SIGINT holds lock until the foreground exits [8933.19ms]
+(pass) ending codex done accepted waits for foreground exit [12870.19ms]
+(pass) term SIGTERM holds lock until the foreground exits [8948.67ms]
+(pass) crash preserves exit status 23 without a no-progress row [8773.51ms]
+(pass) term SIGHUP holds lock until the foreground exits [8797.39ms]
+
+ 26 pass
+ 0 fail
+ 228 expect() calls
+Ran 26 tests across 1 file. [13.21s]
+-- tests/runner-lifecycle.test.ts: 13.317 s
+suite: PASS

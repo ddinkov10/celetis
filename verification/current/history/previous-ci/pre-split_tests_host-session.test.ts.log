@@ -1,0 +1,43 @@
+== tests/host-session.test.ts
+bun test v1.4.2 (744846f84)
+
+tests/host-session.test.ts:
+(pass) launch claude chore preserves args, literal instructions, stdin and exact schema [1098.76ms]
+(pass) launch codex triage preserves args, literal instructions, stdin and exact schema [1320.22ms]
+(pass) launch claude feature preserves args, literal instructions, stdin and exact schema [1716.06ms]
+(pass) launch claude triage preserves args, literal instructions, stdin and exact schema [2130.52ms]
+(pass) launch claude implement preserves args, literal instructions, stdin and exact schema [2499.12ms]
+(pass) launch claude plan preserves args, literal instructions, stdin and exact schema [3229.39ms]
+(pass) launch claude bug preserves args, literal instructions, stdin and exact schema [3955.33ms]
+(pass) launch claude hotfix preserves args, literal instructions, stdin and exact schema [4746.84ms]
+(pass) launch codex feature preserves args, literal instructions, stdin and exact schema [5430.02ms]
+(pass) launch codex bug preserves args, literal instructions, stdin and exact schema [5818.95ms]
+(pass) launch codex chore preserves args, literal instructions, stdin and exact schema [6166.06ms]
+(pass) launch codex hotfix preserves args, literal instructions, stdin and exact schema [6570.99ms]
+(pass) launch codex plan preserves args, literal instructions, stdin and exact schema [7040.31ms]
+(pass) launch codex implement preserves args, literal instructions, stdin and exact schema [7497.32ms]
+(pass) saved_status claude idle [12992.95ms]
+(pass) saved_status claude working [13727.07ms]
+(pass) saved_status claude unknown [14473.22ms]
+(pass) saved_status codex done [15332.17ms]
+(pass) saved_status codex blocked [16261.36ms]
+(pass) valid_pane claude w1:p1 [17011.57ms]
+(pass) valid_pane claude w1:pE [16997.57ms]
+(pass) valid_pane claude wa0:pz9 [17776.74ms]
+(pass) recovery claude needs a verified saved turn [19158.61ms]
+(pass) startup_exit claude is never no progress [19827.79ms]
+(pass) outside_herdr claude undefined [20572.49ms]
+(fail) valid_pane codex wW:p14 [25001.56ms]
+  ^ this test timed out after 25000ms.
+(pass) invalid_panes claude stop before updates, sessions and herdr [20002.38ms]
+(fail) valid_pane codex wW:pE [25001.89ms]
+  ^ this test timed out after 25000ms.
+(fail) prior_host claude [25002.03ms]
+  ^ this test timed out after 25000ms.
+(fail) old_session claude rejects a saved turn from before startup [25002.54ms]
+  ^ this test timed out after 25000ms.
+(fail) old_pane_identity claude is replaced by the current UUID [25002.65ms]
+  ^ this test timed out after 25000ms.
+FAIL: tests/host-session.test.ts (exit 124)
+-- tests/host-session.test.ts: 30.110 s
+suite: FAIL

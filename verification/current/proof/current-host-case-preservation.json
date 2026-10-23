@@ -1,0 +1,334 @@
+{
+  "match": true,
+  "cases": 82,
+  "namesAndLocations": [
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "codex_persistence ephemeral"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "codex_persistence wrong-saved-id"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "identity discovery keeps its 60 second deadline and startup trust diagnostic"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "identity_failure claude foreign-checkout preserves startup diagnostics and refuses resume"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "identity_failure claude invalid-status preserves startup diagnostics and refuses resume"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "identity_failure claude malformed-identity preserves startup diagnostics and refuses resume"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "identity_failure claude no-id preserves startup diagnostics and refuses resume"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "identity_failure claude no-save preserves startup diagnostics and refuses resume"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "identity_failure claude stale-id preserves startup diagnostics and refuses resume"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "identity_failure claude unsaved-blocked preserves startup diagnostics and refuses resume"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "identity_failure claude unsaved-unknown preserves startup diagnostics and refuses resume"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "identity_failure claude wrong-host preserves startup diagnostics and refuses resume"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "identity_failure claude wrong-session-host preserves startup diagnostics and refuses resume"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "identity_failure codex bad-id preserves startup diagnostics and refuses resume"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "identity_failure codex bad-json preserves startup diagnostics and refuses resume"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "identity_failure codex foreign-checkout preserves startup diagnostics and refuses resume"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "identity_failure codex missing-status preserves startup diagnostics and refuses resume"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "identity_failure codex no-save preserves startup diagnostics and refuses resume"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "identity_failure codex unsaved-blocked preserves startup diagnostics and refuses resume"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "identity_failure codex unsaved-unknown preserves startup diagnostics and refuses resume"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "identity_failure codex wrong-host preserves startup diagnostics and refuses resume"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "identity_failure codex wrong-kind preserves startup diagnostics and refuses resume"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "successful claude foreground exit cancels only the active watcher resolver"
+    },
+    {
+      "file": "tests/host-identity.test.ts",
+      "name": "successful codex foreground exit cancels only the active watcher resolver"
+    },
+    {
+      "file": "tests/host-observation.test.ts",
+      "name": "old_pane_identity claude is replaced by the current UUID"
+    },
+    {
+      "file": "tests/host-observation.test.ts",
+      "name": "old_pane_identity codex is replaced by the current UUID"
+    },
+    {
+      "file": "tests/host-observation.test.ts",
+      "name": "old_session claude rejects a saved turn from before startup"
+    },
+    {
+      "file": "tests/host-observation.test.ts",
+      "name": "old_session codex rejects a saved turn from before startup"
+    },
+    {
+      "file": "tests/host-observation.test.ts",
+      "name": "prior_host claude"
+    },
+    {
+      "file": "tests/host-observation.test.ts",
+      "name": "prior_host codex"
+    },
+    {
+      "file": "tests/host-observation.test.ts",
+      "name": "saved_status claude idle"
+    },
+    {
+      "file": "tests/host-observation.test.ts",
+      "name": "saved_status claude unknown"
+    },
+    {
+      "file": "tests/host-observation.test.ts",
+      "name": "saved_status claude working"
+    },
+    {
+      "file": "tests/host-observation.test.ts",
+      "name": "saved_status codex blocked"
+    },
+    {
+      "file": "tests/host-observation.test.ts",
+      "name": "saved_status codex done"
+    },
+    {
+      "file": "tests/host-observation.test.ts",
+      "name": "valid_pane claude w1:p1"
+    },
+    {
+      "file": "tests/host-observation.test.ts",
+      "name": "valid_pane claude w1:pE"
+    },
+    {
+      "file": "tests/host-observation.test.ts",
+      "name": "valid_pane claude wa0:pz9"
+    },
+    {
+      "file": "tests/host-observation.test.ts",
+      "name": "valid_pane codex wW:p14"
+    },
+    {
+      "file": "tests/host-observation.test.ts",
+      "name": "valid_pane codex wW:pE"
+    },
+    {
+      "file": "tests/host-resume.test.ts",
+      "name": "bad_records reject each old mutation and malformed root"
+    },
+    {
+      "file": "tests/host-resume.test.ts",
+      "name": "codex_only and launcher_resume use the saved host with no Claude and ignore obsolete Git defaults"
+    },
+    {
+      "file": "tests/host-resume.test.ts",
+      "name": "exact_resume claude bug"
+    },
+    {
+      "file": "tests/host-resume.test.ts",
+      "name": "exact_resume claude hotfix"
+    },
+    {
+      "file": "tests/host-resume.test.ts",
+      "name": "exact_resume claude implement"
+    },
+    {
+      "file": "tests/host-resume.test.ts",
+      "name": "exact_resume claude triage"
+    },
+    {
+      "file": "tests/host-resume.test.ts",
+      "name": "exact_resume codex chore"
+    },
+    {
+      "file": "tests/host-resume.test.ts",
+      "name": "exact_resume codex feature"
+    },
+    {
+      "file": "tests/host-resume.test.ts",
+      "name": "exact_resume codex plan"
+    },
+    {
+      "file": "tests/host-resume.test.ts",
+      "name": "invalid_panes claude stop before updates, sessions and herdr"
+    },
+    {
+      "file": "tests/host-resume.test.ts",
+      "name": "invalid_panes codex stop before updates, sessions and herdr"
+    },
+    {
+      "file": "tests/host-resume.test.ts",
+      "name": "name_based_resume refuses an obsolete no-progress row without effects"
+    },
+    {
+      "file": "tests/host-resume.test.ts",
+      "name": "project_default claude and saved host survive a YAML preference change"
+    },
+    {
+      "file": "tests/host-resume.test.ts",
+      "name": "project_default codex and saved host survive a YAML preference change"
+    },
+    {
+      "file": "tests/host-resume.test.ts",
+      "name": "replaced_record {\"host\":\"claude\"} refuses discovery race"
+    },
+    {
+      "file": "tests/host-resume.test.ts",
+      "name": "replaced_record {\"session_id\":\"00000000-0000-4000-8000-000000000001\"} refuses discovery race"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "existing_developer keeps literal instructions and appends exact step text"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "invalid_config cannot create a session or record"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "launch claude bug preserves args, literal instructions, stdin and exact schema"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "launch claude chore preserves args, literal instructions, stdin and exact schema"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "launch claude feature preserves args, literal instructions, stdin and exact schema"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "launch claude hotfix preserves args, literal instructions, stdin and exact schema"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "launch claude implement preserves args, literal instructions, stdin and exact schema"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "launch claude plan preserves args, literal instructions, stdin and exact schema"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "launch claude triage preserves args, literal instructions, stdin and exact schema"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "launch codex bug preserves args, literal instructions, stdin and exact schema"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "launch codex chore preserves args, literal instructions, stdin and exact schema"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "launch codex feature preserves args, literal instructions, stdin and exact schema"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "launch codex hotfix preserves args, literal instructions, stdin and exact schema"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "launch codex implement preserves args, literal instructions, stdin and exact schema"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "launch codex plan preserves args, literal instructions, stdin and exact schema"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "launch codex triage preserves args, literal instructions, stdin and exact schema"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "outside_herdr claude "
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "outside_herdr claude 0"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "outside_herdr claude undefined"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "outside_herdr codex "
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "outside_herdr codex 0"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "outside_herdr codex undefined"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "recovery claude needs a verified saved turn"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "recovery codex needs a verified saved turn"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "startup_exit claude is never no progress"
+    },
+    {
+      "file": "tests/host-session.test.ts",
+      "name": "startup_exit codex is never no progress"
+    }
+  ]
+}

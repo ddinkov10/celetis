@@ -1,0 +1,413 @@
+﻿2026-10-23T09:17:00.7011940Z Current runner version: '2.338.0'
+2026-10-23T09:17:00.7023510Z ##[group]Runner Image Provisioner
+2026-10-23T09:17:00.7023980Z Hosted Compute Agent
+2026-10-23T09:17:00.7024320Z Version: 20260828.587
+2026-10-23T09:17:00.7024690Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+2026-10-23T09:17:00.7025150Z Build Date: 2026-08-28T16:44:25Z
+2026-10-23T09:17:00.7025530Z Worker ID: {df8745ce-dcd4-4509-8533-e3c7167b9bcd}
+2026-10-23T09:17:00.7025910Z Azure Region: westus
+2026-10-23T09:17:00.7026240Z ##[endgroup]
+2026-10-23T09:17:00.7026950Z ##[group]Operating System
+2026-10-23T09:17:00.7027280Z macOS
+2026-10-23T09:17:00.7027650Z 14.8.9
+2026-10-23T09:17:00.7028080Z 23J631
+2026-10-23T09:17:00.7028420Z ##[endgroup]
+2026-10-23T09:17:00.7028730Z ##[group]Runner Image
+2026-10-23T09:17:00.7029110Z Image: macos-14-arm64
+2026-10-23T09:17:00.7029500Z Version: 20260831.0302.1
+2026-10-23T09:17:00.7030270Z Included Software: https://github.com/actions/runner-images/blob/macos-14-arm64/20260831.0302/images/macos/macos-14-arm64-Readme.md
+2026-10-23T09:17:00.7031380Z Image Release: https://github.com/actions/runner-images/releases/tag/macos-14-arm64%2F20260831.0302
+2026-10-23T09:17:00.7032050Z ##[endgroup]
+2026-10-23T09:17:00.7032850Z ##[group]GITHUB_TOKEN Permissions
+2026-10-23T09:17:00.7033850Z Contents: read
+2026-10-23T09:17:00.7034260Z Metadata: read
+2026-10-23T09:17:00.7034580Z Packages: read
+2026-10-23T09:17:00.7034960Z ##[endgroup]
+2026-10-23T09:17:00.7036090Z Secret source: Actions
+2026-10-23T09:17:00.7036620Z Cache mode: write
+2026-10-23T09:17:00.7036990Z Prepare workflow directory
+2026-10-23T09:17:00.7273270Z Prepare all required actions
+2026-10-23T09:17:00.7304660Z Getting action download info
+2026-10-23T09:17:00.8563370Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-23T09:17:01.0263230Z Download action repository 'oven-sh/setup-bun@v2' (SHA:0c5077e51419868618aeaa5fe8019c62421857d6)
+2026-10-23T09:17:01.7476410Z Complete job name: process (macos-14)
+2026-10-23T09:17:01.7970120Z ##[group]Run actions/checkout@v4
+2026-10-23T09:17:01.7970640Z with:
+2026-10-23T09:17:01.7970950Z   repository: ddinkov10/celetis
+2026-10-23T09:17:01.7973640Z   token: ***
+2026-10-23T09:17:01.7973980Z   ssh-strict: true
+2026-10-23T09:17:01.7974350Z   ssh-user: git
+2026-10-23T09:17:01.7974670Z   persist-credentials: true
+2026-10-23T09:17:01.7975000Z   clean: true
+2026-10-23T09:17:01.7975310Z   sparse-checkout-cone-mode: true
+2026-10-23T09:17:01.7975710Z   fetch-depth: 1
+2026-10-23T09:17:01.7976020Z   fetch-tags: false
+2026-10-23T09:17:01.7976330Z   show-progress: true
+2026-10-23T09:17:01.7976640Z   lfs: false
+2026-10-23T09:17:01.7976970Z   submodules: false
+2026-10-23T09:17:01.7977300Z   set-safe-directory: true
+2026-10-23T09:17:01.7977650Z   allow-unsafe-pr-checkout: false
+2026-10-23T09:17:01.7978120Z env:
+2026-10-23T09:17:01.7978430Z   BUN_RUNTIME_TRANSPILER_CACHE_PATH: 0
+2026-10-23T09:17:01.7978800Z   DO_NOT_TRACK: 1
+2026-10-23T09:17:01.7979090Z ##[endgroup]
+2026-10-23T09:17:01.9209720Z Syncing repository: ddinkov10/celetis
+2026-10-23T09:17:01.9211110Z ##[group]Getting Git version info
+2026-10-23T09:17:01.9211620Z Working directory is '/Users/runner/work/celetis/celetis'
+2026-10-23T09:17:01.9212390Z [command]/opt/homebrew/bin/git version
+2026-10-23T09:17:01.9398600Z git version 2.55.0
+2026-10-23T09:17:01.9411960Z ##[endgroup]
+2026-10-23T09:17:01.9417590Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/60b680db-9f2f-4508-bb1d-f85bf68c0061/.gitconfig'
+2026-10-23T09:17:01.9424840Z Temporarily overriding HOME='/Users/runner/work/_temp/60b680db-9f2f-4508-bb1d-f85bf68c0061' before making global git config changes
+2026-10-23T09:17:01.9426000Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-23T09:17:01.9427950Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/celetis/celetis
+2026-10-23T09:17:01.9497140Z Deleting the contents of '/Users/runner/work/celetis/celetis'
+2026-10-23T09:17:01.9499910Z ##[group]Initializing the repository
+2026-10-23T09:17:01.9502530Z [command]/opt/homebrew/bin/git init /Users/runner/work/celetis/celetis
+2026-10-23T09:17:01.9640230Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-23T09:17:01.9641100Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-23T09:17:01.9641980Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-23T09:17:01.9642670Z hint: call:
+2026-10-23T09:17:01.9642980Z hint:
+2026-10-23T09:17:01.9643400Z hint: 	git config --global init.defaultBranch <name>
+2026-10-23T09:17:01.9644090Z hint:
+2026-10-23T09:17:01.9644510Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-23T09:17:01.9645380Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-23T09:17:01.9646000Z hint:
+2026-10-23T09:17:01.9646310Z hint: 	git branch -m <name>
+2026-10-23T09:17:01.9646660Z hint:
+2026-10-23T09:17:01.9647300Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-23T09:17:01.9648370Z Initialized empty Git repository in /Users/runner/work/celetis/celetis/.git/
+2026-10-23T09:17:01.9649950Z [command]/opt/homebrew/bin/git remote add origin https://github.com/ddinkov10/celetis
+2026-10-23T09:17:01.9693260Z ##[endgroup]
+2026-10-23T09:17:01.9694070Z ##[group]Disabling automatic garbage collection
+2026-10-23T09:17:01.9694800Z [command]/opt/homebrew/bin/git config --local gc.auto 0
+2026-10-23T09:17:01.9736590Z ##[endgroup]
+2026-10-23T09:17:01.9737250Z ##[group]Setting up auth
+2026-10-23T09:17:01.9741250Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-23T09:17:01.9779100Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-23T09:17:02.0349960Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-23T09:17:02.0388340Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-23T09:17:02.0856380Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-23T09:17:02.0892000Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-23T09:17:02.1354190Z [command]/opt/homebrew/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-23T09:17:02.1447270Z ##[endgroup]
+2026-10-23T09:17:02.1447890Z ##[group]Fetching the repository
+2026-10-23T09:17:02.1452620Z [command]/opt/homebrew/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +ef13a281099321c90f5897fa6a797220c73a559e:refs/remotes/pull/108/merge
+2026-10-23T09:17:02.9851690Z From https://github.com/ddinkov10/celetis
+2026-10-23T09:17:02.9852800Z  * [new ref]         ef13a281099321c90f5897fa6a797220c73a559e -> pull/108/merge
+2026-10-23T09:17:02.9854890Z ##[endgroup]
+2026-10-23T09:17:02.9855620Z ##[group]Determining the checkout info
+2026-10-23T09:17:02.9856470Z ##[endgroup]
+2026-10-23T09:17:02.9859710Z [command]/opt/homebrew/bin/git sparse-checkout disable
+2026-10-23T09:17:02.9908100Z [command]/opt/homebrew/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-23T09:17:02.9946200Z ##[group]Checking out the ref
+2026-10-23T09:17:02.9948300Z [command]/opt/homebrew/bin/git checkout --progress --force refs/remotes/pull/108/merge
+2026-10-23T09:17:03.0265920Z HEAD is now at ef13a28 Merge d658ce09ab8d1cc68a02a761efed3c3d2bea3a0b into 4fe5554c4c09ec522aae410afde6a298787a04a9
+2026-10-23T09:17:03.0273140Z ##[endgroup]
+2026-10-23T09:17:03.0324330Z [command]/opt/homebrew/bin/git log -1 --format=%H
+2026-10-23T09:17:03.0362830Z ef13a281099321c90f5897fa6a797220c73a559e
+2026-10-23T09:17:03.0584100Z ##[group]Run oven-sh/setup-bun@v2
+2026-10-23T09:17:03.0584810Z with:
+2026-10-23T09:17:03.0585350Z   bun-version: 1.4.2
+2026-10-23T09:17:03.0585950Z   no-cache: false
+2026-10-23T09:17:03.0592520Z   token: ***
+2026-10-23T09:17:03.0593070Z env:
+2026-10-23T09:17:03.0593640Z   BUN_RUNTIME_TRANSPILER_CACHE_PATH: 0
+2026-10-23T09:17:03.0594380Z   DO_NOT_TRACK: 1
+2026-10-23T09:17:03.0594980Z ##[endgroup]
+2026-10-23T09:17:03.2722550Z Downloading a new version of Bun: https://github.com/oven-sh/bun/releases/download/bun-v1.4.2/bun-darwin-aarch64.zip
+2026-10-23T09:17:03.6844560Z [command]/usr/bin/unzip -o -q /Users/runner/work/_temp/d521662a-cbac-45dc-a9e0-e450e6b14448.zip
+2026-10-23T09:17:04.1179720Z [command]/Users/runner/.bun/bin/bun --revision
+2026-10-23T09:17:04.1262690Z 1.4.2+744846f84
+2026-10-23T09:17:04.1340700Z ##[group]Run bun --no-env-file --no-install --config=/dev/null --no-macros tests/suite.ts --process
+2026-10-23T09:17:04.1341230Z bun --no-env-file --no-install --config=/dev/null --no-macros tests/suite.ts --process
+2026-10-23T09:17:04.1395270Z shell: /bin/bash -e {0}
+2026-10-23T09:17:04.1395490Z env:
+2026-10-23T09:17:04.1395660Z   BUN_RUNTIME_TRANSPILER_CACHE_PATH: 0
+2026-10-23T09:17:04.1395860Z   DO_NOT_TRACK: 1
+2026-10-23T09:17:04.1396040Z ##[endgroup]
+2026-10-23T09:17:18.6784480Z == board/realpath.test.ts
+2026-10-23T09:17:18.6784850Z bun test v1.4.2 (744846f84)
+2026-10-23T09:17:18.6784990Z 
+2026-10-23T09:17:18.6785580Z ##[group]board/realpath.test.ts:
+2026-10-23T09:17:18.6786960Z (pass) a mode-0111 native producer keeps canonical data, Run and Resume paths without source read permission [10.32ms]
+2026-10-23T09:17:18.6788000Z (pass) importing native realpath does not load libc and a missing primitive stops the operation [12.57ms]
+2026-10-23T09:17:18.6788880Z (pass) native realpath keeps missing-path, symlink-loop and NUL refusals [1.81ms]
+2026-10-23T09:17:18.6789290Z 
+2026-10-23T09:17:18.6789690Z ##[endgroup]
+2026-10-23T09:17:18.6789880Z 
+2026-10-23T09:17:18.6789990Z  3 pass
+2026-10-23T09:17:18.6790200Z  0 fail
+2026-10-23T09:17:18.6790410Z  8 expect() calls
+2026-10-23T09:17:18.6790680Z Ran 3 tests across 1 file. [42.00ms]
+2026-10-23T09:17:18.6791010Z -- board/realpath.test.ts: 0.148 s
+2026-10-23T09:17:18.6791380Z == tests/process.test.ts
+2026-10-23T09:17:18.6791890Z bun test v1.4.2 (744846f84)
+2026-10-23T09:17:18.6792140Z 
+2026-10-23T09:17:18.6792480Z ##[group]tests/process.test.ts:
+2026-10-23T09:17:18.6802790Z (pass) process runs in a private repository [30.77ms]
+2026-10-23T09:17:18.6803310Z (pass) process preserves argv and failed status [17.19ms]
+2026-10-23T09:17:18.6803780Z (pass) process options cannot enable a shell [7.71ms]
+2026-10-23T09:17:18.6804230Z (pass) process collects concurrent stdout and stderr [21.51ms]
+2026-10-23T09:17:18.6804690Z (pass) process decodes split UTF-8 output [26.31ms]
+2026-10-23T09:17:18.6805170Z (pass) process keeps complete output on child failure [18.58ms]
+2026-10-23T09:17:18.6805640Z (pass) process keeps the 64 MiB result limit [121.80ms]
+2026-10-23T09:17:18.6806810Z (pass) process accepts a smaller result limit [15.72ms]
+2026-10-23T09:17:18.6807120Z (pass) process result limit counts UTF-8 bytes [14.73ms]
+2026-10-23T09:17:18.6807450Z (pass) descriptor capture bounds stdout after a child writes again after TERM [194.24ms]
+2026-10-23T09:17:18.6807910Z (pass) descriptor capture bounds stderr after a child writes again after TERM [192.28ms]
+2026-10-23T09:17:18.6808310Z (pass) descriptor capture decodes split UTF-8 without exceeding the limit [23.54ms]
+2026-10-23T09:17:18.6808670Z (pass) process preserves signal exit status [7.52ms]
+2026-10-23T09:17:18.6808960Z (pass) process reports a missing executable [1.09ms]
+2026-10-23T09:17:18.6809260Z (pass) process timeout stops its child [153.09ms]
+2026-10-23T09:17:18.6809620Z (pass) failed child does not wait for a descendant output pipe [11.37ms]
+2026-10-23T09:17:18.6809960Z (pass) invalid config starts no product preload [42.53ms]
+2026-10-23T09:17:18.6810230Z (pass) invalid config starts no global preload [46.65ms]
+2026-10-23T09:17:18.6810950Z (pass) Bun children ignore the product environment file [11.99ms]
+2026-10-23T09:17:18.6811300Z (pass) invalid config starts no product macro [23.38ms]
+2026-10-23T09:17:18.6811600Z (pass) process lookup excludes product node_modules/.bin [15.44ms]
+2026-10-23T09:17:18.6811900Z (pass) invalid config starts no shadow executable [16.97ms]
+2026-10-23T09:17:18.6812210Z (pass) Bun child arguments preserve entry and argument boundaries [6.78ms]
+2026-10-23T09:17:18.6812530Z (pass) Bun children write no cache and send no crash report [22.37ms]
+2026-10-23T09:17:18.6812850Z (pass) Bun children do not install missing packages [6.64ms]
+2026-10-23T09:17:18.6813100Z (pass) captured commands receive stdin EOF [7.23ms]
+2026-10-23T09:17:18.6813250Z 
+2026-10-23T09:17:18.6813790Z ##[endgroup]
+2026-10-23T09:17:18.6813930Z 
+2026-10-23T09:17:18.6814040Z  26 pass
+2026-10-23T09:17:18.6814190Z  0 fail
+2026-10-23T09:17:18.6814310Z  85 expect() calls
+2026-10-23T09:17:18.6814470Z Ran 26 tests across 1 file. [1066.00ms]
+2026-10-23T09:17:18.6814680Z -- tests/process.test.ts: 1.171 s
+2026-10-23T09:17:18.6814860Z == tests/runner-lock.test.ts
+2026-10-23T09:17:18.6815020Z bun test v1.4.2 (744846f84)
+2026-10-23T09:17:18.6815140Z 
+2026-10-23T09:17:18.6815360Z ##[group]tests/runner-lock.test.ts:
+2026-10-23T09:17:18.6815650Z (pass) system flock prevents independent open descriptions from overlapping [1.36ms]
+2026-10-23T09:17:18.6816080Z (pass) SIGKILL of a helper leaves the inherited lock held until its real command exits [55.49ms]
+2026-10-23T09:17:18.6816430Z runtime 1.4.2 darwin/arm64; after timeout: (no processes)
+2026-10-23T09:17:18.6816770Z (pass) a real timeout kills the command and every descendant before lock close [1430.02ms]
+2026-10-23T09:17:18.6817130Z (pass) lock wait uses the same 120 second monotonic deadline [0.80ms]
+2026-10-23T09:17:18.6817450Z (pass) ownership dead cannot keep an issue lock [1496.97ms]
+2026-10-23T09:17:18.6817720Z (pass) ownership garbage cannot keep an issue lock [1509.22ms]
+2026-10-23T09:17:18.6818030Z (pass) ownership wrong-executable cannot keep an issue lock [1603.95ms]
+2026-10-23T09:17:18.6818320Z claude nested lock after SIGKILL: (no processes)
+2026-10-23T09:17:18.6818660Z (pass) nested claude installed-root child and descendant inherit the update lock [1673.86ms]
+2026-10-23T09:17:18.6819100Z (pass) CAS stale issue-7 contenders cannot replace a new live owner [1682.22ms]
+2026-10-23T09:17:18.6819510Z (pass) replacement owner survives the previous runner release [1751.09ms]
+2026-10-23T09:17:18.6819840Z (pass) a real zombie session owner cannot hold an issue lock [1757.60ms]
+2026-10-23T09:17:18.6820110Z codex nested lock after SIGKILL: (no processes)
+2026-10-23T09:17:18.6820460Z (pass) nested codex installed-root child and descendant inherit the update lock [1870.17ms]
+2026-10-23T09:17:18.6820880Z (pass) ownership pid-reuse cannot keep an issue lock [1926.34ms]
+2026-10-23T09:17:18.6821280Z (pass) CAS stale runner contenders cannot replace a new live owner [2196.83ms]
+2026-10-23T09:17:18.6821680Z (pass) update supervisor SIGTERM kills its real TERM-ignoring descendants [2883.71ms]
+2026-10-23T09:17:18.6822110Z (pass) update supervisor SIGINT kills its real TERM-ignoring descendants [2884.53ms]
+2026-10-23T09:17:18.6822540Z (pass) update supervisor SIGHUP kills its real TERM-ignoring descendants [2894.05ms]
+2026-10-23T09:17:18.6822930Z (pass) runner death cancels the surviving update helper and its descendants [2966.58ms]
+2026-10-23T09:17:18.6823420Z (pass) successful command exit closes descendant output pipes and releases its lock after cleanup [1064.69ms]
+2026-10-23T09:17:18.6823850Z (pass) all update commands share one 120 second monotonic deadline [1106.90ms]
+2026-10-23T09:17:18.6824210Z (pass) two repositories serialize plugin refresh after helper SIGKILL [462.84ms]
+2026-10-23T09:17:18.6824530Z (pass) two repositories serialize plugin refresh [659.89ms]
+2026-10-23T09:17:18.6824930Z (pass) Codex root-lookup interruption preserves stderr once and cleans its real RPC child group [1209.39ms]
+2026-10-23T09:17:18.6825410Z 
+2026-10-23T09:17:18.6825560Z ##[endgroup]
+2026-10-23T09:17:18.6825630Z 
+2026-10-23T09:17:18.6825680Z  23 pass
+2026-10-23T09:17:18.6825790Z  0 fail
+2026-10-23T09:17:18.6825950Z  160 expect() calls
+2026-10-23T09:17:18.6826130Z Ran 23 tests across 1 file. [7.85s]
+2026-10-23T09:17:18.6826310Z -- tests/runner-lock.test.ts: 7.954 s
+2026-10-23T09:17:18.6826500Z == tests/runner-lifecycle.test.ts
+2026-10-23T09:17:18.6826670Z bun test v1.4.2 (744846f84)
+2026-10-23T09:17:18.6826770Z 
+2026-10-23T09:17:18.6826930Z ##[group]tests/runner-lifecycle.test.ts:
+2026-10-23T09:17:18.6827170Z (pass) idle claude pins all accepted and unsafe replies [0.56ms]
+2026-10-23T09:17:18.6827480Z (pass) idle codex pins all accepted and unsafe replies [0.16ms]
+2026-10-23T09:17:18.6827860Z (pass) saved claude unknown stays open [1614.73ms]
+2026-10-23T09:17:18.6828120Z (pass) saved codex unknown stays open [1676.30ms]
+2026-10-23T09:17:18.6828380Z (pass) saved claude blocked stays open [1855.84ms]
+2026-10-23T09:17:18.6828650Z (pass) saved codex blocked stays open [2057.79ms]
+2026-10-23T09:17:18.6828940Z (pass) late codex unknown repeats resolver and checks idle again [2369.76ms]
+2026-10-23T09:17:18.6829360Z (pass) late claude blocked repeats resolver and checks idle again [2432.95ms]
+2026-10-23T09:17:18.6829760Z (pass) resume claude holds the issue without watcher, runner lock or refresh [2734.79ms]
+2026-10-23T09:17:18.6830150Z (pass) handoff claude starts the next saved session exactly once [2900.02ms]
+2026-10-23T09:17:18.6836260Z (pass) after_wait claude blocked blocks exit [3179.60ms]
+2026-10-23T09:17:18.6836630Z (pass) resume codex holds the issue without watcher, runner lock or refresh [3357.24ms]
+2026-10-23T09:17:18.6836990Z (pass) guard claude dirty blocks exit [3433.58ms]
+2026-10-23T09:17:18.6837240Z (pass) guard claude unchanged blocks exit [3440.67ms]
+2026-10-23T09:17:18.6837480Z (pass) after_wait codex unknown blocks exit [3441.95ms]
+2026-10-23T09:17:18.6837710Z (pass) guard codex missing blocks exit [3711.87ms]
+2026-10-23T09:17:18.6837940Z (pass) guard codex landing blocks exit [3764.06ms]
+2026-10-23T09:17:18.6838210Z (pass) handoff codex starts the next saved session exactly once [3915.84ms]
+2026-10-23T09:17:18.6838540Z (pass) term SIGINT holds lock until the foreground exits [2642.97ms]
+2026-10-23T09:17:18.6838850Z (pass) ending claude idle accepted waits for foreground exit [4334.19ms]
+2026-10-23T09:17:18.6839170Z (pass) ending claude done failed waits for foreground exit [4398.22ms]
+2026-10-23T09:17:18.6839480Z (pass) ending codex idle failed waits for foreground exit [4438.66ms]
+2026-10-23T09:17:18.6839790Z (pass) ending codex done accepted waits for foreground exit [4497.47ms]
+2026-10-23T09:17:18.6840100Z (pass) term SIGTERM holds lock until the foreground exits [2830.52ms]
+2026-10-23T09:17:18.6840430Z (pass) crash preserves exit status 23 without a no-progress row [2490.26ms]
+2026-10-23T09:17:18.6840760Z (pass) term SIGHUP holds lock until the foreground exits [2740.34ms]
+2026-10-23T09:17:18.6840950Z 
+2026-10-23T09:17:18.6841140Z ##[endgroup]
+2026-10-23T09:17:18.6841210Z 
+2026-10-23T09:17:18.6841260Z  26 pass
+2026-10-23T09:17:18.6841370Z  0 fail
+2026-10-23T09:17:18.6841480Z  228 expect() calls
+2026-10-23T09:17:18.6841620Z Ran 26 tests across 1 file. [4.62s]
+2026-10-23T09:17:18.6841810Z -- tests/runner-lifecycle.test.ts: 4.719 s
+2026-10-23T09:17:18.6842000Z == tests/runner-startup.test.ts
+2026-10-23T09:17:18.6842160Z bun test v1.4.2 (744846f84)
+2026-10-23T09:17:18.6842260Z 
+2026-10-23T09:17:18.6842440Z ##[group]tests/runner-startup.test.ts:
+2026-10-23T09:17:18.6842720Z (pass) update codex failure keeps exact host sequence and stop behavior [304.54ms]
+2026-10-23T09:17:18.6843100Z (pass) update claude failure keeps exact host sequence and stop behavior [308.70ms]
+2026-10-23T09:17:18.6843470Z (pass) update codex success keeps exact host sequence and stop behavior [571.43ms]
+2026-10-23T09:17:18.6843840Z (pass) update claude success keeps exact host sequence and stop behavior [573.25ms]
+2026-10-23T09:17:18.6844530Z (pass) registration claude issue starts only after both refs commit [1622.33ms]
+2026-10-23T09:17:18.6844880Z (pass) registration codex auto starts only after both refs commit [1932.21ms]
+2026-10-23T09:17:18.6845100Z 
+2026-10-23T09:17:18.6845240Z ##[endgroup]
+2026-10-23T09:17:18.6845310Z 
+2026-10-23T09:17:18.6845360Z  6 pass
+2026-10-23T09:17:18.6845460Z  0 fail
+2026-10-23T09:17:18.6845570Z  54 expect() calls
+2026-10-23T09:17:18.6845700Z Ran 6 tests across 1 file. [1.94s]
+2026-10-23T09:17:18.6845920Z -- tests/runner-startup.test.ts: 2.045 s
+2026-10-23T09:17:18.6846110Z == tests/host-session.test.ts
+2026-10-23T09:17:18.6846260Z bun test v1.4.2 (744846f84)
+2026-10-23T09:17:18.6846360Z 
+2026-10-23T09:17:18.6846550Z ##[group]tests/host-session.test.ts:
+2026-10-23T09:17:18.6847000Z (pass) launch codex triage preserves args, literal instructions, stdin and exact schema [460.38ms]
+2026-10-23T09:17:18.6847470Z (pass) launch claude feature preserves args, literal instructions, stdin and exact schema [545.28ms]
+2026-10-23T09:17:18.6847930Z (pass) launch claude bug preserves args, literal instructions, stdin and exact schema [545.51ms]
+2026-10-23T09:17:18.6848370Z (pass) launch claude plan preserves args, literal instructions, stdin and exact schema [548.34ms]
+2026-10-23T09:17:18.6848840Z (pass) launch claude hotfix preserves args, literal instructions, stdin and exact schema [556.37ms]
+2026-10-23T09:17:18.6849320Z (pass) launch claude triage preserves args, literal instructions, stdin and exact schema [559.32ms]
+2026-10-23T09:17:18.6849790Z (pass) launch claude implement preserves args, literal instructions, stdin and exact schema [614.49ms]
+2026-10-23T09:17:18.6850250Z (pass) launch claude chore preserves args, literal instructions, stdin and exact schema [630.64ms]
+2026-10-23T09:17:18.6850710Z (pass) launch codex feature preserves args, literal instructions, stdin and exact schema [931.13ms]
+2026-10-23T09:17:18.6851160Z (pass) launch codex hotfix preserves args, literal instructions, stdin and exact schema [997.89ms]
+2026-10-23T09:17:18.6851610Z (pass) launch codex bug preserves args, literal instructions, stdin and exact schema [1025.37ms]
+2026-10-23T09:17:18.6852060Z (pass) launch codex implement preserves args, literal instructions, stdin and exact schema [1043.27ms]
+2026-10-23T09:17:18.6852580Z (pass) launch codex chore preserves args, literal instructions, stdin and exact schema [1044.50ms]
+2026-10-23T09:17:18.6853090Z (pass) launch codex plan preserves args, literal instructions, stdin and exact schema [1053.61ms]
+2026-10-23T09:17:18.6853410Z (pass) saved_status claude idle [1355.12ms]
+2026-10-23T09:17:18.6853610Z (pass) saved_status claude working [1363.26ms]
+2026-10-23T09:17:18.6853850Z (pass) valid_pane claude w1:pE [1181.93ms]
+2026-10-23T09:17:18.6854050Z (pass) valid_pane claude wa0:pz9 [1097.37ms]
+2026-10-23T09:17:18.6854240Z (pass) valid_pane claude w1:p1 [1650.43ms]
+2026-10-23T09:17:18.6854440Z (pass) saved_status claude unknown [1682.43ms]
+2026-10-23T09:17:18.6854640Z (pass) saved_status codex done [1775.43ms]
+2026-10-23T09:17:18.6854830Z (pass) saved_status codex blocked [1838.65ms]
+2026-10-23T09:17:18.6855030Z (pass) valid_pane codex wW:pE [1383.09ms]
+2026-10-23T09:17:18.6855220Z (pass) valid_pane codex wW:p14 [1392.50ms]
+2026-10-23T09:17:18.6855450Z (pass) recovery claude needs a verified saved turn [1558.59ms]
+2026-10-23T09:17:18.6855860Z (pass) old_pane_identity claude is replaced by the current UUID [1596.86ms]
+2026-10-23T09:17:18.6856300Z (pass) old_session claude rejects a saved turn from before startup [1691.93ms]
+2026-10-23T09:17:18.6856650Z (pass) startup_exit claude is never no progress [1320.70ms]
+2026-10-23T09:17:18.6856890Z (pass) outside_herdr claude undefined [1308.49ms]
+2026-10-23T09:17:18.6857090Z (pass) prior_host claude [1778.35ms]
+2026-10-23T09:17:18.6857270Z (pass) outside_herdr claude  [1417.81ms]
+2026-10-23T09:17:18.6857460Z (pass) outside_herdr claude 0 [1399.92ms]
+2026-10-23T09:17:18.6857740Z (pass) recovery codex needs a verified saved turn [1154.08ms]
+2026-10-23T09:17:18.6858180Z (pass) old_pane_identity codex is replaced by the current UUID [1258.38ms]
+2026-10-23T09:17:18.6858630Z (pass) old_session codex rejects a saved turn from before startup [1571.97ms]
+2026-10-23T09:17:18.6858930Z (pass) outside_herdr codex undefined [1311.79ms]
+2026-10-23T09:17:18.6859160Z (pass) startup_exit codex is never no progress [1347.29ms]
+2026-10-23T09:17:18.6859380Z (pass) prior_host codex [1699.72ms]
+2026-10-23T09:17:18.6859680Z (pass) invalid_panes claude stop before updates, sessions and herdr [2038.40ms]
+2026-10-23T09:17:18.6860040Z (pass) outside_herdr codex  [1570.69ms]
+2026-10-23T09:17:18.6863380Z (pass) project_default claude and saved host survive a YAML preference change [2384.02ms]
+2026-10-23T09:17:18.6863690Z (pass) outside_herdr codex 0 [1657.26ms]
+2026-10-23T09:17:18.6864140Z (pass) identity_failure claude no-save preserves startup diagnostics and refuses resume [1533.04ms]
+2026-10-23T09:17:18.6864630Z (pass) identity_failure claude unsaved-unknown preserves startup diagnostics and refuses resume [1572.61ms]
+2026-10-23T09:17:18.6865150Z (pass) identity_failure claude unsaved-blocked preserves startup diagnostics and refuses resume [1609.97ms]
+2026-10-23T09:17:18.6865570Z (pass) invalid_panes codex stop before updates, sessions and herdr [1934.79ms]
+2026-10-23T09:17:18.6865990Z (pass) identity_failure claude wrong-host preserves startup diagnostics and refuses resume [1674.08ms]
+2026-10-23T09:17:18.6866480Z (pass) identity_failure claude foreign-checkout preserves startup diagnostics and refuses resume [1808.08ms]
+2026-10-23T09:17:18.6866940Z (pass) project_default codex and saved host survive a YAML preference change [2137.83ms]
+2026-10-23T09:17:18.6867370Z (pass) identity_failure codex no-save preserves startup diagnostics and refuses resume [1980.00ms]
+2026-10-23T09:17:18.6867830Z (pass) identity_failure codex wrong-host preserves startup diagnostics and refuses resume [1543.91ms]
+2026-10-23T09:17:18.6868320Z (pass) identity_failure codex unsaved-blocked preserves startup diagnostics and refuses resume [2046.99ms]
+2026-10-23T09:17:18.6868830Z (pass) identity_failure codex foreign-checkout preserves startup diagnostics and refuses resume [1693.80ms]
+2026-10-23T09:17:18.6869330Z (pass) identity_failure codex unsaved-unknown preserves startup diagnostics and refuses resume [2105.28ms]
+2026-10-23T09:17:18.6869840Z (pass) identity_failure claude wrong-session-host preserves startup diagnostics and refuses resume [1620.27ms]
+2026-10-23T09:17:18.6870330Z (pass) identity_failure claude no-id preserves startup diagnostics and refuses resume [1774.65ms]
+2026-10-23T09:17:18.6870790Z (pass) identity_failure claude stale-id preserves startup diagnostics and refuses resume [1746.57ms]
+2026-10-23T09:17:18.6871290Z (pass) identity_failure claude malformed-identity preserves startup diagnostics and refuses resume [1851.17ms]
+2026-10-23T09:17:18.6871820Z (pass) identity_failure claude invalid-status preserves startup diagnostics and refuses resume [1942.85ms]
+2026-10-23T09:17:18.6872430Z (pass) identity_failure codex bad-id preserves startup diagnostics and refuses resume [1728.62ms]
+2026-10-23T09:17:18.6872880Z (pass) identity_failure codex bad-json preserves startup diagnostics and refuses resume [1715.65ms]
+2026-10-23T09:17:18.6873340Z (pass) identity_failure codex wrong-kind preserves startup diagnostics and refuses resume [1664.05ms]
+2026-10-23T09:17:18.6873830Z (pass) identity_failure codex missing-status preserves startup diagnostics and refuses resume [1541.35ms]
+2026-10-23T09:17:18.6874240Z (pass) replaced_record {"host":"claude"} refuses discovery race [1056.27ms]
+2026-10-23T09:17:18.6874510Z (pass) exact_resume claude triage [1723.74ms]
+2026-10-23T09:17:18.6874710Z (pass) exact_resume claude bug [1731.54ms]
+2026-10-23T09:17:18.6874900Z (pass) exact_resume claude hotfix [1760.38ms]
+2026-10-23T09:17:18.6875250Z (pass) replaced_record {"session_id":"00000000-0000-4000-8000-000000000001"} refuses discovery race [1251.93ms]
+2026-10-23T09:17:18.6875610Z (pass) exact_resume claude implement [1827.34ms]
+2026-10-23T09:17:18.6876010Z (pass) exact_resume codex feature [1857.46ms]
+2026-10-23T09:17:18.6876280Z (pass) bad_records reject each old mutation and malformed root [1221.02ms]
+2026-10-23T09:17:18.6876540Z (pass) exact_resume codex plan [1659.96ms]
+2026-10-23T09:17:18.6876740Z (pass) exact_resume codex chore [1939.01ms]
+2026-10-23T09:17:18.6877030Z (pass) name_based_resume refuses an obsolete no-progress row without effects [1149.70ms]
+2026-10-23T09:17:18.6877380Z (pass) invalid_config cannot create a session or record [1372.23ms]
+2026-10-23T09:17:18.6877740Z (pass) existing_developer keeps literal instructions and appends exact step text [1476.11ms]
+2026-10-23T09:17:18.6878070Z (pass) codex_persistence ephemeral [1663.78ms]
+2026-10-23T09:17:18.6878290Z (pass) codex_persistence wrong-saved-id [1758.99ms]
+2026-10-23T09:17:18.6878780Z 14 | const resumeArgs = (host: string, id = uuid) => (host === 'codex' ? ['resume', '--no-daemon', id] : ['--resume', id]);
+2026-10-23T09:17:18.6879320Z 15 | async function saved(f: RunnerFixture, host: string, step = 'plan', extra: NodeJS.ProcessEnv = {}) {
+2026-10-23T09:17:18.6879660Z 16 |   await f.put('step', step);
+2026-10-23T09:17:18.6879900Z 17 |   const result = await f.run(['7'], { host, env: { ...managed, ...extra } });
+2026-10-23T09:17:18.6880180Z 18 |   expect(result.code, result.stderr).toBe(0);
+2026-10-23T09:17:18.6880380Z 19 |   expect(result.stderr).toBe('');
+2026-10-23T09:17:18.6880560Z                              ^
+2026-10-23T09:17:18.6880720Z error: expect(received).toBe(expected)
+2026-10-23T09:17:18.6880840Z 
+2026-10-23T09:17:18.6880890Z Expected: ""
+2026-10-23T09:17:18.6881020Z Received: "The operation was aborted"
+2026-10-23T09:17:18.6881140Z 
+2026-10-23T09:17:18.6881300Z       at saved (/Users/runner/work/celetis/celetis/tests/host-session.test.ts:19:25)
+2026-10-23T09:17:18.6881750Z       at async <anonymous> (/Users/runner/work/celetis/celetis/tests/host-session.test.ts:396:11)
+2026-10-23T09:17:18.6882190Z       at async <anonymous> (/Users/runner/work/celetis/celetis/tests/lib/runner-fixture.ts:319:13)
+2026-10-23T09:17:18.6882450Z 
+2026-10-23T09:17:18.6896550Z ##[error]Expected: ""
+Received: "The operation was aborted"
+
+      at saved (/Users/runner/work/celetis/celetis/tests/host-session.test.ts:19:25)
+      at async <anonymous> (/Users/runner/work/celetis/celetis/tests/host-session.test.ts:396:11)
+      at async <anonymous> (/Users/runner/work/celetis/celetis/tests/lib/runner-fixture.ts:319:13)
+2026-10-23T09:17:18.6900820Z (fail) codex_only and launcher_resume use the saved host with no Claude and ignore obsolete Git defaults [1390.61ms]
+2026-10-23T09:17:18.6901300Z (pass) identity discovery keeps its 60 second deadline and startup trust diagnostic [1342.46ms]
+2026-10-23T09:17:18.6901550Z 
+2026-10-23T09:17:18.6901700Z ##[endgroup]
+2026-10-23T09:17:18.6901770Z 
+2026-10-23T09:17:18.6901830Z 1 tests failed:
+2026-10-23T09:17:18.6902120Z (fail) codex_only and launcher_resume use the saved host with no Claude and ignore obsolete Git defaults [1390.61ms]
+2026-10-23T09:17:18.6902420Z 
+2026-10-23T09:17:18.6902470Z  79 pass
+2026-10-23T09:17:18.6902570Z  1 fail
+2026-10-23T09:17:18.6902680Z  830 expect() calls
+2026-10-23T09:17:18.6902810Z Ran 80 tests across 1 file. [6.43s]
+2026-10-23T09:17:18.6902990Z FAIL: tests/host-session.test.ts (exit 1)
+2026-10-23T09:17:18.6903180Z -- tests/host-session.test.ts: 6.533 s
+2026-10-23T09:17:18.6903340Z suite: FAIL
+2026-10-23T09:17:18.6905710Z ##[error]Process completed with exit code 1.
+2026-10-23T09:17:18.7012370Z Post job cleanup.
+2026-10-23T09:17:18.7722740Z [command]/opt/homebrew/bin/git version
+2026-10-23T09:17:18.7765060Z git version 2.55.0
+2026-10-23T09:17:18.7781180Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/0b829931-0eb4-44c0-ac85-2117a85dbef0/.gitconfig'
+2026-10-23T09:17:18.7787720Z Temporarily overriding HOME='/Users/runner/work/_temp/0b829931-0eb4-44c0-ac85-2117a85dbef0' before making global git config changes
+2026-10-23T09:17:18.7796120Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-23T09:17:18.7796920Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/celetis/celetis
+2026-10-23T09:17:18.7832420Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-23T09:17:18.7871580Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-23T09:17:18.8361010Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-23T09:17:18.8388900Z http.https://github.com/.extraheader
+2026-10-23T09:17:18.8395000Z [command]/opt/homebrew/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-23T09:17:18.8429690Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-23T09:17:18.8859360Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-23T09:17:18.8892460Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-23T09:17:18.9412480Z Cleaning up orphan processes
+2026-10-23T09:17:19.1782470Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

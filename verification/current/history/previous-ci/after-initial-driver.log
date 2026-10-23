@@ -1,0 +1,36 @@
+CHECK_START tests/process.test.ts complete file Bun=1.4.2 TMPDIR=/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.MGx5Ph/tests_process.test.ts
+CHECK_RESULT [{"label":"tests/process.test.ts","code":0,"elapsedMs":13898.812542000001,"timedOut":false}]
+ 29 pass
+ 0 fail
+Ran 29 tests across 1 file. [13.78s]
+suite: PASS
+CHECK_CLEANUP {"file":"tests/process.test.ts","remaining":[],"leftovers":[]}
+CHECK_START tests/parallel.test.ts complete file Bun=1.4.2 TMPDIR=/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.MGx5Ph/tests_parallel.test.ts
+CHECK_RESULT [{"label":"tests/parallel.test.ts","code":0,"elapsedMs":4065.6855419999993,"timedOut":false}]
+ 11 pass
+ 0 fail
+Ran 11 tests across 1 file. [3.96s]
+suite: PASS
+CHECK_CLEANUP {"file":"tests/parallel.test.ts","remaining":[],"leftovers":[]}
+CHECK_START tests/launcher.test.ts complete file Bun=1.4.2 TMPDIR=/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.MGx5Ph/tests_launcher.test.ts
+CHECK_RESULT [{"label":"tests/launcher.test.ts","code":0,"elapsedMs":17986.671415999997,"timedOut":false}]
+ 67 pass
+ 0 fail
+Ran 67 tests across 1 file. [17.88s]
+suite: PASS
+CHECK_CLEANUP {"file":"tests/launcher.test.ts","remaining":[],"leftovers":[]}
+CHECK_START tests/host-session.test.ts complete file Bun=1.4.2 TMPDIR=/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.MGx5Ph/tests_host-session.test.ts
+CHECK_RESULT [{"label":"tests/host-session.test.ts","code":124,"elapsedMs":30109.970208,"timedOut":true}]
+suite: FAIL
+CHECK_CLEANUP {"file":"tests/host-session.test.ts","remaining":[],"leftovers":["celetis-runtime.A0g1Oo","celetis-runtime.woRDgk","celetis-runtime.f8qLeB","celetis-runtime.h8y3pS","celetis-runtime.ILeWm7","celetis-runtime.ReslWG","celetis-runtime.0YF0Td","celetis-runtime.UNvorT"]}
+47 |     if(result.some(result=>result.code!==0))throw new Error(`covering entry failed: ${file}`);
+48 |   }finally{
+49 |     clearInterval(poll);while(busy)await Bun.sleep(5);const remaining=await capture('after');
+50 |     await writeFile(join(import.meta.dir,`${label}-processes.log`),tables.join('\n'));
+51 |     const leftovers=await readdir(temp);console.log('CHECK_CLEANUP '+JSON.stringify({file,remaining,leftovers}));
+52 |     if(captureError)throw captureError;if(remaining.length||leftovers.length)throw new Error(`cleanup failed: ${file}`);
+                                                                                            ^
+error: cleanup failed: tests/host-session.test.ts
+      at /Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/.superpowers/sdd/96/ci-fix-logs/after.ts:52:88
+
+Bun v1.4.2 (macOS arm64)

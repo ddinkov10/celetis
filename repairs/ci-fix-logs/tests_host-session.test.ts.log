@@ -1,0 +1,37 @@
+== tests/host-session.test.ts
+bun test v1.4.2 (744846f84)
+
+tests/host-session.test.ts:
+(pass) launch codex triage preserves args, literal instructions, stdin and exact schema [1330.37ms]
+(pass) launch claude feature preserves args, literal instructions, stdin and exact schema [1523.75ms]
+(pass) launch claude plan preserves args, literal instructions, stdin and exact schema [1678.94ms]
+(pass) launch claude bug preserves args, literal instructions, stdin and exact schema [1825.09ms]
+(pass) launch claude triage preserves args, literal instructions, stdin and exact schema [2029.44ms]
+(pass) launch claude implement preserves args, literal instructions, stdin and exact schema [2247.10ms]
+(pass) launch claude chore preserves args, literal instructions, stdin and exact schema [2445.25ms]
+(pass) launch claude hotfix preserves args, literal instructions, stdin and exact schema [2665.99ms]
+(pass) launch codex feature preserves args, literal instructions, stdin and exact schema [2818.29ms]
+(pass) launch codex bug preserves args, literal instructions, stdin and exact schema [2995.47ms]
+(pass) launch codex chore preserves args, literal instructions, stdin and exact schema [3189.35ms]
+(pass) launch codex hotfix preserves args, literal instructions, stdin and exact schema [3332.39ms]
+(pass) launch codex plan preserves args, literal instructions, stdin and exact schema [3481.94ms]
+(pass) launch codex implement preserves args, literal instructions, stdin and exact schema [3741.95ms]
+(pass) recovery claude needs a verified saved turn [3933.12ms]
+(pass) startup_exit claude is never no progress [4055.09ms]
+(pass) outside_herdr claude undefined [4261.30ms]
+(pass) outside_herdr claude  [4428.10ms]
+(pass) outside_herdr claude 0 [4566.27ms]
+(pass) recovery codex needs a verified saved turn [4828.72ms]
+(pass) startup_exit codex is never no progress [3647.23ms]
+(pass) outside_herdr codex undefined [3609.66ms]
+(pass) outside_herdr codex  [3706.01ms]
+(pass) outside_herdr codex 0 [3737.36ms]
+(pass) existing_developer keeps literal instructions and appends exact step text [3877.91ms]
+(pass) invalid_config cannot create a session or record [3815.82ms]
+
+ 26 pass
+ 0 fail
+ 215 expect() calls
+Ran 26 tests across 1 file. [6.07s]
+-- tests/host-session.test.ts: 6.186 s
+suite: PASS

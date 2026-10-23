@@ -1,0 +1,770 @@
+{
+  "schema": 1,
+  "head": "b6053743e492dde0624207c90fc3a23cdeeca57a",
+  "checkout": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain",
+  "branch": "feat/96-intent-the-whole-toolchain",
+  "createdAt": "2026-10-23T10:54:15.541308+00:00",
+  "localResult": "DONE",
+  "V1": "PASS",
+  "V3MacOS": "PASS",
+  "passes": 239,
+  "failures": 0,
+  "assertions": 2055,
+  "maxFileSeconds": 19.891381791,
+  "privateOrchestration": {
+    "language": "Python 3.15.0",
+    "driver": "v1-proof.py",
+    "purpose": "Private Git-copy and snapshot orchestration; all product commands use pinned Bun; no product Python runtime/dependency"
+  },
+  "versions": {
+    "os": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+    "uname": "Darwin Dinkos-MacBook-Air.local 25.4.0 Darwin Kernel Version 25.4.0: Thu Mar 19 19:32:36 PDT 2026; root:xnu-12377.101.15~1/RELEASE_ARM64_T8103 arm64",
+    "swVers": "ProductName:\t\tmacOS\nProductVersion:\t\t26.4.1\nBuildVersion:\t\t25E253",
+    "bunPath": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/bun-floor/node_modules/@oven/bun-darwin-aarch64/bin/bun",
+    "bun": "1.4.2",
+    "bunRevision": "1.4.2+744846f84",
+    "codex": {
+      "path": "/opt/homebrew/bin/codex",
+      "version": "WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)\ncodex-cli 0.163.0"
+    },
+    "claude": {
+      "path": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/task9-tools/bin/claude",
+      "version": "2.1.302 (Claude Code)"
+    },
+    "gh": {
+      "path": "/opt/homebrew/bin/gh",
+      "version": "gh version 2.102.1 (2026-10-20)\nhttps://github.com/cli/cli/releases/tag/v2.102.1"
+    },
+    "herdr": {
+      "path": "/Users/dinq/.local/bin/herdr",
+      "version": "herdr 0.9.3"
+    }
+  },
+  "isolation": {
+    "BUN_RUNTIME_TRANSPILER_CACHE_PATH": "0",
+    "DO_NOT_TRACK": "1",
+    "flags": [
+      "--no-env-file",
+      "--no-install",
+      "--config=/dev/null",
+      "--no-macros"
+    ],
+    "privateTools": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/task9-tools"
+  },
+  "V3Method": {
+    "selection": "current nine processEntries plus tests/celetis-flow.test.ts",
+    "files": 10,
+    "workersOverride": null,
+    "effectiveDefaultWorkers": 1,
+    "fileTimeoutMs": 30000,
+    "ownedProcessSamplingMs": 200,
+    "globalUnrelatedProcessTablesSaved": false,
+    "unchangedRetry": false
+  },
+  "privateCollectorSetupErrorRetained": true,
+  "newHeadCI": "PASS/controller-provided GitHub Actions",
+  "files": [
+    {
+      "path": "binding.json",
+      "bytes": 444,
+      "mode": "0644",
+      "sha256": "4d005270fe0114f3ad06fb161571d15a51a21a6019e160d967bdd1fe32bda089"
+    },
+    {
+      "path": "ci/ci-run-third.json",
+      "bytes": 4756,
+      "mode": "0644",
+      "sha256": "533983aff9a071de347425535393850da8eb5466ce82e08aecd7465869c7506f"
+    },
+    {
+      "path": "ci/ci-third-linux-clean.log",
+      "bytes": 35802,
+      "mode": "0644",
+      "sha256": "b424f48f1eb06d8b7d9386ab9b61ec73a7f30cf5b51d21d39e301529ad114f54"
+    },
+    {
+      "path": "ci/ci-third-linux.log",
+      "bytes": 35813,
+      "mode": "0644",
+      "sha256": "a44ba88c0cb2801a758d81e3372ae398edfc0240cb6aaf2117c3ed874b47a242"
+    },
+    {
+      "path": "ci/ci-third-macos-clean.log",
+      "bytes": 35147,
+      "mode": "0644",
+      "sha256": "85e346b5846cd3bc2d186d13e92fd7d57458f7be5834363e79b67531f223a7b7"
+    },
+    {
+      "path": "ci/ci-third-macos.log",
+      "bytes": 35158,
+      "mode": "0644",
+      "sha256": "6aa6c589a3c642d9c310f12032b74501d6946bcfdd2819a1a4070842c670e4ab"
+    },
+    {
+      "path": "ci/ci-third-process-results.json",
+      "bytes": 1733,
+      "mode": "0644",
+      "sha256": "a98fc0c6804470524590ca5a425d557b4373df828eb690b8a383091ceb5a6ca9"
+    },
+    {
+      "path": "ci/ci-third-suite-results.json",
+      "bytes": 4266,
+      "mode": "0644",
+      "sha256": "27a864fd0a41f566f2333a0b581e63c526ea86a09fcaad70bfc2362e35ec699e"
+    },
+    {
+      "path": "ci/ci-third-test-clean.log",
+      "bytes": 229654,
+      "mode": "0644",
+      "sha256": "57c45607703e0814ccc4fa9b20e8012418d5bf34ccb1fdd86ec6b8677f08555e"
+    },
+    {
+      "path": "ci/ci-third-test.log",
+      "bytes": 229687,
+      "mode": "0644",
+      "sha256": "732bad72638689fad4b60e37bab5192ad80884cad1d043798b9c362d9dedc239"
+    },
+    {
+      "path": "ci/ci-third-watch.log",
+      "bytes": 5983,
+      "mode": "0644",
+      "sha256": "51c23d830865935d4373623b5a695b2e75c2a2a6be643bcdf7cb698ae8b5a618"
+    },
+    {
+      "path": "collect-final-proof.py",
+      "bytes": 2884,
+      "mode": "0644",
+      "sha256": "3ec906234be25fbf617424de83d1a82f567b84ef37b40f8da3c7da34235854f6"
+    },
+    {
+      "path": "commands-v1.json",
+      "bytes": 10394,
+      "mode": "0644",
+      "sha256": "34f37b5b393f3e017715fc2854ccc5d76bcc8d3135b248a39b8af19ac8f0c087"
+    },
+    {
+      "path": "history/ci-final-verify-2-brief.md",
+      "bytes": 2979,
+      "mode": "0644",
+      "sha256": "ac42f8a9657b84c381090848debb25bb0238af59787c69696eae52994bd0c3b9"
+    },
+    {
+      "path": "history/ci-fix-2-report.md",
+      "bytes": 13874,
+      "mode": "0644",
+      "sha256": "725b0fe69038f99bbc79ae82d9d71c4d3d607bc46cc23edac615574dbaf0f0bf"
+    },
+    {
+      "path": "history/ci-fix-2-review.md",
+      "bytes": 7916,
+      "mode": "0644",
+      "sha256": "c1de8a6d18c7dd030edef8b92e084b780d66ab4db055670edfb1ff23ce2c428f"
+    },
+    {
+      "path": "history/collect-final-proof-initial.py",
+      "bytes": 3876,
+      "mode": "0644",
+      "sha256": "d69ffe739b4845f662523711f4c28beded50514809bd99699f22305ce1eb393a"
+    },
+    {
+      "path": "history/collector-name-setup-error.txt",
+      "bytes": 801,
+      "mode": "0644",
+      "sha256": "186529247926405818270457cb9cfc574f0238be608f5dd4aa3f06b9fbd76e52"
+    },
+    {
+      "path": "history/final-verify-report.md",
+      "bytes": 18366,
+      "mode": "0644",
+      "sha256": "bbdfd652ef22f599a02a11ef3db9ad0de339ce0fa42fc5ab591c38c6bad51baf"
+    },
+    {
+      "path": "history/history-chain.json",
+      "bytes": 895,
+      "mode": "0644",
+      "sha256": "b2cf3824816716665b880176e46bd712552059c52f5273be9c265c738af60724"
+    },
+    {
+      "path": "history/inventory-setup-error.txt",
+      "bytes": 340,
+      "mode": "0644",
+      "sha256": "ac691a200e9888fe0def16e82dd414f8116b2df2bd4633f6acccd615ed52ff5d"
+    },
+    {
+      "path": "history/previous-ci/after-initial-driver.log",
+      "bytes": 2696,
+      "mode": "0644",
+      "sha256": "5aa23f648588981a32d5e53bbec114ff4ac9523803a32244d94333d8208cb0ff"
+    },
+    {
+      "path": "history/previous-ci/cancellation-red-final.log",
+      "bytes": 1309,
+      "mode": "0644",
+      "sha256": "736730928a0e2c96771f1d258b3fd5895e972e790e49b8b6ee25184bd626a999"
+    },
+    {
+      "path": "history/previous-ci/cancellation-red.log",
+      "bytes": 2658,
+      "mode": "0644",
+      "sha256": "40a23a11a93548ffdb4f58d91854c9f099849e9af4846d18b205c7bfa964e0d8"
+    },
+    {
+      "path": "history/previous-ci/ci-final-verify-brief.md",
+      "bytes": 3590,
+      "mode": "0644",
+      "sha256": "883190035542646c94089330be24538aec305717b6afc16c77e485707bffbe74"
+    },
+    {
+      "path": "history/previous-ci/ci-fix-report.md",
+      "bytes": 22553,
+      "mode": "0644",
+      "sha256": "26b6222d37678dbe434dffdf8f26c7f3d48f18b052094770b59fc9c610197331"
+    },
+    {
+      "path": "history/previous-ci/ci-fix-review.md",
+      "bytes": 9425,
+      "mode": "0644",
+      "sha256": "319375c3c8c6e8a0f54411c00f5cd972f8e140c80071350c0442ecb7c7958901"
+    },
+    {
+      "path": "history/previous-ci/ci-second-test-clean.log",
+      "bytes": 233970,
+      "mode": "0644",
+      "sha256": "025b6df2aa1510794506be7f55270ae06cee281c8c7178db9d41d3790f4f5ea0"
+    },
+    {
+      "path": "history/previous-ci/final-fix-report.md",
+      "bytes": 11697,
+      "mode": "0644",
+      "sha256": "77da534715eb6cf814b077627fed62b7ddbd4ada875c13809f85244932945c03"
+    },
+    {
+      "path": "history/previous-ci/final-verify-report.md",
+      "bytes": 16350,
+      "mode": "0644",
+      "sha256": "3b3b636c9ed64c476085a1e3fa1ed5b0d6bf084d96f607ff855fc82db1f36f9f"
+    },
+    {
+      "path": "history/previous-ci/gate-initial.log",
+      "bytes": 5069,
+      "mode": "0644",
+      "sha256": "d15eea482ac1d1f56f780d9a454121b9541e18ec49eb91d81ec7020971df1794"
+    },
+    {
+      "path": "history/previous-ci/history-index.json",
+      "bytes": 5347,
+      "mode": "0644",
+      "sha256": "9010b21d1975219ae85d506d14eb33b60cfe942e1482a6f932a6e4a96bf5304f"
+    },
+    {
+      "path": "history/previous-ci/phases.log",
+      "bytes": 103303,
+      "mode": "0644",
+      "sha256": "09200393bec01aaa7ea3e0958bc1fe2f7f6c86ff36b9c7fad0521db2fe1d9488"
+    },
+    {
+      "path": "history/previous-ci/pre-split_tests_host-session.test.ts.log",
+      "bytes": 2686,
+      "mode": "0644",
+      "sha256": "c9920bebbd4efd01ca6dac7bc01469cde01d298e5ffcc8aa3863716dbe3cc841"
+    },
+    {
+      "path": "history/previous-ci/preserve-initial.log",
+      "bytes": 313,
+      "mode": "0644",
+      "sha256": "bb140931a26b7b5622b40f824abbae3c19be67f7e7a1dd20023379e0c3f95080"
+    },
+    {
+      "path": "history/previous-ci/queue-clock.log",
+      "bytes": 785,
+      "mode": "0644",
+      "sha256": "29f3463f3d82430f6982ae9c1944a17ddfbe179fb7fd7580c6eb20825362b5a9"
+    },
+    {
+      "path": "history/previous-ci/standalone-cutoff-state.json",
+      "bytes": 8389,
+      "mode": "0644",
+      "sha256": "6751edd070796e8be58ab7b60953be04d1fb316e7bcc6bedf6b2edf7bee19085"
+    },
+    {
+      "path": "history/previous-ci/verification.md",
+      "bytes": 5849,
+      "mode": "0644",
+      "sha256": "4da558b4192ec2b135def4f610d6412d5f2c6013230b36a6a1c49010fba900d9"
+    },
+    {
+      "path": "history/previous-ci/verify-fix-report.md",
+      "bytes": 14902,
+      "mode": "0644",
+      "sha256": "46cc2fe8794cd91b288357c4b057388bc4cc1565dc21d18755e3b6669427b1cd"
+    },
+    {
+      "path": "history/verification.md",
+      "bytes": 6431,
+      "mode": "0644",
+      "sha256": "bbffefa6c817abef8352160cf522ade9a18c34c0665d39f7273789a7d9d34ff6"
+    },
+    {
+      "path": "incorporate-ci.py",
+      "bytes": 5318,
+      "mode": "0644",
+      "sha256": "198ed861afce0166bae8152fafc0b32f05a70baa2baf10beb8e24cb04c803ad0"
+    },
+    {
+      "path": "logs/bun-revision.log",
+      "bytes": 16,
+      "mode": "0644",
+      "sha256": "9be88dde8b69dbe59e415265fef0e6afa91607e6ef3e0de5ed3d0886844f52e2"
+    },
+    {
+      "path": "logs/bun-version.log",
+      "bytes": 6,
+      "mode": "0644",
+      "sha256": "b99b4c7cdf236f59bc9f65d963deaecae3b16a7dad87939cacb9057f7664daee"
+    },
+    {
+      "path": "logs/claude-version.log",
+      "bytes": 22,
+      "mode": "0644",
+      "sha256": "46456e3df7072c3a1af6131cd577e05b22296c630b3e7a4a60be70a7c3a5d896"
+    },
+    {
+      "path": "logs/codex-version.log",
+      "bytes": 122,
+      "mode": "0644",
+      "sha256": "e067764a310d2096e52e00f8568804b3acbceddef7a1a18740d27fa90d42e785"
+    },
+    {
+      "path": "logs/copy-a-build.log",
+      "bytes": 0,
+      "mode": "0644",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/copy-a-checkout.log",
+      "bytes": 92,
+      "mode": "0644",
+      "sha256": "700e5120536fd94dd0dcd8d018291b24983daa8451e09315dffaa6a8f1970dd3"
+    },
+    {
+      "path": "logs/copy-a-clone.log",
+      "bytes": 134,
+      "mode": "0644",
+      "sha256": "ac940def6926f4737863a67dda978b084d34b4e0bc18b61be07bb0949ea2e63f"
+    },
+    {
+      "path": "logs/copy-b-build.log",
+      "bytes": 0,
+      "mode": "0644",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/copy-b-checkout.log",
+      "bytes": 92,
+      "mode": "0644",
+      "sha256": "700e5120536fd94dd0dcd8d018291b24983daa8451e09315dffaa6a8f1970dd3"
+    },
+    {
+      "path": "logs/copy-b-clone.log",
+      "bytes": 158,
+      "mode": "0644",
+      "sha256": "5b4428e2dd57466ea2dc70fd86ba1a084c2df79b7ccc6d801d6113e8f31f6e01"
+    },
+    {
+      "path": "logs/corrupt-build-check.log",
+      "bytes": 67,
+      "mode": "0644",
+      "sha256": "c6f5995055ff5f3cb2ebd68c4eb358c3c4f9fc58472a9294eefadd538e804367"
+    },
+    {
+      "path": "logs/corrupt-checkout.log",
+      "bytes": 92,
+      "mode": "0644",
+      "sha256": "700e5120536fd94dd0dcd8d018291b24983daa8451e09315dffaa6a8f1970dd3"
+    },
+    {
+      "path": "logs/corrupt-clone.log",
+      "bytes": 149,
+      "mode": "0644",
+      "sha256": "cad2d2a3104d2d91e335f01053ef4052ca55ddf6bef8b70388fb9b26e60fe211"
+    },
+    {
+      "path": "logs/final-collector.log",
+      "bytes": 1024,
+      "mode": "0644",
+      "sha256": "0e057d6c54a3c9228920b8f95b82210d691c13d8a644e0aaff2b10585559b4c5"
+    },
+    {
+      "path": "logs/gh-version.log",
+      "bytes": 81,
+      "mode": "0644",
+      "sha256": "76fddd72d055ba2820f41cab18d395eed727d09c57347dc63abe053079a7e259"
+    },
+    {
+      "path": "logs/herdr-version.log",
+      "bytes": 12,
+      "mode": "0644",
+      "sha256": "4140165b07f9276676a5a5d67b5c64c8f0099b7c30fa00703a3f23185cf5d60d"
+    },
+    {
+      "path": "logs/source-build-check.log",
+      "bytes": 0,
+      "mode": "0644",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "logs/source-gate.log",
+      "bytes": 4707,
+      "mode": "0644",
+      "sha256": "145e4710261399fe4ef0c2824626efe2aba30d57806d4c78d07d53e75dbb7ff4"
+    },
+    {
+      "path": "logs/sw-vers.log",
+      "bytes": 66,
+      "mode": "0644",
+      "sha256": "2ad5e57776ecb4b37b741f751521e2c77d58bf2d6d64e54c61507eabd39dea31"
+    },
+    {
+      "path": "logs/uname.log",
+      "bytes": 149,
+      "mode": "0644",
+      "sha256": "67ac6c939a19dd123a8fdbb0328e0094226d982dfe3ac115100c23cf4184d268"
+    },
+    {
+      "path": "logs/v1-tree-proof.log",
+      "bytes": 1833,
+      "mode": "0644",
+      "sha256": "f00e9045c8280b71a0d53575894a18fbcf8fa0560271b3ac4b8576e085276bc6"
+    },
+    {
+      "path": "logs/v3-board_realpath.test.ts.log",
+      "bytes": 507,
+      "mode": "0644",
+      "sha256": "a0330ccade4a7c7c83baeb5219e01f93a0e6a32a016c8a126c58ba1c39da4d32"
+    },
+    {
+      "path": "logs/v3-driver.log",
+      "bytes": 2862,
+      "mode": "0644",
+      "sha256": "4f86983f1f484127eaecc904380b9595ad2de48bc3b2af08b772931f62cac830"
+    },
+    {
+      "path": "logs/v3-process-tables.log",
+      "bytes": 2843954,
+      "mode": "0644",
+      "sha256": "7881c0aa8965a0b4166d3cec4c72ab54e540ae14692a798def50b8b2fc892f67"
+    },
+    {
+      "path": "logs/v3-tests_celetis-flow.test.ts.log",
+      "bytes": 5433,
+      "mode": "0644",
+      "sha256": "bddd84399d3346986b4071a40667d935f5bdf42decbd1261c2e1b4123b0cc9b1"
+    },
+    {
+      "path": "logs/v3-tests_host-identity.test.ts.log",
+      "bytes": 2582,
+      "mode": "0644",
+      "sha256": "6ce3cd923a62ef15dd54435b3ce8bf2f44648ef3dc43399e389a101f0a7cdf38"
+    },
+    {
+      "path": "logs/v3-tests_host-observation.test.ts.log",
+      "bytes": 1048,
+      "mode": "0644",
+      "sha256": "0c93897b1862b843753345992b5b2df2915c6f25ee5aa600ce9e7bef27a357da"
+    },
+    {
+      "path": "logs/v3-tests_host-resume.test.ts.log",
+      "bytes": 1331,
+      "mode": "0644",
+      "sha256": "b53ee86fe25fdd84e72d7cd1e1eb3c109798f158631b2456d94d8ab4ff4c19ed"
+    },
+    {
+      "path": "logs/v3-tests_host-session.test.ts.log",
+      "bytes": 2282,
+      "mode": "0644",
+      "sha256": "7cbf64a1e8041e025588436bc16ae97570256d923c0e237a3f9281650124a176"
+    },
+    {
+      "path": "logs/v3-tests_process.test.ts.log",
+      "bytes": 2095,
+      "mode": "0644",
+      "sha256": "61fb600cac800ff0f83e8712ffc5706d0b3d827d339629a6db0613da0e4abba3"
+    },
+    {
+      "path": "logs/v3-tests_runner-lifecycle.test.ts.log",
+      "bytes": 1935,
+      "mode": "0644",
+      "sha256": "315e5bd3ca039c9c2dceed06a7ebc3e0b7c4c8c2179c0ecd8978fbb8555c2e9f"
+    },
+    {
+      "path": "logs/v3-tests_runner-lock.test.ts.log",
+      "bytes": 2243,
+      "mode": "0644",
+      "sha256": "af26bf271e95a64f64498c1fa98d5f5635e87a5d35346189849d11852dcdfd51"
+    },
+    {
+      "path": "logs/v3-tests_runner-startup.test.ts.log",
+      "bytes": 711,
+      "mode": "0644",
+      "sha256": "bf261262b99df8f22db43f4218bd440a548585caedd902bcff1f658a253b9371"
+    },
+    {
+      "path": "proof/controller-ci-summary.json",
+      "bytes": 4277,
+      "mode": "0644",
+      "sha256": "452ad4f880b395772999843b51dc00ee9b571eed910b6c7b1ef2c439fc9d8361"
+    },
+    {
+      "path": "proof/copy-a-after-build.json",
+      "bytes": 35960,
+      "mode": "0644",
+      "sha256": "bef55905769ab479c360fab32ad81e39bb8cf6e49352502eba07322964a6338f"
+    },
+    {
+      "path": "proof/copy-a-initial.json",
+      "bytes": 35960,
+      "mode": "0644",
+      "sha256": "bef55905769ab479c360fab32ad81e39bb8cf6e49352502eba07322964a6338f"
+    },
+    {
+      "path": "proof/copy-b-after-build.json",
+      "bytes": 35960,
+      "mode": "0644",
+      "sha256": "bef55905769ab479c360fab32ad81e39bb8cf6e49352502eba07322964a6338f"
+    },
+    {
+      "path": "proof/copy-b-initial.json",
+      "bytes": 35960,
+      "mode": "0644",
+      "sha256": "bef55905769ab479c360fab32ad81e39bb8cf6e49352502eba07322964a6338f"
+    },
+    {
+      "path": "proof/corrupt-after-check.json",
+      "bytes": 35960,
+      "mode": "0644",
+      "sha256": "b6f6ac3bc582b1958fa23c2a79f4758d657990a387ab1472820e516efbf6442b"
+    },
+    {
+      "path": "proof/corrupt-before-check.json",
+      "bytes": 35960,
+      "mode": "0644",
+      "sha256": "b6f6ac3bc582b1958fa23c2a79f4758d657990a387ab1472820e516efbf6442b"
+    },
+    {
+      "path": "proof/corrupt-initial.json",
+      "bytes": 35960,
+      "mode": "0644",
+      "sha256": "bef55905769ab479c360fab32ad81e39bb8cf6e49352502eba07322964a6338f"
+    },
+    {
+      "path": "proof/current-flow-lifecycle-name-preservation.json",
+      "bytes": 285,
+      "mode": "0644",
+      "sha256": "c5c9ba0be92d097900e64f1c358fb5a2220647191097af3bd0f0008edf5a3e5e"
+    },
+    {
+      "path": "proof/current-focused-rows.json",
+      "bytes": 89254,
+      "mode": "0644",
+      "sha256": "7e1277fd37c4f784d17c02f92a60dfec474676af2e96ec96b95139f38c482165"
+    },
+    {
+      "path": "proof/current-host-case-preservation.json",
+      "bytes": 10958,
+      "mode": "0644",
+      "sha256": "b0719771d327e31b1c03766c94854ebcf5de536dd09a533efb3a718e5e26d61f"
+    },
+    {
+      "path": "proof/current-port-map.md",
+      "bytes": 1071693,
+      "mode": "0644",
+      "sha256": "2064e437347fc7d7c69db9f2ae54a0cdfe8ddb90165527fcddac1ff30832b437"
+    },
+    {
+      "path": "proof/direct-generated-byte-comparison.json",
+      "bytes": 1054,
+      "mode": "0644",
+      "sha256": "1dc628cac10e8e43440b2e1ab6998903a6b6b8b78051b25e7a28f8877302131c"
+    },
+    {
+      "path": "proof/expected-host-case-inventory.json",
+      "bytes": 11602,
+      "mode": "0644",
+      "sha256": "badb021d72103d78aca62f8b3b05068cce6a020195f358699c5b38a5d1b916d9"
+    },
+    {
+      "path": "proof/final-source-summary.json",
+      "bytes": 366,
+      "mode": "0644",
+      "sha256": "60ae41acff2cb5b468c1706ba20bf01718b4e101485878d0e0a2ee8bb35f98a7"
+    },
+    {
+      "path": "proof/generated-comparison-to-base.json",
+      "bytes": 1699,
+      "mode": "0644",
+      "sha256": "bff0a5a98c08e1d47d907f5e5d6c1f9a365c6aa825143b328e332898840527a2"
+    },
+    {
+      "path": "proof/generated-manifest.json",
+      "bytes": 1219,
+      "mode": "0644",
+      "sha256": "d39a0417ffb43ee265dfe5e40845352867c2bdbee6c0d13a9b7ff61b10f4d48f"
+    },
+    {
+      "path": "proof/host-case-map.json",
+      "bytes": 10241,
+      "mode": "0644",
+      "sha256": "8c1e8f816ff857d9e92da2e5377bbb1123cfefff895d790455eb583a226ff163"
+    },
+    {
+      "path": "proof/second-repair-case-inventory.json",
+      "bytes": 7052,
+      "mode": "0644",
+      "sha256": "b05bbc77a0cd4df5b850f2af4d9499d5688dc2a6c9cd270c0de6eb0427ea195a"
+    },
+    {
+      "path": "proof/source-after-check.json",
+      "bytes": 35960,
+      "mode": "0644",
+      "sha256": "bef55905769ab479c360fab32ad81e39bb8cf6e49352502eba07322964a6338f"
+    },
+    {
+      "path": "proof/source-after-gate.json",
+      "bytes": 35960,
+      "mode": "0644",
+      "sha256": "bef55905769ab479c360fab32ad81e39bb8cf6e49352502eba07322964a6338f"
+    },
+    {
+      "path": "proof/source-before.json",
+      "bytes": 35960,
+      "mode": "0644",
+      "sha256": "bef55905769ab479c360fab32ad81e39bb8cf6e49352502eba07322964a6338f"
+    },
+    {
+      "path": "proof/source-final.json",
+      "bytes": 35960,
+      "mode": "0644",
+      "sha256": "bef55905769ab479c360fab32ad81e39bb8cf6e49352502eba07322964a6338f"
+    },
+    {
+      "path": "proof/tree-roles.json",
+      "bytes": 10016,
+      "mode": "0644",
+      "sha256": "0f8ba50d5b148946ff8604b51e52836ecf417867beadaa05625943c79b173467"
+    },
+    {
+      "path": "proof/v1-build-summary.json",
+      "bytes": 1961,
+      "mode": "0644",
+      "sha256": "059bfefc889233e03648b1248fe28bf66ffda4f03b80eaa709006ae4d1ca462a"
+    },
+    {
+      "path": "proof/v1-tree-summary.json",
+      "bytes": 11797,
+      "mode": "0644",
+      "sha256": "4d2e949a2524240f248fa118fd703c6bd8b4d9aa68a0292d03f11dc531ce4aa4"
+    },
+    {
+      "path": "proof/v3-case-summary.json",
+      "bytes": 2438,
+      "mode": "0644",
+      "sha256": "c40493cfadbf957617caaeed35b6ce3fd7edeaecc0d82a2ca755203c2007eb81"
+    },
+    {
+      "path": "proof/v3-results.json",
+      "bytes": 3407,
+      "mode": "0644",
+      "sha256": "a6bb492f948c3c8995d82d4ed4c0da23d49f2d613491d861d71967817e77c793"
+    },
+    {
+      "path": "proof/v3-summary.json",
+      "bytes": 4238,
+      "mode": "0644",
+      "sha256": "85b5b1b8e20793456ab0144d199d09b44a79cd0f9db4dbae3d78537dd4eb12b8"
+    },
+    {
+      "path": "proof/versions.json",
+      "bytes": 1106,
+      "mode": "0644",
+      "sha256": "76358683ae9cf449c39538610088e16619af49dba96457aa29f21282c58d452a"
+    },
+    {
+      "path": "reports/final-verify-report.md",
+      "bytes": 18315,
+      "mode": "0644",
+      "sha256": "c93fecac72e9429b16e07efcdaa5ac51def23dc11400ef5d0c26dea60c8da719"
+    },
+    {
+      "path": "reports/verification.md",
+      "bytes": 7405,
+      "mode": "0644",
+      "sha256": "64e3b0e9fb733cb1e14d2aea147cf05f21415e8408bca3b4a4fbc8018af35018"
+    },
+    {
+      "path": "v1-proof.py",
+      "bytes": 6004,
+      "mode": "0644",
+      "sha256": "f73baf4169f6eacbffaf24b95358633c10c81c0700c4ff0e1ef138e58216e373"
+    },
+    {
+      "path": "v1-tree-proof.ts",
+      "bytes": 7102,
+      "mode": "0644",
+      "sha256": "645db3ac07848195509f9462a165b20e990a40fed5865f45b46722ebbe734486"
+    },
+    {
+      "path": "v3-proof.ts",
+      "bytes": 5481,
+      "mode": "0644",
+      "sha256": "53c722908e3c9f258866b922c701296bea2689a55e2f98cd7cf03b1f658fcefc"
+    },
+    {
+      "path": "write-report.py",
+      "bytes": 18925,
+      "mode": "0644",
+      "sha256": "9236de810acd0e1ebe68d90dfd5c2f2e6b817d1b8dd6cb9b0dcd7505f34926d7"
+    }
+  ],
+  "controllerCI": {
+    "run": 39941193404,
+    "url": "https://github.com/ddinkov10/celetis/actions/runs/39941193404",
+    "head": "b6053743e492dde0624207c90fc3a23cdeeca57a",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "name": "test",
+        "conclusion": "success",
+        "url": "https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750509"
+      },
+      {
+        "name": "process (macos-14)",
+        "conclusion": "success",
+        "url": "https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372750996"
+      },
+      {
+        "name": "process (ubuntu-24.04)",
+        "conclusion": "success",
+        "url": "https://github.com/ddinkov10/celetis/actions/runs/39941193404/job/120372751121"
+      }
+    ],
+    "linuxFullSuite": {
+      "files": 52,
+      "cases": 1851,
+      "reportedExpectCalls": 13924,
+      "failures": 0,
+      "maxFile": {
+        "path": "tests/celetis-flow.test.ts",
+        "seconds": 27.477
+      }
+    },
+    "processCasesEach": 169,
+    "processFilesEach": 9
+  },
+  "remainingMergePrecondition": "Current-build maintainer cutover report",
+  "waivedLiveScenarios": [
+    "V2",
+    "V4",
+    "V5",
+    "V6"
+  ]
+}

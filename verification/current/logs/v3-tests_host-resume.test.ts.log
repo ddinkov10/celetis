@@ -1,0 +1,27 @@
+== tests/host-resume.test.ts
+bun test v1.4.2 (744846f84)
+
+tests/host-resume.test.ts:
+(pass) invalid_panes codex stop before updates, sessions and herdr [952.76ms]
+(pass) invalid_panes claude stop before updates, sessions and herdr [999.63ms]
+(pass) project_default claude and saved host survive a YAML preference change [1951.81ms]
+(pass) project_default codex and saved host survive a YAML preference change [2180.98ms]
+(pass) exact_resume claude triage [2202.64ms]
+(pass) exact_resume claude bug [2689.40ms]
+(pass) exact_resume claude implement [2878.34ms]
+(pass) bad_records reject each old mutation and malformed root [2879.62ms]
+(pass) name_based_resume refuses an obsolete no-progress row without effects [3051.23ms]
+(pass) exact_resume claude hotfix [3053.50ms]
+(pass) replaced_record {"host":"claude"} refuses discovery race [3322.10ms]
+(pass) exact_resume codex feature [3446.34ms]
+(pass) replaced_record {"session_id":"00000000-0000-4000-8000-000000000001"} refuses discovery race [3488.11ms]
+(pass) exact_resume codex chore [3943.76ms]
+(pass) exact_resume codex plan [4245.97ms]
+(pass) codex_only and launcher_resume use the saved host with no Claude and ignore obsolete Git defaults [4712.27ms]
+
+ 16 pass
+ 0 fail
+ 315 expect() calls
+Ran 16 tests across 1 file. [4.73s]
+-- tests/host-resume.test.ts: 4.845 s
+suite: PASS

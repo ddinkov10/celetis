@@ -1,0 +1,3 @@
+error: Cannot find module '/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/task9-tools/node_modules/typescript/lib/typescript.js' from '/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/.superpowers/sdd/96/ci-fix-logs/preserve.ts'
+
+Bun v1.4.2 (macOS arm64)

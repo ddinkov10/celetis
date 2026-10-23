@@ -1,0 +1,401 @@
+{
+  "reviewedCandidates": {
+    "board/config.test.ts": "negative-data shell:true config refusal case, not an executor",
+    "scripts/setup.ts": "RegExp template ends in an end-anchor; no Bun Shell call"
+  },
+  "status": "PASS",
+  "head": "b6053743e492dde0624207c90fc3a23cdeeca57a",
+  "trackedPaths": 224,
+  "typescriptFiles": 113,
+  "roleCounts": {
+    "biome": 20,
+    "config": 1,
+    "generated": 8,
+    "role": 13,
+    "text": 68,
+    "typescript": 113,
+    "workflow": 1
+  },
+  "generatedFiles": [
+    "scripts/celetis",
+    "board/board.js",
+    "board/view.mjs",
+    "board/ui.mjs",
+    "board/panel.mjs",
+    "board/palette.mjs",
+    "hooks/entry.js",
+    "tests/manual/native-observer/hooks/register.js"
+  ],
+  "explicitRoles": {
+    "scripts/lib/vendor/yaml.mjs": "unchanged vendored parser; checked by its SHA-256 and config type declarations",
+    "scripts/lib/vendor/yaml.d.mts": "vendored parser API; checked by strict runtime types",
+    "scripts/lib/vendor/yaml.LICENSE": "upstream licence; checked by text rules",
+    "tests/fixtures/toolchain-cases.json": "non-executed baseline assertion evidence; checked by Biome and final-tree tests",
+    "tests/fixtures/toolchain-callers.json": "non-executed baseline caller evidence; checked by Biome and final-tree tests",
+    "tests/fixtures/capscore-reference.json": "non-executed exact baseline result data; source hash and comparisons checked by scorer tests",
+    "tests/fixtures/next-step-reference.json": "non-executed exact baseline result data; source hash and comparisons checked by resolver tests",
+    ".gitignore": "Git reads this text; checked by general text rules",
+    ".gitattributes": "Git reads this text; checked by general text rules",
+    ".editorconfig": "Biome reads these editor settings",
+    "tests/lib/tools.txt": "the gate and private installer read the exact pins",
+    "tests/product-words.allow": "text rules reject an unused allowance",
+    "board/fonts/OFL.txt": "upstream font licence; checked by text rules",
+    "board/fonts/geist.woff2": "binary font delivery asset",
+    "board/fonts/geist-mono.woff2": "binary font delivery asset",
+    "board/index.html": "HTML remains exempt until stable Biome HTML checking, per issue 83",
+    ".codex/rules/celetis.rules": "native host permission rules; deterministic setup assertions own this contract"
+  },
+  "prohibited": [],
+  "embeddedCandidates": [
+    "board/config.test.ts",
+    "scripts/setup.ts"
+  ],
+  "automaticEntries": 52,
+  "discoveredEntries": 52,
+  "discoveryEqualsTracked": true,
+  "processEntries": [
+    "board/realpath.test.ts",
+    "tests/process.test.ts",
+    "tests/runner-lock.test.ts",
+    "tests/runner-lifecycle.test.ts",
+    "tests/runner-startup.test.ts",
+    "tests/host-session.test.ts",
+    "tests/host-observation.test.ts",
+    "tests/host-identity.test.ts",
+    "tests/host-resume.test.ts"
+  ],
+  "trackedAssertionRows": 323,
+  "missingAssertions": [],
+  "removedPaths": 58,
+  "liveCallers": [],
+  "historicalExceptions": [
+    "docs/adr/0001-agents-merge-lane-prs.md",
+    "docs/adr/0002-loop-script-and-mod-run-the-agent-flow.md",
+    "docs/adr/0003-a-local-web-board-starts-each-step-in-herdr.md",
+    "docs/adr/0004-the-board-shows-what-each-agent-asks-and-unblocks-a-stuck-card.md",
+    "docs/adr/0005-herdr-gives-the-session-state-and-ends-each-step.md",
+    "docs/adr/0006-domain-routing-and-the-domain-skills-go.md",
+    "docs/adr/0007-specify-is-a-step-of-the-runner.md",
+    "docs/adr/0008-the-build-step-lands-the-change.md",
+    "docs/adr/0009-the-board-is-a-package-of-its-own.md",
+    "docs/adr/0010-the-superpowers-plugin-stays-and-updates-itself.md",
+    "docs/adr/0011-a-step-session-hands-a-stop-to-the-issue.md",
+    "docs/adr/0012-the-harness-is-the-plugin-celetis.md",
+    "docs/adr/0013-the-session-reads-custom-parts-with-file-tools.md",
+    "docs/adr/0014-one-workflow-uses-explicit-host-operations.md",
+    "docs/adr/0015-one-repository-yaml-config.md",
+    "docs/adr/0016-automation-is-required-on-cli-hosts-only.md",
+    "docs/adr/0017-setup-writes-the-wiring-of-a-product-project.md",
+    "docs/adr/0018-setup-proposes-and-tests-the-worktree-setup.md",
+    "docs/adr/0019-a-codex-child-with-no-profile-keeps-the-parent-model.md",
+    "docs/adr/0020-the-board-is-a-part-of-the-plugin.md",
+    "docs/adr/0021-the-plan-names-the-human-acts-of-a-lane.md",
+    "docs/adr/0022-the-verify-gate-is-a-fast-check-and-the-full-suite-runs-before-the-landing.md",
+    "docs/adr/0023-a-landing-re-runs-a-failed-check-once.md",
+    "docs/adr/0024-the-config-read-runs-on-bun.md",
+    "tests/fixtures/capscore-reference.json",
+    "tests/fixtures/next-step-reference.json",
+    "tests/fixtures/toolchain-callers.json",
+    "tests/fixtures/toolchain-cases.json"
+  ],
+  "mapSha256": "2064e437347fc7d7c69db9f2ae54a0cdfe8ddb90165527fcddac1ff30832b437",
+  "mapBytes": 1071693,
+  "mapLines": 7020,
+  "sections": [
+    {
+      "heading": "# Issue 96 assertion map",
+      "line": 1,
+      "tableRows": 216
+    },
+    {
+      "heading": "## Task 2 runtime boundary",
+      "line": 262,
+      "tableRows": 0
+    },
+    {
+      "heading": "## Original launcher assertions",
+      "line": 268,
+      "tableRows": 124
+    },
+    {
+      "heading": "## Launcher and host callers",
+      "line": 401,
+      "tableRows": 13
+    },
+    {
+      "heading": "## Task 2 process replacement and final checks",
+      "line": 423,
+      "tableRows": 0
+    },
+    {
+      "heading": "## Task 2 review fix 1",
+      "line": 432,
+      "tableRows": 0
+    },
+    {
+      "heading": "## Task 3 resolver and scoring assertion map",
+      "line": 438,
+      "tableRows": 281
+    },
+    {
+      "heading": "### Task 3 caller and shared-interface map",
+      "line": 731,
+      "tableRows": 11
+    },
+    {
+      "heading": "## Task 3 review fix 1: numeric boundaries",
+      "line": 751,
+      "tableRows": 14
+    },
+    {
+      "heading": "## Task 4: worktrees and TypeScript setup",
+      "line": 772,
+      "tableRows": 0
+    },
+    {
+      "heading": "### Declared language and stream changes",
+      "line": 778,
+      "tableRows": 8
+    },
+    {
+      "heading": "### Caller and cutover map",
+      "line": 792,
+      "tableRows": 12
+    },
+    {
+      "heading": "### Assertion rows",
+      "line": 808,
+      "tableRows": 572
+    },
+    {
+      "heading": "### Additional Task 4 contract cases",
+      "line": 1386,
+      "tableRows": 14
+    },
+    {
+      "heading": "### Prefixed assertion-helper calls",
+      "line": 1406,
+      "tableRows": 48
+    },
+    {
+      "heading": "### Expanded parameter inventories",
+      "line": 1460,
+      "tableRows": 16
+    },
+    {
+      "heading": "### Native checkout identity check",
+      "line": 1480,
+      "tableRows": 0
+    },
+    {
+      "heading": "### Task 4 fix 1: complete restored assertion sets",
+      "line": 1486,
+      "tableRows": 0
+    },
+    {
+      "heading": "## Task 5: Runner, sessions and advisory update locks",
+      "line": 1493,
+      "tableRows": 0
+    },
+    {
+      "heading": "### Baseline assertion map",
+      "line": 1501,
+      "tableRows": 235
+    },
+    {
+      "heading": "### Expanded parameter inventory",
+      "line": 1743,
+      "tableRows": 34
+    },
+    {
+      "heading": "### Path callers and test helpers",
+      "line": 1781,
+      "tableRows": 12
+    },
+    {
+      "heading": "### Task 5 review fix 1",
+      "line": 1801,
+      "tableRows": 0
+    },
+    {
+      "heading": "## Task 6 — checked landing",
+      "line": 1808,
+      "tableRows": 238
+    },
+    {
+      "heading": "### Expanded landing parameters",
+      "line": 2052,
+      "tableRows": 20
+    },
+    {
+      "heading": "### Landing path callers",
+      "line": 2076,
+      "tableRows": 9
+    },
+    {
+      "heading": "### Final allocation and exact-owner check",
+      "line": 2091,
+      "tableRows": 7
+    },
+    {
+      "heading": "### Stream preservation",
+      "line": 2112,
+      "tableRows": 0
+    },
+    {
+      "heading": "### Task 6 review fix 1 — complete case-to-entry inventory",
+      "line": 2120,
+      "tableRows": 130
+    },
+    {
+      "heading": "## Task 7 — board port (baseline `4fe5554`)",
+      "line": 2261,
+      "tableRows": 0
+    },
+    {
+      "heading": "### Baseline assertion allocation",
+      "line": 2267,
+      "tableRows": 541
+    },
+    {
+      "heading": "### Baseline path callers",
+      "line": 2814,
+      "tableRows": 0
+    },
+    {
+      "heading": "### Expanded parameter inventory before production edits",
+      "line": 2862,
+      "tableRows": 0
+    },
+    {
+      "heading": "### Task 7 final case-to-entry allocation",
+      "line": 2878,
+      "tableRows": 297
+    },
+    {
+      "heading": "### Task 7 exact expanded top-level parameters",
+      "line": 3181,
+      "tableRows": 146
+    },
+    {
+      "heading": "### Task 7 expanded nested parameters",
+      "line": 3333,
+      "tableRows": 368
+    },
+    {
+      "heading": "### Task 7 delivery and interim caller check",
+      "line": 3707,
+      "tableRows": 0
+    },
+    {
+      "heading": "## Task 8: native sources and manual checks",
+      "line": 3718,
+      "tableRows": 0
+    },
+    {
+      "heading": "### Every native assertion",
+      "line": 3724,
+      "tableRows": 299
+    },
+    {
+      "heading": "### Shell harness assertions and expanded parameters",
+      "line": 4031,
+      "tableRows": 677
+    },
+    {
+      "heading": "### Baseline callers",
+      "line": 4722,
+      "tableRows": 48
+    },
+    {
+      "heading": "### Self-review guards",
+      "line": 4776,
+      "tableRows": 0
+    },
+    {
+      "heading": "### Task 8 review fix 1",
+      "line": 4782,
+      "tableRows": 0
+    },
+    {
+      "heading": "### Final deterministic case-to-entry pairs",
+      "line": 4788,
+      "tableRows": 652
+    },
+    {
+      "heading": "## Task 9 — complete gate, text, pool and final-tree cutover",
+      "line": 5448,
+      "tableRows": 324
+    },
+    {
+      "heading": "### Task 9 final runtime callers and immutable comparison data",
+      "line": 5778,
+      "tableRows": 0
+    },
+    {
+      "heading": "### Task 9 obsolete language diagnostics",
+      "line": 6043,
+      "tableRows": 0
+    },
+    {
+      "heading": "### Task 9 runtime binding permission boundary",
+      "line": 6047,
+      "tableRows": 0
+    },
+    {
+      "heading": "### Task 9 current automatic entry inventory",
+      "line": 6051,
+      "tableRows": 0
+    },
+    {
+      "heading": "### Task 9 current focused case-to-file map",
+      "line": 6104,
+      "tableRows": 680
+    },
+    {
+      "heading": "## Task 9 native canonical-path correction after b62e1d2",
+      "line": 6790,
+      "tableRows": 4
+    },
+    {
+      "heading": "## Task 9 fix round 1 — browser type and manual command boundaries",
+      "line": 6802,
+      "tableRows": 4
+    },
+    {
+      "heading": "## Final branch review repair wave — base a8b0d3db5cdc289359c9593b3469a6b83f32e364",
+      "line": 6816,
+      "tableRows": 6
+    },
+    {
+      "heading": "### Final Verify repair: lifecycle file allocation",
+      "line": 6833,
+      "tableRows": 33
+    },
+    {
+      "heading": "## CI repair after d658ce09ab8d1cc68a02a761efed3c3d2bea3a0b",
+      "line": 6880,
+      "tableRows": 15
+    },
+    {
+      "heading": "### Approved host file allocation after the actual standalone cutoff",
+      "line": 6908,
+      "tableRows": 83
+    },
+    {
+      "heading": "## Second CI repair after 7d9366d5ee04b879bcb75d9a7a91cafb654a3118",
+      "line": 7003,
+      "tableRows": 6
+    }
+  ],
+  "currentFocusedRows": 696,
+  "hostCaseLocations": 82,
+  "hostMapMatchesInventory": true,
+  "mappedAutomaticEntries": 29,
+  "missingCurrentFiles": [],
+  "missingAutomaticEntries": [],
+  "baselineTestFiles": 32,
+  "baselineLiteralSpellingsAbsent": [
+    "tests/manual/step-prompt.test.sh"
+  ]
+}

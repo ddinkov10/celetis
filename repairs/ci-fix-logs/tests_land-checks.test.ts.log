@@ -1,0 +1,47 @@
+== tests/land-checks.test.ts
+bun test v1.4.2 (744846f84)
+
+tests/land-checks.test.ts:
+(pass) checks_not_green/checks_none/checks_pending: cancel pass [870.55ms]
+(pass) checks_not_green/checks_none/checks_pending: skipping [1582.00ms]
+(pass) status_pending/checks_not_green: failure [2946.79ms]
+(pass) checks_not_green/checks_none/checks_pending: fail pass [3544.28ms]
+(pass) checks_not_green/checks_none/checks_pending: neutral skipping [4852.09ms]
+(pass) checks_not_green/checks_none/checks_pending:  [4879.85ms]
+(pass) checks_not_green/checks_none/checks_pending: pending pass [6081.20ms]
+(pass) checks_wait: pending then green [6941.42ms]
+(pass) checks_wait: checks appear late [7295.40ms]
+(pass) checks_wait: PR shows pushed head late [7797.33ms]
+(pass) gh_call_fails: check-runs [8376.93ms]
+(pass) status_pending/checks_not_green: pending [8477.98ms]
+(pass) rerun_passes: fail [8830.83ms]
+(pass) rerun_passes: timeout [9197.17ms]
+(pass) checks_wait: PR never shows pushed head [9479.84ms]
+(pass) rerun_two_in_one_run: one request for two jobs [9501.37ms]
+(pass) rerun_fails_again: no third attempt [9985.21ms]
+(pass) rerun_stale_first_poll: old attempt then incomplete new attempt [10055.39ms]
+(pass) rerun_refusals: attempt 2 [10063.44ms]
+(pass) rerun_refusals: red status [9418.68ms]
+(pass) gh_call_fails: status [10294.58ms]
+(pass) rerun_refusals: other app [8870.23ms]
+(pass) rerun_refusals: cancelled [7648.92ms]
+(pass) rerun_refusals: approval [7205.49ms]
+(pass) rerun_refusals: two runs one at attempt 2 [6120.28ms]
+(pass) rerun_refusals: runs unreadable [5162.67ms]
+(pass) rerun_refusals: failed check gone [6551.10ms]
+(pass) rerun_run_not_done: failed workflow completes in first wait [5104.71ms]
+(pass) rerun_two_runs: each workflow gets one request [4614.55ms]
+(pass) rerun_merge_rejected: one refusal after rerun [4055.36ms]
+(pass) rerun_github_refuses: original API error stays visible [4041.83ms]
+(pass) pagination: merged, open, checks, statuses and rerun pages retain every row [4023.96ms]
+(pass) external status: success [3748.70ms]
+(pass) external status: error [3878.36ms]
+(pass) rerun_wait_runs_out: one further fifteen minute wait [6336.56ms]
+(pass) rerun_run_never_done: first wait stays within sixty polls [11176.33ms]
+
+ 36 pass
+ 0 fail
+ 755 expect() calls
+Ran 36 tests across 1 file. [18.67s]
+-- tests/land-checks.test.ts: 18.781 s
+suite: PASS

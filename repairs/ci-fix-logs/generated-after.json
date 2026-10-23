@@ -1,0 +1,66 @@
+[
+  {
+    "path": "scripts/celetis",
+    "bytes": 222631,
+    "mode": "0o755",
+    "sha256": "4b5d8b0c0ccd9c639925136f64eebee9c6677f659242375b85b339aaacc77918",
+    "bytesChanged": true,
+    "modeChanged": false
+  },
+  {
+    "path": "board/board.js",
+    "bytes": 42372,
+    "mode": "0o644",
+    "sha256": "d1178deb52b11692c58684e4d11aa5fadf0b1ede45100637cf9415cf41127cea",
+    "bytesChanged": false,
+    "modeChanged": false
+  },
+  {
+    "path": "board/view.mjs",
+    "bytes": 7129,
+    "mode": "0o644",
+    "sha256": "381cf2d817e05baf3e33f7d65cec3f5a812d47dfea19b2b6d6623d9748765a5a",
+    "bytesChanged": false,
+    "modeChanged": false
+  },
+  {
+    "path": "board/ui.mjs",
+    "bytes": 11075,
+    "mode": "0o644",
+    "sha256": "44b8e3527b71c4d4f6354f59d4bde3ff69c62297d96b79d1c52d209f8cae94c2",
+    "bytesChanged": false,
+    "modeChanged": false
+  },
+  {
+    "path": "board/panel.mjs",
+    "bytes": 6596,
+    "mode": "0o644",
+    "sha256": "28db0a974a1bef62aa73d37fa2dd420c0e0df10039f1aa6f8a376fb0bd89ce3b",
+    "bytesChanged": false,
+    "modeChanged": false
+  },
+  {
+    "path": "board/palette.mjs",
+    "bytes": 4392,
+    "mode": "0o644",
+    "sha256": "94356aba91faa10901a6359edb68bb1be2e1e842bae821c64bf377f7d30c8cfb",
+    "bytesChanged": false,
+    "modeChanged": false
+  },
+  {
+    "path": "hooks/entry.js",
+    "bytes": 12593,
+    "mode": "0o644",
+    "sha256": "ced46e6e8d23e1f7347a4bf001c91596c21d4a385125bdd36097b70f2658cef7",
+    "bytesChanged": false,
+    "modeChanged": false
+  },
+  {
+    "path": "tests/manual/native-observer/hooks/register.js",
+    "bytes": 2054,
+    "mode": "0o644",
+    "sha256": "87f049f260b59ef1bdf4846db7b87b226064878cd417eb9cea3b4bd59dc0637b",
+    "bytesChanged": false,
+    "modeChanged": false
+  }
+]

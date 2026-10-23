@@ -1,0 +1,37 @@
+== tests/runner-lock.test.ts
+bun test v1.4.2 (744846f84)
+
+tests/runner-lock.test.ts:
+(pass) system flock prevents independent open descriptions from overlapping [1.02ms]
+(pass) SIGKILL of a helper leaves the inherited lock held until its real command exits [57.57ms]
+runtime 1.4.2 darwin/arm64; after timeout: (no processes)
+(pass) a real timeout kills the command and every descendant before lock close [1457.50ms]
+(pass) lock wait uses the same 120 second monotonic deadline [1.29ms]
+(pass) replacement owner survives the previous runner release [2894.63ms]
+(pass) ownership pid-reuse cannot keep an issue lock [3108.39ms]
+(pass) ownership garbage cannot keep an issue lock [3291.26ms]
+(pass) ownership wrong-executable cannot keep an issue lock [3458.88ms]
+(pass) ownership dead cannot keep an issue lock [3707.32ms]
+(pass) a real zombie session owner cannot hold an issue lock [3824.73ms]
+claude nested lock after SIGKILL: (no processes)
+(pass) CAS stale issue-7 contenders cannot replace a new live owner [4007.11ms]
+(pass) nested claude installed-root child and descendant inherit the update lock [4029.20ms]
+codex nested lock after SIGKILL: (no processes)
+(pass) nested codex installed-root child and descendant inherit the update lock [4202.66ms]
+(pass) CAS stale runner contenders cannot replace a new live owner [4367.11ms]
+(pass) update supervisor SIGINT kills its real TERM-ignoring descendants [5406.01ms]
+(pass) update supervisor SIGTERM kills its real TERM-ignoring descendants [5570.51ms]
+(pass) update supervisor SIGHUP kills its real TERM-ignoring descendants [5724.10ms]
+(pass) runner death cancels the surviving update helper and its descendants [5905.01ms]
+(pass) successful command exit closes descendant output pipes and releases its lock after cleanup [1062.63ms]
+(pass) all update commands share one 120 second monotonic deadline [1111.63ms]
+(pass) two repositories serialize plugin refresh after helper SIGKILL [870.12ms]
+(pass) two repositories serialize plugin refresh [1191.44ms]
+(pass) Codex root-lookup interruption preserves stderr once and cleans its real RPC child group [1519.49ms]
+
+ 23 pass
+ 0 fail
+ 160 expect() calls
+Ran 23 tests across 1 file. [11.13s]
+-- tests/runner-lock.test.ts: 11.257 s
+suite: PASS

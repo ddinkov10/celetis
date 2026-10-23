@@ -1,0 +1,320 @@
+[
+  {
+    "fixture": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.MGx5Ph/tests_host-session.test.ts/celetis-runtime.A0g1Oo",
+    "markers": [
+      {
+        "name": "developer",
+        "mtime": 1792748822.6703634,
+        "bytes": 0
+      },
+      {
+        "name": "prior-host",
+        "mtime": 1792748822.721775,
+        "bytes": 6
+      },
+      {
+        "name": "step",
+        "mtime": 1792748822.7218375,
+        "bytes": 4
+      },
+      {
+        "name": "status",
+        "mtime": 1792748822.6701856,
+        "bytes": 4
+      },
+      {
+        "name": "id",
+        "mtime": 1792748822.670089,
+        "bytes": 36
+      },
+      {
+        "name": "prior-id",
+        "mtime": 1792748822.7216628,
+        "bytes": 36
+      }
+    ],
+    "status": "idle",
+    "id": "01a139fc-2ffa-74c0-9b14-e35e23339910",
+    "prior-host": "claude"
+  },
+  {
+    "fixture": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.MGx5Ph/tests_host-session.test.ts/celetis-runtime.woRDgk",
+    "markers": [
+      {
+        "name": "order",
+        "mtime": 1792748819.0122406,
+        "bytes": 201
+      },
+      {
+        "name": "developer",
+        "mtime": 1792748812.172518,
+        "bytes": 0
+      },
+      {
+        "name": "step",
+        "mtime": 1792748812.2258942,
+        "bytes": 4
+      },
+      {
+        "name": "status",
+        "mtime": 1792748812.1723537,
+        "bytes": 4
+      },
+      {
+        "name": "updates",
+        "mtime": 1792748819.012153,
+        "bytes": 201
+      },
+      {
+        "name": "id",
+        "mtime": 1792748812.172257,
+        "bytes": 36
+      },
+      {
+        "name": "prior-id",
+        "mtime": 1792748812.2258377,
+        "bytes": 36
+      }
+    ],
+    "updates": "{\"host\":\"claude\",\"args\":[\"plugin\",\"marketplace\",\"update\",\"celetis\"]}\n{\"host\":\"claude\",\"args\":[\"plugin\",\"update\",\"celetis@celetis\",\"--scope\",\"user\"]}\n{\"host\":\"claude\",\"args\":[\"plugin\",\"list\",\"--json\"]}\n",
+    "status": "idle",
+    "id": "01a139fc-2ffa-74c0-9b14-e35e23339910",
+    "record": {
+      "checkout": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.MGx5Ph/tests_host-session.test.ts/celetis-runtime.woRDgk/repo dir",
+      "host": "claude",
+      "issue": 7,
+      "schema": 1,
+      "session_id": null,
+      "step": "plan"
+    }
+  },
+  {
+    "fixture": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.MGx5Ph/tests_host-session.test.ts/celetis-runtime.f8qLeB",
+    "markers": [
+      {
+        "name": "developer",
+        "mtime": 1792748824.0203874,
+        "bytes": 0
+      },
+      {
+        "name": "step",
+        "mtime": 1792748824.0203059,
+        "bytes": 4
+      },
+      {
+        "name": "status",
+        "mtime": 1792748824.0201995,
+        "bytes": 4
+      },
+      {
+        "name": "old-session",
+        "mtime": 1792748824.0730124,
+        "bytes": 0
+      },
+      {
+        "name": "id",
+        "mtime": 1792748824.0200877,
+        "bytes": 36
+      }
+    ],
+    "status": "idle",
+    "id": "01a139fc-2ffa-74c0-9b14-e35e23339910",
+    "old-session": ""
+  },
+  {
+    "fixture": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.MGx5Ph/tests_host-session.test.ts/celetis-runtime.h8y3pS",
+    "markers": [
+      {
+        "name": "developer",
+        "mtime": 1792748822.2028217,
+        "bytes": 0
+      },
+      {
+        "name": "step",
+        "mtime": 1792748822.2027488,
+        "bytes": 4
+      },
+      {
+        "name": "status",
+        "mtime": 1792748822.2026615,
+        "bytes": 4
+      },
+      {
+        "name": "change-host",
+        "mtime": 1792748822.2795174,
+        "bytes": 5
+      },
+      {
+        "name": "id",
+        "mtime": 1792748822.2025628,
+        "bytes": 36
+      }
+    ],
+    "status": "idle",
+    "id": "01a139fc-2ffa-74c0-9b14-e35e23339910",
+    "change-host": "codex"
+  },
+  {
+    "fixture": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.MGx5Ph/tests_host-session.test.ts/celetis-runtime.ILeWm7",
+    "markers": [
+      {
+        "name": "developer",
+        "mtime": 1792748820.4181063,
+        "bytes": 0
+      },
+      {
+        "name": "step",
+        "mtime": 1792748820.4180162,
+        "bytes": 4
+      },
+      {
+        "name": "status",
+        "mtime": 1792748820.417919,
+        "bytes": 4
+      },
+      {
+        "name": "id",
+        "mtime": 1792748820.4178185,
+        "bytes": 36
+      }
+    ],
+    "status": "idle",
+    "id": "01a139fc-2ffa-74c0-9b14-e35e23339910"
+  },
+  {
+    "fixture": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.MGx5Ph/tests_host-session.test.ts/celetis-runtime.ReslWG",
+    "markers": [
+      {
+        "name": "order",
+        "mtime": 1792748816.5241747,
+        "bytes": 201
+      },
+      {
+        "name": "developer",
+        "mtime": 1792748809.6336653,
+        "bytes": 0
+      },
+      {
+        "name": "prior-host",
+        "mtime": 1792748809.6862206,
+        "bytes": 5
+      },
+      {
+        "name": "step",
+        "mtime": 1792748809.6862874,
+        "bytes": 4
+      },
+      {
+        "name": "status",
+        "mtime": 1792748809.633495,
+        "bytes": 4
+      },
+      {
+        "name": "updates",
+        "mtime": 1792748816.5241117,
+        "bytes": 201
+      },
+      {
+        "name": "id",
+        "mtime": 1792748809.6333833,
+        "bytes": 36
+      },
+      {
+        "name": "prior-id",
+        "mtime": 1792748809.6861103,
+        "bytes": 36
+      }
+    ],
+    "updates": "{\"host\":\"claude\",\"args\":[\"plugin\",\"marketplace\",\"update\",\"celetis\"]}\n{\"host\":\"claude\",\"args\":[\"plugin\",\"update\",\"celetis@celetis\",\"--scope\",\"user\"]}\n{\"host\":\"claude\",\"args\":[\"plugin\",\"list\",\"--json\"]}\n",
+    "status": "idle",
+    "id": "01a139fc-2ffa-74c0-9b14-e35e23339910",
+    "prior-host": "codex",
+    "record": {
+      "checkout": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.MGx5Ph/tests_host-session.test.ts/celetis-runtime.ReslWG/repo dir",
+      "host": "claude",
+      "issue": 7,
+      "schema": 1,
+      "session_id": null,
+      "step": "plan"
+    }
+  },
+  {
+    "fixture": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.MGx5Ph/tests_host-session.test.ts/celetis-runtime.0YF0Td",
+    "markers": [
+      {
+        "name": "developer",
+        "mtime": 1792748818.2741487,
+        "bytes": 0
+      },
+      {
+        "name": "step",
+        "mtime": 1792748818.2740688,
+        "bytes": 4
+      },
+      {
+        "name": "status",
+        "mtime": 1792748818.2739737,
+        "bytes": 4
+      },
+      {
+        "name": "id",
+        "mtime": 1792748818.273869,
+        "bytes": 36
+      }
+    ],
+    "status": "idle",
+    "id": "01a139fc-2ffa-74c0-9b14-e35e23339910"
+  },
+  {
+    "fixture": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.MGx5Ph/tests_host-session.test.ts/celetis-runtime.UNvorT",
+    "markers": [
+      {
+        "name": "order",
+        "mtime": 1792748817.236571,
+        "bytes": 201
+      },
+      {
+        "name": "developer",
+        "mtime": 1792748810.4926054,
+        "bytes": 0
+      },
+      {
+        "name": "step",
+        "mtime": 1792748810.49253,
+        "bytes": 4
+      },
+      {
+        "name": "status",
+        "mtime": 1792748810.4924395,
+        "bytes": 4
+      },
+      {
+        "name": "updates",
+        "mtime": 1792748817.236502,
+        "bytes": 201
+      },
+      {
+        "name": "old-session",
+        "mtime": 1792748810.5451748,
+        "bytes": 0
+      },
+      {
+        "name": "id",
+        "mtime": 1792748810.4923482,
+        "bytes": 36
+      }
+    ],
+    "updates": "{\"host\":\"claude\",\"args\":[\"plugin\",\"marketplace\",\"update\",\"celetis\"]}\n{\"host\":\"claude\",\"args\":[\"plugin\",\"update\",\"celetis@celetis\",\"--scope\",\"user\"]}\n{\"host\":\"claude\",\"args\":[\"plugin\",\"list\",\"--json\"]}\n",
+    "status": "idle",
+    "id": "01a139fc-2ffa-74c0-9b14-e35e23339910",
+    "old-session": "",
+    "record": {
+      "checkout": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-ci-after.MGx5Ph/tests_host-session.test.ts/celetis-runtime.UNvorT/repo dir",
+      "host": "claude",
+      "issue": 7,
+      "schema": 1,
+      "session_id": null,
+      "step": "plan"
+    }
+  }
+]

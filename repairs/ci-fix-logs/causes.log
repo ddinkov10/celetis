@@ -1,0 +1,4 @@
+cancelled execFile {"error":{"name":"AbortError","code":"ABORT_ERR","message":"The operation was aborted","cause":{"line":121,"column":23,"sourceURL":"node:events"}},"stdout":"ready\n","stderr":""}
+separate init {"code":0,"stdout":"","stderr":""}
+original cwd commonDir "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis-runtime.MOX90b/shared/control"
+derived parent Git query {"code":128,"stdout":"","stderr":"fatal: not a git repository (or any of the parent directories): .git\n"}

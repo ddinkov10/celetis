@@ -1,0 +1,42 @@
+[
+  {
+    "path": "scripts/celetis",
+    "equalBaseBytes": true,
+    "mode": "0o755"
+  },
+  {
+    "path": "board/board.js",
+    "equalBaseBytes": true,
+    "mode": "0o644"
+  },
+  {
+    "path": "board/view.mjs",
+    "equalBaseBytes": true,
+    "mode": "0o644"
+  },
+  {
+    "path": "board/ui.mjs",
+    "equalBaseBytes": true,
+    "mode": "0o644"
+  },
+  {
+    "path": "board/panel.mjs",
+    "equalBaseBytes": true,
+    "mode": "0o644"
+  },
+  {
+    "path": "board/palette.mjs",
+    "equalBaseBytes": true,
+    "mode": "0o644"
+  },
+  {
+    "path": "hooks/entry.js",
+    "equalBaseBytes": true,
+    "mode": "0o644"
+  },
+  {
+    "path": "tests/manual/native-observer/hooks/register.js",
+    "equalBaseBytes": true,
+    "mode": "0o644"
+  }
+]

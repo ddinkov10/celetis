@@ -1,0 +1,56 @@
+{
+  "status": "PASS",
+  "head": "b6053743e492dde0624207c90fc3a23cdeeca57a",
+  "trackedPaths": 224,
+  "copies": [
+    "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/copy-a",
+    "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/different absolute path/copy-b"
+  ],
+  "corruptCopy": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci2-head._4e898d1/separate-corrupt-copy",
+  "generated": {
+    "scripts/celetis": {
+      "sha256": "4b5d8b0c0ccd9c639925136f64eebee9c6677f659242375b85b339aaacc77918",
+      "mode": "0755",
+      "bytes": 222631
+    },
+    "board/board.js": {
+      "sha256": "d1178deb52b11692c58684e4d11aa5fadf0b1ede45100637cf9415cf41127cea",
+      "mode": "0644",
+      "bytes": 42372
+    },
+    "board/view.mjs": {
+      "sha256": "381cf2d817e05baf3e33f7d65cec3f5a812d47dfea19b2b6d6623d9748765a5a",
+      "mode": "0644",
+      "bytes": 7129
+    },
+    "board/ui.mjs": {
+      "sha256": "44b8e3527b71c4d4f6354f59d4bde3ff69c62297d96b79d1c52d209f8cae94c2",
+      "mode": "0644",
+      "bytes": 11075
+    },
+    "board/panel.mjs": {
+      "sha256": "28db0a974a1bef62aa73d37fa2dd420c0e0df10039f1aa6f8a376fb0bd89ce3b",
+      "mode": "0644",
+      "bytes": 6596
+    },
+    "board/palette.mjs": {
+      "sha256": "94356aba91faa10901a6359edb68bb1be2e1e842bae821c64bf377f7d30c8cfb",
+      "mode": "0644",
+      "bytes": 4392
+    },
+    "hooks/entry.js": {
+      "sha256": "ced46e6e8d23e1f7347a4bf001c91596c21d4a385125bdd36097b70f2658cef7",
+      "mode": "0644",
+      "bytes": 12593
+    },
+    "tests/manual/native-observer/hooks/register.js": {
+      "sha256": "87f049f260b59ef1bdf4846db7b87b226064878cd417eb9cea3b4bd59dc0637b",
+      "mode": "0644",
+      "bytes": 2054
+    }
+  },
+  "sourceCheckUnchanged": true,
+  "sourceGateUnchanged": true,
+  "corruptionNotRepaired": true,
+  "gateSeconds": 1.213715
+}

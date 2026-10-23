@@ -1,0 +1,68 @@
+[
+  {
+    "source": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/.superpowers/sdd/96/ci-fix-logs/phases.log",
+    "retained": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci-head.3jyqlkwu/history/phases.log",
+    "sha256": "09200393bec01aaa7ea3e0958bc1fe2f7f6c86ff36b9c7fad0521db2fe1d9488",
+    "note": "Private flow probe import setup failure; no flow case executed."
+  },
+  {
+    "source": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/.superpowers/sdd/96/ci-fix-logs/cancellation-red.log",
+    "retained": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci-head.3jyqlkwu/history/cancellation-red.log",
+    "sha256": "40a23a11a93548ffdb4f58d91854c9f099849e9af4846d18b205c7bfa964e0d8",
+    "note": "Initial cancellation fixture expected death too early; final meaningful RED is separate."
+  },
+  {
+    "source": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/.superpowers/sdd/96/ci-fix-logs/preserve-initial.log",
+    "retained": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci-head.3jyqlkwu/history/preserve-initial.log",
+    "sha256": "bb140931a26b7b5622b40f824abbae3c19be67f7e7a1dd20023379e0c3f95080",
+    "note": "Pinned TypeScript CLI has no requested JavaScript API; corrected proof uses Bun.Transpiler."
+  },
+  {
+    "source": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/.superpowers/sdd/96/ci-fix-logs/gate-initial.log",
+    "retained": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci-head.3jyqlkwu/history/gate-initial.log",
+    "sha256": "d15eea482ac1d1f56f780d9a454121b9541e18ec49eb91d81ec7020971df1794",
+    "note": "New test annotation failed TS7006/TS2769; final annotation-only case and gate are separate."
+  },
+  {
+    "source": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/.superpowers/sdd/96/ci-fix-logs/after-initial-driver.log",
+    "retained": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci-head.3jyqlkwu/history/after-initial-driver.log",
+    "sha256": "5aa23f648588981a32d5e53bbec114ff4ac9523803a32244d94333d8208cb0ff",
+    "note": "Actual unsplit 82-case host timeout; not erased or retried unchanged."
+  },
+  {
+    "source": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/.superpowers/sdd/96/ci-fix-logs/pre-split_tests_host-session.test.ts.log",
+    "retained": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci-head.3jyqlkwu/history/pre-split_tests_host-session.test.ts.log",
+    "sha256": "c9920bebbd4efd01ca6dac7bc01469cde01d298e5ffcc8aa3863716dbe3cc841",
+    "note": "Actual unsplit file status124 at30.110s,26 passes and five case timeouts."
+  },
+  {
+    "source": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/.superpowers/sdd/96/ci-fix-logs/standalone-cutoff-state.json",
+    "retained": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci-head.3jyqlkwu/history/standalone-cutoff-state.json",
+    "sha256": "6751edd070796e8be58ab7b60953be04d1fb316e7bcc6bedf6b2edf7bee19085",
+    "note": "Eight fixture folders retained after actual forced cutoff; no cleanup PASS."
+  },
+  {
+    "source": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/.superpowers/sdd/96/ci-fix-logs/queue-clock.log",
+    "retained": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci-head.3jyqlkwu/history/queue-clock.log",
+    "sha256": "29f3463f3d82430f6982ae9c1944a17ddfbe179fb7fd7580c6eb20825362b5a9",
+    "note": "Intentional short-clock queue diagnostic; not product RED."
+  },
+  {
+    "source": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/.superpowers/sdd/96/ci-fix-logs/cancellation-red-final.log",
+    "retained": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci-head.3jyqlkwu/history/cancellation-red-final.log",
+    "sha256": "736730928a0e2c96771f1d258b3fd5895e972e790e49b8b6ee25184bd626a999",
+    "note": "Meaningful cancellation RED after fixing the fixture death check."
+  },
+  {
+    "source": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/.superpowers/sdd/96/final-fix-report.md",
+    "retained": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci-head.3jyqlkwu/history/final-fix-report.md",
+    "sha256": "77da534715eb6cf814b077627fed62b7ddbd4ada875c13809f85244932945c03",
+    "note": "Earlier terminal/compiler repair retains test-development fixture failures and exact native compiler status."
+  },
+  {
+    "source": "/Users/dinq/Dinq/PROJECTS/celetis/.claude/worktrees/96-intent-the-whole-toolchain/.superpowers/sdd/96/verify-fix-report.md",
+    "retained": "/private/var/folders/p2/l82rb73d03l36xjlvp5982_40000gn/T/celetis.nWpXiy/final-verify-ci-head.3jyqlkwu/history/verify-fix-report.md",
+    "sha256": "46cc2fe8794cd91b288357c4b057388bc4cc1565dc21d18755e3b6669427b1cd",
+    "note": "Original lifecycle cutoff and approved26/6 allocation evidence."
+  }
+]
