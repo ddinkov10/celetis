@@ -1,5 +1,5 @@
 import { dlopen, FFIType, ptr } from 'bun:ffi';
-import { readFile, realpath } from 'node:fs/promises';
+import { readFile, readlink, realpath } from 'node:fs/promises';
 import { basename, isAbsolute, join } from 'node:path';
 import { type Host, HostError } from './host.ts';
 import { run, updateDescriptor } from './process.ts';
@@ -14,20 +14,38 @@ const kernel =
       })
     : undefined;
 
+const processPaths =
+  process.platform === 'darwin'
+    ? dlopen('/usr/lib/libproc.dylib', {
+        proc_pidpath: { args: [FFIType.i32, FFIType.ptr, FFIType.u32], returns: FFIType.i32 },
+      })
+    : undefined;
+
+async function executablePath(pid: number): Promise<string | null> {
+  if (process.platform === 'linux') return readlink(`/proc/${pid}/exe`).catch(() => null);
+  if (!processPaths) return null;
+  const buffer = Buffer.alloc(4096);
+  if (processPaths.symbols.proc_pidpath(pid, ptr(buffer), buffer.length) <= 0) return null;
+  const end = buffer.indexOf(0);
+  return buffer.toString('utf8', 0, end < 0 ? buffer.length : end) || null;
+}
+
 async function identity(
   pid: number,
+  observedExecutable: string | null,
+  script?: string,
 ): Promise<{ executable: string; args: string[]; env: Record<string, string> } | null> {
   if (process.platform === 'linux') {
-    const [executable, args, env] = await Promise.all([
-      realpath(`/proc/${pid}/exe`),
-      readFile(`/proc/${pid}/cmdline`),
-      readFile(`/proc/${pid}/environ`),
-    ]).catch(() => []);
-    if (!executable || !args || !env) return null;
+    if (!observedExecutable) return null;
+    const command = await readFile(`/proc/${pid}/cmdline`).catch(() => null);
+    if (!command) return null;
+    const args = command.toString().split('\0').filter(Boolean);
+    if (script && !args.includes(script)) return null;
+    const env = await readFile(`/proc/${pid}/environ`).catch(() => null);
     return {
-      executable,
-      args: args.toString().split('\0').filter(Boolean),
-      env: environment(env.toString().split('\0')),
+      executable: observedExecutable,
+      args,
+      env: env ? environment(env.toString().split('\0')) : {},
     };
   }
   if (!kernel) return null;
@@ -51,6 +69,7 @@ async function identity(
   while (at < buffer.length && buffer[at] === 0) at++;
   const args: string[] = [];
   for (let n = 0; n < count; n++) args.push(next());
+  if (script && !args.includes(script)) return null;
   return { executable, args, env: environment(buffer.toString('utf8', at, Number(size[0])).split('\0')) };
 }
 
@@ -83,29 +102,34 @@ export async function requireStoppedConsumers(
       'plugin-update: cannot inspect native consumers; obtain process-inspection access before cutover',
     );
   const blockers: number[] = [];
+  const nativeExecutable = (path: string) =>
+    path === executable ||
+    path === selected ||
+    [host, `${host}.exe`, `${host}-app-server`].includes(basename(path).replace(/ \(deleted\)$/, '')) ||
+    (host === 'claude' && path.includes('/claude/versions/'));
   for (const line of table.stdout.split('\n')) {
     const match = /^\s*(\d+)\s+(.+)$/.exec(line);
     const pid = Number(match?.[1]);
     if (!pid || pid === process.pid) continue;
     const processName = basename(match?.[2] ?? '');
     const command = match?.[2] ?? '';
-    const exactSelected = command === executable || command === selected;
-    const possibleNative =
-      exactSelected ||
-      [host, `${host}.exe`, `${host}-app-server`].includes(processName) ||
-      (host === 'claude' && command.includes('/claude/versions/'));
-    const possibleStub = ['bun', 'node'].includes(processName) && selected.endsWith(`/bin/${host}`);
+    const located = await executablePath(pid);
+    const actual = located ? await realpath(located).catch(() => located) : null;
+    const possibleNative = actual
+      ? nativeExecutable(actual)
+      : nativeExecutable(command) || processName === basename(executable);
+    const possibleStub = ['bun', 'node'].includes(basename(actual ?? command)) && selected.endsWith(`/bin/${host}`);
     if (!possibleNative && !possibleStub) continue;
-    const state = await identity(pid);
+    const state = await identity(pid, actual, possibleNative ? undefined : selected);
     if (!state) {
-      if (possibleNative && (await realpath(match?.[2] ?? '').catch(() => '')) === executable)
+      if (possibleNative)
         throw new HostError(
           `plugin-update: cannot establish the profile of native consumer PID ${pid}; stop that process before cutover`,
         );
       continue;
     }
-    const actual = await realpath(state.executable).catch(() => state.executable);
-    if (actual !== executable && !state.args.includes(selected) && !possibleNative) continue;
+    const confirmed = await realpath(state.executable).catch(() => state.executable);
+    if (!nativeExecutable(confirmed) && !state.args.includes(selected)) continue;
     const profile =
       host === 'claude'
         ? (state.env.CLAUDE_CONFIG_DIR ?? (state.env.HOME ? join(state.env.HOME, '.claude') : undefined))

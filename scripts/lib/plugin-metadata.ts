@@ -1,3 +1,4 @@
+import type { Stats } from 'node:fs';
 import { lstat, readdir, readFile, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, relative, sep } from 'node:path';
@@ -223,10 +224,17 @@ async function legacySourceVersion(root: string, name: string): Promise<string> 
       throw new HostError(`celetis: unsupported agent-plugin schema for an installed session source: ${rootManifest}`);
   }
   for (const folder of ['.codex-plugin', '.claude-plugin', '.cursor-plugin']) {
-    const parent = await lstat(join(root, folder)).catch(() => null);
-    if (!parent) continue;
+    let parent: Stats;
+    const candidate = join(root, folder, 'plugin.json');
+    try {
+      parent = await lstat(join(root, folder));
+      if (parent.isDirectory()) await lstat(candidate);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      throw error;
+    }
     if (!parent.isDirectory()) throw new HostError(`celetis: invalid native manifest directory: ${join(root, folder)}`);
-    const manifest = await jsonFile(join(root, folder, 'plugin.json'));
+    const manifest = await jsonFile(candidate);
     if (typeof manifest.$schema === 'string' && manifest.$schema.startsWith('https://agent-plugins.org/schemas/'))
       throw new HostError(
         `celetis: unsupported agent-plugin schema for an installed session source: ${join(root, folder)}`,

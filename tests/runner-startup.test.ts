@@ -7,6 +7,59 @@ import { held, managed, start } from './lib/runner-lifecycle-fixture.ts';
 
 setDefaultTimeout(25_000);
 
+for (const resume of [false, true])
+  test.concurrent(
+    `Codex ${resume ? 'exact Resume' : 'Run'} uses the native fallback after an absent higher-priority manifest`,
+    runnerCase(async (f) => {
+      await mkdir(join(f.plugin, '.codex-plugin'));
+      await writeFile(join(f.plugin, '.codex-plugin/other.json'), '{}');
+      await f.put('simulate-native-refresh');
+      if (resume)
+        await f.write(
+          'repo dir/.git/celetis-flow/sessions/7.json',
+          JSON.stringify({
+            schema: 1,
+            issue: 7,
+            checkout: f.repo,
+            host: 'codex',
+            step: 'plan',
+            session_id: '01a139fc-2ffa-74c0-9b14-e35e23339910',
+          }),
+        );
+      const result = await f.run(resume ? ['--resume', '7'] : ['7'], { host: 'codex' });
+      expect(result.code, result.stderr).toBe(0);
+      const calls = await f.logs<{ args: string[] }>('calls');
+      expect(calls).toHaveLength(1);
+      if (resume) expect(calls[0]?.args).toContain('01a139fc-2ffa-74c0-9b14-e35e23339910');
+      expect(await f.logs('native-replacements')).toEqual([]);
+      expect(await f.logs('mutations')).toEqual([]);
+    }),
+  );
+
+test.concurrent(
+  'Codex keeps native manifest errors ahead of a valid lower fallback',
+  runnerCase(async (f) => {
+    const folder = join(f.plugin, '.codex-plugin');
+    for (const invalid of ['symlink', 'directory', 'malformed', 'parent-file', 'parent-link']) {
+      await rm(folder, { recursive: true, force: true });
+      if (invalid === 'parent-file') await writeFile(folder, 'invalid');
+      else if (invalid === 'parent-link') await symlink(join(f.plugin, '.claude-plugin'), folder);
+      else {
+        await mkdir(folder);
+        const path = join(folder, 'plugin.json');
+        if (invalid === 'symlink') await symlink(join(f.plugin, '.claude-plugin/plugin.json'), path);
+        else if (invalid === 'directory') await mkdir(path);
+        else await writeFile(path, '{');
+      }
+      const result = await f.run(['7'], { host: 'codex' });
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain(folder);
+      expect(await f.logs('calls')).toEqual([]);
+      expect(await f.logs('mutations')).toEqual([]);
+    }
+  }),
+);
+
 for (const [name, unsafe] of [
   ['_sibling', 'version'],
   ['-sibling', 'remote'],
