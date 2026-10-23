@@ -405,9 +405,11 @@ export async function codexSessionPin(root: string, cwd: string): Promise<string
     throw new HostError('celetis: cannot inspect configured plugins for the installed session source');
   const configured = [...new Set([...metadata.marketplacePlugins, ...Object.keys(config.plugins ?? {})])];
   for (const id of configured) {
-    const match = /^([a-zA-Z0-9][a-zA-Z0-9._-]*)@celetis$/.exec(id);
-    if (!match) continue;
-    const name = match[1] ?? '';
+    const separator = id.lastIndexOf('@');
+    if (separator < 0 || id.slice(separator + 1) !== 'celetis') continue;
+    const name = id.slice(0, separator);
+    if (!/^[a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9_-]+)*$/.test(name))
+      throw new HostError(`celetis: invalid native plugin ID ${id}`);
     const entries = catalog.plugins.filter((entry) => object(entry) && entry.name === name);
     const previous = original.plugins.filter((entry) => object(entry) && entry.name === name);
     if (name !== 'celetis' && !isDeepStrictEqual(entries, previous))

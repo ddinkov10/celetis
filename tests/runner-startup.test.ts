@@ -7,6 +7,59 @@ import { held, managed, start } from './lib/runner-lifecycle-fixture.ts';
 
 setDefaultTimeout(25_000);
 
+for (const [name, unsafe] of [
+  ['_sibling', 'version'],
+  ['-sibling', 'remote'],
+] as const)
+  test.concurrent(
+    `Codex checks the native-valid leading name ${name} before sibling ${unsafe} changes`,
+    runnerCase(async (f) => {
+      const id = `${name}@celetis`;
+      const path = join(f.plugin, '.claude-plugin/marketplace.json');
+      const catalog = JSON.parse(await readFile(path, 'utf8'));
+      catalog.plugins.push({
+        name,
+        source: unsafe === 'remote' ? { source: 'git', url: 'https://example.test/sibling.git' } : `./${name}`,
+      });
+      await writeFile(path, JSON.stringify(catalog));
+      await mkdir(join(f.plugin, name, '.claude-plugin'), { recursive: true });
+      const manifest = join(f.plugin, name, '.claude-plugin/plugin.json');
+      await writeFile(manifest, JSON.stringify({ name, version: '2.0.0' }));
+      await mkdir(join(f.dir, 'codex config/plugins/cache/celetis', name, 'local'), { recursive: true });
+      await f.put('native-active-versions', JSON.stringify({ 'celetis@celetis': 'local', [id]: 'local' }));
+      await f.put('native-configured-plugins', JSON.stringify({ [id]: { enabled: false } }));
+      await f.put('simulate-native-refresh');
+      const result = await f.run(['7'], { host: 'codex' });
+      expect({
+        code: result.code,
+        replaced: await f.has('native-sibling-replaced'),
+        materialized: await f.has('native-remote-source-materialized'),
+      }).toEqual({ code: 1, replaced: false, materialized: false });
+      expect(result.stderr).toContain(id);
+      expect(await f.logs('calls')).toEqual([]);
+      expect(await f.logs('mutations')).toEqual([]);
+      catalog.plugins.at(-1).source = `./${name}`;
+      await writeFile(path, JSON.stringify(catalog));
+      await writeFile(manifest, JSON.stringify({ name }));
+      const safe = await f.run(['7'], { host: 'codex' });
+      expect(safe.code, safe.stderr).toBe(0);
+      expect(await f.has('native-sibling-replaced')).toBe(false);
+      expect(await f.has('native-remote-source-materialized')).toBe(false);
+    }),
+  );
+
+test.concurrent(
+  'Codex rejects a malformed same-marketplace plugin key before startup',
+  runnerCase(async (f) => {
+    await f.put('native-configured-plugins', JSON.stringify({ 'bad..name@celetis': { enabled: false } }));
+    const result = await f.run(['7'], { host: 'codex' });
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('invalid native plugin ID bad..name@celetis');
+    expect(await f.logs('calls')).toEqual([]);
+    expect(await f.logs('mutations')).toEqual([]);
+  }),
+);
+
 for (const sourceType of ['Git', 'local'])
   for (const resume of [false, true])
     test.concurrent(
