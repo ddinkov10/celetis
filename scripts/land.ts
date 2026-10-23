@@ -260,6 +260,13 @@ export async function main(argv: string[]): Promise<number> {
         (await api<{ statuses: Status[] }[]>(`/commits/${tip}/status?per_page=100`, { paginate: true, quiet })).flatMap(
           (page) => page.statuses,
         );
+      const workflows = async (quiet = false): Promise<Workflow[]> =>
+        (
+          await api<{ workflow_runs: Workflow[] }[]>(`/actions/runs?head_sha=${tip}&per_page=100`, {
+            paginate: true,
+            quiet,
+          })
+        ).flatMap((page) => page.workflow_runs);
       const notGreen = () => die(`PR #${pr} has a check that is not green (${buckets}): ${url}`);
       const rerunPick = async (): Promise<boolean> => {
         let red: Check[], status: Status[], runs: Workflow[];
@@ -270,9 +277,7 @@ export async function main(argv: string[]): Promise<number> {
               ['failure', 'timed_out', 'action_required', 'cancelled'].includes(check.conclusion ?? ''),
           );
           status = (await statuses()).filter((item) => ['error', 'failure'].includes(item.state));
-          runs = (
-            await api<{ workflow_runs: Workflow[] }[]>(`/actions/runs?head_sha=${tip}&per_page=100`, { paginate: true })
-          ).flatMap((page) => page.workflow_runs);
+          runs = await workflows();
         } catch (error) {
           emitError(error);
           return notGreen();
@@ -309,8 +314,11 @@ export async function main(argv: string[]): Promise<number> {
             return 1;
           }
         }
+        const runs = await workflows(true).catch(() => null);
+        let checkRuns: Check[] = [];
         try {
-          const values = (await checks(true)).map((check) =>
+          checkRuns = await checks(true);
+          const values = checkRuns.map((check) =>
             check.status !== 'completed'
               ? 'pending'
               : check.conclusion === 'success'
@@ -332,7 +340,19 @@ export async function main(argv: string[]): Promise<number> {
         } catch {
           buckets = '';
         }
-        if (buckets === 'pass' || buckets === 'pass skipping') return 0;
+        if (buckets === 'pass' || buckets === 'pass skipping') {
+          if (!runs) buckets = 'cannot read the workflow runs';
+          else if (
+            checkRuns.some(
+              (check) =>
+                check.app.slug === 'github-actions' && !runs.some((run) => run.check_suite_id === check.check_suite.id),
+            )
+          )
+            buckets = 'the workflow run of a check is not listed';
+          else if (runs.some((run) => run.status !== 'completed')) buckets = 'the workflow runs are not done';
+          else return 0;
+          return 1;
+        }
         if (!buckets || buckets.includes('pending')) return 1;
         if (buckets === 'skipping') die(`no check ran on PR #${pr}: each check was skipped: ${url}`);
         if (reruns.length) die(`PR #${pr} has a check that is not green after the re-run (${buckets}): ${url}`);

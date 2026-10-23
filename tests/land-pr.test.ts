@@ -18,7 +18,10 @@ landCase('pr_landing: exact request argv, verified SHA, real remote refs and epi
   await f.json('subs', [{ number: 7, state: 'open' }]);
   await f.land(['7', 'fix(x): the crash is gone']);
   await f.landed();
-  expect(await f.calls('actions/')).toHaveLength(0);
+  expect(await f.calls('actions/runs\\?head_sha=')).toEqual([
+    ['api', '--paginate', '--slurp', `repos/{owner}/{repo}/actions/runs?head_sha=${f.tip()}&per_page=100`],
+  ]);
+  expect(await f.calls('rerun-failed-jobs')).toHaveLength(0);
   expect(JSON.parse(await f.read('create-args'))).toEqual([
     'base=master',
     'head=fix/7-crash',

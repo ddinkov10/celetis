@@ -28,6 +28,7 @@ for (const [states, message] of [
 ])
   landCase(`checks_not_green/checks_none/checks_pending: ${states}`, 'pr', async (f) => {
     await f.ready(states);
+    if (states === 'fail pass' || states === '') await f.json('runs', { workflow_runs: [] });
     await f.land();
     await f.refused(message ?? '');
     expect(await f.ref(f.branch(), true)).toBe(true);
@@ -196,14 +197,16 @@ for (const condition of [
 landCase('rerun_run_not_done: failed workflow completes in first wait', 'pr', async (f) => {
   await f.ready('fail pass');
   await f.checks('pass pass', 'checks-5');
-  await f.runsAt(1, 'runs', 'in_progress');
-  await f.runsAt(1, 'runs-2');
+  await f.runsAt();
+  await f.runsAt(1, 'runs-1', 'in_progress');
+  await f.runsAt(1, 'runs-2', 'in_progress');
   await f.land();
   await f.landed();
   await oneRerun(f);
   expect(
     (await f.logs()).flatMap((a) => a.join(' ').match(/head_sha=|rerun-failed-jobs|\/pulls\/9\/merge/g) ?? []),
-  ).toEqual(['head_sha=', 'head_sha=', 'rerun-failed-jobs', '/pulls/9/merge']);
+  ).toEqual(['head_sha=', 'head_sha=', 'head_sha=', 'head_sha=', 'rerun-failed-jobs', 'head_sha=', '/pulls/9/merge']);
+  expect(await f.sleeps()).toEqual([15_000]);
   expect(f.output()).toContain(flaky());
 });
 
@@ -215,7 +218,8 @@ landCase('rerun_run_never_done: first wait stays within sixty polls', 'pr', asyn
     `the checks of PR #9 did not finish in 15 minutes (the workflow run of a failed check is not done): ${url}`,
   );
   expect(await f.has(join(f.state, 'reruns'))).toBe(false);
-  expect(await f.read('run-lists')).toBe('60');
+  expect(await f.read('run-lists')).toBe('120');
+  expect(await f.sleeps()).toEqual(Array(60).fill(15_000));
 });
 
 landCase('rerun_two_runs: each workflow gets one request', 'pr', async (f) => {
@@ -289,7 +293,8 @@ landCase('pagination: merged, open, checks, statuses and rerun pages retain ever
 
 for (const state of ['success', 'error'])
   landCase(`external status: ${state}`, 'pr', async (f) => {
-    await f.ready('neutral');
+    await f.ready('neutral@other-ci');
+    await f.json('runs', { workflow_runs: [] });
     await f.json('status', { statuses: [{ state }] });
     await f.land();
     if (state === 'success') await f.landed();

@@ -546,6 +546,8 @@ not grant permissions. Retain each product project's own restricted acts.
 
 The landing script is the required agent path. With `pr`, it merges only the issue's lane PR on
 the trunk, at the checked commit, with every check passed or skipped and at least one PASS.
+Each invocation waits for workflow completion before it accepts green checks, including when a
+dependent job has no check row yet.
 When each red check is a check of GitHub Actions that failed or timed out, it re-runs the failed
 jobs of their workflow runs once for each commit before it refuses (ADR-0023).
 The main and lane checkout guards apply on both hosts. Host rules do not inspect the commands
