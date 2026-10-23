@@ -16,6 +16,8 @@ const required = [
   'launcher.ts',
   'lib/config.ts',
   'lib/host.ts',
+  'lib/plugin-metadata.ts',
+  'lib/plugin-policy.ts',
   'lib/session.ts',
   'lib/process.ts',
   'lib/vendor/yaml.mjs',
@@ -71,7 +73,17 @@ export async function main(argv: string[]): Promise<number> {
     console.error(usage);
     return 2;
   }
-  if (await gone(['lib/config.ts', 'lib/host.ts', 'lib/process.ts', 'lib/session.ts', 'lib/vendor/yaml.mjs'])) {
+  if (
+    await gone([
+      'lib/config.ts',
+      'lib/host.ts',
+      'lib/plugin-metadata.ts',
+      'lib/plugin-policy.ts',
+      'lib/process.ts',
+      'lib/session.ts',
+      'lib/vendor/yaml.mjs',
+    ])
+  ) {
     if (mode === 'numbers') {
       for (const n of numbers) console.log(`celetis-flow: #${n}: ${removed}`);
       return 0;
@@ -319,6 +331,7 @@ export async function main(argv: string[]): Promise<number> {
           break;
         }
         config = load();
+        await (await import('./lib/plugin-policy.ts')).requireUpdatePolicy(host, main);
         const line = (await resolve([n])).stdout.trimEnd();
         if (!line.startsWith('run ')) {
           say(line || `#${n}: next-step.ts printed no line`);
@@ -398,6 +411,7 @@ export async function main(argv: string[]): Promise<number> {
       savedId = saved.session_id ?? '';
     } else host = selectHost(undefined, process.env, main);
     config = load();
+    await (await import('./lib/plugin-policy.ts')).requireUpdatePolicy(host, main);
     process.env.CELETIS_AGENT = host;
     process.chdir(main);
     if (!Bun.which(host, { PATH: childEnv().PATH })) throw new HostError(`celetis: ${host} is not on PATH`);
@@ -512,6 +526,7 @@ export async function main(argv: string[]): Promise<number> {
         return 1;
       }
       config = load();
+      await (await import('./lib/plugin-policy.ts')).requireUpdatePolicy(host, main);
       const result = await resolve(['--open']);
       let started = false;
       if (result.code === 0) {

@@ -6,7 +6,15 @@ disable-model-invocation: true
 
 **Host entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in this loaded file's path. Read [the host operations](../../docs/hosts/entry.md) at `<plugin>/docs/hosts/entry.md` directly, before any product-path scan. The relative link starts in the absolute directory containing this SKILL.md. Complete its startup reads on each invocation, including a same-session handoff.
 
-The session asks the questions and holds the approval; `setup` of the launcher makes each change of the project.
+The session asks the questions and holds setup approval; `setup` of the launcher makes each
+change of the project. Setup approval is separate from a plugin update offer. Shared Host entry
+owns the one-task update check and direct chat reply. New and unchanged old owned Celetis entries
+use `autoUpdate: false`; show the precise proposed replacement before the existing write/push
+decision. Leave unowned or independently changed entries for their owner. Report effective
+local, project, user, managed, and native global policy conflicts and file-only coverage limits.
+Stop affected consumers before any approved policy cutover, then require fresh sessions. A
+project false value is no override of a managed true value; a successful setup write is no proof
+of complete native resource lifetime.
 
 1. **The checkout.** Run in the main checkout of the product project, and enter no lane worktree. The project can have no launcher yet, so run each call as `<plugin>/scripts/celetis --agent <host> setup <sub-command>`, with `<host>` the host that runs this session.
 2. **The tracker.** Ask which issue tracker the project uses. On each answer other than GitHub, say that only GitHub is supported now, and stop.

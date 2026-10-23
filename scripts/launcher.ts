@@ -2,6 +2,7 @@ import { stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { ConfigError, readConfig } from './lib/config.ts';
 import { commonDir, HostError, installedRoot, mainCheckout, requireBun, selectHost } from './lib/host.ts';
+import { requireUpdatePolicy } from './lib/plugin-policy.ts';
 import { bunArgs, childEnv } from './lib/process.ts';
 import { selectSavedSession, serializeSession } from './lib/session.ts';
 
@@ -36,7 +37,6 @@ export async function main(argv: string[]): Promise<number> {
         ? await resume(args[1] ?? '', explicit, cwd)
         : undefined;
     const host = saved?.host ?? selectHost(explicit, process.env, main);
-    const root = await installedRoot(host, cwd);
     if (['worktree', 'celetis-flow', 'next-step', 'land', 'board'].includes(name)) {
       const checkout = main ?? (await mainCheckout(cwd));
       try {
@@ -46,6 +46,8 @@ export async function main(argv: string[]): Promise<number> {
         throw new HostError(`celetis: ${checkout}/.celetis.yaml: ${error.field}: ${error.message}`, 2);
       }
     }
+    if (['celetis-flow', 'board'].includes(name)) await requireUpdatePolicy(host, cwd);
+    const root = await installedRoot(host, cwd);
     const entry = join(root, 'scripts', `${name}.ts`);
     if (!(await stat(entry).catch(() => null))?.isFile())
       throw new HostError(`celetis: the plugin has no script ${name}`, 2);

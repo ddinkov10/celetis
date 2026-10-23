@@ -3,7 +3,8 @@ import { realpath, stat } from 'node:fs/promises';
 import { constants } from 'node:os';
 import { dirname, join } from 'node:path';
 import { ConfigError, readConfig } from './lib/config.ts';
-import { HostError, mainCheckout, requireBun } from './lib/host.ts';
+import { HostError, mainCheckout, requireBun, selectHost } from './lib/host.ts';
+import { requireUpdatePolicy } from './lib/plugin-policy.ts';
 import { bunArgs, childEnv, run } from './lib/process.ts';
 
 export async function main(args: string[]): Promise<number> {
@@ -28,6 +29,7 @@ export async function main(args: string[]): Promise<number> {
     if (checkout.code) throw new HostError(checkout.stderr.trimEnd(), checkout.code);
     if ((await realpath(checkout.stdout.trimEnd())) !== main)
       throw new HostError(`celetis-board: start the board in the main checkout: ${main}`);
+    await requireUpdatePolicy(selectHost(undefined, process.env, main), main);
     const input = {
       data: ['scripts/celetis', 'celetis-flow', '--board'],
       run: ['scripts/celetis', '--agent', '{agent}', 'celetis-flow', '{n}'],

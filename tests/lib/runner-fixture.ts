@@ -23,13 +23,20 @@ const pause=async(name:string)=>{while(has(name)) await Bun.sleep(10);};
 export async function runnerFixture(realResolver = false) {
   const f = await fixture();
   const state = join(f.dir, 'state');
-  const plugin = join(f.dir, 'installed package');
+  const plugin = join(f.dir, 'codex config/plugins/cache/celetis/celetis/local');
   await mkdir(state);
   await mkdir(join(f.dir, 'tmp'));
-  await mkdir(plugin);
+  await mkdir(plugin, { recursive: true });
   await cp(join(root, 'scripts'), join(plugin, 'scripts'), { recursive: true });
+  await writeFile(
+    join(plugin, 'scripts/lib/plugin-policy.ts'),
+    `export {checkClaudePolicy,claudePolicy} from ${JSON.stringify(join(root, 'scripts/lib/plugin-policy.ts'))}; export async function requireUpdatePolicy(): Promise<void> {}\n`,
+  );
   await cp(join(root, '.claude-plugin'), join(plugin, '.claude-plugin'), { recursive: true });
-  await f.write('installed package/skills/guide/SKILL.md', 'fixture\n');
+  await writeFile(join(plugin, 'skills/guide/SKILL.md'), 'fixture\n').catch(async () => {
+    await mkdir(join(plugin, 'skills/guide'), { recursive: true });
+    await writeFile(join(plugin, 'skills/guide/SKILL.md'), 'fixture\n');
+  });
   await writeFile(join(plugin, 'step-prompt.md'), stepText);
   const env = Object.assign(f.env, {
     RUNNER_TEST: state,
@@ -66,6 +73,10 @@ export async function runnerFixture(realResolver = false) {
     if(args[0]==='--open') console.log('7\\t'+(has('progress')?'stop #7 is finished.':'run /celetis:'+read('step')+' #7'));
     else console.log(has('progress')?'stop #7 is finished.':'run /celetis:'+read('step')+' #7');`,
     );
+  await f.write(
+    'claude config/plugins/known_marketplaces.json',
+    JSON.stringify({ celetis: { source: { source: 'directory', path: plugin }, autoUpdate: false } }),
+  );
   await f.stub(
     'gh',
     `${commonSource}
@@ -88,8 +99,10 @@ export async function runnerFixture(realResolver = false) {
   );
   const hostSource = `${commonSource}
     const host=process.argv[1]!.split('/').at(-1)!;
+    if(args[0]==='--version'){console.log(host==='codex'?'codex-cli 0.163.0':'2.1.306 (Claude Code)');process.exit(0);}
+    if(args[0]==='--disable'&&args[1]==='plugins')args.splice(0,2);
     if(args[0]==='plugin'){
-      log('updates',{host,args});log('order',{host,args});
+      const readOnly=args[1]==='list';log(readOnly?'discovery':'mutations',{host,args});log('updates',{host,args});log('order',{host,args});
       const phase=args[1]==='marketplace'?'marketplace':args[1];
       if(has('update-fail')||read('update-fail-phase')===phase){console.error('fixture: '+host+' '+phase+' update unavailable');process.exit(23);}
       if(read('update-hang')===phase){
@@ -101,7 +114,7 @@ export async function runnerFixture(realResolver = false) {
         try{mkdirSync(join(S,'update-active'));}catch{put('update-overlap');}
         put('update-entered');await pause('hold-update');rmSync(join(S,'update-active'),{recursive:true,force:true});
       }
-      if(phase==='list')process.stdout.write(has('plugin-list')?read('plugin-list'):JSON.stringify([{id:'celetis@celetis',scope:'user',enabled:true,installPath:plugin}])+'\\n');
+      if(phase==='list'){if(has('replace-record'))writeFileSync(join(process.cwd(),'.git/celetis-flow/sessions/7.json'),read('replace-record'));if(host==='codex'&&has('lookup-hang')){process.on('SIGTERM',()=>{});put('update-pid',String(process.pid));spawn(process.execPath,${JSON.stringify(isolatedArgs)}.concat(join(S,'update-descendant.ts')),{stdio:['ignore','inherit','inherit',3]});console.error('fixture: skills catalog lookup stalled with original cause');await Bun.sleep(30_000);}process.stdout.write(has('plugin-list')?read('plugin-list'):JSON.stringify(host==='claude'?[{id:'celetis@celetis',scope:'user',enabled:true,installPath:plugin}]:{installed:[{pluginId:'celetis@celetis',name:'celetis',marketplaceName:'celetis',version:'local',installed:true,enabled:true,source:{source:'local',path:plugin},marketplaceSource:{sourceType:has('git-marketplace')?'git':'local',source:plugin}}],available:[]})+'\\n');}
       process.exit(0);
     }
     if(args[0]==='app-server'){
@@ -265,6 +278,8 @@ export async function runnerFixture(realResolver = false) {
     git,
     entry,
     start,
+    update: (args: string[], host: 'claude' | 'codex') =>
+      f.bun(join(plugin, 'scripts/plugin-update.ts'), args, { cwd: f.repo, env: { ...env, CELETIS_AGENT: host } }),
     run: async (args?: string[], options?: Parameters<typeof start>[1]) => {
       const result = await start(args, options).result;
       expect(await has('setup-ran')).toBe(false);
@@ -340,15 +355,17 @@ export function runnerCase(body: (f: RunnerFixture) => Promise<void>, realResolv
 
 export async function updateTestClock(f: RunnerFixture) {
   const entry = join(f.plugin, 'scripts/plugin-update.ts');
-  await cp(entry, join(f.plugin, 'scripts/plugin-update-fixture.ts'));
   await writeFile(
     entry,
     `import {existsSync,appendFileSync,writeFileSync} from 'node:fs';
-    import {UpdateLock} from './lib/update-lock.ts';
-    const acquire=UpdateLock.acquire;appendFileSync(${JSON.stringify(join(f.state, 'update-helpers'))},String(process.pid)+'\\n');writeFileSync(${JSON.stringify(join(f.state, 'update-lock-waiting'))},'');
-    UpdateLock.acquire=(path,runner)=>acquire(path,runner,{clock:{now:()=>performance.now()+(existsSync(${JSON.stringify(join(f.state, 'clock-jump'))})?120_000:0),sleep:ms=>Bun.sleep(ms)}});
-    const {updatePlugin}=await import('./plugin-update-fixture.ts');
-    try{console.log(await updatePlugin(process.pid,process.env.CELETIS_AGENT as 'claude'|'codex'));}
-    catch(error){console.error((error as Error).message);process.exitCode=1;}`,
+    import {mkdir,stat} from 'node:fs/promises';import {join} from 'node:path';
+    import {UpdateLock} from './lib/update-lock.ts';import {installedRoot,HostError} from './lib/host.ts';import {bunArgs} from './lib/process.ts';
+    const host=(process.env.CELETIS_AGENT??'claude') as 'claude'|'codex';
+    if(process.argv[2]==='--root'){console.log(await installedRoot(host,process.cwd(),3));process.exit(0);}
+    appendFileSync(${JSON.stringify(join(f.state, 'update-helpers'))},String(process.pid)+'\\n');writeFileSync(${JSON.stringify(join(f.state, 'update-lock-waiting'))},'');
+    const config=host==='claude'?process.env.CLAUDE_CONFIG_DIR!:process.env.CODEX_HOME!;await mkdir(config,{recursive:true});
+    const lock=await UpdateLock.acquire(join(config,'celetis-update.lock'),process.pid,{clock:{now:()=>performance.now()+(existsSync(${JSON.stringify(join(f.state, 'clock-jump'))})?120_000:0),sleep:ms=>Bun.sleep(ms)}});
+    try{if(host==='claude'){await lock.run('claude',['plugin','marketplace','update','celetis']);await lock.run('claude',['plugin','update','celetis@celetis','--scope','user']);}else await lock.run('codex',['plugin','marketplace','upgrade','celetis']);const root=(await lock.run(process.execPath,bunArgs(import.meta.path,['--root',host]))).trimEnd();if(!(await stat(join(root,'step-prompt.md')).catch(()=>null))?.isFile())throw new HostError('plugin-update: the installed folder has no step-prompt.md: '+root);console.log(root);}
+    catch(error){console.error((error as Error).message);process.exitCode=1;}finally{await lock.close();}`,
   );
 }

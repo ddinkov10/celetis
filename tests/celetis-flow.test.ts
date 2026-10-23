@@ -180,10 +180,11 @@ test.concurrent(
 );
 for (const phase of ['marketplace', 'update', 'list'])
   test.concurrent(
-    `manual update ${phase} failure keeps command, exit, cause and stops the chain`,
+    `update supervisor fixture ${phase} failure keeps command, exit, cause and stops the chain`,
     runnerCase(async (f) => {
       await f.issue();
       await f.put('update-fail-phase', phase);
+      await updateTestClock(f);
       const r = await f.run([], { script: 'plugin-update' });
       expect(r.code).toBe(1);
       expect(r.stderr).toContain('exit 23');
@@ -251,7 +252,7 @@ test.concurrent(
   }, true),
 );
 test.concurrent(
-  'manual update missing step text names the root and stops before host',
+  'update supervisor fixture missing step text names the root and stops before host',
   runnerCase(async (f) => {
     await f.issue();
     const bare = join(f.dir, 'bare plugin');
@@ -260,6 +261,7 @@ test.concurrent(
       'plugin-list',
       JSON.stringify([{ id: 'celetis@celetis', scope: 'user', enabled: true, installPath: bare }]),
     );
+    await updateTestClock(f);
     const r = await f.run([], { script: 'plugin-update' });
     expect(r.code).toBe(1);
     expect(r.stderr).toContain('step-prompt.md');

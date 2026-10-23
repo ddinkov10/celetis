@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { tryFlock, UpdateLock } from '../scripts/lib/update-lock.ts';
 import { command, fixture, isolatedArgs, root } from './lib/fixture.ts';
 
-import { type RunnerFixture, runnerCase } from './lib/runner-fixture.ts';
+import { type RunnerFixture, runnerCase, updateTestClock } from './lib/runner-fixture.ts';
 
 setDefaultTimeout(25_000);
 const children = new Set<ChildProcess>();
@@ -466,8 +466,9 @@ for (const killed of [false, true])
       const second = join(f.dir, 'other repository');
       await f.git(['clone', '-q', f.repo, second]);
       await f.put('hold-update');
+      await updateTestClock(f);
       const launch = (cwd: string) => {
-        const child = spawn(process.execPath, [...isolatedArgs, join(root, 'scripts/plugin-update.ts')], {
+        const child = spawn(process.execPath, [...isolatedArgs, join(f.plugin, 'scripts/plugin-update.ts')], {
           cwd,
           env: f.env,
           stdio: ['ignore', 'pipe', 'pipe'],
@@ -501,10 +502,11 @@ for (const killed of [false, true])
   );
 
 test.concurrent(
-  'Codex root-lookup interruption preserves stderr once and cleans its real RPC child group',
+  'Codex registry-lookup interruption preserves stderr once and cleans its real child group',
   runnerCase(async (f) => {
     await f.put('lookup-hang');
-    const child = spawn(process.execPath, [...isolatedArgs, join(root, 'scripts/plugin-update.ts')], {
+    await updateTestClock(f);
+    const child = spawn(process.execPath, [...isolatedArgs, join(f.plugin, 'scripts/plugin-update.ts')], {
       cwd: f.repo,
       env: { ...f.env, CELETIS_AGENT: 'codex' },
       stdio: ['ignore', 'pipe', 'pipe'],

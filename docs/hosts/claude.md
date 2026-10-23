@@ -2,6 +2,29 @@
 
 Read through [Host entry](entry.md). These operations apply to the same shared skills.
 
+
+## Read-only update operations
+
+Native metadata uses `claude plugin list --json`, scoped install records in
+`<Claude config>/plugins/installed_plugins.json`, and
+`<Claude config>/plugins/known_marketplaces.json`. Read the effective local, project, user,
+managed, and native marketplace policy. A project false value does not override managed true.
+MDM, server-managed, and command-line policy coverage cannot be certified by a file-only read;
+report that limitation. A shortened version label is not a full installed revision.
+
+After shared entry completes its file reads, run the bound package directly:
+
+```sh
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 CELETIS_AGENT=claude bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/scripts/plugin-update.ts check
+```
+
+Use the actual `AskUserQuestion` schema when it is available, or accept the direct human turn
+that answers the offer. Read its delivered result; an agent-written object is not a user reply.
+The action for one consumed matching reply is
+`scripts/celetis --agent claude plugin-update apply <source> <installed> <target>`.
+The updater rechecks identity and policy under its lock and currently refuses the unsupported
+native target and complete resource-lifetime boundary. It runs no native latest-update command.
+
 ## Skills and custom text
 
 Invoke `celetis:<name>` and `superpowers:<name>` with the Skill tool, passing the invocation

@@ -2,8 +2,8 @@
 // @bun
 
 // scripts/launcher.ts
-import { stat as stat2 } from "fs/promises";
-import { dirname as dirname2, join as join3 } from "path";
+import { stat } from "fs/promises";
+import { dirname as dirname2, join as join4 } from "path";
 
 // scripts/lib/config.ts
 import fs from "fs";
@@ -6577,12 +6577,12 @@ function readConfig(checkout) {
 if (false) {}
 
 // scripts/lib/host.ts
-import { spawn as spawn2 } from "child_process";
-import { readFileSync } from "fs";
-import { stat } from "fs/promises";
-import { constants as constants2 } from "os";
-import { dirname, join, win32 } from "path";
-import { createInterface } from "readline";
+import { dirname, win32 } from "path";
+
+// scripts/lib/plugin-metadata.ts
+import { lstat, readdir, readFile, realpath } from "fs/promises";
+import { homedir } from "os";
+import { isAbsolute, join } from "path";
 
 // scripts/lib/process.ts
 import { execFile, spawn } from "child_process";
@@ -6685,6 +6685,83 @@ function bunArgs(entry, args) {
   return ["--no-env-file", "--no-install", "--config=/dev/null", "--no-macros", entry, ...args];
 }
 
+// scripts/lib/plugin-metadata.ts
+var object2 = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+function configHome(host) {
+  return host === "claude" ? process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude") : process.env.CODEX_HOME || join(homedir(), ".codex");
+}
+async function jsonFile(path, optional = false) {
+  try {
+    if (!(await lstat(path)).isFile())
+      throw new Error("need a regular file with no symbolic link");
+    const value = JSON.parse(await readFile(path, "utf8"));
+    if (!object2(value))
+      throw new Error("need a JSON object");
+    return value;
+  } catch (error) {
+    if (optional && error.code === "ENOENT")
+      return {};
+    throw new HostError(`plugin-update: cannot read ${path}: ${error.message}; repair this native record`);
+  }
+}
+async function nativeJson(host, args, cwd, inheritedFd) {
+  const result = await run(host, args, {
+    cwd,
+    inheritedFd,
+    timeout: 1e4,
+    stderr: inheritedFd === undefined ? undefined : "inherit"
+  });
+  if (result.code !== 0)
+    throw new HostError([
+      `celetis: ${host} ${args.join(" ")} failed (exit ${result.code})`,
+      result.stderr.trimEnd(),
+      result.stdout.trimEnd()
+    ].filter(Boolean).join(`
+`), result.code);
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    throw new HostError(`celetis: invalid ${host} ${args.join(" ")} JSON
+${result.stdout.trimEnd()}`);
+  }
+}
+async function codexPlugin(cwd, inheritedFd) {
+  const version = await run("codex", ["--version"], { cwd, inheritedFd, timeout: 1e4 });
+  if (version.code !== 0)
+    throw new HostError(`celetis: codex is not available: ${version.stderr.trimEnd()}`);
+  if (version.stdout.trim() !== "codex-cli 0.163.0")
+    throw new HostError(`celetis: read-only plugin discovery is unverified for ${version.stdout.trim()}; verify its native registry before use`);
+  const value = await nativeJson("codex", ["plugin", "list", "--marketplace", "celetis", "--json"], cwd, inheritedFd);
+  if (!object2(value) || !Array.isArray(value.installed))
+    throw new HostError("celetis: invalid Codex plugin list");
+  const records = value.installed.filter((item) => object2(item) && item.pluginId === "celetis@celetis");
+  if (records.length > 1)
+    throw new HostError("celetis: Codex reports multiple celetis installations; fix the native registry");
+  const record = records[0];
+  if (!object2(record) || record.enabled !== true || record.installed !== true)
+    throw new HostError("celetis: Codex has no enabled celetis@celetis installation; install and enable the plugin in Codex");
+  if (record.name !== "celetis" || record.marketplaceName !== "celetis" || !object2(record.source) || record.source.source !== "local" || typeof record.source.path !== "string" || !isAbsolute(record.source.path) || !object2(record.marketplaceSource) || !["git", "local"].includes(String(record.marketplaceSource.sourceType)) || typeof record.marketplaceSource.source !== "string" || !record.marketplaceSource.source)
+    throw new HostError("celetis: unsupported Codex celetis source metadata; repair the source-backed installation");
+  const home = await realpath(configHome("codex")).catch(() => null);
+  if (!home)
+    throw new HostError(`celetis: cannot resolve CODEX_HOME ${configHome("codex")}`);
+  const store = join(home, "plugins/cache/celetis/celetis");
+  const entries = await readdir(store, { withFileTypes: true }).catch(() => []);
+  const versions = entries.filter((entry) => entry.isDirectory() && !entry.name.startsWith(".")).map((entry) => entry.name);
+  const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+  versions.sort((a, b) => semver.test(a) && semver.test(b) ? Bun.semver.order(a, b) : a < b ? -1 : a > b ? 1 : 0);
+  const active = versions.includes("local") ? "local" : versions.at(-1);
+  if (!active || record.version !== active)
+    throw new HostError(`celetis: Codex registry does not match its installed version ${String(record.version)}; repair the native installation`);
+  const root = join(store, active);
+  const manifest = await jsonFile(join(root, ".claude-plugin/plugin.json"));
+  if (manifest.name !== "celetis" || !(await lstat(join(root, "scripts")).catch(() => null))?.isDirectory())
+    throw new HostError("celetis: Codex reports an invalid celetis package; reinstall the plugin");
+  if (!(await lstat(join(root, "skills/guide/SKILL.md")).catch(() => null))?.isFile())
+    throw new HostError("celetis: Codex reports a missing installed skill; reinstall the plugin");
+  return { host: "codex", root, record };
+}
+
 // scripts/lib/host.ts
 class HostError extends Error {
   code;
@@ -6739,133 +6816,8 @@ function selectHost(explicit, env, main) {
   }
   return host;
 }
-function object2(value) {
+function object3(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-async function codexRequest(cwd, method, params, inheritedFd) {
-  const env = childEnv();
-  if (!Bun.which("codex", { PATH: env.PATH }))
-    throw new HostError("celetis: codex is not on PATH");
-  const child = spawn2("codex", ["app-server", "--stdio"], {
-    cwd,
-    env,
-    stdio: ["pipe", "pipe", "pipe", ...inheritedFd === undefined ? [] : [inheritedFd]]
-  });
-  if (!child.stdin || !child.stdout || !child.stderr)
-    throw new HostError("celetis: cannot open Codex app-server streams");
-  const input = child.stdin;
-  const output = child.stdout;
-  const errors = child.stderr;
-  const exited = new Promise((resolve) => {
-    child.once("exit", () => resolve());
-    child.once("error", () => resolve());
-  });
-  const handlers = new Map;
-  let interruption;
-  const interrupted = new Promise((_, reject) => {
-    for (const signal of ["SIGHUP", "SIGINT", "SIGTERM"]) {
-      const handler = () => {
-        interruption ??= new HostError("", 128 + constants2.signals[signal]);
-        reject(interruption);
-      };
-      handlers.set(signal, handler);
-      process.on(signal, handler);
-    }
-  });
-  let failure;
-  child.on("error", (error) => {
-    failure = error;
-  });
-  let stderr = "";
-  errors.setEncoding("utf8");
-  errors.on("data", (data) => {
-    stderr += data;
-  });
-  input.on("error", () => {});
-  const lines = createInterface({ input: output, crlfDelay: Infinity });
-  const iterator = lines[Symbol.asyncIterator]();
-  async function reply(id, operation) {
-    const deadline = Date.now() + 1e4;
-    let timer;
-    const timeout = new Promise((_, reject) => {
-      timer = setTimeout(() => reject(new HostError(`celetis: Codex ${operation} timed out after 10 seconds`)), 1e4);
-    });
-    try {
-      while (Date.now() < deadline) {
-        const next = await Promise.race([iterator.next(), timeout, interrupted]);
-        if (next.done)
-          throw new HostError(`celetis: Codex app-server closed its output during ${operation}`);
-        let value;
-        try {
-          value = JSON.parse(next.value);
-        } catch {
-          throw new HostError("celetis: invalid Codex app-server response");
-        }
-        if (!object2(value))
-          throw new HostError("celetis: invalid Codex app-server response");
-        if (Object.hasOwn(value, "id")) {
-          if (value.id !== id)
-            continue;
-          if (value.error != null) {
-            const message = object2(value.error) ? value.error.message ?? "unknown error" : "unknown error";
-            throw new HostError(`celetis: Codex ${operation} failed: ${message}`);
-          }
-          if (!object2(value.result))
-            throw new HostError("celetis: invalid Codex app-server response");
-          return value;
-        }
-        if (typeof value.method !== "string")
-          throw new HostError("celetis: invalid Codex app-server response");
-      }
-      throw new HostError(`celetis: Codex ${operation} timed out after 10 seconds`);
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-  const send = (value) => input.write(`${JSON.stringify(value)}
-`);
-  let error;
-  let result;
-  try {
-    send({
-      id: 1,
-      method: "initialize",
-      params: { clientInfo: { name: "celetis", version: "0.0.0" }, capabilities: { experimentalApi: true } }
-    });
-    await reply(1, "initialize");
-    send({ method: "initialized" });
-    send({ id: 2, method, params });
-    result = await reply(2, method);
-  } catch (caught) {
-    error = caught;
-  } finally {
-    lines.close();
-    input.destroy();
-    child.kill("SIGTERM");
-    let timer;
-    await Promise.race([
-      exited,
-      new Promise((resolve) => {
-        timer = setTimeout(resolve, 500);
-      })
-    ]);
-    clearTimeout(timer);
-    if (child.exitCode === null && child.signalCode === null)
-      child.kill("SIGKILL");
-    await exited;
-    output.destroy();
-    errors.destroy();
-    for (const [signal, handler] of handlers)
-      process.off(signal, handler);
-  }
-  if (interruption)
-    error = interruption;
-  if (error || failure) {
-    const detail = error instanceof Error ? error.message : failure?.message ?? String(error);
-    throw new HostError([detail, stderr.trimEnd()].filter(Boolean).join(`
-`), error instanceof HostError ? error.code : 1);
-  }
-  return result;
 }
 async function installedRoot(host, cwd, inheritedFd) {
   if (host === "claude") {
@@ -6892,61 +6844,81 @@ async function installedRoot(host, cwd, inheritedFd) {
     if (!Array.isArray(records))
       throw new HostError(`celetis: invalid plugin list JSON
 ${result.stdout.trimEnd()}`);
-    const matches = records.filter((item) => object2(item) && item.id === "celetis@celetis");
+    const matches = records.filter((item) => object3(item) && item.id === "celetis@celetis");
     const record = matches.find((item) => item.scope === "user") ?? matches[0];
     if (record?.enabled !== true || typeof record.installPath !== "string" || !record.installPath)
       throw new HostError(missing);
     return record.installPath.replaceAll("\r", "");
   }
-  const reply = await codexRequest(cwd, "skills/list", { cwds: [cwd], forceReload: true }, inheritedFd);
-  const invalid = () => new HostError("celetis: invalid Codex skills/list response");
-  if (!object2(reply) || !object2(reply.result) || !Array.isArray(reply.result.data))
-    throw invalid();
-  const records = reply.result.data.filter((item) => object2(item) && item.cwd === cwd);
-  if (records.length !== 1 || !Array.isArray(records[0].skills))
-    throw invalid();
-  const paths = [];
-  for (const skill of records[0].skills) {
-    if (!object2(skill) || skill.pluginId !== "celetis@celetis" || skill.enabled !== true || typeof skill.name !== "string" || !/^celetis:[a-z][a-z-]*$/.test(skill.name))
+  return (await codexPlugin(cwd, inheritedFd)).root;
+}
+
+// scripts/lib/plugin-policy.ts
+import { join as join2 } from "path";
+function checkClaudePolicy(records) {
+  let effective;
+  for (const { path, value } of records) {
+    const entries = value.extraKnownMarketplaces;
+    if (entries !== undefined && !object2(entries))
+      throw new HostError(`plugin-update: ${path}: extraKnownMarketplaces is invalid; repair the effective policy`);
+    const market = object2(entries) ? entries.celetis : value.celetis;
+    if (market === undefined)
       continue;
-    if (typeof skill.path !== "string" || [...skill.path].some((character) => character.charCodeAt(0) < 32))
-      throw invalid();
-    const path = /^[A-Za-z]:\\/.test(skill.path) ? skill.path.replaceAll("\\", "/") : skill.path;
-    const parsed = /^(.*)\/skills\/([a-z][a-z-]*)\/SKILL\.md$/.exec(path);
-    if (!parsed?.[1] || !/^(?:\/|[A-Za-z]:\/).+/.test(path) || /\/(?:\.{0,2})\//.test(path) || `celetis:${parsed[2]}` !== skill.name)
-      throw invalid();
-    paths.push({ root: parsed[1], path });
+    if (!object2(market))
+      throw new HostError(`plugin-update: ${path}: Celetis marketplace policy is invalid; repair the effective policy`);
+    if (Object.hasOwn(market, "autoUpdate"))
+      effective = { path, value: market.autoUpdate };
   }
-  const roots = [...new Set(paths.map((item) => item.root))];
-  const selected = roots[0];
-  if (!selected)
-    throw new HostError("celetis: Codex has no enabled celetis@celetis installation; install and enable the plugin in Codex");
-  if (roots.length > 1)
-    throw new HostError("celetis: Codex reports multiple celetis package roots; fix the enabled installation");
-  const root = selected;
-  let manifest;
-  try {
-    manifest = JSON.parse(readFileSync(join(root, ".claude-plugin/plugin.json"), "utf8"));
-  } catch {}
-  if (!(await stat(join(root, "scripts")).catch(() => null))?.isDirectory() || !object2(manifest) || manifest.name !== "celetis")
-    throw new HostError("celetis: Codex reports an invalid celetis package; reinstall the plugin");
-  for (const item of paths) {
-    if (!(await stat(item.path).catch(() => null))?.isFile())
-      throw new HostError("celetis: Codex reports a missing installed skill; reinstall the plugin");
+  if (effective?.value !== false)
+    throw new HostError(`plugin-update: ${effective?.path ?? "native/local/project/user/managed settings"}: Celetis automatic updates are enabled or unknown; stop affected consumers and set the effective Celetis autoUpdate policy to false`);
+}
+async function claudePolicy(cwd) {
+  const lookup = await run("git", ["rev-parse", "--show-toplevel"], { cwd });
+  const checkout = lookup.code === 0 ? lookup.stdout.trimEnd() : cwd;
+  const managed = process.platform === "darwin" ? "/Library/Application Support/ClaudeCode" : process.platform === "win32" ? join2(process.env.ProgramFiles || "C:\\Program Files", "ClaudeCode") : "/etc/claude-code";
+  const paths = [
+    join2(configHome("claude"), "plugins/known_marketplaces.json"),
+    join2(configHome("claude"), "settings.json"),
+    join2(checkout, ".claude/settings.json"),
+    ...new Set([
+      join2(checkout, ".claude/settings.local.json"),
+      join2(cwd, ".claude/settings.local.json"),
+      join2(await mainCheckout(cwd).catch(() => checkout), ".claude/settings.local.json")
+    ]),
+    join2(managed, "managed-settings.json")
+  ];
+  const fragments = join2(managed, "managed-settings.d");
+  const { readdir } = await import("fs/promises");
+  const names = await readdir(fragments).catch((error) => {
+    if (error.code === "ENOENT")
+      return [];
+    throw new HostError(`plugin-update: cannot read ${fragments}; obtain access to all managed policy sources`);
+  });
+  paths.push(...names.filter((name) => name.endsWith(".json")).sort().map((name) => join2(fragments, name)));
+  const records = [];
+  for (const path of paths)
+    records.push({ path, value: await jsonFile(path, true) });
+  return records;
+}
+async function requireUpdatePolicy(host, cwd) {
+  if (host === "claude") {
+    checkClaudePolicy(await claudePolicy(cwd));
+    return;
   }
-  return root;
+  await codexPlugin(cwd);
+  throw new HostError(`plugin-update: ${join2(configHome("codex"), "config.toml")}: Codex automatic plugin refresh can replace active Celetis resources; enabled=false is not update protection. Stop affected consumers and use a supported native lifetime and automatic-update control before starting this operation`);
 }
 
 // scripts/lib/session.ts
-import { mkdir, readdir, readFile, rename, rm, writeFile } from "fs/promises";
-import { join as join2 } from "path";
+import { mkdir, readdir as readdir2, readFile as readFile2, rename, rm, writeFile } from "fs/promises";
+import { join as join3 } from "path";
 var sessionSteps = ["triage", "specify", "bug", "chore", "hotfix", "plan", "implement"];
 var uuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-function object3(value) {
+function object4(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function validateSession(value, main, issue, file) {
-  if (!object3(value) || Object.keys(value).sort().join(",") !== "checkout,host,issue,schema,session_id,step" || value.schema !== 1 || value.issue !== issue || value.checkout !== main || value.host !== "claude" && value.host !== "codex" || typeof value.step !== "string" || !sessionSteps.includes(value.step) || !(value.session_id === null || typeof value.session_id === "string" && uuid.test(value.session_id))) {
+  if (!object4(value) || Object.keys(value).sort().join(",") !== "checkout,host,issue,schema,session_id,step" || value.schema !== 1 || value.issue !== issue || value.checkout !== main || value.host !== "claude" && value.host !== "codex" || typeof value.step !== "string" || !sessionSteps.includes(value.step) || !(value.session_id === null || typeof value.session_id === "string" && uuid.test(value.session_id))) {
     throw new HostError(`celetis: invalid or obsolete session record ${file}; remove it and start a new step with scripts/celetis celetis-flow ${issue}`);
   }
   return value;
@@ -6955,10 +6927,10 @@ function serializeSession(record) {
   return JSON.stringify(Object.fromEntries(Object.entries(record).sort(([a], [b]) => a.localeCompare(b))));
 }
 async function readSession(main, issue, common) {
-  const file = join2(common ?? await commonDir(main), "celetis-flow/sessions", `${issue}.json`);
+  const file = join3(common ?? await commonDir(main), "celetis-flow/sessions", `${issue}.json`);
   let source;
   try {
-    source = await readFile(file, "utf8");
+    source = await readFile2(file, "utf8");
   } catch (error) {
     if (error.code !== "ENOENT")
       throw error;
@@ -7012,7 +6984,6 @@ async function main(argv) {
     const main = await mainCheckout(cwd).catch(() => null);
     const saved = name === "celetis-flow" && args.length === 2 && args[0] === "--resume" ? await resume(args[1] ?? "", explicit, cwd) : undefined;
     const host = saved?.host ?? selectHost(explicit, process.env, main);
-    const root = await installedRoot(host, cwd);
     if (["worktree", "celetis-flow", "next-step", "land", "board"].includes(name)) {
       const checkout = main ?? await mainCheckout(cwd);
       try {
@@ -7023,8 +6994,11 @@ async function main(argv) {
         throw new HostError(`celetis: ${checkout}/.celetis.yaml: ${error.field}: ${error.message}`, 2);
       }
     }
-    const entry = join3(root, "scripts", `${name}.ts`);
-    if (!(await stat2(entry).catch(() => null))?.isFile())
+    if (["celetis-flow", "board"].includes(name))
+      await requireUpdatePolicy(host, cwd);
+    const root = await installedRoot(host, cwd);
+    const entry = join4(root, "scripts", `${name}.ts`);
+    if (!(await stat(entry).catch(() => null))?.isFile())
       throw new HostError(`celetis: the plugin has no script ${name}`, 2);
     const env = childEnv({ ...process.env, CELETIS_AGENT: host });
     delete env.CELETIS_RESUME_RECORD;

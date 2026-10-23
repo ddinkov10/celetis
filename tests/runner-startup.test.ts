@@ -1,10 +1,71 @@
 import { expect, setDefaultTimeout, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { cp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { root } from './lib/fixture.ts';
 import { runnerCase } from './lib/runner-fixture.ts';
 import { held, managed, start } from './lib/runner-lifecycle-fixture.ts';
 
 setDefaultTimeout(25_000);
+
+test.concurrent(
+  'missing update-policy dependency is reported before starting a numbered session',
+  runnerCase(async (f) => {
+    await rm(join(f.plugin, 'scripts/lib/plugin-metadata.ts'));
+    const result = await f.run(['7']);
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('plugin version of this runner was removed');
+    expect(await f.logs('calls')).toEqual([]);
+  }),
+);
+
+for (const args of [['7'], [], ['--board'], ['--resume', '7']])
+  test.concurrent(
+    `real Codex replacement policy refuses ${JSON.stringify(args)} before a consumer starts`,
+    runnerCase(async (f) => {
+      await cp(join(root, 'scripts/lib/plugin-policy.ts'), join(f.plugin, 'scripts/lib/plugin-policy.ts'));
+      await f.issue();
+      if (args[0] === '--resume') {
+        await f.git(['rev-parse', '--git-common-dir']);
+        await f.write(
+          'repo dir/.git/celetis-flow/sessions/7.json',
+          JSON.stringify({
+            schema: 1,
+            issue: 7,
+            checkout: f.repo,
+            host: 'codex',
+            step: 'plan',
+            session_id: '01a139fc-2ffa-74c0-9b14-e35e23339910',
+          }),
+        );
+      }
+      const result = await f.run(args, { host: 'codex' });
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain('automatic plugin refresh');
+      expect(result.stderr).toContain('config.toml');
+      expect(await f.logs('calls')).toEqual([]);
+      expect(await f.logs('mutations')).toEqual([]);
+    }),
+  );
+
+test.concurrent(
+  'real Claude local policy overrides project false and refuses consumer start',
+  runnerCase(async (f) => {
+    await cp(join(root, 'scripts/lib/plugin-policy.ts'), join(f.plugin, 'scripts/lib/plugin-policy.ts'));
+    await f.write(
+      'repo dir/.claude/settings.json',
+      JSON.stringify({ extraKnownMarketplaces: { celetis: { autoUpdate: false } } }),
+    );
+    await f.write(
+      'repo dir/.claude/settings.local.json',
+      JSON.stringify({ extraKnownMarketplaces: { celetis: { autoUpdate: true } } }),
+    );
+    const result = await f.run(['7']);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('.claude/settings.local.json');
+    expect(await f.logs('calls')).toEqual([]);
+    expect(await f.logs('mutations')).toEqual([]);
+  }),
+);
 
 for (const host of ['claude', 'codex']) {
   for (const automatic of [false, true])
@@ -32,24 +93,15 @@ for (const host of ['claude', 'codex']) {
       }, true),
     );
   test.concurrent(
-    `manual update selects ${host} through the public launcher`,
+    `unbound updater refuses ${host} through the public launcher`,
     runnerCase(async (f) => {
       const r = await f.run(['--agent', host, 'plugin-update'], {
         host: host === 'claude' ? 'codex' : 'claude',
-        entry: join(f.plugin, 'scripts/celetis'),
+        entry: join(f.plugin, 'scripts/launcher.ts'),
       });
-      expect(r).toEqual({ code: 0, stdout: `${f.plugin}\n`, stderr: '' });
-      expect(await f.logs('updates')).toEqual(
-        (host === 'claude'
-          ? [
-              ['plugin', 'list', '--json'],
-              ['plugin', 'marketplace', 'update', 'celetis'],
-              ['plugin', 'update', 'celetis@celetis', '--scope', 'user'],
-              ['plugin', 'list', '--json'],
-            ]
-          : [['plugin', 'marketplace', 'upgrade', 'celetis']]
-        ).map((args) => ({ host, args })),
-      );
+      expect(r.code).toBe(2);
+      expect(r.stderr).toContain('check | apply <source> <installed> <target>');
+      expect(await f.logs('mutations')).toEqual([]);
       expect(await f.logs('calls')).toEqual([]);
     }),
   );

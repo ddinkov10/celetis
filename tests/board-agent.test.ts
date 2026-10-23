@@ -160,6 +160,17 @@ for (const runtimePath of ['absent', 'shadow'] as const)
         f.plugin,
       ]);
       expect(build).toEqual({ code: 0, stdout: '', stderr: '' });
+      const launcher = await Bun.build({
+        entrypoints: [join(f.plugin, 'scripts/launcher.ts')],
+        root: f.plugin,
+        target: 'bun',
+        format: 'esm',
+        banner: bunShebang,
+      });
+      expect(launcher.success).toBe(true);
+      const output = launcher.outputs[0];
+      if (!output) throw new Error('fixture launcher produced no output');
+      await writeFile(join(f.plugin, 'scripts/celetis'), Buffer.from(await output.arrayBuffer()));
       await cp(join(f.plugin, 'scripts/celetis'), join(f.repo, 'scripts/celetis'));
       await f.config('landing: pr\nhost: claude\n');
       await f.git(['add', '.']);

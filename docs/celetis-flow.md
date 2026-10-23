@@ -185,10 +185,13 @@ Codex also omits the step-text override for specify. Its configured developer in
 launcher, and step text. Numbered starts, automatic starts, and later steps make no update call.
 The forms `--board` and `--resume` keep their existing no-update behavior and saved identity.
 Before a step starts, the runner checks that its required files and step text still exist.
-An external replacement or native cleanup can still remove or change those files.
+Before a consumer starts, the effective replacement policy is checked. Codex consumer starts
+currently refuse because native automatic refresh lacks a supported lifetime control. A local
+marketplace has no exemption. Metadata RPC disables plugins before app-server construction, so
+read-only thread and configuration checks do not trigger startup refresh.
 
-[Updates](../README.md#updates) owns the manual exit/update/restart procedure, the explicit
-`plugin-update` command, its lock and deadline, and the native host limits. A runner restart
+[Updates](../README.md#updates) owns the read-only check, exact offer, direct chat approval, target-bound
+`plugin-update apply` attempt, its lock and deadline, and the native host limits. A runner restart
 alone does not fetch a new package. "Acceptance status" keeps the open resource-lifetime evidence.
 
 **The step end.** In a herdr pane (`HERDR_ENV=1` and a valid `HERDR_PANE_ID`), the script does two things before it
@@ -427,7 +430,10 @@ the project default changes. Each item is one argument. The board quotes the ite
 `&& exit`: success closes the tab; a failed script leaves its message there. With the default
 `me` gates, a Run starts one step and ends when its session ends.
 
-The board starts the data script on each read and the action script on each press. Follow
+The board starts the data script on each read and the action script on each press. Stop the
+whole board before a supported package replacement, since later requests can read package assets.
+A fresh board/session resolves the enabled installation again; a successful restart alone is
+no proof of an update. Codex board starts currently refuse the unsupported refresh policy. Follow
 [Updates](../README.md#updates) before replacing its installed package, and complete the
 [manual cutover](configuration.md#replace-the-old-setup) when the product launcher or setup
 changes. Real Run/Resume acceptance remains a
@@ -605,9 +611,14 @@ CLI gap. No obsolete metadata or protocol fallback is supplied. The
 at the same path while an app-server still advertised that path. The shared update lock covers
 cooperating updates, not all future reads of a running session. No supported per-session package
 pin has been proved. The current [update policy](../README.md#updates) removes Celetis-initiated
-updates and uses a manual consumer exit procedure. It does not control native Codex refresh or
-prove host-wide resource stability. ADR-0014 retains the original evidence; ADR-0027 records the
-reduced policy. These native guarantees remain unverified.
+updates and adds an exact offer and one direct chat decision. Target-bound application refuses
+both observed native hosts before replacement: complete consumer, offering-session, and updater
+boundaries remain unproved, and Claude lacks a proved exact-target update. Codex consumer starts
+refuse its native automatic refresh policy. ADR-0014 retains the original evidence;
+[ADR-0027](adr/0027-celetis-updates-require-one-chat-approval.md) records the full interface and
+these refusals. Deterministic check/controller/supervisor tests are separate from real human-channel
+and successful native cutover acceptance, which remain unverified. No live tests or real
+installation updates were run for this completion.
 
 ### Optional Codex desktop evidence
 

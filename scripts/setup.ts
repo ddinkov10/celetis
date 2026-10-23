@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:p
 import { isDeepStrictEqual } from 'node:util';
 import { type Config, ConfigError, readConfig } from './lib/config.ts';
 import { HostError } from './lib/host.ts';
+import { checkClaudePolicy, claudePolicy } from './lib/plugin-policy.ts';
 import { childEnv, run } from './lib/process.ts';
 import { markerOf, removeCheckout, runSetup, worktrees } from './lib/worktree.ts';
 
@@ -420,6 +421,14 @@ class Setup {
         this.warn(
           `${settings}: ${form.path.join('.')} differs from the current form; setup leaves it${parentKey === 'extraKnownMarketplaces' && key === 'celetis' ? '; review this entry and set autoUpdate to false by hand' : ''}`,
         );
+    }
+    const policies = await claudePolicy(this.cwd);
+    const projectPolicy = policies.find((entry) => entry.path === join(this.cwd, settings));
+    if (projectPolicy) projectPolicy.value = doc;
+    try {
+      checkClaudePolicy(policies);
+    } catch (error) {
+      this.warn((error as Error).message);
     }
     if (changed) {
       const lead = source.match(/^[ \t]+(?=[^ \t\r\n])/m)?.[0] ?? '';

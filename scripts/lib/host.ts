@@ -1,10 +1,9 @@
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { stat } from 'node:fs/promises';
 import { constants } from 'node:os';
-import { dirname, join, win32 } from 'node:path';
+import { dirname, win32 } from 'node:path';
 import { createInterface } from 'node:readline';
 import { bunFloor, ConfigError, readSnapshot } from './config.ts';
+import { codexPlugin } from './plugin-metadata.ts';
 import { childEnv, run } from './process.ts';
 
 export type Host = 'claude' | 'codex';
@@ -81,7 +80,7 @@ export async function codexRequest(
 ): Promise<unknown> {
   const env = childEnv();
   if (!Bun.which('codex', { PATH: env.PATH })) throw new HostError('celetis: codex is not on PATH');
-  const child = spawn('codex', ['app-server', '--stdio'], {
+  const child = spawn('codex', ['--disable', 'plugins', 'app-server', '--stdio'], {
     cwd,
     env,
     stdio: ['pipe', 'pipe', 'pipe', ...(inheritedFd === undefined ? [] : [inheritedFd])],
@@ -229,56 +228,5 @@ export async function installedRoot(host: Host, cwd: string, inheritedFd?: numbe
       throw new HostError(missing);
     return record.installPath.replaceAll('\r', '');
   }
-  const reply = await codexRequest(cwd, 'skills/list', { cwds: [cwd], forceReload: true }, inheritedFd);
-  const invalid = () => new HostError('celetis: invalid Codex skills/list response');
-  if (!object(reply) || !object(reply.result) || !Array.isArray(reply.result.data)) throw invalid();
-  const records = reply.result.data.filter((item) => object(item) && item.cwd === cwd);
-  if (records.length !== 1 || !Array.isArray(records[0].skills)) throw invalid();
-  const paths: { root: string; path: string }[] = [];
-  for (const skill of records[0].skills) {
-    if (
-      !object(skill) ||
-      skill.pluginId !== 'celetis@celetis' ||
-      skill.enabled !== true ||
-      typeof skill.name !== 'string' ||
-      !/^celetis:[a-z][a-z-]*$/.test(skill.name)
-    )
-      continue;
-    if (typeof skill.path !== 'string' || [...skill.path].some((character) => character.charCodeAt(0) < 32))
-      throw invalid();
-    const path = /^[A-Za-z]:\\/.test(skill.path) ? skill.path.replaceAll('\\', '/') : skill.path;
-    const parsed = /^(.*)\/skills\/([a-z][a-z-]*)\/SKILL\.md$/.exec(path);
-    if (
-      !parsed?.[1] ||
-      !/^(?:\/|[A-Za-z]:\/).+/.test(path) ||
-      /\/(?:\.{0,2})\//.test(path) ||
-      `celetis:${parsed[2]}` !== skill.name
-    )
-      throw invalid();
-    paths.push({ root: parsed[1], path });
-  }
-  const roots = [...new Set(paths.map((item) => item.root))];
-  const selected = roots[0];
-  if (!selected)
-    throw new HostError(
-      'celetis: Codex has no enabled celetis@celetis installation; install and enable the plugin in Codex',
-    );
-  if (roots.length > 1)
-    throw new HostError('celetis: Codex reports multiple celetis package roots; fix the enabled installation');
-  const root = selected;
-  let manifest: unknown;
-  try {
-    manifest = JSON.parse(readFileSync(join(root, '.claude-plugin/plugin.json'), 'utf8'));
-  } catch {}
-  if (
-    !(await stat(join(root, 'scripts')).catch(() => null))?.isDirectory() ||
-    !object(manifest) ||
-    manifest.name !== 'celetis'
-  )
-    throw new HostError('celetis: Codex reports an invalid celetis package; reinstall the plugin');
-  for (const item of paths) {
-    if (!(await stat(item.path).catch(() => null))?.isFile())
-      throw new HostError('celetis: Codex reports a missing installed skill; reinstall the plugin');
-  }
-  return root;
+  return (await codexPlugin(cwd, inheritedFd)).root;
 }
