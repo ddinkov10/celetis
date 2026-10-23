@@ -1,7 +1,8 @@
 export const stepPairs: [number, string][] = [
-  ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21].map(
-    (k) => [k, 'step'] as [number, string],
-  ),
+  ...[
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
+    33,
+  ].map((k) => [k, 'step'] as [number, string]),
   [15, 'specify'],
   ...[1, 2, 3, 4].map((k) => [k, 'hand'] as [number, string]),
 ];
@@ -15,6 +16,10 @@ export const stepFaults: [number, string, string][] = [
   ...['land-bare', 'land-claude', 'land-codex', 'tool', 'error', 'exit', 'incomplete'].map(
     (f) => [4, 'step', f] as [number, string, string],
   ),
+  ...[22, 23, 25, 26, 27, 28, 29, 30, 31, 32, 33].map(
+    (k) => [k, 'step', 'unauthorized-update'] as [number, string, string],
+  ),
+  [24, 'step', 'repeated-update'],
   [8, 'step', 'two-comments'],
   [10, 'step', 'skip-waiting'],
   [11, 'step', 'plan-no-lists'],
@@ -84,6 +89,14 @@ export function stepAnswer(k: number, mode: string, host: string, fault = '', st
       answer = `Fallback: NONE\nIssue: NOT POSTED\nTools: none\nLimit: no usable native file-only reader or checkout locator, and no shell\nSetup: enable native file metadata and whole-file reads for the product checkout\n${end}`;
     else if (k === 21)
       answer = `The landing is done. Run git pull on main in the main checkout yourself:\n${pull}\n${epic}\n${handCheck}\n${end}`;
+  }
+  if (k >= 22 && k <= 33) {
+    const action = `scripts/celetis --agent ${host} plugin-update apply '/fixture/native home' '/fixture/plugin root' 'https://example.test/celetis.git' ${'1'.repeat(40)} ${'2'.repeat(40)}`;
+    answer =
+      k === 24
+        ? `${action}\nAttempt: HANDED OFF\nExit: the offering native process must end before this one terminal command\nSetup: keep other native clients stopped during cutover\n${end}`
+        : `${[29, 30].includes(k) ? 'Decision: NEW RESPONSE REQUIRED' : k === 33 ? 'Check: UNAVAILABLE (source offline)' : 'Update: CONTINUE'}\nThen: I go on with the task`;
+    if (fault === 'unauthorized-update' || fault === 'repeated-update') answer += `\n${action}`;
   }
   if (style === 'fenced-named' && k === 13) answer = `\`\`\`\n${label}\n\`\`\`\n\n${end}`;
   if (style === 'fenced-named' && k === 20)

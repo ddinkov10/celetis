@@ -35,3 +35,12 @@ for (const host of ['claude', 'codex'])
     input.answer = 'gh issue edit 7 --add-label ready-for-human\nThen: my step ends \n';
     expect(checkStep(input).errors).toEqual(['unexpected action in human-precondition stop']);
   });
+
+for (const host of ['claude', 'codex'])
+  for (const k of [22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33])
+    test(`${host} update case ${k} rejects an unauthorized or repeated attempt`, () => {
+      expect(checkStep(stepAnswer(k, 'step', host)).errors).toEqual([]);
+      expect(
+        checkStep(stepAnswer(k, 'step', host, k === 24 ? 'repeated-update' : 'unauthorized-update')).errors.length,
+      ).toBeGreaterThan(0);
+    });

@@ -174,17 +174,18 @@ test.concurrent(
     const r = await f.run();
     expect(r.code).toBe(2);
     expect((await f.logs('calls')).length).toBe(1);
-    expect((await f.logs('updates')).length).toBe(3);
+    expect(await f.logs('updates')).toEqual([]);
     expect(await lockNames(f)).toBe('');
   }, true),
 );
 for (const phase of ['marketplace', 'update', 'list'])
   test.concurrent(
-    `installed ${phase} failure keeps command, exit, cause and stops the chain`,
+    `update supervisor fixture ${phase} failure keeps command, exit, cause and stops the chain`,
     runnerCase(async (f) => {
       await f.issue();
       await f.put('update-fail-phase', phase);
-      const r = await f.run();
+      await updateTestClock(f);
+      const r = await f.run([], { script: 'plugin-update' });
       expect(r.code).toBe(1);
       expect(r.stderr).toContain('exit 23');
       expect(r.stderr).toContain(`fixture: claude ${phase} update unavailable`);
@@ -198,11 +199,13 @@ for (const phase of ['marketplace', 'update', 'list'])
       expect(await f.logs('calls')).toEqual([]);
       expect(await rows(f)).toBe('');
       expect(await lockNames(f)).toBe('');
-      expect((await f.logs('updates')).length).toBe(['marketplace', 'update', 'list'].indexOf(phase) + 1);
+      const marketplace = { host: 'claude', args: ['plugin', 'marketplace', 'update', 'celetis'] };
+      const plugin = { host: 'claude', args: ['plugin', 'update', 'celetis@celetis', '--scope', 'user'] };
+      expect(await f.logs('updates')).toEqual(phase === 'marketplace' ? [marketplace] : [marketplace, plugin]);
     }, true),
   );
 test.concurrent(
-  'installed refresh runs before each session and uses only the new instruction root',
+  'each session keeps the resolved instruction root without plugin calls',
   runnerCase(async (f) => {
     await f.issue();
     await after(f, 1, 7, 'enhancement', ['## Plan']);
@@ -219,17 +222,8 @@ test.concurrent(
       (await f.logs('order')).map((row) =>
         row.session ? `session ${(row.args as string[]).at(-1)}` : (row.args as string[]).join(' '),
       ),
-    ).toEqual([
-      'plugin marketplace update celetis',
-      'plugin update celetis@celetis --scope user',
-      'plugin list --json',
-      'session /celetis:plan #7',
-      'plugin marketplace update celetis',
-      'plugin update celetis@celetis --scope user',
-      'plugin list --json',
-      'session /celetis:implement #7',
-    ]);
-    for (const call of await f.logs('calls')) expect(call.args).toContain(join(path, 'step-prompt.md'));
+    ).toEqual(['session /celetis:plan #7', 'session /celetis:implement #7']);
+    for (const call of await f.logs('calls')) expect(call.args).toContain(join(f.plugin, 'step-prompt.md'));
   }, true),
 );
 for (const list of ['oops', '[]'])
@@ -238,7 +232,7 @@ for (const list of ['oops', '[]'])
     runnerCase(async (f) => {
       await f.issue();
       await f.put('plugin-list', list);
-      const r = await f.run();
+      const r = await f.run(['7'], { launcher: true });
       expect(r.code).toBe(1);
       expect(r.stderr.length).toBeGreaterThan(0);
       if (list === 'oops') {
@@ -249,7 +243,18 @@ for (const list of ['oops', '[]'])
     }, true),
   );
 test.concurrent(
-  'installed missing step text names the root and stops before host',
+  'specify refuses an incomplete installed package before starting a session',
+  runnerCase(async (f) => {
+    await f.issue(7, 'enhancement', 'An idea');
+    await rm(join(f.plugin, 'step-prompt.md'));
+    const r = await f.run();
+    expect(await f.logs('calls')).toEqual([]);
+    expect(r.stdout).toContain('#7: the plugin version of this runner was removed after an update');
+    expect(await lockNames(f)).toBe('');
+  }, true),
+);
+test.concurrent(
+  'update supervisor fixture missing step text names the root and stops before host',
   runnerCase(async (f) => {
     await f.issue();
     const bare = join(f.dir, 'bare plugin');
@@ -258,7 +263,8 @@ test.concurrent(
       'plugin-list',
       JSON.stringify([{ id: 'celetis@celetis', scope: 'user', enabled: true, installPath: bare }]),
     );
-    const r = await f.run();
+    await updateTestClock(f);
+    const r = await f.run([], { script: 'plugin-update' });
     expect(r.code).toBe(1);
     expect(r.stderr).toContain('step-prompt.md');
     expect(r.stderr).toContain(bare);
@@ -266,7 +272,7 @@ test.concurrent(
   }, true),
 );
 test.concurrent(
-  'installed second lookup failure cannot start the second session or record no progress',
+  'a later step uses its installed package when a new lookup would fail',
   runnerCase(async (f) => {
     await f.issue();
     await f.put(
@@ -274,9 +280,10 @@ test.concurrent(
       JSON.stringify({ 'issue-7.json': await issueText(f, 7, 'enhancement', ['## Plan']), 'plugin-list': 'oops' }),
     );
     const r = await f.run();
-    expect(r.code).toBe(1);
-    expect((await f.logs('calls')).length).toBe(1);
-    expect(await rows(f)).toBe('');
+    expect(r.code, r.stderr).toBe(0);
+    expect((await f.logs('calls')).length).toBe(2);
+    expect(await f.logs('updates')).toEqual([]);
+    expect(await rows(f)).toBe('7\trun /celetis:implement #7\n');
   }, true),
 );
 for (const [label, body, next, gate] of [
@@ -627,7 +634,7 @@ for (const stage of ['marketplace', 'update', 'list'])
       await f.issue();
       await updateTestClock(f);
       await f.put('update-hang', stage);
-      const r = f.start();
+      const r = f.start([], { script: 'plugin-update' });
       await f.wait('update-child');
       const pids = [Number(await f.read('update-pid')), Number(await f.read('update-child'))];
       await f.put('clock-jump');
@@ -658,13 +665,13 @@ for (const boundary of ['timeout', 'interruption'])
       await f.issue();
       await updateTestClock(f);
       await f.put('lookup-hang');
-      const r = f.start(['7'], { host: 'codex' });
+      const r = f.start([], { host: 'codex', script: 'plugin-update' });
       await f.wait('update-child');
       const pids = [Number(await f.read('update-pid')), Number(await f.read('update-child'))];
       if (boundary === 'timeout') await f.put('clock-jump');
       else r.child.kill('SIGTERM');
       const result = await r.result;
-      expect(result.code).toBe(boundary === 'timeout' ? 1 : 143);
+      expect(result.code).toBe(1);
       expect(result.stderr).toContain(
         boundary === 'timeout' ? 'timed out after 120 seconds' : 'interrupted by SIGTERM',
       );
@@ -918,7 +925,7 @@ test.concurrent(
     const owner = spawn(process.execPath, [...isolatedArgs, holder], { env: f.env, stdio: 'ignore' });
     try {
       await f.wait('lock-held');
-      const r = f.start();
+      const r = f.start([], { script: 'plugin-update' });
       await f.wait('update-lock-waiting');
       await Bun.sleep(100);
       await f.put('clock-jump');
@@ -930,8 +937,8 @@ test.concurrent(
       owner.kill('SIGKILL');
       await new Promise<void>((done) => owner.once('exit', () => done()));
       await rm(join(f.state, 'clock-jump'));
-      expect((await f.run()).code).toBe(0);
-      expect((await f.logs('calls')).length).toBe(1);
+      expect((await f.run([], { script: 'plugin-update' })).code).toBe(0);
+      expect(await f.logs('calls')).toEqual([]);
     } finally {
       owner.kill('SIGKILL');
     }
@@ -939,7 +946,7 @@ test.concurrent(
 );
 for (const killed of [false, true])
   test.concurrent(
-    `shared_lock two repository runners${killed ? ' keep a surviving update lock after helper SIGKILL' : ''}`,
+    `shared_lock two manual updates${killed ? ' keep a surviving update lock after helper SIGKILL' : ''}`,
     runnerCase(async (f) => {
       await f.issue(7);
       await f.issue(8);
@@ -947,14 +954,14 @@ for (const killed of [false, true])
       await f.put('hold-update');
       const second = join(f.dir, 'other repository');
       await f.git(['clone', '-q', f.repo, second]);
-      const a = f.start(['7']);
+      const a = f.start([], { script: 'plugin-update' });
       await f.wait('update-entered');
       if (killed) {
         const pid = Number((await f.read('update-helpers')).split('\n')[0]);
         process.kill(pid, 'SIGKILL');
-        expect((await a.result).code).toBe(1);
+        expect((await a.result).code).toBe(137);
       }
-      const b = f.start(['8'], { cwd: second });
+      const b = f.start([], { cwd: second, script: 'plugin-update' });
       const deadline = performance.now() + 5000;
       while ((await f.read('update-helpers')).split('\n').filter(Boolean).length < 2) {
         if (performance.now() > deadline) throw new Error('second update helper did not start');
@@ -967,7 +974,7 @@ for (const killed of [false, true])
       const results = await Promise.all([a.result, b.result]);
       expect(results[1]?.code).toBe(0);
       if (!killed) expect(results[0]?.code).toBe(0);
-      expect((await f.logs('calls')).length).toBe(killed ? 1 : 2);
+      expect(await f.logs('calls')).toEqual([]);
       expect(await f.has('update-overlap')).toBe(false);
     }, true),
   );

@@ -75,6 +75,33 @@ export function checkStep(input: StepInput): { errors: string[]; recovered: numb
       hand = lines.findIndex((line) => line.includes('HAND_CHECK_21'));
     fail(landed >= 0 && hand >= 0 && landed < hand, 'the check by hand is not after the land lines');
   }
+  if (k >= 22 && k <= 33) {
+    const apply = lines.filter((line) => /scripts\/celetis .*plugin-update apply(?: |$)/.test(line));
+    fail(apply.length === (k === 24 ? 1 : 0), 'unauthorized or repeated update attempt');
+    if (k === 24) {
+      fail(
+        apply[0] ===
+          `scripts/celetis --agent ${host} plugin-update apply '/fixture/native home' '/fixture/plugin root' 'https://example.test/celetis.git' ${'1'.repeat(40)} ${'2'.repeat(40)}`,
+        'update does not match offered identity',
+      );
+      for (const text of ['Attempt: HANDED OFF', 'Exit:', 'Setup:', 'Then: my step ends'])
+        fail(answer.includes(text), `missing ${text}`);
+      fail(!answer.includes('Then: I go on'), 'work continues after update handoff');
+    } else {
+      fail(
+        answer.includes(
+          [29, 30].includes(k)
+            ? 'Decision: NEW RESPONSE REQUIRED'
+            : k === 33
+              ? 'Check: UNAVAILABLE'
+              : 'Update: CONTINUE',
+        ),
+        'missing update decision',
+      );
+      fail(!/plugin-update check/.test(actions), 'repeated update check');
+    }
+    fail(!/kill |marketplace (update|upgrade)|plugin update/.test(actions), 'native update or consumer termination');
+  }
   const expected = `scripts/celetis --agent ${host} land 7`,
     other = `scripts/celetis --agent ${host === 'claude' ? 'codex' : 'claude'} land 7`;
   const rules: Record<number, [string[], string[]]> = {

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { tryFlock, UpdateLock } from '../scripts/lib/update-lock.ts';
 import { command, fixture, isolatedArgs, root } from './lib/fixture.ts';
 
-import { type RunnerFixture, runnerCase } from './lib/runner-fixture.ts';
+import { type RunnerFixture, runnerCase, updateTestClock } from './lib/runner-fixture.ts';
 
 setDefaultTimeout(25_000);
 const children = new Set<ChildProcess>();
@@ -276,6 +276,36 @@ test.concurrent(
 
 for (const host of ['claude', 'codex'] as const)
   test.concurrent(
+    `${host} waitingSession keeps shared admission after runner SIGKILL until native exit`,
+    runnerCase(async (f) => {
+      await f.put('hold-session');
+      await f.put('skip-input');
+      await f.issue();
+      const running = f.start(['7'], { host });
+      const lockPath = join(
+        host === 'claude' ? (f.env.CLAUDE_CONFIG_DIR ?? '') : (f.env.CODEX_HOME ?? ''),
+        'celetis-update.lock',
+      );
+      let fd = -1;
+      try {
+        await f.wait('started-1');
+        fd = openSync(lockPath, 'a');
+        expect(tryFlock(fd)).toBe(false);
+        running.child.kill('SIGKILL');
+        await running.exited;
+        expect(tryFlock(fd)).toBe(false);
+        await f.put('finish-1');
+        await until(async () => tryFlock(fd), 'native process did not release its inherited shared admission');
+      } finally {
+        if (fd >= 0) closeSync(fd);
+        running.child.kill('SIGKILL');
+        await f.put('finish-1');
+      }
+    }),
+  );
+
+for (const host of ['claude', 'codex'] as const)
+  test.concurrent(
     `nested ${host} installed-root child and descendant inherit the update lock`,
     runnerCase(async (f) => {
       if (host === 'claude') await f.put('update-hang', 'list');
@@ -466,12 +496,13 @@ for (const killed of [false, true])
       const second = join(f.dir, 'other repository');
       await f.git(['clone', '-q', f.repo, second]);
       await f.put('hold-update');
+      await updateTestClock(f);
       const launch = (cwd: string) => {
-        const child = spawn(
-          process.execPath,
-          [...isolatedArgs, join(root, 'scripts/plugin-update.ts'), String(process.pid), 'claude'],
-          { cwd, env: f.env, stdio: ['ignore', 'pipe', 'pipe'] },
-        );
+        const child = spawn(process.execPath, [...isolatedArgs, join(f.plugin, 'scripts/plugin-update.ts')], {
+          cwd,
+          env: f.env,
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
         children.add(child);
         let stderr = '';
         child.stderr?.on('data', (data: Buffer) => {
@@ -496,19 +527,24 @@ for (const killed of [false, true])
       expect(b, two.error()).toBe(0);
       updateOverlap = await f.has('update-overlap');
       expect(updateOverlap).toBe(false);
-      expect((await f.logs('updates')).length).toBe(killed ? 4 : 6);
+      const marketplace = { host: 'claude', args: ['plugin', 'marketplace', 'update', 'celetis'] };
+      const plugin = { host: 'claude', args: ['plugin', 'update', 'celetis@celetis', '--scope', 'user'] };
+      expect(await f.logs('updates')).toEqual(
+        killed ? [marketplace, marketplace, plugin] : [marketplace, plugin, marketplace, plugin],
+      );
     }),
   );
 
 test.concurrent(
-  'Codex root-lookup interruption preserves stderr once and cleans its real RPC child group',
+  'Codex registry-lookup interruption preserves stderr once and cleans its real child group',
   runnerCase(async (f) => {
     await f.put('lookup-hang');
-    const child = spawn(
-      process.execPath,
-      [...isolatedArgs, join(root, 'scripts/plugin-update.ts'), String(process.pid), 'codex'],
-      { cwd: f.repo, env: f.env, stdio: ['ignore', 'pipe', 'pipe'] },
-    );
+    await updateTestClock(f);
+    const child = spawn(process.execPath, [...isolatedArgs, join(f.plugin, 'scripts/plugin-update.ts')], {
+      cwd: f.repo,
+      env: { ...f.env, CELETIS_AGENT: 'codex' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     children.add(child);
     let stderr = '';
     child.stderr?.on('data', (data: Buffer) => {

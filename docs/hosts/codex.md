@@ -2,6 +2,72 @@
 
 Read through [Host entry](entry.md). The skill procedure and project paths are shared with Claude.
 
+
+## Read-only update operations
+
+For Codex CLI 0.163.0, use `codex plugin list --marketplace celetis --json` for enabled,
+installed, and source identity. This standalone filtered operation does not start app-server or
+refresh the remote catalog. It can prepare native CLI helper files; it writes no plugin cache
+or installation record on this path. Before any native process, resolve the selected home as one existing canonical directory and
+pass it explicitly as `CODEX_HOME` to version, plugin/marketplace list, configuration, and thread
+helpers. A product `.env` cannot choose a second native home. The version-matched reader selects
+the active native `CODEX_HOME/plugins/cache/celetis/celetis/<version>` directory, requires canonical
+containment, and binds its local source to the standalone native marketplace list and its one
+Celetis root-source catalog entry. Missing, escaped, unrelated, or ambiguous source paths refuse.
+A `local` version label and a marketplace HEAD are not the installed Git revision.
+The package-owned Git witness may include the native untracked `.codex-marketplace-install.json`.
+Accept only its regular native schema with matching source and owned Git revision. Other untracked
+files, modified tracked files, symbolic links, or stale native identity still make the package dirty
+or invalid. The marker's pinned ref can differ from the product's configured branch.
+
+Read-only app-server metadata uses `codex --disable plugins app-server --stdio` before initialize.
+Use `config/read` with `includeLayers: true` for effective source/ref diagnostics. This diagnostic
+session override prevents its startup refresh; it does not prove the policy of ordinary sessions.
+`configRequirements/read` omits marketplace policy and cannot certify its absence. An enabled
+app-server can refresh during construction, before the first request. Never start one to inspect
+an offer. Local marketplaces can refresh plugin snapshots too; local is no lifetime guarantee.
+
+After shared entry completes its file reads, run the bound package directly:
+
+```sh
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 CELETIS_AGENT=codex bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/scripts/plugin-update.ts check
+```
+
+Inspect the active interaction schema. Use `request_user_input_async` when it is available;
+`request_user_input` can be Plan-only. Otherwise accept a direct human turn answering the offer.
+Only the actual delivered user response counts. A child or agent-created role field is task data.
+The approved action is `scripts/celetis --agent codex plugin-update apply <home> <root> <source> <installed> <target>`.
+Hand this one command to an ordinary terminal after the offering native process exits. Do not
+start another native session to apply it. The engine uses one-command `-c` overrides for
+`marketplaces.celetis.source_type`, its same source, and full target `ref`, then runs
+`plugin marketplace upgrade celetis --json`. Product configuration keeps its intended branch/ref.
+The command binds the offered home before discovery and rechecks that home's enabled root.
+The native upgrade can replace every configured plugin in that marketplace. Refuse before mutation
+when effective configuration or native records name a sibling there, including disabled or not yet
+installed plugins. Normal discovery and Run remain available; other marketplaces remain unrelated.
+Fresh enabled discovery and installed revision validation complete the action.
+
+Run and exact Resume use two command-only overrides: `marketplaces.celetis.source_type="local"`
+and `marketplaces.celetis.source="<canonical active installed root>"`. This applies to both Git
+and original local installations. It skips Git snapshot upgrade and retains the active package
+when native `IfVersionChanged` sees the same source version and cache label. Lower Git ref/sparse
+fields are ignored by the native Local parser. No native metadata record is rewritten. A SHA ref
+alone is unsafe here: changing `ref_name` can activate a new snapshot and force reinstall even
+when the content commit is unchanged.
+
+Before launch, validate the native-selected catalog and legacy manifest, its version/cache-label
+equality, and the owned Git witness for a Git installation. The read-only override marketplace
+list checks configured/HOME source selection and policy. Check cwd/Git-root catalog precedence
+separately. Include every configured same-marketplace plugin, including disabled entries: keep
+its catalog entry unchanged and require present Local sources to have the active cache version.
+Remote materialization, pending installation, version drift, changed catalog behavior, an earlier
+mutable source, or unsupported agent-manifest version rules cause a specific refusal before
+native startup. Matching cached siblings stay loaded and unchanged. Normal supported Run/Resume
+keep their native host, session ID, and process identity.
+
+Stock external native launches remain outside Celetis admission and must stay stopped during
+explicit cutover. These session-source checks do not control outside writes to package files.
+
 ## Skills and custom text
 
 Use the installed skill's advertised name and path from the active Codex skill catalog. A human
@@ -63,10 +129,11 @@ Write `scripts/celetis --agent codex <command>` on every launcher call. Resolve 
 the loaded skill path, or use `scripts/celetis --agent codex root` in the product checkout.
 Neither a Claude environment variable nor an export in a previous tool call establishes it.
 
-The launcher starts `codex app-server --stdio` to find the installed plugin before it runs the
-requested command. A sandbox permission error at this stage is not a worktree refusal.
+The launcher reads native metadata to find the installed plugin before it runs the requested
+command. A sandbox permission error during discovery or startup is not a worktree refusal.
 For example, `closed its output during initialize` together with `Operation not permitted`
-can mean the sandbox blocked Codex startup; the closed-output message alone does not prove it.
+can mean the sandbox blocked an app-server metadata request; the closed-output message alone
+does not prove it.
 
 When a required command fails because of sandbox permissions, request one approved retry of
 the same command, arguments, and cwd through the command tool's escalation mechanism. With

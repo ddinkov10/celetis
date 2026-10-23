@@ -19,7 +19,7 @@ for (const [host, status] of [
       await f.put('calls');
       const r = await f.run(['--resume', '7'], { host });
       expect(r.code, r.stderr).toBe(0);
-      expect((await f.logs('calls'))[0]).toMatchObject({ host, args: resumeArgs(host) });
+      expect((await f.logs('calls'))[0]).toMatchObject({ host, args: resumeArgs(host, f.plugin) });
     }),
   );
 for (const [host, pane] of [
@@ -47,7 +47,7 @@ for (const host of hosts) {
       await f.put('calls');
       const r = await f.run(['--resume', '7'], { host: host === 'claude' ? 'codex' : 'claude' });
       expect(r.code, r.stderr).toBe(0);
-      expect((await f.logs('calls'))[0]).toMatchObject({ host, args: resumeArgs(host) });
+      expect((await f.logs('calls'))[0]).toMatchObject({ host, args: resumeArgs(host, f.plugin) });
     }),
   );
   test.concurrent(

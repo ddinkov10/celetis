@@ -71,8 +71,8 @@ The lanes of this repository are the skills of the plugin itself, on the issues 
 `ddinkov10/celetis` (`README.md`, "The full loop"). The landing is `pr`
 (`landing` in `.celetis.yaml`): a build step ends with
 `scripts/celetis land <n> '<subject>'`, which squash-merges the lane PR on `main` when each check of
-the workflow is green. The landing is the last act of a change: this repository has no deployment,
-and a change on `main` is in use at once ("Traps").
+the workflow is green. The landing is the last act of a change: this repository has no deployment.
+For installation changes, follow `README.md`, "Updates".
 
 - A lane never skips a step.
 - The maintainer starts the runner; an agent starts it only when its task says so, with a number,
@@ -108,13 +108,6 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
   `--plugin-dir .` can load checkout skills, but `scripts/celetis` still resolves the selected
   host's installation. Run a checkout script with the isolated Bun flags shown above and `scripts/<name>.ts`. Test an unlanded Codex package
   only in an isolated test installation; its launcher must still resolve that installation.
-- **Each push to `main` reaches each product project at its next step.** The plugin has no version
-  and no release step, and the runner updates the plugin of the machine before it starts a
-  session. A failed update stops the step. A successful start uses the refreshed package.
-  A Claude runner keeps the resolver and launcher paths of its started version, so a change of
-  `scripts/celetis-flow.ts` or `scripts/next-step.ts` reaches it at its next start. Claude Code removes the folder of
-  an old version 14 days after an update, and a runner that is still open then cannot start its
-  resolver. Codex's different resource limits are in `docs/celetis-flow.md`, "Acceptance status".
 - **A script file keeps its name.** `scripts/<name>.ts` is the sub-command
   `scripts/celetis <name>`, which the skills, the documents, and the files of each product project
   name: its board commands, and its `allow` rule `Bash(scripts/celetis land *)`. Two file names are

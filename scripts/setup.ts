@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:p
 import { isDeepStrictEqual } from 'node:util';
 import { type Config, ConfigError, readConfig } from './lib/config.ts';
 import { HostError } from './lib/host.ts';
+import { checkClaudePolicy, claudePolicy } from './lib/plugin-policy.ts';
 import { childEnv, run } from './lib/process.ts';
 import { markerOf, removeCheckout, runSetup, worktrees } from './lib/worktree.ts';
 
@@ -124,7 +125,7 @@ function settingsForm(): Entry[] {
     })),
     {
       path: ['extraKnownMarketplaces', 'celetis'],
-      value: { source: { source: 'github', repo: 'ddinkov10/celetis' }, autoUpdate: true },
+      value: { source: { source: 'github', repo: 'ddinkov10/celetis' }, autoUpdate: false },
     },
     { path: ['enabledPlugins', 'superpowers@superpowers-marketplace'], value: true },
     { path: ['enabledPlugins', 'celetis@celetis'], value: true },
@@ -407,8 +408,27 @@ class Setup {
         group[key] = form.value;
         this.own(settings, { path: form.path });
         changed = true;
+      } else if (
+        parentKey === 'extraKnownMarketplaces' &&
+        key === 'celetis' &&
+        (this.owned.entries[settings] ?? []).some((entry) => isDeepStrictEqual(entry, { path: form.path })) &&
+        isDeepStrictEqual(value, { source: { source: 'github', repo: 'ddinkov10/celetis' }, autoUpdate: true })
+      ) {
+        group[key] = form.value;
+        changed = true;
       } else if (isDeepStrictEqual(value, form.value)) this.own(settings, { path: form.path });
-      else this.warn(`${settings}: ${form.path.join('.')} differs from the current form; setup leaves it`);
+      else
+        this.warn(
+          `${settings}: ${form.path.join('.')} differs from the current form; setup leaves it${parentKey === 'extraKnownMarketplaces' && key === 'celetis' ? '; review this entry and set autoUpdate to false by hand' : ''}`,
+        );
+    }
+    const policies = await claudePolicy(this.cwd);
+    const projectPolicy = policies.find((entry) => entry.path === join(this.cwd, settings));
+    if (projectPolicy) projectPolicy.value = doc;
+    try {
+      checkClaudePolicy(policies);
+    } catch (error) {
+      this.warn((error as Error).message);
     }
     if (changed) {
       const lead = source.match(/^[ \t]+(?=[^ \t\r\n])/m)?.[0] ?? '';

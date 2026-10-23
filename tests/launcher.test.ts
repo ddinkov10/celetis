@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, setDefaultTimeout, test } from 'bun:test';
 import { spawn } from 'node:child_process';
-import { chmod, cp, mkdir, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdir, readdir, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { delimiter, dirname, join } from 'node:path';
 import { command, type Fixture, fixture, isolatedArgs, root, withFixture } from './lib/fixture.ts';
 
@@ -37,8 +37,14 @@ if(process.env.LOOKUP_FAIL){console.error('fixture: lookup failed');process.exit
     'codex',
     String.raw`import {appendFileSync,writeFileSync} from 'node:fs';
 import {createInterface} from 'node:readline';
+if(process.env.CODEX_HOME===undefined){const dotenv=await Bun.file('.env').text().catch(()=>'');const home=/^CODEX_HOME=(.*)$/m.exec(dotenv)?.[1];if(home)process.env.CODEX_HOME=home;}
+if(process.env.NATIVE_HOME_LOG)appendFileSync(process.env.NATIVE_HOME_LOG,JSON.stringify({args:process.argv.slice(2),home:process.env.CODEX_HOME})+'\n');
 appendFileSync(process.env.CALLS!,JSON.stringify(process.argv.slice(2))+'\n');
-if(JSON.stringify(process.argv.slice(2))!==JSON.stringify(['app-server','--stdio'])) process.exit(81);
+const args=process.argv.slice(2);
+if(args[0]==='--version'){console.log('codex-cli 0.163.0');process.exit(0);}
+if(JSON.stringify(args)===JSON.stringify(['plugin','list','--marketplace','celetis','--json'])){process.stdout.write(await Bun.file(process.env.NATIVE_LIST!).text());process.exit(0);}
+if(JSON.stringify(args)===JSON.stringify(['plugin','marketplace','list','--json'])){process.stdout.write(await Bun.file(process.env.NATIVE_MARKET!).text());process.exit(0);}
+if(JSON.stringify(args)!==JSON.stringify(['--disable','plugins','app-server','--stdio'])) process.exit(81);
 writeFileSync(process.env.PID_FILE!,String(process.pid));
 if(process.env.CODEX_MODE==='cleanup signal')setInterval(()=>{},1000);
 process.on('SIGTERM',()=>{
@@ -62,7 +68,7 @@ for await(const line of createInterface({input:process.stdin})){
    case 'fragment':process.stdout.write('{"id":1,"result":');await Bun.sleep(1200);console.log('{} }');continue;
   }
   console.log('{"method":"skills/changed"}');console.log('{"id":99,"result":{}}');console.log(JSON.stringify({id,result:{userAgent:'fixture'}}));
- }else if(method==='skills/list'){
+ }else if(method==='config/read'){
   if(process.env.CODEX_MODE==='request timeout')continue;
   console.log('{"method":"skills/changed"}');console.log('{"id":"2","result":{}}');console.log(JSON.stringify({id,result:JSON.parse(await Bun.file(process.env.SKILLS!).text())}));
  }
@@ -73,15 +79,24 @@ for await(const line of createInterface({input:process.stdin})){
 async function product(f: Fixture) {
   await f.repository();
   await f.config('landing: merge\n');
-  const plugin = join(f.dir, 'plug in');
-  await f.write('plug in/.claude-plugin/plugin.json', '{"name":"celetis"}');
-  await f.write('plug in/skills/guide/SKILL.md', 'fixture skill');
-  await f.write('plug in/scripts/echo.ts', 'process.stdout.write(process.argv.slice(2).map(x => "["+x+"]").join(""));');
-  await f.write('plug in/scripts/host.ts', 'process.stdout.write(process.env.CELETIS_AGENT ?? "");');
-  await f.write('plug in/scripts/fail.ts', 'process.exit(7);');
-  await f.write('plug in/scripts/root.ts', await readFile(join(root, 'scripts/root.ts')));
+  const plugin = join(f.dir, 'codex home/plugins/cache/celetis/celetis/local');
+  await f.write('codex home/plugins/cache/celetis/celetis/local/.claude-plugin/plugin.json', '{"name":"celetis"}');
+  await f.write('codex home/plugins/cache/celetis/celetis/local/skills/guide/SKILL.md', 'fixture skill');
   await f.write(
-    'plug in/scripts/next-step.ts',
+    'codex home/plugins/cache/celetis/celetis/local/scripts/echo.ts',
+    'process.stdout.write(process.argv.slice(2).map(x => "["+x+"]").join(""));',
+  );
+  await f.write(
+    'codex home/plugins/cache/celetis/celetis/local/scripts/host.ts',
+    'process.stdout.write(process.env.CELETIS_AGENT ?? "");',
+  );
+  await f.write('codex home/plugins/cache/celetis/celetis/local/scripts/fail.ts', 'process.exit(7);');
+  await f.write(
+    'codex home/plugins/cache/celetis/celetis/local/scripts/root.ts',
+    await readFile(join(root, 'scripts/root.ts')),
+  );
+  await f.write(
+    'codex home/plugins/cache/celetis/celetis/local/scripts/next-step.ts',
     'console.log(JSON.stringify({argv:process.argv.slice(2),executable:process.execPath,entry:import.meta.path,agent:process.env.CELETIS_AGENT,record:process.env.CELETIS_RESUME_RECORD,cache:process.env.BUN_RUNTIME_TRANSPILER_CACHE_PATH,track:process.env.DO_NOT_TRACK}));',
   );
   const executable = await f.write('repo dir/scripts/celetis', await readFile(bundled), 0o755);
@@ -99,6 +114,9 @@ async function product(f: Fixture) {
     ...f.env,
     PATH: join(f.dir, 'bin'),
     LIST: list,
+    NATIVE_LIST: join(f.dir, 'native-list.json'),
+    NATIVE_MARKET: join(f.dir, 'native-market.json'),
+    CODEX_HOME: join(f.dir, 'codex home'),
     SKILLS: skills,
     CALLS: calls,
     PID_FILE: pid,
@@ -122,6 +140,36 @@ async function product(f: Fixture) {
   const setList = (records: unknown) => writeFile(list, JSON.stringify(records));
   const setSkills = (records: unknown = [skill()], cwd = f.repo) =>
     writeFile(skills, JSON.stringify({ data: [{ cwd, skills: records, errors: [] }] }));
+  const marketplace = join(f.dir, 'native marketplace');
+  await f.write(
+    'native marketplace/.claude-plugin/marketplace.json',
+    JSON.stringify({ name: 'celetis', plugins: [{ name: 'celetis', source: './' }] }),
+  );
+  await f.write(
+    'native-market.json',
+    JSON.stringify({
+      marketplaces: [
+        { name: 'celetis', root: marketplace, marketplaceSource: { sourceType: 'local', source: marketplace } },
+      ],
+    }),
+  );
+  const nativeRecord = {
+    pluginId: 'celetis@celetis',
+    name: 'celetis',
+    marketplaceName: 'celetis',
+    installed: true,
+    enabled: true,
+    version: 'local',
+    source: { source: 'local', path: marketplace },
+    marketplaceSource: { sourceType: 'local', source: marketplace },
+  };
+  const setNative = (records: unknown) =>
+    f.write('native-list.json', JSON.stringify({ installed: records, available: [] }));
+  await setNative([nativeRecord]);
+  const rpcFile = await f.write(
+    'rpc.ts',
+    `import {codexRequest} from ${JSON.stringify(hostModule)};try{await codexRequest(process.cwd(),'config/read',{cwd:process.cwd()});console.log('ok');}catch(error){console.error((error as Error).message);process.exitCode=(error as {code?:number}).code??1;}`,
+  );
   await setList([record()]);
   await setSkills();
   const launch = (
@@ -135,7 +183,9 @@ async function product(f: Fixture) {
       env: { ...env, ...options.env },
     });
   };
-  return { plugin, executable, env, record, skill, setList, setSkills, launch, calls, pid };
+  const rpc = (options: { env?: NodeJS.ProcessEnv; timeout?: number } = {}) =>
+    command(process.execPath, [...isolatedArgs, rpcFile], { cwd: f.repo, ...options, env: { ...env, ...options.env } });
+  return { plugin, executable, env, record, setList, setNative, nativeRecord, rpc, rpcFile, launch, calls, pid };
 }
 
 const pending: (() => void)[] = [];
@@ -153,6 +203,111 @@ function withProduct(body: (f: Fixture, p: Awaited<ReturnType<typeof product>>) 
     }
   };
 }
+
+test.concurrent(
+  'Codex pins its default home before native dotenv bootstrap and uses it for RPC',
+  withProduct(async (f, p) => {
+    const selected = join(f.home, '.codex');
+    await rename(join(f.dir, 'codex home'), selected);
+    const other = join(f.dir, 'other native home');
+    await mkdir(other);
+    await f.write('repo dir/.env', `CODEX_HOME=${other}\n`);
+    const log = join(f.dir, 'native-homes');
+    const env = { CODEX_HOME: undefined, NATIVE_HOME_LOG: log };
+    const result = await p.launch(['--agent', 'codex', 'root'], { env });
+    expect(result.code, result.stderr).toBe(0);
+    expect(result.stdout).toBe(`${join(selected, 'plugins/cache/celetis/celetis/local')}\n`);
+    expect(await p.rpc({ env })).toEqual({ code: 0, stdout: 'ok\n', stderr: '' });
+    const homes = (await readFile(log, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+    expect(homes.length).toBeGreaterThanOrEqual(3);
+    expect(homes.every((row) => row.home === selected)).toBe(true);
+  }),
+);
+
+test.concurrent(
+  'Codex canonicalizes an explicit home before native list and RPC',
+  withProduct(async (f, p) => {
+    const alias = join(f.dir, 'native alias');
+    await symlink(join(f.dir, 'codex home'), alias);
+    const log = join(f.dir, 'native-homes');
+    const env = { CODEX_HOME: alias, NATIVE_HOME_LOG: log };
+    expect((await p.launch(['--agent', 'codex', 'root'], { env })).code).toBe(0);
+    expect((await p.rpc({ env })).code).toBe(0);
+    const homes = (await readFile(log, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+    expect(homes.every((row) => row.home === join(f.dir, 'codex home'))).toBe(true);
+  }),
+);
+
+test.concurrent(
+  'Codex refuses invalid home before any native process',
+  withProduct(async (f, p) => {
+    const file = await f.write('not-a-directory', 'value');
+    for (const home of [join(f.dir, 'missing home'), file]) {
+      const result = await p.launch(['--agent', 'codex', 'root'], { env: { CODEX_HOME: home } });
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain('CODEX_HOME');
+      expect(await Bun.file(p.calls).exists()).toBe(false);
+    }
+  }),
+);
+
+test.concurrent(
+  'Codex refuses a cache-parent escape before package code executes',
+  withProduct(async (f, p) => {
+    const cache = join(f.dir, 'codex home/plugins/cache/celetis');
+    const outside = join(f.dir, 'outside cache');
+    await rename(cache, outside);
+    await symlink(outside, cache);
+    const result = await p.launch(['--agent', 'codex', 'echo', 'executed']);
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain('outside');
+  }),
+);
+
+test.concurrent(
+  'Codex refuses an unrelated native local source path',
+  withProduct(async (f, p) => {
+    await p.setNative([{ ...p.nativeRecord, source: { source: 'local', path: f.repo } }]);
+    const result = await p.launch(['--agent', 'codex', 'echo', 'executed']);
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain('source');
+  }),
+);
+
+test.concurrent(
+  'a racing copied launcher waits before discovery until exclusive update protection ends',
+  withProduct(async (f, p) => {
+    const held = join(f.dir, 'held'),
+      release = join(f.dir, 'release');
+    const helper = await f.write(
+      'exclusive.ts',
+      `import {UpdateLock} from ${JSON.stringify(join(root, 'scripts/lib/update-lock.ts'))};const lock=await UpdateLock.acquire(${JSON.stringify(join(f.dir, 'codex home/celetis-update.lock'))},process.pid);await Bun.write(${JSON.stringify(held)},'held');while(!await Bun.file(${JSON.stringify(release)}).exists())await Bun.sleep(10);await lock.close();`,
+    );
+    const owner = spawn(process.execPath, [...isolatedArgs, helper], { env: p.env, stdio: 'ignore' });
+    try {
+      const deadline = performance.now() + 3000;
+      while (!(await Bun.file(held).exists())) {
+        if (performance.now() >= deadline) throw new Error('exclusive fixture did not start');
+        await Bun.sleep(10);
+      }
+      const started = p.launch(['--agent', 'codex', 'root']);
+      await Bun.sleep(150);
+      expect(await Bun.file(p.calls).exists()).toBe(false);
+      await f.write('release', 'release');
+      expect(await started).toEqual({ code: 0, stdout: `${p.plugin}\n`, stderr: '' });
+    } finally {
+      owner.kill('SIGKILL');
+    }
+  }),
+);
 
 test.concurrent(
   'copied launcher discovers only the enabled package and preserves every argument',
@@ -297,7 +452,7 @@ test.concurrent(
     };
     for (const cwd of [f.repo, join(f.repo, 'sub'), lane, join(lane, 'sub')]) {
       await f.config('landing: merge\nhost: codex\n');
-      await p.setSkills(undefined, cwd);
+
       expect(await p.launch(['host'], { cwd, env })).toEqual({ code: 0, stdout: 'codex', stderr: '' });
       expect(await p.launch(['host'], { cwd, env: { ...env, CELETIS_AGENT: 'claude' } })).toEqual({
         code: 0,
@@ -402,7 +557,7 @@ test.concurrent(
 );
 
 test.concurrent(
-  'Codex discovery refreshes enabled state and cleans up its own process',
+  'Codex discovery reads the filtered native registry without starting app-server',
   withProduct(async (f, p) => {
     await rm(join(f.dir, 'bin/claude'));
     expect(await p.launch(['--agent', 'codex', 'echo', 'a', 'b c', '', '#7', '--agent', 'claude'])).toEqual({
@@ -413,103 +568,62 @@ test.concurrent(
     const calls = (await readFile(p.calls, 'utf8'))
       .trim()
       .split('\n')
-      .map((x) => JSON.parse(x));
-    expect(calls[0]).toEqual(['app-server', '--stdio']);
-    expect(calls.slice(1)).toEqual([
-      {
-        id: 1,
-        method: 'initialize',
-        params: { clientInfo: { name: 'celetis', version: '0.0.0' }, capabilities: { experimentalApi: true } },
-      },
-      { method: 'initialized' },
-      { id: 2, method: 'skills/list', params: { cwds: [f.repo], forceReload: true } },
+      .map((line) => JSON.parse(line));
+    expect(calls).toEqual([
+      ['--version'],
+      ['plugin', 'list', '--marketplace', 'celetis', '--json'],
+      ['plugin', 'marketplace', 'list', '--json'],
     ]);
-    const pid = Number(await readFile(p.pid, 'utf8'));
-    expect(() => process.kill(pid, 0)).toThrow();
-    expect(await p.launch(['--agent', 'codex', 'fail'])).toEqual({ code: 7, stdout: '', stderr: '' });
+    expect(await Bun.file(p.pid).exists()).toBe(false);
     await rm(join(f.dir, 'bin/codex'));
-    expect(await p.launch(['--agent', 'codex', 'echo'])).toEqual({
-      code: 1,
-      stdout: '',
-      stderr: 'celetis: codex is not on PATH\n',
-    });
+    expect((await p.launch(['--agent', 'codex', 'echo'])).code).toBe(1);
   }),
 );
 
 test.concurrent(
-  'Codex installation identity rejects disabled, missing, ambiguous, and malicious records',
+  'Codex registry identity rejects disabled, ambiguous, mismatched and unsupported records',
   withProduct(async (f, p) => {
     for (const records of [
-      [p.skill(undefined, false)],
       [],
-      [p.skill(undefined, true, 'celetis@other'), p.skill(undefined, true, undefined, 'celetis-other:guide')],
+      [{ ...p.nativeRecord, enabled: false }],
+      [{ ...p.nativeRecord, pluginId: 'other@celetis' }],
     ]) {
-      await p.setSkills(records);
-      expect(await p.launch(['--agent', 'codex', 'echo'])).toEqual({ code: 1, stdout: '', stderr: missingCodex });
-    }
-    await p.setSkills([p.skill(), p.skill(`${f.repo}/skills/guide/SKILL.md`)]);
-    expect(await p.launch(['--agent', 'codex', 'echo'])).toEqual({
-      code: 1,
-      stdout: '',
-      stderr: 'celetis: Codex reports multiple celetis package roots; fix the enabled installation\n',
-    });
-    await p.setSkills([p.skill(), p.skill()]);
-    expect(await p.launch(['--agent', 'codex', 'echo', 'ok'])).toEqual({ code: 0, stdout: '[ok]', stderr: '' });
-    for (const path of [
-      `${f.dir}/missing/skills/guide/SKILL.md`,
-      `${p.plugin}/guide/SKILL.md`,
-      `${p.plugin}/skills/../SKILL.md`,
-      'relative/skills/guide/SKILL.md',
-      `${p.plugin}/./skills/guide/SKILL.md`,
-      `${p.plugin}//skills/guide/SKILL.md`,
-      `${p.plugin}/skills/guide/SKILL.md\n`,
-      `${p.plugin}/skills/bug/SKILL.md`,
-    ]) {
-      await p.setSkills([p.skill(path)]);
+      await p.setNative(records);
       const result = await p.launch(['--agent', 'codex', 'echo']);
       expect(result.code).toBe(1);
       expect(result.stdout).toBe('');
+      expect(result.stderr).toBe(missingCodex);
     }
-    await p.setSkills();
+    await p.setNative([p.nativeRecord, p.nativeRecord]);
+    expect((await p.launch(['--agent', 'codex', 'echo'])).stderr).toContain('multiple celetis installations');
+    for (const change of [
+      { version: 'missing' },
+      { source: { source: 'git', url: 'https://example.test/plugin.git' } },
+      { name: 'other' },
+      { marketplaceSource: { sourceType: 'unknown', source: 'value' } },
+    ]) {
+      await p.setNative([{ ...p.nativeRecord, ...change }]);
+      expect((await p.launch(['--agent', 'codex', 'echo'])).code).toBe(1);
+    }
+    await p.setNative([p.nativeRecord]);
     await rm(join(p.plugin, 'skills/guide/SKILL.md'));
-    expect(await p.launch(['--agent', 'codex', 'echo'])).toEqual({
-      code: 1,
-      stdout: '',
-      stderr: 'celetis: Codex reports a missing installed skill; reinstall the plugin\n',
-    });
-    await f.write('plug in/skills/guide/SKILL.md', 'fixture skill');
+    expect((await p.launch(['--agent', 'codex', 'echo'])).stderr).toContain('missing installed skill');
+    await f.write('codex home/plugins/cache/celetis/celetis/local/skills/guide/SKILL.md', 'fixture');
     await writeFile(join(p.plugin, '.claude-plugin/plugin.json'), '{"name":"other"}');
-    expect(await p.launch(['--agent', 'codex', 'echo'])).toEqual({
-      code: 1,
-      stdout: '',
-      stderr: 'celetis: Codex reports an invalid celetis package; reinstall the plugin\n',
-    });
+    expect((await p.launch(['--agent', 'codex', 'echo'])).stderr).toContain('invalid celetis package');
   }),
 );
 
 test.concurrent(
-  'Codex skills result validates the requested cwd and list shape',
+  'Codex registry response validates its native installed list',
   withProduct(async (f, p) => {
-    for (const result of [
-      { data: 'bad' },
-      { data: [] },
-      { data: [{ cwd: f.repo, skills: null }] },
-      {
-        data: [
-          { cwd: f.repo, skills: [] },
-          { cwd: f.repo, skills: [] },
-        ],
-      },
-    ]) {
-      await writeFile(join(f.dir, 'skills.json'), JSON.stringify(result));
-      expect(await p.launch(['--agent', 'codex', 'echo'])).toEqual({
-        code: 1,
-        stdout: '',
-        stderr: 'celetis: invalid Codex skills/list response\n',
-      });
+    for (const result of [{ installed: null }, { installed: 'bad' }, [], {}]) {
+      await f.write('native-list.json', JSON.stringify(result));
+      const value = await p.launch(['--agent', 'codex', 'echo']);
+      expect(value.code).toBe(1);
+      expect(value.stdout).toBe('');
+      expect(value.stderr).toContain('invalid Codex plugin list');
     }
-    await p.setSkills(undefined, join(f.repo, 'wrong'));
-    expect((await p.launch(['--agent', 'codex', 'echo'])).code).toBe(1);
   }),
 );
 
@@ -532,7 +646,7 @@ for (const mode of [
       });
       try {
         const started = performance.now();
-        const result = await p.launch(['--agent', 'codex', 'echo'], { env: { CODEX_MODE: mode }, timeout: 12_000 });
+        const result = await p.rpc({ env: { CODEX_MODE: mode }, timeout: 12_000 });
         expect(result.code).toBe(1);
         expect(result.stdout).toBe('');
         expect(result.stderr.length).toBeGreaterThan(0);
@@ -559,9 +673,9 @@ for (const mode of [
 test.concurrent(
   'fragmented Codex responses remain intact',
   withProduct(async (_f, p) => {
-    expect(await p.launch(['--agent', 'codex', 'echo', 'fragmented'], { env: { CODEX_MODE: 'fragment' } })).toEqual({
+    expect(await p.rpc({ env: { CODEX_MODE: 'fragment' } })).toEqual({
       code: 0,
-      stdout: '[fragmented]',
+      stdout: 'ok\n',
       stderr: '',
     });
   }),
@@ -571,7 +685,7 @@ test.concurrent(
   'all project commands require the whole main config before dispatch',
   withProduct(async (f, p) => {
     for (const name of ['worktree', 'celetis-flow', 'next-step', 'land', 'board']) {
-      await f.write(`plug in/scripts/${name}.ts`, 'console.log("dispatched");');
+      await f.write(`codex home/plugins/cache/celetis/celetis/local/scripts/${name}.ts`, 'console.log("dispatched");');
       for (const bad of [null, 'landing: merge\nhost: other\n', 'landing: merge\nextra: bad\n']) {
         if (bad === null) await rm(join(f.repo, '.celetis.yaml'), { force: true });
         else await f.config(bad);
@@ -599,7 +713,6 @@ test.concurrent(
 test.concurrent(
   'copied root works outside Git with explicit and default host selection',
   withProduct(async (f, p) => {
-    await p.setSkills(undefined, f.dir);
     expect(await p.launch(['--agent', 'codex', 'root'], { cwd: f.dir })).toEqual({
       code: 0,
       stdout: `${p.plugin}\n`,
@@ -616,11 +729,11 @@ test.concurrent(
     const record = { schema: 1, issue: 7, checkout: f.repo, host: 'codex', step: 'implement', session_id: id };
     const file = await f.write('repo dir/.git/celetis-flow/sessions/7.json', JSON.stringify(record));
     await f.write(
-      'plug in/scripts/celetis-flow.ts',
+      'codex home/plugins/cache/celetis/celetis/local/scripts/celetis-flow.ts',
       'console.log(JSON.stringify({host:process.env.CELETIS_AGENT,record:JSON.parse(process.env.CELETIS_RESUME_RECORD!)}));',
     );
     const result = await p.launch(['celetis-flow', '--resume', '7'], { env: { CELETIS_AGENT: 'claude' } });
-    expect(result.code).toBe(0);
+    expect(result.code, result.stderr).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({ host: 'codex', record });
     const wrong = await p.launch(['--agent', 'claude', 'celetis-flow', '--resume', '7']);
     expect(wrong).toEqual({
@@ -671,10 +784,14 @@ test.concurrent(
       session_id: '12345678-1234-1234-1234-123456789abc',
     };
     await f.write('shared/control/celetis-flow/sessions/7.json', JSON.stringify(record));
-    await f.write('plug in/scripts/celetis-flow.ts', 'console.log(process.env.CELETIS_RESUME_RECORD);');
+    await f.write(
+      'codex home/plugins/cache/celetis/celetis/local/scripts/celetis-flow.ts',
+      'console.log(process.env.CELETIS_RESUME_RECORD);',
+    );
     const result = await p.launch(['celetis-flow', '--resume', '7']);
     expect(result.code, result.stderr).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual(record);
+    expect(await readFile(join(common, 'celetis-flow/sessions/7.json'), 'utf8')).toBe(JSON.stringify(record));
   }),
 );
 
@@ -744,7 +861,7 @@ test.concurrent(
     await f.write('repo dir/sub/bunfig.toml', `preload = [${JSON.stringify(payload)}]\n`);
     await f.write('repo dir/sub/.env', 'CELETIS_AGENT=other\n');
     await f.config('landing: merge\nhost: codex\n');
-    await p.setSkills(undefined, sub);
+
     const env = { MARK: marker, BUN_RUNTIME_TRANSPILER_CACHE_PATH: join(f.dir, 'cache'), DO_NOT_TRACK: '0' };
     expect(await p.launch(['host'], { cwd: sub, env, native: true })).toEqual({ code: 0, stdout: 'codex', stderr: '' });
     expect(await Bun.file(marker).exists()).toBe(false);
@@ -866,7 +983,10 @@ for (const [name, source, want] of hints) {
 test.concurrent(
   'dispatch preserves inherited stdin and termination signals',
   withProduct(async (f, p) => {
-    await f.write('plug in/scripts/echo.ts', 'process.stdout.write(await Bun.stdin.text());');
+    await f.write(
+      'codex home/plugins/cache/celetis/celetis/local/scripts/echo.ts',
+      'process.stdout.write(await Bun.stdin.text());',
+    );
     const child = spawn(p.executable, ['--agent', 'claude', 'echo'], {
       cwd: f.repo,
       env: p.env,
@@ -881,7 +1001,7 @@ test.concurrent(
     for (const signal of ['SIGHUP', 'SIGINT', 'SIGTERM'] as const) {
       const marker = join(f.dir, signal);
       await f.write(
-        'plug in/scripts/echo.ts',
+        'codex home/plugins/cache/celetis/celetis/local/scripts/echo.ts',
         'await Bun.write(process.env.READY!,String(process.pid));setInterval(()=>{},1000);',
       );
       const child = spawn(p.executable, ['--agent', 'claude', 'echo'], {
@@ -912,7 +1032,7 @@ test.concurrent(
   withProduct(async (f, p) => {
     const marker = join(f.dir, 'command-pid');
     await f.write(
-      'plug in/scripts/echo.ts',
+      'codex home/plugins/cache/celetis/celetis/local/scripts/echo.ts',
       'await Bun.write(process.env.READY!,String(process.pid));setInterval(()=>{},1000);',
     );
     const child = spawn(p.executable, ['--agent', 'claude', 'echo'], {
@@ -950,7 +1070,7 @@ test.concurrent(
 test.concurrent(
   'a signal during Codex discovery removes its app-server process',
   withProduct(async (f, p) => {
-    const child = spawn(p.executable, ['--agent', 'codex', 'echo'], {
+    const child = spawn(process.execPath, [...isolatedArgs, p.rpcFile], {
       cwd: f.repo,
       env: { ...p.env, CODEX_MODE: 'hang' },
       stdio: 'ignore',
@@ -985,8 +1105,11 @@ for (const [signal, code, laterSignal] of [
     withProduct(async (f, p) => {
       const ready = join(f.dir, 'cleanup-ready');
       const dispatched = join(f.dir, 'dispatched');
-      await f.write('plug in/scripts/echo.ts', 'await Bun.write(process.env.DISPATCH_MARK!,"ran");');
-      const child = spawn(p.executable, ['--agent', 'codex', 'echo'], {
+      await f.write(
+        'codex home/plugins/cache/celetis/celetis/local/scripts/echo.ts',
+        'await Bun.write(process.env.DISPATCH_MARK!,"ran");',
+      );
+      const child = spawn(process.execPath, [...isolatedArgs, p.rpcFile], {
         cwd: f.repo,
         env: { ...p.env, CODEX_MODE: 'cleanup signal', CLEANUP_READY: ready, DISPATCH_MARK: dispatched },
         stdio: 'ignore',

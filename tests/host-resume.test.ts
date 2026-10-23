@@ -51,7 +51,7 @@ for (const host of hosts) {
       await f.put('calls');
       const resumed = await f.run(['--resume', '7'], { launcher: true, env: { CELETIS_AGENT: undefined } });
       expect(resumed.code, resumed.stderr).toBe(0);
-      expect((await f.logs('calls'))[0]).toMatchObject({ host, args: resumeArgs(host) });
+      expect((await f.logs('calls'))[0]).toMatchObject({ host, args: resumeArgs(host, f.plugin) });
       const wrong = await command(
         process.execPath,
         [...isolatedArgs, join(f.plugin, 'scripts/launcher.ts'), '--agent', other, 'celetis-flow', '--resume', '7'],
@@ -82,7 +82,7 @@ for (const [host, step] of [
       const r = await f.run(['--resume', '7'], { host: host === 'claude' ? 'codex' : 'claude', env: managed });
       expect(r.code, r.stderr).toBe(0);
       const resumeCalls = (await f.logs('calls')).map(({ host, cwd, args }) => ({ host, cwd, args }));
-      const exactSavedHostInvocation = { host, cwd: f.repo, args: resumeArgs(host) };
+      const exactSavedHostInvocation = { host, cwd: f.repo, args: resumeArgs(host, f.plugin) };
       expect(resumeCalls).toEqual([exactSavedHostInvocation]);
       expect(await f.logs('herdr-calls')).toEqual([]);
       expect(await f.logs('updates')).toEqual([]);
@@ -188,8 +188,8 @@ test.concurrent(
       expect(r.code, r.stderr).toBe(0);
     }
     expect((await f.logs('calls')).map((row) => ({ host: row.host, args: row.args }))).toEqual([
-      { host: 'codex', args: resumeArgs('codex') },
-      { host: 'codex', args: resumeArgs('codex') },
+      { host: 'codex', args: resumeArgs('codex', f.plugin) },
+      { host: 'codex', args: resumeArgs('codex', f.plugin) },
     ]);
   }),
 );

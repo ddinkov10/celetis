@@ -64,7 +64,7 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
   --output-dir <new-evidence-directory>
 ```
 
-The step suite has 25 cases. The native Claude custom suite has 24 cases. Capture the command,
+The step suite has 37 scenarios. The native Claude custom suite has 24 cases. Capture the command,
 client version, suite exit status, and complete stdout/stderr separately from their case files.
 The custom suite saves each exact prompt, tools, settings, checkout, plugin path, event stream,
 stderr, config source bytes and hashes, installed source hashes, runtime version, and client
@@ -134,14 +134,20 @@ references for the step order. Only the shared landing script may perform a fixt
 | Interrupt, no progress, exact resume | Claude Code and Codex TUI/CLI through runner and board | Saved non-null record from a current turn; actual interruption and no-progress results; same host, ID, and checkout on resume; no duplicate issue lock |
 | Red CI, unrun Verify, human precondition | Codex TUI/CLI | Separate cases for each cause; correct stopped or built markers; no early merge; current human completion evidence when required; re-entry keeps the completed build |
 | Both landing mechanisms | Codex TUI/CLI | Same verified trunk result through each supported mechanism; actual PR checks where required; lane/prototype cleanup; shared landing script used |
-| Update, failed refresh, long-lived runner | Claude Code, Codex TUI/CLI | Next step uses new content; failure retains its cause and stops before launch; updater cleanup before unlock; active resources keep their promised content and path lifetime |
+| Approved update and retained installed package | Claude Code, Codex TUI/CLI | Read-only exact offer once per human task; direct native user reply; one consumed target-bound attempt; refusal on unsafe policy or lifetime boundary; no startup update; cleanup before unlock; fresh discovery and exact Resume keep identity after a supported successful cutover |
 | Cross-host Plan handoff | Claude Code to Codex TUI/CLI, Codex TUI/CLI to Claude Code | Same spec, Plan, and issue; published CAP digits resolve on the receiving host; verified landing; record the receiving Codex surface |
 | Resume and compaction | Codex TUI/CLI | Step/custom rules persist; exact saved identity; ledger and issue recovery preserve finished work; no repeat build |
 | Board actions | The board of the installed plugin and herdr, Claude Code and Codex TUI/CLI | Real Run, Resume, Go, Open shell; exact issue/session/pane association; actual waiting, active, and recovery cards |
 
-For update tests, inspect the old advertised skill path while its session remains alive. Check
-both its bytes and continued existence. A versioned directory name alone proves neither.
-Stop a diagnostic at its first failed assertion and mark all later assertions unrun.
+For update tests, retain the actual native user reply, exact offer, consumer exit and complete
+lifetime evidence, command output, and fresh discovery under [Updates](../../README.md#updates).
+Positive deterministic native-stub tests cover both application paths and normal consumer starts.
+Keep uncooperative native clients stopped through cutover; universal native admission remains
+open. Deterministic fixtures prove check/action oracles and cleanup;
+they do not authenticate a real human or prove a successful native cutover. Those live scenarios
+were explicitly skipped for this completion. No real installation was updated. Stop a future
+explicitly authorized isolated diagnostic at its first failed assertion and mark later assertions
+unrun.
 
 For failure and re-entry tests, save the old and new heads, oracle output, labels, issue events,
 and check results. A missing label alone is not human completion evidence. Keep deliberately

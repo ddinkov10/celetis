@@ -17,7 +17,7 @@ if(args[0]==='--version'){console.log('manual fixture');process.exit(0);}
 if(process.env.MANUAL_CALLS)await appendFile(process.env.MANUAL_CALLS,'called\\n');
 let prompt='';for await(const chunk of process.stdin)prompt+=chunk.toString();
 const {stepAnswer,stepFaults}=await import(${JSON.stringify(join(root, 'tests/lib/step-fixture.ts'))});
-const k=Number(/^Case ([0-9]+)/m.exec(prompt)?.[1]);const mode=prompt.includes('A person started the session by hand')?'hand':k===15?'specify':'step';
+const k=Number(/^Case ([0-9]+)/m.exec(prompt)?.[1]);const step=args.includes('--output-last-message')?prompt.includes('\\nStep instructions:\\n'):args.includes('--append-system-prompt-file');const mode=step?'step':k===15?'specify':'hand';
 if(process.env.MANUAL_INPUTS)await writeFile(join(process.env.MANUAL_INPUTS,'received-'+k+'-'+mode),prompt);
 const requested=process.env.MANUAL_FAULT??'';
 const active=stepFaults.some(([c,m,f])=>c===k&&m===mode&&f===requested)||requested==='reconnect'&&k===4||requested==='bound-stop'&&k===13;

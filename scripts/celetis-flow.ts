@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import type { Config } from './lib/config.ts';
 import type { Host } from './lib/host.ts';
 import type { SessionRecord, Step } from './lib/session.ts';
+import type { ConsumerLock } from './lib/update-lock.ts';
 
 const usage =
   'usage: scripts/celetis celetis-flow [<issue number>...] | --board | --resume <issue number>, e.g. scripts/celetis celetis-flow 373 374; with no number, the automatic runner';
@@ -16,11 +17,12 @@ const required = [
   'launcher.ts',
   'lib/config.ts',
   'lib/host.ts',
+  'lib/plugin-metadata.ts',
+  'lib/plugin-policy.ts',
+  'lib/update-lock.ts',
   'lib/session.ts',
   'lib/process.ts',
-  'lib/update-lock.ts',
   'lib/vendor/yaml.mjs',
-  'plugin-update.ts',
 ];
 const flow = {
   lanes: {
@@ -56,6 +58,7 @@ function object(value: unknown): value is Record<string, unknown> {
 }
 
 export async function main(argv: string[]): Promise<number> {
+  let consumer: ConsumerLock | undefined;
   let mode: 'numbers' | 'auto' | 'board' | 'resume' = 'numbers';
   let numbers: string[] = [];
   if (argv.length === 1 && argv[0] === '--board') mode = 'board';
@@ -73,7 +76,18 @@ export async function main(argv: string[]): Promise<number> {
     console.error(usage);
     return 2;
   }
-  if (await gone(['lib/config.ts', 'lib/host.ts', 'lib/process.ts', 'lib/session.ts', 'lib/vendor/yaml.mjs'])) {
+  if (
+    await gone([
+      'lib/config.ts',
+      'lib/host.ts',
+      'lib/plugin-metadata.ts',
+      'lib/plugin-policy.ts',
+      'lib/update-lock.ts',
+      'lib/process.ts',
+      'lib/session.ts',
+      'lib/vendor/yaml.mjs',
+    ])
+  ) {
     if (mode === 'numbers') {
       for (const n of numbers) console.log(`celetis-flow: #${n}: ${removed}`);
       return 0;
@@ -97,9 +111,9 @@ export async function main(argv: string[]): Promise<number> {
     startupError,
     writeSession,
   } = await import('./lib/session.ts');
+  const root = dirname(here);
   let common = '',
     main = '',
-    root = dirname(here),
     state = '',
     recordPath = '';
   let config: Config;
@@ -112,7 +126,6 @@ export async function main(argv: string[]): Promise<number> {
   let lockOwner = '';
   const held = new Set<string>();
   let session: ChildProcess | undefined;
-  let updater: ChildProcess | undefined;
   let signalStatus = 0;
   let watcher: AbortController | undefined;
   let watchDir = '';
@@ -283,35 +296,18 @@ export async function main(argv: string[]): Promise<number> {
       if (!abort.aborted) await Bun.sleep(1000);
     }
   };
-  const refresh = async () => {
-    updater = spawn(process.execPath, bunArgs(join(here, 'plugin-update.ts'), [String(process.pid), host]), {
-      cwd: main,
-      env: childEnv(),
-      stdio: ['ignore', 'pipe', 'inherit'],
-    });
-    let output = '';
-    updater.stdout?.setEncoding('utf8');
-    updater.stdout?.on('data', (data: string) => {
-      output += data;
-    });
-    const result = await new Promise<number>((done) => {
-      updater?.once('error', (error) => {
-        console.error(error.message);
-        done(1);
-      });
-      updater?.once('close', (code) => done(code ?? 1));
-    });
-    updater = undefined;
-    if (signalStatus) throw new HostError('', signalStatus);
-    if (result !== 0) die('the plugin update failed; the step did not start');
-    root = output.replace(/\n+$/, '');
-  };
   const startSession = async (args: string[]) => {
+    if (host === 'codex')
+      args = [...(await (await import('./lib/plugin-metadata.ts')).codexSessionPin(root, main)), ...args];
     watchDir = await mkdtemp(join(state, 'start.'));
     session = spawn(
       process.execPath,
       bunArgs(import.meta.path, ['--session-start', watchDir, String(process.pid), host, ...args]),
-      { cwd: main, env: childEnv(), stdio: 'inherit' },
+      {
+        cwd: main,
+        env: childEnv({ ...process.env, CELETIS_CONSUMER_FD: '3' }),
+        stdio: ['inherit', 'inherit', 'inherit', consumer?.fd ?? 'ignore'],
+      },
     );
     const ended = new Promise<number>((done) => {
       session?.once('error', (error) => {
@@ -345,6 +341,7 @@ export async function main(argv: string[]): Promise<number> {
           break;
         }
         config = load();
+        await (await import('./lib/plugin-policy.ts')).requireUpdatePolicy(host, main);
         const line = (await resolve([n])).stdout.trimEnd();
         if (!line.startsWith('run ')) {
           say(line || `#${n}: next-step.ts printed no line`);
@@ -368,11 +365,7 @@ export async function main(argv: string[]): Promise<number> {
         first = 'gated';
         say(`start: ${prompt}`);
         started = true;
-        await refresh();
-        if (
-          (await gone()) ||
-          (step !== 'specify' && !(await stat(join(root, 'step-prompt.md')).catch(() => null))?.isFile())
-        ) {
+        if ((await gone()) || !(await stat(join(root, 'step-prompt.md')).catch(() => null))?.isFile()) {
           say(`#${n}: ${removed}`);
           break;
         }
@@ -427,7 +420,10 @@ export async function main(argv: string[]): Promise<number> {
       host = saved.host;
       savedId = saved.session_id ?? '';
     } else host = selectHost(undefined, process.env, main);
+    if (host === 'codex') process.env.CODEX_HOME = await (await import('./lib/plugin-metadata.ts')).codexHome();
     config = load();
+    consumer = await (await import('./lib/update-lock.ts')).ConsumerLock.acquire(host);
+    await (await import('./lib/plugin-policy.ts')).requireUpdatePolicy(host, main);
     process.env.CELETIS_AGENT = host;
     process.chdir(main);
     if (!Bun.which(host, { PATH: childEnv().PATH })) throw new HostError(`celetis: ${host} is not on PATH`);
@@ -445,7 +441,6 @@ export async function main(argv: string[]): Promise<number> {
     for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
       const handler = () => {
         signalStatus = 128 + constants.signals[signal];
-        if (updater) updater.kill(signal);
       };
       handlers.set(signal, handler);
       process.on(signal, handler);
@@ -543,6 +538,7 @@ export async function main(argv: string[]): Promise<number> {
         return 1;
       }
       config = load();
+      await (await import('./lib/plugin-policy.ts')).requireUpdatePolicy(host, main);
       const result = await resolve(['--open']);
       let started = false;
       if (result.code === 0) {
@@ -570,16 +566,13 @@ export async function main(argv: string[]): Promise<number> {
     }
     throw error;
   } finally {
-    if (updater) {
-      updater.kill('SIGTERM');
-      await new Promise<void>((done) => updater?.once('close', () => done()));
-    }
     watcher?.abort();
     if (session?.pid && session.exitCode === null && session.signalCode === null) {
       session.kill('SIGTERM');
       await new Promise<void>((done) => session?.once('exit', () => done()));
     }
     if (watchDir) await rm(watchDir, { recursive: true, force: true });
+    consumer?.close();
     for (const name of [...held]) await release(name);
     for (const [signal, handler] of handlers) process.off(signal, handler);
   }
@@ -596,7 +589,8 @@ async function waitingSession(args: string[]): Promise<number> {
   }
   const executable = Bun.which(host, { PATH: childEnv().PATH });
   if (!executable || !process.execve) return 1;
-  return process.execve(executable, [executable, ...hostArgs], childEnv());
+  (await import('./lib/update-lock.ts')).ConsumerLock.retainInherited();
+  return (await import('./lib/update-lock.ts')).execConsumer(executable, [executable, ...hostArgs], childEnv());
 }
 
 if (import.meta.main)

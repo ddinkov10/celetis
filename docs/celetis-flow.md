@@ -181,39 +181,21 @@ the spec only after you approve the design, and nothing checks the design again 
 So that session asks and waits as a session that you start by hand does (ADR-0007).
 Codex also omits the step-text override for specify. Its configured developer instructions remain.
 
-**The update.** Each commit on `main` of `ddinkov10/celetis` is a new version of the plugin. Before
-a Claude step, the script runs two commands, in this order:
-`claude plugin marketplace update celetis`, then
-`claude plugin update celetis@celetis --scope user`. They bring the plugin on the machine to the
-head of `main`. Before a Codex step, it runs `codex plugin marketplace upgrade celetis`.
-One 120-second deadline covers the lock wait, the selected update commands, and the installed-root
-lookup. When a command fails, the script shows the command, its exit status, and its output, then
-exits 1. A timeout names the operation that did not finish and shows its captured output. The
-script starts no session and writes no row to `no-progress` on an update failure.
+**The installed package.** The runner uses the package selected at startup for its resolver,
+launcher, and step text. Numbered starts, automatic starts, and later steps make no update call.
+The forms `--board` and `--resume` keep their existing no-update behavior and saved identity.
+Before a step starts, the runner checks that its required files and step text still exist.
+Normal consumers retain shared admission, including local-source installations. Known concrete
+policy conflicts are diagnosed. Run and exact Resume bind their Codex session to the active
+installed root through a command-only Local marketplace. Native catalog, manifest, and cache
+version checks prove the refresh no-op for Git and local installations. A Git SHA ref alone can
+force same-revision replacement and is reserved for approved application. External package
+edits remain outside the update protocol. Metadata RPC disables plugins before app-server construction, so
+read-only thread and configuration checks do not trigger startup refresh.
 
-The helper `scripts/plugin-update.ts` holds an operating-system file lock at
-`<selected host configuration directory>/celetis-update.lock`. Claude uses `CLAUDE_CONFIG_DIR`
-or `~/.claude`; Codex uses `CODEX_HOME` or `~/.codex`. This lock is shared by runners in different
-product projects that use the same host configuration. The lock file stays on disk; its existence does not mean
-that an update runs. The operating system releases a lock when its last holder exits.
-This TypeScript helper accepts the runner PID and selected host. Both hosts use the same deadline,
-lock, process-group cleanup, and validated launcher lookup.
-
-On a timeout, an interruption, or runner exit, the helper terminates the command's process group
-before it releases the lock. It sends TERM, allows one second to stop, then sends KILL to any
-remaining process. A command keeps the lock descriptor so a killed helper cannot release a live
-update's lock.
-
-After a successful update, the helper invokes the same validated launcher resolver with
-`--agent <agent> root`. It uses the selected host's enabled installation and existing scope rules.
-The runner takes the step text from that installed root. When the lookup gives
-no folder that holds a step text, the runner shows the cause and exits 1. The runner retains the
-resolver and launcher paths chosen at startup; it does not restart itself after refresh. Codex
-can replace files at those paths. The forms `--board` and `--resume` make no update. A session
-that you start by hand gets no update from the runner.
-Codex requires a Git marketplace for this update command; a local source stops the step.
-Serialization does not make installed files immutable. "Acceptance status" records the open
-resource-lifetime requirement.
+[Updates](../README.md#updates) owns the read-only check, exact offer, direct chat approval, target-bound
+`plugin-update apply` attempt, its lock and deadline, and the native host limits. A runner restart
+alone does not fetch a new package. "Acceptance status" keeps the open resource-lifetime evidence.
 
 **The step end.** In a herdr pane (`HERDR_ENV=1` and a valid `HERDR_PANE_ID`), the script does two things before it
 starts a session. It names its tab `#<n> <step>` with `herdr tab rename "$HERDR_TAB_ID"`, so the
@@ -334,7 +316,7 @@ of setup, `.claude/celetis-flow/wiring.json`, is no config: only `scripts/celeti
   (`docs/capability.md`).
 
 A missing or invalid required config stops before branch or worktree changes, locks, runtime
-state, plugin updates, host sessions, or landing pushes. The runner checks the main config
+state, host sessions, or landing pushes. The runner checks the main config
 before each new session. It keeps the selected host for that run. Resume uses the recorded
 host and exact session ID; a changed default cannot select another saved session.
 Installation discovery with an explicit host and standalone capability scoring with explicit
@@ -451,10 +433,13 @@ the project default changes. Each item is one argument. The board quotes the ite
 `&& exit`: success closes the tab; a failed script leaves its message there. With the default
 `me` gates, a Run starts one step and ends when its session ends.
 
-The board starts the data script on each read and the action script on each press. A plugin
-refresh does not replace the standalone launcher or a product's setup. The maintainer must
-complete the [manual cutover](configuration.md#replace-the-old-setup) and stop old sessions,
-runners, and boards before they use the changed plugin. Real Run/Resume acceptance remains a
+The board starts the data script on each read and the action script on each press. Stop the
+whole board before a supported package replacement, since later requests can read package assets.
+A fresh board/session resolves the enabled installation again; a successful restart alone is
+no proof of an update. Board starts retain shared admission for their full lifetime. Follow
+[Updates](../README.md#updates) before replacing its installed package, and complete the
+[manual cutover](configuration.md#replace-the-old-setup) when the product launcher or setup
+changes. Real Run/Resume acceptance remains a
 separate live gate; a stdin or local-source check does not establish it.
 
 **The data.** `scripts/celetis celetis-flow --board` prints contract 1 ("Start the script"). Each read
@@ -625,11 +610,14 @@ state/action pairs. These gaps remain open. Optional desktop success cannot clos
 CLI gap. No obsolete metadata or protocol fallback is supplied. The
 [live acceptance procedure](../tests/manual/live-acceptance.md) records each required surface.
 
-**Stable installed resources remain open.** A Codex refresh replaced an installed sibling file
-at the same path while an app-server still advertised that path. The shared update lock covers
-cooperating updates, not all future reads of a running session. No supported per-session package
-pin has been proved. A supported solution or an explicit change of the accepted requirement is
-needed before full acceptance and shipping. ADR-0014 records the architecture and this limit.
+**Native reader lifetime remains conditional.** Celetis admission protects cooperating starts,
+Run/Resume, and boards. Exact native target operations, source restoration, fresh validation,
+and updater cleanup have positive deterministic tests. Stock native processes can start without
+that admission and descendants can close inherited FDs. Keep those native clients stopped during
+explicit cutover; a process scan is not atomic native admission. The offering process must exit
+before the approved terminal action. [Updates](../README.md#updates) and ADR-0027 own the current
+contract. Historical ADR-0014 evidence remains. Live successful cutover and human-channel
+acceptance were waived and remain unverified.
 
 ### Optional Codex desktop evidence
 
@@ -684,8 +672,8 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   and no git credentials. This is not checked: the desktop app reads
   `.claude/launch.json` of the main checkout, so the build of a lane cannot start the entry `board`
   of its branch. When that entry does not start the board, start the board in a terminal.
-- A runner that stays open for more than 14 days after an update can lose the folder of its
-  version. A runner process keeps the folder of its own version for its resolver and its launcher,
+- After an external update, a Claude runner that stays open for more than 14 days can lose its
+  installed folder. A runner keeps the folder of its own version for its resolver and its launcher,
   and Claude Code removes the folder of an old version in a background cleanup 14 days after the
   update. After that, the runner stops with the true cause. The automatic runner prints
   `celetis-flow: stop the plugin version of this runner was removed after an update; start the

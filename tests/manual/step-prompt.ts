@@ -82,9 +82,10 @@ export async function main(args: string[]): Promise<number> {
     const refs = `${await readFile(join(root, 'docs/hosts/entry.md'), 'utf8')}${await readFile(join(root, `docs/hosts/${host}.md`), 'utf8')}`,
       step = await readFile(join(root, 'step-prompt.md'), 'utf8');
     const pairs: [number, string][] = [
-      ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21].map(
-        (k) => [k, 'step'] as [number, string],
-      ),
+      ...[
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+        32, 33,
+      ].map((k) => [k, 'step'] as [number, string]),
       [15, 'specify'],
       ...[1, 2, 3, 4].map((k) => [k, 'hand'] as [number, string]),
     ];
@@ -94,7 +95,7 @@ export async function main(args: string[]): Promise<number> {
       await Promise.all(
         selected.slice(at, at + 2).map(async ([k, mode]) => {
           const started =
-            mode === 'hand'
+            mode === 'hand' || (k >= 22 && k <= 33 && k !== 32)
               ? 'A person started the session by hand for issue #7.'
               : 'scripts/celetis celetis-flow started the session for issue #7.';
           const prompt = `This is a dry run. Run no tool and invoke no skill. Answer with the acts that you do next, in order. Each act is one exact shell command, or one sentence that you write to the person at the terminal. End with one line: "Then: I wait for the person", "Then: my step ends", or "Then: I go on with <what>". Do not explain.\n\nYou are the session of one step of this repository's celetis flow. ${started} The skill excerpts are verbatim. The host is ${host}. These host references are already loaded for this dry run; apply their command spellings without executing their initialization:\n\n${context}\nHost references:\n${refs}${mode === 'step' && host === 'codex' ? `\nStep instructions:\n${step}` : ''}\nScenario:\n${stepCases[k]}\n`;
@@ -169,7 +170,7 @@ export async function main(args: string[]): Promise<number> {
         if (name === 'version' || name.startsWith('product-') || /^(case|in|out|err|status|events)-/.test(name))
           await cp(join(tmp, name), join(outputDir, name));
     if (failed) return 1;
-    console.log(only ? `PASS (${host}): case ${only}` : `PASS (${host}): 25 cases`);
+    console.log(only ? `PASS (${host}): case ${only}` : `PASS (${host}): ${selected.length} cases`);
     return 0;
   } finally {
     clients.close();

@@ -58,7 +58,7 @@ export async function boardFixture() {
   );
   await f.stub('herdr', `console.log('{"result":{"snapshot":{"agents":[],"tabs":[]}}}');`);
   const launcher = `import {appendFileSync} from 'node:fs';appendFileSync(process.env.BOARD_PRODUCER_LOG!,JSON.stringify(process.argv.slice(2))+'\\n');
-    const {spawnSync}=await import('node:child_process');const r=spawnSync(process.execPath,${JSON.stringify(isolatedArgs)}.concat(${JSON.stringify(join(root, 'scripts/celetis-flow.ts'))},process.argv.slice(3)),{stdio:'inherit',env:process.env});process.exitCode=r.status??1;`;
+    const {spawnSync}=await import('node:child_process');const r=spawnSync(process.execPath,${JSON.stringify(isolatedArgs)}.concat(${JSON.stringify(join(plugin, 'scripts/celetis-flow.ts'))},process.argv.slice(3)),{stdio:'inherit',env:process.env});process.exitCode=r.status??1;`;
   await f.stub('unused', '');
   const shebang = (await readFile(join(f.dir, 'bin/unused'), 'utf8')).split('\n')[0];
   await f.write('repo dir/scripts/celetis', `${shebang}\n${launcher}`, 0o755);
