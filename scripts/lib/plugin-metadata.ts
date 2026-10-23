@@ -1,7 +1,8 @@
 import { lstat, readdir, readFile, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join, relative, sep } from 'node:path';
-import { type Host, HostError } from './host.ts';
+import { isDeepStrictEqual } from 'node:util';
+import { codexRequest, type Host, HostError } from './host.ts';
 import { childEnv, run } from './process.ts';
 
 const revision = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
@@ -187,6 +188,67 @@ export interface PluginMetadata {
   marketplacePlugins: string[];
 }
 
+async function cachedPlugin(home: string, name: string): Promise<{ root: string; version: string } | null> {
+  const path = join(home, 'plugins/cache/celetis', name);
+  if (!(await lstat(path).catch(() => null))) return null;
+  const store = await contained(home, path);
+  const entries = await readdir(store, { withFileTypes: true });
+  const versions = entries
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+    .map((entry) => entry.name);
+  const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+  versions.sort((a, b) => (semver.test(a) && semver.test(b) ? Bun.semver.order(a, b) : a < b ? -1 : a > b ? 1 : 0));
+  const version = versions.includes('local') ? 'local' : versions.at(-1);
+  return version ? { root: await contained(home, join(store, version)), version } : null;
+}
+
+async function nativeCatalog(root: string): Promise<Record<string, unknown> | null> {
+  for (const name of [
+    '.agents/plugins/marketplace.json',
+    '.agents/plugins/api_marketplace.json',
+    '.claude-plugin/marketplace.json',
+    '.cursor-plugin/marketplace.json',
+  ]) {
+    const path = join(root, name);
+    if (await lstat(path).catch(() => null)) return jsonFile(await contained(root, path));
+  }
+  return null;
+}
+
+async function legacySourceVersion(root: string, name: string): Promise<string> {
+  const rootManifest = join(root, 'plugin.json');
+  if (await lstat(rootManifest).catch(() => null)) {
+    const manifest = await jsonFile(rootManifest);
+    if (typeof manifest.$schema === 'string' && manifest.$schema.startsWith('https://agent-plugins.org/schemas/'))
+      throw new HostError(`celetis: unsupported agent-plugin schema for an installed session source: ${rootManifest}`);
+  }
+  for (const folder of ['.codex-plugin', '.claude-plugin', '.cursor-plugin']) {
+    const parent = await lstat(join(root, folder)).catch(() => null);
+    if (!parent) continue;
+    if (!parent.isDirectory()) throw new HostError(`celetis: invalid native manifest directory: ${join(root, folder)}`);
+    const manifest = await jsonFile(join(root, folder, 'plugin.json'));
+    if (typeof manifest.$schema === 'string' && manifest.$schema.startsWith('https://agent-plugins.org/schemas/'))
+      throw new HostError(
+        `celetis: unsupported agent-plugin schema for an installed session source: ${join(root, folder)}`,
+      );
+    if (manifest.name !== name) throw new HostError(`celetis: unsupported native legacy manifest identity in ${root}`);
+    if (manifest.version === undefined || manifest.version === null) return 'local';
+    if (typeof manifest.version === 'string' && manifest.version.trim()) return manifest.version.trim();
+    throw new HostError(`celetis: invalid native plugin version in ${root}`);
+  }
+  throw new HostError(`celetis: no native legacy manifest in ${root}`);
+}
+
+function pathBefore(one: string, two: string): boolean {
+  const a = one.split(sep),
+    b = two.split(sep);
+  for (let at = 0; at < Math.min(a.length, b.length); at++) {
+    const order = Buffer.compare(Buffer.from(a[at] ?? ''), Buffer.from(b[at] ?? ''));
+    if (order) return order < 0;
+  }
+  return a.length < b.length;
+}
+
 export async function codexPlugin(
   cwd: string,
   inheritedFd?: number,
@@ -230,19 +292,12 @@ export async function codexPlugin(
     !record.marketplaceSource.source
   )
     throw new HostError('celetis: unsupported Codex celetis source metadata; repair the source-backed installation');
-  const store = await contained(home, join(home, 'plugins/cache/celetis/celetis'));
-  const entries = await readdir(store, { withFileTypes: true }).catch(() => []);
-  const versions = entries
-    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
-    .map((entry) => entry.name);
-  const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
-  versions.sort((a, b) => (semver.test(a) && semver.test(b) ? Bun.semver.order(a, b) : a < b ? -1 : a > b ? 1 : 0));
-  const active = versions.includes('local') ? 'local' : versions.at(-1);
-  if (!active || record.version !== active)
+  const active = await cachedPlugin(home, 'celetis');
+  if (!active || record.version !== active.version)
     throw new HostError(
       `celetis: Codex registry does not match its installed version ${String(record.version)}; repair the native installation`,
     );
-  const root = await contained(home, join(store, active));
+  const root = active.root;
   const marketplaces = await nativeJson(
     'codex',
     ['plugin', 'marketplace', 'list', '--json'],
@@ -300,15 +355,78 @@ export async function codexSessionPin(root: string, cwd: string): Promise<string
   if (metadata.root !== (await realpath(root)))
     throw new HostError('celetis: enabled package changed before session start; start a fresh runner');
   const source = metadata.record.marketplaceSource;
-  if (!object(source) || source.sourceType !== 'git') return [];
-  if (typeof source.source !== 'string') throw new HostError('celetis: native Git source is missing');
-  const sha = await installedRevision('codex', root, source.source);
-  return [
+  if (!object(source) || typeof source.source !== 'string') throw new HostError('celetis: native source is missing');
+  if (source.sourceType === 'git') await installedRevision('codex', root, source.source);
+  const args = [
     '-c',
-    'marketplaces.celetis.source_type="git"',
+    'marketplaces.celetis.source_type="local"',
     '-c',
-    `marketplaces.celetis.source=${JSON.stringify(source.source)}`,
-    '-c',
-    `marketplaces.celetis.ref=${JSON.stringify(sha)}`,
+    `marketplaces.celetis.source=${JSON.stringify(metadata.root)}`,
   ];
+  const env = childEnv({ ...process.env, CODEX_HOME: metadata.home });
+  const listed = await nativeJson('codex', [...args, 'plugin', 'marketplace', 'list', '--json'], cwd, undefined, env);
+  const markets =
+    object(listed) && Array.isArray(listed.marketplaces)
+      ? listed.marketplaces.filter((market) => object(market) && market.name === 'celetis')
+      : [];
+  const selected = markets[0];
+  if (
+    markets.length !== 1 ||
+    !object(selected) ||
+    selected.root !== metadata.root ||
+    !object(selected.marketplaceSource) ||
+    selected.marketplaceSource.sourceType !== 'local' ||
+    selected.marketplaceSource.source !== metadata.root
+  )
+    throw new HostError(
+      'celetis: native policy or marketplace discovery did not select the installed local session source',
+    );
+  const catalog = await nativeCatalog(metadata.root);
+  const originalRoot = await realpath(String((metadata.record.source as Record<string, unknown>).path));
+  const original = await nativeCatalog(originalRoot);
+  if (
+    catalog?.name !== 'celetis' ||
+    !Array.isArray(catalog.plugins) ||
+    original?.name !== 'celetis' ||
+    !Array.isArray(original.plugins)
+  )
+    throw new HostError('celetis: invalid installed session marketplace catalog');
+  const top = await realpath(await git(['rev-parse', '--show-toplevel'], cwd));
+  const scopedRoot = await realpath(cwd);
+  const direct = await nativeCatalog(scopedRoot);
+  const scoped = direct ?? (await nativeCatalog(top));
+  const scope = direct ? scopedRoot : top;
+  if (scoped?.name === 'celetis' && scope !== metadata.root && pathBefore(scope, metadata.root))
+    throw new HostError(`celetis: mutable session marketplace precedes the installed source: ${scope}`);
+  const response = await codexRequest(cwd, 'config/read', { cwd, includeLayers: true }, undefined, metadata.home);
+  const config =
+    object(response) && object(response.result) && object(response.result.config) ? response.result.config : null;
+  if (!config || (config.plugins !== undefined && !object(config.plugins)))
+    throw new HostError('celetis: cannot inspect configured plugins for the installed session source');
+  const configured = [...new Set([...metadata.marketplacePlugins, ...Object.keys(config.plugins ?? {})])];
+  for (const id of configured) {
+    const match = /^([a-zA-Z0-9][a-zA-Z0-9._-]*)@celetis$/.exec(id);
+    if (!match) continue;
+    const name = match[1] ?? '';
+    const entries = catalog.plugins.filter((entry) => object(entry) && entry.name === name);
+    const previous = original.plugins.filter((entry) => object(entry) && entry.name === name);
+    if (name !== 'celetis' && !isDeepStrictEqual(entries, previous))
+      throw new HostError(
+        `celetis: installed session catalog changes configured plugin ${id}; retain its native source before starting`,
+      );
+    if (entries.length === 0 && name !== 'celetis') continue;
+    const entry = entries[0];
+    if (entries.length !== 1 || !object(entry) || typeof entry.source !== 'string' || isAbsolute(entry.source))
+      throw new HostError(`celetis: configured plugin ${id} has no immutable local session source`);
+    const path = await contained(metadata.root, join(metadata.root, entry.source));
+    if (name === 'celetis' && path !== metadata.root)
+      throw new HostError('celetis: session Celetis source is not the active installed root');
+    const version = await legacySourceVersion(path, name);
+    const cached = await cachedPlugin(metadata.home, name);
+    if (!cached || version !== cached.version)
+      throw new HostError(
+        `celetis: native session would install or replace configured plugin ${id} (${cached?.version ?? 'missing'} -> ${version})`,
+      );
+  }
+  return args;
 }

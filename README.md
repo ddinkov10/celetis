@@ -675,10 +675,15 @@ and board form. Every skill call adds `--agent claude` or `--agent codex` before
 
 Celetis checks once per human task, after native startup reads. Nested skills and children reuse
 its result. Numbered and automatic Run, later steps, board reads, and exact Resume use the installed
-package without invoking an update. Native Codex Git sessions receive per-command source/ref
-settings fixed to the full installed revision, including exact Resume. No product pin is written.
+package without invoking an update. Codex sessions select the canonical active installed root as
+a command-only local marketplace, including exact Resume and original local installations. The
+native catalog, manifest version, and cache label must prove that refresh will skip installation.
+Git installations also require the owned revision witness. No product pin or native source record
+is written. A SHA ref override is not used for startup: a ref-name change can force native
+replacement even at the same commit.
 Concrete policy conflicts stop the affected operation; unknown native policy does not disable all
-normal use.
+normal use. Conflicting policy, an earlier mutable catalog, changed sibling catalog behavior, or
+a source version that would cause native replacement has a concrete startup diagnostic.
 
 `plugin-update check` reads selected-host enabled metadata and the configured Git source/ref. It
 uses `git ls-remote` without marketplace refresh, installation, or installed-repository fetch.

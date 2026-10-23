@@ -34,8 +34,9 @@ After required native startup reads, keep one update state for the human task: u
 unavailable, no offer, offered, continued, handed off, or consumed. A nested skill, handoff, or
 child reuses that state. Children and automatic steps never check or approve independently.
 Run, board, and exact Resume use the installed package without an update command. The runner
-binds its native Codex Git marketplace to that installed revision for each new or resumed session,
-without changing product configuration.
+binds each native Codex session to the canonical active installed root with a command-only Local
+marketplace selection. It verifies native catalog/version conditions that avoid replacement,
+including for an original local source, without changing product configuration.
 
 For a human task, check once through the running host operation below. Use the bound script for
 this first check; an older copied launcher can start native refresh during discovery. The check

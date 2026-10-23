@@ -6766,6 +6766,18 @@ async function nativeJson(host, args, cwd, inheritedFd, env = childEnv(), execut
 ${result.stdout.trimEnd()}`);
   }
 }
+async function cachedPlugin(home, name) {
+  const path = join(home, "plugins/cache/celetis", name);
+  if (!await lstat(path).catch(() => null))
+    return null;
+  const store = await contained(home, path);
+  const entries = await readdir(store, { withFileTypes: true });
+  const versions = entries.filter((entry) => entry.isDirectory() && !entry.name.startsWith(".")).map((entry) => entry.name);
+  const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+  versions.sort((a, b) => semver.test(a) && semver.test(b) ? Bun.semver.order(a, b) : a < b ? -1 : a > b ? 1 : 0);
+  const version = versions.includes("local") ? "local" : versions.at(-1);
+  return version ? { root: await contained(home, join(store, version)), version } : null;
+}
 async function codexPlugin(cwd, inheritedFd, execute = run) {
   const home = await codexHome();
   const env = childEnv({ ...process.env, CODEX_HOME: home });
@@ -6785,15 +6797,10 @@ async function codexPlugin(cwd, inheritedFd, execute = run) {
     throw new HostError("celetis: Codex has no enabled celetis@celetis installation; install and enable the plugin in Codex");
   if (record.name !== "celetis" || record.marketplaceName !== "celetis" || !object2(record.source) || record.source.source !== "local" || typeof record.source.path !== "string" || !isAbsolute(record.source.path) || !object2(record.marketplaceSource) || !["git", "local"].includes(String(record.marketplaceSource.sourceType)) || typeof record.marketplaceSource.source !== "string" || !record.marketplaceSource.source)
     throw new HostError("celetis: unsupported Codex celetis source metadata; repair the source-backed installation");
-  const store = await contained(home, join(home, "plugins/cache/celetis/celetis"));
-  const entries = await readdir(store, { withFileTypes: true }).catch(() => []);
-  const versions = entries.filter((entry) => entry.isDirectory() && !entry.name.startsWith(".")).map((entry) => entry.name);
-  const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
-  versions.sort((a, b) => semver.test(a) && semver.test(b) ? Bun.semver.order(a, b) : a < b ? -1 : a > b ? 1 : 0);
-  const active = versions.includes("local") ? "local" : versions.at(-1);
-  if (!active || record.version !== active)
+  const active = await cachedPlugin(home, "celetis");
+  if (!active || record.version !== active.version)
     throw new HostError(`celetis: Codex registry does not match its installed version ${String(record.version)}; repair the native installation`);
-  const root = await contained(home, join(store, active));
+  const root = active.root;
   const marketplaces = await nativeJson("codex", ["plugin", "marketplace", "list", "--json"], cwd, inheritedFd, env, execute);
   if (!object2(marketplaces) || !Array.isArray(marketplaces.marketplaces))
     throw new HostError("celetis: invalid Codex marketplace source list");

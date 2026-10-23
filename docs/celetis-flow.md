@@ -186,9 +186,11 @@ launcher, and step text. Numbered starts, automatic starts, and later steps make
 The forms `--board` and `--resume` keep their existing no-update behavior and saved identity.
 Before a step starts, the runner checks that its required files and step text still exist.
 Normal consumers retain shared admission, including local-source installations. Known concrete
-policy conflicts are diagnosed. Run and exact Resume bind their own Codex Git session to the
-installed revision without a product pin. External edits to non-Git development sources remain
-outside the update protocol. Metadata RPC disables plugins before app-server construction, so
+policy conflicts are diagnosed. Run and exact Resume bind their Codex session to the active
+installed root through a command-only Local marketplace. Native catalog, manifest, and cache
+version checks prove the refresh no-op for Git and local installations. A Git SHA ref alone can
+force same-revision replacement and is reserved for approved application. External package
+edits remain outside the update protocol. Metadata RPC disables plugins before app-server construction, so
 read-only thread and configuration checks do not trigger startup refresh.
 
 [Updates](../README.md#updates) owns the read-only check, exact offer, direct chat approval, target-bound

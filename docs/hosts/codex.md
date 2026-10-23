@@ -45,10 +45,28 @@ The command binds the offered home before discovery and rechecks that home's ena
 The native upgrade can replace every configured plugin in that marketplace. Refuse before mutation
 when effective configuration or native records name a sibling there, including disabled or not yet
 installed plugins. Normal discovery and Run remain available; other marketplaces remain unrelated.
-Fresh enabled discovery and installed revision validation complete the action. Run and exact
-Resume similarly bind their own native Git source to the current installed revision for that
-session, so they do not refresh Celetis to a moving branch. Stock external native launches remain
-outside Celetis admission and must stay stopped during explicit cutover.
+Fresh enabled discovery and installed revision validation complete the action.
+
+Run and exact Resume use two command-only overrides: `marketplaces.celetis.source_type="local"`
+and `marketplaces.celetis.source="<canonical active installed root>"`. This applies to both Git
+and original local installations. It skips Git snapshot upgrade and retains the active package
+when native `IfVersionChanged` sees the same source version and cache label. Lower Git ref/sparse
+fields are ignored by the native Local parser. No native metadata record is rewritten. A SHA ref
+alone is unsafe here: changing `ref_name` can activate a new snapshot and force reinstall even
+when the content commit is unchanged.
+
+Before launch, validate the native-selected catalog and legacy manifest, its version/cache-label
+equality, and the owned Git witness for a Git installation. The read-only override marketplace
+list checks configured/HOME source selection and policy. Check cwd/Git-root catalog precedence
+separately. Include every configured same-marketplace plugin, including disabled entries: keep
+its catalog entry unchanged and require present Local sources to have the active cache version.
+Remote materialization, pending installation, version drift, changed catalog behavior, an earlier
+mutable source, or unsupported agent-manifest version rules cause a specific refusal before
+native startup. Matching cached siblings stay loaded and unchanged. Normal supported Run/Resume
+keep their native host, session ID, and process identity.
+
+Stock external native launches remain outside Celetis admission and must stay stopped during
+explicit cutover. These session-source checks do not control outside writes to package files.
 
 ## Skills and custom text
 

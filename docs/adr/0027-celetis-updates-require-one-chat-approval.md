@@ -35,7 +35,11 @@ refusal, failure, or interruption permits another attempt without a new decision
 
 Keep target-bound apply under exclusive host-profile admission and the existing update supervisor.
 Normal Run, board, and exact Resume retain shared admission and perform no Celetis update.
-Their Codex Git sessions bind the installed source revision with supported per-command overrides.
+Their Codex sessions select the canonical active installed root with supported command-only Local
+marketplace overrides. Validate native catalog precedence and source/cache version equality so
+normal startup skips installation. Original local sources receive the same protection; Git
+sources also retain their owned revision witness. A SHA ref alone is insufficient because native
+metadata comparison includes the ref name and can force same-revision replacement.
 Known concrete conflicts remain errors; unknown native policy does not disable ordinary use.
 
 After direct approval, the active offering native process exits and the human runs one concrete

@@ -1,6 +1,6 @@
 import { expect, setDefaultTimeout, test } from 'bun:test';
 import { join } from 'node:path';
-import { hosts } from './lib/host-session-fixture.ts';
+import { codexSourceArgs, hosts } from './lib/host-session-fixture.ts';
 import { runnerCase, stepText } from './lib/runner-fixture.ts';
 
 setDefaultTimeout(25_000);
@@ -25,6 +25,7 @@ for (const host of hosts)
                 `/celetis:${step} #7`,
               ]
             : [
+                ...codexSourceArgs(f.plugin),
                 '--no-daemon',
                 ...(step === 'feature' ? [] : ['-c', `developer_instructions=${JSON.stringify(stepText)}`]),
                 `Use the celetis:${step} skill for #7. Complete its Host entry startup reads before any response, including commentary.`,
@@ -85,9 +86,13 @@ test.concurrent(
     const existing = 'Keep my instructions and literal $(value).\n\n';
     await f.put('developer', existing);
     expect((await f.run(['7'], { host: 'codex' })).code).toBe(0);
-    expect(((await f.logs('calls'))[0]?.args as string[] | undefined)?.[2]).toBe(
+    expect((await f.logs('calls'))[0]?.args).toEqual([
+      ...codexSourceArgs(f.plugin),
+      '--no-daemon',
+      '-c',
       `developer_instructions=${JSON.stringify(`${existing}\n\n${stepText}`)}`,
-    );
+      'Use the celetis:plan skill for #7. Complete its Host entry startup reads before any response, including commentary.',
+    ]);
   }),
 );
 test.concurrent(

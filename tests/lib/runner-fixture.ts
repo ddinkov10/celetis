@@ -95,10 +95,12 @@ export async function runnerFixture(realResolver = false) {
   );
   const hostSource = `${commonSource}
     const host=process.argv[1]!.split('/').at(-1)!;
+    const nativeArgs=[...args];const overrides:Record<string,unknown>={};
+    if(host==='codex')while(args[0]==='-c'&&args[1]?.startsWith('marketplaces.celetis.')){const value=args[1].slice('marketplaces.celetis.'.length);const at=value.indexOf('=');overrides[value.slice(0,at)]=JSON.parse(value.slice(at+1));args.splice(0,2);}
     if(args[0]==='--version'){console.log(host==='codex'?'codex-cli 0.163.0':'2.1.306 (Claude Code)');process.exit(0);}
     if(args[0]==='--disable'&&args[1]==='plugins')args.splice(0,2);
     if(args[0]==='plugin'){
-      if(host==='codex'&&args[1]==='marketplace'&&args[2]==='list'){log('discovery',{host,args});console.log(JSON.stringify({marketplaces:[{name:'celetis',root:plugin,marketplaceSource:{sourceType:has('git-marketplace')?'git':'local',source:plugin}}]}));process.exit(0);}
+      if(host==='codex'&&args[1]==='marketplace'&&args[2]==='list'){log('discovery',{host,args});console.log(JSON.stringify({marketplaces:overrides.source_type==='local'&&has('native-local-marketplaces')?JSON.parse(read('native-local-marketplaces')):[{name:'celetis',root:overrides.source??read('marketplace-root',plugin),marketplaceSource:{sourceType:overrides.source_type??(has('git-marketplace')?'git':'local'),source:overrides.source??(has('git-marketplace')?plugin:read('marketplace-root',plugin))}}]}));process.exit(0);}
       const readOnly=args[1]==='list';log(readOnly?'discovery':'mutations',{host,args});if(!readOnly)log('updates',{host,args});log('order',{host,args});
       const phase=args[1]==='marketplace'?'marketplace':args[1];
       if((has('update-fail')&&!readOnly)||read('update-fail-phase')===phase){console.error('fixture: '+host+' '+phase+' update unavailable');process.exit(23);}
@@ -111,7 +113,7 @@ export async function runnerFixture(realResolver = false) {
         try{mkdirSync(join(S,'update-active'));}catch{put('update-overlap');}
         put('update-entered');await pause('hold-update');rmSync(join(S,'update-active'),{recursive:true,force:true});
       }
-      if(phase==='list'){if(has('replace-record'))writeFileSync(join(process.cwd(),'.git/celetis-flow/sessions/7.json'),read('replace-record'));if(host==='codex'&&has('lookup-hang')){process.on('SIGTERM',()=>{});put('update-pid',String(process.pid));spawn(process.execPath,${JSON.stringify(isolatedArgs)}.concat(join(S,'update-descendant.ts')),{stdio:['ignore','inherit','inherit',3]});console.error('fixture: skills catalog lookup stalled with original cause');await Bun.sleep(30_000);}process.stdout.write(has('plugin-list')?read('plugin-list'):JSON.stringify(host==='claude'?[{id:'celetis@celetis',scope:'user',enabled:true,installPath:plugin}]:{installed:[{pluginId:'celetis@celetis',name:'celetis',marketplaceName:'celetis',version:'local',installed:true,enabled:true,source:{source:'local',path:plugin},marketplaceSource:{sourceType:has('git-marketplace')?'git':'local',source:plugin}}],available:[]})+'\\n');}
+      if(phase==='list'){if(has('replace-record'))writeFileSync(join(process.cwd(),'.git/celetis-flow/sessions/7.json'),read('replace-record'));if(host==='codex'&&has('lookup-hang')){process.on('SIGTERM',()=>{});put('update-pid',String(process.pid));spawn(process.execPath,${JSON.stringify(isolatedArgs)}.concat(join(S,'update-descendant.ts')),{stdio:['ignore','inherit','inherit',3]});console.error('fixture: skills catalog lookup stalled with original cause');await Bun.sleep(30_000);}process.stdout.write(has('plugin-list')?read('plugin-list'):JSON.stringify(host==='claude'?[{id:'celetis@celetis',scope:'user',enabled:true,installPath:plugin}]:{installed:[{pluginId:'celetis@celetis',name:'celetis',marketplaceName:'celetis',version:'local',installed:true,enabled:true,source:{source:'local',path:read('marketplace-root',plugin)},marketplaceSource:{sourceType:has('git-marketplace')?'git':'local',source:has('git-marketplace')?plugin:read('marketplace-root',plugin)}}],available:[]})+'\\n');}
       process.exit(0);
     }
     if(args[0]==='app-server'){
@@ -122,7 +124,7 @@ export async function runnerFixture(realResolver = false) {
             if(has('replace-record'))writeFileSync(join(process.cwd(),'.git/celetis-flow/sessions/7.json'),read('replace-record'));
             if(has('lookup-hang')){process.on('SIGTERM',()=>{});put('update-pid',String(process.pid));spawn(process.execPath,${JSON.stringify(isolatedArgs)}.concat(join(S,'update-descendant.ts')),{stdio:['ignore','inherit','inherit',3]});console.error('fixture: skills catalog lookup stalled with original cause');await Bun.sleep(30_000);}
             result={data:[{cwd:process.cwd(),skills:[{name:'celetis:guide',pluginId:'celetis@celetis',enabled:true,path:plugin+'/skills/guide/SKILL.md'}]}]};
-          } else if(m.method==='config/read')result={config:{developer_instructions:has('config-invalid')?7:read('developer')}};
+          } else if(m.method==='config/read')result={config:{developer_instructions:has('config-invalid')?7:read('developer'),plugins:has('native-configured-plugins')?JSON.parse(read('native-configured-plugins')):undefined}};
           else if(m.method==='thread/read')result={thread:{id:has('wrong-saved-id')?'00000000-0000-4000-8000-000000000002':read('id'),cwd:has('foreign-checkout')?'/other-checkout':process.cwd(),createdAt:Number(read('created','0')),ephemeral:has('ephemeral')}};
           else if(m.method==='thread/turns/list')result={data:has('saved')?[{id:'turn'}]:[]};
           else if(m.method!=='initialize')process.exit(82);
@@ -130,8 +132,34 @@ export async function runnerFixture(realResolver = false) {
         }
       }process.exit(0);
     }
-    const nativeArgs=[...args];
-    if(host==='codex'){while(args[0]==='-c'&&args[1]?.startsWith('marketplaces.celetis.'))args.splice(0,2);if(has('simulate-native-refresh')&&!nativeArgs.includes('marketplaces.celetis.ref='+JSON.stringify(read('installed-sha'))))writeFileSync(join(plugin,'step-prompt.md'),'UNAPPROVED REFRESH');}
+    if(host==='codex'){
+      if(has('simulate-native-refresh')){
+        const metadata=existsSync(join(plugin,'.codex-marketplace-install.json'))?JSON.parse(readFileSync(join(plugin,'.codex-marketplace-install.json'),'utf8')):{source_type:has('git-marketplace')?'git':'local',source:read('marketplace-root',plugin),ref_name:null,sparse_paths:[],revision:read('installed-sha')};
+        const sourceType=overrides.source_type??metadata.source_type;
+        const source=overrides.source??metadata.source;
+        const expected={source_type:sourceType,source,ref_name:overrides.ref??metadata.ref_name,sparse_paths:overrides.sparse_paths??metadata.sparse_paths,revision:read('installed-sha')};
+        const active=JSON.parse(read('native-active-versions','{"celetis@celetis":"local"}'));
+        const configured=[...new Set([...Object.keys(active),...Object.keys(JSON.parse(read('native-configured-plugins','{}')))])];
+        const catalogAt=(root:string)=>{for(const path of ['.agents/plugins/marketplace.json','.agents/plugins/api_marketplace.json','.claude-plugin/marketplace.json','.cursor-plugin/marketplace.json'])if(existsSync(join(root,path)))return{root,catalog:JSON.parse(readFileSync(join(root,path),'utf8'))};return null;};
+        const manifestAt=(root:string)=>{for(const path of ['.codex-plugin/plugin.json','.claude-plugin/plugin.json','.cursor-plugin/plugin.json'])if(existsSync(join(root,path)))return JSON.parse(readFileSync(join(root,path),'utf8'));throw new Error('missing native source manifest');};
+        const replace=async(reason:string,next:unknown,packageRoot=plugin)=>{
+          const {renameSync,cpSync}=await import('node:fs');const backup=packageRoot+'.native-backup';renameSync(packageRoot,backup);put('native-replacing');await Bun.sleep(120);cpSync(backup,packageRoot,{recursive:true});rmSync(backup,{recursive:true});if(next)writeFileSync(join(packageRoot,'.codex-marketplace-install.json'),JSON.stringify(next));log('native-replacements',{reason,root:packageRoot,previous:metadata,next});
+        };
+        if(sourceType==='git'&&!((await import('node:util')).isDeepStrictEqual(metadata,expected))){
+          const catalog=catalogAt(plugin)!.catalog;await replace('complete marketplace metadata differs',expected);
+          for(const id of configured){const name=id.split('@')[0];if(name==='celetis'||!catalog.plugins.some((value:any)=>value.name===name))continue;const root=join(process.env.CODEX_HOME!,'plugins/cache/celetis',name,active[id]??'local');if(existsSync(root))await replace('forced configured sibling',null,root);put('native-sibling-replaced',id);}
+        }
+        else if(sourceType==='local'){
+          const scopes=[process.env.HOME!,...[String(source),process.cwd()].sort()];const selected=scopes.map(catalogAt).find(value=>value?.catalog.name==='celetis')!;const catalog=selected.catalog;
+          for(const id of configured){
+            const name=id.split('@')[0];const entry=catalog.plugins.find((value:any)=>value.name===name);if(!entry)continue;
+            if(typeof entry.source!=='string'){put('native-remote-source-materialized',id);continue;}
+            const manifest=manifestAt(join(selected.root,entry.source));
+            if((manifest.version??'local')!==active[id]){if(name==='celetis')await replace('IfVersionChanged',null);else put('native-sibling-replaced',id);}
+          }
+        }
+      }
+    }
     log('calls',{host,cwd:process.cwd(),args:nativeArgs,pid:process.pid});log('order',{host,args,session:true});
     const stdin=Buffer.alloc(1);let typed='';const {readSync}=await import('node:fs');
     if(!has('skip-input')){while(true){let n=0;try{n=readSync(0,stdin);}catch{}if(!n||stdin[0]===10)break;typed+=stdin.toString();}}log('stdin',typed);

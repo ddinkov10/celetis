@@ -9,6 +9,7 @@ import { createBoard, run, runData } from '../board/server.ts';
 import { bunShebang } from '../scripts/lib/process.ts';
 import { invoke } from './lib/board-fixture.ts';
 import { command, isolatedArgs, root, withFixture } from './lib/fixture.ts';
+import { resumeArgs } from './lib/host-session-fixture.ts';
 import { runnerFixture } from './lib/runner-fixture.ts';
 
 for (const creation of ['workspace', 'tab'] as const)
@@ -345,7 +346,7 @@ for (const runtimePath of ['absent', 'shadow'] as const)
       const last = (await calls()).at(-1);
       assert.deepEqual(
         { host: last.host, cwd: last.cwd, args: last.args },
-        { host: 'codex', cwd: main, args: ['resume', '--no-daemon', saved.session_id] },
+        { host: 'codex', cwd: main, args: resumeArgs('codex', f.plugin, saved.session_id) },
       );
       assert.equal(await preference(), 'claude');
       const started = (await calls()).length;
