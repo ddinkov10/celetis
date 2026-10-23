@@ -8,6 +8,7 @@ export const processEntries = [
   'tests/process.test.ts',
   'tests/runner-lock.test.ts',
   'tests/runner-lifecycle.test.ts',
+  'tests/runner-startup.test.ts',
   'tests/host-session.test.ts',
 ];
 

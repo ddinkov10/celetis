@@ -109,6 +109,7 @@ test('suite discovers every automatic entry and excludes token programs', async 
       .sort(),
   );
   for (const file of [
+    'tests/runner-startup.test.ts',
     'tests/land.test.ts',
     'tests/land-pr.test.ts',
     'tests/land-checks.test.ts',
@@ -125,6 +126,7 @@ test('suite discovers every automatic entry and excludes token programs', async 
   expect(files.filter((file) => file.startsWith('board/'))).toHaveLength(12);
   const { processEntries } = await import(join(root, 'tests/suite.ts'));
   expect(processEntries).toContain('board/realpath.test.ts');
+  expect(processEntries).toContain('tests/runner-startup.test.ts');
   expect(files).not.toContain('tests/manual/step-prompt.ts');
   expect(files).not.toContain('tests/manual/custom-part.ts');
   expect(new Set(files).size).toBe(files.length);

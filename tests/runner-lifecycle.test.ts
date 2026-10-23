@@ -6,40 +6,8 @@ import { readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { sessionIdle } from '../scripts/lib/session.ts';
 import { isolatedArgs } from './lib/fixture.ts';
-import { type RunnerFixture, runnerCase } from './lib/runner-fixture.ts';
-
-const managed = { HERDR_ENV: '1', HERDR_PANE_ID: 'w1:p1' };
-async function start(f: RunnerFixture, host: string, automatic = false) {
-  await f.put('hold-session');
-  await f.put('skip-input');
-  await f.put('dynamic-id');
-  await f.put('initial-status', (await f.read('initial-status')) || 'working');
-  await f.issue();
-  const running = f.start(automatic ? [] : ['7'], { host, env: managed });
-  await f.wait('started-1').catch((error) => {
-    throw new Error(`${(error as Error).message}: ${JSON.stringify(running.output())}`);
-  });
-  await identity(f, 1);
-  return running;
-}
-async function identity(f: RunnerFixture, k: number) {
-  const id = `00000000-0000-4000-8000-${String(k).padStart(12, '0')}`;
-  const deadline = performance.now() + 5000;
-  while ((await f.record().catch(() => ({}))).session_id !== id) {
-    if (performance.now() >= deadline) throw new Error('identity was not saved');
-    await Bun.sleep(10);
-  }
-}
-async function held(f: RunnerFixture, host: string) {
-  const r = await f.run(['7'], { host: host === 'claude' ? 'codex' : 'claude', env: managed });
-  expect(r.code, r.stderr).toBe(0);
-  expect(r.stdout).toContain('another celetis-flow.ts');
-  expect(await f.read('count')).toBe('1');
-}
-async function finish(f: RunnerFixture, r: ReturnType<RunnerFixture['start']>) {
-  await f.put('finish-1');
-  return r.result;
-}
+import { runnerCase } from './lib/runner-fixture.ts';
+import { finish, held, identity, managed, start } from './lib/runner-lifecycle-fixture.ts';
 
 for (const host of ['claude', 'codex'] as const)
   test(`idle ${host} pins all accepted and unsafe replies`, async () => {
@@ -122,41 +90,6 @@ for (const host of ['claude', 'codex']) {
       expect((await resumed.result).code).toBe(0);
     }, true),
   );
-  for (const outcome of ['success', 'failure'])
-    test.concurrent(
-      `update ${host} ${outcome} keeps exact host sequence and stop behavior`,
-      runnerCase(async (f) => {
-        await f.issue();
-        if (outcome === 'failure') await f.put('update-fail');
-        const r =
-          outcome === 'failure'
-            ? await f.run(['7'], { host })
-            : await (async () => {
-                const r = await start(f, host);
-                await f.issue(7, 'enhancement', 'Spec: fixture', [], 'closed');
-                return finish(f, r);
-              })();
-        if (outcome === 'failure') {
-          expect(r.code).toBe(1);
-          expect(r.stderr).toContain(`fixture: ${host} marketplace update unavailable`);
-          expect(r.stderr).toContain('celetis-flow: the plugin update failed; the step did not start');
-          expect(await f.logs('calls')).toEqual([]);
-          expect(await Bun.file(join(f.repo, '.git/celetis-flow/no-progress')).exists()).toBe(false);
-          expect(await Bun.file(join(f.repo, '.git/celetis-flow/sessions/7.json')).exists()).toBe(false);
-        } else expect(r.code, r.stderr).toBe(0);
-        const want =
-          host === 'codex'
-            ? [['plugin', 'marketplace', 'upgrade', 'celetis']]
-            : outcome === 'failure'
-              ? [['plugin', 'marketplace', 'update', 'celetis']]
-              : [
-                  ['plugin', 'marketplace', 'update', 'celetis'],
-                  ['plugin', 'update', 'celetis@celetis', '--scope', 'user'],
-                  ['plugin', 'list', '--json'],
-                ];
-        expect(await f.logs('updates')).toEqual(want.map((args) => ({ host, args })));
-      }, true),
-    );
   test.concurrent(
     `handoff ${host} starts the next saved session exactly once`,
     runnerCase(async (f) => {
@@ -282,56 +215,6 @@ for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const)
       await held(f, 'codex');
       const expected = { SIGINT: 130, SIGTERM: 143, SIGHUP: 129 }[signal];
       expect((await finish(f, r)).code).toBe(expected);
-    }, true),
-  );
-for (const [host, automatic] of [
-  ['claude', false],
-  ['codex', true],
-] as const)
-  test.concurrent(
-    `registration ${host} ${automatic ? 'auto' : 'issue'} starts only after both refs commit`,
-    runnerCase(async (f) => {
-      const realGit = Bun.which('git');
-      if (!realGit) throw new Error('git is missing');
-      f.env.REAL_GIT = realGit;
-      await f.put('hold-session');
-      await f.put('skip-input');
-      await f.issue();
-      await f.put('hold-registration');
-      await f.stub(
-        'git',
-        `import {existsSync,readFileSync,writeFileSync} from 'node:fs';import {join} from 'node:path';import {spawn} from 'node:child_process';const S=process.env.RUNNER_TEST!;const args=process.argv.slice(2);let input='';if(args.join(' ')==='update-ref --no-deref --stdin'&&existsSync(join(S,'hold-registration'))){for await(const data of process.stdin)input+=data.toString();writeFileSync(join(S,'registering'),input);while(!existsSync(join(S,'allow-registration')))await Bun.sleep(10);}const c=spawn(process.env.REAL_GIT!,args,{stdio:input?['pipe','inherit','inherit']:'inherit'});if(input)c.stdin!.end(input);process.exitCode=await new Promise<number>(done=>c.on('close',code=>done(code??1)));`,
-      );
-      const dying = f.start(automatic ? [] : ['7'], { host, env: managed });
-      await f.wait('registering');
-      dying.child.kill('SIGKILL');
-      await dying.exited;
-      await f.put('allow-registration');
-      await Bun.sleep(200);
-      const startedBeforeLockRegistration = await f.has('started-1');
-      expect(startedBeforeLockRegistration).toBe(false);
-      await rm(join(f.state, 'hold-registration'));
-      await f.put('dynamic-id');
-      const r = await start(f, host, automatic);
-      if (automatic)
-        expect(await f.git(['rev-parse', 'refs/celetis-flow/locks/runner'])).toBe(
-          await f.git(['rev-parse', 'refs/celetis-flow/locks/issue-7']),
-        );
-      await f.issue(7, 'enhancement', 'Spec: fixture', [], 'closed');
-      r.child.kill('SIGKILL');
-      await r.exited;
-      await held(f, host);
-      if (automatic) {
-        const other = await f.run([], { host: 'codex' });
-        expect(other.code).toBe(1);
-        expect(other.stderr).toContain('another automatic runner or its session');
-      }
-      await f.put('finish-1');
-      const deadline = performance.now() + 4000;
-      while ((await f.has('live')) && performance.now() < deadline) await Bun.sleep(10);
-      expect(await f.has('live')).toBe(false);
-      const after = await f.run(['7'], { host });
-      expect(after.stdout).toContain('stop #7 is finished');
     }, true),
   );
 test.concurrent(
