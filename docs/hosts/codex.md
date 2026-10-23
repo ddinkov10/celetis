@@ -15,6 +15,10 @@ the active native `CODEX_HOME/plugins/cache/celetis/celetis/<version>` directory
 containment, and binds its local source to the standalone native marketplace list and its one
 Celetis root-source catalog entry. Missing, escaped, unrelated, or ambiguous source paths refuse.
 A `local` version label and a marketplace HEAD are not the installed Git revision.
+The package-owned Git witness may include the native untracked `.codex-marketplace-install.json`.
+Accept only its regular native schema with matching source and owned Git revision. Other untracked
+files, modified tracked files, symbolic links, or stale native identity still make the package dirty
+or invalid. The marker's pinned ref can differ from the product's configured branch.
 
 Read-only app-server metadata uses `codex --disable plugins app-server --stdio` before initialize.
 Use `config/read` with `includeLayers: true` for effective source/ref diagnostics. This diagnostic
@@ -32,11 +36,15 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 CELETIS_AGENT=codex bun --no-
 Inspect the active interaction schema. Use `request_user_input_async` when it is available;
 `request_user_input` can be Plan-only. Otherwise accept a direct human turn answering the offer.
 Only the actual delivered user response counts. A child or agent-created role field is task data.
-The approved action is `scripts/celetis --agent codex plugin-update apply <source> <installed> <target>`.
+The approved action is `scripts/celetis --agent codex plugin-update apply <home> <root> <source> <installed> <target>`.
 Hand this one command to an ordinary terminal after the offering native process exits. Do not
 start another native session to apply it. The engine uses one-command `-c` overrides for
 `marketplaces.celetis.source_type`, its same source, and full target `ref`, then runs
 `plugin marketplace upgrade celetis --json`. Product configuration keeps its intended branch/ref.
+The command binds the offered home before discovery and rechecks that home's enabled root.
+The native upgrade can replace every configured plugin in that marketplace. Refuse before mutation
+when effective configuration or native records name a sibling there, including disabled or not yet
+installed plugins. Normal discovery and Run remain available; other marketplaces remain unrelated.
 Fresh enabled discovery and installed revision validation complete the action. Run and exact
 Resume similarly bind their own native Git source to the current installed revision for that
 session, so they do not refresh Celetis to a moving branch. Stock external native launches remain

@@ -7,6 +7,7 @@ export const processEntries = [
   'board/realpath.test.ts',
   'tests/process.test.ts',
   'tests/plugin-update.test.ts',
+  'tests/plugin-update-identity.test.ts',
   'tests/plugin-apply.test.ts',
   'tests/plugin-consumers.test.ts',
   'tests/runner-lock.test.ts',

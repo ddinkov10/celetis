@@ -2,7 +2,7 @@
 // @bun
 
 // scripts/launcher.ts
-import { stat } from "fs/promises";
+import { realpath as realpath2, stat } from "fs/promises";
 import { dirname as dirname2, join as join5 } from "path";
 
 // scripts/lib/config.ts
@@ -6710,6 +6710,15 @@ async function codexHome(selected = configHome("codex")) {
     throw new HostError(`celetis: cannot resolve CODEX_HOME directory: ${selected}; repair the selected native home`);
   return home;
 }
+async function bindUpdateHome(host, selected = configHome(host)) {
+  if (!isAbsolute(selected))
+    throw new HostError(`plugin-update: ${host} home must be absolute: ${selected}`, 2);
+  const home = await realpath(selected).catch(() => null);
+  if (!home || !(await lstat(home)).isDirectory())
+    throw new HostError(`plugin-update: cannot resolve offered ${host} home: ${selected}`, 2);
+  process.env[host === "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME"] = home;
+  return home;
+}
 async function contained(root, path) {
   const target = await realpath(path).catch(() => null);
   if (target === null)
@@ -6806,7 +6815,8 @@ async function codexPlugin(cwd, inheritedFd, execute = run) {
   if (!(await lstat(join(root, "skills/guide/SKILL.md")).catch(() => null))?.isFile())
     throw new HostError("celetis: Codex reports a missing installed skill; reinstall the plugin");
   await contained(root, join(root, "skills/guide/SKILL.md"));
-  return { host: "codex", home, root, record };
+  const marketplacePlugins = value.installed.filter((item) => object2(item) && typeof item.pluginId === "string" && item.pluginId.endsWith("@celetis")).map((item) => item.pluginId);
+  return { host: "codex", home, root, record, marketplacePlugins };
 }
 
 // scripts/lib/host.ts
@@ -7145,6 +7155,17 @@ async function main(argv) {
     const main = await mainCheckout(cwd).catch(() => null);
     const saved = name === "celetis-flow" && args.length === 2 && args[0] === "--resume" ? await resume(args[1] ?? "", explicit, cwd) : undefined;
     const host = saved?.host ?? selectHost(explicit, process.env, main);
+    let offeredRoot;
+    if (name === "plugin-update" && args[0] === "apply") {
+      if (args.length !== 6)
+        throw new HostError("plugin-update: apply needs <home> <root> <source> <installed> <target>", 2);
+      const home = await bindUpdateHome(host, args[1] ?? "");
+      offeredRoot = await realpath2(args[2] ?? "").catch(() => {
+        return;
+      });
+      if (home !== args[1] || !offeredRoot || offeredRoot !== args[2])
+        throw new HostError("plugin-update: offered home and root must be existing canonical paths", 2);
+    }
     if (host === "codex")
       process.env.CODEX_HOME = await codexHome();
     await ConsumerLock.acquire(host);
@@ -7161,6 +7182,8 @@ async function main(argv) {
     if (["celetis-flow", "board"].includes(name))
       await requireUpdatePolicy(host, cwd);
     const root = await installedRoot(host, cwd);
+    if (offeredRoot && await realpath2(root) !== offeredRoot)
+      throw new HostError("plugin-update: enabled root differs from the offered root; no package command was loaded", 2);
     const entry = join5(root, "scripts", `${name}.ts`);
     if (!(await stat(entry).catch(() => null))?.isFile())
       throw new HostError(`celetis: the plugin has no script ${name}`, 2);

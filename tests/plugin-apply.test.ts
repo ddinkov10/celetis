@@ -13,7 +13,7 @@ for (const host of ['claude', 'codex'] as const) {
     try {
       const other = await f.git(['--git-dir', f.source, 'rev-parse', 'main~1'], f.dir);
       await f.write('move-remote', other);
-      const result = await f.update(['apply', f.source, f.installed, f.target]);
+      const result = await f.update(['apply', f.config, f.plugin, f.source, f.installed, f.target]);
       expect(result.code, result.stderr).toBe(0);
       expect(await f.git(['rev-parse', 'HEAD'])).toBe(f.target);
       expect(await f.git(['--git-dir', f.source, 'rev-parse', 'main'], f.dir)).toBe(other);
@@ -27,7 +27,7 @@ for (const host of ['claude', 'codex'] as const) {
       const f = await updateFixture(host);
       try {
         await f.write(partial ? 'apply-partial' : 'apply-fail', 'yes');
-        const result = await f.update(['apply', f.source, f.installed, f.target]);
+        const result = await f.update(['apply', f.config, f.plugin, f.source, f.installed, f.target]);
         expect(result.code).toBe(1);
         expect(result.stderr).toContain(partial ? 'failed after package replacement' : 'failed before replacement');
         expect(result.stderr).toContain('Recovery:');
@@ -56,14 +56,19 @@ for (const host of ['claude', 'codex'] as const) {
     const f = await updateFixture(host);
     try {
       const settings = await f.read('config/settings.json');
+      const effective = JSON.parse(await f.read('effective.json'));
+      effective.config.plugins = { 'unrelated@another-marketplace': { enabled: true } };
+      await f.write('effective.json', JSON.stringify(effective));
+      await f.write('unrelated-plugin', 'unchanged');
       await f.write('config/config.toml', '[marketplaces.celetis]\nsource_type="git"\nref="main"\n');
       const config = await f.read('config/config.toml');
-      const result = await f.update(['apply', f.source, f.installed, f.target], true);
+      const result = await f.update(['apply', f.config, f.plugin, f.source, f.installed, f.target], true);
       expect(result.code, result.stderr).toBe(0);
       expect(result.stdout.trim()).toBe(f.plugin);
       expect(result.stderr).toContain('fresh session');
       expect(await f.read('config/settings.json')).toBe(settings);
       expect(await f.read('config/config.toml')).toBe(config);
+      expect(await f.read('unrelated-plugin')).toBe('unchanged');
       expect(await f.mutations()).not.toBe('');
       expect(await readFile(join(f.plugin, 'step-prompt.md'), 'utf8')).toBe('target\n');
       const check = await f.bun(join(root, 'scripts/plugin-update.ts'), ['check'], { cwd: f.repo, env: f.env });
@@ -90,7 +95,7 @@ for (const host of ['claude', 'codex'] as const) {
           if (performance.now() >= deadline) throw new Error('native fixture did not start');
           await Bun.sleep(10);
         }
-        const result = await f.update(['apply', f.source, f.installed, f.target]);
+        const result = await f.update(['apply', f.config, f.plugin, f.source, f.installed, f.target]);
         expect(result.code, result.stderr).toBe(1);
         expect(result.stderr).toContain('active');
         expect(result.stderr).toContain('PID');
@@ -111,7 +116,7 @@ for (const host of ['claude', 'codex'] as const) {
         [f.source, f.target, f.installed],
         [f.source, f.installed, '1'.repeat(40)],
       ]) {
-        const result = await f.update(['apply', ...args]);
+        const result = await f.update(['apply', f.config, f.plugin, ...args]);
         expect(result.code).toBe(1);
         expect(result.stderr).toContain('changed');
         expect(await f.mutations()).toBe('');
@@ -127,7 +132,7 @@ test('Claude restoration failure reports original application cause and the rema
   try {
     await f.write('apply-fail', 'yes');
     await f.write('restore-fail', 'yes');
-    const result = await f.update(['apply', f.source, f.installed, f.target]);
+    const result = await f.update(['apply', f.config, f.plugin, f.source, f.installed, f.target]);
     expect(result.code).toBe(1);
     expect(result.stderr).toContain('native application failed before replacement');
     expect(result.stderr).toContain('native source restoration failed');
@@ -159,7 +164,7 @@ test('inventory timeout retains the one deadline and stops its owned descendants
     );
     const probe = await f.write(
       'inventory-deadline.ts',
-      `import {existsSync} from 'node:fs';import {UpdateLock} from ${JSON.stringify(join(f.plugin, 'scripts/lib/update-lock.ts'))};import {updatePlugin} from ${JSON.stringify(join(f.plugin, 'scripts/plugin-update.ts'))};const acquire=UpdateLock.acquire.bind(UpdateLock);UpdateLock.acquire=(path,pid,options)=>acquire(path,pid,{...options,clock:{now:()=>performance.now()+(existsSync(${JSON.stringify(marker)})?120000:0),sleep:ms=>Bun.sleep(ms)}});try{await updatePlugin(process.pid,'claude',${JSON.stringify({ source: f.source, installed: f.installed, target: f.target })});}catch(error){console.error((error as Error).message);process.exitCode=1;}`,
+      `import {existsSync} from 'node:fs';import {UpdateLock} from ${JSON.stringify(join(f.plugin, 'scripts/lib/update-lock.ts'))};import {updatePlugin} from ${JSON.stringify(join(f.plugin, 'scripts/plugin-update.ts'))};const acquire=UpdateLock.acquire.bind(UpdateLock);UpdateLock.acquire=(path,pid,options)=>acquire(path,pid,{...options,clock:{now:()=>performance.now()+(existsSync(${JSON.stringify(marker)})?120000:0),sleep:ms=>Bun.sleep(ms)}});try{await updatePlugin(process.pid,'claude',${JSON.stringify({ home: f.config, root: f.plugin, source: f.source, installed: f.installed, target: f.target })});}catch(error){console.error((error as Error).message);process.exitCode=1;}`,
     );
     const result = await f.bun(probe, [], { cwd: f.repo, env: f.env });
     expect(result.code).toBe(1);

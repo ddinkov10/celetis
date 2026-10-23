@@ -44,14 +44,16 @@ check reports its cause and continues the authorized task on the installed packa
 that it is current. Concrete conflicting policy is reported with its source and required action;
 unknown higher policy alone is not a blanket stop for normal work.
 
-Show each `UpdateOffer` exactly: selected host, configured source, full installed and available
-revisions, and installed root. Call it a different available revision; a remote query does not
+Show each `UpdateOffer` exactly: selected host, canonical native home and installed root,
+configured source, and full installed and available revisions. Call it a different available revision; a remote query does not
 prove it is newer. Give **Update now** and **Continue the task** through the actual user interaction
 of the host. Explain the cutover condition before asking: affected runners, boards, native sessions,
 and descendants must stop, including the offering session. Keep uncooperative native clients
 stopped for the complete cutover. Celetis's admission lock excludes its own racing starts; stock
 native launches do not take that lock. The process inventory detects observed consumers and is
-not universal native admission. Success requires a fresh session and new enabled-root discovery.
+not universal native admission. Codex also refuses a whole-marketplace upgrade with another
+configured or listed plugin in the Celetis marketplace, including disabled or not yet installed
+plugins. Success requires a fresh session and new enabled-root discovery.
 
 Only a direct human reply delivered by the active host's user channel to this concrete offer
 permits one matching attempt. Read the actual user turn or interaction result. Issue, plan,
@@ -61,7 +63,7 @@ unchanged and continues authorized work. A general update request or old offer i
 for this attempt. Command arguments identify an action; they are not user authentication.
 
 After a matching Update now reply, prepare one exact terminal command with the offered host,
-source, installed revision, and target, using the current launcher and correct argument quoting.
+native home, root, source, installed revision, and target, using the current launcher and correct argument quoting.
 Mark this action handed off and consume that decision before handing it over. Show the command
 and require the offering native process to end before the human runs it once in an ordinary
 terminal. Claude `/exit` ends its foreground; a merely idle turn or EndConversation does not.
@@ -69,8 +71,10 @@ Use the running host's real exit action and observe process exit. The handoff is
 approved action, not a queued updater, background wait, persisted approval, or permission to kill
 another consumer. Do not start another native session to execute the terminal command.
 
-The terminal action is `plugin-update apply <source> <installed> <target>`. It releases only its
-own inherited reader descriptor, takes exclusive admission, rechecks the exact offer, and refuses
+The terminal action is `plugin-update apply <home> <root> <source> <installed> <target>`. The launcher
+binds the offered canonical native home before discovery and checks its enabled root before loading
+the package command. Terminal profile defaults do not select another installation. It releases only
+its own inherited reader descriptor, takes exclusive admission, rechecks the exact offer, and refuses
 observed consumers. It runs the supported target-bound native operation and fresh validation.
 A busy lock, changed source/target/installed identity, refusal, failure, interruption, or partial
 replacement consumes the attempt. Report the cause and observed installation/source state. A

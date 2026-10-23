@@ -1,5 +1,5 @@
 import { expect, setDefaultTimeout, test } from 'bun:test';
-import { cp, readFile, rm } from 'node:fs/promises';
+import { cp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { root } from './lib/fixture.ts';
 import { runnerCase, stepText } from './lib/runner-fixture.ts';
@@ -16,6 +16,10 @@ for (const resume of [false, true])
       await f.git(['commit', '-qm', 'installed'], f.plugin);
       await f.git(['remote', 'add', 'origin', f.plugin], f.plugin);
       const sha = await f.git(['rev-parse', 'HEAD'], f.plugin);
+      await writeFile(
+        join(f.plugin, '.codex-marketplace-install.json'),
+        JSON.stringify({ source_type: 'git', source: f.plugin, ref_name: 'main', sparse_paths: [], revision: sha }),
+      );
       await f.put('git-marketplace');
       await f.put('simulate-native-refresh');
       await f.put('installed-sha', sha);
@@ -170,7 +174,7 @@ for (const host of ['claude', 'codex']) {
         entry: join(f.plugin, 'scripts/launcher.ts'),
       });
       expect(r.code).toBe(2);
-      expect(r.stderr).toContain('check | apply <source> <installed> <target>');
+      expect(r.stderr).toContain('check | apply <home> <root> <source> <installed> <target>');
       expect(await f.logs('mutations')).toEqual([]);
       expect(await f.logs('calls')).toEqual([]);
     }),

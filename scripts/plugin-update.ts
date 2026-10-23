@@ -1,11 +1,11 @@
-import { lstat, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { codexRequest, type Host, HostError, installedRoot, mainCheckout, requireBun, selectHost } from './lib/host.ts';
 import { requireStoppedConsumers } from './lib/plugin-consumers.ts';
 import {
-  codexHome,
+  bindUpdateHome,
   codexPlugin,
   configHome,
   git,
@@ -18,8 +18,8 @@ import { checkClaudePolicy, claudePolicy, requireUpdatePolicy } from './lib/plug
 import { bunArgs, childEnv, type run } from './lib/process.ts';
 import { ConsumerLock, UpdateLock } from './lib/update-lock.ts';
 
-export type UpdateTarget = { source: string; installed: string; target: string };
-export type UpdateOffer = UpdateTarget & { host: Host; root: string };
+export type UpdateTarget = { home: string; root: string; source: string; installed: string; target: string };
+export type UpdateOffer = UpdateTarget & { host: Host };
 const revision = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 
 function gitSource(value: unknown): { source: string; ref: string } {
@@ -58,7 +58,9 @@ function gitSource(value: unknown): { source: string; ref: string } {
 async function inspect(
   host: Host,
   cwd: string,
-): Promise<UpdateOffer & { ref: string; scope?: string; registered?: unknown }> {
+): Promise<UpdateOffer & { ref: string; scope?: string; registered?: unknown; siblings: string[] }> {
+  const home = await bindUpdateHome(host);
+  let siblings: string[] = [];
   let scope: string | undefined;
   let registeredSource: unknown;
   let root: string;
@@ -142,8 +144,13 @@ async function inspect(
         'plugin-update: Codex effective marketplace source differs from installed metadata; repair the native configuration',
       );
     configured = gitSource({ source: 'git', url: effective.source, ref: effective.ref });
+    if (config?.plugins !== undefined && !object(config.plugins))
+      throw new HostError('plugin-update: invalid effective Codex plugin configuration; inspect its native sources');
+    siblings = [...new Set([...metadata.marketplacePlugins, ...Object.keys(config?.plugins ?? {})])].filter(
+      (id) => id.endsWith('@celetis') && id !== 'celetis@celetis',
+    );
   }
-  const installed = await installedRevision(root, configured.source, nativeRevision);
+  const installed = await installedRevision(host, root, configured.source, nativeRevision);
   let remote: string;
   try {
     remote = await git(
@@ -168,28 +175,40 @@ async function inspect(
   if (!target) throw new HostError(`plugin-update: no full revision for configured ref ${configured.ref}`);
   return {
     host,
+    home,
     source: configured.source,
     installed,
     target,
-    root,
+    root: await realpath(root),
     ref: configured.ref,
     scope,
     registered: registeredSource,
+    siblings,
   };
 }
 
 export async function checkUpdate(host: Host, cwd: string): Promise<UpdateOffer | null> {
-  const { ref: _ref, scope: _scope, registered: _registered, ...offer } = await inspect(host, cwd);
+  const { ref: _ref, scope: _scope, registered: _registered, siblings: _siblings, ...offer } = await inspect(host, cwd);
   return offer.installed === offer.target ? null : offer;
 }
 
 export async function updatePlugin(ownerPid: number, host: Host, target: UpdateTarget): Promise<string> {
-  if (!target.source || !revision.test(target.installed) || !revision.test(target.target))
-    throw new HostError('plugin-update: apply needs the offered source and full installed and target revisions', 2);
-  const config = host === 'codex' ? await codexHome() : configHome(host);
+  if (
+    !target.home ||
+    !target.root ||
+    !target.source ||
+    !revision.test(target.installed) ||
+    !revision.test(target.target)
+  )
+    throw new HostError(
+      'plugin-update: apply needs the offered home, root, source and full installed and target revisions',
+      2,
+    );
+  const config = await bindUpdateHome(host, target.home);
+  if (config !== target.home || (await realpath(target.root).catch(() => null)) !== target.root)
+    throw new HostError('plugin-update: offered home and root must be existing canonical paths', 2);
   ConsumerLock.releaseForUpdate(config);
-  const env = host === 'codex' ? childEnv({ ...process.env, CODEX_HOME: config }) : undefined;
-  await mkdir(config, { recursive: true });
+  const env = childEnv();
   const lock = await UpdateLock.acquire(join(config, 'celetis-update.lock'), ownerPid, { refuseBusy: true });
   try {
     const output = await lock.run(process.execPath, bunArgs(import.meta.path, ['--inspect', host]), {
@@ -197,9 +216,20 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
       env,
     });
     const current = JSON.parse(output) as UpdateOffer;
-    if (current.source !== target.source || current.installed !== target.installed || current.target !== target.target)
+    if (
+      current.home !== target.home ||
+      current.root !== target.root ||
+      current.source !== target.source ||
+      current.installed !== target.installed ||
+      current.target !== target.target
+    )
       throw new HostError(
-        `plugin-update: offered source, installed revision, or target changed; this attempt is consumed. Check again and obtain a new direct user response. Observed: ${JSON.stringify(current)}`,
+        `plugin-update: offered home, root, source, installed revision, or target changed; this attempt is consumed. Check again and obtain a new direct user response. Observed: ${JSON.stringify(current)}`,
+      );
+    const details = current as UpdateOffer & { ref: string; scope?: string; registered?: unknown; siblings: string[] };
+    if (host === 'codex' && details.siblings.length)
+      throw new HostError(
+        `plugin-update: native whole-marketplace upgrade would also replace configured plugins ${details.siblings.join(', ')}; no mutation ran. Celetis approval does not include these plugins`,
       );
     const execute: typeof run = async (file, args, options = {}) => ({
       code: 0,
@@ -211,7 +241,6 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
       bunArgs(import.meta.path, ['--consumers', host, await realpath(config), current.root]),
       { cwd: process.cwd(), env },
     );
-    const details = current as UpdateOffer & { ref: string; scope?: string; registered?: unknown };
     const scratch = await mkdtemp(join(tmpdir(), 'celetis-cutover.'));
     let operation = 'prepare native target';
     const completed: string[] = [];
@@ -358,7 +387,7 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
         !(await lstat(join(root, 'skills/guide/SKILL.md')).catch(() => null))?.isFile()
       )
         throw new HostError(`plugin-update: enabled target package is incomplete: ${root}`);
-      const installed = await installedRevision(root, target.source, sha, execute);
+      const installed = await installedRevision(host, root, target.source, sha, execute);
       if (installed !== target.target)
         throw new HostError(
           `plugin-update: enabled revision is ${installed}, expected approved target ${target.target}`,
@@ -414,18 +443,20 @@ if (import.meta.main) {
         console.log(JSON.stringify(await checkUpdate(host, process.cwd())));
         if (host === 'codex')
           console.error(
-            'plugin-update: apply requires stopped native consumers; keep native launches stopped throughout cutover and start a fresh session afterward',
+            'plugin-update: apply requires stopped native consumers and no other configured plugin in the Celetis marketplace; keep native launches stopped throughout cutover and start a fresh session afterward',
           );
         else
           console.error(
             'plugin-update: file policy diagnostics do not certify unseen higher settings; apply rechecks concrete conflicts and requires stopped native consumers',
           );
-      } else if (args.length === 4 && args[0] === 'apply') {
+      } else if (args.length === 6 && args[0] === 'apply') {
         console.log(
           await updatePlugin(process.pid, host, {
-            source: args[1] ?? '',
-            installed: args[2] ?? '',
-            target: args[3] ?? '',
+            home: args[1] ?? '',
+            root: args[2] ?? '',
+            source: args[3] ?? '',
+            installed: args[4] ?? '',
+            target: args[5] ?? '',
           }),
         );
         console.error(
@@ -433,7 +464,7 @@ if (import.meta.main) {
         );
       } else
         throw new HostError(
-          'usage: scripts/celetis [--agent claude|codex] plugin-update check | apply <source> <installed> <target>',
+          'usage: scripts/celetis [--agent claude|codex] plugin-update check | apply <home> <root> <source> <installed> <target>',
           2,
         );
     }

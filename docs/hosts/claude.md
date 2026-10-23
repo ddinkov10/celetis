@@ -16,10 +16,11 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 CELETIS_AGENT=claude bun --no
 ```
 
 Use the actual AskUserQuestion schema or the direct human turn to obtain the concrete decision.
-After Update now, give one exact `scripts/celetis --agent claude plugin-update apply <source>
+After Update now, give one exact `scripts/celetis --agent claude plugin-update apply <home> <root> <source>
 <installed> <target>` command. The offering foreground must actually exit before the human runs
 that action in an ordinary terminal. `/exit` is the foreground exit; EndConversation leaves the
-native process alive. Do not queue an updater or stop foreign work.
+native process alive. The offered canonical home and root remain in the command; terminal profile
+defaults cannot change its installation. Do not queue an updater or stop foreign work.
 
 Application uses `claude --settings <private-file> plugin update celetis@celetis --scope <installed-scope> --json`.
 The private settings name only Celetis, keep its Git URL/ref, and put the full target in the plugin

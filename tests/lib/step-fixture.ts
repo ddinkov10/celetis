@@ -91,7 +91,7 @@ export function stepAnswer(k: number, mode: string, host: string, fault = '', st
       answer = `The landing is done. Run git pull on main in the main checkout yourself:\n${pull}\n${epic}\n${handCheck}\n${end}`;
   }
   if (k >= 22 && k <= 33) {
-    const action = `scripts/celetis --agent ${host} plugin-update apply 'https://example.test/celetis.git' ${'1'.repeat(40)} ${'2'.repeat(40)}`;
+    const action = `scripts/celetis --agent ${host} plugin-update apply '/fixture/native home' '/fixture/plugin root' 'https://example.test/celetis.git' ${'1'.repeat(40)} ${'2'.repeat(40)}`;
     answer =
       k === 24
         ? `${action}\nAttempt: HANDED OFF\nExit: the offering native process must end before this one terminal command\nSetup: keep other native clients stopped during cutover\n${end}`

@@ -22,6 +22,7 @@ for (const host of ['claude', 'codex'] as const) {
       expect(same.code, same.stderr).toBe(0);
       expect(JSON.parse(same.stdout)).toEqual({
         host,
+        home: f.config,
         source: f.source,
         installed: f.installed,
         target: f.target,
@@ -74,6 +75,7 @@ for (const host of ['claude', 'codex'] as const) {
       expect(result.code, result.stderr).toBe(0);
       expect(JSON.parse(result.stdout)).toEqual({
         host,
+        home: f.config,
         source: f.source,
         installed: f.installed,
         target: f.target,
@@ -201,6 +203,9 @@ for (const host of ['claude', 'codex'] as const) {
           }),
         );
       } else {
+        const path = join(f.plugin, '.codex-marketplace-install.json');
+        const marker = JSON.parse(await readFile(path, 'utf8'));
+        await writeFile(path, JSON.stringify({ ...marker, source: join(f.dir, 'offline-source') }));
         original.installed[0].marketplaceSource.source = join(f.dir, 'offline-source');
         const market = JSON.parse(await f.read('market.json'));
         market.marketplaces[0].marketplaceSource.source = join(f.dir, 'offline-source');
@@ -258,7 +263,7 @@ test('unbound latest updater is no longer an action', async () => {
   try {
     const result = await f.update([]);
     expect(result.code).toBe(2);
-    expect(result.stderr).toContain('check | apply <source> <installed> <target>');
+    expect(result.stderr).toContain('check | apply <home> <root> <source> <installed> <target>');
     expect(await f.mutations()).toBe('');
   } finally {
     await f.cleanup();

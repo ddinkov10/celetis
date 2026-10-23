@@ -81,7 +81,7 @@ export function checkStep(input: StepInput): { errors: string[]; recovered: numb
     if (k === 24) {
       fail(
         apply[0] ===
-          `scripts/celetis --agent ${host} plugin-update apply 'https://example.test/celetis.git' ${'1'.repeat(40)} ${'2'.repeat(40)}`,
+          `scripts/celetis --agent ${host} plugin-update apply '/fixture/native home' '/fixture/plugin root' 'https://example.test/celetis.git' ${'1'.repeat(40)} ${'2'.repeat(40)}`,
         'update does not match offered identity',
       );
       for (const text of ['Attempt: HANDED OFF', 'Exit:', 'Setup:', 'Then: my step ends'])

@@ -199,7 +199,9 @@ for (const phase of ['marketplace', 'update', 'list'])
       expect(await f.logs('calls')).toEqual([]);
       expect(await rows(f)).toBe('');
       expect(await lockNames(f)).toBe('');
-      expect((await f.logs('updates')).length).toBe(['marketplace', 'update', 'list'].indexOf(phase) + 1);
+      const marketplace = { host: 'claude', args: ['plugin', 'marketplace', 'update', 'celetis'] };
+      const plugin = { host: 'claude', args: ['plugin', 'update', 'celetis@celetis', '--scope', 'user'] };
+      expect(await f.logs('updates')).toEqual(phase === 'marketplace' ? [marketplace] : [marketplace, plugin]);
     }, true),
   );
 test.concurrent(

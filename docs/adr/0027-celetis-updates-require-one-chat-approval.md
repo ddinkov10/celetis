@@ -25,7 +25,10 @@ checks while excluding live tests and changes to real installations.
 ## Decision
 
 Check the selected installation and configured Git source without refresh once per human task.
-Offer the exact host, source, installed revision, and target. Reuse task state in nested work.
+Offer the exact host, canonical native home and root, source, installed revision, and target.
+Carry those identities through the terminal command and revalidation. Select the native home
+before discovery; another terminal profile cannot receive an approval for this installation.
+Reuse task state in nested work.
 Only a direct human user-channel reply permits one matching attempt; consume it before apply.
 An internal action argument is no proof of who authorized it. No response, decline, stale identity,
 refusal, failure, or interruption permits another attempt without a new decision.
@@ -40,6 +43,10 @@ approved command in an ordinary terminal. This is no queued updater or standing 
 Claude selects the exact plugin-source SHA in a private settings marketplace and restores the
 original native source with a second settings operation. Codex selects the exact Git ref through
 one-command native overrides. Both validate the fresh enabled target and report partial state.
+Codex's whole-marketplace operation must refuse when another plugin of that marketplace is
+configured or listed, including disabled and not yet installed siblings. Normal starts and
+single-Celetis application remain available. The validated Codex-native marketplace marker does
+not count as a user package change; unrelated untracked and modified tracked files still do.
 No persistent product pin is added. Neither arguments nor an environment value authenticate a user.
 
 ## Evidence and limits
