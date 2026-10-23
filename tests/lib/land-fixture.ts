@@ -174,7 +174,7 @@ const r=spawnSync(process.env.REAL_GIT!,a,{stdio:'inherit'});process.exit(r.stat
     subs: [],
     checks: { check_runs: [] },
     status: { statuses: [] },
-    runs: { workflow_runs: [] },
+    runs: { workflow_runs: [{ check_suite_id: 50, id: 5, run_attempt: 1, status: 'completed' }] },
     run: { run_attempt: 2, status: 'completed' },
   }))
     await json(name, value);
