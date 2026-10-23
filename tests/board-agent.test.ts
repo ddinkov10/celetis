@@ -1,13 +1,146 @@
 import { expect, test } from 'bun:test';
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { once } from 'node:events';
-import { cp, readFile, rename, symlink, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { cp, mkdir, readFile, rename, symlink, writeFile } from 'node:fs/promises';
+import { basename, join } from 'node:path';
 import { parseConfig } from '../board/config.ts';
-import { createBoard, runData } from '../board/server.ts';
+import { createBoard, run, runData } from '../board/server.ts';
+import { bunShebang } from '../scripts/lib/process.ts';
 import { invoke } from './lib/board-fixture.ts';
-import { command, isolatedArgs, root } from './lib/fixture.ts';
+import { command, isolatedArgs, root, withFixture } from './lib/fixture.ts';
 import { runnerFixture } from './lib/runner-fixture.ts';
+
+for (const creation of ['workspace', 'tab'] as const)
+  for (const controls of ['absent', 'hostile'] as const)
+    test(
+      `Run and Resume set the first Bun environment for ${creation} creation with ${controls} terminal controls`,
+      withFixture(async (f) => {
+        const observations = join(f.dir, 'first-bun.jsonl');
+        const terminalPath = join(f.dir, 'terminal-bin');
+        await mkdir(terminalPath);
+        const terminalEnv: NodeJS.ProcessEnv = {
+          PATH: terminalPath,
+          HOME: f.home,
+          XDG_CACHE_HOME: join(f.home, 'cache'),
+        };
+        if (controls === 'hostile') {
+          terminalEnv.BUN_RUNTIME_TRANSPILER_CACHE_PATH = join(f.dir, 'terminal-cache');
+          terminalEnv.DO_NOT_TRACK = '0';
+        }
+        const relative = "scripts/launcher ' Ж.ts";
+        const target = await f.write(
+          `repo dir/${relative}`,
+          `${bunShebang}\nimport {appendFileSync} from 'node:fs';appendFileSync(${JSON.stringify(observations)},JSON.stringify({executable:process.execPath,args:process.argv.slice(1),flags:process.execArgv,cwd:process.cwd(),cache:process.env.BUN_RUNTIME_TRANSPILER_CACHE_PATH??null,track:process.env.DO_NOT_TRACK??null})+'\\n');console.log('completed');\n`,
+          0o755,
+        );
+        const document = JSON.parse(await readFile(join(root, 'board/fixtures/contract-1.json'), 'utf8'));
+        document.issues = [
+          { ...document.issues[0], number: 7, state: 'ready', step: 'plan' },
+          { ...document.issues[0], number: 8, state: 'stuck', step: 'implement', act: 'resume' },
+        ];
+        await f.write(
+          'repo dir/scripts/data.ts',
+          `${bunShebang}\nconsole.log(${JSON.stringify(JSON.stringify(document))});\n`,
+          0o755,
+        );
+        const values = ["a'b", 'two words', 'λ', '$(/usr/bin/touch marker)', '*', ''];
+        const config = await parseConfig(
+          f.repo,
+          JSON.stringify({
+            data: ['scripts/data.ts'],
+            run: [relative, '--agent', '{agent}', 'run', '{n}', ...values],
+            resume: [relative, 'resume', '{n}', ...values],
+            port: 4403,
+          }),
+          'the input',
+        );
+        const calls: string[][] = [];
+        const terminals: { line: string; code: number; stdout: string; stderr: string }[] = [];
+        const ok = (result: object) => ({ code: 0, stdout: JSON.stringify({ result }), stderr: '' });
+        const server = createBoard({
+          main: f.repo,
+          config,
+          exec: async (file, args, options) => {
+            if (file !== 'herdr') return run(file, args, { ...options, env: f.env });
+            calls.push(args);
+            const operation = args.slice(0, 2).join(' ');
+            if (operation === 'api snapshot') return ok({ snapshot: { agents: [], tabs: [] } });
+            if (operation === 'workspace list')
+              return ok({ workspaces: creation === 'tab' ? [{ label: basename(f.repo), workspace_id: 'w1' }] : [] });
+            if (operation === 'workspace create' || operation === 'tab create')
+              return ok({ root_pane: { pane_id: 'w1:p1' }, tab: { tab_id: 'w1:t1' } });
+            if (operation === 'pane run') {
+              const line = args[3] as string;
+              const result = await new Promise<{ code: number; stdout: string; stderr: string }>((done) => {
+                execFile(
+                  '/bin/sh',
+                  ['-c', line],
+                  { cwd: f.repo, env: terminalEnv, encoding: 'utf8', timeout: 5000 },
+                  (error, stdout, stderr) =>
+                    done({ code: typeof error?.code === 'number' ? error.code : error ? 1 : 0, stdout, stderr }),
+                );
+              });
+              terminals.push({ line, ...result });
+              if (result.code) return result;
+            }
+            return ok({});
+          },
+        });
+        try {
+          server.listen(0, '127.0.0.1');
+          await once(server, 'listening');
+          const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+          const initial = await fetch(`${url}/api/board`);
+          expect(initial.status).toBe(200);
+          expect(((await initial.json()) as { defaultAgent: string }).defaultAgent).toBe('claude');
+          for (const [action, number] of [
+            ['run', 7],
+            ['resume', 8],
+          ] as const) {
+            const response = await fetch(`${url}/api/${action}`, {
+              method: 'POST',
+              headers: { origin: url, 'content-type': 'application/json' },
+              body: JSON.stringify({ number }),
+            });
+            expect(response.status, await response.text()).toBe(200);
+          }
+          expect(calls.filter((args) => args[1] === 'create').map((args) => args[0])).toEqual([creation, creation]);
+          expect(terminals).toHaveLength(2);
+          for (const terminal of terminals) {
+            expect({ code: terminal.code, stdout: terminal.stdout, stderr: terminal.stderr }).toEqual({
+              code: 0,
+              stdout: 'completed\n',
+              stderr: '',
+            });
+            expect(terminal.line.endsWith(' && exit')).toBe(true);
+          }
+          const records = (await readFile(observations, 'utf8'))
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line));
+          expect(records).toHaveLength(2);
+          for (const record of records) {
+            expect(record.executable).toBe(process.execPath);
+            expect(record.flags).toEqual(isolatedArgs);
+            expect(record.cwd).toBe(f.repo);
+          }
+          expect(records.map((record) => record.args)).toEqual([
+            [target, '--agent', 'claude', 'run', '7', ...values],
+            [target, 'resume', '8', ...values],
+          ]);
+          expect(await Bun.file(join(f.repo, 'marker')).exists()).toBe(false);
+          expect(records.map((record) => ({ cache: record.cache, track: record.track }))).toEqual([
+            { cache: '0', track: '1' },
+            { cache: '0', track: '1' },
+          ]);
+        } finally {
+          server.closeAllConnections();
+          if (server.listening) await new Promise<void>((done) => server.close(() => done()));
+        }
+      }),
+      29_000,
+    );
 
 for (const runtimePath of ['absent', 'shadow'] as const)
   test(`board data, Run and saved-host Resume use selected Bun with ${runtimePath} Bun on PATH`, async () => {
@@ -125,7 +258,14 @@ for (const runtimePath of ['absent', 'shadow'] as const)
       };
       const initial: any = await (await fetch(`${url}/api/board`)).json();
       assert.equal(initial.defaultAgent, 'claude');
-      assert.deepEqual(config.data?.slice(0, 6), [process.execPath, ...isolatedArgs, join(main, 'scripts/celetis')]);
+      assert.deepEqual(config.data?.slice(0, 9), [
+        '/usr/bin/env',
+        'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0',
+        'DO_NOT_TRACK=1',
+        process.execPath,
+        ...isolatedArgs,
+        join(main, 'scripts/celetis'),
+      ]);
       assert.deepEqual(initial.agents, {
         claude: { available: true, cause: null },
         codex: { available: true, cause: null },

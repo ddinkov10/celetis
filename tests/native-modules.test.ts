@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
-import { cp, readFile, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { findTools } from '../scripts/install-tools.ts';
 import { command, root, withFixture } from './lib/fixture.ts';
 
 for (const target of [
@@ -30,8 +31,21 @@ test(
   withFixture(async (f) => {
     await cp(join(root, 'tsconfig.native.json'), join(f.dir, 'tsconfig.native.json'));
     await f.write('hooks/probe.ts', 'export const invalid = Bun.file("native-host");\n');
-    const result = await command('tsc', ['-p', join(f.dir, 'tsconfig.native.json')]);
+    const path = join(f.dir, 'no-node-bin');
+    await mkdir(path);
+    for (const name of ['tsc', 'biome', 'actionlint']) {
+      const executable = Bun.which(name);
+      expect(executable).not.toBeNull();
+      await symlink(executable as string, join(path, name));
+    }
+    expect(Bun.which('node', { PATH: path })).toBeNull();
+    const tools = await findTools(path);
+    const result = await command(tools.tsc.file, [...tools.tsc.args, '-p', join(f.dir, 'tsconfig.native.json')], {
+      env: { ...f.env, PATH: path },
+    });
     expect(result.code).not.toBe(0);
+    expect(result.code, result.stdout + result.stderr).toBe(1);
+    expect(result.stdout + result.stderr).toContain('hooks/probe.ts');
     expect(result.stdout + result.stderr).toContain("Cannot find name 'Bun'");
   }),
 );

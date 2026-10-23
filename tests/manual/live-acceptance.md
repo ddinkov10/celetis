@@ -37,7 +37,7 @@ Use its real browser actions. Record the returned pane identities; control only 
 For the single-config cutover, the board start is `scripts/celetis --agent <agent> board` in the
 fixture main checkout. The adapter must run `board/cli.ts` of the installed plugin with
 `--config-stdin`; keep the plugin commit, input, stdout/stderr, HTTP producer data, and port.
-Test main and subfolder startup, lane refusal before node, malformed config, external/lane
+Test main and subfolder startup, lane refusal before board startup, malformed config, external/lane
 executable refusal, default/configured ports, inherited `PORT`, and absence of a second config file.
 Check that the agent menu and command palette show the default as read-only and expose the
 reason by pointer and keyboard. They must send no setter request. A valid trusted `POST /api/agent`
