@@ -7,6 +7,13 @@ product project of its own plugin. `README.md` holds the wiring of a product pro
 and the update rule. `docs/celetis-flow.md` holds the runner, and `docs/issue-tracker.md` holds the
 labels, the state of an issue, and the branches.
 
+## Host checks
+
+Reuse the existing Claude Code and Codex CLI installations and their existing authentication.
+Do not create separate signed-in installations or require another login for testing.
+Use temporary test data with the existing hosts. If a check lacks access, report the specific
+limitation and continue independent checks.
+
 ## Verify gate
 
 `scripts/verify.ts` is the fast deterministic gate. Its last line is `verify: PASS`.
@@ -106,8 +113,8 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
 - **A normal session here reads the installed plugin.** Editing the checkout does not replace
   either host's installed skills or scripts. The tests read checkout files. Claude's
   `--plugin-dir .` can load checkout skills, but `scripts/celetis` still resolves the selected
-  host's installation. Run a checkout script with the isolated Bun flags shown above and `scripts/<name>.ts`. Test an unlanded Codex package
-  only in an isolated test installation; its launcher must still resolve that installation.
+  host's installation. Run a checkout script with the isolated Bun flags shown above and `scripts/<name>.ts`.
+  Record checks of the checkout and checks of the installed package separately.
 - **A script file keeps its name.** `scripts/<name>.ts` is the sub-command
   `scripts/celetis <name>`, which the skills, the documents, and the files of each product project
   name: its board commands, and its `allow` rule `Bash(scripts/celetis land *)`. Two file names are
