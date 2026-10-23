@@ -10,7 +10,10 @@ Native metadata uses `claude plugin list --json`, scoped install records in
 `<Claude config>/plugins/known_marketplaces.json`. Read the effective local, project, user,
 managed, and native marketplace policy. A project false value does not override managed true.
 MDM, server-managed, and command-line policy coverage cannot be certified by a file-only read;
-report that limitation. A shortened version label is not a full installed revision.
+report that limitation and refuse consumer admission until a supported native operation can
+establish complete policy. This applies to numbered and automatic starts, board, and exact
+Resume. Pure file diagnostics and the read-only update check remain available. A shortened
+version label is not a full installed revision.
 
 After shared entry completes its file reads, run the bound package directly:
 

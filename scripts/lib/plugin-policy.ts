@@ -66,7 +66,9 @@ export async function claudePolicy(cwd: string): Promise<PolicyRecord[]> {
 export async function requireUpdatePolicy(host: Host, cwd: string): Promise<void> {
   if (host === 'claude') {
     checkClaudePolicy(await claudePolicy(cwd));
-    return;
+    throw new HostError(
+      'plugin-update: Claude command-line, MDM, and server-managed replacement policy is unknown; file autoUpdate: false does not establish complete native policy. Stop affected consumers and use a supported native effective-policy operation before starting this operation',
+    );
   }
   await codexPlugin(cwd);
   throw new HostError(

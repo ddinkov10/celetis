@@ -12,6 +12,10 @@ async function updateFixture(host: 'claude' | 'codex') {
   const source = join(f.dir, 'source with spaces.git');
   await mkdir(plugin, { recursive: true });
   await f.write('config/plugins/cache/celetis/celetis/local/.claude-plugin/plugin.json', '{"name":"celetis"}');
+  await f.write(
+    'config/plugins/cache/celetis/celetis/local/.claude-plugin/marketplace.json',
+    JSON.stringify({ name: 'celetis', plugins: [{ name: 'celetis', source: './' }] }),
+  );
   await f.write('config/plugins/cache/celetis/celetis/local/scripts/root.ts', '');
   await f.write('config/plugins/cache/celetis/celetis/local/step-prompt.md', 'installed\n');
   await f.write('config/plugins/cache/celetis/celetis/local/skills/guide/SKILL.md', 'installed\n');
@@ -215,7 +219,11 @@ for (const host of ['claude', 'codex'] as const) {
     try {
       const result = await f.update(['apply', f.source, f.installed, f.target]);
       expect(result.code).toBe(1);
-      expect(result.stderr).toMatch(/lifetime|resource boundary|automatic/);
+      expect(result.stderr).toContain(
+        host === 'claude'
+          ? 'command-line, MDM, and server-managed replacement policy is unknown'
+          : 'automatic plugin refresh',
+      );
       expect(result.stderr).toMatch(/stop|supported/);
       expect(await f.mutations()).toBe('');
     } finally {
@@ -273,6 +281,9 @@ for (const host of ['claude', 'codex'] as const) {
         );
       if (host === 'codex') {
         original.installed[0].marketplaceSource.sourceType = 'local';
+        const market = JSON.parse(await f.read('market.json'));
+        market.marketplaces[0].marketplaceSource.sourceType = 'local';
+        await f.write('market.json', JSON.stringify(market));
         await f.write('list.json', JSON.stringify(original));
       }
       let result = await f.update(['check']);
@@ -294,6 +305,9 @@ for (const host of ['claude', 'codex'] as const) {
         );
       if (host === 'codex') {
         original.installed[0].marketplaceSource.sourceType = 'git';
+        const market = JSON.parse(await f.read('market.json'));
+        market.marketplaces[0].marketplaceSource.sourceType = 'git';
+        await f.write('market.json', JSON.stringify(market));
         await f.write('list.json', JSON.stringify(original));
       }
       await f.write('offline-source', 'not a Git repository');
@@ -318,6 +332,9 @@ for (const host of ['claude', 'codex'] as const) {
         );
       } else {
         original.installed[0].marketplaceSource.source = join(f.dir, 'offline-source');
+        const market = JSON.parse(await f.read('market.json'));
+        market.marketplaces[0].marketplaceSource.source = join(f.dir, 'offline-source');
+        await f.write('market.json', JSON.stringify(market));
         await f.write('list.json', JSON.stringify(original));
         await f.write(
           'effective.json',

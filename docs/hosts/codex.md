@@ -8,8 +8,12 @@ Read through [Host entry](entry.md). The skill procedure and project paths are s
 For Codex CLI 0.163.0, use `codex plugin list --marketplace celetis --json` for enabled,
 installed, and source identity. This standalone filtered operation does not start app-server or
 refresh the remote catalog. It can prepare native CLI helper files; it writes no plugin cache
-or installation record on this path. The version-matched reader selects the active native
-`CODEX_HOME/plugins/cache/celetis/celetis/<version>` directory and validates its manifest.
+or installation record on this path. Before any native process, resolve the selected home as one existing canonical directory and
+pass it explicitly as `CODEX_HOME` to version, plugin/marketplace list, configuration, and thread
+helpers. A product `.env` cannot choose a second native home. The version-matched reader selects
+the active native `CODEX_HOME/plugins/cache/celetis/celetis/<version>` directory, requires canonical
+containment, and binds its local source to the standalone native marketplace list and its one
+Celetis root-source catalog entry. Missing, escaped, unrelated, or ambiguous source paths refuse.
 A `local` version label and a marketplace HEAD are not the installed Git revision.
 
 Read-only app-server metadata uses `codex --disable plugins app-server --stdio` before initialize.

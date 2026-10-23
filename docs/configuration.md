@@ -157,8 +157,8 @@ refuses a lane start before it starts the board. It reads only the main config's
 and keeps `PORT` above that value. It supplies the fixed data, selected-agent Run, and
 saved-host Resume lists through stdin to `board/cli.ts` of the installed plugin. The board
 validates that JSON and its executable paths. No board config file is made.
-The board start checks the replacement policy before it starts a consumer. Codex starts currently
-refuse the unsupported native automatic refresh policy. The board displays the producer default as read-only. Change `host` in the main YAML to set
+The board start checks the replacement policy before it starts a consumer. Both native hosts
+currently refuse admission: higher Claude policy is unknown and Codex automatic refresh is unsafe. The board displays the producer default as read-only. Change `host` in the main YAML to set
 the project default. A board Run choice applies only to that start; Resume uses its saved host.
 See [the board contract](celetis-flow.md#the-board) for the exact lists.
 

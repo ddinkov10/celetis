@@ -185,8 +185,9 @@ Codex also omits the step-text override for specify. Its configured developer in
 launcher, and step text. Numbered starts, automatic starts, and later steps make no update call.
 The forms `--board` and `--resume` keep their existing no-update behavior and saved identity.
 Before a step starts, the runner checks that its required files and step text still exist.
-Before a consumer starts, the effective replacement policy is checked. Codex consumer starts
-currently refuse because native automatic refresh lacks a supported lifetime control. A local
+Before a consumer starts, the effective replacement policy is checked. Consumer starts currently
+refuse on both audited hosts: complete Claude command-line, MDM, and server-managed policy is
+unknown, and Codex automatic refresh lacks a supported lifetime control. A local
 marketplace has no exemption. Metadata RPC disables plugins before app-server construction, so
 read-only thread and configuration checks do not trigger startup refresh.
 
@@ -433,7 +434,7 @@ the project default changes. Each item is one argument. The board quotes the ite
 The board starts the data script on each read and the action script on each press. Stop the
 whole board before a supported package replacement, since later requests can read package assets.
 A fresh board/session resolves the enabled installation again; a successful restart alone is
-no proof of an update. Codex board starts currently refuse the unsupported refresh policy. Follow
+no proof of an update. Board starts currently refuse incomplete native policy on both hosts. Follow
 [Updates](../README.md#updates) before replacing its installed package, and complete the
 [manual cutover](configuration.md#replace-the-old-setup) when the product launcher or setup
 changes. Real Run/Resume acceptance remains a
@@ -613,8 +614,8 @@ cooperating updates, not all future reads of a running session. No supported per
 pin has been proved. The current [update policy](../README.md#updates) removes Celetis-initiated
 updates and adds an exact offer and one direct chat decision. Target-bound application refuses
 both observed native hosts before replacement: complete consumer, offering-session, and updater
-boundaries remain unproved, and Claude lacks a proved exact-target update. Codex consumer starts
-refuse its native automatic refresh policy. ADR-0014 retains the original evidence;
+boundaries remain unproved, and Claude lacks a proved exact-target update. Consumer starts
+refuse both the unknown higher Claude policy and the unsafe Codex automatic refresh policy. ADR-0014 retains the original evidence;
 [ADR-0027](adr/0027-celetis-updates-require-one-chat-approval.md) records the full interface and
 these refusals. Deterministic check/controller/supervisor tests are separate from real human-channel
 and successful native cutover acceptance, which remain unverified. No live tests or real

@@ -141,8 +141,8 @@ references for the step order. Only the shared landing script may perform a fixt
 
 For update tests, retain the actual native user reply, exact offer, consumer exit and complete
 lifetime evidence, command output, and fresh discovery under [Updates](../../README.md#updates).
-Current apply refuses on both observed hosts and all Codex consumer starts refuse the unsafe
-native automatic refresh policy. Deterministic fixtures prove check/action oracles and cleanup;
+Current apply refuses on both observed hosts. Consumer starts also refuse on both: higher Claude
+policy remains unknown and Codex automatic refresh remains unsafe. Deterministic fixtures prove check/action oracles and cleanup;
 they do not authenticate a real human or prove a successful native cutover. Those live scenarios
 were explicitly skipped for this completion. No real installation was updated. Stop a future
 explicitly authorized isolated diagnostic at its first failed assertion and mark later assertions

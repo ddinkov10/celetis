@@ -47,6 +47,37 @@ for (const args of [['7'], [], ['--board'], ['--resume', '7']])
     }),
   );
 
+for (const args of [['7'], [], ['--board'], ['--resume', '7']])
+  test.concurrent(
+    `real Claude incomplete native policy refuses ${JSON.stringify(args)} with file policy false`,
+    runnerCase(async (f) => {
+      await cp(join(root, 'scripts/lib/plugin-policy.ts'), join(f.plugin, 'scripts/lib/plugin-policy.ts'));
+      await f.issue();
+      await f.write(
+        'repo dir/.claude/settings.json',
+        JSON.stringify({ extraKnownMarketplaces: { celetis: { autoUpdate: false } } }),
+      );
+      if (args[0] === '--resume')
+        await f.write(
+          'repo dir/.git/celetis-flow/sessions/7.json',
+          JSON.stringify({
+            schema: 1,
+            issue: 7,
+            checkout: f.repo,
+            host: 'claude',
+            step: 'plan',
+            session_id: '01a139fc-2ffa-74c0-9b14-e35e23339910',
+          }),
+        );
+      const result = await f.run(args);
+      expect(result.code, result.stderr).toBe(1);
+      expect(result.stderr).toContain('MDM');
+      expect(result.stderr).toContain('supported native');
+      expect(await f.logs('calls')).toEqual([]);
+      expect(await f.logs('mutations')).toEqual([]);
+    }),
+  );
+
 test.concurrent(
   'real Claude local policy overrides project false and refuses consumer start',
   runnerCase(async (f) => {

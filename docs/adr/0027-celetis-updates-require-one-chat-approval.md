@@ -34,7 +34,8 @@ Keep target-bound apply under the existing update supervisor and shared deadline
 and policy. The complete consumer lifetime, offering-session boundary, updater boundary, and
 exclusion of racing starts are required before replacement. Current native operations cannot prove
 all of them, so application refuses before mutation with the missing control and required action.
-Codex consumer starts refuse its unsafe native automatic refresh policy too.
+Consumer starts also refuse unknown higher Claude policy and unsafe Codex automatic refresh.
+File-only false does not certify command-line, MDM, or server-managed policy.
 
 ## Evidence and limits
 
@@ -42,7 +43,9 @@ Claude Code 2.1.306 lacks a proved native exact-target update. Codex CLI 0.163.0
 session-only Git target selection, but refresh can replace live package resources. A local
 marketplace can also refresh its plugin snapshot. Filtered standalone metadata is read-only for
 installation data; app-server startup with plugins enabled can refresh before initialize.
-Read-only RPC uses the real global plugins-disable control. That diagnostic override is no proof
+Codex metadata binds one canonical home before any native process, and proves cache containment
+and the native marketplace root-source chain before package reads. Read-only RPC uses the real
+global plugins-disable control in that same home. That diagnostic override is no proof
 of normal-session policy. Native marketplace requirements are absent from the public requirement
 response, so its success does not certify policy coverage.
 

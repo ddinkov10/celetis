@@ -1,8 +1,8 @@
 import { lstat, readdir, readFile, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute, join, relative, sep } from 'node:path';
 import { type Host, HostError } from './host.ts';
-import { run } from './process.ts';
+import { childEnv, run } from './process.ts';
 
 export const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -10,7 +10,30 @@ export const object = (value: unknown): value is Record<string, unknown> =>
 export function configHome(host: Host): string {
   return host === 'claude'
     ? process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude')
-    : process.env.CODEX_HOME || join(homedir(), '.codex');
+    : (process.env.CODEX_HOME ?? join(homedir(), '.codex'));
+}
+
+export async function codexHome(selected = configHome('codex')): Promise<string> {
+  if (!isAbsolute(selected))
+    throw new HostError(`celetis: CODEX_HOME must be an existing absolute directory: ${selected}`);
+  const home = await realpath(selected).catch(() => null);
+  if (!home || !(await lstat(home)).isDirectory())
+    throw new HostError(`celetis: cannot resolve CODEX_HOME directory: ${selected}; repair the selected native home`);
+  return home;
+}
+
+async function contained(root: string, path: string): Promise<string> {
+  const target = await realpath(path).catch(() => null);
+  if (target === null)
+    throw new HostError(
+      `celetis: cannot resolve native Codex identity path: ${path}; repair the selected installation`,
+    );
+  const part = relative(root, target);
+  if (isAbsolute(part) || part === '..' || part.startsWith(`..${sep}`))
+    throw new HostError(
+      `celetis: native Codex identity path is outside ${root}: ${path} resolves to ${target}; repair the selected installation`,
+    );
+  return target;
 }
 
 export async function jsonFile(path: string, optional = false): Promise<Record<string, unknown>> {
@@ -25,9 +48,17 @@ export async function jsonFile(path: string, optional = false): Promise<Record<s
   }
 }
 
-export async function nativeJson(host: Host, args: string[], cwd: string, inheritedFd?: number): Promise<unknown> {
+export async function nativeJson(
+  host: Host,
+  args: string[],
+  cwd: string,
+  inheritedFd?: number,
+  env = childEnv(),
+): Promise<unknown> {
+  if (host === 'codex') env = childEnv({ ...env, CODEX_HOME: await codexHome(env.CODEX_HOME) });
   const result = await run(host, args, {
     cwd,
+    env,
     inheritedFd,
     timeout: 10_000,
     stderr: inheritedFd === undefined ? undefined : 'inherit',
@@ -52,18 +83,27 @@ export async function nativeJson(host: Host, args: string[], cwd: string, inheri
 
 export interface PluginMetadata {
   host: Host;
+  home: string;
   root: string;
   record: Record<string, unknown>;
 }
 
 export async function codexPlugin(cwd: string, inheritedFd?: number): Promise<PluginMetadata> {
-  const version = await run('codex', ['--version'], { cwd, inheritedFd, timeout: 10_000 });
+  const home = await codexHome();
+  const env = childEnv({ ...process.env, CODEX_HOME: home });
+  const version = await run('codex', ['--version'], { cwd, env, inheritedFd, timeout: 10_000 });
   if (version.code !== 0) throw new HostError(`celetis: codex is not available: ${version.stderr.trimEnd()}`);
   if (version.stdout.trim() !== 'codex-cli 0.163.0')
     throw new HostError(
       `celetis: read-only plugin discovery is unverified for ${version.stdout.trim()}; verify its native registry before use`,
     );
-  const value = await nativeJson('codex', ['plugin', 'list', '--marketplace', 'celetis', '--json'], cwd, inheritedFd);
+  const value = await nativeJson(
+    'codex',
+    ['plugin', 'list', '--marketplace', 'celetis', '--json'],
+    cwd,
+    inheritedFd,
+    env,
+  );
   if (!object(value) || !Array.isArray(value.installed)) throw new HostError('celetis: invalid Codex plugin list');
   const records = value.installed.filter((item) => object(item) && item.pluginId === 'celetis@celetis');
   if (records.length > 1)
@@ -86,9 +126,7 @@ export async function codexPlugin(cwd: string, inheritedFd?: number): Promise<Pl
     !record.marketplaceSource.source
   )
     throw new HostError('celetis: unsupported Codex celetis source metadata; repair the source-backed installation');
-  const home = await realpath(configHome('codex')).catch(() => null);
-  if (!home) throw new HostError(`celetis: cannot resolve CODEX_HOME ${configHome('codex')}`);
-  const store = join(home, 'plugins/cache/celetis/celetis');
+  const store = await contained(home, join(home, 'plugins/cache/celetis/celetis'));
   const entries = await readdir(store, { withFileTypes: true }).catch(() => []);
   const versions = entries
     .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
@@ -100,11 +138,45 @@ export async function codexPlugin(cwd: string, inheritedFd?: number): Promise<Pl
     throw new HostError(
       `celetis: Codex registry does not match its installed version ${String(record.version)}; repair the native installation`,
     );
-  const root = join(store, active);
-  const manifest = await jsonFile(join(root, '.claude-plugin/plugin.json'));
+  const root = await contained(home, join(store, active));
+  const marketplaces = await nativeJson('codex', ['plugin', 'marketplace', 'list', '--json'], cwd, inheritedFd, env);
+  if (!object(marketplaces) || !Array.isArray(marketplaces.marketplaces))
+    throw new HostError('celetis: invalid Codex marketplace source list');
+  const markets = marketplaces.marketplaces.filter((item) => object(item) && item.name === 'celetis');
+  const market: unknown = markets[0];
+  if (
+    markets.length !== 1 ||
+    !object(market) ||
+    typeof market.root !== 'string' ||
+    !isAbsolute(market.root) ||
+    !object(market.marketplaceSource) ||
+    market.marketplaceSource.sourceType !== record.marketplaceSource.sourceType ||
+    market.marketplaceSource.source !== record.marketplaceSource.source
+  )
+    throw new HostError(
+      'celetis: Codex marketplace source is missing, changed, or ambiguous; repair the native source chain',
+    );
+  const marketplaceRoot = await realpath(market.root).catch(() => null);
+  const sourceRoot = await realpath(record.source.path).catch(() => null);
+  if (!marketplaceRoot || sourceRoot !== marketplaceRoot)
+    throw new HostError(
+      'celetis: Codex plugin source does not match its native marketplace root; repair the native source chain',
+    );
+  const catalog = await jsonFile(
+    await contained(marketplaceRoot, join(marketplaceRoot, '.claude-plugin/marketplace.json')),
+  );
+  const plugins = Array.isArray(catalog.plugins)
+    ? catalog.plugins.filter((item) => object(item) && item.name === 'celetis')
+    : [];
+  if (catalog.name !== 'celetis' || plugins.length !== 1 || !['.', './'].includes(plugins[0]?.source))
+    throw new HostError(
+      'celetis: unsupported or ambiguous Codex Celetis root source; repair the native marketplace catalog',
+    );
+  const manifest = await jsonFile(await contained(root, join(root, '.claude-plugin/plugin.json')));
   if (manifest.name !== 'celetis' || !(await lstat(join(root, 'scripts')).catch(() => null))?.isDirectory())
     throw new HostError('celetis: Codex reports an invalid celetis package; reinstall the plugin');
   if (!(await lstat(join(root, 'skills/guide/SKILL.md')).catch(() => null))?.isFile())
     throw new HostError('celetis: Codex reports a missing installed skill; reinstall the plugin');
-  return { host: 'codex', root, record };
+  await contained(root, join(root, 'skills/guide/SKILL.md'));
+  return { host: 'codex', home, root, record };
 }

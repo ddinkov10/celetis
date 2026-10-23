@@ -44,6 +44,8 @@ before discovery. The check reads the native installation and configured Git sou
 `null` result gives no offer. An unavailable check reports its concrete cause and continues the
 authorized task on the installed package. A conflicting or unknown effective replacement policy
 stops affected runner, board, and Resume starts; report its source and required setup action.
+Both audited hosts currently refuse consumer admission. Claude file false cannot establish unseen
+command-line, MDM, or server-managed policy; pure file diagnostics and offers remain available.
 
 For an `UpdateOffer`, show the host, configured source, full installed revision, full available
 revision, and installed root exactly as returned. Call it a different available revision;

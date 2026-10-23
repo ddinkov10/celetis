@@ -1,9 +1,9 @@
 import { lstat, mkdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 import { codexRequest, type Host, HostError, installedRoot, mainCheckout, requireBun, selectHost } from './lib/host.ts';
-import { codexPlugin, configHome, jsonFile, nativeJson, object } from './lib/plugin-metadata.ts';
+import { codexHome, codexPlugin, configHome, jsonFile, nativeJson, object } from './lib/plugin-metadata.ts';
 import { checkClaudePolicy, claudePolicy, requireUpdatePolicy } from './lib/plugin-policy.ts';
-import { bunArgs, run } from './lib/process.ts';
+import { bunArgs, childEnv, run } from './lib/process.ts';
 import { UpdateLock } from './lib/update-lock.ts';
 
 export type UpdateTarget = { source: string; installed: string; target: string };
@@ -142,7 +142,7 @@ async function inspect(host: Host, cwd: string): Promise<UpdateOffer> {
       throw new HostError(
         'plugin-update: selected Codex marketplace is not a Git source; no remote update check is available',
       );
-    const reply = await codexRequest(cwd, 'config/read', { cwd, includeLayers: true });
+    const reply = await codexRequest(cwd, 'config/read', { cwd, includeLayers: true }, undefined, metadata.home);
     const config = object(reply) && object(reply.result) && object(reply.result.config) ? reply.result.config : null;
     const markets = config?.marketplaces;
     const effective = object(markets) ? markets.celetis : null;
@@ -186,19 +186,21 @@ export async function checkUpdate(host: Host, cwd: string): Promise<UpdateOffer 
 export async function updatePlugin(ownerPid: number, host: Host, target: UpdateTarget): Promise<string> {
   if (!target.source || !revision.test(target.installed) || !revision.test(target.target))
     throw new HostError('plugin-update: apply needs the offered source and full installed and target revisions', 2);
-  const config = configHome(host);
+  const config = host === 'codex' ? await codexHome() : configHome(host);
+  const env = host === 'codex' ? childEnv({ ...process.env, CODEX_HOME: config }) : undefined;
   await mkdir(config, { recursive: true });
   const lock = await UpdateLock.acquire(join(config, 'celetis-update.lock'), ownerPid);
   try {
     const output = await lock.run(process.execPath, bunArgs(import.meta.path, ['--inspect', host]), {
       cwd: process.cwd(),
+      env,
     });
     const current = JSON.parse(output) as UpdateOffer;
     if (current.source !== target.source || current.installed !== target.installed || current.target !== target.target)
       throw new HostError(
         `plugin-update: offered source, installed revision, or target changed; this attempt is consumed. Check again and obtain a new direct user response. Observed: ${JSON.stringify(current)}`,
       );
-    await lock.run(process.execPath, bunArgs(import.meta.path, ['--policy', host]), { cwd: process.cwd() });
+    await lock.run(process.execPath, bunArgs(import.meta.path, ['--policy', host]), { cwd: process.cwd(), env });
     throw new HostError(
       host === 'claude'
         ? 'plugin-update: Claude Code has no proved exact-target update and complete consumer lifetime/resource boundary for the offering session and updater. No package was replaced. Stop affected consumers and use a supported native target-bound cutover before a new offer; a restart or the 14-day cleanup period is insufficient. This attempt is consumed.'

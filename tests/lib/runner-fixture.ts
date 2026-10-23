@@ -102,6 +102,7 @@ export async function runnerFixture(realResolver = false) {
     if(args[0]==='--version'){console.log(host==='codex'?'codex-cli 0.163.0':'2.1.306 (Claude Code)');process.exit(0);}
     if(args[0]==='--disable'&&args[1]==='plugins')args.splice(0,2);
     if(args[0]==='plugin'){
+      if(host==='codex'&&args[1]==='marketplace'&&args[2]==='list'){log('discovery',{host,args});console.log(JSON.stringify({marketplaces:[{name:'celetis',root:plugin,marketplaceSource:{sourceType:has('git-marketplace')?'git':'local',source:plugin}}]}));process.exit(0);}
       const readOnly=args[1]==='list';log(readOnly?'discovery':'mutations',{host,args});log('updates',{host,args});log('order',{host,args});
       const phase=args[1]==='marketplace'?'marketplace':args[1];
       if(has('update-fail')||read('update-fail-phase')===phase){console.error('fixture: '+host+' '+phase+' update unavailable');process.exit(23);}

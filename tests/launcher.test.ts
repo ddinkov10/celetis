@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, setDefaultTimeout, test } from 'bun:test';
 import { spawn } from 'node:child_process';
-import { chmod, cp, mkdir, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdir, readdir, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { delimiter, dirname, join } from 'node:path';
 import { command, type Fixture, fixture, isolatedArgs, root, withFixture } from './lib/fixture.ts';
 
@@ -37,10 +37,13 @@ if(process.env.LOOKUP_FAIL){console.error('fixture: lookup failed');process.exit
     'codex',
     String.raw`import {appendFileSync,writeFileSync} from 'node:fs';
 import {createInterface} from 'node:readline';
+if(process.env.CODEX_HOME===undefined){const dotenv=await Bun.file('.env').text().catch(()=>'');const home=/^CODEX_HOME=(.*)$/m.exec(dotenv)?.[1];if(home)process.env.CODEX_HOME=home;}
+if(process.env.NATIVE_HOME_LOG)appendFileSync(process.env.NATIVE_HOME_LOG,JSON.stringify({args:process.argv.slice(2),home:process.env.CODEX_HOME})+'\n');
 appendFileSync(process.env.CALLS!,JSON.stringify(process.argv.slice(2))+'\n');
 const args=process.argv.slice(2);
 if(args[0]==='--version'){console.log('codex-cli 0.163.0');process.exit(0);}
 if(JSON.stringify(args)===JSON.stringify(['plugin','list','--marketplace','celetis','--json'])){process.stdout.write(await Bun.file(process.env.NATIVE_LIST!).text());process.exit(0);}
+if(JSON.stringify(args)===JSON.stringify(['plugin','marketplace','list','--json'])){process.stdout.write(await Bun.file(process.env.NATIVE_MARKET!).text());process.exit(0);}
 if(JSON.stringify(args)!==JSON.stringify(['--disable','plugins','app-server','--stdio'])) process.exit(81);
 writeFileSync(process.env.PID_FILE!,String(process.pid));
 if(process.env.CODEX_MODE==='cleanup signal')setInterval(()=>{},1000);
@@ -112,6 +115,7 @@ async function product(f: Fixture) {
     PATH: join(f.dir, 'bin'),
     LIST: list,
     NATIVE_LIST: join(f.dir, 'native-list.json'),
+    NATIVE_MARKET: join(f.dir, 'native-market.json'),
     CODEX_HOME: join(f.dir, 'codex home'),
     SKILLS: skills,
     CALLS: calls,
@@ -136,6 +140,19 @@ async function product(f: Fixture) {
   const setList = (records: unknown) => writeFile(list, JSON.stringify(records));
   const setSkills = (records: unknown = [skill()], cwd = f.repo) =>
     writeFile(skills, JSON.stringify({ data: [{ cwd, skills: records, errors: [] }] }));
+  const marketplace = join(f.dir, 'native marketplace');
+  await f.write(
+    'native marketplace/.claude-plugin/marketplace.json',
+    JSON.stringify({ name: 'celetis', plugins: [{ name: 'celetis', source: './' }] }),
+  );
+  await f.write(
+    'native-market.json',
+    JSON.stringify({
+      marketplaces: [
+        { name: 'celetis', root: marketplace, marketplaceSource: { sourceType: 'local', source: marketplace } },
+      ],
+    }),
+  );
   const nativeRecord = {
     pluginId: 'celetis@celetis',
     name: 'celetis',
@@ -143,8 +160,8 @@ async function product(f: Fixture) {
     installed: true,
     enabled: true,
     version: 'local',
-    source: { source: 'local', path: plugin },
-    marketplaceSource: { sourceType: 'local', source: plugin },
+    source: { source: 'local', path: marketplace },
+    marketplaceSource: { sourceType: 'local', source: marketplace },
   };
   const setNative = (records: unknown) =>
     f.write('native-list.json', JSON.stringify({ installed: records, available: [] }));
@@ -186,6 +203,84 @@ function withProduct(body: (f: Fixture, p: Awaited<ReturnType<typeof product>>) 
     }
   };
 }
+
+test.concurrent(
+  'Codex pins its default home before native dotenv bootstrap and uses it for RPC',
+  withProduct(async (f, p) => {
+    const selected = join(f.home, '.codex');
+    await rename(join(f.dir, 'codex home'), selected);
+    const other = join(f.dir, 'other native home');
+    await mkdir(other);
+    await f.write('repo dir/.env', `CODEX_HOME=${other}\n`);
+    const log = join(f.dir, 'native-homes');
+    const env = { CODEX_HOME: undefined, NATIVE_HOME_LOG: log };
+    const result = await p.launch(['--agent', 'codex', 'root'], { env });
+    expect(result.code, result.stderr).toBe(0);
+    expect(result.stdout).toBe(`${join(selected, 'plugins/cache/celetis/celetis/local')}\n`);
+    expect(await p.rpc({ env })).toEqual({ code: 0, stdout: 'ok\n', stderr: '' });
+    const homes = (await readFile(log, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+    expect(homes.length).toBeGreaterThanOrEqual(3);
+    expect(homes.every((row) => row.home === selected)).toBe(true);
+  }),
+);
+
+test.concurrent(
+  'Codex canonicalizes an explicit home before native list and RPC',
+  withProduct(async (f, p) => {
+    const alias = join(f.dir, 'native alias');
+    await symlink(join(f.dir, 'codex home'), alias);
+    const log = join(f.dir, 'native-homes');
+    const env = { CODEX_HOME: alias, NATIVE_HOME_LOG: log };
+    expect((await p.launch(['--agent', 'codex', 'root'], { env })).code).toBe(0);
+    expect((await p.rpc({ env })).code).toBe(0);
+    const homes = (await readFile(log, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+    expect(homes.every((row) => row.home === join(f.dir, 'codex home'))).toBe(true);
+  }),
+);
+
+test.concurrent(
+  'Codex refuses invalid home before any native process',
+  withProduct(async (f, p) => {
+    const file = await f.write('not-a-directory', 'value');
+    for (const home of [join(f.dir, 'missing home'), file]) {
+      const result = await p.launch(['--agent', 'codex', 'root'], { env: { CODEX_HOME: home } });
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain('CODEX_HOME');
+      expect(await Bun.file(p.calls).exists()).toBe(false);
+    }
+  }),
+);
+
+test.concurrent(
+  'Codex refuses a cache-parent escape before package code executes',
+  withProduct(async (f, p) => {
+    const cache = join(f.dir, 'codex home/plugins/cache/celetis');
+    const outside = join(f.dir, 'outside cache');
+    await rename(cache, outside);
+    await symlink(outside, cache);
+    const result = await p.launch(['--agent', 'codex', 'echo', 'executed']);
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain('outside');
+  }),
+);
+
+test.concurrent(
+  'Codex refuses an unrelated native local source path',
+  withProduct(async (f, p) => {
+    await p.setNative([{ ...p.nativeRecord, source: { source: 'local', path: f.repo } }]);
+    const result = await p.launch(['--agent', 'codex', 'echo', 'executed']);
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain('source');
+  }),
+);
 
 test.concurrent(
   'copied launcher discovers only the enabled package and preserves every argument',
@@ -447,7 +542,11 @@ test.concurrent(
       .trim()
       .split('\n')
       .map((line) => JSON.parse(line));
-    expect(calls).toEqual([['--version'], ['plugin', 'list', '--marketplace', 'celetis', '--json']]);
+    expect(calls).toEqual([
+      ['--version'],
+      ['plugin', 'list', '--marketplace', 'celetis', '--json'],
+      ['plugin', 'marketplace', 'list', '--json'],
+    ]);
     expect(await Bun.file(p.pid).exists()).toBe(false);
     await rm(join(f.dir, 'bin/codex'));
     expect((await p.launch(['--agent', 'codex', 'echo'])).code).toBe(1);

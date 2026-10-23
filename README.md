@@ -676,10 +676,14 @@ and board form. Every skill call adds `--agent claude` or `--agent codex` before
 Celetis checks for updates once per human task, after native startup reads. Nested skills and
 children reuse its result. Numbered starts, automatic starts, later steps, board reads, and exact
 Resume use the installed package and invoke no update operation. They also check replacement
-policy before starting an affected consumer. Read-only inspection does not make native Codex
-automatic refresh safe: Codex consumer starts currently refuse that unsupported policy.
+policy before starting an affected consumer. Consumer starts currently refuse on both audited
+hosts: Claude has unknown command-line, MDM, and server-managed policy, while Codex has unsafe
+native automatic refresh. Read-only check, offer, and policy diagnostics remain available.
 
 `plugin-update check` reads the enabled selected-host identity and configured Git source/ref.
+Codex metadata helpers share one canonical native home selected before any native process.
+The reader binds the contained cache root to the native marketplace and its root-source catalog;
+missing, escaping, or unrelated paths fail before package code runs.
 It queries that source with `git ls-remote`; it never fetches into an installation, refreshes a
 marketplace, or installs a package. Its JSON result is
 `{host,source,installed,target,root}`, with full revisions. Equal revisions return `null`, so
@@ -723,7 +727,8 @@ proposes the exact replacement of an unchanged old owned entry. It leaves unowne
 changed entries for their owner. It reports effective local, project, user, managed, and native
 global conflicts; project false cannot override managed true. File-only inspection cannot certify
 MDM, server-managed, or command-line policy. Missing coverage is reported, never called proof that
-all outside refresh is disabled. Superpowers and unrelated settings remain unchanged.
+all outside refresh is disabled. Consumer admission refuses this incomplete native policy
+boundary even when every inspected file says false. Superpowers and unrelated settings remain unchanged.
 
 Before the policy cutover, stop every affected runner, board, session, and descendant in every
 project sharing the installation. Review owned replacements and resolve external policy with its

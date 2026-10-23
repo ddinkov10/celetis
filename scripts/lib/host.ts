@@ -3,7 +3,7 @@ import { constants } from 'node:os';
 import { dirname, win32 } from 'node:path';
 import { createInterface } from 'node:readline';
 import { bunFloor, ConfigError, readSnapshot } from './config.ts';
-import { codexPlugin } from './plugin-metadata.ts';
+import { codexHome, codexPlugin } from './plugin-metadata.ts';
 import { childEnv, run } from './process.ts';
 
 export type Host = 'claude' | 'codex';
@@ -77,8 +77,9 @@ export async function codexRequest(
   method: string,
   params: unknown,
   inheritedFd?: number,
+  nativeHome?: string,
 ): Promise<unknown> {
-  const env = childEnv();
+  const env = childEnv({ ...process.env, CODEX_HOME: await codexHome(nativeHome) });
   if (!Bun.which('codex', { PATH: env.PATH })) throw new HostError('celetis: codex is not on PATH');
   const child = spawn('codex', ['--disable', 'plugins', 'app-server', '--stdio'], {
     cwd,
