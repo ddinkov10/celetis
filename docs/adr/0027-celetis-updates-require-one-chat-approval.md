@@ -62,7 +62,8 @@ the parent-loss test checks protection through native foreground exit. Process i
 profile identity and canonical package resources, with no environment values in diagnostics.
 
 Stock native launches do not acquire Celetis admission, and native descendants may close inherited
-FDs. Keep those clients stopped during cutover. The cooperating lock and process scan do not prove
+FDs. Keep those clients stopped during cutover. A direct native start during cutover is an accepted
+operating limit. The cooperating lock and process scan do not prove
 universal native admission or complete stock-native reader lifetime. File policy reads also cannot
 certify unseen managed settings. Live successful cutover and direct-human acceptance were waived
 and remain unverified; no real installation was updated by these tests.

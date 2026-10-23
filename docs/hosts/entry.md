@@ -156,6 +156,9 @@ When an escalated pair cannot be applied to that identity, stop with the request
 identity, actual tool limitation, and failure trail. Do not drop escalation or call a replacement
 the same child. A fresh child is permitted only when the procedure explicitly calls for one.
 
+Apply the host's command approval procedure before treating a sandboxed command failure as a
+setup stop or a skill's command refusal.
+
 A missing required host tool, denied path, unavailable pair, or unsupported host operation is a setup
 stop. In a runner step, use rule 4 of `step-prompt.md` of the plugin `celetis` to hand it to the
 issue; by hand, show the exact limitation and the setup action. Permission refusals in Verify
