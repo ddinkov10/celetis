@@ -53,6 +53,12 @@ launcher of the plugin in the main checkout and enters no lane worktree.
 
 ## Worktree, commands, and files
 
+The copied `scripts/celetis` is a generated Bun executable. Installed command sources use
+`.ts` paths and local imports. For a direct checkout command, run the selected Bun with
+`--no-env-file --no-install --config=/dev/null --no-macros` and the absolute TypeScript path.
+Set `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0` and `DO_NOT_TRACK=1`. Child Celetis programs keep
+`process.execPath`. The native startup reads above remain file-only operations.
+
 Write `scripts/celetis --agent codex <command>` on every launcher call. Resolve the bundle from
 the loaded skill path, or use `scripts/celetis --agent codex root` in the product checkout.
 Neither a Claude environment variable nor an export in a previous tool call establishes it.

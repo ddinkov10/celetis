@@ -9,42 +9,36 @@ labels, the state of an issue, and the branches.
 
 ## Verify gate
 
-`scripts/verify.sh` is the verify gate of this repository, the fast deterministic check. It passes
-when its last line is `verify: PASS`. `tests/suite.sh` is the full suite. It passes when its last
-line is `suite: PASS`. CI runs the gate and then the suite under bash 5 and under bash 3.2.57.
+`scripts/verify.ts` is the fast deterministic gate. Its last line is `verify: PASS`.
+`tests/suite.ts` is the full suite. Its last line is `suite: PASS`. CI runs each on Bun 1.4.2.
 
-```bash
-scripts/verify.sh
-tests/suite.sh
+```sh
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros scripts/verify.ts
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros tests/suite.ts
 ```
 
-- The pinned tools of the gate are the lines of `tests/lib/tools.txt`. On macOS, run
-  `brew install shellcheck shfmt actionlint`. On Linux, run the first line below, then put
-  `<dir>/bin` on `PATH`: a Python with the PEP 668 marker refuses `--user`. On Windows, run the
-  first line with `py -m pip install --user` in place of `python3 -m pip install --target <dir>`.
-  On each machine, run the second line.
+- Install the pinned tools into a private directory, then put its `bin` folder on `PATH`:
 
-  ```bash
-  awk '$3 == "pip" { print $4 }' tests/lib/tools.txt | xargs python3 -m pip install --target <dir>
-  awk '$3 == "npm" { print $4 }' tests/lib/tools.txt | xargs npm install --global
+  ```sh
+  bun --no-env-file --no-install --config=/dev/null --no-macros scripts/install-tools.ts /absolute/private-tools --claude
   ```
-- The gate checks `.celetis.yaml` with the config reader, so it needs Bun 1.4.2 or later on
-  `PATH`, as the reader does.
-- A new file type gets a row or an exemption in `scripts/verify.sh`.
-- The gate takes its file list from `git ls-files`. Run `git add` on a new file before the gate.
-- The suite runs `(cd board && node --test)`, so it needs Node 22.18, or Node 24.2 or later.
-- The tests run the config reader, so the suite also needs Bun 1.4.2 or later on `PATH`.
-- Each Bash file, a script or a test, also runs under bash 3.2, the `/bin/bash` of macOS. The
-  suite runs each test as `PATH="/bin:$PATH" /bin/bash <test>`, so each inner `bash` reaches
-  `/bin/bash` too.
-- A TypeScript file of `scripts/lib/` runs on Bun 1.4.2 or later. `scripts/lib/vendor/` holds
-  vendored code: update it only as its `README.md` says.
-- Each test passes in 30 s or less alone (#81). A test with many independent cases runs them with
-  `tests/lib/pool.sh`. The suite runs the tests at the same time, so a test keeps its scratch state
-  private and writes nothing in the checkout.
-- `tests/manual/step-prompt.test.sh` is hand-run: it is not in the gate or the suite, and it uses
-  tokens. Run it after a change of `step-prompt.md`, of "Celetis flow" below, or of a sentence that
-  it quotes ("Traps").
+
+  `tests/lib/tools.txt` owns the pins. The installer checks the official native actionlint hash.
+  The gate resolves package and type paths from executable filesystem metadata. Checks install nothing.
+- The gate reads `git ls-files -z`. Stage a new file before the gate. Give each new file type
+  a check or an explicit role in `scripts/verify.ts`.
+- Author each first-party program in TypeScript. Bun 1.4.2 or later runs commands and tests.
+  `scripts/build.ts` uses exactly Bun 1.4.2 to generate the executable launcher, browser assets,
+  and native hook modules. `--check` compares bytes and modes without writes. The vendor parser
+  stays unchanged; update it only as `scripts/lib/vendor/README.md` says.
+- Strict types have three environments: runtime commands, server modules and tests;
+  browser DOM modules; and the native hook API and its actual globals.
+- The suite discovers all automatic TypeScript test entries, uses bounded file workers, stops
+  each file after 30 seconds, and cleans child groups on signals. Each test uses private scratch
+  state. `scripts/lib/parallel.ts` supplies the bounded process runner.
+- `tests/manual/step-prompt.ts` and `tests/manual/custom-part.ts` use tokens and run by hand.
+  Run the step test after a change of `step-prompt.md`, of "Celetis flow" below, or of a sentence
+  it quotes ("Traps"). Deterministic manual harness entries remain in the suite.
 
 ## General text
 
@@ -64,7 +58,7 @@ project, not here. So the text of this repository is general:
 - **In a skill and in the step text, an ADR number says its store:** "ADR-0008 of the plugin
   `celetis`". A product project has an ADR store of its own.
 
-`tests/text.test.sh` is the authority for the first rule, and it reads this file and `README.md`
+`tests/text.test.ts` is the authority for the first rule, and it reads this file and `README.md`
 too. It fails on a word of its list `words` in each file that is no record `docs/adr/NNNN-*.md`.
 `tests/product-words.allow` allows a general use of such a word. One line of it,
 `<path><tab><a part of the line>`, allows each hit of that path whose text holds the part, and a
@@ -90,7 +84,7 @@ and a change on `main` is in use at once ("Traps").
 
 `board/` is the board of the plugin (ADR-0020). For a change there, follow these two rules:
 
-- Keep the trust boundaries of `board/server.mjs` and `board/config.mjs`.
+- Keep the trust boundaries of `board/server.ts` and `board/config.ts`.
 - Check a UI change in Chromium at desktop width and at 375×812.
 
 ## External facts
@@ -109,31 +103,31 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
 - **A normal session here reads the installed plugin.** Editing the checkout does not replace
   either host's installed skills or scripts. The tests read checkout files. Claude's
   `--plugin-dir .` can load checkout skills, but `scripts/celetis` still resolves the selected
-  host's installation. Run a checkout script as `scripts/<name>.sh`. Test an unlanded Codex package
+  host's installation. Run a checkout script with the isolated Bun flags shown above and `scripts/<name>.ts`. Test an unlanded Codex package
   only in an isolated test installation; its launcher must still resolve that installation.
 - **Each push to `main` reaches each product project at its next step.** The plugin has no version
   and no release step, and the runner updates the plugin of the machine before it starts a
   session. A failed update stops the step. A successful start uses the refreshed package.
   A Claude runner keeps the resolver and launcher paths of its started version, so a change of
-  `scripts/celetis-flow.sh` or `scripts/next-step.sh` reaches it at its next start. Claude Code removes the folder of
+  `scripts/celetis-flow.ts` or `scripts/next-step.ts` reaches it at its next start. Claude Code removes the folder of
   an old version 14 days after an update, and a runner that is still open then cannot start its
   resolver. Codex's different resource limits are in `docs/celetis-flow.md`, "Acceptance status".
-- **A script file keeps its name.** `scripts/<name>.sh` is the sub-command
+- **A script file keeps its name.** `scripts/<name>.ts` is the sub-command
   `scripts/celetis <name>`, which the skills, the documents, and the files of each product project
   name: its board commands, and its `allow` rule `Bash(scripts/celetis land *)`. Two file names are
-  also patterns of the process list. `scripts/next-step.sh` takes a landing as live only when the
-  process of its lock has `land.sh` in its command line, and `scripts/celetis-flow.sh` takes a lock
-  as held only when its process has `celetis-flow.sh` there. After a rename, a live lock looks
+  also patterns of the process list. `scripts/next-step.ts` takes a landing as live only when the
+  process of its lock has `land.ts` in its command line, and `scripts/celetis-flow.ts` takes a lock
+  as held only when its process has `celetis-flow.ts` there. After a rename, a live lock looks
   stale: the runner ends a session while its landing runs, and two runners take one issue.
 - **The act of a skill that moves the line of the issue is its last act.** In a herdr pane, the
   runner types `/exit` when the agent is idle and the resolver prints a new line for the issue
-  (`end_when_done` in `scripts/celetis-flow.sh`). A label, a comment with a heading that the
+  (`endWhenDone` in `scripts/celetis-flow.ts`). A label, a comment with a heading that the
   resolver reads, a published spec, and a closed issue move the line. So each act of the skill after
   such an act is in the same turn.
-- **The hand-run test quotes the skills.** `tests/manual/step-prompt.test.sh` holds sentences of the
+- **The hand-run test quotes the skills.** `tests/manual/step-cases.ts` holds sentences of the
   skills as verbatim text, and no test of the gate or the suite compares a quote with its skill.
-  Before you change a sentence of a skill, search that test for it. A change of a quoted sentence
-  changes the quote in the same commit, and the hand-run test runs again.
+  Before you change a sentence of a skill, search that source for it. A change of a quoted sentence
+  changes the quote in the same commit, and `tests/manual/step-prompt.ts` runs again.
 - **The skills table and the commands table of `README.md` are written by hand.** A new skill, a
   removed skill, or a new sub-command of `scripts/` also changes the README, and no test fails when
   it does not.

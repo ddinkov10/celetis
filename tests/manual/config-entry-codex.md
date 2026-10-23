@@ -55,7 +55,7 @@ setup. Stop that entry. A denied read also stops immediately, with no second acc
 
 ## Cases and oracle
 
-Use the same 24-case matrix and YAML inputs as `custom-part.test.sh`:
+Use the same 24-case matrix and YAML inputs as `custom-part.ts`:
 
 | Cases | Required observation |
 | --- | --- |

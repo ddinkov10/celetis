@@ -37,6 +37,11 @@ $4/$20 per MTok against Fable 5.1's $10/$50. Revisit the 10–11 band when eithe
 `--bias N` (script flag) / `CAP_EFFORT_BIAS` (env fallback) raises **effort** by N tiers. **Model is
 never biased.** **Default 2** — lower per-dispatch with `--bias 0|1` when cost matters.
 
+`--bias` and `CAP_EFFORT_BIAS` accept safe integers from 0 through 9007199254740991.
+The CLI bias takes precedence over the environment. `--attempt` accepts safe integers from 1
+through 9007199254740991. Unsafe values fail before scoring, output, or optional profile lookup.
+A non-string `reviewer.effort` is an error.
+
 **Application order:** sum → band → floors → bias → escalation → clamp.
 
 **Clamp (final invariant):** effort ceiling is **max**, EXCEPT a **fable** result caps at **xhigh**

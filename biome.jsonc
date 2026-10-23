@@ -2,13 +2,38 @@
   "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
   "javascript": { "formatter": { "quoteStyle": "single" } },
   "files": {
-    // A vendored bundle is a copy of upstream code (#85).
     "includes": ["**", "!scripts/lib/vendor"]
   },
   "overrides": [
     {
-      // Test doubles of the Claude Code testing API, whose types exist only inside Claude Code (#83, Non-goals).
-      "includes": ["tests/**/*.ts"],
+      "includes": [
+        "tests/native-entry.test.ts",
+        "tests/native-observer.test.ts",
+        "tests/native-events-harness.test.ts",
+        "tests/lib/native-host.ts"
+      ],
+      "linter": { "rules": { "suspicious": { "noExplicitAny": "off", "noImplicitAnyLet": "off" } } }
+    },
+    {
+      "includes": [
+        "board/build.test.ts",
+        "board/cli.test.ts",
+        "board/config.test.ts",
+        "board/contract.test.ts",
+        "board/place.test.ts",
+        "board/server.test.ts",
+        "board/test-support.ts",
+        "board/view.test.ts",
+        "tests/board-agent.test.ts",
+        "tests/board.test.ts",
+        "tests/host-session.test.ts",
+        "tests/lib/custom-fixture.ts",
+        "tests/lib/land-fixture.ts",
+        "tests/lib/runner-fixture.ts",
+        "tests/lib/step-fixture.ts",
+        "tests/next-step.test.ts",
+        "tests/setup.test.ts"
+      ],
       "linter": { "rules": { "suspicious": { "noExplicitAny": "off", "noImplicitAnyLet": "off" } } }
     },
     {

@@ -1,1 +1,9 @@
 * text=auto eol=lf
+scripts/celetis linguist-generated=true
+board/board.js linguist-generated=true
+board/view.mjs linguist-generated=true
+board/ui.mjs linguist-generated=true
+board/panel.mjs linguist-generated=true
+board/palette.mjs linguist-generated=true
+hooks/entry.js linguist-generated=true
+tests/manual/native-observer/hooks/register.js linguist-generated=true

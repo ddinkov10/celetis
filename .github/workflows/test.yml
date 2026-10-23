@@ -5,63 +5,36 @@ on:
   pull_request:
 jobs:
   test:
-    name: test (bash ${{ matrix.bash }})
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        bash: ["5", "3.2.57"]
     env:
       DISABLE_UPDATES: "1"
+      BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0"
+      DO_NOT_TRACK: "1"
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - name: Install Claude Code 2.1.302
-        run: |
-          npm install --global --prefix "$RUNNER_TEMP/claude" --include=optional --no-audit --no-fund \
-            @anthropic-ai/claude-code@2.1.302
-          echo "$RUNNER_TEMP/claude/bin" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/claude/bin/claude" --version
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
-      - name: Install the tools of the verify gate
-        run: |
-          awk '$3 == "pip" { print $4 }' tests/lib/tools.txt | xargs python3 -m pip install --quiet --target "$RUNNER_TEMP/gate-tools"
-          echo "$RUNNER_TEMP/gate-tools/bin" >> "$GITHUB_PATH"
-          # The image has its own shellcheck in /usr/bin, and the suite puts /bin first on PATH.
-          awk '$3 == "pip" { print $1 }' tests/lib/tools.txt | xargs -I{} sudo ln -sf "$RUNNER_TEMP/gate-tools/bin/{}" /usr/bin/{}
-          awk '$3 == "npm" { print $4 }' tests/lib/tools.txt | xargs npm install --global --no-audit --no-fund
-      - if: matrix.bash == '3.2.57'
-        id: bash-cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/bash-build
-          key: bash-3.2.57-ubuntu-24.04
-      - name: Build bash 3.2.57
-        if: matrix.bash == '3.2.57' && steps.bash-cache.outputs.cache-hit != 'true'
-        run: |
-          mkdir "$RUNNER_TEMP/bash-src"
-          cd "$RUNNER_TEMP/bash-src"
-          curl --fail --location --retry 3 --remote-name https://ftp.gnu.org/gnu/bash/bash-3.2.57.tar.gz
-          echo '3fa9daf85ebf35068f090ce51283ddeeb3c75eb5bc70b1a4a7cb05868bfe06a4  bash-3.2.57.tar.gz' | sha256sum --check --strict
-          tar -xzf bash-3.2.57.tar.gz
-          cd bash-3.2.57
-          if ! { ./configure --without-bash-malloc --disable-nls && make -j"$(nproc)"; } > build.log 2>&1; then
-            tail -n 50 build.log
-            exit 1
-          fi
-          mkdir -p "$RUNNER_TEMP/bash-build"
-          cp bash "$RUNNER_TEMP/bash-build/bash"
-      - name: Install bash 3.2.57 as /usr/bin/bash
-        if: matrix.bash == '3.2.57'
-        run: |
-          sudo install -m 0755 "$RUNNER_TEMP/bash-build/bash" /usr/bin/bash.new
-          sudo mv -f /usr/bin/bash.new /usr/bin/bash
-      - run: /bin/bash --version
+      - name: Install pinned verification tools
+        run: bun --no-env-file --no-install --config=/dev/null --no-macros scripts/install-tools.ts "${{ runner.temp }}/celetis-tools" --claude
       - name: Verify gate
-        run: scripts/verify.sh
+        run: bun --no-env-file --no-install --config=/dev/null --no-macros scripts/verify.ts
       - name: Full suite
-        run: tests/suite.sh
+        run: bun --no-env-file --no-install --config=/dev/null --no-macros tests/suite.ts
+  processes:
+    name: process (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    env:
+      BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0"
+      DO_NOT_TRACK: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - name: Process and lock acceptance
+        run: bun --no-env-file --no-install --config=/dev/null --no-macros tests/suite.ts --process

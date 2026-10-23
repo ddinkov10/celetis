@@ -48,6 +48,12 @@ hook through those controls when unavailable; never bypass managed policy or a R
 
 ## Worktree and commands
 
+The copied `scripts/celetis` is a generated Bun executable. Installed command sources use
+`.ts` paths and local imports. For a direct checkout command, run the selected Bun with
+`--no-env-file --no-install --config=/dev/null --no-macros` and the absolute TypeScript path.
+Set `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0` and `DO_NOT_TRACK=1`. Child Celetis programs keep
+`process.execPath`. The native startup reads above remain file-only operations.
+
 Use `scripts/celetis --agent claude <command>` on every call. Enter the exact path printed by `worktree` with `EnterWorktree`,
 skipping the call when already bound there. Verify cwd and read that checkout's instructions.
 Before landing or removing a lane, call `ExitWorktree` with keep, then verify the main checkout.

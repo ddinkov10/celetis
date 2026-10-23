@@ -1,0 +1,116 @@
+export type Command = [string, ...string[]];
+export type Config = { data: Command | null; run: Command | null; resume: Command | null; port: number | null };
+export type Flow = {
+  lanes: Record<string, string[]>;
+  stages: { name: string; steps: string[] }[];
+  steps?: Record<string, { gate?: 'me' | 'auto' | null; hint?: string | null }> | null;
+};
+export type Pull = {
+  number: number;
+  url?: string | null;
+  draft: boolean;
+  checks?: string | null;
+  review?: string | null;
+};
+export type Issue = {
+  number: number;
+  title: string;
+  url?: string | null;
+  type?: string | null;
+  state: 'ready' | 'starting' | 'stuck' | 'dirty' | 'blocked' | 'done';
+  step?: string | null;
+  started?: boolean | null;
+  urgent?: boolean | null;
+  updatedAt: string;
+  closedAt?: string | null;
+  path?: string | null;
+  reason?: string | null;
+  act?: string | null;
+  pr?: Pull | null;
+};
+export type Document = {
+  contract: 1;
+  tracker: string;
+  flow: Flow;
+  noRun?: string | null;
+  runner?: boolean | null;
+  issues: Issue[];
+  agents?: Record<string, { available: boolean; cause: string | null }> | null;
+  defaultAgent?: string | null;
+};
+export type Session = {
+  sessionId: string;
+  paneId?: string | null;
+  agent: string | null;
+  status: string;
+  issue: number | null;
+  step: string | null;
+  label: string;
+  cwd: string;
+  since?: string;
+  screen?: string[];
+};
+export type Diff = { files: number; added: number; removed: number };
+export type Card = {
+  sessionId: string | null;
+  number: number | null;
+  title: string;
+  url: string | null;
+  type: string | null;
+  agent: string | null;
+  step: string | null;
+  gate: string | null;
+  state: string | null;
+  since: string;
+  act: string | null;
+  reason: string | null;
+  urgent: boolean;
+  run: boolean;
+  resume: boolean;
+  go: boolean;
+  pr: Pull | null;
+  waitFor?: string | null;
+  screen?: string[];
+  cwd?: string | null;
+  diff?: Diff | null;
+};
+export type Column = 'needs' | 'running' | 'idle' | 'done';
+export type Columns = Record<Column, Card[]>;
+export type Capability = { run: boolean; resume: boolean };
+export type Placement = { noRun: string | null; columns: Columns };
+export type Board = Placement & {
+  flow: Flow | null;
+  tracker: string | null;
+  runner: boolean | null;
+  agents: Document['agents'];
+  defaultAgent: string | null;
+  can: Capability;
+  herdr: { ok: boolean | null; error: string | null };
+  source: { isSet: boolean; readAt: string | null; error: string | null };
+  repo: string;
+};
+export type Action = {
+  id: string;
+  label: string;
+  icon: string;
+  name: string;
+  title: string;
+  busy?: string;
+  href?: string;
+  isDisabled?: boolean;
+  isGhost?: boolean;
+  isMain?: boolean;
+  key?: string;
+  run?: () => unknown;
+};
+
+export type MenuEntry = {
+  icon: string;
+  label: string;
+  key?: string;
+  title?: string;
+  isDisabled?: boolean;
+  isDanger?: boolean;
+  run: () => unknown;
+};
+export type PaletteItem = MenuEntry & { number: number | null; group: string; context?: string; tone?: string | null };

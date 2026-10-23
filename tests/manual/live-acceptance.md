@@ -35,9 +35,9 @@ inside that pane before controls. Start the board there on an unused local port.
 Use its real browser actions. Record the returned pane identities; control only owned panes.
 
 For the single-config cutover, the board start is `scripts/celetis --agent <agent> board` in the
-fixture main checkout. The adapter must run `board/cli.mjs` of the installed plugin with
+fixture main checkout. The adapter must run `board/cli.ts` of the installed plugin with
 `--config-stdin`; keep the plugin commit, input, stdout/stderr, HTTP producer data, and port.
-Test main and subfolder startup, lane refusal before node, malformed config, external/lane
+Test main and subfolder startup, lane refusal before board startup, malformed config, external/lane
 executable refusal, default/configured ports, inherited `PORT`, and absence of a second config file.
 Check that the agent menu and command palette show the default as read-only and expose the
 reason by pointer and keyboard. They must send no setter request. A valid trusted `POST /api/agent`
@@ -52,14 +52,15 @@ Before landing, require the maintainer's readiness report for the
 
 ## Model suites and saved results
 
-These commands use model tokens. Run them only when the selected host can accept the work:
+These commands use model tokens. Run them only when the selected host can accept the work.
+Use the selected Bun executable on PATH:
 
 ```bash
-PATH="/bin:$PATH" /bin/bash tests/manual/step-prompt.test.sh \
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros tests/manual/step-prompt.ts \
   --agent claude --output-dir <new-evidence-directory>
-PATH="/bin:$PATH" /bin/bash tests/manual/step-prompt.test.sh \
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros tests/manual/step-prompt.ts \
   --agent codex --output-dir <new-evidence-directory>
-PATH="/bin:$PATH" /bin/bash tests/manual/custom-part.test.sh \
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros tests/manual/custom-part.ts \
   --output-dir <new-evidence-directory>
 ```
 
