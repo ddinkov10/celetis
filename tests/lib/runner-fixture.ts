@@ -131,7 +131,7 @@ export async function runnerFixture(realResolver = false) {
     const created=has('old-session')?0:Math.floor(Date.now()/1000);put('created',String(created));
     if(!has('no-save')){put('saved');const path=join(process.env.CLAUDE_CONFIG_DIR!,'projects/fixture');mkdirSync(path,{recursive:true});
       writeFileSync(join(path,read('id')+'.jsonl'),JSON.stringify({type:'user',sessionId:read('id'),cwd:has('foreign-checkout')?'/other-checkout':process.cwd(),timestamp:has('old-session')?'2000-01-01T00:00:00Z':new Date().toISOString()})+'\\n');}
-    for(const name of ['settled','exit-submitted','runner-waiting','prior-poll'])rmSync(join(S,name),{force:true});put('host',host);put('live');put('started-'+k);
+    for(const name of ['settled','observed','exit-submitted','runner-waiting','prior-poll'])rmSync(join(S,name),{force:true});put('host',host);put('live');put('started-'+k);
     const refs=spawnSync('git',['for-each-ref','--format=%(refname)', 'refs/celetis-flow/locks'],{encoding:'utf8'});log('locks',refs.stdout.trim().split('\\n').filter(Boolean));
     if(has('hold-session')){while(!has('finish-'+k))await Bun.sleep(10);}
     else if(process.env.HERDR_ENV==='1'){while(!has('settled'))await Bun.sleep(10);}

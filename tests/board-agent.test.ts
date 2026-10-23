@@ -196,7 +196,7 @@ for (const runtimePath of ['absent', 'shadow'] as const)
       else if(k==='pane run'){
         appendFileSync(${JSON.stringify(join(f.state, 'commands'))},a[3]+'\\n');rmSync(${JSON.stringify(join(f.state, 'ran'))},{force:true});
         const child=spawn(process.execPath,${JSON.stringify(isolatedArgs)}.concat(${JSON.stringify(pane)},a[3]!),{env:process.env,detached:true,stdio:'ignore'});appendFileSync(${JSON.stringify(join(f.state, 'pane-pids'))},String(child.pid)+'\\n');child.unref();console.log('{"result":{}}');
-      }else{const r=spawnSync(${JSON.stringify(join(f.dir, 'bin/herdr-runner'))},a,{stdio:'inherit'});process.exitCode=r.status??1;}`,
+      }else{const r=spawnSync(${JSON.stringify(join(f.dir, 'bin/herdr-runner'))},a,{encoding:'utf8',stdio:['inherit','pipe','pipe']});if(k==='agent get'&&process.env.CELETIS_AGENT==='codex')await Bun.sleep(100);process.stdout.write(r.stdout??'');process.stderr.write(r.stderr??'');process.exitCode=r.status??1;}`,
       );
       const main = f.repo;
       const state = f.state;

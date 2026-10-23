@@ -338,7 +338,7 @@ test.concurrent(
     expect(await f.logs('calls')).toEqual([]);
   }, true),
 );
-test.concurrent(
+test.serial(
   'auto selects ordered auto gates, reloads lists, records rows and keeps inherited stdin',
   runnerCase(async (f) => {
     await f.issue(4, 'bug', 'old', [], 'closed');
