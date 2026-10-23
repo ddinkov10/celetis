@@ -1,0 +1,97 @@
+{
+  "answers": {
+    "hosts": [
+      "claude",
+      "codex"
+    ],
+    "tracker": "github"
+  },
+  "entries": {
+    ".celetis.yaml": [
+      {
+        "path": [
+          "landing"
+        ]
+      }
+    ],
+    ".claude/settings.json": [
+      {
+        "item": "Bash(gh pr merge*)",
+        "path": [
+          "permissions",
+          "deny"
+        ]
+      },
+      {
+        "item": "Bash(scripts/celetis --agent claude land *)",
+        "path": [
+          "permissions",
+          "allow"
+        ]
+      },
+      {
+        "item": "Bash(scripts/celetis --agent codex land *)",
+        "path": [
+          "permissions",
+          "allow"
+        ]
+      },
+      {
+        "item": "Bash(scripts/celetis land *)",
+        "path": [
+          "permissions",
+          "allow"
+        ]
+      },
+      {
+        "item": "PowerShell(gh pr merge*)",
+        "path": [
+          "permissions",
+          "deny"
+        ]
+      },
+      {
+        "path": [
+          "enabledPlugins",
+          "celetis@celetis"
+        ]
+      },
+      {
+        "path": [
+          "enabledPlugins",
+          "superpowers@superpowers-marketplace"
+        ]
+      },
+      {
+        "path": [
+          "extraKnownMarketplaces",
+          "celetis"
+        ]
+      }
+    ],
+    ".gitattributes": [
+      ".celetis.yaml text eol=lf",
+      "scripts/celetis text eol=lf"
+    ],
+    ".gitignore": [
+      ".claude/settings.local.json",
+      ".claude/worktrees/",
+      ".superpowers/",
+      "docs/lessons/_pending/",
+      "docs/superpowers/"
+    ],
+    "AGENTS.md": [
+      "## Celetis flow",
+      "- A lane never skips a step.",
+      "- The lanes are the skills of the plugin `celetis`, on the issues of `ddinkov10/celetis`.",
+      "- The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.",
+      "- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `scripts/celetis land`."
+    ]
+  },
+  "files": [
+    ".claude/celetis-flow/wiring.json",
+    ".codex/rules/celetis.rules",
+    "scripts/celetis"
+  ],
+  "schema": 1
+}

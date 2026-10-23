@@ -7,3 +7,5 @@ board/panel.mjs linguist-generated=true
 board/palette.mjs linguist-generated=true
 hooks/entry.js linguist-generated=true
 tests/manual/native-observer/hooks/register.js linguist-generated=true
+scripts/celetis text eol=lf
+.celetis.yaml text eol=lf

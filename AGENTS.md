@@ -79,6 +79,9 @@ and a change on `main` is in use at once ("Traps").
   and in a terminal.
 - A change of `skills/`, `step-prompt.md`, or `scripts/` changes the behavior of each product
   project, so its lane is `bug` or `feature`, not `chore`.
+- The lanes are the skills of the plugin `celetis`, on the issues of `ddinkov10/celetis`.
+- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `scripts/celetis land`.
+- The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.
 
 ## The board
 
