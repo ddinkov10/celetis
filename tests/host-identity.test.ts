@@ -1,4 +1,5 @@
 import { expect, setDefaultTimeout, test } from 'bun:test';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { hosts, managed } from './lib/host-session-fixture.ts';
 import { runnerCase, uuid } from './lib/runner-fixture.ts';
@@ -60,8 +61,8 @@ for (const host of hosts)
     `successful ${host} foreground exit cancels only the active watcher resolver`,
     runnerCase(async (f) => {
       await f.put('hold-session');
-      await f.write(
-        'installed package/scripts/next-step.ts',
+      await writeFile(
+        join(f.plugin, 'scripts/next-step.ts'),
         `import {existsSync,writeFileSync} from 'node:fs';import {join} from 'node:path';const state=process.env.RUNNER_TEST!;if(!existsSync(join(state,'started-1')))console.log('run /celetis:plan #7');else if(!existsSync(join(state,'watcher-resolver'))){writeFileSync(join(state,'watcher-resolver'),String(process.pid));await Bun.sleep(30_000);}else console.log('stop #7 is finished.');`,
       );
       const running = f.start(['7'], { host, env: managed });

@@ -55,7 +55,7 @@ async function installedRevision(root: string, source: string, nativeRevision?: 
       `plugin-update: installed package is dirty: ${root}; review its local changes before checking an update`,
     );
   const remote = await git([...args, 'config', '--get', 'remote.origin.url'], root);
-  if (remote.replace(/\.git$/, '') !== source.replace(/\.git$/, ''))
+  if (remote !== source)
     throw new HostError(
       `plugin-update: installed Git source does not match configured source: ${remote}; repair the native installation identity`,
     );
@@ -130,8 +130,23 @@ async function inspect(host: Host, cwd: string): Promise<UpdateOffer> {
           matches.length === 1 &&
           typeof matches[0].gitCommitSha === 'string' &&
           revision.test(matches[0].gitCommitSha)
-        )
+        ) {
+          const path = join(configHome(host), 'plugins/known_marketplaces.json');
+          const market = policies.find((record) => record.path === path)?.value.celetis;
+          let registered: ReturnType<typeof gitSource>;
+          try {
+            registered = gitSource(object(market) ? market.source : undefined);
+          } catch {
+            throw new HostError(
+              `plugin-update: native registered source is unavailable in ${path}; repair the native marketplace record`,
+            );
+          }
+          if (registered.source !== configured.source)
+            throw new HostError(
+              `plugin-update: native registered source does not match the effective configured source in ${path}; repair the native marketplace record`,
+            );
           nativeRevision = matches[0].gitCommitSha;
+        }
       }
     }
   } else {

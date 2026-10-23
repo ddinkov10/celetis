@@ -128,6 +128,31 @@ async function updateFixture(host: 'claude' | 'codex') {
 }
 
 for (const host of ['claude', 'codex'] as const) {
+  test(`${host} distinct local sources remain distinct when only the Git suffix differs`, async () => {
+    const f = await updateFixture(host);
+    try {
+      const other = f.source.slice(0, -4);
+      await f.git(['clone', '--bare', '-q', f.plugin, other], f.dir);
+      await f.git(['remote', 'set-url', 'origin', other]);
+      const mismatch = await f.update(['check']);
+      expect(mismatch.code).toBe(1);
+      expect(mismatch.stderr).toContain('installed Git source does not match configured source');
+      expect(mismatch.stdout).toBe('');
+      expect(await f.mutations()).toBe('');
+      await f.git(['remote', 'set-url', 'origin', f.source]);
+      const same = await f.update(['check']);
+      expect(same.code, same.stderr).toBe(0);
+      expect(JSON.parse(same.stdout)).toEqual({
+        host,
+        source: f.source,
+        installed: f.installed,
+        target: f.target,
+        root: f.plugin,
+      });
+    } finally {
+      await f.cleanup();
+    }
+  });
   test(`${host} annotated tag resolves its commit and a branch/tag collision refuses the offer`, async () => {
     const f = await updateFixture(host);
     try {
@@ -414,6 +439,32 @@ test('Claude full native registry revision requires exact scope, path and versio
     await f.cleanup();
   }
 });
+
+for (const registered of ['different', 'missing'])
+  test(`Claude no-Git native SHA refuses ${registered} registered source proof`, async () => {
+    const f = await updateFixture('claude');
+    try {
+      const other = join(f.dir, 'other-source.git');
+      await f.git(['clone', '--bare', '-q', f.source, other], f.dir);
+      await rm(join(f.plugin, '.git'), { recursive: true });
+      await f.write(
+        'config/settings.json',
+        JSON.stringify({
+          extraKnownMarketplaces: {
+            celetis: { source: { source: 'git', url: other, ref: 'main' }, autoUpdate: false },
+          },
+        }),
+      );
+      if (registered === 'missing') await f.write('config/plugins/known_marketplaces.json', '{}');
+      const result = await f.update(['check']);
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain('native registered source');
+      expect(result.stdout).toBe('');
+      expect(await f.mutations()).toBe('');
+    } finally {
+      await f.cleanup();
+    }
+  });
 
 test('a non-owned Git witness cannot be hidden by a full native revision record', async () => {
   const f = await updateFixture('claude');

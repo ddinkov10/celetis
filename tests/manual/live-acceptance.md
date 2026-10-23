@@ -64,7 +64,7 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
   --output-dir <new-evidence-directory>
 ```
 
-The step suite has 25 cases. The native Claude custom suite has 24 cases. Capture the command,
+The step suite has 37 scenarios. The native Claude custom suite has 24 cases. Capture the command,
 client version, suite exit status, and complete stdout/stderr separately from their case files.
 The custom suite saves each exact prompt, tools, settings, checkout, plugin path, event stream,
 stderr, config source bytes and hashes, installed source hashes, runtime version, and client

@@ -170,7 +170,7 @@ export async function main(args: string[]): Promise<number> {
         if (name === 'version' || name.startsWith('product-') || /^(case|in|out|err|status|events)-/.test(name))
           await cp(join(tmp, name), join(outputDir, name));
     if (failed) return 1;
-    console.log(only ? `PASS (${host}): case ${only}` : `PASS (${host}): 25 cases`);
+    console.log(only ? `PASS (${host}): case ${only}` : `PASS (${host}): ${selected.length} cases`);
     return 0;
   } finally {
     clients.close();
