@@ -63,6 +63,22 @@ Write `scripts/celetis --agent codex <command>` on every launcher call. Resolve 
 the loaded skill path, or use `scripts/celetis --agent codex root` in the product checkout.
 Neither a Claude environment variable nor an export in a previous tool call establishes it.
 
+The launcher starts `codex app-server --stdio` to find the installed plugin before it runs the
+requested command. A sandbox permission error at this stage is not a worktree refusal.
+For example, `closed its output during initialize` together with `Operation not permitted`
+can mean the sandbox blocked Codex startup; the closed-output message alone does not prove it.
+
+When a required command fails because of sandbox permissions, request one approved retry of
+the same command, arguments, and cwd through the command tool's escalation mechanism. With
+`exec_command`, use `sandbox_permissions: "require_escalated"` and a specific `justification`.
+Use a narrow command prefix when the tool supports reusable approval. Once this invocation
+proves that a command needs escalation, request it directly for later calls with the same
+access needs, subject to the host's approval policy. On success, continue the current lane.
+Do this before reporting a setup stop or asking the maintainer to run the command in a terminal.
+If escalation is unavailable or denied, or the approved retry fails, report the exact block
+and stop the dependent work. This procedure covers command sandbox failures only; native
+file-read denials and explicit policy refusals retain their stop rules.
+
 Run `scripts/celetis --agent codex worktree <n>` in the active product checkout and wait up to ten
 minutes for completion. Record the main checkout as the directory containing the absolute Git
 common directory (`git rev-parse --path-format=absolute --git-common-dir`). Bind the exact
