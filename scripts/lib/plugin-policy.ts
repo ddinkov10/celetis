@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { type Host, HostError, mainCheckout } from './host.ts';
-import { codexPlugin, configHome, jsonFile, object } from './plugin-metadata.ts';
+import { codexHome, configHome, jsonFile, object } from './plugin-metadata.ts';
 import { run } from './process.ts';
 
 export interface PolicyRecord {
@@ -20,7 +20,7 @@ export function checkClaudePolicy(records: PolicyRecord[]): void {
       throw new HostError(`plugin-update: ${path}: Celetis marketplace policy is invalid; repair the effective policy`);
     if (Object.hasOwn(market, 'autoUpdate')) effective = { path, value: market.autoUpdate };
   }
-  if (effective?.value !== false)
+  if (effective && effective.value !== false)
     throw new HostError(
       `plugin-update: ${effective?.path ?? 'native/local/project/user/managed settings'}: Celetis automatic updates are enabled or unknown; stop affected consumers and set the effective Celetis autoUpdate policy to false`,
     );
@@ -66,12 +66,5 @@ export async function claudePolicy(cwd: string): Promise<PolicyRecord[]> {
 export async function requireUpdatePolicy(host: Host, cwd: string): Promise<void> {
   if (host === 'claude') {
     checkClaudePolicy(await claudePolicy(cwd));
-    throw new HostError(
-      'plugin-update: Claude command-line, MDM, and server-managed replacement policy is unknown; file autoUpdate: false does not establish complete native policy. Stop affected consumers and use a supported native effective-policy operation before starting this operation',
-    );
-  }
-  await codexPlugin(cwd);
-  throw new HostError(
-    `plugin-update: ${join(configHome('codex'), 'config.toml')}: Codex automatic plugin refresh can replace active Celetis resources; enabled=false is not update protection. Stop affected consumers and use a supported native lifetime and automatic-update control before starting this operation`,
-  );
+  } else await codexHome();
 }

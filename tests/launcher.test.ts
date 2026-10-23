@@ -283,6 +283,33 @@ test.concurrent(
 );
 
 test.concurrent(
+  'a racing copied launcher waits before discovery until exclusive update protection ends',
+  withProduct(async (f, p) => {
+    const held = join(f.dir, 'held'),
+      release = join(f.dir, 'release');
+    const helper = await f.write(
+      'exclusive.ts',
+      `import {UpdateLock} from ${JSON.stringify(join(root, 'scripts/lib/update-lock.ts'))};const lock=await UpdateLock.acquire(${JSON.stringify(join(f.dir, 'codex home/celetis-update.lock'))},process.pid);await Bun.write(${JSON.stringify(held)},'held');while(!await Bun.file(${JSON.stringify(release)}).exists())await Bun.sleep(10);await lock.close();`,
+    );
+    const owner = spawn(process.execPath, [...isolatedArgs, helper], { env: p.env, stdio: 'ignore' });
+    try {
+      const deadline = performance.now() + 3000;
+      while (!(await Bun.file(held).exists())) {
+        if (performance.now() >= deadline) throw new Error('exclusive fixture did not start');
+        await Bun.sleep(10);
+      }
+      const started = p.launch(['--agent', 'codex', 'root']);
+      await Bun.sleep(150);
+      expect(await Bun.file(p.calls).exists()).toBe(false);
+      await f.write('release', 'release');
+      expect(await started).toEqual({ code: 0, stdout: `${p.plugin}\n`, stderr: '' });
+    } finally {
+      owner.kill('SIGKILL');
+    }
+  }),
+);
+
+test.concurrent(
   'copied launcher discovers only the enabled package and preserves every argument',
   withProduct(async (f, p) => {
     const marker = join(f.repo, 'marker');
@@ -706,9 +733,8 @@ test.concurrent(
       'console.log(JSON.stringify({host:process.env.CELETIS_AGENT,record:JSON.parse(process.env.CELETIS_RESUME_RECORD!)}));',
     );
     const result = await p.launch(['celetis-flow', '--resume', '7'], { env: { CELETIS_AGENT: 'claude' } });
-    expect(result.code).toBe(1);
-    expect(result.stdout).toBe('');
-    expect(result.stderr).toContain('automatic plugin refresh');
+    expect(result.code, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({ host: 'codex', record });
     const wrong = await p.launch(['--agent', 'claude', 'celetis-flow', '--resume', '7']);
     expect(wrong).toEqual({
       code: 1,
@@ -763,8 +789,8 @@ test.concurrent(
       'console.log(process.env.CELETIS_RESUME_RECORD);',
     );
     const result = await p.launch(['celetis-flow', '--resume', '7']);
-    expect(result.code).toBe(1);
-    expect(result.stderr).toContain('automatic plugin refresh');
+    expect(result.code, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual(record);
     expect(await readFile(join(common, 'celetis-flow/sessions/7.json'), 'utf8')).toBe(JSON.stringify(record));
   }),
 );

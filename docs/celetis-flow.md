@@ -185,10 +185,10 @@ Codex also omits the step-text override for specify. Its configured developer in
 launcher, and step text. Numbered starts, automatic starts, and later steps make no update call.
 The forms `--board` and `--resume` keep their existing no-update behavior and saved identity.
 Before a step starts, the runner checks that its required files and step text still exist.
-Before a consumer starts, the effective replacement policy is checked. Consumer starts currently
-refuse on both audited hosts: complete Claude command-line, MDM, and server-managed policy is
-unknown, and Codex automatic refresh lacks a supported lifetime control. A local
-marketplace has no exemption. Metadata RPC disables plugins before app-server construction, so
+Normal consumers retain shared admission, including local-source installations. Known concrete
+policy conflicts are diagnosed. Run and exact Resume bind their own Codex Git session to the
+installed revision without a product pin. External edits to non-Git development sources remain
+outside the update protocol. Metadata RPC disables plugins before app-server construction, so
 read-only thread and configuration checks do not trigger startup refresh.
 
 [Updates](../README.md#updates) owns the read-only check, exact offer, direct chat approval, target-bound
@@ -434,7 +434,7 @@ the project default changes. Each item is one argument. The board quotes the ite
 The board starts the data script on each read and the action script on each press. Stop the
 whole board before a supported package replacement, since later requests can read package assets.
 A fresh board/session resolves the enabled installation again; a successful restart alone is
-no proof of an update. Board starts currently refuse incomplete native policy on both hosts. Follow
+no proof of an update. Board starts retain shared admission for their full lifetime. Follow
 [Updates](../README.md#updates) before replacing its installed package, and complete the
 [manual cutover](configuration.md#replace-the-old-setup) when the product launcher or setup
 changes. Real Run/Resume acceptance remains a
@@ -608,18 +608,14 @@ state/action pairs. These gaps remain open. Optional desktop success cannot clos
 CLI gap. No obsolete metadata or protocol fallback is supplied. The
 [live acceptance procedure](../tests/manual/live-acceptance.md) records each required surface.
 
-**Stable installed resources remain open.** A Codex refresh replaced an installed sibling file
-at the same path while an app-server still advertised that path. The shared update lock covers
-cooperating updates, not all future reads of a running session. No supported per-session package
-pin has been proved. The current [update policy](../README.md#updates) removes Celetis-initiated
-updates and adds an exact offer and one direct chat decision. Target-bound application refuses
-both observed native hosts before replacement: complete consumer, offering-session, and updater
-boundaries remain unproved, and Claude lacks a proved exact-target update. Consumer starts
-refuse both the unknown higher Claude policy and the unsafe Codex automatic refresh policy. ADR-0014 retains the original evidence;
-[ADR-0027](adr/0027-celetis-updates-require-one-chat-approval.md) records the full interface and
-these refusals. Deterministic check/controller/supervisor tests are separate from real human-channel
-and successful native cutover acceptance, which remain unverified. No live tests or real
-installation updates were run for this completion.
+**Native reader lifetime remains conditional.** Celetis admission protects cooperating starts,
+Run/Resume, and boards. Exact native target operations, source restoration, fresh validation,
+and updater cleanup have positive deterministic tests. Stock native processes can start without
+that admission and descendants can close inherited FDs. Keep those native clients stopped during
+explicit cutover; a process scan is not atomic native admission. The offering process must exit
+before the approved terminal action. [Updates](../README.md#updates) and ADR-0027 own the current
+contract. Historical ADR-0014 evidence remains. Live successful cutover and human-channel
+acceptance were waived and remain unverified.
 
 ### Optional Codex desktop evidence
 

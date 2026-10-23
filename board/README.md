@@ -138,9 +138,9 @@ The entry refuses a start in a checkout that is not the main checkout, and it re
 **Stop the board before an approved package replacement.** The server reads page files on later
 requests, so an idle board is still a consumer. Stop affected boards in every product sharing the
 installation before cutover. Follow [Updates](../README.md#updates) for the read-only check, exact
-offer, direct human reply, one target-bound attempt, and native safety refusals. Both observed
-native apply paths currently refuse before replacement. Board starts on both hosts also refuse:
-complete higher Claude policy is unknown, and Codex native automatic refresh is unsafe. After a supported successful application, start a fresh board
+offer, direct human reply, and one target-bound attempt. The approved terminal action selects the
+exact native target and validates the result. Board starts retain shared admission; stop the whole
+board before cutover. After a successful application, start a fresh board
 and session that resolve the enabled installation again. A config change also needs a board restart.
 
 ## Two modes

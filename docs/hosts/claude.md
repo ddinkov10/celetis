@@ -3,30 +3,32 @@
 Read through [Host entry](entry.md). These operations apply to the same shared skills.
 
 
-## Read-only update operations
+## Update operations
 
-Native metadata uses `claude plugin list --json`, scoped install records in
-`<Claude config>/plugins/installed_plugins.json`, and
-`<Claude config>/plugins/known_marketplaces.json`. Read the effective local, project, user,
-managed, and native marketplace policy. A project false value does not override managed true.
-MDM, server-managed, and command-line policy coverage cannot be certified by a file-only read;
-report that limitation and refuse consumer admission until a supported native operation can
-establish complete policy. This applies to numbered and automatic starts, board, and exact
-Resume. Pure file diagnostics and the read-only update check remain available. A shortened
-version label is not a full installed revision.
+Use `claude plugin list --json`, exact version-2 installed records, and the native known-marketplace
+source for read-only identity. File policy diagnostics check applicable settings and precedence;
+unknown MDM/server/command-line coverage is reported, not a blanket normal-start refusal.
 
-After shared entry completes its file reads, run the bound package directly:
+After startup reads, check through the bound package:
 
 ```sh
 BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 CELETIS_AGENT=claude bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/scripts/plugin-update.ts check
 ```
 
-Use the actual `AskUserQuestion` schema when it is available, or accept the direct human turn
-that answers the offer. Read its delivered result; an agent-written object is not a user reply.
-The action for one consumed matching reply is
-`scripts/celetis --agent claude plugin-update apply <source> <installed> <target>`.
-The updater rechecks identity and policy under its lock and currently refuses the unsupported
-native target and complete resource-lifetime boundary. It runs no native latest-update command.
+Use the actual AskUserQuestion schema or the direct human turn to obtain the concrete decision.
+After Update now, give one exact `scripts/celetis --agent claude plugin-update apply <source>
+<installed> <target>` command. The offering foreground must actually exit before the human runs
+that action in an ordinary terminal. `/exit` is the foreground exit; EndConversation leaves the
+native process alive. Do not queue an updater or stop foreign work.
+
+Application uses `claude --settings <private-file> plugin update celetis@celetis --scope <installed-scope> --json`.
+The private settings name only Celetis, keep its Git URL/ref, and put the full target in the plugin
+source `sha`, which wins over ref. Source restoration uses the original marketplace in another
+private settings file and `plugin marketplace update celetis`. Native registry/cache reconciliation
+can occur, so validate original source restoration and fresh enabled target identity; do not
+claim registry bytes stay unchanged or remove/re-add the marketplace. Partial state is reported.
+No private action file becomes product configuration or standing approval. Normal command
+permissions still apply. Keep uncooperative native launches stopped during cutover.
 
 ## Skills and custom text
 

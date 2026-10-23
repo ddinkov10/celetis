@@ -28,10 +28,6 @@ export async function runnerFixture(realResolver = false) {
   await mkdir(join(f.dir, 'tmp'));
   await mkdir(plugin, { recursive: true });
   await cp(join(root, 'scripts'), join(plugin, 'scripts'), { recursive: true });
-  await writeFile(
-    join(plugin, 'scripts/lib/plugin-policy.ts'),
-    `export {checkClaudePolicy,claudePolicy} from ${JSON.stringify(join(root, 'scripts/lib/plugin-policy.ts'))}; export async function requireUpdatePolicy(): Promise<void> {}\n`,
-  );
   await cp(join(root, '.claude-plugin'), join(plugin, '.claude-plugin'), { recursive: true });
   await writeFile(join(plugin, 'skills/guide/SKILL.md'), 'fixture\n').catch(async () => {
     await mkdir(join(plugin, 'skills/guide'), { recursive: true });
@@ -103,9 +99,9 @@ export async function runnerFixture(realResolver = false) {
     if(args[0]==='--disable'&&args[1]==='plugins')args.splice(0,2);
     if(args[0]==='plugin'){
       if(host==='codex'&&args[1]==='marketplace'&&args[2]==='list'){log('discovery',{host,args});console.log(JSON.stringify({marketplaces:[{name:'celetis',root:plugin,marketplaceSource:{sourceType:has('git-marketplace')?'git':'local',source:plugin}}]}));process.exit(0);}
-      const readOnly=args[1]==='list';log(readOnly?'discovery':'mutations',{host,args});log('updates',{host,args});log('order',{host,args});
+      const readOnly=args[1]==='list';log(readOnly?'discovery':'mutations',{host,args});if(!readOnly)log('updates',{host,args});log('order',{host,args});
       const phase=args[1]==='marketplace'?'marketplace':args[1];
-      if(has('update-fail')||read('update-fail-phase')===phase){console.error('fixture: '+host+' '+phase+' update unavailable');process.exit(23);}
+      if((has('update-fail')&&!readOnly)||read('update-fail-phase')===phase){console.error('fixture: '+host+' '+phase+' update unavailable');process.exit(23);}
       if(read('update-hang')===phase){
         process.on('SIGTERM',()=>{});put('update-pid',String(process.pid));
         spawn(process.execPath,${JSON.stringify(isolatedArgs)}.concat(join(S,'update-descendant.ts')),{stdio:['ignore','inherit','inherit',3]});
@@ -134,7 +130,9 @@ export async function runnerFixture(realResolver = false) {
         }
       }process.exit(0);
     }
-    log('calls',{host,cwd:process.cwd(),args,pid:process.pid});log('order',{host,args,session:true});
+    const nativeArgs=[...args];
+    if(host==='codex'){while(args[0]==='-c'&&args[1]?.startsWith('marketplaces.celetis.'))args.splice(0,2);if(has('simulate-native-refresh')&&!nativeArgs.includes('marketplaces.celetis.ref='+JSON.stringify(read('installed-sha'))))writeFileSync(join(plugin,'step-prompt.md'),'UNAPPROVED REFRESH');}
+    log('calls',{host,cwd:process.cwd(),args:nativeArgs,pid:process.pid});log('order',{host,args,session:true});
     const stdin=Buffer.alloc(1);let typed='';const {readSync}=await import('node:fs');
     if(!has('skip-input')){while(true){let n=0;try{n=readSync(0,stdin);}catch{}if(!n||stdin[0]===10)break;typed+=stdin.toString();}}log('stdin',typed);
     if(args[0]==='resume'||args[0]==='--resume'){put('resumed');await pause('hold-resume');process.exit(0);}

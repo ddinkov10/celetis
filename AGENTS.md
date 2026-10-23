@@ -108,9 +108,6 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
   `--plugin-dir .` can load checkout skills, but `scripts/celetis` still resolves the selected
   host's installation. Run a checkout script with the isolated Bun flags shown above and `scripts/<name>.ts`. Test an unlanded Codex package
   only in an isolated test installation; its launcher must still resolve that installation.
-- **The offering session is a package consumer.** An idle turn can still read plugin files.
-  The update check cannot establish that its own native session has crossed the required
-  resource boundary; approval still reaches the explicit supported-path refusal in `plugin-update apply`.
 - **A script file keeps its name.** `scripts/<name>.ts` is the sub-command
   `scripts/celetis <name>`, which the skills, the documents, and the files of each product project
   name: its board commands, and its `allow` rule `Bash(scripts/celetis land *)`. Two file names are

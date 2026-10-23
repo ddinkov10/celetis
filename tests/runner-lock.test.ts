@@ -276,6 +276,36 @@ test.concurrent(
 
 for (const host of ['claude', 'codex'] as const)
   test.concurrent(
+    `${host} waitingSession keeps shared admission after runner SIGKILL until native exit`,
+    runnerCase(async (f) => {
+      await f.put('hold-session');
+      await f.put('skip-input');
+      await f.issue();
+      const running = f.start(['7'], { host });
+      const lockPath = join(
+        host === 'claude' ? (f.env.CLAUDE_CONFIG_DIR ?? '') : (f.env.CODEX_HOME ?? ''),
+        'celetis-update.lock',
+      );
+      let fd = -1;
+      try {
+        await f.wait('started-1');
+        fd = openSync(lockPath, 'a');
+        expect(tryFlock(fd)).toBe(false);
+        running.child.kill('SIGKILL');
+        await running.exited;
+        expect(tryFlock(fd)).toBe(false);
+        await f.put('finish-1');
+        await until(async () => tryFlock(fd), 'native process did not release its inherited shared admission');
+      } finally {
+        if (fd >= 0) closeSync(fd);
+        running.child.kill('SIGKILL');
+        await f.put('finish-1');
+      }
+    }),
+  );
+
+for (const host of ['claude', 'codex'] as const)
+  test.concurrent(
     `nested ${host} installed-root child and descendant inherit the update lock`,
     runnerCase(async (f) => {
       if (host === 'claude') await f.put('update-hang', 'list');
@@ -497,7 +527,11 @@ for (const killed of [false, true])
       expect(b, two.error()).toBe(0);
       updateOverlap = await f.has('update-overlap');
       expect(updateOverlap).toBe(false);
-      expect((await f.logs('updates')).length).toBe(killed ? 4 : 6);
+      const marketplace = { host: 'claude', args: ['plugin', 'marketplace', 'update', 'celetis'] };
+      const plugin = { host: 'claude', args: ['plugin', 'update', 'celetis@celetis', '--scope', 'user'] };
+      expect(await f.logs('updates')).toEqual(
+        killed ? [marketplace, marketplace, plugin] : [marketplace, plugin, marketplace, plugin],
+      );
     }),
   );
 

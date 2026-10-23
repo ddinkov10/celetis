@@ -1,9 +1,20 @@
 import { type ExecFileOptions, execFile, spawn } from 'node:child_process';
+import { fstatSync } from 'node:fs';
 import { constants } from 'node:os';
 import { delimiter } from 'node:path';
 
 export const bunShebang =
   '#!/usr/bin/env -S BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros';
+
+export function updateDescriptor(): number | undefined {
+  const fd = Number(process.env.CELETIS_UPDATE_FD);
+  if (!Number.isInteger(fd) || fd < 3) return undefined;
+  try {
+    return fstatSync(fd).isFile() ? fd : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export function childEnv(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {
@@ -31,6 +42,7 @@ export function run(
   options: ExecFileOptions & { inheritedFd?: number; input?: string; stderr?: 'inherit' } = {},
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   const maxBuffer = options.maxBuffer ?? 64 * 1024 * 1024;
+  options = { ...options, inheritedFd: options.inheritedFd ?? updateDescriptor() };
   const env = childEnv(options.env);
   if (options.inheritedFd !== undefined) {
     return new Promise((resolve) => {

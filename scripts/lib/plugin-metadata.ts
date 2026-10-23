@@ -4,8 +4,67 @@ import { isAbsolute, join, relative, sep } from 'node:path';
 import { type Host, HostError } from './host.ts';
 import { childEnv, run } from './process.ts';
 
+const revision = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
+
 export const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
+
+export async function git(args: string[], cwd: string, execute: typeof run = run): Promise<string> {
+  const result = await execute(
+    'git',
+    ['--no-optional-locks', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', ...args],
+    { cwd, timeout: 10_000 },
+  );
+  if (result.code !== 0)
+    throw new HostError(
+      [`plugin-update: git ${args[0]} failed (exit ${result.code})`, result.stderr.trimEnd(), result.stdout.trimEnd()]
+        .filter(Boolean)
+        .join('\n'),
+    );
+  return result.stdout.trimEnd();
+}
+
+export async function installedRevision(
+  root: string,
+  source: string,
+  nativeRevision?: string,
+  execute: typeof run = run,
+): Promise<string> {
+  const witness = await lstat(join(root, '.git')).catch(() => null);
+  if (witness && !witness.isDirectory())
+    throw new HostError(`plugin-update: Git witness is not package-owned: ${root}; repair the native installation`);
+  if (!witness) {
+    if (nativeRevision) return nativeRevision;
+    throw new HostError(
+      `plugin-update: ${root} has no package-owned Git revision witness; reinstall from a source with verifiable full installed identity`,
+    );
+  }
+  const args = [`--git-dir=${join(root, '.git')}`, `--work-tree=${root}`];
+  const common = await git([...args, 'rev-parse', '--path-format=absolute', '--git-common-dir'], root, execute);
+  if (
+    (await realpath(common).catch(() => '')) !== (await realpath(join(root, '.git'))) ||
+    (await lstat(join(root, '.git/objects/info/alternates')).catch(() => null))
+  )
+    throw new HostError(
+      `plugin-update: installed Git witness uses external common state: ${root}; use a package-owned Git record`,
+    );
+  const installed = await git([...args, 'rev-parse', '--verify', 'HEAD'], root, execute);
+  if (nativeRevision && nativeRevision !== installed)
+    throw new HostError(
+      `plugin-update: native installed revision disagrees with package witness: ${root}; repair the native identity`,
+    );
+  if (!revision.test(installed)) throw new HostError(`plugin-update: invalid full installed revision in ${root}`);
+  if (await git([...args, 'status', '--porcelain', '--untracked-files=normal'], root, execute))
+    throw new HostError(
+      `plugin-update: installed package is dirty: ${root}; review its local changes before checking an update`,
+    );
+  const remote = await git([...args, 'config', '--get', 'remote.origin.url'], root, execute);
+  if (remote !== source)
+    throw new HostError(
+      `plugin-update: installed Git source does not match configured source: ${remote}; repair the native installation identity`,
+    );
+  return installed;
+}
 
 export function configHome(host: Host): string {
   return host === 'claude'
@@ -54,9 +113,10 @@ export async function nativeJson(
   cwd: string,
   inheritedFd?: number,
   env = childEnv(),
+  execute: typeof run = run,
 ): Promise<unknown> {
   if (host === 'codex') env = childEnv({ ...env, CODEX_HOME: await codexHome(env.CODEX_HOME) });
-  const result = await run(host, args, {
+  const result = await execute(host, args, {
     cwd,
     env,
     inheritedFd,
@@ -88,10 +148,14 @@ export interface PluginMetadata {
   record: Record<string, unknown>;
 }
 
-export async function codexPlugin(cwd: string, inheritedFd?: number): Promise<PluginMetadata> {
+export async function codexPlugin(
+  cwd: string,
+  inheritedFd?: number,
+  execute: typeof run = run,
+): Promise<PluginMetadata> {
   const home = await codexHome();
   const env = childEnv({ ...process.env, CODEX_HOME: home });
-  const version = await run('codex', ['--version'], { cwd, env, inheritedFd, timeout: 10_000 });
+  const version = await execute('codex', ['--version'], { cwd, env, inheritedFd, timeout: 10_000 });
   if (version.code !== 0) throw new HostError(`celetis: codex is not available: ${version.stderr.trimEnd()}`);
   if (version.stdout.trim() !== 'codex-cli 0.163.0')
     throw new HostError(
@@ -103,6 +167,7 @@ export async function codexPlugin(cwd: string, inheritedFd?: number): Promise<Pl
     cwd,
     inheritedFd,
     env,
+    execute,
   );
   if (!object(value) || !Array.isArray(value.installed)) throw new HostError('celetis: invalid Codex plugin list');
   const records = value.installed.filter((item) => object(item) && item.pluginId === 'celetis@celetis');
@@ -139,7 +204,14 @@ export async function codexPlugin(cwd: string, inheritedFd?: number): Promise<Pl
       `celetis: Codex registry does not match its installed version ${String(record.version)}; repair the native installation`,
     );
   const root = await contained(home, join(store, active));
-  const marketplaces = await nativeJson('codex', ['plugin', 'marketplace', 'list', '--json'], cwd, inheritedFd, env);
+  const marketplaces = await nativeJson(
+    'codex',
+    ['plugin', 'marketplace', 'list', '--json'],
+    cwd,
+    inheritedFd,
+    env,
+    execute,
+  );
   if (!object(marketplaces) || !Array.isArray(marketplaces.marketplaces))
     throw new HostError('celetis: invalid Codex marketplace source list');
   const markets = marketplaces.marketplaces.filter((item) => object(item) && item.name === 'celetis');
@@ -179,4 +251,22 @@ export async function codexPlugin(cwd: string, inheritedFd?: number): Promise<Pl
     throw new HostError('celetis: Codex reports a missing installed skill; reinstall the plugin');
   await contained(root, join(root, 'skills/guide/SKILL.md'));
   return { host: 'codex', home, root, record };
+}
+
+export async function codexSessionPin(root: string, cwd: string): Promise<string[]> {
+  const metadata = await codexPlugin(cwd);
+  if (metadata.root !== (await realpath(root)))
+    throw new HostError('celetis: enabled package changed before session start; start a fresh runner');
+  const source = metadata.record.marketplaceSource;
+  if (!object(source) || source.sourceType !== 'git') return [];
+  if (typeof source.source !== 'string') throw new HostError('celetis: native Git source is missing');
+  const sha = await installedRevision(root, source.source);
+  return [
+    '-c',
+    'marketplaces.celetis.source_type="git"',
+    '-c',
+    `marketplaces.celetis.source=${JSON.stringify(source.source)}`,
+    '-c',
+    `marketplaces.celetis.ref=${JSON.stringify(sha)}`,
+  ];
 }

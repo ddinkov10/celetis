@@ -3,7 +3,7 @@
 
 // scripts/launcher.ts
 import { stat } from "fs/promises";
-import { dirname as dirname2, join as join4 } from "path";
+import { dirname as dirname2, join as join5 } from "path";
 
 // scripts/lib/config.ts
 import fs from "fs";
@@ -6586,8 +6586,19 @@ import { isAbsolute, join, relative, sep } from "path";
 
 // scripts/lib/process.ts
 import { execFile, spawn } from "child_process";
+import { fstatSync } from "fs";
 import { constants } from "os";
 import { delimiter } from "path";
+function updateDescriptor() {
+  const fd = Number(process.env.CELETIS_UPDATE_FD);
+  if (!Number.isInteger(fd) || fd < 3)
+    return;
+  try {
+    return fstatSync(fd).isFile() ? fd : undefined;
+  } catch {
+    return;
+  }
+}
 function childEnv(source = process.env) {
   const env = {
     ...source,
@@ -6606,6 +6617,7 @@ function limitOutput(text, bytes) {
 }
 function run(file, args, options = {}) {
   const maxBuffer = options.maxBuffer ?? 64 * 1024 * 1024;
+  options = { ...options, inheritedFd: options.inheritedFd ?? updateDescriptor() };
   const env = childEnv(options.env);
   if (options.inheritedFd !== undefined) {
     return new Promise((resolve) => {
@@ -6721,10 +6733,10 @@ async function jsonFile(path, optional = false) {
     throw new HostError(`plugin-update: cannot read ${path}: ${error.message}; repair this native record`);
   }
 }
-async function nativeJson(host, args, cwd, inheritedFd, env = childEnv()) {
+async function nativeJson(host, args, cwd, inheritedFd, env = childEnv(), execute = run) {
   if (host === "codex")
     env = childEnv({ ...env, CODEX_HOME: await codexHome(env.CODEX_HOME) });
-  const result = await run(host, args, {
+  const result = await execute(host, args, {
     cwd,
     env,
     inheritedFd,
@@ -6745,15 +6757,15 @@ async function nativeJson(host, args, cwd, inheritedFd, env = childEnv()) {
 ${result.stdout.trimEnd()}`);
   }
 }
-async function codexPlugin(cwd, inheritedFd) {
+async function codexPlugin(cwd, inheritedFd, execute = run) {
   const home = await codexHome();
   const env = childEnv({ ...process.env, CODEX_HOME: home });
-  const version = await run("codex", ["--version"], { cwd, env, inheritedFd, timeout: 1e4 });
+  const version = await execute("codex", ["--version"], { cwd, env, inheritedFd, timeout: 1e4 });
   if (version.code !== 0)
     throw new HostError(`celetis: codex is not available: ${version.stderr.trimEnd()}`);
   if (version.stdout.trim() !== "codex-cli 0.163.0")
     throw new HostError(`celetis: read-only plugin discovery is unverified for ${version.stdout.trim()}; verify its native registry before use`);
-  const value = await nativeJson("codex", ["plugin", "list", "--marketplace", "celetis", "--json"], cwd, inheritedFd, env);
+  const value = await nativeJson("codex", ["plugin", "list", "--marketplace", "celetis", "--json"], cwd, inheritedFd, env, execute);
   if (!object2(value) || !Array.isArray(value.installed))
     throw new HostError("celetis: invalid Codex plugin list");
   const records = value.installed.filter((item) => object2(item) && item.pluginId === "celetis@celetis");
@@ -6773,7 +6785,7 @@ async function codexPlugin(cwd, inheritedFd) {
   if (!active || record.version !== active)
     throw new HostError(`celetis: Codex registry does not match its installed version ${String(record.version)}; repair the native installation`);
   const root = await contained(home, join(store, active));
-  const marketplaces = await nativeJson("codex", ["plugin", "marketplace", "list", "--json"], cwd, inheritedFd, env);
+  const marketplaces = await nativeJson("codex", ["plugin", "marketplace", "list", "--json"], cwd, inheritedFd, env, execute);
   if (!object2(marketplaces) || !Array.isArray(marketplaces.marketplaces))
     throw new HostError("celetis: invalid Codex marketplace source list");
   const markets = marketplaces.marketplaces.filter((item) => object2(item) && item.name === "celetis");
@@ -6854,12 +6866,12 @@ function selectHost(explicit, env, main) {
 function object3(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
-async function installedRoot(host, cwd, inheritedFd) {
+async function installedRoot(host, cwd, inheritedFd, execute = run) {
   if (host === "claude") {
     const missing = "celetis: the plugin is not installed; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis";
     if (!Bun.which("claude", { PATH: childEnv().PATH }))
       throw new HostError(missing);
-    const result = await run("claude", ["plugin", "list", "--json"], {
+    const result = await execute("claude", ["plugin", "list", "--json"], {
       cwd,
       inheritedFd,
       stderr: inheritedFd === undefined ? undefined : "inherit"
@@ -6885,7 +6897,7 @@ ${result.stdout.trimEnd()}`);
       throw new HostError(missing);
     return record.installPath.replaceAll("\r", "");
   }
-  return (await codexPlugin(cwd, inheritedFd)).root;
+  return (await codexPlugin(cwd, inheritedFd, execute)).root;
 }
 
 // scripts/lib/plugin-policy.ts
@@ -6904,7 +6916,7 @@ function checkClaudePolicy(records) {
     if (Object.hasOwn(market, "autoUpdate"))
       effective = { path, value: market.autoUpdate };
   }
-  if (effective?.value !== false)
+  if (effective && effective.value !== false)
     throw new HostError(`plugin-update: ${effective?.path ?? "native/local/project/user/managed settings"}: Celetis automatic updates are enabled or unknown; stop affected consumers and set the effective Celetis autoUpdate policy to false`);
 }
 async function claudePolicy(cwd) {
@@ -6938,10 +6950,8 @@ async function claudePolicy(cwd) {
 async function requireUpdatePolicy(host, cwd) {
   if (host === "claude") {
     checkClaudePolicy(await claudePolicy(cwd));
-    throw new HostError("plugin-update: Claude command-line, MDM, and server-managed replacement policy is unknown; file autoUpdate: false does not establish complete native policy. Stop affected consumers and use a supported native effective-policy operation before starting this operation");
-  }
-  await codexPlugin(cwd);
-  throw new HostError(`plugin-update: ${join2(configHome("codex"), "config.toml")}: Codex automatic plugin refresh can replace active Celetis resources; enabled=false is not update protection. Stop affected consumers and use a supported native lifetime and automatic-update control before starting this operation`);
+  } else
+    await codexHome();
 }
 
 // scripts/lib/session.ts
@@ -6989,6 +6999,122 @@ async function selectSavedSession(main, issue, explicit, common) {
   return record;
 }
 
+// scripts/lib/update-lock.ts
+import { dlopen, FFIType, ptr, read } from "bun:ffi";
+import { closeSync, fstatSync as fstatSync2, openSync, statSync } from "fs";
+import { mkdir as mkdir2, mkdtemp, readFile as readFile3, rm as rm2 } from "fs/promises";
+import { constants as constants2, tmpdir } from "os";
+import { join as join4 } from "path";
+var errnoName = process.platform === "darwin" ? "__error" : "__errno_location";
+var architecture = process.arch === "arm64" ? "aarch64" : process.arch === "x64" ? "x86_64" : process.arch;
+var libraries = process.platform === "darwin" ? ["/usr/lib/libSystem.B.dylib"] : ["libc.so.6", `libc.musl-${architecture}.so.1`, `/lib/ld-musl-${architecture}.so.1`];
+function binding() {
+  for (const library of libraries) {
+    try {
+      return dlopen(library, {
+        flock: { args: [FFIType.i32, FFIType.i32], returns: FFIType.i32 },
+        fcntl: { args: [FFIType.i32, FFIType.i32, FFIType.i32], returns: FFIType.i32 },
+        execve: { args: [FFIType.ptr, FFIType.ptr, FFIType.ptr], returns: FFIType.i32 },
+        [errnoName]: { args: [], returns: FFIType.ptr }
+      });
+    } catch {}
+  }
+  throw new HostError("plugin-update: cannot load the system flock library");
+}
+var native = binding();
+function execConsumer(file, argv, env) {
+  const entries = Object.entries(env).filter((entry) => typeof entry[1] === "string").map(([key, value]) => `${key}=${value}`);
+  const values = [file, ...argv, ...entries];
+  if (values.some((value) => value.includes("\x00")))
+    throw new HostError("celetis: process replacement arguments contain NUL");
+  const buffers = values.map((value) => Buffer.from(`${value}\x00`));
+  const args = new BigUint64Array(argv.length + 1);
+  const variables = new BigUint64Array(entries.length + 1);
+  for (let at = 0;at < argv.length; at++)
+    args[at] = BigInt(ptr(buffers[at + 1]));
+  for (let at = 0;at < entries.length; at++)
+    variables[at] = BigInt(ptr(buffers[at + 1 + argv.length]));
+  native.symbols.execve(ptr(buffers[0]), ptr(args), ptr(variables));
+  const pointer = native.symbols[errnoName]?.();
+  throw new HostError(`celetis: process replacement failed for ${file} (errno ${pointer ? read.i32(pointer) : "unknown"})`);
+}
+function tryFlock(fd, shared = false) {
+  if (native.symbols.flock(fd, (shared ? 1 : 2) | 4) === 0)
+    return true;
+  const errorPointer = native.symbols[errnoName]?.();
+  if (!errorPointer)
+    throw new HostError("plugin-update: cannot read flock errno");
+  const errno = read.i32(errorPointer);
+  if ([constants2.errno.EWOULDBLOCK, constants2.errno.EAGAIN, constants2.errno.EINTR].includes(errno))
+    return false;
+  throw new HostError(`plugin-update: cannot acquire the plugin update lock (errno ${errno})`);
+}
+
+class ConsumerLock {
+  fd;
+  constructor(fd) {
+    this.fd = fd;
+  }
+  static async acquire(host) {
+    const home = host === "codex" ? await codexHome() : configHome(host);
+    await mkdir2(home, { recursive: true });
+    const path = join4(home, "celetis-update.lock");
+    let fd;
+    const inherited = Number(process.env.CELETIS_CONSUMER_FD);
+    if (Number.isInteger(inherited) && inherited >= 3) {
+      try {
+        const expected = statSync(path), current = fstatSync2(inherited);
+        if (expected.dev === current.dev && expected.ino === current.ino)
+          fd = inherited;
+      } catch {}
+    }
+    fd ??= openSync(path, "a", 384);
+    const deadline = performance.now() + 120000;
+    try {
+      while (!tryFlock(fd, true)) {
+        if (performance.now() >= deadline)
+          throw new HostError("celetis: an update still holds the installation; retry this start after it finishes");
+        await Bun.sleep(50);
+      }
+      if (native.symbols.fcntl(fd, 2, 0) !== 0)
+        throw new HostError("celetis: cannot retain consumer protection across process replacement");
+      process.env.CELETIS_CONSUMER_FD = String(fd);
+      return new ConsumerLock(fd);
+    } catch (error) {
+      closeSync(fd);
+      throw error;
+    }
+  }
+  static retainInherited() {
+    const fd = Number(process.env.CELETIS_CONSUMER_FD);
+    if (!Number.isInteger(fd) || fd < 3)
+      return;
+    if (native.symbols.fcntl(fd, 2, 0) !== 0)
+      throw new HostError("celetis: cannot retain the inherited consumer descriptor");
+  }
+  static releaseForUpdate(home) {
+    const fd = Number(process.env.CELETIS_CONSUMER_FD);
+    if (!Number.isInteger(fd) || fd < 3)
+      return;
+    try {
+      const current = fstatSync2(fd);
+      const expected = statSync(join4(home, "celetis-update.lock"));
+      if (current.dev !== expected.dev || current.ino !== expected.ino)
+        throw new HostError("plugin-update: inherited consumer protection belongs to another installation");
+      closeSync(fd);
+      delete process.env.CELETIS_CONSUMER_FD;
+    } catch (error) {
+      if (error instanceof HostError)
+        throw error;
+    }
+  }
+  close() {
+    closeSync(this.fd);
+    if (process.env.CELETIS_CONSUMER_FD === String(this.fd))
+      delete process.env.CELETIS_CONSUMER_FD;
+  }
+}
+
 // scripts/launcher.ts
 async function resume(issue, explicit, cwd) {
   const n = issue.replace(/^#/, "");
@@ -7019,6 +7145,9 @@ async function main(argv) {
     const main = await mainCheckout(cwd).catch(() => null);
     const saved = name === "celetis-flow" && args.length === 2 && args[0] === "--resume" ? await resume(args[1] ?? "", explicit, cwd) : undefined;
     const host = saved?.host ?? selectHost(explicit, process.env, main);
+    if (host === "codex")
+      process.env.CODEX_HOME = await codexHome();
+    await ConsumerLock.acquire(host);
     if (["worktree", "celetis-flow", "next-step", "land", "board"].includes(name)) {
       const checkout = main ?? await mainCheckout(cwd);
       try {
@@ -7032,7 +7161,7 @@ async function main(argv) {
     if (["celetis-flow", "board"].includes(name))
       await requireUpdatePolicy(host, cwd);
     const root = await installedRoot(host, cwd);
-    const entry = join4(root, "scripts", `${name}.ts`);
+    const entry = join5(root, "scripts", `${name}.ts`);
     if (!(await stat(entry).catch(() => null))?.isFile())
       throw new HostError(`celetis: the plugin has no script ${name}`, 2);
     const env = childEnv({ ...process.env, CELETIS_AGENT: host });
@@ -7041,7 +7170,7 @@ async function main(argv) {
       env.CELETIS_RESUME_RECORD = saved.record;
     if (!process.execve)
       throw new HostError("celetis: process replacement needs macOS or Linux");
-    return process.execve(process.execPath, [process.execPath, ...bunArgs(entry, args)], env);
+    return execConsumer(process.execPath, [process.execPath, ...bunArgs(entry, args)], env);
   } catch (error) {
     if (!(error instanceof HostError))
       throw error;

@@ -6,8 +6,10 @@ import { ConfigError, readConfig } from './lib/config.ts';
 import { HostError, mainCheckout, requireBun, selectHost } from './lib/host.ts';
 import { requireUpdatePolicy } from './lib/plugin-policy.ts';
 import { bunArgs, childEnv, run } from './lib/process.ts';
+import { ConsumerLock } from './lib/update-lock.ts';
 
 export async function main(args: string[]): Promise<number> {
+  let consumer: ConsumerLock | undefined;
   try {
     requireBun();
     if (args.length) throw new HostError('usage: scripts/celetis board', 2);
@@ -29,7 +31,10 @@ export async function main(args: string[]): Promise<number> {
     if (checkout.code) throw new HostError(checkout.stderr.trimEnd(), checkout.code);
     if ((await realpath(checkout.stdout.trimEnd())) !== main)
       throw new HostError(`celetis-board: start the board in the main checkout: ${main}`);
-    await requireUpdatePolicy(selectHost(undefined, process.env, main), main);
+    const host = selectHost(undefined, process.env, main);
+    consumer = await ConsumerLock.acquire(host);
+    await requireUpdatePolicy(host, main);
+    env.CELETIS_CONSUMER_FD = '3';
     const input = {
       data: ['scripts/celetis', 'celetis-flow', '--board'],
       run: ['scripts/celetis', '--agent', '{agent}', 'celetis-flow', '{n}'],
@@ -40,7 +45,7 @@ export async function main(args: string[]): Promise<number> {
       const child = spawn(process.execPath, bunArgs(entry, ['--config-stdin']), {
         cwd: main,
         env,
-        stdio: ['pipe', 'inherit', 'inherit'],
+        stdio: ['pipe', 'inherit', 'inherit', consumer?.fd ?? 'ignore'],
       });
       const interrupt = () => child.kill('SIGINT');
       const terminate = () => child.kill('SIGTERM');
@@ -52,12 +57,14 @@ export async function main(args: string[]): Promise<number> {
         process.off('SIGTERM', terminate);
         done(code ?? (signal ? 128 + constants.signals[signal] : 1));
       });
-      child.stdin.on('error', () => {});
-      child.stdin.end(`${JSON.stringify(input)}\n`);
+      child.stdin?.on('error', () => {});
+      child.stdin?.end(`${JSON.stringify(input)}\n`);
     });
   } catch (error) {
     console.error(error instanceof HostError ? error.message : `celetis-board: ${(error as Error).message}`);
     return error instanceof HostError ? error.code : 1;
+  } finally {
+    consumer?.close();
   }
 }
 

@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { command, fixture, isolatedArgs, root } from './fixture.ts';
 
@@ -26,10 +26,6 @@ export async function boardFixture() {
   const plugin = join(f.dir, 'installed package');
   await mkdir(plugin);
   await cp(join(root, 'scripts'), join(plugin, 'scripts'), { recursive: true });
-  await writeFile(
-    join(plugin, 'scripts/lib/plugin-policy.ts'),
-    'export async function requireUpdatePolicy(): Promise<void> {}\n',
-  );
   await mkdir(join(plugin, 'board'));
   const entry = join(plugin, 'scripts/board.ts');
   const capture = join(f.dir, 'capture.json');

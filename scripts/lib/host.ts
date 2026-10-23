@@ -4,7 +4,7 @@ import { dirname, win32 } from 'node:path';
 import { createInterface } from 'node:readline';
 import { bunFloor, ConfigError, readSnapshot } from './config.ts';
 import { codexHome, codexPlugin } from './plugin-metadata.ts';
-import { childEnv, run } from './process.ts';
+import { childEnv, run, updateDescriptor } from './process.ts';
 
 export type Host = 'claude' | 'codex';
 
@@ -79,6 +79,7 @@ export async function codexRequest(
   inheritedFd?: number,
   nativeHome?: string,
 ): Promise<unknown> {
+  inheritedFd ??= updateDescriptor();
   const env = childEnv({ ...process.env, CODEX_HOME: await codexHome(nativeHome) });
   if (!Bun.which('codex', { PATH: env.PATH })) throw new HostError('celetis: codex is not on PATH');
   const child = spawn('codex', ['--disable', 'plugins', 'app-server', '--stdio'], {
@@ -196,12 +197,17 @@ export async function codexRequest(
   return result;
 }
 
-export async function installedRoot(host: Host, cwd: string, inheritedFd?: number): Promise<string> {
+export async function installedRoot(
+  host: Host,
+  cwd: string,
+  inheritedFd?: number,
+  execute: typeof run = run,
+): Promise<string> {
   if (host === 'claude') {
     const missing =
       'celetis: the plugin is not installed; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis';
     if (!Bun.which('claude', { PATH: childEnv().PATH })) throw new HostError(missing);
-    const result = await run('claude', ['plugin', 'list', '--json'], {
+    const result = await execute('claude', ['plugin', 'list', '--json'], {
       cwd,
       inheritedFd,
       stderr: inheritedFd === undefined ? undefined : 'inherit',
@@ -229,5 +235,5 @@ export async function installedRoot(host: Host, cwd: string, inheritedFd?: numbe
       throw new HostError(missing);
     return record.installPath.replaceAll('\r', '');
   }
-  return (await codexPlugin(cwd, inheritedFd)).root;
+  return (await codexPlugin(cwd, inheritedFd, execute)).root;
 }

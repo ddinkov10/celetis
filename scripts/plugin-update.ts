@@ -1,73 +1,39 @@
-import { lstat, mkdir, realpath } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { codexRequest, type Host, HostError, installedRoot, mainCheckout, requireBun, selectHost } from './lib/host.ts';
-import { codexHome, codexPlugin, configHome, jsonFile, nativeJson, object } from './lib/plugin-metadata.ts';
+import { requireStoppedConsumers } from './lib/plugin-consumers.ts';
+import {
+  codexHome,
+  codexPlugin,
+  configHome,
+  git,
+  installedRevision,
+  jsonFile,
+  nativeJson,
+  object,
+} from './lib/plugin-metadata.ts';
 import { checkClaudePolicy, claudePolicy, requireUpdatePolicy } from './lib/plugin-policy.ts';
-import { bunArgs, childEnv, run } from './lib/process.ts';
-import { UpdateLock } from './lib/update-lock.ts';
+import { bunArgs, childEnv, type run } from './lib/process.ts';
+import { ConsumerLock, UpdateLock } from './lib/update-lock.ts';
 
 export type UpdateTarget = { source: string; installed: string; target: string };
 export type UpdateOffer = UpdateTarget & { host: Host; root: string };
 const revision = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
-
-async function git(args: string[], cwd: string): Promise<string> {
-  const result = await run(
-    'git',
-    ['--no-optional-locks', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', ...args],
-    { cwd, timeout: 10_000 },
-  );
-  if (result.code !== 0)
-    throw new HostError(
-      [`plugin-update: git ${args[0]} failed (exit ${result.code})`, result.stderr.trimEnd(), result.stdout.trimEnd()]
-        .filter(Boolean)
-        .join('\n'),
-    );
-  return result.stdout.trimEnd();
-}
-
-async function installedRevision(root: string, source: string, nativeRevision?: string): Promise<string> {
-  const witness = await lstat(join(root, '.git')).catch(() => null);
-  if (witness && !witness.isDirectory())
-    throw new HostError(`plugin-update: Git witness is not package-owned: ${root}; repair the native installation`);
-  if (!witness) {
-    if (nativeRevision) return nativeRevision;
-    throw new HostError(
-      `plugin-update: ${root} has no package-owned Git revision witness; reinstall from a source with verifiable full installed identity`,
-    );
-  }
-  const args = [`--git-dir=${join(root, '.git')}`, `--work-tree=${root}`];
-  const common = await git([...args, 'rev-parse', '--path-format=absolute', '--git-common-dir'], root);
-  if (
-    (await realpath(common).catch(() => '')) !== (await realpath(join(root, '.git'))) ||
-    (await lstat(join(root, '.git/objects/info/alternates')).catch(() => null))
-  )
-    throw new HostError(
-      `plugin-update: installed Git witness uses external common state: ${root}; use a package-owned Git record`,
-    );
-  const installed = await git([...args, 'rev-parse', '--verify', 'HEAD'], root);
-  if (nativeRevision && nativeRevision !== installed)
-    throw new HostError(
-      `plugin-update: native installed revision disagrees with package witness: ${root}; repair the native identity`,
-    );
-  if (!revision.test(installed)) throw new HostError(`plugin-update: invalid full installed revision in ${root}`);
-  if (await git([...args, 'status', '--porcelain', '--untracked-files=normal'], root))
-    throw new HostError(
-      `plugin-update: installed package is dirty: ${root}; review its local changes before checking an update`,
-    );
-  const remote = await git([...args, 'config', '--get', 'remote.origin.url'], root);
-  if (remote !== source)
-    throw new HostError(
-      `plugin-update: installed Git source does not match configured source: ${remote}; repair the native installation identity`,
-    );
-  return installed;
-}
 
 function gitSource(value: unknown): { source: string; ref: string } {
   if (!object(value))
     throw new HostError('plugin-update: no configured Git source; inspect the native marketplace record');
   let source: unknown;
   if (value.source === 'git') source = value.url;
-  else if (value.source === 'github' && typeof value.repo === 'string' && /^[\w.-]+\/[\w.-]+$/.test(value.repo))
+  else if (value.source === 'settings' && value.name === 'celetis' && Array.isArray(value.plugins)) {
+    const plugins = value.plugins.filter((plugin) => object(plugin) && plugin.name === 'celetis');
+    const plugin = plugins[0];
+    if (plugins.length !== 1 || !object(plugin) || !object(plugin.source) || plugin.source.source !== 'url')
+      throw new HostError('plugin-update: invalid native inline marketplace source');
+    return gitSource({ source: 'git', url: plugin.source.url, ref: plugin.source.ref });
+  } else if (value.source === 'github' && typeof value.repo === 'string' && /^[\w.-]+\/[\w.-]+$/.test(value.repo))
     source = `https://github.com/${value.repo}.git`;
   if (
     typeof source !== 'string' ||
@@ -89,7 +55,12 @@ function gitSource(value: unknown): { source: string; ref: string } {
   return { source, ref };
 }
 
-async function inspect(host: Host, cwd: string): Promise<UpdateOffer> {
+async function inspect(
+  host: Host,
+  cwd: string,
+): Promise<UpdateOffer & { ref: string; scope?: string; registered?: unknown }> {
+  let scope: string | undefined;
+  let registeredSource: unknown;
   let root: string;
   let nativeRevision: string | undefined;
   let configured: { source: string; ref: string };
@@ -104,10 +75,15 @@ async function inspect(host: Host, cwd: string): Promise<UpdateOffer> {
         'plugin-update: Claude installation is disabled, missing, or ambiguous; repair the enabled Celetis identity',
       );
     root = selected[0].installPath;
+    scope = selected[0].scope;
     const manifest = await jsonFile(join(root, '.claude-plugin/plugin.json'));
     if (manifest.name !== 'celetis') throw new HostError(`plugin-update: wrong installed plugin identity in ${root}`);
     const policies = await claudePolicy(cwd);
     checkClaudePolicy(policies);
+    const nativeMarket = policies.find(
+      (record) => record.path === join(configHome(host), 'plugins/known_marketplaces.json'),
+    )?.value.celetis;
+    registeredSource = object(nativeMarket) ? nativeMarket.source : undefined;
     let configuredSource: unknown;
     for (const { value } of policies) {
       const markets = value.extraKnownMarketplaces;
@@ -190,11 +166,20 @@ async function inspect(host: Host, cwd: string): Promise<UpdateOffer> {
   const selectedRef = base[0]?.[1];
   const target = records.find(([, ref]) => ref === `${selectedRef}^{}`)?.[0] ?? base[0]?.[0];
   if (!target) throw new HostError(`plugin-update: no full revision for configured ref ${configured.ref}`);
-  return { host, source: configured.source, installed, target, root };
+  return {
+    host,
+    source: configured.source,
+    installed,
+    target,
+    root,
+    ref: configured.ref,
+    scope,
+    registered: registeredSource,
+  };
 }
 
 export async function checkUpdate(host: Host, cwd: string): Promise<UpdateOffer | null> {
-  const offer = await inspect(host, cwd);
+  const { ref: _ref, scope: _scope, registered: _registered, ...offer } = await inspect(host, cwd);
   return offer.installed === offer.target ? null : offer;
 }
 
@@ -202,9 +187,10 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
   if (!target.source || !revision.test(target.installed) || !revision.test(target.target))
     throw new HostError('plugin-update: apply needs the offered source and full installed and target revisions', 2);
   const config = host === 'codex' ? await codexHome() : configHome(host);
+  ConsumerLock.releaseForUpdate(config);
   const env = host === 'codex' ? childEnv({ ...process.env, CODEX_HOME: config }) : undefined;
   await mkdir(config, { recursive: true });
-  const lock = await UpdateLock.acquire(join(config, 'celetis-update.lock'), ownerPid);
+  const lock = await UpdateLock.acquire(join(config, 'celetis-update.lock'), ownerPid, { refuseBusy: true });
   try {
     const output = await lock.run(process.execPath, bunArgs(import.meta.path, ['--inspect', host]), {
       cwd: process.cwd(),
@@ -215,12 +201,195 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
       throw new HostError(
         `plugin-update: offered source, installed revision, or target changed; this attempt is consumed. Check again and obtain a new direct user response. Observed: ${JSON.stringify(current)}`,
       );
-    await lock.run(process.execPath, bunArgs(import.meta.path, ['--policy', host]), { cwd: process.cwd(), env });
-    throw new HostError(
-      host === 'claude'
-        ? 'plugin-update: Claude Code has no proved exact-target update and complete consumer lifetime/resource boundary for the offering session and updater. No package was replaced. Stop affected consumers and use a supported native target-bound cutover before a new offer; a restart or the 14-day cleanup period is insufficient. This attempt is consumed.'
-        : 'plugin-update: Codex has no proved complete consumer lifetime/resource boundary for the offering session and updater. No package was replaced. Stop affected consumers and use a supported native cutover before a new offer. This attempt is consumed.',
+    const execute: typeof run = async (file, args, options = {}) => ({
+      code: 0,
+      stdout: await lock.run(file, args, { cwd: options.cwd, env: options.env ?? env }),
+      stderr: '',
+    });
+    await lock.run(
+      process.execPath,
+      bunArgs(import.meta.path, ['--consumers', host, await realpath(config), current.root]),
+      { cwd: process.cwd(), env },
     );
+    const details = current as UpdateOffer & { ref: string; scope?: string; registered?: unknown };
+    const scratch = await mkdtemp(join(tmpdir(), 'celetis-cutover.'));
+    let operation = 'prepare native target';
+    const completed: string[] = [];
+    try {
+      if (host === 'claude') {
+        await lock.run(process.execPath, bunArgs(import.meta.path, ['--policy', host]), { cwd: process.cwd(), env });
+        if (!['user', 'project', 'local'].includes(details.scope ?? '') || !object(details.registered))
+          throw new HostError('plugin-update: native installed scope/source is unavailable');
+        const action = join(scratch, 'target.json');
+        const restore = join(scratch, 'source.json');
+        await writeFile(
+          action,
+          JSON.stringify({
+            extraKnownMarketplaces: {
+              celetis: {
+                autoUpdate: false,
+                source: {
+                  source: 'settings',
+                  name: 'celetis',
+                  owner: { name: 'Celetis' },
+                  plugins: [
+                    {
+                      name: 'celetis',
+                      source: {
+                        source: 'url',
+                        url: target.source,
+                        ref: details.ref === 'HEAD' ? undefined : details.ref,
+                        sha: target.target,
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          { mode: 0o600 },
+        );
+        await writeFile(
+          restore,
+          JSON.stringify({ extraKnownMarketplaces: { celetis: { autoUpdate: false, source: details.registered } } }),
+          { mode: 0o600 },
+        );
+        operation = 'claude target-bound plugin update';
+        let installationError: unknown;
+        try {
+          await lock.run(
+            'claude',
+            ['--settings', action, 'plugin', 'update', 'celetis@celetis', '--scope', details.scope ?? '', '--json'],
+            { cwd: process.cwd(), env },
+          );
+        } catch (error) {
+          installationError = error;
+        }
+        if (!installationError) completed.push(operation);
+        operation = 'claude original marketplace source restoration';
+        try {
+          await lock.run('claude', ['--settings', restore, 'plugin', 'marketplace', 'update', 'celetis'], {
+            cwd: process.cwd(),
+            env,
+          });
+        } catch (restorationError) {
+          throw new HostError(
+            [installationError instanceof Error ? installationError.message : '', (restorationError as Error).message]
+              .filter(Boolean)
+              .join('\n'),
+          );
+        }
+        completed.push(operation);
+        const known = await jsonFile(join(config, 'plugins/known_marketplaces.json'));
+        const market = known.celetis;
+        if (
+          !object(market) ||
+          !object(market.source) ||
+          market.source.source === 'settings' ||
+          gitSource(market.source).source !== target.source ||
+          !isDeepStrictEqual(market.source, details.registered)
+        )
+          throw new HostError(
+            'plugin-update: native marketplace source restoration is incomplete; no persistent SHA pin is permitted',
+          );
+        if (installationError) {
+          operation = 'claude target-bound plugin update';
+          throw installationError;
+        }
+      } else {
+        operation = 'codex target-bound marketplace upgrade';
+        await lock.run(
+          'codex',
+          [
+            '-c',
+            'marketplaces.celetis.source_type="git"',
+            '-c',
+            `marketplaces.celetis.source=${JSON.stringify(target.source)}`,
+            '-c',
+            `marketplaces.celetis.ref=${JSON.stringify(target.target)}`,
+            'plugin',
+            'marketplace',
+            'upgrade',
+            'celetis',
+            '--json',
+          ],
+          { cwd: process.cwd(), env },
+        );
+        completed.push(operation);
+      }
+      operation = 'fresh enabled installation validation';
+      const root = await installedRoot(host, process.cwd(), undefined, execute);
+      let sha: string | undefined;
+      if (host === 'claude') {
+        const list = await nativeJson('claude', ['plugin', 'list', '--json'], process.cwd(), undefined, env, execute);
+        const enabled = Array.isArray(list)
+          ? list.filter(
+              (record) =>
+                object(record) &&
+                record.id === 'celetis@celetis' &&
+                record.enabled === true &&
+                record.scope === details.scope &&
+                record.installPath === root,
+            )
+          : [];
+        if (enabled.length !== 1 || typeof enabled[0].version !== 'string')
+          throw new HostError('plugin-update: fresh native enabled scope/path/version is ambiguous');
+        const registry = await jsonFile(join(config, 'plugins/installed_plugins.json'));
+        const records = object(registry.plugins) ? registry.plugins['celetis@celetis'] : undefined;
+        const matching = Array.isArray(records)
+          ? records.filter(
+              (record) =>
+                object(record) &&
+                record.installPath === root &&
+                record.scope === details.scope &&
+                record.version === enabled[0].version,
+            )
+          : [];
+        if (matching.length !== 1)
+          throw new HostError(
+            'plugin-update: fresh native installed scope/path/version record does not match enabled discovery',
+          );
+        if (typeof matching[0].gitCommitSha === 'string') sha = matching[0].gitCommitSha;
+      }
+      const manifest = await jsonFile(join(root, '.claude-plugin/plugin.json'));
+      if (
+        manifest.name !== 'celetis' ||
+        !(await lstat(join(root, 'scripts')).catch(() => null))?.isDirectory() ||
+        !(await lstat(join(root, 'skills/guide/SKILL.md')).catch(() => null))?.isFile()
+      )
+        throw new HostError(`plugin-update: enabled target package is incomplete: ${root}`);
+      const installed = await installedRevision(root, target.source, sha, execute);
+      if (installed !== target.target)
+        throw new HostError(
+          `plugin-update: enabled revision is ${installed}, expected approved target ${target.target}`,
+        );
+      if (!(await lstat(join(root, 'step-prompt.md')).catch(() => null))?.isFile())
+        throw new HostError(`plugin-update: target package has no step-prompt.md: ${root}`);
+      return root;
+    } catch (error) {
+      let state = 'unknown';
+      let sourceState: unknown = 'unknown';
+      if (host === 'claude') {
+        try {
+          sourceState = (await jsonFile(join(config, 'plugins/known_marketplaces.json'))).celetis;
+        } catch {}
+      }
+      try {
+        state = await installedRoot(host, process.cwd(), undefined, execute);
+      } catch {}
+      throw new HostError(
+        [
+          `plugin-update: ${operation} failed`,
+          (error as Error).message,
+          `completed: ${completed.join('; ') || 'none'}`,
+          `observed enabled root: ${state}`,
+          `observed native source state: ${JSON.stringify(sourceState)}`,
+          'Recovery: inspect the enabled installation and native source state, then obtain a new concrete offer and user decision. No retry or workflow was started.',
+        ].join('\n'),
+      );
+    } finally {
+      await rm(scratch, { recursive: true, force: true });
+    }
   } finally {
     await lock.close();
   }
@@ -232,6 +401,8 @@ if (import.meta.main) {
     const args = process.argv.slice(2);
     if (args[0] === '--root' && args.length === 2 && (args[1] === 'claude' || args[1] === 'codex'))
       console.log(await installedRoot(args[1], process.cwd(), 3));
+    else if (args[0] === '--consumers' && args.length === 4 && (args[1] === 'claude' || args[1] === 'codex'))
+      await requireStoppedConsumers(args[1], args[2] ?? '', args[3] ?? '');
     else if (args[0] === '--policy' && args.length === 2 && (args[1] === 'claude' || args[1] === 'codex'))
       await requireUpdatePolicy(args[1], process.cwd());
     else if (args[0] === '--inspect' && args.length === 2 && (args[1] === 'claude' || args[1] === 'codex'))
@@ -243,13 +414,13 @@ if (import.meta.main) {
         console.log(JSON.stringify(await checkUpdate(host, process.cwd())));
         if (host === 'codex')
           console.error(
-            'plugin-update: Codex Git automatic refresh and complete resource lifetime are unsupported; applying this offer or starting an affected consumer is refused until native controls are available',
+            'plugin-update: apply requires stopped native consumers; keep native launches stopped throughout cutover and start a fresh session afterward',
           );
         else
           console.error(
-            'plugin-update: file policy diagnostics do not certify command-line, MDM, or server-managed settings; native lifetime and exact-target application remain unsupported',
+            'plugin-update: file policy diagnostics do not certify unseen higher settings; apply rechecks concrete conflicts and requires stopped native consumers',
           );
-      } else if (args.length === 4 && args[0] === 'apply')
+      } else if (args.length === 4 && args[0] === 'apply') {
         console.log(
           await updatePlugin(process.pid, host, {
             source: args[1] ?? '',
@@ -257,7 +428,10 @@ if (import.meta.main) {
             target: args[3] ?? '',
           }),
         );
-      else
+        console.error(
+          'plugin-update: approved target installed and validated; start a fresh session before further task work',
+        );
+      } else
         throw new HostError(
           'usage: scripts/celetis [--agent claude|codex] plugin-update check | apply <source> <installed> <target>',
           2,

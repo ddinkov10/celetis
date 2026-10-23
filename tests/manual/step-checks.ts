@@ -84,9 +84,9 @@ export function checkStep(input: StepInput): { errors: string[]; recovered: numb
           `scripts/celetis --agent ${host} plugin-update apply 'https://example.test/celetis.git' ${'1'.repeat(40)} ${'2'.repeat(40)}`,
         'update does not match offered identity',
       );
-      for (const text of ['Attempt: CONSUMED', 'Limit:', 'Setup:', 'Then: my step ends'])
+      for (const text of ['Attempt: HANDED OFF', 'Exit:', 'Setup:', 'Then: my step ends'])
         fail(answer.includes(text), `missing ${text}`);
-      fail(!answer.includes('Then: I go on'), 'work continues after refused update');
+      fail(!answer.includes('Then: I go on'), 'work continues after update handoff');
     } else {
       fail(
         answer.includes(

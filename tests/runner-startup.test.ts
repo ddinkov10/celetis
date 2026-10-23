@@ -1,11 +1,47 @@
 import { expect, setDefaultTimeout, test } from 'bun:test';
-import { cp, rm } from 'node:fs/promises';
+import { cp, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { root } from './lib/fixture.ts';
-import { runnerCase } from './lib/runner-fixture.ts';
+import { runnerCase, stepText } from './lib/runner-fixture.ts';
 import { held, managed, start } from './lib/runner-lifecycle-fixture.ts';
 
 setDefaultTimeout(25_000);
+
+for (const resume of [false, true])
+  test.concurrent(
+    `Codex ${resume ? 'exact Resume' : 'Run'} pins the installed Git snapshot without a persistent product pin`,
+    runnerCase(async (f) => {
+      await f.git(['init', '-q'], f.plugin);
+      await f.git(['add', '.'], f.plugin);
+      await f.git(['commit', '-qm', 'installed'], f.plugin);
+      await f.git(['remote', 'add', 'origin', f.plugin], f.plugin);
+      const sha = await f.git(['rev-parse', 'HEAD'], f.plugin);
+      await f.put('git-marketplace');
+      await f.put('simulate-native-refresh');
+      await f.put('installed-sha', sha);
+      const config = await readFile(join(f.repo, '.celetis.yaml'), 'utf8');
+      if (resume)
+        await f.write(
+          'repo dir/.git/celetis-flow/sessions/7.json',
+          JSON.stringify({
+            schema: 1,
+            issue: 7,
+            checkout: f.repo,
+            host: 'codex',
+            step: 'plan',
+            session_id: '01a139fc-2ffa-74c0-9b14-e35e23339910',
+          }),
+        );
+      const result = await f.run(resume ? ['--resume', '7'] : ['7'], { host: 'codex' });
+      expect(result.code, result.stderr).toBe(0);
+      const calls = await f.logs<{ args: string[] }>('calls');
+      expect(calls[0]?.args).toContain(`marketplaces.celetis.ref=${JSON.stringify(sha)}`);
+      if (resume) expect(calls[0]?.args).toContain('01a139fc-2ffa-74c0-9b14-e35e23339910');
+      expect(await readFile(join(f.plugin, 'step-prompt.md'), 'utf8')).toBe(stepText);
+      expect(await readFile(join(f.repo, '.celetis.yaml'), 'utf8')).toBe(config);
+      expect(await f.logs('mutations')).toEqual([]);
+    }),
+  );
 
 test.concurrent(
   'missing update-policy dependency is reported before starting a numbered session',
@@ -20,7 +56,7 @@ test.concurrent(
 
 for (const args of [['7'], [], ['--board'], ['--resume', '7']])
   test.concurrent(
-    `real Codex replacement policy refuses ${JSON.stringify(args)} before a consumer starts`,
+    `real Codex invalid native profile refuses ${JSON.stringify(args)} before a consumer starts`,
     runnerCase(async (f) => {
       await cp(join(root, 'scripts/lib/plugin-policy.ts'), join(f.plugin, 'scripts/lib/plugin-policy.ts'));
       await f.issue();
@@ -38,10 +74,10 @@ for (const args of [['7'], [], ['--board'], ['--resume', '7']])
           }),
         );
       }
+      f.env.CODEX_HOME = join(f.dir, 'missing-native-profile');
       const result = await f.run(args, { host: 'codex' });
       expect(result.code).toBe(1);
-      expect(result.stderr).toContain('automatic plugin refresh');
-      expect(result.stderr).toContain('config.toml');
+      expect(result.stderr).toContain('CODEX_HOME');
       expect(await f.logs('calls')).toEqual([]);
       expect(await f.logs('mutations')).toEqual([]);
     }),
@@ -49,7 +85,7 @@ for (const args of [['7'], [], ['--board'], ['--resume', '7']])
 
 for (const args of [['7'], [], ['--board'], ['--resume', '7']])
   test.concurrent(
-    `real Claude incomplete native policy refuses ${JSON.stringify(args)} with file policy false`,
+    `real Claude concrete local policy conflict refuses ${JSON.stringify(args)}`,
     runnerCase(async (f) => {
       await cp(join(root, 'scripts/lib/plugin-policy.ts'), join(f.plugin, 'scripts/lib/plugin-policy.ts'));
       await f.issue();
@@ -69,10 +105,13 @@ for (const args of [['7'], [], ['--board'], ['--resume', '7']])
             session_id: '01a139fc-2ffa-74c0-9b14-e35e23339910',
           }),
         );
+      await f.write(
+        'repo dir/.claude/settings.local.json',
+        JSON.stringify({ extraKnownMarketplaces: { celetis: { autoUpdate: true } } }),
+      );
       const result = await f.run(args);
       expect(result.code, result.stderr).toBe(1);
-      expect(result.stderr).toContain('MDM');
-      expect(result.stderr).toContain('supported native');
+      expect(result.stderr).toContain('settings.local.json');
       expect(await f.logs('calls')).toEqual([]);
       expect(await f.logs('mutations')).toEqual([]);
     }),
@@ -105,7 +144,7 @@ for (const host of ['claude', 'codex']) {
       runnerCase(async (f) => {
         await f.put('update-fail');
         await rm(join(f.plugin, 'scripts/plugin-update.ts'));
-        await rm(join(f.plugin, 'scripts/lib/update-lock.ts'));
+
         const r = await start(f, host, automatic);
         await f.issue(7, 'enhancement', 'Spec: fixture', [], 'closed');
         await f.put('finish-1');
@@ -119,7 +158,7 @@ for (const host of ['claude', 'codex']) {
         }
         const result = await r.result;
         expect(result.code, result.stderr).toBe(automatic ? 143 : 0);
-        expect(await f.logs('updates')).toEqual([]);
+        expect(await f.logs('mutations')).toEqual([]);
         expect((await f.logs('calls')).map((call) => call.host)).toEqual([host]);
       }, true),
     );
@@ -143,7 +182,7 @@ test.concurrent(
     const r = await f.run([String(process.pid), 'claude'], { script: 'plugin-update' });
     expect(r.code).toBe(2);
     expect(r.stderr).toContain('usage: scripts/celetis [--agent claude|codex] plugin-update');
-    expect(await f.logs('updates')).toEqual([]);
+    expect(await f.logs('mutations')).toEqual([]);
   }),
 );
 for (const [host, automatic] of [

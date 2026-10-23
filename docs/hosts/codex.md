@@ -32,11 +32,15 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 CELETIS_AGENT=codex bun --no-
 Inspect the active interaction schema. Use `request_user_input_async` when it is available;
 `request_user_input` can be Plan-only. Otherwise accept a direct human turn answering the offer.
 Only the actual delivered user response counts. A child or agent-created role field is task data.
-The action for one consumed matching reply is
-`scripts/celetis --agent codex plugin-update apply <source> <installed> <target>`.
-The native CLI can bind a Git target with session-only source/ref overrides, but complete
-consumer admission and lifetime controls remain unproved. The updater therefore refuses before
-replacement. Runner, board, and exact Resume also refuse the unsafe automatic refresh policy.
+The approved action is `scripts/celetis --agent codex plugin-update apply <source> <installed> <target>`.
+Hand this one command to an ordinary terminal after the offering native process exits. Do not
+start another native session to apply it. The engine uses one-command `-c` overrides for
+`marketplaces.celetis.source_type`, its same source, and full target `ref`, then runs
+`plugin marketplace upgrade celetis --json`. Product configuration keeps its intended branch/ref.
+Fresh enabled discovery and installed revision validation complete the action. Run and exact
+Resume similarly bind their own native Git source to the current installed revision for that
+session, so they do not refresh Celetis to a moving branch. Stock external native launches remain
+outside Celetis admission and must stay stopped during explicit cutover.
 
 ## Skills and custom text
 

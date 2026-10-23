@@ -94,7 +94,7 @@ export function stepAnswer(k: number, mode: string, host: string, fault = '', st
     const action = `scripts/celetis --agent ${host} plugin-update apply 'https://example.test/celetis.git' ${'1'.repeat(40)} ${'2'.repeat(40)}`;
     answer =
       k === 24
-        ? `${action}\nAttempt: CONSUMED\nLimit: no supported native lifetime boundary\nSetup: stop affected consumers and use supported native controls\n${end}`
+        ? `${action}\nAttempt: HANDED OFF\nExit: the offering native process must end before this one terminal command\nSetup: keep other native clients stopped during cutover\n${end}`
         : `${[29, 30].includes(k) ? 'Decision: NEW RESPONSE REQUIRED' : k === 33 ? 'Check: UNAVAILABLE (source offline)' : 'Update: CONTINUE'}\nThen: I go on with the task`;
     if (fault === 'unauthorized-update' || fault === 'repeated-update') answer += `\n${action}`;
   }

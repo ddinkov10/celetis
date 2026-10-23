@@ -2,9 +2,11 @@ import { stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { ConfigError, readConfig } from './lib/config.ts';
 import { commonDir, HostError, installedRoot, mainCheckout, requireBun, selectHost } from './lib/host.ts';
+import { codexHome } from './lib/plugin-metadata.ts';
 import { requireUpdatePolicy } from './lib/plugin-policy.ts';
 import { bunArgs, childEnv } from './lib/process.ts';
 import { selectSavedSession, serializeSession } from './lib/session.ts';
+import { ConsumerLock, execConsumer } from './lib/update-lock.ts';
 
 async function resume(issue: string, explicit: string | undefined, cwd: string) {
   const n = issue.replace(/^#/, '');
@@ -37,6 +39,8 @@ export async function main(argv: string[]): Promise<number> {
         ? await resume(args[1] ?? '', explicit, cwd)
         : undefined;
     const host = saved?.host ?? selectHost(explicit, process.env, main);
+    if (host === 'codex') process.env.CODEX_HOME = await codexHome();
+    await ConsumerLock.acquire(host);
     if (['worktree', 'celetis-flow', 'next-step', 'land', 'board'].includes(name)) {
       const checkout = main ?? (await mainCheckout(cwd));
       try {
@@ -55,7 +59,7 @@ export async function main(argv: string[]): Promise<number> {
     delete env.CELETIS_RESUME_RECORD;
     if (saved) env.CELETIS_RESUME_RECORD = saved.record;
     if (!process.execve) throw new HostError('celetis: process replacement needs macOS or Linux');
-    return process.execve(process.execPath, [process.execPath, ...bunArgs(entry, args)], env);
+    return execConsumer(process.execPath, [process.execPath, ...bunArgs(entry, args)], env);
   } catch (error) {
     if (!(error instanceof HostError)) throw error;
     if (error.message) console.error(error.message);

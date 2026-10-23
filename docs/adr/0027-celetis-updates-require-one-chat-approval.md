@@ -30,30 +30,31 @@ Only a direct human user-channel reply permits one matching attempt; consume it 
 An internal action argument is no proof of who authorized it. No response, decline, stale identity,
 refusal, failure, or interruption permits another attempt without a new decision.
 
-Keep target-bound apply under the existing update supervisor and shared deadline. Recheck identity
-and policy. The complete consumer lifetime, offering-session boundary, updater boundary, and
-exclusion of racing starts are required before replacement. Current native operations cannot prove
-all of them, so application refuses before mutation with the missing control and required action.
-Consumer starts also refuse unknown higher Claude policy and unsafe Codex automatic refresh.
-File-only false does not certify command-line, MDM, or server-managed policy.
+Keep target-bound apply under exclusive host-profile admission and the existing update supervisor.
+Normal Run, board, and exact Resume retain shared admission and perform no Celetis update.
+Their Codex Git sessions bind the installed source revision with supported per-command overrides.
+Known concrete conflicts remain errors; unknown native policy does not disable ordinary use.
+
+After direct approval, the active offering native process exits and the human runs one concrete
+approved command in an ordinary terminal. This is no queued updater or standing approval.
+Claude selects the exact plugin-source SHA in a private settings marketplace and restores the
+original native source with a second settings operation. Codex selects the exact Git ref through
+one-command native overrides. Both validate the fresh enabled target and report partial state.
+No persistent product pin is added. Neither arguments nor an environment value authenticate a user.
 
 ## Evidence and limits
 
-Claude Code 2.1.306 lacks a proved native exact-target update. Codex CLI 0.163.0 has a measured
-session-only Git target selection, but refresh can replace live package resources. A local
-marketplace can also refresh its plugin snapshot. Filtered standalone metadata is read-only for
-installation data; app-server startup with plugins enabled can refresh before initialize.
-Codex metadata binds one canonical home before any native process, and proves cache containment
-and the native marketplace root-source chain before package reads. Read-only RPC uses the real
-global plugins-disable control in that same home. That diagnostic override is no proof
-of normal-session policy. Native marketplace requirements are absent from the public requirement
-response, so its success does not certify policy coverage.
+Positive deterministic native-stub operations cover Run, board, exact Resume, target-bound apply,
+subsequent check, source restoration, and failure state. The updater does not reopen replaced
+control code for final validation. Narrow POSIX exec preserves PID and shared reader descriptors;
+the parent-loss test checks protection through native foreground exit. Process inventory uses
+profile identity and canonical package resources, with no environment values in diagnostics.
 
-Claude owned settings disable Celetis background updates and preserve unrelated policy. Effective
-settings precedence and native global records are inspected. File-only inspection cannot certify
-MDM, server-managed, or command-line policy. Live successful cutover, all-consumer admission, and
-real human-channel integration remain unverified. No native live test or real installation update
-was run for this completion.
+Stock native launches do not acquire Celetis admission, and native descendants may close inherited
+FDs. Keep those clients stopped during cutover. The cooperating lock and process scan do not prove
+universal native admission or complete stock-native reader lifetime. File policy reads also cannot
+certify unseen managed settings. Live successful cutover and direct-human acceptance were waived
+and remain unverified; no real installation was updated by these tests.
 
 ## Alternatives considered
 
@@ -69,5 +70,5 @@ a fresh session and new enabled-package discovery; exact Resume keeps the saved 
 
 ## Reconsider when
 
-A supported native control proves exact-target replacement and the complete lifetime boundary
-for each required host, with separate real user-channel acceptance evidence.
+Native clients supply universal admission and complete reader-lifetime controls, with separate
+real user-channel acceptance evidence.
