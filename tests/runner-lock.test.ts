@@ -467,11 +467,11 @@ for (const killed of [false, true])
       await f.git(['clone', '-q', f.repo, second]);
       await f.put('hold-update');
       const launch = (cwd: string) => {
-        const child = spawn(
-          process.execPath,
-          [...isolatedArgs, join(root, 'scripts/plugin-update.ts'), String(process.pid), 'claude'],
-          { cwd, env: f.env, stdio: ['ignore', 'pipe', 'pipe'] },
-        );
+        const child = spawn(process.execPath, [...isolatedArgs, join(root, 'scripts/plugin-update.ts')], {
+          cwd,
+          env: f.env,
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
         children.add(child);
         let stderr = '';
         child.stderr?.on('data', (data: Buffer) => {
@@ -504,11 +504,11 @@ test.concurrent(
   'Codex root-lookup interruption preserves stderr once and cleans its real RPC child group',
   runnerCase(async (f) => {
     await f.put('lookup-hang');
-    const child = spawn(
-      process.execPath,
-      [...isolatedArgs, join(root, 'scripts/plugin-update.ts'), String(process.pid), 'codex'],
-      { cwd: f.repo, env: f.env, stdio: ['ignore', 'pipe', 'pipe'] },
-    );
+    const child = spawn(process.execPath, [...isolatedArgs, join(root, 'scripts/plugin-update.ts')], {
+      cwd: f.repo,
+      env: { ...f.env, CELETIS_AGENT: 'codex' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     children.add(child);
     let stderr = '';
     child.stderr?.on('data', (data: Buffer) => {

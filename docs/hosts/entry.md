@@ -29,6 +29,12 @@ The agent flag precedes the sub-command. The bare launcher remains the project-d
 for human terminal and board use; skill execution selects the actual host explicitly. A shell's
 exports and cwd do not carry into the next tool call.
 
+## Plugin updates
+
+Ordinary tasks use the installed package without updating it. A user request to update gives no
+permission to stop other work. A session that still uses the package reports the manual
+exit/update/restart action in [Updates](../../README.md#updates); it does not replace that package.
+
 ## Enter the skill once
 
 The invocation input is the text or issue number supplied by the human or calling skill. Keep

@@ -10,7 +10,7 @@
   "extraKnownMarketplaces": {
     "celetis": {
       "source": { "source": "github", "repo": "ddinkov10/celetis" },
-      "autoUpdate": true
+      "autoUpdate": false
     }
   },
   "enabledPlugins": {

@@ -1,7 +1,7 @@
 import { mkdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { type Host, HostError, installedRoot } from './lib/host.ts';
+import { type Host, HostError, installedRoot, mainCheckout, selectHost } from './lib/host.ts';
 import { bunArgs } from './lib/process.ts';
 import { UpdateLock } from './lib/update-lock.ts';
 
@@ -33,9 +33,10 @@ if (import.meta.main) {
     const args = process.argv.slice(2);
     if (args[0] === '--root' && args.length === 2 && (args[1] === 'claude' || args[1] === 'codex'))
       console.log(await installedRoot(args[1], process.cwd(), 3));
-    else if (args.length === 2 && /^[1-9][0-9]*$/.test(args[0] ?? '') && (args[1] === 'claude' || args[1] === 'codex'))
-      console.log(await updatePlugin(Number(args[0]), args[1]));
-    else throw new HostError('plugin-update: expected the runner PID and host (claude or codex)');
+    else if (args.length === 0) {
+      const main = await mainCheckout(process.cwd()).catch(() => null);
+      console.log(await updatePlugin(process.pid, selectHost(undefined, process.env, main)));
+    } else throw new HostError('usage: scripts/celetis [--agent claude|codex] plugin-update', 2);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = error instanceof HostError ? error.code : 1;

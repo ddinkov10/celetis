@@ -195,7 +195,14 @@ export async function runnerFixture(realResolver = false) {
   const children = new Set<ChildProcess>();
   const start = (
     args: string[] = ['7'],
-    options: { host?: string; cwd?: string; env?: NodeJS.ProcessEnv; launcher?: boolean; entry?: string } = {},
+    options: {
+      host?: string;
+      cwd?: string;
+      env?: NodeJS.ProcessEnv;
+      launcher?: boolean;
+      entry?: string;
+      script?: string;
+    } = {},
   ) => {
     const child = spawn(
       process.execPath,
@@ -203,8 +210,13 @@ export async function runnerFixture(realResolver = false) {
         ...isolatedArgs,
         options.launcher
           ? join(plugin, 'scripts/launcher.ts')
-          : (options.entry ?? (options.env?.HERDR_ENV === '1' ? pollingEntry : entry)),
-        ...(options.launcher ? ['celetis-flow', ...args] : args),
+          : (options.entry ??
+            (options.script
+              ? join(plugin, 'scripts', `${options.script}.ts`)
+              : options.env?.HERDR_ENV === '1'
+                ? pollingEntry
+                : entry)),
+        ...(options.launcher ? [options.script ?? 'celetis-flow', ...args] : args),
       ],
       {
         cwd: options.cwd ?? f.repo,
@@ -336,7 +348,7 @@ export async function updateTestClock(f: RunnerFixture) {
     const acquire=UpdateLock.acquire;appendFileSync(${JSON.stringify(join(f.state, 'update-helpers'))},String(process.pid)+'\\n');writeFileSync(${JSON.stringify(join(f.state, 'update-lock-waiting'))},'');
     UpdateLock.acquire=(path,runner)=>acquire(path,runner,{clock:{now:()=>performance.now()+(existsSync(${JSON.stringify(join(f.state, 'clock-jump'))})?120_000:0),sleep:ms=>Bun.sleep(ms)}});
     const {updatePlugin}=await import('./plugin-update-fixture.ts');
-    try{console.log(await updatePlugin(Number(process.argv[2]),process.argv[3] as 'claude'|'codex'));}
+    try{console.log(await updatePlugin(process.pid,process.env.CELETIS_AGENT as 'claude'|'codex'));}
     catch(error){console.error((error as Error).message);process.exitCode=1;}`,
   );
 }

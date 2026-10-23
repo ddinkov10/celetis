@@ -84,7 +84,7 @@ executes no setup. An omitted or empty program runs no setup. Signals stop the o
 remove the temporary file; the existing marker and lane cleanup rules remain below.
 
 The main config is checked before Git prune, branch or worktree changes, runtime state creation,
-plugin updates, host sessions, and landing pushes. The runner checks it again before each new
+host sessions, and landing pushes. The runner checks it again before each new
 session. The worktree command also checks the lane config on every entry, including a lane with
 its setup marker. An unmarked lane runs setup once and receives the marker only after a script
 that is not empty succeeded. With an empty or missing `worktreeSetup`, the lane stays unmarked.
@@ -163,10 +163,10 @@ See [the board contract](celetis-flow.md#the-board) for the exact lists.
 
 ## Replace the old setup
 
-This is a manual cutover. Each push to the plugin trunk reaches product projects at their next
-runner refresh. The maintainer must prepare every affected product project and stop its old
-sessions, runners, and boards before the plugin lands. Keep the change unlanded until the
-maintainer gives a trusted readiness report for this build. This lane changes no other project.
+This is a manual cutover. The maintainer prepares each affected product project before applying
+the changed plugin under [Updates](../README.md#updates). That section owns consumer exit,
+manual update, and restart. A push to the plugin trunk does not update a product's installation
+or copied launcher. This lane changes no other project.
 
 1. Install Bun 1.4.2 or later on each machine and CI job that runs Celetis commands, using
    the instructions below.

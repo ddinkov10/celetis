@@ -18,9 +18,7 @@ const required = [
   'lib/host.ts',
   'lib/session.ts',
   'lib/process.ts',
-  'lib/update-lock.ts',
   'lib/vendor/yaml.mjs',
-  'plugin-update.ts',
 ];
 const flow = {
   lanes: {
@@ -97,9 +95,9 @@ export async function main(argv: string[]): Promise<number> {
     startupError,
     writeSession,
   } = await import('./lib/session.ts');
+  const root = dirname(here);
   let common = '',
     main = '',
-    root = dirname(here),
     state = '',
     recordPath = '';
   let config: Config;
@@ -112,7 +110,6 @@ export async function main(argv: string[]): Promise<number> {
   let lockOwner = '';
   const held = new Set<string>();
   let session: ChildProcess | undefined;
-  let updater: ChildProcess | undefined;
   let signalStatus = 0;
   let watcher: AbortController | undefined;
   let watchDir = '';
@@ -283,29 +280,6 @@ export async function main(argv: string[]): Promise<number> {
       if (!abort.aborted) await Bun.sleep(1000);
     }
   };
-  const refresh = async () => {
-    updater = spawn(process.execPath, bunArgs(join(here, 'plugin-update.ts'), [String(process.pid), host]), {
-      cwd: main,
-      env: childEnv(),
-      stdio: ['ignore', 'pipe', 'inherit'],
-    });
-    let output = '';
-    updater.stdout?.setEncoding('utf8');
-    updater.stdout?.on('data', (data: string) => {
-      output += data;
-    });
-    const result = await new Promise<number>((done) => {
-      updater?.once('error', (error) => {
-        console.error(error.message);
-        done(1);
-      });
-      updater?.once('close', (code) => done(code ?? 1));
-    });
-    updater = undefined;
-    if (signalStatus) throw new HostError('', signalStatus);
-    if (result !== 0) die('the plugin update failed; the step did not start');
-    root = output.replace(/\n+$/, '');
-  };
   const startSession = async (args: string[]) => {
     watchDir = await mkdtemp(join(state, 'start.'));
     session = spawn(
@@ -368,11 +342,7 @@ export async function main(argv: string[]): Promise<number> {
         first = 'gated';
         say(`start: ${prompt}`);
         started = true;
-        await refresh();
-        if (
-          (await gone()) ||
-          (step !== 'specify' && !(await stat(join(root, 'step-prompt.md')).catch(() => null))?.isFile())
-        ) {
+        if ((await gone()) || !(await stat(join(root, 'step-prompt.md')).catch(() => null))?.isFile()) {
           say(`#${n}: ${removed}`);
           break;
         }
@@ -445,7 +415,6 @@ export async function main(argv: string[]): Promise<number> {
     for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
       const handler = () => {
         signalStatus = 128 + constants.signals[signal];
-        if (updater) updater.kill(signal);
       };
       handlers.set(signal, handler);
       process.on(signal, handler);
@@ -570,10 +539,6 @@ export async function main(argv: string[]): Promise<number> {
     }
     throw error;
   } finally {
-    if (updater) {
-      updater.kill('SIGTERM');
-      await new Promise<void>((done) => updater?.once('close', () => done()));
-    }
     watcher?.abort();
     if (session?.pid && session.exitCode === null && session.signalCode === null) {
       session.kill('SIGTERM');

@@ -2,47 +2,67 @@ import { expect, setDefaultTimeout, test } from 'bun:test';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { runnerCase } from './lib/runner-fixture.ts';
-import { finish, held, managed, start } from './lib/runner-lifecycle-fixture.ts';
+import { held, managed, start } from './lib/runner-lifecycle-fixture.ts';
 
 setDefaultTimeout(25_000);
 
 for (const host of ['claude', 'codex']) {
-  for (const outcome of ['success', 'failure'])
+  for (const automatic of [false, true])
     test.concurrent(
-      `update ${host} ${outcome} keeps exact host sequence and stop behavior`,
+      `${host} ${automatic ? 'automatic' : 'numbered'} start uses its installed package without updates`,
       runnerCase(async (f) => {
-        await f.issue();
-        if (outcome === 'failure') await f.put('update-fail');
-        const r =
-          outcome === 'failure'
-            ? await f.run(['7'], { host })
-            : await (async () => {
-                const r = await start(f, host);
-                await f.issue(7, 'enhancement', 'Spec: fixture', [], 'closed');
-                return finish(f, r);
-              })();
-        if (outcome === 'failure') {
-          expect(r.code).toBe(1);
-          expect(r.stderr).toContain(`fixture: ${host} marketplace update unavailable`);
-          expect(r.stderr).toContain('celetis-flow: the plugin update failed; the step did not start');
-          expect(await f.logs('calls')).toEqual([]);
-          expect(await Bun.file(join(f.repo, '.git/celetis-flow/no-progress')).exists()).toBe(false);
-          expect(await Bun.file(join(f.repo, '.git/celetis-flow/sessions/7.json')).exists()).toBe(false);
-        } else expect(r.code, r.stderr).toBe(0);
-        const want =
-          host === 'codex'
-            ? [['plugin', 'marketplace', 'upgrade', 'celetis']]
-            : outcome === 'failure'
-              ? [['plugin', 'marketplace', 'update', 'celetis']]
-              : [
-                  ['plugin', 'marketplace', 'update', 'celetis'],
-                  ['plugin', 'update', 'celetis@celetis', '--scope', 'user'],
-                  ['plugin', 'list', '--json'],
-                ];
-        expect(await f.logs('updates')).toEqual(want.map((args) => ({ host, args })));
+        await f.put('update-fail');
+        await rm(join(f.plugin, 'scripts/plugin-update.ts'));
+        await rm(join(f.plugin, 'scripts/lib/update-lock.ts'));
+        const r = await start(f, host, automatic);
+        await f.issue(7, 'enhancement', 'Spec: fixture', [], 'closed');
+        await f.put('finish-1');
+        if (automatic) {
+          const deadline = performance.now() + 5000;
+          while (await f.git(['for-each-ref', '--format=%(refname)', 'refs/celetis-flow/locks/issue-7'])) {
+            if (performance.now() >= deadline) throw new Error('the completed issue lock was not released');
+            await Bun.sleep(10);
+          }
+          r.child.kill('SIGTERM');
+        }
+        const result = await r.result;
+        expect(result.code, result.stderr).toBe(automatic ? 143 : 0);
+        expect(await f.logs('updates')).toEqual([]);
+        expect((await f.logs('calls')).map((call) => call.host)).toEqual([host]);
       }, true),
     );
+  test.concurrent(
+    `manual update selects ${host} through the public launcher`,
+    runnerCase(async (f) => {
+      const r = await f.run(['--agent', host, 'plugin-update'], {
+        host: host === 'claude' ? 'codex' : 'claude',
+        entry: join(f.plugin, 'scripts/celetis'),
+      });
+      expect(r).toEqual({ code: 0, stdout: `${f.plugin}\n`, stderr: '' });
+      expect(await f.logs('updates')).toEqual(
+        (host === 'claude'
+          ? [
+              ['plugin', 'list', '--json'],
+              ['plugin', 'marketplace', 'update', 'celetis'],
+              ['plugin', 'update', 'celetis@celetis', '--scope', 'user'],
+              ['plugin', 'list', '--json'],
+            ]
+          : [['plugin', 'marketplace', 'upgrade', 'celetis']]
+        ).map((args) => ({ host, args })),
+      );
+      expect(await f.logs('calls')).toEqual([]);
+    }),
+  );
 }
+test.concurrent(
+  'manual update rejects the obsolete runner PID interface before native commands',
+  runnerCase(async (f) => {
+    const r = await f.run([String(process.pid), 'claude'], { script: 'plugin-update' });
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain('usage: scripts/celetis [--agent claude|codex] plugin-update');
+    expect(await f.logs('updates')).toEqual([]);
+  }),
+);
 for (const [host, automatic] of [
   ['claude', false],
   ['codex', true],

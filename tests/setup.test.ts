@@ -52,7 +52,7 @@ const settingsEntries = [
 ];
 const settings = {
   permissions: { allow, deny },
-  extraKnownMarketplaces: { celetis: { source: { source: 'github', repo: 'ddinkov10/celetis' }, autoUpdate: true } },
+  extraKnownMarketplaces: { celetis: { source: { source: 'github', repo: 'ddinkov10/celetis' }, autoUpdate: false } },
   enabledPlugins: { 'superpowers@superpowers-marketplace': true, 'celetis@celetis': true },
 };
 const rules =
@@ -477,6 +477,40 @@ for (const name of ['settingsproduct', 'settingstab', 'settingshand', 'settingsd
       expect(await read(f, '.claude/settings.json')).toBe(text);
       if (!name.includes('differs') && !name.includes('recorded'))
         expect(again.stdout).toBe('setup: no file changed\n');
+    }),
+  );
+
+for (const state of ['new', 'owned', 'unowned', 'changed-source', 'extra-field'] as const)
+  test.concurrent(
+    `marketplace policy ${state} changes only the owned prior Celetis form`,
+    withProject(async (f) => {
+      const owned = state !== 'new' && state !== 'unowned';
+      if (owned) await write(f, claude);
+      const source = { source: 'github', repo: state === 'changed-source' ? 'acme/celetis' : 'ddinkov10/celetis' };
+      const celetis = { source, autoUpdate: true, ...(state === 'extra-field' ? { extra: 'keep' } : {}) };
+      const superpowers = { source: { source: 'github', repo: 'obra/superpowers-marketplace' }, autoUpdate: true };
+      if (state !== 'new') {
+        const doc = owned ? JSON.parse(await read(f, '.claude/settings.json')) : {};
+        doc.extraKnownMarketplaces = { celetis, 'superpowers-marketplace': superpowers };
+        doc.env = { KEEP: '1' };
+        await f.write('repo dir/.claude/settings.json', `${JSON.stringify(doc, null, 2)}\n`);
+        await f.commit();
+      }
+      const r = await write(f, claude);
+      const doc = JSON.parse(await read(f, '.claude/settings.json'));
+      if (state === 'new' || state === 'owned') {
+        expect(doc.extraKnownMarketplaces.celetis).toEqual({
+          source: { source: 'github', repo: 'ddinkov10/celetis' },
+          autoUpdate: false,
+        });
+      } else {
+        expect(doc.extraKnownMarketplaces.celetis).toEqual(celetis);
+        expect(r.stdout).toContain('review this entry and set autoUpdate to false by hand');
+      }
+      if (state !== 'new') {
+        expect(doc.extraKnownMarketplaces['superpowers-marketplace']).toEqual(superpowers);
+        expect(doc.env).toEqual({ KEEP: '1' });
+      }
     }),
   );
 

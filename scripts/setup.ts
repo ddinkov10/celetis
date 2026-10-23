@@ -124,7 +124,7 @@ function settingsForm(): Entry[] {
     })),
     {
       path: ['extraKnownMarketplaces', 'celetis'],
-      value: { source: { source: 'github', repo: 'ddinkov10/celetis' }, autoUpdate: true },
+      value: { source: { source: 'github', repo: 'ddinkov10/celetis' }, autoUpdate: false },
     },
     { path: ['enabledPlugins', 'superpowers@superpowers-marketplace'], value: true },
     { path: ['enabledPlugins', 'celetis@celetis'], value: true },
@@ -407,8 +407,19 @@ class Setup {
         group[key] = form.value;
         this.own(settings, { path: form.path });
         changed = true;
+      } else if (
+        parentKey === 'extraKnownMarketplaces' &&
+        key === 'celetis' &&
+        (this.owned.entries[settings] ?? []).some((entry) => isDeepStrictEqual(entry, { path: form.path })) &&
+        isDeepStrictEqual(value, { source: { source: 'github', repo: 'ddinkov10/celetis' }, autoUpdate: true })
+      ) {
+        group[key] = form.value;
+        changed = true;
       } else if (isDeepStrictEqual(value, form.value)) this.own(settings, { path: form.path });
-      else this.warn(`${settings}: ${form.path.join('.')} differs from the current form; setup leaves it`);
+      else
+        this.warn(
+          `${settings}: ${form.path.join('.')} differs from the current form; setup leaves it${parentKey === 'extraKnownMarketplaces' && key === 'celetis' ? '; review this entry and set autoUpdate to false by hand' : ''}`,
+        );
     }
     if (changed) {
       const lead = source.match(/^[ \t]+(?=[^ \t\r\n])/m)?.[0] ?? '';
