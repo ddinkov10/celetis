@@ -98,7 +98,8 @@ export function run(
         resolve({
           code: error ? code : 0,
           stdout,
-          stderr: stderr || (error && typeof error.code !== 'number' ? error.message : ''),
+          stderr:
+            stderr || (error && typeof error.code !== 'number' && error.code !== 'ABORT_ERR' ? error.message : ''),
         });
       },
     );

@@ -10,6 +10,9 @@ export const processEntries = [
   'tests/runner-lifecycle.test.ts',
   'tests/runner-startup.test.ts',
   'tests/host-session.test.ts',
+  'tests/host-observation.test.ts',
+  'tests/host-identity.test.ts',
+  'tests/host-resume.test.ts',
 ];
 
 export async function discoverTests(root: string): Promise<string[]> {
@@ -30,7 +33,7 @@ export async function discoverTests(root: string): Promise<string[]> {
 export async function suite({
   root = dirname(import.meta.dir),
   files,
-  workers = 2,
+  workers = 1,
   timeoutMs = 30_000,
   output = (text: string) => {
     process.stdout.write(text);

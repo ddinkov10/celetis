@@ -218,6 +218,41 @@ test(
   }),
 );
 
+for (const stderr of ['', 'warning before cancellation\n', 'The operation was aborted\n'])
+  test(
+    `process cancellation retains exact child stderr ${JSON.stringify(stderr)}`,
+    withFixture(async (f) => {
+      const child = await f.write(
+        'cancel.ts',
+        `process.stderr.write(${JSON.stringify(stderr)});await Bun.write(${JSON.stringify(join(f.dir, 'pid'))},String(process.pid));await Bun.sleep(30_000);`,
+      );
+      const cancel = new AbortController();
+      const result = run(process.execPath, bunArgs(child, []), { env: f.env, signal: cancel.signal });
+      try {
+        const deadline = performance.now() + 3000;
+        while (!(await Bun.file(join(f.dir, 'pid')).exists())) {
+          if (performance.now() >= deadline) throw new Error('cancelled child did not start');
+          await Bun.sleep(10);
+        }
+      } finally {
+        cancel.abort();
+      }
+      const actual = await result;
+      const pid = Number(await f.read('pid'));
+      const deadline = performance.now() + 3000;
+      while (performance.now() < deadline) {
+        try {
+          process.kill(pid, 0);
+        } catch {
+          break;
+        }
+        await Bun.sleep(10);
+      }
+      expect(actual).toEqual({ code: 1, stdout: '', stderr });
+      expect(() => process.kill(pid, 0)).toThrow();
+    }),
+  );
+
 test(
   'failed child does not wait for a descendant output pipe',
   withFixture(async (f) => {

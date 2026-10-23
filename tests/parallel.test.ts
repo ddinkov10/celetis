@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import type { JobResult } from '../scripts/lib/parallel.ts';
 import { command, isolatedArgs, root, withFixture } from './lib/fixture.ts';
 
 const parallel = join(root, 'scripts/lib/parallel.ts');
@@ -110,6 +111,9 @@ test('suite discovers every automatic entry and excludes token programs', async 
   );
   for (const file of [
     'tests/runner-startup.test.ts',
+    'tests/host-observation.test.ts',
+    'tests/host-identity.test.ts',
+    'tests/host-resume.test.ts',
     'tests/land.test.ts',
     'tests/land-pr.test.ts',
     'tests/land-checks.test.ts',
@@ -127,6 +131,9 @@ test('suite discovers every automatic entry and excludes token programs', async 
   const { processEntries } = await import(join(root, 'tests/suite.ts'));
   expect(processEntries).toContain('board/realpath.test.ts');
   expect(processEntries).toContain('tests/runner-startup.test.ts');
+  expect(processEntries).toContain('tests/host-observation.test.ts');
+  expect(processEntries).toContain('tests/host-identity.test.ts');
+  expect(processEntries).toContain('tests/host-resume.test.ts');
   expect(files).not.toContain('tests/manual/step-prompt.ts');
   expect(files).not.toContain('tests/manual/custom-part.ts');
   expect(new Set(files).size).toBe(files.length);
@@ -141,6 +148,20 @@ test(
     expect(result.code).not.toBe(0);
     expect(result.results).toHaveLength(1);
     expect(result.results[0].output).toContain('1 fail');
+  }),
+);
+
+test(
+  'suite default runs one file worker at a time',
+  withFixture(async (f) => {
+    const { suite } = await import(join(root, 'tests/suite.ts'));
+    const source = `import {test,expect} from 'bun:test';import {mkdir,rm} from 'node:fs/promises';import {join} from 'node:path';test('exclusive file allocation',async()=>{const active=join(process.cwd(),'active');await mkdir(active);try{await Bun.sleep(200);expect(true).toBe(true);}finally{await rm(active,{recursive:true});}});`;
+    await f.write('repo dir/one.test.ts', source);
+    await f.write('repo dir/two.test.ts', source);
+    const result: { code: number; results: JobResult[] } = await suite({ root: f.repo, output: () => {} });
+    expect(result.code, result.results.map((entry) => entry.output).join('\n')).toBe(0);
+    expect(result.results).toHaveLength(2);
+    expect(result.results.every((entry) => entry.code === 0 && !entry.timedOut)).toBe(true);
   }),
 );
 

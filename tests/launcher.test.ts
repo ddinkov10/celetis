@@ -673,7 +673,7 @@ test.concurrent(
     await f.write('shared/control/celetis-flow/sessions/7.json', JSON.stringify(record));
     await f.write('plug in/scripts/celetis-flow.ts', 'console.log(process.env.CELETIS_RESUME_RECORD);');
     const result = await p.launch(['celetis-flow', '--resume', '7']);
-    expect(result.code).toBe(0);
+    expect(result.code, result.stderr).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual(record);
   }),
 );

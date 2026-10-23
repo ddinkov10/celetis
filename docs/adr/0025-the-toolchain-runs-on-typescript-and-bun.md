@@ -70,9 +70,12 @@ JavaScript tools run on selected Bun; package/type paths come from filesystem me
 
 The suite discovers all automatic TypeScript test entries, uses bounded independent file workers,
 enforces a 30-second file deadline, propagates failure, and cleans child groups on signals. It
-starts two file workers by default because the process entries already bound several real fixture
-groups per file. Independent frozen-reference cases keep separate async state and a two-case
-bound. These limits preserve the existing short process waits under overlap. Manual
+starts one file worker by default because the process entries already bound several real fixture
+groups per file. Two file workers exhausted unchanged case and file limits in Linux CI. The same
+targeted pair on macOS took 23.541/29.658 seconds with two workers and 15.052/22.138 seconds with
+one. File isolation trades total suite time for headroom under the existing short waits; the
+changed build still needs Linux CI. Explicit worker counts remain available. Independent
+frozen-reference cases keep separate async state and a two-case bound. Manual
 token-using programs have no test suffix. CI runs the gate and one full suite on Linux with Bun
 1.4.2, plus the actual process/lock subset on Linux and macOS.
 

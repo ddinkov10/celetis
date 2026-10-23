@@ -6669,7 +6669,7 @@ function run(file, args, options = {}) {
       resolve({
         code: error ? code : 0,
         stdout,
-        stderr: stderr || (error && typeof error.code !== "number" ? error.message : "")
+        stderr: stderr || (error && typeof error.code !== "number" && error.code !== "ABORT_ERR" ? error.message : "")
       });
     });
     child.stdin?.end(options.input);
@@ -6954,8 +6954,8 @@ function validateSession(value, main, issue, file) {
 function serializeSession(record) {
   return JSON.stringify(Object.fromEntries(Object.entries(record).sort(([a], [b]) => a.localeCompare(b))));
 }
-async function readSession(main, issue) {
-  const file = join2(await commonDir(main), "celetis-flow/sessions", `${issue}.json`);
+async function readSession(main, issue, common) {
+  const file = join2(common ?? await commonDir(main), "celetis-flow/sessions", `${issue}.json`);
   let source;
   try {
     source = await readFile(file, "utf8");
@@ -6973,8 +6973,8 @@ async function readSession(main, issue) {
 function manualRecovery(host) {
   return host === "claude" ? "claude --resume" : "codex resume --no-daemon";
 }
-async function selectSavedSession(main, issue, explicit) {
-  const record = await readSession(main, issue);
+async function selectSavedSession(main, issue, explicit, common) {
+  const record = await readSession(main, issue, common);
   if (explicit !== undefined && explicit !== record.host)
     throw new HostError(`celetis: #${issue} recorded host is ${record.host}; resume without --agent or use --agent ${record.host}`);
   if (record.session_id === null)
@@ -6989,7 +6989,7 @@ async function resume(issue, explicit, cwd) {
     throw new HostError("celetis: resume needs an issue number", 2);
   const common = await commonDir(cwd);
   const main = dirname2(common);
-  const record = await selectSavedSession(main, Number(n), explicit);
+  const record = await selectSavedSession(main, Number(n), explicit, common);
   return { host: record.host, record: serializeSession(record) };
 }
 async function main(argv) {

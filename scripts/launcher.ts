@@ -10,7 +10,7 @@ async function resume(issue: string, explicit: string | undefined, cwd: string) 
   if (!/^[1-9][0-9]*$/.test(n)) throw new HostError('celetis: resume needs an issue number', 2);
   const common = await commonDir(cwd);
   const main = dirname(common);
-  const record = await selectSavedSession(main, Number(n), explicit);
+  const record = await selectSavedSession(main, Number(n), explicit, common);
   return { host: record.host, record: serializeSession(record) };
 }
 

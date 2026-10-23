@@ -43,8 +43,8 @@ export function serializeSession(record: SessionRecord): string {
   return JSON.stringify(Object.fromEntries(Object.entries(record).sort(([a], [b]) => a.localeCompare(b))));
 }
 
-export async function readSession(main: string, issue: number): Promise<SessionRecord> {
-  const file = join(await commonDir(main), 'celetis-flow/sessions', `${issue}.json`);
+export async function readSession(main: string, issue: number, common?: string): Promise<SessionRecord> {
+  const file = join(common ?? (await commonDir(main)), 'celetis-flow/sessions', `${issue}.json`);
   let source: string;
   try {
     source = await readFile(file, 'utf8');
@@ -65,8 +65,13 @@ export function manualRecovery(host: Host): string {
   return host === 'claude' ? 'claude --resume' : 'codex resume --no-daemon';
 }
 
-export async function selectSavedSession(main: string, issue: number, explicit?: string): Promise<SessionRecord> {
-  const record = await readSession(main, issue);
+export async function selectSavedSession(
+  main: string,
+  issue: number,
+  explicit?: string,
+  common?: string,
+): Promise<SessionRecord> {
+  const record = await readSession(main, issue, common);
   if (explicit !== undefined && explicit !== record.host)
     throw new HostError(
       `celetis: #${issue} recorded host is ${record.host}; resume without --agent or use --agent ${record.host}`,
