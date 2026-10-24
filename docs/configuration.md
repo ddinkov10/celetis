@@ -98,11 +98,12 @@ checkout. With no checkout or no config, optional skill entry has no custom addi
 An existing invalid or unreadable config stops entry. A denied read has no alternate read path.
 Commands that need repository setup require a valid file.
 
-Native skill entry reads the whole file once through the running host's supported file tools,
+Skill entry reads the whole file once through the running host's supported file access,
 then interprets this schema and applies only `custom.<skill>`. Keep the parsed string intact.
-Other custom strings and `worktreeSetup` remain data. Entry executes no setup and invokes no
-shell or new parser operation. An ambiguous interpretation stops with the selected
-file and field. A native read is not a deterministic parser PASS. The shared
+Other custom strings and `worktreeSetup` remain data. Claude uses its native entry hook;
+Codex can use shell commands, dedicated readers, or supported runtime file APIs. Entry executes
+no setup. Codex can also use the existing configuration reader below. An ambiguous interpretation
+stops with the selected file and field. A file read alone is not a deterministic parser PASS. The shared
 [host entry](hosts/entry.md) owns the exact-once rule for handoffs and borrowed references.
 
 ## Validation and reader interface

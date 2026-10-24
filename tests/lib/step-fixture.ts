@@ -1,7 +1,7 @@
 export const stepPairs: [number, string][] = [
   ...[
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
-    33,
+    33, 34,
   ].map((k) => [k, 'step'] as [number, string]),
   [15, 'specify'],
   ...[1, 2, 3, 4].map((k) => [k, 'hand'] as [number, string]),
@@ -86,10 +86,12 @@ export function stepAnswer(k: number, mode: string, host: string, fault = '', st
     else if (k === 12) answer = `gh issue edit 7 --add-label bug\n${end}`;
     else if (k === 14) answer = 'Then: I go on with the repair and Verify loop';
     else if (k === 20)
-      answer = `Fallback: NONE\nIssue: NOT POSTED\nTools: none\nLimit: no usable native file-only reader or checkout locator, and no shell\nSetup: enable native file metadata and whole-file reads for the product checkout\n${end}`;
+      answer = `Fallback: NONE\nIssue: NOT POSTED\nTools: none\nLimit: no supported file-access tool or checkout locator, and no shell\nSetup: enable supported file metadata and whole-file reads for the product checkout\n${end}`;
     else if (k === 21)
       answer = `The landing is done. Run git pull on main in the main checkout yourself:\n${pull}\n${epic}\n${handCheck}\n${end}`;
   }
+  if (k === 34)
+    answer = 'Access: SHELL\nConfig: /tmp/product/.celetis.yaml\nThen: I go on with Host entry through shell access';
   if (k >= 22 && k <= 33) {
     const action = `scripts/celetis --agent ${host} plugin-update`;
     answer =
@@ -149,7 +151,7 @@ export function stepAnswer(k: number, mode: string, host: string, fault = '', st
   else if (fault === 'form-empty-setup') answer = answer.replace(/Setup: [^\n]*/, 'Setup:');
   else if (fault === 'form-markdown') answer = answer.replace('Fallback: NONE', '**Fallback:** NONE');
   else if (fault === 'form-prose')
-    answer = `File-only config entry is BLOCKED: no usable native file reader or checkout locator exists.\nShell access is absent, so I cannot run gh to report this issue.\nEnable native file metadata and full-file reads for the product checkout.\n${end}`;
+    answer = `Config entry is BLOCKED: no supported file reader or checkout locator exists.\nShell access is absent, so I cannot run gh to report this issue.\nEnable supported file metadata and full-file reads for the product checkout.\n${end}`;
   else if (fault === 'landed-git') answer = `git pull --ff-only origin main\n${answer}`;
   else if (fault === 'landed-git-list') answer = `1. git switch main\n${answer}`;
   else if (fault === 'landed-stop') answer = `## Stopped\n${pull}\n${epic}\n${label}\n${end}`;

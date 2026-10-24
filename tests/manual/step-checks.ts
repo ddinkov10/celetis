@@ -65,6 +65,15 @@ export function checkStep(input: StepInput): { errors: string[]; recovered: numb
       );
     fail(lines.length === 6, 'not six lines');
   }
+  if (`${k}:${mode}` === '34:step') {
+    fail(lines.length === 3, 'not three lines');
+    fail(lines.includes('Access: SHELL'), 'shell startup blocked');
+    fail(lines.includes('Config: /tmp/product/.celetis.yaml'), 'wrong active config');
+    fail(
+      lines.some((line) => line.startsWith('Then: I go on with ')),
+      'entry did not continue',
+    );
+  }
   if (`${k}:${mode}` === '21:step') {
     const rest = answer.replaceAll(pull, '').replaceAll(epic, '');
     fail(

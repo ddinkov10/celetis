@@ -196,6 +196,9 @@ test('Host entry preserves its native YAML contract', () => {
     'dispatch.model',
     'dispatch.effort',
     'codex resume --no-daemon',
+    'including shell commands',
+    'runtime file APIs',
+    'existing configuration reader',
   ]);
   required('docs/hosts/claude.md', [
     'hooks/entry.js',
