@@ -264,12 +264,6 @@ export async function codexPlugin(
 ): Promise<PluginMetadata> {
   const home = await codexHome();
   const env = childEnv({ ...process.env, CODEX_HOME: home });
-  const version = await execute('codex', ['--version'], { cwd, env, inheritedFd, timeout: 10_000 });
-  if (version.code !== 0) throw new HostError(`celetis: codex is not available: ${version.stderr.trimEnd()}`);
-  if (version.stdout.trim() !== 'codex-cli 0.163.0')
-    throw new HostError(
-      `celetis: read-only plugin discovery is unverified for ${version.stdout.trim()}; verify its native registry before use`,
-    );
   const value = await nativeJson(
     'codex',
     ['plugin', 'list', '--marketplace', 'celetis', '--json'],

@@ -41,7 +41,7 @@ if(process.env.CODEX_HOME===undefined){const dotenv=await Bun.file('.env').text(
 if(process.env.NATIVE_HOME_LOG)appendFileSync(process.env.NATIVE_HOME_LOG,JSON.stringify({args:process.argv.slice(2),home:process.env.CODEX_HOME})+'\n');
 appendFileSync(process.env.CALLS!,JSON.stringify(process.argv.slice(2))+'\n');
 const args=process.argv.slice(2);
-if(args[0]==='--version'){console.log('codex-cli 0.163.0');process.exit(0);}
+if(args[0]==='--version'){console.log('codex-cli 0.164.0');process.exit(0);}
 if(JSON.stringify(args)===JSON.stringify(['plugin','list','--marketplace','celetis','--json'])){process.stdout.write(await Bun.file(process.env.NATIVE_LIST!).text());process.exit(0);}
 if(JSON.stringify(args)===JSON.stringify(['plugin','marketplace','list','--json'])){process.stdout.write(await Bun.file(process.env.NATIVE_MARKET!).text());process.exit(0);}
 if(JSON.stringify(args)!==JSON.stringify(['--disable','plugins','app-server','--stdio'])) process.exit(81);
@@ -557,7 +557,7 @@ test.concurrent(
 );
 
 test.concurrent(
-  'Codex discovery reads the filtered native registry without starting app-server',
+  'Codex discovery validates the native registry without requiring an exact CLI version',
   withProduct(async (f, p) => {
     await rm(join(f.dir, 'bin/claude'));
     expect(await p.launch(['--agent', 'codex', 'echo', 'a', 'b c', '', '#7', '--agent', 'claude'])).toEqual({
@@ -570,7 +570,6 @@ test.concurrent(
       .split('\n')
       .map((line) => JSON.parse(line));
     expect(calls).toEqual([
-      ['--version'],
       ['plugin', 'list', '--marketplace', 'celetis', '--json'],
       ['plugin', 'marketplace', 'list', '--json'],
     ]);
