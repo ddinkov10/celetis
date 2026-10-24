@@ -14,13 +14,13 @@ async function run(body: (f: Awaited<ReturnType<typeof manualFixture>>) => Promi
   }
 }
 for (const host of ['claude', 'codex'])
-  test(`${host} runs all thirty-seven scenarios and accepts fenced exact stops`, async () =>
+  test(`${host} runs all applicable scenarios and accepts fenced exact stops`, async () =>
     run(async (f) => {
       for (const style of ['', 'fenced-named']) {
         const out = await f.bun(f.step, ['--agent', host], { cwd: f.repo, env: { ...f.env, MANUAL_STYLE: style } });
         expect(out.code).toBe(0);
-        expect(out.stdout.match(/^PASS: case /gm)).toHaveLength(37);
-        expect(out.stdout).toContain(`PASS (${host}): 37 cases`);
+        expect(out.stdout.match(/^PASS: case /gm)).toHaveLength(host === 'codex' ? 38 : 37);
+        expect(out.stdout).toContain(`PASS (${host}): ${host === 'codex' ? 38 : 37} cases`);
       }
     }));
 for (const host of ['claude', 'codex'])
@@ -35,7 +35,7 @@ for (const host of ['claude', 'codex'])
         });
         expect(out.code).toBe(0);
         const files = (await readdir(evidence)).filter((name) => name.startsWith('received-'));
-        expect(files).toHaveLength(37);
+        expect(files).toHaveLength(host === 'codex' ? 38 : 37);
         const expected = [
           'Keep PRODUCT_ROOT_21 open when Verify cannot run.',
           ...(folder

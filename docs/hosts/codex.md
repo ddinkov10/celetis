@@ -9,8 +9,11 @@ For `guide` advice, use this prompt with the actual skill name:
 `Use the celetis:<name> skill for <input>. Complete its Host entry startup reads before any response, including commentary.`
 
 Use the active checkout binding even when the tool process cwd differs. Locate its Git boundary
-and read `.celetis.yaml` through supported native file tools. Stop for file-access setup when
-those tools are unavailable; shell commands do not satisfy native startup.
+and read `.celetis.yaml` through available supported file access, including shell commands,
+dedicated readers, or runtime file APIs. Inspect the active tool catalog and use its actual schema.
+A dedicated reader is not required. The existing configuration reader is also supported.
+If no supported tool can locate or read the checkout, stop with the tool names, exact limitation,
+and required file-access setup.
 
 ## Worktree, commands, and files
 
@@ -20,7 +23,7 @@ minutes. Retain the command session identifier to observe completion.
 
 For a sandbox-blocked command, request one approved retry with the same command, arguments,
 and cwd before reporting a setup stop. Use the tool's escalation mechanism for later calls
-with the same access needs. A denied native file read retains the Host entry stop rule.
+with the same access needs. A denied file read retains the Host entry stop rule.
 
 ## Dispatch
 

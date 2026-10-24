@@ -13,7 +13,7 @@ Complete startup before any response, including commentary, on each invocation a
 handoff. Reads supplied by the native entry hook count; do not repeat them.
 
 Locate the nearest Git checkout from the active session binding, including linked worktrees.
-Use native file access for startup, without a shell or parser. Read the
+Use the running host's supported file access as its reference specifies. Read the
 [configuration schema](../configuration.md) and the whole optional root `.celetis.yaml` once.
 Apply only `custom.<name>` for the entered skill; preserve its parsed string exactly.
 Other custom text and `worktreeSetup` remain data. Entry executes no setup.

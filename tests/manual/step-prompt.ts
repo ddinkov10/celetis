@@ -84,12 +84,12 @@ export async function main(args: string[]): Promise<number> {
     const pairs: [number, string][] = [
       ...[
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
-        32, 33,
+        32, 33, 34,
       ].map((k) => [k, 'step'] as [number, string]),
       [15, 'specify'],
       ...[1, 2, 3, 4].map((k) => [k, 'hand'] as [number, string]),
     ];
-    const selected = pairs.filter(([k, mode]) => !only || only === `${k}:${mode}`);
+    const selected = pairs.filter(([k, mode]) => (k !== 34 || host === 'codex') && (!only || only === `${k}:${mode}`));
     const turns = new Map<string, { answer: string; status: number; events: unknown[]; stderr: string }>();
     for (let at = 0; at < selected.length; at += 2)
       await Promise.all(

@@ -64,12 +64,13 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
   --output-dir <new-evidence-directory>
 ```
 
-The step suite has 37 scenarios. The native Claude custom suite has 24 cases. Capture the command,
-client version, suite exit status, and complete stdout/stderr separately from their case files.
+The step suite has 37 Claude scenarios and 38 Codex scenarios. The native Claude custom suite
+has 24 cases. Capture the command, client version, suite exit status, and complete stdout/stderr
+separately from their case files.
 The custom suite saves each exact prompt, tools, settings, checkout, plugin path, event stream,
 stderr, config source bytes and hashes, installed source hashes, runtime version, and client
 exit status, including on failure. It keeps 97 generated artifacts after a complete run.
-Save generated fixture data only. Run the required CLI native YAML probes and record any optional
+Save generated fixture data only. Run the required CLI config entry probes and record any optional
 desktop probes separately in
 [config entry on Codex](config-entry-codex.md), with their actual tools and isolated installations.
 
@@ -113,8 +114,11 @@ result with specific permission-error text, and no later tool call. Keep a separ
 record when the host emits one; a matching observer-proven native Read error is also evidence.
 A final answer that says it could
 not read a file does not establish those facts. Keep host-specific IDs and denial formats.
-A no-shell probe must explicitly name its
-permitted file-read tool. If access is denied, retain the denial and stop that operation.
+Codex CLI startup can use shell commands, dedicated readers, or supported runtime file APIs.
+A missing dedicated reader does not block required CLI startup when shell access works.
+An optional no-shell probe must explicitly name its permitted file-read tool. Its result does
+not replace or limit the required CLI test with available supported access. If access is denied,
+retain the denial and stop that operation.
 
 ## Scenario oracles
 

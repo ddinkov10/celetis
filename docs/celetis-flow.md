@@ -350,11 +350,12 @@ of the issue, because the runner ends the session when the issue shows that the 
 Domain knowledge stays in the `AGENTS.md` files (ADR-0006).
 
 Each `SKILL.md` starts with the common host entry, which reads the whole config once through
-native file tools before any step or answer and applies only its target string (ADR-0013).
+the running host's supported file access before any step or answer and applies only its target string (ADR-0013).
 Claude's native hook supplies metadata and permission-checked `Read` results before the
-model sees the entry; filename search alone proves no file kind. Codex uses supported file-only operations on its actual surface. The agent
-interprets the schema in `docs/configuration.md`, with no shell or
-new parser operation. Native entry executes no setup and proves no deterministic parser check.
+model sees the entry; filename search alone proves no file kind. Codex uses available supported
+access, including shell commands, dedicated readers, or runtime file APIs on its actual surface.
+The agent applies the schema in `docs/configuration.md`; Codex can use the existing config reader.
+Entry executes no setup. A file read alone proves no deterministic parser check.
 `docs/hosts/entry.md` and the selected host reference own the entry rules.
 
 - **Which checkout.** Locate the active root from session context and file tools, including
@@ -598,7 +599,7 @@ and both failed runs remain recorded. Those earlier quota results remain histori
 
 A source wording test completed startup reads before the first response in five of five repair
 samples, compared with zero of five control samples. It used the full guide text and actual file
-reads. Normal installed native entry and chore step order still need verification after review.
+reads. Normal installed skill entry and chore step order still need verification after review.
 
 The remaining required CLI acceptance checks include every applicable lane and helper on Claude
 Code and Codex TUI/CLI, cross-host steps, compaction and exact resume, native CLI skill selection,

@@ -358,9 +358,10 @@ changes no field that is there. Each other field stays by hand.
   it; `scripts/celetis setup lane <path>` runs the script there. Every entry still checks the lane
   config (`docs/celetis-flow.md`).
 - **A custom part** is the parsed string `custom.<skill>` in `.celetis.yaml`. At entry, the
-  skill reads the whole config once from the active checkout through native file tools and
-  applies only its own string (ADR-0013 and ADR-0015). No shell or parser runs during entry. A runner step
-  starts in the main checkout; a later skill entered in a lane reads that lane's config.
+  skill reads the whole config once from the active checkout through supported host file access and
+  applies only its own string (ADR-0013 and ADR-0015). Claude uses its native entry hook; Codex can
+  use shell commands, dedicated readers, or runtime file APIs and the existing config reader.
+  Entry runs no setup. A runner step starts in the main checkout; a later skill entered in a lane reads that lane's config.
   A same-session handoff or first borrowed reference creates its own entry. Later sections
   reuse that entry. Missing checkout, config, or custom text gives no addition; an invalid,
   ambiguous, unreadable, or denied config stops entry. A denied read has no alternate path.
@@ -830,8 +831,10 @@ still run in the native host. No automatic check needs model credentials or toke
   ```
 
   The required Codex CLI and optional desktop probes are in `tests/manual/config-entry-codex.md`.
-  A missing supported file-only reader makes that operation BLOCKED. Shell reads and deterministic
-  fixtures cannot prove native no-shell entry. `tests/manual/live-acceptance.md` tracks open surfaces.
+  Codex uses any available supported file access, including shell commands. A missing dedicated
+  reader does not block entry. An optional no-shell probe needs another supported reader; its result
+  does not limit shell access for required CLI startup. Deterministic fixtures prove no live entry.
+  `tests/manual/live-acceptance.md` tracks open surfaces.
 
 `docs/celetis-flow.md`, "Check the harness", holds the reasons behind the facts of the gate, the
 workflow, the process checks, and the hand-run test.
