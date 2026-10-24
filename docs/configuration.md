@@ -7,7 +7,7 @@ mapping root. Comments are allowed. Put nothing after a `---` marker on its line
 This repository uses:
 
 ```yaml
-host: claude
+host: codex
 landing: pr
 board:
   port: 4404
