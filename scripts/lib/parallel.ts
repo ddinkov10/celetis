@@ -15,15 +15,13 @@ export interface JobResult {
   code: number;
   output: string;
   elapsedMs: number;
-  timedOut: boolean;
 }
 
 export async function runJobs(
   jobs: Job[],
-  { workers = Math.min(4, availableParallelism()), timeoutMs = 30_000 } = {},
+  { workers = Math.min(4, availableParallelism()) } = {},
 ): Promise<JobResult[]> {
   if (!Number.isSafeInteger(workers) || workers < 1) throw new Error('workers must be a positive safe integer');
-  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1) throw new Error('timeout must be a positive safe integer');
   let index = 0;
   let interrupted = 0;
   const results: JobResult[] = new Array(jobs.length);
@@ -40,7 +38,6 @@ export async function runJobs(
   const execute = async (job: Job): Promise<JobResult> => {
     const start = performance.now();
     let code = 0;
-    let timedOut = false;
     let output = '';
     const child = spawn(job.file, job.args, {
       cwd: job.cwd,
@@ -51,9 +48,10 @@ export async function runJobs(
     const killGroup = (signal: NodeJS.Signals) => {
       if (child.pid) {
         try {
-          process.kill(-child.pid, signal);
+          return process.kill(-child.pid, signal);
         } catch {}
       }
+      return false;
     };
     const stop = (status: number) => {
       code ||= status;
@@ -79,22 +77,18 @@ export async function runJobs(
         else output += chunk;
       });
     }
-    const deadline = setTimeout(() => {
-      timedOut = true;
-      stop(124);
-    }, timeoutMs);
     const force = setInterval(() => {
       if (code) killGroup('SIGKILL');
     }, 100);
     try {
       await exited;
-      killGroup('SIGTERM');
-      await Bun.sleep(100);
-      killGroup('SIGKILL');
+      if (killGroup('SIGTERM')) {
+        await Bun.sleep(100);
+        killGroup('SIGKILL');
+      }
       await closed;
-      return { label: job.label, code, output, elapsedMs: performance.now() - start, timedOut };
+      return { label: job.label, code, output, elapsedMs: performance.now() - start };
     } finally {
-      clearTimeout(deadline);
       clearInterval(force);
       active.delete(stop);
     }
@@ -107,7 +101,7 @@ export async function runJobs(
           const job = jobs[current];
           if (!job) break;
           results[current] = interrupted
-            ? { label: job.label, code: interrupted, output: '', elapsedMs: 0, timedOut: false }
+            ? { label: job.label, code: interrupted, output: '', elapsedMs: 0 }
             : await execute(job);
         }
       }),

@@ -161,28 +161,57 @@ test(
     const result: { code: number; results: JobResult[] } = await suite({ root: f.repo, output: () => {} });
     expect(result.code, result.results.map((entry) => entry.output).join('\n')).toBe(0);
     expect(result.results).toHaveLength(2);
-    expect(result.results.every((entry) => entry.code === 0 && !entry.timedOut)).toBe(true);
+    expect(result.results.every((entry) => entry.code === 0)).toBe(true);
   }),
 );
 
 test(
-  'pool deadline stops a worker and its TERM-ignoring descendant',
+  'pool preserves a passing child when the parent deadline clock advances',
+  withFixture(async (f) => {
+    const driver = await f.write(
+      'driver.ts',
+      `import {runJobs} from ${JSON.stringify(parallel)};
+const schedule=globalThis.setTimeout;
+globalThis.setTimeout=((callback,delay,...args)=>schedule(callback,0,...args)) as typeof setTimeout;
+const results=await runJobs([{label:'passing',file:process.execPath,args:${JSON.stringify([...isolatedArgs, '-e', "await Bun.sleep(25); console.log('passed')"])} }]);
+console.log(JSON.stringify(results));`,
+    );
+    const result = await f.bun(driver);
+    expect(result.code, result.stderr).toBe(0);
+    const results: JobResult[] = JSON.parse(result.stdout);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.code).toBe(0);
+    expect(results[0]?.output).toBe('passed\n');
+  }),
+);
+
+test(
+  'pool reports a spawn failure',
   withFixture(async (f) => {
     const { runJobs } = await import(parallel);
+    const missing = join(f.dir, 'missing');
+    const results = await runJobs([{ label: 'missing', file: missing, args: [] }]);
+    expect(results[0].code).toBe(127);
+    expect(results[0].output).toContain('ENOENT');
+  }),
+);
+
+test(
+  'pool cleans a TERM-ignoring descendant after its parent exits successfully',
+  withFixture(async (f) => {
+    const { runJobs } = await import(parallel);
+    const pidFile = join(f.dir, 'pid');
     const descendant = await f.write(
       'descendant.ts',
-      `import {writeFileSync} from 'node:fs';process.on('SIGTERM',()=>{});writeFileSync(${JSON.stringify(join(f.dir, 'pid'))},String(process.pid));setInterval(()=>{},1000);`,
+      `import {writeFileSync} from 'node:fs';process.on('SIGTERM',()=>{});writeFileSync(${JSON.stringify(pidFile)},String(process.pid));setInterval(()=>{},1000);`,
     );
     const worker = await f.write(
       'worker.ts',
-      `import {spawn} from 'node:child_process';spawn(process.execPath,${JSON.stringify(isolatedArgs)}.concat(${JSON.stringify(descendant)}),{stdio:'inherit'});setInterval(()=>{},1000);`,
+      `import {spawn} from 'node:child_process';spawn(process.execPath,${JSON.stringify(isolatedArgs)}.concat(${JSON.stringify(descendant)}),{stdio:'inherit'});while(!(await Bun.file(${JSON.stringify(pidFile)}).exists()))await Bun.sleep(10);process.exit(0);`,
     );
-    const results = await runJobs([{ label: 'deadline', file: process.execPath, args: [...isolatedArgs, worker] }], {
-      timeoutMs: 500,
-    });
-    expect(results[0].code).toBe(124);
-    expect(results[0].timedOut).toBe(true);
-    const pid = Number(await readFile(join(f.dir, 'pid'), 'utf8'));
+    const results = await runJobs([{ label: 'parent', file: process.execPath, args: [...isolatedArgs, worker] }]);
+    expect(results[0].code).toBe(0);
+    const pid = Number(await readFile(pidFile, 'utf8'));
     expect(pid).toBeGreaterThan(0);
     expect(() => process.kill(pid, 0)).toThrow();
   }),

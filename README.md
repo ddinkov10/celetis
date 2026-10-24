@@ -778,8 +778,9 @@ still run in the native host. No automatic check needs model credentials or toke
   Checks use bounded workers and install nothing. The last line is `verify: PASS`.
 - **The full suite** is `tests/suite.ts`. It discovers every automatic `.test.ts`, `_test.ts`,
   `.spec.ts` and `_spec.ts` entry, including board and native/manual harness files. It uses bounded
-  independent workers, a 30-second file deadline, failure propagation, and child cleanup on
-  signals. Token-using manual programs have no test suffix. The last line is `suite: PASS`.
+  independent workers, failure propagation, and child cleanup on exit and signals. It sets no
+  file or default case deadline. Token-using manual programs have no test suffix. The last
+  line is `suite: PASS`.
 - **Build delivery** with exactly Bun 1.4.2. `scripts/build.ts` generates `scripts/celetis`,
   the browser modules, and native hook modules. `scripts/build.ts --check` fails on changed bytes
   or modes and writes nothing. Plugin users run no build and install no package dependency.

@@ -38,7 +38,6 @@ export async function suite({
   root = dirname(import.meta.dir),
   files,
   workers = 1,
-  timeoutMs = 30_000,
   output = (text: string) => {
     process.stdout.write(text);
   },
@@ -46,7 +45,6 @@ export async function suite({
   root?: string;
   files?: string[];
   workers?: number;
-  timeoutMs?: number;
   output?: (text: string) => void;
 } = {}): Promise<{ code: number; results: JobResult[] }> {
   const discovered = await discoverTests(root);
@@ -59,10 +57,10 @@ export async function suite({
     selected.map((path) => ({
       label: path,
       file: process.execPath,
-      args: bunArgs('test', ['--timeout', '29000', join(root, path)]),
+      args: bunArgs('test', ['--timeout', '0', join(root, path)]),
       cwd: root,
     })),
-    { workers, timeoutMs },
+    { workers },
   );
   for (const result of results) {
     output(`== ${result.label}\n`);

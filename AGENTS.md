@@ -40,9 +40,9 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
   stays unchanged; update it only as `scripts/lib/vendor/README.md` says.
 - Strict types have three environments: runtime commands, server modules and tests;
   browser DOM modules; and the native hook API and its actual globals.
-- The suite discovers all automatic TypeScript test entries, uses bounded file workers, stops
-  each file after 30 seconds, and cleans child groups on signals. Each test uses private scratch
-  state. `scripts/lib/parallel.ts` supplies the bounded process runner.
+- The suite discovers all automatic TypeScript test entries, uses bounded file workers, and
+  cleans child groups on exit and signals. It sets no file or default case deadline. Each test
+  uses private scratch state. `scripts/lib/parallel.ts` supplies the bounded process runner.
 - `tests/manual/step-prompt.ts` and `tests/manual/custom-part.ts` use tokens and run by hand.
   Run the step test after a change of `step-prompt.md`, of "Celetis flow" below, or of a sentence
   it quotes ("Traps"). Deterministic manual harness entries remain in the suite.
