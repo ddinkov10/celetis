@@ -175,43 +175,45 @@ test('Host entry preserves its native YAML contract', () => {
     'whole',
     'once',
     'parsed string',
-    'absolute directory containing',
     'before any product-path scan',
+    'custom.<borrowed skill stem>',
+    '--agent claude',
+    '--agent codex',
+    'plugin-update.ts check',
+    'UpdateOffer',
+    'direct human response',
+    'plugin-update apply <home> <root> <source> <installed> <target>',
+    'capability.md',
+    'same child',
   ]);
-  for (const host of ['claude', 'codex']) required(`docs/hosts/${host}.md`, ['.git', 'shell', 'context']);
   required('hooks/entry.js', ['.celetis.yaml']);
   required('docs/hosts/codex.md', [
     '.celetis.yaml',
     'active checkout binding',
     'tool process cwd',
-    'Do not read a `.git` directory',
-    'multi_agent_v1.spawn_agent',
-    'fork_context: false',
-    'multi_agent_v1.send_input',
-    'codex debug models',
-    'tool search',
-    'collaboration.followup_task',
+    'approved retry',
+    '--runtime-models',
+    'dispatch.model',
+    'dispatch.effort',
+    'codex resume --no-daemon',
   ]);
   required('docs/hosts/claude.md', [
     'hooks/entry.js',
-    'native destination',
-    '$.session.root()',
-    '$.session.cwd()',
-    '$.fs.stat',
-    'permission-checked',
-    'zero content reads',
-    'one whole `Read` request',
-    'including commentary',
+    'Skill tool',
     'file_unchanged',
-    'seeded result',
-    'compacted',
+    'seeded',
     'another access path',
     'hook setup',
-    'later full-file',
-    'new invocation',
     'same agent loop',
-    'not in the environment of a Bash tool command',
+    'EnterWorktree',
+    'ExitWorktree',
+    'timeout: 3600000',
+    'claude --resume',
   ]);
+});
+test('host instructions stay within 1500 words in total', () => {
+  const words = ['entry', 'claude', 'codex'].flatMap((host) => text(`docs/hosts/${host}.md`).trim().split(/\s+/));
+  expect(words.length).toBeLessThanOrEqual(1500);
 });
 test('host resources and human guide contracts remain available', () => {
   for (const path of [
