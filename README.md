@@ -48,6 +48,7 @@ thing. A lane ends when the change is on the trunk, which is the default branch 
 on GitHub: the verify gate, the deployment, and each other part of a product stay in the product
 project. The plugin has no `version`, no `bin/` folder, and no declared dependency, and it gives
 no permission rule. Its Claude native hook completes file entry before skill expansion.
+Codex declares no Celetis lifecycle hooks and uses the shared skill entry instructions.
 ADR-0012 holds the original packaging decision; ADR-0014 extends it to both hosts without a
 second copy of the procedures. ADR-0015 replaces their config storage clauses with one YAML file.
 ADR-0016 limits required automation to the CLI hosts while keeping desktop invocation available.

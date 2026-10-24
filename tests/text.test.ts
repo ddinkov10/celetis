@@ -263,6 +263,7 @@ test('plugin and marketplace manifests preserve one unversioned root package', (
 });
 test('all shared package resources are tracked', () => {
   for (const path of [
+    '.codex-plugin/plugin.json',
     '.claude-plugin/plugin.json',
     '.claude-plugin/marketplace.json',
     'scripts/celetis',
