@@ -4,10 +4,13 @@ import { join } from 'node:path';
 import { command, fixture, root } from './fixture.ts';
 
 export async function updateFixture(host: 'claude' | 'codex', sibling = false) {
+  const validator = host === 'claude' ? Bun.which('claude') : null;
+  if (host === 'claude' && !validator) throw new Error('fixture: the existing Claude validator is unavailable');
   const f = await fixture();
   await f.repository();
   const config = join(f.dir, 'config');
   const plugin = join(config, 'plugins/cache/celetis/celetis/local');
+  const catalog = join(config, 'plugins/marketplaces/celetis');
   const source = join(f.dir, 'source with spaces.git');
   await mkdir(plugin, { recursive: true });
   await f.write('config/plugins/cache/celetis/celetis/local/.claude-plugin/plugin.json', '{"name":"celetis"}');
@@ -67,7 +70,9 @@ export async function updateFixture(host: 'claude' | 'codex', sibling = false) {
   );
   await f.write(
     'config/plugins/known_marketplaces.json',
-    JSON.stringify({ celetis: { source: { source: 'git', url: source, ref: 'main' }, autoUpdate: false } }),
+    JSON.stringify({
+      celetis: { source: { source: 'git', url: source, ref: 'main' }, installLocation: catalog, autoUpdate: false },
+    }),
   );
   await f.write(
     'config/plugins/installed_plugins.json',
@@ -115,6 +120,14 @@ export async function updateFixture(host: 'claude' | 'codex', sibling = false) {
   await git(['add', '.']);
   await git(['commit', '-qm', 'fixture commands']);
   const actualInstalled = await git(['rev-parse', 'HEAD']);
+  await f.write(
+    'config/plugins/marketplaces/celetis/.claude-plugin/marketplace.json',
+    JSON.stringify({
+      name: 'celetis',
+      owner: { name: 'Celetis' },
+      plugins: [{ name: 'celetis', source: { source: 'url', url: source, ref: 'main', sha: actualInstalled } }],
+    }),
+  );
   if (host === 'codex')
     await writeFile(
       join(plugin, '.codex-marketplace-install.json'),
@@ -130,12 +143,45 @@ export async function updateFixture(host: 'claude' | 'codex', sibling = false) {
     }),
   );
   const native = await readFile(join(f.dir, 'bin', host), 'utf8');
+  const claudeTarget = `
+const settings=JSON.parse(readFileSync(args[at+1],'utf8'));
+const declaration=settings.extraKnownMarketplaces.celetis;
+const path=join(dir,'config/plugins/known_marketplaces.json');
+const known=JSON.parse(readFileSync(path,'utf8'));
+const market=known.celetis;
+const {isDeepStrictEqual}=await import('node:util');
+if(!isDeepStrictEqual(market.source,declaration.source)){console.error('fixture: registered source does not match the effective declaration');process.exit(95);}
+const catalog=JSON.parse(readFileSync(join(market.installLocation,'.claude-plugin/marketplace.json'),'utf8'));
+const entry=catalog.plugins.find(plugin=>plugin.name==='celetis');
+sha=entry.source.sha;
+const source=await Bun.file(join(dir,'native-source-url')).text().catch(()=>${JSON.stringify(source)});
+if(entry.source.url!==source)process.exit(92);
+writeFileSync(join(dir,'native-catalog.json'),JSON.stringify({entry,market}));
+if((await Bun.file(join(dir,'unrelated-marketplace'))).size){known.other={source:{source:'github',repo:'other/marketplace'},installLocation:join(dir,'other')};writeFileSync(path,JSON.stringify(known));}
+const competing=await Bun.file(join(dir,'competing-marketplace.json')).json().catch(()=>null);
+if(competing){if(competing.installLocation==='staged')competing.installLocation=market.installLocation;if(competing.installLocation==='staged/.')competing.installLocation=market.installLocation+'/.';known.celetis=competing;writeFileSync(path,JSON.stringify(known));}
+if((await Bun.file(join(dir,'invalid-registry'))).size)writeFileSync(path,'invalid registry');
+if((await Bun.file(join(dir,'apply-stall'))).size){
+  process.on('SIGTERM',()=>{});
+  const {spawn}=await import('node:child_process');
+  spawn(process.execPath,['--no-env-file','--no-install','--config=/dev/null','--no-macros',join(dir,'native-child.ts')],{stdio:['ignore','inherit','inherit',3]});
+  writeFileSync(join(dir,'native-parent'),String(process.pid));
+  console.error('fixture: native update stalled original cause');
+  await Bun.sleep(30000);
+}
+`;
+  const validation =
+    host === 'claude'
+      ? `if(args[0]==='plugin'&&args[1]==='validate'){const{spawnSync}=await import('node:child_process');const result=spawnSync(${JSON.stringify(validator)},args,{stdio:'inherit'});process.exit(result.status??1);}`
+      : '';
   await writeFile(
     join(f.dir, 'bin', host),
-    native.replace(
-      "if(JSON.stringify(args)===JSON.stringify(['--disable'",
-      `if(args.length===0){writeFileSync(join(dir,'consumer-pid'),String(process.pid));await Bun.sleep(30000);process.exit(0);}if(args.includes('update')||args.includes('upgrade')){let sha;const at=args.indexOf('--settings');if(at>=0){const settings=JSON.parse(readFileSync(args[at+1],'utf8'));const market=settings.extraKnownMarketplaces.celetis;if(market.source.source!=='settings'){if((await Bun.file(join(dir,'restore-fail'))).size){console.error('fixture: native source restoration failed');process.exit(25);}if(args.slice(at+2).join(' ')!=='plugin marketplace update celetis')process.exit(94);appendFileSync(join(dir,'mutations'),JSON.stringify(args)+'\\n');writeFileSync(join(dir,'config/plugins/known_marketplaces.json'),JSON.stringify({celetis:{source:market.source,autoUpdate:false}}));console.log(JSON.stringify({restored:true}));process.exit(0);}sha=market.source.plugins[0].source.sha;if(market.source.plugins[0].source.url!==${JSON.stringify(source)})process.exit(92);writeFileSync(join(dir,'config/plugins/known_marketplaces.json'),JSON.stringify({celetis:{source:market.source,autoUpdate:false}}));}else{const override=args.find(value=>value.startsWith('marketplaces.celetis.ref='));sha=override?JSON.parse(override.slice(override.indexOf('=')+1)):undefined;}if(sha!==${JSON.stringify(target)})process.exit(93);appendFileSync(join(dir,'mutations'),JSON.stringify(args)+'\\n');if((await Bun.file(join(dir,'apply-fail'))).size){console.error('fixture: native application failed before replacement');process.exit(23);}const {execFileSync}=await import('node:child_process');const moved=await Bun.file(join(dir,'move-remote')).text().catch(()=>null);if(moved)execFileSync('git',['--git-dir',${JSON.stringify(source)},'update-ref','refs/heads/main',moved]);execFileSync('git',['-C',nativeRoot,'fetch','-q',${JSON.stringify(source)},sha]);execFileSync('git',['-C',nativeRoot,'reset','--hard',sha]);if(process.env.CELETIS_AGENT==='codex')writeFileSync(join(nativeRoot,'.codex-marketplace-install.json'),JSON.stringify({source_type:'git',source:${JSON.stringify(source)},ref_name:sha,sparse_paths:[],revision:sha}));const configured=JSON.parse(readFileSync(join(dir,'effective.json'),'utf8')).config.plugins;if(configured?.['sibling@celetis'])writeFileSync(join(dir,'sibling-state'),'changed');if((await Bun.file(join(dir,'apply-partial'))).size){console.error('fixture: native application failed after package replacement');process.exit(24);}const registry=JSON.parse(readFileSync(join(dir,'config/plugins/installed_plugins.json'),'utf8'));registry.plugins['celetis@celetis'][0].gitCommitSha=sha;writeFileSync(join(dir,'config/plugins/installed_plugins.json'),JSON.stringify(registry));console.log(JSON.stringify({updated:true,sha}));process.exit(0);}if(JSON.stringify(args)===JSON.stringify(['--disable'`,
-    ),
+    native
+      .replace(
+        "if(JSON.stringify(args)===JSON.stringify(['--disable'",
+        `if(args.length===0){writeFileSync(join(dir,'consumer-pid'),String(process.pid));await Bun.sleep(30000);process.exit(0);}if(args.includes('update')||args.includes('upgrade')){let sha;const at=args.indexOf('--settings');if(at>=0){${claudeTarget}}else{const override=args.find(value=>value.startsWith('marketplaces.celetis.ref='));sha=override?JSON.parse(override.slice(override.indexOf('=')+1)):undefined;}if(sha!==${JSON.stringify(target)})process.exit(93);appendFileSync(join(dir,'mutations'),JSON.stringify(args)+'\\n');if((await Bun.file(join(dir,'apply-fail'))).size){console.error('fixture: native application failed before replacement');process.exit(23);}const {execFileSync}=await import('node:child_process');const moved=await Bun.file(join(dir,'move-remote')).text().catch(()=>null);if(moved)execFileSync('git',['--git-dir',${JSON.stringify(source)},'update-ref','refs/heads/main',moved]);execFileSync('git',['-C',nativeRoot,'fetch','-q',${JSON.stringify(source)},sha]);sha=await Bun.file(join(dir,'wrong-sha')).text().catch(()=>sha);execFileSync('git',['-C',nativeRoot,'reset','--hard',sha]);if(process.env.CELETIS_AGENT==='codex')writeFileSync(join(nativeRoot,'.codex-marketplace-install.json'),JSON.stringify({source_type:'git',source:${JSON.stringify(source)},ref_name:sha,sparse_paths:[],revision:sha}));const configured=JSON.parse(readFileSync(join(dir,'effective.json'),'utf8')).config.plugins;if(configured?.['sibling@celetis'])writeFileSync(join(dir,'sibling-state'),'changed');if((await Bun.file(join(dir,'apply-partial'))).size){console.error('fixture: native application failed after package replacement');process.exit(24);}const registry=JSON.parse(readFileSync(join(dir,'config/plugins/installed_plugins.json'),'utf8'));registry.plugins['celetis@celetis'][0].gitCommitSha=sha;writeFileSync(join(dir,'config/plugins/installed_plugins.json'),JSON.stringify(registry));console.log(JSON.stringify({updated:true,sha}));process.exit(0);}if(JSON.stringify(args)===JSON.stringify(['--disable'`,
+      )
+      .replace('if(args.length===0)', `${validation}if(args.length===0)`),
   );
   const update = (args: string[], launcher = false) =>
     f.bun(

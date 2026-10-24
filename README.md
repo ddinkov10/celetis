@@ -710,8 +710,14 @@ root, source, installed revision and target. A changed identity or target refuse
 Rerunning the command creates a fresh offer and requires fresh terminal confirmation. No attempt
 is queued or retried automatically. Failures preserve native diagnostics and observed partial state.
 
-Claude keeps its native installation scope and uses the exact target SHA through private temporary
-settings. It restores the original marketplace source afterward. Codex uses command-only overrides
+Claude keeps its native installation scope. It writes a private catalog with the approved source
+and exact target SHA, then temporarily registers that catalog and its matching inline source for
+one native update. It restores the complete saved marketplace entry locally before it removes the
+catalog and releases the lock, including after a native failure, timeout or interruption. User and
+project settings stay unchanged. If restoration fails, the error includes the observed native state.
+The updater keeps the catalog and reports its path if the registration still points to it or cannot
+be read. Repair the native registration before removing that retained catalog or making a new attempt.
+Codex uses command-only overrides
 for the selected source and exact target. Its whole-marketplace operation refuses other configured
 or listed plugins in the Celetis marketplace, including disabled or pending siblings. Other
 marketplaces are unchanged. Both paths validate fresh enabled discovery and the full installed

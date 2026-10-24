@@ -36,5 +36,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
+      - name: Install pinned verification tools
+        run: bun --no-env-file --no-install --config=/dev/null --no-macros scripts/install-tools.ts "${{ runner.temp }}/celetis-tools" --claude
       - name: Process and lock acceptance
         run: bun --no-env-file --no-install --config=/dev/null --no-macros tests/suite.ts --process

@@ -1,6 +1,7 @@
-import { lstat, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { lstat, mkdir, mkdtemp, open, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { codexRequest, type Host, HostError, installedRoot, mainCheckout, requireBun, selectHost } from './lib/host.ts';
 import {
@@ -199,6 +200,36 @@ export async function checkUpdate(host: Host, cwd: string): Promise<UpdateOffer 
   });
 }
 
+async function replaceClaudeMarketplace(
+  path: string,
+  expected: Record<string, unknown>,
+  replacement: Record<string, unknown>,
+): Promise<void> {
+  const registry = await jsonFile(path);
+  const current = registry.celetis;
+  if (
+    !object(current) ||
+    !isDeepStrictEqual(current.source, expected.source) ||
+    current.installLocation !== expected.installLocation
+  )
+    throw new HostError(`plugin-update: native marketplace identity changed in ${path}: ${JSON.stringify(current)}`);
+  const metadata = await lstat(path);
+  if (!metadata.isFile()) throw new HostError(`plugin-update: ${path} needs a regular file with no symbolic link`);
+  const temporary = join(dirname(path), `.celetis.${randomUUID()}.json`);
+  try {
+    const file = await open(temporary, 'wx', metadata.mode & 0o7777);
+    try {
+      await file.chmod(metadata.mode & 0o7777);
+      await file.writeFile(JSON.stringify({ ...registry, celetis: replacement }));
+    } finally {
+      await file.close();
+    }
+    await rename(temporary, path);
+  } finally {
+    await rm(temporary, { force: true });
+  }
+}
+
 export async function updatePlugin(ownerPid: number, host: Host, target: UpdateTarget): Promise<string> {
   if (
     !target.home ||
@@ -243,6 +274,7 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
       stderr: '',
     });
     const scratch = await mkdtemp(join(tmpdir(), 'celetis-cutover.'));
+    let retainScratch = false;
     let operation = 'prepare native target';
     const completed: string[] = [];
     try {
@@ -253,42 +285,74 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
         });
         if (!['user', 'project', 'local'].includes(details.scope ?? '') || !object(details.registered))
           throw new HostError('plugin-update: native installed scope/source is unavailable');
+        const registryPath = join(config, 'plugins/known_marketplaces.json');
+        const original = (await jsonFile(registryPath)).celetis;
+        if (
+          !object(original) ||
+          !object(original.source) ||
+          (original.source.source !== 'git' && original.source.source !== 'github')
+        )
+          throw new HostError(
+            'plugin-update: native marketplace needs its original Git/GitHub source; recovery is required',
+          );
+        if (!isDeepStrictEqual(original.source, details.registered))
+          throw new HostError('plugin-update: native marketplace source changed before replacement; check again');
+        if (gitSource(original.source).source !== target.source)
+          throw new HostError('plugin-update: native marketplace source does not match the approved source');
+        const location = original.installLocation;
+        if (
+          typeof location !== 'string' ||
+          !isAbsolute(location) ||
+          !(await lstat(location).catch(() => null))?.isDirectory() ||
+          !(await lstat(join(location, '.claude-plugin')).catch(() => null))?.isDirectory()
+        )
+          throw new HostError(
+            'plugin-update: native marketplace catalog location is missing or invalid; repair the native record',
+          );
+        const originalCatalog = await jsonFile(join(location, '.claude-plugin/marketplace.json'));
+        if (
+          originalCatalog.name !== 'celetis' ||
+          !Array.isArray(originalCatalog.plugins) ||
+          originalCatalog.plugins.filter((plugin) => object(plugin) && plugin.name === 'celetis').length !== 1
+        )
+          throw new HostError(`plugin-update: invalid native marketplace catalog in ${location}`);
+        operation = 'claude original marketplace catalog validation';
+        await lock.run('claude', ['plugin', 'validate', join(location, '.claude-plugin/marketplace.json'), '--json'], {
+          cwd: process.cwd(),
+          env,
+        });
+        operation = 'prepare native target';
         const action = join(scratch, 'target.json');
-        const restore = join(scratch, 'source.json');
+        const catalog = {
+          name: 'celetis',
+          owner: { name: 'Celetis' },
+          plugins: [
+            {
+              name: 'celetis',
+              source: {
+                source: 'url',
+                url: target.source,
+                ...(details.ref === 'HEAD' ? {} : { ref: details.ref }),
+                sha: target.target,
+              },
+            },
+          ],
+        };
+        const inline = { source: 'settings', ...catalog };
+        const staged = { ...original, source: inline, installLocation: scratch, autoUpdate: false };
+        await mkdir(join(scratch, '.claude-plugin'));
+        await writeFile(join(scratch, '.claude-plugin/marketplace.json'), JSON.stringify(catalog), { mode: 0o600 });
         await writeFile(
           action,
           JSON.stringify({
-            extraKnownMarketplaces: {
-              celetis: {
-                autoUpdate: false,
-                source: {
-                  source: 'settings',
-                  name: 'celetis',
-                  owner: { name: 'Celetis' },
-                  plugins: [
-                    {
-                      name: 'celetis',
-                      source: {
-                        source: 'url',
-                        url: target.source,
-                        ref: details.ref === 'HEAD' ? undefined : details.ref,
-                        sha: target.target,
-                      },
-                    },
-                  ],
-                },
-              },
-            },
+            extraKnownMarketplaces: { celetis: { autoUpdate: false, source: inline } },
           }),
           { mode: 0o600 },
         );
-        await writeFile(
-          restore,
-          JSON.stringify({ extraKnownMarketplaces: { celetis: { autoUpdate: false, source: details.registered } } }),
-          { mode: 0o600 },
-        );
+        await replaceClaudeMarketplace(registryPath, original, staged);
         operation = 'claude target-bound plugin update';
         let installationError: unknown;
+        let restorationError: unknown;
         try {
           await lock.run(
             'claude',
@@ -297,33 +361,41 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
           );
         } catch (error) {
           installationError = error;
+        } finally {
+          if (!installationError) completed.push(operation);
+          operation = 'claude original marketplace restoration';
+          try {
+            await replaceClaudeMarketplace(registryPath, staged, original);
+            if (!isDeepStrictEqual((await jsonFile(registryPath)).celetis, original))
+              restorationError = new HostError('plugin-update: native marketplace restoration is incomplete');
+            else completed.push(operation);
+          } catch (error) {
+            restorationError = error;
+          }
+          if (restorationError) {
+            try {
+              const remaining = (await jsonFile(registryPath)).celetis;
+              const owned = await stat(scratch);
+              const referenced =
+                object(remaining) && typeof remaining.installLocation === 'string'
+                  ? await stat(remaining.installLocation)
+                  : null;
+              retainScratch =
+                !referenced?.isDirectory() || (referenced.dev === owned.dev && referenced.ino === owned.ino);
+            } catch {
+              retainScratch = true;
+            }
+          }
         }
-        if (!installationError) completed.push(operation);
-        operation = 'claude original marketplace source restoration';
-        try {
-          await lock.run('claude', ['--settings', restore, 'plugin', 'marketplace', 'update', 'celetis'], {
-            cwd: process.cwd(),
-            env,
-          });
-        } catch (restorationError) {
+        if (restorationError)
           throw new HostError(
-            [installationError instanceof Error ? installationError.message : '', (restorationError as Error).message]
+            [
+              installationError instanceof Error ? installationError.message : '',
+              (restorationError as Error).message,
+              retainScratch ? `Recovery: retained native marketplace catalog at ${scratch}` : '',
+            ]
               .filter(Boolean)
               .join('\n'),
-          );
-        }
-        completed.push(operation);
-        const known = await jsonFile(join(config, 'plugins/known_marketplaces.json'));
-        const market = known.celetis;
-        if (
-          !object(market) ||
-          !object(market.source) ||
-          market.source.source === 'settings' ||
-          gitSource(market.source).source !== target.source ||
-          !isDeepStrictEqual(market.source, details.registered)
-        )
-          throw new HostError(
-            'plugin-update: native marketplace source restoration is incomplete; no persistent SHA pin is permitted',
           );
         if (installationError) {
           operation = 'claude target-bound plugin update';
@@ -421,7 +493,7 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
         ].join('\n'),
       );
     } finally {
-      await rm(scratch, { recursive: true, force: true });
+      if (!retainScratch) await rm(scratch, { recursive: true, force: true });
     }
   } finally {
     await lock.close();
