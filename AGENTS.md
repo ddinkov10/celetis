@@ -75,10 +75,10 @@ part of each product.
 ## Celetis flow
 
 The lanes of this repository are the skills of the plugin itself, on the issues of
-`ddinkov10/celetis` (`README.md`, "The full loop"). The landing is `pr`
-(`landing` in `.celetis.yaml`): a build step ends with
-`scripts/celetis land <n> '<subject>'`, which squash-merges the lane PR on `main` when each check of
-the workflow is green. The landing is the last act of a change: this repository has no deployment.
+`ddinkov10/celetis` (`README.md`, "The full loop"). The landing is `merge`
+(`landing` in `.celetis.yaml`): a build step runs the verify gate and full suite locally, then ends
+with `scripts/celetis land <n> '<subject>'`, which puts one squash commit on `main` without a PR.
+The landing is the last act of a change: this repository has no deployment.
 For installation changes, follow `README.md`, "Updates".
 
 - A lane never skips a step.

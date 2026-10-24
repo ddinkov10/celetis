@@ -1,4 +1,4 @@
 host: codex
-landing: pr
+landing: merge
 board:
   port: 4404
