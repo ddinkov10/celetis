@@ -29,6 +29,11 @@ for (const [before, after, error] of [
     input.answer = input.answer.replace(before, after);
     expect(checkStep(input).errors).toEqual([error]);
   });
+test('Codex shell entry rejects direct skill continuation', () => {
+  const input = stepAnswer(34, 'step', 'codex');
+  input.answer = input.answer.replace('Then: I go on with Host entry through shell access', 'Then: I go on with guide');
+  expect(checkStep(input).errors).toEqual(['entry did not continue']);
+});
 test('completed reconnect reports each recovered service event', () => {
   expect(checkStep(stepAnswer(4, 'step', 'codex', 'reconnect'))).toEqual({ errors: [], recovered: 1 });
 });

@@ -70,7 +70,7 @@ export function checkStep(input: StepInput): { errors: string[]; recovered: numb
     fail(lines.includes('Access: SHELL'), 'shell startup blocked');
     fail(lines.includes('Config: /tmp/product/.celetis.yaml'), 'wrong active config');
     fail(
-      lines.some((line) => line.startsWith('Then: I go on with ')),
+      lines.some((line) => line.startsWith('Then: I go on with Host entry')),
       'entry did not continue',
     );
   }
