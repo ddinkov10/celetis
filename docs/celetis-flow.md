@@ -185,17 +185,16 @@ Codex also omits the step-text override for specify. Its configured developer in
 launcher, and step text. Numbered starts, automatic starts, and later steps make no update call.
 The forms `--board` and `--resume` keep their existing no-update behavior and saved identity.
 Before a step starts, the runner checks that its required files and step text still exist.
-Normal consumers retain shared admission, including local-source installations. Known concrete
-policy conflicts are diagnosed. Run and exact Resume bind their Codex session to the active
+Known concrete policy conflicts are diagnosed. Running consumers do not reserve the update mutex. Run and exact Resume bind their Codex session to the active
 installed root through a command-only Local marketplace. Native catalog, manifest, and cache
 version checks prove the refresh no-op for Git and local installations. A Git SHA ref alone can
 force same-revision replacement and is reserved for approved application. External package
 edits remain outside the update protocol. Metadata RPC disables plugins before app-server construction, so
 read-only thread and configuration checks do not trigger startup refresh.
 
-[Updates](../README.md#updates) owns the read-only check, exact offer, direct chat approval, target-bound
-`plugin-update apply` attempt, its lock and deadline, and the native host limits. A runner restart
-alone does not fetch a new package. "Acceptance status" keeps the open resource-lifetime evidence.
+[Updates](../README.md#updates) owns the read-only check, terminal-confirmed one-command update,
+its updater mutex and deadline, and native cache replacement. Sessions may remain open; a fresh
+session loads updated skills and tools. A runner restart alone does not fetch a new package.
 
 **The step end.** In a herdr pane (`HERDR_ENV=1` and a valid `HERDR_PANE_ID`), the script does two things before it
 starts a session. It names its tab `#<n> <step>` with `herdr tab rename "$HERDR_TAB_ID"`, so the
@@ -433,14 +432,12 @@ the project default changes. Each item is one argument. The board quotes the ite
 `&& exit`: success closes the tab; a failed script leaves its message there. With the default
 `me` gates, a Run starts one step and ends when its session ends.
 
-The board starts the data script on each read and the action script on each press. Stop the
-whole board before a supported package replacement, since later requests can read package assets.
-A fresh board/session resolves the enabled installation again; a successful restart alone is
-no proof of an update. Board starts retain shared admission for their full lifetime. Follow
-[Updates](../README.md#updates) before replacing its installed package, and complete the
-[manual cutover](configuration.md#replace-the-old-setup) when the product launcher or setup
-changes. Real Run/Resume acceptance remains a
-separate live gate; a stdin or local-source check does not establish it.
+The board starts the data script on each read and the action script on each press. A plugin
+update does not stop the board. Reload or restart it if native cache replacement removes an asset
+it still needs. A fresh board/session resolves the enabled installation again. Follow
+[Updates](../README.md#updates) for manual updates and the
+[manual cutover](configuration.md#replace-the-old-setup) when product wiring changes.
+Real Run/Resume acceptance remains a separate live gate.
 
 **The data.** `scripts/celetis celetis-flow --board` prints contract 1 ("Start the script"). Each read
 makes these `gh api` calls: 3 paginated lists (open issues, closed issues, open PRs), one paginated
@@ -610,14 +607,13 @@ state/action pairs. These gaps remain open. Optional desktop success cannot clos
 CLI gap. No obsolete metadata or protocol fallback is supplied. The
 [live acceptance procedure](../tests/manual/live-acceptance.md) records each required surface.
 
-**Native reader lifetime remains conditional.** Celetis admission protects cooperating starts,
-Run/Resume, and boards. Exact native target operations, source restoration, fresh validation,
-and updater cleanup have positive deterministic tests. Stock native processes can start without
-that admission and descendants can close inherited FDs. Keep those native clients stopped during
-explicit cutover; a process scan is not atomic native admission. The offering process must exit
-before the approved terminal action. [Updates](../README.md#updates) and ADR-0027 own the current
-contract. Historical ADR-0014 evidence remains. Live successful cutover and human-channel
-acceptance were waived and remain unverified.
+**Native cache replacement follows the host.** The user chose terminal confirmation and updates
+with sessions left open (ADR-0028). Celetis no longer scans native processes or holds consumer
+admission for their lifetime. Updater serialization, exact-target application, source restoration,
+fresh validation and child cleanup remain. Native replacement may remove old cache resources;
+Celetis makes no immutable-resource promise for running sessions. Newly installed Codex skills
+and tools load in a new session. Historical ADR-0014 and ADR-0027 evidence remains. Real native
+installation and terminal-approval acceptance must be recorded separately from fixture results.
 
 ### Optional Codex desktop evidence
 

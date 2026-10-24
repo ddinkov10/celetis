@@ -6,10 +6,8 @@ import { ConfigError, readConfig } from './lib/config.ts';
 import { HostError, mainCheckout, requireBun, selectHost } from './lib/host.ts';
 import { requireUpdatePolicy } from './lib/plugin-policy.ts';
 import { bunArgs, childEnv, run } from './lib/process.ts';
-import { ConsumerLock } from './lib/update-lock.ts';
 
 export async function main(args: string[]): Promise<number> {
-  let consumer: ConsumerLock | undefined;
   try {
     requireBun();
     if (args.length) throw new HostError('usage: scripts/celetis board', 2);
@@ -32,9 +30,7 @@ export async function main(args: string[]): Promise<number> {
     if ((await realpath(checkout.stdout.trimEnd())) !== main)
       throw new HostError(`celetis-board: start the board in the main checkout: ${main}`);
     const host = selectHost(undefined, process.env, main);
-    consumer = await ConsumerLock.acquire(host);
     await requireUpdatePolicy(host, main);
-    env.CELETIS_CONSUMER_FD = '3';
     const input = {
       data: ['scripts/celetis', 'celetis-flow', '--board'],
       run: ['scripts/celetis', '--agent', '{agent}', 'celetis-flow', '{n}'],
@@ -45,7 +41,7 @@ export async function main(args: string[]): Promise<number> {
       const child = spawn(process.execPath, bunArgs(entry, ['--config-stdin']), {
         cwd: main,
         env,
-        stdio: ['pipe', 'inherit', 'inherit', consumer?.fd ?? 'ignore'],
+        stdio: ['pipe', 'inherit', 'inherit'],
       });
       const interrupt = () => child.kill('SIGINT');
       const terminate = () => child.kill('SIGTERM');
@@ -63,8 +59,6 @@ export async function main(args: string[]): Promise<number> {
   } catch (error) {
     console.error(error instanceof HostError ? error.message : `celetis-board: ${(error as Error).message}`);
     return error instanceof HostError ? error.code : 1;
-  } finally {
-    consumer?.close();
   }
 }
 

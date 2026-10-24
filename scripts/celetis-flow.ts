@@ -5,7 +5,6 @@ import { dirname, join } from 'node:path';
 import type { Config } from './lib/config.ts';
 import type { Host } from './lib/host.ts';
 import type { SessionRecord, Step } from './lib/session.ts';
-import type { ConsumerLock } from './lib/update-lock.ts';
 
 const usage =
   'usage: scripts/celetis celetis-flow [<issue number>...] | --board | --resume <issue number>, e.g. scripts/celetis celetis-flow 373 374; with no number, the automatic runner';
@@ -58,7 +57,6 @@ function object(value: unknown): value is Record<string, unknown> {
 }
 
 export async function main(argv: string[]): Promise<number> {
-  let consumer: ConsumerLock | undefined;
   let mode: 'numbers' | 'auto' | 'board' | 'resume' = 'numbers';
   let numbers: string[] = [];
   if (argv.length === 1 && argv[0] === '--board') mode = 'board';
@@ -305,8 +303,8 @@ export async function main(argv: string[]): Promise<number> {
       bunArgs(import.meta.path, ['--session-start', watchDir, String(process.pid), host, ...args]),
       {
         cwd: main,
-        env: childEnv({ ...process.env, CELETIS_CONSUMER_FD: '3' }),
-        stdio: ['inherit', 'inherit', 'inherit', consumer?.fd ?? 'ignore'],
+        env: childEnv(),
+        stdio: ['inherit', 'inherit', 'inherit'],
       },
     );
     const ended = new Promise<number>((done) => {
@@ -422,7 +420,6 @@ export async function main(argv: string[]): Promise<number> {
     } else host = selectHost(undefined, process.env, main);
     if (host === 'codex') process.env.CODEX_HOME = await (await import('./lib/plugin-metadata.ts')).codexHome();
     config = load();
-    consumer = await (await import('./lib/update-lock.ts')).ConsumerLock.acquire(host);
     await (await import('./lib/plugin-policy.ts')).requireUpdatePolicy(host, main);
     process.env.CELETIS_AGENT = host;
     process.chdir(main);
@@ -572,7 +569,6 @@ export async function main(argv: string[]): Promise<number> {
       await new Promise<void>((done) => session?.once('exit', () => done()));
     }
     if (watchDir) await rm(watchDir, { recursive: true, force: true });
-    consumer?.close();
     for (const name of [...held]) await release(name);
     for (const [signal, handler] of handlers) process.off(signal, handler);
   }
@@ -589,7 +585,6 @@ async function waitingSession(args: string[]): Promise<number> {
   }
   const executable = Bun.which(host, { PATH: childEnv().PATH });
   if (!executable || !process.execve) return 1;
-  (await import('./lib/update-lock.ts')).ConsumerLock.retainInherited();
   return (await import('./lib/update-lock.ts')).execConsumer(executable, [executable, ...hostArgs], childEnv());
 }
 

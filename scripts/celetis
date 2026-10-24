@@ -2,8 +2,8 @@
 // @bun
 
 // scripts/launcher.ts
-import { realpath as realpath2, stat } from "fs/promises";
-import { dirname as dirname2, join as join5 } from "path";
+import { stat } from "fs/promises";
+import { dirname as dirname2, join as join6 } from "path";
 
 // scripts/lib/config.ts
 import fs from "fs";
@@ -6577,7 +6577,10 @@ function readConfig(checkout) {
 if (false) {}
 
 // scripts/lib/host.ts
+import { spawn as spawn2 } from "child_process";
+import { constants as constants2 } from "os";
 import { dirname, win32 } from "path";
+import { createInterface } from "readline";
 
 // scripts/lib/plugin-metadata.ts
 import { lstat, readdir, readFile, realpath } from "fs/promises";
@@ -6698,7 +6701,54 @@ function bunArgs(entry, args) {
 }
 
 // scripts/lib/plugin-metadata.ts
+var revision = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 var object2 = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+async function git(args, cwd, execute = run) {
+  const result = await execute("git", ["--no-optional-locks", "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", ...args], { cwd, timeout: 1e4 });
+  if (result.code !== 0)
+    throw new HostError([`plugin-update: git ${args[0]} failed (exit ${result.code})`, result.stderr.trimEnd(), result.stdout.trimEnd()].filter(Boolean).join(`
+`));
+  return result.stdout.trimEnd();
+}
+async function installedRevision(host, root, source, nativeRevision, execute = run) {
+  const witness = await lstat(join(root, ".git")).catch(() => null);
+  if (witness && !witness.isDirectory())
+    throw new HostError(`plugin-update: Git witness is not package-owned: ${root}; repair the native installation`);
+  if (!witness) {
+    if (nativeRevision)
+      return nativeRevision;
+    throw new HostError(`plugin-update: ${root} has no package-owned Git revision witness; reinstall from a source with verifiable full installed identity`);
+  }
+  const args = [`--git-dir=${join(root, ".git")}`, `--work-tree=${root}`];
+  const common = await git([...args, "rev-parse", "--path-format=absolute", "--git-common-dir"], root, execute);
+  if (await realpath(common).catch(() => "") !== await realpath(join(root, ".git")) || await lstat(join(root, ".git/objects/info/alternates")).catch(() => null))
+    throw new HostError(`plugin-update: installed Git witness uses external common state: ${root}; use a package-owned Git record`);
+  const installed = await git([...args, "rev-parse", "--verify", "HEAD"], root, execute);
+  if (nativeRevision && nativeRevision !== installed)
+    throw new HostError(`plugin-update: native installed revision disagrees with package witness: ${root}; repair the native identity`);
+  if (!revision.test(installed))
+    throw new HostError(`plugin-update: invalid full installed revision in ${root}`);
+  const metadataName = ".codex-marketplace-install.json";
+  const metadataPath = join(root, metadataName);
+  const metadataFile = host === "codex" ? await lstat(metadataPath).catch(() => null) : null;
+  if (metadataFile) {
+    let metadata;
+    try {
+      metadata = await jsonFile(metadataPath);
+    } catch (error) {
+      throw new HostError(`plugin-update: invalid native marketplace metadata: ${error.message}`);
+    }
+    if (!metadataFile.isFile() || Object.keys(metadata).sort().join(",") !== "ref_name,revision,source,source_type,sparse_paths" || metadata.source_type !== "git" || metadata.source !== source || metadata.revision !== installed || !(metadata.ref_name === null || typeof metadata.ref_name === "string" && metadata.ref_name.length > 0 && ![...metadata.ref_name].some((character) => character.charCodeAt(0) <= 32 || character.charCodeAt(0) === 127)) || !Array.isArray(metadata.sparse_paths) || metadata.sparse_paths.some((path) => typeof path !== "string" || !path || path.includes("\x00")))
+      throw new HostError(`plugin-update: invalid native marketplace metadata identity in ${metadataPath}`);
+  }
+  const changes = await git([...args, "status", "--porcelain", "-z", "--untracked-files=normal"], root, execute);
+  if (changes.split("\x00").some((change) => change && !(metadataFile && change === `?? ${metadataName}`)))
+    throw new HostError(`plugin-update: installed package is dirty: ${root}; review its local changes before checking an update`);
+  const remote = await git([...args, "config", "--get", "remote.origin.url"], root, execute);
+  if (remote !== source)
+    throw new HostError(`plugin-update: installed Git source does not match configured source: ${remote}; repair the native installation identity`);
+  return installed;
+}
 function configHome(host) {
   return host === "claude" ? process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude") : process.env.CODEX_HOME ?? join(homedir(), ".codex");
 }
@@ -6743,6 +6793,7 @@ async function jsonFile(path, optional = false) {
   }
 }
 async function nativeJson(host, args, cwd, inheritedFd, env = childEnv(), execute = run) {
+  inheritedFd ??= updateDescriptor();
   if (host === "codex")
     env = childEnv({ ...env, CODEX_HOME: await codexHome(env.CODEX_HOME) });
   const result = await execute(host, args, {
@@ -6878,6 +6929,132 @@ function selectHost(explicit, env, main) {
 function object3(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
+async function codexRequest(cwd, method, params, inheritedFd, nativeHome) {
+  inheritedFd ??= updateDescriptor();
+  const env = childEnv({ ...process.env, CODEX_HOME: await codexHome(nativeHome) });
+  if (!Bun.which("codex", { PATH: env.PATH }))
+    throw new HostError("celetis: codex is not on PATH");
+  const child = spawn2("codex", ["--disable", "plugins", "app-server", "--stdio"], {
+    cwd,
+    env,
+    stdio: ["pipe", "pipe", "pipe", ...inheritedFd === undefined ? [] : [inheritedFd]]
+  });
+  if (!child.stdin || !child.stdout || !child.stderr)
+    throw new HostError("celetis: cannot open Codex app-server streams");
+  const input = child.stdin;
+  const output = child.stdout;
+  const errors = child.stderr;
+  const exited = new Promise((resolve) => {
+    child.once("exit", () => resolve());
+    child.once("error", () => resolve());
+  });
+  const handlers = new Map;
+  let interruption;
+  const interrupted = new Promise((_, reject) => {
+    for (const signal of ["SIGHUP", "SIGINT", "SIGTERM"]) {
+      const handler = () => {
+        interruption ??= new HostError("", 128 + constants2.signals[signal]);
+        reject(interruption);
+      };
+      handlers.set(signal, handler);
+      process.on(signal, handler);
+    }
+  });
+  let failure;
+  child.on("error", (error) => {
+    failure = error;
+  });
+  let stderr = "";
+  errors.setEncoding("utf8");
+  errors.on("data", (data) => {
+    stderr += data;
+  });
+  input.on("error", () => {});
+  const lines = createInterface({ input: output, crlfDelay: Infinity });
+  const iterator = lines[Symbol.asyncIterator]();
+  async function reply(id, operation) {
+    const deadline = Date.now() + 1e4;
+    let timer;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new HostError(`celetis: Codex ${operation} timed out after 10 seconds`)), 1e4);
+    });
+    try {
+      while (Date.now() < deadline) {
+        const next = await Promise.race([iterator.next(), timeout, interrupted]);
+        if (next.done)
+          throw new HostError(`celetis: Codex app-server closed its output during ${operation}`);
+        let value;
+        try {
+          value = JSON.parse(next.value);
+        } catch {
+          throw new HostError("celetis: invalid Codex app-server response");
+        }
+        if (!object3(value))
+          throw new HostError("celetis: invalid Codex app-server response");
+        if (Object.hasOwn(value, "id")) {
+          if (value.id !== id)
+            continue;
+          if (value.error != null) {
+            const message = object3(value.error) ? value.error.message ?? "unknown error" : "unknown error";
+            throw new HostError(`celetis: Codex ${operation} failed: ${message}`);
+          }
+          if (!object3(value.result))
+            throw new HostError("celetis: invalid Codex app-server response");
+          return value;
+        }
+        if (typeof value.method !== "string")
+          throw new HostError("celetis: invalid Codex app-server response");
+      }
+      throw new HostError(`celetis: Codex ${operation} timed out after 10 seconds`);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  const send = (value) => input.write(`${JSON.stringify(value)}
+`);
+  let error;
+  let result;
+  try {
+    send({
+      id: 1,
+      method: "initialize",
+      params: { clientInfo: { name: "celetis", version: "0.0.0" }, capabilities: { experimentalApi: true } }
+    });
+    await reply(1, "initialize");
+    send({ method: "initialized" });
+    send({ id: 2, method, params });
+    result = await reply(2, method);
+  } catch (caught) {
+    error = caught;
+  } finally {
+    lines.close();
+    input.destroy();
+    child.kill("SIGTERM");
+    let timer;
+    await Promise.race([
+      exited,
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, 500);
+      })
+    ]);
+    clearTimeout(timer);
+    if (child.exitCode === null && child.signalCode === null)
+      child.kill("SIGKILL");
+    await exited;
+    output.destroy();
+    errors.destroy();
+    for (const [signal, handler] of handlers)
+      process.off(signal, handler);
+  }
+  if (interruption)
+    error = interruption;
+  if (error || failure) {
+    const detail = error instanceof Error ? error.message : failure?.message ?? String(error);
+    throw new HostError([detail, stderr.trimEnd()].filter(Boolean).join(`
+`), error instanceof HostError ? error.code : 1);
+  }
+  return result;
+}
 async function installedRoot(host, cwd, inheritedFd, execute = run) {
   if (host === "claude") {
     const missing = "celetis: the plugin is not installed; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis";
@@ -6929,7 +7106,7 @@ function checkClaudePolicy(records) {
       effective = { path, value: market.autoUpdate };
   }
   if (effective && effective.value !== false)
-    throw new HostError(`plugin-update: ${effective?.path ?? "native/local/project/user/managed settings"}: Celetis automatic updates are enabled or unknown; stop affected consumers and set the effective Celetis autoUpdate policy to false`);
+    throw new HostError(`plugin-update: ${effective?.path ?? "native/local/project/user/managed settings"}: Celetis automatic updates are enabled or unknown; set the effective Celetis autoUpdate policy to false`);
 }
 async function claudePolicy(cwd) {
   const lookup = await run("git", ["rev-parse", "--show-toplevel"], { cwd });
@@ -7013,9 +7190,10 @@ async function selectSavedSession(main, issue, explicit, common) {
 
 // scripts/lib/update-lock.ts
 import { dlopen, FFIType, ptr, read } from "bun:ffi";
-import { closeSync, fstatSync as fstatSync2, openSync, statSync } from "fs";
+import { spawn as spawn3 } from "child_process";
+import { closeSync, openSync } from "fs";
 import { mkdir as mkdir2, mkdtemp, readFile as readFile3, rm as rm2 } from "fs/promises";
-import { constants as constants2, tmpdir } from "os";
+import { constants as constants3, tmpdir } from "os";
 import { join as join4 } from "path";
 var errnoName = process.platform === "darwin" ? "__error" : "__errno_location";
 var architecture = process.arch === "arm64" ? "aarch64" : process.arch === "x64" ? "x86_64" : process.arch;
@@ -7025,7 +7203,6 @@ function binding() {
     try {
       return dlopen(library, {
         flock: { args: [FFIType.i32, FFIType.i32], returns: FFIType.i32 },
-        fcntl: { args: [FFIType.i32, FFIType.i32, FFIType.i32], returns: FFIType.i32 },
         execve: { args: [FFIType.ptr, FFIType.ptr, FFIType.ptr], returns: FFIType.i32 },
         [errnoName]: { args: [], returns: FFIType.ptr }
       });
@@ -7057,75 +7234,505 @@ function tryFlock(fd, shared = false) {
   if (!errorPointer)
     throw new HostError("plugin-update: cannot read flock errno");
   const errno = read.i32(errorPointer);
-  if ([constants2.errno.EWOULDBLOCK, constants2.errno.EAGAIN, constants2.errno.EINTR].includes(errno))
+  if ([constants3.errno.EWOULDBLOCK, constants3.errno.EAGAIN, constants3.errno.EINTR].includes(errno))
     return false;
   throw new HostError(`plugin-update: cannot acquire the plugin update lock (errno ${errno})`);
 }
-
-class ConsumerLock {
-  fd;
-  constructor(fd) {
-    this.fd = fd;
-  }
-  static async acquire(host) {
-    const home = host === "codex" ? await codexHome() : configHome(host);
-    await mkdir2(home, { recursive: true });
-    const path = join4(home, "celetis-update.lock");
-    let fd;
-    const inherited = Number(process.env.CELETIS_CONSUMER_FD);
-    if (Number.isInteger(inherited) && inherited >= 3) {
-      try {
-        const expected = statSync(path), current = fstatSync2(inherited);
-        if (expected.dev === current.dev && expected.ino === current.ino)
-          fd = inherited;
-      } catch {}
+async function withPluginRead(host, inspect) {
+  const home = host === "codex" ? await codexHome() : configHome(host);
+  await mkdir2(home, { recursive: true });
+  const fd = openSync(join4(home, "celetis-update.lock"), "a", 384);
+  const deadline = performance.now() + 120000;
+  try {
+    while (!tryFlock(fd, true)) {
+      if (performance.now() >= deadline)
+        throw new HostError("celetis: an update still holds the installation; retry this start after it finishes");
+      await Bun.sleep(50);
     }
-    fd ??= openSync(path, "a", 384);
-    const deadline = performance.now() + 120000;
+    return await inspect();
+  } finally {
+    closeSync(fd);
+  }
+}
+
+class UpdateLock {
+  fd;
+  runnerPid;
+  timeoutMs;
+  clock;
+  child;
+  interrupted;
+  phase = "wait for the plugin update lock";
+  handlers = new Map;
+  deadline;
+  constructor(fd, runnerPid, timeoutMs, clock) {
+    this.fd = fd;
+    this.runnerPid = runnerPid;
+    this.timeoutMs = timeoutMs;
+    this.clock = clock;
+    this.deadline = clock.now() + timeoutMs;
+    for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+      const handler = () => {
+        this.interrupted = signal;
+      };
+      this.handlers.set(signal, handler);
+      process.on(signal, handler);
+    }
+  }
+  static async acquire(path, runnerPid, options = {}) {
+    const lock = new UpdateLock(openSync(path, "a", 384), runnerPid, options.timeoutMs ?? 120000, options.clock ?? { now: () => performance.now(), sleep: (ms) => Bun.sleep(ms) });
     try {
-      while (!tryFlock(fd, true)) {
-        if (performance.now() >= deadline)
-          throw new HostError("celetis: an update still holds the installation; retry this start after it finishes");
-        await Bun.sleep(50);
+      while (!tryFlock(lock.fd)) {
+        if (options.refuseBusy)
+          throw new HostError("plugin-update: installation discovery or another update holds this installation; try again after it finishes. This attempt is consumed and was not queued");
+        lock.check();
+        await lock.clock.sleep(50);
       }
-      if (native.symbols.fcntl(fd, 2, 0) !== 0)
-        throw new HostError("celetis: cannot retain consumer protection across process replacement");
-      process.env.CELETIS_CONSUMER_FD = String(fd);
-      return new ConsumerLock(fd);
+      lock.check();
+      return lock;
     } catch (error) {
-      closeSync(fd);
+      await lock.close();
       throw error;
     }
   }
-  static retainInherited() {
-    const fd = Number(process.env.CELETIS_CONSUMER_FD);
-    if (!Number.isInteger(fd) || fd < 3)
-      return;
-    if (native.symbols.fcntl(fd, 2, 0) !== 0)
-      throw new HostError("celetis: cannot retain the inherited consumer descriptor");
-  }
-  static releaseForUpdate(home) {
-    const fd = Number(process.env.CELETIS_CONSUMER_FD);
-    if (!Number.isInteger(fd) || fd < 3)
-      return;
+  check() {
+    if (this.interrupted)
+      throw new HostError(`plugin-update: interrupted by ${this.interrupted} during ${this.phase}`);
     try {
-      const current = fstatSync2(fd);
-      const expected = statSync(join4(home, "celetis-update.lock"));
-      if (current.dev !== expected.dev || current.ino !== expected.ino)
-        throw new HostError("plugin-update: inherited consumer protection belongs to another installation");
-      closeSync(fd);
-      delete process.env.CELETIS_CONSUMER_FD;
+      process.kill(this.runnerPid, 0);
     } catch (error) {
-      if (error instanceof HostError)
-        throw error;
+      if (error.code !== "EPERM")
+        throw new HostError(`plugin-update: the runner exited during ${this.phase}`);
+    }
+    if (this.clock.now() >= this.deadline)
+      throw new HostError(`plugin-update: timed out after ${this.timeoutMs / 1000} seconds during ${this.phase}`);
+  }
+  async stopChild() {
+    const child = this.child;
+    if (!child)
+      return;
+    if (!child.pid) {
+      this.child = undefined;
+      return;
+    }
+    if (child.pid) {
+      try {
+        process.kill(-child.pid, "SIGTERM");
+        await Bun.sleep(1000);
+      } catch {}
+      try {
+        process.kill(-child.pid, "SIGKILL");
+      } catch {}
+    }
+    if (child.exitCode === null && child.signalCode === null)
+      await new Promise((resolve) => child.once("exit", () => resolve()));
+    this.child = undefined;
+  }
+  async run(file, args, options = {}) {
+    this.phase = [file, ...args].join(" ");
+    this.check();
+    const temp = await mkdtemp(join4(tmpdir(), "celetis-update."));
+    const stdoutPath = join4(temp, "stdout");
+    const stderrPath = join4(temp, "stderr");
+    const stdout = openSync(stdoutPath, "w+", 384);
+    const stderr = openSync(stderrPath, "w+", 384);
+    let failure;
+    try {
+      const child = spawn3(file, args, {
+        ...options,
+        env: childEnv({ ...options.env ?? process.env, CELETIS_UPDATE_FD: "3" }),
+        detached: true,
+        stdio: ["ignore", stdout, stderr, this.fd]
+      });
+      this.child = child;
+      let status;
+      child.once("error", (error) => {
+        failure = error;
+        status = 127;
+      });
+      child.once("exit", (code, signal) => {
+        status = code ?? (signal ? 128 + constants3.signals[signal] : 1);
+      });
+      while (status === undefined) {
+        this.check();
+        await this.clock.sleep(50);
+      }
+      this.check();
+      if (status !== 0)
+        throw new HostError(`plugin-update: ${this.phase} failed (exit ${status})`);
+    } catch (error) {
+      failure = error;
+    } finally {
+      await this.stopChild();
+      closeSync(stdout);
+      closeSync(stderr);
+    }
+    try {
+      const output = await readFile3(stdoutPath, "utf8");
+      if (failure) {
+        const diagnostic = await readFile3(stderrPath, "utf8");
+        throw new HostError([failure instanceof Error ? failure.message : String(failure), diagnostic.trimEnd(), output.trimEnd()].filter(Boolean).join(`
+`));
+      }
+      return output;
+    } finally {
+      await rm2(temp, { recursive: true, force: true });
     }
   }
-  close() {
+  async close() {
+    await this.stopChild();
+    for (const [signal, handler] of this.handlers)
+      process.off(signal, handler);
     closeSync(this.fd);
-    if (process.env.CELETIS_CONSUMER_FD === String(this.fd))
-      delete process.env.CELETIS_CONSUMER_FD;
   }
 }
+
+// scripts/plugin-update.ts
+import { lstat as lstat2, mkdtemp as mkdtemp2, realpath as realpath2, rm as rm3, writeFile as writeFile2 } from "fs/promises";
+import { tmpdir as tmpdir2 } from "os";
+import { join as join5 } from "path";
+import { isDeepStrictEqual } from "util";
+var revision2 = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
+function gitSource(value) {
+  if (!object2(value))
+    throw new HostError("plugin-update: no configured Git source; inspect the native marketplace record");
+  let source;
+  if (value.source === "git")
+    source = value.url;
+  else if (value.source === "settings" && value.name === "celetis" && Array.isArray(value.plugins)) {
+    const plugins = value.plugins.filter((plugin) => object2(plugin) && plugin.name === "celetis");
+    const plugin = plugins[0];
+    if (plugins.length !== 1 || !object2(plugin) || !object2(plugin.source) || plugin.source.source !== "url")
+      throw new HostError("plugin-update: invalid native inline marketplace source");
+    return gitSource({ source: "git", url: plugin.source.url, ref: plugin.source.ref });
+  } else if (value.source === "github" && typeof value.repo === "string" && /^[\w.-]+\/[\w.-]+$/.test(value.repo))
+    source = `https://github.com/${value.repo}.git`;
+  if (typeof source !== "string" || !source || [...source].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127) || !(/^(https?|ssh|git|file):\/\//.test(source) || source.startsWith("/") || /^[\w.-]+@[\w.-]+:/.test(source)))
+    throw new HostError("plugin-update: unsupported configured Git source; use a native Git or GitHub marketplace source");
+  const ref = value.ref ?? "HEAD";
+  if (typeof ref !== "string" || !ref || ref.startsWith("-") || [...ref].some((character) => character.charCodeAt(0) <= 32 || character.charCodeAt(0) === 127))
+    throw new HostError("plugin-update: invalid configured Git ref; repair the native marketplace source");
+  return { source, ref };
+}
+async function inspect(host, cwd) {
+  const home = await bindUpdateHome(host);
+  let siblings = [];
+  let scope;
+  let registeredSource;
+  let root;
+  let nativeRevision;
+  let configured;
+  if (host === "claude") {
+    const list = await nativeJson(host, ["plugin", "list", "--json"], cwd);
+    if (!Array.isArray(list))
+      throw new HostError("plugin-update: invalid Claude installation list");
+    const records = list.filter((item) => object2(item) && item.id === "celetis@celetis");
+    const user = records.filter((item) => item.scope === "user");
+    const selected = user.length ? user : records;
+    if (selected.length !== 1 || selected[0].enabled !== true || typeof selected[0].installPath !== "string")
+      throw new HostError("plugin-update: Claude installation is disabled, missing, or ambiguous; repair the enabled Celetis identity");
+    root = selected[0].installPath;
+    scope = selected[0].scope;
+    const manifest = await jsonFile(join5(root, ".claude-plugin/plugin.json"));
+    if (manifest.name !== "celetis")
+      throw new HostError(`plugin-update: wrong installed plugin identity in ${root}`);
+    const policies = await claudePolicy(cwd);
+    checkClaudePolicy(policies);
+    const nativeMarket = policies.find((record) => record.path === join5(configHome(host), "plugins/known_marketplaces.json"))?.value.celetis;
+    registeredSource = object2(nativeMarket) ? nativeMarket.source : undefined;
+    let configuredSource;
+    for (const { value } of policies) {
+      const markets = value.extraKnownMarketplaces;
+      const market = object2(markets) ? markets.celetis : value.celetis;
+      if (object2(market) && Object.hasOwn(market, "source"))
+        configuredSource = market.source;
+    }
+    configured = gitSource(configuredSource);
+    const registry = await jsonFile(join5(configHome(host), "plugins/installed_plugins.json"), true);
+    if (registry.version === 2 && object2(registry.plugins)) {
+      const records = registry.plugins["celetis@celetis"];
+      if (Array.isArray(records)) {
+        const matches = records.filter((record) => object2(record) && record.scope === selected[0].scope && record.installPath === root && record.version === selected[0].version);
+        if (matches.length === 1 && typeof matches[0].gitCommitSha === "string" && revision2.test(matches[0].gitCommitSha)) {
+          const path = join5(configHome(host), "plugins/known_marketplaces.json");
+          const market = policies.find((record) => record.path === path)?.value.celetis;
+          let registered;
+          try {
+            registered = gitSource(object2(market) ? market.source : undefined);
+          } catch {
+            throw new HostError(`plugin-update: native registered source is unavailable in ${path}; repair the native marketplace record`);
+          }
+          if (registered.source !== configured.source)
+            throw new HostError(`plugin-update: native registered source does not match the effective configured source in ${path}; repair the native marketplace record`);
+          nativeRevision = matches[0].gitCommitSha;
+        }
+      }
+    }
+  } else {
+    const metadata = await codexPlugin(cwd);
+    root = metadata.root;
+    const market = metadata.record.marketplaceSource;
+    if (!object2(market) || market.sourceType !== "git")
+      throw new HostError("plugin-update: selected Codex marketplace is not a Git source; no remote update check is available");
+    const reply = await codexRequest(cwd, "config/read", { cwd, includeLayers: true }, undefined, metadata.home);
+    const config = object2(reply) && object2(reply.result) && object2(reply.result.config) ? reply.result.config : null;
+    const markets = config?.marketplaces;
+    const effective = object2(markets) ? markets.celetis : null;
+    if (!object2(effective) || effective.source_type !== "git" || effective.source !== market.source)
+      throw new HostError("plugin-update: Codex effective marketplace source differs from installed metadata; repair the native configuration");
+    configured = gitSource({ source: "git", url: effective.source, ref: effective.ref });
+    if (config?.plugins !== undefined && !object2(config.plugins))
+      throw new HostError("plugin-update: invalid effective Codex plugin configuration; inspect its native sources");
+    siblings = [...new Set([...metadata.marketplacePlugins, ...Object.keys(config?.plugins ?? {})])].filter((id) => id.endsWith("@celetis") && id !== "celetis@celetis");
+  }
+  const installed = await installedRevision(host, root, configured.source, nativeRevision);
+  let remote;
+  try {
+    remote = await git(["ls-remote", "--exit-code", "--", configured.source, configured.ref, `${configured.ref}^{}`], cwd);
+  } catch (error) {
+    throw new HostError(`plugin-update: cannot resolve configured Git ref ${configured.ref}: ${error.message}`);
+  }
+  const records = remote.split(`
+`).map((line) => line.split("\t"));
+  if (records.some(([sha, ref]) => !sha || !revision2.test(sha) || !ref))
+    throw new HostError(`plugin-update: invalid remote revision for configured ref ${configured.ref}`);
+  const base = records.filter(([, ref]) => !ref?.endsWith("^{}"));
+  if (base.length !== 1)
+    throw new HostError(`plugin-update: configured ref ${configured.ref} is missing or ambiguous; choose one native Git ref`);
+  const selectedRef = base[0]?.[1];
+  const target = records.find(([, ref]) => ref === `${selectedRef}^{}`)?.[0] ?? base[0]?.[0];
+  if (!target)
+    throw new HostError(`plugin-update: no full revision for configured ref ${configured.ref}`);
+  return {
+    host,
+    home,
+    source: configured.source,
+    installed,
+    target,
+    root: await realpath2(root),
+    ref: configured.ref,
+    scope,
+    registered: registeredSource,
+    siblings
+  };
+}
+async function checkUpdate(host, cwd) {
+  return withPluginRead(host, async () => {
+    const {
+      ref: _ref,
+      scope: _scope,
+      registered: _registered,
+      siblings: _siblings,
+      ...offer
+    } = await inspect(host, cwd);
+    return offer.installed === offer.target ? null : offer;
+  });
+}
+async function updatePlugin(ownerPid, host, target) {
+  if (!target.home || !target.root || !target.source || !revision2.test(target.installed) || !revision2.test(target.target))
+    throw new HostError("plugin-update: apply needs the offered home, root, source and full installed and target revisions", 2);
+  const config = await bindUpdateHome(host, target.home);
+  if (config !== target.home || await realpath2(target.root).catch(() => null) !== target.root)
+    throw new HostError("plugin-update: offered home and root must be existing canonical paths", 2);
+  const env = childEnv();
+  const lock = await UpdateLock.acquire(join5(config, "celetis-update.lock"), ownerPid, { refuseBusy: true });
+  try {
+    const output = await lock.run(process.execPath, bunArgs(import.meta.path, ["plugin-update", "--inspect", host]), {
+      cwd: process.cwd(),
+      env
+    });
+    const current = JSON.parse(output);
+    if (current.home !== target.home || current.root !== target.root || current.source !== target.source || current.installed !== target.installed || current.target !== target.target)
+      throw new HostError(`plugin-update: offered home, root, source, installed revision, or target changed; this attempt is consumed. Check again and obtain a new direct user response. Observed: ${JSON.stringify(current)}`);
+    const details = current;
+    if (host === "codex" && details.siblings.length)
+      throw new HostError(`plugin-update: native whole-marketplace upgrade would also replace configured plugins ${details.siblings.join(", ")}; no mutation ran. Celetis approval does not include these plugins`);
+    const execute = async (file, args, options = {}) => ({
+      code: 0,
+      stdout: await lock.run(file, args, { cwd: options.cwd, env: options.env ?? env }),
+      stderr: ""
+    });
+    const scratch = await mkdtemp2(join5(tmpdir2(), "celetis-cutover."));
+    let operation = "prepare native target";
+    const completed = [];
+    try {
+      if (host === "claude") {
+        await lock.run(process.execPath, bunArgs(import.meta.path, ["plugin-update", "--policy", host]), {
+          cwd: process.cwd(),
+          env
+        });
+        if (!["user", "project", "local"].includes(details.scope ?? "") || !object2(details.registered))
+          throw new HostError("plugin-update: native installed scope/source is unavailable");
+        const action = join5(scratch, "target.json");
+        const restore = join5(scratch, "source.json");
+        await writeFile2(action, JSON.stringify({
+          extraKnownMarketplaces: {
+            celetis: {
+              autoUpdate: false,
+              source: {
+                source: "settings",
+                name: "celetis",
+                owner: { name: "Celetis" },
+                plugins: [
+                  {
+                    name: "celetis",
+                    source: {
+                      source: "url",
+                      url: target.source,
+                      ref: details.ref === "HEAD" ? undefined : details.ref,
+                      sha: target.target
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }), { mode: 384 });
+        await writeFile2(restore, JSON.stringify({ extraKnownMarketplaces: { celetis: { autoUpdate: false, source: details.registered } } }), { mode: 384 });
+        operation = "claude target-bound plugin update";
+        let installationError;
+        try {
+          await lock.run("claude", ["--settings", action, "plugin", "update", "celetis@celetis", "--scope", details.scope ?? "", "--json"], { cwd: process.cwd(), env });
+        } catch (error) {
+          installationError = error;
+        }
+        if (!installationError)
+          completed.push(operation);
+        operation = "claude original marketplace source restoration";
+        try {
+          await lock.run("claude", ["--settings", restore, "plugin", "marketplace", "update", "celetis"], {
+            cwd: process.cwd(),
+            env
+          });
+        } catch (restorationError) {
+          throw new HostError([installationError instanceof Error ? installationError.message : "", restorationError.message].filter(Boolean).join(`
+`));
+        }
+        completed.push(operation);
+        const known = await jsonFile(join5(config, "plugins/known_marketplaces.json"));
+        const market = known.celetis;
+        if (!object2(market) || !object2(market.source) || market.source.source === "settings" || gitSource(market.source).source !== target.source || !isDeepStrictEqual(market.source, details.registered))
+          throw new HostError("plugin-update: native marketplace source restoration is incomplete; no persistent SHA pin is permitted");
+        if (installationError) {
+          operation = "claude target-bound plugin update";
+          throw installationError;
+        }
+      } else {
+        operation = "codex target-bound marketplace upgrade";
+        await lock.run("codex", [
+          "-c",
+          'marketplaces.celetis.source_type="git"',
+          "-c",
+          `marketplaces.celetis.source=${JSON.stringify(target.source)}`,
+          "-c",
+          `marketplaces.celetis.ref=${JSON.stringify(target.target)}`,
+          "plugin",
+          "marketplace",
+          "upgrade",
+          "celetis",
+          "--json"
+        ], { cwd: process.cwd(), env });
+        completed.push(operation);
+      }
+      operation = "fresh enabled installation validation";
+      const root = await installedRoot(host, process.cwd(), undefined, execute);
+      let sha;
+      if (host === "claude") {
+        const list = await nativeJson("claude", ["plugin", "list", "--json"], process.cwd(), undefined, env, execute);
+        const enabled = Array.isArray(list) ? list.filter((record) => object2(record) && record.id === "celetis@celetis" && record.enabled === true && record.scope === details.scope && record.installPath === root) : [];
+        if (enabled.length !== 1 || typeof enabled[0].version !== "string")
+          throw new HostError("plugin-update: fresh native enabled scope/path/version is ambiguous");
+        const registry = await jsonFile(join5(config, "plugins/installed_plugins.json"));
+        const records = object2(registry.plugins) ? registry.plugins["celetis@celetis"] : undefined;
+        const matching = Array.isArray(records) ? records.filter((record) => object2(record) && record.installPath === root && record.scope === details.scope && record.version === enabled[0].version) : [];
+        if (matching.length !== 1)
+          throw new HostError("plugin-update: fresh native installed scope/path/version record does not match enabled discovery");
+        if (typeof matching[0].gitCommitSha === "string")
+          sha = matching[0].gitCommitSha;
+      }
+      const manifest = await jsonFile(join5(root, ".claude-plugin/plugin.json"));
+      if (manifest.name !== "celetis" || !(await lstat2(join5(root, "scripts")).catch(() => null))?.isDirectory() || !(await lstat2(join5(root, "skills/guide/SKILL.md")).catch(() => null))?.isFile())
+        throw new HostError(`plugin-update: enabled target package is incomplete: ${root}`);
+      const installed = await installedRevision(host, root, target.source, sha, execute);
+      if (installed !== target.target)
+        throw new HostError(`plugin-update: enabled revision is ${installed}, expected approved target ${target.target}`);
+      if (!(await lstat2(join5(root, "step-prompt.md")).catch(() => null))?.isFile())
+        throw new HostError(`plugin-update: target package has no step-prompt.md: ${root}`);
+      return root;
+    } catch (error) {
+      let state = "unknown";
+      let sourceState = "unknown";
+      if (host === "claude") {
+        try {
+          sourceState = (await jsonFile(join5(config, "plugins/known_marketplaces.json"))).celetis;
+        } catch {}
+      }
+      try {
+        state = await installedRoot(host, process.cwd(), undefined, execute);
+      } catch {}
+      throw new HostError([
+        `plugin-update: ${operation} failed`,
+        error.message,
+        `completed: ${completed.join("; ") || "none"}`,
+        `observed enabled root: ${state}`,
+        `observed native source state: ${JSON.stringify(sourceState)}`,
+        "Recovery: inspect the enabled installation and native source state, then obtain a new concrete offer and user decision. No retry or workflow was started."
+      ].join(`
+`));
+    } finally {
+      await rm3(scratch, { recursive: true, force: true });
+    }
+  } finally {
+    await lock.close();
+  }
+}
+async function main(argv, selectedHost) {
+  try {
+    requireBun();
+    const args = argv[0] === "plugin-update" ? argv.slice(1) : argv;
+    if (args[0] === "--root" && args.length === 2 && (args[1] === "claude" || args[1] === "codex"))
+      console.log(await installedRoot(args[1], process.cwd(), 3));
+    else if (args[0] === "--policy" && args.length === 2 && (args[1] === "claude" || args[1] === "codex"))
+      await requireUpdatePolicy(args[1], process.cwd());
+    else if (args[0] === "--inspect" && args.length === 2 && (args[1] === "claude" || args[1] === "codex"))
+      console.log(JSON.stringify(await inspect(args[1], process.cwd())));
+    else {
+      const main = await mainCheckout(process.cwd()).catch(() => null);
+      const host = selectedHost ?? selectHost(undefined, process.env, main);
+      process.env.CELETIS_AGENT = host;
+      if (args.length === 1 && args[0] === "check") {
+        console.log(JSON.stringify(await checkUpdate(host, process.cwd())));
+      } else if (args.length === 0) {
+        const offer = await checkUpdate(host, process.cwd());
+        if (!offer) {
+          console.log(`plugin-update: ${host} Celetis is up to date`);
+          return 0;
+        }
+        if (!process.stdin.isTTY || !process.stdout.isTTY)
+          throw new HostError("plugin-update: run this command in an interactive terminal to review and confirm the update", 2);
+        console.log(`Celetis (${host})
+Source: ${offer.source}
+Home: ${offer.home}
+Installed: ${offer.installed}
+Available: ${offer.target}`);
+        console.log("Open sessions stay running; the host may replace cached files they still use.");
+        if (!/^(y|yes)$/i.test((prompt("Update Celetis now? [y/N] ") ?? "").trim())) {
+          console.log("plugin-update: cancelled; the installation is unchanged");
+          return 0;
+        }
+        console.log(await updatePlugin(process.pid, host, offer));
+        console.error("plugin-update: approved target installed and validated; open a fresh session to use the updated plugin");
+      } else
+        throw new HostError("usage: scripts/celetis [--agent claude|codex] plugin-update [check]", 2);
+    }
+    return 0;
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    return error instanceof HostError ? error.code : 1;
+  }
+}
+if (false)
+  ;
 
 // scripts/launcher.ts
 async function resume(issue, explicit, cwd) {
@@ -7137,7 +7744,7 @@ async function resume(issue, explicit, cwd) {
   const record = await selectSavedSession(main, Number(n), explicit, common);
   return { host: record.host, record: serializeSession(record) };
 }
-async function main(argv) {
+async function main2(argv) {
   try {
     requireBun();
     const args = [...argv];
@@ -7154,25 +7761,15 @@ async function main(argv) {
     if (!/^[a-z][a-z-]*$/.test(name))
       throw new HostError(`celetis: the plugin has no script ${name}`, 2);
     const cwd = process.cwd();
-    const main = await mainCheckout(cwd).catch(() => null);
+    const main2 = await mainCheckout(cwd).catch(() => null);
     const saved = name === "celetis-flow" && args.length === 2 && args[0] === "--resume" ? await resume(args[1] ?? "", explicit, cwd) : undefined;
-    const host = saved?.host ?? selectHost(explicit, process.env, main);
-    let offeredRoot;
-    if (name === "plugin-update" && args[0] === "apply") {
-      if (args.length !== 6)
-        throw new HostError("plugin-update: apply needs <home> <root> <source> <installed> <target>", 2);
-      const home = await bindUpdateHome(host, args[1] ?? "");
-      offeredRoot = await realpath2(args[2] ?? "").catch(() => {
-        return;
-      });
-      if (home !== args[1] || !offeredRoot || offeredRoot !== args[2])
-        throw new HostError("plugin-update: offered home and root must be existing canonical paths", 2);
-    }
+    const host = saved?.host ?? selectHost(explicit, process.env, main2);
     if (host === "codex")
       process.env.CODEX_HOME = await codexHome();
-    await ConsumerLock.acquire(host);
+    if (name === "plugin-update")
+      return main(args, host);
     if (["worktree", "celetis-flow", "next-step", "land", "board"].includes(name)) {
-      const checkout = main ?? await mainCheckout(cwd);
+      const checkout = main2 ?? await mainCheckout(cwd);
       try {
         readConfig(checkout);
       } catch (error) {
@@ -7181,14 +7778,15 @@ async function main(argv) {
         throw new HostError(`celetis: ${checkout}/.celetis.yaml: ${error.field}: ${error.message}`, 2);
       }
     }
-    if (["celetis-flow", "board"].includes(name))
-      await requireUpdatePolicy(host, cwd);
-    const root = await installedRoot(host, cwd);
-    if (offeredRoot && await realpath2(root) !== offeredRoot)
-      throw new HostError("plugin-update: enabled root differs from the offered root; no package command was loaded", 2);
-    const entry = join5(root, "scripts", `${name}.ts`);
-    if (!(await stat(entry).catch(() => null))?.isFile())
-      throw new HostError(`celetis: the plugin has no script ${name}`, 2);
+    const entry = await withPluginRead(host, async () => {
+      if (["celetis-flow", "board"].includes(name))
+        await requireUpdatePolicy(host, cwd);
+      const root = await installedRoot(host, cwd);
+      const path = join6(root, "scripts", `${name}.ts`);
+      if (!(await stat(path).catch(() => null))?.isFile())
+        throw new HostError(`celetis: the plugin has no script ${name}`, 2);
+      return path;
+    });
     const env = childEnv({ ...process.env, CELETIS_AGENT: host });
     delete env.CELETIS_RESUME_RECORD;
     if (saved)
@@ -7205,7 +7803,7 @@ async function main(argv) {
   }
 }
 if (import.meta.main)
-  process.exitCode = await main(process.argv.slice(2));
+  process.exitCode = await main2(process.argv.slice(2));
 export {
-  main
+  main2 as main
 };

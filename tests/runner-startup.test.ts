@@ -414,14 +414,14 @@ for (const host of ['claude', 'codex']) {
       }, true),
     );
   test.concurrent(
-    `unbound updater refuses ${host} through the public launcher`,
+    `updater rejects obsolete identity arguments for ${host} through the public launcher`,
     runnerCase(async (f) => {
-      const r = await f.run(['--agent', host, 'plugin-update'], {
+      const r = await f.run(['--agent', host, 'plugin-update', 'apply', '/old/home'], {
         host: host === 'claude' ? 'codex' : 'claude',
         entry: join(f.plugin, 'scripts/launcher.ts'),
       });
       expect(r.code).toBe(2);
-      expect(r.stderr).toContain('check | apply <home> <root> <source> <installed> <target>');
+      expect(r.stderr).toContain('plugin-update [check]');
       expect(await f.logs('mutations')).toEqual([]);
       expect(await f.logs('calls')).toEqual([]);
     }),

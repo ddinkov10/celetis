@@ -144,5 +144,11 @@ export async function updateFixture(host: 'claude' | 'codex', sibling = false) {
       { cwd: f.repo, env },
     );
   const mutations = () => readFile(join(f.dir, 'mutations'), 'utf8').catch(() => '');
-  return { ...f, env, config, plugin, source, installed: actualInstalled, target, update, mutations, git };
+  const applyEntry = await f.write(
+    'apply.ts',
+    `import {updatePlugin} from ${JSON.stringify(join(plugin, 'scripts/plugin-update.ts'))};const [home,root,source,installed,target]=process.argv.slice(2);try{console.log(await updatePlugin(process.pid,${JSON.stringify(host)},{home:home!,root:root!,source:source!,installed:installed!,target:target!}));}catch(error){console.error((error as Error).message);process.exitCode=1;}`,
+  );
+  const apply = (args = [config, plugin, source, actualInstalled, target], selectedEnv: NodeJS.ProcessEnv = env) =>
+    f.bun(applyEntry, args, { cwd: f.repo, env: selectedEnv });
+  return { ...f, env, config, plugin, source, installed: actualInstalled, target, update, apply, mutations, git };
 }

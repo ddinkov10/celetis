@@ -276,7 +276,7 @@ test.concurrent(
 
 for (const host of ['claude', 'codex'] as const)
   test.concurrent(
-    `${host} waitingSession keeps shared admission after runner SIGKILL until native exit`,
+    `${host} running native sessions leave the updater mutex available`,
     runnerCase(async (f) => {
       await f.put('hold-session');
       await f.put('skip-input');
@@ -290,12 +290,11 @@ for (const host of ['claude', 'codex'] as const)
       try {
         await f.wait('started-1');
         fd = openSync(lockPath, 'a');
-        expect(tryFlock(fd)).toBe(false);
-        running.child.kill('SIGKILL');
-        await running.exited;
-        expect(tryFlock(fd)).toBe(false);
+        expect(tryFlock(fd)).toBe(true);
+        closeSync(fd);
+        fd = -1;
         await f.put('finish-1');
-        await until(async () => tryFlock(fd), 'native process did not release its inherited shared admission');
+        expect(await running.exited).toBe(0);
       } finally {
         if (fd >= 0) closeSync(fd);
         running.child.kill('SIGKILL');

@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { codexRequest, type Host, HostError, installedRoot, mainCheckout, requireBun, selectHost } from './lib/host.ts';
-import { requireStoppedConsumers } from './lib/plugin-consumers.ts';
 import {
   bindUpdateHome,
   codexPlugin,
@@ -16,7 +15,7 @@ import {
 } from './lib/plugin-metadata.ts';
 import { checkClaudePolicy, claudePolicy, requireUpdatePolicy } from './lib/plugin-policy.ts';
 import { bunArgs, childEnv, type run } from './lib/process.ts';
-import { ConsumerLock, UpdateLock } from './lib/update-lock.ts';
+import { UpdateLock, withPluginRead } from './lib/update-lock.ts';
 
 export type UpdateTarget = { home: string; root: string; source: string; installed: string; target: string };
 export type UpdateOffer = UpdateTarget & { host: Host };
@@ -188,8 +187,16 @@ async function inspect(
 }
 
 export async function checkUpdate(host: Host, cwd: string): Promise<UpdateOffer | null> {
-  const { ref: _ref, scope: _scope, registered: _registered, siblings: _siblings, ...offer } = await inspect(host, cwd);
-  return offer.installed === offer.target ? null : offer;
+  return withPluginRead(host, async () => {
+    const {
+      ref: _ref,
+      scope: _scope,
+      registered: _registered,
+      siblings: _siblings,
+      ...offer
+    } = await inspect(host, cwd);
+    return offer.installed === offer.target ? null : offer;
+  });
 }
 
 export async function updatePlugin(ownerPid: number, host: Host, target: UpdateTarget): Promise<string> {
@@ -207,11 +214,10 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
   const config = await bindUpdateHome(host, target.home);
   if (config !== target.home || (await realpath(target.root).catch(() => null)) !== target.root)
     throw new HostError('plugin-update: offered home and root must be existing canonical paths', 2);
-  ConsumerLock.releaseForUpdate(config);
   const env = childEnv();
   const lock = await UpdateLock.acquire(join(config, 'celetis-update.lock'), ownerPid, { refuseBusy: true });
   try {
-    const output = await lock.run(process.execPath, bunArgs(import.meta.path, ['--inspect', host]), {
+    const output = await lock.run(process.execPath, bunArgs(import.meta.path, ['plugin-update', '--inspect', host]), {
       cwd: process.cwd(),
       env,
     });
@@ -236,17 +242,15 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
       stdout: await lock.run(file, args, { cwd: options.cwd, env: options.env ?? env }),
       stderr: '',
     });
-    await lock.run(
-      process.execPath,
-      bunArgs(import.meta.path, ['--consumers', host, await realpath(config), current.root]),
-      { cwd: process.cwd(), env },
-    );
     const scratch = await mkdtemp(join(tmpdir(), 'celetis-cutover.'));
     let operation = 'prepare native target';
     const completed: string[] = [];
     try {
       if (host === 'claude') {
-        await lock.run(process.execPath, bunArgs(import.meta.path, ['--policy', host]), { cwd: process.cwd(), env });
+        await lock.run(process.execPath, bunArgs(import.meta.path, ['plugin-update', '--policy', host]), {
+          cwd: process.cwd(),
+          env,
+        });
         if (!['user', 'project', 'local'].includes(details.scope ?? '') || !object(details.registered))
           throw new HostError('plugin-update: native installed scope/source is unavailable');
         const action = join(scratch, 'target.json');
@@ -424,52 +428,52 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
   }
 }
 
-if (import.meta.main) {
+export async function main(argv: string[], selectedHost?: Host): Promise<number> {
   try {
     requireBun();
-    const args = process.argv.slice(2);
+    const args = argv[0] === 'plugin-update' ? argv.slice(1) : argv;
     if (args[0] === '--root' && args.length === 2 && (args[1] === 'claude' || args[1] === 'codex'))
       console.log(await installedRoot(args[1], process.cwd(), 3));
-    else if (args[0] === '--consumers' && args.length === 4 && (args[1] === 'claude' || args[1] === 'codex'))
-      await requireStoppedConsumers(args[1], args[2] ?? '', args[3] ?? '');
     else if (args[0] === '--policy' && args.length === 2 && (args[1] === 'claude' || args[1] === 'codex'))
       await requireUpdatePolicy(args[1], process.cwd());
     else if (args[0] === '--inspect' && args.length === 2 && (args[1] === 'claude' || args[1] === 'codex'))
       console.log(JSON.stringify(await inspect(args[1], process.cwd())));
     else {
       const main = await mainCheckout(process.cwd()).catch(() => null);
-      const host = selectHost(undefined, process.env, main);
+      const host = selectedHost ?? selectHost(undefined, process.env, main);
+      process.env.CELETIS_AGENT = host;
       if (args.length === 1 && args[0] === 'check') {
         console.log(JSON.stringify(await checkUpdate(host, process.cwd())));
-        if (host === 'codex')
-          console.error(
-            'plugin-update: apply requires stopped native consumers and no other configured plugin in the Celetis marketplace; keep native launches stopped throughout cutover and start a fresh session afterward',
+      } else if (args.length === 0) {
+        const offer = await checkUpdate(host, process.cwd());
+        if (!offer) {
+          console.log(`plugin-update: ${host} Celetis is up to date`);
+          return 0;
+        }
+        if (!process.stdin.isTTY || !process.stdout.isTTY)
+          throw new HostError(
+            'plugin-update: run this command in an interactive terminal to review and confirm the update',
+            2,
           );
-        else
-          console.error(
-            'plugin-update: file policy diagnostics do not certify unseen higher settings; apply rechecks concrete conflicts and requires stopped native consumers',
-          );
-      } else if (args.length === 6 && args[0] === 'apply') {
         console.log(
-          await updatePlugin(process.pid, host, {
-            home: args[1] ?? '',
-            root: args[2] ?? '',
-            source: args[3] ?? '',
-            installed: args[4] ?? '',
-            target: args[5] ?? '',
-          }),
+          `Celetis (${host})\nSource: ${offer.source}\nHome: ${offer.home}\nInstalled: ${offer.installed}\nAvailable: ${offer.target}`,
         );
+        console.log('Open sessions stay running; the host may replace cached files they still use.');
+        if (!/^(y|yes)$/i.test((prompt('Update Celetis now? [y/N] ') ?? '').trim())) {
+          console.log('plugin-update: cancelled; the installation is unchanged');
+          return 0;
+        }
+        console.log(await updatePlugin(process.pid, host, offer));
         console.error(
-          'plugin-update: approved target installed and validated; start a fresh session before further task work',
+          'plugin-update: approved target installed and validated; open a fresh session to use the updated plugin',
         );
-      } else
-        throw new HostError(
-          'usage: scripts/celetis [--agent claude|codex] plugin-update check | apply <home> <root> <source> <installed> <target>',
-          2,
-        );
+      } else throw new HostError('usage: scripts/celetis [--agent claude|codex] plugin-update [check]', 2);
     }
+    return 0;
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
-    process.exitCode = error instanceof HostError ? error.code : 1;
+    return error instanceof HostError ? error.code : 1;
   }
 }
+
+if (import.meta.main) process.exitCode = await main(process.argv.slice(2));

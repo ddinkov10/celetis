@@ -258,12 +258,12 @@ test('Claude effective precedence names managed and local conflicts above projec
   ).not.toThrow();
 });
 
-test('unbound latest updater is no longer an action', async () => {
+test('the discovered update still requires interactive confirmation', async () => {
   const f = await updateFixture('claude');
   try {
     const result = await f.update([]);
     expect(result.code).toBe(2);
-    expect(result.stderr).toContain('check | apply <home> <root> <source> <installed> <target>');
+    expect(result.stderr).toContain('interactive terminal');
     expect(await f.mutations()).toBe('');
   } finally {
     await f.cleanup();

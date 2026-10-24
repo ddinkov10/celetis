@@ -157,7 +157,7 @@ refuses a lane start before it starts the board. It reads only the main config's
 and keeps `PORT` above that value. It supplies the fixed data, selected-agent Run, and
 saved-host Resume lists through stdin to `board/cli.ts` of the installed plugin. The board
 validates that JSON and its executable paths. No board config file is made.
-The board checks concrete replacement-policy conflicts and retains shared admission during use.
+The board checks concrete replacement-policy conflicts. It can remain open during a manual update.
 The producer default is read-only. Change `host` in the main YAML to set
 the project default. A board Run choice applies only to that start; Resume uses its saved host.
 See [the board contract](celetis-flow.md#the-board) for the exact lists.

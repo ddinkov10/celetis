@@ -22,7 +22,7 @@ export function checkClaudePolicy(records: PolicyRecord[]): void {
   }
   if (effective && effective.value !== false)
     throw new HostError(
-      `plugin-update: ${effective?.path ?? 'native/local/project/user/managed settings'}: Celetis automatic updates are enabled or unknown; stop affected consumers and set the effective Celetis autoUpdate policy to false`,
+      `plugin-update: ${effective?.path ?? 'native/local/project/user/managed settings'}: Celetis automatic updates are enabled or unknown; set the effective Celetis autoUpdate policy to false`,
     );
 }
 

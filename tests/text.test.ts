@@ -182,7 +182,7 @@ test('Host entry preserves its native YAML contract', () => {
     'plugin-update.ts check',
     'UpdateOffer',
     'direct human response',
-    'plugin-update apply <home> <root> <source> <installed> <target>',
+    'interactive terminal',
     'capability.md',
     'same child',
   ]);

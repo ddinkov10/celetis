@@ -1,6 +1,6 @@
 import { dlopen, FFIType, ptr, read } from 'bun:ffi';
 import { type ChildProcess, spawn } from 'node:child_process';
-import { closeSync, fstatSync, openSync, statSync } from 'node:fs';
+import { closeSync, openSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { constants, tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -20,7 +20,6 @@ function binding() {
     try {
       return dlopen(library, {
         flock: { args: [FFIType.i32, FFIType.i32], returns: FFIType.i32 },
-        fcntl: { args: [FFIType.i32, FFIType.i32, FFIType.i32], returns: FFIType.i32 },
         execve: { args: [FFIType.ptr, FFIType.ptr, FFIType.ptr], returns: FFIType.i32 },
         [errnoName]: { args: [], returns: FFIType.ptr },
       });
@@ -59,65 +58,20 @@ export function tryFlock(fd: number, shared = false): boolean {
   throw new HostError(`plugin-update: cannot acquire the plugin update lock (errno ${errno})`);
 }
 
-export class ConsumerLock {
-  private constructor(readonly fd: number) {}
-
-  static async acquire(host: Host): Promise<ConsumerLock> {
-    const home = host === 'codex' ? await codexHome() : configHome(host);
-    await mkdir(home, { recursive: true });
-    const path = join(home, 'celetis-update.lock');
-    let fd: number | undefined;
-    const inherited = Number(process.env.CELETIS_CONSUMER_FD);
-    if (Number.isInteger(inherited) && inherited >= 3) {
-      try {
-        const expected = statSync(path),
-          current = fstatSync(inherited);
-        if (expected.dev === current.dev && expected.ino === current.ino) fd = inherited;
-      } catch {}
+export async function withPluginRead<T>(host: Host, inspect: () => Promise<T>): Promise<T> {
+  const home = host === 'codex' ? await codexHome() : configHome(host);
+  await mkdir(home, { recursive: true });
+  const fd = openSync(join(home, 'celetis-update.lock'), 'a', 0o600);
+  const deadline = performance.now() + 120_000;
+  try {
+    while (!tryFlock(fd, true)) {
+      if (performance.now() >= deadline)
+        throw new HostError('celetis: an update still holds the installation; retry this start after it finishes');
+      await Bun.sleep(50);
     }
-    fd ??= openSync(path, 'a', 0o600);
-    const deadline = performance.now() + 120_000;
-    try {
-      while (!tryFlock(fd, true)) {
-        if (performance.now() >= deadline)
-          throw new HostError('celetis: an update still holds the installation; retry this start after it finishes');
-        await Bun.sleep(50);
-      }
-      if (native.symbols.fcntl(fd, 2, 0) !== 0)
-        throw new HostError('celetis: cannot retain consumer protection across process replacement');
-      process.env.CELETIS_CONSUMER_FD = String(fd);
-      return new ConsumerLock(fd);
-    } catch (error) {
-      closeSync(fd);
-      throw error;
-    }
-  }
-
-  static retainInherited(): void {
-    const fd = Number(process.env.CELETIS_CONSUMER_FD);
-    if (!Number.isInteger(fd) || fd < 3) return;
-    if (native.symbols.fcntl(fd, 2, 0) !== 0)
-      throw new HostError('celetis: cannot retain the inherited consumer descriptor');
-  }
-
-  static releaseForUpdate(home: string): void {
-    const fd = Number(process.env.CELETIS_CONSUMER_FD);
-    if (!Number.isInteger(fd) || fd < 3) return;
-    try {
-      const current = fstatSync(fd);
-      const expected = statSync(join(home, 'celetis-update.lock'));
-      if (current.dev !== expected.dev || current.ino !== expected.ino)
-        throw new HostError('plugin-update: inherited consumer protection belongs to another installation');
-      closeSync(fd);
-      delete process.env.CELETIS_CONSUMER_FD;
-    } catch (error) {
-      if (error instanceof HostError) throw error;
-    }
-  }
-
-  close(): void {
-    closeSync(this.fd);
-    if (process.env.CELETIS_CONSUMER_FD === String(this.fd)) delete process.env.CELETIS_CONSUMER_FD;
+    return await inspect();
+  } finally {
+    closeSync(fd);
   }
 }
 
@@ -164,7 +118,7 @@ export class UpdateLock {
       while (!tryFlock(lock.fd)) {
         if (options.refuseBusy)
           throw new HostError(
-            'plugin-update: an active package consumer or another update holds this installation; stop affected consumers before a new decision. This attempt is consumed and was not queued',
+            'plugin-update: installation discovery or another update holds this installation; try again after it finishes. This attempt is consumed and was not queued',
           );
         lock.check();
         await lock.clock.sleep(50);

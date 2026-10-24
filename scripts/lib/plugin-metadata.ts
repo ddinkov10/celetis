@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { isAbsolute, join, relative, sep } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { codexRequest, type Host, HostError } from './host.ts';
-import { childEnv, run } from './process.ts';
+import { childEnv, run, updateDescriptor } from './process.ts';
 
 const revision = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 
@@ -155,6 +155,7 @@ export async function nativeJson(
   env = childEnv(),
   execute: typeof run = run,
 ): Promise<unknown> {
+  inheritedFd ??= updateDescriptor();
   if (host === 'codex') env = childEnv({ ...env, CODEX_HOME: await codexHome(env.CODEX_HOME) });
   const result = await execute(host, args, {
     cwd,

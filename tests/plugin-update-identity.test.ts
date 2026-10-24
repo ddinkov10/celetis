@@ -82,21 +82,7 @@ for (const host of ['claude', 'codex'] as const)
       expect(otherOffer.code, otherOffer.stderr).toBe(0);
       expect(JSON.parse(otherOffer.stdout)).toEqual({ ...offer, home: config, root: plugin });
       await f.write('other profile/calls', '');
-      const result = await f.bun(
-        join(root, 'scripts/celetis'),
-        [
-          '--agent',
-          host,
-          'plugin-update',
-          'apply',
-          offer.home,
-          offer.root,
-          offer.source,
-          offer.installed,
-          offer.target,
-        ],
-        { cwd: f.repo, env: otherEnv },
-      );
+      const result = await f.apply([offer.home, offer.root, offer.source, offer.installed, offer.target], otherEnv);
       expect(result.code, result.stderr).toBe(0);
       expect(result.stdout.trim()).toBe(f.plugin);
       expect(await f.git(['rev-parse', 'HEAD'])).toBe(f.target);
@@ -123,11 +109,11 @@ for (const host of ['claude', 'codex'] as const)
         [other, f.plugin],
         [f.config, f.repo],
       ] as const) {
-        const args = ['apply', home, packageRoot, f.source, f.installed, f.target];
-        const result = await f.update(args, true);
+        const args = [home, packageRoot, f.source, f.installed, f.target];
+        const result = await f.update(['apply', ...args], true);
         expect(result.code).not.toBe(0);
-        expect(result.stderr).toContain('no package command was loaded');
-        const direct = await f.update(args);
+        expect(result.stderr).toContain('usage:');
+        const direct = await f.apply(args);
         expect(direct.code).not.toBe(0);
         expect(direct.stderr).toContain('home, root');
         expect(await f.mutations()).toBe('');
@@ -135,11 +121,8 @@ for (const host of ['claude', 'codex'] as const)
         expect(await f.git(['rev-parse', 'HEAD'])).toBe(f.installed);
         expect(await f.git(['rev-parse', 'HEAD'], plugin)).toBe(f.installed);
       }
-      const missing = await f.update(
-        ['apply', join(f.dir, 'missing'), f.plugin, f.source, f.installed, f.target],
-        true,
-      );
-      expect(missing.code).toBe(2);
+      const missing = await f.apply([join(f.dir, 'missing'), f.plugin, f.source, f.installed, f.target]);
+      expect(missing.code).not.toBe(0);
       expect(missing.stderr).toContain('home');
       expect(await f.mutations()).toBe('');
     } finally {
@@ -172,7 +155,7 @@ for (const state of ['enabled', 'disabled', 'pending', 'native-only'])
       });
       expect(discovery.code, discovery.stderr).toBe(0);
       expect((await f.update(['check'])).code).toBe(0);
-      const result = await f.update(['apply', f.config, f.plugin, f.source, f.installed, f.target]);
+      const result = await f.apply([f.config, f.plugin, f.source, f.installed, f.target]);
       expect(result.code).toBe(1);
       expect(result.stderr).toContain('sibling@celetis');
       expect(await f.mutations()).toBe('');
