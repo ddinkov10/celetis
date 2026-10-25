@@ -13,6 +13,9 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import { HostError } from '../engine/lib/host.ts';
+import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
+import { codexHome } from '../engine/lib/plugin-metadata.ts';
 import { bunArgs, run } from '../engine/lib/process.ts';
 
 const actionlintVersion = '1.7.12';
@@ -162,11 +165,28 @@ export async function installTools(destination: string, options: InstallOptions 
   }
 }
 
-export async function main(args: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<number> {
+  try {
+    const { args, explicit } = commandInput(argv);
+    return await execute(args, explicit);
+  } catch (error) {
+    if (!(error instanceof HostError)) throw error;
+    if (error.message) console.error(error.message);
+    return error.code;
+  }
+}
+
+async function execute(args: string[], explicit: string | undefined): Promise<number> {
   if (!args[0] || args.length > 2 || (args[1] !== undefined && args[1] !== '--claude')) {
     console.error('usage: scripts/install-tools.ts DESTINATION [--claude]');
     return 2;
   }
+  const operation = createOperation(
+    await locateCheckouts(process.cwd()),
+    { explicit, environment: process.env.CELETIS_AGENT },
+    'host',
+  );
+  if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
   try {
     await installTools(args[0], { claude: args[1] === '--claude' });
     const bin = join(resolve(args[0]), 'bin');

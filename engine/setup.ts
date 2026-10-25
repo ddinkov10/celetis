@@ -4,8 +4,10 @@ import { access, lstat, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'no
 import { constants, tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { type Config, ConfigError, readConfig } from './lib/config.ts';
+import { type Config, ConfigError, formatConfigError, readConfig } from './lib/config.ts';
 import { HostError } from './lib/host.ts';
+import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
+import { codexHome } from './lib/plugin-metadata.ts';
 import { checkClaudePolicy, claudePolicy } from './lib/plugin-policy.ts';
 import { childEnv, run } from './lib/process.ts';
 import { markerOf, removeCheckout, runSetup, worktrees } from './lib/worktree.ts';
@@ -59,6 +61,12 @@ type Options = {
   baseline: string;
   ignores: string[];
 };
+type Command =
+  | { command: 'check' }
+  | { command: 'push' }
+  | { command: 'remove' }
+  | { command: 'lane'; path: string }
+  | { command: 'write' | 'try'; options: Options };
 type Entry = { path: string[]; item?: string; value?: unknown };
 type RecordOfSetup = { files: string[]; entries: Record<string, unknown[]> };
 const object = (value: unknown): value is Record<string, unknown> =>
@@ -110,6 +118,33 @@ function options(argv: string[]): Options {
     baseline: absolute(values['--baseline-file']),
     ignores,
   };
+}
+
+function parseCommand(argv: string[]): Command {
+  const [command, ...args] = argv;
+  if (command === 'check' || command === 'push') {
+    if (args.length) return badUsage();
+    return { command };
+  }
+  if (command === 'lane') {
+    if (args.length !== 1 || !args[0]) return badUsage();
+    return { command, path: args[0] };
+  }
+  if (command === 'try' && args[0] === '--remove') {
+    if (args.length !== 1) return badUsage();
+    return { command: 'remove' };
+  }
+  if (command === 'write' || command === 'try') return { command, options: options(args) };
+  return badUsage();
+}
+
+async function hasConfig(checkout: string): Promise<boolean> {
+  return (
+    (await lstat(join(checkout, configFile)).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== 'ENOENT') throw error;
+      return null;
+    })) !== null
+  );
 }
 
 function settingsForm(): Entry[] {
@@ -217,7 +252,13 @@ function compare(a: unknown, b: unknown): number {
 }
 
 class Setup {
-  cwd = process.cwd();
+  constructor(readonly operation: Operation) {
+    this.cwd = operation.checkout.cwd;
+    this.config = operation.mainConfig;
+  }
+
+  cwd: string;
+  config: Config | null;
   top = '';
   testLane = '';
   repo = '';
@@ -450,13 +491,13 @@ class Setup {
     let original: Partial<Config> = {};
     if (await this.there(configFile)) {
       try {
-        original = readConfig(this.cwd);
+        original = this.config ??= readConfig(this.cwd);
       } catch (error) {
         this.configError(this.cwd, error);
         fail(`cannot read ${configFile}; fix the cause above first`);
       }
     }
-    const desired: Partial<Config> = { ...original };
+    const desired = { ...original };
     const added: string[] = [];
     for (const [key, value] of [
       ['host', opts.default],
@@ -622,6 +663,7 @@ class Setup {
       if (!(await this.there(path)) || (await this.getUnplanned(path)) !== file.contents) {
         await mkdir(dirname(absolute), { recursive: true });
         await writeFile(absolute, file.contents);
+        if (path === configFile) this.config = this.read(this.cwd);
       }
     }
   }
@@ -711,8 +753,8 @@ class Setup {
     try {
       return readConfig(checkout);
     } catch (error) {
-      this.configError(checkout, error);
-      return fail(`cannot read ${configFile}; fix the cause above first`);
+      if (error instanceof ConfigError) throw new HostError(formatConfigError(checkout, error), 2);
+      throw error;
     }
   }
   async lane(input: string): Promise<void> {
@@ -730,33 +772,32 @@ class Setup {
       !(await worktrees(this.cwd)).some((tree) => tree.path === path)
     )
       fail(`${input} is no lane worktree in .claude/worktrees/ of this repository`);
-    const config = this.read(this.top);
+    const target = createOperation(await locateCheckouts(path), this.operation.selection, 'active');
+    const config = target.mainConfig as Config;
     if (!(config.worktreeSetup ?? '')) fail(`the main ${configFile} has no worktreeSetup to run`);
     await rm(await markerOf(path), { force: true });
     if ((await runSetup(path, config, this.top)) !== 0) fail(`the worktree setup failed in ${path}`);
   }
-  async execute(argv: string[]): Promise<number> {
-    const [command, ...args] = argv;
-    if (command === 'check' && !args.length) {
+  async execute(input: Command): Promise<number> {
+    const { command } = input;
+    if (input.command === 'check') {
       await this.check();
       return 0;
     }
-    if (command === 'push' && !args.length) {
+    if (input.command === 'push') {
       await this.push();
       return 0;
     }
-    if (command === 'lane' && args.length === 1 && args[0]) {
-      await this.lane(args[0]);
+    if (input.command === 'lane') {
+      await this.lane(input.path);
       return 0;
     }
-    if (command === 'try' && args[0] === '--remove') {
-      if (args.length !== 1) return badUsage();
+    if (input.command === 'remove') {
       await this.checkMain();
       await this.removeTestLane();
       return 0;
     }
-    if (command !== 'write' && command !== 'try') return badUsage();
-    const opts = options(args);
+    const opts = input.options;
     this.diagnostic = command === 'try';
     await this.check();
     const scratch = await mkdtemp(join(tmpdir(), 'celetis-plan.'));
@@ -764,7 +805,11 @@ class Setup {
       if (command === 'try') {
         await this.removeTestLane();
         await this.live(['worktree', 'add', '--detach', this.testLane, 'HEAD']);
-        this.cwd = this.testLane;
+        const checkout = await locateCheckouts(this.testLane);
+        this.cwd = checkout.active as string;
+        this.config = (await hasConfig(this.cwd))
+          ? createOperation(checkout, this.operation.selection, 'active').activeConfig
+          : null;
       }
       await this.plan(opts, scratch);
       if (command === 'write') await this.makeLabels();
@@ -777,7 +822,7 @@ class Setup {
         return 0;
       }
       await this.commitWiring();
-      const config = this.read(this.testLane);
+      const config = this.config as Config;
       const code = await runSetup(this.testLane, config, this.top);
       process.stdout.write(`${config.worktreeSetup ? '\n' : ''}${this.testLane}\n`);
       return code;
@@ -789,7 +834,18 @@ class Setup {
 
 export async function main(argv: string[]): Promise<number> {
   try {
-    return await new Setup().execute(argv);
+    const { args, explicit } = commandInput(argv);
+    const input = parseCommand(args);
+    const checkout = await locateCheckouts(process.cwd());
+    const config = checkout.main !== null && (await hasConfig(checkout.main));
+    const full = input.command === 'write' || input.command === 'lane' || input.command === 'try';
+    const operation = createOperation(
+      checkout,
+      { explicit, environment: process.env.CELETIS_AGENT },
+      full && config ? 'main' : 'host',
+    );
+    if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
+    return await new Setup(operation).execute(input);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message) console.error(message);

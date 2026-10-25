@@ -42,7 +42,18 @@ export async function claudePolicy(cwd: string): Promise<PolicyRecord[]> {
     ...new Set([
       join(checkout, '.claude/settings.local.json'),
       join(cwd, '.claude/settings.local.json'),
-      join(await mainCheckout(cwd).catch(() => checkout), '.claude/settings.local.json'),
+      join(
+        await mainCheckout(cwd).catch((error) => {
+          if (
+            error instanceof HostError &&
+            error.code === 128 &&
+            error.message.startsWith('fatal: not a git repository')
+          )
+            return checkout;
+          throw error;
+        }),
+        '.claude/settings.local.json',
+      ),
     ]),
     join(managed, 'managed-settings.json'),
   ];

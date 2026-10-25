@@ -197,7 +197,13 @@ export async function claudeInstallation(
   const missing =
     'celetis: no enabled Celetis installation; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis';
   if (!Array.isArray(list)) throw new HostError('celetis: invalid Claude installation list');
-  const project = await realpath(await mainCheckout(cwd).catch(() => cwd));
+  const project = await realpath(
+    await mainCheckout(cwd).catch((error) => {
+      if (error instanceof HostError && error.code === 128 && error.message.startsWith('fatal: not a git repository'))
+        return cwd;
+      throw error;
+    }),
+  );
   const records: Record<string, unknown>[] = [];
   const roots = new Set<string>();
   for (const item of list) {

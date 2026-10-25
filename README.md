@@ -49,6 +49,10 @@ Codex declares no Celetis lifecycle hooks and uses the shared skill entry instru
 ADR-0030 owns the installed entrypoint and update controls. ADR-0012 holds the original packaging decision; ADR-0014 extends it to both hosts without a
 second copy of the procedures. ADR-0015 replaces their config storage clauses with one YAML file.
 ADR-0016 limits required automation to the CLI hosts while keeping desktop invocation available.
+ADR-0032 records shared configuration parsing and immutable operation values. The
+[configuration reference](docs/configuration.md#operation-values-and-freshness) names each fresh
+read boundary. Native skill entry still reads its whole active file through the host's permission
+controls and applies only that skill's custom text.
 
 ## Requirements
 
@@ -275,13 +279,27 @@ celetis_entry=$(
 BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros - <<'CELETIS_CLAUDE'
 import { execFileSync } from 'node:child_process';
 import { lstatSync, readFileSync, realpathSync } from 'node:fs';
-import { dirname, isAbsolute, join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 if (Bun.semver.order(Bun.version, '1.4.2') < 0) throw Error('Need Bun >=1.4.2');
 const cwd = realpathSync(process.cwd());
 let project = cwd;
+const git = (args, at = cwd) => execFileSync('git', args, { cwd: at, encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'pipe'] }).replace(/\n$/, '');
+let top;
 try {
-  project = realpathSync(dirname(execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'pipe'] }).trimEnd()));
-} catch {}
+  top = git(['rev-parse', '--show-toplevel']);
+} catch (error) {
+  if (error.status !== 128 || !String(error.stderr).startsWith('fatal: not a git repository')) throw error;
+}
+if (top !== undefined) {
+  project = realpathSync(top);
+  const common = realpathSync(git(['rev-parse', '--path-format=absolute', '--git-common-dir']));
+  if (realpathSync(git(['rev-parse', '--absolute-git-dir'])) !== common) {
+    const first = git(['worktree', 'list', '--porcelain', '-z']).split('\0\0')[0].split('\0');
+    if (!first[0].startsWith('worktree ') || first.includes('bare')) throw Error('Cannot identify the main checkout from Git metadata');
+    project = realpathSync(git(['rev-parse', '--show-toplevel'], first[0].slice(9)));
+    if (realpathSync(git(['rev-parse', '--absolute-git-dir'], project)) !== common) throw Error('Cannot identify the main checkout from Git metadata');
+  }
+}
 const records = JSON.parse(execFileSync('claude', ['plugin', 'list', '--json'], { encoding: 'utf8', timeout: 10000 }));
 if (!Array.isArray(records)) throw Error('Invalid Claude plugin list; inspect claude plugin list --json');
 const roots = new Set();
@@ -899,10 +917,11 @@ and board form. Every skill call adds `--agent claude` or `--agent codex` before
 - Each sub-command gives the output and the exit code of its script.
 - Run a command in a checkout of the product project: the plugin holds the scripts, so only the
   current folder names the project. `capscore` and `root` run in each folder.
-- The entrypoint needs Bun. Host operations need the selected host CLI. In a Git checkout, when neither `--agent` nor
-  `CELETIS_AGENT` names the host, it also needs Bun to read `host` of the main config. Project
-  commands also need Bun
-  and valid config described in `docs/configuration.md`. A missing tool or invalid installation
+- The entrypoint needs Bun. Host operations need the selected host CLI. After process replacement,
+  the named command creates one operation. An implicit host uses the shared reader's host
+  projection of the main config; an explicit `--agent` or `CELETIS_AGENT` performs no YAML read
+  for selection. Project commands require full valid configuration before protected work, as
+  described in `docs/configuration.md`. A missing tool or invalid installation
   stops with a setup action. Codex commands require no Claude binary. The current metadata must
   explicitly mark the installation enabled; missing fields are not an old-format fallback.
 

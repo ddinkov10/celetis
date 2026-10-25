@@ -1,6 +1,9 @@
 import { readFile, realpath } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { HostError } from '../engine/lib/host.ts';
+import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
 import { type Job, printJobs, runJobs } from '../engine/lib/parallel.ts';
+import { codexHome } from '../engine/lib/plugin-metadata.ts';
 import { bunArgs, childEnv, run } from '../engine/lib/process.ts';
 import { findTools, toolPins } from './install-tools.ts';
 
@@ -46,11 +49,28 @@ export function classify(path: string, source: Buffer): string {
   throw new Error(`verify: no check for ${path}: add a row or an exemption in scripts/verify.ts`);
 }
 
-export async function main(args: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<number> {
+  try {
+    const { args, explicit } = commandInput(argv);
+    return await execute(args, explicit);
+  } catch (error) {
+    if (!(error instanceof HostError)) throw error;
+    if (error.message) console.error(error.message);
+    return error.code;
+  }
+}
+
+async function execute(args: string[], explicit: string | undefined): Promise<number> {
   if (args.length) {
     console.error('usage: scripts/verify.ts');
     return 2;
   }
+  const operation = createOperation(
+    await locateCheckouts(process.cwd()),
+    { explicit, environment: process.env.CELETIS_AGENT },
+    'host',
+  );
+  if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
   process.chdir(root);
   process.env.PATH = childEnv().PATH;
   try {

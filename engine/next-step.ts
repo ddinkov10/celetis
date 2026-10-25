@@ -1,8 +1,9 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { ConfigError, readConfig } from './lib/config.ts';
-import { commonDir, HostError, mainCheckout } from './lib/host.ts';
-import { run } from './lib/process.ts';
+import { HostError } from './lib/host.ts';
+import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
+import { codexHome } from './lib/plugin-metadata.ts';
+import { run as runProcess } from './lib/process.ts';
 
 type Comment = { body: string };
 type Issue = {
@@ -78,104 +79,149 @@ function resolve(issue: Issue, n: string): Resolution {
   return { line: `run /celetis:${step} #${n}`, state: 'ready' };
 }
 
-async function api<T>(endpoint: string, paginate = false): Promise<T> {
-  const result = await run('gh', [
-    'api',
-    ...(paginate ? ['--paginate', '--slurp'] : []),
-    `repos/{owner}/{repo}/${endpoint}`,
-  ]);
-  if (result.stderr) process.stderr.write(result.stderr);
-  if (result.code !== 0) throw new Error('GitHub read failed');
-  return JSON.parse(result.stdout) as T;
-}
-
-async function list<T>(endpoint: string): Promise<T[]> {
-  return (await api<T[][]>(endpoint, true)).flat();
-}
-
-async function withComments(issue: Issue): Promise<Issue> {
-  return {
-    ...issue,
-    comments: issue.comments === 0 ? [] : await list<Comment>(`issues/${issue.number}/comments?per_page=100`),
-  };
-}
-
-async function openIssues(): Promise<Issue[]> {
-  const issues = (await list<Issue>('issues?state=open&per_page=100')).filter((issue) => !issue.pull_request);
-  const result: Issue[] = [];
-  for (const issue of issues) result.push(await withComments(issue));
-  return result;
-}
-
-async function pullState(pr: Pull): Promise<PullState> {
-  const runs = (
-    await api<{ check_runs: { status: string; conclusion: string | null }[] }[]>(
-      `commits/${pr.head.sha}/check-runs?per_page=100`,
-      true,
-    )
-  ).flatMap((page) => page.check_runs);
-  const statuses = (await api<{ statuses: { state: string }[] }[]>(`commits/${pr.head.sha}/status?per_page=100`, true))
-    .flatMap((page) => page.statuses)
-    .map((status) => status.state);
-  const reviews = await list<{ user: { login: string }; state: string }>(`pulls/${pr.number}/reviews?per_page=100`);
-  const latest = new Map<string, string>();
-  for (const review of reviews)
-    if (['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'].includes(review.state))
-      latest.set(review.user.login, review.state);
-  const states = [...latest.values()];
-  const checks =
-    runs.length + statuses.length === 0
-      ? null
-      : runs.some((run) =>
-            ['failure', 'timed_out', 'cancelled', 'action_required', 'startup_failure'].includes(run.conclusion ?? ''),
-          ) || statuses.some((status) => ['failure', 'error'].includes(status))
-        ? 'fail'
-        : runs.some((run) => run.status !== 'completed') || statuses.includes('pending')
-          ? 'pending'
-          : 'pass';
-  const review = states.includes('CHANGES_REQUESTED')
-    ? 'changes'
-    : states.includes('APPROVED')
-      ? 'approved'
-      : pr.requested_reviewers.length + pr.requested_teams.length > 0
-        ? 'required'
-        : null;
-  return { headRefName: pr.head.ref, number: pr.number, url: pr.html_url, draft: pr.draft, checks, review };
-}
-
-async function dirty(path: string): Promise<boolean> {
-  if (!(await stat(path).catch(() => null))?.isDirectory()) return false;
-  return (await run('git', ['-C', path, 'status', '--porcelain'])).stdout.length > 0;
-}
-const dirtyLine = (path: string) => `stop the working tree is dirty: ${path}; commit or stash first`;
-const landingLine = (n: string) =>
-  `stop the landing of #${n} runs; wait until /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' ends`;
-async function landing(common: string, n: string): Promise<boolean> {
-  const pid = (await readFile(join(common, 'celetis-flow', `land-${n}.lock`), 'utf8').catch(() => '')).trimEnd();
-  if (!/^\d+$/.test(pid)) return false;
-  const result = await run('ps', ['-p', pid, '-o', 'command=']).catch(() => null);
-  return result?.code === 0 && result.stdout.includes('land.ts');
-}
-async function lanes(main: string, n?: string): Promise<string[]> {
-  const parent = join(main, '.claude', 'worktrees');
-  return (await readdir(parent).catch(() => []))
-    .filter((name) => (n === undefined ? /^[0-9].*-/.test(name) : name.startsWith(`${n}-`)))
-    .sort()
-    .map((name) => join(parent, name));
+function request(args: string[]): { arg: string; n: string } | null {
+  const arg = args[0] ?? '';
+  const n = arg.replace(/^#/, '');
+  return args.length === 1 && (arg === '--open' || arg === '--json' || /^\d+$/.test(n)) ? { arg, n } : null;
 }
 
 export async function main(argv: string[]): Promise<number> {
-  const arg = argv[0];
-  const n = arg?.replace(/^#/, '') ?? '';
-  if (argv.length !== 1 || (arg !== '--open' && arg !== '--json' && !/^\d+$/.test(n))) {
-    console.error(usage);
-    return 2;
-  }
-  let checkout = '';
   try {
-    checkout = await mainCheckout(process.cwd());
-    const common = await commonDir(process.cwd());
-    readConfig(checkout);
+    const { args, explicit } = commandInput(argv);
+    if (!request(args)) {
+      console.error(usage);
+      return 2;
+    }
+    const operation = createOperation(
+      await locateCheckouts(process.cwd()),
+      { explicit, environment: process.env.CELETIS_AGENT },
+      'main',
+    );
+    if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
+    const result = await resolveNext(args, operation);
+    process.stdout.write(result.stdout);
+    process.stderr.write(result.stderr);
+    return result.code;
+  } catch (error) {
+    if (error instanceof HostError) {
+      if (error.message) console.error(error.message);
+      return error.code;
+    }
+    throw error;
+  }
+}
+
+export async function resolveNext(
+  argv: string[],
+  operation: Operation,
+  signal?: AbortSignal,
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  let stdout = '';
+  let stderr = '';
+  const input = request(argv);
+  if (!input) return { code: 2, stdout, stderr: `${usage}\n` };
+  const { arg, n } = input;
+  const checkout = operation.checkout.main as string;
+  const common = operation.checkout.common as string;
+  const print = (value: string) => {
+    stdout += `${value}\n`;
+  };
+  const run = async (file: string, args: string[]) => {
+    signal?.throwIfAborted();
+    const result = await runProcess(file, args, { cwd: checkout, signal });
+    signal?.throwIfAborted();
+    return result;
+  };
+  async function api<T>(endpoint: string, paginate = false): Promise<T> {
+    const result = await run('gh', [
+      'api',
+      ...(paginate ? ['--paginate', '--slurp'] : []),
+      `repos/{owner}/{repo}/${endpoint}`,
+    ]);
+    stderr += result.stderr;
+    if (result.code !== 0) throw new Error('GitHub read failed');
+    return JSON.parse(result.stdout) as T;
+  }
+
+  async function list<T>(endpoint: string): Promise<T[]> {
+    return (await api<T[][]>(endpoint, true)).flat();
+  }
+
+  async function withComments(issue: Issue): Promise<Issue> {
+    return {
+      ...issue,
+      comments: issue.comments === 0 ? [] : await list<Comment>(`issues/${issue.number}/comments?per_page=100`),
+    };
+  }
+
+  async function openIssues(): Promise<Issue[]> {
+    const issues = (await list<Issue>('issues?state=open&per_page=100')).filter((issue) => !issue.pull_request);
+    const result: Issue[] = [];
+    for (const issue of issues) result.push(await withComments(issue));
+    return result;
+  }
+
+  async function pullState(pr: Pull): Promise<PullState> {
+    const runs = (
+      await api<{ check_runs: { status: string; conclusion: string | null }[] }[]>(
+        `commits/${pr.head.sha}/check-runs?per_page=100`,
+        true,
+      )
+    ).flatMap((page) => page.check_runs);
+    const statuses = (
+      await api<{ statuses: { state: string }[] }[]>(`commits/${pr.head.sha}/status?per_page=100`, true)
+    )
+      .flatMap((page) => page.statuses)
+      .map((status) => status.state);
+    const reviews = await list<{ user: { login: string }; state: string }>(`pulls/${pr.number}/reviews?per_page=100`);
+    const latest = new Map<string, string>();
+    for (const review of reviews)
+      if (['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'].includes(review.state))
+        latest.set(review.user.login, review.state);
+    const states = [...latest.values()];
+    const checks =
+      runs.length + statuses.length === 0
+        ? null
+        : runs.some((run) =>
+              ['failure', 'timed_out', 'cancelled', 'action_required', 'startup_failure'].includes(
+                run.conclusion ?? '',
+              ),
+            ) || statuses.some((status) => ['failure', 'error'].includes(status))
+          ? 'fail'
+          : runs.some((run) => run.status !== 'completed') || statuses.includes('pending')
+            ? 'pending'
+            : 'pass';
+    const review = states.includes('CHANGES_REQUESTED')
+      ? 'changes'
+      : states.includes('APPROVED')
+        ? 'approved'
+        : pr.requested_reviewers.length + pr.requested_teams.length > 0
+          ? 'required'
+          : null;
+    return { headRefName: pr.head.ref, number: pr.number, url: pr.html_url, draft: pr.draft, checks, review };
+  }
+
+  async function dirty(path: string): Promise<boolean> {
+    if (!(await stat(path).catch(() => null))?.isDirectory()) return false;
+    return (await run('git', ['-C', path, 'status', '--porcelain'])).stdout.length > 0;
+  }
+  const dirtyLine = (path: string) => `stop the working tree is dirty: ${path}; commit or stash first`;
+  const landingLine = (n: string) =>
+    `stop the landing of #${n} runs; wait until /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' ends`;
+  async function landing(common: string, n: string): Promise<boolean> {
+    const pid = (await readFile(join(common, 'celetis-flow', `land-${n}.lock`), 'utf8').catch(() => '')).trimEnd();
+    if (!/^\d+$/.test(pid)) return false;
+    const result = await run('ps', ['-p', pid, '-o', 'command=']).catch(() => null);
+    return result?.code === 0 && result.stdout.includes('land.ts');
+  }
+  async function lanes(main: string, n?: string): Promise<string[]> {
+    const parent = join(main, '.claude', 'worktrees');
+    return (await readdir(parent).catch(() => []))
+      .filter((name) => (n === undefined ? /^[0-9].*-/.test(name) : name.startsWith(`${n}-`)))
+      .sort()
+      .map((name) => join(parent, name));
+  }
+  const execute = async (): Promise<number> => {
     if (arg === '--json') {
       try {
         const since = new Date(Date.now() - 1_209_600_000).toISOString().slice(0, 10);
@@ -221,7 +267,7 @@ export async function main(argv: string[]): Promise<number> {
             },
           ];
         });
-        console.log(
+        print(
           JSON.stringify(
             {
               noRun: (await dirty(checkout)) ? `The main checkout is dirty: ${checkout}. Commit or stash first.` : null,
@@ -233,7 +279,7 @@ export async function main(argv: string[]): Promise<number> {
         );
         return 0;
       } catch {
-        console.log('stop cannot read the issues from GitHub');
+        print('stop cannot read the issues from GitHub');
         return 1;
       }
     }
@@ -242,7 +288,7 @@ export async function main(argv: string[]): Promise<number> {
       try {
         issues = await openIssues();
       } catch {
-        console.log('stop cannot read the open issues from GitHub');
+        print('stop cannot read the open issues from GitHub');
         return 1;
       }
       const all = (await dirty(checkout)) ? dirtyLine(checkout) : null;
@@ -255,35 +301,34 @@ export async function main(argv: string[]): Promise<number> {
             line = dirtyLine(lane);
             break;
           }
-        console.log(`${number}\t${all ?? line}`);
+        print(`${number}\t${all ?? line}`);
       }
       return 0;
     }
     for (const path of [checkout, ...(await lanes(checkout, n))])
       if (await dirty(path)) {
-        console.log(dirtyLine(path));
+        print(dirtyLine(path));
         return 0;
       }
     if (await landing(common, n)) {
-      console.log(landingLine(n));
+      print(landingLine(n));
       return 0;
     }
     try {
-      console.log(resolve(await withComments(await api<Issue>(`issues/${n}`)), n).line);
+      print(resolve(await withComments(await api<Issue>(`issues/${n}`)), n).line);
       return 0;
     } catch {
-      console.log(`stop cannot read #${n} from GitHub`);
+      print(`stop cannot read #${n} from GitHub`);
       return 1;
     }
+  };
+  try {
+    signal?.throwIfAborted();
+    const code = await execute();
+    signal?.throwIfAborted();
+    return { code, stdout, stderr };
   } catch (error) {
-    if (error instanceof ConfigError) {
-      console.error(`celetis: ${checkout}/.celetis.yaml: ${error.field}: ${error.message}`);
-      return 2;
-    }
-    if (error instanceof HostError) {
-      if (error.message) console.error(error.message);
-      return error.code;
-    }
+    if (signal?.aborted) return { code: 1, stdout: '', stderr };
     throw error;
   }
 }

@@ -83,15 +83,15 @@ as the start of a comment: the script then gets neither that word nor the words 
 no number it starts the automatic runner. Each line of the script starts with `celetis-flow: `,
 apart from its usage line and the output of `--board`.
 
-**A start with numbers** does this for each issue. It asks the resolver for the line of the issue
-(`BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step <n>`) and starts the step of the `run` line, whatever its gate. When the
+**A start with numbers** does this for each issue. It calls the in-process `resolveNext` resolver
+for the line of the issue and starts the step of the `run` line, whatever its gate. When the
 session ends, it asks again and starts each next step whose gate is `auto`. It ends the issue at a
 line that is not a `run` line, at a `me` gate, or at the same `run` line again ("no progress"). With
 the default gates, each next step is a `me` step, so a start with a number runs one step of that
 issue.
 
-**The automatic runner** asks the resolver for the line of each open issue
-(`BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step --open`) and takes the lowest open issue whose line is a `run` line,
+**The automatic runner** calls the same resolver for the line of each open issue
+and takes the lowest open issue whose line is a `run` line,
 whose step has the gate `auto`, whose step has no row in the record, and
 whose lock is free. It does the same work on that issue, but it starts no `me` step, and then it
 asks again. When no issue can start, when the issue started no session, or when the resolver cannot
@@ -104,7 +104,8 @@ only. With the default gates no step is `auto`, so the automatic runner starts n
 **The form `--board`** is read-only: it takes no lock, writes no row in the record, and starts no
 session. `--board` is its only argument. It prints contract 1, the JSON document that the board
 reads: `contract`, `tracker`, `flow`, `noRun`, `runner`, `agents`, `defaultAgent`, and `issues`, with
-one row for each issue that has a card. The rows come from the resolver (`BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step --json`).
+one row for each issue that has a card. The rows come from the same in-process resolver as
+`next-step --json`; resolution, displayed gates, and the default host share that refresh's operation.
 The resolver makes these `gh api` calls: 3 paginated lists (open issues, closed issues, open PRs),
 one paginated call for the comments of each open issue that has a comment, and 3 calls for each
 open PR whose branch holds `/<number>-`. The resolver gives
@@ -314,9 +315,16 @@ of setup, `.claude/celetis-flow/wiring.json`, is no config: only `BUN_RUNTIME_TR
   (`docs/capability.md`).
 
 A missing or invalid required config stops before branch or worktree changes, locks, runtime
-state, host sessions, or landing pushes. The runner checks the main config
-before each new session. It keeps the selected host for that run. Resume uses the recorded
-host and exact session ID; a changed default cannot select another saved session.
+state, host sessions, or landing pushes. A public command creates an immutable operation after
+its initial process replacement. Internal calls receive its values instead of reading again.
+The runner creates a fresh main operation before each new step. Its resolution, gate decision,
+and session start use that operation. It retains the original host-selection inputs, so a changed
+YAML default can select the next new session. A running session keeps its captured host and exact
+identity. Monitoring can refresh status separately; a monitoring config error is reported after
+the active child exits. Resume uses the recorded host and exact session ID; a changed default
+cannot select another saved session. [Configuration freshness](configuration.md#operation-values-and-freshness)
+defines the remaining boundaries, including landing's fresh policy and repository preflight
+after waits and before protected actions. A changed landing mechanism requires a new invocation.
 Installation discovery with an explicit host and standalone capability scoring with explicit
 inputs remain available outside a repository. They need no project config.
 
@@ -332,9 +340,12 @@ the final absolute lane path. `setup try` also prints its path after preparation
 failure. Signals remove the temporary file and stop the owned child.
 An omitted or empty setup runs no script.
 
-A failed setup or invalid new lane config prints `worktree setup failed:`, removes a new
-worktree and a branch created by the command, and exits 1. An existing branch or worktree stays
-for repair and retry. The marker remains
+A failed setup or invalid new lane config prints `worktree setup failed:` and removes a new
+worktree and a branch created by the command. Configuration validation exits 2 after cleanup;
+ordinary setup and Git failures keep their existing statuses. An existing branch or worktree
+stays for repair and retry. Entry into the target lane creates a fresh operation before setup
+or marker acceptance. Setup validates again after it writes or selects a different file.
+The marker remains
 `<git dir of the worktree>/celetis-flow-setup-done`. The command writes it only after a script that
 is not empty succeeded. With an empty or missing `worktreeSetup`, it writes no marker. It runs
 setup again in an unmarked lane, so a script that a merge of the trunk brings runs at the next
@@ -354,7 +365,8 @@ Claude's native hook supplies metadata and permission-checked `Read` results bef
 model sees the entry; filename search alone proves no file kind. Codex uses available supported
 access, including shell commands, dedicated readers, or runtime file APIs on its actual surface.
 The agent applies the schema in `docs/configuration.md`; Codex can use the existing config reader.
-Entry executes no setup. A file read alone proves no deterministic parser check.
+Entry executes no setup and consumes no runtime snapshot. A file read alone proves no
+deterministic parser check.
 `docs/hosts/entry.md` and the selected host reference own the entry rules.
 
 - **Which checkout.** Locate the active root from session context and file tools, including
@@ -388,10 +400,12 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
 PORT=4500 BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board
 ```
 
-The adapter takes no arguments. It validates the main YAML and refuses a lane start. It binds
+The adapter takes no arguments. It fully validates the main YAML and refuses a lane start. It binds
 fixed lists through `celetisConfig(main, port)` and `startBoard(main, config)`. The selected Bun
 must be executable. The same package's `bin/celetis.ts` must be a readable regular file outside
 the main checkout and each lane. Control characters and canonical path escapes are refused.
+The listening port remains fixed until restart. Each data refresh creates a fresh operation;
+each Run or Resume command validates its own current policy.
 
 Generic `engine/board/cli.ts --config-stdin` keeps its separate project-only validator. Each
 producer must be a relative executable regular file inside the main checkout, outside lanes.
@@ -576,6 +590,16 @@ results as of 2026-10-20, not a certified minimum-version range:
 | agent-board 2.0.0, tag commit `e36283b` (earlier storage) | Contract 1 and the current config path passed. Released-browser Open shell and partial Claude Run/Go passed. The earlier Codex Run stopped on a local-marketplace setup error; Claude later stopped on quota. Later reviewed-source Codex Run, Resume, and Go passed with the correct issue and pane. Full acceptance remains open |
 | `board/` at source commit `95144d3` (ADR-0020; now `engine/board/`) | The board code of `95144d3` is the code of the release commit `2014361f365e03e18169ed75d602b729e25e03bb`. That release records a 322-test gate and read-only default-agent controls. The adapter and fixture Run/Resume checks of that release have separate evidence. Real browser/Herdr Run and Resume remain open |
 | Bash 3.2.57, Perl 5.34.1, Node 26.11.1 | Historical gate and released-board evidence before ADR-0025. Current commands require Bun 1.4.2 or later |
+
+[Issue #100](https://github.com/ddinkov10/celetis/issues/100) separately checked checkout native
+entry on Claude Code 2.1.310 with `--plugin-dir` and Codex CLI 0.164.0 with explicit checkout
+skill paths. Actual whole-file events covered main, lane, and subfolder selection, literal custom
+text, first borrowed reference, repeated reference, and same-session handoff. Optional absence
+continued; malformed, symlink, unreadable, and native permission-denied inputs stopped. Codex's
+file-deny profile stopped at metadata access; a separate native command rule permitted metadata
+and refused the whole-file read. No alternate read followed either denial. These checks used the
+existing installations and authentication. They establish checkout instruction behavior, not an
+installed-package update, a full lane, or closure of the other acceptance gaps below.
 
 The later Codex board checks used reviewed commit `626881b`; the
 [public evidence record](https://github.com/ddinkov10/celetis/issues/21#issuecomment-6187619525)

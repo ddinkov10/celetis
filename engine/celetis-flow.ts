@@ -4,6 +4,7 @@ import { constants } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Config } from './lib/config.ts';
 import type { Host } from './lib/host.ts';
+import type { Operation } from './lib/operation.ts';
 import type { SessionRecord, Step } from './lib/session.ts';
 
 const usage =
@@ -16,6 +17,7 @@ const required = [
   'launcher.ts',
   'lib/config.ts',
   'lib/host.ts',
+  'lib/operation.ts',
   'lib/plugin-metadata.ts',
   'lib/plugin-policy.ts',
   'lib/update-lock.ts',
@@ -57,6 +59,30 @@ function object(value: unknown): value is Record<string, unknown> {
 }
 
 export async function main(argv: string[]): Promise<number> {
+  const unavailable = await gone([
+    'lib/config.ts',
+    'lib/host.ts',
+    'lib/operation.ts',
+    'lib/plugin-metadata.ts',
+    'lib/plugin-policy.ts',
+    'lib/update-lock.ts',
+    'lib/process.ts',
+    'lib/session.ts',
+    'lib/vendor/yaml.mjs',
+  ]);
+  let explicit: string | undefined;
+  if (!unavailable) {
+    try {
+      const input = (await import('./lib/operation.ts')).commandInput(argv);
+      argv = input.args;
+      explicit = input.explicit;
+    } catch (error) {
+      const { HostError } = await import('./lib/host.ts');
+      if (!(error instanceof HostError)) throw error;
+      if (error.message) console.error(error.message);
+      return error.code;
+    }
+  } else if (argv[0] === '--agent') argv = argv.slice(2);
   let mode: 'numbers' | 'auto' | 'board' | 'resume' = 'numbers';
   let numbers: string[] = [];
   if (argv.length === 1 && argv[0] === '--board') mode = 'board';
@@ -74,18 +100,7 @@ export async function main(argv: string[]): Promise<number> {
     console.error(usage);
     return 2;
   }
-  if (
-    await gone([
-      'lib/config.ts',
-      'lib/host.ts',
-      'lib/plugin-metadata.ts',
-      'lib/plugin-policy.ts',
-      'lib/update-lock.ts',
-      'lib/process.ts',
-      'lib/session.ts',
-      'lib/vendor/yaml.mjs',
-    ])
-  ) {
+  if (unavailable) {
     if (mode === 'numbers') {
       for (const n of numbers) console.log(`celetis-flow: #${n}: ${removed}`);
       return 0;
@@ -94,8 +109,8 @@ export async function main(argv: string[]): Promise<number> {
     else console.log(mode === 'board' ? `stop ${removed}` : `celetis-flow: stop ${removed}`);
     return 1;
   }
-  const { ConfigError, readConfig } = await import('./lib/config.ts');
-  const { HostError, commonDir, mainCheckout, requireBun, selectHost } = await import('./lib/host.ts');
+  const { HostError, requireBun } = await import('./lib/host.ts');
+  const { createOperation, locateCheckouts } = await import('./lib/operation.ts');
   const { bunArgs, childEnv, run } = await import('./lib/process.ts');
   const {
     hostArguments,
@@ -104,7 +119,6 @@ export async function main(argv: string[]): Promise<number> {
     readSession,
     reportedSessionId,
     selectSavedSession,
-    serializeSession,
     sessionIdle,
     startupError,
     writeSession,
@@ -114,8 +128,9 @@ export async function main(argv: string[]): Promise<number> {
     main = '',
     state = '',
     recordPath = '';
-  let config: Config;
-  let host: Host = 'claude';
+  let operation: Operation;
+  let initial: Operation | undefined;
+  const selection = { explicit, environment: process.env.CELETIS_AGENT };
   let managed = false;
   let pane = '';
   let savedId = '';
@@ -136,20 +151,20 @@ export async function main(argv: string[]): Promise<number> {
     said = message;
     console.log(`celetis-flow: ${message}`);
   };
-  const load = () => {
-    try {
-      return readConfig(main);
-    } catch (error) {
-      if (error instanceof ConfigError)
-        throw new HostError(`celetis: ${main}/.celetis.yaml: ${error.field}: ${error.message}`, 2);
-      throw error;
-    }
+  const fresh = () => createOperation(operation.checkout, selection, 'main');
+  const nextOperation = () => {
+    const current = initial ?? fresh();
+    initial = undefined;
+    return current;
   };
   const git = async (args: string[], input?: string) => run('git', args, { cwd: main, env: childEnv(), input });
   const ref = (name: string) => `refs/celetis-flow/locks/${name}`;
   const refValue = async (name: string) => (await git(['rev-parse', '--verify', ref(name)])).stdout.trimEnd();
   const processField = async (pid: number, field: string) => {
-    const r = await run('ps', ['-p', String(pid), '-o', field], { env: childEnv({ ...process.env, LC_ALL: 'C' }) });
+    const r = await run('ps', ['-p', String(pid), '-o', field], {
+      cwd: main,
+      env: childEnv({ ...process.env, LC_ALL: 'C' }),
+    });
     return r.code === 0 ? r.stdout.trimEnd() : '';
   };
   const identity = async (pid: number) => processField(pid, 'lstart=');
@@ -221,20 +236,17 @@ export async function main(argv: string[]): Promise<number> {
   };
   const recorded = async (n: string, line: string) =>
     (await readFile(recordPath, 'utf8').catch(() => '')).split('\n').includes(`${n}\t${line}`);
-  const resolve = async (args: string[], abort?: AbortSignal) => {
+  const resolve = async (args: string[], current: Operation, abort?: AbortSignal) => {
     if (abort?.aborted) return { code: 1, stdout: '', stderr: '' };
-    const r = await run(process.execPath, bunArgs(join(here, 'next-step.ts'), args), {
-      cwd: main,
-      env: childEnv(),
-      signal: abort,
-    });
-    process.stderr.write(r.stderr);
-    return r;
+    const { resolveNext } = await import('./next-step.ts');
+    const result = await resolveNext(args, current, abort);
+    process.stderr.write(result.stderr);
+    return result;
   };
   const herdr = async (args: string[], abort?: AbortSignal) =>
     run('herdr', args, { cwd: main, env: childEnv(), signal: abort });
-  const idle = async (id: string, abort: AbortSignal) =>
-    sessionIdle(parsed((await herdr(['agent', 'get', pane], abort)).stdout), host, id);
+  const idle = async (id: string, sessionHost: Host, abort: AbortSignal) =>
+    sessionIdle(parsed((await herdr(['agent', 'get', pane], abort)).stdout), sessionHost, id);
   const endWhenDone = async (
     n: string,
     line: string,
@@ -255,13 +267,13 @@ export async function main(argv: string[]): Promise<number> {
         }
         if (result === 2) {
           await writeFile(join(watchDir, 'error'), '');
-          await startupError(Number(n), host, 'herdr returned an invalid identity');
+          await startupError(Number(n), record.host, 'herdr returned an invalid identity');
           return;
         }
       }
       if (performance.now() >= deadline) {
         await writeFile(join(watchDir, 'error'), '');
-        await startupError(Number(n), host, 'no saved turn with a verified identity after 60 seconds');
+        await startupError(Number(n), record.host, 'no saved turn with a verified identity after 60 seconds');
         return;
       }
       await Bun.sleep(1000);
@@ -276,12 +288,12 @@ export async function main(argv: string[]): Promise<number> {
         say(`#${n}: ${removed}`);
         return;
       }
-      if (await idle(id, abort)) {
-        const first = await resolve([n], abort);
+      if (await idle(id, record.host, abort)) {
+        const first = await resolve([n], fresh(), abort);
         const next = first.code === 0 ? first.stdout.trimEnd() : line;
         if (next !== line && (next.startsWith('run ') || next.startsWith(`stop #${n} `))) {
-          const second = await resolve([n], abort);
-          if (second.code === 0 && second.stdout.trimEnd() === next && (await idle(id, abort))) {
+          const second = await resolve([n], fresh(), abort);
+          if (second.code === 0 && second.stdout.trimEnd() === next && (await idle(id, record.host, abort))) {
             if ((await herdr(['agent', 'prompt', pane, '/exit'], abort)).code !== 0 && !abort.aborted)
               console.error(
                 `celetis-flow: #${n} cannot submit /exit; the session stays open. Exit it in this pane when ready.`,
@@ -294,16 +306,16 @@ export async function main(argv: string[]): Promise<number> {
       if (!abort.aborted) await Bun.sleep(1000);
     }
   };
-  const startSession = async (args: string[]) => {
-    if (host === 'codex')
+  const startSession = async (args: string[], sessionHost: Host) => {
+    if (sessionHost === 'codex')
       args = [...(await (await import('./lib/plugin-metadata.ts')).codexSessionPin(root, main)), ...args];
     watchDir = await mkdtemp(join(state, 'start.'));
     session = spawn(
       process.execPath,
-      bunArgs(import.meta.path, ['--session-start', watchDir, String(process.pid), host, ...args]),
+      bunArgs(import.meta.path, ['--session-start', watchDir, String(process.pid), sessionHost, ...args]),
       {
         cwd: main,
-        env: childEnv(),
+        env: childEnv({ ...process.env, CELETIS_AGENT: sessionHost }),
         stdio: ['inherit', 'inherit', 'inherit'],
       },
     );
@@ -328,6 +340,7 @@ export async function main(argv: string[]): Promise<number> {
       say(`another celetis-flow.ts or its session (PID ${holder}) works on #${n}`);
       return false;
     }
+    let lastHost: Host = 'claude';
     let started = false,
       last = '',
       exitCode = 0;
@@ -338,9 +351,13 @@ export async function main(argv: string[]): Promise<number> {
           say(`#${n}: ${removed}`);
           break;
         }
-        config = load();
-        await (await import('./lib/plugin-policy.ts')).requireUpdatePolicy(host, main);
-        const line = (await resolve([n])).stdout.trimEnd();
+        const current = nextOperation();
+        const config = current.mainConfig as Config;
+        const stepHost = current.host;
+        if (stepHost === 'codex') process.env.CODEX_HOME = await (await import('./lib/plugin-metadata.ts')).codexHome();
+        await (await import('./lib/plugin-policy.ts')).requireUpdatePolicy(stepHost, main);
+        if (!Bun.which(stepHost, { PATH: childEnv().PATH })) throw new HostError(`celetis: ${stepHost} is not on PATH`);
+        const line = (await resolve([n], current)).stdout.trimEnd();
         if (!line.startsWith('run ')) {
           say(line || `#${n}: next-step.ts printed no line`);
           break;
@@ -349,7 +366,7 @@ export async function main(argv: string[]): Promise<number> {
         if (line === last) {
           if (exitCode !== 0)
             die(
-              `${host} session exited with status ${exitCode} before issue progress; check startup output, then run ${manualRecovery(host)} from the main checkout or start the step again`,
+              `${lastHost} session exited with status ${exitCode} before issue progress; check startup output, then run ${manualRecovery(lastHost)} from the main checkout or start the step again`,
             );
           say(`no progress: ${prompt}`);
           if (!(await recorded(n, line))) await writeFile(recordPath, `${n}\t${line}\n`, { flag: 'a' });
@@ -369,17 +386,27 @@ export async function main(argv: string[]): Promise<number> {
           say(`#${n}: ${removed}`);
           break;
         }
-        const args = await hostArguments(host, Number(n), step, prompt, root, main);
-        const record: SessionRecord = { schema: 1, host, issue: Number(n), step, checkout: main, session_id: null };
+        const args = await hostArguments(stepHost, Number(n), step, prompt, root, main);
+        const record: SessionRecord = {
+          schema: 1,
+          host: stepHost,
+          issue: Number(n),
+          step,
+          checkout: main,
+          session_id: null,
+        };
         await writeSession(main, record);
-        const { ended } = await startSession(args);
+        const { ended } = await startSession(args, stepHost);
         let watching: Promise<void> | undefined;
+        let watchError: unknown;
         if (managed) {
           if (process.env.HERDR_TAB_ID) await herdr(['tab', 'rename', process.env.HERDR_TAB_ID, `#${n} ${step}`]);
           const prior = reportedSessionId(parsed((await herdr(['agent', 'get', pane])).stdout));
           const startedAt = Math.floor(Date.now() / 1000);
           watcher = new AbortController();
-          watching = endWhenDone(n, line, record, prior, startedAt, watcher.signal);
+          watching = endWhenDone(n, line, record, prior, startedAt, watcher.signal).catch((error: unknown) => {
+            watchError = error;
+          });
         }
         await writeFile(join(watchDir, 'go'), '');
         exitCode = await ended;
@@ -387,15 +414,17 @@ export async function main(argv: string[]): Promise<number> {
         watcher?.abort();
         await watching;
         watcher = undefined;
+        if (watchError !== undefined) throw watchError;
         if (managed && (await readSession(main, Number(n))).session_id === null) {
           if (!(await stat(join(watchDir, 'error')).catch(() => null)))
-            await startupError(Number(n), host, 'the session ended before a saved turn had a verified identity');
+            await startupError(Number(n), stepHost, 'the session ended before a saved turn had a verified identity');
           throw new HostError('', 1);
         }
         await rm(watchDir, { recursive: true, force: true });
         watchDir = '';
         if (signalStatus) throw new HostError('', signalStatus);
         last = line;
+        lastHost = stepHost;
       }
       return started;
     } finally {
@@ -404,27 +433,23 @@ export async function main(argv: string[]): Promise<number> {
   };
   try {
     requireBun();
-    common = await commonDir(process.cwd());
-    main = await mainCheckout(process.cwd());
+    const checkout = await locateCheckouts(process.cwd());
+    if (checkout.main === null || checkout.common === null) throw new HostError('celetis: need a Git checkout', 2);
+    common = checkout.common;
+    main = checkout.main;
     state = join(common, 'celetis-flow');
     recordPath = join(state, 'no-progress');
-    let saved: SessionRecord | undefined;
-    if (mode === 'resume') {
-      saved = await selectSavedSession(main, Number(numbers[0]));
-      if (
-        process.env.CELETIS_RESUME_RECORD !== undefined &&
-        process.env.CELETIS_RESUME_RECORD !== serializeSession(saved)
-      )
-        die('the session record changed during package discovery; run the resume command again');
-      delete process.env.CELETIS_RESUME_RECORD;
-      host = saved.host;
-      savedId = saved.session_id ?? '';
-    } else host = selectHost(undefined, process.env, main);
+    const saved = mode === 'resume' ? await selectSavedSession(main, Number(numbers[0]), explicit, common) : undefined;
+    operation = createOperation(checkout, { ...selection, saved: saved?.host }, 'main');
+    const host = operation.host;
+    savedId = saved?.session_id ?? '';
     if (host === 'codex') process.env.CODEX_HOME = await (await import('./lib/plugin-metadata.ts')).codexHome();
-    config = load();
-    await (await import('./lib/plugin-policy.ts')).requireUpdatePolicy(host, main);
-    process.env.CELETIS_AGENT = host;
-    process.chdir(main);
+    initial = mode === 'resume' ? undefined : operation;
+    const { requireUpdatePolicy } = await import('./lib/plugin-policy.ts');
+    await (await import('./lib/update-lock.ts')).withPluginRead(host, async () => {
+      await requireUpdatePolicy(host, operation.checkout.cwd);
+      if (operation.checkout.cwd !== main) await requireUpdatePolicy(host, main);
+    });
     if (!Bun.which(host, { PATH: childEnv().PATH })) throw new HostError(`celetis: ${host} is not on PATH`);
     if (mode !== 'resume') {
       if (!Bun.which('gh', { PATH: childEnv().PATH })) die('gh is not on PATH');
@@ -449,6 +474,7 @@ export async function main(argv: string[]): Promise<number> {
         die(`another celetis-flow.ts or its session (PID ${holder}) works on #${numbers[0]}`);
       const { ended } = await startSession(
         host === 'claude' ? ['--resume', savedId] : ['resume', '--no-daemon', savedId],
+        host,
       );
       await writeFile(join(watchDir, 'go'), '');
       const code = await ended;
@@ -460,7 +486,8 @@ export async function main(argv: string[]): Promise<number> {
         console.log(`stop ${removed}`);
         return 1;
       }
-      const result = await resolve(['--json']);
+      const config = operation.mainConfig as Config;
+      const result = await resolve(['--json'], operation);
       if (result.code !== 0) {
         console.log(result.stdout.trimEnd() || 'stop cannot read the issues from GitHub');
         return 1;
@@ -539,9 +566,10 @@ export async function main(argv: string[]): Promise<number> {
         say(`stop ${removed}`);
         return 1;
       }
-      config = load();
-      await (await import('./lib/plugin-policy.ts')).requireUpdatePolicy(host, main);
-      const result = await resolve(['--open']);
+      const current = nextOperation();
+      const config = current.mainConfig as Config;
+      await (await import('./lib/plugin-policy.ts')).requireUpdatePolicy(current.host, main);
+      const result = await resolve(['--open'], current);
       let started = false;
       if (result.code === 0) {
         let pick = '';

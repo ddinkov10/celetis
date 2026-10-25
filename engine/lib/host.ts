@@ -1,9 +1,9 @@
-import { dirname, win32 } from 'node:path';
-import { bunFloor, ConfigError, readSnapshot } from './config.ts';
+import { realpath } from 'node:fs/promises';
+import { bunFloor, type Host } from './config.ts';
 import { claudeInstallation, codexHome, codexPlugin } from './plugin-metadata.ts';
 import { bunArgs, childEnv, run, updateDescriptor } from './process.ts';
 
-export type Host = 'claude' | 'codex';
+export type { Host } from './config.ts';
 
 export class HostError extends Error {
   constructor(
@@ -17,12 +17,31 @@ export class HostError extends Error {
 export async function commonDir(cwd: string): Promise<string> {
   const result = await run('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd });
   if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
-  return result.stdout.trimEnd();
+  return result.stdout.replace(/\n$/, '');
 }
 
 export async function mainCheckout(cwd: string): Promise<string> {
-  const common = await commonDir(cwd);
-  return /^[A-Za-z]:\\/.test(common) ? win32.dirname(common) : dirname(common);
+  const gitPath = async (args: string[], at = cwd) => {
+    const result = await run('git', ['rev-parse', ...args], { cwd: at });
+    if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
+    return realpath(result.stdout.replace(/\n$/, ''));
+  };
+  const active = await gitPath(['--show-toplevel']);
+  const common = await realpath(await commonDir(cwd));
+  if ((await gitPath(['--absolute-git-dir'])) === common) return active;
+  const listed = await run('git', ['worktree', 'list', '--porcelain', '-z'], { cwd });
+  if (listed.code !== 0) throw new HostError(listed.stderr.trimEnd(), listed.code);
+  const first = listed.stdout.split('\0\0')[0]?.split('\0') ?? [];
+  const candidate = first[0]?.startsWith('worktree ') ? first[0].slice(9) : '';
+  const message = `celetis: cannot identify the main checkout from Git metadata: ${common}`;
+  if (!candidate || first.includes('bare')) throw new HostError(message, 2);
+  try {
+    const main = await gitPath(['--show-toplevel'], candidate);
+    if ((await gitPath(['--absolute-git-dir'], main)) === common) return main;
+  } catch (error) {
+    throw new HostError(`${message}\n${error instanceof Error ? error.message : String(error)}`, 2);
+  }
+  throw new HostError(message, 2);
 }
 
 export function requireBun(): void {
@@ -31,37 +50,14 @@ export function requireBun(): void {
   }
 }
 
-export function selectHost(explicit: string | undefined, env: NodeJS.ProcessEnv, main: string | null): Host {
-  let host: unknown = explicit ?? env.CELETIS_AGENT;
-  if (host === undefined) {
-    host = 'claude';
-    if (main !== null) {
-      const file = `${main}/.celetis.yaml`;
-      let config: unknown;
-      try {
-        const source = new TextDecoder().decode(readSnapshot(file));
-        try {
-          config = Bun.YAML.parse(source);
-        } catch (error) {
-          throw new ConfigError([], `invalid YAML: ${(error as Error).message.split('\n')[0]}`);
-        }
-      } catch (error) {
-        if (!(error instanceof ConfigError)) throw error;
-        throw new HostError(`celetis: ${file}: ${error.field}: ${error.message}`, 2);
-      }
-      if (config !== null && typeof config === 'object' && !Array.isArray(config) && Object.hasOwn(config, 'host')) {
-        host = (config as Record<string, unknown>).host;
-      }
-    }
-  }
-  if (host !== 'claude' && host !== 'codex') {
-    const value = Array.isArray(host)
-      ? 'a sequence'
-      : host !== null && typeof host === 'object'
-        ? 'a mapping'
-        : String(host);
-    throw new HostError(`celetis: invalid agent ${value}; use claude or codex`, 2);
-  }
+export function selectHost(
+  explicit: string | undefined,
+  environment: string | undefined,
+  hint: Host | undefined,
+): Host {
+  const host = explicit ?? environment ?? hint ?? 'claude';
+  if (host !== 'claude' && host !== 'codex')
+    throw new HostError(`celetis: invalid agent ${host}; use claude or codex`, 2);
   return host;
 }
 

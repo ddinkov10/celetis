@@ -33,6 +33,7 @@ const coreTags = ['map', 'seq', 'str'].map(coreTag).concat(typedTags);
 const yaml11Int = /^[-+]?(?:0[bB][01]+|0[oO][0-7]+|0[xX][0-9a-fA-F]+|[0-9]+)$/;
 const yaml11Float = /^[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?$/;
 const notRegularFile = 'need a regular, readable file, with no symlink';
+const hosts = ['claude', 'codex'] as const;
 const steps = ['triage', 'specify', 'bug', 'chore', 'hotfix', 'plan', 'implement'] as const;
 const skills = [
   'bug',
@@ -56,21 +57,31 @@ const skills = [
   'writing-for-agents',
 ] as const;
 
-export type Config = {
-  host?: 'claude' | 'codex';
+export type Host = (typeof hosts)[number];
+
+const sourceData = Symbol('ConfigSource');
+
+export type ConfigSource = Readonly<{
+  [sourceData]: { value: unknown; nodes: NodeRecord[] };
+}>;
+
+export type Config = Readonly<{
+  host?: Host;
   landing: 'pr' | 'merge';
-  gates?: Partial<Record<(typeof steps)[number], 'me' | 'auto'>>;
-  board?: { port?: number };
+  gates?: Readonly<Partial<Record<(typeof steps)[number], 'me' | 'auto'>>>;
+  board?: Readonly<{ port?: number }>;
   worktreeSetup?: string;
-  custom?: Partial<Record<(typeof skills)[number], string>>;
-  codexProfiles?: Record<
-    string,
-    {
-      slots: [string, string, string, string];
-      reviewer: { rank: 0 | 1 | 2 | 3; effort: 'low' | 'medium' | 'high' | 'xhigh' };
-    }
+  custom?: Readonly<Partial<Record<(typeof skills)[number], string>>>;
+  codexProfiles?: Readonly<
+    Record<
+      string,
+      Readonly<{
+        slots: readonly [string, string, string, string];
+        reviewer: Readonly<{ rank: 0 | 1 | 2 | 3; effort: 'low' | 'medium' | 'high' | 'xhigh' }>;
+      }>
+    >
   >;
-};
+}>;
 
 function field(path: Path): string {
   return path.join('.') || '<document>';
@@ -237,6 +248,12 @@ function checkMetadata(nodes: NodeRecord[]): void {
       (node) =>
         node.tag === coreTag('float') && typeof node.value === 'number' && !Number.isFinite(node.value) && node.path,
     ],
+  ];
+  checkRules(nodes, rules);
+}
+
+function checkFieldMetadata(nodes: NodeRecord[]): void {
+  const rules: [string, (node: NodeRecord) => Path | false][] = [
     [
       'use a literal block for multiline text',
       (node) =>
@@ -254,6 +271,10 @@ function checkMetadata(nodes: NodeRecord[]): void {
         node.path,
     ],
   ];
+  checkRules(nodes, rules);
+}
+
+function checkRules(nodes: NodeRecord[], rules: [string, (node: NodeRecord) => Path | false][]): void {
   for (const [message, hit] of rules) {
     for (const node of nodes) {
       const path = hit(node);
@@ -278,7 +299,7 @@ function required(value: Record<string, unknown>, key: string, path: Path): void
   if (!Object.hasOwn(value, key)) throw new ConfigError([...path, key], 'required field');
 }
 
-function oneOf(value: unknown, values: string[], path: Path): void {
+function oneOf(value: unknown, values: readonly string[], path: Path): void {
   if (typeof value !== 'string' || !values.includes(value)) throw new ConfigError(path, 'invalid value');
 }
 
@@ -319,7 +340,7 @@ function checkSchema(value: unknown): asserts value is Config {
   keysOnly(config, ['host', 'landing', 'gates', 'board', 'worktreeSetup', 'custom', 'codexProfiles'], []);
   required(config, 'landing', []);
   oneOf(config.landing, ['pr', 'merge'], ['landing']);
-  if (Object.hasOwn(config, 'host')) oneOf(config.host, ['claude', 'codex'], ['host']);
+  if (Object.hasOwn(config, 'host')) validateHost(config.host);
   if (Object.hasOwn(config, 'gates')) {
     const gates = object(config.gates, ['gates']);
     keysOnly(gates, steps, ['gates']);
@@ -344,7 +365,7 @@ function checkSchema(value: unknown): asserts value is Config {
   }
 }
 
-export function readConfig(checkout: string): Config {
+export function readConfigSource(checkout: string): ConfigSource {
   if (Bun.semver.order(Bun.version, floor) < 0) {
     throw new ConfigError([], `need Bun >=${floor} on PATH, found ${Bun.version}`);
   }
@@ -352,9 +373,39 @@ export function readConfig(checkout: string): Config {
   const nodes = collectNodes(doc);
   checkWellFormed(nodes);
   checkMetadata(nodes);
-  const config: unknown = doc.toJS();
-  checkSchema(config);
-  return config;
+  return Object.freeze({ [sourceData]: { value: doc.toJS(), nodes } });
+}
+
+export function validateHost(value: unknown): Host {
+  oneOf(value, hosts, ['host']);
+  return value as Host;
+}
+
+export function configHost(source: ConfigSource): Host | undefined {
+  const config = object(source[sourceData].value, []);
+  return Object.hasOwn(config, 'host') ? validateHost(config.host) : undefined;
+}
+
+function freeze(value: unknown): void {
+  if (typeof value !== 'object' || value === null) return;
+  for (const child of Object.values(value)) freeze(child);
+  Object.freeze(value);
+}
+
+export function validateConfig(source: ConfigSource): Config {
+  const { value, nodes } = source[sourceData];
+  checkFieldMetadata(nodes);
+  checkSchema(value);
+  freeze(value);
+  return value;
+}
+
+export function readConfig(checkout: string): Config {
+  return validateConfig(readConfigSource(checkout));
+}
+
+export function formatConfigError(checkout: string, error: ConfigError): string {
+  return `celetis: ${checkout}/.celetis.yaml: ${error.field}: ${error.message}`;
 }
 
 if (import.meta.main) {
@@ -363,7 +414,7 @@ if (import.meta.main) {
     console.log(JSON.stringify(readConfig(checkout)));
   } catch (error) {
     if (!(error instanceof ConfigError)) throw error;
-    console.error(`celetis: ${checkout}/.celetis.yaml: ${error.field}: ${error.message}`);
+    console.error(formatConfigError(checkout, error));
     process.exit(2);
   }
 }

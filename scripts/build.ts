@@ -1,5 +1,8 @@
 import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { HostError } from '../engine/lib/host.ts';
+import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
+import { codexHome } from '../engine/lib/plugin-metadata.ts';
 
 const pin = '1.4.2';
 const root = dirname(import.meta.dir);
@@ -10,7 +13,18 @@ const browserTargets = ['board', 'view', 'ui', 'panel', 'palette'].map((name) =>
   mode: 0o644,
 }));
 
-export async function main(args: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<number> {
+  try {
+    const { args, explicit } = commandInput(argv);
+    return await execute(args, explicit);
+  } catch (error) {
+    if (!(error instanceof HostError)) throw error;
+    if (error.message) console.error(error.message);
+    return error.code;
+  }
+}
+
+async function execute(args: string[], explicit: string | undefined): Promise<number> {
   if (Bun.version !== pin) {
     console.error(`build: need Bun ${pin}, found ${Bun.version}`);
     return 1;
@@ -20,6 +34,12 @@ export async function main(args: string[]): Promise<number> {
     console.error('usage: scripts/build.ts [--check]');
     return 2;
   }
+  const operation = createOperation(
+    await locateCheckouts(process.cwd()),
+    { explicit, environment: process.env.CELETIS_AGENT },
+    'host',
+  );
+  if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
   process.chdir(root);
   let code = 0;
   const built: { output: string; mode: number; bytes: Buffer }[] = [];

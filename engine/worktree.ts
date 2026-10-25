@@ -1,7 +1,9 @@
 import { stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { ConfigError, readConfig } from './lib/config.ts';
-import { HostError, mainCheckout } from './lib/host.ts';
+import type { Config } from './lib/config.ts';
+import { HostError } from './lib/host.ts';
+import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
+import { codexHome } from './lib/plugin-metadata.ts';
 import { run } from './lib/process.ts';
 import { checkoutOf, markerOf, removeCheckout, removeLane, runSetup } from './lib/worktree.ts';
 
@@ -10,19 +12,19 @@ const usage =
 type Issue = { title: string; state: string; labels: { name: string }[] };
 type Pull = { head: { ref: string; sha: string }; state: string; merged_at: string | null };
 
-async function execute(argv: string[]): Promise<number> {
+async function execute(argv: string[], explicit: string | undefined): Promise<number> {
   const remove = argv[0] === '--remove';
   const args = remove ? argv.slice(1) : argv;
   const n = args[0]?.replace(/^#/, '');
   if (args.length !== 1 || !n || !/^[1-9][0-9]*$/.test(n)) throw new HostError(usage, 2);
   const cwd = process.cwd();
-  const main = resolve(await mainCheckout(cwd));
-  try {
-    readConfig(main);
-  } catch (error) {
-    if (!(error instanceof ConfigError)) throw error;
-    throw new HostError(`celetis: ${main}/.celetis.yaml: ${error.field}: ${error.message}`, 2);
-  }
+  const operation = createOperation(
+    await locateCheckouts(cwd),
+    { explicit, environment: process.env.CELETIS_AGENT },
+    'main',
+  );
+  const main = operation.checkout.main as string;
+  if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
   const git = async (args: string[], output = false) => {
     const result = await run('git', args, { cwd });
     if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
@@ -143,8 +145,13 @@ async function execute(argv: string[]): Promise<number> {
     await git(['worktree', 'add', '--no-track', '-b', branch, path, `origin/${repo.default_branch}`], true);
   }
   let setupRan = false;
+  let validatingConfig = false;
   try {
-    const config = readConfig(path);
+    const checkout = await locateCheckouts(path);
+    validatingConfig = true;
+    const target = createOperation(checkout, operation.selection, 'active');
+    validatingConfig = false;
+    const config = target.activeConfig as Config;
     if (!(await stat(await markerOf(path)).catch(() => null))?.isFile()) {
       setupRan = (config.worktreeSetup ?? '') !== '';
       const status = await runSetup(path, config, main);
@@ -152,11 +159,10 @@ async function execute(argv: string[]): Promise<number> {
     }
   } catch (error) {
     let detail = '.celetis.yaml worktreeSetup';
-    if (error instanceof ConfigError) {
-      console.error(`celetis: ${path}/.celetis.yaml: ${error.field}: ${error.message}`);
-      detail = '.celetis.yaml';
-    } else if (error instanceof HostError && error.message !== '.celetis.yaml worktreeSetup')
+    if (error instanceof HostError && error.message !== '.celetis.yaml worktreeSetup') {
       console.error(error.message);
+      if (error.code === 2) detail = '.celetis.yaml';
+    }
     if (!current) {
       await removeCheckout(path, main, true).catch((failure: Error) => console.error(failure.message));
       if (!hasBranch) {
@@ -164,7 +170,10 @@ async function execute(argv: string[]): Promise<number> {
         process.stderr.write(result.stdout + result.stderr);
       }
     }
-    throw new HostError(`worktree setup failed: ${detail}`);
+    throw new HostError(
+      `worktree setup failed: ${detail}`,
+      validatingConfig && error instanceof HostError && error.code === 2 ? 2 : 1,
+    );
   }
   process.stdout.write(`${setupRan ? '\n' : ''}${path}\n`);
   return 0;
@@ -172,7 +181,8 @@ async function execute(argv: string[]): Promise<number> {
 
 export async function main(argv: string[]): Promise<number> {
   try {
-    return await execute(argv);
+    const { args, explicit } = commandInput(argv);
+    return await execute(args, explicit);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     return error instanceof HostError ? error.code : 1;

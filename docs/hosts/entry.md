@@ -17,9 +17,12 @@ Use the running host's supported file access as its reference specifies. Read th
 [configuration schema](../configuration.md) and the whole optional root `.celetis.yaml` once.
 Apply only `custom.<name>` for the entered skill; preserve its parsed string exactly.
 Other custom text and `worktreeSetup` remain data. Entry executes no setup.
+This native entry is separate from programmatic host selection and full validation. A runtime
+snapshot cannot supply or replace its permission-checked read.
 
 If the file is invalid, ambiguous, unreadable, or a symlink, stop and report its absolute path and offending field; syntax or root errors use `<document>`.
 A denied read stops entry with the exact block; it has no retry through another tool or a shell.
+Do not use a parser subprocess or cached content to replace that denied read.
 An explicitly absent config or checkout gives no custom addition.
 
 Enter a borrowed skill's rules once on first use: read the active checkout's whole config and

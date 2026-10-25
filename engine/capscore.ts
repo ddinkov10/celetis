@@ -1,8 +1,10 @@
 import { constants } from 'node:fs';
 import { access, readFile, realpath, stat } from 'node:fs/promises';
-import { join } from 'node:path';
-import { type Config, ConfigError, readConfig } from './lib/config.ts';
-import { HostError, mainCheckout, selectHost } from './lib/host.ts';
+import { join, resolve } from 'node:path';
+import type { Config } from './lib/config.ts';
+import { HostError } from './lib/host.ts';
+import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
+import { codexHome } from './lib/plugin-metadata.ts';
 import { childEnv, run } from './lib/process.ts';
 
 const models = ['haiku', 'sonnet', 'opus', 'fable'];
@@ -140,9 +142,9 @@ async function binding(
   profileFile: string | undefined,
   runtimeFile: string,
   checkout: string | null,
+  config: Config | null,
 ): Promise<{ profile: Profile; runtime: Runtime } | null> {
   let explicit: unknown;
-  let config: Config | undefined;
   if (profileFile !== undefined) {
     if (!(await readable(profileFile)))
       throw new ScoreError(
@@ -152,8 +154,7 @@ async function binding(
   } else {
     if (checkout === null)
       throw new ScoreError('Codex needs a main checkout with .celetis.yaml or an explicit --profile FILE');
-    config = readConfig(checkout);
-    if (!config.codexProfiles || Object.keys(config.codexProfiles).length === 0) return null;
+    if (!config?.codexProfiles || Object.keys(config.codexProfiles).length === 0) return null;
   }
   if (!(await readable(runtimeFile)))
     throw new ScoreError(
@@ -187,15 +188,18 @@ async function binding(
 }
 
 export async function main(argv: string[]): Promise<number> {
+  const cwd = process.cwd();
   let checkout: string | null = null;
   try {
+    const input = commandInput(argv);
+    argv = input.args;
     if (!argv.length) throw new ScoreError('need six digits J V B N S X; see docs/capability.md of the plugin celetis');
     let biasText: string | undefined;
     let attemptText = '1';
-    let agent: string | undefined;
-    let profile = process.env.CAP_MODEL_PROFILE;
-    let runtimeFile = process.env.CAP_RUNTIME_MODELS || '';
-    let current = '';
+    let agent = input.explicit;
+    let profile: string | undefined;
+    let runtimeFile: string | undefined;
+    let current: string | undefined;
     let json = false;
     let reviewer = false;
     const values: string[] = [];
@@ -231,6 +235,13 @@ export async function main(argv: string[]): Promise<number> {
       } else if (arg.startsWith('-')) throw new ScoreError(`unknown flag: ${arg}`);
       else values.push(arg);
     }
+    profile ??= process.env.CAP_MODEL_PROFILE;
+    runtimeFile ??= process.env.CAP_RUNTIME_MODELS || '';
+    if (profile) profile = resolve(cwd, profile);
+    if (runtimeFile) runtimeFile = resolve(cwd, runtimeFile);
+    current ||= process.env.CAP_CURRENT_MODEL;
+    const opencode = process.env.OPENCODE === '1';
+    const environment = process.env.CELETIS_AGENT;
     if (biasText === undefined) {
       biasText = process.env.CAP_EFFORT_BIAS || '2';
       if (!/^\d+$/.test(biasText) || !Number.isSafeInteger(Number(biasText)))
@@ -257,20 +268,25 @@ export async function main(argv: string[]): Promise<number> {
     } | null = null;
     let line = `${label} → STOP (attempt ${attemptText}: escalate to user with failure trail)`;
     if (score) {
-      checkout = await mainCheckout(process.cwd()).catch(() => null);
-      host = selectHost(agent, process.env, checkout);
+      const identity = await locateCheckouts(cwd);
+      checkout = identity.main;
+      const operation = createOperation(identity, { explicit: agent, environment }, (selected) =>
+        selected === 'codex' && profile === undefined && checkout !== null ? 'main' : 'host',
+      );
+      host = operation.host;
+      if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
       let slots: (string | null)[] = models;
       let reviewerRank = 1;
       let reviewerEffort = 1;
       let selected: Awaited<ReturnType<typeof binding>> = null;
       if (host === 'codex') {
-        selected = await binding(profile, runtimeFile, checkout);
+        selected = await binding(profile, runtimeFile, checkout, operation.mainConfig);
         slots = selected?.profile.slots ?? [null];
         reviewerRank = selected?.profile.reviewer.rank ?? 1;
         reviewerEffort = selected ? efforts.indexOf(selected.profile.reviewer.effort as Effort) : 1;
-      } else if (process.env.OPENCODE === '1') {
+      } else if (opencode) {
         host = 'opencode';
-        const model = current || process.env.CAP_CURRENT_MODEL || (await currentModel());
+        const model = current || (await currentModel());
         if (model) slots = [model];
       }
       let applied = score;
@@ -319,10 +335,6 @@ export async function main(argv: string[]): Promise<number> {
   } catch (error) {
     if (error instanceof ScoreError) {
       console.error(`capscore: ${error.message}`);
-      return 2;
-    }
-    if (error instanceof ConfigError) {
-      console.error(`celetis: ${checkout}/.celetis.yaml: ${error.field}: ${error.message}`);
       return 2;
     }
     if (error instanceof HostError) {

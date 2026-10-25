@@ -3,7 +3,8 @@ import { lstat, mkdir, mkdtemp, open, realpath, rename, rm, stat, writeFile } fr
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { codexRequest, type Host, HostError, installedRoot, mainCheckout, requireBun, selectHost } from './lib/host.ts';
+import { codexRequest, type Host, HostError, installedRoot, requireBun } from './lib/host.ts';
+import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import {
   bindUpdateHome,
   claudeInstallation,
@@ -502,10 +503,10 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
   }
 }
 
-export async function main(argv: string[], selectedHost?: Host): Promise<number> {
+export async function main(argv: string[]): Promise<number> {
   try {
     requireBun();
-    const args = argv[0] === 'plugin-update' ? argv.slice(1) : argv;
+    const { args, explicit } = commandInput(argv);
     if (args[0] === '--root' && args.length === 2 && (args[1] === 'claude' || args[1] === 'codex'))
       console.log(await installedRoot(args[1], process.cwd(), 3));
     else if (args[0] === '--policy' && args.length === 2 && (args[1] === 'claude' || args[1] === 'codex'))
@@ -513,9 +514,15 @@ export async function main(argv: string[], selectedHost?: Host): Promise<number>
     else if (args[0] === '--inspect' && args.length === 2 && (args[1] === 'claude' || args[1] === 'codex'))
       console.log(JSON.stringify(await inspect(args[1], process.cwd())));
     else {
-      const main = await mainCheckout(process.cwd()).catch(() => null);
-      const host = selectedHost ?? selectHost(undefined, process.env, main);
-      process.env.CELETIS_AGENT = host;
+      if (args.length > 1 || (args.length === 1 && args[0] !== 'check'))
+        throw new HostError('usage: plugin-update [check]', 2);
+      const operation = createOperation(
+        await locateCheckouts(process.cwd()),
+        { explicit, environment: process.env.CELETIS_AGENT },
+        'host',
+      );
+      const host = operation.host;
+      if (host === 'codex') process.env.CODEX_HOME = await (await import('./lib/plugin-metadata.ts')).codexHome();
       if (args.length === 1 && args[0] === 'check') {
         console.log(JSON.stringify(await checkUpdate(host, process.cwd())));
       } else if (args.length === 0) {

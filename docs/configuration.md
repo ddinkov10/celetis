@@ -115,11 +115,27 @@ tags can pass the parser check; the field schema then limits each value. Non-fin
 are not accepted. Script and instruction strings cannot contain NUL.
 Plain `yes` and `on` are strings under YAML 1.2.
 
-Import `readConfig` and `ConfigError` from `engine/lib/config.ts` of the plugin for typed
-configuration reads. Importing the module starts no installation discovery or setup.
-`readConfig(CHECKOUT)` reads only that checkout's `.celetis.yaml`, validates it, and returns the
-object without inserted defaults. `mainCheckout` in `engine/lib/host.ts` resolves the main
-checkout and reports a failed Git lookup. The former Bash sourcing interface is removed.
+`engine/lib/config.ts` of the plugin owns byte access, parsing, validation, types, and diagnostics.
+Importing it starts no installation discovery or setup. `readConfigSource(CHECKOUT)` reads that
+checkout's `.celetis.yaml` once and checks its source structure. `configHost(source)` validates
+only the optional `host`; `validateHost(value)` defines accepted configuration hosts.
+`validateConfig(source)` checks the full schema and returns a deeply frozen `Config` without
+inserted defaults. `readConfig(CHECKOUT)` combines the source read and full validation.
+`ConfigError` names the field, and `formatConfigError` renders the selected path, field, and message.
+
+Both projections require safe file access, strict UTF-8, one mapping document, string keys,
+unique keys, supported tags, finite scalars, and no aliases or merge keys. Host selection does
+not check unrelated field values or require `landing`: `host: codex` alone selects Codex.
+An unknown root field, invalid gate, or invalid board port can pass that projection. Only full
+validation checks allowed fields, required `landing`, literal text styles, and field-specific
+integer forms and ranges. A host projection is never a full `Config`.
+
+Bootstrap uses this shared source instead of `Bun.YAML.parse`. Duplicate keys, aliases, unsafe
+files, invalid encoding, and other ambiguous source forms now fail during implicit selection.
+Implicit YAML host errors use `host: invalid value`, and syntax or root errors use `<document>` with the shared
+reader diagnostic. The former `invalid agent null`, mapping/sequence host messages, and native
+parser quirks are removed. `--agent` and `CELETIS_AGENT` select a host without a YAML read for
+selection; a command that needs full configuration still validates it before protected work.
 
 The reader CLI runs as:
 
@@ -135,7 +151,7 @@ wrapper. The plugin owns the source entrypoint and its engine. Child Celetis pro
 selected `process.execPath`, isolated environment/config/preload/macro/package controls,
 disabled transpiler cache, and `DO_NOT_TRACK=1`.
 
-The reader uses one private YAML snapshot for metadata checks and JSON conversion. It checks
+The reader uses one private parsed source for metadata checks and JSON conversion. It checks
 document, key, node, and style metadata before JSON conversion can remove YAML information.
 JSON remains in memory. No generated config file is written.
 
@@ -145,9 +161,53 @@ YAML 1.2, and U+0085, U+2028, and U+2029. A comment is no exception. These error
 A plain value or key in a YAML 1.1 number form that YAML 1.2 reads as a string, such as `4_404`
 or `0b101`, is an error too. Quote such a value to keep it as a string.
 
-The entrypoint imports its own engine before local dispatch. It reads only `host` of the main
-config when neither `--agent` nor `CELETIS_AGENT` selects a host. The full reader checks the main
-config before `worktree`, `celetis-flow`, `next-step`, `land`, and `board`.
+### Operation values and freshness
+
+The entrypoint imports its own engine and replaces its process with the named command before
+configuration reads. The command consumes the forwarded `--agent`, validates its arguments,
+and creates its operation. `land.ts` and `celetis-flow.ts` retain their process identities for
+lock-owner checks.
+
+`locateCheckouts(cwd)` in `engine/lib/operation.ts` resolves canonical active, main, and common
+Git paths. A subfolder has its checkout's identity. When the Git directory equals the common
+directory, the active top level identifies main, including a checkout with a separate Git directory.
+For a linked worktree, Git's first worktree record must resolve to a main top level whose own Git
+directory is that common directory. Git's `core.worktree` can supply this binding for a separate
+Git directory. If Git cannot identify main, discovery fails before any configuration read.
+It never uses an adjacent or parent directory as a policy source.
+
+`createOperation(checkout, selection, required)`
+captures these identities, the original selection inputs, selected host, and required validated
+values. Its mode is `host`, `main`, or `active`, or a selector resolved once from the selected
+host. `host` reads YAML only when selection needs it. `main` requires the main config; `active`
+requires both files. Each distinct required checkout is read once. Equal main and active paths
+reuse one source and one `Config`. A null config means that projection was not required.
+
+Operations, checkout identities, selection inputs, and nested configuration values are frozen.
+Internal handlers receive them as arguments. They do not rediscover cwd or launch a reader or
+resolver command to obtain configuration. There is no global cache, environment snapshot, or
+generated product snapshot file. The reader CLI remains for the project verify gate.
+
+| Fresh boundary | Values used within the boundary |
+| --- | --- |
+| Public command | One operation before protected side effects; argument errors can fail first |
+| Board data refresh | One main operation for issue resolution, gates, and default host; Run and Resume start separate commands |
+| New workflow step | Fresh main policy for resolution, gate choice, and session start; original explicit and environment inputs retain precedence |
+| Active-session monitoring | A separate fresh operation for status; the running session retains its captured host and exact ID; a config failure waits until that child exits |
+| Target lane entry | Fresh main and lane validation before setup or acceptance of an existing setup marker |
+| Configuration setup or test after a write | Fresh validation of the written or newly selected file |
+| Landing start and protected actions after asynchronous work | Fresh policy and repository preflight before push, PR creation, check rerun, or merge |
+
+The board port stays fixed at startup until restart. A changed default host applies to the next
+new session; exact Resume retains its saved host and ID. First entry into a different skill is a
+native boundary under [Host entry](hosts/entry.md), independent of runtime operations.
+
+Landing keeps the mechanism selected at its start. If the mechanism changed, it stops and
+requires a new invocation. Invalid fresh configuration also stops it. Preflight rechecks checkout,
+branch, captured tip and trunk SHAs, and PR identity where applicable. After green checks, it
+refreshes again around the final checks and PR-identity wait before its SHA-bound merge.
+Pushes remain non-forced and use captured SHAs. These boundaries give stable internal values,
+not a filesystem transaction across checkouts or a transaction with GitHub.
 
 ## Start the board
 

@@ -1,8 +1,10 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { constants } from 'node:os';
 import { join } from 'node:path';
-import { type Config, ConfigError, readConfig } from './lib/config.ts';
-import { commonDir, HostError, mainCheckout } from './lib/host.ts';
+import type { Config } from './lib/config.ts';
+import { HostError } from './lib/host.ts';
+import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
+import { codexHome } from './lib/plugin-metadata.ts';
 import { run } from './lib/process.ts';
 import { checkoutOf, removeLane } from './lib/worktree.ts';
 
@@ -10,7 +12,7 @@ type Pull = {
   number: number;
   html_url: string;
   head: { ref: string; sha: string };
-  base: { ref: string };
+  base: { ref: string; sha: string };
   merged_at: string | null;
 };
 type Check = {
@@ -35,6 +37,17 @@ const usage =
 const conventional = /^[a-z]+(\([^()]+\))?!?: [^ ]/;
 
 export async function main(argv: string[]): Promise<number> {
+  try {
+    const { args, explicit } = commandInput(argv);
+    return await execute(args, explicit);
+  } catch (error) {
+    if (!(error instanceof HostError)) throw error;
+    if (error.message) console.error(error.message);
+    return error.code;
+  }
+}
+
+async function execute(argv: string[], explicit: string | undefined): Promise<number> {
   const n = argv[0]?.replace(/^#/, '') ?? '';
   const subject = argv[1] ?? '';
   if (
@@ -67,15 +80,15 @@ export async function main(argv: string[]): Promise<number> {
     if (text) process.stderr.write(text.endsWith('\n') ? text : `${text}\n`);
   };
   try {
-    const common = await commonDir(cwd);
-    const main = await mainCheckout(cwd);
-    let config: Config;
-    try {
-      config = readConfig(main);
-    } catch (error) {
-      if (!(error instanceof ConfigError)) throw error;
-      throw new HostError(`celetis: ${main}/.celetis.yaml: ${error.field}: ${error.message}`, 2);
-    }
+    const operation = createOperation(
+      await locateCheckouts(cwd),
+      { explicit, environment: process.env.CELETIS_AGENT },
+      'main',
+    );
+    const common = operation.checkout.common as string;
+    const main = operation.checkout.main as string;
+    const config = operation.mainConfig as Config;
+    if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
     for (const signal of ['SIGHUP', 'SIGINT', 'SIGTERM'] as const) {
       const handler = () => {
         signalStatus = 128 + constants.signals[signal];
@@ -166,27 +179,65 @@ export async function main(argv: string[]): Promise<number> {
     }
     await git(['fetch', '-q', 'origin', trunk], `cannot fetch ${trunk} from origin`);
     const tip = await git(['rev-parse', `refs/heads/${branch}`]);
+    const base = await git(['rev-parse', `origin/${trunk}`]);
     if (!(await git(['rev-list', '-n', '1', `origin/${trunk}..${branch}`])))
       die(`${branch} has no commit that ${trunk} lacks; nothing to land`);
     const stale = `merge origin/${trunk} into ${branch}, run the verify gate of the project again, then land again`;
-
-    const landMerge = async () => {
-      const merge = await gitRaw(['merge-tree', '--write-tree', `origin/${trunk}`, branch]);
-      const tree = merge.code === 0 ? merge.stdout.trimEnd() : '';
-      let commit: string;
-      if (tree === (await git(['rev-parse', `origin/${trunk}^{tree}`]))) {
-        commit = await git(['log', '-n', '1', '--format=%H', '--fixed-strings', `--grep=(#${n})`, `origin/${trunk}`]);
-      } else {
+    let checkPull: (() => Promise<void>) | undefined;
+    const preflight = async (): Promise<Operation> => {
+      const fresh = createOperation(await locateCheckouts(cwd), operation.selection, 'main');
+      if (fresh.mainConfig?.landing !== config.landing) die('the landing mechanism changed; invoke landing again');
+      if (fresh.checkout.main !== main || fresh.checkout.common !== common)
+        die('the checkout changed; invoke landing again');
+      await checkPull?.();
+      if (
+        (await checkedApi<{ default_branch: string }>('', 'cannot read the default branch from GitHub'))
+          .default_branch !== trunk
+      )
+        die(`the default branch changed from ${trunk}; invoke landing again`);
+      await git(['fetch', '-q', 'origin', trunk], `cannot fetch ${trunk} from origin`);
+      if ((await git(['rev-parse', `origin/${trunk}`])) !== base) die(`the head of ${trunk} changed; ${stale}`);
+      const current = await git([
+        'branch',
+        '--list',
+        '--format=%(refname:lstrip=2)',
+        `feat/${n}-*`,
+        `fix/${n}-*`,
+        `hotfix/${n}-*`,
+        `chore/${n}-*`,
+      ]);
+      if (current !== branch || (await git(['rev-parse', `refs/heads/${branch}`])) !== tip)
+        die(`the lane branch or its tip changed; ${stale}`);
+      if ((await checkoutOf(branch, cwd, abort.signal)) !== checkout) die(`the lane checkout changed; ${stale}`);
+      if (checkout && (await git(['status', '--porcelain'], undefined, checkout)))
+        die(`the lane worktree is dirty: ${checkout}; commit first`);
+      if (fresh.mainConfig?.landing === 'merge') {
         if (await git(['status', '--porcelain'], undefined, main))
           die(`the main checkout is dirty: ${main}; commit or stash first`);
         if ((await git(['branch', '--show-current'], undefined, main)) !== trunk)
           die(`the main checkout is not on ${trunk}: ${main}`);
-        if ((await git(['rev-parse', 'HEAD'], undefined, main)) !== (await git(['rev-parse', `origin/${trunk}`])))
+        if ((await git(['rev-parse', 'HEAD'], undefined, main)) !== base)
           die(`the main checkout is not level with origin/${trunk}; run git pull, or push, there first`);
-        const ancestor = await gitRaw(['merge-base', '--is-ancestor', `origin/${trunk}`, branch]);
+        const ancestor = await gitRaw(['merge-base', '--is-ancestor', base, tip]);
         process.stderr.write(ancestor.stderr);
         if (ancestor.code !== 0) die(`${branch} does not contain the head of ${trunk}; ${stale}`);
-        commit = await git(['commit-tree', `${branch}^{tree}`, '-p', `origin/${trunk}`, '-m', `${subject} (#${n})`]);
+      }
+      const currentPolicy = createOperation(fresh.checkout, operation.selection, 'main');
+      if (currentPolicy.mainConfig?.landing !== config.landing)
+        die('the landing mechanism changed; invoke landing again');
+      return currentPolicy;
+    };
+
+    const landMerge = async () => {
+      const merge = await gitRaw(['merge-tree', '--write-tree', base, tip]);
+      const tree = merge.code === 0 ? merge.stdout.trimEnd() : '';
+      let commit: string;
+      if (tree === (await git(['rev-parse', `${base}^{tree}`]))) {
+        commit = await git(['log', '-n', '1', '--format=%H', '--fixed-strings', `--grep=(#${n})`, `origin/${trunk}`]);
+      } else {
+        await preflight();
+        commit = await git(['commit-tree', `${tip}^{tree}`, '-p', base, '-m', `${subject} (#${n})`]);
+        await preflight();
         await git(
           ['push', '-q', 'origin', `${commit}:refs/heads/${trunk}`],
           `cannot push ${trunk} to origin; ${trunk} is as it was`,
@@ -217,7 +268,7 @@ export async function main(argv: string[]): Promise<number> {
         )
       ).flat();
       if (merged.some((pull) => pull.merged_at && pull.base.ref === trunk && pull.head.sha === tip)) return;
-      if ((await gitRaw(['merge-tree', '--write-tree', `origin/${trunk}`, branch])).code !== 0)
+      if ((await gitRaw(['merge-tree', '--write-tree', base, tip])).code !== 0)
         die(`${branch} conflicts with ${trunk}; ${stale}`);
       const open = (
         await checkedApi<Pull[][]>('/pulls?state=open&per_page=100', 'cannot list the open PRs on GitHub', {
@@ -236,8 +287,10 @@ export async function main(argv: string[]): Promise<number> {
       let pull = lane[0];
       if (pull && pull.head.ref !== branch)
         die(`PR #${pull.number} of #${n} is on ${pull.head.ref}, not on ${branch}; keep one branch: ${pull.html_url}`);
-      await git(['push', '-q', 'origin', branch], `cannot push ${branch} to origin`);
+      await preflight();
+      await git(['push', '-q', 'origin', `${tip}:refs/heads/${branch}`], `cannot push ${branch} to origin`);
       if (!pull) {
+        await preflight();
         const created = await checkedApi<{ html_url: string }>('/pulls', `cannot open the PR of ${branch}`, {
           fields: { base: trunk, head: branch, title: `${subject} (#${n})`, body: `Closes #${n}` },
         });
@@ -247,12 +300,18 @@ export async function main(argv: string[]): Promise<number> {
           number: Number(number),
           html_url: created.html_url,
           head: { ref: branch, sha: tip },
-          base: { ref: trunk },
+          base: { ref: trunk, sha: base },
           merged_at: null,
         };
       }
       const pr = pull.number;
       const url = pull.html_url;
+      const matches = (pull: Pull | null) =>
+        pull?.head.sha === tip &&
+        pull.head.ref === branch &&
+        pull.base.ref === trunk &&
+        pull.base.sha === base &&
+        !pull.merged_at;
       let buckets = '';
       let reruns: number[] = [];
       let flaky: Check[] = [];
@@ -306,9 +365,9 @@ export async function main(argv: string[]): Promise<number> {
         return true;
       };
       const green = async (): Promise<0 | 1 | 2> => {
-        const head = await api<{ head: { sha: string } }>(`/pulls/${pr}`, { quiet: true }).catch(() => null);
-        if (head?.head.sha !== tip) {
-          buckets = `the PR does not show ${tip} yet`;
+        const head = await api<Pull>(`/pulls/${pr}`, { quiet: true }).catch(() => null);
+        if (!matches(head)) {
+          buckets = `the PR head or base does not match ${branch} at ${tip} on ${trunk}`;
           return 1;
         }
         for (const id of reruns) {
@@ -386,12 +445,14 @@ export async function main(argv: string[]): Promise<number> {
       console.log(`Waiting up to 15 minutes for the checks of PR #${pr} at ${tip}`);
       let status = await waitGreen();
       if (status === 2) {
-        for (const id of reruns)
+        for (const id of reruns) {
+          await preflight();
           await checkedApi(
             `/actions/runs/${id}/rerun-failed-jobs`,
             `GitHub refused the re-run of the failed checks of PR #${pr}: ${url}`,
             { silent: true, method: 'POST' },
           );
+        }
         console.log(`Waiting up to 15 more minutes for the re-run of the failed checks of PR #${pr} at ${tip}`);
         status = await waitGreen();
       }
@@ -399,6 +460,12 @@ export async function main(argv: string[]): Promise<number> {
         die(
           `the checks of PR #${pr} did not finish in 15 minutes${reruns.length ? ' after the re-run' : ''} (${buckets || 'no check runs'}): ${url}`,
         );
+      await preflight();
+      if ((await green()) !== 0) notGreen();
+      checkPull = async () => {
+        if (!matches(await api<Pull>(`/pulls/${pr}`))) die(`the head or base of PR #${pr} changed; ${stale}`);
+      };
+      await preflight();
       await checkedApi(`/pulls/${pr}/merge`, `cannot merge PR #${pr} at ${tip}; the PR stays open: ${url}`, {
         silent: true,
         method: 'PUT',

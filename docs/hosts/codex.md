@@ -12,6 +12,9 @@ Use the active checkout binding even when the tool process cwd differs. Locate i
 and read `.celetis.yaml` through available supported file access, including shell commands,
 dedicated readers, or runtime file APIs. Inspect the active tool catalog and use its actual schema.
 A dedicated reader is not required. The existing configuration reader is also supported.
+Make a fresh whole-file request for each entry. A programmatic operation's validated values do
+not complete this request. Optional absence gives no custom text; required runtime configuration
+has a separate full-validation boundary. A denied request ends entry before any alternate read.
 If no supported tool can locate or read the checkout, stop with the tool names, exact limitation,
 and required file-access setup.
 

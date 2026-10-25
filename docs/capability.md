@@ -224,6 +224,14 @@ back to the config or to the parent model. The explicit file has one JSON object
 }
 ```
 
+Each scoring invocation captures its explicit profile, runtime-evidence path, host inputs, bias,
+and attempt before it creates an operation. Repository profiles come from that operation's
+immutable main config, including a call from a lane or subfolder. Codex without an explicit
+profile requires full main validation before deciding that no profile exists. Claude scoring
+and explicit-profile scoring use the host projection only; explicit host selection needs no
+YAML read for selection. If YAML selects the host, that source passes the shared structural
+checks. A later invocation obtains fresh values; concurrent invocations share no profile state.
+
 The runtime allowlist has this shape; its IDs and efforts must come from the active dispatch
 controller's supported tools or model-list API:
 
