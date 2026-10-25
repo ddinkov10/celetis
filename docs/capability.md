@@ -185,10 +185,7 @@ the profile owns the capability ordering. Refresh the runtime allowlist from the
 create or resume the child before each dispatch, then supply its file path to the scorer.
 Keep the current parent model; this setup controls children only.
 
-For an existing project, replace each repository-owned profile input as the
-[manual cutover](configuration.md#replace-the-old-setup) specifies. Keep `slots` and `reviewer`
-under the exact runtime key; refresh the allowlist before dispatch. ADR-0015 changes storage
-only. Native cache replacement and same-child retry still need their separate CLI evidence.
+Native cache replacement and same-child retry still need their separate CLI evidence.
 Open sessions have no immutable-resource guarantee (ADR-0028). Desktop binding has separate optional acceptance under
 [Acceptance status](celetis-flow.md#acceptance-status); the active-surface profile and tool checks
 still apply to each requested desktop operation.

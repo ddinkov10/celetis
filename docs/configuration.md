@@ -90,7 +90,7 @@ its setup marker. An unmarked lane runs setup once and receives the marker only 
 that is not empty succeeded. With an empty or missing `worktreeSetup`, the lane stays unmarked.
 A setup failure or invalid new lane config uses the existing cleanup: remove the new worktree
 and a branch created by the command; keep an existing branch or worktree for repair and retry.
-Old Git defaults have no effect; the cutover table below lists them.
+Old Git defaults have no effect.
 
 Use the main checkout for `host`, `landing`, `gates`, `board`, and `codexProfiles`.
 Use the new lane checkout for setup. At each skill entry, use `custom.<skill>` from the active
@@ -161,65 +161,12 @@ The producer default is read-only. Change `host` in the main YAML to set
 the project default. A board Run choice applies only to that start; Resume uses its saved host.
 See [the board contract](celetis-flow.md#the-board) for the exact lists.
 
-## Replace the old setup
-
-This is a manual cutover. Before the next use of Celetis in each affected product project, the
-maintainer completes its readiness review and cutover under [Updates](../README.md#updates).
-That section owns the exact offer, one direct terminal response, target-bound replacement,
-and the resource limits of open sessions. A push to the plugin trunk does not update a product's installation
-or copied launcher. This lane changes no other project.
-
-1. Install Bun 1.4.2 or later on each machine and CI job that runs Celetis commands, using
-   the instructions below.
-2. Review each old input and prepare one `.celetis.yaml` in that product's main checkout:
-
-   | Old input | Replacement |
-   | --- | --- |
-   | Git `celetis-flow.agent` or `celetis-flow.host` | Optional YAML `host`. Keep the intended new-step default. |
-   | Git `celetis-flow.gate.<step>` and `.claude/celetis-flow/gates.json` | YAML `gates.<step>`. Write each intended `auto`; omitted steps now use `me`. |
-   | `.claude/celetis-flow/landing.json` | Required YAML `landing`. |
-   | `.claude/celetis-flow/board.json` | YAML `board.port` only. The adapter supplies all three fixed command lists. |
-   | `.claude/celetis-flow/worktree-setup.sh` | Rewrite its complete program as TypeScript in a literal `worktreeSetup` string. Check external command statuses. Main is `process.argv[2]`. |
-   | Each `.claude/celetis-flow/custom/<skill>.md` | Complete instruction text in `custom.<skill>`, with its parsed line breaks and trailing newlines. |
-   | Each repository-owned `--profile` or `CAP_MODEL_PROFILE` JSON input | Its `slots` and `reviewer` under `codexProfiles.<runtime>`. Use the matching runtime identity as the key; omit the old `schema` and `runtime` fields. |
-
-   Use `|`, `|-`, or `|+` to preserve the required script and instruction strings. Check each
-   profile against the active dispatch surface's current model/effort allowlist. Supply no
-   placeholder or bundled model defaults. Explicit profile files remain available for one-run
-   or standalone scoring; remove a persistent override when the main YAML should own selection.
-3. Before that product's next use of Celetis, review the
-   [product cutover](../README.md#product-cutover). Select and validate
-   the reviewed source repair entrypoint before removing the product launcher. Review the exact
-   owned launcher, permission, attribute, instruction, and ownership-record changes. Preserve
-   differing and unowned files until the owner approves each removal. If the product has a
-   Claude project install, the first cutover act runs
-   `claude plugin uninstall celetis@celetis --scope project` in its main checkout. It commits
-   the changed `.claude/settings.json` with the removal of the owned
-   `enabledPlugins.celetis@celetis` record from `.claude/celetis-flow/wiring.json`. Check that
-   `claude plugin list --json` then shows no `celetis@celetis` record with `"scope": "project"`
-   and a `projectPath` equal to that main checkout. A record of another path, such as an old
-   lane worktree, does not count. Check that the `celetis@celetis` record with
-   `"scope": "user"` shows `"enabled": true`.
-4. Keep native settings, product instructions, config bytes, setup programs, session records,
-   runtime state, and setup markers intact. Bind a desktop board entry to the installed absolute
-   entrypoint with isolated Bun and its explicit host; match its port to YAML.
-5. Record the product's readiness and complete the acts of the
-   [product cutover](../README.md#product-cutover) in their order before its next use of Celetis.
-   This is not a condition of the plugin landing. Open sessions, runners, boards, and daemons may
-   stay open. The first update uses the reviewed source repair, because the installed
-   package has no `bin/celetis.ts` yet. Start a fresh session for changed skills. Resume with the
-   saved host and ID. If an act fails and blocks a product,
-   [roll back the entrypoint landing](../README.md#roll-back-the-entrypoint-landing).
-
-There is no old-layout reader, automatic migration, or dependency installer. `/celetis:setup`
-writes the wiring of a product project (`README.md`, "Wire a product project"); it does not
-migrate an old setup. A deterministic gate check does not replace the live board acceptance.
-Stable installed resources, changed-pair child controls on required CLI surfaces, managed Claude
-setup, and complete child bootstrap keep their acceptance states in
-[Acceptance status](celetis-flow.md#acceptance-status). Native Codex
-desktop binding is separate optional evidence; a desktop limit does not block otherwise complete
-required CLI checks. Active-surface validation and permission stops still apply to each requested
-operation.
+A deterministic gate check does not replace live board acceptance. Stable installed resources,
+changed-pair child controls on required CLI surfaces, managed Claude setup, and complete child
+bootstrap keep their acceptance states in [Acceptance status](celetis-flow.md#acceptance-status).
+Native Codex desktop binding is separate optional evidence; a desktop limit does not block
+otherwise complete required CLI checks. Active-surface validation and permission stops still
+apply to each requested operation.
 
 ## Install Bun
 

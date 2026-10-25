@@ -7,6 +7,18 @@ product project of its own plugin. `README.md` holds the wiring of a product pro
 and the update rule. `docs/celetis-flow.md` holds the runner, and `docs/issue-tracker.md` holds the
 labels, the state of an issue, and the branches.
 
+## Plugin development
+
+Celetis development uses this repository's issue, checkout, and verification evidence. A change
+can be designed, built, verified, and landed with no product adopters, including a breaking
+change. Do not discover, enumerate, inspect, prepare, modify, or wait for other product
+repositories, or require their commits, updates, readiness evidence, or approval. Each product
+maintainer owns adoption and wiring; installation and update are separate explicit operations.
+A missing host capability remains a limitation of the Celetis check; product adoption cannot
+replace that evidence. Commands still require the active project's own configuration, issue
+state, and permissions. [ADR-0031](docs/adr/0031-plugin-development-is-independent-of-adoption.md)
+records this boundary and supersedes the historical coordination requirements.
+
 ## Host checks
 
 Reuse the existing Claude Code and Codex CLI installations and their existing authentication.

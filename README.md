@@ -24,8 +24,8 @@ There are two kinds of repository:
 
 - The **plugin repository** is this one, `ddinkov10/celetis`. It is private, and it is also the
   marketplace `celetis` with one plugin, so the id of the plugin is `celetis@celetis`.
-- A **product project** is a repository that uses the plugin. `ddinkov10/fwrh_calculator` is the
-  first one. This repository is the second one: it runs its own lanes on its own landed plugin.
+- A **product project** is any repository that uses the plugin. This repository also runs its
+  own lanes on its own installed plugin.
 
 A product project holds no Celetis launcher, runtime source, skill, or document of the harness. It holds only what is its own:
 
@@ -46,7 +46,7 @@ on GitHub: the verify gate, the deployment, and each other part of a product sta
 project. The plugin has no `version` or declared dependency. Its source entrypoint is `bin/celetis.ts`;
 its runtime is `engine/`. Shared permissions restrict direct merges. Personal host rules bind landing. Its Claude native hook completes file entry before skill expansion.
 Codex declares no Celetis lifecycle hooks and uses the shared skill entry instructions.
-ADR-0030 owns the installed entrypoint and its cutover. ADR-0012 holds the original packaging decision; ADR-0014 extends it to both hosts without a
+ADR-0030 owns the installed entrypoint and update controls. ADR-0012 holds the original packaging decision; ADR-0014 extends it to both hosts without a
 second copy of the procedures. ADR-0015 replaces their config storage clauses with one YAML file.
 ADR-0016 limits required automation to the CLI hosts while keeping desktop invocation available.
 
@@ -178,8 +178,13 @@ below shows the current form that it writes. Where a part stays by hand, its sec
 - Setup writes the part of a host only when you choose that host: `.claude/settings.json` and the
   line `@AGENTS.md` for Claude, and `.codex/rules/celetis.rules` for Codex.
 - New setup owns `.codex/rules/celetis.rules`. It writes no launcher or machine path allow.
-  An old launcher requires the reviewed manual cutover below; setup preserves its file and ownership. In a file that the product also uses, setup adds each missing
-  entry, and it changes or removes no entry that is there.
+  Setup preserves an existing `scripts/celetis` file and its ownership record. When that file or
+  its ownership entry is present, setup also preserves an existing Codex rules file. An owned
+  `enabledPlugins.celetis@celetis` entry in `.claude/settings.json` and its ownership record stay
+  intact. The owner of the active project reviews existing files, related permissions,
+  attributes, instructions, and ownership entries against the current wiring below and approves
+  each change or removal. Setup performs no migration. In a file that the product also uses,
+  setup adds each missing entry, and it changes or removes no entry that is there.
 - In `.celetis.yaml`, setup owns two entries: `host` (the default host, or the one host) and
   `landing`. It makes the file when there is none. In a valid file, it adds a missing `host` as a
   line at the end, and it keeps each byte of the product. When an entry is there with a value
@@ -492,114 +497,10 @@ approved target from the checkout revision. A refusal or failure needs a new ter
 and response. Resolve the installed root again after success, check its approved revision and
 layout, rebind the personal permission, and return ordinary commands to that package.
 
-The first update after the entrypoint landing needs this repair. Until that update, the installed
-package has no `bin/celetis.ts`, so each bootstrap block stops with
-`Incomplete source-entrypoint layout; use the reviewed source repair procedure`.
-[Product cutover](#product-cutover) gives the order of acts.
-
 A `null` offer or `up to date` result does not repair same-revision corruption. Missing native
 registration or an integrity refusal requires separately reviewed native-host repair. There is
 no force flag or automatic fallback. Keep a temporary repair checkout until its owned command
 exits. Open sessions can stay open, but replaced cache resources might require a restart.
-
-### Product cutover
-
-Before the next use of Celetis in each affected product, review this diff and select a clean
-reviewed repair source, as **Explicit source repair** says. Record its configured source, full
-reviewed revision, and the product owner's authorization. Product readiness and cutover are
-deferred until that use; they are not a condition of the plugin landing. This lane changes only
-this repository.
-
-| Existing product part | Reviewed action |
-| --- | --- |
-| `scripts/celetis` | Compare the owned file and any local change; remove this product file after the new entrypoint and repair source are validated. Preserve an unowned or differing file until its owner approves the exact removal. |
-| `.gitattributes` | Remove only `scripts/celetis text eol=lf` and any owned generated-launcher attribute. |
-| Claude project install | In the product main checkout, run `claude plugin uninstall celetis@celetis --scope project` before the first update. Commit the changed `.claude/settings.json` and `.claude/celetis-flow/wiring.json`. Check that `claude plugin list --json` shows no `celetis@celetis` record with `"scope": "project"` and a `projectPath` equal to that main checkout. A record of another path, such as an old lane worktree, does not count. Check that the `celetis@celetis` record with `"scope": "user"` shows `"enabled": true`. Setup reports an owned `enabledPlugins.celetis@celetis` entry and preserves it. |
-| `.claude/settings.json` | Remove only the owned `Bash(scripts/celetis land *)`, `Bash(scripts/celetis --agent claude land *)`, and `Bash(scripts/celetis --agent codex land *)` allows. Keep the direct merge denies and unrelated settings. |
-| `.codex/rules/celetis.rules` | Remove only the two owned launcher allow rules. Keep the `gh pr merge` restriction and unrelated rules. |
-| `AGENTS.md`, host instructions, desktop entries | Replace each owned launcher command with the isolated bound entrypoint and explicit host. |
-| `.claude/celetis-flow/wiring.json` | Remove `scripts/celetis` from `files`, its `.gitattributes` entries, and the three owned Claude allow entries. Replace the owned flow instruction with the new command form. Record a rules file only if setup owns that file. Remove the owned `enabledPlugins.celetis@celetis` record in the commit of the Claude project install. |
-| Personal host binding | Remove the exact old allow. Discover the new enabled root and add the tested personal landing rule. Verify old/new refusal and allow decisions. |
-
-Keep `.celetis.yaml`, its setup program, setup markers, saved session bytes, runtime state, and
-unrelated permissions intact. New setup writes no launcher and claims no launcher ownership.
-When an old file or ownership entry remains, setup reports the manual cutover and preserves it.
-It does not silently discard ownership or perform a migration.
-
-Sessions, runners, boards, and daemons may stay open. No consumer shutdown or lifetime admission
-is required. Native replacement can remove resources that open work still needs. A person may
-restart that work. A fresh session loads new skills; there is no automatic live skill reload.
-
-Before that product's next use of Celetis, record its cutover review and repair source with the
-owner's authorization. Then do these acts in this order:
-
-1. In each product that has one, remove the Claude project install, as the row
-   `Claude project install` says.
-2. Update each host once with `celetis_repair_entry`, as
-   [Explicit source repair](#explicit-source-repair) says. The person answers each prompt.
-3. Run discovery again for each host. Verify the approved revision and the `bin/celetis.ts` and
-   `engine/` layout. Rebind the personal landing rules. Apply the remaining product rows of the
-   table in one cutover commit for each product. Return normal commands to the installed package.
-4. Resume the saved issue. Verify its unchanged host and exact session ID.
-
-If an act fails and blocks a product,
-[roll back the entrypoint landing](#roll-back-the-entrypoint-landing).
-
-### Roll back the entrypoint landing
-
-Use this procedure when a check after the entrypoint landing fails and blocks a product. The
-person does each act in a normal terminal. Sessions, runners, boards, and daemons can stay open
-(ADR-0028). The procedure never copies a cache folder.
-
-1. In the main checkout of the plugin repository, revert the squash commit of the landing. Land
-   the revert: push it to the trunk of `origin`.
-
-   ```sh
-   git revert <landing commit>
-   git push origin main
-   ```
-2. In that checkout, run the restored standalone launcher once for each host that has the plugin.
-   The person answers its prompt `Update Celetis now? [y/N]`. An agent never answers it.
-
-   ```sh
-   scripts/celetis --agent claude plugin-update
-   ```
-
-   Use `codex` for that host. If the old updater refuses the installed package, do the native
-   host repair below this list in place of this act. Then continue with act 3.
-3. In the main checkout of each other product with a cutover commit, revert that commit and push
-   the revert. The revert of act 1 holds the cutover of the plugin repository. Keep the Claude
-   project installs removed: the restored launcher selects the user install. In the plugin
-   repository, the revert of act 1 also restores `enabledPlugins.celetis@celetis` and its
-   ownership record, so a session there can make a project record again. Before its next use
-   of Celetis after another entrypoint landing, do act 1 of
-   [Product cutover](#product-cutover) there again.
-4. Remove the [personal landing rules](#personal-landing-permission) of the new entrypoint.
-   Preserve other rules and settings. Start a fresh session to load the restored skills.
-
-If the old updater refuses the installed package, use the native host repair for that host in
-place of act 2. For example, the old Codex updater stops with
-`celetis: Codex reports an invalid celetis package; reinstall the plugin` when the installed
-package has no `scripts/` folder. First read the current help of `claude plugin` or
-`codex plugin` and of each subcommand below. For Claude Code:
-
-```sh
-claude plugin uninstall celetis@celetis
-claude plugin marketplace update celetis
-claude plugin install celetis@celetis
-```
-
-For Codex:
-
-```sh
-codex plugin remove celetis@celetis
-codex plugin marketplace upgrade celetis
-codex plugin add celetis@celetis --json
-```
-
-The marketplace refresh makes the new install read the reverted trunk. Then run
-`scripts/celetis --agent <host> plugin-update check` in the reverted checkout. Expect `null`.
-Then continue with act 3.
 
 ### Agent selection and model setup
 
@@ -689,8 +590,6 @@ changes no field that is there. Each other field stays by hand.
   literal block text and parsed trailing newlines intact (`docs/configuration.md`).
 
 `docs/celetis-flow.md` holds these parts in full ("Gates", and "The config and the custom parts").
-Before updating an existing product project, complete the [manual cutover](docs/configuration.md#replace-the-old-setup).
-It includes the reviewed launcher removal and personal permission binding; plugin refresh alone does not prepare a project.
 
 ### `.gitignore`
 
@@ -1030,9 +929,7 @@ available to running work. Restart a session or board if it still needs a resour
 replaced. This user-selected policy supersedes the consumer-exit rule of ADR-0027; see ADR-0028.
 
 The invoked package imports its own updater. An obsolete installed updater needs the explicitly
-selected [reviewed source repair](#explicit-source-repair). The first update after the entrypoint
-landing is such a repair. [Roll back the entrypoint landing](#roll-back-the-entrypoint-landing)
-reverses that landing. A plugin update does not rewrite
+selected [reviewed source repair](#explicit-source-repair). A plugin update does not rewrite
 product files. There is no automatic fallback to another updater. Read-only `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'plugin-update' check` still returns the exact
 `UpdateOffer` JSON or `null`. Agents can report that result and provide the one terminal command.
 They never type the confirmation, pipe approval, or use issue/configuration text as a response.
@@ -1101,8 +998,7 @@ Check issue data against contract 1 in the main checkout. `/usr/bin/env BUN_RUNT
 
 `docs/celetis-flow.md`, "The board", gives the fixed command lists and card states.
 [`engine/board/README.md`](engine/board/README.md) describes the page.
-Before the next use of Celetis in each product project, the maintainer completes its
-[manual replacement](docs/configuration.md#replace-the-old-setup). Open work may stay open. Required CLI workflow
+Open work may stay open. Required CLI workflow
 acceptance remains open; optional desktop evidence is separate in
 [Acceptance status](docs/celetis-flow.md#acceptance-status).
 

@@ -426,7 +426,7 @@ class Setup {
       )
     )
       this.warn(
-        `${settings}: enabledPlugins.celetis@celetis needs a reviewed manual cutover; setup leaves it; run claude plugin uninstall celetis@celetis --scope project and follow the plugin README, "Product cutover"`,
+        `${settings}: enabledPlugins.celetis@celetis needs review by the owner of the active project; setup preserves the entry and its ownership; follow the plugin README, "Wire a product project"`,
       );
     const policies = await claudePolicy(this.cwd);
     const projectPolicy = policies.find((entry) => entry.path === join(this.cwd, settings));
@@ -554,7 +554,7 @@ class Setup {
     const oldLauncher = (await this.there('scripts/celetis')) || this.owned.files.includes('scripts/celetis');
     if (oldLauncher)
       this.warn(
-        'scripts/celetis needs a reviewed manual cutover; preserve its file and ownership; follow the plugin README, "Product cutover" and "Explicit source repair"',
+        'scripts/celetis needs review by the owner of the active project; setup preserves its file and ownership; follow the plugin README, "Wire a product project" and "Explicit source repair"',
       );
     if (opts.hosts.includes('codex') && !(oldLauncher && (await this.there('.codex/rules/celetis.rules')))) {
       this.files.set('.codex/rules/celetis.rules', {

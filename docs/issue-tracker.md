@@ -44,7 +44,7 @@ Exactly one lane label per routed issue. The other labels mark waits and gates.
 - **Plan** — `plan` posts the implementation plan as a comment headed `## Plan`, then adds `ready-for-agent`. Its first section, `### Your steps`, lists the human acts of the lane in two lists: "During the build" (each act that the maintainer does while the build runs, the step that needs it, and its report) and "After the landing" (each check by hand on the built change; nothing in the lane waits for it). `implement` in a fresh context re-fetches the latest `## Plan` comment.
 - **Human steps done** — the maintainer reports the acts of "During the build" in one comment whose first line is `## Human steps done`, after the latest `## Plan` comment. The comment names each act that is done and each value that an act gives. `implement` reads each such comment after the latest `## Plan` comment. A session never writes it.
 - **Root cause** — `/celetis:bug` and `/celetis:hotfix` post the debugging report as a comment headed `## Root cause`.
-- **Prototype** — a look decision (`AGENTS.md` of the project) is recorded as a `## Prototype` section inside the spec (the issue body) or the `## Root cause` report, edited in place when that is already posted. It holds the question, the `prototype/<n>-<slug>` branch with its commit, one line per variant, and the verdict with its reason. The `## Root cause` comment on ddinkov10/fwrh_calculator#251 is the model.
+- **Prototype** — a look decision (`AGENTS.md` of the project) is recorded as a `## Prototype` section inside the spec (the issue body) or the `## Root cause` report, edited in place when that is already posted. It holds the question, the `prototype/<n>-<slug>` branch with its commit, one line per variant, and the verdict with its reason.
 - **Built** — a `## Plan` comment with no `ready-for-agent` label: `plan` sets the label, and `implement` clears it when the change is built.
 - **Before landing** — a comment headed `## Before landing` names a human precondition that the plan did not name, an act of "During the build" with no report (its report form, and the scenarios that wait for it), or a Verify scenario that a step session could not run; the issue carries `ready-for-human` until the maintainer did the act.
 - **Landing refused** — a comment headed `## Landing refused` holds the output of `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` at a stop; a step session then adds `ready-for-human`. The refusal is current while this comment is the last comment of the issue that starts with `## ` ("Resolving an issue's state").
@@ -56,9 +56,7 @@ Local `docs/superpowers/` files are scratch; a fresh session re-fetches from the
 
 ## Branches, PRs, merge
 
-The main checkout's `.celetis.yaml` owns repository setup (ADR-0015). Its manual replacement
-and reviewed launcher removal are a human precondition for the config cutover, as
-[`docs/configuration.md`](configuration.md#replace-the-old-setup) specifies.
+The main checkout's `.celetis.yaml` owns repository setup (ADR-0015).
 
 Trunk-based. Every issue is its own work item: one lane branch off the trunk, landed by `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` with the `landing` field of the main checkout's `.celetis.yaml`: `pr` is one PR back to the trunk; `merge` is one squash commit on the trunk, with no PR. The trunk is the default branch of the repository on GitHub.
 

@@ -430,8 +430,7 @@ the project default changes. Each item is one argument. The board quotes the ite
 The board starts the data script on each read and the action script on each press. A plugin
 update does not stop the board. Reload or restart it if native cache replacement removes an asset
 it still needs. A fresh board or session resolves the enabled installation again. Follow
-[Updates](../README.md#updates) for manual updates and the
-[manual cutover](configuration.md#replace-the-old-setup) when product wiring changes.
+[Updates](../README.md#updates) for manual updates.
 Real Run/Resume acceptance remains a separate live gate.
 
 **The data.** `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow --board` prints contract 1 ("Start the script"). Each read
