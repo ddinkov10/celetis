@@ -164,9 +164,10 @@ or `0b101`, is an error too. Quote such a value to keep it as a string.
 ### Operation values and freshness
 
 The entrypoint imports its own engine and replaces its process with the named command before
-configuration reads. The command consumes the forwarded `--agent`, validates its arguments,
-and creates its operation. `land.ts` and `celetis-flow.ts` retain their process identities for
-lock-owner checks.
+configuration reads. On Windows, it spawns the command with the same stdio and environment,
+waits, and exits with its status. The command consumes the forwarded `--agent`, validates its
+arguments, and creates its operation. `land.ts` and `celetis-flow.ts` retain their process
+identities for lock-owner checks.
 
 `locateCheckouts(cwd)` in `engine/lib/operation.ts` resolves canonical active, main, and common
 Git paths. A subfolder has its checkout's identity. When the Git directory equals the common
@@ -252,8 +253,9 @@ To install one version, give its tag to the installer:
 curl -fsSL https://bun.com/install | bash -s "bun-v1.4.2"
 ```
 
-The official Windows installer runs in PowerShell. Native host paths replace the former
-Git Bash translation; native Windows runner acceptance is still open.
+The official Windows installer runs in PowerShell. From Git Bash, the documented Celetis command
+form then loads the launcher. [Acceptance status](celetis-flow.md#acceptance-status) gives the
+Windows checks and the open ones.
 
 ```powershell
 powershell -c "irm bun.sh/install.ps1|iex"

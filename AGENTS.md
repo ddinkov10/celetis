@@ -43,14 +43,14 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
   bun --no-env-file --no-install --config=/dev/null --no-macros scripts/install-tools.ts /absolute/private-tools --claude
   ```
 
-  `scripts/install-tools.ts` owns the pins. The installer checks the official native actionlint hash.
+  `scripts/install-tools.ts` owns the pins. On Windows, omit `--claude`: the installer refuses it. The installer checks the official native actionlint hash.
   The gate resolves package and type paths from executable filesystem metadata. Checks install nothing.
 - The gate reads `git ls-files -z`. Stage a new file before the gate. Give each new file type
   a check or an explicit role in `scripts/verify.ts`.
 - Author each first-party program in TypeScript. Bun 1.4.2 or later runs commands.
   `scripts/build.ts` uses exactly Bun 1.4.2 to generate browser assets
-  and native hook modules. `--check` compares bytes and modes without writes. The vendor parser
-  stays unchanged; update it only as `engine/lib/vendor/README.md` says.
+  and native hook modules. `--check` compares bytes, and modes on macOS and Linux, without
+  writes. The vendor parser stays unchanged; update it only as `engine/lib/vendor/README.md` says.
 - Strict types have three environments: runtime commands and server modules;
   browser DOM modules; and the native hook API and its actual globals.
 
@@ -116,10 +116,11 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
   Record checks of the checkout and checks of the installed package separately.
 - **A script file keeps its name.** `engine/<name>.ts` keeps the same sub-command basename.
   Skills, product instructions, board commands, and personal landing rules refer to that command.
-  Two basenames also identify lock owners. `engine/next-step.ts` accepts a live landing only
-  when its process command line contains `land.ts`; `engine/celetis-flow.ts` accepts a runner
-  only when it contains `celetis-flow.ts`. A rename makes a live owner look stale. The runner
-  can then end a session during landing, or two runners can take one issue.
+  On macOS and Linux, two basenames also identify lock owners. `engine/next-step.ts` accepts a
+  live landing only when its process command line contains `land.ts`; `engine/celetis-flow.ts`
+  accepts a runner only when it contains `celetis-flow.ts`. A rename makes a live owner look
+  stale. The runner can then end a session during landing, or two runners can take one issue.
+  On Windows, owners match by PID and creation time instead (ADR-0034).
 - **The act of a skill that moves the line of the issue is its last act.** In a herdr pane, the
   runner types `/exit` when the agent is idle and the resolver prints a new line for the issue
   (`endWhenDone` in `engine/celetis-flow.ts`). A label, a comment with a heading that the

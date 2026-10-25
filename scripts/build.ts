@@ -81,7 +81,11 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
     if (check) {
       const actual = await readFile(output).catch(() => null);
       const mode = await stat(output).catch(() => null);
-      if (!actual?.equals(bytes) || !mode?.isFile() || (mode.mode & 0o777) !== target.mode) {
+      if (
+        !actual?.equals(bytes) ||
+        !mode?.isFile() ||
+        (process.platform !== 'win32' && (mode.mode & 0o777) !== target.mode)
+      ) {
         console.error(`build: stale or missing ${target.output} (bytes or executable mode)`);
         code = 1;
       }

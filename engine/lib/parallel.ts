@@ -42,10 +42,12 @@ export async function runJobs(
     const child = spawn(job.file, job.args, {
       cwd: job.cwd,
       env: childEnv(job.env),
-      detached: true,
+      detached: process.platform !== 'win32',
+      windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     const killGroup = (signal: NodeJS.Signals) => {
+      if (process.platform === 'win32') return child.kill(signal);
       if (child.pid) {
         try {
           return process.kill(-child.pid, signal);

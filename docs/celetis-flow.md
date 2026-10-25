@@ -37,7 +37,9 @@ apart from a path that starts with `~/` or `/`.
 
 ## Requirements
 
-- macOS or Linux, with Bun 1.4.2 or later. There is no native Windows runner.
+- macOS or Linux, with Bun 1.4.2 or later. Native Windows is partly checked: the documented
+  command form loads the launcher from Git Bash, and a numbered runner start, the board data,
+  and the update lock passed their checks. Other parts are open ("Acceptance status").
 - The selected host CLI (`claude` 2.1.299 or later, or `codex` 0.162.1 or later; the README gives
   the reason for each), `gh` (logged in), Bun 1.4.2 or later,
   and `git` 2.31 or later on `PATH`. See `docs/configuration.md` for the install of
@@ -351,7 +353,7 @@ of setup, `.claude/celetis-flow/wiring.json`, is no config: only `BUN_RUNTIME_TR
 
 A missing or invalid required config stops before branch or worktree changes, locks, runtime
 state, host sessions, or landing pushes. A public command creates an immutable operation after
-its initial process replacement. Internal calls receive its values instead of reading again.
+the entrypoint starts it. Internal calls receive its values instead of reading again.
 The runner creates a fresh main operation before each new step. Its resolution, gate decision,
 and session start use that operation. It retains the original host-selection inputs, so a changed
 YAML default can select the next new session. A running session keeps its captured host and exact
@@ -447,8 +449,9 @@ producer must be a relative executable regular file inside the main checkout, ou
 The known isolated Bun shebang binds a validated Bun producer to `process.execPath`; an absolute
 interpreter in JSON cannot bypass this rule. HTTP accepts only an issue and supported host.
 
-Let `P` be `[process.execPath, "--no-env-file", "--no-install", "--config=/dev/null", "--no-macros",
-"<absolute-package>/bin/celetis.ts"]`. Each list element below is one argument.
+Let `P` be `[process.execPath, "--no-env-file", "--no-install", "--config=<null device>", "--no-macros",
+"<absolute-package>/bin/celetis.ts"]`. The null device is `os.devNull`: `/dev/null`, or `\\.\nul`
+on Windows. Each list element below is one argument.
 
 | Key | Value | Use |
 | --- | --- | --- |
@@ -473,7 +476,9 @@ It changes no YAML or Git setting. Change `host` in the main YAML to set the pro
 
 Resume has no fixed agent prefix. It uses the host and exact ID in the saved record, even after
 the project default changes. Each item is one argument. The board quotes the items and adds
-`&& exit`: success closes the tab; a failed script leaves its message there. With the default
+`&& exit`: success closes the tab; a failed script leaves its message there. On Windows, the
+default pane shell of herdr is Windows PowerShell 5.1: the line sets the isolation variables with `$env:`, calls
+the items with `&`, and ends with `; if ($?) { exit }`, with the same result. With the default
 `me` gates, a Run starts one step and ends when its session ends.
 
 The board starts the data script on each read and the action script on each press. A plugin
@@ -686,6 +691,29 @@ Celetis makes no immutable-resource promise for running sessions. Newly installe
 and tools load in a new session. Historical ADR-0014 and ADR-0027 evidence remains. Real native
 installation and terminal-approval acceptance must be recorded separately from fixture results.
 
+**Native Windows.** [Issue #125](https://github.com/ddinkov10/celetis/issues/125) checked the
+lane checkout of its fix on Windows 11 Pro 10.0.26200 with the existing installations. These are
+observed versions and results as of 2026-10-26. The board refuses a package entrypoint inside
+the main checkout, so the board check ran from an export of the lane:
+
+| Component | Evidence and limit |
+|---|---|
+| Bun 1.4.2 and the pinned tools | The verify gate passed on native Windows at each task head |
+| Bun 1.4.4, Git Bash and Windows PowerShell 5.1 | The launcher loaded in the documented form from Git Bash, and from PowerShell with `--config=NUL`. With no arguments it exited 2 with `usage:`; `plugin-update check` exited 0 with an offer; `next-step 125` exited 0 |
+| Bun 1.4.4 and 1.4.2, the update lock | The updater refused as busy while a reader held the lock, and took the lock after the reader ended. A forced kill of the updater ended its child and a `.cmd`-shim grandchild within 2 seconds |
+| Bun 1.4.4, the board | The board started, and `/api/board` gave `source.error: null` and a card for #125 |
+| Claude Code 2.1.310, herdr 0.9.2-preview | Board Run on disposable #129 created a herdr tab with live runner and session PIDs and foreground `claude.exe`. The board card showed its Claude session. One Ctrl+C left the same Claude PID and both parent PIDs alive |
+
+Open on Windows: Codex (not installed), PowerShell 7, Resume, the step end, a real `land` run and its
+live land-lock check, and a confirmed `plugin-update` apply (only the lock probes and
+`plugin-update check` ran). The personal landing rule is also open on Windows: its generator in
+the README needs an entrypoint that starts with `/`, and Bun gives `C:\…`.
+
+The moved POSIX process-identity path has no runtime check on macOS. On Linux, one probe in WSL
+Ubuntu 24.04 with a private Linux Bun 1.4.2 passed its four cases once. CI runs only the static
+verify gate (ADR-0029).
+ADR-0034 records the Windows decisions and their limits.
+
 ### Optional Codex desktop evidence
 
 Desktop probes have their own PASS, FAIL, BLOCKED, or UNRUN records. BLOCKED and UNRUN remain
@@ -734,8 +762,8 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` can read `pass` and ask for the merge. GitHub then refuses the merge, and
   the build step stops with `## Landing refused`. Until then, the board also shows `pass` for the PR.
 - The script exits 0 at each `stop` line, at a `me` gate, at "no progress", and at a refused
-  skip, so `&& exit` closes the tab with the message of the script. A Run press whose session ends at once thus leaves no
-  message: start `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow <n>` in a terminal to see it.
+  skip, so the exit that the board adds closes the tab with the message of the script. A Run press
+  whose session ends at once thus leaves no message: start `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow <n>` in a terminal to see it.
 - A start of the board from the entry `board` of `.claude/launch.json`, in a project that has such
   an entry, needs `bun`, `herdr`, and the tools of the command on the `PATH` of the desktop app,
   and no git credentials. This is not checked: the desktop app reads
@@ -758,9 +786,9 @@ model profiles, and permissions; a missing tool or denied read stops that operat
 
 Run repository checks in a checkout of `ddinkov10/celetis`. The verify gate is `scripts/verify.ts`.
 It classifies every tracked path, runs Biome and three strict type environments, native
-actionlint, YAML and plugin validation, and generated byte/mode comparison. It installs nothing
-and refuses a tracked test file. Exact file roles distinguish generated delivery, unchanged
-vendor code and file exemptions.
+actionlint, YAML and plugin validation, and generated byte comparison, with modes on macOS and
+Linux. It installs nothing and refuses a tracked test file. Exact file roles distinguish
+generated delivery, unchanged vendor code and file exemptions.
 
 The workflow has one job, `test`, on Linux with Bun 1.4.2. It installs the pinned tools, then runs
 the verify gate. The private TypeScript installer checks the official actionlint hash

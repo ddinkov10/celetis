@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { type Host, HostError } from './host.ts';
 import { codexHome, configHome } from './plugin-metadata.ts';
 import { childEnv } from './process.ts';
+import { containProcess, type Job, lockFile } from './windows.ts';
 
 const errnoName = process.platform === 'darwin' ? '__error' : '__errno_location';
 const architecture = process.arch === 'arm64' ? 'aarch64' : process.arch === 'x64' ? 'x86_64' : process.arch;
@@ -28,9 +29,25 @@ function binding() {
   throw new HostError('plugin-update: cannot load the system flock library');
 }
 
-const native = binding();
+let native: ReturnType<typeof binding> | undefined;
 
-export function execConsumer(file: string, argv: string[], env: NodeJS.ProcessEnv): never {
+function spawnConsumer(file: string, argv: string[], env: NodeJS.ProcessEnv): Promise<number> {
+  const signals = ['SIGINT', 'SIGBREAK'] as const;
+  const hold = () => {};
+  for (const signal of signals) process.on(signal, hold);
+  return new Promise<number>((resolve, reject) => {
+    const child = spawn(file, argv.slice(1), { stdio: 'inherit', env });
+    child.once('error', (error) => reject(new HostError(`celetis: cannot start ${file}: ${error.message}`)));
+    child.once('exit', (code, signal) => resolve(code ?? (signal ? 128 + constants.signals[signal] : 1)));
+  }).finally(() => {
+    for (const signal of signals) process.off(signal, hold);
+  });
+}
+
+export async function execConsumer(file: string, argv: string[], env: NodeJS.ProcessEnv): Promise<number> {
+  if (process.platform === 'win32') return spawnConsumer(file, argv, env);
+  native ??= binding();
+  const api = native;
   const entries = Object.entries(env)
     .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
     .map(([key, value]) => `${key}=${value}`);
@@ -42,16 +59,19 @@ export function execConsumer(file: string, argv: string[], env: NodeJS.ProcessEn
   const variables = new BigUint64Array(entries.length + 1);
   for (let at = 0; at < argv.length; at++) args[at] = BigInt(ptr(buffers[at + 1] as Buffer));
   for (let at = 0; at < entries.length; at++) variables[at] = BigInt(ptr(buffers[at + 1 + argv.length] as Buffer));
-  native.symbols.execve(ptr(buffers[0] as Buffer), ptr(args), ptr(variables));
-  const pointer = native.symbols[errnoName]?.();
+  api.symbols.execve(ptr(buffers[0] as Buffer), ptr(args), ptr(variables));
+  const pointer = api.symbols[errnoName]?.();
   throw new HostError(
     `celetis: process replacement failed for ${file} (errno ${pointer ? read.i32(pointer) : 'unknown'})`,
   );
 }
 
 export function tryFlock(fd: number, shared = false): boolean {
-  if (native.symbols.flock(fd, (shared ? 1 : 2) | 4) === 0) return true;
-  const errorPointer = native.symbols[errnoName]?.();
+  if (process.platform === 'win32') return lockFile(fd, shared);
+  native ??= binding();
+  const api = native;
+  if (api.symbols.flock(fd, (shared ? 1 : 2) | 4) === 0) return true;
+  const errorPointer = api.symbols[errnoName]?.();
   if (!errorPointer) throw new HostError('plugin-update: cannot read flock errno');
   const errno = read.i32(errorPointer);
   if ([constants.errno.EWOULDBLOCK, constants.errno.EAGAIN, constants.errno.EINTR].includes(errno)) return false;
@@ -61,7 +81,7 @@ export function tryFlock(fd: number, shared = false): boolean {
 export async function withPluginRead<T>(host: Host, inspect: () => Promise<T>): Promise<T> {
   const home = host === 'codex' ? await codexHome() : configHome(host);
   await mkdir(home, { recursive: true });
-  const fd = openSync(join(home, 'celetis-update.lock'), 'a', 0o600);
+  const fd = openSync(join(home, 'celetis-update.lock'), 'a+', 0o600);
   const deadline = performance.now() + 120_000;
   try {
     while (!tryFlock(fd, true)) {
@@ -82,6 +102,7 @@ interface Clock {
 
 export class UpdateLock {
   private child?: ChildProcess;
+  private job?: Job | null;
   private interrupted?: string;
   private phase = 'wait for the plugin update lock';
   private readonly handlers = new Map<NodeJS.Signals, () => void>();
@@ -109,7 +130,7 @@ export class UpdateLock {
     options: { timeoutMs?: number; clock?: Clock; refuseBusy?: boolean } = {},
   ): Promise<UpdateLock> {
     const lock = new UpdateLock(
-      openSync(path, 'a', 0o600),
+      openSync(path, 'a+', 0o600),
       runnerPid,
       options.timeoutMs ?? 120_000,
       options.clock ?? { now: () => performance.now(), sleep: (ms) => Bun.sleep(ms) },
@@ -150,7 +171,11 @@ export class UpdateLock {
       this.child = undefined;
       return;
     }
-    if (child.pid) {
+    if (process.platform === 'win32') {
+      this.job?.terminate();
+      this.job?.close();
+      this.job = undefined;
+    } else {
       try {
         process.kill(-child.pid, 'SIGTERM');
         await Bun.sleep(1000);
@@ -178,12 +203,22 @@ export class UpdateLock {
     const stderr = openSync(stderrPath, 'w+', 0o600);
     let failure: unknown;
     try {
-      const child = spawn(file, args, {
-        ...options,
-        env: childEnv({ ...(options.env ?? process.env), CELETIS_UPDATE_FD: '3' }),
-        detached: true,
-        stdio: ['ignore', stdout, stderr, this.fd],
-      });
+      const source = options.env ?? process.env;
+      const child =
+        process.platform === 'win32'
+          ? spawn(file, args, {
+              ...options,
+              env: childEnv(source),
+              detached: false,
+              windowsHide: true,
+              stdio: ['ignore', stdout, stderr],
+            })
+          : spawn(file, args, {
+              ...options,
+              env: childEnv({ ...source, CELETIS_UPDATE_FD: '3' }),
+              detached: true,
+              stdio: ['ignore', stdout, stderr, this.fd],
+            });
       this.child = child;
       let status: number | undefined;
       child.once('error', (error) => {
@@ -193,6 +228,16 @@ export class UpdateLock {
       child.once('exit', (code, signal) => {
         status = code ?? (signal ? 128 + constants.signals[signal] : 1);
       });
+      if (process.platform === 'win32' && child.pid) {
+        try {
+          this.job = containProcess(child.pid);
+        } catch (error) {
+          child.kill();
+          throw new HostError(
+            `plugin-update: ${this.phase} failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
       while (status === undefined) {
         this.check();
         await this.clock.sleep(50);

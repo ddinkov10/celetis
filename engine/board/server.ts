@@ -63,13 +63,18 @@ const cleanCause = (cause: unknown) =>
   firstLine(String(cause ?? ''))
     .replace(/[\u0000-\u001f\u007f]/g, '')
     .slice(0, 200);
-const quote = (text: string) => `'${text.replaceAll("'", "'\\''")}'`;
+// PowerShell also reads U+2018 to U+201B as single quotes.
+const quote = (text: string) =>
+  process.platform === 'win32'
+    ? `'${text.replace(/['\u2018-\u201b]/g, (mark) => mark + mark)}'`
+    : `'${text.replaceAll("'", "'\\''")}'`;
 const lineOf = (items: Command, number: number, agent: string | null = null) => {
-  const command =
-    items[0] === process.execPath
-      ? ['/usr/bin/env', ...Object.entries(childEnv({})).map(([name, value]) => `${name}=${value}`), ...items]
-      : items;
-  return `${command.map((item) => (item === NUMBER ? number : item === AGENT ? quote(agent as string) : quote(item))).join(' ')} && exit`;
+  const env = items[0] === process.execPath ? Object.entries(childEnv({})) : null;
+  const words = (command: string[]) =>
+    command.map((item) => (item === NUMBER ? number : item === AGENT ? quote(agent as string) : quote(item))).join(' ');
+  if (process.platform === 'win32')
+    return `${(env ?? []).map(([name, value]) => `$env:${name}=${quote(value as string)}; `).join('')}& ${words(items)}; if ($?) { exit }`;
+  return `${words(env ? ['/usr/bin/env', ...env.map(([name, value]) => `${name}=${value}`), ...items] : items)} && exit`;
 };
 const count = (text: string, word: string) => Number(new RegExp(`(\\d+) ${word}`).exec(text)?.[1] ?? 0);
 const screenOf = (text: string) =>

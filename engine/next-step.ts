@@ -4,6 +4,7 @@ import { HostError } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
 import { run as runProcess } from './lib/process.ts';
+import { processRunsScript } from './lib/process-identity.ts';
 import { command, type Decision, decide, type IssueData, type Lane, laneOf, type Stop } from './lib/workflow.ts';
 
 type Issue = Readonly<{
@@ -334,10 +335,12 @@ function reader(operation: Operation, signal?: AbortSignal) {
   }
 
   async function landing(n: string): Promise<boolean> {
-    const pid = (await readFile(join(common, 'celetis-flow', `land-${n}.lock`), 'utf8').catch(() => '')).trimEnd();
+    const lockPath = join(common, 'celetis-flow', `land-${n}.lock`);
+    const pid = (await readFile(lockPath, 'utf8').catch(() => '')).trimEnd();
     if (!/^\d+$/.test(pid)) return false;
-    const result = await run('ps', ['-p', pid, '-o', 'command=']).catch(() => null);
-    return result?.code === 0 && result.stdout.includes('land.ts');
+    const written = await stat(lockPath).catch(() => null);
+    if (!written) return false;
+    return processRunsScript(Number(pid), 'land.ts', written.mtimeMs);
   }
 
   async function lanes(n?: string): Promise<string[]> {

@@ -23,6 +23,8 @@ const required = [
   'lib/plugin-metadata.ts',
   'lib/plugin-policy.ts',
   'lib/update-lock.ts',
+  'lib/windows.ts',
+  'lib/process-identity.ts',
   'lib/session.ts',
   'lib/workflow.ts',
   'lib/process.ts',
@@ -51,6 +53,8 @@ export async function main(argv: string[]): Promise<number> {
     'lib/plugin-metadata.ts',
     'lib/plugin-policy.ts',
     'lib/update-lock.ts',
+    'lib/windows.ts',
+    'lib/process-identity.ts',
     'lib/process.ts',
     'lib/session.ts',
     'lib/workflow.ts',
@@ -98,6 +102,7 @@ export async function main(argv: string[]): Promise<number> {
   const { HostError, requireBun } = await import('./lib/host.ts');
   const { createOperation, locateCheckouts } = await import('./lib/operation.ts');
   const { bunArgs, childEnv, run } = await import('./lib/process.ts');
+  const { processRuns, processRunsScript, processStart } = await import('./lib/process-identity.ts');
   const {
     hostArguments,
     manualRecovery,
@@ -149,14 +154,6 @@ export async function main(argv: string[]): Promise<number> {
   const git = async (args: string[], input?: string) => run('git', args, { cwd: main, env: childEnv(), input });
   const ref = (name: string) => `refs/celetis-flow/locks/${name}`;
   const refValue = async (name: string) => (await git(['rev-parse', '--verify', ref(name)])).stdout.trimEnd();
-  const processField = async (pid: number, field: string) => {
-    const r = await run('ps', ['-p', String(pid), '-o', field], {
-      cwd: main,
-      env: childEnv({ ...process.env, LC_ALL: 'C' }),
-    });
-    return r.code === 0 ? r.stdout.trimEnd() : '';
-  };
-  const identity = async (pid: number) => processField(pid, 'lstart=');
   const holderFrom = async (owner: string) => {
     const data = parsed((await git(['cat-file', 'blob', owner])).stdout);
     if (!object(data)) return '';
@@ -171,10 +168,9 @@ export async function main(argv: string[]): Promise<number> {
       )
         continue;
       const pid = Number(row.pid);
-      if (kind === 'runner' && !(await processField(pid, 'command=')).includes('celetis-flow.ts')) continue;
-      const status = await processField(pid, 'stat=');
-      if (!status || /[ZX]/.test(status)) continue;
-      if ((await identity(pid)) !== row.start) continue;
+      if (kind === 'runner' && !(await processRunsScript(pid, 'celetis-flow.ts'))) continue;
+      if (!(await processRuns(pid))) continue;
+      if ((await processStart(pid)) !== row.start) continue;
       return String(pid);
     }
     return '';
@@ -190,7 +186,7 @@ export async function main(argv: string[]): Promise<number> {
   };
   const take = async (name: string) => {
     if (!lockOwner) {
-      const start = await identity(process.pid);
+      const start = await processStart(process.pid);
       if (!start) die('cannot read process identity; allow process access and start the runner again');
       lockOwner = await blob({ runner: { pid: process.pid, start }, session: null });
     }
@@ -214,7 +210,7 @@ export async function main(argv: string[]): Promise<number> {
   const registerSession = async () => {
     const pid = session?.pid;
     if (!pid) throw new HostError('celetis-flow: cannot read session process identity; start the runner again');
-    const start = await identity(pid);
+    const start = await processStart(pid);
     if (!start) die('cannot read session process identity; start the runner again');
     const current = parsed((await git(['cat-file', 'blob', lockOwner])).stdout);
     const owner = await blob({ ...(current as Record<string, unknown>), session: { pid, start } });
@@ -602,14 +598,14 @@ export async function main(argv: string[]): Promise<number> {
 async function waitingSession(args: string[]): Promise<number> {
   const [dir, runner, host, ...hostArgs] = args;
   if (!dir || !runner || (host !== 'claude' && host !== 'codex')) return 2;
-  const { childEnv, run } = await import('./lib/process.ts');
+  const { childEnv } = await import('./lib/process.ts');
+  const { processRuns } = await import('./lib/process-identity.ts');
   while (!(await stat(join(dir, 'go')).catch(() => null))?.isFile()) {
-    const status = await run('ps', ['-p', runner, '-o', 'stat=']);
-    if (status.code !== 0 || !status.stdout.trim() || /[ZX]/.test(status.stdout)) return 1;
+    if (!(await processRuns(Number(runner)))) return 1;
     await Bun.sleep(50);
   }
   const executable = Bun.which(host, { PATH: childEnv().PATH });
-  if (!executable || !process.execve) return 1;
+  if (!executable) return 1;
   return (await import('./lib/update-lock.ts')).execConsumer(executable, [executable, ...hostArgs], childEnv());
 }
 

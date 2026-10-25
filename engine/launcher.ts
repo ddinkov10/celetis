@@ -21,8 +21,7 @@ export async function main(argv: string[]): Promise<number> {
     if (!(await stat(entry).catch(() => null))?.isFile())
       throw new HostError(`celetis: the plugin has no script ${name}`, 2);
     const forwarded = explicit === undefined ? args : ['--agent', explicit, ...args];
-    if (!process.execve) throw new HostError('celetis: process replacement needs macOS or Linux');
-    return execConsumer(process.execPath, [process.execPath, ...bunArgs(entry, forwarded)], childEnv());
+    return await execConsumer(process.execPath, [process.execPath, ...bunArgs(entry, forwarded)], childEnv());
   } catch (error) {
     if (!(error instanceof HostError)) throw error;
     if (error.message) console.error(error.message);

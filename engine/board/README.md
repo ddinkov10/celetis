@@ -49,7 +49,8 @@ The board came from commit `95144d3` of its old repository
 
 **Requirements.**
 
-- macOS or Linux.
+- macOS or Linux. On native Windows, the board start and its data are checked; Run and Resume
+  in a herdr tab are not.
 - Bun 1.4.2 or later. The entry prints `agent-board: Bun 1.4.2 or later is necessary` and exits 1
   on an older Bun.
 - git 2.31 or later.
@@ -201,10 +202,11 @@ producer execution, or server startup begins.
 the selected agent in each exact `{agent}` item when the config has one. Neither command gets
 a step, so it finds the step of that issue itself. The board types the command into the first pane
 of a new herdr tab, whose folder is the main checkout and whose label is `#<n> <step>`. ` && exit`
-follows the command, so the tab closes when the command exits 0. A `run` command must start the
-session of the step of that issue in that pane, and a `resume` command must open that session again
-there: the label of the tab links the session to the issue. Without `{agent}`, the `run` command
-names the agent itself. Resume has no `{agent}` substitution and no added host prefix.
+(on Windows, `; if ($?) { exit }`) follows the command, so the tab closes when the command
+exits 0. A `run` command must start the session of the step of that issue in that pane, and a
+`resume` command must open that session again there: the label of the tab links the session to
+the issue. Without `{agent}`, the `run` command names the agent itself. Resume has no `{agent}`
+substitution and no added host prefix.
 
 **The default agent belongs to the producer.** The footer shows the producer's `defaultAgent`,
 or `No default agent` when it supplies none. Its menu and the command palette show one unavailable
@@ -525,6 +527,11 @@ For the config of "The config" and the issue 12:
 `&& exit` closes the tab when the command ends with no error. A command that fails leaves the tab
 open with its message.
 
+On Windows, the default pane shell of herdr is Windows PowerShell 5.1. There the command starts with `&`,
+doubles `'` and each of U+2018 to U+201B in a quoted item, and ends with `; if ($?) { exit }` in
+place of ` && exit`, with the same result. A line that starts the selected Bun first sets the
+isolation variables with `$env:`.
+
 **The herdr calls** of Run, when a workspace has the label of the repository:
 
 ```text
@@ -754,7 +761,6 @@ Of the distribution:
 - A start from a program with no terminal, for example a launch entry of a desktop app, needs
   `bun` and `herdr` on the `PATH` of that program. This is not checked. When such a start fails,
   start the board in a terminal.
-- A Windows host has no support.
 
 Of the sessions and herdr:
 
@@ -775,8 +781,11 @@ Of the sessions and herdr:
 - herdr states no compatibility policy for its CLI, and minor releases had breaking changes. The
   board was checked against herdr 0.9.3 (protocol 22).
 - Two repositories whose main checkout has the same folder name share one herdr workspace label.
-- The shell of a herdr pane is sh, bash, or zsh: the board quotes each item of a pane line for those
-  shells. In a fish pane, an item that ends in `\` does not close its quote.
+- The shell of a herdr pane is sh, bash, or zsh, or Windows PowerShell on Windows: the board quotes
+  each item of a pane line for those shells. In a fish pane, an item that ends in `\` does not
+  close its quote. Windows PowerShell 5.1 drops an empty item, and it passes an item with `"`, or
+  with a space and a trailing `\`, wrongly. A `.cmd` or `.bat` first item parses `&`, `^`, and `%`
+  again.
 - `&& exit` closes the tab of a command that exits 0. A `run` command that prints a message and
   exits 0 thus leaves no message: start that command in a terminal to see it.
 

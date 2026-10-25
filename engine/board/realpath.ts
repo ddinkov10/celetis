@@ -1,4 +1,5 @@
 import { CString, dlopen, FFIType, read } from 'bun:ffi';
+import { realpath as resolvePath } from 'node:fs/promises';
 import { getSystemErrorName } from 'node:util';
 
 const errnoName = process.platform === 'darwin' ? '__error' : '__errno_location';
@@ -25,6 +26,7 @@ let native: ReturnType<typeof binding> | undefined;
 
 export async function realpath(path: string): Promise<string> {
   if (path.includes('\0')) throw new TypeError('realpath: path contains NUL');
+  if (process.platform === 'win32') return resolvePath(path);
   native ??= binding();
   const api = native;
   const pointer = api.symbols.realpath(Buffer.from(`${path}\0`), null);

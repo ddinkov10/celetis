@@ -24,6 +24,7 @@ const hashes: Record<string, string> = {
   darwin_arm64: 'aba9ced2dee8d27fecca3dc7feb1a7f9a52caefa1eb46f3271ea66b6e0e6953f',
   linux_amd64: '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8',
   linux_arm64: '325e971b6ba9bfa504672e29be93c24981eeb1c07576d730e9f7c8805afff0c6',
+  windows_amd64: '6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f6e9',
 };
 
 export interface ToolPin {
@@ -62,17 +63,18 @@ async function packageOf(file: string, name: string): Promise<{ path: string; ve
 }
 
 export async function findTools(path = process.env.PATH) {
-  const find = (name: string) => {
-    const file = Bun.which(name, { PATH: path });
-    if (!file)
-      throw new Error(
-        `verify: ${name} is missing: install the pinned tools with scripts/install-tools.ts (AGENTS.md, "Verify gate")`,
-      );
-    return file;
-  };
-  const actionlint = find('actionlint');
-  const tsc = await realpath(find('tsc'));
-  const biome = await realpath(find('biome'));
+  const missing = (name: string) =>
+    new Error(
+      `verify: ${name} is missing: install the pinned tools with scripts/install-tools.ts (AGENTS.md, "Verify gate")`,
+    );
+  const actionlint = Bun.which('actionlint', { PATH: path });
+  if (!actionlint) throw missing('actionlint');
+  const packageEntry = (name: string, entry: string) =>
+    realpath(join(dirname(actionlint), '..', 'node_modules', entry)).catch(() => {
+      throw missing(name);
+    });
+  const tsc = await packageEntry('tsc', 'typescript/bin/tsc');
+  const biome = await packageEntry('biome', '@biomejs/biome/bin/biome');
   const typescript = await packageOf(tsc, 'typescript');
   const biomePackage = await packageOf(biome, '@biomejs/biome');
   const packages = dirname(typescript.path);
@@ -103,10 +105,13 @@ interface InstallOptions {
 export async function installTools(destination: string, options: InstallOptions = {}): Promise<void> {
   const platform = options.platform ?? process.platform;
   const arch = options.arch ?? process.arch;
-  const target = `${platform}_${arch === 'x64' ? 'amd64' : arch}`;
+  const windows = platform === 'win32';
+  const target = `${windows ? 'windows' : platform}_${arch === 'x64' ? 'amd64' : arch}`;
   const hash = (options.hashes ?? hashes)[target];
   if (!hash) throw new Error(`install-tools: unsupported platform ${platform}/${arch}`);
-  const url = `https://github.com/rhysd/actionlint/releases/download/v${actionlintVersion}/actionlint_${actionlintVersion}_${target}.tar.gz`;
+  const extension = windows ? 'zip' : 'tar.gz';
+  const binary = windows ? 'actionlint.exe' : 'actionlint';
+  const url = `https://github.com/rhysd/actionlint/releases/download/v${actionlintVersion}/actionlint_${actionlintVersion}_${target}.${extension}`;
   const download =
     options.download ??
     (async (url: string) => {
@@ -134,20 +139,21 @@ export async function installTools(destination: string, options: InstallOptions 
     );
     if (installed.code)
       throw new Error(`install-tools: package installation failed (exit ${installed.code})\n${installed.stderr}`);
-    const archivePath = join(stage, 'actionlint.tar.gz');
+    const archivePath = join(stage, `actionlint.${extension}`);
     await writeFile(archivePath, archive);
-    const extracted = await execute('tar', ['-xzf', archivePath, '-C', stage, 'actionlint'], { timeout: 30_000 });
+    const systemRoot = process.env.SystemRoot;
+    if (windows && !systemRoot) throw new Error('install-tools: SystemRoot is not set');
+    const extracted = windows
+      ? await execute(join(systemRoot as string, 'System32', 'tar.exe'), ['-xf', archivePath, '-C', stage, binary], {
+          timeout: 30_000,
+        })
+      : await execute('tar', ['-xzf', archivePath, '-C', stage, binary], { timeout: 30_000 });
     if (extracted.code)
       throw new Error(`install-tools: extraction failed (exit ${extracted.code})\n${extracted.stderr}`);
     await mkdir(join(stage, 'bin'));
-    await rename(join(stage, 'actionlint'), join(stage, 'bin/actionlint'));
-    await chmod(join(stage, 'bin/actionlint'), 0o755);
-    for (const [name, entry] of [
-      ['biome', '@biomejs/biome/bin/biome'],
-      ['tsc', 'typescript/bin/tsc'],
-      ...(options.claude ? [['claude', '.bin/claude']] : []),
-    ])
-      await symlink(`../node_modules/${entry}`, join(stage, 'bin', name as string));
+    await rename(join(stage, binary), join(stage, 'bin', binary));
+    await chmod(join(stage, 'bin', binary), 0o755);
+    if (options.claude) await symlink('../node_modules/.bin/claude', join(stage, 'bin/claude'));
     await rm(archivePath);
     if (await lstat(destination).catch(() => null)) {
       await rename(destination, backup);
@@ -179,6 +185,10 @@ export async function main(argv: string[]): Promise<number> {
 async function execute(args: string[], explicit: string | undefined): Promise<number> {
   if (!args[0] || args.length > 2 || (args[1] !== undefined && args[1] !== '--claude')) {
     console.error('usage: scripts/install-tools.ts DESTINATION [--claude]');
+    return 2;
+  }
+  if (args[1] === '--claude' && process.platform === 'win32') {
+    console.error('install-tools: --claude is not supported on Windows; use the existing claude installation');
     return 2;
   }
   const operation = createOperation(

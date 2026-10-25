@@ -1,6 +1,6 @@
 import { type ExecFileOptions, execFile, spawn } from 'node:child_process';
 import { fstatSync } from 'node:fs';
-import { constants } from 'node:os';
+import { constants, devNull } from 'node:os';
 import { delimiter } from 'node:path';
 
 export const bunShebang =
@@ -22,6 +22,12 @@ export function childEnv(source: NodeJS.ProcessEnv = process.env): NodeJS.Proces
     BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
     DO_NOT_TRACK: '1',
   };
+  const variants =
+    process.platform === 'win32' ? Object.keys(env).filter((key) => /^path$/i.test(key) && key !== 'PATH') : [];
+  if (variants.length) {
+    if (env.PATH === undefined) env.PATH = env[variants[0] as string];
+    for (const key of variants) delete env[key];
+  }
   if (env.PATH) {
     env.PATH = env.PATH.split(delimiter)
       .filter((item) => !/node_modules\/\.bin\/*$/.test(item.replaceAll('\\', '/')))
@@ -126,5 +132,5 @@ export function run(
 }
 
 export function bunArgs(entry: string, args: string[]): string[] {
-  return ['--no-env-file', '--no-install', '--config=/dev/null', '--no-macros', entry, ...args];
+  return ['--no-env-file', '--no-install', `--config=${devNull}`, '--no-macros', entry, ...args];
 }
