@@ -7,11 +7,15 @@ function parent(folder) {
   const value = folder.slice(0, cut);
   return /^[A-Za-z]:$/.test(value) ? `${value}/` : value || "/";
 }
-function target(root, path) {
-  const prefix = joined(root, "skills/");
-  if (!path?.startsWith(prefix))
+function slashed(path) {
+  return /^[A-Za-z]:[\\/]/.test(path) ? path.replace(/\\/g, "/") : path;
+}
+function target(root, path = "") {
+  const prefix = joined(slashed(root), "skills/");
+  const file = slashed(path);
+  if (!file.startsWith(prefix))
     return;
-  const match = /^([a-z][a-z0-9-]*)\/SKILL\.md$/.exec(path.slice(prefix.length));
+  const match = /^([a-z][a-z0-9-]*)\/SKILL\.md$/.exec(file.slice(prefix.length));
   return match?.[1];
 }
 var stopInstruction = `

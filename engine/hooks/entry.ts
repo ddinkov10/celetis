@@ -51,10 +51,15 @@ function parent(folder: string) {
   return /^[A-Za-z]:$/.test(value) ? `${value}/` : value || '/';
 }
 
-function target(root: string, path?: string) {
-  const prefix = joined(root, 'skills/');
-  if (!path?.startsWith(prefix)) return;
-  const match = /^([a-z][a-z0-9-]*)\/SKILL\.md$/.exec(path.slice(prefix.length));
+function slashed(path: string) {
+  return /^[A-Za-z]:[\\/]/.test(path) ? path.replace(/\\/g, '/') : path;
+}
+
+function target(root: string, path = '') {
+  const prefix = joined(slashed(root), 'skills/');
+  const file = slashed(path);
+  if (!file.startsWith(prefix)) return;
+  const match = /^([a-z][a-z0-9-]*)\/SKILL\.md$/.exec(file.slice(prefix.length));
   return match?.[1];
 }
 
