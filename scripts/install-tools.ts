@@ -29,15 +29,19 @@ export interface ToolPin {
   installer: string;
   package: string;
 }
+const pins: ToolPin[] = [
+  {
+    name: 'actionlint',
+    version: actionlintVersion,
+    installer: 'native',
+    package: `rhysd/actionlint@v${actionlintVersion}`,
+  },
+  { name: 'biome', version: '2.5.15', installer: 'bun', package: '@biomejs/biome@2.5.15' },
+  { name: 'tsc', version: '7.0.2', installer: 'bun', package: 'typescript@7.0.2' },
+  { name: '@types/bun', version: '1.4.2', installer: 'bun', package: '@types/bun@1.4.2' },
+];
 export async function toolPins(): Promise<ToolPin[]> {
-  return (await readFile(join(import.meta.dir, '../tests/lib/tools.txt'), 'utf8'))
-    .split('\n')
-    .filter((line) => line.trim() && !line.startsWith('#'))
-    .map((line) => {
-      const [name, version, installer, packageName] = line.split(/\s+/);
-      if (!name || !version || !installer || !packageName) throw new Error(`invalid tool pin: ${line}`);
-      return { name, version, installer, package: packageName };
-    });
+  return pins;
 }
 
 async function packageOf(file: string, name: string): Promise<{ path: string; version: string }> {

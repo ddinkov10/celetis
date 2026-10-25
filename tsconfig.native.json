@@ -1,5 +1,5 @@
 {
-  "include": ["hooks/**/*.ts", "tests/manual/native-observer/hooks/**/*.ts", "tests/types/native-host.d.ts"],
+  "include": ["hooks/**/*.ts"],
   "compilerOptions": {
     "lib": ["ESNext"],
     "target": "ESNext",

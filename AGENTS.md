@@ -16,12 +16,13 @@ limitation and continue independent checks.
 
 ## Verify gate
 
-`scripts/verify.ts` is the fast deterministic gate. Its last line is `verify: PASS`.
-`tests/suite.ts` is the full suite. Its last line is `suite: PASS`. CI runs each on Bun 1.4.2.
+`scripts/verify.ts` is the verify gate and the only check of this repository. Its last line is
+`verify: PASS`. CI runs it on Bun 1.4.2.
+
+Add no test to the repository. The gate refuses a tracked test file (ADR-0029).
 
 ```sh
 BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros scripts/verify.ts
-BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros tests/suite.ts
 ```
 
 - Install the pinned tools into a private directory, then put its `bin` folder on `PATH`:
@@ -30,22 +31,16 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
   bun --no-env-file --no-install --config=/dev/null --no-macros scripts/install-tools.ts /absolute/private-tools --claude
   ```
 
-  `tests/lib/tools.txt` owns the pins. The installer checks the official native actionlint hash.
+  `scripts/install-tools.ts` owns the pins. The installer checks the official native actionlint hash.
   The gate resolves package and type paths from executable filesystem metadata. Checks install nothing.
 - The gate reads `git ls-files -z`. Stage a new file before the gate. Give each new file type
   a check or an explicit role in `scripts/verify.ts`.
-- Author each first-party program in TypeScript. Bun 1.4.2 or later runs commands and tests.
+- Author each first-party program in TypeScript. Bun 1.4.2 or later runs commands.
   `scripts/build.ts` uses exactly Bun 1.4.2 to generate the executable launcher, browser assets,
   and native hook modules. `--check` compares bytes and modes without writes. The vendor parser
   stays unchanged; update it only as `scripts/lib/vendor/README.md` says.
-- Strict types have three environments: runtime commands, server modules and tests;
+- Strict types have three environments: runtime commands and server modules;
   browser DOM modules; and the native hook API and its actual globals.
-- The suite discovers all automatic TypeScript test entries, uses bounded file workers, and
-  cleans child groups on exit and signals. It sets no file or default case deadline. Each test
-  uses private scratch state. `scripts/lib/parallel.ts` supplies the bounded process runner.
-- `tests/manual/step-prompt.ts` and `tests/manual/custom-part.ts` use tokens and run by hand.
-  Run the step test after a change of `step-prompt.md`, of "Celetis flow" below, or of a sentence
-  it quotes ("Traps"). Deterministic manual harness entries remain in the suite.
 
 ## General text
 
@@ -65,18 +60,11 @@ project, not here. So the text of this repository is general:
 - **In a skill and in the step text, an ADR number says its store:** "ADR-0008 of the plugin
   `celetis`". A product project has an ADR store of its own.
 
-`tests/text.test.ts` is the authority for the first rule, and it reads this file and `README.md`
-too. It fails on a word of its list `words` in each file that is no record `docs/adr/NNNN-*.md`.
-`tests/product-words.allow` allows a general use of such a word. One line of it,
-`<path><tab><a part of the line>`, allows each hit of that path whose text holds the part, and a
-line that allows no hit fails the test. The test knows only its list, and the rule holds for each
-part of each product.
-
 ## Celetis flow
 
 The lanes of this repository are the skills of the plugin itself, on the issues of
 `ddinkov10/celetis` (`README.md`, "The full loop"). The landing is `merge`
-(`landing` in `.celetis.yaml`): a build step runs the verify gate and full suite locally, then ends
+(`landing` in `.celetis.yaml`): a build step runs the verify gate locally, then ends
 with `scripts/celetis land <n> '<subject>'`, which puts one squash commit on `main` without a PR.
 The landing is the last act of a change: this repository has no deployment.
 For installation changes, follow `README.md`, "Updates".
@@ -107,11 +95,11 @@ from open runtime checks (ADR-0014).
 
 ## Traps
 
-Facts that no one file states. A line is here only when the code, a test, and the other documents
+Facts that no one file states. A line is here only when the code and the other documents
 do not state its fact, and a line goes when its fact stops being true (ADR-0006).
 
 - **A normal session here reads the installed plugin.** Editing the checkout does not replace
-  either host's installed skills or scripts. The tests read checkout files. Claude's
+  either host's installed skills or scripts. Claude's
   `--plugin-dir .` can load checkout skills, but `scripts/celetis` still resolves the selected
   host's installation. Run a checkout script with the isolated Bun flags shown above and `scripts/<name>.ts`.
   Record checks of the checkout and checks of the installed package separately.
@@ -127,12 +115,8 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
   (`endWhenDone` in `scripts/celetis-flow.ts`). A label, a comment with a heading that the
   resolver reads, a published spec, and a closed issue move the line. So each act of the skill after
   such an act is in the same turn.
-- **The hand-run test quotes the skills.** `tests/manual/step-cases.ts` holds sentences of the
-  skills as verbatim text, and no test of the gate or the suite compares a quote with its skill.
-  Before you change a sentence of a skill, search that source for it. A change of a quoted sentence
-  changes the quote in the same commit, and `tests/manual/step-prompt.ts` runs again.
 - **The skills table and the commands table of `README.md` are written by hand.** A new skill, a
-  removed skill, or a new sub-command of `scripts/` also changes the README, and no test fails when
+  removed skill, or a new sub-command of `scripts/` also changes the README, and no check fails when
   it does not.
 - **The skills `writing-for-agents` and `prototype` are vendored** from `mattpocock/skills`
   (ddinkov10/fwrh_calculator#265).

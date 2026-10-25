@@ -5,8 +5,6 @@
     ".claude",
     ".superpowers",
     "hooks/**",
-    "tests/manual/native-observer/hooks/**",
-    "tests/types/**",
     "board/board.ts",
     "board/view.ts",
     "board/ui.ts",

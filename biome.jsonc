@@ -6,37 +6,6 @@
   },
   "overrides": [
     {
-      "includes": [
-        "tests/native-entry.test.ts",
-        "tests/native-observer.test.ts",
-        "tests/native-events-harness.test.ts",
-        "tests/lib/native-host.ts"
-      ],
-      "linter": { "rules": { "suspicious": { "noExplicitAny": "off", "noImplicitAnyLet": "off" } } }
-    },
-    {
-      "includes": [
-        "board/build.test.ts",
-        "board/cli.test.ts",
-        "board/config.test.ts",
-        "board/contract.test.ts",
-        "board/place.test.ts",
-        "board/server.test.ts",
-        "board/test-support.ts",
-        "board/view.test.ts",
-        "tests/board-agent.test.ts",
-        "tests/board.test.ts",
-        "tests/host-session.test.ts",
-        "tests/lib/custom-fixture.ts",
-        "tests/lib/land-fixture.ts",
-        "tests/lib/runner-fixture.ts",
-        "tests/lib/step-fixture.ts",
-        "tests/next-step.test.ts",
-        "tests/setup.test.ts"
-      ],
-      "linter": { "rules": { "suspicious": { "noExplicitAny": "off", "noImplicitAnyLet": "off" } } }
-    },
-    {
       // The board removes control characters from agent and terminal text; each such regex matches them on purpose (#84).
       "includes": ["board/**"],
       "linter": { "rules": { "suspicious": { "noControlCharactersInRegex": "off" } } }

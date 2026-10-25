@@ -7,7 +7,7 @@ import type {
   TurnChunk,
   TurnInput,
   TurnResult,
-} from '../tests/types/native-host.d.ts';
+} from './native-host.d.ts';
 
 interface GitFile {
   directory: string;

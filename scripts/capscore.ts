@@ -3,7 +3,7 @@ import { access, readFile, realpath, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type Config, ConfigError, readConfig } from './lib/config.ts';
 import { HostError, mainCheckout, selectHost } from './lib/host.ts';
-import { bunArgs, childEnv, run } from './lib/process.ts';
+import { childEnv, run } from './lib/process.ts';
 
 const models = ['haiku', 'sonnet', 'opus', 'fable'];
 const efforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
@@ -13,7 +13,6 @@ type Profile = { schema: number; runtime: string; slots: string[]; reviewer: { r
 type Runtime = { schema: number; runtime: string; models: { id: string; efforts: string[] }[] };
 class ScoreError extends Error {}
 const usage = `usage: scripts/celetis capscore J V B N S X [options]
-       scripts/celetis capscore --test
 --bias N                 effort bias (CAP_EFFORT_BIAS; default 2)
 --attempt N              gate-fail attempt (default 1; 4 or later stops)
 --agent claude|codex      explicit agent (CELETIS_AGENT > project config > claude)
@@ -187,64 +186,10 @@ async function binding(
   }
 }
 
-async function runTests(): Promise<number> {
-  const vectors: [string, string, number[], number, number][] = [
-    ['band sum0 -> haiku/low', 'haiku/low', [0, 0, 0, 0, 0, 0], 0, 1],
-    ['band sum3 top-haiku', 'haiku/low', [1, 1, 1, 0, 0, 0], 0, 1],
-    ['band sum4 bottom-sonnet', 'sonnet/medium', [2, 1, 1, 0, 0, 0], 0, 1],
-    ['band sum6 top-sonnet', 'sonnet/medium', [2, 1, 1, 1, 1, 0], 0, 1],
-    ['band sum7 bottom-opus', 'opus/high', [2, 1, 2, 1, 1, 0], 0, 1],
-    ['band sum9 top-opus', 'opus/high', [2, 2, 2, 2, 1, 0], 0, 1],
-    ['band sum10 opus/xhigh', 'opus/xhigh', [2, 2, 2, 2, 2, 0], 0, 1],
-    ['band sum11 opus/xhigh', 'opus/xhigh', [2, 2, 2, 2, 2, 1], 0, 1],
-    ['band sum12 -> fable/max', 'fable/max', [2, 2, 2, 2, 2, 2], 0, 1],
-    ['X=2 floor -> opus/high', 'opus/high', [0, 0, 0, 0, 0, 2], 0, 1],
-    ['V=2 floor -> effort high', 'haiku/high', [0, 2, 0, 0, 0, 0], 0, 1],
-    ['X=2 no-lower at sum10', 'opus/xhigh', [2, 2, 2, 1, 1, 2], 0, 1],
-    ['b2 verify-gates example', 'sonnet/xhigh', [1, 0, 1, 1, 1, 0], 2, 1],
-    ['b2 type-lanes example', 'opus/max', [2, 2, 2, 1, 1, 0], 2, 1],
-    ['b2 at sum10 -> opus/max', 'opus/max', [2, 2, 2, 2, 2, 0], 2, 1],
-    ['sum12 keeps fable/max +b2', 'fable/max', [2, 2, 2, 2, 2, 2], 2, 1],
-    ['b2 attempt3 no fable/max<12', 'fable/xhigh', [2, 2, 2, 2, 2, 0], 2, 3],
-    ['attempt2 effort +1', 'sonnet/high', [2, 1, 1, 0, 0, 0], 0, 2],
-    ['attempt3 model+1 effort>=hi', 'opus/high', [2, 1, 1, 0, 0, 0], 0, 3],
-    ['attempt3 from haiku', 'sonnet/high', [0, 0, 0, 0, 0, 0], 0, 3],
-    ['attempt4 -> STOP', 'STOP', [0, 0, 0, 0, 0, 0], 0, 4],
-    ['model clamps at fable', 'fable/high', [2, 1, 2, 1, 1, 0], 0, 3],
-  ];
-  let fails = 0;
-  for (const [desc, want, digits, bias, attempt] of vectors) {
-    const score = resolveScore(digits, bias, attempt);
-    const got = score ? `${models[score.rank]}/${efforts[score.effort]}` : 'STOP';
-    if (want === got) console.log(`ok   ${desc}`);
-    else {
-      console.log(`FAIL ${desc} : expected ${want} got ${got}`);
-      fails++;
-    }
-  }
-  const errors: [string, string[]][] = [
-    ['digit>2 rejected', ['3', '0', '0', '0', '0', '0']],
-    ['too few digits', ['1', '1', '1']],
-    ['non-numeric digit', ['a', '0', '0', '0', '0', '0']],
-    ['bad --bias', ['1', '1', '1', '1', '1', '1', '--bias', 'x']],
-    ['attempt<1 rejected', ['1', '1', '1', '1', '1', '1', '--attempt', '0']],
-  ];
-  for (const [desc, args] of errors) {
-    if ((await run(process.execPath, bunArgs(import.meta.path, args))).code !== 0) console.log(`ok   ${desc}`);
-    else {
-      console.log(`FAIL ${desc} : expected non-zero exit`);
-      fails++;
-    }
-  }
-  console.log(`\n${vectors.length + errors.length - fails}/${vectors.length + errors.length} passed`);
-  return fails === 0 ? 0 : 1;
-}
-
 export async function main(argv: string[]): Promise<number> {
   let checkout: string | null = null;
   try {
-    if (!argv.length)
-      throw new ScoreError('need six digits J V B N S X (or --test); see docs/capability.md of the plugin celetis');
+    if (!argv.length) throw new ScoreError('need six digits J V B N S X; see docs/capability.md of the plugin celetis');
     let biasText: string | undefined;
     let attemptText = '1';
     let agent: string | undefined;
@@ -256,7 +201,6 @@ export async function main(argv: string[]): Promise<number> {
     const values: string[] = [];
     for (let i = 0; i < argv.length; i++) {
       const arg = argv[i] as string;
-      if (arg === '--test') return await runTests();
       if (arg === '-h' || arg === '--help') {
         console.log(usage);
         return 0;

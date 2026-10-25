@@ -374,13 +374,8 @@ the JSON gives `cannot read: the data is not JSON`.
 }
 ```
 
-`<plugin>/board/fixtures/contract-1.json` is a document of the same shape, and the tests of the
-board use it. `<plugin>/board/fixtures/producer.ts` is the model of a producer: a file that the
-user can execute, which prints one document on stdout and exits 0.
-
-```ts
-process.stdout.write(await Bun.file(new URL('./contract-1.json', import.meta.url)).text());
-```
+A producer is a file that the user can execute, which prints one contract-1 document on stdout
+and exits 0.
 
 The configured first item remains a relative executable path in the main checkout. After all
 path and execute checks, a program with the exact isolated Bun shebang uses the board's selected
@@ -388,7 +383,7 @@ Bun and all isolation flags. This also applies to Run and Resume. Other valid pr
 their native executable. The four stdin keys and the generic producer boundary stay unchanged;
 an absolute interpreter path in JSON is refused. See ADR-0025 of the plugin `celetis`.
 
-A producer of a repository reads its tracker in place of the file. Name it as `data` in the config,
+A producer of a repository reads its tracker. Name it as `data` in the config,
 and check its output with `agent-board check --config-stdin` ("`check`").
 
 ## The cards
@@ -752,6 +747,10 @@ the texts are `Open the issue` and `Read the issues again`.
 - The checker and this README are two forms of contract 1. `agent-board check --stdin` is the
   authority when they differ.
 
+Browser sources are `board.ts`, `view.ts`, `ui.ts`, `panel.ts`, and `palette.ts`. The pinned Bun
+1.4.2 build program, `<plugin>/scripts/build.ts`, generates their existing `.js` and `.mjs` URLs.
+It compiles every target before it writes any output. Plugin users run no build.
+
 ## Limits
 
 Of the distribution:
@@ -802,19 +801,3 @@ Of the cards and the page:
   can delay it by up to a minute.
 - The page has no login. Each program on the machine can ask the server.
 - The lane icons are the one place where the board knows four names of a flow. They change no rule.
-
-## Tests
-
-Run the board tests in a checkout of the plugin:
-
-```bash
-BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros test board/*.test.ts tests/board.test.ts tests/board-agent.test.ts
-```
-
-The tests need no dependency install. They use git 2.32 or later, real private loopback servers,
-and TypeScript fixture processes. They start no real host or herdr session. The fixture files are
-`producer.ts`, `contract-1.json`, `run.ts`, and `herdr.ts` in `<plugin>/board/fixtures/`.
-
-Browser sources are `board.ts`, `view.ts`, `ui.ts`, `panel.ts`, and `palette.ts`. The pinned Bun
-1.4.2 build program, `<plugin>/scripts/build.ts`, generates their existing `.js` and `.mjs` URLs.
-It compiles every target before it writes any output. Plugin users run no build.

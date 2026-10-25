@@ -13,30 +13,19 @@ export const generatedFiles = [
   'board/panel.mjs',
   'board/palette.mjs',
   'hooks/entry.js',
-  'tests/manual/native-observer/hooks/register.js',
 ];
 export const fileRoles: Record<string, string> = {
   'scripts/lib/vendor/yaml.mjs': 'unchanged vendored parser; checked by its SHA-256 and config type declarations',
   'scripts/lib/vendor/yaml.d.mts': 'vendored parser API; checked by strict runtime types',
-  'scripts/lib/vendor/yaml.LICENSE': 'upstream licence; checked by text rules',
-  'tests/fixtures/toolchain-cases.json':
-    'non-executed baseline assertion evidence; checked by Biome and final-tree tests',
-  'tests/fixtures/toolchain-callers.json':
-    'non-executed baseline caller evidence; checked by Biome and final-tree tests',
-  'tests/fixtures/capscore-reference.json':
-    'non-executed exact baseline result data; source hash and comparisons checked by scorer tests',
-  'tests/fixtures/next-step-reference.json':
-    'non-executed exact baseline result data; source hash and comparisons checked by resolver tests',
-  '.gitignore': 'Git reads this text; checked by general text rules',
-  '.gitattributes': 'Git reads this text; checked by general text rules',
+  'scripts/lib/vendor/yaml.LICENSE': 'upstream licence; stays unchanged',
+  '.gitignore': 'Git reads this text',
+  '.gitattributes': 'Git reads this text',
   '.editorconfig': 'Biome reads these editor settings',
-  'tests/lib/tools.txt': 'the gate and private installer read the exact pins',
-  'tests/product-words.allow': 'text rules reject an unused allowance',
-  'board/fonts/OFL.txt': 'upstream font licence; checked by text rules',
+  'board/fonts/OFL.txt': 'upstream font licence; stays unchanged',
   'board/fonts/geist.woff2': 'binary font delivery asset',
   'board/fonts/geist-mono.woff2': 'binary font delivery asset',
   'board/index.html': 'HTML remains exempt until stable Biome HTML checking, per issue 83',
-  '.codex/rules/celetis.rules': 'native host permission rules; deterministic setup assertions own this contract',
+  '.codex/rules/celetis.rules': 'native host permission rules; Codex reads them',
 };
 
 export function classify(path: string, source: Buffer): string {
@@ -45,6 +34,8 @@ export function classify(path: string, source: Buffer): string {
     /^#![^\n]*\b(?:bash|sh|dash|zsh|perl|jq|node)\b/.test(source.toString('utf8', 0, 512))
   )
     throw new Error(`verify: prohibited program: ${path}`);
+  if (/[._](?:test|spec)\.(?:[cm]?[jt]s|[jt]sx)$/.test(path))
+    throw new Error(`verify: test file: ${path}: this repository keeps no tests (AGENTS.md, "Verify gate")`);
   if (generatedFiles.includes(path)) return 'generated';
   if (fileRoles[path]) return /\.json$/.test(path) ? 'biome' : 'role';
   if (/\.ts$/.test(path)) return 'typescript';
@@ -80,7 +71,7 @@ export async function main(args: string[]): Promise<number> {
       const version = versions[pin.name] ?? '';
       console.log(`== ${pin.name} ${version}`);
       if (version !== pin.version)
-        console.log(`verify: warning: ${pin.name} ${version} is not the pin ${pin.version} (tests/lib/tools.txt)`);
+        console.log(`verify: warning: ${pin.name} ${version} is not the pin ${pin.version} (scripts/install-tools.ts)`);
     }
     const listed = await run('git', ['ls-files', '-z']);
     if (listed.code) throw new Error(listed.stderr);
@@ -132,7 +123,6 @@ export async function main(args: string[]): Promise<number> {
       ]),
       job('tsc native', tools.tsc.file, [...tools.tsc.args, '-p', 'tsconfig.native.json']),
       job('build', process.execPath, bunArgs(join(root, 'scripts/build.ts'), ['--check'])),
-      job('text', process.execPath, bunArgs('test', [join(root, 'tests/text.test.ts')])),
       /\.(?:c?js|mjs)$/.test(claude)
         ? job('plugin', process.execPath, bunArgs(claude, ['plugin', 'validate', '.']))
         : job('plugin', claude, ['plugin', 'validate', '.']),

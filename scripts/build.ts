@@ -1,18 +1,11 @@
 import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import { bunShebang } from './lib/process.ts';
 
 const pin = '1.4.2';
 const root = dirname(import.meta.dir);
 const targets = [{ entry: 'scripts/launcher.ts', output: 'scripts/celetis', mode: 0o755 }];
-const nativeTargets = [
-  { entry: 'hooks/entry.ts', output: 'hooks/entry.js', mode: 0o644 },
-  {
-    entry: 'tests/manual/native-observer/hooks/register.ts',
-    output: 'tests/manual/native-observer/hooks/register.js',
-    mode: 0o644,
-  },
-];
+const nativeTargets = [{ entry: 'hooks/entry.ts', output: 'hooks/entry.js', mode: 0o644 }];
 const browserTargets = ['board', 'view', 'ui', 'panel', 'palette'].map((name) => ({
   entry: `board/${name}.ts`,
   output: `board/${name === 'board' ? 'board.js' : `${name}.mjs`}`,
@@ -25,11 +18,10 @@ export async function main(args: string[]): Promise<number> {
     return 1;
   }
   const check = args.length === 1 && args[0] === '--check';
-  if (!check && args.length !== 0 && !(args.length === 2 && args[0] === '--outdir' && args[1])) {
-    console.error('usage: scripts/build.ts [--outdir DIR | --check]');
+  if (!check && args.length !== 0) {
+    console.error('usage: scripts/build.ts [--check]');
     return 2;
   }
-  const outdir = args[0] === '--outdir' ? resolve(args[1] ?? '') : root;
   process.chdir(root);
   let code = 0;
   const built: { output: string; mode: number; bytes: Buffer }[] = [];
@@ -68,7 +60,7 @@ export async function main(args: string[]): Promise<number> {
   }
   for (const target of built) {
     const bytes = target.bytes;
-    const output = join(check ? root : outdir, target.output);
+    const output = join(root, target.output);
     if (check) {
       const actual = await readFile(output).catch(() => null);
       const mode = await stat(output).catch(() => null);
