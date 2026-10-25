@@ -177,7 +177,7 @@ export async function observeSession(
     return 2;
   const identity = agent.agent_session;
   if (agent.agent !== record.host && (!priorId || !object(identity) || identity.value !== priorId)) return 2;
-  if (identity === null) return 1;
+  if (identity == null) return 1;
   if (
     !object(identity) ||
     identity.agent !== agent.agent ||
