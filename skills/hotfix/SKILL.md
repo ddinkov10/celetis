@@ -21,8 +21,8 @@ root cause, no ship without the verify. If you have not completed step N, you ca
 N+1. Too little time for the lane → the change does not ship tonight.
 
 1. **Confirm classification.** Fire needing ship-now → continue. No fire → `/celetis:bug`. New behavior →
-   `/celetis:feature`. Zero behavior change → `/celetis:chore`. Given free text instead of `#<n>`: create the issue first — `gh issue create --label hotfix --title "<one line>" --body-file <intent>` with the `/celetis:intake` template as the body — and continue with its number. Given `#<n>` whose issue carries `epic`: stop; an epic has no branch, and each child runs its own lane. Given any other `#<n>`: make `hotfix` its only lane label with `gh issue edit <n>` — `--add-label hotfix` when the issue lacks it, plus `--remove-label <name>` for each of `needs-triage`, `enhancement`, `bug`, `chore` that the issue carries — because `scripts/celetis worktree` names the branch from the lane label.
-2. **Worktree.** Run `scripts/celetis worktree <n>` with a 10-minute timeout (a new worktree runs
+   `/celetis:feature`. Zero behavior change → `/celetis:chore`. Given free text instead of `#<n>`: create the issue first — `gh issue create --label hotfix --title "<one line>" --body-file <intent>` with the `/celetis:intake` template as the body — and continue with its number. Given `#<n>` whose issue carries `epic`: stop; an epic has no branch, and each child runs its own lane. Given any other `#<n>`: make `hotfix` its only lane label with `gh issue edit <n>` — `--add-label hotfix` when the issue lacks it, plus `--remove-label <name>` for each of `needs-triage`, `enhancement`, `bug`, `chore` that the issue carries — because `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree'` names the branch from the lane label.
+2. **Worktree.** Run `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree' '<n>'` with a 10-minute timeout (a new worktree runs
    the worktree setup of the project) and bind the exact path it prints using the host operations. The script re-enters the
    issue's branch, or creates `hotfix/<n>-<slug>` from the title when the issue has none; when
    it refuses, show the user its message and stop. Every later step runs in that worktree; the
@@ -44,7 +44,7 @@ N+1. Too little time for the lane → the change does not ship tonight.
    - The task = the root-cause fix, with step 3's traps as its constraints.
    - Each library call the fix adds is checked per `<plugin>/docs/docs-lookup.md`; the facts go
      in the micro-plan's `## External facts` section.
-   - CAP line via `scripts/celetis capscore J V B N S X` — never hand-computed.
+   - CAP line via `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'capscore' J V B N S X` — never hand-computed.
    - Per-task gate line: the verify gate of the project (`AGENTS.md` names it) passes before the task's review. The full suite runs once, on the tree that lands (Land step 3 of `implement`).
    - Verify phase: the red repro re-run post-fix, plus one error branch of any newly-enabled
      path (widened allow-list / enum / dispatch literal / flag).
@@ -58,11 +58,11 @@ N+1. Too little time for the lane → the change does not ship tonight.
      - [ ] Do the ship acts of the project.
    - The landing stopped with a `## Landing refused` comment: run `gh issue edit <n> --add-label ready-for-human`, print the checklist, and stop.
      - [ ] Fix the cause that the `## Landing refused` comment names.
-     - [ ] Run `scripts/celetis land <n> '<subject>'` in your own shell.
+     - [ ] Run `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' '<n>' '<subject>'` in your own shell.
      - [ ] Do the ship acts of the project.
      - [ ] Remove `ready-for-human`.
    - The landing stopped with a `## Before landing` comment, and `implement` added `ready-for-human`: print the checklist, and stop.
      - [ ] Do the act that the `## Before landing` comment names.
-     - [ ] Run `scripts/celetis land <n> '<subject>'` in your own shell.
+     - [ ] Run `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' '<n>' '<subject>'` in your own shell.
      - [ ] Do the ship acts of the project.
      - [ ] Remove `ready-for-human`.

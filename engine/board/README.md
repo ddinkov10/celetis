@@ -29,14 +29,14 @@ The board has two inputs, and it holds no step, no stage, and no tracker name of
 - **The sessions** come from herdr (`herdrdev/herdr`), the terminal program in whose panes the
   agents run. A repository sets nothing for them.
 - **The issues** come from one JSON document with a version, contract 1. A command of the repository
-  prints it. The config names that command. The board reads the config from stdin only.
+  prints it. The config names that command. The generic CLI reads config from stdin. The Celetis adapter binds fixed command arrays locally.
 
-The board is the folder `board/` of the plugin `celetis`, and `scripts/celetis board` starts it. It
+The board is the folder `engine/board/` of the plugin `celetis`, and `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board` starts it. It
 is one Bun program with no dependency or lifecycle script. The plugin carries generated browser
 JavaScript. A product repository needs no build or install step. It runs from the plugin, so the
 repository that it shows needs no file of the board.
 The board has these three command forms, where `agent-board` stands for
-`bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/board/cli.ts`:
+`bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/engine/board/cli.ts`:
 
 | Form | Config source | Result |
 |---|---|---|
@@ -45,7 +45,7 @@ The board has these three command forms, where `agent-board` stands for
 | `agent-board check --stdin` | No config. | Check one contract 1 document from stdin, in any folder. |
 
 The board came from commit `95144d3` of its old repository
-([ADR-0020](../docs/adr/0020-the-board-is-a-part-of-the-plugin.md) of the plugin `celetis`).
+([ADR-0020](../../docs/adr/0020-the-board-is-a-part-of-the-plugin.md) of the plugin `celetis`).
 
 **Requirements.**
 
@@ -65,20 +65,17 @@ board.
 
 ## Start
 
-Run `scripts/celetis board` in the main checkout of the repository, and open the URL that it
+Run `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board` in the main checkout of the repository, and open the URL that it
 prints. The README of the plugin, "The agent board", gives this start and its config.
-`scripts/celetis board` uses the selected Bun runtime. It exits 1 with one line when the plugin
-has no file `<plugin>/board/cli.ts`:
-
-```text
-celetis-board: the plugin has no board/cli.ts: <plugin>; reinstall the plugin
-```
+The adapter uses the selected Bun and the same package's source entrypoint. It validates the
+entrypoint and runtime before it binds fixed command arrays through its local module interface.
+The generic CLI below keeps project-relative executable validation.
 
 To start the board from a checkout of the plugin at `<plugin>`, run this command in the main
 checkout of a repository. It starts the board with session cards only:
 
 ```bash
-printf '%s\n' '{}' | BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/board/cli.ts --config-stdin
+printf '%s\n' '{}' | BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/engine/board/cli.ts --config-stdin
 ```
 
 The board waits for EOF before it uses the config or listens on a port. It reads the input once
@@ -87,11 +84,11 @@ and creates no config file. The checkout rules below still apply.
 **The port** is `PORT` of the environment, else `port` of the config, else 4403. A `PORT` that is no
 number, or that is `0`, counts as absent. The server listens on `127.0.0.1` only. Each repository
 has the default port 4403, so a second board on one machine exits 1 at its start. Give it another
-port. A start by hand takes `"port": 4404` in its stdin config. The `scripts/celetis board` start
+port. A start by hand takes `"port": 4404` in its stdin config. The `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board` start
 takes `board.port` of `.celetis.yaml`. `PORT` overrides both:
 
 ```bash
-PORT=4404 scripts/celetis board
+PORT=4404 BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board
 ```
 
 **The start prints** the main checkout, each command of the config, and the URL:
@@ -114,7 +111,7 @@ checks in this order:
 | Case | Line | Exit |
 |---|---|---|
 | Bun is older than 1.4.2 | `agent-board: Bun 1.4.2 or later is necessary` | 1 |
-| The arguments are not one of the three forms above, in that exact order | `usage: agent-board --config-stdin \| check --config-stdin \| check --stdin (scripts/celetis board starts the board)` | 2 |
+| The arguments are not one of the three forms above, in that exact order | `usage: agent-board --config-stdin \| check --config-stdin \| check --stdin (BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board starts the board)` | 2 |
 | The current folder is in no git checkout | `agent-board: the current folder is not in a git checkout` | 1 |
 | The git directory is not the folder `.git` of its parent: a bare repository, a submodule, or the folder `.git` itself | `agent-board: the git directory is not the folder .git of a checkout (a bare repository or a submodule)` | 1 |
 | The current checkout is not the main checkout: a lane worktree, or another linked worktree | `agent-board: start the board in the main checkout: <main>` | 1 |
@@ -131,17 +128,19 @@ issue data, so it skips the checkout and config checks.
 **Start the board in the main checkout only.** A `node_modules/.bin` folder of the start folder or
 of its parent folders can be on `PATH`. In the main checkout, those are files of the trunk, with
 the trust of the config. A lane worktree holds the files of a branch, which do not have that trust.
-`scripts/celetis board` removes each `node_modules/.bin` item from `PATH` before a child command starts.
+`BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board` removes each `node_modules/.bin` item from `PATH` before a child command starts.
 The entry refuses a start in a checkout that is not the main checkout, and it removes each
 `node_modules/.bin` item from `PATH` before the server starts `herdr` or `git`.
 
-**Stop the board before an approved package replacement.** The server reads page files on later
-requests, so an idle board is still a consumer. Stop affected boards in every product sharing the
-installation before cutover. Follow [Updates](../README.md#updates) for the read-only check, exact
-offer, direct human reply, and one target-bound attempt. The approved terminal action selects the
-exact native target and validates the result. Board starts retain shared admission; stop the whole
-board before cutover. After a successful application, start a fresh board
-and session that resolve the enabled installation again. A config change also needs a board restart.
+**Open work during updates.** Follow [Updates](../../README.md#updates) for the read-only check,
+exact offer, and one affirmative response in an interactive terminal for one target-bound attempt.
+Discovery releases its short read lock before foreground execution. Only updaters serialize on
+the update mutex; sessions, runners, boards, and daemons may stay open.
+
+The server reads page files on later requests. Native replacement can remove resources that open
+work still needs, so a person may reload or restart affected work. After a successful update,
+resolve the enabled installation again. A fresh session loads changed skills; an open session
+does not reload them automatically. A config change also needs a board restart.
 
 ## Two modes
 
@@ -374,9 +373,6 @@ the JSON gives `cannot read: the data is not JSON`.
 }
 ```
 
-A producer is a file that the user can execute, which prints one contract-1 document on stdout
-and exits 0.
-
 The configured first item remains a relative executable path in the main checkout. After all
 path and execute checks, a program with the exact isolated Bun shebang uses the board's selected
 Bun and all isolation flags. This also applies to Run and Resume. Other valid producers keep
@@ -450,13 +446,13 @@ passes `check` is a document that the board shows.
 | `agent-board check --stdin` | A contract 1 document from stdin. | In each folder, including outside Git. It reads no config. |
 
 ```bash
-scripts/flow.ts --board | BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/board/cli.ts check --stdin
+scripts/flow.ts --board | BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/engine/board/cli.ts check --stdin
 ```
 
 To supply a config with a producer command relative to the main checkout, run:
 
 ```bash
-printf '%s\n' '{"data":["scripts/flow.ts","--board"]}' | BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/board/cli.ts check --config-stdin
+printf '%s\n' '{"data":["scripts/flow.ts","--board"]}' | BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/engine/board/cli.ts check --config-stdin
 ```
 
 Here stdin holds the config, and `scripts/flow.ts --board` prints the issue document. With
@@ -473,7 +469,7 @@ and `--config-stdin` must follow `check` for a check. Both stdin forms read once
 | `check --config-stdin`: the `data` command exits with an error | stderr: `agent-board:` and the first line of its stderr, else of its stdout, else `the data command exited <code>` | 1 |
 | `check --config-stdin`: the `data` command does not end in 60 seconds | stderr: `agent-board: Command failed: <the data command and its items>` | 1 |
 | `check --config-stdin`: a start rule or the config fails | stderr: the line of "Start" | 1 |
-| The arguments are not one of the three public forms | stderr: `usage: agent-board --config-stdin \| check --config-stdin \| check --stdin (scripts/celetis board starts the board)` | 2 |
+| The arguments are not one of the three public forms | stderr: `usage: agent-board --config-stdin \| check --config-stdin \| check --stdin (BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board starts the board)` | 2 |
 
 A failure line of a document has no prefix. Its place is the path of the value, and its rule is one
 of these:
@@ -650,7 +646,7 @@ not start the board in a repository that you do not trust.
 
 **The layout.** The page holds nothing of one repository: it uses neutral colours, follows the light
 or dark theme of the OS, and shows the folder name of the main checkout in the header. It carries
-its two fonts, Geist and Geist Mono, in `<plugin>/board/fonts/` with their licence (`OFL.txt`, the
+its two fonts, Geist and Geist Mono, in `<plugin>/engine/board/fonts/` with their licence (`OFL.txt`, the
 SIL Open Font License 1.1), so it loads nothing from the network.
 
 - The header holds the folder name, the switch between Now and Pipeline, the count of each column

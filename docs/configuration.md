@@ -115,26 +115,25 @@ tags can pass the parser check; the field schema then limits each value. Non-fin
 are not accepted. Script and instruction strings cannot contain NUL.
 Plain `yes` and `on` are strings under YAML 1.2.
 
-Import `readConfig` and `ConfigError` from `scripts/lib/config.ts` of the plugin for typed
+Import `readConfig` and `ConfigError` from `engine/lib/config.ts` of the plugin for typed
 configuration reads. Importing the module starts no installation discovery or setup.
 `readConfig(CHECKOUT)` reads only that checkout's `.celetis.yaml`, validates it, and returns the
-object without inserted defaults. `mainCheckout` in `scripts/lib/host.ts` resolves the main
+object without inserted defaults. `mainCheckout` in `engine/lib/host.ts` resolves the main
 checkout and reports a failed Git lookup. The former Bash sourcing interface is removed.
 
 The reader CLI runs as:
 
 ```sh
-BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/scripts/lib/config.ts CHECKOUT
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/engine/lib/config.ts CHECKOUT
 ```
 
 It prints one compact validated JSON object and LF. Invalid or missing configuration exits 2
 with empty stdout. Its diagnostic names the selected path and field; syntax and root errors
-use `<document>`. A below-floor Bun that can execute the launcher exits 2. Missing, broken,
+use `<document>`. A below-floor Bun that can execute the entrypoint exits 2. Missing, broken,
 or nonexecutable Bun uses the native env/kernel diagnostic and status. There is no interpreter
-wrapper. The launcher of a product project is one generated executable file; its installed
-commands use TypeScript and local imports. Child Celetis programs use the selected
-`process.execPath`, with environment/config/preload/macro/package isolation before control code
-starts, disabled transpiler cache, and `DO_NOT_TRACK=1`.
+wrapper. The plugin owns the source entrypoint and its engine. Child Celetis programs use
+selected `process.execPath`, isolated environment/config/preload/macro/package controls,
+disabled transpiler cache, and `DO_NOT_TRACK=1`.
 
 The reader uses one private YAML snapshot for metadata checks and JSON conversion. It checks
 document, key, node, and style metadata before JSON conversion can remove YAML information.
@@ -146,18 +145,17 @@ YAML 1.2, and U+0085, U+2028, and U+2029. A comment is no exception. These error
 A plain value or key in a YAML 1.1 number form that YAML 1.2 reads as a string, such as `4_404`
 or `0b101`, is an error too. Quote such a value to keep it as a string.
 
-Before it finds the plugin, the launcher of a product project reads only `host` of the main
-config. It reads `host` only when neither `--agent` nor `CELETIS_AGENT` names the host.
-After it finds the plugin, the reader of the plugin checks the whole main config before
-`worktree`, `celetis-flow`, `next-step`, `land`, and `board`.
+The entrypoint imports its own engine before local dispatch. It reads only `host` of the main
+config when neither `--agent` nor `CELETIS_AGENT` selects a host. The full reader checks the main
+config before `worktree`, `celetis-flow`, `next-step`, `land`, and `board`.
 
 ## Start the board
 
-Run `scripts/celetis board` in the main checkout or a subfolder. It takes no arguments and
+Run `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board` in the main checkout or a subfolder. It takes no arguments and
 refuses a lane start before it starts the board. It reads only the main config's `board.port`, default 4403,
 and keeps `PORT` above that value. It supplies the fixed data, selected-agent Run, and
-saved-host Resume lists through stdin to `board/cli.ts` of the installed plugin. The board
-validates that JSON and its executable paths. No board config file is made.
+saved-host Resume lists through a local module interface. The adapter validates the package
+entrypoint and selected runtime; generic stdin remains restricted to project executables. No board config file is made.
 The board checks concrete replacement-policy conflicts. It can remain open during a manual update.
 The producer default is read-only. Change `host` in the main YAML to set
 the project default. A board Run choice applies only to that start; Resume uses its saved host.
@@ -165,9 +163,10 @@ See [the board contract](celetis-flow.md#the-board) for the exact lists.
 
 ## Replace the old setup
 
-This is a manual cutover. The maintainer prepares each affected product project before applying
-the changed plugin under [Updates](../README.md#updates). That section owns consumer exit,
-the exact update offer, one direct user reply, target-bound apply, and restart. A push to the plugin trunk does not update a product's installation
+This is a manual cutover. Before the next use of Celetis in each affected product project, the
+maintainer completes its readiness review and cutover under [Updates](../README.md#updates).
+That section owns the exact offer, one direct terminal response, target-bound replacement,
+and the resource limits of open sessions. A push to the plugin trunk does not update a product's installation
 or copied launcher. This lane changes no other project.
 
 1. Install Bun 1.4.2 or later on each machine and CI job that runs Celetis commands, using
@@ -188,23 +187,29 @@ or copied launcher. This lane changes no other project.
    profile against the active dispatch surface's current model/effort allowlist. Supply no
    placeholder or bundled model defaults. Explicit profile files remain available for one-run
    or standalone scoring; remove a persistent override when the main YAML should own selection.
-3. Stop each affected runner, board, foreground session, and descendant before this policy and
-   runtime cutover, across all projects sharing the installation. Review the proposed owned
-   Celetis `autoUpdate: false` replacement; unowned entries stay for their owner. Resolve effective
-   local, user, managed, and native global conflicts. Keep old automatic-update runners stopped.
-   Current native apply paths refuse incomplete target or lifetime controls.
-   Stop each old Celetis process before this runtime cutover. Build delivery with exactly Bun
-   1.4.2 in the plugin checkout and compare generated bytes and modes with `scripts/build.ts --check`.
-   Copy the changed standalone `scripts/celetis` from the reviewed plugin package. A plugin
-   refresh does not update that product file. The public controls are `--agent` and
-   `CELETIS_AGENT`; YAML and saved session records still use the key `host`.
-4. Remove the old Celetis setup files and obsolete Git defaults after their values are accounted
-   for. Keep native `.claude/settings.json`, `.codex/config.toml`, `.codex/rules/`, project
-   instructions, records, runtime state, and the setup marker. If a native desktop board entry
-   exists, point it at `scripts/celetis board` and match its preview port to the YAML value.
-5. Commit the product's replacement files on its trunk, review the required live results, and
-   report readiness before the plugin landing. After an approved supported application, restart its
-   sessions, runners, and boards. Test both Run agents and Resume with an existing exact record.
+3. Before that product's next use of Celetis, review the
+   [product cutover](../README.md#product-cutover). Select and validate
+   the reviewed source repair entrypoint before removing the product launcher. Review the exact
+   owned launcher, permission, attribute, instruction, and ownership-record changes. Preserve
+   differing and unowned files until the owner approves each removal. If the product has a
+   Claude project install, the first cutover act runs
+   `claude plugin uninstall celetis@celetis --scope project` in its main checkout. It commits
+   the changed `.claude/settings.json` with the removal of the owned
+   `enabledPlugins.celetis@celetis` record from `.claude/celetis-flow/wiring.json`. Check that
+   `claude plugin list --json` then shows no `celetis@celetis` record with `"scope": "project"`
+   and a `projectPath` equal to that main checkout. A record of another path, such as an old
+   lane worktree, does not count. Check that the `celetis@celetis` record with
+   `"scope": "user"` shows `"enabled": true`.
+4. Keep native settings, product instructions, config bytes, setup programs, session records,
+   runtime state, and setup markers intact. Bind a desktop board entry to the installed absolute
+   entrypoint with isolated Bun and its explicit host; match its port to YAML.
+5. Record the product's readiness and complete the acts of the
+   [product cutover](../README.md#product-cutover) in their order before its next use of Celetis.
+   This is not a condition of the plugin landing. Open sessions, runners, boards, and daemons may
+   stay open. The first update uses the reviewed source repair, because the installed
+   package has no `bin/celetis.ts` yet. Start a fresh session for changed skills. Resume with the
+   saved host and ID. If an act fails and blocks a product,
+   [roll back the entrypoint landing](../README.md#roll-back-the-entrypoint-landing).
 
 There is no old-layout reader, automatic migration, or dependency installer. `/celetis:setup`
 writes the wiring of a product project (`README.md`, "Wire a product project"); it does not
@@ -220,7 +225,7 @@ operation.
 
 Celetis commands need Bun 1.4.2 or later on `PATH`. The plugin does not
 install dependencies. CI pins Bun 1.4.2. The YAML parser of the reader, the `yaml` package
-2.9.1, comes with the plugin in `scripts/lib/vendor/`, so a read installs no package.
+2.9.1, comes with the plugin in `engine/lib/vendor/`, so a read installs no package.
 
 Install Bun with Homebrew:
 

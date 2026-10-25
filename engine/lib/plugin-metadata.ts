@@ -1,9 +1,9 @@
 import type { Stats } from 'node:fs';
 import { lstat, readdir, readFile, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { isAbsolute, join, relative, sep } from 'node:path';
+import { basename, isAbsolute, join, relative, sep } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { codexRequest, type Host, HostError } from './host.ts';
+import { codexRequest, type Host, HostError, mainCheckout } from './host.ts';
 import { childEnv, run, updateDescriptor } from './process.ts';
 
 const revision = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
@@ -190,6 +190,54 @@ export interface PluginMetadata {
   marketplacePlugins: string[];
 }
 
+export async function claudeInstallation(
+  list: unknown,
+  cwd: string,
+): Promise<{ root: string; records: Record<string, unknown>[] }> {
+  const missing =
+    'celetis: no enabled Celetis installation; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis';
+  if (!Array.isArray(list)) throw new HostError('celetis: invalid Claude installation list');
+  const project = await realpath(await mainCheckout(cwd).catch(() => cwd));
+  const records: Record<string, unknown>[] = [];
+  const roots = new Set<string>();
+  for (const item of list) {
+    if (!object(item) || item.id !== 'celetis@celetis') continue;
+    if (item.scope !== 'user') {
+      if (
+        !['project', 'local'].includes(String(item.scope)) ||
+        typeof item.projectPath !== 'string' ||
+        !isAbsolute(item.projectPath)
+      )
+        throw new HostError('celetis: invalid Claude installation scope; repair the native plugin record');
+      const applicable = await realpath(item.projectPath).catch(() => null);
+      if (applicable !== project) continue;
+    }
+    if (item.enabled === false) continue;
+    if (item.enabled !== true) throw new HostError(missing);
+    if (
+      typeof item.installPath !== 'string' ||
+      !isAbsolute(item.installPath) ||
+      [...item.installPath].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)
+    )
+      throw new HostError('celetis: invalid Claude installation path; repair the native plugin record');
+    const canonical = await realpath(item.installPath).catch(() => null);
+    if (!canonical)
+      throw new HostError(
+        `celetis: cannot resolve Claude installation: ${item.installPath}; repair the native plugin record`,
+      );
+    roots.add(canonical);
+    records.push(item);
+  }
+  if (roots.size > 1)
+    throw new HostError('celetis: Claude installation is ambiguous; keep one enabled Celetis root for this project');
+  const root = [...roots][0];
+  if (!root) throw new HostError(missing);
+  const manifest = await jsonFile(join(root, '.claude-plugin/plugin.json'));
+  if (manifest.name !== 'celetis' || !(await lstat(join(root, 'skills/guide/SKILL.md')).catch(() => null))?.isFile())
+    throw new HostError('celetis: Claude reports an invalid celetis package; reinstall the plugin');
+  return { root, records };
+}
+
 async function cachedPlugin(home: string, name: string): Promise<{ root: string; version: string } | null> {
   const path = join(home, 'plugins/cache/celetis', name);
   if (!(await lstat(path).catch(() => null))) return null;
@@ -295,12 +343,53 @@ export async function codexPlugin(
     !record.marketplaceSource.source
   )
     throw new HostError('celetis: unsupported Codex celetis source metadata; repair the source-backed installation');
-  const active = await cachedPlugin(home, 'celetis');
-  if (!active || record.version !== active.version)
+  const scoped = await realpath(cwd);
+  const response = await codexRequest(
+    scoped,
+    'skills/list',
+    { cwds: [scoped], forceReload: true },
+    inheritedFd,
+    home,
+    execute,
+  );
+  const data =
+    object(response) && object(response.result) && Array.isArray(response.result.data) ? response.result.data : [];
+  const catalogs = data.filter((item) => object(item) && item.cwd === scoped);
+  const catalog = catalogs[0];
+  if (
+    catalogs.length !== 1 ||
+    !object(catalog) ||
+    !Array.isArray(catalog.errors) ||
+    catalog.errors.length ||
+    !Array.isArray(catalog.skills)
+  )
+    throw new HostError('celetis: invalid Codex skill catalog for this project; repair the native skill discovery');
+  const roots = new Set<string>();
+  for (const skill of catalog.skills) {
+    if (!object(skill) || skill.pluginId !== 'celetis@celetis' || skill.enabled === false) continue;
+    if (
+      skill.enabled !== true ||
+      typeof skill.path !== 'string' ||
+      !isAbsolute(skill.path) ||
+      [...skill.path].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127) ||
+      !/\/skills\/[a-z][a-z0-9-]*\/SKILL\.md$/.test(skill.path)
+    )
+      throw new HostError('celetis: invalid Codex Celetis skill identity; repair the native skill discovery');
+    const path = skill.path.replace(/\/skills\/[^/]+\/SKILL\.md$/, '');
+    const canonical = await realpath(path).catch(() => null);
+    if (!canonical)
+      throw new HostError(`celetis: cannot resolve Codex skill root: ${path}; repair the native skill discovery`);
+    roots.add(canonical);
+  }
+  if (roots.size > 1)
+    throw new HostError('celetis: Codex installation is ambiguous; keep one enabled Celetis root for this project');
+  const root = [...roots][0];
+  if (!root) throw new HostError('celetis: Codex has no enabled Celetis skill root; install and enable the plugin');
+  await contained(home, root);
+  if (record.version !== basename(root))
     throw new HostError(
       `celetis: Codex registry does not match its installed version ${String(record.version)}; repair the native installation`,
     );
-  const root = active.root;
   const marketplaces = await nativeJson(
     'codex',
     ['plugin', 'marketplace', 'list', '--json'],
@@ -331,18 +420,18 @@ export async function codexPlugin(
     throw new HostError(
       'celetis: Codex plugin source does not match its native marketplace root; repair the native source chain',
     );
-  const catalog = await jsonFile(
+  const marketplaceCatalog = await jsonFile(
     await contained(marketplaceRoot, join(marketplaceRoot, '.claude-plugin/marketplace.json')),
   );
-  const plugins = Array.isArray(catalog.plugins)
-    ? catalog.plugins.filter((item) => object(item) && item.name === 'celetis')
+  const plugins = Array.isArray(marketplaceCatalog.plugins)
+    ? marketplaceCatalog.plugins.filter((item) => object(item) && item.name === 'celetis')
     : [];
-  if (catalog.name !== 'celetis' || plugins.length !== 1 || !['.', './'].includes(plugins[0]?.source))
+  if (marketplaceCatalog.name !== 'celetis' || plugins.length !== 1 || !['.', './'].includes(plugins[0]?.source))
     throw new HostError(
       'celetis: unsupported or ambiguous Codex Celetis root source; repair the native marketplace catalog',
     );
   const manifest = await jsonFile(await contained(root, join(root, '.claude-plugin/plugin.json')));
-  if (manifest.name !== 'celetis' || !(await lstat(join(root, 'scripts')).catch(() => null))?.isDirectory())
+  if (manifest.name !== 'celetis')
     throw new HostError('celetis: Codex reports an invalid celetis package; reinstall the plugin');
   if (!(await lstat(join(root, 'skills/guide/SKILL.md')).catch(() => null))?.isFile())
     throw new HostError('celetis: Codex reports a missing installed skill; reinstall the plugin');

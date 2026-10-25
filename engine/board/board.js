@@ -1,4 +1,4 @@
-// board/board.ts
+// engine/board/board.ts
 import { openMenu, openPalette, setupMenu, setupPalette } from "./palette.mjs";
 import { drawPanel } from "./panel.mjs";
 import {

@@ -7,12 +7,12 @@ import type { Host } from './lib/host.ts';
 import type { SessionRecord, Step } from './lib/session.ts';
 
 const usage =
-  'usage: scripts/celetis celetis-flow [<issue number>...] | --board | --resume <issue number>, e.g. scripts/celetis celetis-flow 373 374; with no number, the automatic runner';
+  'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow [<issue number>...] | --board | --resume <issue number>, e.g. BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow 373 374; with no number, the automatic runner';
 const removed = 'the plugin version of this runner was removed after an update; start the runner again';
 const here = import.meta.dir;
 const required = [
   'next-step.ts',
-  'celetis',
+  '../bin/celetis.ts',
   'launcher.ts',
   'lib/config.ts',
   'lib/host.ts',
@@ -357,7 +357,9 @@ export async function main(argv: string[]): Promise<number> {
         }
         const step = stepOf(line);
         if (first !== 'any' && (config.gates?.[step] ?? 'me') !== 'auto') {
-          say(`the gate of ${step} is me: scripts/celetis celetis-flow ${n} starts ${prompt}`);
+          say(
+            `the gate of ${step} is me: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow ${n} starts ${prompt}`,
+          );
           break;
         }
         first = 'gated';
@@ -496,7 +498,10 @@ export async function main(argv: string[]): Promise<number> {
               : issue.state === 'dirty'
                 ? {}
                 : stuck
-                  ? { state: 'stuck', act: `scripts/celetis celetis-flow --resume ${issue.number}` }
+                  ? {
+                      state: 'stuck',
+                      act: `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow --resume ${issue.number}`,
+                    }
                   : {}),
         });
       }

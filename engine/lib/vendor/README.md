@@ -14,8 +14,8 @@ The build runs in a new, empty folder outside the checkout. `<checkout>` is the 
 npm pack yaml@2.9.1
 openssl dgst -sha512 -binary yaml-2.9.1.tgz | base64
 tar -xzf yaml-2.9.1.tgz
-bun build package/browser/dist/index.js --target=bun --format=esm --outfile=<checkout>/scripts/lib/vendor/yaml.mjs
-cp package/LICENSE <checkout>/scripts/lib/vendor/yaml.LICENSE
+bun build package/browser/dist/index.js --target=bun --format=esm --outfile=<checkout>/engine/lib/vendor/yaml.mjs
+cp package/LICENSE <checkout>/engine/lib/vendor/yaml.LICENSE
 ```
 
 The `openssl` line must print the integrity above, after `sha512-`, before `tar` runs. The bundle names each module by

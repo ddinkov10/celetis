@@ -31,7 +31,7 @@ type Request = {
   fields?: Record<string, string>;
 };
 const usage =
-  "usage: scripts/celetis land <issue number> '<type>(<area>): <what>', e.g. scripts/celetis land 415 'feat(agent-harness): the build step lands the change'";
+  "usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land <issue number> '<type>(<area>): <what>', e.g. BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land 415 'feat(agent-harness): the build step lands the change'";
 const conventional = /^[a-z]+(\([^()]+\))?!?: [^ ]/;
 
 export async function main(argv: string[]): Promise<number> {
@@ -158,7 +158,9 @@ export async function main(argv: string[]): Promise<number> {
     if (checkout === main) die(`switch the main checkout off ${branch} first`);
     if (checkout) {
       if ((await git(['rev-parse', '--show-toplevel'])) === checkout)
-        die(`leave ${checkout} first: run scripts/celetis land from the main checkout`);
+        die(
+          `leave ${checkout} first: run /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' from the main checkout`,
+        );
       if (await git(['status', '--porcelain'], undefined, checkout))
         die(`the lane worktree is dirty: ${checkout}; commit first`);
     }
@@ -191,7 +193,7 @@ export async function main(argv: string[]): Promise<number> {
         );
         await git(
           ['merge', '-q', '--ff-only', commit],
-          `the change is on origin/${trunk}, but the main checkout did not move; run git pull there, then run scripts/celetis land again`,
+          `the change is on origin/${trunk}, but the main checkout did not move; run git pull there, then run /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' again`,
           main,
         );
       }
@@ -200,7 +202,9 @@ export async function main(argv: string[]): Promise<number> {
         if (issue.state !== 'closed') await closeIssue(n, `Landed on ${trunk}${commit ? ` in ${commit}` : ''}.`);
       } catch (error) {
         emitError(error);
-        die(`the change is on ${trunk}, but #${n} is open; run scripts/celetis land again`);
+        die(
+          `the change is on ${trunk}, but #${n} is open; run /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' again`,
+        );
       }
     };
 
@@ -468,7 +472,7 @@ export async function main(argv: string[]): Promise<number> {
     if (!signalStatus) emitError(error);
     if (landed) {
       console.error(
-        `land: the change is on ${trunk}, but the removal of ${branch} stopped; run scripts/celetis land again`,
+        `land: the change is on ${trunk}, but the removal of ${branch} stopped; run /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' again`,
       );
       return 1;
     }

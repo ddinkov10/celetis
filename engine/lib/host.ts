@@ -1,10 +1,7 @@
-import { spawn } from 'node:child_process';
-import { constants } from 'node:os';
 import { dirname, win32 } from 'node:path';
-import { createInterface } from 'node:readline';
 import { bunFloor, ConfigError, readSnapshot } from './config.ts';
-import { codexHome, codexPlugin } from './plugin-metadata.ts';
-import { childEnv, run, updateDescriptor } from './process.ts';
+import { claudeInstallation, codexHome, codexPlugin } from './plugin-metadata.ts';
+import { bunArgs, childEnv, run, updateDescriptor } from './process.ts';
 
 export type Host = 'claude' | 'codex';
 
@@ -72,17 +69,37 @@ function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-export async function codexRequest(
+async function nativeCodexRequest(
   cwd: string,
   method: string,
   params: unknown,
-  inheritedFd?: number,
-  nativeHome?: string,
+  inheritedFd: number | undefined,
+  env: NodeJS.ProcessEnv,
 ): Promise<unknown> {
-  inheritedFd ??= updateDescriptor();
-  const env = childEnv({ ...process.env, CODEX_HOME: await codexHome(nativeHome) });
-  if (!Bun.which('codex', { PATH: env.PATH })) throw new HostError('celetis: codex is not on PATH');
-  const child = spawn('codex', ['--disable', 'plugins', 'app-server', '--stdio'], {
+  const { spawn } = await import('node:child_process');
+  const { fstatSync } = await import('node:fs');
+  const { constants } = await import('node:os');
+  const { createInterface } = await import('node:readline');
+  class HostError extends Error {
+    constructor(
+      message: string,
+      readonly code = 1,
+    ) {
+      super(message);
+    }
+  }
+  const object = (value: unknown): value is Record<string, unknown> =>
+    value !== null && typeof value === 'object' && !Array.isArray(value);
+  if (inheritedFd === undefined) {
+    const candidate = Number(process.env.CELETIS_UPDATE_FD);
+    if (Number.isInteger(candidate) && candidate >= 3) {
+      try {
+        if (fstatSync(candidate).isFile()) inheritedFd = candidate;
+      } catch {}
+    }
+  }
+  const args = method === 'skills/list' ? ['app-server', '--stdio'] : ['--disable', 'plugins', 'app-server', '--stdio'];
+  const child = spawn('codex', args, {
     cwd,
     env,
     stdio: ['pipe', 'pipe', 'pipe', ...(inheritedFd === undefined ? [] : [inheritedFd])],
@@ -197,6 +214,38 @@ export async function codexRequest(
   return result;
 }
 
+export async function codexRequest(
+  cwd: string,
+  method: string,
+  params: unknown,
+  inheritedFd?: number,
+  nativeHome?: string,
+  execute: typeof run = run,
+): Promise<unknown> {
+  inheritedFd ??= updateDescriptor();
+  const env = childEnv({ ...process.env, CODEX_HOME: await codexHome(nativeHome) });
+  if (!Bun.which('codex', { PATH: env.PATH })) throw new HostError('celetis: codex is not on PATH');
+  try {
+    if (execute === run) return await nativeCodexRequest(cwd, method, params, inheritedFd, env);
+    const program = `try{const [cwd,method,params,fd]=JSON.parse(process.argv[1]);console.log(JSON.stringify(await (${nativeCodexRequest.toString()})(cwd,method,params,fd??undefined,process.env)));}catch(error){console.error(error.message);process.exitCode=typeof error.code==='number'?error.code:1;}`;
+    const helperFd = inheritedFd === undefined ? undefined : 3;
+    const result = await execute(
+      process.execPath,
+      bunArgs('--eval', [program, JSON.stringify([cwd, method, params, helperFd])]),
+      { cwd, env, inheritedFd },
+    );
+    if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
+    const value: unknown = JSON.parse(result.stdout);
+    if (!object(value)) throw new HostError('celetis: invalid Codex app-server response');
+    return value;
+  } catch (error) {
+    throw new HostError(
+      error instanceof Error ? error.message : String(error),
+      object(error) && typeof error.code === 'number' ? error.code : 1,
+    );
+  }
+}
+
 export async function installedRoot(
   host: Host,
   cwd: string,
@@ -205,7 +254,7 @@ export async function installedRoot(
 ): Promise<string> {
   if (host === 'claude') {
     const missing =
-      'celetis: the plugin is not installed; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis';
+      'celetis: no enabled Celetis installation; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis';
     if (!Bun.which('claude', { PATH: childEnv().PATH })) throw new HostError(missing);
     const result = await execute('claude', ['plugin', 'list', '--json'], {
       cwd,
@@ -229,11 +278,7 @@ export async function installedRoot(
       records = JSON.parse(result.stdout);
     } catch {}
     if (!Array.isArray(records)) throw new HostError(`celetis: invalid plugin list JSON\n${result.stdout.trimEnd()}`);
-    const matches = records.filter((item) => object(item) && item.id === 'celetis@celetis');
-    const record = matches.find((item) => item.scope === 'user') ?? matches[0];
-    if (record?.enabled !== true || typeof record.installPath !== 'string' || !record.installPath)
-      throw new HostError(missing);
-    return record.installPath.replaceAll('\r', '');
+    return (await claudeInstallation(records, cwd)).root;
   }
   return (await codexPlugin(cwd, inheritedFd, execute)).root;
 }

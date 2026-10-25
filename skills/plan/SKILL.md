@@ -11,7 +11,7 @@ Superset of `superpowers:writing-plans` for project features. Delegates to it; a
 
 ## Do this
 
-1. Enter the issue's worktree: run `scripts/celetis worktree <n>` with a 10-minute timeout and bind
+1. Enter the issue's worktree: run `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree' '<n>'` with a 10-minute timeout and bind
    the exact path it prints using the host operations (reuse the binding when the session is already there). The
    script re-enters the issue's branch, or creates it when the issue has none; when it refuses,
    show the user its message and stop.
@@ -36,7 +36,7 @@ Bias:         <n>
 **Per task:**
 - **Capability score.** Score the task on the six-dimension rubric (digit anchors: `<plugin>/docs/capability.md`) and emit the CAP line with the script — never hand-compute the tier:
   ```bash
-  scripts/celetis capscore J V B N S X          # add --bias 0|1 to lower a cheap task
+  /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'capscore' J V B N S X          # add --bias 0|1 to lower a cheap task
   ```
   Put the emitted `CAP: J_ V_ B_ N_ S_ X_ = n [+bN] → model/effort` line in the task header. The user reviews the scores with the plan; `implement` reuses the digits and written bias, resolves the current host's model and effort, and re-scores only a task whose scope materially changed. An absent `+bN` means bias 0; the model label is a historical binding.
 

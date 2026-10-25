@@ -12,7 +12,7 @@ type Score = { rank: number; effort: number };
 type Profile = { schema: number; runtime: string; slots: string[]; reviewer: { rank: number; effort: string } };
 type Runtime = { schema: number; runtime: string; models: { id: string; efforts: string[] }[] };
 class ScoreError extends Error {}
-const usage = `usage: scripts/celetis capscore J V B N S X [options]
+const usage = `usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> capscore J V B N S X [options]
 --bias N                 effort bias (CAP_EFFORT_BIAS; default 2)
 --attempt N              gate-fail attempt (default 1; 4 or later stops)
 --agent claude|codex      explicit agent (CELETIS_AGENT > project config > claude)

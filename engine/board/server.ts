@@ -16,6 +16,7 @@ import { execFile } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { basename, delimiter, join, relative, resolve, sep } from 'node:path';
+import { childEnv } from '../lib/process.ts';
 import { AGENT, NUMBER } from './config.ts';
 import { readDocument } from './contract.ts';
 import { activePresses, place, sessionsOf, stepsOf } from './place.ts';
@@ -63,8 +64,13 @@ const cleanCause = (cause: unknown) =>
     .replace(/[\u0000-\u001f\u007f]/g, '')
     .slice(0, 200);
 const quote = (text: string) => `'${text.replaceAll("'", "'\\''")}'`;
-const lineOf = (items: Command, number: number, agent: string | null = null) =>
-  `${items.map((item) => (item === NUMBER ? number : item === AGENT ? quote(agent as string) : quote(item))).join(' ')} && exit`;
+const lineOf = (items: Command, number: number, agent: string | null = null) => {
+  const command =
+    items[0] === process.execPath
+      ? ['/usr/bin/env', ...Object.entries(childEnv({})).map(([name, value]) => `${name}=${value}`), ...items]
+      : items;
+  return `${command.map((item) => (item === NUMBER ? number : item === AGENT ? quote(agent as string) : quote(item))).join(' ')} && exit`;
+};
 const count = (text: string, word: string) => Number(new RegExp(`(\\d+) ${word}`).exec(text)?.[1] ?? 0);
 const screenOf = (text: string) =>
   text

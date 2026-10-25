@@ -1,4 +1,4 @@
-// board/ui.ts
+// engine/board/ui.ts
 import { AGENTS, age, agentOf } from "./view.mjs";
 var NS = "http://www.w3.org/2000/svg";
 var ring = (extra = {}) => [

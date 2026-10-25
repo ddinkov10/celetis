@@ -15,7 +15,8 @@ const { basename, delimiter, dirname } = await import('node:path');
 const { text } = await import('node:stream/consumers');
 const { parseConfig } = await import('./config.ts');
 const { CONTRACT, readDocument } = await import('./contract.ts');
-const { createBoard, run, runData } = await import('./server.ts');
+const { run, runData } = await import('./server.ts');
+const { startBoard } = await import('./start.ts');
 
 if (process.env.PATH) process.env.PATH = cleanPath(process.env.PATH, delimiter);
 
@@ -28,7 +29,7 @@ if (
   )
 ) {
   stop(
-    'usage: agent-board --config-stdin | check --config-stdin | check --stdin (scripts/celetis board starts the board)',
+    'usage: agent-board --config-stdin | check --config-stdin | check --stdin (BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board starts the board)',
     2,
   );
 }
@@ -66,25 +67,6 @@ const checkData = async (main: string, data: Command | null) => {
   report(output as string);
 };
 
-const serve = (main: string, config: Config) => {
-  const port = Number(process.env.PORT) || config.port || 4403;
-  const refuse = (cause: NodeJS.ErrnoException) =>
-    stop(
-      `agent-board: cannot listen on 127.0.0.1:${port}: ${cause.code === 'EADDRINUSE' ? 'the port is in use' : cause.message}`,
-    );
-  const server = createBoard({ main, config }).on('error', refuse);
-  try {
-    server.listen(port, '127.0.0.1', () => {
-      console.log(`agent-board: repository ${main}`);
-      for (const key of ['data', 'run', 'resume'] as const)
-        if (config[key]) console.log(`agent-board: ${key.padEnd(8)}${config[key].join(' ')}`);
-      console.log(`agent-board: http://127.0.0.1:${port}`);
-    });
-  } catch (cause) {
-    refuse(cause as NodeJS.ErrnoException);
-  }
-};
-
 if (flag === '--stdin') {
   report(await text(process.stdin));
 } else {
@@ -96,5 +78,5 @@ if (flag === '--stdin') {
     stop(`agent-board: config stdin: ${(cause as Error).message}`);
   }
   if (command === 'check') await checkData(main, config.data);
-  else serve(main, config);
+  else process.exitCode = await startBoard(main, config);
 }

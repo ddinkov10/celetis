@@ -1,20 +1,17 @@
 {
   "permissions": {
-    "allow": [
-      "Bash(scripts/celetis land *)",
-      "Bash(scripts/celetis --agent claude land *)",
-      "Bash(scripts/celetis --agent codex land *)"
-    ],
     "deny": ["Bash(gh pr merge*)", "PowerShell(gh pr merge*)"]
   },
   "extraKnownMarketplaces": {
     "celetis": {
-      "source": { "source": "github", "repo": "ddinkov10/celetis" },
+      "source": {
+        "source": "github",
+        "repo": "ddinkov10/celetis"
+      },
       "autoUpdate": false
     }
   },
   "enabledPlugins": {
-    "superpowers@superpowers-marketplace": true,
-    "celetis@celetis": true
+    "superpowers@superpowers-marketplace": true
   }
 }

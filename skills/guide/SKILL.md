@@ -10,7 +10,7 @@ disable-model-invocation: true
 If entry stops, report only the exact block and the required repair or access setup. End the turn without goal advice, including conditional commands.
 
 After Host entry succeeds, match the goal to a row. Give the selected host's skill prompt or command and one line on why it fits.
-Write each launcher recommendation as `scripts/celetis --agent claude <command>` or `scripts/celetis --agent codex <command>` for the running host, including commands for the person's terminal.
+Write each launcher recommendation as `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' 'claude' <command>` or `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' 'codex' <command>` for the running host, including commands for the person's terminal.
 Execute no recommended action and invoke no other skill. Goal: the invocation input.
 
 | You want to… | Run |
@@ -24,14 +24,14 @@ Execute no recommended action and invoke no other skill. Goal: the invocation in
 | turn an approved spec (the issue body) into a plan | `/celetis:plan <#>` in a fresh context |
 | build a posted plan (`ready-for-agent`) and land the change | `/celetis:implement <#>` in a fresh context |
 | wire a product project to the plugin | `/celetis:setup` in the main checkout of the project |
-| see each agent session and each issue's next step, and start a step | the board: `scripts/celetis board` in the main checkout, then `http://127.0.0.1:<port>`, with `board.port` in `.celetis.yaml` (`<plugin>/docs/celetis-flow.md`) |
-| run the next step of an issue in a fresh session, in your own terminal | `scripts/celetis celetis-flow <n>...` in a Terminal tab; each gate is `me` by default, so it runs one step of each issue and ends. With no number it runs only the steps that `gates.<step>: auto` in `.celetis.yaml` makes `auto`, so with the defaults it starts nothing (`<plugin>/docs/celetis-flow.md`) |
-| see an issue's next step without running it | `scripts/celetis next-step <#>`; `scripts/celetis next-step --open` lists each open issue |
+| see each agent session and each issue's next step, and start a step | the board: `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'board'` in the main checkout, then `http://127.0.0.1:<port>`, with `board.port` in `.celetis.yaml` (`<plugin>/docs/celetis-flow.md`) |
+| run the next step of an issue in a fresh session, in your own terminal | `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'celetis-flow' '<n>'...` in a Terminal tab; each gate is `me` by default, so it runs one step of each issue and ends. With no number it runs only the steps that `gates.<step>: auto` in `.celetis.yaml` makes `auto`, so with the defaults it starts nothing (`<plugin>/docs/celetis-flow.md`) |
+| see an issue's next step without running it | `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'next-step' <#>`; `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'next-step' --open` lists each open issue |
 | open the session of a step again to diagnose it | the selected host's session-recovery command from the host operations, using the recorded session identity |
 | land a change whose landing stopped (`## Landing refused`) | the build step again, `/celetis:implement <#>` or `/celetis:chore <#>`: it lands the change and does not build it again |
 | score the current diff before asking for review | `/celetis:critic-loop` |
 | record a decision or a lesson | `/celetis:record-architecture-decisions`, `/celetis:lesson` |
 | prove work is done before claiming it | the verify gate of the project (`AGENTS.md` names it) after each change, and the full suite once, on the tree that lands |
-| merge a PR by hand | you: `gh pr merge --squash` in your own shell, or on GitHub; an agent lands a change only with `scripts/celetis land`, which its build step runs |
+| merge a PR by hand | you: `gh pr merge --squash` in your own shell, or on GitHub; an agent lands a change only with `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land'`, which its build step runs |
 
 No row fits → `/celetis:intake`; the intent and `/celetis:triage` sort it into a lane.

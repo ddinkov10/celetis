@@ -1,14 +1,12 @@
 import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { bunShebang } from './lib/process.ts';
 
 const pin = '1.4.2';
 const root = dirname(import.meta.dir);
-const targets = [{ entry: 'scripts/launcher.ts', output: 'scripts/celetis', mode: 0o755 }];
-const nativeTargets = [{ entry: 'hooks/entry.ts', output: 'hooks/entry.js', mode: 0o644 }];
+const nativeTargets = [{ entry: 'engine/hooks/entry.ts', output: 'engine/hooks/entry.js', mode: 0o644 }];
 const browserTargets = ['board', 'view', 'ui', 'panel', 'palette'].map((name) => ({
-  entry: `board/${name}.ts`,
-  output: `board/${name === 'board' ? 'board.js' : `${name}.mjs`}`,
+  entry: `engine/board/${name}.ts`,
+  output: `engine/board/${name === 'board' ? 'board.js' : `${name}.mjs`}`,
   mode: 0o644,
 }));
 
@@ -25,17 +23,16 @@ export async function main(args: string[]): Promise<number> {
   process.chdir(root);
   let code = 0;
   const built: { output: string; mode: number; bytes: Buffer }[] = [];
-  for (const target of [...targets, ...browserTargets, ...nativeTargets]) {
-    const browser = target.entry.startsWith('board/');
+  for (const target of [...browserTargets, ...nativeTargets]) {
+    const browser = target.entry.startsWith('engine/board/');
     const result = await Bun.build({
       entrypoints: [join(root, target.entry)],
       root,
-      target: target.entry.startsWith('scripts/') ? 'bun' : 'browser',
+      target: 'browser',
       format: 'esm',
       naming: target.output,
       minify: false,
       sourcemap: 'none',
-      banner: target.entry.startsWith('scripts/') ? bunShebang : undefined,
       plugins: browser
         ? [
             {

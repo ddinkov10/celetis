@@ -6,7 +6,7 @@ Read through [Host entry](entry.md).
 
 Invoke skills with the Skill tool and pass the invocation input as arguments.
 
-The native hook in `<plugin>/hooks/entry.js` supplies startup reads and the current entry's
+The native hook in `<plugin>/engine/hooks/entry.js` supplies startup reads and the current entry's
 config result. Apply that entry before any response. Missing native entry data stops for
 hook setup; do not replace the hook's reads with another access path.
 

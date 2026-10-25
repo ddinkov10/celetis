@@ -1,4 +1,4 @@
-// board/panel.ts
+// engine/board/panel.ts
 import { $, actionButton, copy, el, icon, iconButton, link, mark, timed } from "./ui.mjs";
 import { agentOf, diffText, gateOf, laneTrack, prFacts, shortPath, stateLabel } from "./view.mjs";
 var TONES = {

@@ -1,7 +1,7 @@
 # AGENTS.md
 
 This repository is the plugin `celetis`, a general agent harness with Claude and Codex host
-operations: skills (`skills/`), scripts (`scripts/`), step text (`step-prompt.md`), and documents
+operations: skills (`skills/`), runtime (`engine/`), maintenance (`scripts/`), step text (`step-prompt.md`), and documents
 (`docs/`). It is also a
 product project of its own plugin. `README.md` holds the wiring of a product project, the commands,
 and the update rule. `docs/celetis-flow.md` holds the runner, and `docs/issue-tracker.md` holds the
@@ -36,9 +36,9 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
 - The gate reads `git ls-files -z`. Stage a new file before the gate. Give each new file type
   a check or an explicit role in `scripts/verify.ts`.
 - Author each first-party program in TypeScript. Bun 1.4.2 or later runs commands.
-  `scripts/build.ts` uses exactly Bun 1.4.2 to generate the executable launcher, browser assets,
+  `scripts/build.ts` uses exactly Bun 1.4.2 to generate browser assets
   and native hook modules. `--check` compares bytes and modes without writes. The vendor parser
-  stays unchanged; update it only as `scripts/lib/vendor/README.md` says.
+  stays unchanged; update it only as `engine/lib/vendor/README.md` says.
 - Strict types have three environments: runtime commands and server modules;
   browser DOM modules; and the native hook API and its actual globals.
 
@@ -65,24 +65,24 @@ project, not here. So the text of this repository is general:
 The lanes of this repository are the skills of the plugin itself, on the issues of
 `ddinkov10/celetis` (`README.md`, "The full loop"). The landing is `merge`
 (`landing` in `.celetis.yaml`): a build step runs the verify gate locally, then ends
-with `scripts/celetis land <n> '<subject>'`, which puts one squash commit on `main` without a PR.
+with `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' '<n>' '<subject>'`, which puts one squash commit on `main` without a PR.
 The landing is the last act of a change: this repository has no deployment.
 For installation changes, follow `README.md`, "Updates".
 
 - A lane never skips a step.
 - The maintainer starts the runner; an agent starts it only when its task says so, with a number,
   and in a terminal.
-- A change of `skills/`, `step-prompt.md`, or `scripts/` changes the behavior of each product
+- A change of `skills/`, `step-prompt.md`, `bin/`, `engine/`, or `scripts/` changes the behavior of each product
   project, so its lane is `bug` or `feature`, not `chore`.
 - The lanes are the skills of the plugin `celetis`, on the issues of `ddinkov10/celetis`.
-- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `scripts/celetis land`.
+- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `land` through the bound plugin entrypoint and personal host binding.
 - The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.
 
 ## The board
 
-`board/` is the board of the plugin (ADR-0020). For a change there, follow these two rules:
+`engine/board/` is the board of the plugin (ADR-0020). For a change there, follow these two rules:
 
-- Keep the trust boundaries of `board/server.ts` and `board/config.ts`.
+- Keep the trust boundaries of `engine/board/server.ts` and `engine/board/config.ts`.
 - Check a UI change in Chromium at desktop width and at 375×812.
 
 ## External facts
@@ -100,23 +100,21 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
 
 - **A normal session here reads the installed plugin.** Editing the checkout does not replace
   either host's installed skills or scripts. Claude's
-  `--plugin-dir .` can load checkout skills, but `scripts/celetis` still resolves the selected
-  host's installation. Run a checkout script with the isolated Bun flags shown above and `scripts/<name>.ts`.
+  `--plugin-dir .` can load checkout skills. A bound entrypoint runs its own package. Run a checkout script with the isolated Bun flags shown above and `engine/<name>.ts`.
   Record checks of the checkout and checks of the installed package separately.
-- **A script file keeps its name.** `scripts/<name>.ts` is the sub-command
-  `scripts/celetis <name>`, which the skills, the documents, and the files of each product project
-  name: its board commands, and its `allow` rule `Bash(scripts/celetis land *)`. Two file names are
-  also patterns of the process list. `scripts/next-step.ts` takes a landing as live only when the
-  process of its lock has `land.ts` in its command line, and `scripts/celetis-flow.ts` takes a lock
-  as held only when its process has `celetis-flow.ts` there. After a rename, a live lock looks
-  stale: the runner ends a session while its landing runs, and two runners take one issue.
+- **A script file keeps its name.** `engine/<name>.ts` keeps the same sub-command basename.
+  Skills, product instructions, board commands, and personal landing rules refer to that command.
+  Two basenames also identify lock owners. `engine/next-step.ts` accepts a live landing only
+  when its process command line contains `land.ts`; `engine/celetis-flow.ts` accepts a runner
+  only when it contains `celetis-flow.ts`. A rename makes a live owner look stale. The runner
+  can then end a session during landing, or two runners can take one issue.
 - **The act of a skill that moves the line of the issue is its last act.** In a herdr pane, the
   runner types `/exit` when the agent is idle and the resolver prints a new line for the issue
-  (`endWhenDone` in `scripts/celetis-flow.ts`). A label, a comment with a heading that the
+  (`endWhenDone` in `engine/celetis-flow.ts`). A label, a comment with a heading that the
   resolver reads, a published spec, and a closed issue move the line. So each act of the skill after
   such an act is in the same turn.
 - **The skills table and the commands table of `README.md` are written by hand.** A new skill, a
-  removed skill, or a new sub-command of `scripts/` also changes the README, and no check fails when
+  removed skill, or a new sub-command of `engine/` also changes the README, and no check fails when
   it does not.
 - **The skills `writing-for-agents` and `prototype` are vendored** from `mattpocock/skills`
   (ddinkov10/fwrh_calculator#265).

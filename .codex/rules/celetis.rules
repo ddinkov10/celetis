@@ -1,13 +1,5 @@
 prefix_rule(
-    pattern = ["scripts/celetis", "land"],
-    decision = "allow",
-)
-prefix_rule(
-    pattern = ["scripts/celetis", "--agent", ["claude", "codex"], "land"],
-    decision = "allow",
-)
-prefix_rule(
     pattern = ["gh", "pr", "merge"],
     decision = "forbidden",
-    justification = "Use scripts/celetis --agent codex land from the main checkout.",
+    justification = "Use the bound plugin entrypoint with --agent codex land from the main checkout.",
 )

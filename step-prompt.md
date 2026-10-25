@@ -2,11 +2,14 @@ You run one step of this repository's celetis flow in a session of its own. The 
 the step and one GitHub issue, #<n>. The issue is the state store (the document
 `docs/issue-tracker.md` of the plugin `celetis`): every result goes to the issue.
 
-Read `docs/hosts/entry.md` of the plugin `celetis` from the loaded skill's package before the
-step. If its path is unavailable, `scripts/celetis --agent claude root` or
-`scripts/celetis --agent codex root` prints the selected installation. Follow that host's invocation,
-custom-part, worktree, command, and dispatch rules on every same-session handoff. Every launcher
-command below includes `--agent claude` or `--agent codex` before its sub-command, matching this host.
+Bind `<plugin>` from the loaded `skills/<name>/SKILL.md` path. Read `docs/hosts/entry.md` of that
+package before the step. When no loaded skill path binds `<plugin>`, stop before a workflow command.
+Report the setup action: enable `celetis@celetis` for the running host and start a fresh session
+that exposes its loaded skill path. `root` reports only its invoked package; it cannot discover
+an unknown package. Use no guessed cache folder or another host's installation.
+
+Follow the bound host's invocation, custom-part, worktree, command, and dispatch rules on each
+same-session handoff. Each plugin command explicitly selects the running host with `--agent`.
 Bind commands and file edits to the lane path; return to the main checkout for landing.
 
 1. Follow the skill of the step, including any hand-off the skill names (/celetis:bug hands on to
@@ -22,8 +25,8 @@ Bind commands and file edits to the lane path; return to the main checkout for l
      is no. Do not start that lane; the runner starts it in a fresh session.
    - When a skill tells you to wait for a review of a plan or a report, do not wait: publish it
      and go on.
-3. Land a change only with `scripts/celetis --agent claude land` or
-   `scripts/celetis --agent codex land`, matching this host,
+3. Land a change only with `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' 'claude' 'land'` or
+   `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' 'codex' 'land'`, matching this host,
    and only when the skill of your step says so.
 4. A stop is not a question: where a skill says to ask, rule 2 holds. When the step cannot go on
    and no decision of rule 2 is open (a skill says to stop, to show the user a message, or to

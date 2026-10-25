@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { constants as fsConstants } from 'node:fs';
-import { access, chmod, lstat, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { access, lstat, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { constants, tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -16,7 +16,7 @@ const settings = '.claude/settings.json';
 const configFile = '.celetis.yaml';
 const subject = 'chore(celetis): wire the project for the celetis lanes';
 const usage =
-  'usage: scripts/celetis setup check | write <options> | try <options> | try --remove | lane <path> | push; <options>: --hosts claude|codex|claude,codex [--default claude|codex] --landing pr|merge [--setup-file <file>] [--ignore <line>]... [--baseline-file <file>]';
+  'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> setup check | write <options> | try <options> | try --remove | lane <path> | push; <options>: --hosts claude|codex|claude,codex [--default claude|codex] --landing pr|merge [--setup-file <file>] [--ignore <line>]... [--baseline-file <file>]';
 const setupPaths = [
   'scripts/celetis',
   configFile,
@@ -114,11 +114,6 @@ function options(argv: string[]): Options {
 
 function settingsForm(): Entry[] {
   return [
-    ...[
-      'Bash(scripts/celetis land *)',
-      'Bash(scripts/celetis --agent claude land *)',
-      'Bash(scripts/celetis --agent codex land *)',
-    ].map((item) => ({ path: ['permissions', 'allow'], item })),
     ...['Bash(gh\u0020pr merge*)', 'PowerShell(gh\u0020pr merge*)'].map((item) => ({
       path: ['permissions', 'deny'],
       item,
@@ -128,7 +123,6 @@ function settingsForm(): Entry[] {
       value: { source: { source: 'github', repo: 'ddinkov10/celetis' }, autoUpdate: false },
     },
     { path: ['enabledPlugins', 'superpowers@superpowers-marketplace'], value: true },
-    { path: ['enabledPlugins', 'celetis@celetis'], value: true },
   ];
 }
 
@@ -230,7 +224,7 @@ class Setup {
   trunk = '';
   ahead = 0;
   diagnostic = false;
-  files = new Map<string, { contents: string; mode?: number }>();
+  files = new Map<string, { contents: string }>();
   owned: RecordOfSetup = { files: [], entries: {} };
 
   output(text: string): void {
@@ -381,6 +375,8 @@ class Setup {
       }
     }
     if (!object(doc)) fail(`${settings} is no JSON object; fix it first`);
+    if (object(doc.permissions) && Object.hasOwn(doc.permissions, 'allow') && !Array.isArray(doc.permissions.allow))
+      fail(`${settings}: permissions.allow is no array; fix it first`);
     let changed = false;
     for (const form of settingsForm()) {
       const parentKey = form.path[0] as string;
@@ -422,6 +418,16 @@ class Setup {
           `${settings}: ${form.path.join('.')} differs from the current form; setup leaves it${parentKey === 'extraKnownMarketplaces' && key === 'celetis' ? '; review this entry and set autoUpdate to false by hand' : ''}`,
         );
     }
+    const enabled = object(doc.enabledPlugins) ? doc.enabledPlugins['celetis@celetis'] : undefined;
+    if (
+      enabled === true &&
+      (this.owned.entries[settings] ?? []).some((entry) =>
+        isDeepStrictEqual(entry, { path: ['enabledPlugins', 'celetis@celetis'] }),
+      )
+    )
+      this.warn(
+        `${settings}: enabledPlugins.celetis@celetis needs a reviewed manual cutover; setup leaves it; run claude plugin uninstall celetis@celetis --scope project and follow the plugin README, "Product cutover"`,
+      );
     const policies = await claudePolicy(this.cwd);
     const projectPolicy = policies.find((entry) => entry.path === join(this.cwd, settings));
     if (projectPolicy) projectPolicy.value = doc;
@@ -529,7 +535,7 @@ class Setup {
       )
         claudeFiles.push(path);
     }
-    const touched = ['scripts/celetis', configFile, wiring, '.gitignore', '.gitattributes', agentsPath];
+    const touched = [configFile, wiring, '.gitignore', '.gitattributes', agentsPath];
     for (const path of ['docs/adr/README.md', 'docs/adr/template.md', 'docs/lessons/INDEX.md'])
       if (!(await this.there(path))) touched.push(path);
     if (opts.hosts.includes('codex')) touched.push('.codex/rules/celetis.rules');
@@ -545,25 +551,25 @@ class Setup {
     }
     if (opts.hosts.includes('claude')) await this.planSettings();
     await this.planConfig(opts, scratch);
-    this.files.set('scripts/celetis', {
-      contents: await readFile(join(plugin, 'scripts/celetis'), 'utf8'),
-      mode: 0o755,
-    });
-    this.owned.files.push('scripts/celetis');
-    if (opts.hosts.includes('codex')) {
+    const oldLauncher = (await this.there('scripts/celetis')) || this.owned.files.includes('scripts/celetis');
+    if (oldLauncher)
+      this.warn(
+        'scripts/celetis needs a reviewed manual cutover; preserve its file and ownership; follow the plugin README, "Product cutover" and "Explicit source repair"',
+      );
+    if (opts.hosts.includes('codex') && !(oldLauncher && (await this.there('.codex/rules/celetis.rules')))) {
       this.files.set('.codex/rules/celetis.rules', {
         contents:
-          'prefix_rule(\n    pattern = ["scripts/celetis", "land"],\n    decision = "allow",\n)\nprefix_rule(\n    pattern = ["scripts/celetis", "--agent", ["claude", "codex"], "land"],\n    decision = "allow",\n)\nprefix_rule(\n    pattern = ["gh", "pr", "merge"],\n    decision = "forbidden",\n    justification = "Use scripts/celetis --agent codex land from the main checkout.",\n)\n',
+          'prefix_rule(\n    pattern = ["gh", "pr", "merge"],\n    decision = "forbidden",\n    justification = "Use the bound plugin entrypoint with --agent codex land from the main checkout.",\n)\n',
       });
       this.owned.files.push('.codex/rules/celetis.rules');
     }
     await this.ownLines('.gitignore', ignores);
     await this.ownLines('.gitignore', opts.ignores, false);
-    await this.ownLines('.gitattributes', ['scripts/celetis text eol=lf', '.celetis.yaml text eol=lf']);
+    await this.ownLines('.gitattributes', ['.celetis.yaml text eol=lf']);
     const flow = [
       '## Celetis flow',
       `- The lanes are the skills of the plugin \`celetis\`, on the issues of \`${this.repo}\`.`,
-      '- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `scripts/celetis land`.',
+      '- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `land` through the bound plugin entrypoint and personal host binding.',
       '- A lane never skips a step.',
       '- The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.',
     ];
@@ -617,7 +623,6 @@ class Setup {
         await mkdir(dirname(absolute), { recursive: true });
         await writeFile(absolute, file.contents);
       }
-      if (file.mode !== undefined) await chmod(absolute, file.mode);
     }
   }
   async getUnplanned(path: string): Promise<string> {
@@ -652,8 +657,7 @@ class Setup {
     }
   }
   async stage(paths: string[]): Promise<void> {
-    for (const path of paths)
-      await this.git(['add', ...(path === 'scripts/celetis' ? ['--chmod=+x'] : []), '--', path]);
+    for (const path of paths) await this.git(['add', '--', path]);
   }
   async push(): Promise<void> {
     await this.checkTrunk();

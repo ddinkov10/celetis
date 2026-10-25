@@ -13,7 +13,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { bunArgs, run } from './lib/process.ts';
+import { bunArgs, run } from '../engine/lib/process.ts';
 
 const actionlintVersion = '1.7.12';
 const hashes: Record<string, string> = {

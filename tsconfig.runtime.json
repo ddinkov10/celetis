@@ -4,12 +4,12 @@
     "node_modules",
     ".claude",
     ".superpowers",
-    "hooks/**",
-    "board/board.ts",
-    "board/view.ts",
-    "board/ui.ts",
-    "board/panel.ts",
-    "board/palette.ts"
+    "engine/hooks/**",
+    "engine/board/board.ts",
+    "engine/board/view.ts",
+    "engine/board/ui.ts",
+    "engine/board/panel.ts",
+    "engine/board/palette.ts"
   ],
   "compilerOptions": {
     "lib": ["ESNext"],

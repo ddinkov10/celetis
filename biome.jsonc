@@ -2,17 +2,17 @@
   "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
   "javascript": { "formatter": { "quoteStyle": "single" } },
   "files": {
-    "includes": ["**", "!scripts/lib/vendor"]
+    "includes": ["**", "!engine/lib/vendor"]
   },
   "overrides": [
     {
       // The board removes control characters from agent and terminal text; each such regex matches them on purpose (#84).
-      "includes": ["board/**"],
+      "includes": ["engine/board/**"],
       "linter": { "rules": { "suspicious": { "noControlCharactersInRegex": "off" } } }
     },
     {
       // The rule order of board.css sets its cascade, and a reorder changes the board UI (#84).
-      "includes": ["board/board.css"],
+      "includes": ["engine/board/board.css"],
       "linter": {
         "rules": { "style": { "noDescendingSpecificity": "off" }, "complexity": { "noImportantStyles": "off" } }
       }

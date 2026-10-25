@@ -7,9 +7,8 @@ the lane, the spec, the plan, the
 build, and the landing. The issue is the state store: each result goes onto the issue, and each
 hand-off reads the issue again.
 
-Codex remains opt-in while required CLI workflow acceptance is incomplete. Stable installed
-resources during a running step, changed-pair same-child repair, and final live workflows still
-need proof. Desktop automation is optional and has separate evidence in
+Codex remains opt-in while required CLI workflow acceptance is incomplete. Changed-pair same-child repair and final live workflows still need proof. Open sessions have
+no immutable-resource or automatic skill-reload guarantee (ADR-0028). Desktop automation is optional and has separate evidence in
 [Acceptance status](docs/celetis-flow.md#acceptance-status).
 
 The plugin holds:
@@ -28,13 +27,11 @@ There are two kinds of repository:
 - A **product project** is a repository that uses the plugin. `ddinkov10/fwrh_calculator` is the
   first one. This repository is the second one: it runs its own lanes on its own landed plugin.
 
-A product project holds no skill, no script, and no document of the harness, apart from one
-launcher file. It holds only what is its own:
+A product project holds no Celetis launcher, runtime source, skill, or document of the harness. It holds only what is its own:
 
 | Part | Place in the product project |
 |---|---|
 | The host wiring | Claude: `.claude/settings.json`. Codex: the installed plugins and trusted `.codex/config.toml` and `.codex/rules/` (below) |
-| The launcher | `scripts/celetis` |
 | The config | `.celetis.yaml` |
 | The record of setup | `.claude/celetis-flow/wiring.json` |
 | The worktree setup | `worktreeSetup` in `.celetis.yaml` |
@@ -46,10 +43,10 @@ No file of the plugin names a part of a product, apart from the records of `docs
 names a role, for example "the verify gate of the project", and the product project names the
 thing. A lane ends when the change is on the trunk, which is the default branch of the repository
 on GitHub: the verify gate, the deployment, and each other part of a product stay in the product
-project. The plugin has no `version`, no `bin/` folder, and no declared dependency, and it gives
-no permission rule. Its Claude native hook completes file entry before skill expansion.
+project. The plugin has no `version` or declared dependency. Its source entrypoint is `bin/celetis.ts`;
+its runtime is `engine/`. Shared permissions restrict direct merges. Personal host rules bind landing. Its Claude native hook completes file entry before skill expansion.
 Codex declares no Celetis lifecycle hooks and uses the shared skill entry instructions.
-ADR-0012 holds the original packaging decision; ADR-0014 extends it to both hosts without a
+ADR-0030 owns the installed entrypoint and its cutover. ADR-0012 holds the original packaging decision; ADR-0014 extends it to both hosts without a
 second copy of the procedures. ADR-0015 replaces their config storage clauses with one YAML file.
 ADR-0016 limits required automation to the CLI hosts while keeping desktop invocation available.
 
@@ -89,12 +86,13 @@ commands that install Bun.
 
    The install enables the plugin at the `user` scope, so each session of the machine loads it, in
    each folder. A session in a project that is not wired also lists the 19 skills, and a lane
-   skill that starts there from free text makes a GitHub issue before it finds no launcher. The
-   documents of Claude Code give a way to limit this, which is not shown here:
-   `"celetis@celetis": false` in `enabledPlugins` of `~/.claude/settings.json` turns the plugin
-   off at the `user` scope, and the project file of a wired project turns it on.
+   skill that starts there from free text makes a GitHub issue before it validates product setup.
 
-   The launcher finds the plugin through the record of this install, so the two commands are
+   The user install is the only supported Claude install. A project install of `celetis@celetis`
+   makes discovery refuse, with `Claude installation is ambiguous`. Setup writes no project
+   enable of the plugin.
+
+   Terminal discovery finds the enabled plugin through native metadata, so the two commands are
    necessary on each machine. It is not shown that the block of the project file (below) loads
    the plugin with no install. In the probe, a headless turn in a new repository whose project
    file held the marketplace and the two plugins loaded no plugin and added no marketplace. A
@@ -123,10 +121,9 @@ codex plugin marketplace add ddinkov10/celetis --ref main
 codex plugin add celetis@celetis --json
 ```
 
-The launcher discovers the enabled installation through `skills/list`; it does not calculate a cache
+Terminal discovery finds the enabled installation through `skills/list`; it does not calculate a cache
 path. A local-path marketplace is unsuitable for the runner: `plugin marketplace upgrade celetis`
-requires a Git source. `--ref main` selects the landed source. A test of an unlanded commit must use
-its explicit Git ref in a separate test configuration. These commands and result fields were checked
+requires a Git source. `--ref main` selects the landed source. For an unlanded check, use supported checkout loading with the existing host and authentication. These commands and result fields were checked
 on Codex 0.162.1. See the [Codex CLI reference](https://learn.chatgpt.com/docs/cli/reference).
 
 Install Superpowers from its Git marketplace:
@@ -169,7 +166,7 @@ below shows the current form that it writes. Where a part stays by hand, its sec
   credential path that it does not copy, each tool that each machine needs, and the checks that
   the test runs. A `worktreeSetup` that is there, also an empty one, stays as it is, and setup
   tests it.
-- Before any write, `scripts/celetis setup try` runs the script in a test lane,
+- Before any write, `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'setup' try` runs the script in a test lane,
   `.claude/worktrees/setup-try`: a detached worktree at the local trunk plus a commit of the
   wiring, which is the tree of a new lane after the push. There, the session runs the checks of
   the project, and it checks the import of the package of the project, a clean `git status`, and
@@ -180,8 +177,8 @@ below shows the current form that it writes. Where a part stays by hand, its sec
   each missing tool and each hook that skips its checks in the test lane (ADR-0018).
 - Setup writes the part of a host only when you choose that host: `.claude/settings.json` and the
   line `@AGENTS.md` for Claude, and `.codex/rules/celetis.rules` for Codex.
-- Setup owns the launcher and `.codex/rules/celetis.rules` whole, and it writes each one again at
-  each run, whatever the file holds. In a file that the product also uses, setup adds each missing
+- New setup owns `.codex/rules/celetis.rules`. It writes no launcher or machine path allow.
+  An old launcher requires the reviewed manual cutover below; setup preserves its file and ownership. In a file that the product also uses, setup adds each missing
   entry, and it changes or removes no entry that is there.
 - In `.celetis.yaml`, setup owns two entries: `host` (the default host, or the one host) and
   `landing`. It makes the file when there is none. In a valid file, it adds a missing `host` as a
@@ -196,23 +193,18 @@ below shows the current form that it writes. Where a part stays by hand, its sec
 - Setup shows the diff, and it commits and pushes the wiring only after your yes ("The wiring on
   the trunk"). It makes the labels at the write, before that question, so a no keeps them.
 - After the push step, setup lists each lane worktree that exists and offers to run the script
-  there with `scripts/celetis setup lane <path>`. It does this also after a no or a failed push,
+  there with `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'setup' lane <path>`. It does this also after a no or a failed push,
   and when no file changed. A lane branch with an older `.gitignore` can then show the new
   environment as untracked, and the resolver stops its issue: after the wiring is on the trunk, a
   merge of the trunk into that branch brings the ignore lines.
 
 ### Claude permissions: `.claude/settings.json`
 
-The file holds the marketplace, the two plugins, and the permission rules:
+The file holds the marketplace, the Superpowers plugin, and the permission rules:
 
 ```json
 {
   "permissions": {
-    "allow": [
-      "Bash(scripts/celetis land *)",
-      "Bash(scripts/celetis --agent claude land *)",
-      "Bash(scripts/celetis --agent codex land *)"
-    ],
     "deny": ["Bash(gh pr merge*)", "PowerShell(gh pr merge*)"]
   },
   "extraKnownMarketplaces": {
@@ -222,21 +214,14 @@ The file holds the marketplace, the two plugins, and the permission rules:
     }
   },
   "enabledPlugins": {
-    "superpowers@superpowers-marketplace": true,
-    "celetis@celetis": true
+    "superpowers@superpowers-marketplace": true
   }
 }
 ```
 
-The plugin gives no permission rule, so each product project holds these rules. The `allow` entries
-cover the bare terminal command and both explicit host forms. Each manual skill uses its own
-host prefix. The `deny` entries retain the direct-merge restriction: to merge by hand, use your
-own shell or GitHub. A rule matches the text of a command, so the command has no `./` before it.
-A `Bash(...)` rule does not match the
-PowerShell tool of a session on a Windows host, so a `deny` rule has the two forms. A project adds a
-`deny` rule for each act of its own that only the maintainer does (`docs/celetis-flow.md`,
-"Guards"). The [Claude permission reference](https://code.claude.com/docs/en/permissions)
-defines these command patterns and the deny-before-allow order.
+Shared rules retain direct merge restrictions. Put the tested landing allow in personal host
+settings after native discovery. The [personal binding procedure](#personal-landing-permission)
+owns the exact command and its lifetime across an update.
 
 ### Codex permissions: `.codex/rules/celetis.rules`
 
@@ -244,44 +229,377 @@ Setup saves these rules in the trusted project's `.codex/rules/` directory:
 
 ```starlark
 prefix_rule(
-    pattern = ["scripts/celetis", "land"],
-    decision = "allow",
-)
-prefix_rule(
-    pattern = ["scripts/celetis", "--agent", ["claude", "codex"], "land"],
-    decision = "allow",
-)
-prefix_rule(
     pattern = ["gh", "pr", "merge"],
     decision = "forbidden",
-    justification = "Use scripts/celetis --agent codex land from the main checkout.",
+    justification = "Use the bound plugin entrypoint with --agent codex land from the main checkout.",
 )
 ```
 
-Restart Codex after the write. Check the saved rules without executing a landing or merge:
+This shared rule forbids direct merge. The personal rule binds the selected package and command.
+Codex matches literal prefixes. A machine path is not a portable shared default. A policy-file
+check does not prove that an active session loaded the rule. Keep the host sandbox and approval
+settings. Follow the tested binding below.
 
-```bash
-codex execpolicy check --rules .codex/rules/celetis.rules -- scripts/celetis --agent codex land 7 'fix(example): repair output'
-codex execpolicy check --rules .codex/rules/celetis.rules -- gh pr merge 7 --squash
+### Installed entrypoint
+
+Skills bind `<plugin>` from their loaded path and select their actual host. Bind `<bun>` to the
+canonical absolute path of the selected Bun as `docs/hosts/entry.md` says. Their command is:
+
+```sh
+/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' '<command>'
 ```
 
-The results must contain `decision: "allow"` and `decision: "forbidden"`, respectively. Also
-check the bare landing form and the Claude prefix. Codex 0.162.1 passed these exact policy checks.
-The [Codex rules documentation](https://learn.chatgpt.com/docs/agent-configuration/rules)
-defines their scope: command requests outside the sandbox, with project rules loaded only from
-a trusted configuration layer. These prefix rules do not inspect every command inside an allowed
-script or forbid every spelling or API route to a merge. Keep the host's sandbox and approval
-settings. Request required access to the main and lane checkouts through its normal controls.
-The landing script's checks remain authoritative for the permitted landing path. A policy-file
-check does not prove the active desktop session loaded that file.
+Replace the placeholders with the bound absolute package path and actual host. Quote each complete
+path argument. Maintainer terminals use native discovery below. The entrypoint imports only its
+own engine. Runtime modules keep their basenames; maintenance commands stay under `scripts/`.
+No installation build is needed. Missing Bun keeps the native failure; an executing older Bun
+refuses the command. Generic command errors and argument boundaries stay unchanged.
 
-### The launcher
+### Terminal discovery
 
-Setup copies `scripts/celetis` of the installed plugin to `scripts/celetis` of the project. The
-commit of setup gives the file the mode `100755`, the execute bit, which the board needs to start
-the file. The file is the same in each product project. `scripts/celetis <name> <arguments>` runs
-`scripts/<name>.ts` of the installed plugin with those arguments ("The commands"), so a new script
-of the plugin needs no new copy.
+Start in the product directory. Use Bun 1.4.2 or later and the selected existing native host.
+Run one discovery block. Keep the resulting absolute path in `celetis_entry`. If discovery
+fails, use the stated native setup action. Do not select another host or search cache folders.
+These blocks validate the package identity and one enabled canonical root. They never execute
+metadata as shell text. Other Claude project registrations are outside the selected product;
+an applicable project registration and a user registration with different roots are ambiguous.
+
+```sh
+# bootstrap-claude
+celetis_entry=$(
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros - <<'CELETIS_CLAUDE'
+import { execFileSync } from 'node:child_process';
+import { lstatSync, readFileSync, realpathSync } from 'node:fs';
+import { dirname, isAbsolute, join } from 'node:path';
+if (Bun.semver.order(Bun.version, '1.4.2') < 0) throw Error('Need Bun >=1.4.2');
+const cwd = realpathSync(process.cwd());
+let project = cwd;
+try {
+  project = realpathSync(dirname(execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'pipe'] }).trimEnd()));
+} catch {}
+const records = JSON.parse(execFileSync('claude', ['plugin', 'list', '--json'], { encoding: 'utf8', timeout: 10000 }));
+if (!Array.isArray(records)) throw Error('Invalid Claude plugin list; inspect claude plugin list --json');
+const roots = new Set();
+for (const item of records) {
+  if (!item || item.id !== 'celetis@celetis') continue;
+  if (item.scope !== 'user') {
+    if (!['project', 'local'].includes(item.scope) || typeof item.projectPath !== 'string' || !isAbsolute(item.projectPath)) throw Error('Invalid Claude scope; repair its native registration');
+    let applicable;
+    try { applicable = realpathSync(item.projectPath); } catch { continue; }
+    if (applicable !== project) continue;
+  }
+  if (item.enabled === false) continue;
+  if (item.enabled !== true || typeof item.installPath !== 'string' || !isAbsolute(item.installPath) || /[\x00-\x1f\x7f]/.test(item.installPath)) throw Error('Invalid Claude enabled identity; repair its native registration');
+  roots.add(realpathSync(item.installPath));
+}
+if (roots.size !== 1) throw Error('Need one enabled Celetis root for this product; inspect claude plugin list --json');
+const root = [...roots][0];
+const manifest = join(root, '.claude-plugin/plugin.json');
+if (!lstatSync(manifest).isFile() || JSON.parse(readFileSync(manifest, 'utf8')).name !== 'celetis') throw Error('Wrong Celetis package identity; repair the native installation');
+const entry = join(root, 'bin/celetis.ts');
+if (!lstatSync(entry, { throwIfNoEntry: false })?.isFile() || !lstatSync(join(root, 'engine'), { throwIfNoEntry: false })?.isDirectory()) throw Error('Incomplete source-entrypoint layout; use the reviewed source repair procedure');
+console.log(entry);
+CELETIS_CLAUDE
+)
+```
+
+```sh
+# bootstrap-codex
+celetis_entry=$(
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros - <<'CELETIS_CODEX'
+import { execFileSync, spawn } from 'node:child_process';
+import { lstatSync, readFileSync, realpathSync } from 'node:fs';
+import { isAbsolute, join } from 'node:path';
+import { createInterface } from 'node:readline';
+if (Bun.semver.order(Bun.version, '1.4.2') < 0) throw Error('Need Bun >=1.4.2');
+const cwd = realpathSync(process.cwd());
+const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+const native = JSON.parse(execFileSync('codex', ['plugin', 'list', '--marketplace', 'celetis', '--json'], { encoding: 'utf8', timeout: 10000 }));
+if (!object(native) || !Array.isArray(native.installed)) throw Error('Invalid Codex plugin list');
+const packages = native.installed.filter(item => object(item) && item.pluginId === 'celetis@celetis');
+if (packages.length !== 1 || packages[0].enabled !== true || packages[0].installed !== true || packages[0].name !== 'celetis' || packages[0].marketplaceName !== 'celetis') throw Error('Need one enabled celetis@celetis installation; inspect codex plugin list --json');
+const child = spawn('codex', ['app-server', '--stdio'], { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
+const exited = new Promise(resolve => { child.once('exit', resolve); child.once('error', resolve); });
+const lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
+const iterator = lines[Symbol.asyncIterator]();
+let diagnostics = '';
+child.stderr.setEncoding('utf8').on('data', text => diagnostics += text);
+child.stdin.on('error', () => {});
+let rejectSignal;
+const interrupted = new Promise((_, reject) => rejectSignal = reject);
+const handlers = new Map();
+for (const signal of ['SIGHUP', 'SIGINT', 'SIGTERM']) {
+  const handler = () => rejectSignal(Error(`Interrupted by ${signal}`));
+  handlers.set(signal, handler);
+  process.on(signal, handler);
+}
+const send = value => child.stdin.write(JSON.stringify(value) + '\n');
+async function reply(id) {
+  let timer;
+  const timeout = new Promise((_, reject) => timer = setTimeout(() => reject(Error('Codex discovery timed out after 10 seconds')), 10000));
+  try {
+    while (true) {
+      const row = await Promise.race([iterator.next(), timeout, interrupted]);
+      if (row.done) throw Error('Codex app-server closed its output');
+      const value = JSON.parse(row.value);
+      if (!object(value)) throw Error('Invalid Codex response');
+      if (Object.hasOwn(value, 'id')) {
+        if (value.id !== id) continue;
+        if (value.error != null) throw Error(JSON.stringify(value.error));
+        if (!object(value.result)) throw Error('Invalid Codex result');
+        return value.result;
+      }
+      if (typeof value.method !== 'string') throw Error('Invalid Codex notification');
+    }
+  } finally { clearTimeout(timer); }
+}
+try {
+  send({ id: 1, method: 'initialize', params: { clientInfo: { name: 'celetis-terminal', version: '0.0.0' }, capabilities: { experimentalApi: true } } });
+  await reply(1);
+  send({ method: 'initialized' });
+  send({ id: 2, method: 'skills/list', params: { cwds: [cwd], forceReload: true } });
+  const result = await reply(2);
+  const catalogs = Array.isArray(result.data) ? result.data.filter(item => object(item) && item.cwd === cwd) : [];
+  if (catalogs.length !== 1 || !Array.isArray(catalogs[0].errors) || catalogs[0].errors.length || !Array.isArray(catalogs[0].skills)) throw Error('Invalid checkout skill catalog; repair native skill discovery');
+  const roots = new Set();
+  for (const skill of catalogs[0].skills) {
+    if (!object(skill) || skill.pluginId !== 'celetis@celetis' || skill.enabled === false) continue;
+    if (skill.enabled !== true || typeof skill.path !== 'string' || !isAbsolute(skill.path) || /[\x00-\x1f\x7f]/.test(skill.path) || !/\/skills\/[a-z][a-z0-9-]*\/SKILL\.md$/.test(skill.path)) throw Error('Invalid Celetis skill identity');
+    roots.add(realpathSync(skill.path.replace(/\/skills\/[^/]+\/SKILL\.md$/, '')));
+  }
+  if (roots.size !== 1) throw Error('Need one enabled Celetis root; repair native skill discovery');
+  const root = [...roots][0];
+  const manifest = join(root, '.claude-plugin/plugin.json');
+  if (!lstatSync(manifest).isFile() || JSON.parse(readFileSync(manifest, 'utf8')).name !== 'celetis') throw Error('Wrong Celetis package identity');
+  const entry = join(root, 'bin/celetis.ts');
+if (!lstatSync(entry, { throwIfNoEntry: false })?.isFile() || !lstatSync(join(root, 'engine'), { throwIfNoEntry: false })?.isDirectory()) throw Error('Incomplete source-entrypoint layout; use the reviewed source repair procedure');
+console.log(entry);
+} catch (error) {
+  throw Error(`${error.message}\n${diagnostics.trimEnd()}`);
+} finally {
+  lines.close();
+  child.stdin.destroy();
+  child.kill('SIGTERM');
+  let timer;
+  await Promise.race([exited, new Promise(resolve => timer = setTimeout(resolve, 500))]);
+  clearTimeout(timer);
+  if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+  await exited;
+  child.stdout.destroy();
+  child.stderr.destroy();
+  for (const [signal, handler] of handlers) process.off(signal, handler);
+}
+CELETIS_CODEX
+)
+```
+
+Verify that the returned path is the regular entrypoint of the enabled
+package. Run the second stage from the same product directory. Use the actual selected host.
+
+```sh
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros "$celetis_entry" --agent codex root
+```
+
+For Claude Code, replace `codex` with `claude`. Resolve the package again after an update.
+The variable is one complete path argument. Do not use `eval` or expand it without quotes.
+
+### Personal landing permission
+
+Select an absolute Bun executable and the canonical validated package entrypoint. Bind the
+actual host and `land`. Retain shared direct-merge restrictions. A broad Bun allow is unsuitable.
+
+For Claude Code, use the untracked product `.claude/settings.local.json`. The generator below
+constructs a `Bash(...)` rule from the complete shell prefix, including the unquoted
+`/usr/bin/env`, both environment assignments, the selected Bun, all four isolation options, the
+quoted package entrypoint, `--agent claude land`, and a final ` *`. Claude does not strip `env`
+before it matches a rule. Native permission text escapes literal wildcards
+separately from shell quoting. The renderer also preserves literal backslashes before
+a wildcard; shell quoting alone does not bind these paths.
+
+Historical driver checks for #99 recorded native refusals of another script, another subcommand,
+inserted Bun options, a different host, direct merge, shell injection, a compound command, and a
+new package path. Claude Code 2.1.310 also matched a quoted `'/usr/bin/env'` to this rule, and the
+command ran the same landing. The earlier driver accepted a refusal of that form, or an allow
+that ran the same landing. The driver is no longer supplied by this package.
+
+To produce a concrete personal rule, first run native discovery above. Replace the four
+arguments below with the selected host, an example issue and subject, and the validated
+`celetis_entry`. The selected Bun is the executable that runs this generator. This prints data
+for review; it changes no settings. The printed command is the literal tool text for that issue
+and subject. The rule ends at `land`, so one rule serves each issue and subject.
+
+```sh
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros - claude 99 'reviewed subject' "$celetis_entry" <<'CELETIS_RULE'
+import { realpathSync } from 'node:fs';
+const [host, issue, subject, entry] = process.argv.slice(2);
+if (!['claude', 'codex'].includes(host) || !/^[1-9][0-9]*$/.test(issue) || !subject || !entry?.startsWith('/')) throw Error('Need host, issue, subject, and absolute validated entrypoint');
+const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
+const env = ['/usr/bin/env', 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0', 'DO_NOT_TRACK=1'];
+const words = [realpathSync(process.execPath), '--no-env-file', '--no-install', '--config=/dev/null', '--no-macros', realpathSync(entry), '--agent', host, 'land'];
+const prefix = [...env, ...words.map(quote)].join(' ');
+const command = prefix + ' ' + quote(issue) + ' ' + quote(subject);
+const literal = value => value.replaceAll('\\', '\\\\').replace(/(\\*)\*/g, (_match, slashes) => '\\'.repeat(slashes.length * 2 + 1) + '*');
+const rule = host === 'claude' ? 'Bash(' + literal(prefix) + ' *)' : 'prefix_rule(pattern=' + JSON.stringify([...env, ...words]) + ', decision="allow")';
+console.log(JSON.stringify({ command, rule }, null, 2));
+CELETIS_RULE
+```
+
+For Claude, add the printed rule to `permissions.allow` in the untracked local settings.
+Preserve its other fields. For Codex, put the printed rule in a personal
+`rules/celetis-land.rules` under the existing user configuration. Preserve other rules.
+
+Before using either allow, verify that it permits the bound landing command for the selected
+host and package. Verify that it refuses another script, another subcommand, inserted Bun
+options, a different host or package path, direct merge, shell injection, and a compound command.
+
+Codex compares argument lists. It splits a shell script into commands only when each word is
+plain or quoted ([Codex rules](https://learn.chatgpt.com/docs/agent-configuration/rules)). A
+leading assignment, a quoted first word, or a substitution outside single quotes keeps the
+whole script in one shell argument, and the rule does not match it. The unquoted first word
+`/usr/bin/env` makes both assignments plain arguments. So Codex splits the landing command, and
+the printed `prefix_rule` matches its argument list up to `land`. One Codex rule serves each
+landing of that package path and host. It survives Codex updates because the Codex package path
+does not change. A changed Bun path or host needs a new rule. A single quote in the Bun path,
+the package path, or the subject becomes `'\''` and stops the split, so that landing needs
+approval. Historical driver checks for #99 used `codex execpolicy check` on the printed rule.
+A live turn with a temporary `forbidden` copy proved the split, and that a quoted first word or
+a substitution did not match. These historical observations require no driver run.
+
+A Claude rule needs a new binding after each update, because the Claude package path contains
+the version. After the person confirms one Claude package update, run native discovery again.
+Remove the old personal allow and add the new validated path. Check that the old rule refuses
+the new path, then that the replacement rule refuses the old path and permits the new command.
+Start a fresh host session. These steps do not approve an update and do not stop open work.
+Remove only the exact old personal rule. Preserve other rules and settings. Historical driver
+checks used temporary bindings for old and new paths. An installed-package update remains a
+separate human act.
+
+### Explicit source repair
+
+Use a clean maintainer-reviewed checkout of the configured Git source outside the product and
+its lanes. Confirm its remote URL, clean status, and full reviewed revision before running code.
+Select its absolute `bin/celetis.ts` as `celetis_repair_entry`. From the affected product, run:
+
+```sh
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros "$celetis_repair_entry" --agent codex plugin-update
+```
+
+Use `claude` for that host. The person answers the interactive terminal prompt for one exact
+attempt. The checkout supplies the updater code. Native metadata still supplies the enabled
+installation and offered source/revisions. Pre-update identity does not need an executable old
+runtime. Fresh post-update validation requires `bin/celetis.ts` and `engine/`. Do not run the broken installed updater or infer an
+approved target from the checkout revision. A refusal or failure needs a new terminal command
+and response. Resolve the installed root again after success, check its approved revision and
+layout, rebind the personal permission, and return ordinary commands to that package.
+
+The first update after the entrypoint landing needs this repair. Until that update, the installed
+package has no `bin/celetis.ts`, so each bootstrap block stops with
+`Incomplete source-entrypoint layout; use the reviewed source repair procedure`.
+[Product cutover](#product-cutover) gives the order of acts.
+
+A `null` offer or `up to date` result does not repair same-revision corruption. Missing native
+registration or an integrity refusal requires separately reviewed native-host repair. There is
+no force flag or automatic fallback. Keep a temporary repair checkout until its owned command
+exits. Open sessions can stay open, but replaced cache resources might require a restart.
+
+### Product cutover
+
+Before the next use of Celetis in each affected product, review this diff and select a clean
+reviewed repair source, as **Explicit source repair** says. Record its configured source, full
+reviewed revision, and the product owner's authorization. Product readiness and cutover are
+deferred until that use; they are not a condition of the plugin landing. This lane changes only
+this repository.
+
+| Existing product part | Reviewed action |
+| --- | --- |
+| `scripts/celetis` | Compare the owned file and any local change; remove this product file after the new entrypoint and repair source are validated. Preserve an unowned or differing file until its owner approves the exact removal. |
+| `.gitattributes` | Remove only `scripts/celetis text eol=lf` and any owned generated-launcher attribute. |
+| Claude project install | In the product main checkout, run `claude plugin uninstall celetis@celetis --scope project` before the first update. Commit the changed `.claude/settings.json` and `.claude/celetis-flow/wiring.json`. Check that `claude plugin list --json` shows no `celetis@celetis` record with `"scope": "project"` and a `projectPath` equal to that main checkout. A record of another path, such as an old lane worktree, does not count. Check that the `celetis@celetis` record with `"scope": "user"` shows `"enabled": true`. Setup reports an owned `enabledPlugins.celetis@celetis` entry and preserves it. |
+| `.claude/settings.json` | Remove only the owned `Bash(scripts/celetis land *)`, `Bash(scripts/celetis --agent claude land *)`, and `Bash(scripts/celetis --agent codex land *)` allows. Keep the direct merge denies and unrelated settings. |
+| `.codex/rules/celetis.rules` | Remove only the two owned launcher allow rules. Keep the `gh pr merge` restriction and unrelated rules. |
+| `AGENTS.md`, host instructions, desktop entries | Replace each owned launcher command with the isolated bound entrypoint and explicit host. |
+| `.claude/celetis-flow/wiring.json` | Remove `scripts/celetis` from `files`, its `.gitattributes` entries, and the three owned Claude allow entries. Replace the owned flow instruction with the new command form. Record a rules file only if setup owns that file. Remove the owned `enabledPlugins.celetis@celetis` record in the commit of the Claude project install. |
+| Personal host binding | Remove the exact old allow. Discover the new enabled root and add the tested personal landing rule. Verify old/new refusal and allow decisions. |
+
+Keep `.celetis.yaml`, its setup program, setup markers, saved session bytes, runtime state, and
+unrelated permissions intact. New setup writes no launcher and claims no launcher ownership.
+When an old file or ownership entry remains, setup reports the manual cutover and preserves it.
+It does not silently discard ownership or perform a migration.
+
+Sessions, runners, boards, and daemons may stay open. No consumer shutdown or lifetime admission
+is required. Native replacement can remove resources that open work still needs. A person may
+restart that work. A fresh session loads new skills; there is no automatic live skill reload.
+
+Before that product's next use of Celetis, record its cutover review and repair source with the
+owner's authorization. Then do these acts in this order:
+
+1. In each product that has one, remove the Claude project install, as the row
+   `Claude project install` says.
+2. Update each host once with `celetis_repair_entry`, as
+   [Explicit source repair](#explicit-source-repair) says. The person answers each prompt.
+3. Run discovery again for each host. Verify the approved revision and the `bin/celetis.ts` and
+   `engine/` layout. Rebind the personal landing rules. Apply the remaining product rows of the
+   table in one cutover commit for each product. Return normal commands to the installed package.
+4. Resume the saved issue. Verify its unchanged host and exact session ID.
+
+If an act fails and blocks a product,
+[roll back the entrypoint landing](#roll-back-the-entrypoint-landing).
+
+### Roll back the entrypoint landing
+
+Use this procedure when a check after the entrypoint landing fails and blocks a product. The
+person does each act in a normal terminal. Sessions, runners, boards, and daemons can stay open
+(ADR-0028). The procedure never copies a cache folder.
+
+1. In the main checkout of the plugin repository, revert the squash commit of the landing. Land
+   the revert: push it to the trunk of `origin`.
+
+   ```sh
+   git revert <landing commit>
+   git push origin main
+   ```
+2. In that checkout, run the restored standalone launcher once for each host that has the plugin.
+   The person answers its prompt `Update Celetis now? [y/N]`. An agent never answers it.
+
+   ```sh
+   scripts/celetis --agent claude plugin-update
+   ```
+
+   Use `codex` for that host. If the old updater refuses the installed package, do the native
+   host repair below this list in place of this act. Then continue with act 3.
+3. In the main checkout of each other product with a cutover commit, revert that commit and push
+   the revert. The revert of act 1 holds the cutover of the plugin repository. Keep the Claude
+   project installs removed: the restored launcher selects the user install. In the plugin
+   repository, the revert of act 1 also restores `enabledPlugins.celetis@celetis` and its
+   ownership record, so a session there can make a project record again. Before its next use
+   of Celetis after another entrypoint landing, do act 1 of
+   [Product cutover](#product-cutover) there again.
+4. Remove the [personal landing rules](#personal-landing-permission) of the new entrypoint.
+   Preserve other rules and settings. Start a fresh session to load the restored skills.
+
+If the old updater refuses the installed package, use the native host repair for that host in
+place of act 2. For example, the old Codex updater stops with
+`celetis: Codex reports an invalid celetis package; reinstall the plugin` when the installed
+package has no `scripts/` folder. First read the current help of `claude plugin` or
+`codex plugin` and of each subcommand below. For Claude Code:
+
+```sh
+claude plugin uninstall celetis@celetis
+claude plugin marketplace update celetis
+claude plugin install celetis@celetis
+```
+
+For Codex:
+
+```sh
+codex plugin remove celetis@celetis
+codex plugin marketplace upgrade celetis
+codex plugin add celetis@celetis --json
+```
+
+The marketplace refresh makes the new install read the reverted trunk. Then run
+`scripts/celetis --agent <host> plugin-update check` in the reverted checkout. Expect `null`.
+Then continue with act 3.
 
 ### Agent selection and model setup
 
@@ -291,7 +609,7 @@ that is there: to change the default host, edit `host` by hand. Check the instal
 an explicit host:
 
 ```bash
-scripts/celetis --agent codex root
+/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' 'codex' 'root'
 ```
 
 Selection is `--agent claude|codex`, then `CELETIS_AGENT`, then `host` in the main checkout's
@@ -338,7 +656,7 @@ changes no field that is there. Each other field stays by hand.
 | `custom.<skill>` | An addition to the skill procedure | No addition |
 
 - **Operational settings** come from the main checkout, including when a command starts in a
-  lane or subfolder. `scripts/celetis land` moves the trunk of the main checkout; after a merge by
+  lane or subfolder. `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land'` moves the trunk of the main checkout; after a merge by
   other means, or after its line `land: the main checkout did not move`, run `git pull` there.
 - **The gate of a step** comes from `gates.<step>`. An `auto` step starts by itself. A `me` step
   starts when you supply a number or press Run on the board. Old Git defaults have no effect.
@@ -346,7 +664,7 @@ changes no field that is there. Each other field stays by hand.
   `COMMIT_OR_PR_TITLE`: for a PR with one commit, GitHub then takes the subject of that commit and
   adds the PR number (`docs/issue-tracker.md`, "Branches, PRs, merge").
   `gh api 'repos/{owner}/{repo}' --jq .squash_merge_commit_title` prints the value.
-- **The worktree setup.** `scripts/celetis worktree <n>` reads `worktreeSetup` from the lane's
+- **The worktree setup.** `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree' '<n>'` reads `worktreeSetup` from the lane's
   `.celetis.yaml`. It writes the complete TypeScript string to a private 0600 temporary file outside the main
   checkout and lane, then runs it on the selected Bun in that lane. `process.argv[2]` is the
   absolute main checkout. Streams stay inherited. After nonempty setup output, stdout has an LF
@@ -356,7 +674,7 @@ changes no field that is there. Each other field stays by hand.
   is not empty succeeded, and that script then runs only once. With an empty or missing
   `worktreeSetup`, the command writes no marker. Each later entry reads the lane config again, so
   a script that a merge of the trunk brings runs at the next entry. A lane that has a marker keeps
-  it; `scripts/celetis setup lane <path>` runs the script there. Every entry still checks the lane
+  it; `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'setup' lane <path>` runs the script there. Every entry still checks the lane
   config (`docs/celetis-flow.md`).
 - **A custom part** is the parsed string `custom.<skill>` in `.celetis.yaml`. At entry, the
   skill reads the whole config once from the active checkout through supported host file access and
@@ -372,7 +690,7 @@ changes no field that is there. Each other field stays by hand.
 
 `docs/celetis-flow.md` holds these parts in full ("Gates", and "The config and the custom parts").
 Before updating an existing product project, complete the [manual cutover](docs/configuration.md#replace-the-old-setup).
-It includes the changed standalone launcher and stopped old runners; plugin refresh alone does not prepare a project.
+It includes the reviewed launcher removal and personal permission binding; plugin refresh alone does not prepare a project.
 
 ### `.gitignore`
 
@@ -422,7 +740,7 @@ The plugin names a role, and the `AGENTS.md` of the project names the thing. It 
 
 | What `AGENTS.md` names | Who reads it |
 |---|---|
-| **The verify gate:** the one fast deterministic check of a change (lint, format, syntax, and config checks, with no test run), and how to read its result | `plan`, `implement`, `chore`, `hotfix`, and `guide` say "the verify gate of the project", and `scripts/celetis land` names it in a refusal |
+| **The verify gate:** the one fast deterministic check of a change (lint, format, syntax, and config checks, with no test run), and how to read its result | `plan`, `implement`, `chore`, `hotfix`, and `guide` say "the verify gate of the project", and `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land'` names it in a refusal |
 | **The full suite,** with the landing `merge` only: the command that runs each test. With no such line, the verify gate is the full suite | `implement` (Land step 3), and `chore` and `hotfix` through it |
 | **The architecture and the traps:** the shape of the project in the root file, and the traps of each subsystem in the `AGENTS.md` of its folder. They are the domain knowledge: the plugin has no domain skill (ADR-0006) | `specify`, `bug`, `hotfix`, `plan`, `chore`, and `critic-loop` |
 | **The design document and the look decision,** in a project with a UI: the document that holds the design rules, and how a session builds the options of a look decision and hands them over, with the dev server of the project | `specify` and `bug`; the two items "Prototype" of `docs/issue-tracker.md`, in "What lives on the issue" and in "Branches, PRs, merge" |
@@ -436,7 +754,7 @@ Setup writes the celetis flow part as the section `## Celetis flow`, with these 
 ## Celetis flow
 
 - The lanes are the skills of the plugin `celetis`, on the issues of `<owner>/<repo>`.
-- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `scripts/celetis land`.
+- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `land` through the bound plugin entrypoint and personal host binding.
 - A lane never skips a step.
 - The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.
 ```
@@ -481,26 +799,42 @@ there. Its record does not list them: they are files of the product.
 
 ### Optional: the board in Claude desktop
 
-A product project can keep a native `board` entry in `.claude/launch.json`. The entry stays by
-hand. Point it at the same launcher command. Its native preview port must match `board.port` in
-`.celetis.yaml`:
+Use a personal, untracked `.claude/launch.json` in the main checkout. For a new file, put that
+path in `.git/info/exclude`. If the project already tracks the file, keep its shared content and
+use the terminal start. Add the example entry to the local file's `configurations` array.
+
+Bind `<bun>` to the selected absolute Bun path and `<plugin>` through native discovery. Replace
+the placeholders as JSON data, with no shell quotes inside the values. Keep the resolved machine
+paths local. The native preview port must match `board.port` in `.celetis.yaml`:
 
 ```json
 {
   "name": "board",
-  "runtimeExecutable": "scripts/celetis",
-  "runtimeArgs": ["board"],
+  "runtimeExecutable": "<bun>",
+  "runtimeArgs": [
+    "--no-env-file",
+    "--no-install",
+    "--config=/dev/null",
+    "--no-macros",
+    "<plugin>/bin/celetis.ts",
+    "--agent",
+    "claude",
+    "board"
+  ],
+  "env": { "BUN_RUNTIME_TRANSPILER_CACHE_PATH": "0", "DO_NOT_TRACK": "1" },
   "port": 4403
 }
 ```
 
-This desktop launch remains UNRUN (`docs/celetis-flow.md`, "Limits"). The terminal start below
-has a separate acceptance result.
+The [desktop field contract](https://code.claude.com/docs/en/desktop#configuration-fields) keeps
+the executable, argument array, and environment values separate. The historical marker-only
+contract check covered those data boundaries; native desktop launch remains UNRUN
+(`docs/celetis-flow.md`, "Limits"). The terminal start has separate acceptance evidence.
 
 ### The wiring on the trunk
 
 The wiring must be on the trunk of `origin` before the first lane. A lane branch starts at the trunk
-of `origin`, so a file that is not there is in no lane worktree: the launcher, or `.celetis.yaml`,
+of `origin`, so a file that is not there is in no lane worktree: `.celetis.yaml`,
 including a custom part and the worktree setup. A file that git does not track also makes the main
 checkout dirty, and the resolver then stops each issue.
 
@@ -521,8 +855,8 @@ setup asks one question: commit and push to the trunk of `origin`?
   you commit or drop them.
 
 Commit each change that you make by hand on the trunk too, and push it: for example a custom part
-in `.celetis.yaml`. The launcher and `.celetis.yaml` need LF line endings on each host. Setup adds
-the lines `scripts/celetis text eol=lf` and `.celetis.yaml text eol=lf` to `.gitattributes`. When
+in `.celetis.yaml`. The `.celetis.yaml` file needs LF line endings on each host. Setup adds
+`.celetis.yaml text eol=lf` to `.gitattributes`. When
 the index holds `.celetis.yaml` with CRLF line endings, setup stops before any write: convert the
 file to LF and commit it first.
 
@@ -544,7 +878,7 @@ host's skill selector. Native desktop selector acceptance is optional under
 | `/celetis:triage #<n>` | picks the lane, and asks whether to go on | the lane label, here `enhancement` |
 | `/celetis:feature #<n>` | makes the lane worktree and runs `specify`: the design, in a conversation with you | the spec that you approved, as the body of the issue |
 | `/celetis:plan #<n>`, in a new session | writes the plan: your steps (the human acts of the lane), tasks with a capability score, and a Verify phase | a `## Plan` comment and the label `ready-for-agent` |
-| `/celetis:implement #<n>`, in a new session | builds each task (an implementer, the verify gate of the project, a review), runs the Verify phase, and lands the change with `scripts/celetis land` | the change on the trunk, and a closed issue |
+| `/celetis:implement #<n>`, in a new session | builds each task (an implementer, the verify gate of the project, a review), runs the Verify phase, and lands the change with `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land'` | the change on the trunk, and a closed issue |
 
 - On a yes, `intake` hands on to `triage`, and `triage` hands on to the lane, so the first three
   rows can be one session. `plan` and `implement` each start in a fresh context, and each one reads
@@ -558,7 +892,7 @@ host's skill selector. Native desktop selector acceptance is optional under
   alone does not bind later file tools. An app-created detached checkout does not replace the
   lane checkout. Both hosts return to the main checkout for landing.
 - The landing puts the change on the trunk by the `landing` field of `.celetis.yaml`. With `pr`,
-  `scripts/celetis land <n> '<subject>'` pushes the branch, opens the PR, waits up to 15 minutes
+  `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' '<n>' '<subject>'` pushes the branch, opens the PR, waits up to 15 minutes
   for the checks. Each invocation waits for workflow completion before it accepts green checks,
   including when a dependent job has no check row yet. It squash-merges at the checked commit only
   when every check passed or was skipped and at least one check passed. Before the merge, when each
@@ -571,10 +905,10 @@ host's skill selector. Native desktop selector acceptance is optional under
   session, and it ends with the ship acts of the project. A request that spans some independent
   features becomes an epic, and each child issue runs its own flow.
 
-**Through the runner.** `scripts/celetis celetis-flow <n>` starts the next step of the issue in a
+**Through the runner.** `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'celetis-flow' '<n>'` starts the next step of the issue in a
 new interactive session, in the terminal tab where you start it. For each step, the runner:
 
-1. asks the resolver for the next step: `scripts/celetis next-step <n>` prints a `run` line with
+1. asks the resolver for the next step: `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'next-step' '<n>'` prints a `run` line with
    the command of the step, for example `run /celetis:plan #<n>`, or a `stop` line with the reason;
 2. checks the resources of the installed package selected at startup ("Updates");
 3. starts the selected interactive CLI in the main checkout with the host's skill prompt and
@@ -586,14 +920,14 @@ The runner starts at an issue: write one with `/celetis:intake`, or open one on 
 the feature `#12`:
 
 ```bash
-scripts/celetis celetis-flow 12    # triage
-scripts/celetis celetis-flow 12    # specify: the session asks, and it waits for your approval of the design
-scripts/celetis celetis-flow 12    # plan
-scripts/celetis celetis-flow 12    # implement: it builds, verifies, and lands
+/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'celetis-flow' '12'    # triage
+/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'celetis-flow' '12'    # specify: the session asks, and it waits for your approval of the design
+/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'celetis-flow' '12'    # plan
+/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'celetis-flow' '12'    # implement: it builds, verifies, and lands
 ```
 
 With each gate `me`, one start runs one step. With a gate `auto`, a start goes on through that step
-by itself, and `scripts/celetis celetis-flow` with no number is the automatic runner: it runs each
+by itself, and `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'celetis-flow'` with no number is the automatic runner: it runs each
 `auto` step of each open issue. A Run press on the agent board is the same start, in a new herdr
 tab.
 
@@ -637,36 +971,36 @@ score, and `docs/docs-lookup.md`, the lookup of the external facts.
 `guide` and `setup` are explicit-only on both hosts. Claude reads `disable-model-invocation: true`;
 Codex reads `policy.allow_implicit_invocation: false` in `skills/guide/agents/openai.yaml` and
 `skills/setup/agents/openai.yaml`. Their shared entry also requires a human invocation. Guide
-reads its custom part and gives advice; it starts no workflow command. Setup runs the launcher of
+reads its custom part and gives advice; it starts no workflow command. Setup runs the bound entrypoint of
 the plugin in the main checkout, and it enters no lane worktree.
 
 ## The commands
 
-A product project runs each script through the launcher. The table gives the human terminal
+A product project runs each command through the bound installed entrypoint. The table gives the human terminal
 and board form. Every skill call adds `--agent claude` or `--agent codex` before the sub-command:
 
 | Command | What it does |
 |---|---|
-| `scripts/celetis worktree <n>` | Makes the lane worktree and the branch of the issue, or enters the one that is there, and prints its path |
-| `scripts/celetis worktree --remove <n>` | Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first |
-| `scripts/celetis land <n> '<subject>'` | Lands the change of the issue by the `landing` field of `.celetis.yaml`. It is the one landing path of an agent |
-| `scripts/celetis next-step <n> \| --open \| --json` | The resolver: the next step of one issue, of each open issue, or the rows for the board |
-| `scripts/celetis board` | Starts the board of the plugin (`board/`) with the selected Bun, from the main YAML config; takes no arguments |
-| `scripts/celetis capscore J V B N S X` | Resolves the six digits. `--json` gives portable scores and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null |
-| `scripts/celetis celetis-flow [<n>...] \| --board \| --resume <n>` | The runner: the next step of each number, or the automatic runner with no number. `--board` prints the data of the board, and `--resume` opens the session of a step with no progress again |
-| `scripts/celetis root` | Prints the install folder of the selected host's plugin |
-| `scripts/celetis [--agent claude\|codex] plugin-update check` | Read-only configured-source check; prints an exact offer JSON or `null` |
-| `scripts/celetis [--agent claude\|codex] plugin-update` | Discovers the update, asks for terminal confirmation, and applies one exact target; sessions can stay open |
+| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree' '<n>'` | Makes the lane worktree and the branch of the issue, or enters the one that is there, and prints its path |
+| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree' --remove <n>` | Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first |
+| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' '<n>' '<subject>'` | Lands the change of the issue by the `landing` field of `.celetis.yaml`. It is the one landing path of an agent |
+| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'next-step' '<n>' \| --open \| --json` | The resolver: the next step of one issue, of each open issue, or the rows for the board |
+| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'board'` | Starts the board of the plugin (`engine/board/`) with the selected Bun, from the main YAML config; takes no arguments |
+| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'capscore' J V B N S X` | Resolves the six digits. `--json` gives portable scores and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null |
+| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'celetis-flow' [<n>...] \| --board \| --resume <n>` | The runner: the next step of each number, or the automatic runner with no number. `--board` prints the data of the board, and `--resume` opens the session of a step with no progress again |
+| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'root'` | Prints the root of the invoked package |
+| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'plugin-update' check` | Read-only configured-source check; prints an exact offer JSON or `null` |
+| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'plugin-update'` | Discovers the update, asks for terminal confirmation, and applies one exact target; sessions can stay open |
 | `bun --no-env-file --no-install --config=/dev/null --no-macros scripts/build.ts [--check]` | Builds the delivery with exactly Bun 1.4.2, or compares generated bytes and modes without writes |
 | `bun --no-env-file --no-install --config=/dev/null --no-macros scripts/verify.ts` | Runs this plugin repository's fast gate in its checkout |
 | `bun --no-env-file --no-install --config=/dev/null --no-macros scripts/install-tools.ts DESTINATION [--claude]` | Installs pinned development tools into a private destination |
-| `scripts/celetis setup check \| write ... \| try ... \| try --remove \| lane <path> \| push` | The deterministic part of `/celetis:setup`: the checks, the write of the wiring, the test lane (`try` makes it and runs the worktree setup there, and `try --remove` removes it), the run of the worktree setup in a lane that exists (`lane`), and the commit with the push. The first run in a project calls the launcher of the plugin, because the project has no launcher yet |
+| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'setup' check \| write ... \| try ... \| try --remove \| lane <path> \| push` | The deterministic part of `/celetis:setup`: the checks, the write of the wiring, the test lane (`try` makes it and runs the worktree setup there, and `try --remove` removes it), the run of the worktree setup in a lane that exists (`lane`), and the commit with the push. Every setup run calls the installed entrypoint; no product launcher is written |
 
-- The form has no `./`: the `allow` rule matches the text of the command.
+- Use the exact personal binding form, including its quoted absolute package path.
 - Each sub-command gives the output and the exit code of its script.
 - Run a command in a checkout of the product project: the plugin holds the scripts, so only the
   current folder names the project. `capscore` and `root` run in each folder.
-- The launcher needs Bun and the selected host CLI. In a Git checkout, when neither `--agent` nor
+- The entrypoint needs Bun. Host operations need the selected host CLI. In a Git checkout, when neither `--agent` nor
   `CELETIS_AGENT` names the host, it also needs Bun to read `host` of the main config. Project
   commands also need Bun
   and valid config described in `docs/configuration.md`. A missing tool or invalid installation
@@ -678,7 +1012,7 @@ and board form. Every skill call adds `--agent claude` or `--agent codex` before
 Run one command in a normal terminal:
 
 ```sh
-scripts/celetis plugin-update
+/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'plugin-update'
 ```
 
 The command selects the host from the normal agent settings, discovers its installed package
@@ -695,9 +1029,11 @@ A fresh session loads the updated skills and tools; old cache files are not guar
 available to running work. Restart a session or board if it still needs a resource that the host
 replaced. This user-selected policy supersedes the consumer-exit rule of ADR-0027; see ADR-0028.
 
-The standalone launcher bundles the updater, so an obsolete installed updater cannot prevent
-its own repair. Update the copied launcher when adopting this command; a plugin update does not
-rewrite product files. Read-only `scripts/celetis plugin-update check` still returns the exact
+The invoked package imports its own updater. An obsolete installed updater needs the explicitly
+selected [reviewed source repair](#explicit-source-repair). The first update after the entrypoint
+landing is such a repair. [Roll back the entrypoint landing](#roll-back-the-entrypoint-landing)
+reverses that landing. A plugin update does not rewrite
+product files. There is no automatic fallback to another updater. Read-only `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'plugin-update' check` still returns the exact
 `UpdateOffer` JSON or `null`. Agents can report that result and provide the one terminal command.
 They never type the confirmation, pipe approval, or use issue/configuration text as a response.
 Automatic workflow steps do not run updates.
@@ -727,46 +1063,46 @@ no workflow.
 
 ## The agent board
 
-The board is `board/` of the plugin. It shows each agent session and the
+The board is `engine/board/` of the plugin. It shows each agent session and the
 next step of each issue, and starts a step with one press. Start it in the main checkout or one
 of its subfolders, then open the URL on its last line:
 
 ```bash
-scripts/celetis board
-PORT=4500 scripts/celetis board
+/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'board'
+/usr/bin/env PORT=4500 BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'board'
 ```
 
 The command takes no arguments. It validates the main checkout's `.celetis.yaml` and refuses a
-lane start before it starts the board. It sends the fixed command lists through stdin to
-`bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/board/cli.ts --config-stdin` in the main checkout, where `<plugin>` is the root
-of the installed plugin (`scripts/celetis root`). No second config file is made. The board validates the input and its executable paths.
+lane start before it starts the board. It binds fixed command arrays through the local
+`engine/board/adapter.ts` and `engine/board/start.ts` interfaces. These use the selected Bun and
+the same package's `bin/celetis.ts`. Generic stdin remains project-only. No config file is made.
 Only `board.port` comes from YAML; its default is 4403. `PORT` overrides it. This repository uses
 4404, so its board can run beside a board on 4403. Restart the board after a port change.
-For a plugin update, follow [Updates](#updates), including board exit and restart.
+For a plugin update, follow [Updates](#updates), including resource limits for open work.
 
 The producer prints contract 1. Its `agents` entries report executable availability for Claude
 and Codex. Sign-in, trust, and enabled plugin discovery need their own checks.
-A Run press passes the selected `{agent}` through `scripts/celetis --agent <agent> celetis-flow
+A Run press passes the selected `{agent}` through `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<agent>' 'celetis-flow'
 <n>`. With no explicit choice, it uses `defaultAgent`: `CELETIS_AGENT`, then `host` in the main
 YAML, then `claude`. Set the project default in that YAML field. A Run choice changes only that
 start. The board's default-agent menu and command palette show `Default agent is read-only`.
 They show the reason: `The producer controls the default agent. Change it in the producer configuration.`
 Unknown or unavailable Run choices return 409 and start no agent.
-Resume uses `scripts/celetis celetis-flow --resume <n>` and the saved host and exact session ID,
+Resume uses `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'celetis-flow' --resume <n>` and the saved host and exact session ID,
 even after the YAML default changes. Each command item is one argument; the board quotes it
 before it sends the command to herdr.
 
-Check issue data against contract 1 in the main checkout. `scripts/celetis root` prints
+Check issue data against contract 1 in the main checkout. `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'root'` prints
 `<plugin>`:
 
 ```bash
-scripts/celetis celetis-flow --board | bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/board/cli.ts check --stdin
+/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'celetis-flow' --board | bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/engine/board/cli.ts check --stdin
 ```
 
 `docs/celetis-flow.md`, "The board", gives the fixed command lists and card states.
-[`board/README.md`](board/README.md) describes the page.
-Before the plugin cutover, the maintainer completes the [manual replacement](docs/configuration.md#replace-the-old-setup)
-for each product project and stops its old sessions, runners, and boards. Required CLI workflow
+[`engine/board/README.md`](engine/board/README.md) describes the page.
+Before the next use of Celetis in each product project, the maintainer completes its
+[manual replacement](docs/configuration.md#replace-the-old-setup). Open work may stay open. Required CLI workflow
 acceptance remains open; optional desktop evidence is separate in
 [Acceptance status](docs/celetis-flow.md#acceptance-status).
 
@@ -780,8 +1116,8 @@ Run the checks in a checkout of this repository. No check needs model credential
   writes. It refuses a tracked test file. Generated JavaScript, unchanged vendor sources, and
   other file exemptions have exact paths and roles. A new unexplained path fails.
   Checks use bounded workers and install nothing. The last line is `verify: PASS`.
-- **Build delivery** with exactly Bun 1.4.2. `scripts/build.ts` generates `scripts/celetis`,
-  the browser modules, and native hook modules. `scripts/build.ts --check` fails on changed bytes
+- **Build delivery** with exactly Bun 1.4.2. `scripts/build.ts` generates the browser modules
+  and native hook modules. `scripts/build.ts --check` fails on changed bytes
   or modes and writes nothing. Plugin users run no build and install no package dependency.
 - **The workflow** has one job, `test`, on Linux with Bun 1.4.2. It installs the pinned tools,
   then runs the verify gate.

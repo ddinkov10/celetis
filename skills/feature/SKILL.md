@@ -24,7 +24,7 @@ the spec, no code without the plan. Perceived simplicity waives nothing: a one-s
 the same lane. If you have not completed step N, you cannot start step N+1.
 
 1. **Confirm classification.** New behavior → continue. Fixing existing behavior → `/celetis:bug` (or
-   `/celetis:hotfix` if prod is on fire). Zero behavior change → `/celetis:chore`. Given free text instead of `#<n>`: create the issue first — `gh issue create --label enhancement --title "<one line>" --body-file <intent>` with the `/celetis:intake` template as the body — and continue with its number. Given `#<n>` whose issue carries `epic`: stop; an epic has no branch, and each child runs its own lane. Given any other `#<n>`: make `enhancement` its only lane label with `gh issue edit <n>` — `--add-label enhancement` when the issue lacks it, plus `--remove-label <name>` for each of `needs-triage`, `bug`, `hotfix`, `chore` that the issue carries — because `scripts/celetis worktree` names the branch from the lane label.
+   `/celetis:hotfix` if prod is on fire). Zero behavior change → `/celetis:chore`. Given free text instead of `#<n>`: create the issue first — `gh issue create --label enhancement --title "<one line>" --body-file <intent>` with the `/celetis:intake` template as the body — and continue with its number. Given `#<n>` whose issue carries `epic`: stop; an epic has no branch, and each child runs its own lane. Given any other `#<n>`: make `enhancement` its only lane label with `gh issue edit <n>` — `--add-label enhancement` when the issue lacks it, plus `--remove-label <name>` for each of `needs-triage`, `bug`, `hotfix`, `chore` that the issue carries — because `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree'` names the branch from the lane label.
    **Scope check (new behavior only):** does the idea span MULTIPLE independent features (an epic,
    too big for one specify→plan→implement pass)? → agree the list of children with the user, then
    make it an epic, with `epic` as its only lane label:
@@ -32,10 +32,10 @@ the same lane. If you have not completed step N, you cannot start step N+1.
    sub-issue per feature with the Epics recipe in `<plugin>/docs/issue-tracker.md` (label
    `enhancement`, a one-line intent each), report the children, and stop. Do the relabel, the
    sub-issues, and the report in one turn: the relabel moves the issue's line in the runner's
-   resolver (`scripts/celetis next-step`), and a session that the runner started ends at its
+   resolver (`/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'next-step'`), and a session that the runner started ends at its
    first idle moment after that (`<plugin>/docs/celetis-flow.md`, "The step end"). Each child runs its
    own `/celetis:feature #<child>`. One feature → continue to step 2.
-2. **Worktree.** Run `scripts/celetis worktree <n>` with a 10-minute timeout (a new worktree runs
+2. **Worktree.** Run `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree' '<n>'` with a 10-minute timeout (a new worktree runs
    the worktree setup of the project) and bind the exact path it prints using the host operations. The script re-enters the
    issue's branch, or creates `feat/<n>-<slug>` from the title when the issue has none; when
    it refuses, show the user its message and stop. Every later step runs in that worktree; the

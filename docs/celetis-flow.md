@@ -1,12 +1,12 @@
 # The celetis-flow runner
 
-`scripts/celetis celetis-flow` runs the celetis flow from a Terminal tab. It asks the resolver for
+`BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow` runs the celetis flow from a Terminal tab. It asks the resolver for
 the next step of an issue and starts that step in a new interactive Claude or Codex session in
 its tab. In a herdr pane, the script ends the session when the step is done, and starts the next step
 when its gate is `auto`. The GitHub issue stays the state store (`docs/issue-tracker.md`): every
 result of a step goes to the issue. The board is a local web page that shows each agent session and
 the next step of each issue, and its Run button starts the script for one issue in a new herdr tab.
-The board is `board/` of the plugin: a product project, a repository that uses the plugin
+The board is `engine/board/` of the plugin: a product project, a repository that uses the plugin
 `celetis`, holds its config, and the plugin holds the board and the script that prints its data.
 ADR-0002 holds the reasons for the script, ADR-0003 holds the reasons for the board, ADR-0005 holds
 the reasons why herdr, not a mod, gives the session state and ends a step, and ADR-0007 holds the
@@ -23,7 +23,7 @@ Two rules of the harness hold in each session, also in a session by hand:
 In this document, these names are files of the plugin `celetis`, also when a session reads the
 document inside a product project that has a `docs/` folder and an ADR store of its own: the four
 documents (`docs/celetis-flow.md`, `docs/issue-tracker.md`, `docs/capability.md`,
-`docs/docs-lookup.md`), `step-prompt.md`, a script of `scripts/`
+`docs/docs-lookup.md`), `step-prompt.md`, a runtime of `engine/` or a program of `scripts/`
 that the text names by its file, and each ADR number, which is a record of `docs/adr/` in the folder
 of the plugin and not of the product project. Each other path is a path of the product project,
 apart from a path that starts with `~/` or `/`.
@@ -34,14 +34,13 @@ apart from a path that starts with `~/` or `/`.
 - The selected host CLI (`claude` 2.1.299 or later, or `codex` 0.162.1 or later; the README gives
   the reason for each), `gh` (logged in), Bun 1.4.2 or later,
   and `git` 2.31 or later on `PATH`. See `docs/configuration.md` for the install of
-  Bun. A missing external command keeps its diagnostic and failure status. The generated launcher
-  uses the selected host's enabled installation metadata to find the plugin. Child Celetis
+  Bun. A missing external command keeps its diagnostic and failure status. The source entrypoint
+  imports the engine of its invoked package. Terminal bootstrap and host operations validate native metadata. Child Celetis
   programs keep the selected Bun and all startup isolation flags. No jq or Perl runtime is needed.
 - The scripts use only the REST API of GitHub (`gh api`), so they also work where a proxy refuses
   GraphQL, as in a Claude Code cloud session.
-- The plugin `celetis@celetis`, installed on the machine, and the launcher `scripts/celetis` in the
-  product project. The scripts and the step text come from the installed plugin:
-  `scripts/celetis <name> <arguments>` runs `scripts/<name>.ts` of that plugin with those arguments.
+- The plugin `celetis@celetis`, installed on the machine, and the installed `bin/celetis.ts` entrypoint. The scripts and the step text come from the installed plugin:
+  `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> <name> <arguments>` runs `engine/<name>.ts` of that plugin with those arguments.
   The selected host must report a current enabled installation. Missing, disabled, malformed,
   or ambiguous metadata stops lookup. Codex lookup uses `skills/list` on a short-lived local
   app-server connection; it starts no model turn. The README holds the separate installation
@@ -49,7 +48,7 @@ apart from a path that starts with `~/` or `/`.
 - The trunk of the main checkout is current. The trunk is the default branch of the repository on
   GitHub. The config comes from the main checkout of the product project, and so does the custom
   part of a step that the script starts ("The config and the custom parts"):
-  `scripts/celetis land` moves the trunk of the main checkout after each landing. After a merge by
+  `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` moves the trunk of the main checkout after each landing. After a merge by
   other means, or after its line `land: the main checkout did not move`, run `git pull` in the
   main checkout.
 - herdr 0.9.3, with the selected host's integration installed in its active configuration.
@@ -67,10 +66,10 @@ apart from a path that starts with `~/` or `/`.
 ## Start the script
 
 ```bash
-scripts/celetis celetis-flow            # the automatic runner; it does not end
-scripts/celetis celetis-flow 373 374    # a start with numbers; it takes the issues in this order and ends
-scripts/celetis celetis-flow --board    # the data of the issues for the board, as one JSON document
-scripts/celetis celetis-flow --resume 373    # the session of a step with no progress, again
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow            # the automatic runner; it does not end
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow 373 374    # a start with numbers; it takes the issues in this order and ends
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow --board    # the data of the issues for the board, as one JSON document
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow --resume 373    # the session of a step with no progress, again
 ```
 
 These human commands use `CELETIS_AGENT`, then `host` in the main checkout's `.celetis.yaml`,
@@ -85,19 +84,19 @@ no number it starts the automatic runner. Each line of the script starts with `c
 apart from its usage line and the output of `--board`.
 
 **A start with numbers** does this for each issue. It asks the resolver for the line of the issue
-(`scripts/celetis next-step <n>`) and starts the step of the `run` line, whatever its gate. When the
+(`BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step <n>`) and starts the step of the `run` line, whatever its gate. When the
 session ends, it asks again and starts each next step whose gate is `auto`. It ends the issue at a
 line that is not a `run` line, at a `me` gate, or at the same `run` line again ("no progress"). With
 the default gates, each next step is a `me` step, so a start with a number runs one step of that
 issue.
 
 **The automatic runner** asks the resolver for the line of each open issue
-(`scripts/celetis next-step --open`) and takes the lowest open issue whose line is a `run` line,
+(`BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step --open`) and takes the lowest open issue whose line is a `run` line,
 whose step has the gate `auto`, whose step has no row in the record, and
 whose lock is free. It does the same work on that issue, but it starts no `me` step, and then it
 asks again. When no issue can start, when the issue started no session, or when the resolver cannot
 read GitHub, it waits 60 seconds. It prints one line for the whole wait. While it waits,
-`scripts/celetis next-step --open` shows the line of each open issue: a `stop` line gives the
+`BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step --open` shows the line of each open issue: a `stop` line gives the
 cause, and a `run` line that does not start has a `me` gate, a row in the record, or the lock of
 another script. To stop it, close its tab, or press ctrl+c while it waits. It reads open issues
 only. With the default gates no step is `auto`, so the automatic runner starts nothing.
@@ -105,7 +104,7 @@ only. With the default gates no step is `auto`, so the automatic runner starts n
 **The form `--board`** is read-only: it takes no lock, writes no row in the record, and starts no
 session. `--board` is its only argument. It prints contract 1, the JSON document that the board
 reads: `contract`, `tracker`, `flow`, `noRun`, `runner`, `agents`, `defaultAgent`, and `issues`, with
-one row for each issue that has a card. The rows come from the resolver (`scripts/celetis next-step --json`).
+one row for each issue that has a card. The rows come from the resolver (`BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step --json`).
 The resolver makes these `gh api` calls: 3 paginated lists (open issues, closed issues, open PRs),
 one paginated call for the comments of each open issue that has a comment, and 3 calls for each
 open PR whose branch holds `/<number>-`. The resolver gives
@@ -126,7 +125,7 @@ until the foreground exits. It makes no `gh` call or update and starts no comple
 so the session stays open until you leave it. The board adapter supplies this form as `resume`.
 
 The script asks for no confirmation. A start with the number of an issue whose next step is
-`implement`, `chore`, or `hotfix` builds the change and lands it with `scripts/celetis land` when
+`implement`, `chore`, or `hotfix` builds the change and lands it with `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` when
 its checks are green, with no more act of yours. With an `auto` gate on a step, the script continues
 through that step by itself.
 
@@ -135,7 +134,7 @@ Issue locks and the automatic-runner lock use shared Git refs under
 start times. Either live process keeps the lock, including after a killed runner; an exited
 process does not. Claims and releases use Git compare-and-set, and foreground registration
 updates all held locks in one transaction. Both hosts and manual resume share the issue lock.
-`scripts/celetis land` keeps its separate `land-<n>.lock` in `<git common dir>/celetis-flow/`.
+`BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` keeps its separate `land-<n>.lock` in `<git common dir>/celetis-flow/`.
 The `no-progress` file there has one row for each step that ended with no progress. The automatic
 runner and `--board` read it. An explicit issue start can retry that step.
 
@@ -160,7 +159,7 @@ hooks use the current pane's environment. The CLI must support that option; it w
 0.162.1. The runner retains the configured sandbox, approval, and model settings. No document
 content is evaluated as shell code.
 
-The lane uses the exact path returned by `scripts/celetis worktree`. The selected
+The lane uses the exact path returned by `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> worktree`. The selected
 [host operations](hosts/entry.md) bind its commands, files, instructions, and children to that
 checkout; landing returns to the main checkout. Claude keeps its native worktree tools.
 Codex's app worktree does not replace the lane checkout. `step-prompt.md` is the step text: no start
@@ -182,7 +181,7 @@ So that session asks and waits as a session that you start by hand does (ADR-000
 Codex also omits the step-text override for specify. Its configured developer instructions remain.
 
 **The installed package.** The runner uses the package selected at startup for its resolver,
-launcher, and step text. Numbered starts, automatic starts, and later steps make no update call.
+entrypoint, and step text. Numbered starts, automatic starts, and later steps make no update call.
 The forms `--board` and `--resume` keep their existing no-update behavior and saved identity.
 Before a step starts, the runner checks that its required files and step text still exist.
 Known concrete policy conflicts are diagnosed. Running consumers do not reserve the update mutex. Run and exact Resume bind their Codex session to the active
@@ -251,7 +250,7 @@ label-removal event or a trusted completion report, and both for an act of "Duri
 `docs/issue-tracker.md` specifies. Label
 absence alone does not clear the precondition. For a hotfix whose landing
 stopped, the checklist of step 7 of `skills/hotfix/SKILL.md` of the plugin holds your acts: you land
-with `scripts/celetis land` in your own shell, and the step does not run again.
+with `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` in your own shell, and the step does not run again.
 
 **The human acts of a plan.** The plan names them in its first section, `### Your steps`. Do each
 act of "During the build" while the build runs, and report the acts in one `## Human steps done`
@@ -270,17 +269,17 @@ the line stays the same, and the session stays open. A session that ends while t
 `/celetis:feature` moves the line too, for example to `run /celetis:bug #<n>`: the session ends at
 its next idle moment, and a Run press starts that lane.
 
-**A landing.** `scripts/celetis land` moves the line of the issue when it merges, and it then closes
-the epic and removes the worktree. While it runs, `scripts/celetis next-step <n>` prints
-`stop the landing of #<n> runs; wait until scripts/celetis land ends`. That line does not start with
+**A landing.** `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` moves the line of the issue when it merges, and it then closes
+the epic and removes the worktree. While it runs, `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step <n>` prints
+`stop the landing of #<n> runs; wait until /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' ends`. That line does not start with
 `stop #<n> `, so the job does not end the session. herdr 0.9.3 reads an agent that waits for a
 background command as `done`, then `idle` (read on a live herdr on 2026-10-11). So while the script
 runs, for up to 30 minutes, the board shows the session in Needs you as `turn ended`: do not leave
-that session. If a session ended during a landing, wait until `scripts/celetis next-step <n>` prints
-another line, and then run `scripts/celetis land <n> '<subject>'` again from the main checkout: it
+that session. If a session ended during a landing, wait until `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step <n>` prints
+another line, and then run `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land <n> '<subject>'` again from the main checkout: it
 completes the landing. After the merge the issue is finished, so Run and
-`scripts/celetis celetis-flow <n>` start nothing, and no card shows the lane worktree and the branch
-that stay. `scripts/celetis worktree --remove <n>` also removes them after the merge of the PR; it
+`BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow <n>` start nothing, and no card shows the lane worktree and the branch
+that stay. `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> worktree --remove <n>` also removes them after the merge of the PR; it
 does not close the epic.
 
 ## Gates
@@ -305,11 +304,11 @@ gates:
 
 **The config.** Operational settings are in the main checkout's `.celetis.yaml`, including when
 commands start in a lane or subfolder. `docs/configuration.md` gives the full schema. The record
-of setup, `.claude/celetis-flow/wiring.json`, is no config: only `scripts/celetis setup` reads it.
+of setup, `.claude/celetis-flow/wiring.json`, is no config: only `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> setup` reads it.
 
 - `host` selects the default host for a new step ("Start the script").
 - `gates` selects `me` or `auto` for each step ("Gates").
-- `landing` selects `pr` or `merge` for `scripts/celetis land` (`docs/issue-tracker.md`).
+- `landing` selects `pr` or `merge` for `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` (`docs/issue-tracker.md`).
 - `board.port` selects the board port ("The board").
 - `codexProfiles.<runtime>` supplies an optional dispatch profile for model tiers
   (`docs/capability.md`).
@@ -321,7 +320,7 @@ host and exact session ID; a changed default cannot select another saved session
 Installation discovery with an explicit host and standalone capability scoring with explicit
 inputs remain available outside a repository. They need no project config.
 
-**The worktree setup.** `scripts/celetis worktree <n>` creates the lane worktree and its branch
+**The worktree setup.** `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> worktree <n>` creates the lane worktree and its branch
 (`docs/issue-tracker.md`, "Branches, PRs, merge"). A new branch starts at the freshly fetched trunk
 of `origin`. `gh api 'repos/{owner}/{repo}' --jq .default_branch` gives the trunk when the command creates a
 new branch. The command checks `.celetis.yaml` in the lane before setup. It reads `worktreeSetup`
@@ -340,7 +339,7 @@ for repair and retry. The marker remains
 is not empty succeeded. With an empty or missing `worktreeSetup`, it writes no marker. It runs
 setup again in an unmarked lane, so a script that a merge of the trunk brings runs at the next
 entry. A marked lane still needs valid config, but does not run setup again. A lane that has a
-marker keeps it; `scripts/celetis setup lane <path>` runs the script there. Reading config in
+marker keeps it; `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> setup lane <path>` runs the script there. Reading config in
 another command never executes setup.
 
 **A custom part.** `custom.<skill>` in the active checkout's `.celetis.yaml` holds an
@@ -372,7 +371,7 @@ Entry executes no setup. A file read alone proves no deterministic parser check.
 
 ## The board
 
-The board is `board/` of the plugin. It reads its config from stdin only, and that config
+The board is `engine/board/` of the plugin. Its generic CLI reads config from stdin only, and that config
 supports the fixed Run selection and saved-host Resume commands below.
 The board stays independent of YAML and Celetis field names. ADR-0009 keeps contract 1 and the
 command/path trust rules. ADR-0015 replaces the config storage, and ADR-0020 makes the board a part
@@ -385,38 +384,33 @@ The script requirements above apply to its commands too.
 **Start the board** in the main checkout or a subfolder:
 
 ```bash
-scripts/celetis board
-PORT=4500 scripts/celetis board
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board
+PORT=4500 BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board
 ```
 
-The adapter takes no arguments. It validates `.celetis.yaml` from the main checkout, refuses a
-lane start, then runs in the main checkout. It removes each `node_modules/.bin` entry from
-`PATH` before executable lookup. The main checkout must still be trusted. The adapter starts
-`board/cli.ts` with the selected `process.execPath` and the isolated Bun flags. It sends the
-same four-key JSON object through stdin and makes no config file. `--config-stdin` is config
-input; `check --stdin` remains contract-1 issue-data input. A missing installed `board/cli.ts`
-stops with its path and the instruction to reinstall the plugin.
+The adapter takes no arguments. It validates the main YAML and refuses a lane start. It binds
+fixed lists through `celetisConfig(main, port)` and `startBoard(main, config)`. The selected Bun
+must be executable. The same package's `bin/celetis.ts` must be a readable regular file outside
+the main checkout and each lane. Control characters and canonical path escapes are refused.
 
-Each configured first item must still be relative, executable, regular, and inside the main
-checkout, with no lane or external realpath. After those checks, the exact isolated Bun shebang
-declares a Bun program. The board binds that validated file to its selected `process.execPath`
-and all isolation flags for data, Run and Resume. Other valid executable producers keep their
-native command. An absolute interpreter in JSON cannot bypass validation. ADR-0025 records
-this runtime binding.
-The board prints its repository, commands, and URL. Open that URL. It reads this input once at
-startup and validates each executable inside the main checkout, with no lane or external path.
-An invalid config or executable stops startup. A busy port also stops it.
+Generic `engine/board/cli.ts --config-stdin` keeps its separate project-only validator. Each
+producer must be a relative executable regular file inside the main checkout, outside lanes.
+The known isolated Bun shebang binds a validated Bun producer to `process.execPath`; an absolute
+interpreter in JSON cannot bypass this rule. HTTP accepts only an issue and supported host.
+
+Let `P` be `[process.execPath, "--no-env-file", "--no-install", "--config=/dev/null", "--no-macros",
+"<absolute-package>/bin/celetis.ts"]`. Each list element below is one argument.
 
 | Key | Value | Use |
-|---|---|---|
-| `data` | `["scripts/celetis", "celetis-flow", "--board"]` | Reads contract 1 without a shell. |
-| `run` | `["scripts/celetis", "--agent", "{agent}", "celetis-flow", "{n}"]` | Starts the selected agent for issue `{n}` in a new herdr tab. |
-| `resume` | `["scripts/celetis", "celetis-flow", "--resume", "{n}"]` | Opens the recorded host/session in a new herdr tab. |
-| `port` | `.board.port // 4403` from the main YAML | The port when `PORT` is absent. |
+| --- | --- | --- |
+| `data` | `[...P, "celetis-flow", "--board"]` | Read contract 1 without a shell. |
+| `run` | `[...P, "--agent", "{agent}", "celetis-flow", "{n}"]` | Start the selected host and issue in an owned Herdr tab. |
+| `resume` | `[...P, "celetis-flow", "--resume", "{n}"]` | Resume the saved host and exact ID before defaults. |
+| `port` | Main `board.port`, or 4403 | `PORT` takes precedence. |
 
 Only the port is repository setup. `PORT` stays inherited and takes precedence. This repository
 uses 4404. Restart the board after a port change. A native desktop preview entry, when used,
-starts the same launcher and uses the same port (`README.md`, "Optional: the board in Claude desktop").
+starts the same installed entrypoint and uses the same port (`README.md`, "Optional: the board in Claude desktop").
 
 `POST /api/run` substitutes the chosen agent, or `defaultAgent` when no choice is supplied,
 for `{agent}`. Run does not change the project default. Set that default with `host` in the main
@@ -435,12 +429,12 @@ the project default changes. Each item is one argument. The board quotes the ite
 
 The board starts the data script on each read and the action script on each press. A plugin
 update does not stop the board. Reload or restart it if native cache replacement removes an asset
-it still needs. A fresh board/session resolves the enabled installation again. Follow
+it still needs. A fresh board or session resolves the enabled installation again. Follow
 [Updates](../README.md#updates) for manual updates and the
 [manual cutover](configuration.md#replace-the-old-setup) when product wiring changes.
 Real Run/Resume acceptance remains a separate live gate.
 
-**The data.** `scripts/celetis celetis-flow --board` prints contract 1 ("Start the script"). Each read
+**The data.** `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow --board` prints contract 1 ("Start the script"). Each read
 makes these `gh api` calls: 3 paginated lists (open issues, closed issues, open PRs), one paginated
 call for the comments of each open issue that has a comment, and 3 calls for each open PR whose
 branch holds `/<number>-`. The script puts these values in the fields of the document:
@@ -466,7 +460,7 @@ A row gets its `state` by the first rule that matches:
 | 1 | is closed | `done` | `closedAt` |
 | 2 | has a lock that a live script holds | `starting` | |
 | 3 | has a dirty lane worktree | `dirty` | `path`: the lane worktree |
-| 4 | has a row in the record for its `run` line | `stuck` | `act`: `scripts/celetis celetis-flow --resume <n>` |
+| 4 | has a row in the record for its `run` line | `stuck` | `act`: `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow --resume <n>` |
 | 5 | has `needs-info` or `ready-for-human` | `blocked` | `reason`: `needs info` for `needs-info`. For `ready-for-human`: `landing refused` while a landing refusal is current (`docs/issue-tracker.md`, "Resolving an issue's state"), else `ready for your step`. `act`: the act that the `stop` line of the issue names |
 | 6 | has a `run` line | `ready` | |
 
@@ -484,17 +478,17 @@ Each row also has `number`, `title`, `url`, `updatedAt`, `closedAt`, and these f
   those reviews requests changes, else `approved` when one approves, else `required` when a
   requested reviewer or team has not answered, else `null`.
 
-**Check the document** against the contract, in the main checkout. `scripts/celetis root` prints
+**Check the document** against the contract, in the main checkout. `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> root` prints
 `<plugin>`:
 
 ```bash
-scripts/celetis celetis-flow --board | bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/board/cli.ts check --stdin
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow --board | bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/engine/board/cli.ts check --stdin
 ```
 
 The checker prints `agent-board: contract 1, <count> issues, ok` and exits 0, or it prints one line
 for each failure and exits 1.
 
-**The page.** [`board/README.md`](../board/README.md) of the plugin holds the page: the
+**The page.** [`engine/board/README.md`](../engine/board/README.md) of the plugin holds the page: the
 columns and the card of each state, the layout, the keys, the buttons Run, Resume,
 Open shell, and Go, the errors, the tables of contract 1, the other forms of the command, the trust
 boundary, and the limits of the page.
@@ -503,19 +497,19 @@ boundary, and the limits of the page.
 
 | The script prints | The maintainer's act | Then |
 |---|---|---|
-| `stop … needs info` or `stop … ready-for-human` | do what the line says; for `ready-for-human`, the latest `## Stopped` or `## Before landing` comment names the act, and "How a step runs", **A stop**, gives the act after a refused landing. The card of an issue with a current landing refusal reads `landing refused`: its `## Landing refused` comment names the cause | the next step starts with a Run press or with `scripts/celetis celetis-flow <n>`; the automatic runner starts it only when its gate is `auto` |
+| `stop … needs info` or `stop … ready-for-human` | do what the line says; for `ready-for-human`, the latest `## Stopped` or `## Before landing` comment names the act, and "How a step runs", **A stop**, gives the act after a refused landing. The card of an issue with a current landing refusal reads `landing refused`: its `## Landing refused` comment names the cause | the next step starts with a Run press or with `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow <n>`; the automatic runner starts it only when its gate is `auto` |
 | `stop … is an epic` | none: each child is an open issue with its own flow | — |
 | `stop … is finished` or `stop … is closed as wontfix` | none | — |
 | `stop the working tree is dirty …` | commit or stash | as the first row |
 | `stop the landing of #<n> runs …` | none: a session lands the issue | start the script again when the landing ended |
 | `stop cannot read … from GitHub` | check `gh auth status`, the network, and the REST rate limit (`gh api rate_limit`) | the automatic runner tries again by itself; press Refresh on the board |
-| a `me` gate | a Run press on the card, or `scripts/celetis celetis-flow <n>` | — |
-| `no progress: /celetis:feature #<n>` | the session ended with no spec on the issue: open the session again, or read the comment of a spike | a Run press, or `scripts/celetis celetis-flow <n>` |
-| `no progress:` with another command | open the session again, or read the issue | a Run press, or `scripts/celetis celetis-flow <n>` |
+| a `me` gate | a Run press on the card, or `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow <n>` | — |
+| `no progress: /celetis:feature #<n>` | the session ended with no spec on the issue: open the session again, or read the comment of a spike | a Run press, or `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow <n>` |
+| `no progress:` with another command | open the session again, or read the issue | a Run press, or `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow <n>` |
 
 A Run press runs the script in a new herdr tab. A script that ends with no error closes its tab, so
 read the state on the card of the issue: "The board" gives the state of each issue, and
-`board/README.md` of the plugin gives the card of each state.
+`engine/board/README.md` of the plugin gives the card of each state.
 
 `stop … is finished` means that the issue is closed with no `wontfix` label. After a landing, the
 change is on the trunk.
@@ -541,7 +535,7 @@ stop. The deterministic script checks and final Verify results remain required (
 ## Sessions
 
 The herdr tab label is `#<n> <step>`. It links the live card to the issue on the board. The label
-is not the saved session ID. From the main checkout, `scripts/celetis celetis-flow --resume 402`
+is not the saved session ID. From the main checkout, `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow --resume 402`
 reads the current record for #402 and opens its exact host and session ID. It holds the shared
 issue lock until the session exits. No completion job or update runs during resume.
 
@@ -581,8 +575,8 @@ results as of 2026-10-20, not a certified minimum-version range:
 | Superpowers 7.0.0 | Installation on the isolated Codex Git configuration passed. Each active surface must still expose the dispatch and follow-up controls its procedures require |
 | herdr 0.9.3 | The installed integrations report Claude v10 and Codex v8. Later reviewed-source Codex checks passed valid startup, real no-progress, and native exact Resume with a saved second turn. The resumed herdr reply still lacked `agent_session`. Claude recovery, compaction, and full workflow checks remain open |
 | agent-board 2.0.0, tag commit `e36283b` (earlier storage) | Contract 1 and the current config path passed. Released-browser Open shell and partial Claude Run/Go passed. The earlier Codex Run stopped on a local-marketplace setup error; Claude later stopped on quota. Later reviewed-source Codex Run, Resume, and Go passed with the correct issue and pane. Full acceptance remains open |
-| `board/` of the plugin, from source commit `95144d3` (ADR-0020) | The board code of `95144d3` is the code of the release commit `2014361f365e03e18169ed75d602b729e25e03bb`. That release records a 322-test gate and read-only default-agent controls. The adapter and fixture Run/Resume checks of that release have separate evidence. Real browser/Herdr Run and Resume remain open |
-| Bash 3.2.57, Perl 5.34.1, Node 26.11.1 | Historical gate and released-board evidence before ADR-0025. Current commands and tests require Bun 1.4.2 or later |
+| `board/` at source commit `95144d3` (ADR-0020; now `engine/board/`) | The board code of `95144d3` is the code of the release commit `2014361f365e03e18169ed75d602b729e25e03bb`. That release records a 322-test gate and read-only default-agent controls. The adapter and fixture Run/Resume checks of that release have separate evidence. Real browser/Herdr Run and Resume remain open |
+| Bash 3.2.57, Perl 5.34.1, Node 26.11.1 | Historical gate and released-board evidence before ADR-0025. Current commands require Bun 1.4.2 or later |
 
 The later Codex board checks used reviewed commit `626881b`; the
 [public evidence record](https://github.com/ddinkov10/celetis/issues/21#issuecomment-6187619525)
@@ -597,7 +591,7 @@ ending. After that case's output format was made explicit, a fresh full run pass
 Every client exited 0 without tool use or service errors. The strict action oracle stayed intact,
 and both failed runs remain recorded. Those earlier quota results remain historical; the Task 4 row above records the later native and quoted checks.
 
-A source wording test completed startup reads before the first response in five of five repair
+A historical source wording test completed startup reads before the first response in five of five repair
 samples, compared with zero of five control samples. It used the full guide text and actual file
 reads. Normal installed skill entry and chore step order still need verification after review.
 
@@ -652,24 +646,24 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   work in its pane.
 - The `herdr` commands of the script come from the documents and the source of herdr 0.9.3. The
   step end of the script was checked against a live herdr on 2026-10-11 (ADR-0007). Two parts of it
-  are not checked: the end of a session after its `scripts/celetis land` run ends (ADR-0008), and
+  are not checked: the end of a session after its `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` run ends (ADR-0008), and
   the end of a session after it adds `ready-for-human` at a stop (ADR-0011). Two shapes of the REST
   reads of `--json` for each open PR are not checked against a live GitHub: a commit status list
   that is not empty, and a review list that is not empty.
 - The REST API of GitHub lists a commit status only after the status reports. So the list does not
   show a status that branch protection requires until that status reports. Until then,
-  `scripts/celetis land` can read `pass` and ask for the merge. GitHub then refuses the merge, and
+  `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` can read `pass` and ask for the merge. GitHub then refuses the merge, and
   the build step stops with `## Landing refused`. Until then, the board also shows `pass` for the PR.
 - The script exits 0 at each `stop` line, at a `me` gate, and at "no progress", so `&& exit` closes
   the tab with the message of the script. A Run press whose session ends at once thus leaves no
-  message: start `scripts/celetis celetis-flow <n>` in a terminal to see it.
+  message: start `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow <n>` in a terminal to see it.
 - A start of the board from the entry `board` of `.claude/launch.json`, in a project that has such
   an entry, needs `bun`, `herdr`, and the tools of the command on the `PATH` of the desktop app,
   and no git credentials. This is not checked: the desktop app reads
   `.claude/launch.json` of the main checkout, so the build of a lane cannot start the entry `board`
   of its branch. When that entry does not start the board, start the board in a terminal.
 - After an external update, a Claude runner that stays open for more than 14 days can lose its
-  installed folder. A runner keeps the folder of its own version for its resolver and its launcher,
+  installed folder. A runner keeps the folder of its own version for its resolver and entrypoint,
   and Claude Code removes the folder of an old version in a background cleanup 14 days after the
   update. After that, the runner stops with the true cause. The automatic runner prints
   `celetis-flow: stop the plugin version of this runner was removed after an update; start the
@@ -679,7 +673,7 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   `stop the plugin version of this runner was removed after an update; start the runner again`
   and exits 1. The cure is a new start of the runner (ADR-0012).
 
-`board/README.md` of the plugin holds the limits of the page.
+`engine/board/README.md` of the plugin holds the limits of the page.
 
 ## Check the harness
 

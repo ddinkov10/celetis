@@ -41,7 +41,7 @@ Every finding carries a severity and a `file:line`, and names its perspective.
 
 ## 3. Dispatch the critic
 
-Score the review with `scripts/celetis capscore J V B N S X --reviewer --json` and dispatch a
+Score the review with `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'capscore' J V B N S X --reviewer --json` and dispatch a
 fresh reviewer through the host operations, applying both fields of its resolved pair and
 putting its CAP line first. Inputs: the exact checkout and relevant project instructions, the diff file, the rubric above, the
 Contracts-lens rule. The critic returns ONLY: a per-perspective score, the total, findings
@@ -52,7 +52,7 @@ subagents and never fixes anything.
 
 - PASS → report the score and stop.
 - First FAIL → dispatch a fresh **fixer** subagent with the Critical and Important findings verbatim and
-  the diff path. Score the fix with `scripts/celetis capscore J V B N S X` (`<plugin>/docs/capability.md`)
+  the diff path. Score the fix with `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'capscore' J V B N S X` (`<plugin>/docs/capability.md`)
   and apply the resolved pair through the host operations with the CAP line first in its isolated brief. Include the exact checkout and project instructions. The fixer fixes, re-runs the covering tests, and commits.
 - Resume the same critic for a scoped re-review: verdict each finding ADDRESSED or NOT ADDRESSED, re-score the five
   perspectives, flag new breakage. New Critical or Important findings join the open list.

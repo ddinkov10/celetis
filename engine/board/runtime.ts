@@ -9,7 +9,7 @@ export const cleanPath = (value: string, delimiter = ':'): string =>
     .join(delimiter);
 
 import { open } from 'node:fs/promises';
-import { bunArgs, bunShebang, childEnv } from '../scripts/lib/process.ts';
+import { bunArgs, bunShebang, childEnv } from '../lib/process.ts';
 import type { Command } from './types.ts';
 
 export async function bindRuntime(command: Command): Promise<Command> {

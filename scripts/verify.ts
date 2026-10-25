@@ -1,30 +1,29 @@
 import { readFile, realpath } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { type Job, printJobs, runJobs } from '../engine/lib/parallel.ts';
+import { bunArgs, childEnv, run } from '../engine/lib/process.ts';
 import { findTools, toolPins } from './install-tools.ts';
-import { type Job, printJobs, runJobs } from './lib/parallel.ts';
-import { bunArgs, childEnv, run } from './lib/process.ts';
 
 const root = dirname(import.meta.dir);
 export const generatedFiles = [
-  'scripts/celetis',
-  'board/board.js',
-  'board/view.mjs',
-  'board/ui.mjs',
-  'board/panel.mjs',
-  'board/palette.mjs',
-  'hooks/entry.js',
+  'engine/board/board.js',
+  'engine/board/view.mjs',
+  'engine/board/ui.mjs',
+  'engine/board/panel.mjs',
+  'engine/board/palette.mjs',
+  'engine/hooks/entry.js',
 ];
 export const fileRoles: Record<string, string> = {
-  'scripts/lib/vendor/yaml.mjs': 'unchanged vendored parser; checked by its SHA-256 and config type declarations',
-  'scripts/lib/vendor/yaml.d.mts': 'vendored parser API; checked by strict runtime types',
-  'scripts/lib/vendor/yaml.LICENSE': 'upstream licence; stays unchanged',
+  'engine/lib/vendor/yaml.mjs': 'unchanged vendored parser; checked by its SHA-256 and config type declarations',
+  'engine/lib/vendor/yaml.d.mts': 'vendored parser API; checked by strict runtime types',
+  'engine/lib/vendor/yaml.LICENSE': 'upstream licence; stays unchanged',
   '.gitignore': 'Git reads this text',
   '.gitattributes': 'Git reads this text',
   '.editorconfig': 'Biome reads these editor settings',
-  'board/fonts/OFL.txt': 'upstream font licence; stays unchanged',
-  'board/fonts/geist.woff2': 'binary font delivery asset',
-  'board/fonts/geist-mono.woff2': 'binary font delivery asset',
-  'board/index.html': 'HTML remains exempt until stable Biome HTML checking, per issue 83',
+  'engine/board/fonts/OFL.txt': 'upstream font licence; stays unchanged',
+  'engine/board/fonts/geist.woff2': 'binary font delivery asset',
+  'engine/board/fonts/geist-mono.woff2': 'binary font delivery asset',
+  'engine/board/index.html': 'HTML remains exempt until stable Biome HTML checking, per issue 83',
   '.codex/rules/celetis.rules': 'native host permission rules; Codex reads them',
 };
 
@@ -90,7 +89,7 @@ export async function main(args: string[]): Promise<number> {
       }
     }
     if (unknown) return 1;
-    const vendor = await readFile('scripts/lib/vendor/yaml.mjs');
+    const vendor = await readFile('engine/lib/vendor/yaml.mjs');
     if (
       new Bun.CryptoHasher('sha256').update(vendor).digest('hex') !==
       '4ff31df191fa26a9cf07ef43fd233964e554426bd0dd314009bd9e1a377f0bd7'
@@ -106,7 +105,7 @@ export async function main(args: string[]): Promise<number> {
         ...biome,
       ]),
       job('actionlint', tools.actionlint.file, ['-shellcheck=', ...workflows]),
-      job('config', process.execPath, bunArgs(join(root, 'scripts/lib/config.ts'), [root])),
+      job('config', process.execPath, bunArgs(join(root, 'engine/lib/config.ts'), [root])),
       job('tsc runtime', tools.tsc.file, [
         ...tools.tsc.args,
         '-p',
@@ -117,7 +116,7 @@ export async function main(args: string[]): Promise<number> {
       job('tsc browser', tools.tsc.file, [
         ...tools.tsc.args,
         '-p',
-        'board/tsconfig.json',
+        'engine/board/tsconfig.json',
         '--typeRoots',
         tools.typeRoots,
       ]),

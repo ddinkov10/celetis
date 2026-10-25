@@ -1,7 +1,7 @@
 import { stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { ConfigError, readConfig } from './lib/config.ts';
-import { commonDir, HostError, installedRoot, mainCheckout, requireBun, selectHost } from './lib/host.ts';
+import { commonDir, HostError, mainCheckout, requireBun, selectHost } from './lib/host.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
 import { requireUpdatePolicy } from './lib/plugin-policy.ts';
 import { bunArgs, childEnv } from './lib/process.ts';
@@ -25,12 +25,18 @@ export async function main(argv: string[]): Promise<number> {
     let explicit: string | undefined;
     if (args[0] === '--agent') {
       if (args.length < 3)
-        throw new HostError('usage: scripts/celetis --agent claude|codex <script> [<argument>...]', 2);
+        throw new HostError(
+          'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent claude|codex <script> [<argument>...]',
+          2,
+        );
       explicit = args[1] ?? '';
       selectHost(explicit, {}, null);
       args.splice(0, 2);
     } else if (args.length === 0)
-      throw new HostError('usage: scripts/celetis <script> [<argument>...], e.g. scripts/celetis next-step --open', 2);
+      throw new HostError(
+        'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> <script> [<argument>...], e.g. BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step --open',
+        2,
+      );
     const name = args.shift() ?? '';
     if (!/^[a-z][a-z-]*$/.test(name)) throw new HostError(`celetis: the plugin has no script ${name}`, 2);
     const cwd = process.cwd();
@@ -51,14 +57,11 @@ export async function main(argv: string[]): Promise<number> {
         throw new HostError(`celetis: ${checkout}/.celetis.yaml: ${error.field}: ${error.message}`, 2);
       }
     }
-    const entry = await withPluginRead(host, async () => {
-      if (['celetis-flow', 'board'].includes(name)) await requireUpdatePolicy(host, cwd);
-      const root = await installedRoot(host, cwd);
-      const path = join(root, 'scripts', `${name}.ts`);
-      if (!(await stat(path).catch(() => null))?.isFile())
-        throw new HostError(`celetis: the plugin has no script ${name}`, 2);
-      return path;
-    });
+    if (['celetis-flow', 'board'].includes(name)) await withPluginRead(host, () => requireUpdatePolicy(host, cwd));
+    const folder = ['build', 'verify', 'install-tools'].includes(name) ? '../scripts' : '.';
+    const entry = join(import.meta.dir, folder, `${name}.ts`);
+    if (!(await stat(entry).catch(() => null))?.isFile())
+      throw new HostError(`celetis: the plugin has no script ${name}`, 2);
     const env = childEnv({ ...process.env, CELETIS_AGENT: host });
     delete env.CELETIS_RESUME_RECORD;
     if (saved) env.CELETIS_RESUME_RECORD = saved.record;

@@ -1,10 +1,8 @@
 * text=auto eol=lf
-scripts/celetis linguist-generated=true
-board/board.js linguist-generated=true
-board/view.mjs linguist-generated=true
-board/ui.mjs linguist-generated=true
-board/panel.mjs linguist-generated=true
-board/palette.mjs linguist-generated=true
-hooks/entry.js linguist-generated=true
-scripts/celetis text eol=lf
+engine/board/board.js linguist-generated=true
+engine/board/view.mjs linguist-generated=true
+engine/board/ui.mjs linguist-generated=true
+engine/board/panel.mjs linguist-generated=true
+engine/board/palette.mjs linguist-generated=true
+engine/hooks/entry.js linguist-generated=true
 .celetis.yaml text eol=lf

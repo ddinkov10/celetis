@@ -3,7 +3,7 @@
 Second routing axis, beside **type** (the four `/celetis:bug` `/celetis:hotfix` `/celetis:feature`
 `/celetis:chore` entry commands). At **every dispatch point** a scored rubric decides which model
 tier and effort level executes the next task. Digit assignment is agentic (judgment — unavoidable);
-digits→tier arithmetic is deterministic and lives in `scripts/celetis capscore` (the doc is the
+digits→tier arithmetic is deterministic and lives in `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> capscore` (the doc is the
 spec; the script is the authority for the math — they must agree).
 
 ## The rubric — six dimensions, each 0–2
@@ -74,7 +74,7 @@ CAP: J1 V2 B2 N1 S1 X0 = 7 +b2 → opus/max
 Generate it with the script (do not hand-compute the tier):
 
 ```bash
-scripts/celetis capscore J V B N S X [--attempt N] [--bias N]
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> capscore J V B N S X [--attempt N] [--bias N]
 ```
 
 ## Who must score, when — the consumption rule
@@ -188,8 +188,8 @@ Keep the current parent model; this setup controls children only.
 For an existing project, replace each repository-owned profile input as the
 [manual cutover](configuration.md#replace-the-old-setup) specifies. Keep `slots` and `reviewer`
 under the exact runtime key; refresh the allowlist before dispatch. ADR-0015 changes storage
-only. Installed-resource lifetime and same-child retry limits on required CLI surfaces remain
-open. Desktop binding has separate optional acceptance under
+only. Native cache replacement and same-child retry still need their separate CLI evidence.
+Open sessions have no immutable-resource guarantee (ADR-0028). Desktop binding has separate optional acceptance under
 [Acceptance status](celetis-flow.md#acceptance-status); the active-surface profile and tool checks
 still apply to each requested desktop operation.
 
@@ -260,20 +260,20 @@ mismatches, and unavailable model/effort pairs exit 2 with a setup action and no
 With no profile, the scorer needs no runtime file:
 
 ```bash
-scripts/celetis --agent codex capscore 1 0 2 1 1 0 --json
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent codex capscore 1 0 2 1 1 0 --json
 ```
 
 With a `codexProfiles` entry, supply the runtime allowlist:
 
 ```bash
-scripts/celetis --agent codex capscore 1 0 2 1 1 0 --json \
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent codex capscore 1 0 2 1 1 0 --json \
   --runtime-models /path/to/active-models.json
 ```
 
 Outside a configured repository, supply the explicit profile and runtime allowlist:
 
 ```bash
-scripts/celetis --agent codex capscore 1 0 2 1 1 0 --json \
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent codex capscore 1 0 2 1 1 0 --json \
   --profile /path/to/profile.json --runtime-models /path/to/active-models.json
 ```
 

@@ -1,4 +1,4 @@
-// board/palette.ts
+// engine/board/palette.ts
 import { $, el, icon } from "./ui.mjs";
 import { filterItems } from "./view.mjs";
 var items = [];

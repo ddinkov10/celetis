@@ -6,6 +6,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { codexRequest, type Host, HostError, installedRoot, mainCheckout, requireBun, selectHost } from './lib/host.ts';
 import {
   bindUpdateHome,
+  claudeInstallation,
   codexPlugin,
   configHome,
   git,
@@ -55,6 +56,23 @@ function gitSource(value: unknown): { source: string; ref: string } {
   return { source, ref };
 }
 
+async function claudeRegistrations(records: unknown, scope: unknown, version: unknown, root: string) {
+  const matches: Record<string, unknown>[] = [];
+  if (Array.isArray(records))
+    for (const record of records)
+      if (
+        object(record) &&
+        record.scope === scope &&
+        record.version === version &&
+        typeof record.installPath === 'string' &&
+        isAbsolute(record.installPath) &&
+        ![...record.installPath].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127) &&
+        (await realpath(record.installPath).catch(() => null)) === root
+      )
+        matches.push(record);
+  return matches;
+}
+
 async function inspect(
   host: Host,
   cwd: string,
@@ -68,16 +86,15 @@ async function inspect(
   let configured: { source: string; ref: string };
   if (host === 'claude') {
     const list = await nativeJson(host, ['plugin', 'list', '--json'], cwd);
-    if (!Array.isArray(list)) throw new HostError('plugin-update: invalid Claude installation list');
-    const records = list.filter((item) => object(item) && item.id === 'celetis@celetis');
-    const user = records.filter((item) => item.scope === 'user');
-    const selected = user.length ? user : records;
-    if (selected.length !== 1 || selected[0].enabled !== true || typeof selected[0].installPath !== 'string')
+    const installation = await claudeInstallation(list, cwd);
+    const selected = installation.records;
+    const record = selected[0];
+    if (selected.length !== 1 || !record)
       throw new HostError(
         'plugin-update: Claude installation is disabled, missing, or ambiguous; repair the enabled Celetis identity',
       );
-    root = selected[0].installPath;
-    scope = selected[0].scope;
+    root = installation.root;
+    scope = typeof record.scope === 'string' ? record.scope : undefined;
     const manifest = await jsonFile(join(root, '.claude-plugin/plugin.json'));
     if (manifest.name !== 'celetis') throw new HostError(`plugin-update: wrong installed plugin identity in ${root}`);
     const policies = await claudePolicy(cwd);
@@ -97,17 +114,15 @@ async function inspect(
     if (registry.version === 2 && object(registry.plugins)) {
       const records = registry.plugins['celetis@celetis'];
       if (Array.isArray(records)) {
-        const matches = records.filter(
-          (record) =>
-            object(record) &&
-            record.scope === selected[0].scope &&
-            record.installPath === root &&
-            record.version === selected[0].version,
-        );
+        const matches = await claudeRegistrations(records, record.scope, record.version, root);
+        if (matches.length > 1)
+          throw new HostError('plugin-update: native installed scope/path/version record is ambiguous');
+        const matched = matches[0];
         if (
           matches.length === 1 &&
-          typeof matches[0].gitCommitSha === 'string' &&
-          revision.test(matches[0].gitCommitSha)
+          matched &&
+          typeof matched.gitCommitSha === 'string' &&
+          revision.test(matched.gitCommitSha)
         ) {
           const path = join(configHome(host), 'plugins/known_marketplaces.json');
           const market = policies.find((record) => record.path === path)?.value.celetis;
@@ -123,7 +138,7 @@ async function inspect(
             throw new HostError(
               `plugin-update: native registered source does not match the effective configured source in ${path}; repair the native marketplace record`,
             );
-          nativeRevision = matches[0].gitCommitSha;
+          nativeRevision = matched.gitCommitSha;
         }
       }
     }
@@ -427,39 +442,26 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
       let sha: string | undefined;
       if (host === 'claude') {
         const list = await nativeJson('claude', ['plugin', 'list', '--json'], process.cwd(), undefined, env, execute);
-        const enabled = Array.isArray(list)
-          ? list.filter(
-              (record) =>
-                object(record) &&
-                record.id === 'celetis@celetis' &&
-                record.enabled === true &&
-                record.scope === details.scope &&
-                record.installPath === root,
-            )
-          : [];
-        if (enabled.length !== 1 || typeof enabled[0].version !== 'string')
+        const fresh = await claudeInstallation(list, process.cwd());
+        const enabled = fresh.root === root ? fresh.records.filter((record) => record.scope === details.scope) : [];
+        const selected = enabled[0];
+        if (enabled.length !== 1 || !selected || typeof selected.version !== 'string')
           throw new HostError('plugin-update: fresh native enabled scope/path/version is ambiguous');
         const registry = await jsonFile(join(config, 'plugins/installed_plugins.json'));
         const records = object(registry.plugins) ? registry.plugins['celetis@celetis'] : undefined;
-        const matching = Array.isArray(records)
-          ? records.filter(
-              (record) =>
-                object(record) &&
-                record.installPath === root &&
-                record.scope === details.scope &&
-                record.version === enabled[0].version,
-            )
-          : [];
-        if (matching.length !== 1)
+        const matching = await claudeRegistrations(records, details.scope, selected.version, root);
+        const registered = matching[0];
+        if (matching.length !== 1 || !registered)
           throw new HostError(
             'plugin-update: fresh native installed scope/path/version record does not match enabled discovery',
           );
-        if (typeof matching[0].gitCommitSha === 'string') sha = matching[0].gitCommitSha;
+        if (typeof registered.gitCommitSha === 'string') sha = registered.gitCommitSha;
       }
       const manifest = await jsonFile(join(root, '.claude-plugin/plugin.json'));
       if (
         manifest.name !== 'celetis' ||
-        !(await lstat(join(root, 'scripts')).catch(() => null))?.isDirectory() ||
+        !(await lstat(join(root, 'engine')).catch(() => null))?.isDirectory() ||
+        !(await lstat(join(root, 'bin/celetis.ts')).catch(() => null))?.isFile() ||
         !(await lstat(join(root, 'skills/guide/SKILL.md')).catch(() => null))?.isFile()
       )
         throw new HostError(`plugin-update: enabled target package is incomplete: ${root}`);
@@ -539,7 +541,11 @@ export async function main(argv: string[], selectedHost?: Host): Promise<number>
         console.error(
           'plugin-update: approved target installed and validated; open a fresh session to use the updated plugin',
         );
-      } else throw new HostError('usage: scripts/celetis [--agent claude|codex] plugin-update [check]', 2);
+      } else
+        throw new HostError(
+          'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent claude|codex plugin-update [check]',
+          2,
+        );
     }
     return 0;
   } catch (error) {

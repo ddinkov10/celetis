@@ -1,4 +1,4 @@
-// hooks/entry.ts
+// engine/hooks/entry.ts
 function joined(folder, name) {
   return `${folder.replace(/[\\/]$/, "")}/${name}`;
 }

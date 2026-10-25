@@ -34,7 +34,8 @@ type PullState = {
   checks: string | null;
   review: string | null;
 };
-const usage = 'usage: scripts/celetis next-step <issue number> | --open | --json, e.g. scripts/celetis next-step 276';
+const usage =
+  'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step <issue number> | --open | --json, e.g. BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step 276';
 
 function resolve(issue: Issue, n: string): Resolution {
   const labeled = (name: string) => issue.labels.some((label) => label.name === name);
@@ -147,7 +148,8 @@ async function dirty(path: string): Promise<boolean> {
   return (await run('git', ['-C', path, 'status', '--porcelain'])).stdout.length > 0;
 }
 const dirtyLine = (path: string) => `stop the working tree is dirty: ${path}; commit or stash first`;
-const landingLine = (n: string) => `stop the landing of #${n} runs; wait until scripts/celetis land ends`;
+const landingLine = (n: string) =>
+  `stop the landing of #${n} runs; wait until /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' ends`;
 async function landing(common: string, n: string): Promise<boolean> {
   const pid = (await readFile(join(common, 'celetis-flow', `land-${n}.lock`), 'utf8').catch(() => '')).trimEnd();
   if (!/^\d+$/.test(pid)) return false;

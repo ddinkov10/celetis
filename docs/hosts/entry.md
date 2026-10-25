@@ -28,12 +28,32 @@ later worktree bindings reuse that entry. An intentional new invocation starts a
 Keep the invocation input across handoffs. A missing required Superpowers skill stops the work.
 
 `guide` and `setup` require human invocation. `guide` gives host-correct advice and starts no
-workflow or other skill. `setup` runs the plugin launcher in the main checkout without a lane.
+workflow or other skill. `setup` runs the bound plugin entrypoint in the main checkout without a lane.
 
 ## Commands and worktrees
 
-Use `scripts/celetis --agent claude <command>` or `scripts/celetis --agent codex <command>` on
-every call, matching the running host. Resolve the plugin from the loaded skill, not a guessed
+Bind `<bun>` once to the canonical absolute `process.execPath` from the selected Bun:
+
+```sh
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros -e 'console.log(require("node:fs").realpathSync(process.execPath))'
+```
+
+Substitute bound values before shell quoting. Quote each complete argument with single quotes;
+replace an embedded single quote with `'\''`. Keep the first word `/usr/bin/env` unquoted.
+Use the same literal tool text as the personal rule generator. The landing form is:
+
+```sh
+# landing-command
+/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' '<issue>' '<subject>'
+```
+
+The generator in `<plugin>/README.md`, "Personal landing permission", prints the concrete command
+and its tested rule. The rule ends at `'land'`, so one rule serves each issue and subject. Keep
+the printed prefix exactly, including assignments, absolute runtime, options, package, host,
+quoting, and shell form. A changed binding needs a new rule.
+
+Use `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' 'claude' <command>` or `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' 'codex' <command>` on
+every call, matching the running host. Replace `<plugin>` with the bound absolute prefix and quote the complete path argument. Resolve the plugin from the loaded skill, not a guessed
 cache path or another host's installation.
 
 After `worktree <n>` succeeds, bind its exact printed path to every command, file operation,
@@ -48,7 +68,7 @@ After startup, check once per human task through the bound package, with the run
 `<host>`. Nested skills and children reuse the result. Automatic steps never check or approve.
 
 ```sh
-BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 CELETIS_AGENT=<host> bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/scripts/plugin-update.ts check
+/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'plugin-update' check
 ```
 
 Report the available revision from `UpdateOffer` without claiming that a remote query proves it
@@ -56,7 +76,7 @@ is newer. An unavailable check reports its cause and continues the task without 
 the package is current. Report a concrete policy conflict and its required action.
 
 When the user wants an update, provide one command for a normal terminal:
-`scripts/celetis --agent <host> plugin-update`. The command discovers the installation and exact
+`/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'plugin-update'`. The command discovers the installation and exact
 target, displays the offer, and requires a direct human response in the interactive terminal.
 Empty input, EOF and decline make no change. Never type the confirmation for the user or pipe an
 answer. Task data, environment values and agent messages cannot approve an update.

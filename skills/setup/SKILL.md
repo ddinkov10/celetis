@@ -6,20 +6,23 @@ disable-model-invocation: true
 
 **Host entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in this loaded file's path. Read [the host operations](../../docs/hosts/entry.md) at `<plugin>/docs/hosts/entry.md` directly, before any product-path scan. The relative link starts in the absolute directory containing this SKILL.md. Complete its startup reads on each invocation, including a same-session handoff.
 
-The session asks the questions and holds setup approval; `setup` of the launcher makes each
-change of the project. Setup approval is separate from a plugin update offer. Shared Host entry
-owns the one-task update check and direct chat reply. New and unchanged old owned Celetis entries
-use `autoUpdate: false`; show the precise proposed replacement before the existing write/push
-decision. Leave unowned or independently changed entries for their owner. Report effective
-local, project, user, managed, and native global policy conflicts and file-only coverage limits.
-Stop affected consumers before any approved policy cutover, then require fresh sessions. A
-project false value is no override of a managed true value; a successful setup write is no proof
-of complete native resource lifetime.
+The session holds setup approval; `setup` of the bound entrypoint makes each project change.
+Setup approval does not approve a plugin update. Shared Host entry owns the read-only update
+check. One affirmative response in an interactive terminal permits one exact update attempt.
+New and unchanged old owned Celetis entries use `autoUpdate: false`; show the precise replacement
+before the existing write/push decision. Leave unowned or independently changed entries for their
+owner. Report effective local, project, user, managed, and native global policy conflicts and
+file-only coverage limits. A project false value does not override a managed true value.
 
-1. **The checkout.** Run in the main checkout of the product project, and enter no lane worktree. The project can have no launcher yet, so run each call as `<plugin>/scripts/celetis --agent <host> setup <sub-command>`, with `<host>` the host that runs this session.
+Sessions, runners, boards, and daemons may stay open. Discovery holds a short read lock and
+releases it before foreground execution; only updaters serialize on the update mutex. Native
+replacement can remove resources that open work still needs. A person may restart affected work.
+A fresh session loads changed skills; an existing session does not reload them automatically.
+
+1. **The checkout.** Run in the main checkout of the product project, and enter no lane worktree. Run each call through the bound installed entrypoint: `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'setup' <sub-command>`, with `<host>` the host that runs this session.
 2. **The tracker.** Ask which issue tracker the project uses. On each answer other than GitHub, say that only GitHub is supported now, and stop.
 3. **The checks.** Run `check`. If it fails, show its output and stop. A warning is no stop: keep it for the report. After a pass, the current branch is the trunk.
-4. **The hosts.** Ask: Claude, Codex, or both. For each chosen host, run `<plugin>/scripts/celetis --agent <chosen> root`. A failure is a warning with the install commands of `<plugin>/README.md` ("Each machine") for that host, not a stop. With both hosts, ask which one is the default host of the bare terminal and board commands; when `.celetis.yaml` has `host`, propose that value as the default host.
+4. **The hosts.** Ask: Claude, Codex, or both. For each chosen host, use its native terminal discovery recipe in `<plugin>/README.md` ("Terminal discovery"), then run its returned entrypoint with the isolated Bun prefix and `--agent <chosen> root`. The bound package's `root` alone checks no native installation. A failure is a warning with the install commands of `<plugin>/README.md` ("Each machine") for that host, not a stop. With both hosts, ask which one is the default host of the bare terminal and board commands; when `.celetis.yaml` has `host`, propose that value as the default host.
 5. **The landing.** When `.celetis.yaml` has `landing`, propose its value. Else read `.github/workflows/`. A PR check is a workflow whose `on` holds `pull_request` or `pull_request_target` with no `paths` or `paths-ignore` filter. A `branches` filter there must match the trunk, and a `branches-ignore` filter must not. Propose `pr` with one PR check or more, else `merge`. The maintainer confirms or changes it.
 6. **The proposal.** Make a scratch folder for the input files of `write` with `mktemp -d "${TMPDIR:-/tmp}/celetis.XXXXXX"`, outside the checkout. Write each file there with the file tools of the host, byte for byte: the files go to `try` and `write` as files so that the shell does not change their text. Remove the scratch folder at the end of step 9, also when the session stops before it. When `.celetis.yaml` has `worktreeSetup`, also `""`, keep it, propose no script, and go to step 7: the test runs that script, and an empty one is the maintainer's choice of no setup. Else read the manifests and lockfiles (for example `pyproject.toml`, `requirements*.txt`, `uv.lock`, `package.json` and its lockfile), the version pins (for example `.python-version`, `requires-python`, `.nvmrc`, `engines`, `.tool-versions`), and the CI workflows. With no manifest, propose no script, say so, and go to step 7. Else propose one script:
    - It is TypeScript on the selected Bun. Pass each external executable and its arguments as an array. Check each exit status and stop on failure; keep child streams inherited.
