@@ -5,6 +5,7 @@ import { HostError } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
 import { run } from './lib/process.ts';
+import { branchGlobs, branchPattern, laneOf, lanes } from './lib/workflow.ts';
 import { checkoutOf, markerOf, removeCheckout, removeLane, runSetup } from './lib/worktree.ts';
 
 const usage =
@@ -41,15 +42,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     return JSON.parse(result.stdout) as T;
   };
   await git(['worktree', 'prune']);
-  let branch = await git([
-    'branch',
-    '--list',
-    '--format=%(refname:lstrip=2)',
-    `feat/${n}-*`,
-    `fix/${n}-*`,
-    `hotfix/${n}-*`,
-    `chore/${n}-*`,
-  ]);
+  let branch = await git(['branch', '--list', '--format=%(refname:lstrip=2)', ...branchGlobs(n)]);
   if (branch.includes('\n'))
     throw new HostError(`several branches match #${n}: ${branch.replaceAll('\n', ' ')}; keep one`);
   let fromPr = false;
@@ -60,22 +53,18 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     ).flat();
     branch = pulls
       .map((pull) => pull.head.ref)
-      .filter((ref) => new RegExp(`^(feat|fix|hotfix|chore)/${n}-`).test(ref))
+      .filter((ref) => branchPattern(n).test(ref))
       .join('\n');
     if (branch.includes('\n')) throw new HostError(`several open PRs match #${n}: ${branch.replaceAll('\n', ' ')}`);
     fromPr = branch !== '';
     if (!branch) {
       const issue = await api<Issue>(`/issues/${n}`, `cannot read #${n} on GitHub`);
-      const lanes = issue.labels
-        .map(({ name }) => name)
-        .filter((name) => ['epic', 'enhancement', 'bug', 'hotfix', 'chore'].includes(name));
-      if (lanes.includes('epic'))
+      const found = laneOf(issue.labels.map(({ name }) => name));
+      if (found.kind === 'epic')
         throw new HostError(`#${n} is an epic: an epic has no branch; run each child's own lane`);
-      if (!lanes.length) throw new HostError(`#${n} has no lane label; run /celetis:triage #${n} first`);
-      if (lanes.length !== 1) throw new HostError(`#${n} has several lane labels (${lanes.join(' ')}); keep one`);
-      const prefix = ({ enhancement: 'feat', bug: 'fix', hotfix: 'hotfix', chore: 'chore' } as Record<string, string>)[
-        lanes.join('')
-      ];
+      if (found.kind === 'none') throw new HostError(`#${n} has no lane label; run /celetis:triage #${n} first`);
+      if (found.kind === 'several')
+        throw new HostError(`#${n} has several lane labels (${found.labels.join(' ')}); keep one`);
       let slug = (issue.title.split('\n')[0] as string)
         .replace(/[A-Z]/g, (letter) => letter.toLowerCase())
         .replace(/[^a-z0-9]+/g, '-')
@@ -84,7 +73,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
         slug = slug.slice(0, 31);
         slug = slug.includes('-') ? slug.slice(0, slug.lastIndexOf('-')) : slug.slice(0, 30);
       }
-      branch = `${prefix}/${n}-${slug || 'issue'}`;
+      branch = `${lanes[found.lane].prefix}/${n}-${slug || 'issue'}`;
     }
   }
   let path = join(main, '.claude/worktrees', branch.slice(branch.indexOf('/') + 1));
@@ -110,7 +99,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
         );
     } else {
       const issue = await api<Issue>(`/issues/${n}`, `cannot read #${n} on GitHub`);
-      if (issue.state !== 'closed' && !issue.labels.some(({ name }) => name === 'epic'))
+      if (issue.state !== 'closed' && laneOf(issue.labels.map(({ name }) => name)).kind !== 'epic')
         throw new HostError(
           `#${n} is open and ${branch} has no merged PR; remove its worktree after the merge, or after the issue closes`,
         );

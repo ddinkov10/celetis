@@ -4,9 +4,8 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { codexRequest, commonDir, type Host, HostError } from './host.ts';
 import { run } from './process.ts';
+import { command, invocation, type Step, steps } from './workflow.ts';
 
-export const sessionSteps = ['triage', 'specify', 'bug', 'chore', 'hotfix', 'plan', 'implement'] as const;
-export type Step = (typeof sessionSteps)[number];
 export interface SessionRecord {
   schema: 1;
   host: Host;
@@ -29,7 +28,7 @@ export function validateSession(value: unknown, main: string, issue: number, fil
     value.checkout !== main ||
     (value.host !== 'claude' && value.host !== 'codex') ||
     typeof value.step !== 'string' ||
-    !sessionSteps.includes(value.step as Step) ||
+    !steps.includes(value.step as Step) ||
     !(value.session_id === null || (typeof value.session_id === 'string' && uuid.test(value.session_id)))
   ) {
     throw new HostError(
@@ -219,7 +218,6 @@ export async function hostArguments(
   host: Host,
   issue: number,
   step: Step,
-  prompt: string,
   root: string,
   cwd: string,
 ): Promise<string[]> {
@@ -230,7 +228,7 @@ export async function hostArguments(
       '-n',
       `#${issue} ${step}`,
       ...(step === 'specify' ? [] : ['--append-system-prompt-file', join(root, 'step-prompt.md')]),
-      prompt,
+      invocation(step, issue),
     ];
   const args = ['--no-daemon'];
   if (step !== 'specify') {
@@ -246,7 +244,7 @@ export async function hostArguments(
     args.push('-c', `developer_instructions=${JSON.stringify(existing ? `${existing}\n\n${stepText}` : stepText)}`);
   }
   args.push(
-    `Use the celetis:${prompt.replace(/^\/celetis:/, '').split(' ')[0]} skill for #${issue}. Complete its Host entry startup reads before any response, including commentary.`,
+    `Use the celetis:${command(step)} skill for #${issue}. Complete its Host entry startup reads before any response, including commentary.`,
   );
   return args;
 }

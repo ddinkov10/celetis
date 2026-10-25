@@ -4,21 +4,20 @@ import { HostError } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
 import { run as runProcess } from './lib/process.ts';
+import { command, type Decision, decide, type IssueData, type Lane, laneOf, type Stop } from './lib/workflow.ts';
 
-type Comment = { body: string };
-type Issue = {
+type Issue = Readonly<{
   number: number;
   title: string;
-  state: string;
-  html_url: string;
-  labels: { name: string }[];
+  url: string;
+  state: 'open' | 'closed';
+  labels: readonly string[];
   body: string | null;
-  comments: number | Comment[];
-  updated_at: string;
-  closed_at: string | null;
-  pull_request?: unknown;
-};
-type Resolution = { line: string; state?: 'ready' | 'blocked' | 'done'; reason?: string; act?: string };
+  comments: number | readonly string[];
+  updatedAt: string;
+  closedAt: string | null;
+  pull: boolean;
+}>;
 type Pull = {
   number: number;
   html_url: string;
@@ -27,7 +26,7 @@ type Pull = {
   requested_reviewers: unknown[];
   requested_teams: unknown[];
 };
-type PullState = {
+export type PullState = {
   headRefName: string;
   number: number;
   url: string;
@@ -35,48 +34,177 @@ type PullState = {
   checks: string | null;
   review: string | null;
 };
+export type Observed = Readonly<
+  | { kind: 'observed'; reason: 'dirty'; path: string }
+  | { kind: 'observed'; reason: 'landing' }
+  | { kind: 'observed'; reason: 'unreadable' }
+>;
+export type Next = Decision | Observed;
+export type BoardRow = Readonly<{
+  number: number;
+  title: string;
+  url: string;
+  labels: readonly string[];
+  updatedAt: string;
+  closedAt: string | null;
+  next: Decision;
+  path: string | null;
+  pr: PullState | null;
+}>;
+export type JsonRow = {
+  number: number;
+  title: string;
+  url: string;
+  type: Lane | null;
+  updatedAt: string;
+  closedAt: string | null;
+  line: string;
+  state: 'ready' | 'blocked' | 'done' | 'dirty';
+  reason: string | null;
+  act: string | null;
+  pr: { number: number; url: string; draft: boolean; checks: string | null; review: string | null } | null;
+  path?: string;
+};
+type Described = {
+  line: string;
+  row: { state: 'ready' | 'blocked' | 'done'; reason: string | null; act: string | null } | null;
+};
+
 const usage =
   'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step <issue number> | --open | --json, e.g. BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step 276';
+const unreadable: Observed = { kind: 'observed', reason: 'unreadable' };
 
-function resolve(issue: Issue, n: string): Resolution {
-  const labeled = (name: string) => issue.labels.some((label) => label.name === name);
-  const comments = Array.isArray(issue.comments) ? issue.comments : [];
-  const commented = (prefix: string) => comments.some((comment) => comment.body.startsWith(prefix));
-  const blocked = (head: string, reason: string, act: string): Resolution => ({
-    line: `stop #${n} ${head}. ${act}`,
-    state: 'blocked',
-    reason,
-    act,
-  });
-  if (issue.state === 'closed')
-    return labeled('wontfix')
-      ? { line: `stop #${n} is closed as wontfix.` }
-      : { line: `stop #${n} is finished.`, state: 'done' };
-  if (labeled('needs-info'))
-    return blocked('needs info', 'needs info', 'Answer the questions on the issue, then remove the label.');
-  if (labeled('ready-for-human')) {
-    const heading = comments.filter((comment) => comment.body.startsWith('## ')).at(-1)?.body ?? '';
-    return blocked(
-      'is ready-for-human',
-      heading.startsWith('## Landing refused') ? 'landing refused' : 'ready for your step',
-      'Do the human step (e.g. the hotfix ship checklist), then remove the label.',
-    );
+function malformed(): Error {
+  return new Error('malformed GitHub data');
+}
+
+function record(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw malformed();
+  return value as Record<string, unknown>;
+}
+
+function text(value: unknown): string {
+  if (typeof value !== 'string') throw malformed();
+  return value;
+}
+
+function bodies(value: unknown): string[] {
+  if (!Array.isArray(value)) throw malformed();
+  return value.map((comment) => text(record(comment).body));
+}
+
+function parseIssue(raw: unknown): Issue {
+  const issue = record(raw);
+  const { number, state, labels, body, comments, closed_at: closedAt, pull_request: pull } = issue;
+  if (
+    typeof number !== 'number' ||
+    (state !== 'open' && state !== 'closed') ||
+    !Array.isArray(labels) ||
+    (pull !== undefined && pull !== null && typeof pull !== 'object')
+  )
+    throw malformed();
+  return {
+    number,
+    title: text(issue.title),
+    url: text(issue.html_url),
+    state,
+    labels: labels.map((label) => text(record(label).name)),
+    body: body === null ? null : text(body),
+    comments: typeof comments === 'number' ? comments : bodies(comments),
+    updatedAt: text(issue.updated_at),
+    closedAt: closedAt === null ? null : text(closedAt),
+    pull: Boolean(pull),
+  };
+}
+
+const issueData = (issue: Issue): IssueData => ({
+  state: issue.state,
+  labels: issue.labels,
+  body: issue.body,
+  comments: issue.comments,
+});
+
+function describeObserved(n: string, next: Observed): Described {
+  switch (next.reason) {
+    case 'dirty':
+      return { line: `stop the working tree is dirty: ${next.path}; commit or stash first`, row: null };
+    case 'landing':
+      return {
+        line: `stop the landing of #${n} runs; wait until /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' ends`,
+        row: null,
+      };
+    case 'unreadable':
+      return { line: `stop cannot read #${n} from GitHub`, row: null };
   }
-  if (labeled('epic')) return { line: `stop #${n} is an epic. Each child runs its own flow.` };
-  const step = !['bug', 'enhancement', 'hotfix', 'chore'].some(labeled)
-    ? 'triage'
-    : labeled('enhancement') && !(issue.body ?? '').startsWith('Spec:')
-      ? 'feature'
-      : labeled('bug') && !commented('## Root cause')
-        ? 'bug'
-        : labeled('chore')
-          ? 'chore'
-          : labeled('hotfix')
-            ? 'hotfix'
-            : !commented('## Plan')
-              ? 'plan'
-              : 'implement';
-  return { line: `run /celetis:${step} #${n}`, state: 'ready' };
+}
+
+function describeStop(n: string, next: Stop): Described {
+  const blocked = (head: string, reason: string, act: string): Described => ({
+    line: `stop #${n} ${head}. ${act}`,
+    row: { state: 'blocked', reason, act },
+  });
+  switch (next.reason) {
+    case 'wontfix':
+      return { line: `stop #${n} is closed as wontfix.`, row: null };
+    case 'finished':
+      return { line: `stop #${n} is finished.`, row: { state: 'done', reason: null, act: null } };
+    case 'needs-info':
+      return blocked('needs info', 'needs info', 'Answer the questions on the issue, then remove the label.');
+    case 'ready-for-human':
+      return blocked(
+        'is ready-for-human',
+        next.variant === 'landing-refused' ? 'landing refused' : 'ready for your step',
+        'Do the human step (e.g. the hotfix ship checklist), then remove the label.',
+      );
+    case 'epic':
+      return { line: `stop #${n} is an epic. Each child runs its own flow.`, row: null };
+    case 'several-lanes':
+      return blocked(
+        `has several lane labels (${next.labels.join(' ')})`,
+        'several lane labels',
+        'Keep one lane label and remove the others.',
+      );
+  }
+}
+
+function describe(n: string, next: Next): Described {
+  switch (next.kind) {
+    case 'run':
+      return {
+        line: `run /celetis:${command(next.step)} #${n}`,
+        row: { state: 'ready', reason: null, act: null },
+      };
+    case 'observed':
+      return describeObserved(n, next);
+    case 'stop':
+      return describeStop(n, next);
+  }
+}
+
+export function lineOf(n: string, next: Next): string {
+  return describe(n, next).line;
+}
+
+export function jsonRow(row: BoardRow): JsonRow {
+  const { line, row: shown } = describe(String(row.number), row.next);
+  if (!shown) throw new Error(`#${row.number} has no board row`);
+  const found = laneOf(row.labels);
+  return {
+    number: row.number,
+    title: row.title,
+    url: row.url,
+    type: found.kind === 'lane' ? found.lane : null,
+    updatedAt: row.updatedAt,
+    closedAt: row.closedAt,
+    line,
+    state: row.path === null ? shown.state : 'dirty',
+    reason: shown.reason,
+    act: shown.act,
+    pr: row.pr
+      ? { number: row.pr.number, url: row.pr.url, draft: row.pr.draft, checks: row.pr.checks, review: row.pr.review }
+      : null,
+    ...(row.path === null ? {} : { path: row.path }),
+  };
 }
 
 function request(args: string[]): { arg: string; n: string } | null {
@@ -88,7 +216,8 @@ function request(args: string[]): { arg: string; n: string } | null {
 export async function main(argv: string[]): Promise<number> {
   try {
     const { args, explicit } = commandInput(argv);
-    if (!request(args)) {
+    const input = request(args);
+    if (!input) {
       console.error(usage);
       return 2;
     }
@@ -98,7 +227,7 @@ export async function main(argv: string[]): Promise<number> {
       'main',
     );
     if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
-    const result = await resolveNext(args, operation);
+    const result = await resolveNext(input, operation);
     process.stdout.write(result.stdout);
     process.stderr.write(result.stderr);
     return result.code;
@@ -111,28 +240,18 @@ export async function main(argv: string[]): Promise<number> {
   }
 }
 
-export async function resolveNext(
-  argv: string[],
-  operation: Operation,
-  signal?: AbortSignal,
-): Promise<{ code: number; stdout: string; stderr: string }> {
-  let stdout = '';
-  let stderr = '';
-  const input = request(argv);
-  if (!input) return { code: 2, stdout, stderr: `${usage}\n` };
-  const { arg, n } = input;
+function reader(operation: Operation, signal?: AbortSignal) {
   const checkout = operation.checkout.main as string;
   const common = operation.checkout.common as string;
-  const print = (value: string) => {
-    stdout += `${value}\n`;
-  };
+  let stderr = '';
   const run = async (file: string, args: string[]) => {
     signal?.throwIfAborted();
     const result = await runProcess(file, args, { cwd: checkout, signal });
     signal?.throwIfAborted();
     return result;
   };
-  async function api<T>(endpoint: string, paginate = false): Promise<T> {
+
+  async function api<T = unknown>(endpoint: string, paginate = false): Promise<T> {
     const result = await run('gh', [
       'api',
       ...(paginate ? ['--paginate', '--slurp'] : []),
@@ -143,21 +262,26 @@ export async function resolveNext(
     return JSON.parse(result.stdout) as T;
   }
 
-  async function list<T>(endpoint: string): Promise<T[]> {
-    return (await api<T[][]>(endpoint, true)).flat();
+  async function list(endpoint: string): Promise<unknown[]> {
+    const pages = await api(endpoint, true);
+    if (!Array.isArray(pages)) throw malformed();
+    return pages.flat();
   }
 
   async function withComments(issue: Issue): Promise<Issue> {
     return {
       ...issue,
-      comments: issue.comments === 0 ? [] : await list<Comment>(`issues/${issue.number}/comments?per_page=100`),
+      comments: issue.comments === 0 ? [] : bodies(await list(`issues/${issue.number}/comments?per_page=100`)),
     };
   }
 
+  async function issues(endpoint: string): Promise<Issue[]> {
+    return (await list(endpoint)).map(parseIssue).filter((issue) => !issue.pull);
+  }
+
   async function openIssues(): Promise<Issue[]> {
-    const issues = (await list<Issue>('issues?state=open&per_page=100')).filter((issue) => !issue.pull_request);
     const result: Issue[] = [];
-    for (const issue of issues) result.push(await withComments(issue));
+    for (const issue of await issues('issues?state=open&per_page=100')) result.push(await withComments(issue));
     return result;
   }
 
@@ -173,7 +297,10 @@ export async function resolveNext(
     )
       .flatMap((page) => page.statuses)
       .map((status) => status.state);
-    const reviews = await list<{ user: { login: string }; state: string }>(`pulls/${pr.number}/reviews?per_page=100`);
+    const reviews = (await list(`pulls/${pr.number}/reviews?per_page=100`)) as {
+      user: { login: string };
+      state: string;
+    }[];
     const latest = new Map<string, string>();
     for (const review of reviews)
       if (['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'].includes(review.state))
@@ -205,132 +332,163 @@ export async function resolveNext(
     if (!(await stat(path).catch(() => null))?.isDirectory()) return false;
     return (await run('git', ['-C', path, 'status', '--porcelain'])).stdout.length > 0;
   }
-  const dirtyLine = (path: string) => `stop the working tree is dirty: ${path}; commit or stash first`;
-  const landingLine = (n: string) =>
-    `stop the landing of #${n} runs; wait until /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' ends`;
-  async function landing(common: string, n: string): Promise<boolean> {
+
+  async function landing(n: string): Promise<boolean> {
     const pid = (await readFile(join(common, 'celetis-flow', `land-${n}.lock`), 'utf8').catch(() => '')).trimEnd();
     if (!/^\d+$/.test(pid)) return false;
     const result = await run('ps', ['-p', pid, '-o', 'command=']).catch(() => null);
     return result?.code === 0 && result.stdout.includes('land.ts');
   }
-  async function lanes(main: string, n?: string): Promise<string[]> {
-    const parent = join(main, '.claude', 'worktrees');
+
+  async function lanes(n?: string): Promise<string[]> {
+    const parent = join(checkout, '.claude', 'worktrees');
     return (await readdir(parent).catch(() => []))
       .filter((name) => (n === undefined ? /^[0-9].*-/.test(name) : name.startsWith(`${n}-`)))
       .sort()
       .map((name) => join(parent, name));
   }
-  const execute = async (): Promise<number> => {
-    if (arg === '--json') {
+
+  async function dirtyLane(n: string): Promise<string | null> {
+    for (const path of await lanes(n)) if (await dirty(path)) return path;
+    return null;
+  }
+
+  async function observe(n: string, mainDirty: boolean): Promise<Observed | null> {
+    if (mainDirty) return { kind: 'observed', reason: 'dirty', path: checkout };
+    const path = await dirtyLane(n);
+    if (path !== null) return { kind: 'observed', reason: 'dirty', path };
+    return (await landing(n)) ? { kind: 'observed', reason: 'landing' } : null;
+  }
+
+  async function settle<T>(missing: T, work: () => Promise<T>): Promise<{ value: T; stderr: string }> {
+    try {
+      const value = await work();
+      signal?.throwIfAborted();
+      return { value, stderr };
+    } catch (error) {
+      if (signal?.aborted) return { value: missing, stderr };
+      throw error;
+    }
+  }
+
+  return { checkout, api, list, issues, openIssues, withComments, pullState, dirty, lanes, observe, settle };
+}
+
+export async function nextIssue(
+  n: string,
+  operation: Operation,
+  signal?: AbortSignal,
+): Promise<{ next: Next; stderr: string }> {
+  const read = reader(operation, signal);
+  const { value, stderr } = await read.settle<Next>(unreadable, async () => {
+    const observed = await read.observe(n, await read.dirty(read.checkout));
+    if (observed) return observed;
+    try {
+      return decide(issueData(await read.withComments(parseIssue(await read.api(`issues/${n}`)))));
+    } catch {
+      return unreadable;
+    }
+  });
+  return { next: value, stderr };
+}
+
+export async function nextOpen(
+  operation: Operation,
+  signal?: AbortSignal,
+): Promise<{ rows: readonly { number: number; next: Next }[] | null; stderr: string }> {
+  const read = reader(operation, signal);
+  const { value, stderr } = await read.settle<{ number: number; next: Next }[] | null>(null, async () => {
+    let issues: Issue[];
+    try {
+      issues = await read.openIssues();
+    } catch {
+      return null;
+    }
+    const mainDirty = await read.dirty(read.checkout);
+    const rows: { number: number; next: Next }[] = [];
+    for (const issue of issues.sort((a, b) => a.number - b.number))
+      rows.push({
+        number: issue.number,
+        next: (await read.observe(String(issue.number), mainDirty)) ?? decide(issueData(issue)),
+      });
+    return rows;
+  });
+  return { rows: value, stderr };
+}
+
+export async function nextBoard(
+  operation: Operation,
+  signal?: AbortSignal,
+): Promise<{ data: { noRun: string | null; rows: readonly BoardRow[] } | null; stderr: string }> {
+  const read = reader(operation, signal);
+  const { value, stderr } = await read.settle<{ noRun: string | null; rows: readonly BoardRow[] } | null>(
+    null,
+    async () => {
       try {
         const since = new Date(Date.now() - 1_209_600_000).toISOString().slice(0, 10);
-        const open = await openIssues();
-        const closed = (await list<Issue>(`issues?state=closed&since=${since}T00:00:00Z&per_page=100`)).filter(
-          (issue) => !issue.pull_request && issue.closed_at !== null && issue.closed_at >= since,
+        const open = await read.openIssues();
+        const closed = (await read.issues(`issues?state=closed&since=${since}T00:00:00Z&per_page=100`)).filter(
+          (issue) => issue.closedAt !== null && issue.closedAt >= since,
         );
-        const pulls = (await list<Pull>('pulls?state=open&per_page=100')).filter((pr) => /\/[0-9]+-/.test(pr.head.ref));
+        const pulls = ((await read.list('pulls?state=open&per_page=100')) as Pull[]).filter((pr) =>
+          /\/[0-9]+-/.test(pr.head.ref),
+        );
         const prs: PullState[] = [];
-        for (const pr of pulls) prs.push(await pullState(pr));
+        for (const pr of pulls) prs.push(await read.pullState(pr));
         const unique = new Map<number, Issue>();
         for (const issue of [...open, ...closed]) if (!unique.has(issue.number)) unique.set(issue.number, issue);
-        const issues = [...unique.values()].sort((a, b) => a.number - b.number);
         const dirtyLanes: string[] = [];
-        for (const lane of await lanes(checkout)) if (await dirty(lane)) dirtyLanes.push(lane);
-        const rows = issues.flatMap((issue) => {
-          const result = resolve(issue, String(issue.number));
-          if (!result.state) return [];
-          const pr = prs.find((pr) => pr.headRefName.includes(`/${issue.number}-`));
-          const path = dirtyLanes.find((path) => path.split('/').at(-1)?.startsWith(`${issue.number}-`));
-          return [
-            {
-              number: issue.number,
-              title: issue.title,
-              url: issue.html_url,
-              type: issue.labels.some((l) => l.name === 'bug')
-                ? 'bug'
-                : issue.labels.some((l) => l.name === 'enhancement')
-                  ? 'feature'
-                  : issue.labels.some((l) => l.name === 'chore')
-                    ? 'chore'
-                    : issue.labels.some((l) => l.name === 'hotfix')
-                      ? 'hotfix'
-                      : null,
-              updatedAt: issue.updated_at,
-              closedAt: issue.closed_at,
-              line: result.line,
-              state: result.state !== 'done' && path ? 'dirty' : result.state,
-              reason: result.reason ?? null,
-              act: result.act ?? null,
-              pr: pr ? { number: pr.number, url: pr.url, draft: pr.draft, checks: pr.checks, review: pr.review } : null,
-              ...(result.state !== 'done' && path ? { path } : {}),
-            },
-          ];
-        });
-        print(
-          JSON.stringify(
-            {
-              noRun: (await dirty(checkout)) ? `The main checkout is dirty: ${checkout}. Commit or stash first.` : null,
-              issues: rows,
-            },
-            null,
-            2,
-          ),
-        );
-        return 0;
+        for (const path of await read.lanes()) if (await read.dirty(path)) dirtyLanes.push(path);
+        const rows: BoardRow[] = [];
+        for (const issue of [...unique.values()].sort((a, b) => a.number - b.number)) {
+          const next = decide(issueData(issue));
+          if (describe(String(issue.number), next).row === null) continue;
+          const finished = next.kind === 'stop' && next.reason === 'finished';
+          rows.push({
+            number: issue.number,
+            title: issue.title,
+            url: issue.url,
+            labels: issue.labels,
+            updatedAt: issue.updatedAt,
+            closedAt: issue.closedAt,
+            next,
+            path: finished
+              ? null
+              : (dirtyLanes.find((path) => path.split('/').at(-1)?.startsWith(`${issue.number}-`)) ?? null),
+            pr: prs.find((pr) => pr.headRefName.includes(`/${issue.number}-`)) ?? null,
+          });
+        }
+        const noRun = (await read.dirty(read.checkout))
+          ? `The main checkout is dirty: ${read.checkout}. Commit or stash first.`
+          : null;
+        return { noRun, rows };
       } catch {
-        print('stop cannot read the issues from GitHub');
-        return 1;
+        return null;
       }
-    }
-    if (arg === '--open') {
-      let issues: Issue[];
-      try {
-        issues = await openIssues();
-      } catch {
-        print('stop cannot read the open issues from GitHub');
-        return 1;
-      }
-      const all = (await dirty(checkout)) ? dirtyLine(checkout) : null;
-      for (const issue of issues.sort((a, b) => a.number - b.number)) {
-        const number = String(issue.number);
-        let line = resolve(issue, number).line;
-        if (await landing(common, number)) line = landingLine(number);
-        for (const lane of await lanes(checkout, number))
-          if (await dirty(lane)) {
-            line = dirtyLine(lane);
-            break;
-          }
-        print(`${number}\t${all ?? line}`);
-      }
-      return 0;
-    }
-    for (const path of [checkout, ...(await lanes(checkout, n))])
-      if (await dirty(path)) {
-        print(dirtyLine(path));
-        return 0;
-      }
-    if (await landing(common, n)) {
-      print(landingLine(n));
-      return 0;
-    }
-    try {
-      print(resolve(await withComments(await api<Issue>(`issues/${n}`)), n).line);
-      return 0;
-    } catch {
-      print(`stop cannot read #${n} from GitHub`);
-      return 1;
-    }
-  };
-  try {
-    signal?.throwIfAborted();
-    const code = await execute();
-    signal?.throwIfAborted();
-    return { code, stdout, stderr };
-  } catch (error) {
-    if (signal?.aborted) return { code: 1, stdout: '', stderr };
-    throw error;
+    },
+  );
+  return { data: value, stderr };
+}
+
+async function resolveNext(
+  { arg, n }: { arg: string; n: string },
+  operation: Operation,
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  if (arg === '--json') {
+    const { data, stderr } = await nextBoard(operation);
+    if (!data) return { code: 1, stdout: 'stop cannot read the issues from GitHub\n', stderr };
+    const document = { noRun: data.noRun, issues: data.rows.map(jsonRow) };
+    return { code: 0, stdout: `${JSON.stringify(document, null, 2)}\n`, stderr };
   }
+  if (arg === '--open') {
+    const { rows, stderr } = await nextOpen(operation);
+    if (!rows) return { code: 1, stdout: 'stop cannot read the open issues from GitHub\n', stderr };
+    const stdout = rows.map((row) => `${row.number}\t${lineOf(String(row.number), row.next)}\n`).join('');
+    return { code: 0, stdout, stderr };
+  }
+  const { next, stderr } = await nextIssue(n, operation);
+  const failed = next.kind === 'observed' && next.reason === 'unreadable';
+  return { code: failed ? 1 : 0, stdout: `${lineOf(n, next)}\n`, stderr };
 }
 
 if (import.meta.main) process.exitCode = await main(process.argv.slice(2));

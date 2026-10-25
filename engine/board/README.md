@@ -301,7 +301,7 @@ the JSON gives `cannot read: the data is not JSON`.
 |---|---|---|
 | `ready` | The next step of the issue can start. | `step` |
 | `starting` | A runner holds the issue, and its session does not show yet. | none |
-| `stuck` | The last run of the step made no progress. | `step` |
+| `stuck` | The last run of the step made no progress, or the runner refused the step because it skips a step of its lane. | `step` |
 | `dirty` | The lane worktree of the issue has changes that are not committed. | `path` |
 | `blocked` | The issue waits for an act of the maintainer. | `reason` |
 | `done` | The issue is finished. | `closedAt` |

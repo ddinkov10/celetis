@@ -2,10 +2,12 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { constants } from 'node:os';
 import { dirname, join } from 'node:path';
+import type { Document, Flow, Issue } from './board/types.ts';
 import type { Config } from './lib/config.ts';
 import type { Host } from './lib/host.ts';
 import type { Operation } from './lib/operation.ts';
-import type { SessionRecord, Step } from './lib/session.ts';
+import type { SessionRecord } from './lib/session.ts';
+import type { Run } from './lib/workflow.ts';
 
 const usage =
   'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow [<issue number>...] | --board | --resume <issue number>, e.g. BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow 373 374; with no number, the automatic runner';
@@ -22,30 +24,13 @@ const required = [
   'lib/plugin-policy.ts',
   'lib/update-lock.ts',
   'lib/session.ts',
+  'lib/workflow.ts',
   'lib/process.ts',
   'lib/vendor/yaml.mjs',
 ];
-const flow = {
-  lanes: {
-    feature: ['triage', 'specify', 'plan', 'implement'],
-    bug: ['triage', 'bug', 'plan', 'implement'],
-    chore: ['triage', 'chore'],
-    hotfix: ['triage', 'hotfix'],
-  },
-  stages: [
-    { name: 'Triage', steps: ['triage'] },
-    { name: 'Define', steps: ['specify', 'bug', 'chore', 'hotfix'] },
-    { name: 'Plan', steps: ['plan'] },
-    { name: 'Implement', steps: ['implement'] },
-  ],
-};
 async function gone(files = required) {
   for (const file of files) if (!(await stat(join(here, file)).catch(() => null))?.isFile()) return true;
   return false;
-}
-function stepOf(line: string): Step {
-  const step = line.replace(/^run \/celetis:/, '').split(' ')[0];
-  return (step === 'feature' ? 'specify' : step) as Step;
 }
 function parsed(source: string): unknown {
   try {
@@ -68,6 +53,7 @@ export async function main(argv: string[]): Promise<number> {
     'lib/update-lock.ts',
     'lib/process.ts',
     'lib/session.ts',
+    'lib/workflow.ts',
     'lib/vendor/yaml.mjs',
   ]);
   let explicit: string | undefined;
@@ -123,6 +109,9 @@ export async function main(argv: string[]): Promise<number> {
     startupError,
     writeSession,
   } = await import('./lib/session.ts');
+  const { defaultGate, invocation, lands, lanes, sameResult, skipped, stageOf, stages, steps } = await import(
+    './lib/workflow.ts'
+  );
   const root = dirname(here);
   let common = '',
     main = '',
@@ -236,12 +225,11 @@ export async function main(argv: string[]): Promise<number> {
   };
   const recorded = async (n: string, line: string) =>
     (await readFile(recordPath, 'utf8').catch(() => '')).split('\n').includes(`${n}\t${line}`);
-  const resolve = async (args: string[], current: Operation, abort?: AbortSignal) => {
-    if (abort?.aborted) return { code: 1, stdout: '', stderr: '' };
-    const { resolveNext } = await import('./next-step.ts');
-    const result = await resolveNext(args, current, abort);
-    process.stderr.write(result.stderr);
-    return result;
+  const nextOf = async (n: string, current: Operation, abort?: AbortSignal) => {
+    const { lineOf, nextIssue } = await import('./next-step.ts');
+    const { next, stderr } = await nextIssue(n, current, abort);
+    process.stderr.write(stderr);
+    return { next, line: lineOf(n, next) };
   };
   const herdr = async (args: string[], abort?: AbortSignal) =>
     run('herdr', args, { cwd: main, env: childEnv(), signal: abort });
@@ -249,7 +237,7 @@ export async function main(argv: string[]): Promise<number> {
     sessionIdle(parsed((await herdr(['agent', 'get', pane], abort)).stdout), sessionHost, id);
   const endWhenDone = async (
     n: string,
-    line: string,
+    start: Run,
     record: SessionRecord,
     prior: string,
     startedAt: number,
@@ -289,11 +277,10 @@ export async function main(argv: string[]): Promise<number> {
         return;
       }
       if (await idle(id, record.host, abort)) {
-        const first = await resolve([n], fresh(), abort);
-        const next = first.code === 0 ? first.stdout.trimEnd() : line;
-        if (next !== line && (next.startsWith('run ') || next.startsWith(`stop #${n} `))) {
-          const second = await resolve([n], fresh(), abort);
-          if (second.code === 0 && second.stdout.trimEnd() === next && (await idle(id, record.host, abort))) {
+        const { next: first } = await nextOf(n, fresh(), abort);
+        if (first.kind !== 'observed' && !sameResult(first, start)) {
+          const { next: second } = await nextOf(n, fresh(), abort);
+          if (second.kind !== 'observed' && sameResult(second, first) && (await idle(id, record.host, abort))) {
             if ((await herdr(['agent', 'prompt', pane, '/exit'], abort)).code !== 0 && !abort.aborted)
               console.error(
                 `celetis-flow: #${n} cannot submit /exit; the session stays open. Exit it in this pane when ready.`,
@@ -341,8 +328,8 @@ export async function main(argv: string[]): Promise<number> {
       return false;
     }
     let lastHost: Host = 'claude';
+    let last: Run | null = null;
     let started = false,
-      last = '',
       exitCode = 0;
     try {
       for (;;) {
@@ -357,13 +344,14 @@ export async function main(argv: string[]): Promise<number> {
         if (stepHost === 'codex') process.env.CODEX_HOME = await (await import('./lib/plugin-metadata.ts')).codexHome();
         await (await import('./lib/plugin-policy.ts')).requireUpdatePolicy(stepHost, main);
         if (!Bun.which(stepHost, { PATH: childEnv().PATH })) throw new HostError(`celetis: ${stepHost} is not on PATH`);
-        const line = (await resolve([n], current)).stdout.trimEnd();
-        if (!line.startsWith('run ')) {
-          say(line || `#${n}: next-step.ts printed no line`);
+        const { next, line } = await nextOf(n, current);
+        if (next.kind !== 'run') {
+          say(line);
           break;
         }
-        const prompt = line.slice(4);
-        if (line === last) {
+        const { step } = next;
+        const prompt = invocation(step, Number(n));
+        if (last && sameResult(next, last)) {
           if (exitCode !== 0)
             die(
               `${lastHost} session exited with status ${exitCode} before issue progress; check startup output, then run ${manualRecovery(lastHost)} from the main checkout or start the step again`,
@@ -372,8 +360,15 @@ export async function main(argv: string[]): Promise<number> {
           if (!(await recorded(n, line))) await writeFile(recordPath, `${n}\t${line}\n`, { flag: 'a' });
           break;
         }
-        const step = stepOf(line);
-        if (first !== 'any' && (config.gates?.[step] ?? 'me') !== 'auto') {
+        const skips = last ? skipped(last.step, step, next.lane) : [];
+        if (last && skips.length > 0) {
+          say(
+            `#${n}: ${step} skips ${skips.join(', ')} after ${last.step}; fix the issue, or start ${step} by hand: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow ${n}`,
+          );
+          if (!(await recorded(n, line))) await writeFile(recordPath, `${n}\t${line}\n`, { flag: 'a' });
+          break;
+        }
+        if (first !== 'any' && (config.gates?.[step] ?? defaultGate) !== 'auto') {
           say(
             `the gate of ${step} is me: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow ${n} starts ${prompt}`,
           );
@@ -386,7 +381,7 @@ export async function main(argv: string[]): Promise<number> {
           say(`#${n}: ${removed}`);
           break;
         }
-        const args = await hostArguments(stepHost, Number(n), step, prompt, root, main);
+        const args = await hostArguments(stepHost, Number(n), step, root, main);
         const record: SessionRecord = {
           schema: 1,
           host: stepHost,
@@ -404,7 +399,7 @@ export async function main(argv: string[]): Promise<number> {
           const prior = reportedSessionId(parsed((await herdr(['agent', 'get', pane])).stdout));
           const startedAt = Math.floor(Date.now() / 1000);
           watcher = new AbortController();
-          watching = endWhenDone(n, line, record, prior, startedAt, watcher.signal).catch((error: unknown) => {
+          watching = endWhenDone(n, next, record, prior, startedAt, watcher.signal).catch((error: unknown) => {
             watchError = error;
           });
         }
@@ -423,7 +418,7 @@ export async function main(argv: string[]): Promise<number> {
         await rm(watchDir, { recursive: true, force: true });
         watchDir = '';
         if (signalStatus) throw new HostError('', signalStatus);
-        last = line;
+        last = next;
         lastHost = stepHost;
       }
       return started;
@@ -487,47 +482,47 @@ export async function main(argv: string[]): Promise<number> {
         return 1;
       }
       const config = operation.mainConfig as Config;
-      const result = await resolve(['--json'], operation);
-      if (result.code !== 0) {
-        console.log(result.stdout.trimEnd() || 'stop cannot read the issues from GitHub');
+      const { jsonRow, nextBoard } = await import('./next-step.ts');
+      const { data, stderr } = await nextBoard(operation);
+      process.stderr.write(stderr);
+      if (!data) {
+        console.log('stop cannot read the issues from GitHub');
         return 1;
       }
-      const doc = JSON.parse(result.stdout) as {
-        noRun: string | null;
-        issues: (Record<string, unknown> & { number: number; line: string; state: string; type: string })[];
+      const flow: Flow = {
+        lanes: Object.fromEntries(Object.entries(lanes).map(([lane, definition]) => [lane, [...definition.steps]])),
+        stages: stages.map((stage) => ({ name: stage.name, steps: [...stage.steps] })),
+        steps: Object.fromEntries(
+          [...steps].sort().map((step) => [
+            step,
+            {
+              gate: config.gates?.[step] ?? defaultGate,
+              ...(lands(step) ? { hint: 'It lands the change when the build is done.' } : {}),
+            },
+          ]),
+        ),
       };
-      const steps = Object.fromEntries(
-        [...new Set(Object.values(flow.lanes).flat())].sort().map((step) => [
-          step,
-          {
-            gate: config.gates?.[step as Step] ?? 'me',
-            ...(['implement', 'chore', 'hotfix'].includes(step)
-              ? { hint: 'It lands the change when the build is done.' }
-              : {}),
-          },
-        ]),
-      );
-      const issues = [];
-      for (const issue of doc.issues) {
-        const step = issue.line.startsWith('run /') ? stepOf(issue.line) : null;
-        const locked = !!(await holderOf(`issue-${issue.number}`));
-        const stuck = await recorded(String(issue.number), issue.line);
-        const { line: _line, ...row } = issue;
+      const issues: Issue[] = [];
+      for (const row of data.rows) {
+        const { line, ...shown } = jsonRow(row);
+        const step = row.next.kind === 'run' ? row.next.step : null;
+        const locked = !!(await holderOf(`issue-${row.number}`));
+        const stuck = await recorded(String(row.number), line);
         issues.push({
-          ...row,
+          ...shown,
           step,
-          started: step === 'plan' || step === 'implement',
-          urgent: issue.type === 'hotfix',
-          ...(issue.state === 'done'
+          started: step !== null && stageOf(step) > 1,
+          urgent: shown.type === 'hotfix',
+          ...(shown.state === 'done'
             ? {}
             : locked
               ? { state: 'starting' }
-              : issue.state === 'dirty'
+              : shown.state === 'dirty'
                 ? {}
                 : stuck
                   ? {
                       state: 'stuck',
-                      act: `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow --resume ${issue.number}`,
+                      act: `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow --resume ${row.number}`,
                     }
                   : {}),
         });
@@ -538,22 +533,17 @@ export async function main(argv: string[]): Promise<number> {
           return [agent, { available, cause: available ? null : `celetis: ${agent} is not on PATH` }];
         }),
       );
-      console.log(
-        JSON.stringify(
-          {
-            contract: 1,
-            tracker: 'GitHub',
-            agents,
-            defaultAgent: host,
-            flow: { ...flow, steps },
-            noRun: doc.noRun,
-            runner: !!(await holderOf('runner')),
-            issues,
-          },
-          null,
-          2,
-        ),
-      );
+      const document: Document = {
+        contract: 1,
+        tracker: 'GitHub',
+        agents,
+        defaultAgent: host,
+        flow,
+        noRun: data.noRun,
+        runner: !!(await holderOf('runner')),
+        issues,
+      };
+      console.log(JSON.stringify(document, null, 2));
       return 0;
     }
     if (mode === 'numbers') {
@@ -569,20 +559,22 @@ export async function main(argv: string[]): Promise<number> {
       const current = nextOperation();
       const config = current.mainConfig as Config;
       await (await import('./lib/plugin-policy.ts')).requireUpdatePolicy(current.host, main);
-      const result = await resolve(['--open'], current);
+      const { lineOf, nextOpen } = await import('./next-step.ts');
+      const { rows, stderr } = await nextOpen(current);
+      process.stderr.write(stderr);
       let started = false;
-      if (result.code === 0) {
+      if (rows) {
         let pick = '';
-        for (const row of result.stdout.trimEnd().split('\n')) {
-          const [n, line] = row.split('\t');
-          if (!n || !line?.startsWith('run ') || (config.gates?.[stepOf(line)] ?? 'me') !== 'auto') continue;
-          if ((await holderOf(`issue-${n}`)) || (await recorded(n, line))) continue;
+        for (const { number, next } of rows) {
+          const n = String(number);
+          if (next.kind !== 'run' || (config.gates?.[next.step] ?? defaultGate) !== 'auto') continue;
+          if ((await holderOf(`issue-${n}`)) || (await recorded(n, lineOf(n, next)))) continue;
           pick = n;
           break;
         }
         if (pick) started = await runIssue(pick, 'gated');
         else say('no auto step can start; the runner asks again each 60 seconds');
-      } else say(result.stdout.trimEnd() || 'stop cannot read the open issues from GitHub');
+      } else say('stop cannot read the open issues from GitHub');
       if (!started) {
         const until = performance.now() + 60_000;
         while (!signalStatus && performance.now() < until) await Bun.sleep(50);

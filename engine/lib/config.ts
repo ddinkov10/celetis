@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { type Document, isAlias, isMap, isScalar, isSeq, parseAllDocuments } from './vendor/yaml.mjs';
+import { type Step, steps } from './workflow.ts';
 
 const floor = '1.4.2';
 
@@ -34,7 +35,6 @@ const yaml11Int = /^[-+]?(?:0[bB][01]+|0[oO][0-7]+|0[xX][0-9a-fA-F]+|[0-9]+)$/;
 const yaml11Float = /^[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?$/;
 const notRegularFile = 'need a regular, readable file, with no symlink';
 const hosts = ['claude', 'codex'] as const;
-const steps = ['triage', 'specify', 'bug', 'chore', 'hotfix', 'plan', 'implement'] as const;
 const skills = [
   'bug',
   'chore',
@@ -68,7 +68,7 @@ export type ConfigSource = Readonly<{
 export type Config = Readonly<{
   host?: Host;
   landing: 'pr' | 'merge';
-  gates?: Readonly<Partial<Record<(typeof steps)[number], 'me' | 'auto'>>>;
+  gates?: Readonly<Partial<Record<Step, 'me' | 'auto'>>>;
   board?: Readonly<{ port?: number }>;
   worktreeSetup?: string;
   custom?: Readonly<Partial<Record<(typeof skills)[number], string>>>;

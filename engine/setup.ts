@@ -10,6 +10,7 @@ import { commandInput, createOperation, locateCheckouts, type Operation } from '
 import { codexHome } from './lib/plugin-metadata.ts';
 import { checkClaudePolicy, claudePolicy } from './lib/plugin-policy.ts';
 import { childEnv, run } from './lib/process.ts';
+import { type Label, labels } from './lib/workflow.ts';
 import { markerOf, removeCheckout, runSetup, worktrees } from './lib/worktree.ts';
 
 const plugin = dirname(import.meta.dir);
@@ -41,18 +42,18 @@ const ignores = [
   '.superpowers/',
   'docs/lessons/_pending/',
 ];
-const labels = [
-  ['needs-triage', 'not yet classified', 'FBCA04'],
-  ['bug', "Something isn't working", 'd73a4a'],
-  ['enhancement', 'New feature or request', 'a2eeef'],
-  ['hotfix', 'production broken, the fix ships now', 'FEF2C0'],
-  ['chore', 'zero-behavior-change edit', '006B75'],
-  ['epic', 'parent of several feature sub-issues', '0052CC'],
-  ['needs-info', 'the report lacks what its lane needs; the questions are in a comment', 'FEF2C0'],
-  ['ready-for-agent', 'plan posted; `/celetis:implement #<n>` can start', 'D93F0B'],
-  ['ready-for-human', 'a step only a human runs', 'C2E0C6'],
-  ['wontfix', 'This will not be worked on', 'ffffff'],
-] as const;
+const labelStyles = {
+  'needs-triage': ['not yet classified', 'FBCA04'],
+  bug: ["Something isn't working", 'd73a4a'],
+  enhancement: ['New feature or request', 'a2eeef'],
+  hotfix: ['production broken, the fix ships now', 'FEF2C0'],
+  chore: ['zero-behavior-change edit', '006B75'],
+  epic: ['parent of several feature sub-issues', '0052CC'],
+  'needs-info': ['the report lacks what its lane needs; the questions are in a comment', 'FEF2C0'],
+  'ready-for-agent': ['plan posted; `/celetis:implement #<n>` can start', 'D93F0B'],
+  'ready-for-human': ['a step only a human runs', 'C2E0C6'],
+  wontfix: ['This will not be worked on', 'ffffff'],
+} as const satisfies Record<Label, readonly [string, string]>;
 type Options = {
   hosts: string[];
   default: string;
@@ -676,7 +677,8 @@ class Setup {
       'cannot list the labels',
     );
     const names = pages.flat().map((label) => label.name);
-    for (const [name, description, color] of labels) {
+    for (const name of labels) {
+      const [description, color] = labelStyles[name];
       const found = names.find((existing) => existing.toLowerCase() === name.toLowerCase());
       if (found !== undefined) {
         if (found !== name) this.warn(`the label ${found} differs in case from ${name}; setup leaves it`);

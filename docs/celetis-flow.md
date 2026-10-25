@@ -12,7 +12,14 @@ ADR-0002 holds the reasons for the script, ADR-0003 holds the reasons for the bo
 the reasons why herdr, not a mod, gives the session state and ends a step, and ADR-0007 holds the
 reasons why `specify` is a step of the script. ADR-0008 holds the reasons why the build step lands
 the change, ADR-0009 holds the reasons for contract 1, and ADR-0020 holds the reasons why the board
-is a part of the plugin. ADR-0011 holds the reasons why a step session hands a stop to the issue.
+is a part of the plugin. ADR-0011 holds the reasons why a step session hands a stop to the issue,
+and ADR-0033 holds the reasons for the one definition of the workflow and for the skip rule.
+
+`engine/lib/workflow.ts` of the plugin is the one definition of the workflow: the lanes, with the
+label, the branch prefix, and the steps in order of each lane; the stages; the command of each step;
+the default gate `me`; the decision of an issue; and the skip rule. The resolver, the runner, the
+board data, the config reader, the session record, `worktree`, `land`, and `setup` take these facts
+from it. A product project cannot change it.
 
 Two rules of the harness hold in each session, also in a session by hand:
 
@@ -83,18 +90,33 @@ as the start of a comment: the script then gets neither that word nor the words 
 no number it starts the automatic runner. Each line of the script starts with `celetis-flow: `,
 apart from its usage line and the output of `--board`.
 
-**A start with numbers** does this for each issue. It calls the in-process `resolveNext` resolver
-for the line of the issue and starts the step of the `run` line, whatever its gate. When the
-session ends, it asks again and starts each next step whose gate is `auto`. It ends the issue at a
-line that is not a `run` line, at a `me` gate, or at the same `run` line again ("no progress"). With
-the default gates, each next step is a `me` step, so a start with a number runs one step of that
-issue.
+**A start with numbers** does this for each issue. It reads the decision of the issue from the
+in-process resolver (`nextIssue` of `next-step.ts`), a Run of a step or a stop, and starts the step
+of a Run, whatever its gate. When the session ends, it reads the decision again and starts each
+next step whose gate is `auto`. It ends the issue at the first of these, in this order: a stop,
+the same step again ("no progress"), a refused skip, or a `me` gate. With the default gates, each
+next step is a `me` step, so a start with a number runs one step of that issue.
 
-**The automatic runner** calls the same resolver for the line of each open issue
-and takes the lowest open issue whose line is a `run` line,
+**A refused skip.** Between two steps of one start, the script refuses a next step that skips a
+step of its lane. Let S be the step that ended, and T the next step in the lane of the decision.
+T can start when its position in the lane is at most one more than the position of S. When S is
+not a step of that lane (a lane change), T must be the first or the second step of the lane.
+`triage` can always start. So `specify` → `plan`, `bug` → `plan`, `plan` → `implement`,
+`specify` → `bug` after a relabel, and `implement` → `plan` can start, and `triage` → `plan`,
+`specify` → `implement`, `bug` → `implement`, and `triage` → `implement` cannot. At a refusal
+the script prints `#<n>: <T> skips <steps> after <S>; fix the issue, or start <T> by hand: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow <n>`,
+for example `#12: plan skips specify after triage; …`. It adds the row `<n>\t<run line of T>` to
+the record and ends the issue. The skip check comes before the gate check, so a refused step with a
+`me` gate also gets a row. The first step of a start with numbers, and the first step that the
+automatic runner takes, have no skip check. So your start with the number is the override: it
+starts T.
+
+**The automatic runner** reads the decision of each open issue from the same resolver (`nextOpen`)
+and takes the lowest open issue whose decision is a Run,
 whose step has the gate `auto`, whose step has no row in the record, and
 whose lock is free. It does the same work on that issue, but it starts no `me` step, and then it
-asks again. When no issue can start, when the issue started no session, or when the resolver cannot
+asks again. It does not take a step that the script refused as a skip, because that step has a row
+in the record. When no issue can start, when the issue started no session, or when the resolver cannot
 read GitHub, it waits 60 seconds. It prints one line for the whole wait. While it waits,
 `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step --open` shows the line of each open issue: a `stop` line gives the
 cause, and a `run` line that does not start has a `me` gate, a row in the record, or the lock of
@@ -104,16 +126,17 @@ only. With the default gates no step is `auto`, so the automatic runner starts n
 **The form `--board`** is read-only: it takes no lock, writes no row in the record, and starts no
 session. `--board` is its only argument. It prints contract 1, the JSON document that the board
 reads: `contract`, `tracker`, `flow`, `noRun`, `runner`, `agents`, `defaultAgent`, and `issues`, with
-one row for each issue that has a card. The rows come from the same in-process resolver as
-`next-step --json`; resolution, displayed gates, and the default host share that refresh's operation.
+one row for each issue that has a card. The rows come from the typed rows of the same in-process
+resolver as `next-step --json` (`nextBoard`); resolution, displayed gates, and the default host
+share that refresh's operation.
 The resolver makes these `gh api` calls: 3 paginated lists (open issues, closed issues, open PRs),
 one paginated call for the comments of each open issue that has a comment, and 3 calls for each
 open PR whose branch holds `/<number>-`. The resolver gives
 each row the state that it knows from GitHub and from the working
 trees: `done`, `blocked` with `reason` and `act`, `ready`, or `dirty` with `path`. The `reason` is
-`needs info`, `landing refused`, or `ready for your step` ("The board", rule 5). It also gives the
-`noRun` text for a dirty main checkout. `--board` adds what the runner knows: `starting` for a lock
-that a live script holds, `stuck` with its `act` for a row of the record, the `step`, `started`,
+`needs info`, `landing refused`, `ready for your step`, or `several lane labels` ("The board",
+rule 5). It also gives the `noRun` text for a dirty main checkout. `--board` adds what the runner
+knows: `starting` for a lock that a live script holds, `stuck` with its `act` for a row of the record, the `step`, `started`,
 and `urgent` of each row, `runner`, `tracker`, and `flow` with the gate of each step. "The board"
 gives the value of each field. When a tracker request or its data conversion fails, the form prints
 `stop cannot read the issues from GitHub` and exits 1. The board is its reader: the adapter supplies this form as `data`.
@@ -136,8 +159,9 @@ start times. Either live process keeps the lock, including after a killed runner
 process does not. Claims and releases use Git compare-and-set, and foreground registration
 updates all held locks in one transaction. Both hosts and manual resume share the issue lock.
 `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` keeps its separate `land-<n>.lock` in `<git common dir>/celetis-flow/`.
-The `no-progress` file there has one row for each step that ended with no progress. The automatic
-runner and `--board` read it. An explicit issue start can retry that step.
+The `no-progress` file there has one row for each step that ended with no progress, and one row for
+each step that the script refused as a skip. The automatic runner and `--board` read it. An
+explicit issue start can start that step.
 
 ## How a step runs
 
@@ -204,21 +228,32 @@ board links the session to the issue. It also starts a job in the background tha
    for 60 seconds at most. It saves the verified ID in the current session record.
 2. It waits until the agent is ready for the next prompt:
    `herdr agent wait <pane> --until idle --until done`.
-3. It verifies the current host, identity, readiness, and idle/done state, then reads
-   `next-step.ts <n>`. A changed `run` line or `stop #<n> ` line permits an exit check. The job
-   reads the resolver again, then makes a final session-state check before it submits `/exit`.
-   A blocked or unknown state gets no exit. A failed submission leaves the session open and
-   prints a recovery action.
+3. It verifies the current host, identity, readiness, and idle/done state, then reads the
+   decision of the issue from the in-process resolver of `next-step.ts`. A decision with a result
+   other than the result that started the session permits an exit check: a Run of another step,
+   or a stop of the issue. A stop from an observation (the dirty tree, a landing that runs, or a
+   failed read) permits none. The job reads the resolver again, and that read must give the same
+   result. It then makes a final session-state check before it submits `/exit`. A blocked or
+   unknown state gets no exit. A failed submission leaves the session open and prints a recovery
+   action.
 4. Otherwise it waits up to five seconds for working or blocked state, pauses one second, and
    checks again. This also permits a new resolver check while the session remains idle.
+
+Two decisions have the same result when both are a Run of the same step, or both are a stop with
+the same reason, variant, and data (for example, the labels of a stop for several lane labels). The
+state and the lane are not part of the result. So when `implement` removes `ready-for-agent`, the
+issue goes from planned to built, the result stays a Run of `implement`, and the session stays open.
+The two variants of `ready-for-human` (`landing refused` and `ready for your step`) print the same
+line, but they are two results. When the variant changes between the two reads of one check, the
+job submits no `/exit` at that check, and it checks again at the next idle moment.
 
 The runner waits for the foreground process to exit before it releases a lock or starts the
 next step. Successful `/exit` submission alone is not completion.
 
-In each other case the session stays open: the same `run` line, the dirty-tree line, the line of a
-landing that runs, the cannot-read line, and a resolver that fails. So a session whose agent waits
-for an answer, waits for a background task, or left an uncommitted file stays open, and a session
-that you start by hand never ends by itself. herdr ends a wait when its agent exits, so the job
+In each other case the session stays open: a decision with the same result, the dirty-tree line,
+the line of a landing that runs, the cannot-read line, and a resolver read that fails. So a
+session whose agent waits for an answer, waits for a background task, or left an uncommitted file
+stays open, and a session that you start by hand never ends by itself. herdr ends a wait when its agent exits, so the job
 ends with the session, and the script stops the job when the host process ends. When a session does not end
 and its agent waits for nothing, leave it with `/exit`: the script then asks the resolver again,
 and it prints the reason or starts the next step. Outside herdr the script starts no job and makes
@@ -272,9 +307,9 @@ its next idle moment, and a Run press starts that lane.
 
 **A landing.** `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` moves the line of the issue when it merges, and it then closes
 the epic and removes the worktree. While it runs, `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step <n>` prints
-`stop the landing of #<n> runs; wait until /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' ends`. That line does not start with
-`stop #<n> `, so the job does not end the session. herdr 0.9.3 reads an agent that waits for a
-background command as `done`, then `idle` (read on a live herdr on 2026-10-11). So while the script
+`stop the landing of #<n> runs; wait until /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' ends`. That line is the stop of an
+observation, not a stop of the issue, so the job does not end the session. herdr 0.9.3 reads an
+agent that waits for a background command as `done`, then `idle` (read on a live herdr on 2026-10-11). So while the script
 runs, for up to 30 minutes, the board shows the session in Needs you as `turn ended`: do not leave
 that session. If a session ended during a landing, wait until `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step <n>` prints
 another line, and then run `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land <n> '<subject>'` again from the main checkout: it
@@ -473,16 +508,19 @@ A row gets its `state` by the first rule that matches:
 | 1 | is closed | `done` | `closedAt` |
 | 2 | has a lock that a live script holds | `starting` | |
 | 3 | has a dirty lane worktree | `dirty` | `path`: the lane worktree |
-| 4 | has a row in the record for its `run` line | `stuck` | `act`: `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow --resume <n>` |
-| 5 | has `needs-info` or `ready-for-human` | `blocked` | `reason`: `needs info` for `needs-info`. For `ready-for-human`: `landing refused` while a landing refusal is current (`docs/issue-tracker.md`, "Resolving an issue's state"), else `ready for your step`. `act`: the act that the `stop` line of the issue names |
+| 4 | has a row in the record for its `run` line: no progress, or a refused skip | `stuck` | `act`: `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow --resume <n>` |
+| 5 | has `needs-info` or `ready-for-human`, or two or more lane labels | `blocked` | `reason`, from the first match in the order of the resolver: `needs info` for `needs-info`; for `ready-for-human`, `landing refused` while a landing refusal is current (`docs/issue-tracker.md`, "Resolving an issue's state"), else `ready for your step`; `several lane labels` for two or more lane labels. `act`: the act that the `stop` line of the issue names |
 | 6 | has a `run` line | `ready` | |
 
 Each row also has `number`, `title`, `url`, `updatedAt`, `closedAt`, and these fields:
 
-- `type`: `bug`, `feature` (the label `enhancement`), `chore`, or `hotfix`, from the first of those
-  four labels that the issue has, in that order; else `null`.
-- `step`: the step of the `run` line of the issue ("Gates"), else `null`.
-- `started`: `true` when the step is `plan` or `implement`, because an earlier step of the lane ran.
+- `type`: the lane of the one lane label of the issue: `feature` (the label `enhancement`), `bug`,
+  `chore`, or `hotfix`. It is `null` for an issue with no lane label, with two or more lane labels,
+  or with `epic`, also in the row of an issue that is closed or that stops.
+- `step`: the step of the Run decision of the issue, the step of its `run` line ("Gates"), else
+  `null`.
+- `started`: `true` when the step comes after the define step of its lane (`plan` or `implement`),
+  because an earlier step of the lane ran.
 - `urgent`: `true` for the type `hotfix`.
 - `pr`: the open pull request whose branch name holds `/<n>-`, with its number, URL, draft state, CI
   result (`pass`, `fail`, `pending`, or `null`), and review state (`approved`, `changes`,
@@ -511,6 +549,7 @@ boundary, and the limits of the page.
 | The script prints | The maintainer's act | Then |
 |---|---|---|
 | `stop … needs info` or `stop … ready-for-human` | do what the line says; for `ready-for-human`, the latest `## Stopped` or `## Before landing` comment names the act, and "How a step runs", **A stop**, gives the act after a refused landing. The card of an issue with a current landing refusal reads `landing refused`: its `## Landing refused` comment names the cause | the next step starts with a Run press or with `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow <n>`; the automatic runner starts it only when its gate is `auto` |
+| `stop … has several lane labels …` | keep one lane label and remove the others | as the first row |
 | `stop … is an epic` | none: each child is an open issue with its own flow | — |
 | `stop … is finished` or `stop … is closed as wontfix` | none | — |
 | `stop the working tree is dirty …` | commit or stash | as the first row |
@@ -519,6 +558,7 @@ boundary, and the limits of the page.
 | a `me` gate | a Run press on the card, or `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow <n>` | — |
 | `no progress: /celetis:feature #<n>` | the session ended with no spec on the issue: open the session again, or read the comment of a spike | a Run press, or `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow <n>` |
 | `no progress:` with another command | open the session again, or read the issue | a Run press, or `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow <n>` |
+| `#<n>: <T> skips <steps> after <S>; …` | read the issue ("A refused skip"). When a label or a heading is wrong, fix the issue. When the skip is correct, start `<T>` by hand | a Run press, or `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow <n>`, starts the next step; the automatic runner does not start a refused step |
 
 A Run press runs the script in a new herdr tab. A script that ends with no error closes its tab, so
 read the state on the card of the issue: "The board" gives the state of each issue, and
@@ -601,6 +641,20 @@ and refused the whole-file read. No alternate read followed either denial. These
 existing installations and authentication. They establish checkout instruction behavior, not an
 installed-package update, a full lane, or closure of the other acceptance gaps below.
 
+[Issue #101](https://github.com/ddinkov10/celetis/issues/101) changed the step end from a compare
+of resolver lines to a compare of typed decisions ("The step end"). On 2026-10-26, with Claude
+Code 2.1.310 and herdr 0.9.3, the runner of the checkout at commit `bd3db8a` ran `celetis-flow 1` in
+a herdr tab, in a private product repository with a fake `gh`. A change with the same result (the
+label `needs-triage` on an unrouted issue) kept the session open for 49 seconds after it was idle,
+with no `/exit`. A change to a Run of `plan` that skips `specify` (the label `enhancement` and a
+`Spec:` body) ended the session with `/exit` within 5 seconds. The runner then printed the refusal
+line, exited 0, and recorded the row `1\trun /celetis:plan #1`. The triage session asked a type
+question, and the check cancelled it with Esc to get the idle state. The live Codex step end of
+that change is an open runtime check (Finding 2 of the plan of #101). `codexSessionPin` of
+`engine/lib/plugin-metadata.ts` of the plugin refuses a runner whose package root is not the
+enabled installed Codex root, so a checkout runner cannot start a Codex step session. A check from
+an installed package that holds the change can close it.
+
 The later Codex board checks used reviewed commit `626881b`; the
 [public evidence record](https://github.com/ddinkov10/celetis/issues/21#issuecomment-6187619525)
 keeps the earlier failures. The first fixture turn attempted a forbidden issue comment, which
@@ -668,8 +722,10 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   that moment goes into the same line. This is more probable in a `specify` session, because you
   work in its pane.
 - The `herdr` commands of the script come from the documents and the source of herdr 0.9.3. The
-  step end of the script was checked against a live herdr on 2026-10-11 (ADR-0007). Two parts of it
-  are not checked: the end of a session after its `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` run ends (ADR-0008), and
+  step end of the script was checked against a live herdr on 2026-10-11 (ADR-0007). That check
+  covered the compare of lines. The compare of typed decisions was checked on Claude Code on
+  2026-10-26, and the Codex check is open ("Acceptance status"). Two parts of the step end are not
+  checked: the end of a session after its `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` run ends (ADR-0008), and
   the end of a session after it adds `ready-for-human` at a stop (ADR-0011). Two shapes of the REST
   reads of `--json` for each open PR are not checked against a live GitHub: a commit status list
   that is not empty, and a review list that is not empty.
@@ -677,8 +733,8 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   show a status that branch protection requires until that status reports. Until then,
   `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` can read `pass` and ask for the merge. GitHub then refuses the merge, and
   the build step stops with `## Landing refused`. Until then, the board also shows `pass` for the PR.
-- The script exits 0 at each `stop` line, at a `me` gate, and at "no progress", so `&& exit` closes
-  the tab with the message of the script. A Run press whose session ends at once thus leaves no
+- The script exits 0 at each `stop` line, at a `me` gate, at "no progress", and at a refused
+  skip, so `&& exit` closes the tab with the message of the script. A Run press whose session ends at once thus leaves no
   message: start `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow <n>` in a terminal to see it.
 - A start of the board from the entry `board` of `.claude/launch.json`, in a project that has such
   an entry, needs `bun`, `herdr`, and the tools of the command on the `PATH` of the desktop app,

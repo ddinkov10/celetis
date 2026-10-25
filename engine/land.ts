@@ -6,6 +6,7 @@ import { HostError } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
 import { run } from './lib/process.ts';
+import { branchGlobs, branchPattern } from './lib/workflow.ts';
 import { checkoutOf, removeLane } from './lib/worktree.ts';
 
 type Pull = {
@@ -156,15 +157,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     if (typeof repo.default_branch !== 'string' || !repo.default_branch)
       die('cannot read the default branch from GitHub');
     trunk = repo.default_branch;
-    branch = await git([
-      'branch',
-      '--list',
-      '--format=%(refname:lstrip=2)',
-      `feat/${n}-*`,
-      `fix/${n}-*`,
-      `hotfix/${n}-*`,
-      `chore/${n}-*`,
-    ]);
+    branch = await git(['branch', '--list', '--format=%(refname:lstrip=2)', ...branchGlobs(n)]);
     if (!branch) die(`no lane branch matches #${n}; nothing to land`);
     if (branch.includes('\n')) die(`several branches match #${n}: ${branch.replaceAll('\n', ' ')}; keep one`);
     const checkout = await checkoutOf(branch, cwd, abort.signal);
@@ -197,15 +190,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
         die(`the default branch changed from ${trunk}; invoke landing again`);
       await git(['fetch', '-q', 'origin', trunk], `cannot fetch ${trunk} from origin`);
       if ((await git(['rev-parse', `origin/${trunk}`])) !== base) die(`the head of ${trunk} changed; ${stale}`);
-      const current = await git([
-        'branch',
-        '--list',
-        '--format=%(refname:lstrip=2)',
-        `feat/${n}-*`,
-        `fix/${n}-*`,
-        `hotfix/${n}-*`,
-        `chore/${n}-*`,
-      ]);
+      const current = await git(['branch', '--list', '--format=%(refname:lstrip=2)', ...branchGlobs(n)]);
       if (current !== branch || (await git(['rev-parse', `refs/heads/${branch}`])) !== tip)
         die(`the lane branch or its tip changed; ${stale}`);
       if ((await checkoutOf(branch, cwd, abort.signal)) !== checkout) die(`the lane checkout changed; ${stale}`);
@@ -275,7 +260,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
           paginate: true,
         })
       ).flat();
-      const lane = open.filter((pull) => new RegExp(`^(feat|fix|hotfix|chore)/${n}-`).test(pull.head.ref));
+      const lane = open.filter((pull) => branchPattern(n).test(pull.head.ref));
       for (const pull of lane) {
         if (pull.base.ref !== trunk)
           die(
