@@ -264,7 +264,7 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
   const env = childEnv();
   const lock = await UpdateLock.acquire(join(config, 'celetis-update.lock'), ownerPid, { refuseBusy: true });
   try {
-    const output = await lock.run(process.execPath, bunArgs(import.meta.path, ['plugin-update', '--inspect', host]), {
+    const output = await lock.run(process.execPath, bunArgs(import.meta.path, ['--inspect', host]), {
       cwd: process.cwd(),
       env,
     });
@@ -295,7 +295,7 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
     const completed: string[] = [];
     try {
       if (host === 'claude') {
-        await lock.run(process.execPath, bunArgs(import.meta.path, ['plugin-update', '--policy', host]), {
+        await lock.run(process.execPath, bunArgs(import.meta.path, ['--policy', host]), {
           cwd: process.cwd(),
           env,
         });
