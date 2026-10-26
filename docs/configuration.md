@@ -7,9 +7,17 @@ mapping root. Comments are allowed. Put nothing after a `---` marker on its line
 This repository uses:
 
 ```yaml
-host: codex
+host: claude
 landing: merge
 suite: scripts/verify.ts
+gates:
+  triage: auto
+  specify: me
+  bug: auto
+  chore: auto
+  hotfix: auto
+  plan: auto
+  implement: auto
 board:
   port: 4404
 ```

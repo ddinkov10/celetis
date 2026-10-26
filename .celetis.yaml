@@ -1,5 +1,13 @@
-host: codex
+host: claude
 landing: merge
 suite: scripts/verify.ts
+gates:
+  triage: auto
+  specify: me
+  bug: auto
+  chore: auto
+  hotfix: auto
+  plan: auto
+  implement: auto
 board:
   port: 4404
