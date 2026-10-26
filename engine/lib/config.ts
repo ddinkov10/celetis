@@ -3,7 +3,7 @@ import { isAbsolute, win32 } from 'node:path';
 import { type Document, isAlias, isMap, isScalar, isSeq, parseAllDocuments } from './vendor/yaml.mjs';
 import { type Step, steps } from './workflow.ts';
 
-const floor = '1.4.2';
+const floor = '1.4.4';
 
 export { floor as bunFloor };
 

@@ -45,7 +45,7 @@ the reasons why it reads its data in its own process and types two fixed command
 - macOS or Linux. On native Windows, the start and the data of the board before #102 are checked;
   the in-process read of #102, and Run and Resume in a herdr tab, are not (`docs/celetis-flow.md`
   of the plugin `celetis`, "Acceptance status").
-- Bun 1.4.2 or later. The entry prints `celetis: need Bun >=1.4.2 on PATH, found <version>` and
+- Bun 1.4.4 or later. The entry prints `celetis: need Bun >=1.4.4 on PATH, found <version>` and
   exits 2 on an older Bun.
 - git 2.31 or later.
 - herdr 0.9 or later on `PATH` and a herdr server that runs, for the session cards and for each
@@ -97,7 +97,7 @@ checks in this order:
 
 | Case | Line | Exit |
 |---|---|---|
-| Bun is older than 1.4.2 | `celetis: need Bun >=1.4.2 on PATH, found <version>` | 2 |
+| Bun is older than 1.4.4 | `celetis: need Bun >=1.4.4 on PATH, found <version>` | 2 |
 | An argument follows `board` | `usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board` | 2 |
 | The current folder is in no git checkout | `celetis: need a Git checkout` | 2 |
 | The current folder is in a bare repository | the line of git, `fatal: this operation must be run in a work tree` | 128 |
@@ -490,7 +490,7 @@ the texts are `Open the issue` and `Read the issues again`.
   checks the `Document` type between them.
 
 Browser sources are `board.ts`, `view.ts`, `ui.ts`, `panel.ts`, and `palette.ts`. The pinned Bun
-1.4.2 build program, `<plugin>/scripts/build.ts`, generates their existing `.js` and `.mjs` URLs.
+1.4.4 build program, `<plugin>/scripts/build.ts`, generates their existing `.js` and `.mjs` URLs.
 It compiles every target before it writes any output. Plugin users run no build.
 
 ## Limits

@@ -13,6 +13,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import { bunFloor } from '../engine/lib/config.ts';
 import { HostError } from '../engine/lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
 import { codexHome } from '../engine/lib/plugin-metadata.ts';
@@ -42,7 +43,7 @@ const pins: ToolPin[] = [
   },
   { name: 'biome', version: '2.5.15', installer: 'bun', package: '@biomejs/biome@2.5.15' },
   { name: 'tsc', version: '7.0.2', installer: 'bun', package: 'typescript@7.0.2' },
-  { name: '@types/bun', version: '1.4.2', installer: 'bun', package: '@types/bun@1.4.2' },
+  { name: '@types/bun', version: bunFloor, installer: 'bun', package: `@types/bun@${bunFloor}` },
 ];
 export async function toolPins(): Promise<ToolPin[]> {
   return pins;
@@ -81,7 +82,7 @@ export async function findTools(path = process.env.PATH) {
   const typesSource = await readFile(join(packages, '@types/bun/package.json'), 'utf8').catch(() => null);
   if (!typesSource)
     throw new Error(
-      `verify: @types/bun is missing from ${packages}: install @types/bun@1.4.2 with scripts/install-tools.ts (AGENTS.md, "Verify gate")`,
+      `verify: @types/bun is missing from ${packages}: install @types/bun@${bunFloor} with scripts/install-tools.ts (AGENTS.md, "Verify gate")`,
     );
   const types = JSON.parse(typesSource) as { version: string };
   return {

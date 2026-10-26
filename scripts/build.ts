@@ -1,10 +1,10 @@
 import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { bunFloor } from '../engine/lib/config.ts';
 import { HostError } from '../engine/lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
 import { codexHome } from '../engine/lib/plugin-metadata.ts';
 
-const pin = '1.4.2';
 const root = dirname(import.meta.dir);
 const nativeTargets = [{ entry: 'engine/hooks/entry.ts', output: 'engine/hooks/entry.js', mode: 0o644 }];
 const browserTargets = ['board', 'view', 'ui', 'panel', 'palette'].map((name) => ({
@@ -25,8 +25,8 @@ export async function main(argv: string[]): Promise<number> {
 }
 
 async function execute(args: string[], explicit: string | undefined): Promise<number> {
-  if (Bun.version !== pin) {
-    console.error(`build: need Bun ${pin}, found ${Bun.version}`);
+  if (Bun.version !== bunFloor) {
+    console.error(`build: need Bun ${bunFloor}, found ${Bun.version}`);
     return 1;
   }
   const check = args.length === 1 && args[0] === '--check';

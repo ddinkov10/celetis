@@ -250,8 +250,8 @@ apply to each requested operation.
 
 ## Install Bun
 
-Celetis commands need Bun 1.4.2 or later on `PATH`. The plugin does not
-install dependencies. CI pins Bun 1.4.2. The YAML parser of the reader, the `yaml` package
+Celetis commands need Bun 1.4.4 or later on `PATH`. The plugin does not
+install dependencies. CI pins Bun 1.4.4. The YAML parser of the reader, the `yaml` package
 2.9.1, comes with the plugin in `engine/lib/vendor/`, so a read installs no package.
 
 Install Bun with Homebrew:
@@ -269,7 +269,7 @@ curl -fsSL https://bun.com/install | bash
 To install one version, give its tag to the installer:
 
 ```bash
-curl -fsSL https://bun.com/install | bash -s "bun-v1.4.2"
+curl -fsSL https://bun.com/install | bash -s "bun-v1.4.4"
 ```
 
 The official Windows installer runs in PowerShell. From Git Bash, the documented Celetis command
@@ -286,7 +286,7 @@ Then run:
 bun --version
 ```
 
-The command must print 1.4.2 or a later version. When the shell does not find `bun` after the
+The command must print 1.4.4 or a later version. When the shell does not find `bun` after the
 official installer, add `$HOME/.bun/bin` to `PATH`. To update an older Bun, run `bun upgrade`,
 or `brew upgrade bun` after a Homebrew install.
 

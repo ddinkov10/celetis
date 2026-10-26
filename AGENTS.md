@@ -29,7 +29,7 @@ limitation and continue independent checks.
 ## Verify gate
 
 `scripts/verify.ts` is the verify gate and the only check of this repository. Its last line is
-`verify: PASS`. CI runs it on Bun 1.4.2.
+`verify: PASS`. CI runs it on Bun 1.4.4.
 
 Add no test to the repository. The gate refuses a tracked test file (ADR-0029).
 
@@ -47,8 +47,8 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
   The gate resolves package and type paths from executable filesystem metadata. Checks install nothing.
 - The gate reads `git ls-files -z`. Stage a new file before the gate. Give each new file type
   a check or an explicit role in `scripts/verify.ts`.
-- Author each first-party program in TypeScript. Bun 1.4.2 or later runs commands.
-  `scripts/build.ts` uses exactly Bun 1.4.2 to generate browser assets
+- Author each first-party program in TypeScript. Bun 1.4.4 or later runs commands.
+  `scripts/build.ts` uses exactly Bun 1.4.4 to generate browser assets
   and native hook modules. `--check` compares bytes, and modes on macOS and Linux, without
   writes. The vendor parser stays unchanged; update it only as `engine/lib/vendor/README.md` says.
 - Strict types have three environments: runtime commands and server modules;
