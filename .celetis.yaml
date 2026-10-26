@@ -1,4 +1,5 @@
 host: codex
 landing: merge
+suite: scripts/verify.ts
 board:
   port: 4404

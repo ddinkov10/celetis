@@ -77,7 +77,7 @@ project, not here. So the text of this repository is general:
 The lanes of this repository are the skills of the plugin itself, on the issues of
 `ddinkov10/celetis` (`README.md`, "The full loop"). The landing is `merge`
 (`landing` in `.celetis.yaml`): a build step runs the verify gate locally, then ends
-with `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' '<n>' '<subject>'`, which puts one squash commit on `main` without a PR.
+with `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' '<n>' '<subject>'`, which runs `suite` (`scripts/verify.ts`) on the commit that it lands and puts one squash commit on `main` without a PR.
 The landing is the last act of a change: this repository has no deployment.
 For installation changes, follow `README.md`, "Updates".
 

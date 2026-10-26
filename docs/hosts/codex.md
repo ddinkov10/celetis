@@ -28,6 +28,14 @@ For a sandbox-blocked command, request one approved retry with the same command,
 and cwd before reporting a setup stop. Use the tool's escalation mechanism for later calls
 with the same access needs. A denied file read retains the Host entry stop rule.
 
+Like `land`, `issue` needs network: it reads the issue from GitHub before any write. In a sandbox
+with no network, it exits 6 with `issue: blocked: cannot read #<n> from GitHub`. That is a
+sandbox block, not a GitHub that does not answer: request the approved retry first. The approved
+retry is the path for `issue`. The personal `issue` rule of `<plugin>/README.md`, "Personal
+landing permission", is optional: it skips the review of each call, so a session can post any
+file that it can read on the issue. Add it only when Codex cannot ask for approval, for example
+with the approval policy `never`.
+
 ## Dispatch
 
 With a nonempty `codexProfiles` mapping or an explicit profile, pass fresh model and effort

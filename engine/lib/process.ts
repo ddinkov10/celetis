@@ -134,3 +134,28 @@ export function run(
 export function bunArgs(entry: string, args: string[]): string[] {
   return ['--no-env-file', '--no-install', `--config=${devNull}`, '--no-macros', entry, ...args];
 }
+
+export function runBun(file: string, args: string[], cwd: string): Promise<number> {
+  return new Promise<number>((resolveCode) => {
+    const child = spawn(process.execPath, bunArgs(file, args), { cwd, env: childEnv(), stdio: 'inherit' });
+    const handlers = new Map<NodeJS.Signals, () => void>();
+    let interrupted = 0;
+    for (const signal of ['SIGHUP', 'SIGINT', 'SIGTERM'] as const) {
+      const handler = () => {
+        interrupted = 128 + constants.signals[signal];
+        child.kill(signal);
+      };
+      handlers.set(signal, handler);
+      process.on(signal, handler);
+    }
+    let failed = false;
+    child.once('error', (error) => {
+      failed = true;
+      console.error(error.message);
+    });
+    child.once('close', (status, signal) => {
+      for (const [name, handler] of handlers) process.off(name, handler);
+      resolveCode(interrupted || (failed ? 1 : (status ?? (signal ? 128 + constants.signals[signal] : 1))));
+    });
+  });
+}

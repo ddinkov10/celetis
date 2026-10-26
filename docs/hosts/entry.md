@@ -43,17 +43,30 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
 
 Substitute bound values before shell quoting. Quote each complete argument with single quotes;
 replace an embedded single quote with `'\''`. Keep the first word `/usr/bin/env` unquoted.
-Use the same literal tool text as the personal rule generator. The landing form is:
+Use the same literal tool text as the personal rule generator. The landing form and the form of a
+workflow write are:
 
 ```sh
 # landing-command
 /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' '<issue>' '<subject>'
+# issue-command
+/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'issue' '<issue>' '<act>'
 ```
 
-The generator in `<plugin>/README.md`, "Personal landing permission", prints the concrete command
-and its tested rule. The rule ends at `'land'`, so one rule serves each issue and subject. Keep
-the printed prefix exactly, including assignments, absolute runtime, options, package, host,
-quoting, and shell form. A changed binding needs a new rule.
+An act with a lane, a file, or a flag adds each as one more quoted argument. The generator in
+`<plugin>/README.md`, "Personal landing permission", prints the concrete command and its tested
+rule for `land` and for `issue`. Each rule ends at its sub-command, so one rule serves each issue
+and subject of `land`, or each issue and act of `issue`. Keep the printed prefix exactly,
+including assignments, absolute runtime, options, package, host, quoting, and shell form. A
+changed binding needs a new rule.
+
+The rule of `issue` is optional. The path for `issue` is the review of the host: Claude's auto
+mode, or the approved retry of a Codex sandbox block (`<plugin>/docs/hosts/codex.md`). An allow
+rule skips that review for each `issue` call, and each act with a file posts the text of a path
+that the session names. So with the rule, a session can post any file that it can read (for
+example a token file) on the issue, and text from an issue can steer a session. Add the rule only
+when the host cannot run `issue` through its review, for example Codex with the approval policy
+`never`.
 
 Use `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' 'claude' <command>` or `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' 'codex' <command>` on
 every call, matching the running host. Replace `<plugin>` with the bound absolute prefix and quote the complete path argument. Resolve the plugin from the loaded skill, not a guessed

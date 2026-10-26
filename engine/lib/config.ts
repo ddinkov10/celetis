@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { isAbsolute, win32 } from 'node:path';
 import { type Document, isAlias, isMap, isScalar, isSeq, parseAllDocuments } from './vendor/yaml.mjs';
 import { type Step, steps } from './workflow.ts';
 
@@ -67,7 +68,6 @@ export type ConfigSource = Readonly<{
 
 export type Config = Readonly<{
   host?: Host;
-  landing: 'pr' | 'merge';
   gates?: Readonly<Partial<Record<Step, 'me' | 'auto'>>>;
   board?: Readonly<{ port?: number }>;
   worktreeSetup?: string;
@@ -81,7 +81,8 @@ export type Config = Readonly<{
       }>
     >
   >;
-}>;
+}> &
+  (Readonly<{ landing: 'pr' }> | Readonly<{ landing: 'merge'; suite: string }>);
 
 function field(path: Path): string {
   return path.join('.') || '<document>';
@@ -337,7 +338,7 @@ function profile(value: unknown, path: Path): void {
 
 function checkSchema(value: unknown): asserts value is Config {
   const config = object(value, []);
-  keysOnly(config, ['host', 'landing', 'gates', 'board', 'worktreeSetup', 'custom', 'codexProfiles'], []);
+  keysOnly(config, ['host', 'landing', 'gates', 'board', 'worktreeSetup', 'suite', 'custom', 'codexProfiles'], []);
   required(config, 'landing', []);
   oneOf(config.landing, ['pr', 'merge'], ['landing']);
   if (Object.hasOwn(config, 'host')) validateHost(config.host);
@@ -352,6 +353,21 @@ function checkSchema(value: unknown): asserts value is Config {
     if (Object.hasOwn(board, 'port')) integer(board.port, 1024, 65535, ['board', 'port']);
   }
   if (Object.hasOwn(config, 'worktreeSetup')) text(config.worktreeSetup, ['worktreeSetup']);
+  if (config.landing === 'merge') required(config, 'suite', []);
+  if (Object.hasOwn(config, 'suite')) {
+    text(config.suite, ['suite']);
+    const suite = config.suite as string;
+    if (config.landing === 'pr') throw new ConfigError(['suite'], 'the landing pr runs no suite');
+    if (
+      isAbsolute(suite) ||
+      win32.isAbsolute(suite) ||
+      suite.includes('\\') ||
+      suite.split('/').includes('..') ||
+      !suite.endsWith('.ts')
+    ) {
+      throw new ConfigError(['suite'], 'need a relative path of a .ts file in the checkout');
+    }
+  }
   if (Object.hasOwn(config, 'custom')) {
     const custom = object(config.custom, ['custom']);
     keysOnly(custom, skills, ['custom']);

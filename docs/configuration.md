@@ -8,7 +8,8 @@ This repository uses:
 
 ```yaml
 host: codex
-landing: pr
+landing: merge
+suite: scripts/verify.ts
 board:
   port: 4404
 ```
@@ -22,6 +23,7 @@ board:
 | `gates` | Mapping from a step name to `me` or `auto` | `me` for each omitted step |
 | `board` | Mapping with optional `port`, an integer from 1024 to 65535 | Port 4403 |
 | `worktreeSetup` | One TypeScript program string | No setup |
+| `suite` | A relative path of a TypeScript file in the checkout; required with `landing: merge`, refused with `landing: pr` | With `merge`, the config is refused |
 | `custom` | Mapping from a Celetis skill stem to an instruction string | No addition for an omitted skill |
 | `codexProfiles` | Mapping from a runtime identity to its profile | Each Codex child keeps the parent's model |
 
@@ -92,7 +94,14 @@ A setup failure or invalid new lane config uses the existing cleanup: remove the
 and a branch created by the command; keep an existing branch or worktree for repair and retry.
 Old Git defaults have no effect.
 
-Use the main checkout for `host`, `landing`, `gates`, `board`, and `codexProfiles`.
+The `suite` file is the full check of a `merge` landing. `land` runs it in the lane checkout, with
+no argument, at the tip that it lands, after the last check of the lane and before the commit on
+the trunk. Exit status 0 is a pass; any other status stops the landing with `land: checks:`. A suite
+that changes the lane or the trunk stops the landing with a repair or usage line, and the trunk
+stays as it was. `land` runs the suite again on each run. A `pr` landing runs no suite: its checks
+are the checks of the PR.
+
+Use the main checkout for `host`, `landing`, `suite`, `gates`, `board`, and `codexProfiles`.
 Use the new lane checkout for setup. At each skill entry, use `custom.<skill>` from the active
 checkout. With no checkout or no config, optional skill entry has no custom addition.
 An existing invalid or unreadable config stops entry. A denied read has no alternate read path.

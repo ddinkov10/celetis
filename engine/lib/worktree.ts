@@ -1,10 +1,9 @@
-import { spawn } from 'node:child_process';
 import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
-import { constants, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type { Config } from './config.ts';
 import { HostError } from './host.ts';
-import { bunArgs, childEnv, run } from './process.ts';
+import { run, runBun } from './process.ts';
 
 export async function markerOf(checkout: string): Promise<string> {
   const result = await run('git', ['rev-parse', '--path-format=absolute', '--git-dir'], { cwd: checkout });
@@ -28,32 +27,7 @@ export async function runSetup(checkout: string, config: Config, main: string): 
     try {
       const file = join(temp, 'setup.ts');
       await writeFile(file, setup, { mode: 0o600, flag: 'wx' });
-      code = await new Promise<number>((resolveCode) => {
-        const child = spawn(process.execPath, bunArgs(file, [resolve(main)]), {
-          cwd: checkout,
-          env: childEnv(),
-          stdio: 'inherit',
-        });
-        const handlers = new Map<NodeJS.Signals, () => void>();
-        let interrupted = 0;
-        for (const signal of ['SIGHUP', 'SIGINT', 'SIGTERM'] as const) {
-          const handler = () => {
-            interrupted = 128 + constants.signals[signal];
-            child.kill(signal);
-          };
-          handlers.set(signal, handler);
-          process.on(signal, handler);
-        }
-        let failed = false;
-        child.once('error', (error) => {
-          failed = true;
-          console.error(error.message);
-        });
-        child.once('close', (status, signal) => {
-          for (const [name, handler] of handlers) process.off(name, handler);
-          resolveCode(interrupted || (failed ? 1 : (status ?? (signal ? 128 + constants.signals[signal] : 1))));
-        });
-      });
+      code = await runBun(file, [resolve(main)], checkout);
     } finally {
       await rm(temp, { recursive: true, force: true });
     }

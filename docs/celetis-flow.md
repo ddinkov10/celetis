@@ -247,40 +247,55 @@ and it prints the reason or starts the next step. Outside herdr the script start
 no `herdr` call.
 
 **A stop.** A step session hands a stop that is not a question to the issue (rule 4 of the step
-text). The reason is a comment: the comment that its skill posts for the stop
-(`## Landing refused`, `## Before landing`), else a comment with `## Stopped` as its first line.
-When the skill adds no label for the stop, the session then adds `ready-for-human` as its last act,
-so the line becomes `stop #<n> is ready-for-human. …` and the job ends the session. A stop for which
+text), through the write command
+`BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> issue`
+(`docs/issue-tracker.md`, "Conventions"). The reason is a comment: the comment that its skill
+posts for the stop (`## Landing refused`, `## Before landing`), else a comment with `## Stopped` as
+its first line. When the skill adds no label for the stop, the session then adds `ready-for-human`
+as its last act (the act `stopped` posts the `## Stopped` comment, then adds the label), so the
+line becomes `stop #<n> is ready-for-human. …` and the job ends the session. A stop for which
 the skill adds a label, such as the `needs-info` stop of `/celetis:triage`, stays as the skill says.
 A question is not a stop: where a skill says to ask, rule 2 holds, and a session that asks for a
 decision waits in its pane. A Verify scenario that the session cannot run is a `## Before landing`
-stop (rule 5): the session does not land the change. It posts the comment, and then one command
-removes `ready-for-agent`, which marks the change as built, and adds `ready-for-human`. A session
-that ends before that command leaves `ready-for-agent`, so the next run builds and verifies the
-change again. A `specify` session and a session that you start by hand have no step text: at such
-a stop they show the message and stay open (ADR-0011).
+stop (rule 5): the session does not land the change. The act `before-landing` posts the comment,
+then adds `ready-for-human`, then removes `ready-for-agent`, which marks the change as built. A
+label write that fails after the comment, or a session that ends during the act, leaves the
+comment with no `ready-for-human`. The line then becomes `stop #<n> has an open human step. …` (the `human-step`
+stop): the absence of the label is no evidence that the human step is done, so no step starts. Do
+the act that the line names. When `ready-for-agent` stayed on the issue, the next run then builds
+and verifies the change again. A `specify` session and a session that you start by hand have no
+step text: at such a stop they show the message and stay open (ADR-0011).
 
 After a stop with `ready-for-human`, do the act of the stop, remove the label, and start the step
 again. A `## Stopped` or `## Before landing` comment names the act. For a refused landing of
 `/celetis:implement` or `/celetis:chore`, fix a cause outside the change (for example, run the
 failed job again, or land a chore that removes the advisory of a dependency): the next run of the
 step fixes a cause that the change made, lands the change, and does not build it again. For a Verify
-scenario, the act is a run of the scenario. After a PASS, the next run of `/celetis:implement` lands
-the built change. After a FAIL, keep the label: put the result on the issue, run
+scenario, the act is a run of the scenario. After a PASS and the removal of the label, the next run
+of `/celetis:implement` lands the built change. A comment that names an act of "During the build",
+or a comment with no marker of its kind, also needs a `## Human steps done` report of the act.
+After a FAIL, keep the label: put the result on the issue, run
 `/celetis:plan #<n>` in a session of your own, and remove the label when the new plan is on the
 issue. Re-entry requires completion evidence for the current build: the maintainer's later
-label-removal event or a trusted completion report, and both for an act of "During the build", as
-`docs/issue-tracker.md` specifies. Label
-absence alone does not clear the precondition. For a hotfix whose landing
-stopped, the checklist of step 7 of `skills/hotfix/SKILL.md` of the plugin holds your acts: you land
-with `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` in your own shell, and the step does not run again.
+label-removal event or a trusted completion report, and both for an act of "During the build" and
+for a comment with no marker, as `docs/issue-tracker.md` specifies. Label
+absence alone does not clear the precondition: the resolver stops an issue with no such evidence
+with `stop #<n> has an open human step. …`. For a hotfix whose landing
+stopped, the checklist of step 7 of `skills/hotfix/SKILL.md` of the plugin holds your acts: remove
+`ready-for-human` first, because the landing script refuses while the label is on, then land with
+`BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` in your own shell. The step does not run again.
+After the removal, and until the landing, the line is
+`stop #<n> waits for a landing by hand. …` (the `land-by-hand` stop), so no new hotfix session
+starts. A `## Before landing` comment with no marker also needs its `## Human steps done` report:
+until then, the line is the `human-step` stop.
 
 **The human acts of a plan.** The plan names them in its first section, `### Your steps`. Do each
 act of "During the build" while the build runs, and report the acts in one `## Human steps done`
 comment. A build that needs an act with no report runs each other scenario. Then it stops with one
 `## Before landing` comment that names each such act, its report form, and the scenarios that wait
-for it. Post the report, then remove `ready-for-human`: the next run of `/celetis:implement` runs
-those scenarios and lands on a PASS. A check of "After the landing" is no stop. The last message of
+for it. The act `before-landing` gives that comment the marker of "During the build", so the engine
+needs both the report and the removal. Post the report, then remove `ready-for-human`: the next
+run of `/celetis:implement` runs those scenarios and lands on a PASS. A check of "After the landing" is no stop. The last message of
 `/celetis:implement` quotes it after the landing, and a FAIL is a new bug (`/celetis:bug`).
 
 A `specify` session starts with the line `run /celetis:feature #<n>`. The paths of `specify` give
@@ -304,6 +319,30 @@ completes the landing. After the merge the issue is finished, so Run and
 `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow <n>` start nothing, and no card shows the lane worktree and the branch
 that stay. `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> worktree --remove <n>` also removes them after the merge of the PR; it
 does not close the epic.
+
+Before each push, PR, re-run of a check, and merge, `land` reads the issue again, as it reads the
+Git state again. It refuses an issue that is not ready to land: the issue is closed; it has no lane
+label, two lane labels, or `epic`; it has `needs-info` or `ready-for-human`; it has an open human
+step; or the change of a `feature` or a `bug` is not built. These are the rules of the resolver
+(`landable` in `engine/lib/workflow.ts` of the plugin), and the refusal quotes the resolver line of
+the issue, for example
+`land: prerequisite: #<n> is not ready to land: stop #<n> is ready-for-human. …`. A change that is
+already on the trunk (its merge tree is the tree of the trunk, or a merged PR into the trunk has
+the lane tip as its head) skips
+this check, so a second run after a stopped cleanup completes the cleanup on the closed issue.
+The exit status and the first word after `land: ` give the result:
+
+| Status | First word | Result | Examples |
+|---|---|---|---|
+| 0 | none | landed | `land: #<n> is on <trunk>`; also with a warning, for example `land: cannot read the parent of #<n>; close its epic by hand: …` |
+| 1 | none | an internal error of `land` | an unexpected exception |
+| 2 | `usage` | usage | bad arguments (the line starts with `usage: `); a run from inside the lane worktree; a dirty lane worktree; no lane branch; nothing to land; an invalid configuration |
+| 3 | `prerequisite` | the issue is not ready to land | the refusals of the paragraph above |
+| 4 | `repair` | the lane needs a repair | a conflict with the trunk; a lane branch that does not contain the head of the trunk; a trunk head, a lane branch, a lane checkout, or a PR that changed during the landing; a missing lane worktree with the landing `merge` |
+| 5 | `checks` | a check is not green | a failed CI check, also after its re-run; a failed `suite` with the landing `merge` (`docs/configuration.md`) |
+| 6 | `blocked` | an external block | GitHub does not answer or refuses an act; a fetch or a push fails; the checks did not finish; no check ran; the main checkout is dirty, off the trunk, or not level; the landing mechanism or the default branch changed; two branches or two PRs match |
+| 7 | `cleanup` | landed, the cleanup stopped | the change is on the trunk, and the removal, the pull of the main checkout, or the close of the issue stopped: run `land` again |
+| 128+n | none | a signal | a signal stopped `land` before it put the change on the trunk or found it there; a later signal gives 7 |
 
 ## Gates
 
@@ -453,7 +492,7 @@ a conflict that starts while the board runs shows in the pane of the next Run or
 status line of the board.
 
 The resolver makes these `gh api` calls: 3 paginated lists (open issues, closed issues, open PRs),
-one paginated call for the comments of each open issue that has a comment, and 3 calls for each
+one paginated call for the timeline of each open issue that has a comment, and 3 calls for each
 open PR whose branch holds `/<number>-`. It gives each row the state that it knows from GitHub and
 from the working trees: `done`, `blocked` with `reason` and `act`, `ready`, or `dirty` with `path`.
 It also gives the `noRun` text for a dirty main checkout. The board adds what the runner knows:
@@ -496,7 +535,7 @@ A row gets its `state` by the first rule that matches:
 | 2 | has a lock that a live script holds | `starting` | |
 | 3 | has a dirty lane worktree | `dirty` | `path`: the lane worktree |
 | 4 | has a row in the record for its `run` line: no progress, or a refused skip | `stuck` | `act`: `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow --resume <n>` |
-| 5 | has `needs-info` or `ready-for-human`, or two or more lane labels | `blocked` | `reason`, from the first match in the order of the resolver: `needs info` for `needs-info`; for `ready-for-human`, `landing refused` while a landing refusal is current (`docs/issue-tracker.md`, "Resolving an issue's state"), else `ready for your step`; `several lane labels` for two or more lane labels. `act`: the act that the `stop` line of the issue names |
+| 5 | has `needs-info` or `ready-for-human`, two or more lane labels, an open human step, a hotfix to land by hand, or a plan that is not marked or already built | `blocked` | `reason`, from the first match in the order of the resolver (`docs/issue-tracker.md`, "Resolving an issue's state"): `needs info` for `needs-info`; for `ready-for-human`, `landing refused` while a landing refusal is current, else `ready for your step`; `several lane labels` for two or more lane labels; `human step open` for a `## Before landing` comment with no completion evidence; `land by hand` for a hotfix whose stop the maintainer cleared; `plan not marked` for a plan with no `ready-for-agent`; `plan already built` for `ready-for-agent` on a built plan. `act`: the act that the `stop` line of the issue names |
 | 6 | has a `run` line | `ready` | |
 
 Each row also has `number`, `title`, `url`, `updatedAt`, `closedAt`, and these fields:
@@ -567,6 +606,10 @@ of the page.
 |---|---|---|
 | `stop … needs info` or `stop … ready-for-human` | do what the line says; for `ready-for-human`, the latest `## Stopped` or `## Before landing` comment names the act, and "How a step runs", **A stop**, gives the act after a refused landing. The card of an issue with a current landing refusal reads `landing refused`: its `## Landing refused` comment names the cause | the next step starts with a Run press or with `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow <n>`; the automatic runner starts it only when its gate is `auto` |
 | `stop … has several lane labels …` | keep one lane label and remove the others | as the first row |
+| `stop … has an open human step. …` | do what the line says: the latest `## Before landing` comment names the act. The line names the evidence that is missing: a `## Human steps done` report and the removal of `ready-for-human` after the comment, the report, or the removal (`docs/issue-tracker.md`, "Completing a human precondition") | as the first row |
+| `stop … waits for a landing by hand. …` | run `land` in your own shell, from the main checkout, as the line says | none: the landing finishes the issue |
+| `stop … has a plan with no ready-for-agent. …` | add `ready-for-agent` to build the latest `## Plan` comment, or run `/celetis:plan #<n>` for a new plan | as the first row |
+| `stop … has ready-for-agent on a built plan. …` | remove `ready-for-agent` to land the built change, or run `/celetis:plan #<n>` for a new plan | as the first row |
 | `stop … is an epic` | none: each child is an open issue with its own flow | — |
 | `stop … is finished` or `stop … is closed as wontfix` | none | — |
 | `stop the working tree is dirty …` | commit or stash | as the first row |
@@ -591,7 +634,10 @@ uses `.claude/settings.json`; Codex uses a trusted `.codex/rules/` configuration
 current bare and explicit-host landing forms and restrict direct `gh pr merge`. The plugin does
 not grant permissions. Retain each product project's own restricted acts.
 
-The landing script is the required agent path. With `pr`, it merges only the issue's lane PR on
+The landing script is the required agent path. Before a push, a PR, a re-run, or a merge, it
+refuses each unmet lifecycle prerequisite of the issue ("How a step runs", **A landing**). The
+script holds this guard for each caller: a session, the maintainer in a shell, and the hotfix
+checklist. With `pr`, it merges only the issue's lane PR on
 the trunk, at the checked commit, with every check passed or skipped and at least one PASS.
 Each invocation waits for workflow completion before it accepts green checks, including when a
 dependent job has no check row yet.
@@ -689,6 +735,38 @@ Resume from the installed package is an open runtime check, by hand after the la
 #102, "Your steps"). A full Run session through the board was not observed, because a board tab
 runs with the real `gh`.
 
+[Issue #103](https://github.com/ddinkov10/celetis/issues/103) added the write command `issue`, a
+new command prefix for a step session. On 2026-10-26, with Claude Code 2.1.310 and codex-cli
+0.164.0, a session in the main checkout ran the command of the lane checkout at commit `4449a9a`
+(`<plugin>` below) on a disposable issue:
+`/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'issue' '<n>' 'state'`,
+then the same command with `'wontfix' '<file>'`. The prompt named the two commands.
+`claude -p --permission-mode auto --append-system-prompt-file` with the step text ran both on
+#132, with no refusal and no personal rule. Each exited 0. `codex exec` ran both on #133, with
+the step text in `developer_instructions` and the configured settings: the `workspace-write`
+sandbox with no network, `on-request` approval, and the automatic approval review. Each command
+exited 6 with `issue: blocked: cannot read #133 from GitHub`,
+`error connecting to api.github.com`, and
+`check your internet connection or https://githubstatus.com`, and wrote nothing. The prompt said
+not to get around a refusal, and the session did not ask for approval. A second prompt told the
+session to ask for approval when the sandbox stops a command. The session asked to run each
+command outside the sandbox, the review approved each request, and each command then exited 0
+outside the sandbox. The timeline of each issue lists the comment, then
+`labeled wontfix`, then `closed` (`not_planned`). So the generator of "Personal landing
+permission" in `README.md` now also takes the sub-command `issue`. The printed `issue` rule of
+each host permitted the bound `state` command. Claude in `dontAsk` mode, with the rule in
+`--settings`, refused another script, another sub-command, an inserted Bun option, another host,
+another package path, two compound commands, and two shell injections. Each refusal started
+`Permission to use Bash has been denied because Claude Code is running in don't ask mode.` With
+no rule, it refused the bound command too. `codex execpolicy check` matched the argument list of
+the bound command, and no list with another script, sub-command, Bun option, host, or package
+path. It compares the list as given, so it does not show the shell split. A live Codex turn with
+the rule in a trusted scratch project ran the bound command outside the sandbox with no approval
+request. The two compound commands and the two shell injections ran in the sandbox and printed
+`issue: blocked: cannot read #133 from GitHub`. A step session that runs the command from a
+skill, and a Codex step session with the personal rule in the user configuration, are open
+runtime checks.
+
 The later Codex board checks used reviewed commit `626881b`; the
 [public evidence record](https://github.com/ddinkov10/celetis/issues/21#issuecomment-6187619525)
 keeps the earlier failures. The first fixture turn attempted a forbidden issue comment, which
@@ -737,8 +815,9 @@ Open on Windows: Codex (not installed), PowerShell 7, Resume, the step end, a re
 live land-lock check, and a confirmed `plugin-update` apply (only the lock probes and
 `plugin-update check` ran). The board of #102 is also open on Windows: the board row above
 checked the board before #102, which read its data through a `celetis-flow --board` subprocess
-and typed its lines from command lists. The personal landing rule is also open on Windows: its
-generator in the README needs an entrypoint that starts with `/`, and Bun gives `C:\…`.
+and typed its lines from command lists. The personal rules of `land` and `issue` are also open on
+Windows: their generator in the README needs an entrypoint that starts with `/`, and Bun gives
+`C:\…`.
 
 #125 left the moved POSIX process-identity path with no runtime check on macOS. The scratch checks
 of the merge of #125 into #102 then ran it on macOS through the runner and the board: a live

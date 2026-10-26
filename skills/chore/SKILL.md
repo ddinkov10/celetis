@@ -24,15 +24,17 @@ in `/celetis:bug` or `/celetis:feature`. If you have not completed step N, you c
 ## Flow
 
 1. **Confirm the zero-behavior-change claim.** Any behavior delta → redirect: misbehaviour → `/celetis:bug`,
-   new behavior → `/celetis:feature`. Proceed only if nothing observable changes. Given free text instead of `#<n>`: create the issue first — `gh issue create --label chore --title "<one line>" --body-file <intent>` with the `/celetis:intake` template as the body — and continue with its number. Given `#<n>` whose issue carries `epic`: stop; an epic has no branch, and each child runs its own lane. Given any other `#<n>`: make `chore` its only lane label with `gh issue edit <n>` — `--add-label chore` when the issue lacks it, plus `--remove-label <name>` for each of `needs-triage`, `enhancement`, `bug`, `hotfix` that the issue carries — because `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree'` names the branch from the lane label.
+   new behavior → `/celetis:feature`. Proceed only if nothing observable changes. Given free text instead of `#<n>`: create the issue first — `gh issue create --label chore --title "<one line>" --body-file <intent>` with the `/celetis:intake` template as the body — and continue with its number. Given `#<n>` whose issue carries `epic`: stop; an epic has no branch, and each child runs its own lane. Given any other `#<n>`: make `chore` its only lane label with `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'issue' '<n>' 'route' 'chore'` — it adds `chore` when the issue lacks it, and removes each of `needs-triage`, `enhancement`, `bug`, `hotfix` that the issue carries — because `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree'` names the branch from the lane label.
 2. **Worktree.** Run `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree' '<n>'` with a 10-minute timeout (a new worktree runs
    the worktree setup of the project) and bind the exact path it prints using the host operations. The script re-enters the
    issue's branch, or creates `chore/<n>-<slug>` from the title when the issue has none; when
    it refuses, show the user its message and stop. Every later step runs in that worktree; the
    main checkout never changes branch (Branches, PRs, merge in `<plugin>/docs/issue-tracker.md`).
    **Re-entry.** When the branch already holds the commit of the chore and the tree is clean, an
-   earlier run built the change: read the latest `## Landing refused` comment, handle its cause as
-   the re-entry rule of `<plugin>/skills/implement/SKILL.md` does, entering that reference through the host operations, and go to step 4, then step 6.
+   earlier run built the change: run `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'issue' '<n>' 'state'`.
+   With `refusal: current`, read the latest `## Landing refused` comment, and handle its cause as
+   the re-entry rule of `<plugin>/skills/implement/SKILL.md` does, entering that reference through the host operations. Then go to step 4, then step 6.
+   An `open:` line is an open human step: Land step 2, which step 6 follows, handles it.
 3. **Do the change.** Read the `AGENTS.md` of each subsystem the change touches, and consult
    `docs/adr/` for architectural decisions that bear on it. A dependency bump: read the changelog
    or release notes between the old and the new version per `<plugin>/docs/docs-lookup.md`, and

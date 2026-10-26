@@ -28,6 +28,8 @@ const required = [
   'lib/process-identity.ts',
   'lib/session.ts',
   'lib/workflow.ts',
+  'lib/tracker.ts',
+  'lib/lines.ts',
   'lib/process.ts',
   'lib/vendor/yaml.mjs',
 ];
@@ -57,6 +59,8 @@ export async function main(argv: string[]): Promise<number> {
     'lib/process.ts',
     'lib/session.ts',
     'lib/workflow.ts',
+    'lib/tracker.ts',
+    'lib/lines.ts',
     'lib/vendor/yaml.mjs',
   ]);
   let explicit: string | undefined;
@@ -142,7 +146,8 @@ export async function main(argv: string[]): Promise<number> {
     return current;
   };
   const nextOf = async (n: string, current: Operation, abort?: AbortSignal) => {
-    const { lineOf, nextIssue } = await import('./next-step.ts');
+    const { nextIssue } = await import('./next-step.ts');
+    const { lineOf } = await import('./lib/lines.ts');
     const { next, stderr } = await nextIssue(n, current, abort);
     process.stderr.write(stderr);
     return { next, line: lineOf(n, next) };
@@ -407,7 +412,8 @@ export async function main(argv: string[]): Promise<number> {
       const current = nextOperation();
       const config = current.mainConfig as Config;
       await (await import('./lib/plugin-policy.ts')).requireUpdatePolicy(current.host, main);
-      const { lineOf, nextOpen } = await import('./next-step.ts');
+      const { nextOpen } = await import('./next-step.ts');
+      const { lineOf } = await import('./lib/lines.ts');
       const { rows, stderr } = await nextOpen(current);
       process.stderr.write(stderr);
       let started = false;

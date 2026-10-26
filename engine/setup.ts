@@ -19,7 +19,7 @@ const settings = '.claude/settings.json';
 const configFile = '.celetis.yaml';
 const subject = 'chore(celetis): wire the project for the celetis lanes';
 const usage =
-  'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> setup check | write <options> | try <options> | try --remove | lane <path> | push; <options>: --hosts claude|codex|claude,codex [--default claude|codex] --landing pr|merge [--setup-file <file>] [--ignore <line>]... [--baseline-file <file>]';
+  'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> setup check | write <options> | try <options> | try --remove | lane <path> | push; <options>: --hosts claude|codex|claude,codex [--default claude|codex] --landing pr|merge [--suite <file>] [--setup-file <file>] [--ignore <line>]... [--baseline-file <file>]';
 const setupPaths = [
   'scripts/celetis',
   configFile,
@@ -58,6 +58,7 @@ type Options = {
   hosts: string[];
   default: string;
   landing: string;
+  suite: string;
   setup: string;
   baseline: string;
   ignores: string[];
@@ -87,14 +88,14 @@ function badUsage(): never {
 function options(argv: string[]): Options {
   const values: Record<string, string> = {};
   const ignores: string[] = [];
-  const flags = ['--hosts', '--default', '--landing', '--setup-file', '--ignore', '--baseline-file'];
+  const flags = ['--hosts', '--default', '--landing', '--suite', '--setup-file', '--ignore', '--baseline-file'];
   for (let i = 0; i < argv.length; i += 2) {
     const flag = argv[i] as string;
     const value = argv[i + 1];
     if (
       !flags.includes(flag) ||
       value === undefined ||
-      (['--setup-file', '--ignore', '--baseline-file'].includes(flag) && !value)
+      (['--suite', '--setup-file', '--ignore', '--baseline-file'].includes(flag) && !value)
     )
       badUsage();
     if (flag === '--ignore') ignores.push(value);
@@ -110,11 +111,14 @@ function options(argv: string[]): Options {
   } else if (hosts === 'claude,codex' && (given === 'claude' || given === 'codex')) selected = given;
   else return badUsage();
   if (landing !== 'pr' && landing !== 'merge') return badUsage();
+  const suite = values['--suite'] ?? '';
+  if ((landing === 'merge') !== !!suite) return badUsage();
   const absolute = (value = '') => (!value || isAbsolute(value) || win32.isAbsolute(value) ? value : resolve(value));
   return {
     hosts: hosts.split(','),
     default: selected,
     landing,
+    suite,
     setup: absolute(values['--setup-file']),
     baseline: absolute(values['--baseline-file']),
     ignores,
@@ -489,7 +493,7 @@ class Setup {
     console.error(`celetis: ${checkout}/${configFile}: ${error.field}: ${error.message}`);
   }
   async planConfig(opts: Options, scratch: string): Promise<void> {
-    let original: Partial<Config> = {};
+    let original: Partial<Config> & { suite?: string } = {};
     if (await this.there(configFile)) {
       try {
         original = this.config ??= readConfig(this.cwd);
@@ -500,10 +504,12 @@ class Setup {
     }
     const desired = { ...original };
     const added: string[] = [];
-    for (const [key, value] of [
+    const wanted: (readonly ['host' | 'landing' | 'suite', string])[] = [
       ['host', opts.default],
       ['landing', opts.landing],
-    ] as const) {
+    ];
+    if (opts.suite && (original.landing ?? opts.landing) === 'merge') wanted.push(['suite', opts.suite]);
+    for (const [key, value] of wanted) {
       if (original[key] === undefined) {
         added.push(`${key}: ${value}`);
         Object.assign(desired, { [key]: value });
@@ -840,7 +846,7 @@ export async function main(argv: string[]): Promise<number> {
     const input = parseCommand(args);
     const checkout = await locateCheckouts(process.cwd());
     const config = checkout.main !== null && (await hasConfig(checkout.main));
-    const full = input.command === 'write' || input.command === 'lane' || input.command === 'try';
+    const full = ['check', 'write', 'lane', 'try'].includes(input.command);
     const operation = createOperation(
       checkout,
       { explicit, environment: process.env.CELETIS_AGENT },

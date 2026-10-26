@@ -161,7 +161,8 @@ The two parts above stay by hand on each machine. The next parts are the files a
 product project. `/celetis:setup` writes them in its main checkout (ADR-0017), and each section
 below shows the current form that it writes. Where a part stays by hand, its section says so.
 
-- The session asks for the issue tracker, the hosts (Claude, Codex, or both), and the landing.
+- The session asks for the issue tracker, the hosts (Claude, Codex, or both), and the landing. With
+  `merge`, it also asks for the suite: a TypeScript file that `land` runs.
   Setup stops on each tracker other than GitHub. With two hosts, the session also asks for the
   default host. For the landing and the default host, the session proposes the value of
   `.celetis.yaml` when the file has one.
@@ -190,8 +191,9 @@ below shows the current form that it writes. Where a part stays by hand, its sec
   attributes, instructions, and ownership entries against the current wiring below and approves
   each change or removal. Setup performs no migration. In a file that the product also uses,
   setup adds each missing entry, and it changes or removes no entry that is there.
-- In `.celetis.yaml`, setup owns two entries: `host` (the default host, or the one host) and
-  `landing`. It makes the file when there is none. In a valid file, it adds a missing `host` as a
+- In `.celetis.yaml`, setup owns three entries: `host` (the default host, or the one host),
+  `landing`, and `suite` (with `merge` only). It makes the file when there is none. In a valid file,
+  it adds a missing `host` as a
   line at the end, and it keeps each byte of the product. When an entry is there with a value
   other than your answer, setup keeps that value and prints a warning. Change that field by hand
   when your answer is the intended value.
@@ -229,9 +231,10 @@ The file holds the marketplace, the Superpowers plugin, and the permission rules
 }
 ```
 
-Shared rules retain direct merge restrictions. Put the tested landing allow in personal host
-settings after native discovery. The [personal binding procedure](#personal-landing-permission)
-owns the exact command and its lifetime across an update.
+Shared rules retain direct merge restrictions. Put the tested `land` allow in personal host
+settings after native discovery. An `issue` allow is optional, and it has a risk. The
+[personal binding procedure](#personal-landing-permission) owns the exact commands, the risk of
+the `issue` allow, and their lifetime across an update.
 
 ### Codex permissions: `.codex/rules/celetis.rules`
 
@@ -245,7 +248,8 @@ prefix_rule(
 )
 ```
 
-This shared rule forbids direct merge. The personal rule binds the selected package and command.
+This shared rule forbids direct merge. The personal rule of `land`, and the optional rule of
+`issue`, bind the selected package and their sub-command.
 Codex matches literal prefixes. A machine path is not a portable shared default. A policy-file
 check does not prove that an active session loaded the rule. Keep the host sandbox and approval
 settings. Follow the tested binding below.
@@ -430,13 +434,23 @@ The variable is one complete path argument. Do not use `eval` or expand it witho
 ### Personal landing permission
 
 Select an absolute Bun executable and the canonical validated package entrypoint. Bind the
-actual host and `land`. Retain shared direct-merge restrictions. A broad Bun allow is unsuitable.
+actual host and one sub-command: `land`, or `issue` for the workflow writes. Make one rule for
+each sub-command that needs a rule. Retain shared direct-merge restrictions. A broad Bun allow is
+unsuitable.
+
+The rule of `issue` is optional. The path for `issue` is the review of the host: in the checks of
+#103, Claude in auto mode ran it with no rule, and a Codex sandbox block of `issue` goes through
+the approval procedure of `docs/hosts/codex.md`. The risk of the rule: an allow rule skips the
+review of the host for each `issue` call, and each act with a file posts the text of a path that
+the session names, so a session can post any file that it can read (for example a token file) on
+the issue. Text from an issue can steer a session. Add the rule only when the host cannot run
+`issue` through its review, for example Codex with the approval policy `never`.
 
 For Claude Code, use the untracked product `.claude/settings.local.json`. The generator below
 constructs a `Bash(...)` rule from the complete shell prefix, including the unquoted
 `/usr/bin/env`, both environment assignments, the selected Bun, all four isolation options, the
-quoted package entrypoint, `--agent claude land`, and a final ` *`. Claude does not strip `env`
-before it matches a rule. Native permission text escapes literal wildcards
+quoted package entrypoint, `--agent claude`, the sub-command, and a final ` *`. Claude does not
+strip `env` before it matches a rule. Native permission text escapes literal wildcards
 separately from shell quoting. The renderer also preserves literal backslashes before
 a wildcard; shell quoting alone does not bind these paths.
 
@@ -446,54 +460,63 @@ new package path. Claude Code 2.1.310 also matched a quoted `'/usr/bin/env'` to 
 command ran the same landing. The earlier driver accepted a refusal of that form, or an allow
 that ran the same landing. The driver is no longer supplied by this package.
 
-To produce a concrete personal rule, first run native discovery above. Replace the four
-arguments below with the selected host, an example issue and subject, and the validated
-`celetis_entry`. The selected Bun is the executable that runs this generator. This prints data
-for review; it changes no settings. The printed command is the literal tool text for that issue
-and subject. The rule ends at `land`, so one rule serves each issue and subject.
+To produce a concrete personal rule, first run native discovery above. Replace the five
+arguments below with the selected host, an example issue, an example subject of `land` or act of
+`issue`, the validated `celetis_entry`, and the sub-command. The selected Bun is the executable
+that runs this generator. This prints data for review; it changes no settings. The printed
+command is the literal tool text for that issue and subject or act. The rule ends at the
+sub-command, so one rule serves each issue and subject of `land`, or each issue and act of `issue`.
 
 ```sh
-BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros - claude 99 'reviewed subject' "$celetis_entry" <<'CELETIS_RULE'
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros - claude 99 'reviewed subject' "$celetis_entry" land <<'CELETIS_RULE'
 import { realpathSync } from 'node:fs';
-const [host, issue, subject, entry] = process.argv.slice(2);
-if (!['claude', 'codex'].includes(host) || !/^[1-9][0-9]*$/.test(issue) || !subject || !entry?.startsWith('/')) throw Error('Need host, issue, subject, and absolute validated entrypoint');
+const [host, issue, argument, entry, subcommand] = process.argv.slice(2);
+if (!['claude', 'codex'].includes(host) || !/^[1-9][0-9]*$/.test(issue) || !argument || !entry?.startsWith('/') || !['land', 'issue'].includes(subcommand)) throw Error('Need host, issue, subject or act, absolute validated entrypoint, and land or issue');
 const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
 const env = ['/usr/bin/env', 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0', 'DO_NOT_TRACK=1'];
-const words = [realpathSync(process.execPath), '--no-env-file', '--no-install', '--config=/dev/null', '--no-macros', realpathSync(entry), '--agent', host, 'land'];
+const words = [realpathSync(process.execPath), '--no-env-file', '--no-install', '--config=/dev/null', '--no-macros', realpathSync(entry), '--agent', host, subcommand];
 const prefix = [...env, ...words.map(quote)].join(' ');
-const command = prefix + ' ' + quote(issue) + ' ' + quote(subject);
+const command = prefix + ' ' + quote(issue) + ' ' + quote(argument);
 const literal = value => value.replaceAll('\\', '\\\\').replace(/(\\*)\*/g, (_match, slashes) => '\\'.repeat(slashes.length * 2 + 1) + '*');
 const rule = host === 'claude' ? 'Bash(' + literal(prefix) + ' *)' : 'prefix_rule(pattern=' + JSON.stringify([...env, ...words]) + ', decision="allow")';
 console.log(JSON.stringify({ command, rule }, null, 2));
 CELETIS_RULE
 ```
 
-For Claude, add the printed rule to `permissions.allow` in the untracked local settings.
-Preserve its other fields. For Codex, put the printed rule in a personal
-`rules/celetis-land.rules` under the existing user configuration. Preserve other rules.
+For the optional rule of `issue`, give an act such as `state` in place of the subject, and `issue`
+as the last argument.
 
-Before using either allow, verify that it permits the bound landing command for the selected
-host and package. Verify that it refuses another script, another subcommand, inserted Bun
-options, a different host or package path, direct merge, shell injection, and a compound command.
+For Claude, add the printed rule to `permissions.allow` in the untracked local settings.
+Preserve its other fields. For Codex, put each printed rule in a personal
+`rules/celetis-<sub-command>.rules` under the existing user configuration. Preserve other rules.
+
+Before using an allow, verify that it permits the bound command of its sub-command for the
+selected host and package. Verify that it refuses another script, another subcommand, inserted
+Bun options, a different host or package path, direct merge, shell injection, and a compound
+command.
 
 Codex compares argument lists. It splits a shell script into commands only when each word is
 plain or quoted ([Codex rules](https://learn.chatgpt.com/docs/agent-configuration/rules)). A
 leading assignment, a quoted first word, or a substitution outside single quotes keeps the
 whole script in one shell argument, and the rule does not match it. The unquoted first word
-`/usr/bin/env` makes both assignments plain arguments. So Codex splits the landing command, and
-the printed `prefix_rule` matches its argument list up to `land`. One Codex rule serves each
-landing of that package path and host. It survives Codex updates because the Codex package path
-does not change. A changed Bun path or host needs a new rule. A single quote in the Bun path,
-the package path, or the subject becomes `'\''` and stops the split, so that landing needs
-approval. Historical driver checks for #99 used `codex execpolicy check` on the printed rule.
-A live turn with a temporary `forbidden` copy proved the split, and that a quoted first word or
-a substitution did not match. These historical observations require no driver run.
+`/usr/bin/env` makes both assignments plain arguments. So Codex splits the command, and the
+printed `prefix_rule` matches its argument list up to the sub-command. One Codex rule serves each
+call of that sub-command, package path, and host. It survives Codex updates because the Codex
+package path does not change. A changed Bun path or host needs a new rule. A single quote in the
+Bun path, the package path, the subject, or the file of an act becomes `'\''` and stops the
+split, so that call needs approval. Codex runs a command that an `allow` rule matches outside the
+sandbox. The `workspace-write` sandbox has no network access by default: there `gh` cannot reach
+GitHub, and `issue` exits 6 before any write, unless its rule matches or an approval lets it run
+outside the sandbox. Historical driver checks for #99 used `codex execpolicy check` on the
+printed rule. A live turn with a temporary `forbidden` copy proved the split, and that a quoted
+first word or a substitution did not match. These historical observations require no driver run.
 
 A Claude rule needs a new binding after each update, because the Claude package path contains
 the version. After the person confirms one Claude package update, run native discovery again.
-Remove the old personal allow and add the new validated path. Check that the old rule refuses
-the new path, then that the replacement rule refuses the old path and permits the new command.
-Start a fresh host session. These steps do not approve an update and do not stop open work.
+For each sub-command that has a personal allow, remove the old allow and add the new validated
+path. Check that the old rule refuses the new path, then that the replacement rule refuses the
+old path and permits the new command. Start a fresh host session. These steps do not approve an
+update and do not stop open work.
 Remove only the exact old personal rule. Preserve other rules and settings. Historical driver
 checks used temporary bindings for old and new paths. An installed-package update remains a
 separate human act.
@@ -558,10 +581,11 @@ a model session can start. The runner reports startup dialogs and leaves them fo
 
 Operational settings and setup are fields of `.celetis.yaml` (`docs/configuration.md`).
 Commands that need repository setup require this file and stop if it is missing or invalid.
-`/celetis:setup` makes the file with `host` and `landing` when there is none. It adds a missing
+`/celetis:setup` makes the file with `host`, `landing`, and, with `merge`, `suite` when there is
+none. It adds a missing
 `host` at the end of a valid file, or it stops when the file cannot take the line. After your yes,
 it adds a missing `worktreeSetup` as a literal block at the end of the file; a new file holds
-`host`, `landing`, and then the block. The block must read back as the script, byte for byte, and
+`host`, `landing`, `suite`, and then the block. The block must read back as the script, byte for byte, and
 each other value must stay the same. Else setup stops before any write, for example on a script
 with CRLF line endings or on a file with a `...` end marker: add the field by hand first. Setup
 changes no field that is there. Each other field stays by hand.
@@ -569,6 +593,7 @@ changes no field that is there. Each other field stays by hand.
 | Field or file | What it holds | When omitted |
 |---|---|---|
 | `landing` | Required `pr` or `merge`. `pr` squash-merges a PR when each check is green. `merge` creates one squash commit on the trunk, with no PR. A project with no PR check uses `merge` | The command exits 2 |
+| `suite` | A relative path of a TypeScript file in the checkout. `land` runs it in the lane, with no argument, at the tip that it lands; exit status 0 is a pass. Required with `merge`, refused with `pr` | With `merge`, the command exits 2 |
 | `gates` | A mapping from the seven step names to `me` or `auto` | Each omitted step is `me` |
 | `worktreeSetup` | One TypeScript program for a lane, for example dependency installation and copying ignored files | No setup |
 | `board.port` | The board port ("The agent board") | 4403 |
@@ -659,7 +684,7 @@ The plugin names a role, and the `AGENTS.md` of the project names the thing. It 
 | What `AGENTS.md` names | Who reads it |
 |---|---|
 | **The verify gate:** the one fast deterministic check of a change (lint, format, syntax, and config checks, with no test run), and how to read its result | `plan`, `implement`, `chore`, `hotfix`, and `guide` say "the verify gate of the project", and `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land'` names it in a refusal |
-| **The full suite,** with the landing `merge` only: the command that runs each test. With no such line, the verify gate is the full suite | `implement` (Land step 3), and `chore` and `hotfix` through it |
+| **The full suite** is no line of `AGENTS.md`: with the landing `merge`, `suite` in `.celetis.yaml` names the file that runs each test, and `land` runs it at the tip that it lands. With the landing `pr`, the CI of the lane PR runs it | `land`, which `implement` (Land step 3), `chore`, and `hotfix` run |
 | **The architecture and the traps:** the shape of the project in the root file, and the traps of each subsystem in the `AGENTS.md` of its folder. They are the domain knowledge: the plugin has no domain skill (ADR-0006) | `specify`, `bug`, `hotfix`, `plan`, `chore`, and `critic-loop` |
 | **The design document and the look decision,** in a project with a UI: the document that holds the design rules, and how a session builds the options of a look decision and hands them over, with the dev server of the project | `specify` and `bug`; the two items "Prototype" of `docs/issue-tracker.md`, in "What lives on the issue" and in "Branches, PRs, merge" |
 | **The installed version of a dependency:** how a session reads it, and the documents that an installed package ships | `docs/docs-lookup.md`, which `specify`, `plan`, `bug`, `hotfix`, and `chore` cite |
@@ -816,11 +841,15 @@ host's skill selector. Native desktop selector acceptance is optional under
   when every check passed or was skipped and at least one check passed. Before the merge, when each
   red check is a GitHub Actions check that failed or timed out, the failed jobs of their workflow
   runs get one re-run for each commit, with up to 15 more minutes of wait. It then moves the trunk
-  of the main checkout to the merge, and removes the worktree and the branch.
+  of the main checkout to the merge, and removes the worktree and the branch. With `merge`, it runs
+  the `suite` file of `.celetis.yaml` in the lane, at the tip that it lands, and only on a pass it
+  puts that tip on the trunk as one squash commit, with no PR.
 - The other lanes are shorter. `/celetis:bug` finds the root cause, posts it as a `## Root cause`
   comment, and hands on to `plan`. `/celetis:chore` makes a change with no change of behavior: it
   verifies, commits, and lands in one session. `/celetis:hotfix` fixes broken production in one
-  session, and it ends with the ship acts of the project. A request that spans some independent
+  session, and it ends with the ship acts of the project. When its landing stops, it prints your
+  checklist: remove `ready-for-human` first, because `land` refuses while the label is on, then
+  run `land` in your own shell, then do the ship acts. A request that spans some independent
   features becomes an epic, and each child issue runs its own flow.
 
 **Through the runner.** `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'celetis-flow' '<n>'` starts the next step of the issue in a
@@ -901,7 +930,8 @@ and board form. Every skill call adds `--agent claude` or `--agent codex` before
 |---|---|
 | `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree' '<n>'` | Makes the lane worktree and the branch of the issue, or enters the one that is there, and prints its path |
 | `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree' --remove <n>` | Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first |
-| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' '<n>' '<subject>'` | Lands the change of the issue by the `landing` field of `.celetis.yaml`. It is the one landing path of an agent |
+| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' '<n>' '<subject>'` | Lands the change of the issue by the `landing` field of `.celetis.yaml`. It is the one landing path of an agent. It refuses an issue that is not ready to land. Exit status: 0 landed, 1 internal error, 2 usage, 3 prerequisite, 4 repair, 5 checks, 6 blocked, 7 landed with a stopped cleanup (run it again), 128+n signal |
+| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'issue' '<n>' <act>` | Makes each workflow write that the engine reads: `route <lane>`, `epic`, `needs-info <file>`, `wontfix <file>`, `spec <file>`, `root-cause <file>`, `plan <file>`, `built`, `before-landing <file> [--during-the-build]`, `landing-refused <file>`, `stopped <file>`, `ready-for-human`. It writes the heading of each comment, posts the comment before the label change, and refuses an act whose prerequisite the issue does not meet. `state` writes nothing and prints the lifecycle facts of the issue. `docs/issue-tracker.md`, "Conventions", gives each act. Exit status: 0 done, 1 internal error, 2 usage, 3 prerequisite, 6 blocked |
 | `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'next-step' '<n>' \| --open` | The resolver: the next step of one issue, or of each open issue |
 | `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'board'` | Starts the board of the plugin (`engine/board/`) with the selected Bun, from the main YAML config; takes no arguments. The board reads its data in its own process |
 | `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'capscore' J V B N S X` | Resolves the six digits. `--json` gives portable scores and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null |

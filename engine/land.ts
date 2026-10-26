@@ -3,10 +3,12 @@ import { constants } from 'node:os';
 import { join } from 'node:path';
 import type { Config } from './lib/config.ts';
 import { HostError } from './lib/host.ts';
+import { lineOf } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
-import { run } from './lib/process.ts';
-import { branchGlobs, branchPattern } from './lib/workflow.ts';
+import { run, runBun } from './lib/process.ts';
+import { github } from './lib/tracker.ts';
+import { branchGlobs, branchPattern, decide, landable } from './lib/workflow.ts';
 import { checkoutOf, removeLane } from './lib/worktree.ts';
 
 type Pull = {
@@ -33,9 +35,13 @@ type Request = {
   method?: string;
   fields?: Record<string, string>;
 };
+const statuses = { usage: 2, prerequisite: 3, repair: 4, checks: 5, blocked: 6, cleanup: 7 } as const;
+type Outcome = keyof typeof statuses;
+class Classified extends HostError {}
 const usage =
   "usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land <issue number> '<type>(<area>): <what>', e.g. BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land 415 'feat(agent-harness): the build step lands the change'";
 const conventional = /^[a-z]+(\([^()]+\))?!?: [^ ]/;
+const suiteOf = (config: Config | undefined) => (config?.landing === 'merge' ? config.suite : undefined);
 
 export async function main(argv: string[]): Promise<number> {
   try {
@@ -65,12 +71,12 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
   let lock = '',
     branch = '',
     trunk = '',
-    landed = false,
+    cleanup = '',
     signalStatus = 0;
   const abort = new AbortController();
   const handlers = new Map<NodeJS.Signals, () => void>();
-  const die = (message: string): never => {
-    throw new HostError(`land: ${message}`);
+  const die = (outcome: Outcome, message: string): never => {
+    throw new Classified(`land: ${outcome}: ${message}`, statuses[outcome]);
   };
   const interrupted = () => {
     if (signalStatus) throw new HostError('', signalStatus);
@@ -105,12 +111,12 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
       interrupted();
       return run('git', args, { cwd: at, signal: abort.signal });
     };
-    const git = async (args: string[], message?: string, at = cwd) => {
+    const git = async (args: string[], refusal?: readonly [Outcome, string], at = cwd) => {
       const result = await gitRaw(args, at);
       if (result.code !== 0) {
-        if (message) {
+        if (refusal) {
           emitError(result.stderr);
-          die(message);
+          die(...refusal);
         }
         throw new HostError(result.stderr.trimEnd(), result.code);
       }
@@ -140,108 +146,114 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
         return await api<T>(endpoint, options);
       } catch (error) {
         emitError(error);
-        return die(message);
+        return die('blocked', message);
       }
     };
     const list = async <T>(endpoint: string): Promise<T[]> =>
       (await api<T[][]>(endpoint, { paginate: true, quiet: true })).flat();
     const closeIssue = async (issue: string, body: string) => {
-      await api(`/issues/${issue}/comments`, { silent: true, fields: { body } });
-      await api(`/issues/${issue}`, {
-        silent: true,
-        method: 'PATCH',
-        fields: { state: 'closed', state_reason: 'completed' },
-      });
+      const gh = github(cwd, abort.signal);
+      await gh.comment(issue, body);
+      await gh.edit(issue, { state: 'closed', state_reason: 'completed' });
+      process.stderr.write(gh.stderr());
     };
     const repo = await checkedApi<{ default_branch: string }>('', 'cannot read the default branch from GitHub');
     if (typeof repo.default_branch !== 'string' || !repo.default_branch)
-      die('cannot read the default branch from GitHub');
+      die('blocked', 'cannot read the default branch from GitHub');
     trunk = repo.default_branch;
     branch = await git(['branch', '--list', '--format=%(refname:lstrip=2)', ...branchGlobs(n)]);
-    if (!branch) die(`no lane branch matches #${n}; nothing to land`);
-    if (branch.includes('\n')) die(`several branches match #${n}: ${branch.replaceAll('\n', ' ')}; keep one`);
+    if (!branch) die('usage', `no lane branch matches #${n}; nothing to land`);
+    if (branch.includes('\n'))
+      die('blocked', `several branches match #${n}: ${branch.replaceAll('\n', ' ')}; keep one`);
     const checkout = await checkoutOf(branch, cwd, abort.signal);
-    if (checkout === main) die(`switch the main checkout off ${branch} first`);
+    if (checkout === main) die('blocked', `switch the main checkout off ${branch} first`);
     if (checkout) {
       if ((await git(['rev-parse', '--show-toplevel'])) === checkout)
         die(
+          'usage',
           `leave ${checkout} first: run /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' from the main checkout`,
         );
       if (await git(['status', '--porcelain'], undefined, checkout))
-        die(`the lane worktree is dirty: ${checkout}; commit first`);
+        die('usage', `the lane worktree is dirty: ${checkout}; commit first`);
     }
-    await git(['fetch', '-q', 'origin', trunk], `cannot fetch ${trunk} from origin`);
+    await git(['fetch', '-q', 'origin', trunk], ['blocked', `cannot fetch ${trunk} from origin`]);
     const tip = await git(['rev-parse', `refs/heads/${branch}`]);
     const base = await git(['rev-parse', `origin/${trunk}`]);
     if (!(await git(['rev-list', '-n', '1', `origin/${trunk}..${branch}`])))
-      die(`${branch} has no commit that ${trunk} lacks; nothing to land`);
+      die('usage', `${branch} has no commit that ${trunk} lacks; nothing to land`);
     const stale = `merge origin/${trunk} into ${branch}, run the verify gate of the project again, then land again`;
     let checkPull: (() => Promise<void>) | undefined;
     const preflight = async (): Promise<Operation> => {
       const fresh = createOperation(await locateCheckouts(cwd), operation.selection, 'main');
-      if (fresh.mainConfig?.landing !== config.landing) die('the landing mechanism changed; invoke landing again');
+      if (fresh.mainConfig?.landing !== config.landing || suiteOf(fresh.mainConfig) !== suiteOf(config))
+        die('blocked', 'the landing mechanism changed; invoke landing again');
       if (fresh.checkout.main !== main || fresh.checkout.common !== common)
-        die('the checkout changed; invoke landing again');
+        die('blocked', 'the checkout changed; invoke landing again');
+      const gh = github(cwd, abort.signal);
+      const read = await gh.read(n).catch(() => null);
+      process.stderr.write(gh.stderr());
+      interrupted();
+      const decision = read ? decide(read.data) : die('blocked', `cannot read #${n} from GitHub`);
+      if (!landable(decision)) die('prerequisite', `#${n} is not ready to land: ${lineOf(n, decision)}`);
       await checkPull?.();
       if (
         (await checkedApi<{ default_branch: string }>('', 'cannot read the default branch from GitHub'))
           .default_branch !== trunk
       )
-        die(`the default branch changed from ${trunk}; invoke landing again`);
-      await git(['fetch', '-q', 'origin', trunk], `cannot fetch ${trunk} from origin`);
-      if ((await git(['rev-parse', `origin/${trunk}`])) !== base) die(`the head of ${trunk} changed; ${stale}`);
+        die('blocked', `the default branch changed from ${trunk}; invoke landing again`);
+      await git(['fetch', '-q', 'origin', trunk], ['blocked', `cannot fetch ${trunk} from origin`]);
+      if ((await git(['rev-parse', `origin/${trunk}`])) !== base)
+        die('repair', `the head of ${trunk} changed; ${stale}`);
       const current = await git(['branch', '--list', '--format=%(refname:lstrip=2)', ...branchGlobs(n)]);
       if (current !== branch || (await git(['rev-parse', `refs/heads/${branch}`])) !== tip)
-        die(`the lane branch or its tip changed; ${stale}`);
-      if ((await checkoutOf(branch, cwd, abort.signal)) !== checkout) die(`the lane checkout changed; ${stale}`);
+        die('repair', `the lane branch or its tip changed; ${stale}`);
+      if ((await checkoutOf(branch, cwd, abort.signal)) !== checkout)
+        die('repair', `the lane checkout changed; ${stale}`);
       if (checkout && (await git(['status', '--porcelain'], undefined, checkout)))
-        die(`the lane worktree is dirty: ${checkout}; commit first`);
+        die('usage', `the lane worktree is dirty: ${checkout}; commit first`);
       if (fresh.mainConfig?.landing === 'merge') {
         if (await git(['status', '--porcelain'], undefined, main))
-          die(`the main checkout is dirty: ${main}; commit or stash first`);
+          die('blocked', `the main checkout is dirty: ${main}; commit or stash first`);
         if ((await git(['branch', '--show-current'], undefined, main)) !== trunk)
-          die(`the main checkout is not on ${trunk}: ${main}`);
+          die('blocked', `the main checkout is not on ${trunk}: ${main}`);
         if ((await git(['rev-parse', 'HEAD'], undefined, main)) !== base)
-          die(`the main checkout is not level with origin/${trunk}; run git pull, or push, there first`);
+          die('blocked', `the main checkout is not level with origin/${trunk}; run git pull, or push, there first`);
         const ancestor = await gitRaw(['merge-base', '--is-ancestor', base, tip]);
         process.stderr.write(ancestor.stderr);
-        if (ancestor.code !== 0) die(`${branch} does not contain the head of ${trunk}; ${stale}`);
+        if (ancestor.code !== 0) die('repair', `${branch} does not contain the head of ${trunk}; ${stale}`);
       }
       const currentPolicy = createOperation(fresh.checkout, operation.selection, 'main');
-      if (currentPolicy.mainConfig?.landing !== config.landing)
-        die('the landing mechanism changed; invoke landing again');
+      if (currentPolicy.mainConfig?.landing !== config.landing || suiteOf(currentPolicy.mainConfig) !== suiteOf(config))
+        die('blocked', 'the landing mechanism changed; invoke landing again');
       return currentPolicy;
     };
 
-    const landMerge = async () => {
+    const landMerge = async (suite: string) => {
       const merge = await gitRaw(['merge-tree', '--write-tree', base, tip]);
       const tree = merge.code === 0 ? merge.stdout.trimEnd() : '';
+      const open = `the change is on ${trunk}, but #${n} is open; run /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' again`;
       let commit: string;
       if (tree === (await git(['rev-parse', `${base}^{tree}`]))) {
+        cleanup = open;
         commit = await git(['log', '-n', '1', '--format=%H', '--fixed-strings', `--grep=(#${n})`, `origin/${trunk}`]);
       } else {
         await preflight();
+        if (!checkout) die('repair', `the lane worktree of ${branch} is missing`);
+        const status = await runBun(join(checkout, suite), [], checkout);
+        interrupted();
+        if (status !== 0) die('checks', `the suite ${suite} failed with status ${status} at ${tip}`);
         commit = await git(['commit-tree', `${tip}^{tree}`, '-p', base, '-m', `${subject} (#${n})`]);
         await preflight();
         await git(
           ['push', '-q', 'origin', `${commit}:refs/heads/${trunk}`],
-          `cannot push ${trunk} to origin; ${trunk} is as it was`,
+          ['blocked', `cannot push ${trunk} to origin; ${trunk} is as it was`],
         );
-        await git(
-          ['merge', '-q', '--ff-only', commit],
-          `the change is on origin/${trunk}, but the main checkout did not move; run git pull there, then run /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' again`,
-          main,
-        );
+        cleanup = `the change is on origin/${trunk}, but the main checkout did not move; run git pull there, then run /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' again`;
+        await git(['merge', '-q', '--ff-only', commit], undefined, main);
+        cleanup = open;
       }
-      try {
-        const issue = await api<{ state: string }>(`/issues/${n}`);
-        if (issue.state !== 'closed') await closeIssue(n, `Landed on ${trunk}${commit ? ` in ${commit}` : ''}.`);
-      } catch (error) {
-        emitError(error);
-        die(
-          `the change is on ${trunk}, but #${n} is open; run /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' again`,
-        );
-      }
+      const issue = await api<{ state: string }>(`/issues/${n}`);
+      if (issue.state !== 'closed') await closeIssue(n, `Landed on ${trunk}${commit ? ` in ${commit}` : ''}.`);
     };
 
     const landPr = async () => {
@@ -254,7 +266,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
       ).flat();
       if (merged.some((pull) => pull.merged_at && pull.base.ref === trunk && pull.head.sha === tip)) return;
       if ((await gitRaw(['merge-tree', '--write-tree', base, tip])).code !== 0)
-        die(`${branch} conflicts with ${trunk}; ${stale}`);
+        die('repair', `${branch} conflicts with ${trunk}; ${stale}`);
       const open = (
         await checkedApi<Pull[][]>('/pulls?state=open&per_page=100', 'cannot list the open PRs on GitHub', {
           paginate: true,
@@ -264,23 +276,30 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
       for (const pull of lane) {
         if (pull.base.ref !== trunk)
           die(
+            'blocked',
             `PR #${pull.number} of #${n} has the base ${pull.base.ref}, not ${trunk}; change its base, or close it: ${pull.html_url}`,
           );
       }
       if (lane.length > 1)
-        die(`several open PRs match #${n}: ${lane.map((pull) => pull.head.ref).join(' ')}; keep one`);
+        die('blocked', `several open PRs match #${n}: ${lane.map((pull) => pull.head.ref).join(' ')}; keep one`);
       let pull = lane[0];
       if (pull && pull.head.ref !== branch)
-        die(`PR #${pull.number} of #${n} is on ${pull.head.ref}, not on ${branch}; keep one branch: ${pull.html_url}`);
+        die(
+          'blocked',
+          `PR #${pull.number} of #${n} is on ${pull.head.ref}, not on ${branch}; keep one branch: ${pull.html_url}`,
+        );
       await preflight();
-      await git(['push', '-q', 'origin', `${tip}:refs/heads/${branch}`], `cannot push ${branch} to origin`);
+      await git(
+        ['push', '-q', 'origin', `${tip}:refs/heads/${branch}`],
+        ['blocked', `cannot push ${branch} to origin`],
+      );
       if (!pull) {
         await preflight();
         const created = await checkedApi<{ html_url: string }>('/pulls', `cannot open the PR of ${branch}`, {
           fields: { base: trunk, head: branch, title: `${subject} (#${n})`, body: `Closes #${n}` },
         });
         const number = created.html_url.split('/').at(-1) ?? '';
-        if (!/^[0-9]+$/.test(number)) die(`cannot read the number of the new PR: ${created.html_url}`);
+        if (!/^[0-9]+$/.test(number)) die('blocked', `cannot read the number of the new PR: ${created.html_url}`);
         pull = {
           number: Number(number),
           html_url: created.html_url,
@@ -315,7 +334,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
             quiet,
           })
         ).flatMap((page) => page.workflow_runs);
-      const notGreen = () => die(`PR #${pr} has a check that is not green (${buckets}): ${url}`);
+      const notGreen = () => die('checks', `PR #${pr} has a check that is not green (${buckets}): ${url}`);
       const rerunPick = async (): Promise<boolean> => {
         let red: Check[], status: Status[], runs: Workflow[];
         try {
@@ -402,8 +421,9 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
           return 1;
         }
         if (!buckets || buckets.includes('pending')) return 1;
-        if (buckets === 'skipping') die(`no check ran on PR #${pr}: each check was skipped: ${url}`);
-        if (reruns.length) die(`PR #${pr} has a check that is not green after the re-run (${buckets}): ${url}`);
+        if (buckets === 'skipping') die('blocked', `no check ran on PR #${pr}: each check was skipped: ${url}`);
+        if (reruns.length)
+          die('checks', `PR #${pr} has a check that is not green after the re-run (${buckets}): ${url}`);
         return (await rerunPick()) ? 2 : 1;
       };
       const waitGreen = async () => {
@@ -443,12 +463,13 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
       }
       if (status !== 0)
         die(
+          'blocked',
           `the checks of PR #${pr} did not finish in 15 minutes${reruns.length ? ' after the re-run' : ''} (${buckets || 'no check runs'}): ${url}`,
         );
       await preflight();
       if ((await green()) !== 0) notGreen();
       checkPull = async () => {
-        if (!matches(await api<Pull>(`/pulls/${pr}`))) die(`the head or base of PR #${pr} changed; ${stale}`);
+        if (!matches(await api<Pull>(`/pulls/${pr}`))) die('repair', `the head or base of PR #${pr} changed; ${stale}`);
       };
       await preflight();
       await checkedApi(`/pulls/${pr}/merge`, `cannot merge PR #${pr} at ${tip}; the PR stays open: ${url}`, {
@@ -500,9 +521,9 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
         console.log(`land: cannot close the epic #${parent.number}; close it by hand`);
       }
     };
-    if (config.landing === 'merge') await landMerge();
+    if (config.landing === 'merge') await landMerge(config.suite);
     else await landPr();
-    landed = true;
+    cleanup = `the change is on ${trunk}, but the removal of ${branch} stopped; run /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' again`;
     console.log(`land: #${n} is on ${trunk}`);
     if (config.landing === 'pr') await pullMain();
     await closeEpic();
@@ -521,14 +542,19 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     console.log(`land: ${branch} and its worktree are gone`);
     return 0;
   } catch (error) {
-    if (!signalStatus) emitError(error);
-    if (landed) {
-      console.error(
-        `land: the change is on ${trunk}, but the removal of ${branch} stopped; run /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' again`,
-      );
-      return 1;
+    if (cleanup) {
+      if (!signalStatus) emitError(error);
+      console.error(`land: cleanup: ${cleanup}`);
+      return statuses.cleanup;
     }
-    return signalStatus || (error instanceof HostError ? error.code : 1);
+    if (signalStatus) return signalStatus;
+    if (error instanceof Classified || !(error instanceof HostError)) {
+      emitError(error);
+      return error instanceof HostError ? error.code : 1;
+    }
+    const outcome = error.code === 2 ? 'usage' : 'blocked';
+    emitError(`land: ${outcome}: ${error.message}`);
+    return statuses[outcome];
   } finally {
     if (lock && (await readFile(lock, 'utf8').catch(() => '')).replace(/\n+$/, '') === String(process.pid))
       await rm(lock, { force: true });
