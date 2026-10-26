@@ -1,16 +1,16 @@
 import { type ChildProcess, spawn } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { constants } from 'node:os';
 import { dirname, join } from 'node:path';
-import type { Document, Flow, Issue } from './board/types.ts';
 import type { Config } from './lib/config.ts';
 import type { Host } from './lib/host.ts';
+import type { LockOwner } from './lib/locks.ts';
 import type { Operation } from './lib/operation.ts';
 import type { SessionRecord } from './lib/session.ts';
 import type { Run } from './lib/workflow.ts';
 
 const usage =
-  'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow [<issue number>...] | --board | --resume <issue number>, e.g. BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow 373 374; with no number, the automatic runner';
+  'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow [<issue number>...] | --resume <issue number>, e.g. BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow 373 374; with no number, the automatic runner';
 const removed = 'the plugin version of this runner was removed after an update; start the runner again';
 const here = import.meta.dir;
 const required = [
@@ -19,6 +19,7 @@ const required = [
   'launcher.ts',
   'lib/config.ts',
   'lib/host.ts',
+  'lib/locks.ts',
   'lib/operation.ts',
   'lib/plugin-metadata.ts',
   'lib/plugin-policy.ts',
@@ -41,14 +42,12 @@ function parsed(source: string): unknown {
     return null;
   }
 }
-function object(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
 
 export async function main(argv: string[]): Promise<number> {
   const unavailable = await gone([
     'lib/config.ts',
     'lib/host.ts',
+    'lib/locks.ts',
     'lib/operation.ts',
     'lib/plugin-metadata.ts',
     'lib/plugin-policy.ts',
@@ -73,20 +72,16 @@ export async function main(argv: string[]): Promise<number> {
       return error.code;
     }
   } else if (argv[0] === '--agent') argv = argv.slice(2);
-  let mode: 'numbers' | 'auto' | 'board' | 'resume' = 'numbers';
+  let mode: 'numbers' | 'auto' | 'resume' = 'numbers';
   let numbers: string[] = [];
-  if (argv.length === 1 && argv[0] === '--board') mode = 'board';
-  else if (argv.length === 2 && argv[0] === '--resume') {
+  if (argv.length === 2 && argv[0] === '--resume') {
     mode = 'resume';
     numbers = [(argv[1] ?? '').replace(/^#/, '')];
   } else {
     numbers = argv.map((arg) => arg.replace(/^#/, ''));
     if (!numbers.length) mode = 'auto';
   }
-  if (
-    numbers.some((n) => !/^[1-9][0-9]*$/.test(n)) ||
-    ((argv[0] === '--board' || argv[0] === '--resume') && mode === 'numbers')
-  ) {
+  if (numbers.some((n) => !/^[1-9][0-9]*$/.test(n)) || (argv[0] === '--resume' && mode === 'numbers')) {
     console.error(usage);
     return 2;
   }
@@ -96,13 +91,13 @@ export async function main(argv: string[]): Promise<number> {
       return 0;
     }
     if (mode === 'resume') console.error(`celetis-flow: ${removed}`);
-    else console.log(mode === 'board' ? `stop ${removed}` : `celetis-flow: stop ${removed}`);
+    else console.log(`celetis-flow: stop ${removed}`);
     return 1;
   }
   const { HostError, requireBun } = await import('./lib/host.ts');
+  const { addRecord, createLockOwner, isRecorded, lockHolder } = await import('./lib/locks.ts');
   const { createOperation, locateCheckouts } = await import('./lib/operation.ts');
   const { bunArgs, childEnv, run } = await import('./lib/process.ts');
-  const { processRuns, processRunsScript, processStart } = await import('./lib/process-identity.ts');
   const {
     hostArguments,
     manualRecovery,
@@ -114,14 +109,11 @@ export async function main(argv: string[]): Promise<number> {
     startupError,
     writeSession,
   } = await import('./lib/session.ts');
-  const { defaultGate, invocation, lands, lanes, sameResult, skipped, stageOf, stages, steps } = await import(
-    './lib/workflow.ts'
-  );
+  const { defaultGate, invocation, sameResult, skipped } = await import('./lib/workflow.ts');
   const root = dirname(here);
   let common = '',
     main = '',
-    state = '',
-    recordPath = '';
+    state = '';
   let operation: Operation;
   let initial: Operation | undefined;
   const selection = { explicit, environment: process.env.CELETIS_AGENT };
@@ -129,9 +121,7 @@ export async function main(argv: string[]): Promise<number> {
   let pane = '';
   let savedId = '';
   let said = '';
-  let holder = '';
-  let lockOwner = '';
-  const held = new Set<string>();
+  let locks: LockOwner | undefined;
   let session: ChildProcess | undefined;
   let signalStatus = 0;
   let watcher: AbortController | undefined;
@@ -151,76 +141,6 @@ export async function main(argv: string[]): Promise<number> {
     initial = undefined;
     return current;
   };
-  const git = async (args: string[], input?: string) => run('git', args, { cwd: main, env: childEnv(), input });
-  const ref = (name: string) => `refs/celetis-flow/locks/${name}`;
-  const refValue = async (name: string) => (await git(['rev-parse', '--verify', ref(name)])).stdout.trimEnd();
-  const holderFrom = async (owner: string) => {
-    const data = parsed((await git(['cat-file', 'blob', owner])).stdout);
-    if (!object(data)) return '';
-    for (const kind of ['runner', 'session']) {
-      const row = data[kind];
-      if (
-        !object(row) ||
-        !Number.isInteger(row.pid) ||
-        Number(row.pid) <= 0 ||
-        typeof row.start !== 'string' ||
-        !row.start
-      )
-        continue;
-      const pid = Number(row.pid);
-      if (kind === 'runner' && !(await processRunsScript(pid, 'celetis-flow.ts'))) continue;
-      if (!(await processRuns(pid))) continue;
-      if ((await processStart(pid)) !== row.start) continue;
-      return String(pid);
-    }
-    return '';
-  };
-  const holderOf = async (name: string) => {
-    const old = await refValue(name);
-    return old ? holderFrom(old) : '';
-  };
-  const blob = async (value: unknown) => {
-    const r = await git(['hash-object', '-w', '--stdin'], `${JSON.stringify(value)}\n`);
-    if (r.code !== 0) die('cannot write the lock owner');
-    return r.stdout.trimEnd();
-  };
-  const take = async (name: string) => {
-    if (!lockOwner) {
-      const start = await processStart(process.pid);
-      if (!start) die('cannot read process identity; allow process access and start the runner again');
-      lockOwner = await blob({ runner: { pid: process.pid, start }, session: null });
-    }
-    for (;;) {
-      const old = await refValue(name);
-      holder = old ? await holderFrom(old) : '';
-      if (holder) return false;
-      const r = await git(['update-ref', '--no-deref', ref(name), lockOwner, old]);
-      if (r.code === 0) {
-        held.add(name);
-        return true;
-      }
-      if ((await refValue(name)) === old)
-        die(`cannot take the ${name} lock; check Git access and start the runner again`);
-    }
-  };
-  const release = async (name: string) => {
-    if (lockOwner) await git(['update-ref', '--no-deref', '-d', ref(name), lockOwner]);
-    held.delete(name);
-  };
-  const registerSession = async () => {
-    const pid = session?.pid;
-    if (!pid) throw new HostError('celetis-flow: cannot read session process identity; start the runner again');
-    const start = await processStart(pid);
-    if (!start) die('cannot read session process identity; start the runner again');
-    const current = parsed((await git(['cat-file', 'blob', lockOwner])).stdout);
-    const owner = await blob({ ...(current as Record<string, unknown>), session: { pid, start } });
-    const input = [...held].map((name) => `update ${ref(name)} ${owner} ${lockOwner}\n`).join('');
-    const r = await git(['update-ref', '--no-deref', '--stdin'], input);
-    if (r.code !== 0) die('cannot register the session in its locks; start the runner again');
-    lockOwner = owner;
-  };
-  const recorded = async (n: string, line: string) =>
-    (await readFile(recordPath, 'utf8').catch(() => '')).split('\n').includes(`${n}\t${line}`);
   const nextOf = async (n: string, current: Operation, abort?: AbortSignal) => {
     const { lineOf, nextIssue } = await import('./next-step.ts');
     const { next, stderr } = await nextIssue(n, current, abort);
@@ -309,7 +229,7 @@ export async function main(argv: string[]): Promise<number> {
       });
       session?.once('exit', (code, signal) => done(code ?? (signal ? 128 + constants.signals[signal] : 1)));
     });
-    await registerSession();
+    await locks?.registerSession(session.pid);
     if (signalStatus) {
       session.kill('SIGTERM');
       await ended;
@@ -319,7 +239,8 @@ export async function main(argv: string[]): Promise<number> {
     return { ended };
   };
   const runIssue = async (n: string, first: 'any' | 'gated') => {
-    if (!(await take(`issue-${n}`))) {
+    const holder = await locks?.take(`issue-${n}`);
+    if (holder !== null) {
       say(`another celetis-flow.ts or its session (PID ${holder}) works on #${n}`);
       return false;
     }
@@ -353,7 +274,7 @@ export async function main(argv: string[]): Promise<number> {
               `${lastHost} session exited with status ${exitCode} before issue progress; check startup output, then run ${manualRecovery(lastHost)} from the main checkout or start the step again`,
             );
           say(`no progress: ${prompt}`);
-          if (!(await recorded(n, line))) await writeFile(recordPath, `${n}\t${line}\n`, { flag: 'a' });
+          await addRecord(common, n, line);
           break;
         }
         const skips = last ? skipped(last.step, step, next.lane) : [];
@@ -361,7 +282,7 @@ export async function main(argv: string[]): Promise<number> {
           say(
             `#${n}: ${step} skips ${skips.join(', ')} after ${last.step}; fix the issue, or start ${step} by hand: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow ${n}`,
           );
-          if (!(await recorded(n, line))) await writeFile(recordPath, `${n}\t${line}\n`, { flag: 'a' });
+          await addRecord(common, n, line);
           break;
         }
         if (first !== 'any' && (config.gates?.[step] ?? defaultGate) !== 'auto') {
@@ -419,7 +340,7 @@ export async function main(argv: string[]): Promise<number> {
       }
       return started;
     } finally {
-      await release(`issue-${n}`);
+      await locks?.release(`issue-${n}`);
     }
   };
   try {
@@ -428,8 +349,8 @@ export async function main(argv: string[]): Promise<number> {
     if (checkout.main === null || checkout.common === null) throw new HostError('celetis: need a Git checkout', 2);
     common = checkout.common;
     main = checkout.main;
+    locks = createLockOwner(main);
     state = join(common, 'celetis-flow');
-    recordPath = join(state, 'no-progress');
     const saved = mode === 'resume' ? await selectSavedSession(main, Number(numbers[0]), explicit, common) : undefined;
     operation = createOperation(checkout, { ...selection, saved: saved?.host }, 'main');
     const host = operation.host;
@@ -461,8 +382,8 @@ export async function main(argv: string[]): Promise<number> {
       process.on(signal, handler);
     }
     if (mode === 'resume') {
-      if (!(await take(`issue-${numbers[0]}`)))
-        die(`another celetis-flow.ts or its session (PID ${holder}) works on #${numbers[0]}`);
+      const holder = await locks.take(`issue-${numbers[0]}`);
+      if (holder !== null) die(`another celetis-flow.ts or its session (PID ${holder}) works on #${numbers[0]}`);
       const { ended } = await startSession(
         host === 'claude' ? ['--resume', savedId] : ['resume', '--no-daemon', savedId],
         host,
@@ -472,81 +393,12 @@ export async function main(argv: string[]): Promise<number> {
       session = undefined;
       return signalStatus || code;
     }
-    if (mode === 'board') {
-      if (await gone()) {
-        console.log(`stop ${removed}`);
-        return 1;
-      }
-      const config = operation.mainConfig as Config;
-      const { jsonRow, nextBoard } = await import('./next-step.ts');
-      const { data, stderr } = await nextBoard(operation);
-      process.stderr.write(stderr);
-      if (!data) {
-        console.log('stop cannot read the issues from GitHub');
-        return 1;
-      }
-      const flow: Flow = {
-        lanes: Object.fromEntries(Object.entries(lanes).map(([lane, definition]) => [lane, [...definition.steps]])),
-        stages: stages.map((stage) => ({ name: stage.name, steps: [...stage.steps] })),
-        steps: Object.fromEntries(
-          [...steps].sort().map((step) => [
-            step,
-            {
-              gate: config.gates?.[step] ?? defaultGate,
-              ...(lands(step) ? { hint: 'It lands the change when the build is done.' } : {}),
-            },
-          ]),
-        ),
-      };
-      const issues: Issue[] = [];
-      for (const row of data.rows) {
-        const { line, ...shown } = jsonRow(row);
-        const step = row.next.kind === 'run' ? row.next.step : null;
-        const locked = !!(await holderOf(`issue-${row.number}`));
-        const stuck = await recorded(String(row.number), line);
-        issues.push({
-          ...shown,
-          step,
-          started: step !== null && stageOf(step) > 1,
-          urgent: shown.type === 'hotfix',
-          ...(shown.state === 'done'
-            ? {}
-            : locked
-              ? { state: 'starting' }
-              : shown.state === 'dirty'
-                ? {}
-                : stuck
-                  ? {
-                      state: 'stuck',
-                      act: `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow --resume ${row.number}`,
-                    }
-                  : {}),
-        });
-      }
-      const agents = Object.fromEntries(
-        ['claude', 'codex'].map((agent) => {
-          const available = !!Bun.which(agent, { PATH: childEnv().PATH });
-          return [agent, { available, cause: available ? null : `celetis: ${agent} is not on PATH` }];
-        }),
-      );
-      const document: Document = {
-        contract: 1,
-        tracker: 'GitHub',
-        agents,
-        defaultAgent: host,
-        flow,
-        noRun: data.noRun,
-        runner: !!(await holderOf('runner')),
-        issues,
-      };
-      console.log(JSON.stringify(document, null, 2));
-      return 0;
-    }
     if (mode === 'numbers') {
       for (const n of numbers) await runIssue(n, 'any');
       return 0;
     }
-    if (!(await take('runner'))) die(`another automatic runner or its session has PID ${holder}`);
+    const holder = await locks.take('runner');
+    if (holder !== null) die(`another automatic runner or its session has PID ${holder}`);
     while (!signalStatus) {
       if (await gone()) {
         say(`stop ${removed}`);
@@ -564,7 +416,7 @@ export async function main(argv: string[]): Promise<number> {
         for (const { number, next } of rows) {
           const n = String(number);
           if (next.kind !== 'run' || (config.gates?.[next.step] ?? defaultGate) !== 'auto') continue;
-          if ((await holderOf(`issue-${n}`)) || (await recorded(n, lineOf(n, next)))) continue;
+          if ((await lockHolder(main, `issue-${n}`)) || (await isRecorded(common, n, lineOf(n, next)))) continue;
           pick = n;
           break;
         }
@@ -590,7 +442,7 @@ export async function main(argv: string[]): Promise<number> {
       await new Promise<void>((done) => session?.once('exit', () => done()));
     }
     if (watchDir) await rm(watchDir, { recursive: true, force: true });
-    for (const name of [...held]) await release(name);
+    await locks?.releaseAll();
     for (const [signal, handler] of handlers) process.off(signal, handler);
   }
 }

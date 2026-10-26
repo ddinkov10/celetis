@@ -1,4 +1,4 @@
-import { celetisConfig } from './board/adapter.ts';
+import { celetisAdapter } from './board/adapter.ts';
 import { startBoard } from './board/start.ts';
 import { HostError, requireBun } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
@@ -32,8 +32,8 @@ export async function main(argv: string[]): Promise<number> {
       await requireUpdatePolicy(operation.host, operation.checkout.cwd);
       if (operation.checkout.cwd !== main) await requireUpdatePolicy(operation.host, main);
     });
-    const board = await celetisConfig(main, config?.board?.port ?? 4403);
-    return await startBoard(main, board);
+    const adapter = await celetisAdapter(main);
+    return await startBoard(main, config?.board?.port ?? 4403, adapter);
   } catch (error) {
     console.error(error instanceof HostError ? error.message : `celetis-board: ${(error as Error).message}`);
     return error instanceof HostError ? error.code : 1;

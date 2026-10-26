@@ -7,13 +7,14 @@ when its gate is `auto`. The GitHub issue stays the state store (`docs/issue-tra
 result of a step goes to the issue. The board is a local web page that shows each agent session and
 the next step of each issue, and its Run button starts the script for one issue in a new herdr tab.
 The board is `engine/board/` of the plugin: a product project, a repository that uses the plugin
-`celetis`, holds its config, and the plugin holds the board and the script that prints its data.
-ADR-0002 holds the reasons for the script, ADR-0003 holds the reasons for the board, ADR-0005 holds
-the reasons why herdr, not a mod, gives the session state and ends a step, and ADR-0007 holds the
-reasons why `specify` is a step of the script. ADR-0008 holds the reasons why the build step lands
-the change, ADR-0009 holds the reasons for contract 1, and ADR-0020 holds the reasons why the board
-is a part of the plugin. ADR-0011 holds the reasons why a step session hands a stop to the issue,
-and ADR-0033 holds the reasons for the one definition of the workflow and for the skip rule.
+`celetis`, holds its config, and the plugin holds the board, which reads its data in its own
+process. ADR-0002 holds the reasons for the script, ADR-0003 holds the reasons for the board,
+ADR-0005 holds the reasons why herdr, not a mod, gives the session state and ends a step, and
+ADR-0007 holds the reasons why `specify` is a step of the script. ADR-0008 holds the reasons why the
+build step lands the change, ADR-0020 holds the reasons why the board is a part of the plugin, and
+ADR-0035 holds the reasons why the board reads its data with the engine and types two fixed lines.
+ADR-0011 holds the reasons why a step session hands a stop to the issue, and ADR-0033 holds the
+reasons for the one definition of the workflow and for the skip rule.
 
 `engine/lib/workflow.ts` of the plugin is the one definition of the workflow: the lanes, with the
 label, the branch prefix, and the steps in order of each lane; the stages; the command of each step;
@@ -38,8 +39,9 @@ apart from a path that starts with `~/` or `/`.
 ## Requirements
 
 - macOS or Linux, with Bun 1.4.2 or later. Native Windows is partly checked: the documented
-  command form loads the launcher from Git Bash, and a numbered runner start, the board data,
-  and the update lock passed their checks. Other parts are open ("Acceptance status").
+  command form loads the launcher from Git Bash, and a numbered runner start, the data of the
+  board before #102, and the update lock passed their checks. Other parts are open ("Acceptance
+  status").
 - The selected host CLI (`claude` 2.1.299 or later, or `codex` 0.162.1 or later; the README gives
   the reason for each), `gh` (logged in), Bun 1.4.2 or later,
   and `git` 2.31 or later on `PATH`. See `docs/configuration.md` for the install of
@@ -77,7 +79,6 @@ apart from a path that starts with `~/` or `/`.
 ```bash
 BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow            # the automatic runner; it does not end
 BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow 373 374    # a start with numbers; it takes the issues in this order and ends
-BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow --board    # the data of the issues for the board, as one JSON document
 BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow --resume 373    # the session of a step with no progress, again
 ```
 
@@ -90,7 +91,7 @@ rejects an explicit prefix that names the other host.
 An argument is `<n>`, or `'#<n>'` in quotes. A shell can read an unquoted word that starts with `#`
 as the start of a comment: the script then gets neither that word nor the words after it, and with
 no number it starts the automatic runner. Each line of the script starts with `celetis-flow: `,
-apart from its usage line and the output of `--board`.
+apart from its usage line.
 
 **A start with numbers** does this for each issue. It reads the decision of the issue from the
 in-process resolver (`nextIssue` of `next-step.ts`), a Run of a step or a stop, and starts the step
@@ -125,30 +126,13 @@ cause, and a `run` line that does not start has a `me` gate, a row in the record
 another script. To stop it, close its tab, or press ctrl+c while it waits. It reads open issues
 only. With the default gates no step is `auto`, so the automatic runner starts nothing.
 
-**The form `--board`** is read-only: it takes no lock, writes no row in the record, and starts no
-session. `--board` is its only argument. It prints contract 1, the JSON document that the board
-reads: `contract`, `tracker`, `flow`, `noRun`, `runner`, `agents`, `defaultAgent`, and `issues`, with
-one row for each issue that has a card. The rows come from the typed rows of the same in-process
-resolver as `next-step --json` (`nextBoard`); resolution, displayed gates, and the default host
-share that refresh's operation.
-The resolver makes these `gh api` calls: 3 paginated lists (open issues, closed issues, open PRs),
-one paginated call for the comments of each open issue that has a comment, and 3 calls for each
-open PR whose branch holds `/<number>-`. The resolver gives
-each row the state that it knows from GitHub and from the working
-trees: `done`, `blocked` with `reason` and `act`, `ready`, or `dirty` with `path`. The `reason` is
-`needs info`, `landing refused`, `ready for your step`, or `several lane labels` ("The board",
-rule 5). It also gives the `noRun` text for a dirty main checkout. `--board` adds what the runner
-knows: `starting` for a lock that a live script holds, `stuck` with its `act` for a row of the record, the `step`, `started`,
-and `urgent` of each row, `runner`, `tracker`, and `flow` with the gate of each step. "The board"
-gives the value of each field. When a tracker request or its data conversion fails, the form prints
-`stop cannot read the issues from GitHub` and exits 1. The board is its reader: the adapter supplies this form as `data`.
-
 **The form `--resume <n>`** reopens the exact session from
 `<git common dir>/celetis-flow/sessions/<n>.json`. It validates the current record, selects its
 saved host and checkout, and runs `claude --resume <id>` or `codex resume --no-daemon <id>`. A missing or
 invalid record stops with a recovery action. Resume takes the shared issue lock and retains it
 until the foreground exits. It makes no `gh` call or update and starts no completion watcher,
-so the session stays open until you leave it. The board adapter supplies this form as `resume`.
+so the session stays open until you leave it. A Resume press of the board types this form ("The
+board").
 
 The script asks for no confirmation. A start with the number of an issue whose next step is
 `implement`, `chore`, or `hotfix` builds the change and lands it with `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` when
@@ -162,8 +146,9 @@ process does not. Claims and releases use Git compare-and-set, and foreground re
 updates all held locks in one transaction. Both hosts and manual resume share the issue lock.
 `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` keeps its separate `land-<n>.lock` in `<git common dir>/celetis-flow/`.
 The `no-progress` file there has one row for each step that ended with no progress, and one row for
-each step that the script refused as a skip. The automatic runner and `--board` read it. An
-explicit issue start can start that step.
+each step that the script refused as a skip. The automatic runner and the board read it. An
+explicit issue start can start that step. `engine/lib/locks.ts` of the plugin owns the lock refs,
+the owner records, the liveness check of an owner, and the record; the runner and the board use it.
 
 ## How a step runs
 
@@ -209,7 +194,7 @@ Codex also omits the step-text override for specify. Its configured developer in
 
 **The installed package.** The runner uses the package selected at startup for its resolver,
 entrypoint, and step text. Numbered starts, automatic starts, and later steps make no update call.
-The forms `--board` and `--resume` keep their existing no-update behavior and saved identity.
+The form `--resume` keeps its no-update behavior and saved identity.
 Before a step starts, the runner checks that its required files and step text still exist.
 Known concrete policy conflicts are diagnosed. Running consumers do not reserve the update mutex. Run and exact Resume bind their Codex session to the active
 installed root through a command-only Local marketplace. Native catalog, manifest, and cache
@@ -420,15 +405,16 @@ deterministic parser check.
 
 ## The board
 
-The board is `engine/board/` of the plugin. Its generic CLI reads config from stdin only, and that config
-supports the fixed Run selection and saved-host Resume commands below.
-The board stays independent of YAML and Celetis field names. ADR-0009 keeps contract 1 and the
-command/path trust rules. ADR-0015 replaces the config storage, and ADR-0020 makes the board a part
-of the plugin.
+The board is `engine/board/` of the plugin, a part of its engine. It reads the data of the issues
+in its own process with the typed functions of the engine, and a press types one of two fixed
+command lines into a new herdr tab. It has no config of its own: the main checkout's `.celetis.yaml`
+gives `board.port` at the start, and `host` and `gates` at each read. ADR-0020 makes the board a
+part of the plugin, and ADR-0035 makes it a part of the engine.
 
 **Requirements.** Bun 1.4.2 or later; Git 2.31 or later; herdr 0.9.3 and a
-running server; and a Chromium browser. The board needs no GitHub credentials of its own.
-The script requirements above apply to its commands too.
+running server; and a Chromium browser. The board reads GitHub with `gh`, as the runner does, and
+needs no GitHub credentials of its own. The read needs `gh` (logged in), `git`, and Bun, and `ps`
+on macOS and Linux. The script requirements above apply to Run and Resume.
 
 **Start the board** in the main checkout or a subfolder:
 
@@ -437,64 +423,60 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
 PORT=4500 BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board
 ```
 
-The adapter takes no arguments. It fully validates the main YAML and refuses a lane start. It binds
-fixed lists through `celetisConfig(main, port)` and `startBoard(main, config)`. The selected Bun
-must be executable. The same package's `bin/celetis.ts` must be a readable regular file outside
-the main checkout and each lane. Control characters and canonical path escapes are refused.
-The listening port remains fixed until restart. Each data refresh creates a fresh operation;
-each Run or Resume command validates its own current policy.
+The command takes no arguments. It fully validates the main YAML, refuses a lane start, and checks
+the plugin update policy of the selected host once. `--agent` selects the host of the board process
+only: its policy check and, for Codex, its `CODEX_HOME`. Then the fixed adapter
+(`engine/board/adapter.ts`) checks two paths once. The selected Bun must be an executable regular
+file. The same package's `bin/celetis.ts` must be a readable regular file outside the main checkout
+and each lane. Control characters and canonical path escapes are refused. The start prints two
+lines, the main checkout and the URL:
 
-Generic `engine/board/cli.ts --config-stdin` keeps its separate project-only validator. Each
-producer must be a relative executable regular file inside the main checkout, outside lanes.
-The known isolated Bun shebang binds a validated Bun producer to `process.execPath`; an absolute
-interpreter in JSON cannot bypass this rule. HTTP accepts only an issue and supported host.
+```text
+agent-board: repository /Users/me/code/shop
+agent-board: http://127.0.0.1:4403
+```
 
-Let `P` be `[process.execPath, "--no-env-file", "--no-install", "--config=<null device>", "--no-macros",
-"<absolute-package>/bin/celetis.ts"]`. The null device is `os.devNull`: `/dev/null`, or `\\.\nul`
-on Windows. Each list element below is one argument.
+The listening port is `PORT`, else `board.port` of the main YAML, else 4403. It remains fixed until
+restart. This repository uses 4404. A native desktop preview entry, when used, starts the same
+installed entrypoint and uses the same port (`README.md`, "Optional: the board in Claude desktop").
+`engine/board/README.md` gives each refusal of the start.
 
-| Key | Value | Use |
-| --- | --- | --- |
-| `data` | `[...P, "celetis-flow", "--board"]` | Read contract 1 without a shell. |
-| `run` | `[...P, "--agent", "{agent}", "celetis-flow", "{n}"]` | Start the selected host and issue in an owned Herdr tab. |
-| `resume` | `[...P, "celetis-flow", "--resume", "{n}"]` | Resume the saved host and exact ID before defaults. |
-| `port` | Main `board.port`, or 4403 | `PORT` takes precedence. |
+**The data.** Each refresh reads the data in the board process (`engine/board/data.ts`). It creates
+a fresh main operation with `CELETIS_AGENT` and no explicit host. It reads the typed rows of the
+in-process resolver (`nextBoard` of `next-step.ts`), and the issue locks, the runner lock, and the
+record through `engine/lib/locks.ts`, the module of the runner. So resolution, displayed gates, and
+the default host share that refresh's operation, and a change of `host` or `gates` in the main YAML
+shows at the next refresh. Each module of this path is a static import: a refresh loads no plugin
+file, takes no plugin read lock, and checks no update policy. The board checks that policy once,
+at its start. Each Run and Resume starts a new `celetis-flow` process, which makes its own check. So
+a conflict that starts while the board runs shows in the pane of the next Run or Resume, not on the
+status line of the board.
 
-Only the port is repository setup. `PORT` stays inherited and takes precedence. This repository
-uses 4404. Restart the board after a port change. A native desktop preview entry, when used,
-starts the same installed entrypoint and uses the same port (`README.md`, "Optional: the board in Claude desktop").
+The resolver makes these `gh api` calls: 3 paginated lists (open issues, closed issues, open PRs),
+one paginated call for the comments of each open issue that has a comment, and 3 calls for each
+open PR whose branch holds `/<number>-`. It gives each row the state that it knows from GitHub and
+from the working trees: `done`, `blocked` with `reason` and `act`, `ready`, or `dirty` with `path`.
+It also gives the `noRun` text for a dirty main checkout. The board adds what the runner knows:
+`starting` for a lock that a live script holds, `stuck` with its `act` for a row of the record, the
+`step`, `started`, and `urgent` of each row, `runner`, `tracker`, and `flow` with the gate of each
+step.
 
-`POST /api/run` substitutes the chosen agent, or `defaultAgent` when no choice is supplied,
-for `{agent}`. Run does not change the project default. Set that default with `host` in the main
-YAML; `--agent` and `CELETIS_AGENT` override it. Unknown or unavailable choices return 409 and
-start no agent. Availability checks only executable presence; sign-in, trust, plugin discovery,
-and full host parity need separate checks.
+A read has a limit of 60 seconds, and the stop of the board also stops a read. On a failure, the
+board keeps its last document and shows one line after `cannot read:` on its status line:
 
-The board shows the default as read-only in its agent menu and command palette. A valid trusted
-`POST /api/agent` returns 409 with `The producer controls the default agent. Change it in the producer configuration.`
-It changes no YAML or Git setting. Change `host` in the main YAML to set the project default.
+- an invalid main YAML: the first line of the diagnostic of the config reader;
+- a resolver that cannot read GitHub: the first line of the resolver's stderr, else
+  `cannot read the issues from GitHub`;
+- a read that passes 60 seconds: `the issue read did not end in 60 seconds`;
+- another failure: the first line of its message, else `the issue read failed`.
 
-Resume has no fixed agent prefix. It uses the host and exact ID in the saved record, even after
-the project default changes. Each item is one argument. The board quotes the items and adds
-`&& exit`: success closes the tab; a failed script leaves its message there. On Windows, the
-default pane shell of herdr is Windows PowerShell 5.1: the line sets the isolation variables with `$env:`, calls
-the items with `&`, and ends with `; if ($?) { exit }`, with the same result. With the default
-`me` gates, a Run starts one step and ends when its session ends.
+The board runs the data code that it loaded at its start. After a plugin update, start the board
+again for new data code, as for new server code.
 
-The board starts the data script on each read and the action script on each press. A plugin
-update does not stop the board. Reload or restart it if native cache replacement removes an asset
-it still needs. A fresh board or session resolves the enabled installation again. Follow
-[Updates](../README.md#updates) for manual updates.
-Real Run/Resume acceptance remains a separate live gate.
-
-**The data.** `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow --board` prints contract 1 ("Start the script"). Each read
-makes these `gh api` calls: 3 paginated lists (open issues, closed issues, open PRs), one paginated
-call for the comments of each open issue that has a comment, and 3 calls for each open PR whose
-branch holds `/<number>-`. The script puts these values in the fields of the document:
+The board puts these values in the fields of its document (`Document` of `engine/board/types.ts`):
 
 | Field | Value |
 |---|---|
-| `contract` | `1` |
 | `tracker` | `GitHub` |
 | `flow.lanes` | The four lanes: `feature` (triage, specify, plan, implement), `bug` (triage, bug, plan, implement), `chore` (triage, chore), and `hotfix` (triage, hotfix). |
 | `flow.stages` | Triage, Define (specify, bug, chore, hotfix), Plan, and Implement. |
@@ -502,8 +484,8 @@ branch holds `/<number>-`. The script puts these values in the fields of the doc
 | `flow.steps.<step>.hint` | `It lands the change when the build is done.` for `implement`, `chore`, and `hotfix`. No other step has a hint. |
 | `noRun` | `The main checkout is dirty: <path>. Commit or stash first.` while the main checkout is dirty, else `null`. |
 | `runner` | `true` while a live automatic runner holds its lock. |
-| `agents` | Entries `claude` and `codex`. Each has `available: true` and `cause: null` when its executable is on `PATH`, else `available: false` and `cause: "celetis: <agent> is not on PATH"`. |
-| `defaultAgent` | The agent selected by `--agent`, `CELETIS_AGENT`, `host` in the main YAML, or the default `claude`, in that order. |
+| `agents` | Entries `claude` and `codex`. Each has `available: true` and `cause: null` when its executable is on the `PATH` of the board, else `available: false` and `cause: "celetis: <agent> is not on PATH"`. |
+| `defaultAgent` | The agent selected by `CELETIS_AGENT`, `host` in the main YAML, or the default `claude`, in that order. The `--agent` of the board start does not set it. |
 | `issues` | One row for each open issue and for each issue that closed in the last 14 days. An issue whose line of the resolver is the epic line or the `wontfix` line has no row. |
 
 A row gets its `state` by the first rule that matches:
@@ -534,20 +516,50 @@ Each row also has `number`, `title`, `url`, `updatedAt`, `closedAt`, and these f
   those reviews requests changes, else `approved` when one approves, else `required` when a
   requested reviewer or team has not answered, else `null`.
 
-**Check the document** against the contract, in the main checkout. `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> root` prints
-`<plugin>`:
+**Run and Resume.** The adapter types two fixed lines. Each item is in single quotes for the pane
+shell, the issue number is its digits, and ` && exit` ends the line. `<bun>` is the selected Bun,
+and `<plugin>/bin/celetis.ts` is the canonical entrypoint of the board's own package:
 
-```bash
-BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow --board | bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/engine/board/cli.ts check --stdin
+```text
+'/usr/bin/env' 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0' 'DO_NOT_TRACK=1' '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<agent>' 'celetis-flow' <n> && exit
+'/usr/bin/env' 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0' 'DO_NOT_TRACK=1' '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' 'celetis-flow' '--resume' <n> && exit
 ```
 
-The checker prints `agent-board: contract 1, <count> issues, ok` and exits 0, or it prints one line
-for each failure and exits 1.
+On Windows, the default pane shell of herdr is Windows PowerShell 5.1. There each line sets the
+two isolation variables with `$env:`, starts `<bun>` with `&` and the same items, and ends with
+`; if ($?) { exit }` in place of ` && exit`, with the same result. Its null device is `os.devNull`
+(`--config=\\.\nul`), and the quote doubles `'` and each of U+2018 to U+201B.
+
+Run opens a quiet tab `#<n> <step>` in the herdr workspace of the repository and types its line.
+Resume opens a focused tab and types its line. The exit at the end of the line closes the tab on
+success; a failed script leaves its message there. With the default `me` gates, a Run starts one
+step and ends when its session ends.
+
+`POST /api/run` uses the chosen agent, or `defaultAgent` when no choice is supplied. The agent must
+be a name of `agents` of the last document, and available. Unknown or unavailable choices return
+409 and start no agent. Availability checks only executable presence; sign-in, trust, plugin
+discovery, and full host parity need separate checks. Run does not change the project default. Set
+that default with `host` in the main YAML; `CELETIS_AGENT` overrides it.
+
+Resume has no `--agent`. It uses the host and exact ID in the saved record, even after the project
+default changes.
+
+The board shows the default as read-only in its agent menu and command palette. A valid trusted
+`POST /api/agent` returns 409 with `The main .celetis.yaml controls the default agent. Change host there.`
+It changes no YAML or Git setting. Change `host` in the main YAML to set the project default.
+
+A plugin update does not stop the board. Before Run and Resume, the board checks that its
+entrypoint still exists. When an update removed it, the press returns 409 with
+`the plugin version of this board was removed after an update; start the board again` and makes no
+herdr call. Reload or restart the board if native cache replacement removes an asset it still
+needs. A fresh board or session resolves the enabled installation again. Follow
+[Updates](../README.md#updates) for manual updates.
+Real Run/Resume acceptance remains a separate live gate.
 
 **The page.** [`engine/board/README.md`](../engine/board/README.md) of the plugin holds the page: the
 columns and the card of each state, the layout, the keys, the buttons Run, Resume,
-Open shell, and Go, the errors, the tables of contract 1, the other forms of the command, the trust
-boundary, and the limits of the page.
+Open shell, and Go, the errors, the start refusals, the HTTP API, the trust boundary, and the limits
+of the page.
 
 ## What the script prints, and your act
 
@@ -660,6 +672,23 @@ that change is an open runtime check (Finding 2 of the plan of #101). `codexSess
 enabled installed Codex root, so a checkout runner cannot start a Codex step session. A check from
 an installed package that holds the change can close it.
 
+[Issue #102](https://github.com/ddinkov10/celetis/issues/102) made the board read its data in its
+own process and type two fixed lines ("The board"). On 2026-10-26, with Claude Code 2.1.310,
+codex-cli 0.164.0, and herdr 0.9.3, a package copy of the lane at commit `0b18274` ran the board in
+a private product repository with a fake `gh` and the real herdr. The start printed only the
+repository line and the URL line, and the board read its document in process. Resume of a saved
+Claude record opened the tab `#3 triage` in the product and typed the exact Resume line, with no
+`--agent`. It continued the exact saved session (`claude --resume <id>`), and herdr reported the
+same session ID. `/exit` closed the tab. Resume of a saved Codex record stopped in its tab with
+`celetis: enabled package changed before session start; start a fresh runner`, because the copy is
+not the enabled installed Codex root. Run with the default agent and Run with the choice `codex`
+opened quiet tabs and typed the exact Run lines with `--agent claude` and `--agent codex`. With an
+invalid main `.celetis.yaml`, the runner stopped on the `landing` diagnostic, and the tab stayed
+open. The next refresh showed that line as the read error and kept the cards. A full Codex Run and
+Resume from the installed package is an open runtime check, by hand after the landing (the plan of
+#102, "Your steps"). A full Run session through the board was not observed, because a board tab
+runs with the real `gh`.
+
 The later Codex board checks used reviewed commit `626881b`; the
 [public evidence record](https://github.com/ddinkov10/celetis/issues/21#issuecomment-6187619525)
 keeps the earlier failures. The first fixture turn attempted a forbidden issue comment, which
@@ -706,12 +735,16 @@ the main checkout, so the board check ran from an export of the lane:
 
 Open on Windows: Codex (not installed), PowerShell 7, Resume, the step end, a real `land` run and its
 live land-lock check, and a confirmed `plugin-update` apply (only the lock probes and
-`plugin-update check` ran). The personal landing rule is also open on Windows: its generator in
-the README needs an entrypoint that starts with `/`, and Bun gives `C:\…`.
+`plugin-update check` ran). The board of #102 is also open on Windows: the board row above
+checked the board before #102, which read its data through a `celetis-flow --board` subprocess
+and typed its lines from command lists. The personal landing rule is also open on Windows: its
+generator in the README needs an entrypoint that starts with `/`, and Bun gives `C:\…`.
 
-The moved POSIX process-identity path has no runtime check on macOS. On Linux, one probe in WSL
-Ubuntu 24.04 with a private Linux Bun 1.4.2 passed its four cases once. CI runs only the static
-verify gate (ADR-0029).
+#125 left the moved POSIX process-identity path with no runtime check on macOS. The scratch checks
+of the merge of #125 into #102 then ran it on macOS through the runner and the board: a live
+owner, a dead PID, a zombie, a process with another command, and a changed start time gave the
+same lock states as `266a05c`. On Linux, one probe in WSL Ubuntu 24.04 with a private Linux Bun
+1.4.2 passed its four cases once. CI runs only the static verify gate (ADR-0029).
 ADR-0034 records the Windows decisions and their limits.
 
 ### Optional Codex desktop evidence
@@ -755,8 +788,8 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   2026-10-26, and the Codex check is open ("Acceptance status"). Two parts of the step end are not
   checked: the end of a session after its `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` run ends (ADR-0008), and
   the end of a session after it adds `ready-for-human` at a stop (ADR-0011). Two shapes of the REST
-  reads of `--json` for each open PR are not checked against a live GitHub: a commit status list
-  that is not empty, and a review list that is not empty.
+  reads of the board data (`nextBoard`) for each open PR are not checked against a live GitHub: a
+  commit status list that is not empty, and a review list that is not empty.
 - The REST API of GitHub lists a commit status only after the status reports. So the list does not
   show a status that branch protection requires until that status reports. Until then,
   `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land` can read `pass` and ask for the merge. GitHub then refuses the merge, and
@@ -776,9 +809,11 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   `celetis-flow: stop the plugin version of this runner was removed after an update; start the
   runner again` and exits 1. A runner with numbers prints
   `celetis-flow: #<n>: the plugin version of this runner was removed after an update; start the
-  runner again` for each number. The form `--board` prints
-  `stop the plugin version of this runner was removed after an update; start the runner again`
-  and exits 1. The cure is a new start of the runner (ADR-0012).
+  runner again` for each number. The cure is a new start of the runner (ADR-0012). A board whose
+  installed folder is gone keeps its data reads, because it loaded their code at its start. Its Run
+  and Resume return 409 with
+  `the plugin version of this board was removed after an update; start the board again` and make
+  no herdr call. The cure is a new start of the board.
 
 `engine/board/README.md` of the plugin holds the limits of the page.
 

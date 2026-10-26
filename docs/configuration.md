@@ -213,14 +213,16 @@ not a filesystem transaction across checkouts or a transaction with GitHub.
 ## Start the board
 
 Run `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board` in the main checkout or a subfolder. It takes no arguments and
-refuses a lane start before it starts the board. It reads only the main config's `board.port`, default 4403,
-and keeps `PORT` above that value. It supplies the fixed data, selected-agent Run, and
-saved-host Resume lists through a local module interface. The adapter validates the package
-entrypoint and selected runtime; generic stdin remains restricted to project executables. No board config file is made.
-The board checks concrete replacement-policy conflicts. It can remain open during a manual update.
-The producer default is read-only. Change `host` in the main YAML to set
-the project default. A board Run choice applies only to that start; Resume uses its saved host.
-See [the board contract](celetis-flow.md#the-board) for the exact lists.
+refuses a lane start before it starts the board. At its start it reads the main config's
+`board.port`, default 4403, and keeps `PORT` above that value. Each data refresh creates a fresh
+main operation, so a change of `host` or `gates` shows at the next refresh ("Operation values and
+freshness"). The fixed adapter validates the package entrypoint and the selected runtime once. It
+types two fixed lines: Run with the selected agent, and Resume with no agent, so the runner uses
+the saved host. No board config file is made. The board checks concrete replacement-policy
+conflicts at its start only; each Run and Resume checks them again in its own process. It can
+remain open during a manual update. The default agent is read-only on the board. Change `host` in
+the main YAML to set the project default. A board Run choice applies only to that start; Resume
+uses its saved host. See [The board](celetis-flow.md#the-board) for the exact lines.
 
 A deterministic gate check does not replace live board acceptance. Stable installed resources,
 changed-pair child controls on required CLI surfaces, managed Claude setup, and complete child

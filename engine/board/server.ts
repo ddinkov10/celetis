@@ -1,7 +1,8 @@
 import type { ExecFileOptions } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { Board, Card, Command, Config, Diff, Document, Session } from './types.ts';
+import type { Adapter } from './adapter.ts';
+import type { Board, Card, Diff, Document, Session } from './types.ts';
 
 type Result = { code: number; stdout: string; stderr: string };
 export type Execute = (file: string, args: string[], options?: ExecFileOptions) => Promise<Result>;
@@ -15,12 +16,9 @@ type HerdrResult = {
 import { execFile } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { basename, delimiter, join, relative, resolve, sep } from 'node:path';
+import { basename, join, relative, resolve, sep } from 'node:path';
 import { childEnv } from '../lib/process.ts';
-import { AGENT, NUMBER } from './config.ts';
-import { readDocument } from './contract.ts';
 import { activePresses, place, sessionsOf, stepsOf } from './place.ts';
-import { cleanPath } from './runtime.ts';
 
 const HERE = import.meta.dirname;
 const STALE_MS = 60_000;
@@ -63,19 +61,6 @@ const cleanCause = (cause: unknown) =>
   firstLine(String(cause ?? ''))
     .replace(/[\u0000-\u001f\u007f]/g, '')
     .slice(0, 200);
-// PowerShell also reads U+2018 to U+201B as single quotes.
-const quote = (text: string) =>
-  process.platform === 'win32'
-    ? `'${text.replace(/['\u2018-\u201b]/g, (mark) => mark + mark)}'`
-    : `'${text.replaceAll("'", "'\\''")}'`;
-const lineOf = (items: Command, number: number, agent: string | null = null) => {
-  const env = items[0] === process.execPath ? Object.entries(childEnv({})) : null;
-  const words = (command: string[]) =>
-    command.map((item) => (item === NUMBER ? number : item === AGENT ? quote(agent as string) : quote(item))).join(' ');
-  if (process.platform === 'win32')
-    return `${(env ?? []).map(([name, value]) => `$env:${name}=${quote(value as string)}; `).join('')}& ${words(items)}; if ($?) { exit }`;
-  return `${words(env ? ['/usr/bin/env', ...env.map(([name, value]) => `${name}=${value}`), ...items] : items)} && exit`;
-};
 const count = (text: string, word: string) => Number(new RegExp(`(\\d+) ${word}`).exec(text)?.[1] ?? 0);
 const screenOf = (text: string) =>
   text
@@ -88,17 +73,16 @@ const screenOf = (text: string) =>
 
 export const run: Execute = (file, args, options = {}) =>
   new Promise<Result>((done) => {
-    const env: NodeJS.ProcessEnv = {
-      ...process.env,
-      ...options.env,
-      BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
-      DO_NOT_TRACK: '1',
-    };
-    if (env.PATH) env.PATH = cleanPath(env.PATH, delimiter);
     execFile(
       file,
       args,
-      { maxBuffer: 64 * 1024 * 1024, ...options, env, shell: false, encoding: 'utf8' },
+      {
+        maxBuffer: 64 * 1024 * 1024,
+        ...options,
+        env: childEnv({ ...process.env, ...options.env }),
+        shell: false,
+        encoding: 'utf8',
+      },
       (error, stdout, stderr) => {
         const isExit = typeof error?.code === 'number';
         done({
@@ -110,28 +94,19 @@ export const run: Execute = (file, args, options = {}) =>
     );
   });
 
-export const runData = async (
-  main: string,
-  data: Command,
-  exec: Execute = run,
-): Promise<{ output: string; error: null } | { output: null; error: string }> => {
-  const { code, stdout, stderr } = await exec(data[0], data.slice(1), { cwd: main, timeout: STALE_MS });
-  if (code === 0) return { output: stdout, error: null };
-  return { output: null, error: firstLine(stderr) || firstLine(stdout) || `the data command exited ${code}` };
-};
-
 export const createBoard = ({
   main,
-  config,
+  read,
+  adapter,
   exec = run,
   now = Date.now,
 }: {
   main: string;
-  config: Config;
+  read: (signal: AbortSignal) => Promise<Document>;
+  adapter: Adapter;
   exec?: Execute;
   now?: () => number;
 }) => {
-  const can = { run: Boolean(config.run), resume: Boolean(config.resume) };
   let board: Document | null = null;
   let readAt: string | null = null;
   let error: string | null = null;
@@ -145,24 +120,24 @@ export const createBoard = ({
   const diffs = new Map<string, { at: number; value: Diff | null }>();
 
   const readData = async () => {
-    const data = await runData(main, config.data as Command, exec);
-    if (data.error !== null) {
-      error = data.error;
-      return;
-    }
-    const { doc, failures, isOtherContract } = readDocument(data.output);
-    error = failures[0] ?? null;
-    if (doc) {
-      board = doc;
+    const limit = new AbortController();
+    const timer = setTimeout(() => limit.abort(), STALE_MS);
+    // Some steps of the read (the lock reads, locateCheckouts) do not take the signal.
+    const ended = new Promise<never>((_, reject) => limit.signal.addEventListener('abort', reject, { once: true }));
+    try {
+      board = await Promise.race([read(limit.signal), ended]);
       readAt = new Date(now()).toISOString();
-    } else if (isOtherContract) {
-      board = null;
-      readAt = null;
+      error = null;
+    } catch (cause) {
+      error = limit.signal.aborted
+        ? 'the issue read did not end in 60 seconds'
+        : firstLine(cause instanceof Error ? cause.message : String(cause)) || 'the issue read failed';
+    } finally {
+      clearTimeout(timer);
     }
   };
 
   const refresh = () => {
-    if (!config.data) return null;
     askedAt = now();
     pending ??= readData().finally(() => {
       pending = null;
@@ -256,7 +231,7 @@ export const createBoard = ({
     if (!isLocal) await readScreens(sessions);
     for (const session of sessions) session.screen = screens.get(session.sessionId);
     presses = activePresses(presses, sessions, board, now());
-    const placed = place({ sessions, board, presses, can });
+    const placed = place({ sessions, board, presses });
     const cards = Object.values(placed.columns).flat();
     const ids = new Set(cards.flatMap((card) => (card.sessionId ? [card.sessionId] : [])));
     const hasEnded = [...shown].some((id) => !ids.has(id));
@@ -279,9 +254,8 @@ export const createBoard = ({
       runner: board?.runner ?? null,
       agents: board?.agents ?? null,
       defaultAgent: board?.defaultAgent ?? null,
-      can,
       herdr: health,
-      source: { isSet: Boolean(config.data), readAt, error },
+      source: { readAt, error },
       repo: basename(main),
     };
   };
@@ -341,52 +315,42 @@ export const createBoard = ({
     await refresh();
   };
 
-  const runStep = async (number: number, agent?: unknown) => {
+  const requireEntry = async () => {
+    if (!(await adapter.hasEntry()))
+      throw new Refusal(409, 'the plugin version of this board was removed after an update; start the board again');
+  };
+
+  const runStep = async (number: number, choice?: unknown) => {
+    await requireEntry();
+    const isChoice = choice !== undefined && choice !== null;
+    const agent = isChoice ? choice : (board?.defaultAgent ?? null);
+    const members = board?.agents;
+    if (typeof agent !== 'string' || !/^[a-z]+$/.test(agent) || !members || !Object.hasOwn(members, agent))
+      throw new Refusal(
+        409,
+        isChoice ? `#${number} has no agent "${String(choice)}"` : `#${number} has no agent to run with`,
+      );
+    const member = members[agent] as { available: boolean; cause: string | null };
+    if (!member.available) throw new Refusal(409, cleanCause(member.cause));
     const card = await issueCardOf(number);
-    const needsAgent = config.run?.includes(AGENT) ?? false;
-    let effective: string | null = null;
-    if (agent !== undefined && agent !== null) {
-      if (!needsAgent) throw new Refusal(409, `#${number} has no agent "${String(agent)}"`);
-      if (typeof agent !== 'string' || !/^[a-z]+$/.test(agent))
-        throw new Refusal(409, `#${number} has no agent "${String(agent)}"`);
-      const members = board?.agents;
-      if (!board || !members || !Object.hasOwn(members, agent))
-        throw new Refusal(409, `#${number} has no agent "${agent}"`);
-      if (!(members[agent] as { available: boolean; cause: string | null }).available)
-        throw new Refusal(409, cleanCause((members[agent] as { available: boolean; cause: string | null }).cause));
-      effective = agent;
-    } else if (needsAgent) {
-      const def = board?.defaultAgent ?? null;
-      if (def === null) throw new Refusal(409, `#${number} has no agent to run with`);
-      const members = board?.agents;
-      if (!board || !members || !Object.hasOwn(members, def))
-        throw new Refusal(409, `#${number} has no agent to run with`);
-      if (!(members[def] as { available: boolean; cause: string | null }).available)
-        throw new Refusal(409, cleanCause((members[def] as { available: boolean; cause: string | null }).cause));
-      effective = def;
-    } else {
-      const def = board?.defaultAgent ?? null;
-      if (def !== null && board?.agents?.[def]?.available === false)
-        throw new Refusal(409, cleanCause(board.agents[def].cause));
-      effective = def;
-    }
     await press(number, card?.run, `#${number} has no step to start now`, () =>
       openTab({
         cwd: main,
         label: `#${number} ${(card as Card).step}`,
-        command: lineOf(config.run as Command, number, effective),
+        command: adapter.run(number, agent),
         isQuiet: true,
       }),
     );
   };
 
   const resume = async (number: number) => {
+    await requireEntry();
     const card = await issueCardOf(number);
     await press(number, card?.resume, `#${number} has no session to resume now`, () =>
       openTab({
         cwd: main,
         label: `#${number} ${(card as Card).step}`,
-        command: lineOf(config.resume as Command, number),
+        command: adapter.resume(number),
       }),
     );
   };
@@ -466,7 +430,7 @@ export const createBoard = ({
     } else if (path === '/api/go') {
       await go(String(input.sessionId));
     } else if (path === '/api/agent') {
-      throw new Refusal(409, 'The producer controls the default agent. Change it in the producer configuration.');
+      throw new Refusal(409, 'The main .celetis.yaml controls the default agent. Change host there.');
     } else {
       await refresh();
     }

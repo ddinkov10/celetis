@@ -1,4 +1,4 @@
-import type { Capability, Card, Column, Columns, Document, Flow, Issue, Placement, Session } from './types.ts';
+import type { Card, Column, Columns, Document, Flow, Issue, Placement, Session } from './types.ts';
 
 type Snapshot = {
   tabs: { tab_id: string; label?: string }[];
@@ -59,8 +59,8 @@ const issueCard = (issue: Issue, extra: Partial<Card>): Card => ({
   sessionId: null,
   number: issue.number,
   title: issue.title,
-  url: issue.url ?? null,
-  type: issue.type ?? null,
+  url: issue.url,
+  type: issue.type,
   agent: null,
   step: null,
   gate: null,
@@ -68,32 +68,26 @@ const issueCard = (issue: Issue, extra: Partial<Card>): Card => ({
   since: issue.updatedAt,
   act: null,
   reason: null,
-  urgent: issue.urgent === true,
+  urgent: issue.urgent,
   run: false,
   resume: false,
   go: false,
-  pr: issue.pr ?? null,
+  pr: issue.pr,
   ...extra,
 });
 
-const PLACERS: Record<Issue['state'], (issue: Issue, context: { flow: Flow; can: Capability }) => [Column, Card]> = {
+const PLACERS: Record<Issue['state'], (issue: Issue, context: { flow: Flow; isOpen: boolean }) => [Column, Card]> = {
   done: (issue) => ['done', issueCard(issue, { since: issue.closedAt as string })],
-  starting: (issue) => ['running', issueCard(issue, { step: issue.step ?? null, state: 'starts' })],
-  dirty: (issue) => ['needs', issueCard(issue, { step: issue.step ?? null, state: 'dirty-tree', act: issue.path })],
-  stuck: (issue, { can }) => [
+  starting: (issue) => ['running', issueCard(issue, { step: issue.step, state: 'starts' })],
+  dirty: (issue) => ['needs', issueCard(issue, { step: issue.step, state: 'dirty-tree', act: issue.path })],
+  stuck: (issue, { isOpen }) => [
     'needs',
-    issueCard(issue, {
-      step: issue.step as string,
-      state: 'no-progress',
-      act: issue.act ?? null,
-      run: can.run,
-      resume: can.resume,
-    }),
+    issueCard(issue, { step: issue.step, state: 'no-progress', act: issue.act, run: isOpen, resume: isOpen }),
   ],
-  blocked: (issue) => ['needs', issueCard(issue, { state: 'blocked', reason: issue.reason, act: issue.act ?? null })],
-  ready: (issue, { flow, can }) => [
-    issue.started === true || issue.urgent === true ? 'needs' : 'idle',
-    issueCard(issue, { step: issue.step as string, gate: gateOf(flow, issue.step as string), run: can.run }),
+  blocked: (issue) => ['needs', issueCard(issue, { state: 'blocked', reason: issue.reason, act: issue.act })],
+  ready: (issue, { flow, isOpen }) => [
+    issue.started || issue.urgent ? 'needs' : 'idle',
+    issueCard(issue, { step: issue.step, gate: gateOf(flow, issue.step), run: isOpen }),
   ],
 };
 
@@ -149,22 +143,16 @@ export const place = ({
   sessions,
   board,
   presses,
-  can,
 }: {
   sessions: Session[];
   board: Pick<Document, 'flow' | 'noRun' | 'issues'> | null;
   presses: Record<string, number>;
-  can: Capability;
 }): Placement => {
   const columns: Columns = { needs: [], running: [], idle: [], done: [] };
   const issues = board?.issues ?? [];
   const noRun = board?.noRun ?? null;
   const byNumber = new Map(issues.map((issue) => [issue.number, issue]));
   const busy = new Set(sessions.map((session) => session.issue));
-  const canFor = (issue: Issue) => {
-    const open = noRun === null && !(issue.number in presses);
-    return { run: can.run && open, resume: can.resume && open };
-  };
   const placed = [
     ...sessions.map((session) => placeSession(session, byNumber.get(session.issue as number))),
     ...issues
@@ -172,7 +160,7 @@ export const place = ({
       .map((issue) =>
         PLACERS[issue.state](issue, {
           flow: (board as Pick<Document, 'flow' | 'noRun' | 'issues'>).flow,
-          can: canFor(issue),
+          isOpen: noRun === null && !(issue.number in presses),
         }),
       ),
   ];

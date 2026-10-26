@@ -59,7 +59,7 @@ var STATUS_ICONS = {
   blocked: "person"
 };
 var FIND_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K";
-var DEFAULT_AGENT_REASON = "The producer controls the default agent. Change it in the producer configuration.";
+var DEFAULT_AGENT_REASON = "The main .celetis.yaml controls the default agent. Change host there.";
 var data = null;
 var selected = null;
 var view = store.get("view") === "pipeline" ? "pipeline" : "now";
@@ -224,7 +224,7 @@ var actionsOf = (card, key) => {
     });
   }
   const { noRun } = data;
-  if (noRun && data.can.run && canRunLater(card)) {
+  if (noRun && canRunLater(card)) {
     list.push({
       id: "blocked",
       label: "Run",
@@ -668,8 +668,6 @@ var drawStatus = (source, isDown) => {
   const text = el("span", "sb-text");
   if (isDown)
     text.append(SERVER_DOWN);
-  else if (!source.isSet)
-    text.append('no issue data: the config has no "data"');
   else if (source.error)
     text.append(`cannot read: ${source.error}`);
   else if (!source.readAt)
@@ -823,7 +821,7 @@ var layoutOf = (next) => JSON.stringify([
 ]);
 var last = "";
 var lastLayout = "";
-var source = { isSet: true, readAt: null, error: null };
+var source = { readAt: null, error: null };
 var hasRead = false;
 var timer = 0;
 async function load() {
@@ -835,15 +833,7 @@ async function load() {
       throw new Error(response.statusText);
     data = await response.json();
     hasRead = true;
-    const cards = JSON.stringify([
-      data.repo,
-      data.noRun,
-      data.flow,
-      data.tracker,
-      data.can,
-      data.source.isSet,
-      data.columns
-    ]);
+    const cards = JSON.stringify([data.repo, data.noRun, data.flow, data.tracker, data.columns]);
     if (cards !== last) {
       const layout = layoutOf(data);
       const isMove = lastLayout !== "" && layout !== lastLayout && !document.hidden;

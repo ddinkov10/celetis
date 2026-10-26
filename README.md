@@ -58,8 +58,8 @@ controls and applies only that skill's custom text.
 
 - macOS or Linux for the runner. Commands use Bun 1.4.2 or later. Native Windows is partly
   checked: the documented command form loads the launcher from Git Bash, and a numbered runner
-  start, the board data, and the update lock passed their checks. Other parts are open
-  ([Acceptance status](docs/celetis-flow.md#acceptance-status)).
+  start, the data of the board before #102, and the update lock passed their checks. Other parts
+  are open ([Acceptance status](docs/celetis-flow.md#acceptance-status)).
 - The selected host CLI: Claude Code 2.1.299 or later, or Codex CLI 0.162.1 or later. The Claude
   entry hook reads the `skill.prompt` fields `source`, `pluginName`, and `path`, which came in
   2.1.299; an older release stops each skill for hook setup. Codex 0.162.1 is the lowest release
@@ -902,10 +902,10 @@ and board form. Every skill call adds `--agent claude` or `--agent codex` before
 | `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree' '<n>'` | Makes the lane worktree and the branch of the issue, or enters the one that is there, and prints its path |
 | `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree' --remove <n>` | Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first |
 | `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' '<n>' '<subject>'` | Lands the change of the issue by the `landing` field of `.celetis.yaml`. It is the one landing path of an agent |
-| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'next-step' '<n>' \| --open \| --json` | The resolver: the next step of one issue, of each open issue, or the rows for the board |
-| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'board'` | Starts the board of the plugin (`engine/board/`) with the selected Bun, from the main YAML config; takes no arguments |
+| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'next-step' '<n>' \| --open` | The resolver: the next step of one issue, or of each open issue |
+| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'board'` | Starts the board of the plugin (`engine/board/`) with the selected Bun, from the main YAML config; takes no arguments. The board reads its data in its own process |
 | `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'capscore' J V B N S X` | Resolves the six digits. `--json` gives portable scores and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null |
-| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'celetis-flow' [<n>...] \| --board \| --resume <n>` | The runner: the next step of each number, or the automatic runner with no number. `--board` prints the data of the board, and `--resume` opens the session of a step with no progress again |
+| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'celetis-flow' [<n>...] \| --resume <n>` | The runner: the next step of each number, or the automatic runner with no number. `--resume` opens the session of a step with no progress again |
 | `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'root'` | Prints the root of the invoked package |
 | `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'plugin-update' check` | Read-only configured-source check; prints an exact offer JSON or `null` |
 | `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'plugin-update'` | Discovers the update, asks for terminal confirmation, and applies one exact target; sessions can stay open |
@@ -980,8 +980,8 @@ no workflow.
 
 ## The agent board
 
-The board is `engine/board/` of the plugin. It shows each agent session and the
-next step of each issue, and starts a step with one press. Start it in the main checkout or one
+The board is `engine/board/` of the plugin, a part of its engine. It shows each agent session and
+the next step of each issue, and starts a step with one press. Start it in the main checkout or one
 of its subfolders, then open the URL on its last line:
 
 ```bash
@@ -990,33 +990,40 @@ of its subfolders, then open the URL on its last line:
 ```
 
 The command takes no arguments. It validates the main checkout's `.celetis.yaml` and refuses a
-lane start before it starts the board. It binds fixed command arrays through the local
-`engine/board/adapter.ts` and `engine/board/start.ts` interfaces. These use the selected Bun and
-the same package's `bin/celetis.ts`. Generic stdin remains project-only. No config file is made.
-Only `board.port` comes from YAML; its default is 4403. `PORT` overrides it. This repository uses
-4404, so its board can run beside a board on 4403. Restart the board after a port change.
-For a plugin update, follow [Updates](#updates), including resource limits for open work.
+lane start before it starts the board. The fixed adapter `engine/board/adapter.ts` checks the
+selected Bun and the same package's `bin/celetis.ts` once, at the start. The start prints two
+lines: the main checkout and the URL. Each refresh reads the issue data in the board process,
+with the resolver and the locks of the engine and a fresh operation of the main checkout. So a
+change of `host` or `gates` in the main YAML shows at the next refresh. No config file is made.
+Only `board.port` comes from YAML at the start; its default is 4403. `PORT` overrides it. This
+repository uses 4404, so its board can run beside a board on 4403. Restart the board after a port
+change. For a plugin update, follow [Updates](#updates), including resource limits for open work,
+and start the board again for its new code.
 
-The producer prints contract 1. Its `agents` entries report executable availability for Claude
-and Codex. Sign-in, trust, and enabled plugin discovery need their own checks.
-A Run press passes the selected `{agent}` through `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<agent>' 'celetis-flow'
-<n>`. With no explicit choice, it uses `defaultAgent`: `CELETIS_AGENT`, then `host` in the main
-YAML, then `claude`. Set the project default in that YAML field. A Run choice changes only that
-start. The board's default-agent menu and command palette show `Default agent is read-only`.
-They show the reason: `The producer controls the default agent. Change it in the producer configuration.`
-Unknown or unavailable Run choices return 409 and start no agent.
-Resume uses `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'celetis-flow' --resume <n>` and the saved host and exact session ID,
-even after the YAML default changes. Each command item is one argument; the board quotes it
-before it sends the command to herdr.
+The `agents` entries of the data report executable availability for Claude and Codex. Sign-in,
+trust, and enabled plugin discovery need their own checks. A Run press types this line, with the
+selected agent, into a new herdr tab:
 
-Check issue data against contract 1 in the main checkout. `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'root'` prints
-`<plugin>`:
-
-```bash
-/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'celetis-flow' --board | bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/engine/board/cli.ts check --stdin
+```text
+'/usr/bin/env' 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0' 'DO_NOT_TRACK=1' '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<agent>' 'celetis-flow' <n> && exit
 ```
 
-`docs/celetis-flow.md`, "The board", gives the fixed command lists and card states.
+With no explicit choice, it uses `defaultAgent`: `CELETIS_AGENT`, then `host` in the main
+YAML, then `claude`. Set the project default in that YAML field. A Run choice changes only that
+start. The board's default-agent menu and command palette show `Default agent is read-only`.
+They show the reason: `The main .celetis.yaml controls the default agent. Change host there.`
+Unknown or unavailable Run choices return 409 and start no agent. A Resume press types this line,
+and the runner uses the saved host and exact session ID, even after the YAML default changes:
+
+```text
+'/usr/bin/env' 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0' 'DO_NOT_TRACK=1' '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' 'celetis-flow' '--resume' <n> && exit
+```
+
+On Windows, both lines are for Windows PowerShell 5.1, the default pane shell of herdr.
+When an update removed the package of a running board, Run and Resume return 409 and ask for a
+new start of the board.
+
+`docs/celetis-flow.md`, "The board", gives the data, the fixed lines, and the card states.
 [`engine/board/README.md`](engine/board/README.md) describes the page.
 Open work may stay open. Required CLI workflow
 acceptance remains open; optional desktop evidence is separate in

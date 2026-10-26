@@ -1,42 +1,39 @@
-export type Command = [string, ...string[]];
-export type Config = { data: Command | null; run: Command | null; resume: Command | null; port: number | null };
 export type Flow = {
   lanes: Record<string, string[]>;
   stages: { name: string; steps: string[] }[];
-  steps?: Record<string, { gate?: 'me' | 'auto' | null; hint?: string | null }> | null;
+  steps: Record<string, { gate: 'me' | 'auto'; hint?: string }>;
 };
 export type Pull = {
   number: number;
-  url?: string | null;
+  url: string;
   draft: boolean;
-  checks?: string | null;
-  review?: string | null;
+  checks: string | null;
+  review: string | null;
 };
 export type Issue = {
   number: number;
   title: string;
-  url?: string | null;
-  type?: string | null;
+  url: string;
+  type: string | null;
   state: 'ready' | 'starting' | 'stuck' | 'dirty' | 'blocked' | 'done';
-  step?: string | null;
-  started?: boolean | null;
-  urgent?: boolean | null;
+  step: string | null;
+  started: boolean;
+  urgent: boolean;
   updatedAt: string;
-  closedAt?: string | null;
-  path?: string | null;
-  reason?: string | null;
-  act?: string | null;
-  pr?: Pull | null;
+  closedAt: string | null;
+  path?: string;
+  reason: string | null;
+  act: string | null;
+  pr: Pull | null;
 };
 export type Document = {
-  contract: 1;
   tracker: string;
   flow: Flow;
-  noRun?: string | null;
-  runner?: boolean | null;
+  noRun: string | null;
+  runner: boolean;
   issues: Issue[];
-  agents?: Record<string, { available: boolean; cause: string | null }> | null;
-  defaultAgent?: string | null;
+  agents: Record<string, { available: boolean; cause: string | null }>;
+  defaultAgent: string;
 };
 export type Session = {
   sessionId: string;
@@ -76,17 +73,15 @@ export type Card = {
 };
 export type Column = 'needs' | 'running' | 'idle' | 'done';
 export type Columns = Record<Column, Card[]>;
-export type Capability = { run: boolean; resume: boolean };
 export type Placement = { noRun: string | null; columns: Columns };
 export type Board = Placement & {
   flow: Flow | null;
   tracker: string | null;
   runner: boolean | null;
-  agents: Document['agents'];
+  agents: Document['agents'] | null;
   defaultAgent: string | null;
-  can: Capability;
   herdr: { ok: boolean | null; error: string | null };
-  source: { isSet: boolean; readAt: string | null; error: string | null };
+  source: { readAt: string | null; error: string | null };
   repo: string;
 };
 export type Action = {

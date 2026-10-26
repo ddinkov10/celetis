@@ -1,15 +1,17 @@
 import { constants } from 'node:os';
+import type { Adapter } from './adapter.ts';
+import { readBoard } from './data.ts';
 import { createBoard, run } from './server.ts';
-import type { Config } from './types.ts';
 
-export async function startBoard(main: string, config: Config): Promise<number> {
-  const port = Number(process.env.PORT) || config.port || 4403;
+export async function startBoard(main: string, configured: number, adapter: Adapter): Promise<number> {
+  const port = Number(process.env.PORT) || configured;
   return new Promise<number>((done) => {
     const handlers = new Map<NodeJS.Signals, () => void>();
     const work = new AbortController();
     const server = createBoard({
       main,
-      config,
+      read: (signal) => readBoard(main, AbortSignal.any([signal, work.signal])),
+      adapter,
       exec: (file, args, options) => run(file, args, { ...options, signal: work.signal }),
     });
     const close = (status: number) => {
@@ -33,8 +35,6 @@ export async function startBoard(main: string, config: Config): Promise<number> 
     try {
       server.listen(port, '127.0.0.1', () => {
         console.log(`agent-board: repository ${main}`);
-        for (const key of ['data', 'run', 'resume'] as const)
-          if (config[key]) console.log(`agent-board: ${key.padEnd(8)}${config[key].join(' ')}`);
         console.log(`agent-board: http://127.0.0.1:${port}`);
       });
     } catch (cause) {

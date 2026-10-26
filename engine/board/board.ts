@@ -60,7 +60,7 @@ const STATUS_ICONS: Record<string, string> = {
   blocked: 'person',
 };
 const FIND_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K';
-const DEFAULT_AGENT_REASON = 'The producer controls the default agent. Change it in the producer configuration.';
+const DEFAULT_AGENT_REASON = 'The main .celetis.yaml controls the default agent. Change host there.';
 
 let data: Board | null = null;
 let selected: string | null = null;
@@ -248,7 +248,7 @@ const actionsOf = (card: Card, key: string): Action[] => {
     });
   }
   const { noRun } = data as Board;
-  if (noRun && (data as Board).can.run && canRunLater(card)) {
+  if (noRun && canRunLater(card)) {
     list.push({
       id: 'blocked',
       label: 'Run',
@@ -752,7 +752,6 @@ const drawStatus = (source: Board['source'], isDown: boolean) => {
   const name = data?.tracker ?? 'Issues';
   const text = el('span', 'sb-text');
   if (isDown) text.append(SERVER_DOWN);
-  else if (!source.isSet) text.append('no issue data: the config has no "data"');
   else if (source.error) text.append(`cannot read: ${source.error}`);
   else if (!source.readAt) text.append('no data yet');
   else text.append('read ', timed(source.readAt, false, ' ago'));
@@ -938,7 +937,7 @@ const layoutOf = (next: Board) =>
   ]);
 let last = '';
 let lastLayout = '';
-let source: Board['source'] = { isSet: true, readAt: null, error: null };
+let source: Board['source'] = { readAt: null, error: null };
 let hasRead = false;
 let timer: ReturnType<typeof setTimeout> | number = 0;
 
@@ -950,15 +949,7 @@ async function load() {
     if (!response.ok) throw new Error(response.statusText);
     data = (await response.json()) as Board;
     hasRead = true;
-    const cards = JSON.stringify([
-      data.repo,
-      data.noRun,
-      (data as Board).flow,
-      data.tracker,
-      (data as Board).can,
-      data.source.isSet,
-      (data as Board).columns,
-    ]);
+    const cards = JSON.stringify([data.repo, data.noRun, (data as Board).flow, data.tracker, (data as Board).columns]);
     if (cards !== last) {
       const layout = layoutOf(data);
       const isMove = lastLayout !== '' && layout !== lastLayout && !document.hidden;

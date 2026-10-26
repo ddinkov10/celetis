@@ -94,7 +94,7 @@ For installation changes, follow `README.md`, "Updates".
 
 `engine/board/` is the board of the plugin (ADR-0020). For a change there, follow these two rules:
 
-- Keep the trust boundaries of `engine/board/server.ts` and `engine/board/config.ts`.
+- Keep the trust boundaries of `engine/board/server.ts` and the fixed adapter `engine/board/adapter.ts`.
 - Check a UI change in Chromium at desktop width and at 375×812.
 
 ## External facts
@@ -116,11 +116,12 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
   Record checks of the checkout and checks of the installed package separately.
 - **A script file keeps its name.** `engine/<name>.ts` keeps the same sub-command basename.
   Skills, product instructions, board commands, and personal landing rules refer to that command.
-  On macOS and Linux, two basenames also identify lock owners. `engine/next-step.ts` accepts a
-  live landing only when its process command line contains `land.ts`; `engine/celetis-flow.ts`
-  accepts a runner only when it contains `celetis-flow.ts`. A rename makes a live owner look
-  stale. The runner can then end a session during landing, or two runners can take one issue.
-  On Windows, owners match by PID and creation time instead (ADR-0034).
+  On macOS and Linux, two basenames also identify lock owners. Through `processRunsScript`,
+  `engine/next-step.ts` accepts a live landing only when its process command line contains
+  `land.ts`, and `engine/lib/locks.ts` accepts a runner only when it contains `celetis-flow.ts`.
+  A rename makes a live owner look stale. The runner can then end a session during landing, or
+  two runners can take one issue. On Windows, owners match by PID and creation time instead
+  (ADR-0034).
 - **The act of a skill that moves the line of the issue is its last act.** In a herdr pane, the
   runner types `/exit` when the agent is idle and the resolver prints a new line for the issue
   (`endWhenDone` in `engine/celetis-flow.ts`). A label, a comment with a heading that the

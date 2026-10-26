@@ -72,7 +72,7 @@ type Described = {
 };
 
 const usage =
-  'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step <issue number> | --open | --json, e.g. BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step 276';
+  'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step <issue number> | --open, e.g. BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step 276';
 const unreadable: Observed = { kind: 'observed', reason: 'unreadable' };
 
 function malformed(): Error {
@@ -211,7 +211,7 @@ export function jsonRow(row: BoardRow): JsonRow {
 function request(args: string[]): { arg: string; n: string } | null {
   const arg = args[0] ?? '';
   const n = arg.replace(/^#/, '');
-  return args.length === 1 && (arg === '--open' || arg === '--json' || /^\d+$/.test(n)) ? { arg, n } : null;
+  return args.length === 1 && (arg === '--open' || /^\d+$/.test(n)) ? { arg, n } : null;
 }
 
 export async function main(argv: string[]): Promise<number> {
@@ -421,7 +421,7 @@ export async function nextOpen(
 
 export async function nextBoard(
   operation: Operation,
-  signal?: AbortSignal,
+  signal: AbortSignal,
 ): Promise<{ data: { noRun: string | null; rows: readonly BoardRow[] } | null; stderr: string }> {
   const read = reader(operation, signal);
   const { value, stderr } = await read.settle<{ noRun: string | null; rows: readonly BoardRow[] } | null>(
@@ -477,12 +477,6 @@ async function resolveNext(
   { arg, n }: { arg: string; n: string },
   operation: Operation,
 ): Promise<{ code: number; stdout: string; stderr: string }> {
-  if (arg === '--json') {
-    const { data, stderr } = await nextBoard(operation);
-    if (!data) return { code: 1, stdout: 'stop cannot read the issues from GitHub\n', stderr };
-    const document = { noRun: data.noRun, issues: data.rows.map(jsonRow) };
-    return { code: 0, stdout: `${JSON.stringify(document, null, 2)}\n`, stderr };
-  }
   if (arg === '--open') {
     const { rows, stderr } = await nextOpen(operation);
     if (!rows) return { code: 1, stdout: 'stop cannot read the open issues from GitHub\n', stderr };
