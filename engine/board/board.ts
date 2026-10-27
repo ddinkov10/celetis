@@ -25,6 +25,7 @@ import {
   groupNeeds,
   keyOf,
   laneTrack,
+  needsYou,
   notice,
   pageTitle,
   pipeline,
@@ -74,7 +75,8 @@ let focusNext: string | null = null;
 let byKey = new Map<string, { card: Card; column: Column }>();
 let used = new Set<string>();
 
-const who = (card: Card) => (card.number === null ? 'the session' : `#${card.number}`);
+const who = (card: Card) =>
+  card.number === null ? (card.title ? `human session "${card.title}"` : 'a human session') : `#${card.number}`;
 const canRunLater = (card: Card) =>
   card.sessionId === null && card.step && (card.state === null || card.state === 'no-progress');
 const copyWhat = (card: Card) => (card.act ? COPY[card.state as string] : null);
@@ -417,14 +419,14 @@ const shell = (card: Card, column: Column, isCompact: boolean, level: 'h2' | 'h3
   node.style.viewTransitionName = key;
   if (card.url) node.dataset.url = card.url;
   if (seen !== null && seen.get(key) !== signature(card, column)) node.classList.add('is-unseen');
-  const text = card.title || (card.number === null ? 'A session with no prompt yet' : `Issue #${card.number}`);
+  const text = card.title || `Issue #${card.number}`;
   const title = el(level, 'title');
   title.id = `t-${key}`;
   title.title = text;
   title.append(link('', text, card.url));
   title.querySelector<HTMLElement>('a')?.addEventListener('click', (event) => event.stopPropagation());
   node.setAttribute('aria-labelledby', title.id);
-  const id = card.number === null ? el('span', 'num none', 'no issue') : link('num', `#${card.number}`, card.url);
+  const id = link('num', `#${card.number}`, card.url);
   id.addEventListener('click', (event) => event.stopPropagation());
   return { key, node, title, id };
 };
@@ -605,16 +607,14 @@ const pipelineView = (columns: Columns, flow: Flow | null) => {
     ...columns.running.map((c): [Card, Column] => [c, 'running']),
     ...columns.idle.map((c): [Card, Column] => [c, 'idle']),
   ]);
-  const { stages, hold, loose } = pipeline(cards, flow);
+  const { stages, hold } = pipeline(cards, flow);
   const sections = [];
-  if (hold.length || loose.length) {
+  if (hold.length) {
     const strip = el('section', 'col hold');
     strip.setAttribute('aria-label', 'Not in a lane step');
     const label = el('h2', 'hold-label', 'Not in a step');
     const list = el('div', 'hold-list');
-    list.append(
-      ...[...hold, ...loose].map((card: Card) => drawCard(card, where.get(card) as Column, { isCompact: true })),
-    );
+    list.append(...hold.map((card: Card) => drawCard(card, where.get(card) as Column, { isCompact: true })));
     strip.append(label, list);
     sections.push(strip);
   }
@@ -646,17 +646,55 @@ const focusFirst = (selector: string) => {
 
 const summary = (columns: Columns) =>
   SUMMARY.map(([key, label]) => {
+    const count = key === 'needs' ? needsYou(columns).length : columns[key].length;
     const chip = el('button', `chip chip-${key}`);
     chip.type = 'button';
-    chip.classList.toggle('hot', key === 'needs' && columns.needs.length > 0);
-    chip.append(el('i', 'dot'), el('b', '', String(columns[key].length)), el('span', '', label));
+    chip.classList.toggle('hot', key === 'needs' && count > 0);
+    chip.append(el('i', 'dot'), el('b', '', String(count)), el('span', '', label));
     chip.addEventListener('click', () => {
       if (key === 'done') return setArchive(true);
       if (view !== 'now') setView('now');
-      focusFirst(`#col-${key} .card, #col-${key} .empty`);
+      focusFirst(
+        `${key === 'needs' ? '.human-pill[data-wait="dialog"] .human-open, ' : ''}#col-${key} .card, #col-${key} .empty`,
+      );
     });
     return chip;
   });
+
+const humanPill = (card: Card) => {
+  const key = keyFor(card);
+  byKey.set(key, { card, column: 'human' });
+  const pill = el('div', 'human-pill');
+  pill.dataset.state = card.state ?? '';
+  pill.dataset.wait = card.waitFor ?? '';
+  const open = el('button', `human-open${key === selected ? ' is-selected' : ''}`);
+  open.type = 'button';
+  open.dataset.key = key;
+  open.title = 'Show the details and the screen of this session';
+  open.append(
+    mark(card),
+    el('span', 'human-name', card.title || 'A session'),
+    el('i', 'human-dot'),
+    el('span', 'human-state', stateLabel(card) as string),
+    timed(card.since, true),
+  );
+  open.addEventListener('click', () => (selected === key ? closePanel() : openPanel(key)));
+  const [go] = actionsOf(card, key) as [Action];
+  pill.append(
+    open,
+    iconButton('go', go.name, () => go.run?.(), 'human-go'),
+  );
+  return pill;
+};
+
+const drawHuman = (cards: Card[]) => {
+  const strip = $('human');
+  strip.hidden = cards.length === 0;
+  strip.replaceChildren(
+    ...(cards.length ? [Object.assign(el('h2', 'hold-label', 'Human sessions'), { id: 'human-title' })] : []),
+    ...cards.map(humanPill),
+  );
+};
 
 let done: Card[] = [];
 const drawArchive = () => {
@@ -840,8 +878,9 @@ const drawPanelFor = () => {
 const openPanel = (key: string) => {
   if (!byKey.has(key)) return;
   selected = key;
-  for (const node of document.querySelectorAll<HTMLElement>('.card.is-selected')) node.classList.remove('is-selected');
-  document.querySelector<HTMLElement>(`.card[data-key="${CSS.escape(key)}"]`)?.classList.add('is-selected');
+  for (const node of document.querySelectorAll<HTMLElement>('[data-key].is-selected'))
+    node.classList.remove('is-selected');
+  document.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`)?.classList.add('is-selected');
   document.body.classList.add('has-panel');
   $('panel').hidden = false;
   drawPanelFor();
@@ -856,19 +895,23 @@ function closePanel() {
   document.body.classList.remove('has-panel');
   $('panel').hidden = true;
   $('panel').replaceChildren();
-  for (const node of document.querySelectorAll<HTMLElement>('.card.is-selected')) node.classList.remove('is-selected');
-  if (key) document.querySelector<HTMLElement>(`.card[data-key="${CSS.escape(key)}"]`)?.focus({ preventScroll: true });
+  for (const node of document.querySelectorAll<HTMLElement>('[data-key].is-selected'))
+    node.classList.remove('is-selected');
+  if (key) document.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`)?.focus({ preventScroll: true });
   updateTail();
 }
 
 const drawBoard = (next: Board) => {
-  const focused = (document.activeElement as HTMLElement | null)?.closest?.<HTMLElement>('[data-key]')?.dataset.key;
+  const active = document.activeElement as HTMLElement | null;
+  const holder = active?.closest?.<HTMLElement>('.human-pill, [data-key]');
+  const focused = (holder?.querySelector<HTMLElement>('[data-key]') ?? holder)?.dataset.key;
   const target = focusNext ?? focused;
+  const isGo = Boolean(active?.matches?.('.human-go'));
   focusNext = null;
   used = new Set();
   byKey = new Map();
   const needs = next.columns.needs.length;
-  document.title = pageTitle(next.repo, needs);
+  document.title = pageTitle(next.repo, needsYou(next.columns).length);
   $('favicon').href = favicon(tone(next.columns));
   $('repo').textContent = next.repo;
   $('refresh').title = `${readAgain()} (r)`;
@@ -887,17 +930,22 @@ const drawBoard = (next: Board) => {
       ? pipelineView(next.columns, next.flow)
       : COLUMNS.map((spec) => column(spec, next.columns[spec.key]))),
   );
+  drawHuman(next.columns.human);
   board.setAttribute('aria-busy', 'false');
   if (seen === null) {
     seen = new Map();
     markAllSeen();
   }
-  notify(next.columns.needs);
+  notify(needsYou(next.columns));
   if (selected) {
     if (byKey.has(selected)) drawPanelFor();
     else closePanel();
   }
-  if (target) document.querySelector<HTMLElement>(`[data-key="${CSS.escape(target)}"]`)?.focus({ preventScroll: true });
+  if (target) {
+    const node = document.querySelector<HTMLElement>(`[data-key="${CSS.escape(target)}"]`);
+    const go = isGo ? node?.closest('.human-pill')?.querySelector<HTMLElement>('.human-go') : null;
+    (go ?? node)?.focus({ preventScroll: true });
+  }
   drawHints((document.activeElement as HTMLElement | null)?.closest?.<HTMLElement>('.card[data-key]') ?? null);
   updateTail();
 };
@@ -1025,6 +1073,7 @@ const paletteItems = () => {
     ['needs', 'Needs you'],
     ['running', 'Running'],
     ['idle', 'Run the next step'],
+    ['human', 'Human sessions'],
   ] as [Column, string][]) {
     for (const card of (data as Board).columns[column]) {
       const key = [...byKey].find(([, entry]) => entry.card === card)?.[0] ?? keyOf(card);

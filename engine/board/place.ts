@@ -104,7 +104,7 @@ const placeSession = (session: Session, issue: Issue | undefined): [Column, Card
     ? (STATUSES[session.status] as [Column, string, string | null])
     : (STATUSES.unknown as [Column, string, string | null]);
   return [
-    column,
+    session.issue === null ? 'human' : column,
     {
       sessionId: session.sessionId,
       number: session.issue,
@@ -137,6 +137,9 @@ const ORDER: Record<Column, (a: Card, b: Card) => number> = {
   running: (a, b) => time(b.since) - time(a.since),
   idle: (a, b) => (b.number as number) - (a.number as number),
   done: (a, b) => time(b.since) - time(a.since),
+  human: (a, b) =>
+    a.title.localeCompare(b.title, undefined, { numeric: true }) ||
+    (a.sessionId as string).localeCompare(b.sessionId as string),
 };
 
 export const place = ({
@@ -148,7 +151,7 @@ export const place = ({
   board: Pick<Document, 'flow' | 'noRun' | 'issues'> | null;
   presses: Record<string, number>;
 }): Placement => {
-  const columns: Columns = { needs: [], running: [], idle: [], done: [] };
+  const columns: Columns = { needs: [], running: [], idle: [], done: [], human: [] };
   const issues = board?.issues ?? [];
   const noRun = board?.noRun ?? null;
   const byNumber = new Map(issues.map((issue) => [issue.number, issue]));

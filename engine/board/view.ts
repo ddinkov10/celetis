@@ -4,7 +4,7 @@ export const COLUMNS: { key: Column; name: string; note: string; empty: [string,
     key: 'needs',
     name: 'Needs you',
     note: 'Answer, unblock, or run the next step',
-    empty: ['Nothing needs you', 'No agent waits, and no step is stuck.'],
+    empty: ['No issue needs you', 'No agent of an issue waits, and no step is stuck.'],
   },
   {
     key: 'running',
@@ -114,8 +114,14 @@ export const signature = (card: Card, column: string) => [column, card.state, ca
 
 export const pageTitle = (repo: string, needs: number) => `${needs > 0 ? `(${needs}) ` : ''}${repo} · Agent board`;
 
+// The chip, title, tab icon, and Notify count this list; the Needs you column counts only columns.needs (#142).
+export const needsYou = (columns: Columns) => [
+  ...columns.human.filter((card) => card.waitFor === 'dialog'),
+  ...columns.needs,
+];
+
 export const tone = (columns: Columns) => {
-  if (columns.needs.length > 0) return 'needs';
+  if (needsYou(columns).length > 0) return 'needs';
   return columns.running.some((card) => card.state === 'works') ? 'works' : 'calm';
 };
 
@@ -129,7 +135,8 @@ export const favicon = (badge: string) => {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 };
 
-const who = (card: Card) => (card.number === null ? 'A session' : `#${card.number}`);
+const who = (card: Card) =>
+  card.number === null ? (card.title ? `Human session "${card.title}"` : 'A human session') : `#${card.number}`;
 
 const NOTICES: Record<string, (card: Card) => string | null> = {
   waits: (card) => (card.waitFor === 'turn' ? 'ended its turn' : 'waits for your answer'),
@@ -175,18 +182,13 @@ export const prFacts = (pr: Pull | null | undefined): { kind: string; text: stri
     : [];
 
 export const pipeline = (cards: Card[], flow: Partial<Flow> | null | undefined) => {
-  const issues = cards.filter((card) => card.number !== null);
   const stages = (flow?.stages ?? []).map((stage, index) => ({
     ...stage,
     key: index,
-    cards: issues.filter((card) => stage.steps.includes(card.step as string)),
+    cards: cards.filter((card) => stage.steps.includes(card.step as string)),
   }));
   const placed = new Set(stages.flatMap((stage) => stage.cards));
-  return {
-    stages,
-    hold: issues.filter((card) => !placed.has(card)),
-    loose: cards.filter((card) => card.number === null),
-  };
+  return { stages, hold: cards.filter((card) => !placed.has(card)) };
 };
 
 export const filterItems = <T extends { number: number | null; label: string; context?: string }>(
@@ -200,6 +202,7 @@ export const filterItems = <T extends { number: number | null; label: string; co
     const found = items.filter((item) => item.number !== null && String(item.number).startsWith(number));
     return [
       ...found.filter((item) => String(item.number) === number),
+      ...items.filter((item) => item.number === null && item.context === text),
       ...found.filter((item) => String(item.number) !== number),
     ];
   }

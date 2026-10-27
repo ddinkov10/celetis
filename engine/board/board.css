@@ -476,6 +476,7 @@ kbd {
 .banner.warn::before {
   background: var(--amber);
 }
+body[data-stale] .human,
 body[data-stale] .work {
   opacity: 0.55;
   filter: saturate(0.4);
@@ -1255,6 +1256,89 @@ a.chip2:hover {
 }
 .hold .card {
   width: 340px;
+}
+.human {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px var(--gutter) 0;
+  padding: 6px 8px 6px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.human .hold-label {
+  margin-right: 6px;
+}
+.human-pill {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: var(--raise);
+}
+.human-pill:hover {
+  background: var(--card-hover);
+}
+.human-pill[data-wait="dialog"] {
+  border-color: color-mix(in srgb, var(--needs-tint) 55%, transparent);
+  background: color-mix(in srgb, var(--needs-tint) 8%, var(--card));
+}
+.human-pill:has(.is-selected) {
+  border-color: color-mix(in srgb, var(--focus) 70%, transparent);
+}
+.human-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 100%;
+  padding: 0 6px 0 7px;
+  border: 0;
+  border-radius: 8px 0 0 8px;
+  background: transparent;
+  color: var(--fg3);
+  font: 500 12.5px / 1 var(--sans);
+  white-space: nowrap;
+}
+.human-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+  color: var(--fg);
+}
+.human-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fg3);
+}
+.human-pill[data-state="works"] .human-dot {
+  background: var(--working);
+}
+.human-pill[data-state="works"] .human-state {
+  color: var(--working);
+}
+.human-pill[data-wait="dialog"] .human-dot {
+  background: var(--needs);
+}
+.human-pill[data-wait="dialog"] .human-state {
+  color: var(--needs);
+}
+.human-open .time {
+  font: 400 11.5px / 1 var(--mono);
+}
+.human-go {
+  width: 26px;
+  height: 26px;
+  margin-right: 2px;
 }
 .stage .col-head {
   height: 44px;
@@ -2457,5 +2541,23 @@ a.fin-title:hover {
     right: 12px;
     left: 12px;
     width: auto;
+  }
+}
+@media (max-width: 719px) {
+  .human {
+    margin-inline: 12px;
+    padding: 8px;
+    gap: 6px;
+  }
+  .human .hold-label {
+    flex-basis: 100%;
+    margin: 2px 0 2px 6px;
+  }
+  .human-pill {
+    height: 40px;
+  }
+  .human-go {
+    width: 36px;
+    height: 36px;
   }
 }

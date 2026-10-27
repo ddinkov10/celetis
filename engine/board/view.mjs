@@ -4,7 +4,7 @@ var COLUMNS = [
     key: "needs",
     name: "Needs you",
     note: "Answer, unblock, or run the next step",
-    empty: ["Nothing needs you", "No agent waits, and no step is stuck."]
+    empty: ["No issue needs you", "No agent of an issue waits, and no step is stuck."]
   },
   {
     key: "running",
@@ -98,8 +98,12 @@ var age = (iso, now, isFine = false) => {
 var keyOf = (card) => `k-${String(card.number ?? card.sessionId).replace(/[^\w-]/g, "-")}`;
 var signature = (card, column) => [column, card.state, card.step, card.waitFor].join("|");
 var pageTitle = (repo, needs) => `${needs > 0 ? `(${needs}) ` : ""}${repo} · Agent board`;
+var needsYou = (columns) => [
+  ...columns.human.filter((card) => card.waitFor === "dialog"),
+  ...columns.needs
+];
 var tone = (columns) => {
-  if (columns.needs.length > 0)
+  if (needsYou(columns).length > 0)
     return "needs";
   return columns.running.some((card) => card.state === "works") ? "works" : "calm";
 };
@@ -109,7 +113,7 @@ var favicon = (badge) => {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#18181B"/><rect x="7" y="7" width="7.5" height="18" rx="2.25" fill="#EEEEF0"/><rect x="17.5" y="7" width="7.5" height="11" rx="2.25" fill="#EEEEF0"/>${dot}</svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 };
-var who = (card) => card.number === null ? "A session" : `#${card.number}`;
+var who = (card) => card.number === null ? card.title ? `Human session "${card.title}"` : "A human session" : `#${card.number}`;
 var NOTICES = {
   waits: (card) => card.waitFor === "turn" ? "ended its turn" : "waits for your answer",
   "no-progress": () => "made no progress",
@@ -139,18 +143,13 @@ var prFacts = (pr) => pr ? [
   ...REVIEWS[pr.review] ? [{ kind: `review-${pr.review}`, text: REVIEWS[pr.review] }] : []
 ] : [];
 var pipeline = (cards, flow) => {
-  const issues = cards.filter((card) => card.number !== null);
   const stages = (flow?.stages ?? []).map((stage, index) => ({
     ...stage,
     key: index,
-    cards: issues.filter((card) => stage.steps.includes(card.step))
+    cards: cards.filter((card) => stage.steps.includes(card.step))
   }));
   const placed = new Set(stages.flatMap((stage) => stage.cards));
-  return {
-    stages,
-    hold: issues.filter((card) => !placed.has(card)),
-    loose: cards.filter((card) => card.number === null)
-  };
+  return { stages, hold: cards.filter((card) => !placed.has(card)) };
 };
 var filterItems = (items, query) => {
   const text = query.trim().toLowerCase();
@@ -161,6 +160,7 @@ var filterItems = (items, query) => {
     const found = items.filter((item) => item.number !== null && String(item.number).startsWith(number));
     return [
       ...found.filter((item) => String(item.number) === number),
+      ...items.filter((item) => item.number === null && item.context === text),
       ...found.filter((item) => String(item.number) !== number)
     ];
   }
@@ -182,6 +182,7 @@ export {
   groupNeeds,
   keyOf,
   laneTrack,
+  needsYou,
   notice,
   pageTitle,
   pipeline,

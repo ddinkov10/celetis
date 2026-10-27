@@ -71,7 +71,7 @@ export type Card = {
   cwd?: string | null;
   diff?: Diff | null;
 };
-export type Column = 'needs' | 'running' | 'idle' | 'done';
+export type Column = 'needs' | 'running' | 'idle' | 'done' | 'human';
 export type Columns = Record<Column, Card[]>;
 export type Placement = { noRun: string | null; columns: Columns };
 export type Board = Placement & {

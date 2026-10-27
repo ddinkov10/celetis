@@ -171,7 +171,8 @@ The next good read clears the line.
 
 ## The cards
 
-The page has three columns, Needs you, Running, and Idle, and a Done list.
+The page has three columns, Needs you, Running, and Idle, a strip of human sessions above them, and
+a Done list.
 
 **The sessions.** A session is an agent that herdr found in a pane, whose folder is the main
 checkout folder itself, or a lane worktree or a folder in it. That folder is the folder of its
@@ -183,7 +184,9 @@ Run and Resume give each tab that label, and a tab that you name by hand links i
 time of a session state is the time when the server first saw that state.
 
 A session makes one card, from the state that herdr gives its agent. The main button of a session
-card is Go.
+card is Go. A session with no issue is a human session: a tab that you started yourself. It has no
+card in a column: the strip Human sessions shows it with the same state ("The layout"). The table
+gives the column of a session of an issue.
 
 | herdr state | Column | State on the card |
 |---|---|---|
@@ -194,8 +197,8 @@ card is Go.
 
 The state of a session wins over the state of its issue, and an issue with a session has no card of
 its own. Two sessions of one issue make two cards. A session card shows the title, the type, the
-link, and the pull request of the row of its issue. A session with no issue, and a session whose
-issue has no row, show the label of the tab as the title, with no link and no type.
+link, and the pull request of the row of its issue. A human session, and a session whose issue has
+no row, show the label of the tab as the title, with no link and no type.
 
 **The issues.** Each row with no session makes one card, from its `state`:
 
@@ -217,6 +220,8 @@ issue has no row, show the label of the tab as the title, with no link and no ty
 
 **The order.** Needs you has the urgent cards first, then the dialogs, then the longest wait first.
 Running has the newest first, Idle has the highest number first, and Done has the last close first.
+Human sessions has the order of the tab labels, with numbers in numeric order, and two sessions with
+one label in the order of their herdr agent ids.
 
 **After a press** of Run or Resume, the card has no Run and no Resume for 30 seconds, or until a row
 with the state `starting` or a session of the issue shows. So a second press does not open a second
@@ -406,7 +411,17 @@ SIL Open Font License 1.1), so it loads nothing from the network.
 - The header holds the folder name, the switch between Now and Pipeline, the count of each column
   and of Done, the search, and Refresh. The title of the browser tab is
   `(<n>) <folder> · Agent board` while `<n>` cards need you, and the tab icon has an orange dot
-  then; it has a blue dot while an agent works and nothing needs you.
+  then; it has a blue dot while an agent of an issue works and nothing needs you.
+- Human sessions is a strip between the header and the columns, in Now and in Pipeline. Each human
+  session is one item: the letter of the agent, the label of the tab, the state with its age, and
+  Go. A tab with an empty label shows `A session` on its item and as the title of its details. A
+  press on an item opens its details. The strip is hidden while no human session runs. A human
+  session needs you only while herdr finds a dialog in it (`blocked`): then its item is orange, and
+  the `need you` count in the header, the title of the browser tab, the dot of the tab icon, and
+  Notify count it. A press on the `need you` count focuses that item first. The column Needs you
+  and its count hold only issue work, so the header can count more than the column, and an empty
+  Needs you reads `No issue needs you`. `turn ended`, `works`, and `state unknown` need nothing
+  from you.
 - Now shows the three columns. Needs you groups its cards by reason, in this order: Waits for your
   answer, Stuck (no progress, a dirty tree), Your input on the issue (the `blocked` cards), and
   Ready to run. The first two groups show full cards, and the last two show one row for each card,
@@ -425,9 +440,9 @@ SIL Open Font License 1.1), so it loads nothing from the network.
 - A press on a card, or `Space`, opens its details in place of Idle: for a session, the last 16
   lines of its pane (with no empty line, rule, or box border), so you can read the dialog or the end
   of the answer; the lane steps, with `auto` on a step whose gate is `auto`; the pull request, the
-  folder, and the lines changed. A waiting session shows its lines at the top, beside Go. `Esc`
-  closes the details. Below 1100 px the details cover the right side of the page, and below 720 px
-  the whole page.
+  folder, and the lines changed. A waiting session shows its lines at the top, beside Go, except a
+  human session whose turn ended. `Esc` closes the details. Below 1100 px the details cover the
+  right side of the page, and below 720 px the whole page.
 - A card that changed since you last looked at the board has a dot, until you point at it or focus
   it. The board takes the cards as seen when its window loses the focus.
 - The status bar shows when the board last read the data, with the name of the tracker (`Issues`
@@ -437,12 +452,12 @@ SIL Open Font License 1.1), so it loads nothing from the network.
 - Notify: the first press asks the browser for permission. Then each card that enters Needs you
   shows a system notification while the board is not in front: `#<n> waits for your answer`,
   `#<n> ended its turn`, `#<n> made no progress`, `#<n> has a dirty worktree`, `#<n> <reason>` for a
-  `blocked` card, and `#<n> is ready to run <step>`, with the title of the issue. A press on the
-  notification opens the details of the card. A screen reader hears each card that enters Needs
-  you.
+  `blocked` card, and `#<n> is ready to run <step>`, with the title of the issue. A human session
+  that starts to wait for your answer shows `Human session "<label>" waits for your answer`, or
+  `A human session waits for your answer` when its tab has an empty label. A press on the
+  notification opens the details of the card. A screen reader hears each card that enters Needs you.
 - Pipeline has one column for each item of `flow.stages`, in order, and it shows each issue at its
-  step. A strip at the top, Not in a step, holds the issues whose step is in no stage and the
-  sessions with no issue.
+  step. A strip at the top, Not in a step, holds the issues whose step is in no stage.
 - When a request of the page fails, the cards of the last good read stay, dimmed, under the message
   `The board server does not answer. The cards show the last good read.`
 - A card that changes its column moves to its new place. The page shows no motion when the OS asks
@@ -453,15 +468,16 @@ SIL Open Font License 1.1), so it loads nothing from the network.
 - The page keeps three choices in the storage of the browser: the view, the Notify switch, and the
   switch of the single-key shortcuts. A board on another port has its own choices.
 
-**The keys.** `⌘K` (`Ctrl K` off macOS) or `/` opens the search: it lists what needs you first,
-then the running cards, the steps that can start, the Done issues, and the commands of the board,
-and `#<n>` jumps to an issue. `j` and `k` move to the next or the previous card, `h` and `l` to the
-column on the left or the right; `Enter` presses the main button of the card, `Space` opens its
-details, `m` opens all its actions, `o` opens the issue, and `c` copies the command or the path of
-the card. `v` changes between Now and Pipeline, `d` shows or hides Done, `r` reads the issues again,
-and `?` shows the list. The list has a switch that turns the single-key shortcuts off; the keys of a
-focused card always work, and the arrow keys move from a focused card as `h`, `j`, `k`, and `l` do.
-After a Run press the focus moves to the next card of Needs you.
+**The keys.** `⌘K` (`Ctrl K` off macOS) or `/` opens the search: it lists the issue work that needs
+you first, then the running cards, the steps that can start, the human sessions (a waiting one
+too), the Done issues, and the commands of the board. `#<n>` jumps to an issue, and `<n>` alone also
+finds a human session whose tab label is `<n>`. `j` and `k` move to the next or the previous card,
+`h` and `l` to the column on the left or the right; `Enter` presses the main button of the card,
+`Space` opens its details, `m` opens all its actions, `o` opens the issue, and `c` copies the
+command or the path of the card. `v` changes between Now and Pipeline, `d` shows or hides Done, `r`
+reads the issues again, and `?` shows the list. The list has a switch that turns the single-key
+shortcuts off; the keys of a focused card always work, and the arrow keys move from a focused card
+as `h`, `j`, `k`, and `l` do. After a Run press the focus moves to the next card of Needs you.
 
 After the first good read, the page writes the name of the tracker in its texts:
 `Open the issue on <tracker>` and `Read <tracker> again`. Before that read, and in the list of keys,
@@ -536,7 +552,7 @@ Of the cards and the page:
 - The board does not show the `step` of a `blocked` row: such a card is in Not in a step of Pipeline
   and has no lane track.
 - Before the first good read, Pipeline has no stage column: the strip Not in a step holds each
-  session.
+  session of an issue.
 - Two presses on one issue through two controls can make two tabs when the `git diff` of a session
   folder is slower than the start of a session. One press at a time is safe.
 - A start of the server forgets the times of the Run and Resume presses.

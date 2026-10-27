@@ -137,11 +137,12 @@ export const drawPanel = (
   { actions, flow, on, close }: { actions: Action[]; flow: Flow | null; on: string; close: () => void },
 ) => {
   const { state } = card;
+  const asks = state === 'waits' && (card.number !== null || card.waitFor === 'dialog');
   const head = el('div', 'panel-head');
   const crumbs = el('div', 'crumbs');
   crumbs.append(
     mark(card),
-    card.number === null ? el('span', 'num none', 'no issue') : link('num', `#${card.number}`, card.url),
+    card.number === null ? el('span', 'num none', 'human session') : link('num', `#${card.number}`, card.url),
   );
   for (const part of [card.type, card.step === card.type ? null : card.step])
     if (part) crumbs.append(el('span', 'sep', '·'), el('span', '', part));
@@ -160,15 +161,11 @@ export const drawPanel = (
   head.append(iconButton('close', 'Close the details (Esc)', close));
 
   const top = el('div', 'panel-top');
-  const title = el(
-    'h2',
-    'panel-title',
-    card.title || (card.number === null ? 'A session with no prompt yet' : `Issue #${card.number}`),
-  );
+  const title = el('h2', 'panel-title', card.title || (card.number === null ? 'A session' : `Issue #${card.number}`));
   title.id = 'panel-title';
   const line = el('div', 'panel-state');
   if (state) {
-    const pill = el('span', `pill pill-${TONES[state] ?? 'muted'}`);
+    const pill = el('span', `pill pill-${(state !== 'waits' || asks ? TONES[state] : null) ?? 'muted'}`);
     pill.append(icon(PILL_ICONS[state] ?? 'pending'), el('span', 'pill-label', stateLabel(card)));
     line.append(pill);
   } else {
@@ -181,7 +178,7 @@ export const drawPanel = (
 
   const body = el('div', 'panel-body');
   body.append(top);
-  if (card.state === 'waits') body.append(ask(card, actions));
+  if (asks) body.append(ask(card, actions));
   else if (actions.length) {
     const row = el('div', 'panel-actions');
     row.append(...actions.map((action) => actionButton(action)));
@@ -207,7 +204,7 @@ export const drawPanel = (
         card.act && !COPIES[card.state as string] && ['Your act', card.act],
         ['Updated', `${clock(card.since)}`],
       ];
-  const pane = isSession && card.state !== 'waits' ? screen(card) : null;
+  const pane = isSession && !asks ? screen(card) : null;
   body.append(
     ...[
       pr(card),
