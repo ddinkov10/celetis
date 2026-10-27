@@ -789,6 +789,100 @@ request. The two compound commands and the two shell injections ran in the sandb
 skill, and a Codex step session with the personal rule in the user configuration, are open
 runtime checks.
 
+**Historical hook-based #104 checks (2026-10-27).** The revised
+[issue #104](https://github.com/ddinkov10/celetis/issues/104) replaces this hook prerequisite with
+agent-reported execution records. The earlier build ran these checks. On 2026-10-27, Claude Code 2.1.311 and codex-cli 0.164.0 ran checkout commit
+`9afc18d2a17ad014a823ea1e4a80802e412ef0cc` with disposable Git data; the prompts, stream
+transcripts, native Codex trace, and record JSON are in `/tmp/celetis-104-check/live/`.
+V3 passed with the checkout loaded by `--plugin-dir` in auto mode: Agent received `model: "haiku"`
+and `effort: "low"`, recorded child `a75c095040e4a37ec`, and reported model `claude-haiku-5-5`.
+The deliberate `effort: "high"` call was refused with `the spawn effort must be low`; the next
+request named and voided dispatch `db50660f-8564-4e7d-9b09-dc3e394b2f63`, then allowed the corrected
+`haiku`/`low` call as child `a95cb69ec28e0d84f`. A no-line Agent call started child
+`ab1b8c98e30123a9d` with no entry. SendMessage with a new line resumed `a75c095040e4a37ec` and
+recorded outcome `started`; the no-line message was refused with
+`` a message to a recorded child needs a dispatch line from `dispatch next` ``. The record, shell,
+and stream session IDs were all `b79161a6-b7e1-4870-a630-4830a087a653`. Each started outcome has
+`effort: null`; the real argument is recorded, and applied effort is not inferred. Both V4
+no-hook cases passed. Claude's `haiku`/`low` Agent started `adb7155424fc95fa0`; its next command
+exited 5 with ``dispatch: setup: dispatch d2d2ce05-1ee0-4868-9c65-77dd22450912: the Celetis mod did not check the call: enable the plugin `celetis` and start a fresh session``.
+Codex's real `spawn_agent` omitted `model`, set `reasoning_effort: "low"` and `fork_turns: "none"`,
+and returned `/root/runtime_check`, linked by native activity to child thread
+`01a17d70-081e-7962-bf6d-35f4e78e8171`; its next command exited 5 with
+``dispatch: setup: dispatch 6913a000-00d0-4f26-a75b-c74bee7e9fdb: the Codex plugin hooks did not run: trust them in `/hooks` (docs/hosts/codex.md of the plugin `celetis`) and start a fresh session``.
+Both pending records have no check or outcome. Codex's record session and `CODEX_SESSION_ID` were
+`01a17d6f-df6b-7993-b2ab-1b66a5566694`; the command wrote under `/tmp/celetis-501/dispatch/` in its
+`workspace-write` sandbox with no inner approval. Initial outer sandbox starts returned
+`Not logged in · Please run /login` on Claude and
+`Error: failed to initialize in-process app-server client: Operation not permitted (os error 1)`
+on Codex; one approved retry of each same command completed with the existing authentication.
+Historical V5 later failed on codex-cli 0.164.0 at `dda6d24`. Even with trusted hooks, the real
+spawn returned `/root/runtime_check_a` in session `01a17e09-b7a1-70e3-8c04-d1802bfdd1f9` without a
+hook check; the next act exited 5. The code-mode probe in session
+`01a17e18-31ef-75f2-a39d-78f7356bce85` found no nested spawn tool. These are FAIL/STOP, not an open
+test or a PASS. Evidence: issue comments [6446729138](https://github.com/ddinkov10/celetis/issues/104#issuecomment-6446729138)
+and [6446922098](https://github.com/ddinkov10/celetis/issues/104#issuecomment-6446922098),
+`/tmp/celetis-104-check/live/v5-codex.*`, and `replan-code-mode.*`. The revised #104 spec supersedes
+this hook requirement. Independent native enforcement is [#151](https://github.com/ddinkov10/celetis/issues/151).
+The installed-package checks of the old plan do not prove the revised report flow. Changed-pair
+same-child repair remains unsupported by the observed follow-up controls. The real POSIX lock
+checks and controlled Windows-helper FFI fixture passed; no live Windows DLL, filesystem,
+reparse-point, descriptor-conversion, or `LockFileEx` check ran. The fixture is not live Windows
+acceptance. [ADR-0041](adr/0041-the-engine-owns-the-attempts-and-checks-each-dispatch.md) retains the history.
+
+**Revised #104 report-flow acceptance.**
+
+On 2026-10-27, checkout commit `20cfca70c19ddcc1107d33a15d28e47b9f987140` passed the revised report-flow V3/V4 checks
+with Claude Code 2.1.311 and codex-cli 0.164.0. Both used existing installations and authentication
+with disposable Git data and local issue key 9104. The installed Celetis package was not updated.
+
+- **Claude V3 PASS.** Session `111456dd-fe10-4cc6-81f0-a009f4c8540d` closed the normal task with implementer
+  `a02f4858894e663aa` and reviewer `add5ddc38819bc8f2`. The stable-pair task
+  retained implementer `afbfcc6130225b0b8` through three turns and reviewer
+  `ad89c515b55dbf704` through two turns. Its gate repair and review fix used real
+  `SendMessage` calls; the scoped re-review kept the reviewer. The task closed at attempt 2,
+  round 1. Eight native calls, returned identities, and eight child handbacks back the eight
+  stored execution reports. The original arguments and complete visible results match the stream.
+  Claude adds legacy message aliases to its native trace; those aliases were checked against
+  the original `to`, `message`, and `summary` fields. Native entry supplied the startup reads
+  and custom text; its delivered context and `native-entry.txt` retain the custom sentinel.
+- **Codex V4 PASS.** Session `01a17e5d-1f5c-7e00-968b-e8e75bf05c94` closed the normal task with
+  `/root/verify9104_t1_implementer` and `/root/verify9104_t1_reviewer`. The stable-pair
+  task retained `/root/verify9104_t2_implementer` through three completions and
+  `/root/verify9104_t2_reviewer` through two. Real `collaboration.followup_task` calls
+  performed the gate repair, review fix, and scoped re-review. The task closed at attempt 2,
+  round 1. The native trace links each identity to its child thread and completion turns.
+  All eight reported calls match the actual tool and non-message arguments. Spawns omit
+  `model`, set `reasoning_effort`, and use `fork_turns: "none"`. Native message fields are
+  encrypted, so they cannot independently prove the CAP line. Reports retain the plaintext
+  message as sent. This limit remains explicit.
+- **Changed-pair STOP as expected on both hosts.** Task 3 records one started implementer
+  and one gate failure, then returns setup exit 5 before a resume or replacement. Claude's
+  child is `ab5c45f27c21d6939`; Codex's is `/root/verify9104_t3_implementer`.
+  Their required effort changes from low to medium. The observed follow-up tools cannot set
+  that changed pair. No unsupported same-pair case was reported.
+
+Every execution retains `provenance: "agent-reported"`. The engine validates reports; these
+checks do not make a consistent false report independently verifiable. Native results expose no
+applied effort to the calling agent in these runs; reports keep unavailable native settings null.
+No dispatch interception, hook trust change, bypass flag, new login, or product-adoption step
+participated. The first sandboxed starts failed; one approved retry per unchanged command
+completed with the existing authentication. These startup failures are not PASS results.
+
+Evidence is in `/tmp/celetis-104-report-check/live/`: each host's invocation JSON, prompt,
+stream, exit JSON, copied record, and `*-checked.json`; per-call reports and gate outputs are
+in its `claude/` or `codex/` checkout. The native Codex trace is
+`/Users/dinq/.codex/sessions/2026/10/27/rollout-2026-10-27T19-16-34-01a17e5d-1f5c-7e00-968b-e8e75bf05c94.jsonl`.
+The checker is `/tmp/celetis-104-report-check/check-live.ts`. Its final V3/V4 logs are
+`v3-native-check.log` and `v4-native-check.log` in that scratch root.
+
+V1 passed unchanged: `parity: 11841 cases, 0 differ` and `pairs: 4434 cases, 0 differ`.
+V2 passed the 26 rule cases, CLI/storage checks, entry/text checks, report examples, and 10
+final-review regression cases. The project gate ended with `verify: PASS` after the fixes.
+The historical hook-based V5 remains FAIL/STOP and is superseded by the revised scope.
+Changed-pair follow-up and live Windows lock execution retain their stated limits. These
+checkout results do not prove an installed-package update.
+
 The later Codex board checks used reviewed commit `626881b`; the
 [public evidence record](https://github.com/ddinkov10/celetis/issues/21#issuecomment-6187619525)
 keeps the earlier failures. The first fixture turn attempted a forbidden issue comment, which

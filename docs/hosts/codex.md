@@ -41,10 +41,58 @@ with the approval policy `never`.
 
 ## Dispatch
 
-With a nonempty `codexProfiles` mapping or an explicit profile, pass fresh model and effort
-evidence from the active dispatch tools through `--runtime-models`. Otherwise omit the model field when
-`dispatch.model` is null. Always set `dispatch.effort` through the tool's effort field.
+In the task loop of `implement`, get the pair from `dispatch`. Set `pair.effort` as
+`reasoning_effort`, and omit `model` when `pair.model` is null. With a nonempty `codexProfiles`
+mapping or an explicit profile, pass fresh model and effort evidence from the active dispatch
+tools through `--runtime-models` to each `capscore` call and each `dispatch` act that issues a
+dispatch.
 A refused pair is a setup stop; do not lower it or substitute another pair.
+
+Inspect the active tool schema. Use `collaboration.spawn_agent` with `fork_turns: "none"` and
+the issued CAP line first in `message`. Keep the parent settings. For `resume`, use the actual
+`collaboration.followup_task` with `target` equal to the recorded child and the issued line
+first in `message`. That follow-up has no model or effort controls. The engine stops a changed
+pair before issuing a resume; an unchanged pair can use the same child.
+
+After each call, run `dispatch report <dispatch-id> <report-file>` through the bound command.
+The evidence is agent-reported. The engine validates the report; it does not intercept or
+independently check the native call. No native interception or trust change is required. Calls outside
+the task loop need no report. Save exact arguments and the complete native result. A returned
+stable task name, such as `/root/worker`, is a usable identity. A spawn report has this shape:
+
+```json
+{
+  "host": "codex", "session": "session-id",
+  "call": {
+    "tool": "collaboration.spawn_agent",
+    "arguments": {"task_name": "worker", "message": "<issued CAP line>\nReply OK.", "reasoning_effort": "low", "fork_turns": "none"},
+    "result": {"task_name": "/root/worker"}
+  },
+  "outcome": {"result": "started", "child": "/root/worker", "model": null, "effort": null}
+}
+```
+
+For a same-pair resume, retain that identity and report the exact follow-up arguments and result:
+
+```json
+{
+  "host": "codex", "session": "session-id",
+  "call": {
+    "tool": "collaboration.followup_task",
+    "arguments": {"target": "/root/worker", "message": "<issued CAP line>\nContinue."},
+    "result": {"task_name": "/root/worker"}
+  },
+  "outcome": {"result": "started", "child": "/root/worker", "model": null, "effort": null}
+}
+```
+
+Replace the example values with the actual call and result. Keep native model IDs verbatim;
+leave model and effort null when the host does not report them. Requested effort is not applied
+effort evidence. Wait for the child's real completion before reporting a gate or review result.
+If follow-up is absent, report `call: null` and `outcome: {"result":"unsupported","error":"<exact limitation>"}`,
+then stop. Keep the recorded child. Missing identity or uncertain execution also stops dependent
+work. If the sandbox blocks `dispatch`, use the approved retry above. Unrelated native hook
+trust and permission rules keep their own scope.
 
 ## Session recovery
 

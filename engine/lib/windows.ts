@@ -1,9 +1,18 @@
 import { dlopen, FFIType, ptr } from 'bun:ffi';
+import { toNamespacedPath } from 'node:path';
 import { HostError } from './host.ts';
 
 function kernelBinding() {
   try {
     return dlopen('kernel32.dll', {
+      CreateFileW: {
+        args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.ptr],
+        returns: FFIType.i64,
+      },
+      GetFileInformationByHandleEx: {
+        args: [FFIType.ptr, FFIType.i32, FFIType.ptr, FFIType.u32],
+        returns: FFIType.i32,
+      },
       LockFileEx: {
         args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.u32, FFIType.ptr],
         returns: FFIType.i32,
@@ -28,14 +37,48 @@ function kernelBinding() {
 
 function runtimeBinding() {
   try {
-    return dlopen(process.execPath, { uv_get_osfhandle: { args: [FFIType.i32], returns: FFIType.ptr } });
+    return dlopen(process.execPath, {
+      uv_get_osfhandle: { args: [FFIType.i32], returns: FFIType.ptr },
+      uv_open_osfhandle: { args: [FFIType.ptr], returns: FFIType.i32 },
+    });
   } catch {
-    throw new HostError(`celetis: cannot load uv_get_osfhandle from ${process.execPath}`);
+    throw new HostError(`celetis: cannot load Windows file descriptor operations from ${process.execPath}`);
   }
 }
 
 let kernel: ReturnType<typeof kernelBinding> | undefined;
 let runtime: ReturnType<typeof runtimeBinding> | undefined;
+
+export function openLockFile(path: string): number {
+  kernel ??= kernelBinding();
+  runtime ??= runtimeBinding();
+  const api = kernel;
+  const failure = () =>
+    new HostError(`celetis: cannot open lock file ${path} (Windows error ${api.symbols.GetLastError()})`);
+  const handle = api.symbols.CreateFileW(
+    Buffer.from(`${toNamespacedPath(path)}\0`, 'utf16le'),
+    0xc0000000,
+    3,
+    null,
+    4,
+    0x00200080,
+    null,
+  );
+  if (handle === -1n) throw failure();
+  let transferred = false;
+  try {
+    const info = new Uint32Array(2);
+    if (!api.symbols.GetFileInformationByHandleEx(handle, 9, info, info.byteLength)) throw failure();
+    if ((info[0] as number) & (0x400 | 0x10))
+      throw new HostError(`celetis: ${path}: need a regular lock file without a reparse point`);
+    const fd = runtime.symbols.uv_open_osfhandle(handle);
+    if (fd < 0) throw new HostError(`celetis: cannot assign a file descriptor to lock file ${path}`);
+    transferred = true;
+    return fd;
+  } finally {
+    if (!transferred) api.symbols.CloseHandle(handle);
+  }
+}
 
 export function lockFile(fd: number, shared: boolean): boolean {
   kernel ??= kernelBinding();

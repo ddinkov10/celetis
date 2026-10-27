@@ -48,6 +48,14 @@ export interface ReadInput {
   offset?: number;
   limit?: number;
 }
+export interface ToolInput {
+  tool: string;
+  tool_use_id: string;
+  agentId?: string;
+  file_path?: string;
+  offset?: number;
+  limit?: number;
+}
 export interface TextBlock {
   type: 'text';
   text: string;
@@ -93,7 +101,7 @@ export interface TurnResult {
 export interface Events {
   'skill.prompt': { input: SkillInput; output: { text: string } };
   'session.append': { input: Delivery; output: Delivery };
-  'tool.call': { input: ReadInput; output: ToolReply };
+  'tool.call': { input: ToolInput; output: ToolReply };
   'tool.check': {
     input: { tool: string; tool_use_id?: string; input: { file_path: string } };
     output: { decision: string; reason?: string; rule?: string };
@@ -130,6 +138,6 @@ export interface NativeTools {
   plugin: { root: string };
   fs: { stat(path: string): Promise<Metadata> };
   tool: { call(input: ReadInput): Promise<ToolReply> };
-  session: { root(): Promise<string>; cwd(): Promise<string> };
+  session: { root(): Promise<string>; cwd(): Promise<string>; id(): Promise<string> };
   ui: { log(text: string): void };
 }

@@ -108,16 +108,31 @@ partial state. An update starts no workflow.
 
 ## Dispatch and stop
 
-Before every child dispatch or retry, follow [capability binding](../capability.md). Use
-`capscore --json` and add `--reviewer` for reviews. Dispatch only on `status: "ready"`.
-Keep the parent model. Apply the resolved model and effort through actual tool controls;
-a CAP line alone does not set them. Put the CAP line first in the child prompt.
+Before every child dispatch or retry, follow [capability binding](../capability.md). The task
+loop of `implement` takes each dispatch from `dispatch` and follows its returned `action` and
+`pair`. For each other child, use `capscore --json` and add `--reviewer` for reviews; this includes
+`critic-loop` and the builder check of `specify`. Dispatch only on `status: "ready"`.
+Keep the parent model and effort. Apply the resolved model and effort through actual tool
+controls; a CAP line alone does not set them. Put the CAP line first in the child prompt.
 Record the applied arguments and child identity.
 
+For an engine-issued task-loop call, save its exact native tool name, arguments, and result,
+then submit `dispatch report <dispatch-id> <report-file>` before the next task act. Follow the
+selected host's report examples. Each execution is agent-reported evidence; the engine checks
+the report and cannot independently prove the native call. Wait for the child's completion
+before reporting its gate or review result. Calls outside this loop need no execution report.
+
 Give each isolated child its exact checkout, relevant instructions, task, required skills and
-custom additions, gate, and return contract. Repairs and scoped re-reviews keep the same child.
-If the required pair cannot be applied to that identity, stop with both pairs, the identity,
-tool limitation, and failure trail. Do not substitute a new child or main-session implementation.
+custom additions, gate, and return contract. Repairs and scoped re-reviews keep the same child
+unless `dispatch` returns `replace`. If the required pair cannot be applied to that identity,
+stop with both pairs, the identity, tool limitation, and failure trail. A replacement requires
+the returned `replace` action. A setup stop needs the reported host setup before dependent
+work can continue; keep that work out of the main session.
+
+When an issued follow-up has no supported native operation, report `call: null` with outcome
+`unsupported` and the exact limitation. An uncertain native result is `incomplete`. Only an
+explicit `failed` report with `noWorkerStarted: true` permits a retry. Preserve all earlier
+evidence; a mismatch or incomplete identity cannot authorize a substitute child.
 
 A missing tool, denied path, or unsupported operation stops dependent work. Follow the host's
 command approval procedure before treating a sandbox failure as a setup stop. Report the exact

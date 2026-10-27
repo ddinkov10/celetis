@@ -569,7 +569,8 @@ With no profile, each Codex child keeps the parent's model and gets the effort o
 needs no setup. For model tiers, supply the four-slot profile and reviewer minimum in
 `docs/capability.md`, "Codex model profiles". Obtain the model IDs and efforts from the active
 dispatch surface. Store its profile under `codexProfiles` in the main config and pass the current
-runtime allowlist to each scorer call. A CLI catalog does not establish desktop dispatch support.
+runtime allowlist to each `capscore` call and each `dispatch` act that issues a dispatch.
+A CLI catalog does not establish desktop dispatch support.
 A missing pair or a tool that cannot apply the required pair stops the dependent work.
 
 For herdr, run `herdr integration status` in the same host configuration used by the runner.
@@ -935,6 +936,7 @@ and board form. Every skill call adds `--agent claude` or `--agent codex` before
 | `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'next-step' '<n>' \| --open` | The resolver: the next step of one issue, or of each open issue |
 | `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'board'` | Starts the board of the plugin (`engine/board/`) with the selected Bun, from the main YAML config; takes no arguments. The board reads its data in its own process |
 | `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'capscore' J V B N S X` | Resolves the six digits. `--json` gives portable scores and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null |
+| `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'dispatch' <act>` | Acts: `next`, `report <dispatch-id> <report-file>`, `gate`, `review`, `close`, `show`. The task loop applies each returned pair and reports exact native arguments/results. Evidence is agent-reported, not independently checked. Records: `/tmp/celetis-<uid>/dispatch/<host>-<session>.json` on macOS and Linux; `<os.tmpdir()>/celetis/dispatch/<host>-<session>.json` on Windows. Exits: 0 ready, reported, or closed (also `show`), 1 internal error, 2 usage, 3 refused, 4 stop, 5 setup |
 | `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'celetis-flow' [<n>...] \| --resume <n>` | The runner: the next step of each number, or the automatic runner with no number. `--resume` opens the session of a step with no progress again |
 | `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'root'` | Prints the root of the invoked package |
 | `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'plugin-update' check` | Read-only configured-source check; prints an exact offer JSON or `null` |

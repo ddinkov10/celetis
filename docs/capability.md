@@ -54,8 +54,10 @@ unless Σ=12 — `fable/max` is **reserved for Σ=12**. `opus/max` is the routin
 - attempt 3 → model **+1 tier**, effort **≥ high**
 - attempt 4 → **STOP**, escalate to the user with the failure trail
 
-Attempt count is session-scoped — no cross-session persistence. The clamp still applies to escalation
-output: escalation never mints `fable/max` below Σ=12.
+In the task loop of `implement`, `dispatch` owns the attempt count and applies this escalation.
+The count is session-scoped; a new session starts at attempt 1. Other consumers pass their attempt
+to `capscore`. The clamp still applies to escalation output: escalation never mints `fable/max`
+below Σ=12.
 
 ## Scorecard format — MANDATORY
 
@@ -71,7 +73,9 @@ Non-zero bias shows a `+bN` token before the arrow:
 CAP: J1 V2 B2 N1 S1 X0 = 7 +b2 → opus/max
 ```
 
-Generate it with the script (do not hand-compute the tier):
+For plan headers and children outside the task loop of `implement`, generate the line with
+`capscore` (do not hand-compute the tier). The task loop takes its line from `dispatch`
+([Dispatch records](#dispatch-records)).
 
 ```bash
 BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> capscore J V B N S X [--attempt N] [--bias N]
@@ -84,12 +88,15 @@ will read it:
 
 - **Lane skills** (`bug|hotfix|chore|feature`) — score before any subagent dispatch; the CAP
   line goes in the dispatch prompt.
-- **`implement`** per-task dispatch — CAP line per task, on the subagent flow. On the inline flow,
-  the session builds each task, so the CAP lines of the plan are recommendations, as for each
-  session-executed task (**Plan headers**).
-- **Ad-hoc child spawns** — every child for repo work resolves its host binding and includes a CAP
-  line in its prompt; the actual spawn applies the effort, and the model when `dispatch.model` is
-  not null, through [host operations](hosts/entry.md).
+- **`implement`** task loop — reuse the task's digits and bias with `dispatch next`; send each
+  returned dispatch's CAP line first. `dispatch` owns gate repairs, review fixes, and task closure
+  on the subagent flow and for fixes after the final review ([Dispatch records](#dispatch-records)).
+  On the inline flow, the session builds each task, so the plan's CAP lines are recommendations
+  (**Plan headers**); its final reviewer uses `capscore --json`.
+- **Other child spawns**, including `critic-loop` and the builder check of `specify` — resolve
+  the host binding with `capscore --json` and include its CAP line in the prompt; the actual
+  spawn applies the effort, and the model when `dispatch.model` is not null, through
+  [host operations](hosts/entry.md).
 - **Plan headers** — print the CAP rec on session-executed tasks. Note: the **session model is the
   user's picker**; the rubric can only *recommend* there (max is auto-assignable for a spawn, a rec
   for the session). The user may override any rec.
@@ -101,8 +108,91 @@ will read it:
 
 ## Out of scope (v1)
 
-Outcome ledger + threshold tuning (declined — revisit if tiers feel wrong in practice); cross-session
-fail-count persistence; per-tier cost accounting.
+Outcome-based score tuning; reuse of fail counts across sessions; per-tier cost accounting.
+
+## Dispatch records
+
+The subagent task loop of `implement` takes each dispatch from `dispatch`. Fixes after the final
+review use this loop on both flows. Inline tasks run in the session and their final reviewer
+uses `capscore` (ADR-0040). `critic-loop` and the builder check of `specify` keep their own rules.
+The private session record is `/tmp/celetis-<uid>/dispatch/<host>-<session>.json` on macOS and Linux,
+or `<os.tmpdir()>/celetis/dispatch/<host>-<session>.json` on Windows. It uses private directories,
+mode-0600 record and lock files, a lock, and atomic replacement. Its key is the host and
+`CLAUDE_CODE_SESSION_ID` or `CODEX_SESSION_ID`. A new session starts at attempt 1. GitHub remains
+workflow state; this file is local execution evidence.
+
+Use the bound command of [Host entry](hosts/entry.md), with the running host selected by `--agent`:
+
+| Act and arguments | Result |
+| --- | --- |
+| `next <n> <task> implementer\|reviewer J V B N S X --bias N` | Issue the next action and resolved pair. |
+| `report <dispatch-id> <report-file>` | Validate and save one immutable agent-reported execution. |
+| `gate <n> <task> pass\|fail <gate> <report>` | Record the gate; pass issues the reviewer, fail issues a repair or stops. |
+| `review <n> <task> findings\|blocked` | Record findings or an implementer's `BLOCKED`, then issue a fix or stop. |
+| `close <n> <task>` | Close with current successful implementer, gate, and reviewer evidence. Initial `final` needs only its reviewer. |
+| `show` | Print this session's record, or null when none exists. |
+
+The task ID is its plan number, `final`, `verify-<k>`, or `land-<k>`. A deliberate new task needs
+a new ID. Repeating the same task cannot reset its count. `next` takes published digits and
+bias (`+bN`; absent means `--bias 0`); re-score only a changed scope. The reviewer uses the same
+score with the engine's reviewer floors. Only `next`, `gate`, and `review` accept scoring flags
+and resolve fresh bindings. In Codex profile mode, pass fresh active-surface evidence through
+`--runtime-models`. `report`, `show`, and `close` validate configuration and saved records but
+need no fresh runtime allowlist.
+
+On `status: "ready"`, schema-1 JSON includes `line`, `pair`, `action`, `child`, and `dispatch`.
+Send the CAP line first and unchanged. Apply the actual model and effort controls on an isolated
+spawn; omit `model` when null. Follow `spawn`, same-child `resume`, or engine-authorized `replace`.
+Keep the parent settings. A same-pair follow-up uses the recorded child. A changed pair stops
+before a resume because the observed follow-up tools cannot set model or effort.
+
+After each native call, save its exact tool name, arguments, and complete result. Submit
+`report <dispatch-id> <report-file>` before the next task act. The
+[Claude](hosts/claude.md#dispatch) and [Codex](hosts/codex.md#dispatch) examples show the report
+shape. Every saved execution has `provenance: "agent-reported"`. The engine checks the report's
+settings, CAP line, action, session, and worker identity against the issued action. It does not
+intercept the call or independently prove that a consistent report is true. A mismatch after
+execution cannot undo a worker. Independent native enforcement belongs to
+[issue #151](https://github.com/ddinkov10/celetis/issues/151).
+
+An execution report has exactly `host`, `session`, `call`, and `outcome`. A non-null `call` has
+`tool`, `arguments` (a JSON object), and `result` (any JSON value). Its outcome is one of:
+
+- `{"result":"started","child":"worker-id","model":null,"effort":null}`. Both hosts require
+  a nonempty usable child; the actual stable task name is valid. Keep native settings separate
+  from requested arguments. Preserve a returned model ID verbatim; leave unavailable settings
+  null. Requested effort is not proof of applied effort.
+- `{"result":"failed","noWorkerStarted":true,"error":"<exact failure>"}`. Use this only when
+  the tool failure establishes that no worker started. A matching accepted failure alone permits
+  `next` to retry the issued action. The fresh dispatch names the voided ID and keeps its action,
+  attempt, round, and resume child. Earlier evidence stays intact.
+- `{"result":"incomplete","error":"<uncertain result>"}`. An uncertain error or successful
+  response without usable identity stops dependent work. It cannot later become a retryable failure.
+- `{"result":"unsupported","error":"<actual missing operation>"}` with `call: null`. Report
+  an unavailable follow-up this way, then stop. Keep the recorded child.
+
+`report` acknowledges a matching start or known failure with `status: "reported"`, `dispatch`,
+and `result`; it issues no child. Mismatches, incomplete results, and unsupported operations save
+their evidence first and return setup exit 5. An issued call with no report stops later task acts
+and names `dispatch report <id> <report-file>`. Unknown/replayed IDs refuse with exit 3 without
+changing evidence. Wrong host/session returns exit 5 without changes. Malformed reports return
+usage exit 2 without changes. No report can replace earlier execution evidence. Calls outside
+the task loop need no report and are neither intercepted nor recorded.
+
+Wait for real child completion before its gate or review result. The gate pass already issues
+the reviewer. Report findings or `BLOCKED` through `review`; close after a clean current review.
+A later implementer call or adverse gate/review result makes earlier evidence stale. Failed,
+pending, mismatched, incomplete, or unsupported calls cannot close a normal or `final` task.
+
+The engine owns attempts and fix rounds. Gate failures advance attempts; attempt 4 stops.
+Rounds 1–3 retain the implementer and pair. Rounds 4–5 and `BLOCKED` permit an engine-issued fresh
+implementer at the attempt-3 pair. A further adverse review is saved and stops all later acts for
+that task without round 6. Report failures change neither count. Keep no parallel counters.
+
+Exit 0 returns `ready`, `reported`, or `closed`, or prints `show`. Exit 2 is usage; exit 3 is a
+refused act. Exit 4 is a terminal stop and exit 5 is a setup stop. Both carry a reason and trail
+when available. Use the host approval procedure for sandbox blocks. In a step session, rule 4
+of `step-prompt.md` of the plugin `celetis` hands a stop to the issue.
 
 ## Portable scores and host binding
 
@@ -289,13 +379,18 @@ written bias (`+bN`; an absent token means 0), plus the current task's attempt c
 rescore the task because the host changed, and do not replace a written zero bias with the
 scorer's default 2. Record the new human line and `dispatch` pair in the execution record.
 
-For a Codex child, apply `dispatch.model` and `dispatch.effort` explicitly using the actual
-available spawn tool on an isolated child. With `dispatch.model: null`, send no `model` field and
-set the effort. A tool that permits overrides only without inherited history requires that
-isolated mode. If the tool cannot apply the pair, stop with a setup error.
-Use the available follow-up tool for the same child to repair or re-review: retain its identity
-and resolve the required pair again, including any gate-failure escalation. If that tool cannot
-apply a changed pair to the same identity, stop for setup with the failure trail. An unchanged
-pair may resume normally. Do not assume that another host's `Agent` or message API exists, or spawn a
-replacement just to change effort when the actual follow-up tool has no override. The scorer
-returns the binding; the dispatch controller owns creation, identity, and execution records.
+For a Codex child scored with `capscore`, apply `dispatch.model` and `dispatch.effort` explicitly
+using the actual available spawn tool on an isolated child. With `dispatch.model: null`, send
+no `model` field and set the effort. A tool that permits overrides only without inherited
+history requires that isolated mode. If the tool cannot apply the pair, stop with a setup error.
+For these other consumers, use the available follow-up tool for the same child to repair or
+re-review: retain its identity and resolve the required pair again, including any gate-failure
+escalation. If that tool cannot apply a changed pair to the same identity, stop for setup with
+the failure trail. An unchanged pair may resume normally. Do not assume that another host's
+`Agent` or message API exists, or spawn a replacement just to change effort when the actual
+follow-up tool has no override. The scorer returns the binding; the dispatch controller owns
+creation, identity, and execution records.
+
+For the task loop of `implement`, use `dispatch` and its `pair` and `action` fields. Its agent-reported
+child identity, changed-pair stop, and execution reports are defined in
+[Dispatch records](#dispatch-records).
