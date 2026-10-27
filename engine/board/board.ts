@@ -71,7 +71,7 @@ let isKeysOn = store.get('keys') !== 'off';
 let isArchiveOpen = false;
 let seen: Map<string, string> | null = null;
 let needsKeys: Set<string> | null = null;
-let focusNext: string | null = null;
+let starting: Map<number, string | null> | null = null;
 let byKey = new Map<string, { card: Card; column: Column }>();
 let used = new Set<string>();
 
@@ -90,14 +90,6 @@ const act = async (path: string, value: unknown, failure: string, onDone?: () =>
   return isOk;
 };
 
-const nextKey = (key: string) => {
-  const cards = [...document.querySelectorAll<HTMLElement>('.col-needs .card[data-key]')].map(
-    (node) => node.dataset.key,
-  );
-  const at = cards.indexOf(key);
-  return at < 0 ? null : (cards[at + 1] ?? cards[at - 1] ?? null);
-};
-
 const agentDisplay = (id: string) => agentOf({ agent: id })?.name ?? id;
 
 const runReason = (agent: string | null) => {
@@ -113,7 +105,7 @@ const runReason = (agent: string | null) => {
   return null;
 };
 
-const runAction = (card: Card, key: string, agent: string | null = null): Action => {
+const runAction = (card: Card, agent: string | null = null): Action => {
   const display = agent ? agentDisplay(agent) : null;
   const reason = runReason(agent);
   const name = agent ? `Run ${card.step}, #${card.number} with ${display}` : `Run ${card.step}, #${card.number}`;
@@ -127,22 +119,19 @@ const runAction = (card: Card, key: string, agent: string | null = null): Action
     isDisabled: Boolean(reason),
     run: reason
       ? async () => toast(reason, { isError: true })
-      : () => {
-          const next = nextKey(key);
-          return act('/api/run', { number: card.number, ...(agent ? { agent } : {}) }, 'Run failed', () => {
-            focusNext = next;
+      : async () => {
+          if (await launch(card, '/api/run', agent ?? undefined))
             toast(`Started the ${card.step} step of #${card.number} in a new herdr tab`);
-          });
         },
   };
 };
 
-const overrideActionsOf = (card: Card, key: string, isAgain: boolean): Action[] => {
+const overrideActionsOf = (card: Card, isAgain: boolean): Action[] => {
   const agents = data?.agents;
   if (!card.run || !agents || data?.noRun) return [];
   return Object.keys(agents).map((id) => {
     const display = agentDisplay(id);
-    const base = runAction(card, key, id);
+    const base = runAction(card, id);
     return isAgain
       ? {
           ...base,
@@ -175,7 +164,7 @@ const toMenuEntry = (action: Action): MenuEntry => ({
   run: action.href ? () => window.open(action.href, '_blank', 'noopener,noreferrer') : (action.run as () => unknown),
 });
 
-const actionsOf = (card: Card, key: string): Action[] => {
+const actionsOf = (card: Card): Action[] => {
   const list: Action[] = [];
   if (card.go) {
     list.push({
@@ -200,16 +189,16 @@ const actionsOf = (card: Card, key: string): Action[] => {
         busy: 'Opening',
         name: `Resume the ${card.step} session of #${card.number}`,
         title: 'Open the session of this step again in a new herdr tab (Enter)',
-        run: () =>
-          act('/api/resume', { number: card.number }, 'Resume failed', () =>
+        run: async () => {
+          if (await launch(card, '/api/resume'))
             toast(`Opened the ${card.step} session of #${card.number} in a new herdr tab`, {
               detail: 'Switch to your terminal to see it.',
-            }),
-          ),
+            });
+        },
       });
     }
     if (card.run) {
-      const base = runAction(card, key);
+      const base = runAction(card);
       list.push({
         ...base,
         label: 'Run again',
@@ -217,11 +206,11 @@ const actionsOf = (card: Card, key: string): Action[] => {
         isGhost: true,
         title: base.isDisabled ? base.title : `Start the ${card.step} step again. It made no progress last time.`,
       });
-      list.push(...overrideActionsOf(card, key, true));
+      list.push(...overrideActionsOf(card, true));
     }
   } else if (card.run) {
-    list.push(runAction(card, key));
-    list.push(...overrideActionsOf(card, key, false));
+    list.push(runAction(card));
+    list.push(...overrideActionsOf(card, false));
   }
   if (card.state === 'dirty-tree') {
     list.push({
@@ -281,7 +270,7 @@ const actionsOf = (card: Card, key: string): Action[] => {
 };
 
 const menuOf = (card: Card, key: string): (MenuEntry | 'rule')[] => [
-  ...actionsOf(card, key).map(toMenuEntry),
+  ...actionsOf(card).map(toMenuEntry),
   'rule',
   { icon: 'panel', label: 'Show the details', key: 'Space', run: () => openPanel(key) },
   ...(card.url && !ON_ISSUE.has(card.state as string)
@@ -433,8 +422,8 @@ const shell = (card: Card, column: Column, isCompact: boolean, level: 'h2' | 'h3
 
 const unseenDot = () => Object.assign(el('i', 'unseen'), { title: 'Changed since you last looked' });
 
-const runWithButton = (card: Card, key: string) => {
-  const actions = actionsOf(card, key);
+const runWithButton = (card: Card) => {
+  const actions = actionsOf(card);
   if (!['run', 'blocked'].includes(actions[0]?.id as string)) return null;
   const entries = actions.filter((action) => action.id.startsWith('run:')).map(toMenuEntry);
   if (entries.length === 0) return null;
@@ -451,7 +440,7 @@ const drawCard = (
   { isCompact = false, level }: { isCompact?: boolean; level?: 'h2' | 'h3' | 'h4' } = {},
 ) => {
   const { key, node, title, id } = shell(card, column, isCompact, level);
-  const actions = actionsOf(card, key);
+  const actions = actionsOf(card);
   const isQuiet = column !== 'needs';
   if (isCompact) {
     const meta = el('div', 'meta');
@@ -461,12 +450,13 @@ const drawCard = (
       type.append(el('span', 'sep', '·'), card.type);
       meta.append(type);
     }
-    meta.append(el('span', 'sep', '·'), status(card, false, true));
+    meta.append(el('span', 'sep', '·'), status(card, card.state === 'starts', true));
     const main = el('div', 'main');
     main.append(title, meta);
+    if (card.warning) main.append(el('p', 'warning', card.warning));
     node.append(mark(card), main);
     if (actions[0]) {
-      const withButton = runWithButton(card, key);
+      const withButton = runWithButton(card);
       if (withButton) {
         const btns = el('div', 'compact-btns');
         btns.append(actionButton(actions[0], isQuiet), withButton);
@@ -488,12 +478,17 @@ const drawCard = (
   more.setAttribute('aria-haspopup', 'menu');
   head.append(more);
   node.append(head, title);
-  for (const part of [card.state === 'works' ? liveLine(card) : null, chips(card), card.act ? actLine(card) : null])
+  for (const part of [
+    card.state === 'works' ? liveLine(card) : null,
+    chips(card),
+    card.act ? actLine(card) : null,
+    card.warning ? el('p', 'warning', card.warning) : null,
+  ])
     if (part) node.append(part);
   const end = el('div', 'foot-end');
   if (card.state !== 'starts') end.append(timed(card.since, Boolean(card.sessionId) && LIVE.has(card.state as string)));
   if (actions[0]) end.append(actionButton(actions[0], isQuiet));
-  const withButton = runWithButton(card, key);
+  const withButton = runWithButton(card);
   if (withButton) end.append(withButton);
   const foot = el('div', 'card-foot');
   foot.append(status(card), end);
@@ -679,7 +674,7 @@ const humanPill = (card: Card) => {
     timed(card.since, true),
   );
   open.addEventListener('click', () => (selected === key ? closePanel() : openPanel(key)));
-  const [go] = actionsOf(card, key) as [Action];
+  const [go] = actionsOf(card) as [Action];
   pill.append(
     open,
     iconButton('go', go.name, () => go.run?.(), 'human-go'),
@@ -739,23 +734,46 @@ const markAllSeen = () => {
 
 const notify = (cards: Card[]) => {
   const keys = new Set(cards.map((card: Card) => keyOf(card)));
-  if (needsKeys !== null) {
-    const fresh = cards.filter((card: Card) => !(needsKeys as Set<string>).has(keyOf(card)));
-    if (fresh.length) $('announce').textContent = fresh.map((card: Card) => notice(card).title).join('. ');
-    const isAway = document.hidden || !document.hasFocus();
-    if (isNotifyOn && isAway && 'Notification' in window && Notification.permission === 'granted') {
-      for (const card of fresh) {
-        const { title, body } = notice(card);
-        const shown = new Notification(title, { body, tag: keyOf(card), icon: favicon('needs') });
-        shown.addEventListener('click', () => {
-          window.focus();
-          if (view !== 'now') setView('now');
-          openPanel(keyOf(card));
-        });
-      }
+  const fresh =
+    needsKeys === null
+      ? []
+      : cards.filter(
+          (card: Card) =>
+            !(needsKeys as Set<string>).has(keyOf(card)) &&
+            !(card.sessionId === null && starting?.has(card.number as number)),
+        );
+  const isAway = document.hidden || !document.hasFocus();
+  if (isNotifyOn && isAway && 'Notification' in window && Notification.permission === 'granted') {
+    for (const card of fresh) {
+      const { title, body } = notice(card);
+      const shown = new Notification(title, { body, tag: keyOf(card), icon: favicon('needs') });
+      shown.addEventListener('click', () => {
+        window.focus();
+        if (view !== 'now') setView('now');
+        openPanel(keyOf(card));
+      });
     }
   }
   needsKeys = keys;
+  return fresh.map((card: Card) => notice(card).title);
+};
+
+const startNotices = (columns: Columns) => {
+  const cards = [...columns.needs, ...columns.running, ...columns.idle];
+  const now = new Map<number, string | null>();
+  for (const card of cards) if (card.state === 'starts' && card.number !== null) now.set(card.number, card.step);
+  const lines: string[] = [];
+  const before = starting;
+  starting = now;
+  if (before === null) return lines;
+  for (const [number, step] of now) if (!before.has(number)) lines.push(`#${number} is starting the ${step} step`);
+  for (const [number, step] of before) {
+    if (now.has(number)) continue;
+    const card = cards.find((other) => other.number === number);
+    if (card?.warning) lines.push(`#${number}: ${card.warning}`);
+    else if (card?.sessionId) lines.push(`#${number} started the ${step} step`);
+  }
+  return lines;
 };
 
 const drawHints = (card: HTMLElement | null) => {
@@ -763,7 +781,7 @@ const drawHints = (card: HTMLElement | null) => {
   const entry = card ? byKey.get(card.dataset.key as string) : null;
   const pairs = entry
     ? [
-        ['Enter', actionsOf(entry.card, (card as HTMLElement).dataset.key as string)[0]?.label],
+        ['Enter', actionsOf(entry.card)[0]?.label],
         ['Space', 'Details'],
         ['o', entry.card.url ? 'Open' : null],
         ['c', copyWhat(entry.card) ? 'Copy' : null],
@@ -855,8 +873,8 @@ const drawNotify = () => {
       : 'Show a system notification when a card needs you';
 };
 
-const panelContext = (card: Card, key: string) => ({
-  actions: actionsOf(card, key),
+const panelContext = (card: Card) => ({
+  actions: actionsOf(card),
   flow: (data as Board).flow,
   on: onTracker(),
   close: closePanel,
@@ -868,11 +886,12 @@ const drawPanelFor = () => {
   const focused = $('panel').contains(document.activeElement)
     ? (document.activeElement as Element).getAttribute('aria-label')
     : null;
-  $('panel').replaceChildren(...drawPanel(entry.card, panelContext(entry.card, selected as string)));
+  $('panel').replaceChildren(...drawPanel(entry.card, panelContext(entry.card)));
   if (focused)
-    $('panel')
-      .querySelector<HTMLElement>(`[aria-label="${CSS.escape(focused)}"]`)
-      ?.focus({ preventScroll: true });
+    (
+      $('panel').querySelector<HTMLElement>(`[aria-label="${CSS.escape(focused)}"]`) ??
+      $('panel').querySelector<HTMLElement>('.panel-head > .icon-btn:last-child')
+    )?.focus({ preventScroll: true });
 };
 
 const openPanel = (key: string) => {
@@ -904,10 +923,8 @@ function closePanel() {
 const drawBoard = (next: Board) => {
   const active = document.activeElement as HTMLElement | null;
   const holder = active?.closest?.<HTMLElement>('.human-pill, [data-key]');
-  const focused = (holder?.querySelector<HTMLElement>('[data-key]') ?? holder)?.dataset.key;
-  const target = focusNext ?? focused;
+  const target = (holder?.querySelector<HTMLElement>('[data-key]') ?? holder)?.dataset.key;
   const isGo = Boolean(active?.matches?.('.human-go'));
-  focusNext = null;
   used = new Set();
   byKey = new Map();
   const needs = next.columns.needs.length;
@@ -936,7 +953,8 @@ const drawBoard = (next: Board) => {
     seen = new Map();
     markAllSeen();
   }
-  notify(needsYou(next.columns));
+  const lines = [...notify(needsYou(next.columns)), ...startNotices(next.columns)];
+  if (lines.length) $('announce').textContent = lines.join('. ');
   if (selected) {
     if (byKey.has(selected)) drawPanelFor();
     else closePanel();
@@ -968,7 +986,7 @@ const setView = (next: string) => {
   store.set('view', next);
   for (const button of document.querySelectorAll<HTMLElement>('.views button'))
     button.setAttribute('aria-pressed', String(button.dataset.view === next));
-  if (data) drawBoard(data);
+  if (data) drawBoard(project(data));
 };
 
 const tick = () => {
@@ -988,27 +1006,98 @@ let lastLayout = '';
 let source: Board['source'] = { readAt: null, error: null };
 let hasRead = false;
 let timer: ReturnType<typeof setTimeout> | number = 0;
+let reads = 0;
+let accepted = 0;
+let settled = 0;
+type Launch = { step: string | null; phase: 'pending' | 'done' | 'failed' };
+const launches = new Map<number, Launch>();
+
+const project = (board: Board): Board => {
+  if (launches.size === 0) return board;
+  const columns: Columns = { needs: [], running: [], idle: [], done: [], human: [] };
+  for (const [key, cards] of Object.entries(board.columns) as [Column, Card[]][])
+    for (const card of cards) {
+      const launch = card.sessionId === null ? launches.get(card.number as number) : undefined;
+      if (!launch) columns[key].push(card);
+      else if (
+        launch.phase !== 'failed' &&
+        card.step === launch.step &&
+        (card.state === null || card.state === 'no-progress')
+      )
+        columns.running.unshift({
+          ...card,
+          state: 'starts',
+          act: null,
+          run: false,
+          resume: false,
+          go: false,
+          warning: null,
+        });
+      else columns[key].push({ ...card, run: false, resume: false });
+    }
+  return { ...board, columns };
+};
+
+const render = (canMove = true) => {
+  const next = project(data as Board);
+  const cards = JSON.stringify([next.repo, next.noRun, next.flow, next.tracker, next.columns]);
+  if (cards === last) return;
+  const layout = layoutOf(next);
+  const isMove = lastLayout !== '' && layout !== lastLayout && !document.hidden;
+  if (canMove && isMove && document.startViewTransition && !isCalm.matches)
+    document.startViewTransition(() => drawBoard(project(data as Board)));
+  else drawBoard(next);
+  last = cards;
+  lastLayout = layout;
+};
+
+const launch = async (card: Card, path: '/api/run' | '/api/resume', agent?: string) => {
+  const number = card.number as number;
+  const current =
+    data &&
+    Object.values(project(data).columns)
+      .flat()
+      .find((other) => other.sessionId === null && other.number === number);
+  if (!current?.[path === '/api/run' ? 'run' : 'resume']) return false;
+  const reason = path === '/api/run' ? runReason(agent ?? null) : data?.noRun;
+  if (reason) {
+    toast(reason, { isError: true });
+    return false;
+  }
+  const entry: Launch = { step: current.step, phase: 'pending' };
+  launches.set(number, entry);
+  render(false);
+  if (document.activeElement === document.body)
+    document.querySelector<HTMLElement>(`[data-key="${CSS.escape(keyOf(card))}"]`)?.focus({ preventScroll: true });
+  const isOk = await post(
+    path,
+    { number, ...(agent ? { agent } : {}) },
+    path === '/api/run' ? 'Run failed' : 'Resume failed',
+  );
+  entry.phase = isOk ? 'done' : 'failed';
+  settled = reads;
+  render();
+  load();
+  return isOk;
+};
 
 async function load() {
   clearTimeout(timer);
   const isLocal = hasRead && document.hidden;
+  const read = ++reads;
   try {
     const response = await fetch(`/api/board${isLocal ? '?local=1' : ''}`);
     if (!response.ok) throw new Error(response.statusText);
-    data = (await response.json()) as Board;
-    hasRead = true;
-    const cards = JSON.stringify([data.repo, data.noRun, (data as Board).flow, data.tracker, (data as Board).columns]);
-    if (cards !== last) {
-      const layout = layoutOf(data);
-      const isMove = lastLayout !== '' && layout !== lastLayout && !document.hidden;
-      if (isMove && document.startViewTransition && !isCalm.matches)
-        document.startViewTransition(() => drawBoard(data as Board));
-      else drawBoard(data);
-      last = cards;
-      lastLayout = layout;
+    const next = (await response.json()) as Board;
+    if (read > accepted && read > settled) {
+      accepted = read;
+      data = next;
+      hasRead = true;
+      for (const [number, launch] of launches) if (launch.phase !== 'pending') launches.delete(number);
+      render();
+      source = data.source;
+      drawStatus(source, false);
     }
-    source = data.source;
-    drawStatus(source, false);
   } catch {
     drawStatus(source, true);
   }
@@ -1069,15 +1158,16 @@ const paletteItems = () => {
         ? () => window.open(action.href, '_blank', 'noopener,noreferrer')
         : (action.run as () => unknown),
     });
+  const shown = project(data);
   for (const [column, group] of [
     ['needs', 'Needs you'],
     ['running', 'Running'],
     ['idle', 'Run the next step'],
     ['human', 'Human sessions'],
   ] as [Column, string][]) {
-    for (const card of (data as Board).columns[column]) {
+    for (const card of shown.columns[column]) {
       const key = [...byKey].find(([, entry]) => entry.card === card)?.[0] ?? keyOf(card);
-      const [main] = actionsOf(card, key);
+      const [main] = actionsOf(card);
       if (main && !main.isDisabled) add(group, card, key, main);
       else if (card.number !== null || card.sessionId)
         items.push({
@@ -1103,16 +1193,16 @@ const paletteItems = () => {
             tone: group === 'Needs you' ? 'needs' : null,
             key: '',
             title: runTitle(card.step, (data as Board).flow),
-            run: () =>
-              act('/api/run', { number: card.number, agent: id }, 'Run failed', () => {
+            run: async () => {
+              if (await launch(card, '/api/run', id))
                 toast(`Started the ${card.step} step of #${card.number} with ${display} in a new herdr tab`);
-              }),
+            },
           });
         }
       }
     }
   }
-  for (const card of (data as Board).columns.done)
+  for (const card of shown.columns.done)
     if (card.url)
       items.push({
         group: 'Done',

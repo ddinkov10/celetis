@@ -69,7 +69,7 @@ var isKeysOn = store.get("keys") !== "off";
 var isArchiveOpen = false;
 var seen = null;
 var needsKeys = null;
-var focusNext = null;
+var starting = null;
 var byKey = new Map;
 var used = new Set;
 var who = (card) => card.number === null ? card.title ? `human session "${card.title}"` : "a human session" : `#${card.number}`;
@@ -83,11 +83,6 @@ var act = async (path, value, failure, onDone) => {
     onDone?.();
   await load();
   return isOk;
-};
-var nextKey = (key) => {
-  const cards = [...document.querySelectorAll(".col-needs .card[data-key]")].map((node) => node.dataset.key);
-  const at = cards.indexOf(key);
-  return at < 0 ? null : cards[at + 1] ?? cards[at - 1] ?? null;
 };
 var agentDisplay = (id) => agentOf({ agent: id })?.name ?? id;
 var runReason = (agent) => {
@@ -105,7 +100,7 @@ var runReason = (agent) => {
     return cleanCause(agents[def].cause);
   return null;
 };
-var runAction = (card, key, agent = null) => {
+var runAction = (card, agent = null) => {
   const display = agent ? agentDisplay(agent) : null;
   const reason = runReason(agent);
   const name = agent ? `Run ${card.step}, #${card.number} with ${display}` : `Run ${card.step}, #${card.number}`;
@@ -117,22 +112,19 @@ var runAction = (card, key, agent = null) => {
     name,
     title: reason ?? runTitle(card.step, data.flow),
     isDisabled: Boolean(reason),
-    run: reason ? async () => toast(reason, { isError: true }) : () => {
-      const next = nextKey(key);
-      return act("/api/run", { number: card.number, ...agent ? { agent } : {} }, "Run failed", () => {
-        focusNext = next;
+    run: reason ? async () => toast(reason, { isError: true }) : async () => {
+      if (await launch(card, "/api/run", agent ?? undefined))
         toast(`Started the ${card.step} step of #${card.number} in a new herdr tab`);
-      });
     }
   };
 };
-var overrideActionsOf = (card, key, isAgain) => {
+var overrideActionsOf = (card, isAgain) => {
   const agents = data?.agents;
   if (!card.run || !agents || data?.noRun)
     return [];
   return Object.keys(agents).map((id) => {
     const display = agentDisplay(id);
-    const base = runAction(card, key, id);
+    const base = runAction(card, id);
     return isAgain ? {
       ...base,
       label: `Run again with ${display}`,
@@ -159,7 +151,7 @@ var toMenuEntry = (action) => ({
   title: action.title,
   run: action.href ? () => window.open(action.href, "_blank", "noopener,noreferrer") : action.run
 });
-var actionsOf = (card, key) => {
+var actionsOf = (card) => {
   const list = [];
   if (card.go) {
     list.push({
@@ -181,13 +173,16 @@ var actionsOf = (card, key) => {
         busy: "Opening",
         name: `Resume the ${card.step} session of #${card.number}`,
         title: "Open the session of this step again in a new herdr tab (Enter)",
-        run: () => act("/api/resume", { number: card.number }, "Resume failed", () => toast(`Opened the ${card.step} session of #${card.number} in a new herdr tab`, {
-          detail: "Switch to your terminal to see it."
-        }))
+        run: async () => {
+          if (await launch(card, "/api/resume"))
+            toast(`Opened the ${card.step} session of #${card.number} in a new herdr tab`, {
+              detail: "Switch to your terminal to see it."
+            });
+        }
       });
     }
     if (card.run) {
-      const base = runAction(card, key);
+      const base = runAction(card);
       list.push({
         ...base,
         label: "Run again",
@@ -195,11 +190,11 @@ var actionsOf = (card, key) => {
         isGhost: true,
         title: base.isDisabled ? base.title : `Start the ${card.step} step again. It made no progress last time.`
       });
-      list.push(...overrideActionsOf(card, key, true));
+      list.push(...overrideActionsOf(card, true));
     }
   } else if (card.run) {
-    list.push(runAction(card, key));
-    list.push(...overrideActionsOf(card, key, false));
+    list.push(runAction(card));
+    list.push(...overrideActionsOf(card, false));
   }
   if (card.state === "dirty-tree") {
     list.push({
@@ -255,7 +250,7 @@ var actionsOf = (card, key) => {
   return list;
 };
 var menuOf = (card, key) => [
-  ...actionsOf(card, key).map(toMenuEntry),
+  ...actionsOf(card).map(toMenuEntry),
   "rule",
   { icon: "panel", label: "Show the details", key: "Space", run: () => openPanel(key) },
   ...card.url && !ON_ISSUE.has(card.state) ? [
@@ -381,8 +376,8 @@ var shell = (card, column, isCompact, level = "h3") => {
   return { key, node, title, id };
 };
 var unseenDot = () => Object.assign(el("i", "unseen"), { title: "Changed since you last looked" });
-var runWithButton = (card, key) => {
-  const actions = actionsOf(card, key);
+var runWithButton = (card) => {
+  const actions = actionsOf(card);
   if (!["run", "blocked"].includes(actions[0]?.id))
     return null;
   const entries = actions.filter((action) => action.id.startsWith("run:")).map(toMenuEntry);
@@ -394,7 +389,7 @@ var runWithButton = (card, key) => {
 };
 var drawCard = (card, column, { isCompact = false, level } = {}) => {
   const { key, node, title, id } = shell(card, column, isCompact, level);
-  const actions = actionsOf(card, key);
+  const actions = actionsOf(card);
   const isQuiet = column !== "needs";
   if (isCompact) {
     const meta = el("div", "meta");
@@ -404,12 +399,14 @@ var drawCard = (card, column, { isCompact = false, level } = {}) => {
       type.append(el("span", "sep", "·"), card.type);
       meta.append(type);
     }
-    meta.append(el("span", "sep", "·"), status(card, false, true));
+    meta.append(el("span", "sep", "·"), status(card, card.state === "starts", true));
     const main = el("div", "main");
     main.append(title, meta);
+    if (card.warning)
+      main.append(el("p", "warning", card.warning));
     node.append(mark(card), main);
     if (actions[0]) {
-      const withButton = runWithButton(card, key);
+      const withButton = runWithButton(card);
       if (withButton) {
         const btns = el("div", "compact-btns");
         btns.append(actionButton(actions[0], isQuiet), withButton);
@@ -435,7 +432,12 @@ var drawCard = (card, column, { isCompact = false, level } = {}) => {
   more.setAttribute("aria-haspopup", "menu");
   head.append(more);
   node.append(head, title);
-  for (const part of [card.state === "works" ? liveLine(card) : null, chips(card), card.act ? actLine(card) : null])
+  for (const part of [
+    card.state === "works" ? liveLine(card) : null,
+    chips(card),
+    card.act ? actLine(card) : null,
+    card.warning ? el("p", "warning", card.warning) : null
+  ])
     if (part)
       node.append(part);
   const end = el("div", "foot-end");
@@ -443,7 +445,7 @@ var drawCard = (card, column, { isCompact = false, level } = {}) => {
     end.append(timed(card.since, Boolean(card.sessionId) && LIVE.has(card.state)));
   if (actions[0])
     end.append(actionButton(actions[0], isQuiet));
-  const withButton = runWithButton(card, key);
+  const withButton = runWithButton(card);
   if (withButton)
     end.append(withButton);
   const foot = el("div", "card-foot");
@@ -601,7 +603,7 @@ var humanPill = (card) => {
   open.title = "Show the details and the screen of this session";
   open.append(mark(card), el("span", "human-name", card.title || "A session"), el("i", "human-dot"), el("span", "human-state", stateLabel(card)), timed(card.since, true));
   open.addEventListener("click", () => selected === key ? closePanel() : openPanel(key));
-  const [go] = actionsOf(card, key);
+  const [go] = actionsOf(card);
   pill.append(open, iconButton("go", go.name, () => go.run?.(), "human-go"));
   return pill;
 };
@@ -645,31 +647,53 @@ var markAllSeen = () => {
 };
 var notify = (cards) => {
   const keys = new Set(cards.map((card) => keyOf(card)));
-  if (needsKeys !== null) {
-    const fresh = cards.filter((card) => !needsKeys.has(keyOf(card)));
-    if (fresh.length)
-      $("announce").textContent = fresh.map((card) => notice(card).title).join(". ");
-    const isAway = document.hidden || !document.hasFocus();
-    if (isNotifyOn && isAway && "Notification" in window && Notification.permission === "granted") {
-      for (const card of fresh) {
-        const { title, body } = notice(card);
-        const shown = new Notification(title, { body, tag: keyOf(card), icon: favicon("needs") });
-        shown.addEventListener("click", () => {
-          window.focus();
-          if (view !== "now")
-            setView("now");
-          openPanel(keyOf(card));
-        });
-      }
+  const fresh = needsKeys === null ? [] : cards.filter((card) => !needsKeys.has(keyOf(card)) && !(card.sessionId === null && starting?.has(card.number)));
+  const isAway = document.hidden || !document.hasFocus();
+  if (isNotifyOn && isAway && "Notification" in window && Notification.permission === "granted") {
+    for (const card of fresh) {
+      const { title, body } = notice(card);
+      const shown = new Notification(title, { body, tag: keyOf(card), icon: favicon("needs") });
+      shown.addEventListener("click", () => {
+        window.focus();
+        if (view !== "now")
+          setView("now");
+        openPanel(keyOf(card));
+      });
     }
   }
   needsKeys = keys;
+  return fresh.map((card) => notice(card).title);
+};
+var startNotices = (columns) => {
+  const cards = [...columns.needs, ...columns.running, ...columns.idle];
+  const now = new Map;
+  for (const card of cards)
+    if (card.state === "starts" && card.number !== null)
+      now.set(card.number, card.step);
+  const lines = [];
+  const before = starting;
+  starting = now;
+  if (before === null)
+    return lines;
+  for (const [number, step] of now)
+    if (!before.has(number))
+      lines.push(`#${number} is starting the ${step} step`);
+  for (const [number, step] of before) {
+    if (now.has(number))
+      continue;
+    const card = cards.find((other) => other.number === number);
+    if (card?.warning)
+      lines.push(`#${number}: ${card.warning}`);
+    else if (card?.sessionId)
+      lines.push(`#${number} started the ${step} step`);
+  }
+  return lines;
 };
 var drawHints = (card) => {
   const hints = $("hints");
   const entry = card ? byKey.get(card.dataset.key) : null;
   const pairs = entry ? [
-    ["Enter", actionsOf(entry.card, card.dataset.key)[0]?.label],
+    ["Enter", actionsOf(entry.card)[0]?.label],
     ["Space", "Details"],
     ["o", entry.card.url ? "Open" : null],
     ["c", copyWhat(entry.card) ? "Copy" : null],
@@ -734,8 +758,8 @@ var drawNotify = () => {
   button.setAttribute("aria-pressed", String(isOn));
   button.title = isBlocked ? "The browser blocks notifications for this page" : isOn ? "A system notification shows when a card needs you" : "Show a system notification when a card needs you";
 };
-var panelContext = (card, key) => ({
-  actions: actionsOf(card, key),
+var panelContext = (card) => ({
+  actions: actionsOf(card),
   flow: data.flow,
   on: onTracker(),
   close: closePanel
@@ -745,9 +769,9 @@ var drawPanelFor = () => {
   if (!entry)
     return closePanel();
   const focused = $("panel").contains(document.activeElement) ? document.activeElement.getAttribute("aria-label") : null;
-  $("panel").replaceChildren(...drawPanel(entry.card, panelContext(entry.card, selected)));
+  $("panel").replaceChildren(...drawPanel(entry.card, panelContext(entry.card)));
   if (focused)
-    $("panel").querySelector(`[aria-label="${CSS.escape(focused)}"]`)?.focus({ preventScroll: true });
+    ($("panel").querySelector(`[aria-label="${CSS.escape(focused)}"]`) ?? $("panel").querySelector(".panel-head > .icon-btn:last-child"))?.focus({ preventScroll: true });
 };
 var openPanel = (key) => {
   if (!byKey.has(key))
@@ -778,10 +802,8 @@ function closePanel() {
 var drawBoard = (next) => {
   const active = document.activeElement;
   const holder = active?.closest?.(".human-pill, [data-key]");
-  const focused = (holder?.querySelector("[data-key]") ?? holder)?.dataset.key;
-  const target = focusNext ?? focused;
+  const target = (holder?.querySelector("[data-key]") ?? holder)?.dataset.key;
   const isGo = Boolean(active?.matches?.(".human-go"));
-  focusNext = null;
   used = new Set;
   byKey = new Map;
   const needs = next.columns.needs.length;
@@ -807,7 +829,9 @@ var drawBoard = (next) => {
     seen = new Map;
     markAllSeen();
   }
-  notify(needsYou(next.columns));
+  const lines = [...notify(needsYou(next.columns)), ...startNotices(next.columns)];
+  if (lines.length)
+    $("announce").textContent = lines.join(". ");
   if (selected) {
     if (byKey.has(selected))
       drawPanelFor();
@@ -837,7 +861,7 @@ var setView = (next) => {
   for (const button of document.querySelectorAll(".views button"))
     button.setAttribute("aria-pressed", String(button.dataset.view === next));
   if (data)
-    drawBoard(data);
+    drawBoard(project(data));
 };
 var tick = () => {
   const now = Date.now();
@@ -854,28 +878,90 @@ var lastLayout = "";
 var source = { readAt: null, error: null };
 var hasRead = false;
 var timer = 0;
+var reads = 0;
+var accepted = 0;
+var settled = 0;
+var launches = new Map;
+var project = (board) => {
+  if (launches.size === 0)
+    return board;
+  const columns = { needs: [], running: [], idle: [], done: [], human: [] };
+  for (const [key, cards] of Object.entries(board.columns))
+    for (const card of cards) {
+      const launch = card.sessionId === null ? launches.get(card.number) : undefined;
+      if (!launch)
+        columns[key].push(card);
+      else if (launch.phase !== "failed" && card.step === launch.step && (card.state === null || card.state === "no-progress"))
+        columns.running.unshift({
+          ...card,
+          state: "starts",
+          act: null,
+          run: false,
+          resume: false,
+          go: false,
+          warning: null
+        });
+      else
+        columns[key].push({ ...card, run: false, resume: false });
+    }
+  return { ...board, columns };
+};
+var render = (canMove = true) => {
+  const next = project(data);
+  const cards = JSON.stringify([next.repo, next.noRun, next.flow, next.tracker, next.columns]);
+  if (cards === last)
+    return;
+  const layout = layoutOf(next);
+  const isMove = lastLayout !== "" && layout !== lastLayout && !document.hidden;
+  if (canMove && isMove && document.startViewTransition && !isCalm.matches)
+    document.startViewTransition(() => drawBoard(project(data)));
+  else
+    drawBoard(next);
+  last = cards;
+  lastLayout = layout;
+};
+var launch = async (card, path, agent) => {
+  const number = card.number;
+  const current = data && Object.values(project(data).columns).flat().find((other) => other.sessionId === null && other.number === number);
+  if (!current?.[path === "/api/run" ? "run" : "resume"])
+    return false;
+  const reason = path === "/api/run" ? runReason(agent ?? null) : data?.noRun;
+  if (reason) {
+    toast(reason, { isError: true });
+    return false;
+  }
+  const entry = { step: current.step, phase: "pending" };
+  launches.set(number, entry);
+  render(false);
+  if (document.activeElement === document.body)
+    document.querySelector(`[data-key="${CSS.escape(keyOf(card))}"]`)?.focus({ preventScroll: true });
+  const isOk = await post(path, { number, ...agent ? { agent } : {} }, path === "/api/run" ? "Run failed" : "Resume failed");
+  entry.phase = isOk ? "done" : "failed";
+  settled = reads;
+  render();
+  load();
+  return isOk;
+};
 async function load() {
   clearTimeout(timer);
   const isLocal = hasRead && document.hidden;
+  const read = ++reads;
   try {
     const response = await fetch(`/api/board${isLocal ? "?local=1" : ""}`);
     if (!response.ok)
       throw new Error(response.statusText);
-    data = await response.json();
-    hasRead = true;
-    const cards = JSON.stringify([data.repo, data.noRun, data.flow, data.tracker, data.columns]);
-    if (cards !== last) {
-      const layout = layoutOf(data);
-      const isMove = lastLayout !== "" && layout !== lastLayout && !document.hidden;
-      if (isMove && document.startViewTransition && !isCalm.matches)
-        document.startViewTransition(() => drawBoard(data));
-      else
-        drawBoard(data);
-      last = cards;
-      lastLayout = layout;
+    const next = await response.json();
+    if (read > accepted && read > settled) {
+      accepted = read;
+      data = next;
+      hasRead = true;
+      for (const [number, launch] of launches)
+        if (launch.phase !== "pending")
+          launches.delete(number);
+      render();
+      source = data.source;
+      drawStatus(source, false);
     }
-    source = data.source;
-    drawStatus(source, false);
   } catch {
     drawStatus(source, true);
   }
@@ -923,15 +1009,16 @@ var paletteItems = () => {
     key: "",
     run: action.href ? () => window.open(action.href, "_blank", "noopener,noreferrer") : action.run
   });
+  const shown = project(data);
   for (const [column, group] of [
     ["needs", "Needs you"],
     ["running", "Running"],
     ["idle", "Run the next step"],
     ["human", "Human sessions"]
   ]) {
-    for (const card of data.columns[column]) {
+    for (const card of shown.columns[column]) {
       const key = [...byKey].find(([, entry]) => entry.card === card)?.[0] ?? keyOf(card);
-      const [main] = actionsOf(card, key);
+      const [main] = actionsOf(card);
       if (main && !main.isDisabled)
         add(group, card, key, main);
       else if (card.number !== null || card.sessionId)
@@ -959,15 +1046,16 @@ var paletteItems = () => {
             tone: group === "Needs you" ? "needs" : null,
             key: "",
             title: runTitle(card.step, data.flow),
-            run: () => act("/api/run", { number: card.number, agent: id }, "Run failed", () => {
-              toast(`Started the ${card.step} step of #${card.number} with ${display} in a new herdr tab`);
-            })
+            run: async () => {
+              if (await launch(card, "/api/run", id))
+                toast(`Started the ${card.step} step of #${card.number} with ${display} in a new herdr tab`);
+            }
           });
         }
       }
     }
   }
-  for (const card of data.columns.done)
+  for (const card of shown.columns.done)
     if (card.url)
       items.push({
         group: "Done",

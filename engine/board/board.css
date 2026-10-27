@@ -848,6 +848,21 @@ a.num:hover {
   border: 1px solid color-mix(in srgb, var(--needs-tint) 22%, transparent);
   overflow-wrap: anywhere;
 }
+.warning {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--amber) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 30%, transparent);
+  overflow-wrap: anywhere;
+}
+.compact .warning {
+  margin-top: 6px;
+  padding: 5px 8px;
+}
 .act.code {
   display: flex;
   align-items: center;
@@ -1062,8 +1077,10 @@ a.chip2:hover {
 .card[data-state="unknown"] .title {
   color: var(--fg2);
 }
-.card[data-state="starts"] .status .icon {
-  opacity: 0.6;
+.card[data-state="starts"] .status .icon,
+.panel[data-state="starts"] .pill .icon {
+  color: var(--working);
+  animation: turn 0.9s linear infinite;
 }
 @container (max-width: 360px) {
   .agent-name {

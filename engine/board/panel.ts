@@ -175,6 +175,7 @@ export const drawPanel = (
   }
   if (card.state !== 'starts') line.append(el('span', '', 'since'), timed(card.since, Boolean(card.sessionId)));
   top.append(title, line);
+  if (card.warning) top.append(el('p', 'warning', card.warning));
 
   const body = el('div', 'panel-body');
   body.append(top);

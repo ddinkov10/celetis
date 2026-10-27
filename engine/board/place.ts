@@ -15,7 +15,6 @@ type Snapshot = {
 
 import { gateOf } from './view.ts';
 
-const PRESS_MS = 30_000;
 const LABEL = /^#([1-9][0-9]*)(?: ([a-z]+))?/;
 
 const time = (iso: string) => Date.parse(iso);
@@ -42,18 +41,8 @@ export const sessionsOf = (snapshot: Snapshot, isHere: (path: string) => boolean
     });
 };
 
-export const activePresses = (
-  presses: Record<string, number>,
-  sessions: Session[],
-  board: Pick<Document, 'flow' | 'noRun' | 'issues'> | null,
-  now: number,
-) => {
-  const busy = new Set(sessions.map((session) => session.issue));
-  for (const issue of board?.issues ?? []) if (issue.state === 'starting') busy.add(issue.number);
-  return Object.fromEntries(
-    Object.entries(presses).filter(([number, at]) => now - at < PRESS_MS && !busy.has(Number(number))),
-  );
-};
+export const launchMatches = (issue: Issue | undefined, step: string | null) =>
+  issue?.step === step && (issue.state === 'ready' || issue.state === 'stuck');
 
 const issueCard = (issue: Issue, extra: Partial<Card>): Card => ({
   sessionId: null,
@@ -145,11 +134,11 @@ const ORDER: Record<Column, (a: Card, b: Card) => number> = {
 export const place = ({
   sessions,
   board,
-  presses,
+  launches,
 }: {
   sessions: Session[];
   board: Pick<Document, 'flow' | 'noRun' | 'issues'> | null;
-  presses: Record<string, number>;
+  launches: Record<string, { step: string | null; expired: boolean }>;
 }): Placement => {
   const columns: Columns = { needs: [], running: [], idle: [], done: [], human: [] };
   const issues = board?.issues ?? [];
@@ -160,12 +149,20 @@ export const place = ({
     ...sessions.map((session) => placeSession(session, byNumber.get(session.issue as number))),
     ...issues
       .filter((issue) => !busy.has(issue.number))
-      .map((issue) =>
-        PLACERS[issue.state](issue, {
+      .map((issue): [Column, Card] => {
+        const launch = launches[issue.number];
+        const feedback = launch && launchMatches(issue, launch.step) ? launch : null;
+        const [column, card] = PLACERS[issue.state](issue, {
           flow: (board as Pick<Document, 'flow' | 'noRun' | 'issues'>).flow,
-          isOpen: noRun === null && !(issue.number in presses),
-        }),
-      ),
+          isOpen: noRun === null && (!feedback || feedback.expired),
+        });
+        if (!feedback) return [column, card];
+        if (feedback.expired) {
+          card.warning = 'Session not detected. Check the terminal before starting again.';
+          return [column, card];
+        }
+        return ['running', { ...card, state: 'starts', act: null, run: false, resume: false, go: false }];
+      }),
   ];
   for (const [column, card] of placed) columns[column].push(card);
   for (const column of Object.keys(columns) as Column[]) columns[column].sort(ORDER[column]);

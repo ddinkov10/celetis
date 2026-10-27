@@ -965,7 +965,7 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   With `specify` as `auto`, it opens a design session for the lowest feature with no spec, and that
   session holds it until the spec is on the issue or you leave the session.
 - With a gate that is `auto` in the main YAML, the script of a Run press goes on with that step in the
-  same tab. Between two sessions the card is in Running with `starts`.
+  same tab. Between two sessions the card is in Running with `Starting`.
 - A Terminal tab and the script in it can end when the app starts again. The lock stays while
   either the runner or its foreground session is live. After both exit, a new runner can claim
   the stale lock; the session record stays.

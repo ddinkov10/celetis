@@ -31,7 +31,7 @@ export const STATES: Record<string, string> = {
   works: 'works',
   waits: 'waits for you',
   unknown: 'state unknown',
-  starts: 'starts',
+  starts: 'Starting',
   'dirty-tree': 'dirty tree',
   'no-progress': 'no progress',
 };

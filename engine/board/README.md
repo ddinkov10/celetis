@@ -201,7 +201,7 @@ no row, show the label of the tab as the title, with no link and no type.
 | `state` | Column | State on the card | Act line | Main button |
 |---|---|---|---|---|
 | `done` | the Done list, with `closedAt` as its time | none | none | none |
-| `starting` | Running | `starts` | none | none |
+| `starting` | Running | `Starting` | none | none |
 | `dirty` | Needs you | `dirty tree` | `path` | Open shell |
 | `stuck` | Needs you | `no progress` | `act` | Resume, and a quiet Run again |
 | `blocked` | Needs you | `reason` | `act` | Open issue, when the row has a `url` |
@@ -219,11 +219,20 @@ Running has the newest first, Idle has the highest number first, and Done has th
 Human sessions has the order of the tab labels, with numbers in numeric order, and two sessions with
 one label in the order of their herdr agent ids.
 
-**During a press** of Run or Resume, the card has no Run and no Resume while the board finds the
-copy and opens the tab. After the operation succeeds, both buttons stay absent for 30 seconds,
-or until a row with the state `starting` or a session of the issue shows. So a second press does
-not open a second tab for the same step. A press that fails releases its guard at once, and the
-card keeps its button.
+**During a press** of Run or Resume, the page moves the card to Running at once. The card shows
+`Starting` with a turning status icon while the board finds the copy and opens the tab. It keeps its
+step, so Pipeline shows it at that step. While the request runs, no control of the page sends a
+second press for that issue, and the server refuses a second press with 409. After the operation
+succeeds, the card stays `Starting` for 30 seconds, or until a row with the state `starting` or a
+session of the issue shows. A session wins at each time: its card shows its state and Go. The page
+uses no read that started before the request ended, and an older read never replaces a newer one.
+
+When the 30 seconds end, the next request that is not local reads the issues again. With no session
+and no `starting` row, the card goes back to its row with the text
+`Session not detected. Check the terminal before starting again.` The board does not
+stop a process or start a step again. The text stays until a session or a `starting` row shows,
+the step of the row changes, the row leaves the states `ready` and `stuck`, or a new press starts.
+A press that fails ends the `Starting` card at once, and the next read gives the card its buttons.
 
 ## The commands of the board
 
@@ -471,7 +480,8 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   `blocked` card, and `#<n> is ready to run <step>`, with the title of the issue. A human session
   that starts to wait for your answer shows `Human session "<label>" waits for your answer`, or
   `A human session waits for your answer` when its tab has an empty label. A press on the
-  notification opens the details of the card. A screen reader hears each card that enters Needs you.
+  notification opens the details of the card. A screen reader hears each card that enters Needs you,
+  each card that starts, and the session or the warning that ends a start.
 - Pipeline has one column for each item of `flow.stages`, in order, and it shows each issue at its
   step. A strip at the top, Not in a step, holds the issues whose step is in no stage.
 - When a request of the page fails, the cards of the last good read stay, dimmed, under the message
@@ -493,7 +503,9 @@ finds a human session whose tab label is `<n>`. `j` and `k` move to the next or 
 command or the path of the card. `v` changes between Now and Pipeline, `d` shows or hides Done, `r`
 reads the issues again, and `?` shows the list. The list has a switch that turns the single-key
 shortcuts off; the keys of a focused card always work, and the arrow keys move from a focused card
-as `h`, `j`, `k`, and `l` do. After a Run press the focus moves to the next card of Needs you.
+as `h`, `j`, `k`, and `l` do. After a Run or Resume press, the focus stays on the card of the
+issue in Running. A press in the details keeps the focus in the details: on the same button, or on
+Close when that button goes.
 
 After the first good read, the page writes the name of the tracker in its texts:
 `Open the issue on <tracker>` and `Read <tracker> again`. Before that read, and in the list of keys,
@@ -502,8 +514,8 @@ the texts are `Open the issue` and `Read the issues again`.
 **The errors.**
 
 - When a press fails, a toast names the press (`Go failed`, `Run failed`, `Resume failed`,
-  `Open shell failed`, `Refresh failed`) above the line of the server, and the card keeps its
-  button. This covers a herdr server that does not run, a `herdr` that is not on `PATH`, and a press
+  `Open shell failed`, `Refresh failed`) above the line of the server. After Go, Open shell, or
+  Refresh, the card keeps its button. A failed Run or Resume ends its `Starting` card. This covers a herdr server that does not run, a `herdr` that is not on `PATH`, and a press
   that the server refuses.
 - The status bar shows `herdr down` when `herdr api snapshot` fails, with the error in its title.
   The board then shows no session card, and the issue cards stay.

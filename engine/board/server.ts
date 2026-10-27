@@ -19,10 +19,11 @@ import { readdir, readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { basename, join, relative, resolve, sep } from 'node:path';
 import { childEnv } from '../lib/process.ts';
-import { activePresses, place, sessionsOf, stepsOf } from './place.ts';
+import { launchMatches, place, sessionsOf, stepsOf } from './place.ts';
 
 const HERE = import.meta.dirname;
 const STALE_MS = 60_000;
+const PRESS_MS = 30_000;
 const BACKGROUND_MS = 300_000;
 const DIFF_MS = 15_000;
 const SCREEN_LINES = 16;
@@ -113,9 +114,10 @@ export const createBoard = ({
   let readAt: string | null = null;
   let error: string | null = null;
   let askedAt = -Infinity;
+  let checkedFrom = -Infinity;
   let pending: Promise<void> | null = null;
-  let presses: Record<string, number> = {};
-  const operations: Record<string, number> = {};
+  const presses: Record<string, { step: string | null; at: number }> = {};
+  const operations: Record<string, { step: string | null; observed: boolean }> = {};
   let shown = new Set<string>();
   let health: Board['herdr'] = { ok: null, error: null };
   let firstSeen = new Map<string, number>();
@@ -123,6 +125,7 @@ export const createBoard = ({
   const diffs = new Map<string, { at: number; value: Diff | null }>();
 
   const readData = async () => {
+    const from = now();
     const limit = new AbortController();
     const timer = setTimeout(() => limit.abort(), STALE_MS);
     // Some steps of the read (the lock reads, locateCheckouts) do not take the signal.
@@ -137,6 +140,7 @@ export const createBoard = ({
         : firstLine(cause instanceof Error ? cause.message : String(cause)) || 'the issue read failed';
     } finally {
       clearTimeout(timer);
+      checkedFrom = from;
     }
   };
 
@@ -233,8 +237,24 @@ export const createBoard = ({
     const sessions = await watchSessions();
     if (!isLocal) await readScreens(sessions);
     for (const session of sessions) session.screen = screens.get(session.sessionId);
-    presses = activePresses(presses, sessions, board, now());
-    const placed = place({ sessions, board, presses: { ...presses, ...operations } });
+    const busy = new Set(sessions.map((session) => session.issue));
+    const launches: Parameters<typeof place>[0]['launches'] = {};
+    for (const [number, evidence] of Object.entries({ ...presses, ...operations })) {
+      const issue = board?.issues.find((issue) => issue.number === Number(number));
+      if (busy.has(Number(number)) || !launchMatches(issue, evidence.step)) {
+        delete presses[number];
+        if (operations[number]) operations[number].observed = true;
+      }
+      const operation = operations[number];
+      const press = presses[number];
+      if (operation ? !operation.observed : press) {
+        launches[number] = {
+          step: evidence.step,
+          expired: !operation && checkedFrom >= (press as { at: number }).at + PRESS_MS,
+        };
+      }
+    }
+    const placed = place({ sessions, board, launches });
     const cards = Object.values(placed.columns).flat();
     const ids = new Set(cards.flatMap((card) => (card.sessionId ? [card.sessionId] : [])));
     const hasEnded = [...shown].some((id) => !ids.has(id));
@@ -306,12 +326,21 @@ export const createBoard = ({
       .flat()
       .find((c) => c.sessionId === null && c.number === number);
 
-  const press = async (number: number, isAllowed: boolean | undefined, refusal: string, start: () => Promise<void>) => {
-    if (!isAllowed || number in operations || number in presses) throw new Refusal(409, refusal);
-    operations[number] = now();
+  const press = async (
+    number: number,
+    card: Card | undefined,
+    isAllowed: boolean | undefined,
+    refusal: string,
+    start: () => Promise<void>,
+  ) => {
+    if (!isAllowed || number in operations || (presses[number] && now() - presses[number].at < PRESS_MS))
+      throw new Refusal(409, refusal);
+    const operation = { step: (card as Card).step, observed: false };
+    operations[number] = operation;
+    delete presses[number];
     try {
       await start();
-      presses[number] = now();
+      if (!operation.observed) presses[number] = { step: operation.step, at: now() };
     } finally {
       delete operations[number];
     }
@@ -330,7 +359,7 @@ export const createBoard = ({
     const member = members[agent] as { available: boolean; cause: string | null };
     if (!member.available) throw new Refusal(409, cleanCause(member.cause));
     const card = await issueCardOf(number);
-    await press(number, card?.run, `#${number} has no step to start now`, async () => {
+    await press(number, card, card?.run, `#${number} has no step to start now`, async () => {
       const command = await adapter.run(number, agent as Host).catch((cause: Error) => {
         throw new Refusal(409, cleanCause(cause.message));
       });
@@ -345,7 +374,7 @@ export const createBoard = ({
 
   const resume = async (number: number) => {
     const card = await issueCardOf(number);
-    await press(number, card?.resume, `#${number} has no session to resume now`, async () => {
+    await press(number, card, card?.resume, `#${number} has no session to resume now`, async () => {
       const command = await adapter.resume(number).catch((cause: Error) => {
         throw new Refusal(409, cleanCause(cause.message));
       });
@@ -411,6 +440,8 @@ export const createBoard = ({
       const isLocal = new URLSearchParams(url.split('?')[1] ?? '').get('local') === '1';
       if (!pending && !isLocal && now() - askedAt > STALE_MS) void refresh();
       if (!board && !error && pending) await pending;
+      const isDue = (press: { at: number }) => now() - press.at >= PRESS_MS && checkedFrom < press.at + PRESS_MS;
+      if (!isLocal && Object.values(presses).some(isDue)) await refresh();
       return sendJson(response, 200, await placement({ isLocal }));
     }
     if (request.method !== 'POST' || !POSTS.has(path)) throw new Refusal(404, 'no such path');

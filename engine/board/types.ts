@@ -70,6 +70,7 @@ export type Card = {
   screen?: string[];
   cwd?: string | null;
   diff?: Diff | null;
+  warning?: string | null;
 };
 export type Column = 'needs' | 'running' | 'idle' | 'done' | 'human';
 export type Columns = Record<Column, Card[]>;
