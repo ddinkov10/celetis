@@ -24,8 +24,9 @@ N+1. Too little time for the lane → the change does not ship tonight.
    `/celetis:feature`. Zero behavior change → `/celetis:chore`. Given free text instead of `#<n>`: create the issue first — `gh issue create --label hotfix --title "<one line>" --body-file <intent>` with the `/celetis:intake` template as the body — and continue with its number. Given `#<n>` whose issue carries `epic`: stop; an epic has no branch, and each child runs its own lane. Given any other `#<n>`: make `hotfix` its only lane label with `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'issue' '<n>' 'route' 'hotfix'` — it adds `hotfix` when the issue lacks it, and removes each of `needs-triage`, `enhancement`, `bug`, `chore` that the issue carries — because `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree'` names the branch from the lane label.
 2. **Worktree.** Run `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree' '<n>'` with a 10-minute timeout (a new worktree runs
    the worktree setup of the project) and bind the exact path it prints using the host operations. The script re-enters the
-   issue's branch, or creates `hotfix/<n>-<slug>` from the title when the issue has none; when
-   it refuses, show the user its message and stop. Every later step runs in that worktree; the
+   issue's branch and brings it up to the trunk, or creates `hotfix/<n>-<slug>` from the title
+   when the issue has none; when it refuses, show the user its message and stop. Every later
+   step runs in that worktree; the
    main checkout never changes branch (Branches, PRs, merge in `<plugin>/docs/issue-tracker.md`).
 3. **Explore project context.** Explore files, docs, recent commits. Also read:
    - `AGENTS.md` — project architecture.

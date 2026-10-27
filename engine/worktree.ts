@@ -6,7 +6,7 @@ import { commandInput, createOperation, locateCheckouts } from './lib/operation.
 import { codexHome } from './lib/plugin-metadata.ts';
 import { run } from './lib/process.ts';
 import { branchGlobs, branchPattern, laneOf, lanes } from './lib/workflow.ts';
-import { checkoutOf, markerOf, removeCheckout, removeLane, runSetup } from './lib/worktree.ts';
+import { checkoutOf, markerOf, removeCheckout, removeLane, runSetup, updateLane } from './lib/worktree.ts';
 
 const usage =
   'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> worktree [--remove] <issue number>, e.g. 302 or #302';
@@ -123,15 +123,28 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     await removeLane(n, branch, current, cwd);
     return 0;
   }
+  const trunk = (await api<{ default_branch: string }>('', 'cannot read the default branch from GitHub'))
+    .default_branch;
+  await git(['fetch', '-q', 'origin', trunk], true);
   if (current) path = current;
   else if (hasBranch) await git(['worktree', 'add', path, branch], true);
   else if (fromPr) {
     await git(['fetch', '-q', 'origin', branch], true);
     await git(['worktree', 'add', '--track', '-b', branch, path, `origin/${branch}`], true);
-  } else {
-    const repo = await api<{ default_branch: string }>('', 'cannot read the default branch from GitHub');
-    await git(['fetch', '-q', 'origin', repo.default_branch], true);
-    await git(['worktree', 'add', '--no-track', '-b', branch, path, `origin/${repo.default_branch}`], true);
+  } else await git(['worktree', 'add', '--no-track', '-b', branch, path, `origin/${trunk}`], true);
+  const discard = async () => {
+    if (current) return;
+    await removeCheckout(path, main, true).catch((failure: Error) => console.error(failure.message));
+    if (!hasBranch) {
+      const result = await run('git', ['branch', '-D', branch], { cwd: main });
+      process.stderr.write(result.stdout + result.stderr);
+    }
+  };
+  try {
+    await updateLane(path, branch, trunk, n);
+  } catch (error) {
+    await discard();
+    throw error;
   }
   let setupRan = false;
   let validatingConfig = false;
@@ -152,13 +165,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
       console.error(error.message);
       if (error.code === 2) detail = '.celetis.yaml';
     }
-    if (!current) {
-      await removeCheckout(path, main, true).catch((failure: Error) => console.error(failure.message));
-      if (!hasBranch) {
-        const result = await run('git', ['branch', '-D', branch], { cwd: main });
-        process.stderr.write(result.stdout + result.stderr);
-      }
-    }
+    await discard();
     throw new HostError(
       `worktree setup failed: ${detail}`,
       validatingConfig && error instanceof HostError && error.code === 2 ? 2 : 1,

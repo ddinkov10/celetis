@@ -73,6 +73,34 @@ export async function removeCheckout(
   process.stderr.write(result.stdout + result.stderr);
 }
 
+export async function updateLane(checkout: string, branch: string, trunk: string, n: string): Promise<void> {
+  const git = (args: string[]) => run('git', args, { cwd: checkout });
+  const upstream = `origin/${trunk}`;
+  const contains = async (ancestor: string, descendant: string) => {
+    const result = await git(['merge-base', '--is-ancestor', ancestor, descendant]);
+    if (result.code > 1) throw new HostError(result.stderr.trimEnd(), result.code);
+    return result.code === 0;
+  };
+  if (await contains(upstream, 'HEAD')) return;
+  const status = await git(['status', '--porcelain']);
+  if (status.code !== 0) throw new HostError(status.stderr.trimEnd(), status.code);
+  if (status.stdout) throw new HostError(`the lane worktree is dirty: ${checkout}; commit first`);
+  const merge = (await contains('HEAD', upstream))
+    ? await git(['merge', '-q', '--ff-only', upstream])
+    : await git(['merge', '--no-ff', '--no-edit', '-m', `Merge ${upstream} into ${branch} (#${n})`, upstream]);
+  if (merge.code === 0) return;
+  await git(['merge', '--abort']);
+  throw new HostError(
+    [
+      merge.stdout.trim(),
+      merge.stderr.trim(),
+      `cannot merge ${upstream} into ${branch}; merge it by hand and commit, then run the step again`,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  );
+}
+
 export async function removeLane(
   n: string,
   branch: string,

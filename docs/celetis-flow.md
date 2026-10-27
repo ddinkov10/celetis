@@ -390,9 +390,11 @@ Installation discovery with an explicit host and standalone capability scoring w
 inputs remain available outside a repository. They need no project config.
 
 **The worktree setup.** `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> worktree <n>` creates the lane worktree and its branch
-(`docs/issue-tracker.md`, "Branches, PRs, merge"). A new branch starts at the freshly fetched trunk
-of `origin`. `gh api 'repos/{owner}/{repo}' --jq .default_branch` gives the trunk when the command creates a
-new branch. The command checks `.celetis.yaml` in the lane before setup. It reads `worktreeSetup`
+(`docs/issue-tracker.md`, "Branches, PRs, merge"). On each entry,
+`gh api 'repos/{owner}/{repo}' --jq .default_branch` gives the trunk, and the command fetches it
+from `origin`. A new branch starts at that trunk. An existing branch comes up to it before the
+config check (`docs/issue-tracker.md`, "Branches, PRs, merge"). The command checks `.celetis.yaml`
+in the lane before setup. It reads `worktreeSetup`
 as one TypeScript string and writes its exact bytes to a private 0600 temporary file outside
 both the main checkout and lane. The selected Bun runs it in the lane. `process.argv[2]` is the
 absolute main checkout. Stdin, stdout, and stderr stay inherited. Check each external command
@@ -404,8 +406,10 @@ An omitted or empty setup runs no script.
 A failed setup or invalid new lane config prints `worktree setup failed:` and removes a new
 worktree and a branch created by the command. Configuration validation exits 2 after cleanup;
 ordinary setup and Git failures keep their existing statuses. An existing branch or worktree
-stays for repair and retry. Entry into the target lane creates a fresh operation before setup
-or marker acceptance. Setup validates again after it writes or selects a different file.
+stays for repair and retry. A refused update of an existing branch prints its own reason, not
+`worktree setup failed:`, and uses the same cleanup. Entry into the target lane creates a fresh
+operation before setup or marker acceptance. Setup validates again after it writes or selects a
+different file.
 The marker remains
 `<git dir of the worktree>/celetis-flow-setup-done`. The command writes it only after a script that
 is not empty succeeded. With an empty or missing `worktreeSetup`, it writes no marker. It runs

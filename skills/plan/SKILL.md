@@ -13,8 +13,8 @@ Superset of `superpowers:writing-plans` for project features. Delegates to it; a
 
 1. Enter the issue's worktree: run `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree' '<n>'` with a 10-minute timeout and bind
    the exact path it prints using the host operations (reuse the binding when the session is already there). The
-   script re-enters the issue's branch, or creates it when the issue has none; when it refuses,
-   show the user its message and stop.
+   script re-enters the issue's branch and brings it up to the trunk, or creates it when the
+   issue has none; when it refuses, show the user its message and stop.
 2. Read the spec from the issue (`gh issue view <n> --comments`): the body when it opens with `Spec:`, else the latest `## Root cause` comment — a bug's debugging report is its spec. In the session that wrote it, the local spec file or the report in context holds the same text. Then invoke `superpowers:writing-plans` using the host operations and follow it — it owns plan structure, file mapping, task right-sizing, bite-sized TDD steps, frequent commits.
 3. Layer the project additions below.
 

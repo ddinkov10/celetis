@@ -36,6 +36,9 @@ landing permission", is optional: it skips the review of each call, so a session
 file that it can read on the issue. Add it only when Codex cannot ask for approval, for example
 with the approval policy `never`.
 
+`worktree` also needs network on each entry: it reads the trunk from GitHub and fetches it from
+`origin`. In a sandbox with no network, request the approved retry first.
+
 ## Dispatch
 
 With a nonempty `codexProfiles` mapping or an explicit profile, pass fresh model and effort

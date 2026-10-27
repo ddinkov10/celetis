@@ -38,7 +38,8 @@ the same lane. If you have not completed step N, you cannot start step N+1.
    own `/celetis:feature #<child>`. One feature → continue to step 2.
 2. **Worktree.** Run `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree' '<n>'` with a 10-minute timeout (a new worktree runs
    the worktree setup of the project) and bind the exact path it prints using the host operations. The script re-enters the
-   issue's branch, or creates `feat/<n>-<slug>` from the title when the issue has none; when
-   it refuses, show the user its message and stop. Every later step runs in that worktree; the
+   issue's branch and brings it up to the trunk, or creates `feat/<n>-<slug>` from the title
+   when the issue has none; when it refuses, show the user its message and stop. Every later
+   step runs in that worktree; the
    main checkout never changes branch (Branches, PRs, merge in `<plugin>/docs/issue-tracker.md`).
 3. **Invoke `celetis:specify #<n>`** and follow it — it drives the rest of the chain.
