@@ -131,10 +131,10 @@ another script. To stop it, close its tab, or press ctrl+c while it waits. It re
 only. With the default gates no step is `auto`, so the automatic runner starts nothing.
 
 **The form `--resume <n>`** reopens the exact session from
-`<git common dir>/celetis-flow/sessions/<n>.json`. It validates the current record, selects its
-saved host and checkout, and runs `claude --resume <id>` or `codex resume --no-daemon <id>`. A missing or
-invalid record stops with a recovery action. Resume takes the shared issue lock and retains it
-until the foreground exits. It makes no `gh` call or update and starts no completion watcher,
+`<git common dir>/celetis-flow/sessions/<n>.json`. It first takes the shared issue lock and keeps it
+until the foreground exits. Under that lock, it reads and validates the current record, selects
+its saved host and checkout, and runs `claude --resume <id>` or `codex resume --no-daemon <id>`. A missing or
+invalid record stops with a recovery action. It makes no `gh` call or update and starts no completion watcher,
 so the session stays open until you leave it. A Resume press of the board types this form ("The
 board").
 
@@ -660,8 +660,9 @@ stop. The deterministic script checks and final Verify results remain required (
 
 The herdr tab label is `#<n> <step>`. It links the live card to the issue on the board. The label
 is not the saved session ID. From the main checkout, `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow --resume 402`
-reads the current record for #402 and opens its exact host and session ID. It holds the shared
-issue lock until the session exits. No completion job or update runs during resume.
+first takes the shared issue lock and keeps it until the foreground exits. Under that lock, it
+reads and validates the current record for #402 and opens its exact host and session ID.
+No completion job or update runs during resume.
 
 A missing or invalid record stops with a recovery action. A record with no verified ID directs
 you to `claude --resume` or `codex resume --no-daemon`, by its saved host, to select a saved session manually.

@@ -356,6 +356,10 @@ export async function main(argv: string[]): Promise<number> {
     main = checkout.main;
     locks = createLockOwner(main);
     state = join(common, 'celetis-flow');
+    if (mode === 'resume') {
+      const holder = await locks.take(`issue-${numbers[0]}`);
+      if (holder !== null) die(`another celetis-flow.ts or its session (PID ${holder}) works on #${numbers[0]}`);
+    }
     const saved = mode === 'resume' ? await selectSavedSession(main, Number(numbers[0]), explicit, common) : undefined;
     operation = createOperation(checkout, { ...selection, saved: saved?.host }, 'main');
     const host = operation.host;
@@ -387,8 +391,6 @@ export async function main(argv: string[]): Promise<number> {
       process.on(signal, handler);
     }
     if (mode === 'resume') {
-      const holder = await locks.take(`issue-${numbers[0]}`);
-      if (holder !== null) die(`another celetis-flow.ts or its session (PID ${holder}) works on #${numbers[0]}`);
       const { ended } = await startSession(
         host === 'claude' ? ['--resume', savedId] : ['resume', '--no-daemon', savedId],
         host,
