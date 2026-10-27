@@ -2,7 +2,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { constants } from 'node:os';
 import { join } from 'node:path';
 import type { Config } from './lib/config.ts';
-import { HostError } from './lib/host.ts';
+import { HostError, updateHint } from './lib/host.ts';
 import { lineOf } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
@@ -38,8 +38,7 @@ type Request = {
 const statuses = { usage: 2, prerequisite: 3, repair: 4, checks: 5, blocked: 6, cleanup: 7 } as const;
 type Outcome = keyof typeof statuses;
 class Classified extends HostError {}
-const usage =
-  "usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land <issue number> '<type>(<area>): <what>', e.g. BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land 415 'feat(agent-harness): the build step lands the change'";
+const usage = `usage: celetis --agent <host> land <issue number> '<type>(<area>): <what>', e.g. celetis --agent <host> land 415 'feat(agent-harness): the build step lands the change'\n${updateHint}`;
 const conventional = /^[a-z]+(\([^()]+\))?!?: [^ ]/;
 const suiteOf = (config: Config | undefined) => (config?.landing === 'merge' ? config.suite : undefined);
 
@@ -169,10 +168,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     if (checkout === main) die('blocked', `switch the main checkout off ${branch} first`);
     if (checkout) {
       if ((await git(['rev-parse', '--show-toplevel'])) === checkout)
-        die(
-          'usage',
-          `leave ${checkout} first: run /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' from the main checkout`,
-        );
+        die('usage', `leave ${checkout} first: run celetis --agent <host> land from the main checkout`);
       if (await git(['status', '--porcelain'], undefined, checkout))
         die('usage', `the lane worktree is dirty: ${checkout}; commit first`);
     }
@@ -231,7 +227,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     const landMerge = async (suite: string) => {
       const merge = await gitRaw(['merge-tree', '--write-tree', base, tip]);
       const tree = merge.code === 0 ? merge.stdout.trimEnd() : '';
-      const open = `the change is on ${trunk}, but #${n} is open; run /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' again`;
+      const open = `the change is on ${trunk}, but #${n} is open; run celetis --agent <host> land again`;
       let commit: string;
       if (tree === (await git(['rev-parse', `${base}^{tree}`]))) {
         cleanup = open;
@@ -248,7 +244,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
           ['push', '-q', 'origin', `${commit}:refs/heads/${trunk}`],
           ['blocked', `cannot push ${trunk} to origin; ${trunk} is as it was`],
         );
-        cleanup = `the change is on origin/${trunk}, but the main checkout did not move; run git pull there, then run /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' again`;
+        cleanup = `the change is on origin/${trunk}, but the main checkout did not move; run git pull there, then run celetis --agent <host> land again`;
         await git(['merge', '-q', '--ff-only', commit], undefined, main);
         cleanup = open;
       }
@@ -523,7 +519,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     };
     if (config.landing === 'merge') await landMerge(config.suite);
     else await landPr();
-    cleanup = `the change is on ${trunk}, but the removal of ${branch} stopped; run /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' again`;
+    cleanup = `the change is on ${trunk}, but the removal of ${branch} stopped; run celetis --agent <host> land again`;
     console.log(`land: #${n} is on ${trunk}`);
     if (config.landing === 'pr') await pullMain();
     await closeEpic();

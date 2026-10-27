@@ -2,11 +2,13 @@ You run one step of this repository's celetis flow in a session of its own. The 
 the step and one GitHub issue, #<n>. The issue is the state store (the document
 `docs/issue-tracker.md` of the plugin `celetis`): every result goes to the issue.
 
-Bind `<plugin>` from the loaded `skills/<name>/SKILL.md` path. Read `docs/hosts/entry.md` of that
-package before the step. When no loaded skill path binds `<plugin>`, stop before a workflow command.
-Report the setup action: enable `celetis@celetis` for the running host and start a fresh session
-that exposes its loaded skill path. `root` reports only its invoked package; it cannot discover
-an unknown package. Use no guessed cache folder or another host's installation.
+Bind `<plugin>` from the loaded `skills/<name>/SKILL.md` path, for the documents of the plugin only.
+Read `docs/hosts/entry.md` of that package before the step. When no loaded skill path binds
+`<plugin>`, stop before a workflow command. Report the setup action: enable `celetis@celetis` for
+the running host and start a fresh session that exposes its loaded skill path. Use no guessed cache
+folder or another host's installation. When `celetis` is not on `PATH`, stop before a workflow
+command. Report the setup action: install the program (`README.md`, "First install", of the plugin
+`celetis`), then start a fresh session.
 
 Follow the bound host's invocation, custom-part, worktree, command, and dispatch rules on each
 same-session handoff. Each plugin command explicitly selects the running host with `--agent`.
@@ -25,22 +27,20 @@ Bind commands and file edits to the lane path; return to the main checkout for l
      is no. Do not start that lane; the runner starts it in a fresh session.
    - When a skill tells you to wait for a review of a plan or a report, do not wait: publish it
      and go on.
-3. Land a change only with `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' 'claude' 'land'` or
-   `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' 'codex' 'land'`, matching this host,
-   and only when the skill of your step says so.
+3. Land a change only with `celetis --agent claude land` or `celetis --agent codex land`, matching
+   this host, and only when the skill of your step says so.
 4. A stop is not a question: where a skill says to ask, rule 2 holds. When the step cannot go on
    and no decision of rule 2 is open (a skill says to stop, to show the user a message, or to
    escalate to the user), hand the stop to the issue:
    - The issue holds the reason. A comment that the skill posts for this stop
      (`## Landing refused`, `## Before landing`) is the reason. Then, when the skill adds no label
-     for this stop, run
-     `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'issue' '<n>' 'ready-for-human'`
-     as the last act of the turn, after each other act that the skill names for the stop.
+     for this stop, run `celetis --agent <host> issue <n> ready-for-human` as the last act of the
+     turn, after each other act that the skill names for the stop.
    - Else write the step, the exact message or the failure trail, and the act of the maintainer
      that lets the step go on to a file, with no heading. Run
-     `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'issue' '<n>' 'stopped' '<file>'`
-     as the last act of the turn, after each other act that the skill names for the stop. It
-     posts the file with `## Stopped` as its first line, then adds `ready-for-human`.
+     `celetis --agent <host> issue <n> stopped <file>` as the last act of the turn, after each
+     other act that the skill names for the stop. It posts the file with `## Stopped` as its first
+     line, then adds `ready-for-human`.
    - The label ends this session.
    - An `issue` act that exits 6 with `complete it by hand: <command>` stopped partway. That
      command is an act of the maintainer: run no part of it, and hand the stop to the issue with
@@ -54,15 +54,15 @@ Bind commands and file edits to the lane path; return to the main checkout for l
    scenario. Then the scenario is a human precondition of the landing: write a new
    `## Before landing` comment for this build to a file, with no heading (the scenario, its
    commands, the expected result, and the refusal), then run
-   `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'issue' '<n>' 'before-landing' '<file>'`
-   as the last act of the turn. It posts the comment, then adds `ready-for-human` and removes
-   `ready-for-agent`. The removal marks the change as built.
+   `celetis --agent <host> issue <n> before-landing <file>` as the last act of the turn. It posts
+   the comment, then adds `ready-for-human` and removes `ready-for-agent`. The removal marks the
+   change as built.
    On a later run, keep the built change and follow the skill's re-entry rule. Require a
    trusted human completion report or the maintainer's label-removal event after the
    `## Before landing` comment for this build. An absent `ready-for-human` label is not completion
    evidence. Without evidence, restore that label with
-   `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'issue' '<n>' 'ready-for-human'`
-   as the last act, using the existing comment as the reason, and stop. With evidence, skip the old Verify phase and go to Land, step 2.
+   `celetis --agent <host> issue <n> ready-for-human` as the last act, using the existing comment
+   as the reason, and stop. With evidence, skip the old Verify phase and go to Land, step 2.
    A `## Before landing` comment that names an act of "During the build" of the plan is the
    exception: follow the re-entry rule of the skill, which runs the scenarios that waited for that
    act.

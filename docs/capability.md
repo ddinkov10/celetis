@@ -3,7 +3,7 @@
 Second routing axis, beside **type** (the four `/celetis:bug` `/celetis:hotfix` `/celetis:feature`
 `/celetis:chore` entry commands). At **every dispatch point** a scored rubric decides which model
 tier and effort level executes the next task. Digit assignment is agentic (judgment — unavoidable);
-digits→tier arithmetic is deterministic and lives in `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> capscore` (the doc is the
+digits→tier arithmetic is deterministic and lives in `celetis --agent <host> capscore` (the doc is the
 spec; the script is the authority for the math — they must agree).
 
 ## The rubric — six dimensions, each 0–2
@@ -78,7 +78,7 @@ For plan headers and children outside the task loop of `implement`, generate the
 ([Dispatch records](#dispatch-records)).
 
 ```bash
-BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> capscore J V B N S X [--attempt N] [--bias N]
+celetis --agent <host> capscore J V B N S X [--attempt N] [--bias N]
 ```
 
 ## Who must score, when — the consumption rule
@@ -121,7 +121,8 @@ mode-0600 record and lock files, a lock, and atomic replacement. Its key is the 
 `CLAUDE_CODE_SESSION_ID` or `CODEX_SESSION_ID`. A new session starts at attempt 1. GitHub remains
 workflow state; this file is local execution evidence.
 
-Use the bound command of [Host entry](hosts/entry.md), with the running host selected by `--agent`:
+Run each act as `celetis --agent <host> dispatch <act>` ([Host entry](hosts/entry.md)), with the
+running host:
 
 | Act and arguments | Result |
 | --- | --- |
@@ -357,20 +358,20 @@ mismatches, and unavailable model/effort pairs exit 2 with a setup action and no
 With no profile, the scorer needs no runtime file:
 
 ```bash
-BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent codex capscore 1 0 2 1 1 0 --json
+celetis --agent codex capscore 1 0 2 1 1 0 --json
 ```
 
 With a `codexProfiles` entry, supply the runtime allowlist:
 
 ```bash
-BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent codex capscore 1 0 2 1 1 0 --json \
+celetis --agent codex capscore 1 0 2 1 1 0 --json \
   --runtime-models /path/to/active-models.json
 ```
 
 Outside a configured repository, supply the explicit profile and runtime allowlist:
 
 ```bash
-BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent codex capscore 1 0 2 1 1 0 --json \
+celetis --agent codex capscore 1 0 2 1 1 0 --json \
   --profile /path/to/profile.json --runtime-models /path/to/active-models.json
 ```
 

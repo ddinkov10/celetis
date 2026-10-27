@@ -3,10 +3,10 @@ import { lstat, readdir, readFile, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, isAbsolute, join, relative, sep } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { codexRequest, type Host, HostError, mainCheckout } from './host.ts';
+import { codexRequest, type Host, HostError, mainCheckout, NotInstalled } from './host.ts';
 import { childEnv, run, updateDescriptor } from './process.ts';
 
-const revision = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
+export const revision = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 
 export const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -19,7 +19,7 @@ export async function git(args: string[], cwd: string, execute: typeof run = run
   );
   if (result.code !== 0)
     throw new HostError(
-      [`plugin-update: git ${args[0]} failed (exit ${result.code})`, result.stderr.trimEnd(), result.stdout.trimEnd()]
+      [`update: git ${args[0]} failed (exit ${result.code})`, result.stderr.trimEnd(), result.stdout.trimEnd()]
         .filter(Boolean)
         .join('\n'),
     );
@@ -27,7 +27,7 @@ export async function git(args: string[], cwd: string, execute: typeof run = run
 }
 
 export async function installedRevision(
-  host: Host,
+  host: Host | 'program',
   root: string,
   source: string,
   nativeRevision?: string,
@@ -35,11 +35,11 @@ export async function installedRevision(
 ): Promise<string> {
   const witness = await lstat(join(root, '.git')).catch(() => null);
   if (witness && !witness.isDirectory())
-    throw new HostError(`plugin-update: Git witness is not package-owned: ${root}; repair the native installation`);
+    throw new HostError(`update: Git witness is not package-owned: ${root}; repair the native installation`);
   if (!witness) {
     if (nativeRevision) return nativeRevision;
     throw new HostError(
-      `plugin-update: ${root} has no package-owned Git revision witness; reinstall from a source with verifiable full installed identity`,
+      `update: ${root} has no package-owned Git revision witness; reinstall from a source with verifiable full installed identity`,
     );
   }
   const args = [`--git-dir=${join(root, '.git')}`, `--work-tree=${root}`];
@@ -49,14 +49,14 @@ export async function installedRevision(
     (await lstat(join(root, '.git/objects/info/alternates')).catch(() => null))
   )
     throw new HostError(
-      `plugin-update: installed Git witness uses external common state: ${root}; use a package-owned Git record`,
+      `update: installed Git witness uses external common state: ${root}; use a package-owned Git record`,
     );
   const installed = await git([...args, 'rev-parse', '--verify', 'HEAD'], root, execute);
   if (nativeRevision && nativeRevision !== installed)
     throw new HostError(
-      `plugin-update: native installed revision disagrees with package witness: ${root}; repair the native identity`,
+      `update: native installed revision disagrees with package witness: ${root}; repair the native identity`,
     );
-  if (!revision.test(installed)) throw new HostError(`plugin-update: invalid full installed revision in ${root}`);
+  if (!revision.test(installed)) throw new HostError(`update: invalid full installed revision in ${root}`);
   const metadataName = '.codex-marketplace-install.json';
   const metadataPath = join(root, metadataName);
   const metadataFile = host === 'codex' ? await lstat(metadataPath).catch(() => null) : null;
@@ -65,7 +65,7 @@ export async function installedRevision(
     try {
       metadata = await jsonFile(metadataPath);
     } catch (error) {
-      throw new HostError(`plugin-update: invalid native marketplace metadata: ${(error as Error).message}`);
+      throw new HostError(`update: invalid native marketplace metadata: ${(error as Error).message}`);
     }
     if (
       !metadataFile.isFile() ||
@@ -82,17 +82,17 @@ export async function installedRevision(
       !Array.isArray(metadata.sparse_paths) ||
       metadata.sparse_paths.some((path) => typeof path !== 'string' || !path || path.includes('\0'))
     )
-      throw new HostError(`plugin-update: invalid native marketplace metadata identity in ${metadataPath}`);
+      throw new HostError(`update: invalid native marketplace metadata identity in ${metadataPath}`);
   }
   const changes = await git([...args, 'status', '--porcelain', '-z', '--untracked-files=normal'], root, execute);
   if (changes.split('\0').some((change) => change && !(metadataFile && change === `?? ${metadataName}`)))
     throw new HostError(
-      `plugin-update: installed package is dirty: ${root}; review its local changes before checking an update`,
+      `update: installed package is dirty: ${root}; review its local changes before checking an update`,
     );
   const remote = await git([...args, 'config', '--get', 'remote.origin.url'], root, execute);
   if (remote !== source)
     throw new HostError(
-      `plugin-update: installed Git source does not match configured source: ${remote}; repair the native installation identity`,
+      `update: installed Git source does not match configured source: ${remote}; repair the native installation identity`,
     );
   return installed;
 }
@@ -113,10 +113,10 @@ export async function codexHome(selected = configHome('codex')): Promise<string>
 }
 
 export async function bindUpdateHome(host: Host, selected = configHome(host)): Promise<string> {
-  if (!isAbsolute(selected)) throw new HostError(`plugin-update: ${host} home must be absolute: ${selected}`, 2);
+  if (!isAbsolute(selected)) throw new HostError(`update: ${host} home must be absolute: ${selected}`, 2);
   const home = await realpath(selected).catch(() => null);
   if (!home || !(await lstat(home)).isDirectory())
-    throw new HostError(`plugin-update: cannot resolve offered ${host} home: ${selected}`, 2);
+    throw new HostError(`update: cannot resolve offered ${host} home: ${selected}`, 2);
   process.env[host === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'CODEX_HOME'] = home;
   return home;
 }
@@ -143,7 +143,7 @@ export async function jsonFile(path: string, optional = false): Promise<Record<s
     return value;
   } catch (error) {
     if (optional && (error as NodeJS.ErrnoException).code === 'ENOENT') return {};
-    throw new HostError(`plugin-update: cannot read ${path}: ${(error as Error).message}; repair this native record`);
+    throw new HostError(`update: cannot read ${path}: ${(error as Error).message}; repair this native record`);
   }
 }
 
@@ -151,11 +151,10 @@ export async function nativeJson(
   host: Host,
   args: string[],
   cwd: string,
-  inheritedFd?: number,
   env = childEnv(),
   execute: typeof run = run,
 ): Promise<unknown> {
-  inheritedFd ??= updateDescriptor();
+  const inheritedFd = updateDescriptor();
   if (host === 'codex') env = childEnv({ ...env, CODEX_HOME: await codexHome(env.CODEX_HOME) });
   const result = await execute(host, args, {
     cwd,
@@ -237,7 +236,7 @@ export async function claudeInstallation(
   if (roots.size > 1)
     throw new HostError('celetis: Claude installation is ambiguous; keep one enabled Celetis root for this project');
   const root = [...roots][0];
-  if (!root) throw new HostError(missing);
+  if (!root) throw new NotInstalled(missing);
   const manifest = await jsonFile(join(root, '.claude-plugin/plugin.json'));
   if (manifest.name !== 'celetis' || !(await lstat(join(root, 'skills/guide/SKILL.md')).catch(() => null))?.isFile())
     throw new HostError('celetis: Claude reports an invalid celetis package; reinstall the plugin');
@@ -312,28 +311,17 @@ function pathBefore(one: string, two: string): boolean {
   return a.length < b.length;
 }
 
-export async function codexPlugin(
-  cwd: string,
-  inheritedFd?: number,
-  execute: typeof run = run,
-): Promise<PluginMetadata> {
+export async function codexPlugin(cwd: string, execute: typeof run = run): Promise<PluginMetadata> {
   const home = await codexHome();
   const env = childEnv({ ...process.env, CODEX_HOME: home });
-  const value = await nativeJson(
-    'codex',
-    ['plugin', 'list', '--marketplace', 'celetis', '--json'],
-    cwd,
-    inheritedFd,
-    env,
-    execute,
-  );
+  const value = await nativeJson('codex', ['plugin', 'list', '--marketplace', 'celetis', '--json'], cwd, env, execute);
   if (!object(value) || !Array.isArray(value.installed)) throw new HostError('celetis: invalid Codex plugin list');
   const records = value.installed.filter((item) => object(item) && item.pluginId === 'celetis@celetis');
   if (records.length > 1)
     throw new HostError('celetis: Codex reports multiple celetis installations; fix the native registry');
   const record: unknown = records[0];
   if (!object(record) || record.enabled !== true || record.installed !== true)
-    throw new HostError(
+    throw new NotInstalled(
       'celetis: Codex has no enabled celetis@celetis installation; install and enable the plugin in Codex',
     );
   if (
@@ -350,14 +338,7 @@ export async function codexPlugin(
   )
     throw new HostError('celetis: unsupported Codex celetis source metadata; repair the source-backed installation');
   const scoped = await realpath(cwd);
-  const response = await codexRequest(
-    scoped,
-    'skills/list',
-    { cwds: [scoped], forceReload: true },
-    inheritedFd,
-    home,
-    execute,
-  );
+  const response = await codexRequest(scoped, 'skills/list', { cwds: [scoped], forceReload: true }, home, execute);
   const data =
     object(response) && object(response.result) && Array.isArray(response.result.data) ? response.result.data : [];
   const catalogs = data.filter((item) => object(item) && item.cwd === scoped);
@@ -396,14 +377,7 @@ export async function codexPlugin(
     throw new HostError(
       `celetis: Codex registry does not match its installed version ${String(record.version)}; repair the native installation`,
     );
-  const marketplaces = await nativeJson(
-    'codex',
-    ['plugin', 'marketplace', 'list', '--json'],
-    cwd,
-    inheritedFd,
-    env,
-    execute,
-  );
+  const marketplaces = await nativeJson('codex', ['plugin', 'marketplace', 'list', '--json'], cwd, env, execute);
   if (!object(marketplaces) || !Array.isArray(marketplaces.marketplaces))
     throw new HostError('celetis: invalid Codex marketplace source list');
   const markets = marketplaces.marketplaces.filter((item) => object(item) && item.name === 'celetis');
@@ -448,13 +422,11 @@ export async function codexPlugin(
   return { host: 'codex', home, root, record, marketplacePlugins };
 }
 
-export async function codexSessionPin(root: string, cwd: string): Promise<string[]> {
+export async function codexSessionPin(cwd: string): Promise<string[]> {
   const metadata = await codexPlugin(cwd);
-  if (metadata.root !== (await realpath(root)))
-    throw new HostError('celetis: enabled package changed before session start; start a fresh runner');
   const source = metadata.record.marketplaceSource;
   if (!object(source) || typeof source.source !== 'string') throw new HostError('celetis: native source is missing');
-  if (source.sourceType === 'git') await installedRevision('codex', root, source.source);
+  if (source.sourceType === 'git') await installedRevision('codex', metadata.root, source.source);
   const args = [
     '-c',
     'marketplaces.celetis.source_type="local"',
@@ -462,7 +434,7 @@ export async function codexSessionPin(root: string, cwd: string): Promise<string
     `marketplaces.celetis.source=${JSON.stringify(metadata.root)}`,
   ];
   const env = childEnv({ ...process.env, CODEX_HOME: metadata.home });
-  const listed = await nativeJson('codex', [...args, 'plugin', 'marketplace', 'list', '--json'], cwd, undefined, env);
+  const listed = await nativeJson('codex', [...args, 'plugin', 'marketplace', 'list', '--json'], cwd, env);
   const markets =
     object(listed) && Array.isArray(listed.marketplaces)
       ? listed.marketplaces.filter((market) => object(market) && market.name === 'celetis')
@@ -496,7 +468,7 @@ export async function codexSessionPin(root: string, cwd: string): Promise<string
   const scope = direct ? scopedRoot : top;
   if (scoped?.name === 'celetis' && scope !== metadata.root && pathBefore(scope, metadata.root))
     throw new HostError(`celetis: mutable session marketplace precedes the installed source: ${scope}`);
-  const response = await codexRequest(cwd, 'config/read', { cwd, includeLayers: true }, undefined, metadata.home);
+  const response = await codexRequest(cwd, 'config/read', { cwd, includeLayers: true }, metadata.home);
   const config =
     object(response) && object(response.result) && object(response.result.config) ? response.result.config : null;
   if (!config || (config.plugins !== undefined && !object(config.plugins)))

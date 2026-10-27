@@ -13,16 +13,16 @@ export function checkClaudePolicy(records: PolicyRecord[]): void {
   for (const { path, value } of records) {
     const entries = value.extraKnownMarketplaces;
     if (entries !== undefined && !object(entries))
-      throw new HostError(`plugin-update: ${path}: extraKnownMarketplaces is invalid; repair the effective policy`);
+      throw new HostError(`update: ${path}: extraKnownMarketplaces is invalid; repair the effective policy`);
     const market = object(entries) ? entries.celetis : value.celetis;
     if (market === undefined) continue;
     if (!object(market))
-      throw new HostError(`plugin-update: ${path}: Celetis marketplace policy is invalid; repair the effective policy`);
+      throw new HostError(`update: ${path}: Celetis marketplace policy is invalid; repair the effective policy`);
     if (Object.hasOwn(market, 'autoUpdate')) effective = { path, value: market.autoUpdate };
   }
   if (effective && effective.value !== false)
     throw new HostError(
-      `plugin-update: ${effective?.path ?? 'native/local/project/user/managed settings'}: Celetis automatic updates are enabled or unknown; set the effective Celetis autoUpdate policy to false`,
+      `update: ${effective?.path ?? 'native/local/project/user/managed settings'}: Celetis automatic updates are enabled or unknown; set the effective Celetis autoUpdate policy to false`,
     );
 }
 
@@ -61,7 +61,7 @@ export async function claudePolicy(cwd: string): Promise<PolicyRecord[]> {
   const { readdir } = await import('node:fs/promises');
   const names = await readdir(fragments).catch((error: NodeJS.ErrnoException) => {
     if (error.code === 'ENOENT') return [];
-    throw new HostError(`plugin-update: cannot read ${fragments}; obtain access to all managed policy sources`);
+    throw new HostError(`update: cannot read ${fragments}; obtain access to all managed policy sources`);
   });
   paths.push(
     ...names

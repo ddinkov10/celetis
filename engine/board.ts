@@ -1,6 +1,6 @@
 import { celetisAdapter } from './board/adapter.ts';
 import { startBoard } from './board/start.ts';
-import { HostError, requireBun } from './lib/host.ts';
+import { HostError, requireBun, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
 import { requireUpdatePolicy } from './lib/plugin-policy.ts';
@@ -11,11 +11,7 @@ export async function main(argv: string[]): Promise<number> {
   try {
     requireBun();
     const { args, explicit } = commandInput(argv);
-    if (args.length)
-      throw new HostError(
-        'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board',
-        2,
-      );
+    if (args.length) throw new HostError(`usage: celetis --agent <host> board\n${updateHint}`, 2);
     const env = childEnv();
     process.env.PATH = env.PATH;
     const operation = createOperation(

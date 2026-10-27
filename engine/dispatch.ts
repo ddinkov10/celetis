@@ -19,17 +19,17 @@ import {
   validateExecutionReport,
   validateRecord,
 } from './lib/dispatch-record.ts';
-import { type Host, HostError } from './lib/host.ts';
+import { type Host, HostError, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { tryFlock } from './lib/update-lock.ts';
 import { openLockFile } from './lib/windows.ts';
 
-const usage = `dispatch next <n> <task> implementer|reviewer J V B N S X --bias N [--profile FILE] [--runtime-models FILE]
-dispatch gate <n> <task> pass|fail <gate> <report> [--profile FILE] [--runtime-models FILE]
-dispatch review <n> <task> findings|blocked [--profile FILE] [--runtime-models FILE]
-dispatch close <n> <task>
-dispatch show
-dispatch report <dispatch-id> <report-file>`;
+const usage = `celetis --agent <host> dispatch next <n> <task> implementer|reviewer J V B N S X --bias N [--profile FILE] [--runtime-models FILE]
+celetis --agent <host> dispatch gate <n> <task> pass|fail <gate> <report> [--profile FILE] [--runtime-models FILE]
+celetis --agent <host> dispatch review <n> <task> findings|blocked [--profile FILE] [--runtime-models FILE]
+celetis --agent <host> dispatch close <n> <task>
+celetis --agent <host> dispatch show
+celetis --agent <host> dispatch report <dispatch-id> <report-file>`;
 class UsageError extends Error {}
 class SetupError extends Error {}
 type Input =
@@ -275,7 +275,7 @@ export async function main(argv: string[]): Promise<number> {
     return printResult(result);
   } catch (error) {
     if (error instanceof UsageError || (error instanceof HostError && input === undefined)) {
-      console.error(`dispatch: usage: ${message(error)}`);
+      console.error(`dispatch: usage: ${message(error)}\n${updateHint}`);
       return 2;
     }
     if (error instanceof SetupError || error instanceof ScoreError || error instanceof HostError) {

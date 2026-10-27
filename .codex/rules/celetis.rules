@@ -1,5 +1,5 @@
 prefix_rule(
     pattern = ["gh", "pr", "merge"],
     decision = "forbidden",
-    justification = "Use the bound plugin entrypoint with --agent codex land from the main checkout.",
+    justification = "Use celetis --agent codex land from the main checkout.",
 )

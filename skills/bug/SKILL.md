@@ -24,8 +24,8 @@ root cause, no plan without the report. Perceived simplicity waives nothing: a o
 start step N+1.
 
 1. **Confirm classification.** Existing behavior misbehaves → continue. New behavior → `/celetis:feature`;
-   prod broken + ship-now → `/celetis:hotfix`; zero behavior change → `/celetis:chore`. Given free text instead of `#<n>`: create the issue first — `gh issue create --label bug --title "<one line>" --body-file <intent>` with the `/celetis:intake` template as the body — and continue with its number. Given `#<n>` whose issue carries `epic`: stop; an epic has no branch, and each child runs its own lane. Given any other `#<n>`: make `bug` its only lane label with `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'issue' '<n>' 'route' 'bug'` — it adds `bug` when the issue lacks it, and removes each of `needs-triage`, `enhancement`, `hotfix`, `chore` that the issue carries — because `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree'` names the branch from the lane label.
-2. **Worktree.** Run `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree' '<n>'` with a 10-minute timeout (a new worktree runs
+   prod broken + ship-now → `/celetis:hotfix`; zero behavior change → `/celetis:chore`. Given free text instead of `#<n>`: create the issue first — `gh issue create --label bug --title "<one line>" --body-file <intent>` with the `/celetis:intake` template as the body — and continue with its number. Given `#<n>` whose issue carries `epic`: stop; an epic has no branch, and each child runs its own lane. Given any other `#<n>`: make `bug` its only lane label with `celetis --agent <host> issue <n> route bug` — it adds `bug` when the issue lacks it, and removes each of `needs-triage`, `enhancement`, `hotfix`, `chore` that the issue carries — because `celetis --agent <host> worktree` names the branch from the lane label.
+2. **Worktree.** Run `celetis --agent <host> worktree <n>` with a 10-minute timeout (a new worktree runs
    the worktree setup of the project) and bind the exact path it prints using the host operations. The script re-enters the
    issue's branch and brings it up to the trunk, or creates `fix/<n>-<slug>` from the title
    when the issue has none; when it refuses, show the user its message and stop. Every later
@@ -55,7 +55,7 @@ start step N+1.
    as the report's `## Prototype` section (`<plugin>/docs/issue-tracker.md`). Do not ship a guessed
    default. Proceed autonomously to step 7 only when every state is spec-defined and the fix is
    self-contained.
-7. **Post the report, then invoke `celetis:plan #<n>`.** `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'issue' '<n>' 'root-cause' '<report>'`
+7. **Post the report, then invoke `celetis:plan #<n>`.** `celetis --agent <host> issue <n> root-cause <report>`
    posts the report with `## Root cause` as its first line, so the report file has no heading; the report is the spec (root cause + red repro + intended
    behavior + step 3's traps + its `## External facts` section) and `plan` drives the
    rest of the chain.

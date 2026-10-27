@@ -4,6 +4,7 @@ import { bunFloor } from '../engine/lib/config.ts';
 import { HostError } from '../engine/lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
 import { codexHome } from '../engine/lib/plugin-metadata.ts';
+import { programEntry } from '../engine/lib/process.ts';
 
 const root = dirname(import.meta.dir);
 const nativeTargets = [{ entry: 'engine/hooks/entry.ts', output: 'engine/hooks/entry.js', mode: 0o644 }];
@@ -75,6 +76,7 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
     const bytes = Buffer.from(await artifact.arrayBuffer());
     built.push({ output: target.output, mode: target.mode, bytes });
   }
+  built.push({ output: 'celetis', mode: 0o755, bytes: Buffer.from(programEntry) });
   for (const target of built) {
     const bytes = target.bytes;
     const output = join(root, target.output);

@@ -86,13 +86,13 @@ Ambiguous — ask the one splitter that resolves it:
    - **Multi-type idea** ("fix the export crash *and* add CSV export") → this issue keeps the
      load-bearing type; `/celetis:intake` opens one issue per remaining type; triage each.
    - **Unclear** — the report lacks what its lane needs (a repro for a bug, an outcome for a
-     feature) → write the questions to a file, run `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'issue' '<n>' 'needs-info' '<file>'`
+     feature) → write the questions to a file, run `celetis --agent <host> issue <n> needs-info <file>`
      (it posts the questions, then adds `needs-info`), stop.
-   - **No-fit idea** → write why to a file, run `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'issue' '<n>' 'wontfix' '<file>'`
+   - **No-fit idea** → write why to a file, run `celetis --agent <host> issue <n> wontfix <file>`
      (it posts the reason, adds `wontfix`, and closes the issue), stop.
 4. **Clean one-liner** — normalize the idea into the single-sentence description the lane consumes.
 5. **Label, announce, ask to continue** — apply the lane label and clear the triage one
-   (`/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'issue' '<n>' 'route' '<lane>'`
+   (`celetis --agent <host> issue <n> route <lane>`
    with the lane `feature`, `bug`, `chore`, or `hotfix`; the feature lane's label is
    `enhancement`), then state the pick and the one-liner (`→ /celetis:bug #<n>: <one-liner>`). Ask the
    human whether to proceed. On yes, invoke that lane with `#<n>` and follow it; the lane's step-1

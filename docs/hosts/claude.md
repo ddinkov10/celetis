@@ -30,7 +30,7 @@ Use `Agent` to spawn or replace a child. Apply `pair.model` and `pair.effort` th
 controls with a non-fork `subagent_type`. Use `SendMessage` to resume the recorded child; it has
 no model or effort control. A changed pair stops before a resume. Keep the parent settings.
 
-After the call, run `dispatch report <dispatch-id> <report-file>` through the bound command.
+After the call, run `celetis --agent claude dispatch report <dispatch-id> <report-file>`.
 The report is agent-reported evidence. It records what the agent says it sent and received;
 the engine cannot independently check the native call. Calls outside the task loop need no report.
 Save the actual arguments and complete native result. Use the returned `agentId` as `child`.

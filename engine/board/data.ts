@@ -46,7 +46,7 @@ export async function readBoard(main: string, signal: AbortSignal): Promise<Docu
             : stuck
               ? {
                   state: 'stuck',
-                  act: `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow --resume ${row.number}`,
+                  act: `celetis --agent <host> celetis-flow --resume ${row.number}`,
                 }
               : {}),
     });

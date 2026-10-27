@@ -11,12 +11,13 @@ import type { SessionRecord } from './lib/session.ts';
 import type { Run } from './lib/workflow.ts';
 
 const usage =
-  'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow [<issue number>...] | --resume <issue number>, e.g. BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow 373 374; with no number, the automatic runner';
-const removed = 'the plugin version of this runner was removed after an update; start the runner again';
+  'usage: celetis --agent <host> celetis-flow [<issue number>...] | --resume <issue number>, e.g. celetis --agent <host> celetis-flow 373 374; with no number, the automatic runner';
+const removed = 'the program version of this runner was removed after an update; start the runner again';
 const here = import.meta.dir;
 const required = [
   'next-step.ts',
-  '../bin/celetis.ts',
+  'update.ts',
+  '../celetis',
   'launcher.ts',
   'lib/config.ts',
   'lib/host.ts',
@@ -32,6 +33,7 @@ const required = [
   'lib/tracker.ts',
   'lib/lines.ts',
   'lib/process.ts',
+  'lib/program.ts',
   'lib/vendor/yaml.mjs',
 ];
 async function gone(files = required) {
@@ -88,6 +90,7 @@ export async function main(argv: string[]): Promise<number> {
   }
   if (numbers.some((n) => !/^[1-9][0-9]*$/.test(n)) || (argv[0] === '--resume' && mode === 'numbers')) {
     console.error(usage);
+    if (!unavailable) console.error((await import('./lib/host.ts')).updateHint);
     return 2;
   }
   if (unavailable) {
@@ -236,7 +239,7 @@ export async function main(argv: string[]): Promise<number> {
   };
   const startSession = async (args: string[], sessionHost: Host) => {
     if (sessionHost === 'codex')
-      args = [...(await (await import('./lib/plugin-metadata.ts')).codexSessionPin(root, main)), ...args];
+      args = [...(await (await import('./lib/plugin-metadata.ts')).codexSessionPin(main)), ...args];
     watchDir = await mkdtemp(join(state, 'start.'));
     session = spawn(
       process.execPath,
@@ -305,17 +308,16 @@ export async function main(argv: string[]): Promise<number> {
         const skips = last ? skipped(last.step, step, next.lane) : [];
         if (last && skips.length > 0) {
           say(
-            `#${n}: ${step} skips ${skips.join(', ')} after ${last.step}; fix the issue, or start ${step} by hand: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow ${n}`,
+            `#${n}: ${step} skips ${skips.join(', ')} after ${last.step}; fix the issue, or start ${step} by hand: celetis --agent <host> celetis-flow ${n}`,
           );
           await addRecord(common, n, line);
           break;
         }
         if (first !== 'any' && (config.gates?.[step] ?? defaultGate) !== 'auto') {
-          say(
-            `the gate of ${step} is me: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow ${n} starts ${prompt}`,
-          );
+          say(`the gate of ${step} is me: celetis --agent <host> celetis-flow ${n} starts ${prompt}`);
           break;
         }
+        await (await import('./update.ts')).requireSameRevision(stepHost, main, root);
         first = 'gated';
         say(`start: ${prompt}`);
         started = true;

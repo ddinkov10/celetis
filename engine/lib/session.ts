@@ -32,7 +32,7 @@ export function validateSession(value: unknown, main: string, issue: number, fil
     !(value.session_id === null || (typeof value.session_id === 'string' && uuid.test(value.session_id)))
   ) {
     throw new HostError(
-      `celetis: invalid or obsolete session record ${file}; remove it and start a new step with BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow ${issue}`,
+      `celetis: invalid or obsolete session record ${file}; remove it and start a new step with celetis --agent <host> celetis-flow ${issue}`,
     );
   }
   return value as unknown as SessionRecord;
@@ -50,7 +50,7 @@ export async function readSession(main: string, issue: number, common?: string):
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     throw new HostError(
-      `celetis: #${issue} has no current session record; start a new step with BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow ${issue}`,
+      `celetis: #${issue} has no current session record; start a new step with celetis --agent <host> celetis-flow ${issue}`,
     );
   }
   let value: unknown;

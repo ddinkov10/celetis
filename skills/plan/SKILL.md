@@ -11,7 +11,7 @@ Superset of `superpowers:writing-plans` for project features. Delegates to it; a
 
 ## Do this
 
-1. Enter the issue's worktree: run `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'worktree' '<n>'` with a 10-minute timeout and bind
+1. Enter the issue's worktree: run `celetis --agent <host> worktree <n>` with a 10-minute timeout and bind
    the exact path it prints using the host operations (reuse the binding when the session is already there). The
    script re-enters the issue's branch and brings it up to the trunk, or creates it when the
    issue has none; when it refuses, show the user its message and stop.
@@ -44,7 +44,7 @@ Judge "many" and "not simple" from the number of tasks, the CAP line of each tas
 **Per task:**
 - **Capability score.** Score the task on the six-dimension rubric (digit anchors: `<plugin>/docs/capability.md`) and emit the CAP line with the script — never hand-compute the tier:
   ```bash
-  /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'capscore' J V B N S X          # add --bias 0|1 to lower a cheap task
+  celetis --agent <host> capscore J V B N S X          # add --bias 0|1 to lower a cheap task
   ```
   Put the emitted `CAP: J_ V_ B_ N_ S_ X_ = n [+bN] → model/effort` line in the task header, in both flows. The user reviews the scores with the plan. On the subagent flow, `implement` reuses the digits and written bias, resolves the current host's model and effort, and re-scores only a task whose scope materially changed. On the inline flow, the line is a recommendation for the session and evidence for the choice of the flow. An absent `+bN` means bias 0; the model label is a historical binding.
 
@@ -80,4 +80,4 @@ bug: run `/celetis:bug` with the result.
 
 ## Terminal
 
-The execution method is supplied: `/celetis:implement #<n>` in a fresh context, which follows the `Execution:` line of the plan. Once the plan is written and self-reviewed, publish it in the same turn with `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'issue' '<n>' 'plan' '<plan>'`: it posts the plan with `## Plan` as its first line, then adds `ready-for-agent`. Then tell the user that the plan is on the issue for their review, repeat the two lists of `### Your steps` verbatim, and then tell the user to run `/celetis:implement #<n>` in a fresh context.
+The execution method is supplied: `/celetis:implement #<n>` in a fresh context, which follows the `Execution:` line of the plan. Once the plan is written and self-reviewed, publish it in the same turn with `celetis --agent <host> issue <n> plan <plan>`: it posts the plan with `## Plan` as its first line, then adds `ready-for-agent`. Then tell the user that the plan is on the issue for their review, repeat the two lists of `### Your steps` verbatim, and then tell the user to run `/celetis:implement #<n>` in a fresh context.

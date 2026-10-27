@@ -6,6 +6,8 @@ import { delimiter } from 'node:path';
 export const bunShebang =
   '#!/usr/bin/env -S BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros';
 
+export const programEntry = `${bunShebang}\nimport { main } from './engine/launcher.ts';\n\nprocess.exitCode = await main(process.argv.slice(2));\n`;
+
 export function updateDescriptor(): number | undefined {
   const fd = Number(process.env.CELETIS_UPDATE_FD);
   if (!Number.isInteger(fd) || fd < 3) return undefined;

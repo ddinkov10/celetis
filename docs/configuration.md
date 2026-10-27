@@ -164,7 +164,7 @@ It prints one compact validated JSON object and LF. Invalid or missing configura
 with empty stdout. Its diagnostic names the selected path and field; syntax and root errors
 use `<document>`. A below-floor Bun that can execute the entrypoint exits 2. Missing, broken,
 or nonexecutable Bun uses the native env/kernel diagnostic and status. There is no interpreter
-wrapper. The plugin owns the source entrypoint and its engine. Child Celetis programs use
+wrapper. The program owns its entry file `celetis` and its engine. Child Celetis programs use
 selected `process.execPath`, isolated environment/config/preload/macro/package controls,
 disabled transpiler cache, and `DO_NOT_TRACK=1`.
 
@@ -180,7 +180,7 @@ or `0b101`, is an error too. Quote such a value to keep it as a string.
 
 ### Operation values and freshness
 
-The entrypoint imports its own engine and replaces its process with the named command before
+The program entry imports its own engine and replaces its process with the named command before
 configuration reads. On Windows, it spawns the command with the same stdio and environment,
 waits, and exits with its status. The command consumes the forwarded `--agent`, validates its
 arguments, and creates its operation. `land.ts` and `celetis-flow.ts` retain their process
@@ -229,16 +229,15 @@ not a filesystem transaction across checkouts or a transaction with GitHub.
 
 ## Start the board
 
-Run `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board` in the main checkout or a subfolder. It takes no arguments and
+Run `celetis --agent <host> board` in the main checkout or a subfolder. It takes no arguments and
 refuses a lane start before it starts the board. At its start it reads the main config's
 `board.port`, default 4403, and keeps `PORT` above that value. Each data refresh creates a fresh
 main operation, so a change of `host` or `gates` shows at the next refresh ("Operation values and
-freshness"). At the start, the fixed adapter validates only the selected runtime. At each press,
-it finds the enabled copy of the session's host and checks its entrypoint. It types two fixed
-lines from that copy: Run with the selected agent, and Resume with no agent, using the saved host.
+freshness"). At each press, the fixed adapter reads the installed program and types two fixed
+lines with its command: Run with the selected agent, and Resume with no agent, using the saved host.
 No board config file is made. The board checks concrete replacement-policy conflicts at its
 start only; each Run and Resume checks them again in its own process. It can
-remain open during a manual update. A Claude update needs no board restart for Run and Resume;
+remain open during a manual update. After `celetis update`, Run and Resume need no board restart;
 new board code still needs a restart. The default agent is read-only on the board. Change `host` in
 the main YAML to set the project default. A board Run choice applies only to that start; Resume
 uses its saved host. See [The board](celetis-flow.md#the-board) for the exact lines.
@@ -252,9 +251,9 @@ apply to each requested operation.
 
 ## Install Bun
 
-Celetis commands need Bun 1.4.4 or later on `PATH`. The plugin does not
-install dependencies. CI pins Bun 1.4.4. The YAML parser of the reader, the `yaml` package
-2.9.1, comes with the plugin in `engine/lib/vendor/`, so a read installs no package.
+Celetis commands need Bun 1.4.4 or later on `PATH`: the entry of the program finds `bun` there.
+Celetis installs no package dependency. CI pins Bun 1.4.4. The YAML parser of the reader, the
+`yaml` package 2.9.1, comes with the plugin in `engine/lib/vendor/`, so a read installs no package.
 
 Install Bun with Homebrew:
 
@@ -274,9 +273,9 @@ To install one version, give its tag to the installer:
 curl -fsSL https://bun.com/install | bash -s "bun-v1.4.4"
 ```
 
-The official Windows installer runs in PowerShell. From Git Bash, the documented Celetis command
-form then loads the launcher. [Acceptance status](celetis-flow.md#acceptance-status) gives the
-Windows checks and the open ones.
+The official Windows installer runs in PowerShell. Then the first install of `README.md` installs
+the program from Git Bash, and the program runs from Git Bash, PowerShell, and `cmd`.
+[Acceptance status](celetis-flow.md#acceptance-status) gives the Windows checks and the open ones.
 
 ```powershell
 powershell -c "irm bun.sh/install.ps1|iex"

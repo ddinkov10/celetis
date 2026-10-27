@@ -88,7 +88,7 @@ export function lockFile(fd: number, shared: boolean): boolean {
   if (api.symbols.LockFileEx(handle, (shared ? 0 : 2) | 1, 0, 1, 0, new Uint8Array(32))) return true;
   const error = api.symbols.GetLastError();
   if (error === 33) return false;
-  throw new HostError(`plugin-update: cannot acquire the plugin update lock (Windows error ${error})`);
+  throw new HostError(`update: cannot acquire the plugin update lock (Windows error ${error})`);
 }
 
 export interface Job {

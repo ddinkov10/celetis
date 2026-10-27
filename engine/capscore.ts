@@ -10,10 +10,10 @@ import {
   ScoreError,
   scoreLabel,
 } from './lib/capability.ts';
-import { HostError } from './lib/host.ts';
+import { HostError, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 
-const usage = `usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> capscore J V B N S X [options]
+const usage = `usage: celetis --agent <host> capscore J V B N S X [options]
 --bias N                 effort bias (CAP_EFFORT_BIAS; default 2)
 --attempt N              gate-fail attempt (default 1; 4 or later stops)
 --agent claude|codex      explicit agent (CELETIS_AGENT > project config > claude)
@@ -22,7 +22,8 @@ const usage = `usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --n
 --profile FILE           Codex profile (CAP_MODEL_PROFILE > main config profile > parent model)
 --runtime-models FILE    active dispatch allowlist for a Codex profile (CAP_RUNTIME_MODELS)
 --current-model ID       opencode current model (CAP_CURRENT_MODEL)
-See docs/capability.md of the plugin celetis for profile and result schemas.`;
+See docs/capability.md of the plugin celetis for profile and result schemas.
+${updateHint}`;
 
 export async function main(argv: string[]): Promise<number> {
   const cwd = process.cwd();
@@ -134,7 +135,7 @@ export async function main(argv: string[]): Promise<number> {
     return 0;
   } catch (error) {
     if (error instanceof ScoreError) {
-      console.error(`capscore: ${error.message}`);
+      console.error(`capscore: ${error.message}\n${updateHint}`);
       return 2;
     }
     if (error instanceof HostError) {

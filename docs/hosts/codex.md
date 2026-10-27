@@ -31,13 +31,18 @@ with the same access needs. A denied file read retains the Host entry stop rule.
 Like `land`, `issue` needs network: it reads the issue from GitHub before any write. In a sandbox
 with no network, it exits 6 with `issue: blocked: cannot read #<n> from GitHub`. That is a
 sandbox block, not a GitHub that does not answer: request the approved retry first. The approved
-retry is the path for `issue`. The personal `issue` rule of `<plugin>/README.md`, "Personal
-landing permission", is optional: it skips the review of each call, so a session can post any
-file that it can read on the issue. Add it only when Codex cannot ask for approval, for example
-with the approval policy `never`.
+retry is the path for `issue`. The personal `issue` rule,
+`prefix_rule(pattern=["celetis", "--agent", "codex", "issue"], decision="allow")` of
+`<plugin>/README.md`, "Personal landing permission", is optional: it skips the review of each
+call, so a session can post any file that it can read on the issue. Add it only when Codex cannot
+ask for approval, for example with the approval policy `never`.
 
 `worktree` also needs network on each entry: it reads the trunk from GitHub and fetches it from
 `origin`. In a sandbox with no network, request the approved retry first.
+
+In the `workspace-write` sandbox, each part of `update check` can fail: that sandbox has no network
+by default and permits no write outside the workspace. Report each error, tell the person to run
+`celetis update check` in a terminal, and continue the task.
 
 ## Dispatch
 
@@ -54,7 +59,7 @@ the issued CAP line first in `message`. Keep the parent settings. For `resume`, 
 first in `message`. That follow-up has no model or effort controls. The engine stops a changed
 pair before issuing a resume; an unchanged pair can use the same child.
 
-After each call, run `dispatch report <dispatch-id> <report-file>` through the bound command.
+After each call, run `celetis --agent codex dispatch report <dispatch-id> <report-file>`.
 The evidence is agent-reported. The engine validates the report; it does not intercept or
 independently check the native call. No native interception or trust change is required. Calls outside
 the task loop need no report. Save exact arguments and the complete native result. A returned

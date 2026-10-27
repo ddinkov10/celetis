@@ -1,25 +1,30 @@
 import { stat } from 'node:fs/promises';
-import { join } from 'node:path';
-import { HostError, requireBun } from './lib/host.ts';
+import { dirname, join } from 'node:path';
+import { HostError, requireBun, updateHint } from './lib/host.ts';
 import { commandInput } from './lib/operation.ts';
 import { bunArgs, childEnv } from './lib/process.ts';
+import { programRevision } from './lib/program.ts';
 import { execConsumer } from './lib/update-lock.ts';
 
 export async function main(argv: string[]): Promise<number> {
   try {
     requireBun();
     const { args, explicit } = commandInput(argv);
+    if (args.length === 1 && args[0] === '--version') {
+      console.log(await programRevision(dirname(import.meta.dir)));
+      return 0;
+    }
     if (args.length === 0)
       throw new HostError(
-        'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> <script> [<argument>...], e.g. BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step --open',
+        `usage: celetis [--agent <host>] <command> [<argument>...], e.g. celetis --agent claude next-step --open\n${updateHint}`,
         2,
       );
     const name = args.shift() ?? '';
-    if (!/^[a-z][a-z-]*$/.test(name)) throw new HostError(`celetis: the plugin has no script ${name}`, 2);
+    const missing = new HostError(`celetis: the program has no command ${name}\n${updateHint}`, 2);
+    if (!/^[a-z][a-z-]*$/.test(name)) throw missing;
     const folder = ['build', 'verify', 'install-tools'].includes(name) ? '../scripts' : '.';
     const entry = join(import.meta.dir, folder, `${name}.ts`);
-    if (!(await stat(entry).catch(() => null))?.isFile())
-      throw new HostError(`celetis: the plugin has no script ${name}`, 2);
+    if (!(await stat(entry).catch(() => null))?.isFile()) throw missing;
     const forwarded = explicit === undefined ? args : ['--agent', explicit, ...args];
     return await execConsumer(process.execPath, [process.execPath, ...bunArgs(entry, forwarded)], childEnv());
   } catch (error) {

@@ -30,10 +30,11 @@ The board has two inputs:
   the lanes, the steps, the stages, the reasons, and the tracker name from that document, and they
   hold none of their own.
 
-The board is the folder `engine/board/` of the plugin `celetis`, a part of its engine, and `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board` starts it. It
-is one Bun program with no dependency of its own. The plugin carries generated browser
-JavaScript. A product repository needs no build or install step. It runs from the plugin, so the
-repository that it shows needs no file of the board.
+The board is the folder `engine/board/` of the plugin `celetis`, a part of its engine, and
+`celetis --agent <host> board` starts it. It is one Bun program with no dependency of its own. The
+plugin carries generated browser JavaScript. A product repository needs no build or install step.
+It runs from the installed `celetis` program, so the repository that it shows needs no file of the
+board.
 
 The board came from commit `95144d3` of its old repository
 ([ADR-0020](../../docs/adr/0020-the-board-is-a-part-of-the-plugin.md) of the plugin `celetis`).
@@ -48,6 +49,7 @@ the reasons why it reads its data in its own process and types two fixed command
 - Bun 1.4.4 or later. The entry prints `celetis: need Bun >=1.4.4 on PATH, found <version>` and
   exits 2 on an older Bun.
 - git 2.31 or later.
+- The installed `celetis` program for Run and Resume (the README of the plugin, "First install").
 - herdr 0.9 or later on `PATH` and a herdr server that runs, for the session cards and for each
   button.
 - `gh` on `PATH`, logged in, for the issue data.
@@ -61,16 +63,15 @@ A Run and a Resume start the runner, so the requirements of the runner apply to 
 
 ## Start
 
-Run `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board` in the main checkout of the repository, or in a subfolder of it, and open
-the URL that it prints. The command takes no arguments. The README of the plugin, "The agent
-board", gives this start.
+Run `celetis --agent <host> board` in the main checkout of the repository, or in a subfolder of
+it, and open the URL that it prints. The command takes no arguments. The README of the plugin, "The
+agent board", gives this start.
 
 The start validates the main `.celetis.yaml`, refuses a lane start, and checks the plugin update
 policy of the selected host once. `--agent` selects the host of the board process only: its policy
-check and, for Codex, its `CODEX_HOME`. At the start, the fixed adapter (`adapter.ts`) checks only
-the selected Bun (`process.execPath`): an executable regular file with no control character in its
-path. Each Run and Resume finds the enabled copy of the session's host and checks its entrypoint
-at the press ("The line of a pane").
+check and, for Codex, its `CODEX_HOME`. The start does not check the program. At each Run and
+Resume, the fixed adapter (`adapter.ts`) reads the installed `celetis` program and types its
+command ("The line of a pane").
 
 **The port** is `PORT` of the environment, else `board.port` of the main `.celetis.yaml`, else 4403.
 A `PORT` that is no number, or that is `0`, counts as absent. The server listens on `127.0.0.1`
@@ -78,7 +79,7 @@ only. Each repository has the default port 4403, so a second board on one machin
 start. Give it another port in `board.port`, or with `PORT`, which overrides it:
 
 ```bash
-PORT=4404 BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board
+PORT=4404 celetis --agent <host> board
 ```
 
 **The start prints** the main checkout and the URL:
@@ -94,13 +95,12 @@ checks in this order:
 | Case | Line | Exit |
 |---|---|---|
 | Bun is older than 1.4.4 | `celetis: need Bun >=1.4.4 on PATH, found <version>` | 2 |
-| An argument follows `board` | `usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> board` | 2 |
+| An argument follows `board` | `usage: celetis --agent <host> board`, then `celetis: when a skill or a document gave this command, run celetis update` | 2 |
 | The current folder is in no git checkout | `celetis: need a Git checkout` | 2 |
 | The current folder is in a bare repository | the line of git, `fatal: this operation must be run in a work tree` | 128 |
 | The main `.celetis.yaml` cannot be read or has an error | the diagnostic of the config reader, with the file and the field | 2 |
 | The current checkout is not the main checkout: a lane worktree, or another linked worktree | `celetis-board: start the board in the main checkout: <main>` | 1 |
-| The update policy of the selected host has a conflict, or an update still holds the installation after 2 minutes | the line of the check, for example `plugin-update: <path>: Celetis automatic updates are enabled or unknown; …` | 1 |
-| The selected Bun fails a check | `celetis-board: runtime does not exist: <path>`, `… is not a regular file: <path>`, `… is not executable: <path>`, or `celetis-board: runtime path has a control character` | 1 |
+| The update policy of the selected host has a conflict, or an update still holds the installation after 2 minutes | the line of the check, for example `update: <path>: Celetis automatic updates are enabled or unknown; …` | 1 |
 | The port is in use | `agent-board: cannot listen on 127.0.0.1:<port>: the port is in use` | 1 |
 | The server cannot listen for another cause, for example `PORT=99999` | `agent-board: cannot listen on 127.0.0.1:<port>: <the message of Bun>` | 1 |
 
@@ -121,9 +121,9 @@ the update mutex; sessions, runners, boards, and daemons may stay open.
 
 The server reads page files on later requests. It runs the server code and the code of the issue
 read that it loaded at its start. Native replacement can remove resources that open work still
-needs, so a person may reload or restart affected work. Each Run and Resume finds the enabled
-copy again. After a Claude update, the next press uses the new Claude copy with no board restart.
-Start the board again for its new code. A fresh session loads changed skills; an open session
+needs, so a person may reload or restart affected work. Each Run and Resume reads the installed
+program again. After `celetis update`, the next press types the command of the new program with no
+board restart. Start the board again for its new code. A fresh session loads changed skills; an open session
 does not reload them automatically. A change of `board.port` also
 needs a board restart. A change of `host` or `gates` in the main `.celetis.yaml` shows at the next
 read ("The data").
@@ -220,7 +220,7 @@ Human sessions has the order of the tab labels, with numbers in numeric order, a
 one label in the order of their herdr agent ids.
 
 **During a press** of Run or Resume, the page moves the card to Running at once. The card shows
-`Starting` with a turning status icon while the board finds the copy and opens the tab. It keeps its
+`Starting` with a turning status icon while the board reads the program and opens the tab. It keeps its
 step, so Pipeline shows it at that step. While the request runs, no control of the page sends a
 second press for that issue, and the server refuses a second press with 409. After the operation
 succeeds, the card stays `Starting` for 30 seconds, or until a row with the state `starting` or a
@@ -244,32 +244,37 @@ A press that fails ends the `Starting` card at once, and the next read gives the
 | Open shell | A herdr tab with the focus in the `path` of a `dirty` row, with the label `#<n> shell` and no command. |
 | Go | `herdr agent focus <pane>`; then change to the terminal window. |
 
-**The line of a pane.** At each press, the adapter finds the enabled copy of the session's host:
-the selected agent for Run, or the host of the saved record for Resume. It checks that
-`<copy>/bin/celetis.ts` is a readable regular file, with no control character in its path, and
-that its canonical path is outside the main checkout and each lane worktree. It keeps no copy
-path between presses (ADR-0039 of the plugin `celetis`).
+**The line of a pane.** At each press, the adapter reads the installed `celetis` program
+(`readProgram` of `engine/lib/program.ts`). Its command is `<base>/.local/bin/celetis`, or
+`<base>\.local\bin\celetis.cmd` on Windows, where `<base>` is `CELETIS_HOME` or the home folder.
+The read refuses an entry that is not a file of the `celetis` program, so the command always
+starts the program in its version folder. The command path has no control character. The adapter
+keeps no program path between presses, so after `celetis update` the next press starts the new
+program.
 
-The adapter makes each line from fixed parts: `/usr/bin/env`, the two
-isolation assignments, the selected Bun, its four isolation flags, and the canonical entrypoint.
-Run adds `--agent`, the selected agent, and `celetis-flow`. Resume adds `celetis-flow` and
-`--resume`, with no agent: the runner takes the host and the session from its saved record. Each
-item is in single quotes, and the digits of the number and ` && exit` end the line. The shell of
-the pane reads each item as one word, so an item cannot add a second command. For the issue 12 and
-the agent `claude`:
+The adapter makes each line from fixed parts: the command of the program, then, for Run,
+`--agent`, the selected agent, and `celetis-flow`, or, for Resume, `celetis-flow` and `--resume`,
+with no agent: the runner takes the host and the session from its saved record. The program
+supplies Bun and its isolation flags. Each item is in single quotes, and the digits of the number
+and ` && exit` end the line. The shell of the pane reads each item as one word, so an item cannot
+add a second command. For the issue 12 and the agent `claude`:
 
 ```text
-'/usr/bin/env' 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0' 'DO_NOT_TRACK=1' '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<copy>/bin/celetis.ts' '--agent' 'claude' 'celetis-flow' 12 && exit
-'/usr/bin/env' 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0' 'DO_NOT_TRACK=1' '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<copy>/bin/celetis.ts' 'celetis-flow' '--resume' 12 && exit
+'<base>/.local/bin/celetis' '--agent' 'claude' 'celetis-flow' 12 && exit
+'<base>/.local/bin/celetis' 'celetis-flow' '--resume' 12 && exit
 ```
 
 `&& exit` closes the tab when the command ends with no error. A command that fails leaves the tab
 open with its message.
 
-On Windows, the default pane shell of herdr is Windows PowerShell 5.1. There the line sets the two
-isolation variables with `$env:` in place of `/usr/bin/env`, starts the selected Bun with `&`,
-doubles `'` and each of U+2018 to U+201B in a quoted item, and ends with `; if ($?) { exit }` in
-place of ` && exit`, with the same result. Its null device is `os.devNull`: `--config=\\.\nul`.
+On Windows, the default pane shell of herdr is Windows PowerShell 5.1. There the line starts the
+command with `&`, doubles `'` and each of U+2018 to U+201B in a quoted item, and ends with
+`; if ($?) { exit }` in place of ` && exit`, with the same result:
+
+```text
+& '<base>\.local\bin\celetis.cmd' '--agent' 'claude' 'celetis-flow' 12; if ($?) { exit }
+& '<base>\.local\bin\celetis.cmd' 'celetis-flow' '--resume' 12; if ($?) { exit }
+```
 
 **The default agent is read-only.** The footer shows `defaultAgent` of the document, or
 `No default agent` before the first good read. `defaultAgent` is the host that the engine selects
@@ -340,14 +345,14 @@ and opens no tab, unless each condition holds:
 These checks of Run and Resume also refuse with 409 before tab creation or pane execution.
 Read-only `herdr` status calls can precede the failure:
 
-- **The copy of the host.** A lookup failure gives the first line of the error, for example
-  `celetis: Codex has no enabled celetis@celetis installation; install and enable the plugin in Codex`
-  or `celetis: Claude installation is ambiguous; keep one enabled Celetis root for this project`.
-  Resume also refuses a missing or invalid saved record, or a record with no verified session ID,
-  with the first line of its error.
-- **The found entrypoint.** A failed check gives `package entrypoint does not exist: <path>`,
-  `… is not a regular file: <path>`, `… is not readable: <path>`, `… path has a control character`,
-  `… is inside the main checkout`, or `… is inside a lane worktree`.
+- **The program.** No installed program gives
+  `the celetis program is not installed; run the first install of README.md, "First install"`. A
+  read that fails gives the first line of its error, for example
+  `celetis: <path> is not a file of the celetis program; move it away, then run the install again`
+  or `celetis: CELETIS_HOME must be an absolute path: <value>`. A command path with a control
+  character gives `the celetis program path has a control character`.
+- **The saved session of Resume.** Resume refuses a missing or invalid saved record, or a record
+  with no verified session ID, with the first line of its error.
 - **The agent of Run.** The agent is the choice, else `defaultAgent`. It must be a name of lowercase
   letters that `agents` of the last document has. A choice that is not gives
   `#<n> has no agent "<name>"`, and no choice with no `defaultAgent` gives
@@ -368,14 +373,14 @@ The answer to a press that the server did is 200 with `{"ok": true}`. Each other
 | 400 | The body is not JSON, the body has more than 1024 characters, or the number of the issue is not digits. |
 | 403 | The `Host`, the `Origin`, or the content type is not good ("The trust boundary"). |
 | 404 | The path is not a path of the board, or Go names a session that is no herdr agent of the repository. |
-| 409 | A condition of the table does not hold, the host copy lookup or entrypoint check fails, Resume has no valid saved session, the agent of a Run is not good, the agent of a Go press has no safe pane id, or the request tries to change the default agent. |
+| 409 | A condition of the table does not hold, the read of the program fails, Resume has no valid saved session, the agent of a Run is not good, the agent of a Go press has no safe pane id, or the request tries to change the default agent. |
 | 502 | A `herdr` call failed: the first line of its error. `herdr gave no id for the workspace`, `herdr gave no id for the new tab`, and `herdr gave no pane for the new tab` are the lines for an answer of herdr with an id that is not safe. |
 | 500 | The server failed for another cause: the first line of the error, or `the server failed`. |
 
 ## The trust boundary
 
-A Run press starts the runner of the plugin in a herdr pane. Eleven rules hold for the server and
-the page:
+A Run press starts the runner of the `celetis` program in a herdr pane. Eleven rules hold for the
+server and the page:
 
 1. The server listens on `127.0.0.1` only.
 2. It refuses, with 403, a request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>`.
@@ -400,15 +405,15 @@ the page:
 
 Five rules hold for the start, the lines, and the data:
 
-1. **The start checks only the runtime; each press checks its entrypoint.** The selected Bun is
-   an executable regular file. Each press finds the enabled copy of its session's host. Its
-   entrypoint is a readable regular file, with its canonical path outside the main checkout and
-   each lane worktree. Neither path holds a control character. The page, the data, and a lane
-   cannot supply a command path.
-2. **A press types one of two fixed lines.** Run and Resume start the runner of the enabled
-   copy of the session's host with the selected Bun ("The line of a pane"). The server starts
-   `herdr` and `git`, and the issue read starts `gh`, `git`, and, on macOS and Linux, `ps`. Native
-   host discovery starts `claude` or `codex` with no shell. No other program starts.
+1. **Each press reads the program.** Each press reads the installed `celetis` program. The read
+   accepts only the own entry of the program in `<base>/.local/bin/`, which starts the program in
+   its version folder, and the command path holds no control character. The page, the data, and a
+   lane cannot supply a command path.
+2. **A press types one of two fixed lines.** Run and Resume start the runner of the installed
+   `celetis` program ("The line of a pane"). That program starts the first `bun` on the `PATH` of
+   the pane shell, through its `env -S` shebang, or through its shim on Windows. The server starts
+   `herdr` and `git`, and the issue read starts `gh`, `git`, and, on macOS and Linux, `ps`. No
+   other program starts.
 3. **Only validated values go into a line.** The number is the digits of the issue. The agent of
    Run is a name of lowercase letters that `agents` of the last document has. Resume takes no
    agent. No title, no reason, no act, no path of the data, and no step goes into the line of a
@@ -528,7 +533,7 @@ the texts are `Open the issue` and `Read the issues again`.
 
 ## Versions
 
-- **The board has no version of its own.** A plugin update gives a new board at its next start
+- **The board has no version of its own.** `celetis update` gives a new board at its next start
   ("Start").
 - **The document has no version.** The board and the engine are one package, and the compiler
   checks the `Document` type between them.
@@ -570,10 +575,11 @@ Of the sessions and herdr:
   each item of a pane line for those shells. In a fish pane, an item that ends in `\` does not
   close its quote. Windows PowerShell 5.1 drops an empty item, and it passes an item with `"`, or
   with a space and a trailing `\`, wrongly. A `.cmd` or `.bat` first item parses `&`, `^`, and `%`
-  again. The two fixed lines have none of these Windows forms.
+  again. On Windows the first item is `celetis.cmd`: the other items of the two fixed lines have
+  none of these forms, and a `<base>` path with `&`, `^`, or `%` is not checked.
 - `&& exit`, or `; if ($?) { exit }` on Windows, closes the tab of a command that exits 0. A runner
-  that prints a message and exits 0 thus leaves no message: start `celetis-flow <n>` in a terminal
-  to see it.
+  that prints a message and exits 0 thus leaves no message: start
+  `celetis --agent <host> celetis-flow <n>` in a terminal to see it.
 
 Of the cards and the page:
 

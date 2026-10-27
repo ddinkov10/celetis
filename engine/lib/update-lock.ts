@@ -26,7 +26,7 @@ function binding() {
       });
     } catch {}
   }
-  throw new HostError('plugin-update: cannot load the system flock library');
+  throw new HostError('update: cannot load the system flock library');
 }
 
 let native: ReturnType<typeof binding> | undefined;
@@ -72,10 +72,10 @@ export function tryFlock(fd: number, shared = false): boolean {
   const api = native;
   if (api.symbols.flock(fd, (shared ? 1 : 2) | 4) === 0) return true;
   const errorPointer = api.symbols[errnoName]?.();
-  if (!errorPointer) throw new HostError('plugin-update: cannot read flock errno');
+  if (!errorPointer) throw new HostError('update: cannot read flock errno');
   const errno = read.i32(errorPointer);
   if ([constants.errno.EWOULDBLOCK, constants.errno.EAGAIN, constants.errno.EINTR].includes(errno)) return false;
-  throw new HostError(`plugin-update: cannot acquire the plugin update lock (errno ${errno})`);
+  throw new HostError(`update: cannot acquire the plugin update lock (errno ${errno})`);
 }
 
 export async function withPluginRead<T>(host: Host, inspect: () => Promise<T>): Promise<T> {
@@ -139,7 +139,7 @@ export class UpdateLock {
       while (!tryFlock(lock.fd)) {
         if (options.refuseBusy)
           throw new HostError(
-            'plugin-update: installation discovery or another update holds this installation; try again after it finishes. This attempt is consumed and was not queued',
+            'update: installation discovery or another update holds this installation; try again after it finishes. This attempt is consumed and was not queued',
           );
         lock.check();
         await lock.clock.sleep(50);
@@ -153,15 +153,15 @@ export class UpdateLock {
   }
 
   private check() {
-    if (this.interrupted) throw new HostError(`plugin-update: interrupted by ${this.interrupted} during ${this.phase}`);
+    if (this.interrupted) throw new HostError(`update: interrupted by ${this.interrupted} during ${this.phase}`);
     try {
       process.kill(this.runnerPid, 0);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EPERM')
-        throw new HostError(`plugin-update: the runner exited during ${this.phase}`);
+        throw new HostError(`update: the runner exited during ${this.phase}`);
     }
     if (this.clock.now() >= this.deadline)
-      throw new HostError(`plugin-update: timed out after ${this.timeoutMs / 1000} seconds during ${this.phase}`);
+      throw new HostError(`update: timed out after ${this.timeoutMs / 1000} seconds during ${this.phase}`);
   }
 
   private async stopChild() {
@@ -234,7 +234,7 @@ export class UpdateLock {
         } catch (error) {
           child.kill();
           throw new HostError(
-            `plugin-update: ${this.phase} failed: ${error instanceof Error ? error.message : String(error)}`,
+            `update: ${this.phase} failed: ${error instanceof Error ? error.message : String(error)}`,
           );
         }
       }
@@ -243,7 +243,7 @@ export class UpdateLock {
         await this.clock.sleep(50);
       }
       this.check();
-      if (status !== 0) throw new HostError(`plugin-update: ${this.phase} failed (exit ${status})`);
+      if (status !== 0) throw new HostError(`update: ${this.phase} failed (exit ${status})`);
     } catch (error) {
       failure = error;
     } finally {

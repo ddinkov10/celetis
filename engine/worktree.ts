@@ -1,15 +1,14 @@
 import { stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { Config } from './lib/config.ts';
-import { HostError } from './lib/host.ts';
+import { HostError, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
 import { run } from './lib/process.ts';
 import { branchGlobs, branchPattern, laneOf, lanes } from './lib/workflow.ts';
 import { checkoutOf, markerOf, removeCheckout, removeLane, runSetup, updateLane } from './lib/worktree.ts';
 
-const usage =
-  'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> worktree [--remove] <issue number>, e.g. 302 or #302';
+const usage = `usage: celetis --agent <host> worktree [--remove] <issue number>, e.g. 302 or #302\n${updateHint}`;
 type Issue = { title: string; state: string; labels: { name: string }[] };
 type Pull = { head: { ref: string; sha: string }; state: string; merged_at: string | null };
 

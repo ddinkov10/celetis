@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { HostError } from './lib/host.ts';
+import { HostError, updateHint } from './lib/host.ts';
 import { lineOf } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
@@ -21,8 +21,7 @@ import {
   specified,
 } from './lib/workflow.ts';
 
-const usage =
-  'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> issue <issue number> route feature|bug|chore|hotfix | epic | needs-info <file> | wontfix <file> | spec <file> | root-cause <file> | plan <file> | built | before-landing <file> [--during-the-build] | landing-refused <file> | stopped <file> | ready-for-human | state, e.g. BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> issue 415 state';
+const usage = `celetis --agent <host> issue <issue number> route feature|bug|chore|hotfix | epic | needs-info <file> | wontfix <file> | spec <file> | root-cause <file> | plan <file> | built | before-landing <file> [--during-the-build] | landing-refused <file> | stopped <file> | ready-for-human | state, e.g. celetis --agent <host> issue 415 state\n${updateHint}`;
 const statuses = { usage: 2, prerequisite: 3, blocked: 6 } as const;
 
 type Context = Readonly<{

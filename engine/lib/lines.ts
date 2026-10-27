@@ -17,7 +17,7 @@ function describeObserved(n: string, next: Observed): Described {
       return { line: `stop the working tree is dirty: ${next.path}; commit or stash first`, row: null };
     case 'landing':
       return {
-        line: `stop the landing of #${n} runs; wait until /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' ends`,
+        line: `stop the landing of #${n} runs; wait until celetis --agent <host> land ends`,
         row: null,
       };
     case 'unreadable':
@@ -68,7 +68,7 @@ function describeStop(n: string, next: Stop): Described {
       return blocked(
         'waits for a landing by hand',
         'land by hand',
-        `Run BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> land ${n} '<subject>' in your own shell, from the main checkout.`,
+        `Run celetis --agent <host> land ${n} '<subject>' in your own shell, from the main checkout.`,
       );
     case 'epic':
       return { line: `stop #${n} is an epic. Each child runs its own flow.`, row: null };

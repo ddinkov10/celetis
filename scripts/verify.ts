@@ -15,6 +15,7 @@ export const generatedFiles = [
   'engine/board/panel.mjs',
   'engine/board/palette.mjs',
   'engine/hooks/entry.js',
+  'celetis',
 ];
 export const fileRoles: Record<string, string> = {
   'engine/lib/vendor/yaml.mjs': 'unchanged vendored parser; checked by its SHA-256 and config type declarations',

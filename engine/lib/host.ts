@@ -5,6 +5,8 @@ import { bunArgs, childEnv, run, updateDescriptor } from './process.ts';
 
 export type { Host } from './config.ts';
 
+export const updateHint = 'celetis: when a skill or a document gave this command, run celetis update';
+
 export class HostError extends Error {
   constructor(
     message: string,
@@ -13,6 +15,8 @@ export class HostError extends Error {
     super(message);
   }
 }
+
+export class NotInstalled extends HostError {}
 
 export async function commonDir(cwd: string): Promise<string> {
   const result = await run('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd });
@@ -214,11 +218,10 @@ export async function codexRequest(
   cwd: string,
   method: string,
   params: unknown,
-  inheritedFd?: number,
   nativeHome?: string,
   execute: typeof run = run,
 ): Promise<unknown> {
-  inheritedFd ??= updateDescriptor();
+  const inheritedFd = updateDescriptor();
   const env = childEnv({ ...process.env, CODEX_HOME: await codexHome(nativeHome) });
   if (!Bun.which('codex', { PATH: env.PATH })) throw new HostError('celetis: codex is not on PATH');
   try {
@@ -242,21 +245,12 @@ export async function codexRequest(
   }
 }
 
-export async function installedRoot(
-  host: Host,
-  cwd: string,
-  inheritedFd?: number,
-  execute: typeof run = run,
-): Promise<string> {
+export async function installedRoot(host: Host, cwd: string, execute: typeof run = run): Promise<string> {
   if (host === 'claude') {
     const missing =
       'celetis: no enabled Celetis installation; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis';
     if (!Bun.which('claude', { PATH: childEnv().PATH })) throw new HostError(missing);
-    const result = await execute('claude', ['plugin', 'list', '--json'], {
-      cwd,
-      inheritedFd,
-      stderr: inheritedFd === undefined ? undefined : 'inherit',
-    });
+    const result = await execute('claude', ['plugin', 'list', '--json'], { cwd });
     if (result.code !== 0) {
       throw new HostError(
         [
@@ -276,5 +270,5 @@ export async function installedRoot(
     if (!Array.isArray(records)) throw new HostError(`celetis: invalid plugin list JSON\n${result.stdout.trimEnd()}`);
     return (await claudeInstallation(records, cwd)).root;
   }
-  return (await codexPlugin(cwd, inheritedFd, execute)).root;
+  return (await codexPlugin(cwd, execute)).root;
 }

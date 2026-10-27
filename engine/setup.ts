@@ -5,7 +5,7 @@ import { constants, tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { type Config, ConfigError, formatConfigError, readConfig } from './lib/config.ts';
-import { HostError } from './lib/host.ts';
+import { HostError, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
 import { checkClaudePolicy, claudePolicy } from './lib/plugin-policy.ts';
@@ -18,8 +18,7 @@ const wiring = '.claude/celetis-flow/wiring.json';
 const settings = '.claude/settings.json';
 const configFile = '.celetis.yaml';
 const subject = 'chore(celetis): wire the project for the celetis lanes';
-const usage =
-  'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> setup check | write <options> | try <options> | try --remove | lane <path> | push; <options>: --hosts claude|codex|claude,codex [--default claude|codex] --landing pr|merge [--suite <file>] [--setup-file <file>] [--ignore <line>]... [--baseline-file <file>]';
+const usage = `usage: celetis --agent <host> setup check | write <options> | try <options> | try --remove | lane <path> | push; <options>: --hosts claude|codex|claude,codex [--default claude|codex] --landing pr|merge [--suite <file>] [--setup-file <file>] [--ignore <line>]... [--baseline-file <file>]\n${updateHint}`;
 const setupPaths = [
   'scripts/celetis',
   configFile,
@@ -602,12 +601,12 @@ class Setup {
     const oldLauncher = (await this.there('scripts/celetis')) || this.owned.files.includes('scripts/celetis');
     if (oldLauncher)
       this.warn(
-        'scripts/celetis needs review by the owner of the active project; setup preserves its file and ownership; follow the plugin README, "Wire a product project" and "Explicit source repair"',
+        'scripts/celetis needs review by the owner of the active project; setup preserves its file and ownership; follow the plugin README, "Wire a product project" and "First install"',
       );
     if (opts.hosts.includes('codex') && !(oldLauncher && (await this.there('.codex/rules/celetis.rules')))) {
       this.files.set('.codex/rules/celetis.rules', {
         contents:
-          'prefix_rule(\n    pattern = ["gh", "pr", "merge"],\n    decision = "forbidden",\n    justification = "Use the bound plugin entrypoint with --agent codex land from the main checkout.",\n)\n',
+          'prefix_rule(\n    pattern = ["gh", "pr", "merge"],\n    decision = "forbidden",\n    justification = "Use celetis --agent codex land from the main checkout.",\n)\n',
       });
       this.owned.files.push('.codex/rules/celetis.rules');
     }
@@ -617,7 +616,7 @@ class Setup {
     const flow = [
       '## Celetis flow',
       `- The lanes are the skills of the plugin \`celetis\`, on the issues of \`${this.repo}\`.`,
-      '- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `land` through the bound plugin entrypoint and personal host binding.',
+      '- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `celetis --agent <host> land`.',
       '- A lane never skips a step.',
       '- The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.',
     ];

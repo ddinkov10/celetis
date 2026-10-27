@@ -77,17 +77,17 @@ project, not here. So the text of this repository is general:
 The lanes of this repository are the skills of the plugin itself, on the issues of
 `ddinkov10/celetis` (`README.md`, "The full loop"). The landing is `merge`
 (`landing` in `.celetis.yaml`): a build step runs the verify gate locally, then ends
-with `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land' '<n>' '<subject>'`, which runs `suite` (`scripts/verify.ts`) on the commit that it lands and puts one squash commit on `main` without a PR.
+with `celetis --agent <host> land <n> '<subject>'`, which runs `suite` (`scripts/verify.ts`) on the commit that it lands and puts one squash commit on `main` without a PR.
 The landing is the last act of a change: this repository has no deployment.
 For installation changes, follow `README.md`, "Updates".
 
 - A lane never skips a step.
 - The maintainer starts the runner; an agent starts it only when its task says so, with a number,
   and in a terminal.
-- A change of `skills/`, `step-prompt.md`, `bin/`, `engine/`, or `scripts/` changes the behavior of each product
+- A change of `skills/`, `step-prompt.md`, the program entry `celetis`, `engine/`, or `scripts/` changes the behavior of each product
   project, so its lane is `bug` or `feature`, not `chore`.
 - The lanes are the skills of the plugin `celetis`, on the issues of `ddinkov10/celetis`.
-- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `land` through the bound plugin entrypoint and personal host binding.
+- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `celetis --agent <host> land`.
 - The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.
 
 ## The board
@@ -110,10 +110,11 @@ from open runtime checks (ADR-0014).
 Facts that no one file states. A line is here only when the code and the other documents
 do not state its fact, and a line goes when its fact stops being true (ADR-0006).
 
-- **A normal session here reads the installed plugin.** Editing the checkout does not replace
-  either host's installed skills or scripts. Claude's
-  `--plugin-dir .` can load checkout skills. A bound entrypoint runs its own package. Run a checkout script with the isolated Bun flags shown above and `engine/<name>.ts`.
-  Record checks of the checkout and checks of the installed package separately.
+- **A normal session here reads the installed plugin and runs the installed program.** Editing
+  the checkout replaces neither. A `--plugin-dir .` session reads the checkout's skills with the
+  installed program, so a check of a changed command runs the checkout's entry by its path:
+  `"$PWD/celetis" --agent claude <command>`. Record checks of the checkout and checks of the
+  installed program separately.
 - **A script file keeps its name.** `engine/<name>.ts` keeps the same sub-command basename.
   Skills, product instructions, board commands, and personal landing rules refer to that command.
   On macOS and Linux, two basenames also identify lock owners. Through `processRunsScript`,

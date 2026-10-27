@@ -1,6 +1,6 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { HostError } from './lib/host.ts';
+import { HostError, updateHint } from './lib/host.ts';
 import { describe, lineOf, type Next, type Observed } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
@@ -52,8 +52,7 @@ export type JsonRow = {
   path?: string;
 };
 
-const usage =
-  'usage: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step <issue number> | --open, e.g. BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> next-step 276';
+const usage = `usage: celetis --agent <host> next-step <issue number> | --open, e.g. celetis --agent <host> next-step 276\n${updateHint}`;
 const unreadable: Observed = { kind: 'observed', reason: 'unreadable' };
 
 export function jsonRow(row: BoardRow): JsonRow {
