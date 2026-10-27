@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { constants } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -304,6 +305,7 @@ export async function main(argv: string[]): Promise<number> {
           break;
         }
         const args = await hostArguments(stepHost, Number(n), step, root, main);
+        const announced = managed && stepHost === 'claude' ? randomUUID() : '';
         const record: SessionRecord = {
           schema: 1,
           host: stepHost,
@@ -313,12 +315,28 @@ export async function main(argv: string[]): Promise<number> {
           session_id: null,
         };
         await writeSession(main, record);
-        const { ended } = await startSession(args, stepHost);
+        const { ended } = await startSession(announced ? ['--session-id', announced, ...args] : args, stepHost);
         let watching: Promise<void> | undefined;
         let watchError: unknown;
         if (managed) {
           if (process.env.HERDR_TAB_ID) await herdr(['tab', 'rename', process.env.HERDR_TAB_ID, `#${n} ${step}`]);
           const prior = reportedSessionId(parsed((await herdr(['agent', 'get', pane])).stdout));
+          if (announced)
+            await herdr([
+              'pane',
+              'report-agent-session',
+              pane,
+              '--source',
+              'herdr:claude',
+              '--agent',
+              'claude',
+              '--seq',
+              String(BigInt(Date.now()) * 1_000_000n),
+              '--agent-session-id',
+              announced,
+              '--session-start-source',
+              'clear',
+            ]);
           const startedAt = Math.floor(Date.now() / 1000);
           watcher = new AbortController();
           watching = endWhenDone(n, next, record, prior, startedAt, watcher.signal).catch((error: unknown) => {

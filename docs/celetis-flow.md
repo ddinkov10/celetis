@@ -211,12 +211,16 @@ read-only thread and configuration checks do not trigger startup refresh.
 its updater mutex and deadline, and native cache replacement. Sessions may remain open; a fresh
 session loads updated skills and tools. A runner restart alone does not fetch a new package.
 
-**The step end.** In a herdr pane (`HERDR_ENV=1` and a valid `HERDR_PANE_ID`), the script does two things before it
-starts a session. It names its tab `#<n> <step>` with `herdr tab rename "$HERDR_TAB_ID"`, so the
+**The step end.** In a herdr pane (`HERDR_ENV=1` and a valid `HERDR_PANE_ID`), the script names its
+tab `#<n> <step>` with `herdr tab rename "$HERDR_TAB_ID"`, so the
 board links the session to the issue. It also starts a job in the background that ends the session:
 
-1. The job waits for the selected host's new identity and a saved turn in the correct checkout,
-   for 60 seconds at most. It saves the verified ID in the current session record.
+1. The script starts each Claude step with a new session ID (`--session-id`). Before the session
+   starts, it reports that ID to herdr for its pane with `herdr pane report-agent-session`, source
+   `herdr:claude`, and start source `clear`. herdr keeps the previous Claude ID while the runner
+   keeps the foreground ([ADR-0039](adr/0039-the-runner-announces-the-claude-session-id-to-herdr.md)).
+   The job then waits for the selected host's new identity and a saved turn in the correct
+   checkout, for 60 seconds at most. It saves the verified ID in the current session record.
 2. It waits until the agent is ready for the next prompt:
    `herdr agent wait <pane> --until idle --until done`.
 3. It verifies the current host, identity, readiness, and idle/done state, then reads the
@@ -673,6 +677,8 @@ The record at `<git common dir>/celetis-flow/sessions/<n>.json` has exactly six 
 `schema: 1`, `host`, `issue`, `step`, absolute main `checkout`, and `session_id` (UUID or null).
 The runner writes it atomically. It accepts no old record format and makes no migration.
 Herdr supplies `result.agent.agent_session.value`; a tab name is never an identity.
+For a Claude step in a herdr pane, the runner chooses that ID and reports it to herdr before the
+session starts ([ADR-0039](adr/0039-the-runner-announces-the-claude-session-id-to-herdr.md)).
 Claude persistence is a current saved user turn with matching ID, cwd, and launch time.
 Codex verifies `thread/read` and `thread/turns/list` without resuming or starting a model turn.
 
