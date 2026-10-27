@@ -170,13 +170,14 @@ export async function observeSession(
   const agent = agentOf(reply);
   if (
     !agent ||
-    !['claude', 'codex'].includes(String(agent.agent)) ||
-    !['idle', 'working', 'blocked', 'done', 'unknown'].includes(String(agent.agent_status))
+    (agent.agent !== 'claude' && agent.agent !== 'codex') ||
+    typeof agent.agent_status !== 'string' ||
+    !['idle', 'working', 'blocked', 'done', 'unknown'].includes(agent.agent_status)
   )
     return 2;
   const identity = agent.agent_session;
-  if (agent.agent !== record.host && (!priorId || !object(identity) || identity.value !== priorId)) return 2;
   if (identity == null) return 1;
+  if (agent.agent !== record.host && (!priorId || !object(identity) || identity.value !== priorId)) return 2;
   if (
     !object(identity) ||
     identity.agent !== agent.agent ||
