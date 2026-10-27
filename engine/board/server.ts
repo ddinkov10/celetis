@@ -1,6 +1,7 @@
 import type { ExecFileOptions } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import type { Host } from '../lib/config.ts';
 import type { Adapter } from './adapter.ts';
 import type { Board, Card, Diff, Document, Session } from './types.ts';
 
@@ -113,6 +114,7 @@ export const createBoard = ({
   let askedAt = -Infinity;
   let pending: Promise<void> | null = null;
   let presses: Record<string, number> = {};
+  const operations: Record<string, number> = {};
   let shown = new Set<string>();
   let health: Board['herdr'] = { ok: null, error: null };
   let firstSeen = new Map<string, number>();
@@ -231,7 +233,7 @@ export const createBoard = ({
     if (!isLocal) await readScreens(sessions);
     for (const session of sessions) session.screen = screens.get(session.sessionId);
     presses = activePresses(presses, sessions, board, now());
-    const placed = place({ sessions, board, presses });
+    const placed = place({ sessions, board, presses: { ...presses, ...operations } });
     const cards = Object.values(placed.columns).flat();
     const ids = new Set(cards.flatMap((card) => (card.sessionId ? [card.sessionId] : [])));
     const hasEnded = [...shown].some((id) => !ids.has(id));
@@ -304,24 +306,18 @@ export const createBoard = ({
       .find((c) => c.sessionId === null && c.number === number);
 
   const press = async (number: number, isAllowed: boolean | undefined, refusal: string, start: () => Promise<void>) => {
-    if (!isAllowed || number in presses) throw new Refusal(409, refusal);
-    presses[number] = now();
+    if (!isAllowed || number in operations || number in presses) throw new Refusal(409, refusal);
+    operations[number] = now();
     try {
       await start();
-    } catch (cause) {
-      delete presses[number];
-      throw cause;
+      presses[number] = now();
+    } finally {
+      delete operations[number];
     }
     await refresh();
   };
 
-  const requireEntry = async () => {
-    if (!(await adapter.hasEntry()))
-      throw new Refusal(409, 'the plugin version of this board was removed after an update; start the board again');
-  };
-
   const runStep = async (number: number, choice?: unknown) => {
-    await requireEntry();
     const isChoice = choice !== undefined && choice !== null;
     const agent = isChoice ? choice : (board?.defaultAgent ?? null);
     const members = board?.agents;
@@ -333,26 +329,31 @@ export const createBoard = ({
     const member = members[agent] as { available: boolean; cause: string | null };
     if (!member.available) throw new Refusal(409, cleanCause(member.cause));
     const card = await issueCardOf(number);
-    await press(number, card?.run, `#${number} has no step to start now`, () =>
-      openTab({
+    await press(number, card?.run, `#${number} has no step to start now`, async () => {
+      const command = await adapter.run(number, agent as Host).catch((cause: Error) => {
+        throw new Refusal(409, cleanCause(cause.message));
+      });
+      await openTab({
         cwd: main,
         label: `#${number} ${(card as Card).step}`,
-        command: adapter.run(number, agent),
+        command,
         isQuiet: true,
-      }),
-    );
+      });
+    });
   };
 
   const resume = async (number: number) => {
-    await requireEntry();
     const card = await issueCardOf(number);
-    await press(number, card?.resume, `#${number} has no session to resume now`, () =>
-      openTab({
+    await press(number, card?.resume, `#${number} has no session to resume now`, async () => {
+      const command = await adapter.resume(number).catch((cause: Error) => {
+        throw new Refusal(409, cleanCause(cause.message));
+      });
+      await openTab({
         cwd: main,
         label: `#${number} ${(card as Card).step}`,
-        command: adapter.resume(number),
-      }),
-    );
+        command,
+      });
+    });
   };
 
   const shell = async (number: number) => {

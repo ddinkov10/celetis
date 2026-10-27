@@ -476,11 +476,10 @@ PORT=4500 BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file -
 
 The command takes no arguments. It fully validates the main YAML, refuses a lane start, and checks
 the plugin update policy of the selected host once. `--agent` selects the host of the board process
-only: its policy check and, for Codex, its `CODEX_HOME`. Then the fixed adapter
-(`engine/board/adapter.ts`) checks two paths once. The selected Bun must be an executable regular
-file. The same package's `bin/celetis.ts` must be a readable regular file outside the main checkout
-and each lane. Control characters and canonical path escapes are refused. The start prints two
-lines, the main checkout and the URL:
+only: its policy check and, for Codex, its `CODEX_HOME`. At the start, the fixed adapter
+(`engine/board/adapter.ts`) checks only the selected Bun: an executable regular file with no
+control character in its path. Each Run and Resume finds and checks its entrypoint at the press
+("Run and Resume"). The start prints two lines, the main checkout and the URL:
 
 ```text
 agent-board: repository /Users/me/code/shop
@@ -568,12 +567,17 @@ Each row also has `number`, `title`, `url`, `updatedAt`, `closedAt`, and these f
   requested reviewer or team has not answered, else `null`.
 
 **Run and Resume.** The adapter types two fixed lines. Each item is in single quotes for the pane
-shell, the issue number is its digits, and ` && exit` ends the line. `<bun>` is the selected Bun,
-and `<plugin>/bin/celetis.ts` is the canonical entrypoint of the board's own package:
+shell, the issue number is its digits, and ` && exit` ends the line. `<bun>` is the selected Bun.
+At each press, the adapter finds the enabled copy of the session's host: the selected agent for
+Run, or the host of the saved record for Resume. `<copy>/bin/celetis.ts` is its canonical entrypoint.
+It must be a readable regular file, with no control character in its path, outside the main
+checkout and each lane worktree. A lookup or entrypoint failure returns 409 with the first line
+of the error, before tab creation or pane execution. Read-only herdr status calls can precede
+that failure (ADR-0039).
 
 ```text
-'/usr/bin/env' 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0' 'DO_NOT_TRACK=1' '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<agent>' 'celetis-flow' <n> && exit
-'/usr/bin/env' 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0' 'DO_NOT_TRACK=1' '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' 'celetis-flow' '--resume' <n> && exit
+'/usr/bin/env' 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0' 'DO_NOT_TRACK=1' '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<copy>/bin/celetis.ts' '--agent' '<agent>' 'celetis-flow' <n> && exit
+'/usr/bin/env' 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0' 'DO_NOT_TRACK=1' '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<copy>/bin/celetis.ts' 'celetis-flow' '--resume' <n> && exit
 ```
 
 On Windows, the default pane shell of herdr is Windows PowerShell 5.1. There each line sets the
@@ -599,11 +603,10 @@ The board shows the default as read-only in its agent menu and command palette. 
 `POST /api/agent` returns 409 with `The main .celetis.yaml controls the default agent. Change host there.`
 It changes no YAML or Git setting. Change `host` in the main YAML to set the project default.
 
-A plugin update does not stop the board. Before Run and Resume, the board checks that its
-entrypoint still exists. When an update removed it, the press returns 409 with
-`the plugin version of this board was removed after an update; start the board again` and makes no
-herdr call. Reload or restart the board if native cache replacement removes an asset it still
-needs. A fresh board or session resolves the enabled installation again. Follow
+A plugin update does not stop the board. Each Run and Resume finds the enabled copy again; the
+adapter keeps no copy path between presses. After a Claude update, the next press uses the new
+Claude copy with no board restart. New board code still needs a board restart. Reload or restart
+the board if native cache replacement removes an asset it still needs. Follow
 [Updates](../README.md#updates) for manual updates.
 Real Run/Resume acceptance remains a separate live gate.
 
@@ -749,6 +752,10 @@ open. The next refresh showed that line as the read error and kept the cards. A 
 Resume from the installed package is an open runtime check, by hand after the landing (the plan of
 #102, "Your steps"). A full Run session through the board was not observed, because a board tab
 runs with the real `gh`.
+
+On 2026-10-27, [issue #145](https://github.com/ddinkov10/celetis/issues/145) makes a board Codex Run
+start from the enabled Codex copy; the live session remains the check of "After the landing" in
+its plan.
 
 [Issue #103](https://github.com/ddinkov10/celetis/issues/103) added the write command `issue`, a
 new command prefix for a step session. On 2026-10-26, with Claude Code 2.1.310 and codex-cli
@@ -904,10 +911,9 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   runner again` and exits 1. A runner with numbers prints
   `celetis-flow: #<n>: the plugin version of this runner was removed after an update; start the
   runner again` for each number. The cure is a new start of the runner (ADR-0012). A board whose
-  installed folder is gone keeps its data reads, because it loaded their code at its start. Its Run
-  and Resume return 409 with
-  `the plugin version of this board was removed after an update; start the board again` and make
-  no herdr call. The cure is a new start of the board.
+  installed folder is gone keeps its data reads, because it loaded their code at its start. Each
+  Run and Resume finds the enabled copy of its session's host again. A Claude update needs no
+  board restart for these presses; new board code still needs a restart (ADR-0039).
 
 `engine/board/README.md` of the plugin holds the limits of the page.
 

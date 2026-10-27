@@ -67,14 +67,10 @@ board", gives this start.
 
 The start validates the main `.celetis.yaml`, refuses a lane start, and checks the plugin update
 policy of the selected host once. `--agent` selects the host of the board process only: its policy
-check and, for Codex, its `CODEX_HOME`. Then the fixed adapter (`adapter.ts`) checks two paths once:
-
-- The entrypoint `bin/celetis.ts` of the same package is a readable regular file. Its canonical path
-  is outside the main checkout and outside each lane worktree.
-- The selected Bun (`process.execPath`) is an executable regular file.
-
-A path with a control character is refused. The adapter types the Run and Resume lines from these
-two paths ("The commands of the board").
+check and, for Codex, its `CODEX_HOME`. At the start, the fixed adapter (`adapter.ts`) checks only
+the selected Bun (`process.execPath`): an executable regular file with no control character in its
+path. Each Run and Resume finds the enabled copy of the session's host and checks its entrypoint
+at the press ("The line of a pane").
 
 **The port** is `PORT` of the environment, else `board.port` of the main `.celetis.yaml`, else 4403.
 A `PORT` that is no number, or that is `0`, counts as absent. The server listens on `127.0.0.1`
@@ -104,7 +100,6 @@ checks in this order:
 | The main `.celetis.yaml` cannot be read or has an error | the diagnostic of the config reader, with the file and the field | 2 |
 | The current checkout is not the main checkout: a lane worktree, or another linked worktree | `celetis-board: start the board in the main checkout: <main>` | 1 |
 | The update policy of the selected host has a conflict, or an update still holds the installation after 2 minutes | the line of the check, for example `plugin-update: <path>: Celetis automatic updates are enabled or unknown; …` | 1 |
-| The entrypoint fails a check | `celetis-board: package entrypoint does not exist: <path>`, `… is not a regular file: <path>`, `… is not readable: <path>`, `… path has a control character`, `… is inside the main checkout`, or `… is inside a lane worktree` | 1 |
 | The selected Bun fails a check | `celetis-board: runtime does not exist: <path>`, `… is not a regular file: <path>`, `… is not executable: <path>`, or `celetis-board: runtime path has a control character` | 1 |
 | The port is in use | `agent-board: cannot listen on 127.0.0.1:<port>: the port is in use` | 1 |
 | The server cannot listen for another cause, for example `PORT=99999` | `agent-board: cannot listen on 127.0.0.1:<port>: <the message of Bun>` | 1 |
@@ -126,9 +121,10 @@ the update mutex; sessions, runners, boards, and daemons may stay open.
 
 The server reads page files on later requests. It runs the server code and the code of the issue
 read that it loaded at its start. Native replacement can remove resources that open work still
-needs, so a person may reload or restart affected work. After a successful update, resolve the
-enabled installation again, and start the board again for its new code. A fresh session loads
-changed skills; an open session does not reload them automatically. A change of `board.port` also
+needs, so a person may reload or restart affected work. Each Run and Resume finds the enabled
+copy again. After a Claude update, the next press uses the new Claude copy with no board restart.
+Start the board again for its new code. A fresh session loads changed skills; an open session
+does not reload them automatically. A change of `board.port` also
 needs a board restart. A change of `host` or `gates` in the main `.celetis.yaml` shows at the next
 read ("The data").
 
@@ -223,9 +219,11 @@ Running has the newest first, Idle has the highest number first, and Done has th
 Human sessions has the order of the tab labels, with numbers in numeric order, and two sessions with
 one label in the order of their herdr agent ids.
 
-**After a press** of Run or Resume, the card has no Run and no Resume for 30 seconds, or until a row
-with the state `starting` or a session of the issue shows. So a second press does not open a second
-tab for the same step. A press that fails ends that time at once, and the card keeps its button.
+**During a press** of Run or Resume, the card has no Run and no Resume while the board finds the
+copy and opens the tab. After the operation succeeds, both buttons stay absent for 30 seconds,
+or until a row with the state `starting` or a session of the issue shows. So a second press does
+not open a second tab for the same step. A press that fails releases its guard at once, and the
+card keeps its button.
 
 ## The commands of the board
 
@@ -237,7 +235,13 @@ tab for the same step. A press that fails ends that time at once, and the card k
 | Open shell | A herdr tab with the focus in the `path` of a `dirty` row, with the label `#<n> shell` and no command. |
 | Go | `herdr agent focus <pane>`; then change to the terminal window. |
 
-**The line of a pane.** The adapter makes each line from fixed parts: `/usr/bin/env`, the two
+**The line of a pane.** At each press, the adapter finds the enabled copy of the session's host:
+the selected agent for Run, or the host of the saved record for Resume. It checks that
+`<copy>/bin/celetis.ts` is a readable regular file, with no control character in its path, and
+that its canonical path is outside the main checkout and each lane worktree. It keeps no copy
+path between presses (ADR-0039 of the plugin `celetis`).
+
+The adapter makes each line from fixed parts: `/usr/bin/env`, the two
 isolation assignments, the selected Bun, its four isolation flags, and the canonical entrypoint.
 Run adds `--agent`, the selected agent, and `celetis-flow`. Resume adds `celetis-flow` and
 `--resume`, with no agent: the runner takes the host and the session from its saved record. Each
@@ -246,8 +250,8 @@ the pane reads each item as one word, so an item cannot add a second command. Fo
 the agent `claude`:
 
 ```text
-'/usr/bin/env' 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0' 'DO_NOT_TRACK=1' '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' 'claude' 'celetis-flow' 12 && exit
-'/usr/bin/env' 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0' 'DO_NOT_TRACK=1' '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' 'celetis-flow' '--resume' 12 && exit
+'/usr/bin/env' 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0' 'DO_NOT_TRACK=1' '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<copy>/bin/celetis.ts' '--agent' 'claude' 'celetis-flow' 12 && exit
+'/usr/bin/env' 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0' 'DO_NOT_TRACK=1' '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<copy>/bin/celetis.ts' 'celetis-flow' '--resume' 12 && exit
 ```
 
 `&& exit` closes the tab when the command ends with no error. A command that fails leaves the tab
@@ -320,11 +324,17 @@ and opens no tab, unless each condition holds:
 | `POST /api/resume` | The issue has a card of its own, with no session. Its row is `stuck`. `noRun` is `null`. No press on that issue is active. | `#<n> has no session to resume now` |
 | `POST /api/shell` | The issue has a card of its own, with no session. Its row is `dirty`. Its `path` is a lane worktree of the main checkout. | `#<n> has no dirty worktree` |
 
-Two more checks of Run and Resume come first, and they refuse with 409 before any `herdr` call:
+These checks of Run and Resume also refuse with 409 before tab creation or pane execution.
+Read-only `herdr` status calls can precede the failure:
 
-- **The entrypoint.** When the entrypoint of the board's package is gone, for example after an
-  update removed the folder of its version, Run and Resume give
-  `the plugin version of this board was removed after an update; start the board again`.
+- **The copy of the host.** A lookup failure gives the first line of the error, for example
+  `celetis: Codex has no enabled celetis@celetis installation; install and enable the plugin in Codex`
+  or `celetis: Claude installation is ambiguous; keep one enabled Celetis root for this project`.
+  Resume also refuses a missing or invalid saved record, or a record with no verified session ID,
+  with the first line of its error.
+- **The found entrypoint.** A failed check gives `package entrypoint does not exist: <path>`,
+  `… is not a regular file: <path>`, `… is not readable: <path>`, `… path has a control character`,
+  `… is inside the main checkout`, or `… is inside a lane worktree`.
 - **The agent of Run.** The agent is the choice, else `defaultAgent`. It must be a name of lowercase
   letters that `agents` of the last document has. A choice that is not gives
   `#<n> has no agent "<name>"`, and no choice with no `defaultAgent` gives
@@ -345,7 +355,7 @@ The answer to a press that the server did is 200 with `{"ok": true}`. Each other
 | 400 | The body is not JSON, the body has more than 1024 characters, or the number of the issue is not digits. |
 | 403 | The `Host`, the `Origin`, or the content type is not good ("The trust boundary"). |
 | 404 | The path is not a path of the board, or Go names a session that is no herdr agent of the repository. |
-| 409 | A condition of the table does not hold, the entrypoint is gone, the agent of a Run is not good, the agent of a Go press has no safe pane id, or the request tries to change the default agent. |
+| 409 | A condition of the table does not hold, the host copy lookup or entrypoint check fails, Resume has no valid saved session, the agent of a Run is not good, the agent of a Go press has no safe pane id, or the request tries to change the default agent. |
 | 502 | A `herdr` call failed: the first line of its error. `herdr gave no id for the workspace`, `herdr gave no id for the new tab`, and `herdr gave no pane for the new tab` are the lines for an answer of herdr with an id that is not safe. |
 | 500 | The server failed for another cause: the first line of the error, or `the server failed`. |
 
@@ -377,13 +387,15 @@ the page:
 
 Five rules hold for the start, the lines, and the data:
 
-1. **The start checks two paths once.** The entrypoint of the board's own package is a readable
-   regular file, with its canonical path outside the main checkout and outside each lane worktree.
-   The selected Bun is an executable regular file. Neither path holds a control character. The
-   page, the data, and a lane cannot change what a press starts.
-2. **A press types one of two fixed lines.** Run and Resume start the runner of the board's
-   package with the selected Bun ("The line of a pane"). The server starts `herdr` and `git`, the
-   issue read starts `gh`, `git`, and, on macOS and Linux, `ps`, and no other program starts.
+1. **The start checks only the runtime; each press checks its entrypoint.** The selected Bun is
+   an executable regular file. Each press finds the enabled copy of its session's host. Its
+   entrypoint is a readable regular file, with its canonical path outside the main checkout and
+   each lane worktree. Neither path holds a control character. The page, the data, and a lane
+   cannot supply a command path.
+2. **A press types one of two fixed lines.** Run and Resume start the runner of the enabled
+   copy of the session's host with the selected Bun ("The line of a pane"). The server starts
+   `herdr` and `git`, and the issue read starts `gh`, `git`, and, on macOS and Linux, `ps`. Native
+   host discovery starts `claude` or `codex` with no shell. No other program starts.
 3. **Only validated values go into a line.** The number is the digits of the issue. The agent of
    Run is a name of lowercase letters that `agents` of the last document has. Resume takes no
    agent. No title, no reason, no act, no path of the data, and no step goes into the line of a

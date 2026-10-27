@@ -233,11 +233,13 @@ Run `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-i
 refuses a lane start before it starts the board. At its start it reads the main config's
 `board.port`, default 4403, and keeps `PORT` above that value. Each data refresh creates a fresh
 main operation, so a change of `host` or `gates` shows at the next refresh ("Operation values and
-freshness"). The fixed adapter validates the package entrypoint and the selected runtime once. It
-types two fixed lines: Run with the selected agent, and Resume with no agent, so the runner uses
-the saved host. No board config file is made. The board checks concrete replacement-policy
-conflicts at its start only; each Run and Resume checks them again in its own process. It can
-remain open during a manual update. The default agent is read-only on the board. Change `host` in
+freshness"). At the start, the fixed adapter validates only the selected runtime. At each press,
+it finds the enabled copy of the session's host and checks its entrypoint. It types two fixed
+lines from that copy: Run with the selected agent, and Resume with no agent, using the saved host.
+No board config file is made. The board checks concrete replacement-policy conflicts at its
+start only; each Run and Resume checks them again in its own process. It can
+remain open during a manual update. A Claude update needs no board restart for Run and Resume;
+new board code still needs a restart. The default agent is read-only on the board. Change `host` in
 the main YAML to set the project default. A board Run choice applies only to that start; Resume
 uses its saved host. See [The board](celetis-flow.md#the-board) for the exact lines.
 

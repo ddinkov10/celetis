@@ -1020,9 +1020,10 @@ of its subfolders, then open the URL on its last line:
 ```
 
 The command takes no arguments. It validates the main checkout's `.celetis.yaml` and refuses a
-lane start before it starts the board. The fixed adapter `engine/board/adapter.ts` checks the
-selected Bun and the same package's `bin/celetis.ts` once, at the start. The start prints two
-lines: the main checkout and the URL. Each refresh reads the issue data in the board process,
+lane start before it starts the board. At the start, the fixed adapter `engine/board/adapter.ts`
+checks only the selected Bun. At each Run or Resume press, it finds the enabled copy of the
+session's host and checks its entrypoint. The start prints two lines: the main checkout and the
+URL. Each refresh reads the issue data in the board process,
 with the resolver and the locks of the engine and a fresh operation of the main checkout. So a
 change of `host` or `gates` in the main YAML shows at the next refresh. No config file is made.
 Only `board.port` comes from YAML at the start; its default is 4403. `PORT` overrides it. This
@@ -1032,10 +1033,10 @@ and start the board again for its new code.
 
 The `agents` entries of the data report executable availability for Claude and Codex. Sign-in,
 trust, and enabled plugin discovery need their own checks. A Run press types this line, with the
-selected agent, into a new herdr tab:
+selected agent, into a new herdr tab. `<copy>` is the enabled copy of that agent:
 
 ```text
-'/usr/bin/env' 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0' 'DO_NOT_TRACK=1' '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<agent>' 'celetis-flow' <n> && exit
+'/usr/bin/env' 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0' 'DO_NOT_TRACK=1' '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<copy>/bin/celetis.ts' '--agent' '<agent>' 'celetis-flow' <n> && exit
 ```
 
 With no explicit choice, it uses `defaultAgent`: `CELETIS_AGENT`, then `host` in the main
@@ -1043,15 +1044,17 @@ YAML, then `claude`. Set the project default in that YAML field. A Run choice ch
 start. The board's default-agent menu and command palette show `Default agent is read-only`.
 They show the reason: `The main .celetis.yaml controls the default agent. Change host there.`
 Unknown or unavailable Run choices return 409 and start no agent. A Resume press types this line,
-and the runner uses the saved host and exact session ID, even after the YAML default changes:
+with `<copy>` from the saved host. The runner uses that host and exact session ID, even after the
+YAML default changes:
 
 ```text
-'/usr/bin/env' 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0' 'DO_NOT_TRACK=1' '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' 'celetis-flow' '--resume' <n> && exit
+'/usr/bin/env' 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0' 'DO_NOT_TRACK=1' '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<copy>/bin/celetis.ts' 'celetis-flow' '--resume' <n> && exit
 ```
 
 On Windows, both lines are for Windows PowerShell 5.1, the default pane shell of herdr.
-When an update removed the package of a running board, Run and Resume return 409 and ask for a
-new start of the board.
+Each press finds the enabled copy again. A Claude update needs no board restart for Run and
+Resume; new board code still needs a restart. A lookup or entrypoint failure returns 409 before
+tab creation or pane execution. Read-only herdr status calls can precede that failure.
 
 `docs/celetis-flow.md`, "The board", gives the data, the fixed lines, and the card states.
 [`engine/board/README.md`](engine/board/README.md) describes the page.
