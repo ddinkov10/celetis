@@ -7,7 +7,7 @@ description: Use when turning a finished feature spec into an implementation pla
 
 # plan
 
-Superset of `superpowers:writing-plans` for project features. Delegates to it; adds project context + capability scores + a verify phase.
+Superset of `superpowers:writing-plans` for project features. Delegates to it; adds project context, capability scores, the build flow, and a Verify phase.
 
 ## Do this
 
@@ -28,19 +28,25 @@ Superset of `superpowers:writing-plans` for project features. Delegates to it; a
 
 **Save the plan to `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`** (gitignored scratch; the Terminal step publishes it to the issue).
 
-**Record in the plan header**, only if the session effort bias ≠ default 2:
-```
-Bias:         <n>
-```
+**Record in the plan header**, after `**Spec:**`:
+- `Bias:`, only if the session effort bias ≠ default 2:
+  ```
+  Bias:         <n>
+  ```
+- The `Execution:` line, always: `Execution: inline — <one-sentence reason>` or `Execution: subagent — <one-sentence reason>`. `implement` reads the first line of the plan that starts with `Execution: `. It stops on a missing line, or on a word other than `inline` or `subagent`. It has no default flow. Write the line as shown, with no bold.
+
+**The rule of the planner** chooses the flow of the `Execution:` line (ADR-0040 of the plugin `celetis`):
+- `subagent` when the plan has many tasks and at least one task is not simple.
+- `inline` for each other plan. A plan with one task is always `inline`: its task review and its final review would read the same diff.
+
+Judge "many" and "not simple" from the number of tasks, the CAP line of each task, and how much a task depends on the interfaces of an earlier task. The rule sets no number. Ask no person to choose the flow. The line replaces the question of the execution method of `superpowers:writing-plans`. In a project where the gate of `implement` is `me`, the maintainer reads the line in the plan review and can correct it before the build starts.
 
 **Per task:**
 - **Capability score.** Score the task on the six-dimension rubric (digit anchors: `<plugin>/docs/capability.md`) and emit the CAP line with the script — never hand-compute the tier:
   ```bash
   /usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'capscore' J V B N S X          # add --bias 0|1 to lower a cheap task
   ```
-  Put the emitted `CAP: J_ V_ B_ N_ S_ X_ = n [+bN] → model/effort` line in the task header. The user reviews the scores with the plan; `implement` reuses the digits and written bias, resolves the current host's model and effort, and re-scores only a task whose scope materially changed. An absent `+bN` means bias 0; the model label is a historical binding.
-
-**Tasks are gated.** State in the plan — a per-task line or a Global Constraint — that each implementation task must pass the verify gate of the project before its review.
+  Put the emitted `CAP: J_ V_ B_ N_ S_ X_ = n [+bN] → model/effort` line in the task header, in both flows. The user reviews the scores with the plan. On the subagent flow, `implement` reuses the digits and written bias, resolves the current host's model and effort, and re-scores only a task whose scope materially changed. On the inline flow, the line is a recommendation for the session and evidence for the choice of the flow. An absent `+bN` means bias 0; the model label is a historical binding.
 
 **Open the plan with `### Your steps`.** It is the first section of the plan, before the header of `superpowers:writing-plans`. The publish of Terminal writes the `## Plan` line above it, so the plan file starts with `### Your steps`. It names each human act of the lane that the plan can see, in two lists:
 - **During the build**: each act that prepares an agent check (for example a scratch repository, an install, or a secret), and each precondition of the landing (for example an environment variable that the new code reads). An item names the act, the step that needs it (a Verify scenario, or Land), and its report: a line of the maintainer's comment whose first line is `## Human steps done`.
@@ -74,4 +80,4 @@ bug: run `/celetis:bug` with the result.
 
 ## Terminal
 
-The execution method is already supplied: `/celetis:implement #<n>` in a fresh context. Once the plan is written and self-reviewed, publish it in the same turn with `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'issue' '<n>' 'plan' '<plan>'`: it posts the plan with `## Plan` as its first line, then adds `ready-for-agent`. Then tell the user that the plan is on the issue for their review, repeat the two lists of `### Your steps` verbatim, and then tell the user to run `/celetis:implement #<n>` in a fresh context.
+The execution method is supplied: `/celetis:implement #<n>` in a fresh context, which follows the `Execution:` line of the plan. Once the plan is written and self-reviewed, publish it in the same turn with `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'issue' '<n>' 'plan' '<plan>'`: it posts the plan with `## Plan` as its first line, then adds `ready-for-agent`. Then tell the user that the plan is on the issue for their review, repeat the two lists of `### Your steps` verbatim, and then tell the user to run `/celetis:implement #<n>` in a fresh context.

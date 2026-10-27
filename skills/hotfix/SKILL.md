@@ -43,11 +43,13 @@ N+1. Too little time for the lane → the change does not ship tonight.
    it posts the report with `## Root cause` as its first line, so the report file has no heading.
 5. **Author a one-task micro-plan in `docs/superpowers/plans/<n>.md`** (gitignored scratch; the
    fire's substitute for `plan`):
-   - The task = the root-cause fix, with step 3's traps as its constraints.
+   - The first line of the micro-plan is `Execution: inline — one task`. A micro-plan has no
+     `### Your steps` and no `Bias:` line, so this line is its header.
+   - The task is the root-cause fix under `### Task 1: <title>`, with step 3's traps as its
+     constraints. Both build flows of `implement` find a task by its `Task <N>` heading.
    - Each library call the fix adds is checked per `<plugin>/docs/docs-lookup.md`; the facts go
      in the micro-plan's `## External facts` section.
-   - CAP line via `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'capscore' J V B N S X` — never hand-computed.
-   - Per-task gate line: the verify gate of the project (`AGENTS.md` names it) passes before the task's review. The full suite runs once, on the tree that lands (Land step 3 of `implement`).
+   - CAP line via `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'capscore' J V B N S X` — never hand-computed. It is a recommendation for the session, because `implement` builds a micro-plan inline.
    - Verify phase: the red repro re-run post-fix, plus one error branch of any newly-enabled
      path (widened allow-list / enum / dispatch literal / flag).
    Fix crosses subsystems or unrolls a chain → not shim-able: route the issue to `bug` with

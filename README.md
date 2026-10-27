@@ -820,8 +820,8 @@ host's skill selector. Native desktop selector acceptance is optional under
 | `/celetis:intake <the request>` | writes the intent in your words, and asks "proceed?" | a new issue `#<n>` with the intent and the label `needs-triage` |
 | `/celetis:triage #<n>` | picks the lane, and asks whether to go on | the lane label, here `enhancement` |
 | `/celetis:feature #<n>` | makes the lane worktree and runs `specify`: the design, in a conversation with you | the spec that you approved, as the body of the issue |
-| `/celetis:plan #<n>`, in a new session | writes the plan: your steps (the human acts of the lane), tasks with a capability score, and a Verify phase | a `## Plan` comment and the label `ready-for-agent` |
-| `/celetis:implement #<n>`, in a new session | builds each task (an implementer, the verify gate of the project, a review), runs the Verify phase, and lands the change with `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land'` | the change on the trunk, and a closed issue |
+| `/celetis:plan #<n>`, in a new session | writes the plan: your steps (the human acts of the lane), the build flow, tasks with a capability score, and a Verify phase | a `## Plan` comment and the label `ready-for-agent` |
+| `/celetis:implement #<n>`, in a new session | builds the tasks in the flow that the `Execution:` line of the plan names (`inline`: the session builds each task and runs the verify gate of the project, then one review of the branch; `subagent`: an implementer, the verify gate of the project, and a review for each task), runs the Verify phase, and lands the change with `/usr/bin/env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 '<bun>' '--no-env-file' '--no-install' '--config=/dev/null' '--no-macros' '<plugin>/bin/celetis.ts' '--agent' '<host>' 'land'` | the change on the trunk, and a closed issue |
 
 - On a yes, `intake` hands on to `triage`, and `triage` hands on to the lane, so the first three
   rows can be one session. `plan` and `implement` each start in a fresh context, and each one reads
@@ -899,8 +899,8 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | | [`/celetis:hotfix`](skills/hotfix/SKILL.md) | The lane for broken production: the root cause, a plan of one task, `implement`, and the ship checklist |
 | | [`/celetis:chore`](skills/chore/SKILL.md) | The lane for a change with no change of behavior: the change, the verify gate, the commit, and the landing |
 | **Steps** | [`/celetis:specify`](skills/specify/SKILL.md) | The design step. It adds the project context to `superpowers:brainstorming`, and the spec that you approve becomes the body of the issue |
-| | [`/celetis:plan`](skills/plan/SKILL.md) | The plan step. It adds a capability score for each task and a Verify phase to `superpowers:writing-plans`, and it posts the plan on the issue |
-| | [`/celetis:implement`](skills/implement/SKILL.md) | The build step. It adds the verify gate before each review, the Verify phase, and the landing to `superpowers:subagent-driven-development` |
+| | [`/celetis:plan`](skills/plan/SKILL.md) | The plan step. It adds the choice of the build flow, a capability score for each task, and a Verify phase to `superpowers:writing-plans`, and it posts the plan on the issue |
+| | [`/celetis:implement`](skills/implement/SKILL.md) | The build step. It runs the plan with `superpowers:executing-plans` or `superpowers:subagent-driven-development`, as the `Execution:` line of the plan says, and adds the verify gate at the end of each task, the Verify phase, and the landing |
 | **Review and memory** | [`/celetis:critic-loop`](skills/critic-loop/SKILL.md) | Scores the current diff from 0 to 10 across five perspectives, and fixes and scores again until the diff passes |
 | | [`/celetis:polishing-code-comments`](skills/polishing-code-comments/SKILL.md) | A pass that removes and tightens the comments of a diff or a file |
 | | [`/celetis:lesson`](skills/lesson/SKILL.md) | Writes a lesson from a correction or an incident to `docs/lessons/`, with a row in its catalog |

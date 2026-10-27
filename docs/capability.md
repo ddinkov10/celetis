@@ -84,7 +84,9 @@ will read it:
 
 - **Lane skills** (`bug|hotfix|chore|feature`) — score before any subagent dispatch; the CAP
   line goes in the dispatch prompt.
-- **`implement`** per-task dispatch — CAP line per task.
+- **`implement`** per-task dispatch — CAP line per task, on the subagent flow. On the inline flow,
+  the session builds each task, so the CAP lines of the plan are recommendations, as for each
+  session-executed task (**Plan headers**).
 - **Ad-hoc child spawns** — every child for repo work resolves its host binding and includes a CAP
   line in its prompt; the actual spawn applies the effort, and the model when `dispatch.model` is
   not null, through [host operations](hosts/entry.md).
