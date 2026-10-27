@@ -23,6 +23,7 @@ import { activePresses, place, sessionsOf, stepsOf } from './place.ts';
 
 const HERE = import.meta.dirname;
 const STALE_MS = 60_000;
+const BACKGROUND_MS = 300_000;
 const DIFF_MS = 15_000;
 const SCREEN_LINES = 16;
 const PANE = /^[\w:.][\w:.-]*$/;
@@ -446,5 +447,12 @@ export const createBoard = ({
       });
     });
   });
+  let nextCheck: ReturnType<typeof setTimeout> | undefined;
+  const check = () => {
+    if (now() - askedAt >= BACKGROUND_MS) void refresh();
+    nextCheck = setTimeout(check, askedAt + BACKGROUND_MS - now());
+  };
+  server.on('listening', check);
+  server.on('close', () => clearTimeout(nextCheck));
   return server;
 };
