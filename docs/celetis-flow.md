@@ -13,8 +13,9 @@ ADR-0005 holds the reasons why herdr, not a mod, gives the session state and end
 ADR-0007 holds the reasons why `specify` is a step of the script. ADR-0008 holds the reasons why the
 build step lands the change, ADR-0020 holds the reasons why the board is a part of the plugin, and
 ADR-0035 holds the reasons why the board reads its data with the engine and types two fixed lines.
-ADR-0011 holds the reasons why a step session hands a stop to the issue, and ADR-0033 holds the
-reasons for the one definition of the workflow and for the skip rule.
+ADR-0011 holds the reasons why a step session hands a stop to the issue, ADR-0033 holds the
+reasons for the one definition of the workflow and for the skip rule, and ADR-0038 holds the
+reasons why a `bug` session hands on to `plan` in that rule.
 
 `engine/lib/workflow.ts` of the plugin is the one definition of the workflow: the lanes, with the
 label, the branch prefix, and the steps in order of each lane; the stages; the command of each step;
@@ -102,11 +103,14 @@ next step is a `me` step, so a start with a number runs one step of that issue.
 
 **A refused skip.** Between two steps of one start, the script refuses a next step that skips a
 step of its lane. Let S be the step that ended, and T the next step in the lane of the decision.
-T can start when its position in the lane is at most one more than the position of S. When S is
-not a step of that lane (a lane change), T must be the first or the second step of the lane.
-`triage` can always start. So `specify` → `plan`, `bug` → `plan`, `plan` → `implement`,
-`specify` → `bug` after a relabel, and `implement` → `plan` can start, and `triage` → `plan`,
-`specify` → `implement`, `bug` → `implement`, and `triage` → `implement` cannot. At a refusal
+T can start when its position in the lane is at most one more than the position of S. A session
+of `bug` also writes the plan (step 7 of `/celetis:bug`), so in the lane `bug` the script takes
+the position of `plan` for S = `bug`. When S is not a step of that lane (a lane change), T must be
+the first or the second step of the lane. `triage` can always start. So `specify` → `plan`,
+`bug` → `plan`, `bug` → `implement`, `plan` → `implement`, `specify` → `bug` after a relabel, and
+`implement` → `plan` can start, and `triage` → `plan`, `specify` → `implement`, and
+`triage` → `implement` cannot.
+At a refusal
 the script prints `#<n>: <T> skips <steps> after <S>; fix the issue, or start <T> by hand: BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/bin/celetis.ts --agent <host> celetis-flow <n>`,
 for example `#12: plan skips specify after triage; …`. It adds the row `<n>\t<run line of T>` to
 the record and ends the issue. The skip check comes before the gate check, so a refused step with a

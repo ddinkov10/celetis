@@ -223,8 +223,10 @@ export function sameResult(a: Decision, b: Decision): boolean {
   );
 }
 
+const handsOn: Partial<Record<Step, Step>> = { bug: 'plan' };
+
 export function skipped(from: Step, to: Step, lane: Lane | null): readonly Step[] {
   if (lane === null) return [];
   const order = stepsOf(lane);
-  return order.slice(order.includes(from) ? order.indexOf(from) + 1 : 1, order.indexOf(to));
+  return order.slice(order.includes(from) ? order.indexOf(handsOn[from] ?? from) + 1 : 1, order.indexOf(to));
 }
