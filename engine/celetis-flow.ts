@@ -163,6 +163,7 @@ export async function main(argv: string[]): Promise<number> {
     record: SessionRecord,
     prior: string,
     startedAt: number,
+    ended: Promise<number>,
     abort: AbortSignal,
   ) => {
     const deadline = performance.now() + 60_000;
@@ -203,10 +204,28 @@ export async function main(argv: string[]): Promise<number> {
         if (first.kind !== 'observed' && !sameResult(first, start)) {
           const { next: second } = await nextOf(n, fresh(), abort);
           if (second.kind !== 'observed' && sameResult(second, first) && (await idle(id, record.host, abort))) {
-            if ((await herdr(['agent', 'prompt', pane, '/exit'], abort)).code !== 0 && !abort.aborted)
-              console.error(
-                `celetis-flow: #${n} cannot submit /exit; the session stays open. Exit it in this pane when ready.`,
-              );
+            const args =
+              record.host === 'codex'
+                ? ['agent', 'send-keys', pane, 'ctrl+c', 'ctrl+c']
+                : ['agent', 'prompt', pane, '/exit'];
+            if ((await herdr(args, abort)).code !== 0) {
+              if (!abort.aborted)
+                console.error(
+                  `celetis-flow: #${n} cannot request ${record.host} exit; the session stays open. Exit it in this pane when ready.`,
+                );
+              return;
+            }
+            const timer = setTimeout(() => {
+              if (!abort.aborted)
+                console.error(
+                  `celetis-flow: #${n} ${record.host} did not exit within 10 seconds; the session stays open. Exit it in this pane when ready.`,
+                );
+            }, 10_000);
+            try {
+              await ended;
+            } finally {
+              clearTimeout(timer);
+            }
             return;
           }
         }
@@ -339,7 +358,7 @@ export async function main(argv: string[]): Promise<number> {
             ]);
           const startedAt = Math.floor(Date.now() / 1000);
           watcher = new AbortController();
-          watching = endWhenDone(n, next, record, prior, startedAt, watcher.signal).catch((error: unknown) => {
+          watching = endWhenDone(n, next, record, prior, startedAt, ended, watcher.signal).catch((error: unknown) => {
             watchError = error;
           });
         }

@@ -122,11 +122,10 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
   A rename makes a live owner look stale. The runner can then end a session during landing, or
   two runners can take one issue. On Windows, owners match by PID and creation time instead
   (ADR-0034).
-- **The act of a skill that moves the line of the issue is its last act.** In a herdr pane, the
-  runner types `/exit` when the agent is idle and the resolver prints a new line for the issue
-  (`endWhenDone` in `engine/celetis-flow.ts`). A label, a comment with a heading that the
-  resolver reads, a published spec, and a closed issue move the line. So each act of the skill after
-  such an act is in the same turn.
+- **The act of a skill that moves the line of the issue is its last act.** A label, a comment
+  with a heading that the resolver reads, a published spec, and a closed issue move the line.
+  Complete each remaining act of the skill in the same turn.
+  `docs/celetis-flow.md`, "The step end", describes automatic exit in a herdr pane.
 - **The skills table and the commands table of `README.md` are written by hand.** A new skill, a
   removed skill, or a new sub-command of `engine/` also changes the README, and no check fails when
   it does not.

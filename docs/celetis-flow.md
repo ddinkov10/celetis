@@ -228,9 +228,11 @@ board links the session to the issue. It also starts a job in the background tha
    other than the result that started the session permits an exit check: a Run of another step,
    or a stop of the issue. A stop from an observation (the dirty tree, a landing that runs, or a
    failed read) permits none. The job reads the resolver again, and that read must give the same
-   result. It then makes a final session-state check before it submits `/exit`. A blocked or
-   unknown state gets no exit. A failed submission leaves the session open and prints a recovery
-   action.
+   result. It then makes a final session-state check. A blocked or unknown state gets no exit.
+   For Codex, it requests exit with `herdr agent send-keys <pane> ctrl+c ctrl+c`, which clears
+   unsent composer text and requests native quit without submitting a chat message. Completion
+   can discard a draft. For Claude, it keeps `herdr agent prompt <pane> /exit`. A failed request
+   leaves the session open and prints a recovery action.
 4. Otherwise it waits up to five seconds for working or blocked state, pauses one second, and
    checks again. This also permits a new resolver check while the session remains idle.
 
@@ -240,10 +242,14 @@ state and the lane are not part of the result. So when `implement` removes `read
 issue goes from planned to built, the result stays a Run of `implement`, and the session stays open.
 The two variants of `ready-for-human` (`landing refused` and `ready for your step`) print the same
 line, but they are two results. When the variant changes between the two reads of one check, the
-job submits no `/exit` at that check, and it checks again at the next idle moment.
+job sends no exit input at that check, and it checks again at the next idle moment.
 
 The runner waits for the foreground process to exit before it releases a lock or starts the
-next step. Successful `/exit` submission alone is not completion.
+next step. Successful input delivery alone is not completion. After a successful request, the
+job waits for the owned host process to exit. If it stays alive for 10 seconds, the job prints
+one recovery message and keeps waiting. Process exit cancels that diagnostic timer. The job
+does not repeat the request or force-kill the host. If a UI state consumes the keys without
+exiting, exit the session in its pane when ready.
 
 In each other case the session stays open: a decision with the same result, the dirty-tree line,
 the line of a landing that runs, the cannot-read line, and a resolver read that fails. So a
@@ -953,6 +959,14 @@ model profiles, and permissions; a missing tool or denied read stops that operat
 |---|---|
 | Codex desktop | The current selector cannot bind the owned isolated package: BLOCKED. CLI typed skill input and quoted tests do not establish desktop entry |
 
+On 2026-10-27, the #157 investigation checked native exit input on macOS with Codex CLI
+0.164.0 and Herdr client/server 0.9.3. `herdr agent send-keys <agent> ctrl+c ctrl+c` returned
+control to the shell for an empty composer, an unsent `§`, a visible two-line draft, and `/`
+with its slash-command popup open. No draft became a chat message. These observations cover
+the native operation, not the changed runner. The changed-watcher Verify results belong to
+[#157](https://github.com/ddinkov10/celetis/issues/157). The original incident's source of `§`
+remains unknown.
+
 ## Limits
 
 - A session that waits holds its script. Each Run press and each start with a number has its own
@@ -974,9 +988,10 @@ model profiles, and permissions; a missing tool or denied read stops that operat
 - The script ends a step from the selected host state that herdr reports. A new host release can
   need a new herdr integration or agent manifest
   (`herdr server update-agent-manifests`).
-- The script types `/exit` into the pane of a step that is done. Text that you type in that pane at
-  that moment goes into the same line. This is more probable in a `specify` session, because you
-  work in its pane.
+- Automatic completion can discard an unsent Codex draft through native cancel/quit input.
+  Claude still receives `/exit` through its composer, so concurrent text can join that command.
+  A successful request that leaves either host alive prints recovery instructions after
+  10 seconds; the runner keeps ownership until the process exits ("The step end").
 - The `herdr` commands of the script come from the documents and the source of herdr 0.9.3. The
   step end of the script was checked against a live herdr on 2026-10-11 (ADR-0007). That check
   covered the compare of lines. The compare of typed decisions was checked on Claude Code on
