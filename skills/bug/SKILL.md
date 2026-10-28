@@ -41,7 +41,9 @@ start step N+1.
    them.
 4. **Invoke `superpowers:systematic-debugging`** — MANDATORY, no self-granted exemptions; the red
    repro is the spec's repro. A hypothesis that rests on library, platform, or vendor behavior is
-   checked per `<plugin>/docs/docs-lookup.md` before the report names it the root cause.
+   checked per `<plugin>/docs/docs-lookup.md` before the report names it the root cause. A bug that
+   shows on screen gets a capture repro at the failing state and size, posted on the issue per
+   `<plugin>/skills/prototype/UI.md`, "Captures", before the report.
 5. **Write a states table in the report.** For every value the fix guards or depends on, list each
    distinct state and name the code that writes it (file:line) — both the producer of the absent
    state AND the writer of the consulted value (a flag or field), not its default initializer. A
@@ -58,12 +60,17 @@ start step N+1.
    the reason. If the fix merges two states
    that step 5 shows have different writers (for example, treating "absent" as "false"), or the
    spec does not define behavior for every listed state, STOP and ask the user — present the states
-   and the decision as concrete options. For a look decision (`AGENTS.md` of the project), the options
-   are `celetis:prototype` variants: build them and hand them over, then ask for the pick, and record it
-   as the report's `## Prototype` section (`<plugin>/docs/issue-tracker.md`). Do not ship a guessed
-   default. Proceed autonomously to step 7 only when every state is spec-defined and the fix is
-   self-contained.
+   and the decision as concrete options. A fix that chooses a look that no spec, design document,
+   code, or issue text defines is a look decision (`<plugin>/skills/prototype/UI.md`, "The look
+   decision"): invoke `celetis:prototype`, and follow "The procedure" of that file
+   through its cleanup (step 10). The record of step 9 is the report's `## Prototype` section
+   (`<plugin>/docs/issue-tracker.md`). Stop for the pick also when each other state is defined.
+   A fix that restores a defined look, a regression too, builds no variants: its capture repro is
+   the evidence. Do not ship a guessed default.
+   Proceed autonomously to step 7 only when every state is spec-defined, the fix chooses no new
+   look, and the fix is self-contained.
 7. **Post the report, then invoke `celetis:plan #<n>`.** `celetis --agent <host> issue <n> root-cause <report>`
    posts the report with `## Root cause` as its first line, so the report file has no heading; the report is the spec (root cause + red repro + intended
    behavior + step 3's traps + its `## External facts` section + its `## Prior art` section when
-   step 6 did the research) and `plan` drives the rest of the chain.
+   step 6 did the research + the link of the capture repro when step 4 made one) and `plan` drives
+   the rest of the chain.

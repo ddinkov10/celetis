@@ -51,6 +51,8 @@ of the product project, apart from a path that starts with `~/` or `/`.
   programs keep the selected Bun and all startup isolation flags. No jq or Perl runtime is needed.
 - The scripts use only the REST API of GitHub (`gh api`), so they also work where a proxy refuses
   GraphQL, as in a Claude Code cloud session.
+- For a look decision and a visual bug: `gh` 2.99.0 or later on github.com, and the capture tool of
+  the platform row ([UI.md](../skills/prototype/UI.md), "Captures").
 - The program `celetis` on `PATH` (`README.md`, "First install"), and the plugin `celetis@celetis`
   of the selected host at the revision of the program. The scripts and the step text come from
   the version folder of the program: `celetis --agent <host> <name> <arguments>` runs

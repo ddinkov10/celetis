@@ -18,8 +18,9 @@ Bind commands and file edits to the lane path; return to the main checkout for l
    plan). When a skill says to run a step in a fresh context, do not start it. This session ends
    by itself when the issue shows that the step is done and the working tree is clean.
 2. Ask the human only for a decision that the issue does not hold, for example a type that
-   /celetis:triage cannot tell, a state that the spec does not define, a pick between
-   prototype variants, or authorization for a destructive act that the plan did not authorize.
+   /celetis:triage cannot tell, a state that the spec does not define,
+   the list of states and the platform row of a look decision, a pick between prototype variants,
+   or authorization for a destructive act that the plan did not authorize.
    An upstream "stop and ask" remains a question in this session: ask and wait for the answer.
    Never ask for a go-ahead or a review:
    - When a skill tells you to ask whether to proceed or to continue with another lane or issue

@@ -27,6 +27,11 @@ For the industry standard, start from the most widely used products whose users 
 problem. They can be a different kind of product than the project, for example a desktop app, an
 editor, or a command-line tool. Read how each one solves the problem.
 
+The research of a look decision ([UI.md](../skills/prototype/UI.md), "The procedure") also reads
+the guidelines of the platform: the Apple Human Interface Guidelines or Material Design for mobile,
+the Apple Human Interface Guidelines or the guidelines of the toolkit for a desktop app, clig.dev
+for a terminal program, and WCAG for the web.
+
 ## Sources
 
 Use only primary sources: the source code of a product, its official documentation, a standard (an

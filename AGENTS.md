@@ -97,6 +97,17 @@ For installation changes, follow `README.md`, "Updates".
 - Keep the trust boundaries of `engine/board/server.ts` and the fixed adapter `engine/board/adapter.ts`.
 - Check a UI change in Chromium at desktop width and at 375×812.
 
+A look decision of the board uses these three facts:
+
+- The kind is web, with the default row of `prototype` (`skills/prototype/UI.md`, "The platform
+  rows").
+- The design document is `engine/board/README.md`, "The layout, the keys, and the errors".
+- A prototype board with live data starts in the prototype checkout. A throwaway script there calls
+  `startBoard` of `engine/board/start.ts` with the main checkout, a port other than 4404, and an
+  adapter whose `run` and `resume` reject. The server reads its page files from its own folder
+  (`HERE` in `engine/board/server.ts`), so the variants show with the live issues and sessions.
+  After an edit of a page module, `scripts/build.ts` writes its browser files in that checkout.
+
 ## External facts
 
 For the lookup of `docs/docs-lookup.md`, read `claude --version` or `codex --version` for the
@@ -131,5 +142,5 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
   removed skill, or a new sub-command of `engine/` also changes the README, and no check fails when
   it does not. `scripts/build.ts` writes only the block of the commands that a person types. A new
   command that a person types goes into `engine/lib/help.ts`.
-- **The skills `writing-for-agents` and `prototype` are vendored** from `mattpocock/skills`
+- **The skill `writing-for-agents` is vendored** from `mattpocock/skills`
   (ddinkov10/fwrh_calculator#265).
