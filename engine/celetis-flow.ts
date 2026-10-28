@@ -8,6 +8,7 @@ import type { Host } from './lib/host.ts';
 import type { LockOwner } from './lib/locks.ts';
 import type { Operation } from './lib/operation.ts';
 import type { SessionRecord } from './lib/session.ts';
+import type { StepEndRecord, StepEndState, TurnKey } from './lib/step-end.ts';
 import type { Run } from './lib/workflow.ts';
 
 const usage =
@@ -30,6 +31,7 @@ const required = [
   'lib/windows.ts',
   'lib/process-identity.ts',
   'lib/session.ts',
+  'lib/step-end.ts',
   'lib/workflow.ts',
   'lib/tracker.ts',
   'lib/lines.ts',
@@ -62,6 +64,7 @@ export async function main(argv: string[]): Promise<number> {
     'lib/process-identity.ts',
     'lib/process.ts',
     'lib/session.ts',
+    'lib/step-end.ts',
     'lib/workflow.ts',
     'lib/tracker.ts',
     'lib/lines.ts',
@@ -107,6 +110,8 @@ export async function main(argv: string[]): Promise<number> {
   const { addRecord, createLockOwner, isRecorded, lockHolder } = await import('./lib/locks.ts');
   const { createOperation, locateCheckouts } = await import('./lib/operation.ts');
   const { bunArgs, childEnv, run } = await import('./lib/process.ts');
+  const { processStart } = await import('./lib/process-identity.ts');
+  const { removeStepEnd, writeStepEnd } = await import('./lib/step-end.ts');
   const {
     hostArguments,
     manualRecovery,
@@ -134,6 +139,9 @@ export async function main(argv: string[]): Promise<number> {
   let session: ChildProcess | undefined;
   let signalStatus = 0;
   let watcher: AbortController | undefined;
+  let watching: Promise<void> | undefined;
+  let stepEndIssue: number | undefined;
+  let stepEndOwner: StepEndRecord['runner'];
   let watchDir = '';
   const handlers = new Map<NodeJS.Signals, () => void>();
   const die = (message: string): never => {
@@ -159,8 +167,65 @@ export async function main(argv: string[]): Promise<number> {
   };
   const herdr = async (args: string[], abort?: AbortSignal) =>
     run('herdr', args, { cwd: main, env: childEnv(), signal: abort });
-  const idle = async (id: string, sessionHost: Host, abort: AbortSignal) =>
-    sessionIdle(parsed((await herdr(['agent', 'get', pane], abort)).stdout), sessionHost, id);
+  const clearStepEnd = async () => {
+    if (stepEndIssue === undefined) return;
+    try {
+      await removeStepEnd(main, stepEndIssue);
+    } catch (error) {
+      console.error(`celetis-flow: #${stepEndIssue} cannot remove step-end: ${(error as Error).message}`);
+      console.error(
+        'celetis-flow: cannot revoke watcher ownership; the runner stops. Exit the session in this pane when ready.',
+      );
+      process.exit(1);
+    }
+  };
+  const publish = async (host: Host, state: StepEndState, turn: TurnKey | null) => {
+    try {
+      await writeStepEnd(main, stepEndIssue as number, { runner: stepEndOwner, pane, host, state, turn });
+      return true;
+    } catch (error) {
+      await clearStepEnd();
+      console.error(`celetis-flow: #${stepEndIssue} cannot write step-end: ${(error as Error).message}`);
+      return false;
+    }
+  };
+  const sessionTurn = async (
+    id: string,
+    host: Host,
+    abort: AbortSignal,
+  ): Promise<{ turn: TurnKey; idle: boolean } | null> => {
+    const reply = await herdr(['agent', 'get', pane], abort);
+    const value = parsed(reply.stdout);
+    const agent = (value as { result?: { agent?: Record<string, unknown> } } | null)?.result?.agent;
+    const identity = agent?.agent_session as { agent?: unknown; kind?: unknown; value?: unknown } | null;
+    if (
+      reply.code !== 0 ||
+      !agent ||
+      agent.agent !== host ||
+      typeof agent.agent_status !== 'string' ||
+      !['idle', 'done', 'working', 'blocked', 'unknown'].includes(agent.agent_status) ||
+      identity?.agent !== host ||
+      identity.kind !== 'id' ||
+      identity.value !== id
+    )
+      return null;
+    return typeof agent.terminal_id === 'string' &&
+      agent.terminal_id.length > 0 &&
+      agent.pane_id === pane &&
+      Number.isSafeInteger(agent.state_change_seq) &&
+      Number(agent.state_change_seq) >= 0
+      ? {
+          turn: { terminalId: agent.terminal_id, sessionId: id, sequence: Number(agent.state_change_seq) },
+          idle: sessionIdle(value, host, id),
+        }
+      : null;
+  };
+  const sameTurn = (a: TurnKey | null, b: TurnKey | null) =>
+    a !== null &&
+    b !== null &&
+    a.terminalId === b.terminalId &&
+    a.sessionId === b.sessionId &&
+    a.sequence === b.sequence;
   const endWhenDone = async (
     n: string,
     start: Run,
@@ -193,8 +258,9 @@ export async function main(argv: string[]): Promise<number> {
       }
       await Bun.sleep(1000);
     }
-    if (!saved || abort.aborted) return;
+    if (!saved || abort.aborted) return false;
     const id = (await readSession(main, Number(n))).session_id ?? '';
+    let retained: TurnKey | null = null;
     while (
       !abort.aborted &&
       (await herdr(['agent', 'wait', pane, '--until', 'idle', '--until', 'done'], abort)).code === 0
@@ -203,21 +269,42 @@ export async function main(argv: string[]): Promise<number> {
         say(`#${n}: ${removed}`);
         return;
       }
-      if (await idle(id, record.host, abort)) {
+      const observed = await sessionTurn(id, record.host, abort);
+      const turn = observed?.turn;
+      if (observed && !observed.idle) {
+        retained = null;
+        if (!(await publish(record.host, 'checking', observed.turn))) return false;
+      } else if (turn) {
+        if (!sameTurn(turn, retained) && !(await publish(record.host, 'checking', turn))) return false;
         const { next: first } = await nextOf(n, fresh(), abort);
+        let changed = false;
         if (first.kind !== 'observed' && !sameResult(first, start)) {
           const { next: second } = await nextOf(n, fresh(), abort);
-          if (second.kind !== 'observed' && sameResult(second, first) && (await idle(id, record.host, abort))) {
+          changed = second.kind !== 'observed' && sameResult(second, first);
+        }
+        const current = await sessionTurn(id, record.host, abort);
+        if (!current) {
+          retained = null;
+          await clearStepEnd();
+        } else if (!current.idle || !sameTurn(turn, current.turn)) {
+          retained = null;
+          if (!(await publish(record.host, 'checking', current.turn))) return false;
+          if (current.idle) continue;
+        } else if (!abort.aborted) {
+          if (changed) {
+            if (!(await publish(record.host, 'exiting', turn))) return false;
             const args =
               record.host === 'codex'
                 ? ['agent', 'send-keys', pane, 'ctrl+c', 'ctrl+c']
                 : ['agent', 'prompt', pane, '/exit'];
             if ((await herdr(args, abort)).code !== 0) {
-              if (!abort.aborted)
+              if (!abort.aborted) {
+                await publish(record.host, 'waiting', turn);
                 console.error(
                   `celetis-flow: #${n} cannot request ${record.host} exit; the session stays open. Exit it in this pane when ready.`,
                 );
-              return;
+              }
+              return false;
             }
             const timer = setTimeout(() => {
               if (!abort.aborted)
@@ -230,9 +317,14 @@ export async function main(argv: string[]): Promise<number> {
             } finally {
               clearTimeout(timer);
             }
-            return;
+            return true;
           }
+          if (!(await publish(record.host, 'waiting', turn))) return false;
+          retained = turn;
         }
+      } else {
+        retained = null;
+        await clearStepEnd();
       }
       await herdr(['agent', 'wait', pane, '--until', 'working', '--until', 'blocked', '--timeout', '5000'], abort);
       if (!abort.aborted) await Bun.sleep(1000);
@@ -338,9 +430,11 @@ export async function main(argv: string[]): Promise<number> {
         };
         await writeSession(main, record);
         const { ended } = await startSession(announced ? ['--session-id', announced, ...args] : args, stepHost);
-        let watching: Promise<void> | undefined;
         let watchError: unknown;
         if (managed) {
+          stepEndIssue = Number(n);
+          stepEndOwner = { pid: process.pid, start: await processStart(process.pid) };
+          await publish(stepHost, 'checking', null);
           if (process.env.HERDR_TAB_ID) await herdr(['tab', 'rename', process.env.HERDR_TAB_ID, `#${n} ${step}`]);
           const prior = reportedSessionId(parsed((await herdr(['agent', 'get', pane])).stdout));
           if (announced)
@@ -361,16 +455,24 @@ export async function main(argv: string[]): Promise<number> {
             ]);
           const startedAt = Math.floor(Date.now() / 1000);
           watcher = new AbortController();
-          watching = endWhenDone(n, next, record, prior, startedAt, ended, watcher.signal).catch((error: unknown) => {
-            watchError = error;
-          });
+          watching = endWhenDone(n, next, record, prior, startedAt, ended, watcher.signal)
+            .then(async (exiting) => {
+              if (!exiting) await clearStepEnd();
+            })
+            .catch(async (error: unknown) => {
+              await clearStepEnd();
+              watchError = error;
+            });
         }
         await writeFile(join(watchDir, 'go'), '');
         exitCode = await ended;
         session = undefined;
         watcher?.abort();
         await watching;
+        watching = undefined;
         watcher = undefined;
+        await clearStepEnd();
+        stepEndIssue = undefined;
         if (watchError !== undefined) throw watchError;
         if (managed && (await readSession(main, Number(n))).session_id === null) {
           if (!(await stat(join(watchDir, 'error')).catch(() => null)))
@@ -385,6 +487,10 @@ export async function main(argv: string[]): Promise<number> {
       }
       return started;
     } finally {
+      watcher?.abort();
+      await watching;
+      await clearStepEnd();
+      stepEndIssue = undefined;
       await locks?.release(`issue-${n}`);
     }
   };
@@ -426,6 +532,8 @@ export async function main(argv: string[]): Promise<number> {
     for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
       const handler = () => {
         signalStatus = 128 + constants.signals[signal];
+        watcher?.abort();
+        void clearStepEnd();
       };
       handlers.set(signal, handler);
       process.on(signal, handler);
@@ -485,11 +593,13 @@ export async function main(argv: string[]): Promise<number> {
     throw error;
   } finally {
     watcher?.abort();
+    await watching;
     if (session?.pid && session.exitCode === null && session.signalCode === null) {
       session.kill('SIGTERM');
       await new Promise<void>((done) => session?.once('exit', () => done()));
     }
     if (watchDir) await rm(watchDir, { recursive: true, force: true });
+    await clearStepEnd();
     await locks?.releaseAll();
     for (const [signal, handler] of handlers) process.off(signal, handler);
   }

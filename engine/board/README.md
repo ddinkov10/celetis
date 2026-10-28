@@ -224,8 +224,18 @@ gives the column of a session of an issue.
 |---|---|---|
 | `working` | Running | `works` |
 | `blocked`: herdr found an approval or a question dialog | Needs you | `waits for your answer` |
+| `idle` or `done`: a live runner checks or closes this turn | Running | `checks step` |
 | `idle` or `done`: the agent is ready for the next prompt | Needs you | `turn ended` |
 | `unknown`, or a state that the board does not know | Running | `state unknown` |
+
+Each board request, including a local request, reads the runner's private step-end record from
+the common Git directory. Its PID, process start, pane, and host must identify a live runner.
+A retained verdict applies only to the recorded terminal, session UUID, and `state_change_seq`.
+A later turn starts with no retained verdict, even when the board misses its working state.
+Missing, invalid, unreadable, or stale evidence keeps the ordinary wait. A dialog always wins.
+Resume and unmanaged sessions have no completion watcher. The runner keeps an exiting verdict
+until the foreground exits, then removes it. This local read adds no GitHub request.
+Start a new board process to load updated server code.
 
 The state of a session wins over the state of its issue, and an issue with a session has no card of
 its own. Two sessions of one issue make two cards. A session card shows the title, the type, the

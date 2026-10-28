@@ -8,6 +8,8 @@ type Snapshot = {
     tab_id: string;
     agent?: string;
     agent_status: string;
+    agent_session?: { kind?: string; agent?: string; value?: string } | null;
+    state_change_seq?: number;
     cwd: string;
     foreground_cwd?: string;
   }[];
@@ -16,6 +18,7 @@ type Snapshot = {
 import { gateOf } from './view.ts';
 
 const LABEL = /^#([1-9][0-9]*)(?: ([a-z]+))?/;
+const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 const time = (iso: string) => Date.parse(iso);
 
@@ -33,6 +36,19 @@ export const sessionsOf = (snapshot: Snapshot, isHere: (path: string) => boolean
         paneId: agent.pane_id,
         agent: agent.agent ?? null,
         status: agent.agent_status,
+        agentSessionId:
+          (agent.agent === 'claude' || agent.agent === 'codex') &&
+          agent.agent_session?.kind === 'id' &&
+          agent.agent_session.agent === agent.agent &&
+          typeof agent.agent_session.value === 'string' &&
+          UUID.test(agent.agent_session.value)
+            ? agent.agent_session.value
+            : null,
+        stateChangeSeq:
+          Number.isSafeInteger(agent.state_change_seq) && Number(agent.state_change_seq) >= 0
+            ? (agent.state_change_seq as number)
+            : null,
+        stepEnd: null,
         issue: issue ? Number(issue) : null,
         step: steps.has(step as string) ? (step as string) : null,
         label,
@@ -88,9 +104,13 @@ const STATUSES: Record<string, [Column, string, string | null]> = {
 };
 
 const placeSession = (session: Session, issue: Issue | undefined): [Column, Card] => {
-  const [column, state, waitFor] = Object.hasOwn(STATUSES, session.status)
-    ? (STATUSES[session.status] as [Column, string, string | null])
-    : (STATUSES.unknown as [Column, string, string | null]);
+  const checking =
+    ['idle', 'done'].includes(session.status) && (session.stepEnd === 'checking' || session.stepEnd === 'exiting');
+  const [column, state, waitFor] = checking
+    ? (['running', 'checks-step', null] as const)
+    : Object.hasOwn(STATUSES, session.status)
+      ? (STATUSES[session.status] as [Column, string, string | null])
+      : (STATUSES.unknown as [Column, string, string | null]);
   return [
     session.issue === null ? 'human' : column,
     {

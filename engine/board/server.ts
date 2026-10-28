@@ -19,6 +19,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { basename, join, relative, resolve, sep } from 'node:path';
 import { childEnv } from '../lib/process.ts';
+import { readStepEnd } from '../lib/step-end.ts';
 import { launchMatches, place, sessionsOf, stepsOf } from './place.ts';
 
 const HERE = import.meta.dirname;
@@ -235,6 +236,31 @@ export const createBoard = ({
 
   const placement = async ({ isLocal = false } = {}): Promise<Board> => {
     const sessions = await watchSessions();
+    const dispositions = new Map(
+      await Promise.all(
+        [...new Set(sessions.flatMap((session) => (session.issue === null ? [] : [session.issue])))].map(
+          async (issue) => [issue, await readStepEnd(main, issue)] as const,
+        ),
+      ),
+    );
+    for (const session of sessions) {
+      const record = dispositions.get(session.issue as number);
+      if (
+        !record ||
+        record.pane !== session.paneId ||
+        record.host !== session.agent ||
+        session.agentSessionId === null ||
+        session.stateChangeSeq === null
+      )
+        continue;
+      const turn = record.turn;
+      session.stepEnd =
+        turn?.terminalId === session.sessionId &&
+        turn.sessionId === session.agentSessionId &&
+        turn.sequence === session.stateChangeSeq
+          ? record.state
+          : 'checking';
+    }
     if (!isLocal) await readScreens(sessions);
     for (const session of sessions) session.screen = screens.get(session.sessionId);
     const busy = new Set(sessions.map((session) => session.issue));

@@ -265,6 +265,27 @@ one recovery message and keeps waiting. Process exit cancels that diagnostic tim
 does not repeat the request or force-kill the host. If a UI state consumes the keys without
 exiting, exit the session in its pane when ready.
 
+The managed runner publishes its completion disposition before it releases the foreground's
+start barrier. The private file is `<git common dir>/celetis-flow/step-end/<issue>.json`.
+`checking` means that the current turn has no retained verdict. `waiting` records an idle turn
+that stays open. `exiting` lasts from the successful exit check until the foreground exits.
+The record binds the runner PID and process start to the pane and host. A turn binds the terminal
+ID, verified session UUID, and herdr `state_change_seq`; idle and done share one turn key.
+A slow resolver result cannot retain or close a different turn. Rechecking a retained turn keeps
+its waiting disposition, so board polls do not produce repeated attention transitions.
+
+The board reads this local record on every placement request, including `?local=1`, without a
+GitHub read. Only a live matching runner and valid snapshot identity can suppress attention.
+Pending and exiting idle turns stay in Running with `checks step`; retained and unowned turns
+keep Needs you. Dialogs always keep Needs you. Resume and unmanaged sessions publish no record.
+The runner removes the record on foreground exit, startup rejection, watcher failure, abort, or
+package removal, before it releases the issue lock. A failed write withdraws the signal and
+reports its cause. If deletion fails, cleanup invalidates the existing file's contents.
+If neither act is possible, the runner stops so its record cannot claim a live watcher.
+The foreground stays open and keeps its issue lock until it exits. Restoring file access cannot
+revive the stopped watcher's ownership. A missing or invalid signal never authorizes `/exit`. Updated server code
+needs a new board process.
+
 In each other case the session stays open: a decision with the same result, the dirty-tree line,
 the line of a landing that runs, the cannot-read line, and a resolver read that fails. So a
 session whose agent waits for an answer, waits for a background task, or left an uncommitted file

@@ -30,6 +30,7 @@ var STATES = {
   waits: "waits for you",
   unknown: "state unknown",
   starts: "Starting",
+  "checks-step": "checks step",
   "dirty-tree": "dirty tree",
   "no-progress": "no progress"
 };

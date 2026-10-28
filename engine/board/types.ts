@@ -54,6 +54,9 @@ export type Session = {
   paneId?: string | null;
   agent: string | null;
   status: string;
+  agentSessionId: string | null;
+  stateChangeSeq: number | null;
+  stepEnd: 'checking' | 'waiting' | 'exiting' | null;
   issue: number | null;
   step: string | null;
   label: string;
