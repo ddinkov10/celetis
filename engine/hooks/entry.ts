@@ -4,10 +4,13 @@ import type {
   NativeOn,
   NativeTools,
   TextBlock,
+  ToolReply,
   TurnChunk,
   TurnInput,
   TurnResult,
 } from './native-host.d.ts';
+
+type Reader = (path: string) => Promise<ToolReply>;
 
 interface GitFile {
   directory: string;
@@ -87,8 +90,8 @@ async function metadata($: NativeTools, path: string) {
   }
 }
 
-async function read($: NativeTools, path: string, complete: Set<string>) {
-  const answer = await $.tool.call({ tool: 'Read', file_path: path });
+async function read(reader: Reader, path: string, complete: Set<string>) {
+  const answer = await reader(path);
   if (answer.deny || answer.isError) throw new Error(`${path} <document>: ${answer.deny || answer.text}`);
   const result = answer.result && typeof answer.result === 'object' ? answer.result : undefined;
   const file = result?.file;
@@ -111,7 +114,13 @@ async function read($: NativeTools, path: string, complete: Set<string>) {
   throw new Error(`${path} <document>: native Read did not return the complete file`);
 }
 
-async function checkout($: NativeTools, complete: Set<string>, gitFiles: Map<string, GitFile>, agentId?: string) {
+async function checkout(
+  $: NativeTools,
+  reader: Reader,
+  complete: Set<string>,
+  gitFiles: Map<string, GitFile>,
+  agentId?: string,
+): Promise<string | null> {
   let folder = agentId === undefined ? await $.session.root() : await $.session.cwd();
   while (true) {
     const path = joined(folder, '.git');
@@ -119,7 +128,7 @@ async function checkout($: NativeTools, complete: Set<string>, gitFiles: Map<str
     if (stat?.kind === 'dir') return folder;
     if (stat) {
       if (stat.kind !== 'file' || stat.isLink !== false) throw new Error(`${path} <document>: invalid Git boundary`);
-      const answer = await read($, path, complete);
+      const answer = await read(reader, path, complete);
       let directory: string | undefined;
       if (answer.result.type === 'text') {
         const value = /^gitdir: ([^\r\n]+)\r?\n?$/.exec(answer.result.file.content)?.[1];
@@ -142,14 +151,14 @@ async function checkout($: NativeTools, complete: Set<string>, gitFiles: Map<str
   }
 }
 
-async function load($: NativeTools, name: string, state: Loop, agentId?: string) {
+async function load($: NativeTools, name: string, state: Loop, reader: Reader, agentId?: string) {
   const complete = new Set(state.complete);
   const gitFiles = new Map(state.gitFiles);
   const resources = [];
   for (const file of ['docs/hosts/entry.md', 'docs/hosts/claude.md', 'docs/configuration.md']) {
-    resources.push(await read($, joined($.plugin.root, file), complete));
+    resources.push(await read(reader, joined($.plugin.root, file), complete));
   }
-  const root = await checkout($, complete, gitFiles, agentId);
+  const root = await checkout($, reader, complete, gitFiles, agentId);
   let config = null;
   if (root) {
     const path = joined(root, '.celetis.yaml');
@@ -157,7 +166,7 @@ async function load($: NativeTools, name: string, state: Loop, agentId?: string)
     if (stat) {
       if (stat.isLink !== false || stat.kind !== 'file')
         throw new Error(`${path} <document>: config must be a regular file, not a symlink`);
-      config = await read($, path, complete);
+      config = await read(reader, path, complete);
     } else config = { path, absent: 'ENOENT' };
   }
   return { data: { skill: `celetis:${name}`, resources, root, config }, complete, gitFiles };
@@ -293,7 +302,13 @@ export function register(on: NativeOn) {
       try {
         if (entry.error) text = entry.error;
         else {
-          loaded = await load($, request.name, current, e.agentId);
+          loaded = await load(
+            $,
+            request.name,
+            current,
+            (path) => $.tool.call({ tool: 'Read', file_path: path }),
+            e.agentId,
+          );
           if (current.entry !== entry || entry.error) throw new Error(entry.error || 'entry changed while loading');
           entry.root = loaded.data.root;
           text = `${context(loaded.data)}\n\n${block.text.slice(end + 1)}`;
@@ -358,7 +373,13 @@ export function register(on: NativeOn) {
         if (current.entry === entry) entry.error = failure;
         return result;
       }
-      const loaded = await load($, name, current, e.agentId);
+      const loaded = await load(
+        $,
+        name,
+        current,
+        (path) => next({ ...e, file_path: path, offset: undefined, limit: undefined }),
+        e.agentId,
+      );
       if (current.entry !== entry) throw new Error('entry changed while reading a reference');
       current.complete = loaded.complete;
       current.gitFiles = loaded.gitFiles;
