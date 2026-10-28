@@ -8,7 +8,7 @@ explicit `--agent claude` or `--agent codex` under [Host entry](hosts/entry.md).
 terminal and board commands can use the project default. Changing hosts between steps retains
 the same issue and lane checkout; resume always uses the host in the current session record.
 
-In this document, these names are files of the plugin `celetis`, also when a session reads the document inside a product project that has a `docs/` folder and an ADR store of its own: the four documents (`docs/celetis-flow.md`, `docs/issue-tracker.md`, `docs/capability.md`, `docs/docs-lookup.md`), `step-prompt.md`, a runtime `<name>.ts` of `engine/` or a program of `scripts/` that the text names by its file, and each ADR number, which is a record of `docs/adr/` in the folder of the plugin and not of the product project. Each other path is a path of the product project, apart from a path that starts with `~/` or `/`.
+In this document, these names are files of the plugin `celetis`, also when a session reads the document inside a product project that has a `docs/` folder and an ADR store of its own: the five documents (`docs/celetis-flow.md`, `docs/issue-tracker.md`, `docs/capability.md`, `docs/docs-lookup.md`, `docs/prior-art.md`), `step-prompt.md`, a runtime `<name>.ts` of `engine/` or a program of `scripts/` that the text names by its file, and each ADR number, which is a record of `docs/adr/` in the folder of the plugin and not of the product project. Each other path is a path of the product project, apart from a path that starts with `~/` or `/`.
 
 ## Conventions
 

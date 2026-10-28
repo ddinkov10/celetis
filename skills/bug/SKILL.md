@@ -47,7 +47,15 @@ start step N+1.
    state AND the writer of the consulted value (a flag or field), not its default initializer. A
    field's default is not a writer. If "absent" and a writer-set value come from different code,
    they are distinct states.
-6. **Resolve alone, or escalate.** Read the states table before fixing. If the fix merges two states
+6. **Resolve alone, or escalate.** Read the states table before fixing. Judge from the root cause
+   and the states table whether the fix chooses new behavior: it adds a mechanism (for example a
+   retry, a timer, a cache, a lock, or a queue), or it chooses behavior that the spec does not
+   define. When it does, research the prior art per `<plugin>/docs/prior-art.md` before the
+   decision below. This trigger is wider than the escalation: a fix that adds a mechanism does the
+   research also when the spec defines each state. A fix that restores behavior that the spec or
+   the code already defines skips it. An escalation presents the found patterns among its options;
+   a fix that resolves alone follows "The recommendation" of that document, or the report states
+   the reason. If the fix merges two states
    that step 5 shows have different writers (for example, treating "absent" as "false"), or the
    spec does not define behavior for every listed state, STOP and ask the user — present the states
    and the decision as concrete options. For a look decision (`AGENTS.md` of the project), the options
@@ -57,5 +65,5 @@ start step N+1.
    self-contained.
 7. **Post the report, then invoke `celetis:plan #<n>`.** `celetis --agent <host> issue <n> root-cause <report>`
    posts the report with `## Root cause` as its first line, so the report file has no heading; the report is the spec (root cause + red repro + intended
-   behavior + step 3's traps + its `## External facts` section) and `plan` drives the
-   rest of the chain.
+   behavior + step 3's traps + its `## External facts` section + its `## Prior art` section when
+   step 6 did the research) and `plan` drives the rest of the chain.

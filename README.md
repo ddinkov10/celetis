@@ -718,7 +718,7 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | | [`/celetis:bug`](skills/bug/SKILL.md) | The lane for existing behavior that is wrong: the root cause with `superpowers:systematic-debugging`, the `## Root cause` report, and then `plan` |
 | | [`/celetis:hotfix`](skills/hotfix/SKILL.md) | The lane for broken production: the root cause, a plan of one task, `implement`, and the ship checklist |
 | | [`/celetis:chore`](skills/chore/SKILL.md) | The lane for a change with no change of behavior: the change, the verify gate, the commit, and the landing |
-| **Steps** | [`/celetis:specify`](skills/specify/SKILL.md) | The design step. It adds the project context to `superpowers:brainstorming`, and the spec that you approve becomes the body of the issue |
+| **Steps** | [`/celetis:specify`](skills/specify/SKILL.md) | The design step. It adds the project context and the research of the prior art to `superpowers:brainstorming`, and the spec that you approve becomes the body of the issue |
 | | [`/celetis:plan`](skills/plan/SKILL.md) | The plan step. It adds the choice of the build flow, a capability score for each task, and a Verify phase to `superpowers:writing-plans`, and it posts the plan on the issue |
 | | [`/celetis:implement`](skills/implement/SKILL.md) | The build step. It runs the plan with `superpowers:executing-plans` or `superpowers:subagent-driven-development`, as the `Execution:` line of the plan says, and adds the verify gate at the end of each task, the Verify phase, and the landing |
 | **Review and memory** | [`/celetis:critic-loop`](skills/critic-loop/SKILL.md) | Scores the current diff from 0 to 10 across five perspectives, and fixes and scores again until the diff passes |
@@ -732,8 +732,9 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | | [`/celetis:guide`](skills/guide/SKILL.md) | Says which command fits a goal. Only you can start it |
 | | [`/celetis:setup`](skills/setup/SKILL.md) | Proposes and tests the worktree setup of a product project, writes the wiring in its main checkout, and commits and pushes the wiring after your yes. Only you can start it |
 
-Two documents of the plugin are not skills: `docs/capability.md`, the rubric of the capability
-score, and `docs/docs-lookup.md`, the lookup of the external facts.
+Three documents of the plugin are not skills: `docs/capability.md`, the rubric of the capability
+score; `docs/docs-lookup.md`, the lookup of the external facts; and `docs/prior-art.md`, the
+research of the prior art of a design.
 
 `guide` and `setup` are explicit-only on both hosts. Claude reads `disable-model-invocation: true`;
 Codex reads `policy.allow_implicit_invocation: false` in `skills/guide/agents/openai.yaml` and

@@ -30,12 +30,12 @@ Two rules of the harness hold in each session, also in a session by hand:
   and in a terminal.
 
 In this document, these names are files of the plugin `celetis`, also when a session reads the
-document inside a product project that has a `docs/` folder and an ADR store of its own: the four
+document inside a product project that has a `docs/` folder and an ADR store of its own: the five
 documents (`docs/celetis-flow.md`, `docs/issue-tracker.md`, `docs/capability.md`,
-`docs/docs-lookup.md`), `step-prompt.md`, a runtime of `engine/` or a program of `scripts/`
-that the text names by its file, and each ADR number, which is a record of `docs/adr/` in the folder
-of the plugin and not of the product project. Each other path is a path of the product project,
-apart from a path that starts with `~/` or `/`.
+`docs/docs-lookup.md`, `docs/prior-art.md`), `step-prompt.md`, a runtime of `engine/` or a program
+of `scripts/` that the text names by its file, and each ADR number, which is a record of
+`docs/adr/` in the folder of the plugin and not of the product project. Each other path is a path
+of the product project, apart from a path that starts with `~/` or `/`.
 
 ## Requirements
 
