@@ -234,7 +234,9 @@ board links the session to the issue. It also starts a job in the background tha
    `herdr:claude`, and start source `clear`. herdr keeps the previous Claude ID while the runner
    keeps the foreground ([ADR-0039](adr/0039-the-runner-announces-the-claude-session-id-to-herdr.md)).
    The job then waits for the selected host's new identity and a saved turn in the correct
-   checkout, for 60 seconds at most. It saves the verified ID in the current session record.
+   checkout. For both hosts, it warns once after 60 seconds and continues verification while the
+   foreground runs. It saves the verified ID in the current session record
+   ([ADR-0046](adr/0046-pending-startup-keeps-the-completion-watcher.md)).
 2. It waits until the agent is ready for the next prompt:
    `herdr agent wait <pane> --until idle --until done`.
 3. It verifies the current host, identity, readiness, and idle/done state, then reads the
@@ -750,10 +752,17 @@ session starts ([ADR-0039](adr/0039-the-runner-announces-the-claude-session-id-t
 Claude persistence is a current saved user turn with matching ID, cwd, and launch time.
 Codex verifies `thread/read` and `thread/turns/list` without resuming or starting a model turn.
 
-If startup cannot verify identity and a saved turn within 60 seconds, the runner prints the
-host and local pane output with a recovery action. It leaves the foreground open and writes no
-false no-progress row. Complete the normal setup action, then retry. A record with a null ID
-cannot be used for exact runner resume.
+If startup has not verified identity and a saved turn after 60 seconds, the runner prints one
+warning for Claude or Codex. It says that monitoring continues and directs the person to check
+setup prompts in the pane. Verification continues while the foreground runs, until a saved turn
+verifies, an invalid identity ends the watcher, or cancellation stops it. A late verified turn
+enters the normal completion checks without a restart.
+
+An invalid identity ends the watcher with the startup error and local pane output. Foreground
+exit without a verified saved turn also reports the startup error, unless an earlier terminal
+failure already reported it. The pending warning writes no terminal error marker, so it does
+not suppress that final error. These failures write no false no-progress row. A record with a
+null ID cannot be used for exact runner resume.
 
 ## Acceptance status
 

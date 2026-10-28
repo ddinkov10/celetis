@@ -237,6 +237,7 @@ export async function main(argv: string[]): Promise<number> {
   ) => {
     const deadline = performance.now() + 60_000;
     let saved = false;
+    let warned = false;
     while (!abort.aborted) {
       const reply = await herdr(['agent', 'get', pane], abort);
       if (reply.code === 0) {
@@ -251,10 +252,11 @@ export async function main(argv: string[]): Promise<number> {
           return;
         }
       }
-      if (performance.now() >= deadline) {
-        await writeFile(join(watchDir, 'error'), '');
-        await startupError(Number(n), record.host, 'no saved turn with a verified identity after 60 seconds');
-        return;
+      if (!warned && performance.now() >= deadline) {
+        warned = true;
+        console.error(
+          `celetis-flow: #${n} ${record.host} startup: no saved turn with a verified identity after 60 seconds; monitoring continues. Check setup prompts in this pane.`,
+        );
       }
       await Bun.sleep(1000);
     }
