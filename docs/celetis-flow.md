@@ -1045,6 +1045,24 @@ that file. Open: an installed entry after `celetis update`, a runner step in her
 the Codex rule-list entry with a file reader and no process tool, and Windows. The issue comment
 "Acceptance evidence of #105" holds the scenario tables.
 
+**Codex empty hooks override.** On 2026-10-29, lane commit `9e0b46c` of
+[issue #161](https://github.com/ddinkov10/celetis/issues/161) passed its package checks with
+codex-cli 0.165.0 and Claude Code 2.1.312, using the existing installations and sign-in.
+A uniquely named temporary native Codex plugin was installed and enabled; native `skills/list`
+discovered 19 enabled skills from its installed cache. Its manifest had `"hooks": { "hooks": {} }`.
+The startup run exited 0 with the exact marker and no hooks parse warning for that package.
+The unchanged original installed Celetis still printed its known warning, even with its
+command-scoped disable override. Native removal left no temporary plugin record or config entry;
+the original Celetis package and native identity were unchanged.
+
+Claude loaded the lane through `--plugin-dir`. A temporary pass-through native observer captured
+the `skill.prompt` binding and the facts delivery at `session.append`, where the unchanged hook
+replaces the entry line. The facts held the lane root, scratch checkout, and custom marker.
+The run read no `entry.md`, exited 0 without a hook load error, and left the scratch tree clean.
+The observer was never installed, and all probe files stayed outside the checkout. The issue's
+"Acceptance evidence of #161" comment records the commands, native events, and probe corrections.
+Installed startup after a terminal-confirmed `celetis update` remains an after-landing check.
+
 **Native cache replacement follows the host.** The user chose terminal confirmation and updates
 with sessions left open (ADR-0028). Celetis no longer scans native processes or holds consumer
 admission for their lifetime. Updater serialization, exact-target application, source restoration,

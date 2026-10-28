@@ -1,3 +1,6 @@
 {
-  "name": "celetis"
+  "name": "celetis",
+  "hooks": {
+    "hooks": {}
+  }
 }

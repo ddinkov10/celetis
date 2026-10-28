@@ -6,9 +6,10 @@ its procedure, under its `Codex` part ("The module index").
 
 ## Skills and the entry
 
-- Codex declares no Celetis lifecycle hook: `.codex-plugin/plugin.json` holds only the name. The
-  initial skills list holds each skill's name, description, and path, and Codex reads the whole
-  `SKILL.md` when it uses the skill.
+- Codex declares no Celetis lifecycle hook: `.codex-plugin/plugin.json` sets `"hooks": { "hooks": {} }`.
+  This explicit empty override excludes the shared Claude native hooks file, `hooks/hooks.json`.
+  The initial skills list holds each skill's name, description, and path, and Codex reads the
+  whole `SKILL.md` when it uses the skill.
 - With no hook, the entry line of each skill sends the session to `docs/procedures/entry.md`,
   "Entry without the hook". With a shell, the entry runs the reader CLI, which validates the whole
   file. With no shell, full schema validation comes at each command that needs the configuration:
