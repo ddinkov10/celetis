@@ -382,7 +382,7 @@ comment. A build that needs an act with no report runs each other scenario. Then
 for it. The act `before-landing` gives that comment the marker of "During the build", so the engine
 needs both the report and the removal. Post the report, then remove `ready-for-human`: the next
 run of `/celetis:implement` runs those scenarios and lands on a PASS. A check of "After the landing" is no stop. The last message of
-`/celetis:implement` quotes it after the landing, and a FAIL is a new bug (`/celetis:bug`).
+`/celetis:implement` quotes it after the landing.
 
 A `specify` session starts with the line `run /celetis:feature #<n>`. The paths of `specify` give
 three lines that end it: `run /celetis:plan #<n>` (the spec is on the issue),

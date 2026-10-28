@@ -57,8 +57,7 @@ A list with no item is one line: `**During the build.** None.` or `**After the l
 1. <the act>. Needed by: <Verify Vn, or Land>.
    Report: the line `<the line>` in your `## Human steps done` comment.
 
-**After the landing.** Run these after `/celetis:implement #<n>` lands the change. A FAIL is a new
-bug: run `/celetis:bug` with the result.
+**After the landing.** Run these after `/celetis:implement #<n>` lands the change.
 
 1. <the check>: <the commands>. Expected: <the result>.
 ```
