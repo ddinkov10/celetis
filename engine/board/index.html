@@ -15,22 +15,19 @@
   <div class="brand"><span class="logo" id="logo"></span><h1>Agent board</h1><span class="slash" aria-hidden="true">/</span><span class="repo" id="repo"></span></div>
   <div class="views" role="group" aria-label="View"><button type="button" data-view="now"><span class="label">Now</span></button><button type="button" data-view="pipeline"><span class="label">Pipeline</span></button></div>
   <nav class="summary" id="summary" aria-label="Counts"></nav>
-  <button type="button" class="find" id="find" aria-label="Search the cards and commands" aria-keyshortcuts="Control+K Meta+K /"><span class="find-text">Search or run a step</span><kbd>⌘K</kbd></button>
+  <button type="button" class="find" id="find" aria-label="Search the cards, history, and commands" aria-keyshortcuts="Control+K Meta+K /"><span class="find-text">Search or run a step</span><kbd>⌘K</kbd></button>
+  <button type="button" class="btn ghost" id="history" aria-controls="panel" aria-expanded="false" title="Show or hide history (d)"><span class="label">History</span></button>
   <button type="button" class="btn ghost" id="refresh" title="Read the issues again (r)"><span class="label">Refresh</span></button>
 </header>
 <div class="banners">
   <p class="banner warn" id="dirty" role="alert" hidden></p>
-  <p class="banner" id="stale" role="alert" hidden>The board server does not answer. The cards show the last good read.</p>
+  <p class="banner" id="stale" role="alert" hidden>The board read failed. The cards and history show the last good read.</p>
 </div>
 <section class="human" id="human" aria-labelledby="human-title" hidden></section>
 <div class="work">
   <main class="board" id="columns" aria-busy="true"></main>
   <aside class="panel" id="panel" aria-label="Card details" hidden></aside>
 </div>
-<section class="archive" id="archive" aria-labelledby="archive-title" hidden>
-  <div class="archive-head"><h2 id="archive-title">Done</h2><span class="archive-hint">the issues that the data gives as done</span><button type="button" class="icon-btn" id="archive-close" aria-label="Hide Done" title="Hide Done (d)"></button></div>
-  <div class="archive-list" id="archive-list"></div>
-</section>
 <footer class="statusbar">
   <span class="sb-item" id="fresh"></span>
   <span class="sb-item" id="herdr"></span>
@@ -38,7 +35,7 @@
   <button type="button" class="sb-btn" id="agent" hidden></button>
   <span class="sb-end">
     <span class="hints" id="hints" aria-hidden="true"></span>
-    <button type="button" class="sb-btn" id="done-toggle" aria-controls="archive" aria-expanded="false" title="Show or hide Done (d)"><span class="sb-name">Done</span><b id="done-count">0</b></button>
+    <button type="button" class="sb-btn" id="history-count" aria-controls="panel" title="Open landed history"><span class="sb-name">Landed</span><b id="history-total">0</b></button>
     <button type="button" class="sb-btn" id="notify" aria-pressed="false"></button>
     <button type="button" class="sb-btn" id="keys-open" title="Keyboard shortcuts (?)"><span class="sb-name">Keys</span></button>
     <button type="button" class="sb-btn" id="board-more" aria-label="More board actions" aria-haspopup="menu" title="More board actions"></button>
@@ -47,7 +44,7 @@
 <p class="sr-only" id="announce" aria-live="polite"></p>
 <div class="toast" id="toast" role="alert" hidden><span class="toast-icon" id="toast-icon"></span><span id="toast-text"></span><button type="button" class="toast-close" id="toast-close" aria-label="Close"></button></div>
 <div class="menu" id="menu" role="menu" aria-label="Card actions" popover></div>
-<dialog class="palette" id="palette" aria-label="Search the cards and commands">
+<dialog class="palette" id="palette" aria-label="Search the cards, history, and commands">
   <div class="pal-input-row"><input id="pal-input" type="text" role="combobox" aria-expanded="true" aria-controls="pal-list" aria-autocomplete="list" autocomplete="off" spellcheck="false" placeholder="Search an issue, a step, or a command; #n jumps to an issue"></div>
   <div class="pal-list" id="pal-list" role="listbox" aria-label="Results"></div>
   <div class="pal-foot"><span><kbd>↑</kbd><kbd>↓</kbd>move</span><span><kbd>Enter</kbd>do it</span><span><kbd>Esc</kbd>close</span></div>
@@ -55,7 +52,7 @@
 <dialog class="keys" id="keys" aria-labelledby="keys-title">
   <div class="keys-head"><h2 id="keys-title">Keyboard shortcuts</h2><button type="button" class="icon-btn" id="keys-close" aria-label="Close"></button></div>
   <dl class="keys-list">
-    <div><dt><kbd>⌘K</kbd><kbd>/</kbd></dt><dd>Search the cards and commands, or type #n to jump to an issue</dd></div>
+    <div><dt><kbd>⌘K</kbd><kbd>/</kbd></dt><dd>Search the cards, history, and commands, or type #n to jump to an issue</dd></div>
     <div><dt><kbd>j</kbd><kbd>k</kbd></dt><dd>Next or previous card</dd></div>
     <div><dt><kbd>h</kbd><kbd>l</kbd></dt><dd>Card in the column to the left or right</dd></div>
     <div><dt><kbd>Enter</kbd></dt><dd>Main button of the card: Go, Run, Resume, Open shell, or Open issue</dd></div>
@@ -64,7 +61,7 @@
     <div><dt><kbd>o</kbd></dt><dd>Open the issue</dd></div>
     <div><dt><kbd>c</kbd></dt><dd>Copy the command or the path of the card</dd></div>
     <div><dt><kbd>v</kbd></dt><dd>Change between Now and Pipeline</dd></div>
-    <div><dt><kbd>d</kbd></dt><dd>Show or hide Done</dd></div>
+    <div><dt><kbd>d</kbd></dt><dd>Show or hide history</dd></div>
     <div><dt><kbd>r</kbd></dt><dd>Read the issues again</dd></div>
     <div><dt><kbd>?</kbd></dt><dd>Show this list</dd></div>
   </dl>

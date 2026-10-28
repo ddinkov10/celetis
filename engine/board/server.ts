@@ -272,6 +272,7 @@ export const createBoard = ({
     );
     return {
       ...placed,
+      history: board?.history ?? null,
       flow: board?.flow ?? null,
       tracker: board?.tracker ?? null,
       runner: board?.runner ?? null,

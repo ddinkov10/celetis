@@ -15,10 +15,6 @@ const ICONS: Record<string, [string, Record<string, string | number>][]> = {
   'col-running': [ring({ class: 'track' }), ['path', { d: 'M8 4.6a3.4 3.4 0 0 1 0 6.8Z', class: 'fill' }]],
   'col-idle': [ring({ 'stroke-dasharray': '2.6 2.2' })],
   nolane: [['circle', { cx: 8, cy: 8, r: 5.5, 'stroke-dasharray': '2.3 2' }]],
-  'col-done': [
-    ['circle', { cx: 8, cy: 8, r: 7, class: 'fill' }],
-    ['path', { d: 'm5.1 8.2 2 2 3.8-4.1', class: 'knock' }],
-  ],
   clear: [ring(), ['path', { d: 'm5.4 8.1 1.8 1.8 3.5-3.7' }]],
   bug: [
     [
@@ -201,10 +197,16 @@ export const icon = (name: string) => {
   return svg;
 };
 
-export const link = (className: string, text: string, url?: string | null) =>
-  url
-    ? Object.assign(el('a', className, text), { href: url, target: '_blank', rel: 'noreferrer' })
-    : el('span', className, text);
+export const link = (className: string, text: string, url?: string | null) => {
+  if (url && !/[\u0000-\u0020\u007f-\u009f]/.test(url)) {
+    try {
+      const parsed = new URL(url);
+      if (['http:', 'https:'].includes(parsed.protocol) && !parsed.username && !parsed.password)
+        return Object.assign(el('a', className, text), { href: url, target: '_blank', rel: 'noreferrer' });
+    } catch {}
+  }
+  return el('span', className, text);
+};
 
 export const timed = (iso: string, isFine = false, suffix = '') => {
   const node = el('time', 'time', `${age(iso, Date.now(), isFine)}${suffix}`);

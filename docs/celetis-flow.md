@@ -519,10 +519,10 @@ at its start. Each Run and Resume starts a new `celetis-flow` process, which mak
 a conflict that starts while the board runs shows in the pane of the next Run or Resume, not on the
 status line of the board.
 
-The resolver makes these `gh api` calls: 3 paginated lists (open issues, closed issues, open PRs),
+The resolver makes these `gh api` calls: 2 paginated lists (open issues and open PRs),
 one paginated call for the timeline of each open issue that has a comment, and 3 calls for each
 open PR whose branch holds `/<number>-`. It gives each row the state that it knows from GitHub and
-from the working trees: `done`, `blocked` with `reason` and `act`, `ready`, or `dirty` with `path`.
+from the working trees: `blocked` with `reason` and `act`, `ready`, or `dirty` with `path`.
 It also gives the `noRun` text for a dirty main checkout. The board adds what the runner knows:
 `starting` for a lock that a live script holds, `stuck` with its `act` for a row of the record, the
 `step`, `started`, and `urgent` of each row, `runner`, `tracker`, and `flow` with the gate of each
@@ -536,6 +536,25 @@ board keeps its last document and shows one line after `cannot read:` on its sta
   `cannot read the issues from GitHub`;
 - a read that passes 60 seconds: `the issue read did not end in 60 seconds`;
 - another failure: the first line of its message, else `the issue read failed`.
+
+The same read calls `readHistory` in `engine/board/history.ts`. It reads remote repository metadata,
+captures the default branch head, and walks pages pinned to that SHA. It stops at 20 distinct issue
+identities or history exhaustion, preserving traversal order and the newest occurrence. Direct
+Celetis squash subjects resolve to real issues. Associated merged lane PRs must match the commit's
+merge SHA, trunk base, and both repository identities; their lane number and `Closes #<n>` must
+agree. A nonempty PR association cannot fall back to a suffix, which can identify the PR itself.
+Unsupported or ambiguous associations are omitted. Request and parse errors fail the whole read.
+Closures and a 14-day window do not determine landing history. A later revert does not erase the
+landing event; absence from the list says nothing about older history.
+
+The History button follows Search and precedes Refresh. It uses the existing nonmodal card panel,
+starts closed on each page load, and stays open through refresh. Card details and History exclude
+each other. Escape and Close return focus to History. The count, `d`, and the search command use
+the same panel. At widths below 1100 px or heights below 701 px it is a drawer, including on a
+phone. Each semantic row has issue and commit links and accessible full commit identity/time.
+`View <trunk>` opens older history. History has no launch action. Loading, empty success, and
+initial error are separate states. Read failures preserve both cards and history with the visible
+read error; a later good read clears it. The snapshot's `history` is null before a good document.
 
 The board runs the data code that it loaded at its start. After `celetis update`, start the board
 again for new data code, as for new server code.
@@ -553,24 +572,24 @@ The board puts these values in the fields of its document (`Document` of `engine
 | `runner` | `true` while a live automatic runner holds its lock. |
 | `agents` | Entries `claude` and `codex`. Each has `available: true` and `cause: null` when its executable is on the `PATH` of the board, else `available: false` and `cause: "celetis: <agent> is not on PATH"`. |
 | `defaultAgent` | The agent selected by `CELETIS_AGENT`, `host` in the main YAML, or the default `claude`, in that order. The `--agent` of the board start does not set it. |
-| `issues` | One row for each open issue and for each issue that closed in the last 14 days. An issue whose line of the resolver is the epic line or the `wontfix` line has no row. |
+| `history` | The remote trunk name, history URL, captured full head SHA, and up to 20 distinct landed issues. Each entry holds the issue number/title/URL and commit SHA/URL/committer time. |
+| `issues` | One row for each open issue. An issue whose line of the resolver is the epic line or the `wontfix` line has no row. |
 
 A row gets its `state` by the first rule that matches:
 
 | # | The issue | `state` | Fields of that state |
 |---|---|---|---|
-| 1 | is closed | `done` | `closedAt` |
 | 2 | has a lock that a live script holds | `starting` | |
 | 3 | has a dirty lane worktree | `dirty` | `path`: the lane worktree |
 | 4 | has a row in the record for its `run` line: no progress, or a refused skip | `stuck` | `act`: `celetis --agent <host> celetis-flow --resume <n>` |
 | 5 | has `needs-info` or `ready-for-human`, two or more lane labels, an open human step, a hotfix to land by hand, or a plan that is not marked or already built | `blocked` | `reason`, from the first match in the order of the resolver (`docs/issue-tracker.md`, "Resolving an issue's state"): `needs info` for `needs-info`; for `ready-for-human`, `landing refused` while a landing refusal is current, else `ready for your step`; `several lane labels` for two or more lane labels; `human step open` for a `## Before landing` comment with no completion evidence; `land by hand` for a hotfix whose stop the maintainer cleared; `plan not marked` for a plan with no `ready-for-agent`; `plan already built` for `ready-for-agent` on a built plan. `act`: the act that the `stop` line of the issue names |
 | 6 | has a `run` line | `ready` | |
 
-Each row also has `number`, `title`, `url`, `updatedAt`, `closedAt`, and these fields:
+Each row also has `number`, `title`, `url`, `updatedAt` and these fields:
 
 - `type`: the lane of the one lane label of the issue: `feature` (the label `enhancement`), `bug`,
   `chore`, or `hotfix`. It is `null` for an issue with no lane label, with two or more lane labels,
-  or with `epic`, also in the row of an issue that is closed or that stops.
+  or with `epic`, also in the row of an issue that stops.
 - `step`: the step of the Run decision of the issue, the step of its `run` line ("Gates"), else
   `null`.
 - `started`: `true` when the step comes after the define step of its lane (`plan` or `implement`),

@@ -41,7 +41,7 @@ var SUMMARY = [
   ["needs", "need you"],
   ["running", "running"],
   ["idle", "idle"],
-  ["done", "done"]
+  ["history", "landed"]
 ];
 var COPY = { "no-progress": "command", "dirty-tree": "path" };
 var ON_ISSUE = new Set(["blocked"]);
@@ -66,7 +66,8 @@ var selected = null;
 var view = store.get("view") === "pipeline" ? "pipeline" : "now";
 var isNotifyOn = store.get("notify") === "on";
 var isKeysOn = store.get("keys") !== "off";
-var isArchiveOpen = false;
+var isHistoryOpen = false;
+var isServerDown = false;
 var seen = null;
 var needsKeys = null;
 var starting = null;
@@ -577,14 +578,14 @@ var focusFirst = (selector) => {
   target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
 };
 var summary = (columns) => SUMMARY.map(([key, label]) => {
-  const count = key === "needs" ? needsYou(columns).length : columns[key].length;
+  const count = key === "history" ? data?.history?.entries.length ?? 0 : key === "needs" ? needsYou(columns).length : columns[key].length;
   const chip = el("button", `chip chip-${key}`);
   chip.type = "button";
   chip.classList.toggle("hot", key === "needs" && count > 0);
   chip.append(el("i", "dot"), el("b", "", String(count)), el("span", "", label));
   chip.addEventListener("click", () => {
-    if (key === "done")
-      return setArchive(true);
+    if (key === "history")
+      return setHistory(true);
     if (view !== "now")
       setView("now");
     focusFirst(`${key === "needs" ? '.human-pill[data-wait="dialog"] .human-open, ' : ""}#col-${key} .card, #col-${key} .empty`);
@@ -612,23 +613,71 @@ var drawHuman = (cards) => {
   strip.hidden = cards.length === 0;
   strip.replaceChildren(...cards.length ? [Object.assign(el("h2", "hold-label", "Human sessions"), { id: "human-title" })] : [], ...cards.map(humanPill));
 };
-var done = [];
-var drawArchive = () => {
-  const list = $("archive-list");
-  list.replaceChildren(...done.length ? done.map((card) => {
-    const row = el("div", "fin");
-    row.append(mark(card), link("num", `#${card.number}`, card.url), link("fin-title", card.title, card.url), timed(card.since));
-    return row;
-  }) : [el("p", "fin-empty", "The data gives no issue as done.")]);
-  $("archive").hidden = !isArchiveOpen;
-  $("done-toggle").setAttribute("aria-expanded", String(isArchiveOpen));
-  $("done-count").textContent = String(done.length);
+var drawHistory = () => {
+  const panel = $("panel");
+  const active = panel.contains(document.activeElement) ? document.activeElement : null;
+  const href = active?.getAttribute("href");
+  const label = active?.getAttribute("aria-label");
+  const scroll = panel.querySelector(".history-body")?.scrollTop ?? 0;
+  const history = data?.history;
+  const error = isServerDown ? SERVER_DOWN : data?.source.error;
+  panel.dataset.state = "history";
+  panel.setAttribute("aria-label", "Landed history");
+  const head = el("div", "panel-head history-head");
+  head.append(el("h2", "", history ? `Landed on ${history.trunk}` : "Landed history"), iconButton("close", "Close history (Esc)", () => setHistory(false)));
+  const body = el("div", "history-body");
+  if (!history)
+    body.append(el("p", "history-note", error ? `Cannot read history: ${error}` : "Loading landed history…"));
+  else {
+    if (error) {
+      const warning = el("p", "warning", `${error}. History shows the last good read.`);
+      warning.setAttribute("role", "status");
+      body.append(warning);
+    }
+    body.append(el("p", "history-note", "Latest 20 issues. A landing can later be reverted."));
+    const list = el("ol", "history-list");
+    for (const entry of history.entries) {
+      const row = el("li", "history-row");
+      const issue = link("history-number", `#${entry.number}`, entry.url);
+      const title = link("history-title", entry.title, entry.url);
+      const commit = link("history-sha", entry.sha.slice(0, 7), entry.commitUrl);
+      commit.setAttribute("aria-label", `Commit ${entry.sha}`);
+      commit.title = entry.sha;
+      const time = el("time", "", new Date(entry.committedAt).toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      }));
+      time.dateTime = entry.committedAt;
+      time.title = `Commit time: ${entry.committedAt}`;
+      time.setAttribute("aria-label", time.title);
+      row.append(issue, title, commit, time);
+      list.append(row);
+    }
+    body.append(history.entries.length ? list : el("p", "history-note", `No landed issues found on ${history.trunk}.`));
+    body.append(link("history-more", `View ${history.trunk}`, history.url));
+  }
+  panel.replaceChildren(head, body);
+  body.scrollTop = scroll;
+  if (active) {
+    const match = [...panel.querySelectorAll("a, button")].find((node) => href ? node.getAttribute("href") === href && node.className === active.className && node.getAttribute("aria-label") === label : node.getAttribute("aria-label") === label);
+    (match ?? panel.querySelector("button"))?.focus({ preventScroll: true });
+  }
 };
-var setArchive = (isOpen) => {
-  isArchiveOpen = isOpen;
-  drawArchive();
-  if (isOpen)
-    $("archive-close").focus();
+var setHistory = (isOpen) => {
+  if (!isOpen)
+    return closePanel();
+  selected = null;
+  for (const node of document.querySelectorAll("[data-key].is-selected"))
+    node.classList.remove("is-selected");
+  isHistoryOpen = true;
+  $("history").setAttribute("aria-expanded", "true");
+  document.body.classList.add("has-panel");
+  $("panel").hidden = false;
+  drawHistory();
+  $("panel").querySelector("button")?.focus({ preventScroll: true });
+  updateTail();
 };
 var markSeen = (key) => {
   const entry = byKey.get(key);
@@ -709,6 +758,10 @@ var drawHints = (card) => {
   }));
 };
 var drawStatus = (source, isDown) => {
+  const changed = isServerDown !== isDown;
+  isServerDown = isDown;
+  if (changed && isHistoryOpen)
+    drawHistory();
   const fresh = $("fresh");
   const state = isDown || source.error ? "fail" : source.readAt ? "ok" : "wait";
   const name = data?.tracker ?? "Issues";
@@ -748,7 +801,7 @@ var drawStatus = (source, isDown) => {
     agentNode.replaceChildren(icon("person"), el("span", "sb-name", "Agent"), el("span", "sb-text", defText), icon("chevron"));
   }
   document.body.toggleAttribute("data-stale", isDown);
-  $("stale").hidden = !isDown;
+  $("stale").hidden = !isDown && !source.error;
 };
 var drawNotify = () => {
   const button = $("notify");
@@ -768,6 +821,7 @@ var drawPanelFor = () => {
   const entry = byKey.get(selected);
   if (!entry)
     return closePanel();
+  $("panel").setAttribute("aria-label", "Card details");
   const focused = $("panel").contains(document.activeElement) ? document.activeElement.getAttribute("aria-label") : null;
   $("panel").replaceChildren(...drawPanel(entry.card, panelContext(entry.card)));
   if (focused)
@@ -776,6 +830,8 @@ var drawPanelFor = () => {
 var openPanel = (key) => {
   if (!byKey.has(key))
     return;
+  isHistoryOpen = false;
+  $("history").setAttribute("aria-expanded", "false");
   selected = key;
   for (const node of document.querySelectorAll("[data-key].is-selected"))
     node.classList.remove("is-selected");
@@ -789,12 +845,17 @@ var openPanel = (key) => {
 };
 function closePanel() {
   const key = selected;
+  const wasHistory = isHistoryOpen;
+  isHistoryOpen = false;
+  $("history").setAttribute("aria-expanded", "false");
   selected = null;
   document.body.classList.remove("has-panel");
   $("panel").hidden = true;
   $("panel").replaceChildren();
   for (const node of document.querySelectorAll("[data-key].is-selected"))
     node.classList.remove("is-selected");
+  if (wasHistory)
+    $("history").focus({ preventScroll: true });
   if (key)
     document.querySelector(`[data-key="${CSS.escape(key)}"]`)?.focus({ preventScroll: true });
   updateTail();
@@ -816,8 +877,9 @@ var drawBoard = (next) => {
   if ($("dirty").textContent !== banner)
     $("dirty").textContent = banner;
   $("summary").replaceChildren(...summary(next.columns));
-  done = next.columns.done;
-  drawArchive();
+  $("history-total").textContent = String(next.history?.entries.length ?? 0);
+  if (isHistoryOpen)
+    drawHistory();
   const board = $("columns");
   board.dataset.view = view;
   board.style.setProperty("--stages", String(Math.max(1, next.flow?.stages.length ?? 0)));
@@ -885,7 +947,7 @@ var launches = new Map;
 var project = (board) => {
   if (launches.size === 0)
     return board;
-  const columns = { needs: [], running: [], idle: [], done: [], human: [] };
+  const columns = { needs: [], running: [], idle: [], human: [] };
   for (const [key, cards] of Object.entries(board.columns))
     for (const card of cards) {
       const launch = card.sessionId === null ? launches.get(card.number) : undefined;
@@ -908,7 +970,15 @@ var project = (board) => {
 };
 var render = (canMove = true) => {
   const next = project(data);
-  const cards = JSON.stringify([next.repo, next.noRun, next.flow, next.tracker, next.columns]);
+  const cards = JSON.stringify([
+    next.repo,
+    next.noRun,
+    next.flow,
+    next.tracker,
+    next.columns,
+    next.history,
+    next.source.error
+  ]);
   if (cards === last)
     return;
   const layout = layoutOf(next);
@@ -986,7 +1056,12 @@ var move = (across, down) => {
 };
 var boardActions = () => [
   { label: readAgain(), icon: "refresh", key: "r", run: () => $("refresh").click() },
-  { label: isArchiveOpen ? "Hide Done" : "Show Done", icon: "check", key: "d", run: () => setArchive(!isArchiveOpen) },
+  {
+    label: isHistoryOpen ? "Hide history" : "Show history",
+    icon: "clock",
+    key: "d",
+    run: () => setHistory(!isHistoryOpen)
+  },
   {
     label: isNotifyOn ? "Turn notifications off" : "Turn notifications on",
     icon: isNotifyOn ? "bell-off" : "bell",
@@ -1055,10 +1130,10 @@ var paletteItems = () => {
       }
     }
   }
-  for (const card of shown.columns.done)
+  for (const card of shown.history?.entries ?? [])
     if (card.url)
       items.push({
-        group: "Done",
+        group: "History",
         number: card.number,
         label: `Open the issue${onTracker()}`,
         context: card.title,
@@ -1109,7 +1184,7 @@ var KEYS = {
   h: () => move(-1, 0),
   l: () => move(1, 0),
   r: () => $("refresh").click(),
-  d: () => setArchive(!isArchiveOpen),
+  d: () => setHistory(!isHistoryOpen),
   v: () => setView(view === "now" ? "pipeline" : "now"),
   "?": () => $("keys").showModal(),
   "/": () => openPalette(paletteItems())
@@ -1146,10 +1221,9 @@ document.addEventListener("keydown", (event) => {
     return;
   if (event.target.closest?.("input, textarea, select, [contenteditable]"))
     return;
-  if (event.key === "Escape" && isArchiveOpen) {
+  if (event.key === "Escape" && isHistoryOpen) {
     event.preventDefault();
-    setArchive(false);
-    return $("summary").querySelector(".chip-done")?.focus();
+    return setHistory(false);
   }
   if (event.key === "Escape" && selected) {
     event.preventDefault();
@@ -1221,13 +1295,10 @@ for (const button of document.querySelectorAll(".views button")) {
   button.setAttribute("aria-pressed", String(button.dataset.view === view));
   button.addEventListener("click", () => setView(button.dataset.view));
 }
-$("done-toggle").prepend(icon("col-done"));
-$("done-toggle").addEventListener("click", () => setArchive(!isArchiveOpen));
-$("archive-close").append(icon("close"));
-$("archive-close").addEventListener("click", () => {
-  setArchive(false);
-  $("summary").querySelector(".chip-done")?.focus();
-});
+$("history").prepend(icon("clock"));
+$("history").addEventListener("click", () => setHistory(!isHistoryOpen));
+$("history-count").prepend(icon("clock"));
+$("history-count").addEventListener("click", () => setHistory(true));
 $("notify").addEventListener("click", toggleNotify);
 $("board-more").append(icon("dots"));
 $("board-more").addEventListener("click", () => openMenu($("board-more"), boardActions()));

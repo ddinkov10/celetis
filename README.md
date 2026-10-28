@@ -961,6 +961,20 @@ new program with no board restart; new board code still needs a restart. A missi
 program returns 409 before tab creation or pane execution. Read-only herdr status calls can
 precede that failure.
 
+History opens the latest 20 distinct landed issues in the existing nonmodal side panel. The
+button sits between Search and Refresh and stays visible on a phone. The count, `d`, and search
+use the same panel. History starts closed on each page load, keeps its state through refresh, and
+closes card details. Escape or Close returns focus to History. Below 1100 px width or 701 px
+height it is a drawer. Each row links the issue and its remote trunk commit, with commit time.
+`View <trunk>` opens older history. History has no Run or Resume action.
+
+History uses remote default-branch evidence for both `merge` and `pr` landings. A merged lane PR
+must identify the issue; its PR number is not an issue number. Issue closure alone adds nothing,
+and there is no 14-day closure window. The list covers recent landings; an absent issue can have
+older evidence, and a later revert can undo a listed change. History shares the existing refresh
+and timeout. A read error keeps the last good cards and history and shows the error; recovery
+clears it. Loading and successful empty history have separate messages.
+
 `docs/celetis-flow.md`, "The board", gives the data, the fixed lines, and the card states.
 [`engine/board/README.md`](engine/board/README.md) describes the page.
 Open work may stay open. Required CLI workflow

@@ -1,8 +1,10 @@
 import { isRecorded, lockHolder } from '../lib/locks.ts';
 import { createOperation, locateCheckouts } from '../lib/operation.ts';
 import { childEnv } from '../lib/process.ts';
+import { github } from '../lib/tracker.ts';
 import { defaultGate, lands, lanes, stageOf, stages, steps } from '../lib/workflow.ts';
 import { jsonRow, nextBoard } from '../next-step.ts';
+import { readHistory } from './history.ts';
 import type { Document, Flow, Issue } from './types.ts';
 
 export async function readBoard(main: string, signal: AbortSignal): Promise<Document> {
@@ -12,6 +14,7 @@ export async function readBoard(main: string, signal: AbortSignal): Promise<Docu
     signal.throwIfAborted();
     throw new Error(stderr.trim() || 'cannot read the issues from GitHub');
   }
+  const history = await readHistory(github(main, signal));
   const common = operation.checkout.common as string;
   const flow: Flow = {
     lanes: Object.fromEntries(Object.entries(lanes).map(([lane, definition]) => [lane, [...definition.steps]])),
@@ -28,27 +31,27 @@ export async function readBoard(main: string, signal: AbortSignal): Promise<Docu
   };
   const issues: Issue[] = [];
   for (const row of data.rows) {
-    const { line, ...shown } = jsonRow(row);
+    const { line, state, closedAt: _closedAt, ...shown } = jsonRow(row);
+    if (state === 'done') continue;
     const step = row.next.kind === 'run' ? row.next.step : null;
     const locked = !!(await lockHolder(main, `issue-${row.number}`));
     const stuck = await isRecorded(common, String(row.number), line);
     issues.push({
       ...shown,
+      state,
       step,
       started: step !== null && stageOf(step) > 1,
       urgent: shown.type === 'hotfix',
-      ...(shown.state === 'done'
-        ? {}
-        : locked
-          ? { state: 'starting' }
-          : shown.state === 'dirty'
-            ? {}
-            : stuck
-              ? {
-                  state: 'stuck',
-                  act: `celetis --agent <host> celetis-flow --resume ${row.number}`,
-                }
-              : {}),
+      ...(locked
+        ? { state: 'starting' }
+        : state === 'dirty'
+          ? {}
+          : stuck
+            ? {
+                state: 'stuck',
+                act: `celetis --agent <host> celetis-flow --resume ${row.number}`,
+              }
+            : {}),
     });
   }
   const runner = !!(await lockHolder(main, 'runner'));
@@ -60,6 +63,7 @@ export async function readBoard(main: string, signal: AbortSignal): Promise<Docu
     }),
   );
   return {
+    history,
     tracker: 'GitHub',
     agents,
     defaultAgent: operation.host,

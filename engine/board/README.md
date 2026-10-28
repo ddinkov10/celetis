@@ -143,7 +143,7 @@ of the main checkout, with `CELETIS_AGENT` and no explicit host. So each read va
 The read then gets the typed rows of the resolver (`nextBoard` of
 `engine/next-step.ts`), and the issue locks, the runner lock, and the record of the runner
 (`engine/lib/locks.ts`, which the runner also uses). It builds one typed document (`Document` of
-`types.ts`) with `tracker`, `agents`, `defaultAgent`, `flow`, `noRun`, `runner`, and `issues`.
+`types.ts`) with `tracker`, `agents`, `defaultAgent`, `flow`, `noRun`, `runner`, `issues`, and `history`.
 `docs/celetis-flow.md` of the plugin `celetis`, "The board", gives the value of each field and the
 rule that gives each row its state.
 
@@ -153,7 +153,7 @@ Run and Resume starts a new runner process, which makes its own check.
 
 One read runs at a time: a cause of a read during a read joins that read. A read has a limit of 60
 seconds. The stop of the board also stops a read that runs. In each case, the `gh` process of that
-read ends. When a read fails, the cards of the last good read stay, and the status bar shows
+read ends. When a read fails, the cards and history of the last good read stay, and the status bar shows
 `cannot read:` with one line:
 
 | Cause | Line |
@@ -165,10 +165,46 @@ read ends. When a read fails, the cards of the last good read stay, and the stat
 
 The next good read clears the line.
 
+## Landed history
+
+History sits between Search and Refresh. It opens the existing nonmodal panel and closes card
+details. Card details close History. The default is closed on each page load; refresh keeps its
+open state, scroll, and matching focused link. Escape or Close returns focus to History. The
+landed count and the `d` shortcut open the same panel. Search finds landed issue numbers and titles.
+History stays visible on a phone. Below 1100 px width or 701 px height the panel is a drawer;
+below 720 px width it fills the viewport. Closing it restores the board width.
+
+`history.ts` reads the remote repository metadata and captures the default branch head. It walks
+100-commit pages pinned to that SHA until it finds 20 distinct issues or exhausts history. It
+keeps traversal order and each issue's newest occurrence, with no closure-time cutoff. A direct
+Celetis Conventional Commit has an issue suffix. For a PR landing, the commit must match a merged
+lane PR's merge SHA, base branch, and repository identities. The lane issue number must agree
+with its `Closes #<n>` body reference. A nonempty PR association never falls back to the subject's
+suffix. Ambiguous or unsupported associations are omitted; request and malformed-data failures
+fail the entire read. Issue responses that represent PRs cannot become history entries.
+
+`History` contains `trunk`, its history `url`, the captured full `head`, and `entries`. Each
+`LandedIssue` contains `number`, issue `title` and `url`, full commit `sha`, `commitUrl`, and
+`committedAt`. The snapshot's history is null until the first successful document. It shares the
+existing refresh, abort signal, timeout, and last-good-document failure behavior with active work.
+No extra poller or workflow state exists. Display links allow only absolute HTTP(S) URLs without
+credentials or control characters. Titles and branch names remain text.
+
+Rows expose issue and commit links, a short SHA with its full accessible identity, and commit
+time with its full accessible timestamp. The time is neither issue-close nor push time. Before
+the first result, History shows loading; an initial failure shows an error. Successful empty
+history shows `No landed issues found on <trunk>.` A failed refresh retains the rows and shows
+the read error; recovery clears it. History has no Run or Resume action.
+
+The list covers recent landings through both `merge` and `pr`. A closure alone proves no landing;
+an open issue can appear in both active work and history. Absence from 20 entries proves nothing
+about older landings. A later revert does not remove the earlier event. `View <trunk>` opens
+older history for inspection.
+
 ## The cards
 
 The page has three columns, Needs you, Running, and Idle, a strip of human sessions above them, and
-a Done list.
+a landed-history panel.
 
 **The sessions.** A session is an agent that herdr found in a pane, whose folder is the main
 checkout folder itself, or a lane worktree or a folder in it. That folder is the folder of its
@@ -200,7 +236,6 @@ no row, show the label of the tab as the title, with no link and no type.
 
 | `state` | Column | State on the card | Act line | Main button |
 |---|---|---|---|---|
-| `done` | the Done list, with `closedAt` as its time | none | none | none |
 | `starting` | Running | `Starting` | none | none |
 | `dirty` | Needs you | `dirty tree` | `path` | Open shell |
 | `stuck` | Needs you | `no progress` | `act` | Resume, and a quiet Run again |
@@ -215,7 +250,7 @@ no row, show the label of the tab as the title, with no link and no type.
   that list has no track.
 
 **The order.** Needs you has the urgent cards first, then the dialogs, then the longest wait first.
-Running has the newest first, Idle has the highest number first, and Done has the last close first.
+Running has the newest first, and Idle has the highest number first. History follows remote trunk traversal order.
 Human sessions has the order of the tab labels, with numbers in numeric order, and two sessions with
 one label in the order of their herdr agent ids.
 
@@ -439,7 +474,7 @@ its two fonts, Geist and Geist Mono, in `<plugin>/engine/board/fonts/` with thei
 SIL Open Font License 1.1), so it loads nothing from the network.
 
 - The header holds the folder name, the switch between Now and Pipeline, the count of each column
-  and of Done, the search, and Refresh. The title of the browser tab is
+  and of landed issues, Search, History, and Refresh. The title of the browser tab is
   `(<n>) <folder> · Agent board` while `<n>` cards need you, and the tab icon has an orange dot
   then; it has a blue dot while an agent of an issue works and nothing needs you.
 - Human sessions is a strip between the header and the columns, in Now and in Pipeline. Each human
@@ -477,8 +512,8 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   it. The board takes the cards as seen when its window loses the focus.
 - The status bar shows when the board last read the data, with the name of the tracker (`Issues`
   before the first good read), whether herdr runs, and whether the automatic runner runs. It shows
-  the keys of the focused card, the count of Done (a press opens the list of the issues that the
-  data gives as done), the Notify switch, and the list of keys.
+  the keys of the focused card, the landed-issue count (a press opens History), the Notify switch,
+  and the list of keys.
 - Notify: the first press asks the browser for permission. Then each card that enters Needs you
   shows a system notification while the board is not in front: `#<n> waits for your answer`,
   `#<n> ended its turn`, `#<n> made no progress`, `#<n> has a dirty worktree`, `#<n> <reason>` for a
@@ -490,7 +525,7 @@ SIL Open Font License 1.1), so it loads nothing from the network.
 - Pipeline has one column for each item of `flow.stages`, in order, and it shows each issue at its
   step. A strip at the top, Not in a step, holds the issues whose step is in no stage.
 - When a request of the page fails, the cards of the last good read stay, dimmed, under the message
-  `The board server does not answer. The cards show the last good read.`
+  `The board read failed. The cards and history show the last good read.`
 - A card that changes its column moves to its new place. The page shows no motion when the OS asks
   for reduced motion.
 - Below 1100 px Needs you takes the left half and Running and Idle share the right half, and the
@@ -501,11 +536,11 @@ SIL Open Font License 1.1), so it loads nothing from the network.
 
 **The keys.** `⌘K` (`Ctrl K` off macOS) or `/` opens the search: it lists the issue work that needs
 you first, then the running cards, the steps that can start, the human sessions (a waiting one
-too), the Done issues, and the commands of the board. `#<n>` jumps to an issue, and `<n>` alone also
+too), the landed issues, and the commands of the board. `#<n>` jumps to an issue, and `<n>` alone also
 finds a human session whose tab label is `<n>`. `j` and `k` move to the next or the previous card,
 `h` and `l` to the column on the left or the right; `Enter` presses the main button of the card,
 `Space` opens its details, `m` opens all its actions, `o` opens the issue, and `c` copies the
-command or the path of the card. `v` changes between Now and Pipeline, `d` shows or hides Done, `r`
+command or the path of the card. `v` changes between Now and Pipeline, `d` shows or hides History, `r`
 reads the issues again, and `?` shows the list. The list has a switch that turns the single-key
 shortcuts off; the keys of a focused card always work, and the arrow keys move from a focused card
 as `h`, `j`, `k`, and `l` do. After a Run or Resume press, the focus stays on the card of the

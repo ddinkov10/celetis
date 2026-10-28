@@ -66,7 +66,6 @@ const issueCard = (issue: Issue, extra: Partial<Card>): Card => ({
 });
 
 const PLACERS: Record<Issue['state'], (issue: Issue, context: { flow: Flow; isOpen: boolean }) => [Column, Card]> = {
-  done: (issue) => ['done', issueCard(issue, { since: issue.closedAt as string })],
   starting: (issue) => ['running', issueCard(issue, { step: issue.step, state: 'starts' })],
   dirty: (issue) => ['needs', issueCard(issue, { step: issue.step, state: 'dirty-tree', act: issue.path })],
   stuck: (issue, { isOpen }) => [
@@ -125,7 +124,6 @@ const ORDER: Record<Column, (a: Card, b: Card) => number> = {
   needs: (a, b) => rank(a) - rank(b) || time(a.since) - time(b.since),
   running: (a, b) => time(b.since) - time(a.since),
   idle: (a, b) => (b.number as number) - (a.number as number),
-  done: (a, b) => time(b.since) - time(a.since),
   human: (a, b) =>
     a.title.localeCompare(b.title, undefined, { numeric: true }) ||
     (a.sessionId as string).localeCompare(b.sessionId as string),
@@ -140,7 +138,7 @@ export const place = ({
   board: Pick<Document, 'flow' | 'noRun' | 'issues'> | null;
   launches: Record<string, { step: string | null; expired: boolean }>;
 }): Placement => {
-  const columns: Columns = { needs: [], running: [], idle: [], done: [], human: [] };
+  const columns: Columns = { needs: [], running: [], idle: [], human: [] };
   const issues = board?.issues ?? [];
   const noRun = board?.noRun ?? null;
   const byNumber = new Map(issues.map((issue) => [issue.number, issue]));

@@ -108,7 +108,7 @@ export function github(cwd: string, signal?: AbortSignal): GitHub {
     signal?.throwIfAborted();
     const result = await run(
       'gh',
-      ['api', ...(paginate ? ['--paginate', '--slurp'] : []), `repos/{owner}/{repo}/${endpoint}`],
+      ['api', ...(paginate ? ['--paginate', '--slurp'] : []), `repos/{owner}/{repo}${endpoint ? `/${endpoint}` : ''}`],
       { cwd, signal },
     );
     signal?.throwIfAborted();

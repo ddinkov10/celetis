@@ -270,23 +270,16 @@ export async function nextBoard(
     null,
     async () => {
       try {
-        const since = new Date(Date.now() - 1_209_600_000).toISOString().slice(0, 10);
         const open = await read.openIssues();
-        const closed = (await read.issues(`issues?state=closed&since=${since}T00:00:00Z&per_page=100`))
-          .filter((issue) => issue.closedAt !== null && issue.closedAt >= since)
-          .map((issue) => ({ issue, data: issueData(issue, []) }));
         const pulls = ((await read.gh.list('pulls?state=open&per_page=100')) as Pull[]).filter((pr) =>
           /\/[0-9]+-/.test(pr.head.ref),
         );
         const prs: PullState[] = [];
         for (const pr of pulls) prs.push(await read.pullState(pr));
-        const unique = new Map<number, Fetched>();
-        for (const fetched of [...open, ...closed])
-          if (!unique.has(fetched.issue.number)) unique.set(fetched.issue.number, fetched);
         const dirtyLanes: string[] = [];
         for (const path of await read.lanes()) if (await read.dirty(path)) dirtyLanes.push(path);
         const rows: BoardRow[] = [];
-        for (const { issue, data } of [...unique.values()].sort((a, b) => a.issue.number - b.issue.number)) {
+        for (const { issue, data } of open.sort((a, b) => a.issue.number - b.issue.number)) {
           const next = decide(data);
           if (describe(String(issue.number), next).row === null) continue;
           const finished = next.kind === 'stop' && next.reason === 'finished';

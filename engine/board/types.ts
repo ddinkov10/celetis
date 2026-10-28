@@ -15,18 +15,32 @@ export type Issue = {
   title: string;
   url: string;
   type: string | null;
-  state: 'ready' | 'starting' | 'stuck' | 'dirty' | 'blocked' | 'done';
+  state: 'ready' | 'starting' | 'stuck' | 'dirty' | 'blocked';
   step: string | null;
   started: boolean;
   urgent: boolean;
   updatedAt: string;
-  closedAt: string | null;
   path?: string;
   reason: string | null;
   act: string | null;
   pr: Pull | null;
 };
+export type LandedIssue = {
+  number: number;
+  title: string;
+  url: string;
+  sha: string;
+  commitUrl: string;
+  committedAt: string;
+};
+export type History = {
+  trunk: string;
+  url: string;
+  head: string;
+  entries: LandedIssue[];
+};
 export type Document = {
+  history: History;
   tracker: string;
   flow: Flow;
   noRun: string | null;
@@ -72,10 +86,11 @@ export type Card = {
   diff?: Diff | null;
   warning?: string | null;
 };
-export type Column = 'needs' | 'running' | 'idle' | 'done' | 'human';
+export type Column = 'needs' | 'running' | 'idle' | 'human';
 export type Columns = Record<Column, Card[]>;
 export type Placement = { noRun: string | null; columns: Columns };
 export type Board = Placement & {
+  history: History | null;
   flow: Flow | null;
   tracker: string | null;
   runner: boolean | null;
