@@ -497,7 +497,7 @@ repository does not have, with this description:
 | `chore` | zero-behavior-change edit |
 | `epic` | parent of several feature sub-issues |
 | `needs-info` | the report lacks what its lane needs; the questions are in a comment |
-| `ready-for-agent` | plan posted; `/celetis:implement #<n>` can start |
+| `ready-for-agent` | plan posted; no human hold; build completion is recorded in comments |
 | `ready-for-human` | a step only a human runs |
 | `wontfix` | This will not be worked on |
 
@@ -641,7 +641,7 @@ host's skill selector. Native desktop selector acceptance is optional under
 | `/celetis:intake <the request>` | writes the intent in your words, and asks "proceed?" | a new issue `#<n>` with the intent and the label `needs-triage` |
 | `/celetis:triage #<n>` | picks the lane, and asks whether to go on | the lane label, here `enhancement` |
 | `/celetis:feature #<n>` | makes the lane worktree and runs `specify`: the design, in a conversation with you | the spec that you approved, as the body of the issue |
-| `/celetis:plan #<n>`, in a new session | writes the plan: your steps (the human acts of the lane), the build flow, tasks with a capability score, and a Verify phase | a `## Plan` comment and the label `ready-for-agent` |
+| `/celetis:plan #<n>`, in a new session | writes the plan: your steps (the human acts of the lane), the build flow, tasks with a capability score, and a Verify phase | a `## Plan` comment; `ready-for-agent` unless `ready-for-human` holds the issue, in which case the human hold stays and the agent label is removed |
 | `/celetis:implement #<n>`, in a new session | builds the tasks in the flow that the `Execution:` line of the plan names (`inline`: the session builds each task and runs the verify gate of the project, then one review of the branch; `subagent`: an implementer, the verify gate of the project, and a review for each task), runs the Verify phase, and lands the change with `celetis --agent <host> land` | the change on the trunk, and a closed issue |
 
 - On a yes, `intake` hands on to `triage`, and `triage` hands on to the lane, so the first three

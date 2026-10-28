@@ -81,12 +81,15 @@ const acts: Readonly<Record<string, Act>> = {
     argument: 'file',
     ready: (context) =>
       (inLane(context, 'feature') && specified(context.data)) || (inLane(context, 'bug') && diagnosed(context.data)),
-    writes: ({ text }) => ({ comment: headed(headings.plan, text), add: ['ready-for-agent'] }),
+    writes: ({ data, text }) => ({
+      comment: headed(headings.plan, text),
+      ...(data.labels.includes('ready-for-human') ? { remove: ['ready-for-agent'] } : { add: ['ready-for-agent'] }),
+    }),
   },
   built: {
     argument: 'none',
     ready: ({ decision }) => decision.kind === 'run' && decision.step === 'implement' && decision.state === 'planned',
-    writes: () => ({ remove: ['ready-for-agent'] }),
+    writes: () => ({ comment: headings.built, remove: ['ready-for-agent'] }),
   },
   'before-landing': {
     argument: 'file',
@@ -105,9 +108,17 @@ const acts: Readonly<Record<string, Act>> = {
   stopped: {
     argument: 'file',
     ready: open,
-    writes: ({ text }) => ({ comment: headed(headings.stopped, text), add: ['ready-for-human'] }),
+    writes: ({ text }) => ({
+      comment: headed(headings.stopped, text),
+      add: ['ready-for-human'],
+      remove: ['ready-for-agent'],
+    }),
   },
-  'ready-for-human': { argument: 'none', ready: open, writes: () => ({ add: ['ready-for-human'] }) },
+  'ready-for-human': {
+    argument: 'none',
+    ready: open,
+    writes: () => ({ add: ['ready-for-human'], remove: ['ready-for-agent'] }),
+  },
   state: { argument: 'none', ready: () => true, writes: () => ({}) },
 };
 

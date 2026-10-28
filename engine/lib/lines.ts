@@ -52,18 +52,6 @@ function describeStop(n: string, next: Stop): Described {
       );
     case 'human-step':
       return blocked('has an open human step', 'human step open', humanStepActs[next.variant]);
-    case 'plan-order':
-      return next.variant === 'not-marked'
-        ? blocked(
-            'has a plan with no ready-for-agent',
-            'plan not marked',
-            `Add ready-for-agent to build the latest ## Plan comment, or run /celetis:plan #${n} for a new plan.`,
-          )
-        : blocked(
-            'has ready-for-agent on a built plan',
-            'plan already built',
-            `Remove ready-for-agent to land the built change, or run /celetis:plan #${n} for a new plan.`,
-          );
     case 'land-by-hand':
       return blocked(
         'waits for a landing by hand',

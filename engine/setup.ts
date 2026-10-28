@@ -49,7 +49,7 @@ const labelStyles = {
   chore: ['zero-behavior-change edit', '006B75'],
   epic: ['parent of several feature sub-issues', '0052CC'],
   'needs-info': ['the report lacks what its lane needs; the questions are in a comment', 'FEF2C0'],
-  'ready-for-agent': ['plan posted; `/celetis:implement #<n>` can start', 'D93F0B'],
+  'ready-for-agent': ['plan posted; no human hold; build completion is recorded in comments', 'D93F0B'],
   'ready-for-human': ['a step only a human runs', 'C2E0C6'],
   wontfix: ['This will not be worked on', 'ffffff'],
 } as const satisfies Record<Label, readonly [string, string]>;

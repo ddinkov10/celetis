@@ -79,6 +79,7 @@ export function laneOf(names: readonly string[]): LaneOf {
 
 export const headings = {
   plan: '## Plan',
+  built: '## Built',
   rootCause: '## Root cause',
   beforeLanding: '## Before landing',
   landingRefused: '## Landing refused',
@@ -102,7 +103,7 @@ export type IssueData = Readonly<{
   history: readonly Entry[];
 }>;
 
-export type Build = 'none' | 'planned' | 'built' | 'not-marked' | 'added-again';
+export type Build = 'none' | 'planned' | 'built';
 
 export type HumanStep = Readonly<{
   comment: number;
@@ -132,9 +133,8 @@ export function factsOf(issue: IssueData, lane: Lane | null): Facts {
   const { history } = issue;
   const plan = lane === null || stepsOf(lane).includes('plan') ? headed(history, headings.plan).at(-1) : undefined;
   const anchor = plan?.position ?? -1;
-  const marked = issue.labels.includes('ready-for-agent');
-  const built = removedAfter(history, 'ready-for-agent', anchor);
-  const build: Build = !plan ? 'none' : marked ? (built ? 'added-again' : 'planned') : built ? 'built' : 'not-marked';
+  const built = headed(history, headings.built, headings.beforeLanding).some(({ position }) => position > anchor);
+  const build: Build = !plan ? 'none' : built ? 'built' : 'planned';
   const reports = headed(history, headings.humanStepsDone);
   const open = headed(history, headings.beforeLanding)
     .filter(({ position }) => position > anchor)
@@ -173,7 +173,6 @@ export type Stop = Readonly<
   | { kind: 'stop'; reason: 'wontfix' | 'finished' | 'needs-info' | 'epic' | 'land-by-hand' }
   | { kind: 'stop'; reason: 'ready-for-human'; variant: 'landing-refused' | 'your-step' }
   | { kind: 'stop'; reason: 'human-step'; variant: HumanStep['missing'] }
-  | { kind: 'stop'; reason: 'plan-order'; variant: 'not-marked' | 'added-again' }
   | { kind: 'stop'; reason: 'several-lanes'; labels: readonly string[] }
 >;
 
@@ -204,7 +203,6 @@ export function decide(issue: IssueData): Decision {
   if (lane === 'chore') return run('chore', lane, 'chore');
   if (lane === 'hotfix') return run('hotfix', lane, 'hotfix');
   if (build === 'none') return run('plan', lane, 'defined');
-  if (build === 'not-marked' || build === 'added-again') return { kind: 'stop', reason: 'plan-order', variant: build };
   return run('implement', lane, build);
 }
 

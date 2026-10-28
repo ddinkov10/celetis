@@ -252,7 +252,7 @@ board links the session to the issue. It also starts a job in the background tha
 
 Two decisions have the same result when both are a Run of the same step, or both are a stop with
 the same reason, variant, and data (for example, the labels of a stop for several lane labels). The
-state and the lane are not part of the result. So when `implement` removes `ready-for-agent`, the
+state and the lane are not part of the result. So when `implement` records `## Built`, the
 issue goes from planned to built, the result stays a Run of `implement`, and the session stays open.
 The two variants of `ready-for-human` (`landing refused` and `ready for your step`) print the same
 line, but they are two results. When the variant changes between the two reads of one check, the
@@ -280,19 +280,21 @@ text), through the write command
 (`docs/issue-tracker.md`, "Conventions"). The reason is a comment: the comment that its skill
 posts for the stop (`## Landing refused`, `## Before landing`), else a comment with `## Stopped` as
 its first line. When the skill adds no label for the stop, the session then adds `ready-for-human`
-as its last act (the act `stopped` posts the `## Stopped` comment, then adds the label), so the
+as its last act. Both `stopped` and `ready-for-human` remove `ready-for-agent` when present;
+`stopped` posts its reason first. A successful hold leaves only the human readiness label, so the
 line becomes `stop #<n> is ready-for-human. …` and the job ends the session. A stop for which
 the skill adds a label, such as the `needs-info` stop of `/celetis:triage`, stays as the skill says.
 A question is not a stop: where a skill says to ask, rule 2 holds, and a session that asks for a
 decision waits in its pane. A Verify scenario that the session cannot run is a `## Before landing`
 stop (rule 5): the session does not land the change. The act `before-landing` posts the comment,
-then adds `ready-for-human`, then removes `ready-for-agent`, which marks the change as built. A
-label write that fails after the comment, or a session that ends during the act, leaves the
-comment with no `ready-for-human`. The line then becomes `stop #<n> has an open human step. …` (the `human-step`
-stop): the absence of the label is no evidence that the human step is done, so no step starts. Do
-the act that the line names. When `ready-for-agent` stayed on the issue, the next run then builds
-and verifies the change again. A `specify` session and a session that you start by hand have no
-step text: at such a stop they show the message and stay open (ADR-0011).
+then adds `ready-for-human`, then removes `ready-for-agent`. The comment records the change as
+built. A failed human-label addition, or an interruption before that addition, can leave the
+comment with no `ready-for-human`. The line then becomes `stop #<n> has an open human step. …`
+(the `human-step` stop): the absence of the label is no evidence that the human step is done, so no step starts. Do
+the act that the line names. The precondition comment preserves build completion even if a
+label write fails. A plain stop records no completion: after its clearance, an unfinished plan
+resumes the build without requiring the agent label. A `specify` session and a session that you
+start by hand have no step text: at such a stop they show the message and stay open (ADR-0011).
 
 After a stop with `ready-for-human`, do the act of the stop, remove the label, and start the step
 again. A `## Stopped` or `## Before landing` comment names the act. For a refused landing of
@@ -584,7 +586,7 @@ A row gets its `state` by the first rule that matches:
 | 2 | has a lock that a live script holds | `starting` | |
 | 3 | has a dirty lane worktree | `dirty` | `path`: the lane worktree |
 | 4 | has a row in the record for its `run` line: no progress, or a refused skip | `stuck` | `act`: `celetis --agent <host> celetis-flow --resume <n>` |
-| 5 | has `needs-info` or `ready-for-human`, two or more lane labels, an open human step, a hotfix to land by hand, or a plan that is not marked or already built | `blocked` | `reason`, from the first match in the order of the resolver (`docs/issue-tracker.md`, "Resolving an issue's state"): `needs info` for `needs-info`; for `ready-for-human`, `landing refused` while a landing refusal is current, else `ready for your step`; `several lane labels` for two or more lane labels; `human step open` for a `## Before landing` comment with no completion evidence; `land by hand` for a hotfix whose stop the maintainer cleared; `plan not marked` for a plan with no `ready-for-agent`; `plan already built` for `ready-for-agent` on a built plan. `act`: the act that the `stop` line of the issue names |
+| 5 | has `needs-info` or `ready-for-human`, two or more lane labels, an open human step, or a hotfix to land by hand | `blocked` | `reason`, from the first match in the order of the resolver (`docs/issue-tracker.md`, "Resolving an issue's state"): `needs info` for `needs-info`; for `ready-for-human`, `landing refused` while a landing refusal is current, else `ready for your step`; `several lane labels` for two or more lane labels; `human step open` for a `## Before landing` comment with no completion evidence; `land by hand` for a hotfix whose stop the maintainer cleared. `act`: the act that the `stop` line of the issue names |
 | 6 | has a `run` line | `ready` | |
 
 Each row also has `number`, `title`, `url`, `updatedAt` and these fields:
@@ -667,8 +669,6 @@ of the page.
 | `stop … has several lane labels …` | keep one lane label and remove the others | as the first row |
 | `stop … has an open human step. …` | do what the line says: the latest `## Before landing` comment names the act. The line names the evidence that is missing: a `## Human steps done` report and the removal of `ready-for-human` after the comment, the report, or the removal (`docs/issue-tracker.md`, "Completing a human precondition") | as the first row |
 | `stop … waits for a landing by hand. …` | run `land` in your own shell, from the main checkout, as the line says | none: the landing finishes the issue |
-| `stop … has a plan with no ready-for-agent. …` | add `ready-for-agent` to build the latest `## Plan` comment, or run `/celetis:plan #<n>` for a new plan | as the first row |
-| `stop … has ready-for-agent on a built plan. …` | remove `ready-for-agent` to land the built change, or run `/celetis:plan #<n>` for a new plan | as the first row |
 | `stop … is an epic` | none: each child is an open issue with its own flow | — |
 | `stop … is finished` or `stop … is closed as wontfix` | none | — |
 | `stop the working tree is dirty …` | commit or stash | as the first row |

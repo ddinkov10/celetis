@@ -41,7 +41,11 @@ Bind commands and file edits to the lane path; return to the main checkout for l
      that lets the step go on to a file, with no heading. Run
      `celetis --agent <host> issue <n> stopped <file>` as the last act of the turn, after each
      other act that the skill names for the stop. It posts the file with `## Stopped` as its first
-     line, then adds `ready-for-human`.
+     line, then adds `ready-for-human` and removes `ready-for-agent` when present.
+   - A successful human hold leaves only `ready-for-human` from the readiness pair. It preserves
+     build completion: only a `## Built` or `## Before landing` comment after the latest plan
+     records a built change. Clearing the hold resumes that build state without restoring an
+     agent label.
    - The label ends this session.
    - An `issue` act that exits 6 with `complete it by hand: <command>` stopped partway. That
      command is an act of the maintainer: run no part of it, and hand the stop to the issue with
@@ -56,8 +60,8 @@ Bind commands and file edits to the lane path; return to the main checkout for l
    `## Before landing` comment for this build to a file, with no heading (the scenario, its
    commands, the expected result, and the refusal), then run
    `celetis --agent <host> issue <n> before-landing <file>` as the last act of the turn. It posts
-   the comment, then adds `ready-for-human` and removes `ready-for-agent`. The removal marks the
-   change as built.
+   the comment, then adds `ready-for-human` and removes `ready-for-agent`. The comment records
+   the change as built; the label removal changes readiness only.
    On a later run, keep the built change and follow the skill's re-entry rule. Require a
    trusted human completion report or the maintainer's label-removal event after the
    `## Before landing` comment for this build. An absent `ready-for-human` label is not completion
