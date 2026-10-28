@@ -3,7 +3,7 @@ name: bug
 description: Type-axis lane for a bug fix — an existing behavior that ≠ intended/spec (wrong output, crash, regression) with production NOT on fire. Use when the human runs /celetis:bug, or when a request describes something that already works misbehaving — as opposed to new behavior (/celetis:feature), a prod-broken ship-now fire (/celetis:hotfix), or a zero-behavior-change edit like a dep bump / rename / doc-config fix (/celetis:chore).
 ---
 
-**Host entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in this loaded file's path. Read [the host operations](../../docs/hosts/entry.md) at `<plugin>/docs/hosts/entry.md` directly, before any product-path scan. The relative link starts in the absolute directory containing this SKILL.md. Complete its startup reads on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 # /celetis:bug — bug-fix lane
 
@@ -24,26 +24,18 @@ root cause, no plan without the report. Perceived simplicity waives nothing: a o
 start step N+1.
 
 1. **Confirm classification.** Existing behavior misbehaves → continue. New behavior → `/celetis:feature`;
-   prod broken + ship-now → `/celetis:hotfix`; zero behavior change → `/celetis:chore`. Given free text instead of `#<n>`: create the issue first — `gh issue create --label bug --title "<one line>" --body-file <intent>` with the `/celetis:intake` template as the body — and continue with its number. Given `#<n>` whose issue carries `epic`: stop; an epic has no branch, and each child runs its own lane. Given any other `#<n>`: make `bug` its only lane label with `celetis --agent <host> issue <n> route bug` — it adds `bug` when the issue lacks it, and removes each of `needs-triage`, `enhancement`, `hotfix`, `chore` that the issue carries — because `celetis --agent <host> worktree` names the branch from the lane label.
-2. **Worktree.** Run `celetis --agent <host> worktree <n>` with a 10-minute timeout (a new worktree runs
-   the worktree setup of the project) and bind the exact path it prints using the host operations. The script re-enters the
-   issue's branch and brings it up to the trunk, or creates `fix/<n>-<slug>` from the title
-   when the issue has none; when it refuses, show the user its message and stop. Every later
-   step runs in that worktree; the
-   main checkout never changes branch (Branches, PRs, merge in `<plugin>/docs/issue-tracker.md`).
-3. **Explore project context.** Explore files, docs, recent commits. Also read:
-   - `AGENTS.md` — project architecture.
-   - the `AGENTS.md` of the subsystem(s) the bug touches.
-   - Scan `docs/lessons/INDEX.md` for lessons matching this change; read matches in full.
-   - `docs/adr/` — architectural decisions that bear on the bug; factor them in.
-
-   Surface that subsystem's traps as **constraints on the fix early** so the fix can't violate
-   them.
+   prod broken + ship-now → `/celetis:hotfix`; zero behavior change → `/celetis:chore`. Then
+   start the lane per `<plugin>/docs/procedures/lane-start.md`, with `bug` as `<lane>` and `bug`
+   as `<label>`.
+2. **Worktree.** Enter the issue's worktree per `<plugin>/docs/procedures/worktree.md`; a new
+   branch is `fix/<n>-<slug>`.
+3. **Explore project context.** Explore files, docs, recent commits, and read the project context
+   per `<plugin>/docs/procedures/project-context.md`. Its traps are the constraints on the fix.
 4. **Invoke `superpowers:systematic-debugging`** — MANDATORY, no self-granted exemptions; the red
    repro is the spec's repro. A hypothesis that rests on library, platform, or vendor behavior is
-   checked per `<plugin>/docs/docs-lookup.md` before the report names it the root cause. A bug that
+   checked per `<plugin>/docs/procedures/docs-lookup.md` before the report names it the root cause. A bug that
    shows on screen gets a capture repro at the failing state and size, posted on the issue per
-   `<plugin>/skills/prototype/UI.md`, "Captures", before the report.
+   `<plugin>/docs/procedures/ui.md`, "Captures", before the report.
 5. **Write a states table in the report.** For every value the fix guards or depends on, list each
    distinct state and name the code that writes it (file:line) — both the producer of the absent
    state AND the writer of the consulted value (a flag or field), not its default initializer. A
@@ -52,7 +44,7 @@ start step N+1.
 6. **Resolve alone, or escalate.** Read the states table before fixing. Judge from the root cause
    and the states table whether the fix chooses new behavior: it adds a mechanism (for example a
    retry, a timer, a cache, a lock, or a queue), or it chooses behavior that the spec does not
-   define. When it does, research the prior art per `<plugin>/docs/prior-art.md` before the
+   define. When it does, research the prior art per `<plugin>/docs/procedures/prior-art.md` before the
    decision below. This trigger is wider than the escalation: a fix that adds a mechanism does the
    research also when the spec defines each state. A fix that restores behavior that the spec or
    the code already defines skips it. An escalation presents the found patterns among its options;
@@ -61,7 +53,7 @@ start step N+1.
    that step 5 shows have different writers (for example, treating "absent" as "false"), or the
    spec does not define behavior for every listed state, STOP and ask the user — present the states
    and the decision as concrete options. A fix that chooses a look that no spec, design document,
-   code, or issue text defines is a look decision (`<plugin>/skills/prototype/UI.md`, "The look
+   code, or issue text defines is a look decision (`<plugin>/docs/procedures/ui.md`, "The look
    decision"): invoke `celetis:prototype`, and follow "The procedure" of that file
    through its cleanup (step 10). The record of step 9 is the report's `## Prototype` section
    (`<plugin>/docs/issue-tracker.md`). Stop for the pick also when each other state is defined.

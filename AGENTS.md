@@ -1,8 +1,8 @@
 # AGENTS.md
 
 This repository is the plugin `celetis`, a general agent harness with Claude and Codex host
-operations: skills (`skills/`), runtime (`engine/`), maintenance (`scripts/`), step text (`step-prompt.md`), and documents
-(`docs/`). It is also a
+operations: skills (`skills/`), modules (`docs/procedures/`), runtime (`engine/`), maintenance
+(`scripts/`), step text (`step-prompt.md`), and documents (`docs/`). It is also a
 product project of its own plugin. `README.md` holds the wiring of a product project, the commands,
 and the update rule. `docs/celetis-flow.md` holds the runner, and `docs/issue-tracker.md` holds the
 labels, the state of an issue, and the branches.
@@ -65,12 +65,48 @@ project, not here. So the text of this repository is general:
   custom part of that project (`custom.<skill>` in `.celetis.yaml`), for an addition to one
   step. The third is no home, when a permission rule or the verify gate of that project holds the
   line already.
-- **A path with no prefix is a path of the product project.** A `SKILL.md` cites a file of the
-  plugin as `<plugin>/<path>`, resolved by the host entry from the loaded skill path; the host-entry
-  link and bundled Markdown links resolve relative to their containing file. The step text says
-  "of the plugin `celetis`".
-- **In a skill and in the step text, an ADR number says its store:** "ADR-0008 of the plugin
-  `celetis`". A product project has an ADR store of its own.
+- **A path with no prefix is a path of the product project.** A skill, a module, and the step
+  text cite a file of the plugin as `<plugin>/<path>`. The entry line of a skill binds `<plugin>`
+  from the path of the loaded `SKILL.md`; on Claude Code, the `- plugin:` line of the entry block
+  gives it. The step text takes `<plugin>` from the entry and compares it with the plugin root of
+  its header. A relative Markdown link in a plugin file resolves relative to its containing file.
+- **In a skill, a module, and the step text, an ADR number says its store:** "ADR-0008 of the
+  plugin `celetis`". A product project has an ADR store of its own.
+
+## Where agent text lives
+
+Agent text has three layers:
+
+| Layer | Home | Loads |
+| --- | --- | --- |
+| Entry | The facts block of the Claude Code hook, or `docs/procedures/entry.md` | At each skill invocation |
+| Skill | `skills/<name>/SKILL.md` | When the skill is invoked |
+| Module | `docs/procedures/<name>.md` | When a step of a skill names it |
+
+One placement rule decides the home of each piece of agent text (ADR-0047):
+
+1. **Shared procedure.** Text that two or more skills, or a skill and the step text, need is a
+   module. The skills cite it at the step that uses it.
+2. **Own procedure.** Text that one skill needs stays in that skill.
+3. **Host-specific text** lives only in modules, under a `Claude Code` and a `Codex` part. A skill
+   never names a host tool. The exception is the entry block of the hook, which carries the Claude
+   Code part of the contract.
+4. **Engine-enforced policy** is not restated. A skill names the command, and only the outcomes
+   that the agent must act on (exit classes, printed lines).
+5. **Product text** has two homes. `custom.<skill>` is an addition to that one skill and reaches
+   only its invocation. A product fact that two or more skills need goes into the `AGENTS.md` of
+   the product.
+6. **Maintainer reference.** `docs/celetis-flow.md`, `docs/configuration.md`, `docs/capability.md`,
+   `docs/issue-tracker.md`, `docs/hosts/`, and the ADRs are never read at entry. A skill or a
+   module cites a named section of one when a step needs a definition; none cites `docs/hosts/`.
+
+A module is self-contained: it cites another module only for a branch that some runs take. No
+skill reads another skill's `SKILL.md`. A module stays short enough to read whole in one native
+read, with a target of under 100 lines; a longer module starts with a `## Contents` list of its
+sections. `checkCitations` in `scripts/verify.ts` checks the skills, the modules, and the step
+text: each `<plugin>/<path>` citation and each relative link names a tracked file, each module
+has two or more citers, each `SKILL.md` holds the entry line of `docs/procedures/entry.md` once,
+and no skill or module cites `docs/hosts/`.
 
 ## Celetis flow
 
@@ -99,7 +135,7 @@ For installation changes, follow `README.md`, "Updates".
 
 A look decision of the board uses these three facts:
 
-- The kind is web, with the default row of `prototype` (`skills/prototype/UI.md`, "The platform
+- The kind is web, with the default row of `prototype` (`docs/procedures/ui.md`, "The platform
   rows").
 - The design document is `engine/board/README.md`, "The layout, the keys, and the errors".
 - A prototype board with live data starts in the prototype checkout. A throwaway script there calls
@@ -110,7 +146,7 @@ A look decision of the board uses these three facts:
 
 ## External facts
 
-For the lookup of `docs/docs-lookup.md`, read `claude --version` or `codex --version` for the
+For the lookup of `docs/procedures/docs-lookup.md`, read `claude --version` or `codex --version` for the
 selected host. Claude's documents are `https://code.claude.com/docs/en/<page>`; Codex's are
 `https://learn.chatgpt.com/docs/`. Check the current CLI help and active tool schema before
 using a host operation. `docs/celetis-flow.md`, "Acceptance status", separates observed versions
@@ -134,10 +170,6 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
   A rename makes a live owner look stale. The runner can then end a session during landing, or
   two runners can take one issue. On Windows, owners match by PID and creation time instead
   (ADR-0034).
-- **The act of a skill that moves the line of the issue is its last act.** A label, a comment
-  with a heading that the resolver reads, a published spec, and a closed issue move the line.
-  Complete each remaining act of the skill in the same turn.
-  `docs/celetis-flow.md`, "The step end", describes automatic exit in a herdr pane.
 - **The skills table and the commands table of `README.md` are written by hand.** A new skill, a
   removed skill, or a new sub-command of `engine/` also changes the README, and no check fails when
   it does not. `scripts/build.ts` writes only the block of the commands that a person types. A new

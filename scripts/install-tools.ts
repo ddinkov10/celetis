@@ -13,7 +13,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { bunFloor } from '../engine/lib/config.ts';
+import { bunFloor } from '../engine/lib/config-core.ts';
 import { HostError } from '../engine/lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
 import { codexHome } from '../engine/lib/plugin-metadata.ts';

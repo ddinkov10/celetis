@@ -30,7 +30,6 @@ export interface NativeFile {
 }
 export interface FileResult {
   type: string;
-  source?: string;
   file?: NativeFile;
 }
 export interface ToolReply {
@@ -38,23 +37,10 @@ export interface ToolReply {
   text?: string;
   deny?: string;
   isError?: boolean;
-  context?: string[];
 }
 export interface ReadInput {
   tool: string;
   file_path: string;
-  tool_use_id?: string;
-  agentId?: string;
-  offset?: number;
-  limit?: number;
-}
-export interface ToolInput {
-  tool: string;
-  tool_use_id: string;
-  agentId?: string;
-  file_path?: string;
-  offset?: number;
-  limit?: number;
 }
 export interface TextBlock {
   type: 'text';
@@ -101,7 +87,6 @@ export interface TurnResult {
 export interface Events {
   'skill.prompt': { input: SkillInput; output: { text: string } };
   'session.append': { input: Delivery; output: Delivery };
-  'tool.call': { input: ToolInput; output: ToolReply };
   'tool.check': {
     input: { tool: string; tool_use_id?: string; input: { file_path: string } };
     output: { decision: string; reason?: string; rule?: string };

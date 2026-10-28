@@ -6,7 +6,7 @@ The skill-specific branch of [`writing-for-agents`](SKILL.md): what changes when
 
 Celetis host adaptation: the frontmatter mechanics below are Claude's. For Codex, pair a
 human-invoked skill with `policy.allow_implicit_invocation: false` in `agents/openai.yaml` and
-keep its human-only instruction. Use the [host operations](../../docs/hosts/entry.md) for actual
+keep its human-only instruction. Use the [entry contract](../../docs/procedures/entry.md) for actual
 invocation and custom text; this does not change the invocation choice or the vendored procedure.
 
 Two choices, trading the two loads:

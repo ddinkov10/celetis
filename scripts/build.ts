@@ -1,7 +1,7 @@
 import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { commandName } from '../engine/launcher.ts';
-import { bunFloor } from '../engine/lib/config.ts';
+import { bunFloor } from '../engine/lib/config-core.ts';
 import { helpCommands, helpText } from '../engine/lib/help.ts';
 import { HostError } from '../engine/lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';

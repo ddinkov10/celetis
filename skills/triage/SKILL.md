@@ -3,7 +3,7 @@ name: triage
 description: Type-axis front door for a cold, unclassified idea whose TYPE (/celetis:bug · /celetis:hotfix · /celetis:feature · /celetis:chore) is not yet known. Use when the human runs /celetis:triage, or when a request's type is unclear and must be resolved before a lane starts. Resolves type only; the lane it hands to owns requirements, branching and gates. If the type is already known, invoke the lane directly (/celetis:bug …) and skip triage.
 ---
 
-**Host entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in this loaded file's path. Read [the host operations](../../docs/hosts/entry.md) at `<plugin>/docs/hosts/entry.md` directly, before any product-path scan. The relative link starts in the absolute directory containing this SKILL.md. Complete its startup reads on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 # /celetis:triage — type-axis front door
 
@@ -97,6 +97,8 @@ Ambiguous — ask the one splitter that resolves it:
    `enhancement`), then state the pick and the one-liner (`→ /celetis:bug #<n>: <one-liner>`). Ask the
    human whether to proceed. On yes, invoke that lane with `#<n>` and follow it; the lane's step-1
    confirm is the redirect gate. On no, stop — the label already carries the verdict.
+   In a step session, ask nothing here: stop after the label and the announcement, and leave the
+   lane to the runner, which starts it in a fresh session.
 
 ## Eval — self-check (read and judge, do not run)
 

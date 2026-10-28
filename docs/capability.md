@@ -95,8 +95,8 @@ will read it:
   (**Plan headers**); its final reviewer uses `capscore --json`.
 - **Other child spawns**, including `critic-loop` and the builder check of `specify` — resolve
   the host binding with `capscore --json` and include its CAP line in the prompt; the actual
-  spawn applies the effort, and the model when `dispatch.model` is not null, through
-  [host operations](hosts/entry.md).
+  spawn applies the effort, and the model when `dispatch.model` is not null, through the actual
+  spawn controls of the host ([the child dispatch](procedures/dispatch.md), "One child").
 - **Plan headers** — print the CAP rec on session-executed tasks. Note: the **session model is the
   user's picker**; the rubric can only *recommend* there (max is auto-assignable for a spawn, a rec
   for the session). The user may override any rec.
@@ -121,8 +121,8 @@ mode-0600 record and lock files, a lock, and atomic replacement. Its key is the 
 `CLAUDE_CODE_SESSION_ID` or `CODEX_SESSION_ID`. A new session starts at attempt 1. GitHub remains
 workflow state; this file is local execution evidence.
 
-Run each act as `celetis --agent <host> dispatch <act>` ([Host entry](hosts/entry.md)), with the
-running host:
+Run each act as `celetis --agent <host> dispatch <act>`, with the running host
+([the child dispatch](procedures/dispatch.md), "The task loop"):
 
 | Act and arguments | Result |
 | --- | --- |
@@ -149,11 +149,11 @@ before a resume because the observed follow-up tools cannot set model or effort.
 
 After each native call, save its exact tool name, arguments, and complete result. Submit
 `report <dispatch-id> <report-file>` before the next task act. The
-[Claude](hosts/claude.md#dispatch) and [Codex](hosts/codex.md#dispatch) examples show the report
-shape. Every saved execution has `provenance: "agent-reported"`. The engine checks the report's
-settings, CAP line, action, session, and worker identity against the issued action. It does not
-intercept the call or independently prove that a consistent report is true. A mismatch after
-execution cannot undo a worker. Independent native enforcement belongs to
+[Claude Code](procedures/dispatch.md#claude-code) and [Codex](procedures/dispatch.md#codex)
+examples show the report shape. Every saved execution has `provenance: "agent-reported"`. The
+engine checks the report's settings, CAP line, action, session, and worker identity against the
+issued action. It does not intercept the call or independently prove that a consistent report is
+true. A mismatch after execution cannot undo a worker. Independent native enforcement belongs to
 [issue #151](https://github.com/ddinkov10/celetis/issues/151).
 
 An execution report has exactly `host`, `session`, `call`, and `outcome`. A non-null `call` has
@@ -192,8 +192,9 @@ that task without round 6. Report failures change neither count. Keep no paralle
 
 Exit 0 returns `ready`, `reported`, or `closed`, or prints `show`. Exit 2 is usage; exit 3 is a
 refused act. Exit 4 is a terminal stop and exit 5 is a setup stop. Both carry a reason and trail
-when available. Use the host approval procedure for sandbox blocks. In a step session, rule 4
-of `step-prompt.md` of the plugin `celetis` hands a stop to the issue.
+when available. Use the host approval procedure for sandbox blocks
+([the entry](procedures/entry.md), "The contract"). In a step session, rule 4 of `step-prompt.md`
+of the plugin `celetis` hands a stop to the issue ([the stop](procedures/stop.md)).
 
 ## Portable scores and host binding
 
@@ -256,8 +257,8 @@ The scorer selects one of two modes for Codex. The choice is deterministic:
   or an invalid config exits 2.
 
 In the parent-model mode, each child keeps the parent's model, or the model that the Codex config
-sets in `[agents].default_subagent_model` ([Codex dispatch](hosts/codex.md#dispatch)), and gets the
-effort of its rank. The scorer names no model ID and reads no runtime file, not even a supplied
+sets in `[agents].default_subagent_model` ([Codex dispatch](procedures/dispatch.md#codex)), and
+gets the effort of its rank. The scorer names no model ID and reads no runtime file, not even a supplied
 one. The applied effort follows the rules of a profile with four identical slots and a
 rank-1/medium reviewer minimum. `dispatch.model` and `dispatch.runtime` are null, and the human
 line shows `inherit`.

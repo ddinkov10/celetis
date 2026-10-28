@@ -1,105 +1,80 @@
-# Codex operations
+# Codex
 
-Read through [Host entry](entry.md).
+A maintainer reference: how the plugin `celetis` integrates with Codex CLI. No session reads it at
+entry, and no skill or module cites it. Each agent rule of a host operation lives in the module of
+its procedure, under its `Codex` part ("The module index").
 
-## Skills and custom text
+## Skills and the entry
 
-Invoke skills through their advertised `SKILL.md` paths and follow them with the supplied input.
-For `guide` advice, use this prompt with the actual skill name:
-`Use the celetis:<name> skill for <input>. Complete its Host entry startup reads before any response, including commentary.`
+- Codex declares no Celetis lifecycle hook: `.codex-plugin/plugin.json` holds only the name. The
+  initial skills list holds each skill's name, description, and path, and Codex reads the whole
+  `SKILL.md` when it uses the skill.
+- With no hook, the entry line of each skill sends the session to `docs/procedures/entry.md`,
+  "Entry without the hook". With a shell, the entry runs the reader CLI, which validates the whole
+  file. With no shell, full schema validation comes at each command that needs the configuration:
+  `createOperation` validates before protected work.
+- `guide` and `setup` are explicit-only: `policy.allow_implicit_invocation: false` in
+  `skills/guide/agents/openai.yaml` and `skills/setup/agents/openai.yaml`.
+- The prompt that starts a skill is
+  `Use the celetis:<command> skill for #<n>. Complete its Celetis entry before any response, including commentary.`
+  The prompt came from a wording test: its second sentence, the startup sentence, changed
+  first-response compliance from 0 of 5 to 5 of 5. The first sentence stays byte for byte. The
+  current second sentence names the entry of `docs/procedures/entry.md` and needs a fresh
+  compliance check. `docs/celetis-flow.md`, "Acceptance status", records each check.
 
-Use the active checkout binding even when the tool process cwd differs. Locate its Git boundary
-and read `.celetis.yaml` through available supported file access, including shell commands,
-dedicated readers, or runtime file APIs. Inspect the active tool catalog and use its actual schema.
-A dedicated reader is not required. The existing configuration reader is also supported.
-Make a fresh whole-file request for each entry. A programmatic operation's validated values do
-not complete this request. Optional absence gives no custom text; required runtime configuration
-has a separate full-validation boundary. A denied request ends entry before any alternate read.
-If no supported tool can locate or read the checkout, stop with the tool names, exact limitation,
-and required file-access setup.
+## The runner and `developer_instructions`
 
-## Worktree, commands, and files
+`hostArguments` of `engine/lib/session.ts` reads the effective `developer_instructions` with
+`config/read`, keeps that text, and appends the step text: the facts header (`stepHeader`) and
+`step-prompt.md` of the version folder of the program. It passes the result as one quoted
+`developer_instructions=<JSON string>` value after `-c`, then the prompt above. `specify` gets no
+step text, and its configured developer instructions stay. Every interactive launch, also
+`specify` and exact resume, uses `--no-daemon`, so its hooks, for example the herdr integration,
+use the environment of the current pane. The runner keeps the configured sandbox, approval, and
+model settings.
 
-Bind command cwd and file paths to the exact checkout printed by `worktree`. A Codex app
-worktree does not replace the lane. Keep `land` alive until its actual exit; it can take thirty
-minutes. Retain the command session identifier to observe completion.
+The plugin root of the header is the `root` of `installation('codex', …)` in `engine/update.ts`,
+which `requireSameRevision` returns. The lookup uses `skills/list` on a short-lived app-server
+connection, with no thread or model turn.
 
-For a sandbox-blocked command, request one approved retry with the same command, arguments,
-and cwd before reporting a setup stop. Use the tool's escalation mechanism for later calls
-with the same access needs. A denied file read retains the Host entry stop rule.
+## The sandbox
 
-Like `land`, `issue` needs network: it reads the issue from GitHub before any write. In a sandbox
-with no network, it exits 6 with `issue: blocked: cannot read #<n> from GitHub`. That is a
-sandbox block, not a GitHub that does not answer: request the approved retry first. The approved
-retry is the path for `issue`. The personal `issue` rule,
-`prefix_rule(pattern=["celetis", "--agent", "codex", "issue"], decision="allow")` of
-`<plugin>/README.md`, "Personal landing permission", is optional: it skips the review of each
-call, so a session can post any file that it can read on the issue. Add it only when Codex cannot
-ask for approval, for example with the approval policy `never`.
-
-`worktree` also needs network on each entry: it reads the trunk from GitHub and fetches it from
-`origin`. In a sandbox with no network, request the approved retry first.
-
-In the `workspace-write` sandbox, each part of `update check` can fail: that sandbox has no network
-by default and permits no write outside the workspace. Report each error, tell the person to run
-`celetis update check` in a terminal, and continue the task.
+- The `workspace-write` sandbox has no network by default and permits no write outside the
+  workspace. `issue`, `worktree`, and `land` reach GitHub; `issue` reads the issue before any write.
+  In a sandbox with no network, `issue` exits 6 with
+  `issue: blocked: cannot read #<n> from GitHub`, and each part of `update check` can fail.
+- Codex runs a command that an `allow` rule matches outside the sandbox. A rule compares argument
+  lists, and splits a shell script into commands only when each word is plain or quoted
+  (`README.md`, "Personal landing permission"). The rule of `issue` is optional; with it, a session
+  can post any file that it can read on the issue.
+- In the checks of #104, `dispatch` wrote its record under `/tmp/celetis-<uid>/dispatch/` in the
+  `workspace-write` sandbox with no approval.
 
 ## Dispatch
 
-In the task loop of `implement`, get the pair from `dispatch`. Set `pair.effort` as
-`reasoning_effort`, and omit `model` when `pair.model` is null. With a nonempty `codexProfiles`
-mapping or an explicit profile, pass fresh model and effort evidence from the active dispatch
-tools through `--runtime-models` to each `capscore` call and each `dispatch` act that issues a
-dispatch.
-A refused pair is a setup stop; do not lower it or substitute another pair.
+The engine does not intercept a native child call, and Codex needs no hook or trust change for the
+task loop. A task-loop report is agent-reported evidence: `engine/lib/dispatch-record.ts` validates
+it against the issued action and cannot prove a consistent report true (ADR-0041; independent
+native enforcement is #151). The observed follow-up tool has no model or effort control, so the
+engine stops a changed pair before a resume. The native trace encrypts the message fields, so it
+cannot prove the CAP line of a call. With no profile, a child keeps the parent's model, or the model
+of `[agents].default_subagent_model` in the Codex config (`docs/capability.md`, "Codex model
+profiles").
 
-Inspect the active tool schema. Use `collaboration.spawn_agent` with `fork_turns: "none"` and
-the issued CAP line first in `message`. Keep the parent settings. For `resume`, use the actual
-`collaboration.followup_task` with `target` equal to the recorded child and the issued line
-first in `message`. That follow-up has no model or effort controls. The engine stops a changed
-pair before issuing a resume; an unchanged pair can use the same child.
+## Versions
 
-After each call, run `celetis --agent codex dispatch report <dispatch-id> <report-file>`.
-The evidence is agent-reported. The engine validates the report; it does not intercept or
-independently check the native call. No native interception or trust change is required. Calls outside
-the task loop need no report. Save exact arguments and the complete native result. A returned
-stable task name, such as `/root/worker`, is a usable identity. A spawn report has this shape:
+- 0.162.1 is the floor: the install, the refresh, and the lookup of the plugin were checked on it,
+  and so was `--no-daemon` (`README.md`, "Requirements"). An older release is not supported.
+- 0.164.0 ran the report-flow checks of #104; 0.165.0 is the release on which the entry of #105
+  was built.
+- `docs/celetis-flow.md`, "Acceptance status", separates observed versions from open checks.
 
-```json
-{
-  "host": "codex", "session": "session-id",
-  "call": {
-    "tool": "collaboration.spawn_agent",
-    "arguments": {"task_name": "worker", "message": "<issued CAP line>\nReply OK.", "reasoning_effort": "low", "fork_turns": "none"},
-    "result": {"task_name": "/root/worker"}
-  },
-  "outcome": {"result": "started", "child": "/root/worker", "model": null, "effort": null}
-}
-```
+## The module index
 
-For a same-pair resume, retain that identity and report the exact follow-up arguments and result:
-
-```json
-{
-  "host": "codex", "session": "session-id",
-  "call": {
-    "tool": "collaboration.followup_task",
-    "arguments": {"target": "/root/worker", "message": "<issued CAP line>\nContinue."},
-    "result": {"task_name": "/root/worker"}
-  },
-  "outcome": {"result": "started", "child": "/root/worker", "model": null, "effort": null}
-}
-```
-
-Replace the example values with the actual call and result. Keep native model IDs verbatim;
-leave model and effort null when the host does not report them. Requested effort is not applied
-effort evidence. Wait for the child's real completion before reporting a gate or review result.
-If follow-up is absent, report `call: null` and `outcome: {"result":"unsupported","error":"<exact limitation>"}`,
-then stop. Keep the recorded child. Missing identity or uncertain execution also stops dependent
-work. If the sandbox blocks `dispatch`, use the approved retry above. Unrelated native hook
-trust and permission rules keep their own scope.
-
-## Session recovery
-
-For exact recovery, give the human `codex resume --no-daemon <session-id>` from the main checkout,
-or reopen that exact chat in the app. An unknown session ID is a setup gap. `guide` runs neither.
+| Host operation | Module and section |
+| --- | --- |
+| Skill entry: the read of `.celetis.yaml` | [entry.md](../procedures/entry.md), "Entry without the hook" |
+| Skill invocation and its prompt, the approval procedure for a sandbox block, `issue` with no network, `update check` in `workspace-write`, and session recovery | [entry.md](../procedures/entry.md), "The contract", "Codex" |
+| Lane worktree binding of the command cwd and the file paths, the app worktree, and the network of `worktree` | [worktree.md](../procedures/worktree.md), "Codex" |
+| The return before `land`, the wait for its exit, and its network | [landing.md](../procedures/landing.md), "Codex" |
+| Child spawn and resume (`collaboration.spawn_agent`, `collaboration.followup_task`), `--runtime-models`, and the report shapes | [dispatch.md](../procedures/dispatch.md), "Codex" |

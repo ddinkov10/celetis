@@ -1,7 +1,7 @@
 import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import type { Config } from './config.ts';
+import type { Config } from './config-core.ts';
 import { HostError } from './host.ts';
 import { run, runBun } from './process.ts';
 

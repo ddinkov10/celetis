@@ -1,7 +1,7 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { constants } from 'node:os';
 import { join } from 'node:path';
-import type { Config } from './lib/config.ts';
+import type { Config } from './lib/config-core.ts';
 import { HostError, updateHint } from './lib/host.ts';
 import { lineOf } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';

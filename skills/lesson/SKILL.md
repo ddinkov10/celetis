@@ -3,7 +3,7 @@ name: lesson
 description: Capture a lesson learned from a correction, mistake, or incident so it is not repeated — stores each lesson as its own file under docs/lessons/ with a catalog row in docs/lessons/INDEX.md. Use after the user corrects an approach, after resolving an incident, or when a non-obvious technique is validated and worth keeping. Trigger phrases: "/celetis:lesson", "capture this lesson", "remember not to do this", "save this lesson", "log this incident".
 ---
 
-**Host entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in this loaded file's path. Read [the host operations](../../docs/hosts/entry.md) at `<plugin>/docs/hosts/entry.md` directly, before any product-path scan. The relative link starts in the absolute directory containing this SKILL.md. Complete its startup reads on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 # Capture lesson learned
 
@@ -38,56 +38,11 @@ Read `docs/lessons/INDEX.md` (and `docs/lessons/_pending/QUEUE.md`). Scan Tags a
 
 ### Step 3: Write the lesson file
 
-**3a.** Create `docs/lessons/{slug}.md` (or `_pending/{slug}.md` for automatic capture). The slug is a short kebab-case description of the model or problem, not an incident ID.
+Read `<plugin>/docs/procedures/lesson-format.md`, and follow it: the frontmatter keys, the body headings, the catalog row, and the Tag Vocabulary.
 
-**Frontmatter** — these keys, in this order; omit an optional key entirely rather than leaving it blank:
+**3a.** Create `docs/lessons/{slug}.md` (or `_pending/{slug}.md` for automatic capture). The slug is a short kebab-case description of the model or problem, not an incident ID. Write its frontmatter and its body in the lesson format.
 
-```markdown
----
-name: {slug}                       # required — equals the file name without .md
-description: {one-line summary}     # required — drives relevance retrieval
-tags: [{tag}, {tag}]                # required — from the Tag Vocabulary: the list below with the tags of the custom part of the project
-date: {YYYY-MM-DD}                  # required — most recent meaningful update
-status: active                      # required — active | pending-review | superseded
-source: {origin}                    # optional — only on auto-captures
-recurrences: {n}                    # optional — bump on each recurrence
----
-```
-
-**Body** — this fixed heading set, exact casing, `##` level, in this order. Required sections are always present; recommended ones are included when they add value. Do not invent alternative names.
-
-```markdown
-# {Title — a plain statement of the rule, not a retelling of the incident}
-
-## What happened
-Required. The concrete incident.
-
-## Root cause
-Required. The mechanism, not the symptom.
-
-## Anti-pattern
-Recommended. The wrong approach, as a code block where possible.
-
-## Fix
-Required. The correct approach. For a validated technique, this is the technique.
-
-## Detection signature
-Recommended. The observable signal: error text, symptom, marker.
-
-## Rule
-Required. One or two sentences, transferable beyond the incident.
-
-## Related lessons
-Recommended. `[[slug]]` links. Omit the heading if none.
-```
-
-**3b.** For interactive capture, add a row to `INDEX.md`:
-
-```markdown
-| [{slug}]({slug}.md) | `{tag}` `{tag}` | {YYYY-MM-DD} | {one-line summary} |
-```
-
-Keep the summary tight — it is scanned, not read.
+**3b.** For interactive capture, add its catalog row to `INDEX.md`.
 
 ### Step 4: Cross-reference
 
@@ -102,14 +57,4 @@ After saving, check if the lesson should become a mechanism: update `custom.<ski
 5. Actionable — every lesson leads to a concrete rule or check.
 6. Date everything (YYYY-MM-DD).
 7. Self-contained — each file is readable without the catalog.
-8. Tags are mandatory, drawn from the Tag Vocabulary: the list below with the tags of the custom part of the project.
-9. Keep `INDEX.md` and the files in sync — one row per file, one file per row.
-10. Follow the canonical frontmatter + heading set; do not rename, reorder, or invent sections.
-
-## Tag vocabulary
-
-Draw every tag from this controlled list, with the tags of `custom.lesson` in the project's `.celetis.yaml`. Introduce a new tag only when nothing fits, and add it to that field in the same change. Do not create synonyms or one-off tags. A project gives its own subsystem and technology names in that field.
-
-- Technology: `api` `auth` `database` `data-store` `networking` `bridge` `build` `gradle` `deploy` `platform` `webview` `ui` `test` `config`
-- Nature: `false-positive` `false-negative` `refix` `recurring` `regression` `platform-quirk` `data-loss` `performance`
-- Process: `process` `build` `e2e` `git` `triage` `release`
+8. Keep `INDEX.md` and the files in sync — one row per file, one file per row.

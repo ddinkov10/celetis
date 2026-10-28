@@ -3,7 +3,7 @@ name: lesson-review
 description: Review and promote (or reject) lessons an automatic process queued in docs/lessons/_pending/. Auto-captured lessons never enter the live catalog directly — a human triages them here. Trigger phrases: "/celetis:lesson-review", "review pending lessons", "promote lessons", "triage the lesson queue".
 ---
 
-**Host entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in this loaded file's path. Read [the host operations](../../docs/hosts/entry.md) at `<plugin>/docs/hosts/entry.md` directly, before any product-path scan. The relative link starts in the absolute directory containing this SKILL.md. Complete its startup reads on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 # Review pending lessons
 
@@ -34,10 +34,10 @@ existing live lesson covering the same model. Note if the draft's body says "mer
 Two cases:
 
 - **New lesson** (no live duplicate):
-  1. Read the `/celetis:lesson` rules through the host entry as a reference — frontmatter keys, Tag Vocabulary, canonical body headings — including optional `custom.lesson` from the active checkout's `.celetis.yaml` once on first use. Reuse that reference for later drafts. Fix anything non-conforming.
+  1. Read `<plugin>/docs/procedures/lesson-format.md` once, on the first promotion, and reuse it for later drafts. Fix each part of the draft that does not conform to it: the frontmatter keys, the body headings, and the tags.
   2. Set `status: active`, remove the `source:` key (keep `date:` as today's date).
   3. `mv docs/lessons/_pending/{slug}.md docs/lessons/{slug}.md`.
-  4. Add the catalog row to `docs/lessons/INDEX.md`.
+  4. Add its catalog row to `docs/lessons/INDEX.md`.
   5. Remove the draft's row from `docs/lessons/_pending/QUEUE.md`.
 - **Update to an existing live lesson** (duplicate found / `-update-` draft): do NOT add a new catalog row. Merge the draft into the live `{slug}.md` — append the new attempt(s), bump `recurrences`, refresh `date`, and note the repeat means the lesson has not become a mechanism. Then `rm` the pending draft and remove its `QUEUE.md` row.
 

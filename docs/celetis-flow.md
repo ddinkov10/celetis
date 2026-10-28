@@ -32,7 +32,7 @@ Two rules of the harness hold in each session, also in a session by hand:
 In this document, these names are files of the plugin `celetis`, also when a session reads the
 document inside a product project that has a `docs/` folder and an ADR store of its own: the five
 documents (`docs/celetis-flow.md`, `docs/issue-tracker.md`, `docs/capability.md`,
-`docs/docs-lookup.md`, `docs/prior-art.md`), `step-prompt.md`, a runtime of `engine/` or a program
+`docs/procedures/docs-lookup.md`, `docs/procedures/prior-art.md`), `step-prompt.md`, a runtime of `engine/` or a program
 of `scripts/` that the text names by its file, and each ADR number, which is a record of
 `docs/adr/` in the folder of the plugin and not of the product project. Each other path is a path
 of the product project, apart from a path that starts with `~/` or `/`.
@@ -52,7 +52,7 @@ of the product project, apart from a path that starts with `~/` or `/`.
 - The scripts use only the REST API of GitHub (`gh api`), so they also work where a proxy refuses
   GraphQL, as in a Claude Code cloud session.
 - For a look decision and a visual bug: `gh` 2.99.0 or later on github.com, and the capture tool of
-  the platform row ([UI.md](../skills/prototype/UI.md), "Captures").
+  the platform row ([ui.md](procedures/ui.md), "Captures").
 - The program `celetis` on `PATH` (`README.md`, "First install"), and the plugin `celetis@celetis`
   of the selected host at the revision of the program. The scripts and the step text come from
   the version folder of the program: `celetis --agent <host> <name> <arguments>` runs
@@ -161,34 +161,67 @@ the owner records, the liveness check of an owner, and the record; the runner an
 ## How a step runs
 
 A session is one selected host process in the foreground of the tab, with its original terminal
-input, in the main checkout. Claude starts `run /celetis:plan #402` as:
+input, in the main checkout. `hostArguments` of `engine/lib/session.ts` builds its arguments. The
+step text is a facts header (`stepHeader`), an empty line, and `step-prompt.md` of the version
+folder of the program that runs the runner. For `run /celetis:plan #402`, the header is:
+
+```text
+Celetis step session
+- step session: yes
+- issue: #402
+- step: plan
+- host: claude
+- main checkout: <absolute main checkout>
+- plugin root: <absolute plugin folder of the host>
+- landing: merge
+```
+
+The plugin root is the host-installed plugin folder that holds the loaded skills, not the version
+folder of the program: `requireSameRevision` of `engine/update.ts` returns the `root` of
+`installation()`. The step text compares it with the `<plugin>` of the skill entry, and a
+difference after the resolution of both paths stops the step for setup. The landing comes from the
+validated main config. The header holds no custom text: the entry of the skill reads
+`custom.<skill>` of its active checkout through its own permission-checked read (ADR-0032), and a
+skill entered in a lane reads the lane's file, which the runner cannot know.
+
+Claude starts the step as:
 
 ```bash
 claude \
   --permission-mode auto \
   -n '#402 plan' \
-  --append-system-prompt-file <program folder>/step-prompt.md \
+  --append-system-prompt '<the step text>' \
   '/celetis:plan #402'
 ```
 
-`<program folder>` is the version folder of the program that runs the runner.
+In a herdr pane, the runner puts `--session-id <uuid>` before these arguments ("The step end").
 
 Codex reads effective `developer_instructions` with `config/read`, preserves that text, and
 appends the step text. It passes the combined value as one quoted `developer_instructions=...`
-value after `-c`. Its prompt is `Use the celetis:plan skill for #402. Complete its Host entry startup reads before any response, including commentary.`
-Every interactive Codex launch, including specify and exact resume, uses `--no-daemon` so its
-hooks use the current pane's environment. The CLI must support that option; it was checked on
-0.162.1. The runner retains the configured sandbox, approval, and model settings. No document
-content is evaluated as shell code.
+value after `-c`. Its prompt is `Use the celetis:plan skill for #402. Complete its Celetis entry before any response, including commentary.`
+The prompt came from a wording test ("Acceptance status"): its second sentence, the startup
+sentence, changed first-response compliance from 0 of 5 to 5 of 5. The first sentence stays byte
+for byte. The current second sentence names the entry of `docs/procedures/entry.md` and needs a
+fresh compliance check. Every interactive Codex launch, including specify and
+exact resume, uses `--no-daemon` so its hooks use the current pane's environment. The CLI must
+support that option; it was checked on 0.162.1. The runner retains the configured sandbox,
+approval, and model settings. No document content is evaluated as shell code.
+`docs/hosts/claude-code.md` and `docs/hosts/codex.md` hold the integration facts of each host.
 
-The lane uses the exact path returned by `celetis --agent <host> worktree`. The selected
-[host operations](hosts/entry.md) bind its commands, files, instructions, and children to that
-checkout; landing returns to the main checkout. Claude keeps its native worktree tools.
-Codex's app worktree does not replace the lane checkout. `step-prompt.md` is the step text: no start
-of a step that a skill sends to a fresh context, when to ask, the limits on landing, what a session
-does at a stop, and what it does with a Verify scenario that it cannot
-run. A step session is a session that the runner starts with the step text. The exit status of
-the host decides nothing: the resolver decides.
+The lane uses the exact path returned by `celetis --agent <host> worktree`. Each skill that works
+on the branch follows [the lane worktree](procedures/worktree.md): it binds its commands, files,
+instructions, and children to that checkout, and [the landing](procedures/landing.md) returns to
+the main checkout. Claude keeps its native worktree tools. Codex's app worktree does not replace
+the lane checkout.
+
+`step-prompt.md` holds only what differs in a step session: the check of `<plugin>` against the
+plugin root of the header; follow the skill, and start no step that a skill sends to a fresh
+context; ask only for a decision that the issue does not hold, and never for a go-ahead or a
+review; land only with `celetis --agent <host> land`, and only when the skill says so; and the stop
+rules, which cite `docs/procedures/stop.md` for a stop and for a Verify scenario that the session
+cannot run. It overrides no instruction of a skill: a skill says what it does "In a step session".
+A step session is a session that the runner starts with the step text. The exit status of the
+host decides nothing: the resolver decides.
 
 The session of `specify` is the one session with no step text, so it is no step session. For
 `run /celetis:feature #402`:
@@ -200,7 +233,7 @@ claude --permission-mode auto -n '#402 specify' '/celetis:feature #402'
 Rule 2 of the step text tells a session to publish with no wait for a review. `specify` publishes
 the spec only after you approve the design, and nothing checks the design again after the publish.
 So that session asks and waits as a session that you start by hand does (ADR-0007).
-Codex also omits the step-text override for specify. Its configured developer instructions remain.
+Codex also omits the step text for specify. Its configured developer instructions remain.
 
 **The program and the plugin.** The runner uses the version folder of the program that started it
 for its resolver, entry, and step text. Numbered starts, automatic starts, and later steps make no update call.
@@ -472,32 +505,39 @@ marker keeps it; `celetis --agent <host> setup lane <path>` runs the script ther
 another command never executes setup.
 
 **A custom part.** `custom.<skill>` in the active checkout's `.celetis.yaml` holds an
-addition to that skill's procedure, for example a check on a real device after the build.
-The text cannot remove a general rule. An added act comes before the skill moves the line
-of the issue, because the runner ends the session when the issue shows that the step is done.
-Domain knowledge stays in the `AGENTS.md` files (ADR-0006).
+addition to that skill's procedure, for example a check on a real device after the build. It
+reaches only the invocation of that skill: `chore` does not apply `custom.implement`, and
+`lesson-review` does not apply `custom.lesson`. A product fact that two or more skills need goes
+into the `AGENTS.md` of the product. The text cannot remove a general rule. An added act comes
+before the skill moves the line of the issue, because the runner ends the session when the issue
+shows that the step is done. Domain knowledge stays in the `AGENTS.md` files (ADR-0006).
 
-Each `SKILL.md` starts with the common host entry, which reads the whole config once through
-the running host's supported file access before any step or answer and applies only its target string (ADR-0013).
-Claude's native hook supplies metadata and permission-checked `Read` results before the
-model sees the entry; filename search alone proves no file kind. Codex uses available supported
-access, including shell commands, dedicated readers, or runtime file APIs on its actual surface.
-The agent applies the schema in `docs/configuration.md`; Codex can use the existing config reader.
-Entry executes no setup and consumes no runtime snapshot. A file read alone proves no
-deterministic parser check.
-`docs/hosts/entry.md` and the selected host reference own the entry rules.
+**The entry.** Each `SKILL.md` holds one entry line: bind `<plugin>` from the path of the loaded
+skill, and read `<plugin>/docs/procedures/entry.md` before any step or answer. On Claude Code,
+the native hook (`engine/hooks/entry.ts`) puts a facts block in place of that line before the
+model sees the skill. It makes its own permission-checked `Read` of the Git boundary and of the
+whole config, parses and validates the text with the configuration code of the engine
+(`engine/lib/config-core.ts`), and gives the host, the plugin root, the checkout, the contract
+of `docs/procedures/entry.md`, and the custom text of the skill. It gives no host manual and no
+raw YAML. On Codex, and on Claude Code when the hook did not run, the session follows "Entry
+without the hook" of `docs/procedures/entry.md`: Codex with a shell runs the config reader; else
+the session reads the file natively and applies a short rule list. Each command that needs the
+config validates the whole file before protected work. Entry executes no setup and consumes no
+runtime snapshot (ADR-0013, ADR-0032, ADR-0047). `docs/configuration.md`, "Skill entry", and the
+host references in `docs/hosts/` give the details.
 
-- **Which checkout.** Locate the active root from session context and file tools, including
-  a linked checkout's `.git` file. A runner step starts in the main checkout. A later skill
+- **Which checkout.** The nearest folder at or above the active binding with a `.git` folder or
+  file, so a linked checkout counts. A runner step starts in the main checkout. A later skill
   entered in a lane uses that lane's config. Read no parent config and combine no files.
 - **With no checkout or config,** continue with the common skill. Omitted or empty custom
   values also give no addition. An existing invalid, ambiguous, unreadable, or symlink config
   stops entry with the file and field.
 - **When file access needs approval,** request it through the normal controls. A denied read
-  stops; use no other tool or shell to retry it.
-- **When a skill borrows another skill's rules,** enter that reference and apply its
-  `custom.<skill>` once. Reuse that entry for later sections. A same-session handoff or an
-  intentional new invocation creates a new entry and reads the active config once again.
+  stops; no other tool, shell, parser subprocess, or cached copy follows.
+- **Each invocation is a new entry,** also a same-session handoff and an invocation in a child
+  agent, with its own checkout and its own custom text. No skill reads another skill's
+  `SKILL.md`. After the entry, a step that needs another value of the config reads it at that
+  step through the config reader.
 
 ## The board
 
@@ -981,6 +1021,30 @@ permissions in the active CLI host, changed-model/effort repair on the same chil
 state/action pairs. These gaps remain open. Optional desktop success cannot close a required
 CLI gap. No obsolete metadata or protocol fallback is supplied.
 
+**Module architecture and facts entry.** On 2026-10-28 and 2026-10-29, lane commit `bc76a8a` of
+[issue #105](https://github.com/ddinkov10/celetis/issues/105) passed its Verify phase with Claude
+Code 2.1.312 and codex-cli 0.165.0. The checks used the existing installations and sign-in,
+disposable fixture repositories, and a fake `gh`. No other product repository took part. The
+installed program and plugin stayed at `0a5d1f8`: Claude runs loaded the lane with `--plugin-dir`,
+and Codex prompts named the skill paths of the lane.
+
+| Check | Evidence and limit |
+|---|---|
+| V1 material | The Claude entry text of `/celetis:polishing-code-comments` is 65,044 bytes at `0a5d1f8` (the three host documents and the YAML) and 6,841 bytes on the lane (the facts block, the contract, the custom text, and the skill). The Codex entry reads fall from 31,352 to 9,889 bytes, the 19 `SKILL.md` files from 138,954 to 116,140 bytes, and the step text from 5,838 bytes to 2,339 bytes and a header of about 235 bytes |
+| V2, V7 on Claude | PASS: custom text, no config, no checkout, a denied read (a stop with no later tool call), a duplicate key, a symlink, a lane, a same-session handoff, an isolated child, and no hook. Also PASS: a custom line of 2,359 characters, and a new entry after `--resume`. No run read `docs/hosts/` or `docs/configuration.md`, or `.celetis.yaml` after entry |
+| V3, V7 on Codex | PASS: cases (a) to (i); case (i) used a `spawn_agent` child. The denial used a permission profile, and the model stopped from the permission text before a read. The first no-shell run FAILED: with the shell tools off, the model ran the reader CLI through the `node_repl` tool. The fix `bc76a8a` defines a shell as each tool that can start a process. With no such tool, the run stopped before entry, because no tool could read a file. So the rule-list path of "Entry without the hook" has no live Codex evidence |
+| V4 | PASS on both hosts: a triage step routed fixture issue #1 to `chore`, asked no question, started no lane, and read no host document, no `step-prompt.md`, and no `celetis` cache folder. `requireSameRevision` returned the root of `installation()` |
+| V5 | A plan step read `worktree.md` whole before `worktree` and `project-context.md` whole at its step, read no `landing.md` or `dispatch.md`, and put the line of `custom.plan` into the `## Plan` comment only when the entry was present. The oracle "`project-context.md` before the first `AGENTS.md` read" FAILED in both runs, because `worktree.md` tells the session to read the `AGENTS.md` files of the lane on entry, as the base entry text did. The build ruled this a defect of the oracle |
+| V6 | PASS on both hosts: the normal, stable-pair, and changed-pair tasks of #104, with the agent reading `docs/procedures/dispatch.md` whole. Each host had its follow-up tool, so no `unsupported` report ran |
+| V8 | PASS in 5 of 5 runs: the first acts read the skill and `docs/procedures/entry.md` before any answer text. One run read a host skill between the two reads |
+
+Entry does not stop on an invalid UTF-8 byte (Claude's `Read` gives U+FFFD) or on a BOM. The command
+reader still refuses both at each command. Each Codex run printed a parse error of `hooks/hooks.json`
+of the installed plugin (`unknown field 'modules'`), and the runs continued; #105 did not change
+that file. Open: an installed entry after `celetis update`, a runner step in herdr with the header,
+the Codex rule-list entry with a file reader and no process tool, and Windows. The issue comment
+"Acceptance evidence of #105" holds the scenario tables.
+
 **Native cache replacement follows the host.** The user chose terminal confirmation and updates
 with sessions left open (ADR-0028). Celetis no longer scans native processes or holds consumer
 admission for their lifetime. Updater serialization, exact-target application, source restoration,
@@ -1110,9 +1174,10 @@ remains unknown.
 
 Run repository checks in a checkout of `ddinkov10/celetis`. The verify gate is `scripts/verify.ts`.
 It classifies every tracked path, runs Biome and three strict type environments, native
-actionlint, YAML and plugin validation, and generated byte comparison, with modes on macOS and
-Linux. It installs nothing and refuses a tracked test file. Exact file roles distinguish
-generated delivery, unchanged vendor code and file exemptions.
+actionlint, YAML and plugin validation, the citation check of the skills, the modules, and the
+step text (`checkCitations`), and generated byte comparison, with modes on macOS and Linux. It
+installs nothing and refuses a tracked test file. Exact file roles distinguish generated
+delivery, unchanged vendor code and file exemptions.
 
 The workflow has one job, `test`, on Linux with Bun 1.4.4. It installs the pinned tools, then runs
 the verify gate. The private TypeScript installer checks the official actionlint hash

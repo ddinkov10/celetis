@@ -1,7 +1,7 @@
 import { constants } from 'node:fs';
 import { access, readFile, realpath, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { Config, Host } from './config.ts';
+import type { Config, Host } from './config-core.ts';
 import { codexHome } from './plugin-metadata.ts';
 import { childEnv, run } from './process.ts';
 

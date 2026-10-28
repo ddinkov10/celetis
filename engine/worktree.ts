@@ -1,6 +1,6 @@
 import { stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import type { Config } from './lib/config.ts';
+import type { Config } from './lib/config-core.ts';
 import { HostError, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';

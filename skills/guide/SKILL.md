@@ -5,11 +5,12 @@ argument-hint: [what you want to achieve]
 disable-model-invocation: true
 ---
 
-**Host entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in this loaded file's path. Read [the host operations](../../docs/hosts/entry.md) at `<plugin>/docs/hosts/entry.md` directly, before any product-path scan. The relative link starts in the absolute directory containing this SKILL.md. Complete its startup reads on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 If entry stops, report only the exact block and the required repair or access setup. End the turn without goal advice, including conditional commands.
 
-After Host entry succeeds, match the goal to a row. Give the selected host's skill prompt or command and one line on why it fits.
+After the entry succeeds, match the goal to a row. Give the selected host's skill prompt or command and one line on why it fits.
+When the advice quotes `board.port` or `gates`, get the value at that point from the reader CLI of the entry contract, run on the main checkout.
 Write each launcher recommendation as `celetis --agent claude <command>` or `celetis --agent codex <command>` for the running host, including commands for the person's terminal.
 Execute no recommended action and invoke no other skill. Goal: the invocation input.
 
@@ -27,7 +28,7 @@ Execute no recommended action and invoke no other skill. Goal: the invocation in
 | see each agent session and each issue's next step, and start a step | the board: `celetis --agent <host> board` in the main checkout, then `http://127.0.0.1:<port>`, with `board.port` in `.celetis.yaml` (`<plugin>/docs/celetis-flow.md`) |
 | run the next step of an issue in a fresh session, in your own terminal | `celetis --agent <host> celetis-flow <n>...` in a Terminal tab; each gate is `me` by default, so it runs one step of each issue and ends. With no number it runs only the steps that `gates.<step>: auto` in `.celetis.yaml` makes `auto`, so with the defaults it starts nothing (`<plugin>/docs/celetis-flow.md`) |
 | see an issue's next step without running it | `celetis --agent <host> next-step <#>`; `celetis --agent <host> next-step --open` lists each open issue |
-| open the session of a step again to diagnose it | the selected host's session-recovery command from the host operations, using the recorded session identity |
+| open the session of a step again to diagnose it | the selected host's session-recovery command of the entry contract, using the recorded session identity |
 | land a change whose landing stopped (`## Landing refused`) | the build step again, `/celetis:implement <#>` or `/celetis:chore <#>`: it lands the change and does not build it again |
 | score the current diff before asking for review | `/celetis:critic-loop` |
 | record a decision or a lesson | `/celetis:record-architecture-decisions`, `/celetis:lesson` |

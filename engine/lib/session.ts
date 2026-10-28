@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { codexRequest, commonDir, type Host, HostError } from './host.ts';
+import type { Config, Host } from './config-core.ts';
+import { codexRequest, commonDir, HostError } from './host.ts';
 import { run } from './process.ts';
 import { command, invocation, type Step, steps } from './workflow.ts';
 
@@ -215,20 +216,43 @@ export function reportedSessionId(reply: unknown): string {
   return object(identity) && typeof identity.value === 'string' ? identity.value : '';
 }
 
+export function stepHeader(facts: {
+  issue: number;
+  step: Step;
+  host: Host;
+  main: string;
+  pluginRoot: string;
+  landing: Config['landing'];
+}): string {
+  return [
+    'Celetis step session',
+    '- step session: yes',
+    `- issue: #${facts.issue}`,
+    `- step: ${facts.step}`,
+    `- host: ${facts.host}`,
+    `- main checkout: ${facts.main}`,
+    `- plugin root: ${facts.pluginRoot}`,
+    `- landing: ${facts.landing}`,
+  ].join('\n');
+}
+
 export async function hostArguments(
   host: Host,
   issue: number,
   step: Step,
   root: string,
   cwd: string,
+  facts: { pluginRoot: string; landing: Config['landing'] },
 ): Promise<string[]> {
+  const stepText = async () =>
+    `${stepHeader({ issue, step, host, main: cwd, ...facts })}\n\n${await readFile(join(root, 'step-prompt.md'), 'utf8')}`;
   if (host === 'claude')
     return [
       '--permission-mode',
       'auto',
       '-n',
       `#${issue} ${step}`,
-      ...(step === 'specify' ? [] : ['--append-system-prompt-file', join(root, 'step-prompt.md')]),
+      ...(step === 'specify' ? [] : ['--append-system-prompt', await stepText()]),
       invocation(step, issue),
     ];
   const args = ['--no-daemon'];
@@ -240,12 +264,12 @@ export async function hostArguments(
       !(config.developer_instructions == null || typeof config.developer_instructions === 'string')
     )
       throw new HostError('celetis-flow: cannot read the step instructions; start the runner again');
-    const stepText = await readFile(join(root, 'step-prompt.md'), 'utf8');
+    const text = await stepText();
     const existing = config.developer_instructions ?? '';
-    args.push('-c', `developer_instructions=${JSON.stringify(existing ? `${existing}\n\n${stepText}` : stepText)}`);
+    args.push('-c', `developer_instructions=${JSON.stringify(existing ? `${existing}\n\n${text}` : text)}`);
   }
   args.push(
-    `Use the celetis:${command(step)} skill for #${issue}. Complete its Host entry startup reads before any response, including commentary.`,
+    `Use the celetis:${command(step)} skill for #${issue}. Complete its Celetis entry before any response, including commentary.`,
   );
   return args;
 }

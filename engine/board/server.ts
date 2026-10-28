@@ -1,7 +1,7 @@
 import type { ExecFileOptions } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { Host } from '../lib/config.ts';
+import type { Host } from '../lib/config-core.ts';
 import type { Adapter } from './adapter.ts';
 import type { Board, Card, Diff, Document, Session } from './types.ts';
 

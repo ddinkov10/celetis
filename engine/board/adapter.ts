@@ -1,4 +1,4 @@
-import type { Host } from '../lib/config.ts';
+import type { Host } from '../lib/config-core.ts';
 import { type Program, readProgram } from '../lib/program.ts';
 import { selectSavedSession } from '../lib/session.ts';
 

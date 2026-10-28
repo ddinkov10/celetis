@@ -1,5 +1,6 @@
 import { join } from 'node:path';
-import { type Host, HostError, mainCheckout } from './host.ts';
+import type { Host } from './config-core.ts';
+import { HostError, mainCheckout } from './host.ts';
 import { codexHome, configHome, jsonFile, object } from './plugin-metadata.ts';
 import { run } from './process.ts';
 

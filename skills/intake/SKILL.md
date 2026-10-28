@@ -3,7 +3,7 @@ name: intake
 description: Use when a raw request arrives with no intent written — a pasted ticket, a one-line ask, a crash link, or any request that has not been intent-ified. Also use when the user says "just fix it" or "don't write a document" — these are signals the request has not passed through intake. Not when the issue already carries an intent or a lane label, or the user runs a typed lane directly (/celetis:bug, /celetis:hotfix, /celetis:feature, /celetis:chore).
 ---
 
-**Host entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in this loaded file's path. Read [the host operations](../../docs/hosts/entry.md) at `<plugin>/docs/hosts/entry.md` directly, before any product-path scan. The relative link starts in the absolute directory containing this SKILL.md. Complete its startup reads on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 # /celetis:intake — intent front door
 
@@ -21,38 +21,20 @@ line — never rewrite the reporter's body.
 ```
 Reads:   raw request (chat, pasted text, crash link) or an existing issue #<n>
 Writes:  the intent onto the issue (a new issue's body, or a `## Intent` comment)
-Stops:   when the human rejects the proposal
+Stops:   when the human rejects the proposal; in a step session, after the intent
 Never:   classify type, gate, write a spec, write code
 ```
 
 ## Step 1 — intent-ify
 
-Fill this template from the source. Never invent a solution — record the user's problem and
-wanted outcome in their own words.
-
-```markdown
-# Intent: <title>
-**Who:** <user type>
-**Problem:** <one paragraph, user's words, no solution>
-**Repro:** <every replication input the source gives — site URL, script URL, username, password, steps; "n/a" if none>
-**Done when:** <one observable outcome>
-**Not now:** <one line>
-**Source:** ticket / feedback / crash link
-```
-
-Per-type tweak, still one template:
-
-- **bug / hotfix** — `Problem` = impact (what broke, who is affected); `Repro` = every
-  replication input the source gives, verbatim.
-- **feature / chore** — `Repro` = "n/a".
-- **Vague ask** — when the user gives only a few words with no context ("improve X", "fix Y"),
-  quote the request verbatim and label the gaps: `Problem: "The user said: 'Make the dashboard
-  faster.' — no reproduction steps, impact, or desired outcome provided."` Do not invent
-  symptoms, root causes, or consequences the user did not state.
+Fill the template of `<plugin>/docs/procedures/intent.md` from the source, with its per-type
+rules.
 
 ## Step 2 — handoff question
 
 Read the intent back. Ask "proceed?". On no, stop. On yes, invoke `/celetis:triage #<n>`. Triage owns the type decision — intake never classifies.
+
+In a step session, ask nothing: stop after the intent is on the issue, and leave triage to the runner, which starts it in a fresh session.
 
 ## Rules
 
@@ -70,7 +52,7 @@ Intake fires BEFORE any other action on a raw request. These rules are absolute:
 - **Fill `Repro` completely.** The intent is the reproduction source of truth. Copy every
   replication input from the source into `Repro` — site URL, script URL, username, password,
   steps — verbatim.
-- **Stop at "proceed?".** After writing the intent, do nothing else. Ask the question. Wait.
+- **Stop at "proceed?".** After writing the intent, do nothing else. Ask the question. Wait. In a step session, stop after the intent (Step 2).
 
 ## Red Flags — STOP
 

@@ -1,5 +1,5 @@
 import { type Effort, type Pair, pairText, ScoreError, scoreLabel } from './capability.ts';
-import type { Host } from './config.ts';
+import type { Host } from './config-core.ts';
 
 export type Role = 'implementer' | 'reviewer';
 export type Action = 'spawn' | 'resume' | 'replace';

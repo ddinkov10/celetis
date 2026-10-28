@@ -1,9 +1,7 @@
 import { realpath } from 'node:fs/promises';
-import { bunFloor, type Host } from './config.ts';
+import { bunFloor, type Host } from './config-core.ts';
 import { claudeInstallation, codexHome, codexPlugin } from './plugin-metadata.ts';
 import { bunArgs, childEnv, run, updateDescriptor } from './process.ts';
-
-export type { Host } from './config.ts';
 
 export const updateHint = 'celetis: when a skill or a document gave this command, run celetis update';
 

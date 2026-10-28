@@ -4,24 +4,6 @@ Store Celetis setup in one regular, readable `.celetis.yaml` at the checkout roo
 not allowed. Do not search parent folders or combine files. Use one YAML 1.2 document with a
 mapping root. Comments are allowed. Put nothing after a `---` marker on its line.
 
-This repository uses:
-
-```yaml
-host: claude
-landing: merge
-suite: scripts/verify.ts
-gates:
-  triage: auto
-  specify: me
-  bug: auto
-  chore: auto
-  hotfix: auto
-  plan: auto
-  implement: auto
-board:
-  port: 4404
-```
-
 ## Fields and defaults
 
 | Field | Accepted value | Default when omitted |
@@ -111,17 +93,33 @@ are the checks of the PR.
 
 Use the main checkout for `host`, `landing`, `suite`, `gates`, `board`, and `codexProfiles`.
 Use the new lane checkout for setup. At each skill entry, use `custom.<skill>` from the active
-checkout. With no checkout or no config, optional skill entry has no custom addition.
-An existing invalid or unreadable config stops entry. A denied read has no alternate read path.
-Commands that need repository setup require a valid file.
+checkout ("Skill entry"). Commands that need repository setup require a valid file.
 
-Skill entry reads the whole file once through the running host's supported file access,
-then interprets this schema and applies only `custom.<skill>`. Keep the parsed string intact.
-Other custom strings and `worktreeSetup` remain data. Claude uses its native entry hook;
-Codex can use shell commands, dedicated readers, or supported runtime file APIs. Entry executes
-no setup. Codex can also use the existing configuration reader below. An ambiguous interpretation
-stops with the selected file and field. A file read alone is not a deterministic parser PASS. The shared
-[host entry](hosts/entry.md) owns the exact-once rule for handoffs and borrowed references.
+## Skill entry
+
+Each skill invocation is an entry of its own, also a same-session handoff and an invocation in a
+child agent. The entry reads the whole file of the active checkout once, through a
+permission-checked native read, and applies only `custom.<skill>`, with its parsed string intact.
+The string reaches only that invocation. Other custom strings and `worktreeSetup` remain data, and
+entry executes no setup. A runtime operation value never replaces the read (ADR-0032). With no
+checkout or no file, the entry has no custom addition. An existing invalid, ambiguous, unreadable,
+or symlink file stops the entry with the path and the field. A denied read stops the entry, and
+no other access follows.
+
+- **On Claude Code,** the native entry hook (`engine/hooks/entry.ts`) makes the read with `Read`.
+  It parses and validates the returned text with `parseConfigText` and `validateConfig`, the full
+  validation of the reader below, and puts the custom string into its facts block. The hook
+  parses text, not bytes: the byte checks of the reader, for example strict UTF-8, hold at each
+  command, which validates the file again before protected work.
+- **On Codex, and on Claude Code when the hook did not run,** the session follows "Entry without
+  the hook" of `docs/procedures/entry.md`. Codex with a shell runs the reader CLI below. Else the
+  session reads the file natively (Claude Code with `Read`, Codex with a dedicated reader or a
+  runtime file API) and applies a short rule list of that part, and the full validation comes with
+  the first command that needs the file.
+
+After the entry, a step that needs another value of the file reads it at that step through the
+reader CLI (`docs/procedures/entry.md`, "The contract"). `docs/hosts/claude-code.md` and
+`docs/hosts/codex.md` hold the integration facts of each host (ADR-0047).
 
 ## Validation and reader interface
 
@@ -132,13 +130,19 @@ tags can pass the parser check; the field schema then limits each value. Non-fin
 are not accepted. Script and instruction strings cannot contain NUL.
 Plain `yes` and `on` are strings under YAML 1.2.
 
-`engine/lib/config.ts` of the plugin owns byte access, parsing, validation, types, and diagnostics.
-Importing it starts no installation discovery or setup. `readConfigSource(CHECKOUT)` reads that
-checkout's `.celetis.yaml` once and checks its source structure. `configHost(source)` validates
-only the optional `host`; `validateHost(value)` defines accepted configuration hosts.
-`validateConfig(source)` checks the full schema and returns a deeply frozen `Config` without
-inserted defaults. `readConfig(CHECKOUT)` combines the source read and full validation.
-`ConfigError` names the field, and `formatConfigError` renders the selected path, field, and message.
+`engine/lib/config-core.ts` of the plugin owns parsing, validation, types, and diagnostics. It has
+no `node:` import and no `Bun` global, so the native entry hook bundles it.
+`parseConfigText(text)` checks the characters and the source structure of one text.
+`configHost(source)` validates only the optional `host`; `validateHost(value)` defines accepted
+configuration hosts. `validateConfig(source)` checks the full schema and returns a deeply frozen
+`Config` without inserted defaults. `ConfigError` names the field, and `formatConfigError` renders
+the selected path, field, and message.
+
+`engine/lib/config.ts` of the plugin owns byte access and the reader CLI. Importing it starts no
+installation discovery or setup. `readSnapshot(file)` reads the bytes of one regular file with no
+symlink. `readConfigSource(CHECKOUT)` checks the Bun floor, reads that checkout's `.celetis.yaml`
+once, decodes it as strict UTF-8, and parses it. `readConfig(CHECKOUT)` combines the source read
+and full validation.
 
 Both projections require safe file access, strict UTF-8, one mapping document, string keys,
 unique keys, supported tags, finite scalars, and no aliases or merge keys. Host selection does
@@ -204,7 +208,8 @@ reuse one source and one `Config`. A null config means that projection was not r
 Operations, checkout identities, selection inputs, and nested configuration values are frozen.
 Internal handlers receive them as arguments. They do not rediscover cwd or launch a reader or
 resolver command to obtain configuration. There is no global cache, environment snapshot, or
-generated product snapshot file. The reader CLI remains for the project verify gate.
+generated product snapshot file. The reader CLI remains for skill entry without the hook, for a
+step that needs a value of the file, and for the verify gate of this repository.
 
 | Fresh boundary | Values used within the boundary |
 | --- | --- |
@@ -217,8 +222,8 @@ generated product snapshot file. The reader CLI remains for the project verify g
 | Landing start and protected actions after asynchronous work | Fresh policy and repository preflight before push, PR creation, check rerun, or merge |
 
 The board port stays fixed at startup until restart. A changed default host applies to the next
-new session; exact Resume retains its saved host and ID. First entry into a different skill is a
-native boundary under [Host entry](hosts/entry.md), independent of runtime operations.
+new session; exact Resume retains its saved host and ID. Each skill entry is a native boundary of
+its own ("Skill entry"), independent of runtime operations.
 
 Landing keeps the mechanism selected at its start. If the mechanism changed, it stops and
 requires a new invocation. Invalid fresh configuration also stops it. Preflight rechecks checkout,

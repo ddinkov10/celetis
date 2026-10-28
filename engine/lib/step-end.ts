@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { Host } from './config.ts';
+import type { Host } from './config-core.ts';
 import { commonDir } from './host.ts';
 import { processRuns, processRunsScript, processStart } from './process-identity.ts';
 

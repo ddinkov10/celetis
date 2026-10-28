@@ -1,14 +1,15 @@
 import { realpath } from 'node:fs/promises';
+import { readConfigSource } from './config.ts';
 import {
   type Config,
   ConfigError,
   type ConfigSource,
   configHost,
   formatConfigError,
-  readConfigSource,
+  type Host,
   validateConfig,
-} from './config.ts';
-import { type Host, HostError, mainCheckout, selectHost } from './host.ts';
+} from './config-core.ts';
+import { HostError, mainCheckout, selectHost } from './host.ts';
 import { run } from './process.ts';
 
 export type CheckoutIdentity = Readonly<{

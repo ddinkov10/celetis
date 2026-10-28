@@ -1,5 +1,5 @@
 import { readFile, realpath } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, join, posix } from 'node:path';
 import { HostError } from '../engine/lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
 import { type Job, printJobs, runJobs } from '../engine/lib/parallel.ts';
@@ -50,6 +50,49 @@ export function classify(path: string, source: Buffer): string {
   throw new Error(`verify: no check for ${path}: add a row or an exemption in scripts/verify.ts`);
 }
 
+const pluginCitation = /<plugin>\/([A-Za-z0-9._/-]+)(?![A-Za-z0-9._/<>*{-])/g;
+const relativeLink = /\]\(([^)\s]+)\)/g;
+
+export function checkCitations(files: ReadonlyMap<string, string>): string[] {
+  const checked = [...files].filter(
+    ([path]) =>
+      /^skills\/.+\.md$/.test(path) || /^docs\/procedures\/[^/]+\.md$/.test(path) || path === 'step-prompt.md',
+  );
+  const errors: string[] = [];
+  const cited = new Map<string, Set<string>>();
+  for (const [file, text] of checked) {
+    const targets = new Set<string>();
+    for (const [, path = ''] of text.matchAll(pluginCitation)) {
+      const target = path.replace(/\.$/, '');
+      targets.add(target);
+      if (!files.has(target)) errors.push(`verify: citation: ${file}: <plugin>/${target} is not a tracked file`);
+    }
+    for (const [, link = ''] of text.matchAll(relativeLink)) {
+      if (link.startsWith('#') || /^[a-z][a-z0-9+.-]*:/i.test(link) || /[<{*]/.test(link)) continue;
+      const [target = ''] = link.split('#');
+      const resolved = posix.join(posix.dirname(file), target);
+      targets.add(resolved);
+      if (!files.has(resolved)) errors.push(`verify: citation: ${file}: ${target} is not a tracked file`);
+    }
+    cited.set(file, targets);
+  }
+  for (const [file, text] of files)
+    if (/^(?:skills|docs\/procedures)\//.test(file) && text.includes('docs/hosts/'))
+      errors.push(`verify: host reference: ${file} cites docs/hosts/`);
+  for (const [module] of checked) {
+    if (!/^docs\/procedures\/[^/]+\.md$/.test(module)) continue;
+    const citers = checked.filter(([file]) => file !== module && cited.get(file)?.has(module)).length;
+    if (citers < 2) errors.push(`verify: module: ${module} is cited by ${citers} files; need 2`);
+  }
+  const entryLine = /^## The entry line\n\n([^\n]+)/m.exec(files.get('docs/procedures/entry.md') ?? '')?.[1];
+  for (const [file, text] of checked) {
+    if (!/^skills\/[^/]+\/SKILL\.md$/.test(file)) continue;
+    const count = entryLine ? text.split(entryLine).length - 1 : 0;
+    if (count !== 1) errors.push(`verify: entry line: ${file}: need the entry line of docs/procedures/entry.md once`);
+  }
+  return errors;
+}
+
 export async function main(argv: string[]): Promise<number> {
   try {
     const { args, explicit } = commandInput(argv);
@@ -98,10 +141,13 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
     const files = listed.stdout.split('\0').filter(Boolean);
     const biome: string[] = [];
     const workflows: string[] = [];
+    const texts = new Map<string, string>();
     let unknown = false;
     for (const path of files) {
       try {
-        const role = classify(path, await readFile(path));
+        const source = await readFile(path);
+        texts.set(path, source.toString('utf8'));
+        const role = classify(path, source);
         if (['biome', 'typescript'].includes(role)) biome.push(path);
         if (role === 'workflow') workflows.push(path);
       } catch (error) {
@@ -109,7 +155,9 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
         unknown = true;
       }
     }
-    if (unknown) return 1;
+    const citations = checkCitations(texts);
+    for (const line of citations) console.error(line);
+    if (unknown || citations.length) return 1;
     const vendor = await readFile('engine/lib/vendor/yaml.mjs');
     if (
       new Bun.CryptoHasher('sha256').update(vendor).digest('hex') !==

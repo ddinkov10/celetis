@@ -4,7 +4,8 @@ import { access, lstat, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'no
 import { constants, tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { type Config, ConfigError, formatConfigError, readConfig } from './lib/config.ts';
+import { readConfig } from './lib/config.ts';
+import { type Config, ConfigError, formatConfigError } from './lib/config-core.ts';
 import { HostError, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';

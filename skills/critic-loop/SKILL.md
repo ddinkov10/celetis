@@ -3,7 +3,7 @@ name: critic-loop
 description: Standalone scored quality review of the current result — auto-detects a branch diff (vs merge-base) or the uncommitted working diff, scores it 0-10 across five perspectives, and iterates (fix + re-score) until the threshold. Use when the user runs /celetis:critic-loop or asks to score or critique the current work.
 ---
 
-**Host entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in this loaded file's path. Read [the host operations](../../docs/hosts/entry.md) at `<plugin>/docs/hosts/entry.md` directly, before any product-path scan. The relative link starts in the absolute directory containing this SKILL.md. Complete its startup reads on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 # /celetis:critic-loop — scored iterative critic loop
 
@@ -41,19 +41,19 @@ Every finding carries a severity and a `file:line`, and names its perspective.
 
 ## 3. Dispatch the critic
 
-Score the review with `celetis --agent <host> capscore J V B N S X --reviewer --json` and dispatch a
-fresh reviewer through the host operations, applying both fields of its resolved pair and
-putting its CAP line first. Inputs: the exact checkout and relevant project instructions, the diff file, the rubric above, the
-Contracts-lens rule. The critic returns ONLY: a per-perspective score, the total, findings
-(Critical/Important/Minor), and a PASS/FAIL verdict against the threshold. The critic never spawns
-subagents and never fixes anything.
+Dispatch a fresh reviewer per `<plugin>/docs/procedures/dispatch.md`, "One child", scored as a
+review with `celetis --agent <host> capscore J V B N S X --reviewer --json`. Its brief also holds
+the diff file, the rubric above, and the Contracts-lens rule. The critic returns ONLY: a
+per-perspective score, the total, findings (Critical/Important/Minor), and a PASS/FAIL verdict
+against the threshold. The critic never spawns subagents and never fixes anything.
 
 ## 4. Iterate until threshold
 
 - PASS → report the score and stop.
-- First FAIL → dispatch a fresh **fixer** subagent with the Critical and Important findings verbatim and
-  the diff path. Score the fix with `celetis --agent <host> capscore J V B N S X` (`<plugin>/docs/capability.md`)
-  and apply the resolved pair through the host operations with the CAP line first in its isolated brief. Include the exact checkout and project instructions. The fixer fixes, re-runs the covering tests, and commits.
+- First FAIL → dispatch a fresh **fixer** subagent per `<plugin>/docs/procedures/dispatch.md`, "One child",
+  scored for the fix with `celetis --agent <host> capscore J V B N S X --json`. Its brief also holds
+  the Critical and Important findings verbatim and the diff path. The fixer fixes, re-runs the
+  covering tests, and commits.
 - Resume the same critic for a scoped re-review: verdict each finding ADDRESSED or NOT ADDRESSED, re-score the five
   perspectives, flag new breakage. New Critical or Important findings join the open list.
 - Rounds 1-3 resume the same fixer; rounds 4-5 dispatch a fresh fixer on a more capable tier (resolve the original fix score with `--attempt 3` and its explicit bias); round 5

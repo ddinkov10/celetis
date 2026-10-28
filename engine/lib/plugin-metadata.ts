@@ -3,7 +3,8 @@ import { lstat, readdir, readFile, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, isAbsolute, join, relative, sep } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { codexRequest, type Host, HostError, mainCheckout, NotInstalled } from './host.ts';
+import type { Host } from './config-core.ts';
+import { codexRequest, HostError, mainCheckout, NotInstalled } from './host.ts';
 import { childEnv, run, updateDescriptor } from './process.ts';
 
 export const revision = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;

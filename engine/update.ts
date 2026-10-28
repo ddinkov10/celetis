@@ -3,7 +3,8 @@ import { lstat, mkdir, mkdtemp, open, realpath, rename, rm, stat, writeFile } fr
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { codexRequest, type Host, HostError, installedRoot, NotInstalled, requireBun, updateHint } from './lib/host.ts';
+import type { Host } from './lib/config-core.ts';
+import { codexRequest, HostError, installedRoot, NotInstalled, requireBun, updateHint } from './lib/host.ts';
 import { commandInput } from './lib/operation.ts';
 import {
   bindUpdateHome,
@@ -568,12 +569,13 @@ function line(part: Part): string {
   return `  ${part.part}  ${short(part.installed)} -> ${short(part.target)}`;
 }
 
-export async function requireSameRevision(host: Host, cwd: string, root: string): Promise<void> {
+export async function requireSameRevision(host: Host, cwd: string, root: string): Promise<string> {
   const name = host === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'CODEX_HOME';
   const selected = process.env[name];
   let installed: string;
+  let plugin: string;
   try {
-    ({ installed } = await withPluginRead(host, () => installation(host, cwd)));
+    ({ installed, root: plugin } = await withPluginRead(host, () => installation(host, cwd)));
   } finally {
     // bindUpdateHome sets this variable, and a set CLAUDE_CONFIG_DIR makes a step session read another login.
     if (selected === undefined) delete process.env[name];
@@ -584,6 +586,7 @@ export async function requireSameRevision(host: Host, cwd: string, root: string)
     throw new HostError(
       `celetis: the ${host} plugin is at ${short(installed)} and this program is at ${short(program)}; run celetis update, then start the runner again`,
     );
+  return plugin;
 }
 
 export async function update(found: Part[]): Promise<number> {

@@ -4,7 +4,17 @@ A UI prototype answers a look decision with **live variants**. Each variant is a
 built on the real screen. The user uses each variant in each state, at each size of the platform
 row, before the pick. The captures of the variants go on the issue and stay after the landing.
 
-If the question is about logic or a state model, this is the wrong branch. Use [LOGIC.md](LOGIC.md).
+If the question is about logic or a state model, this is the wrong branch. Use `<plugin>/skills/prototype/LOGIC.md`.
+
+## Contents
+
+- **The look decision:** what a look decision and a state are, and which steps build variants.
+- **The platform rows:** the live use, the switches, the sizes, and the capture of each kind.
+- **Where the variants live:** the prototype checkout, and the two sub-shapes.
+- **The procedure:** the ten steps, from the list of states to the cleanup.
+- **Captures:** the tools check, the file, the look before the post, and the post.
+- **A direct run:** a run of `/celetis:prototype` with no issue.
+- **Anti-patterns:** the results that fail a prototype.
 
 ## The look decision
 
@@ -75,7 +85,7 @@ Do the steps in this order. The build of the variants starts after step 2.
    correction. After an opt-out of the questions in `specify`, the list and the row are marked
    assumptions, and the step goes on with no wait.
 2. **The research.** In `specify` or `bug`, add the guidelines of the platform to the
-   `## Prior art` section that the step wrote (`<plugin>/docs/prior-art.md`, "What to find"), with
+   `## Prior art` section that the step wrote (`<plugin>/docs/procedures/prior-art.md`, "What to find"), with
    no second search for the same problem. For a look decision of a new problem, add its findings to the same
    section. Each variant follows a pattern that the research found. When the research found none,
    the variant says so and names the source of its idea.
@@ -145,8 +155,8 @@ no variants.
   browser, the simulator or the emulator, the app, or VHS.
 
 A failed check stops the step before the build. The stop names the update of `gh` or the setup of
-the tool. There is no fallback: the captures go only on the issue. In a step session, rule 4 of
-`step-prompt.md` of the plugin `celetis` hands the stop to the issue.
+the tool. There is no fallback: the captures go only on the issue. In a step session, hand the
+stop to the issue by `<plugin>/docs/procedures/stop.md`, "A stop in a step session".
 
 **The file.** Name a capture `<variant>-<state>-<size>.png`, or `.gif`, for example
 `B-empty-375x812.png`. Put it in `docs/superpowers/captures/` of the checkout that took it. Its
@@ -181,7 +191,7 @@ comments. `gh` prints the URL of each comment. Keep it for the hand-over and the
 A run of `/celetis:prototype` with no issue does steps 1 to 6, the captures of step 7, and step 8.
 
 - The tools check checks only the capture tool.
-- The research of step 2 follows `<plugin>/docs/prior-art.md`. Its findings go in the hand-over.
+- The research of step 2 follows `<plugin>/docs/procedures/prior-art.md`. Its findings go in the hand-over.
 - The prototype checkout is `<main>/.claude/worktrees/prototype-<slug>` on the branch
   `prototype/<slug>`. `<main>` is the main checkout.
 - Commit the variants on `prototype/<slug>` before the hand-over.

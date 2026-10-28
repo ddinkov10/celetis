@@ -31,8 +31,8 @@ versions and the changelog between them.
 3. The selected host's web search and fetch tools on primary sources: the official docs, changelogs, release notes,
    and the source repository.
 
-Discover deferred Context7 and web tools through the selected [host operations](hosts/entry.md)
-before their first call; use only the tools actually available on that host.
+Discover deferred Context7 and web tools before their first call; use only the tools that the
+host has.
 
 ## Record
 

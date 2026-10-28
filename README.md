@@ -18,12 +18,14 @@ The repository holds:
 - the scripts: the runner, the resolver, the landing script, the worktree script, the setup
   script, and the capability scorer ("The commands");
 - the step text of the runner, `step-prompt.md`;
-- the documents that the skills cite, in `docs/`.
+- the modules, in `docs/procedures/`: the shared procedures that a step of a skill reads when it
+  comes ("The skills");
+- the maintainer documents, in `docs/`.
 
 The repository reaches a machine in two forms, at one revision. The program `celetis` runs each
-command, also the runner and the board, and the runner gives each step session the step text of
-the program ("First install"). The plugin of each host gives its sessions the skills, the entry
-hook, and the documents.
+command, also the runner and the board, and the runner gives each step session a facts header and
+the step text of the program ("First install"). The plugin of each host gives its sessions the
+skills, the modules, the entry hook, and the documents.
 
 There are two kinds of repository:
 
@@ -49,8 +51,11 @@ names a role, for example "the verify gate of the project", and the product proj
 thing. A lane ends when the change is on the trunk, which is the default branch of the repository
 on GitHub: the verify gate, the deployment, and each other part of a product stay in the product
 project. The plugin has no `version` or declared dependency. The entry of the program is the file
-`celetis`, and its runtime is `engine/`. Shared permissions restrict direct merges. Personal host rules allow landing. Its Claude native hook completes file entry before skill expansion.
-Codex declares no Celetis lifecycle hooks and uses the shared skill entry instructions.
+`celetis`, and its runtime is `engine/`. Shared permissions restrict direct merges. Personal host rules allow landing.
+Each skill starts with one entry line. On Claude Code, the native hook of the plugin replaces that
+line with a short facts block: the host, the plugin folder, the checkout, the contract of the
+entry, and the custom text of the skill. Codex declares no Celetis lifecycle hooks: its session
+reads the entry module `docs/procedures/entry.md`. ADR-0047 records the entry and the modules.
 ADR-0042 owns the program, its install, and its update. ADR-0012 holds the original packaging decision; ADR-0014 extends it to both hosts without a
 second copy of the procedures. ADR-0015 replaces their config storage clauses with one YAML file.
 ADR-0016 limits required automation to the CLI hosts while keeping desktop invocation available.
@@ -67,7 +72,8 @@ controls and applies only that skill's custom text.
   their checks ([Acceptance status](docs/celetis-flow.md#acceptance-status)).
 - The selected host CLI: Claude Code 2.1.299 or later, or Codex CLI 0.162.1 or later. The Claude
   entry hook reads the `skill.prompt` fields `source`, `pluginName`, and `path`, which came in
-  2.1.299; an older release stops each skill for hook setup. Codex 0.162.1 is the lowest release
+  2.1.299. On an older release, the hook makes no entry, and the session takes "Entry without the
+  hook" of `docs/procedures/entry.md`, as on Codex. Codex 0.162.1 is the lowest release
   on which the install, the refresh, and the lookup of the plugin were checked; an older release
   is not supported. These versions are a floor, not proof of the full workflow
   ([Acceptance status](docs/celetis-flow.md#acceptance-status)).
@@ -79,7 +85,7 @@ controls and applies only that skill's custom text.
   install and `celetis update` read it through its https URL.
 - Superpowers, installed and enabled on the selected host: the lanes call its `superpowers:*` skills.
 - For a look decision and a visual bug: `gh` 2.99.0 or later on github.com, and the capture tool of
-  the platform row (`skills/prototype/UI.md`, "Captures").
+  the platform row (`docs/procedures/ui.md`, "Captures").
 - herdr 0.9.3, for the step end of the runner and for the board. In another terminal the
   runner works too, but you leave each session with `/exit`.
 - For the board: a Chromium browser.
@@ -341,10 +347,10 @@ its name. The rules pin no Bun: the entry of the program finds `bun` on `PATH`, 
 
 The rule of `issue` is optional. The path for `issue` is the review of the host: in the checks of
 #103, Claude in auto mode ran it with no rule, and a Codex sandbox block of `issue` goes through
-the approval procedure of `docs/hosts/codex.md`. The risk of the rule: an allow rule skips the
-review of the host for each `issue` call, and each act with a file posts the text of a path that
-the session names, so a session can post any file that it can read (for example a token file) on
-the issue. Text from an issue can steer a session. Add the rule only when the host cannot run
+the approval procedure of `docs/procedures/entry.md`, "The contract", "Codex". The risk of the
+rule: an allow rule skips the review of the host for each `issue` call, and each act with a file
+posts the text of a path that the session names, so a session can post any file that it can read
+(for example a token file) on the issue. Text from an issue can steer a session. Add the rule only when the host cannot run
 `issue` through its review, for example Codex with the approval policy `never`. Its forms are
 `Bash(celetis --agent claude issue *)` and
 `prefix_rule(pattern=["celetis", "--agent", "codex", "issue"], decision="allow")`, in the files of
@@ -450,17 +456,22 @@ changes no field that is there. Each other field stays by hand.
   a script that a merge of the trunk brings runs at the next entry. A lane that has a marker keeps
   it; `celetis --agent <host> setup lane <path>` runs the script there. Every entry still checks the lane
   config (`docs/celetis-flow.md`).
-- **A custom part** is the parsed string `custom.<skill>` in `.celetis.yaml`. At entry, the
-  skill reads the whole config once from the active checkout through supported host file access and
-  applies only its own string (ADR-0013 and ADR-0015). Claude uses its native entry hook; Codex can
-  use shell commands, dedicated readers, or runtime file APIs and the existing config reader.
-  Entry runs no setup. A runner step starts in the main checkout; a later skill entered in a lane reads that lane's config.
-  A same-session handoff or first borrowed reference creates its own entry. Later sections
-  reuse that entry. Missing checkout, config, or custom text gives no addition; an invalid,
-  ambiguous, unreadable, or denied config stops entry. A denied read has no alternate path.
-  The text is an addition: it cannot remove a rule of the general skill (ADR-0006).
-  `custom.hotfix` holds the project's ship acts, and `custom.lesson` holds its tags. Keep
-  literal block text and parsed trailing newlines intact (`docs/configuration.md`).
+- **A custom part** is the parsed string `custom.<skill>` in `.celetis.yaml`: an addition to that
+  one skill, which reaches only its own invocation. `chore` does not apply `custom.implement`, and
+  `lesson-review` does not apply `custom.lesson`. A product fact that two or more skills need, for
+  example a landing rule that both `implement` and `chore` follow, or the lesson tags of the
+  project, goes into the `AGENTS.md` of the project ("`AGENTS.md`"). At entry, the skill reads the
+  whole config once from the active checkout through the permission-checked file access of the host
+  and applies only its own string (ADR-0013, ADR-0015, and ADR-0047). On Claude, the native entry
+  hook makes that read, parses the file, and puts the string into its facts block. On Codex, the
+  session follows "Entry without the hook" of `docs/procedures/entry.md`: with a shell it runs the
+  config reader, else it reads the file with a dedicated reader. Entry runs no setup. A runner step
+  starts in the main checkout; a later skill entered in a lane reads that lane's config. Each
+  invocation is its own entry, also a same-session handoff and an invocation in a child agent.
+  Missing checkout, config, or custom text gives no addition; an invalid, ambiguous, unreadable,
+  or denied config stops entry. A denied read has no alternate path. The text is an addition: it
+  cannot remove a rule of the general skill (ADR-0006). `custom.hotfix` holds the project's ship
+  acts. Keep literal block text and parsed trailing newlines intact (`docs/configuration.md`).
 
 `docs/celetis-flow.md` holds these parts in full ("Gates", and "The config and the custom parts").
 
@@ -513,11 +524,12 @@ The plugin names a role, and the `AGENTS.md` of the project names the thing. It 
 | What `AGENTS.md` names | Who reads it |
 |---|---|
 | **The verify gate:** the one fast deterministic check of a change (lint, format, syntax, and config checks, with no test run), and how to read its result | `plan`, `implement`, `chore`, `hotfix`, and `guide` say "the verify gate of the project", and `celetis --agent <host> land` names it in a refusal |
-| **The full suite** is no line of `AGENTS.md`: with the landing `merge`, `suite` in `.celetis.yaml` names the file that runs each test, and `land` runs it at the tip that it lands. With the landing `pr`, the CI of the lane PR runs it | `land`, which `implement` (Land step 3), `chore`, and `hotfix` run |
+| **The full suite** is no line of `AGENTS.md`: with the landing `merge`, `suite` in `.celetis.yaml` names the file that runs each test, and `land` runs it at the tip that it lands. With the landing `pr`, the CI of the lane PR runs it | `land`, which `implement`, `chore`, and `hotfix` run (`docs/procedures/landing.md`, "Step 3: the landing") |
 | **The architecture and the traps:** the shape of the project in the root file, and the traps of each subsystem in the `AGENTS.md` of its folder. They are the domain knowledge: the plugin has no domain skill (ADR-0006) | `specify`, `bug`, `hotfix`, `plan`, `chore`, and `critic-loop` |
-| **The design document and the look decision,** in a project with a UI: the document that holds the design rules, the kind of the product and each difference from its default row in `skills/prototype/UI.md`, and how a session starts the product with live data for the variants. A look decision is each change to what a person sees on screen or to how the screen behaves | `prototype` (`skills/prototype/UI.md`), which `specify` and `bug` follow; the two items "Prototype" of `docs/issue-tracker.md`, in "What lives on the issue" and in "Branches, PRs, merge" |
-| **The installed version of a dependency:** how a session reads it, and the documents that an installed package ships | `docs/docs-lookup.md`, which `specify`, `plan`, `bug`, `hotfix`, and `chore` cite |
-| **The celetis flow of the project:** what a session must know of the lanes there, for example that the lanes are the plugin `celetis`, the landing mechanism, and the acts that only the maintainer does. It also holds two rules of the harness, "A lane never skips a step." and "The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.", because a session reads `AGENTS.md` at its start and reads a document of the plugin only when a skill cites it | Each session, also a step session |
+| **The design document and the look decision,** in a project with a UI: the document that holds the design rules, the kind of the product and each difference from its default row in `docs/procedures/ui.md`, and how a session starts the product with live data for the variants. A look decision is each change to what a person sees on screen or to how the screen behaves | `prototype` (`docs/procedures/ui.md`), which `specify` and `bug` follow; the two items "Prototype" of `docs/issue-tracker.md`, in "What lives on the issue" and in "Branches, PRs, merge" |
+| **The installed version of a dependency:** how a session reads it, and the documents that an installed package ships | `docs/procedures/docs-lookup.md`, which `specify`, `plan`, `bug`, `hotfix`, and `chore` cite |
+| **The lesson tags:** the tags of the project, for example the names of its subsystems and technologies, that a lesson can carry beside the controlled list of the plugin. A new tag goes here in the same change as its lesson | `lesson` and `lesson-review` (`docs/procedures/lesson-format.md`, "The Tag Vocabulary") |
+| **The celetis flow of the project:** what a session must know of the lanes there, for example that the lanes are the plugin `celetis`, the landing mechanism, a landing rule that both `implement` and `chore` follow, and the acts that only the maintainer does. It also holds two rules of the harness, "A lane never skips a step." and "The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.", because a session reads `AGENTS.md` at its start and reads a document of the plugin only when a skill cites it | Each session, also a step session |
 
 Setup writes the celetis flow part as the section `## Celetis flow`, with these four lines.
 `<owner>/<repo>` is the repository on GitHub:
@@ -632,7 +644,7 @@ has each step.
 **In a session by hand.** Start the selected host in the main checkout of the product project.
 In a terminal, start Codex with `codex --no-daemon` so its hooks use the current pane's environment.
 The table uses Claude's `/celetis:<skill> <input>` form. In Codex CLI or a desktop chat, use the
-advertised skill name: `Use the celetis:<skill> skill for <input>. Complete its Host entry startup reads before any response, including commentary.`, or select that skill in the
+advertised skill name: `Use the celetis:<skill> skill for <input>. Complete its Celetis entry before any response, including commentary.`, or select that skill in the
 host's skill selector. Native desktop selector acceptance is optional under
 [Acceptance status](docs/celetis-flow.md#acceptance-status).
 
@@ -680,9 +692,12 @@ new interactive session, in the terminal tab where you start it. For each step, 
    the command of the step, for example `run /celetis:plan #<n>`, or a `stop` line with the reason;
 2. checks that the version folder of its program still has its files, and that the plugin of the
    session's host is at the revision of the program ("Updates");
-3. starts the selected interactive CLI in the main checkout with the host's skill prompt and
-   step text. Claude uses `--permission-mode auto` and an appended system-prompt file. Codex
-   uses `--no-daemon`, keeps its configured permissions, and appends the step text to effective `developer_instructions`;
+3. starts the selected interactive CLI in the main checkout with the host's skill prompt, a
+   facts header (the issue, the step, the host, the main checkout, the plugin folder, and the
+   landing mechanism), and the step text. Claude uses `--permission-mode auto` and gets the header
+   and the step text through `--append-system-prompt`. Codex uses `--no-daemon`, keeps its
+   configured permissions, and appends the header and the step text to effective
+   `developer_instructions`;
 4. in a herdr pane, ends the session when the issue shows that the step is done.
 
 The runner starts at an issue: write one with `/celetis:intake`, or open one on GitHub. Then, for
@@ -734,15 +749,20 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | | [`/celetis:guide`](skills/guide/SKILL.md) | Says which command fits a goal. Only you can start it |
 | | [`/celetis:setup`](skills/setup/SKILL.md) | Proposes and tests the worktree setup of a product project, writes the wiring in its main checkout, and commits and pushes the wiring after your yes. Only you can start it |
 
-Three documents of the plugin are not skills: `docs/capability.md`, the rubric of the capability
-score; `docs/docs-lookup.md`, the lookup of the external facts; and `docs/prior-art.md`, the
-research of the prior art of a design.
+A skill holds only its own steps and judgment. Each procedure that two or more skills, or a skill
+and the step text, need is a module in `docs/procedures/`, for example the entry (`entry.md`), the
+lane worktree (`worktree.md`), the child dispatch (`dispatch.md`), the landing (`landing.md`), and
+the lookup of the external facts (`docs-lookup.md`). A module is a plain document, not a skill: a
+step of a skill names it, and the session reads it whole when the step comes. The Claude Code and
+Codex lines of an operation are in its module. `docs/capability.md`, the rubric of the capability
+score, and the other documents of `docs/` are maintainer references. The `AGENTS.md` of this
+repository, "Where agent text lives", gives the placement rule (ADR-0047).
 
 `guide` and `setup` are explicit-only on both hosts. Claude reads `disable-model-invocation: true`;
 Codex reads `policy.allow_implicit_invocation: false` in `skills/guide/agents/openai.yaml` and
-`skills/setup/agents/openai.yaml`. Their shared entry also requires a human invocation. Guide
-reads its custom part and gives advice; it starts no workflow command. Setup runs
-`celetis --agent <host> setup` in the main checkout, and it enters no lane worktree.
+`skills/setup/agents/openai.yaml`. Guide reads its custom part and gives advice; it starts no
+workflow command. Setup runs `celetis --agent <host> setup` in the main checkout, and it enters no
+lane worktree.
 
 ## The commands
 
@@ -989,15 +1009,17 @@ Run the checks in a checkout of this repository. No check needs model credential
 
 - **The verify gate** is `scripts/verify.ts`. It classifies every tracked path, runs Biome on
   authored TypeScript, JSON and CSS, checks strict runtime/browser/native types, runs native
-  actionlint, validates YAML and the plugin, and compares generated bytes, and modes on macOS and
-  Linux, without writes. It refuses a tracked test file. Generated JavaScript, unchanged vendor
+  actionlint, validates YAML and the plugin, checks the citations of the skills, the modules, and
+  the step text (`checkCitations`), and compares generated bytes, and modes on macOS and Linux,
+  without writes. It refuses a tracked test file. Generated JavaScript, unchanged vendor
   sources, and other file exemptions have exact paths and roles. A new unexplained path fails.
   Checks use bounded workers and install nothing. The last line is `verify: PASS`.
 - **Build delivery** with exactly Bun 1.4.4. `scripts/build.ts` generates the program entry
   `celetis`, the browser modules, the native hook modules, and the help block of "The commands"
-  from `engine/lib/help.ts`. `scripts/build.ts --check` fails on changed bytes, or on changed modes
-  on macOS and Linux, and writes nothing. Both modes fail when a command of the help list has no
-  file `engine/<name>.ts`. Users run no build
+  from `engine/lib/help.ts`. `engine/hooks/entry.js` embeds `docs/procedures/entry.md`, so an edit
+  of that Markdown file needs a run of `scripts/build.ts`. `scripts/build.ts --check` fails on
+  changed bytes, or on changed modes on macOS and Linux, and writes nothing. Both modes fail when a
+  command of the help list has no file `engine/<name>.ts`. Users run no build
   and install no package dependency; each machine installs the program one time ("First install").
 - **The workflow** has one job, `test`, on Linux with Bun 1.4.4. It installs the pinned tools,
   then runs the verify gate.

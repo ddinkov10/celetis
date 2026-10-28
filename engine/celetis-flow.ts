@@ -3,8 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { constants } from 'node:os';
 import { dirname, join } from 'node:path';
-import type { Config } from './lib/config.ts';
-import type { Host } from './lib/host.ts';
+import type { Config, Host } from './lib/config-core.ts';
 import type { LockOwner } from './lib/locks.ts';
 import type { Operation } from './lib/operation.ts';
 import type { SessionRecord } from './lib/session.ts';
@@ -21,6 +20,7 @@ const required = [
   '../celetis',
   'launcher.ts',
   'lib/help.ts',
+  'lib/config-core.ts',
   'lib/config.ts',
   'lib/host.ts',
   'lib/locks.ts',
@@ -53,6 +53,7 @@ function parsed(source: string): unknown {
 
 export async function main(argv: string[]): Promise<number> {
   const unavailable = await gone([
+    'lib/config-core.ts',
     'lib/config.ts',
     'lib/host.ts',
     'lib/locks.ts',
@@ -412,7 +413,7 @@ export async function main(argv: string[]): Promise<number> {
           say(`the gate of ${step} is me: celetis --agent <host> celetis-flow ${n} starts ${prompt}`);
           break;
         }
-        await (await import('./update.ts')).requireSameRevision(stepHost, main, root);
+        const pluginRoot = await (await import('./update.ts')).requireSameRevision(stepHost, main, root);
         first = 'gated';
         say(`start: ${prompt}`);
         started = true;
@@ -420,7 +421,10 @@ export async function main(argv: string[]): Promise<number> {
           say(`#${n}: ${removed}`);
           break;
         }
-        const args = await hostArguments(stepHost, Number(n), step, root, main);
+        const args = await hostArguments(stepHost, Number(n), step, root, main, {
+          pluginRoot,
+          landing: config.landing,
+        });
         const announced = managed && stepHost === 'claude' ? randomUUID() : '';
         const record: SessionRecord = {
           schema: 1,

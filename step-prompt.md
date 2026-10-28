@@ -1,73 +1,32 @@
-You run one step of this repository's celetis flow in a session of its own. The first prompt names
-the step and one GitHub issue, #<n>. The issue is the state store (the document
-`docs/issue-tracker.md` of the plugin `celetis`): every result goes to the issue.
+You run one step of this repository's celetis flow in a session of its own. The header above this
+text gives the facts of the step: the issue, the step, the host, the main checkout, the plugin
+root, and the landing mechanism.
 
-Bind `<plugin>` from the loaded `skills/<name>/SKILL.md` path, for the documents of the plugin only.
-Read `docs/hosts/entry.md` of that package before the step. When no loaded skill path binds
-`<plugin>`, stop before a workflow command. Report the setup action: enable `celetis@celetis` for
-the running host and start a fresh session that exposes its loaded skill path. Use no guessed cache
-folder or another host's installation. When `celetis` is not on `PATH`, stop before a workflow
-command. Report the setup action: install the program (`README.md`, "First install", of the plugin
-`celetis`), then start a fresh session.
+`<plugin>` is the plugin folder of the entry of the skill: the `- plugin:` line of an entry block,
+else the folder that the loaded skill path binds. Compare it with the plugin root of the header.
+When the two paths differ as text, resolve both (for example with `realpath`), and stop only when
+the resolved folders differ: run no step of the skill, and hand the stop to the issue by
+`<plugin>/docs/procedures/stop.md`, "A stop in a step session". The message names both folders
+and the setup action: let the host load the plugin `celetis` only from the plugin root of the
+header, then start the step again.
 
-Follow the bound host's invocation, custom-part, worktree, command, and dispatch rules on each
-same-session handoff. Each plugin command explicitly selects the running host with `--agent`.
-Bind commands and file edits to the lane path; return to the main checkout for landing.
+The issue is the state store (`<plugin>/docs/issue-tracker.md`): every result goes to the issue.
+This session ends by itself when the issue shows that the step is done and the working tree is
+clean.
 
 1. Follow the skill of the step, including any hand-off the skill names (/celetis:bug hands on to
-   plan). When a skill says to run a step in a fresh context, do not start it. This session ends
-   by itself when the issue shows that the step is done and the working tree is clean.
+   plan). When a skill says to run a step in a fresh context, do not start it: the runner starts
+   it in a fresh session.
 2. Ask the human only for a decision that the issue does not hold, for example a type that
-   /celetis:triage cannot tell, a state that the spec does not define,
-   the list of states and the platform row of a look decision, a pick between prototype variants,
-   or authorization for a destructive act that the plan did not authorize.
-   An upstream "stop and ask" remains a question in this session: ask and wait for the answer.
-   Never ask for a go-ahead or a review:
-   - When a skill tells you to ask whether to proceed or to continue with another lane or issue
-     (the last step of /celetis:triage, the last step of /celetis:intake), do not ask: the answer
-     is no. Do not start that lane; the runner starts it in a fresh session.
-   - When a skill tells you to wait for a review of a plan or a report, do not wait: publish it
-     and go on.
-3. Land a change only with `celetis --agent claude land` or `celetis --agent codex land`, matching
-   this host, and only when the skill of your step says so.
-4. A stop is not a question: where a skill says to ask, rule 2 holds. When the step cannot go on
-   and no decision of rule 2 is open (a skill says to stop, to show the user a message, or to
-   escalate to the user), hand the stop to the issue:
-   - The issue holds the reason. A comment that the skill posts for this stop
-     (`## Landing refused`, `## Before landing`) is the reason. Then, when the skill adds no label
-     for this stop, run `celetis --agent <host> issue <n> ready-for-human` as the last act of the
-     turn, after each other act that the skill names for the stop.
-   - Else write the step, the exact message or the failure trail, and the act of the maintainer
-     that lets the step go on to a file, with no heading. Run
-     `celetis --agent <host> issue <n> stopped <file>` as the last act of the turn, after each
-     other act that the skill names for the stop. It posts the file with `## Stopped` as its first
-     line, then adds `ready-for-human` and removes `ready-for-agent` when present.
-   - A successful human hold leaves only `ready-for-human` from the readiness pair. It preserves
-     build completion: only a `## Built` or `## Before landing` comment after the latest plan
-     records a built change. Clearing the hold resumes that build state without restoring an
-     agent label.
-   - The label ends this session.
-   - An `issue` act that exits 6 with `complete it by hand: <command>` stopped partway. That
-     command is an act of the maintainer: run no part of it, and hand the stop to the issue with
-     the line as the message.
-   - When GitHub does not answer, or the issue is closed, show the message in this session and
-     stop. A command that the host sandbox keeps from the network is no such case: follow the
-     host's approval procedure first (`docs/hosts/entry.md` of the plugin `celetis`).
-5. A Verify scenario that you cannot run has no PASS, and the change does not land without it. A
-   guard that refuses its command (the host's approval review, the auto-mode classifier, the
-   worktree guard, a `deny` rule) is a limit: try one safer form of the command, and take no other route. Run each other
-   scenario. Then the scenario is a human precondition of the landing: write a new
-   `## Before landing` comment for this build to a file, with no heading (the scenario, its
-   commands, the expected result, and the refusal), then run
-   `celetis --agent <host> issue <n> before-landing <file>` as the last act of the turn. It posts
-   the comment, then adds `ready-for-human` and removes `ready-for-agent`. The comment records
-   the change as built; the label removal changes readiness only.
-   On a later run, keep the built change and follow the skill's re-entry rule. Require a
-   trusted human completion report or the maintainer's label-removal event after the
-   `## Before landing` comment for this build. An absent `ready-for-human` label is not completion
-   evidence. Without evidence, restore that label with
-   `celetis --agent <host> issue <n> ready-for-human` as the last act, using the existing comment
-   as the reason, and stop. With evidence, skip the old Verify phase and go to Land, step 2.
-   A `## Before landing` comment that names an act of "During the build" of the plan is the
-   exception: follow the re-entry rule of the skill, which runs the scenarios that waited for that
-   act.
+   /celetis:triage cannot tell, a state that the spec does not define, the list of states and the
+   platform row of a look decision, a pick between prototype variants, or authorization for a
+   destructive act that the plan did not authorize. Ask, and wait for the answer: an upstream
+   "stop and ask" stays a question in this session. Never ask for a go-ahead or a review: publish
+   the result on the issue and go on.
+3. Land a change only with `celetis --agent <host> land`, with the host of the header, and only
+   when the skill of your step says so.
+4. A stop is not a question: where a skill says to ask, rule 2 holds. Hand each other stop (a
+   skill says to stop, to show the user a message, or to escalate to the user) to the issue by
+   `<plugin>/docs/procedures/stop.md`, "A stop in a step session".
+5. A Verify scenario that you cannot run has no PASS, and the change does not land without it:
+   follow `<plugin>/docs/procedures/stop.md`, "A Verify scenario that cannot run".

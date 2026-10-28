@@ -4,6 +4,7 @@ import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { bindingMode, readBinding, resolvePair, ScoreError } from './lib/capability.ts';
+import type { Host } from './lib/config-core.ts';
 import {
   type Context,
   closeTask,
@@ -19,7 +20,7 @@ import {
   validateExecutionReport,
   validateRecord,
 } from './lib/dispatch-record.ts';
-import { type Host, HostError, updateHint } from './lib/host.ts';
+import { HostError, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { tryFlock } from './lib/update-lock.ts';
 import { openLockFile } from './lib/windows.ts';
