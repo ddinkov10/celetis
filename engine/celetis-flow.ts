@@ -19,6 +19,7 @@ const required = [
   'update.ts',
   '../celetis',
   'launcher.ts',
+  'lib/help.ts',
   'lib/config.ts',
   'lib/host.ts',
   'lib/locks.ts',

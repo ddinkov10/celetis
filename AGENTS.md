@@ -48,8 +48,8 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
 - The gate reads `git ls-files -z`. Stage a new file before the gate. Give each new file type
   a check or an explicit role in `scripts/verify.ts`.
 - Author each first-party program in TypeScript. Bun 1.4.4 or later runs commands.
-  `scripts/build.ts` uses exactly Bun 1.4.4 to generate browser assets
-  and native hook modules. `--check` compares bytes, and modes on macOS and Linux, without
+  `scripts/build.ts` uses exactly Bun 1.4.4 to generate browser assets, native hook modules,
+  and the help block of `README.md` from `engine/lib/help.ts`. `--check` compares bytes, and modes on macOS and Linux, without
   writes. The vendor parser stays unchanged; update it only as `engine/lib/vendor/README.md` says.
 - Strict types have three environments: runtime commands and server modules;
   browser DOM modules; and the native hook API and its actual globals.
@@ -129,6 +129,7 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
   `docs/celetis-flow.md`, "The step end", describes automatic exit in a herdr pane.
 - **The skills table and the commands table of `README.md` are written by hand.** A new skill, a
   removed skill, or a new sub-command of `engine/` also changes the README, and no check fails when
-  it does not.
+  it does not. `scripts/build.ts` writes only the block of the commands that a person types. A new
+  command that a person types goes into `engine/lib/help.ts`.
 - **The skills `writing-for-agents` and `prototype` are vendored** from `mattpocock/skills`
   (ddinkov10/fwrh_calculator#265).

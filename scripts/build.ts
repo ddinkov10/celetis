@@ -1,6 +1,8 @@
 import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { commandName } from '../engine/launcher.ts';
 import { bunFloor } from '../engine/lib/config.ts';
+import { helpCommands, helpText } from '../engine/lib/help.ts';
 import { HostError } from '../engine/lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
 import { codexHome } from '../engine/lib/plugin-metadata.ts';
@@ -13,6 +15,9 @@ const browserTargets = ['board', 'view', 'ui', 'panel', 'palette'].map((name) =>
   output: `engine/board/${name === 'board' ? 'board.js' : `${name}.mjs`}`,
   mode: 0o644,
 }));
+const helpBegin =
+  '<!-- scripts/build.ts writes this block from engine/lib/help.ts. Edit that file, then run scripts/build.ts. -->';
+const helpEnd = '<!-- The end of the block that scripts/build.ts writes. -->';
 
 export async function main(argv: string[]): Promise<number> {
   try {
@@ -42,6 +47,18 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
   );
   if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
   process.chdir(root);
+  for (const [form] of helpCommands) {
+    const [program, name = ''] = form.split(' ');
+    if (program === 'celetis' && (name === 'help' || name === '--version')) continue;
+    if (program !== 'celetis' || !commandName.test(name)) {
+      console.error(`build: the help lists ${form}, and the launcher takes no such command`);
+      return 1;
+    }
+    if (!(await stat(join(root, 'engine', `${name}.ts`)).catch(() => null))?.isFile()) {
+      console.error(`build: the help lists celetis ${name}, and engine/${name}.ts does not exist`);
+      return 1;
+    }
+  }
   let code = 0;
   const built: { output: string; mode: number; bytes: Buffer }[] = [];
   for (const target of [...browserTargets, ...nativeTargets]) {
@@ -77,6 +94,13 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
     built.push({ output: target.output, mode: target.mode, bytes });
   }
   built.push({ output: 'celetis', mode: 0o755, bytes: Buffer.from(programEntry) });
+  const readme = (await readFile(join(root, 'README.md'), 'utf8')).split('\n');
+  const begin = readme.indexOf(helpBegin);
+  const end = readme.indexOf(helpEnd);
+  if (begin < 0 || begin !== readme.lastIndexOf(helpBegin) || end !== readme.lastIndexOf(helpEnd) || end < begin)
+    throw new HostError(`build: README.md needs one line ${helpBegin} and, after it, one line ${helpEnd}`, 1);
+  readme.splice(begin + 1, end - begin - 1, '```text', ...helpText.split('\n'), '```');
+  built.push({ output: 'README.md', mode: 0o644, bytes: Buffer.from(readme.join('\n')) });
   for (const target of built) {
     const bytes = target.bytes;
     const output = join(root, target.output);
