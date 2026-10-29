@@ -71,7 +71,8 @@ fix after the final review. The acts and their arguments are:
   with the reason and the failure trail.
 - Send each returned `ready` dispatch once. Save the exact tool name, arguments, and native result
   of the real call in an execution report, then run `report <dispatch-id> <report-file>` before
-  the next engine act. Follow the report shapes of the host below. Each execution is
+  the next engine act. Report only `call` and `outcome`; the engine binds the report to the active
+  host/session record. Follow the report shapes of the host below. Each execution is
   agent-reported; the engine validates the report, not the native call. It cannot prevent an
   incorrect call or prove an internally consistent report true.
 - An acknowledgment with `status: "reported"` issues no child. Wait for the child's real
@@ -107,7 +108,6 @@ shape:
 
 ```json
 {
-  "host": "claude", "session": "session-id",
   "call": {
     "tool": "Agent",
     "arguments": {"prompt": "<issued CAP line>\nReply OK.", "model": "haiku", "effort": "low", "subagent_type": "general-purpose"},
@@ -122,7 +122,6 @@ For a same-pair resume, retain that child and report `SendMessage` with the exac
 
 ```json
 {
-  "host": "claude", "session": "session-id",
   "call": {
     "tool": "SendMessage",
     "arguments": {"to": "worker-id", "message": "<issued CAP line>\nContinue."},
@@ -159,7 +158,6 @@ native call. Save exact arguments and the complete native result. A spawn report
 
 ```json
 {
-  "host": "codex", "session": "session-id",
   "call": {
     "tool": "collaboration.spawn_agent",
     "arguments": {"task_name": "worker", "message": "<issued CAP line>\nReply OK.", "reasoning_effort": "low", "fork_turns": "none"},
@@ -173,7 +171,6 @@ For a same-pair resume, retain that identity and report the exact follow-up argu
 
 ```json
 {
-  "host": "codex", "session": "session-id",
   "call": {
     "tool": "collaboration.followup_task",
     "arguments": {"target": "/root/worker", "message": "<issued CAP line>\nContinue."},

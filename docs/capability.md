@@ -119,7 +119,9 @@ The private session record is `/tmp/celetis-<uid>/dispatch/<host>-<session>.json
 or `<os.tmpdir()>/celetis/dispatch/<host>-<session>.json` on Windows. It uses private directories,
 mode-0600 record and lock files, a lock, and atomic replacement. Its key is the host and
 `CLAUDE_CODE_SESSION_ID` or `CODEX_SESSION_ID`. A new session starts at attempt 1. GitHub remains
-workflow state; this file is local execution evidence.
+workflow state; this file is local execution evidence. Record schema 2 stores host/session only
+at the record root. Schema-1 records are rejected without migration; retain them as evidence and
+start a fresh host session. The CLI result envelope remains schema 1.
 
 Run each act as `celetis --agent <host> dispatch <act>`, with the running host
 ([the child dispatch](procedures/dispatch.md), "The task loop"):
@@ -151,12 +153,14 @@ After each native call, save its exact tool name, arguments, and complete result
 `report <dispatch-id> <report-file>` before the next task act. The
 [Claude Code](procedures/dispatch.md#claude-code) and [Codex](procedures/dispatch.md#codex)
 examples show the report shape. Every saved execution has `provenance: "agent-reported"`. The
-engine checks the report's settings, CAP line, action, session, and worker identity against the
-issued action. It does not intercept the call or independently prove that a consistent report is
-true. A mismatch after execution cannot undo a worker. Independent native enforcement belongs to
+engine binds the report to the active host/session record and checks its settings, CAP line,
+action, and worker identity against the issued action. It does not intercept the call or
+independently prove that a consistent report is true. A mismatch after execution cannot undo a
+worker. Independent native enforcement belongs to
 [issue #151](https://github.com/ddinkov10/celetis/issues/151).
 
-An execution report has exactly `host`, `session`, `call`, and `outcome`. A non-null `call` has
+An execution report has exactly `call` and `outcome`. The command selects the host/session from
+the host argument and validated environment; the agent supplies no copy. A non-null `call` has
 `tool`, `arguments` (a JSON object), and `result` (any JSON value). Its outcome is one of:
 
 - `{"result":"started","child":"worker-id","model":null,"effort":null}`. Both hosts require
@@ -176,9 +180,10 @@ An execution report has exactly `host`, `session`, `call`, and `outcome`. A non-
 and `result`; it issues no child. Mismatches, incomplete results, and unsupported operations save
 their evidence first and return setup exit 5. An issued call with no report stops later task acts
 and names `dispatch report <id> <report-file>`. Unknown/replayed IDs refuse with exit 3 without
-changing evidence. Wrong host/session returns exit 5 without changes. Malformed reports return
-usage exit 2 without changes. No report can replace earlier execution evidence. Calls outside
-the task loop need no report and are neither intercepted nor recorded.
+changing evidence. A dispatch from another host/session is unknown in the active record and
+returns exit 3 without changes. A missing or invalid host session returns setup exit 5.
+Malformed reports return usage exit 2 without changes. No report can replace earlier execution
+evidence. Calls outside the task loop need no report and are neither intercepted nor recorded.
 
 Wait for real child completion before its gate or review result. The gate pass already issues
 the reviewer. Report findings or `BLOCKED` through `review`; close after a clean current review.

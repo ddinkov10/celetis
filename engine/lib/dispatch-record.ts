@@ -14,8 +14,6 @@ export interface NativeCall {
   result: JsonValue;
 }
 export interface ExecutionReport {
-  host: Host;
-  session: string;
   call: NativeCall | null;
   outcome:
     | { result: 'started'; child: string | null; model: string | null; effort: Effort | null }
@@ -60,7 +58,7 @@ export interface Task {
   entries: Entry[];
 }
 export interface DispatchRecord {
-  schema: 1;
+  schema: 2;
   host: Host;
   session: string;
   tasks: Task[];
@@ -172,9 +170,7 @@ function jsonValue(value: unknown, path: string, parents = new Set<unknown>()): 
 }
 export function validateExecutionReport(value: unknown): ExecutionReport {
   jsonValue(value, 'report');
-  const report = shape(value, ['host', 'session', 'call', 'outcome'], 'report');
-  need(report.host === 'claude' || report.host === 'codex', 'report.host');
-  need(isText(report.session), 'report.session');
+  const report = shape(value, ['call', 'outcome'], 'report');
   const outcome = report.outcome as Record<string, unknown> | null;
   need(outcome && typeof outcome === 'object', 'report.outcome');
   if (outcome.result === 'started') {
@@ -267,11 +263,11 @@ function dispatchValue(value: unknown, path: string): void {
 export function emptyRecord(host: Host, session: string): DispatchRecord {
   need(host === 'claude' || host === 'codex', 'host');
   need(isText(session), 'session');
-  return { schema: 1, host, session, tasks: [], dispatches: [] };
+  return { schema: 2, host, session, tasks: [], dispatches: [] };
 }
 export function validateRecord(value: unknown, host: Host, session: string): DispatchRecord {
   const record = shape(value, ['schema', 'host', 'session', 'tasks', 'dispatches'], '');
-  need(record.schema === 1, 'schema');
+  need(record.schema === 2, 'schema');
   need((record.host === 'claude' || record.host === 'codex') && record.host === host, 'host');
   need(isText(record.session) && record.session === session, 'session');
   const keys = new Set<string>();
@@ -296,10 +292,6 @@ export function validateRecord(value: unknown, host: Host, session: string): Dis
     need(!dispatches.has(dispatch.id), `dispatches[${index}].id`);
     need(keys.has(`${dispatch.issue}:${dispatch.task}`), `dispatches[${index}].task`);
     if (dispatch.execution) {
-      need(
-        dispatch.execution.report.host === host && dispatch.execution.report.session === session,
-        'dispatch.execution.report.session',
-      );
       const expected = executionResult(
         { ...typed, dispatches: typed.dispatches.slice(0, index) },
         dispatch,
@@ -823,16 +815,6 @@ export function reportExecution(
   record = structuredClone(record);
   const dispatch = record.dispatches.find((dispatch) => dispatch.id === input.dispatch);
   const key = dispatch ?? { issue: 1, task: 'final' };
-  if (report.host !== record.host || report.session !== record.session)
-    return {
-      record,
-      result: refused(
-        record,
-        key,
-        `the execution report host/session does not match ${record.host}-${record.session}`,
-        'setup',
-      ),
-    };
   if (!dispatch) return { record, result: refused(record, key, `unknown dispatch ${input.dispatch}`) };
   if (dispatch.execution !== null || dispatch.voided)
     return { record, result: refused(record, dispatch, `dispatch ${dispatch.id} already has execution evidence`) };
