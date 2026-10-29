@@ -1,4 +1,4 @@
-host: claude
+host: codex
 landing: merge
 suite: scripts/verify.ts
 gates:
