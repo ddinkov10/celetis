@@ -6429,10 +6429,14 @@ var yaml11Int = /^[-+]?(?:0[bB][01]+|0[oO][0-7]+|0[xX][0-9a-fA-F]+|[0-9]+)$/;
 var yaml11Float = /^[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?$/;
 var hosts = ["claude", "codex"];
 var skills = [
+  "attack-the-premise",
+  "boundary-discipline",
   "bug",
   "chore",
   "critic-loop",
   "doc-drift-sync",
+  "encode-lessons-in-structure",
+  "explain-the-number",
   "feature",
   "guide",
   "hotfix",
@@ -6440,13 +6444,18 @@ var skills = [
   "intake",
   "lesson",
   "lesson-review",
+  "make-operations-idempotent",
+  "model-the-domain",
   "plan",
   "polishing-code-comments",
   "prototype",
   "record-architecture-decisions",
+  "separate-before-serializing-shared-state",
   "setup",
   "specify",
+  "test-behavior-not-implementation",
   "triage",
+  "type-system-discipline",
   "writing-for-agents"
 ];
 var sourceData = Symbol("ConfigSource");

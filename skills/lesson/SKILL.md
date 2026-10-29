@@ -36,6 +36,10 @@ Read `docs/lessons/INDEX.md` (and `docs/lessons/_pending/QUEUE.md`). Scan Tags a
 - **Duplicate** — update the existing lesson instead of adding a new file; bump the `recurrences` key and note the lesson has not become a mechanism.
 - **Related** — merge, or cross-link with `[[slug]]` references.
 
+When the mistake or corrective instruction repeats, read
+`<plugin>/docs/principles/encode-lessons-in-structure.md` before the mechanism decision in step 4.
+Automatic capture keeps its draft and proposed mechanism in the pending queue.
+
 ### Step 3: Write the lesson file
 
 Read `<plugin>/docs/procedures/lesson-format.md`, and follow it: the frontmatter keys, the body headings, the catalog row, and the Tag Vocabulary.

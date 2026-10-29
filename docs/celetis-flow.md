@@ -824,6 +824,81 @@ null ID cannot be used for exact runner resume.
 
 ## Acceptance status
 
+**Standalone engineering principles (#166), partial acceptance.** On 2026-10-29, lane commit
+`aac1e49758f9a9360fd02491fecafc1b979c43f6` completed all three implementation tasks, their
+reviews, and the whole-branch source review with no findings. Each task gate and the gate after
+final review ended with `verify: PASS`. On 2026-10-29, the maintainer authorized landing despite
+host quota limits. This waives quota-blocked host checks for #166; their results remain BLOCKED.
+
+The checks used Bun 1.4.4, codex-cli 0.165.0, and Claude Code 2.1.312 with the existing
+installations and sign-in. All fixture programs and raw events are under
+`/tmp/celetis-166-g52bj4/`. No product repository, new login, or real installation update took
+part. The citation, configuration, package-shape, workflow-contract, and integrity probes pass
+against the reviewed source. The existing tracked-test prohibition remains checked.
+
+| Principle | Codex explicit use | Codex implicit selection | Claude execution |
+| --- | --- | --- | --- |
+| `attack-the-premise` | PASS | PASS | BLOCKED |
+| `encode-lessons-in-structure` | PASS | PASS | BLOCKED |
+| `make-operations-idempotent` | PASS | PASS | BLOCKED |
+| `separate-before-serializing-shared-state` | PASS | PASS | BLOCKED |
+| `explain-the-number` | PASS | PASS | BLOCKED |
+| `boundary-discipline` | PASS | PASS | BLOCKED |
+| `model-the-domain` | PASS | PASS | BLOCKED |
+| `type-system-discipline` | PASS | PASS | BLOCKED |
+| `test-behavior-not-implementation` | PASS | PASS | BLOCKED |
+
+Codex native discovery exposed 28 enabled fixture skills. All nine full descriptions reached
+the model-visible initial input. Wrapper and canonical rule bytes matched the checkout. Each
+case above read the complete selected rule and produced its required observation. Cases covered
+both a directory outside Git and a checkout without configuration. The `orange` and `42`
+controls ran no command and loaded no rule body. Valid custom text reached entry before rule
+use; numeric and duplicate custom values stopped entry before a canonical read.
+
+The final workflow package matched 30 source components, including all nine changed workflow
+skills, and retained the empty Codex hooks override. Bounded Codex workflow checks read only
+applicable canonical rules directly. The plan carries exact paths per affected task, duplicate
+and interruption outcomes, and separate write targets. The premise check rejects the absent-file
+assumption before a permitted next fix. The stopped case preserves the actual attempt-4 STOP,
+with no extra fix or counter reset. The synthetic measurement review states n=2, range 30–80 ms,
+spread 50 ms, and scope/cache/skipped-work limits. The domain case retains clear local logic.
+The behavior check rejects a changed result and accepts an internal rename. Automatic lesson
+capture remains pending, and its fresh duplicate review asks for a human promotion decision
+without changing the draft or catalog.
+
+Fresh implementer and reviewer sessions each read the persistence task first, then its five
+exact canonical paths. Neither received the planner transcript or read a discovery wrapper.
+These bounded checks ended after context entry. Source review separately checked both build
+flows and the final-review repair brief. They do not claim a complete fixture application build.
+
+Claude initialization exposed all nine names. Its explicit timing-rule case and both initial
+workflow cases stopped with `You've hit your weekly limit · resets Oct 31 at 9pm (Europe/Sofia)`.
+No successful canonical-rule execution follows that refusal. The remaining Claude
+explicit, implicit, custom-entry, control, and workflow cases have no PASS. The reset time is an
+observed account message, not a completed readiness action.
+
+The initial four-minute bound interrupted planning, idempotence, and valid custom-entry probes.
+The preserved retries used a ten-minute bound or a smaller fixed boundary fixture. Other probe
+corrections accepted native namespace prefixes, checked the JSON STOP status rather than a
+nonzero exit, and selected the persistence task for its five-path handoff. The initial behavior fixture refused an ancillary issue-creation request; its corrected inert
+adapter run passed. The model fixture refused an optional parent lookup; its local decision
+and assertions completed independently. No shipped source changed for these probe corrections. The planning fixture could not resolve Bun type
+declarations for its optional compiler check; that fixture command was not implemented. The
+standalone exhaustiveness checks and the repository's strict type checks did pass.
+
+Both temporary native plugins and marketplaces were removed through the native CLI. Their
+registry and configuration entries are absent. The real Celetis native identity and checked
+manifest/hook hashes remain unchanged. The observer was never installed. No runner, board,
+daemon, or other session was stopped.
+
+The per-case record is `standalone-results.json`; custom entry is `configured-results.json`.
+The ten scoped workflow results are in `workflow-results.json`.
+Native package hashes are in `component-hashes.json` and `workflow-component-hashes.json`.
+The full source review and dispatch trail are preserved in `final-record/`. These are bounded
+observations, with one ordinary prompt per trigger. They establish no general selection rate,
+lower context cost, or improvement in engineering outcomes. See the plan for
+[issue #166](https://github.com/ddinkov10/celetis/issues/166).
+
 Automatic flows are required for Claude Code and Codex TUI/CLI. In this acceptance policy,
 "both hosts" means those two CLI hosts. The terminal runner and board actions target those CLIs.
 The shared flows remain callable manually or inline in the Codex desktop app; desktop automation
@@ -1223,8 +1298,11 @@ remains unknown.
 
 Run repository checks in a checkout of `ddinkov10/celetis`. The verify gate is `scripts/verify.ts`.
 It classifies every tracked path, runs Biome and three strict type environments, native
-actionlint, YAML and plugin validation, the citation check of the skills, the modules, and the
-step text (`checkCitations`), and generated byte comparison, with modes on macOS and Linux. It
+actionlint, YAML and plugin validation, the citation check of the skills, the procedure modules,
+the principles, and the step text (`checkCitations`), and generated byte comparison, with modes
+on macOS and Linux. Only procedure modules need two citers; principles have no minimum citer
+count. Citations and relative links must name tracked files. Skills, procedure modules, and
+principles cannot cite `docs/hosts/`, and each `SKILL.md` needs the entry line exactly once. It
 installs nothing and refuses a tracked test file. Exact file roles distinguish generated
 delivery, unchanged vendor code and file exemptions.
 

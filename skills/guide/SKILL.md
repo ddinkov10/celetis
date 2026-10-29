@@ -32,6 +32,15 @@ Execute no recommended action and invoke no other skill. Goal: the invocation in
 | land a change whose landing stopped (`## Landing refused`) | the build step again, `/celetis:implement <#>` or `/celetis:chore <#>`: it lands the change and does not build it again |
 | score the current diff before asking for review | `/celetis:critic-loop` |
 | record a decision or a lesson | `/celetis:record-architecture-decisions`, `/celetis:lesson` |
+| check a shared premise after two fixes fail | `/celetis:attack-the-premise` |
+| prevent a repeated mistake through structure | `/celetis:encode-lessons-in-structure` |
+| check retries of an operation that changes persistent state | `/celetis:make-operations-idempotent` |
+| choose write targets for concurrent actors | `/celetis:separate-before-serializing-shared-state` |
+| assess a measured performance or quality result | `/celetis:explain-the-number` |
+| check external input or a validation change | `/celetis:boundary-discipline` |
+| clarify state combinations, branches, or repeated shape rules | `/celetis:model-the-domain` |
+| choose types that prevent an identified error | `/celetis:type-system-discipline` |
+| design or review a check of required behavior | `/celetis:test-behavior-not-implementation` |
 | prove work is done before claiming it | the verify gate of the project (`AGENTS.md` names it) after each change, and the full suite once, on the tree that lands |
 | merge a PR by hand | you: `gh pr merge --squash` in your own shell, or on GitHub; an agent lands a change only with `celetis --agent <host> land`, which its build step runs |
 

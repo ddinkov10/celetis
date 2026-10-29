@@ -32,7 +32,11 @@ start step N+1.
 3. **Explore project context.** Explore files, docs, recent commits, and read the project context
    per `<plugin>/docs/procedures/project-context.md`. Its traps are the constraints on the fix.
 4. **Invoke `superpowers:systematic-debugging`** — MANDATORY, no self-granted exemptions; the red
-   repro is the spec's repro. A hypothesis that rests on library, platform, or vendor behavior is
+   repro is the spec's repro. After two failed fixes that share a premise, read
+   `<plugin>/docs/principles/attack-the-premise.md` before another already-permitted attempt;
+   every existing attempt limit and stop still applies. When a hypothesis relies on a measured
+   performance or quality result, read `<plugin>/docs/principles/explain-the-number.md`.
+   A hypothesis that rests on library, platform, or vendor behavior is
    checked per `<plugin>/docs/procedures/docs-lookup.md` before the report names it the root cause. A bug that
    shows on screen gets a capture repro at the failing state and size, posted on the issue per
    `<plugin>/docs/procedures/ui.md`, "Captures", before the report.

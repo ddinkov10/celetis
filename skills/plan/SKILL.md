@@ -21,6 +21,17 @@ Superset of `superpowers:writing-plans` for project features. Delegates to it; a
 
 **Check the external facts.** Read the `## External facts` section of the spec or the `## Root cause` report. Settle per `<plugin>/docs/procedures/docs-lookup.md` each library API a task calls that the section does not cover. Carry the merged section as the plan's `## External facts`; the published `## Plan` comment hands it to `implement`. Copy each fact line a task depends on into that task's text, because an implementer's brief carries only its own task.
 
+**Map applicable principles with the affected tasks.** Read only the files whose conditions hold:
+
+- For external input or validation changes, read `<plugin>/docs/principles/boundary-discipline.md`.
+- For unclear state combinations, growing branches, or repeated shape rules, read `<plugin>/docs/principles/model-the-domain.md`.
+- For persistent or retryable operations, read `<plugin>/docs/principles/make-operations-idempotent.md`.
+- For concurrent writers, read `<plugin>/docs/principles/separate-before-serializing-shared-state.md`.
+- For types or signatures in a statically typed language, read `<plugin>/docs/principles/type-system-discipline.md`.
+- When designing behavioral checks, read `<plugin>/docs/principles/test-behavior-not-implementation.md`.
+
+Put the exact applicable rule paths in each affected task's text, alongside its external facts. Resolve `<plugin>` to the absolute path bound by the entry. An empty applicable set needs no rule read. The task carries the paths, not copies of the rules.
+
 **Save the plan to `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`** (gitignored scratch; the Terminal step publishes it to the issue).
 
 **Record in the plan header**, after `**Spec:**`:

@@ -29,6 +29,10 @@ Before asking, run the duplicate check: read `docs/lessons/INDEX.md` and scan fo
 existing live lesson covering the same model. Note if the draft's body says "merge into existing
 `[[{slug}]]`" — that means it is an UPDATE, not a new lesson.
 
+For a repeated correction, read `<plugin>/docs/principles/encode-lessons-in-structure.md` during
+the duplicate review, before asking for promotion. Keep the proposed mechanism with the draft
+for the human decision; this rule grants no permission to change another project.
+
 ### Approve
 
 Two cases:

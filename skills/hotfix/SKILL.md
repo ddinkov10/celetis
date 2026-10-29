@@ -28,7 +28,11 @@ N+1. Too little time for the lane → the change does not ship tonight.
 3. **Explore project context.** Explore files, docs, recent commits, and read the project context
    per `<plugin>/docs/procedures/project-context.md`. Its traps are the constraints on the fix.
 4. **Invoke `superpowers:systematic-debugging`** — MANDATORY. The red repro is the micro-plan's
-   Verify probe. A hypothesis that rests on library, platform, or vendor behavior is checked per
+   Verify probe. After two failed fixes that share a premise, read
+   `<plugin>/docs/principles/attack-the-premise.md` before another already-permitted attempt;
+   every existing attempt limit and stop still applies. When a hypothesis relies on a measured
+   performance or quality result, read `<plugin>/docs/principles/explain-the-number.md`.
+   A hypothesis that rests on library, platform, or vendor behavior is checked per
    `<plugin>/docs/procedures/docs-lookup.md` before the report names it the root cause. Post the report, with
    its `## External facts` section, with `celetis --agent <host> issue <n> root-cause <report>`:
    it posts the report with `## Root cause` as its first line, so the report file has no heading.
@@ -40,6 +44,16 @@ N+1. Too little time for the lane → the change does not ship tonight.
      constraints. Both build flows of `implement` find a task by its `Task <N>` heading.
    - Each library call the fix adds is checked per `<plugin>/docs/procedures/docs-lookup.md`; the facts go
      in the micro-plan's `## External facts` section.
+   - Put the exact applicable principle paths in the task text, alongside its external facts.
+     Resolve `<plugin>` to the absolute path bound by the entry. Read only the files whose
+     conditions hold: for external input or validation changes,
+     `<plugin>/docs/principles/boundary-discipline.md`; for unclear state combinations, growing
+     branches, or repeated shape rules, `<plugin>/docs/principles/model-the-domain.md`; for
+     persistent or retryable operations, `<plugin>/docs/principles/make-operations-idempotent.md`;
+     for concurrent writers, `<plugin>/docs/principles/separate-before-serializing-shared-state.md`;
+     for types or signatures in a statically typed language,
+     `<plugin>/docs/principles/type-system-discipline.md`; for behavioral verification checks,
+     `<plugin>/docs/principles/test-behavior-not-implementation.md`.
    - CAP line via `celetis --agent <host> capscore J V B N S X` — never hand-computed. It is a recommendation for the session, because `implement` builds a micro-plan inline.
    - Verify phase: the red repro re-run post-fix, plus one error branch of any newly-enabled
      path (widened allow-list / enum / dispatch literal / flag).

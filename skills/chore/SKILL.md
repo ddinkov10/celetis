@@ -36,6 +36,9 @@ in `/celetis:bug` or `/celetis:feature`. If you have not completed step N, you c
    Then go to step 4, then step 6.
    An `open:` line is an open human step: step 2 of the landing, which step 6 follows, handles it.
 3. **Do the change.** Read the project context per `<plugin>/docs/procedures/project-context.md`.
+   When choosing or checking an edit of types or signatures, read
+   `<plugin>/docs/principles/type-system-discipline.md`. For changed behavioral verification
+   checks, read `<plugin>/docs/principles/test-behavior-not-implementation.md`.
    A dependency bump: read the changelog or release notes between the old and the new version per
    `<plugin>/docs/procedures/docs-lookup.md`, and post an issue comment whose first line is `## External facts`
    (`gh issue comment <n> --body-file <file>`) that names each breaking change that touches an

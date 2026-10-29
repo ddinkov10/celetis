@@ -1,8 +1,9 @@
 # AGENTS.md
 
 This repository is the plugin `celetis`, a general agent harness with Claude and Codex host
-operations: skills (`skills/`), modules (`docs/procedures/`), runtime (`engine/`), maintenance
-(`scripts/`), step text (`step-prompt.md`), and documents (`docs/`). It is also a
+operations: skills (`skills/`), procedure modules (`docs/procedures/`), principles
+(`docs/principles/`), runtime (`engine/`), maintenance (`scripts/`), step text (`step-prompt.md`),
+and documents (`docs/`). It is also a
 product project of its own plugin. `README.md` holds the wiring of a product project, the commands,
 and the update rule. `docs/celetis-flow.md` holds the runner, and `docs/issue-tracker.md` holds the
 labels, the state of an issue, and the branches.
@@ -65,48 +66,58 @@ project, not here. So the text of this repository is general:
   custom part of that project (`custom.<skill>` in `.celetis.yaml`), for an addition to one
   step. The third is no home, when a permission rule or the verify gate of that project holds the
   line already.
-- **A path with no prefix is a path of the product project.** A skill, a module, and the step
-  text cite a file of the plugin as `<plugin>/<path>`. The entry line of a skill binds `<plugin>`
-  from the path of the loaded `SKILL.md`; on Claude Code, the `- plugin:` line of the entry block
-  gives it. The step text takes `<plugin>` from the entry and compares it with the plugin root of
-  its header. A relative Markdown link in a plugin file resolves relative to its containing file.
-- **In a skill, a module, and the step text, an ADR number says its store:** "ADR-0008 of the
-  plugin `celetis`". A product project has an ADR store of its own.
+- **A path with no prefix is a path of the product project.** A skill, a module, a principle,
+  and the step text cite a file of the plugin as `<plugin>/<path>`. The entry line of a skill binds
+  `<plugin>` from the path of the loaded `SKILL.md`; on Claude Code, the `- plugin:` line of the
+  entry block gives it. The step text takes `<plugin>` from the entry and compares it with the
+  plugin root of its header. A relative Markdown link in a plugin file resolves relative to its
+  containing file.
+- **In a skill, a module, a principle, and the step text, an ADR number says its store:**
+  "ADR-0008 of the plugin `celetis`". A product project has an ADR store of its own.
 
 ## Where agent text lives
 
-Agent text has three layers:
+Agent text has four layers:
 
 | Layer | Home | Loads |
 | --- | --- | --- |
 | Entry | The facts block of the Claude Code hook, or `docs/procedures/entry.md` | At each skill invocation |
 | Skill | `skills/<name>/SKILL.md` | When the skill is invoked |
-| Module | `docs/procedures/<name>.md` | When a step of a skill names it |
+| Procedure module | `docs/procedures/<name>.md` | When a step of a skill names it |
+| Principle | `docs/principles/<name>.md` | When the task meets its applicability trigger |
 
-One placement rule decides the home of each piece of agent text (ADR-0047):
+One placement rule decides the home of each piece of agent text (ADR-0047, with the principle
+exception in [ADR-0050](docs/adr/0050-standalone-engineering-principles-have-canonical-rules.md)):
 
-1. **Shared procedure.** Text that two or more skills, or a skill and the step text, need is a
+1. **General principle.** A general engineering rule has one canonical file in `docs/principles/`,
+   regardless of caller count. It has `Applies when`, `Rule`, and `Check` sections. Skills and
+   workflow steps cite the file when its trigger applies; they keep the rule body there.
+2. **Shared procedure.** Text that two or more skills, or a skill and the step text, need is a
    module. The skills cite it at the step that uses it.
-2. **Own procedure.** Text that one skill needs stays in that skill.
-3. **Host-specific text** lives only in modules, under a `Claude Code` and a `Codex` part. A skill
-   never names a host tool. The exception is the entry block of the hook, which carries the Claude
-   Code part of the contract.
-4. **Engine-enforced policy** is not restated. A skill names the command, and only the outcomes
+3. **Own procedure.** Text that one skill needs stays in that skill.
+4. **Host-specific text** lives only in modules, under a `Claude Code` and a `Codex` part. Skills
+   and principles never name a host tool. The exception is the entry block of the hook, which
+   carries the Claude Code part of the contract.
+5. **Engine-enforced policy** is not restated. A skill names the command, and only the outcomes
    that the agent must act on (exit classes, printed lines).
-5. **Product text** has two homes. `custom.<skill>` is an addition to that one skill and reaches
+6. **Product text** has two homes. `custom.<skill>` is an addition to that one skill and reaches
    only its invocation. A product fact that two or more skills need goes into the `AGENTS.md` of
    the product.
-6. **Maintainer reference.** `docs/celetis-flow.md`, `docs/configuration.md`, `docs/capability.md`,
+7. **Maintainer reference.** `docs/celetis-flow.md`, `docs/configuration.md`, `docs/capability.md`,
    `docs/issue-tracker.md`, `docs/hosts/`, and the ADRs are never read at entry. A skill or a
-   module cites a named section of one when a step needs a definition; none cites `docs/hosts/`.
+   module cites a named section of one when a step needs a definition. Skills, modules, and
+   principles never cite `docs/hosts/`.
 
 A module is self-contained: it cites another module only for a branch that some runs take. No
 skill reads another skill's `SKILL.md`. A module stays short enough to read whole in one native
 read, with a target of under 100 lines; a longer module starts with a `## Contents` list of its
-sections. `checkCitations` in `scripts/verify.ts` checks the skills, the modules, and the step
-text: each `<plugin>/<path>` citation and each relative link names a tracked file, each module
-has two or more citers, each `SKILL.md` holds the entry line of `docs/procedures/entry.md` once,
-and no skill or module cites `docs/hosts/`.
+sections. A principle stands alone and has no minimum citer count. It holds no workflow or host
+procedure, and entry does not load a principle catalog.
+
+`checkCitations` in `scripts/verify.ts` checks the skills, the procedure modules, the principles,
+and the step text: each `<plugin>/<path>` citation and each relative link names a tracked file,
+each procedure module has two or more citers, each `SKILL.md` holds the entry line of
+`docs/procedures/entry.md` once, and no skill, module, or principle cites `docs/hosts/`.
 
 ## Celetis flow
 

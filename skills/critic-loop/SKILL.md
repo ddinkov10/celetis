@@ -43,7 +43,14 @@ Every finding carries a severity and a `file:line`, and names its perspective.
 
 Dispatch a fresh reviewer per `<plugin>/docs/procedures/dispatch.md`, "One child", scored as a
 review with `celetis --agent <host> capscore J V B N S X --reviewer --json`. Its brief also holds
-the diff file, the rubric above, and the Contracts-lens rule. The critic returns ONLY: a
+the diff file, the rubric above, and the Contracts-lens rule. Deliver the exact applicable
+principle paths with the diff to the critic and each fixer, with instructions to read them.
+Resolve `<plugin>` to the absolute path bound by the entry. Take paths supplied with the affected
+tasks; derive missing paths from the reviewed changes and revise them for the fix scope. When assessing
+behavioral verification checks, read `<plugin>/docs/principles/test-behavior-not-implementation.md`.
+When a finding relies on measured performance or quality evidence, read
+`<plugin>/docs/principles/explain-the-number.md`. The rubric score alone does not trigger this read.
+The critic returns ONLY: a
 per-perspective score, the total, findings (Critical/Important/Minor), and a PASS/FAIL verdict
 against the threshold. The critic never spawns subagents and never fixes anything.
 
@@ -52,7 +59,8 @@ against the threshold. The critic never spawns subagents and never fixes anythin
 - PASS → report the score and stop.
 - First FAIL → dispatch a fresh **fixer** subagent per `<plugin>/docs/procedures/dispatch.md`, "One child",
   scored for the fix with `celetis --agent <host> capscore J V B N S X --json`. Its brief also holds
-  the Critical and Important findings verbatim and the diff path. The fixer fixes, re-runs the
+  the Critical and Important findings verbatim, the diff path, and the exact applicable principle
+  paths for the fix. The fixer fixes, re-runs the
   covering tests, and commits.
 - Resume the same critic for a scoped re-review: verdict each finding ADDRESSED or NOT ADDRESSED, re-score the five
   perspectives, flag new breakage. New Critical or Important findings join the open list.

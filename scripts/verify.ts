@@ -57,7 +57,9 @@ const relativeLink = /\]\(([^)\s]+)\)/g;
 export function checkCitations(files: ReadonlyMap<string, string>): string[] {
   const checked = [...files].filter(
     ([path]) =>
-      /^skills\/.+\.md$/.test(path) || /^docs\/procedures\/[^/]+\.md$/.test(path) || path === 'step-prompt.md',
+      /^skills\/.+\.md$/.test(path) ||
+      /^docs\/(?:procedures|principles)\/[^/]+\.md$/.test(path) ||
+      path === 'step-prompt.md',
   );
   const errors: string[] = [];
   const cited = new Map<string, Set<string>>();
@@ -77,9 +79,13 @@ export function checkCitations(files: ReadonlyMap<string, string>): string[] {
     }
     cited.set(file, targets);
   }
-  for (const [file, text] of files)
-    if (/^(?:skills|docs\/procedures)\//.test(file) && text.includes('docs/hosts/'))
+  for (const [file, text] of files) {
+    const principleHostReference =
+      /^docs\/principles\/[^/]+\.md$/.test(file) &&
+      (text.includes('docs/hosts/') || [...(cited.get(file) ?? [])].some((target) => target.startsWith('docs/hosts/')));
+    if ((/^(?:skills|docs\/procedures)\//.test(file) && text.includes('docs/hosts/')) || principleHostReference)
       errors.push(`verify: host reference: ${file} cites docs/hosts/`);
+  }
   for (const [module] of checked) {
     if (!/^docs\/procedures\/[^/]+\.md$/.test(module)) continue;
     const citers = checked.filter(([file]) => file !== module && cited.get(file)?.has(module)).length;

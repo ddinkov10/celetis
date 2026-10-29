@@ -21,10 +21,12 @@ The allowed gate names are `triage`, `specify`, `bug`, `chore`, `hotfix`, `plan`
 `implement`. No other step is accepted. An empty `gates` mapping uses `me` for all seven.
 An empty `board` mapping uses port 4403. `PORT` takes precedence over the configured board port.
 
-The allowed custom keys are `bug`, `chore`, `critic-loop`, `doc-drift-sync`, `feature`,
-`guide`, `hotfix`, `implement`, `intake`, `lesson`, `lesson-review`, `plan`,
-`polishing-code-comments`, `prototype`, `record-architecture-decisions`, `setup`, `specify`,
-`triage`, and `writing-for-agents`.
+The allowed custom keys are `attack-the-premise`, `boundary-discipline`, `bug`, `chore`,
+`critic-loop`, `doc-drift-sync`, `encode-lessons-in-structure`, `explain-the-number`, `feature`,
+`guide`, `hotfix`, `implement`, `intake`, `lesson`, `lesson-review`, `make-operations-idempotent`,
+`model-the-domain`, `plan`, `polishing-code-comments`, `prototype`,
+`record-architecture-decisions`, `separate-before-serializing-shared-state`, `setup`, `specify`,
+`test-behavior-not-implementation`, `triage`, `type-system-discipline`, and `writing-for-agents`.
 An empty setup string runs no setup. An empty instruction string gives no addition.
 An empty `custom` or `codexProfiles` mapping is valid.
 

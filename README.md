@@ -13,19 +13,21 @@ no immutable-resource or automatic skill-reload guarantee (ADR-0028). Desktop au
 
 The repository holds:
 
-- 19 skills: the lanes, the steps of a lane, the skills for review and memory, and the helpers
-  ("The skills");
+- 28 skills: the lanes, the steps of a lane, the skills for review and memory, the engineering
+  principles, and the helpers ("The skills");
 - the scripts: the runner, the resolver, the landing script, the worktree script, the setup
   script, and the capability scorer ("The commands");
 - the step text of the runner, `step-prompt.md`;
 - the modules, in `docs/procedures/`: the shared procedures that a step of a skill reads when it
   comes ("The skills");
+- the principles, in `docs/principles/`: the general engineering rules that a task reads when
+  their applicability triggers match;
 - the maintainer documents, in `docs/`.
 
 The repository reaches a machine in two forms, at one revision. The program `celetis` runs each
 command, also the runner and the board, and the runner gives each step session a facts header and
 the step text of the program ("First install"). The plugin of each host gives its sessions the
-skills, the modules, the entry hook, and the documents.
+skills, the procedure modules, the principles, the entry hook, and the documents.
 
 There are two kinds of repository:
 
@@ -56,6 +58,8 @@ Each skill starts with one entry line. On Claude Code, the native hook of the pl
 line with a short facts block: the host, the plugin folder, the checkout, the contract of the
 entry, and the custom text of the skill. Codex declares no Celetis lifecycle hooks: its session
 reads the entry module `docs/procedures/entry.md`. ADR-0047 records the entry and the modules.
+ADR-0050 gives general engineering principles their own canonical rule files, regardless of
+caller count.
 ADR-0042 owns the program, its install, and its update. ADR-0012 holds the original packaging decision; ADR-0014 extends it to both hosts without a
 second copy of the procedures. ADR-0015 replaces their config storage clauses with one YAML file.
 ADR-0016 limits required automation to the CLI hosts while keeping desktop invocation available.
@@ -164,7 +168,7 @@ or the board's update control ("Updates").
    ```
 
    The install enables the plugin at the `user` scope, so each session of the machine loads it, in
-   each folder. A session in a project that is not wired also lists the 19 skills, and a lane
+   each folder. A session in a project that is not wired also lists the 28 skills, and a lane
    skill that starts there from free text makes a GitHub issue before it validates product setup.
 
    The user install is the only supported Claude install. A project install of `celetis@celetis`
@@ -745,6 +749,15 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | | [`/celetis:lesson-review`](skills/lesson-review/SKILL.md) | Your review of the lesson drafts that an automatic capture put in a queue |
 | | [`/celetis:record-architecture-decisions`](skills/record-architecture-decisions/SKILL.md) | Reads and writes the records of `docs/adr/` |
 | | [`/celetis:doc-drift-sync`](skills/doc-drift-sync/SKILL.md) | Keeps the documents of the project true against the code: it fixes the drift that the source proves, and it flags the rest |
+| **Principles** | [`/celetis:attack-the-premise`](skills/attack-the-premise/SKILL.md) | Checks a shared premise after two fixes fail |
+| | [`/celetis:encode-lessons-in-structure`](skills/encode-lessons-in-structure/SKILL.md) | Uses structural prevention when a mistake or corrective instruction repeats |
+| | [`/celetis:make-operations-idempotent`](skills/make-operations-idempotent/SKILL.md) | Checks duplicate runs and recovery for operations that change persistent state |
+| | [`/celetis:separate-before-serializing-shared-state`](skills/separate-before-serializing-shared-state/SKILL.md) | Separates write targets or checks required synchronization for concurrent writers |
+| | [`/celetis:explain-the-number`](skills/explain-the-number/SKILL.md) | Checks the evidence for measured performance or quality results |
+| | [`/celetis:boundary-discipline`](skills/boundary-discipline/SKILL.md) | Checks trust boundaries when external input or validation changes |
+| | [`/celetis:model-the-domain`](skills/model-the-domain/SKILL.md) | Clarifies state combinations, branches, and repeated shape rules |
+| | [`/celetis:type-system-discipline`](skills/type-system-discipline/SKILL.md) | Uses types and compiler checks to prevent identified errors |
+| | [`/celetis:test-behavior-not-implementation`](skills/test-behavior-not-implementation/SKILL.md) | Checks required behavior through observable results |
 | **Helpers** | [`/celetis:prototype`](skills/prototype/SKILL.md) | Builds throwaway code that answers a design question: a logic demo in one HTML file, or the live variants of a look decision, with a capture of each variant in each state on the issue |
 | | [`/celetis:writing-for-agents`](skills/writing-for-agents/SKILL.md) | The reference for a document that an agent reads: a skill, or an `AGENTS.md` |
 | | [`/celetis:guide`](skills/guide/SKILL.md) | Says which command fits a goal. Only you can start it |
@@ -755,9 +768,19 @@ and the step text, need is a module in `docs/procedures/`, for example the entry
 lane worktree (`worktree.md`), the child dispatch (`dispatch.md`), the landing (`landing.md`), and
 the lookup of the external facts (`docs-lookup.md`). A module is a plain document, not a skill: a
 step of a skill names it, and the session reads it whole when the step comes. The Claude Code and
-Codex lines of an operation are in its module. `docs/capability.md`, the rubric of the capability
-score, and the other documents of `docs/` are maintainer references. The `AGENTS.md` of this
-repository, "Where agent text lives", gives the placement rule (ADR-0047).
+Codex lines of an operation are in its module.
+
+A general engineering principle has one canonical file in `docs/principles/`, regardless of
+caller count. Each file has `Applies when`, `Rule`, and `Check` sections. Skills and workflow
+steps cite the file when the task meets its trigger, rather than copy the rule. A principle
+stands alone, holds no workflow or host procedure, and has no minimum citer count. Entry loads
+no principle catalog. `docs/capability.md`, the rubric of the capability score, and the other
+maintainer references keep their existing role. The `AGENTS.md` of this repository, "Where
+agent text lives", gives the placement rule (ADR-0047 and ADR-0050).
+
+Each principle is also a native skill. An ordinary engineering task can select it or invoke it
+by name without an issue, a lane, or project configuration. The normal entry contract applies.
+Each invocation reads its one canonical rule file.
 
 `guide` and `setup` are explicit-only on both hosts. Claude reads `disable-model-invocation: true`;
 Codex reads `policy.allow_implicit_invocation: false` in `skills/guide/agents/openai.yaml` and
@@ -1031,9 +1054,10 @@ Run the checks in a checkout of this repository. No check needs model credential
 
 - **The verify gate** is `scripts/verify.ts`. It classifies every tracked path, runs Biome on
   authored TypeScript, JSON and CSS, checks strict runtime/browser/native types, runs native
-  actionlint, validates YAML and the plugin, checks the citations of the skills, the modules, and
-  the step text (`checkCitations`), and compares generated bytes, and modes on macOS and Linux,
-  without writes. It refuses a tracked test file. Generated JavaScript, unchanged vendor
+  actionlint, validates YAML and the plugin, checks the citations of the skills, the procedure
+  modules, the principles, and the step text (`checkCitations`), and compares generated bytes,
+  and modes on macOS and Linux, without writes. It refuses a tracked test file. Generated
+  JavaScript, unchanged vendor
   sources, and other file exemptions have exact paths and roles. A new unexplained path fails.
   Checks use bounded workers and install nothing. The last line is `verify: PASS`.
 - **Build delivery** with exactly Bun 1.4.4. `scripts/build.ts` generates the program entry
