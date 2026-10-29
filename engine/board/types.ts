@@ -103,6 +103,7 @@ export type Card = {
   act: string | null;
   reason: string | null;
   urgent: boolean;
+  assist: boolean;
   run: boolean;
   resume: boolean;
   go: boolean;

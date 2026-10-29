@@ -3,6 +3,7 @@ import { type Program, readProgram } from '../lib/program.ts';
 import { selectSavedSession } from '../lib/session.ts';
 
 export type Adapter = Readonly<{
+  assist(number: number, agent: Host): Promise<string>;
   run(number: number, agent: Host): Promise<string>;
   resume(number: number): Promise<string>;
 }>;
@@ -27,6 +28,7 @@ export async function celetisAdapter(
     return process.platform === 'win32' ? `& ${words} ${number}; if ($?) { exit }` : `${words} ${number} && exit`;
   };
   return {
+    assist: (number, agent) => line(['--agent', agent, 'assist'], number),
     run: (number, agent) => line(['--agent', agent, 'celetis-flow'], number),
     resume: async (number) => {
       await selectSavedSession(main, number);

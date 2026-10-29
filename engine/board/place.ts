@@ -58,7 +58,8 @@ export const sessionsOf = (snapshot: Snapshot, isHere: (path: string) => boolean
 };
 
 export const launchMatches = (issue: Issue | undefined, step: string | null) =>
-  issue?.step === step && (issue.state === 'ready' || issue.state === 'stuck');
+  issue?.step === step &&
+  (issue.state === 'ready' || issue.state === 'stuck' || (issue.state === 'blocked' && step === null));
 
 const issueCard = (issue: Issue, extra: Partial<Card>): Card => ({
   sessionId: null,
@@ -74,6 +75,7 @@ const issueCard = (issue: Issue, extra: Partial<Card>): Card => ({
   act: null,
   reason: null,
   urgent: issue.urgent,
+  assist: false,
   run: false,
   resume: false,
   go: false,
@@ -88,7 +90,10 @@ const PLACERS: Record<Issue['state'], (issue: Issue, context: { flow: Flow; isOp
     'needs',
     issueCard(issue, { step: issue.step, state: 'no-progress', act: issue.act, run: isOpen, resume: isOpen }),
   ],
-  blocked: (issue) => ['needs', issueCard(issue, { state: 'blocked', reason: issue.reason, act: issue.act })],
+  blocked: (issue, { isOpen }) => [
+    'needs',
+    issueCard(issue, { state: 'blocked', reason: issue.reason, act: issue.act, assist: isOpen }),
+  ],
   ready: (issue, { flow, isOpen }) => [
     issue.started || issue.urgent ? 'needs' : 'idle',
     issueCard(issue, { step: issue.step, gate: gateOf(flow, issue.step), run: isOpen }),
@@ -127,6 +132,7 @@ const placeSession = (session: Session, issue: Issue | undefined): [Column, Card
       act: null,
       reason: null,
       urgent: issue?.urgent === true,
+      assist: false,
       run: false,
       resume: false,
       go: true,
@@ -179,7 +185,10 @@ export const place = ({
           card.warning = 'Session not detected. Check the terminal before starting again.';
           return [column, card];
         }
-        return ['running', { ...card, state: 'starts', act: null, run: false, resume: false, go: false }];
+        return [
+          'running',
+          { ...card, state: 'starts', act: null, assist: false, run: false, resume: false, go: false },
+        ];
       }),
   ];
   for (const [column, card] of placed) columns[column].push(card);

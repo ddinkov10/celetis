@@ -45,6 +45,7 @@ const FILES: Record<string, [string, string]> = {
   '/fonts/geist-mono.woff2': ['fonts/geist-mono.woff2', 'font/woff2'],
 };
 const POSTS = new Set([
+  '/api/assist',
   '/api/run',
   '/api/resume',
   '/api/shell',
@@ -133,9 +134,8 @@ export const createBoard = ({
   let checkedFrom = -Infinity;
   let pending: Promise<void> | null = null;
   const presses: Record<string, { step: string | null; at: number }> = {};
-  const operations: Record<string, { step: string | null; observed: boolean }> = {};
+  const operations: Record<string, { step: string | null | undefined; observed: boolean }> = {};
   let shown = new Set<string>();
-  let health: Board['herdr'] = { ok: null, error: null };
   let firstSeen = new Map<string, number>();
   let screens = new Map<string, string[]>();
   const diffs = new Map<string, { at: number; value: Diff | null }>();
@@ -193,7 +193,6 @@ export const createBoard = ({
   const watchSessions = async () => {
     try {
       const sessions = await readSessions();
-      health = { ok: true, error: null };
       const seen = new Map<string, number>();
       for (const session of sessions) {
         const key = `${session.sessionId}|${session.status === 'done' ? 'idle' : session.status}`;
@@ -201,10 +200,9 @@ export const createBoard = ({
         session.since = new Date(seen.get(key) as number).toISOString();
       }
       firstSeen = seen;
-      return sessions;
+      return { sessions, health: { ok: true, error: null } };
     } catch (cause) {
-      health = { ok: false, error: firstLine((cause as Error).message) };
-      return [];
+      return { sessions: [], health: { ok: false, error: firstLine((cause as Error).message) } };
     }
   };
 
@@ -250,7 +248,7 @@ export const createBoard = ({
   };
 
   const placement = async ({ isLocal = false } = {}): Promise<Board> => {
-    const sessions = await watchSessions();
+    const { sessions, health } = await watchSessions();
     const dispositions = new Map(
       await Promise.all(
         [...new Set(sessions.flatMap((session) => (session.issue === null ? [] : [session.issue])))].map(
@@ -280,18 +278,21 @@ export const createBoard = ({
     for (const session of sessions) session.screen = screens.get(session.sessionId);
     const busy = new Set(sessions.map((session) => session.issue));
     const launches: Parameters<typeof place>[0]['launches'] = {};
-    for (const [number, evidence] of Object.entries({ ...presses, ...operations })) {
+    for (const number of new Set([...Object.keys(presses), ...Object.keys(operations)])) {
+      const operation = operations[number];
+      const active = operation?.step !== undefined;
+      const evidence = active ? operation : presses[number];
+      if (!evidence || evidence.step === undefined) continue;
       const issue = board?.issues.find((issue) => issue.number === Number(number));
       if (busy.has(Number(number)) || !launchMatches(issue, evidence.step)) {
         delete presses[number];
-        if (operations[number]) operations[number].observed = true;
+        if (active) operation.observed = true;
       }
-      const operation = operations[number];
       const press = presses[number];
-      if (operation ? !operation.observed : press) {
+      if (active ? !operation.observed : press) {
         launches[number] = {
           step: evidence.step,
-          expired: !operation && checkedFrom >= (press as { at: number }).at + PRESS_MS,
+          expired: !active && checkedFrom >= (press as { at: number }).at + PRESS_MS,
         };
       }
     }
@@ -337,7 +338,7 @@ export const createBoard = ({
     isQuiet?: boolean;
   }) => {
     const name = basename(main);
-    const focus = isQuiet ? ['--no-focus'] : [];
+    const focus = isQuiet ? ['--no-focus'] : ['--focus'];
     const workspaces = (await herdr('workspace', 'list'))?.workspaces;
     if (!Array.isArray(workspaces)) throw new Refusal(502, 'herdr gave no list of workspaces');
     const workspace = workspaces.find((w) => w.label === name);
@@ -370,17 +371,17 @@ export const createBoard = ({
 
   const press = async (
     number: number,
-    card: Card | undefined,
-    isAllowed: boolean | undefined,
     refusal: string,
-    start: () => Promise<void>,
+    prepare: () => Promise<{ card: Card; start: () => Promise<void> }>,
   ) => {
-    if (!isAllowed || number in operations || (presses[number] && now() - presses[number].at < PRESS_MS))
+    if (number in operations || (presses[number] && now() - presses[number].at < PRESS_MS))
       throw new Refusal(409, refusal);
-    const operation = { step: (card as Card).step, observed: false };
+    const operation: { step: string | null | undefined; observed: boolean } = { step: undefined, observed: false };
     operations[number] = operation;
-    delete presses[number];
     try {
+      const { card, start } = await prepare();
+      operation.step = card.step;
+      delete presses[number];
       await start();
       if (!operation.observed) presses[number] = { step: operation.step, at: now() };
     } finally {
@@ -389,7 +390,7 @@ export const createBoard = ({
     await refresh();
   };
 
-  const runStep = async (number: number, choice?: unknown) => {
+  const agentOf = (number: number, choice?: unknown): Host => {
     const isChoice = choice !== undefined && choice !== null;
     const agent = isChoice ? choice : (board?.defaultAgent ?? null);
     const members = board?.agents;
@@ -400,31 +401,81 @@ export const createBoard = ({
       );
     const member = members[agent] as { available: boolean; cause: string | null };
     if (!member.available) throw new Refusal(409, cleanCause(member.cause));
-    const card = await issueCardOf(number);
-    await press(number, card, card?.run, `#${number} has no step to start now`, async () => {
-      const command = await adapter.run(number, agent as Host).catch((cause: Error) => {
-        throw new Refusal(409, cleanCause(cause.message));
-      });
-      await openTab({
-        cwd: main,
-        label: `#${number} ${(card as Card).step}`,
-        command,
-        isQuiet: true,
-      });
+    return agent as Host;
+  };
+
+  const assist = async (number: number) => {
+    const refusal = `#${number} has no blocked issue to assist now`;
+    await press(number, refusal, async () => {
+      await pending;
+      await refresh();
+      if (error) throw new Refusal(409, cleanCause(error));
+      let observed: Document | null;
+      let current: Board;
+      do {
+        observed = board;
+        current = await placement();
+      } while (board !== observed);
+      if (error) throw new Refusal(409, cleanCause(error));
+      if (board?.noRun) throw new Refusal(409, cleanCause(board.noRun));
+      const agent = agentOf(number);
+      if (!current.herdr.ok) throw new Refusal(502, current.herdr.error ?? 'herdr gave no snapshot');
+      const cards = Object.values(current.columns).flat();
+      const card = cards.find((card) => card.sessionId === null && card.number === number);
+      if (!card) {
+        throw new Refusal(
+          409,
+          cards.some((card) => card.number === number)
+            ? `#${number} already has a session; use Go`
+            : `#${number} is not on the board`,
+        );
+      }
+      if (card.state !== 'blocked' || !card.assist || current.noRun !== null)
+        throw new Refusal(409, current.noRun ?? `#${number} is ${card.state ?? 'ready'}; ${refusal}`);
+      return {
+        card,
+        start: async () => {
+          const command = await adapter.assist(number, agent).catch((cause: Error) => {
+            throw new Refusal(409, cleanCause(cause.message));
+          });
+          await openTab({ cwd: main, label: `#${number} assist`, command });
+        },
+      };
+    });
+  };
+
+  const runStep = async (number: number, choice?: unknown) => {
+    const refusal = `#${number} has no step to start now`;
+    await press(number, refusal, async () => {
+      const agent = agentOf(number, choice);
+      const card = await issueCardOf(number);
+      if (!card?.run) throw new Refusal(409, refusal);
+      return {
+        card,
+        start: async () => {
+          const command = await adapter.run(number, agent).catch((cause: Error) => {
+            throw new Refusal(409, cleanCause(cause.message));
+          });
+          await openTab({ cwd: main, label: `#${number} ${card.step}`, command, isQuiet: true });
+        },
+      };
     });
   };
 
   const resume = async (number: number) => {
-    const card = await issueCardOf(number);
-    await press(number, card, card?.resume, `#${number} has no session to resume now`, async () => {
-      const command = await adapter.resume(number).catch((cause: Error) => {
-        throw new Refusal(409, cleanCause(cause.message));
-      });
-      await openTab({
-        cwd: main,
-        label: `#${number} ${(card as Card).step}`,
-        command,
-      });
+    const refusal = `#${number} has no session to resume now`;
+    await press(number, refusal, async () => {
+      const card = await issueCardOf(number);
+      if (!card?.resume) throw new Refusal(409, refusal);
+      return {
+        card,
+        start: async () => {
+          const command = await adapter.resume(number).catch((cause: Error) => {
+            throw new Refusal(409, cleanCause(cause.message));
+          });
+          await openTab({ cwd: main, label: `#${number} ${card.step}`, command });
+        },
+      };
     });
   };
 
@@ -493,9 +544,14 @@ export const createBoard = ({
     if (!/^application\/json\s*(;|$)/.test(request.headers['content-type'] ?? ''))
       throw new Refusal(403, 'the content type is not application/json');
     const body = await readBody(request);
-    if (path.startsWith('/api/update/') && (body === null || typeof body !== 'object' || Array.isArray(body)))
+    if (
+      (path.startsWith('/api/update/') || path === '/api/assist') &&
+      (body === null || typeof body !== 'object' || Array.isArray(body))
+    )
       throw new Refusal(400, 'the body is not an object');
     const input = (body ?? {}) as Record<string, unknown>;
+    if (path === '/api/assist' && (Object.keys(input).length !== 1 || !Object.hasOwn(input, 'number')))
+      throw new Refusal(400, 'assistance takes only the issue number');
     if (path === '/api/update/check') {
       if (Object.keys(input).length) throw new Refusal(400, 'the update check takes an empty object');
       void updates().check();
@@ -518,13 +574,18 @@ export const createBoard = ({
       return sendJson(response, 202, { runtime, update: updates().snapshot() });
     }
     const starts: Record<string, (number: number) => Promise<void>> = {
+      '/api/assist': assist,
       '/api/run': runStep,
       '/api/resume': resume,
       '/api/shell': shell,
     };
     if (Object.hasOwn(starts, path)) {
       const { number } = input;
-      if (!['number', 'string'].includes(typeof number) || !/^[1-9][0-9]*$/.test(String(number)))
+      if (
+        !['number', 'string'].includes(typeof number) ||
+        !/^[1-9][0-9]*$/.test(String(number)) ||
+        !Number.isSafeInteger(Number(number))
+      )
         throw new Refusal(400, 'the number of the issue is not digits');
       if (path === '/api/run') await runStep(Number(number), input.agent);
       else await (starts[path] as (number: number) => Promise<void>)(Number(number));

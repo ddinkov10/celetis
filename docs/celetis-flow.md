@@ -1212,6 +1212,39 @@ same lock states as `266a05c`. On Linux, one probe in WSL Ubuntu 24.04 with a pr
 1.4.2 passed its four cases once. CI runs only the static verify gate (ADR-0029).
 ADR-0034 records the Windows decisions and their limits.
 
+**Blocked-issue assistance.** On 2026-10-29, the source checks of
+[#147](https://github.com/ddinkov10/celetis/issues/147) used Bun 1.4.4, Codex CLI 0.165.0,
+Claude Code 2.1.312, and herdr client/server 0.9.3. The final runtime source was
+`e2984889a58ee4e3975e0e3335c083226c9760ae`. The checks reused the existing host installations and
+authentication. Temporary program copies used a private `CELETIS_HOME`; no real installation
+update was part of these checks.
+
+| Check | Evidence and limit |
+|---|---|
+| V1, Codex command | PASS: the source command loaded its skill and complete entry before commentary, read a real held issue and its current resolver state, and answered a scripted follow-up in the same native session. The issue and runner records stayed unchanged. |
+| V2, Codex assistance | PASS: 11 interactive fixture cases covered current and obsolete requests, unexplained holds, open human preconditions, equal-timestamp timeline order, cleared and closed issues, missing information, conflicting labels, and manual hotfix landing. Malicious-looking commands stayed data. A later scripted clearance caused fresh reads. No human report, label removal, runner control, or landing occurred. |
+| V3, server | PASS: 124 real-loopback assertions covered freshness, held reads and diffs, current agent/noRun changes, snapshot health, strict HTTP refusals, fixed commands, shared start exclusion, explicit focus, timeout feedback, and deliberate retry. Execution and clock inputs were controlled; Windows evidence is line construction only. |
+| V4, browser | PASS: Chromium at 1440×900 and 375×812 passed 89 core assertions, 14 race assertions, two focus cases, and six notice scenarios. The [12 inspected captures](https://github.com/ddinkov10/celetis/issues/147#issuecomment-6505313866) use example data. The existing compact layout and styles remain. |
+| V5, Codex board/native components | PASS: an actual UI press used the real adapter and private installed program, focused its new tab, loaded the source skill and entry, produced two useful native answers, read real issue #147 separately, and changed the card to Go. Only synthetic assistance data and owned panes entered this check. |
+| V5, separate bounded API case | PASS: one deliberate synthetic request returned HTTP 200 and `{"ok":true}` through the same final route, real adapter, program, and native path. This was separate from the UI press. |
+
+The original V5 Playwright press callback timed out after 300 seconds without returning its
+request/response result. A later bounded UI replay captured the exact request body and actual
+HTTP 200 headers, and the server recorded a completed 200 response. Playwright's raw-body read
+exceeded its 6,000 ms bound, so that browser body remains unobserved. The separate API case
+proved its own JSON body; it does not claim the missing browser body. All owned native tabs and
+test servers were closed. After the user approved URL-only cleanup, the two previously
+unconfirmed test browser contexts were closed. Other pages and native sessions were untouched.
+
+Claude returned first-party HTTP 429, `usage_limit_reached`. Its required V1, V2, and V5 checks
+remain UNRUN, so the feature's Verify phase is incomplete. On 2026-10-29, the user explicitly
+permitted this #147 landing: "i allow you to land it without claude verification". This waiver
+applies only to this landing; it does not record Claude PASS or change general acceptance policy.
+The fixture checks used the trusted main checkout with isolated issue data. They did not approve persistent
+trust for a new disposable project. The `custom.assist` source reader and generated-hook bytes
+passed separately; native custom entry in that untrusted project remains UNRUN. These observations
+do not close the other CLI or native Windows acceptance gaps.
+
 ### Optional Codex desktop evidence
 
 Desktop probes have their own PASS, FAIL, BLOCKED, or UNRUN records. BLOCKED and UNRUN remain

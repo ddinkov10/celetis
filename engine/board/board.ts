@@ -183,6 +183,24 @@ const actionsOf = (card: Card): Action[] => {
         ),
     });
   }
+  if (card.state === 'blocked') {
+    const reason = runReason(null);
+    list.push({
+      id: 'assist',
+      label: 'Open agent',
+      icon: 'terminal',
+      busy: 'Starting',
+      name: `Open agent for #${card.number}`,
+      title: reason ?? 'Open an assistance session in a new herdr tab (Enter)',
+      isDisabled: Boolean(reason) || !card.assist,
+      run: async () => {
+        if (await launch(card, '/api/assist'))
+          toast(`Opened an assistance session for #${card.number} in a new herdr tab`, {
+            detail: 'Switch to your terminal to see it.',
+          });
+      },
+    });
+  }
   if (card.state === 'no-progress') {
     if (card.resume) {
       list.push({
@@ -237,7 +255,7 @@ const actionsOf = (card: Card): Action[] => {
       label: 'Open issue',
       icon: 'open',
       name: `Open issue #${card.number}${onTracker()}`,
-      title: `Open the issue${onTracker()} (Enter)`,
+      title: `Open the issue${onTracker()}${list.length === 0 ? ' (Enter)' : ''}`,
       href: card.url,
     });
   }
@@ -826,12 +844,14 @@ const startNotices = (columns: Columns) => {
   const before = starting;
   starting = now;
   if (before === null) return lines;
-  for (const [number, step] of now) if (!before.has(number)) lines.push(`#${number} is starting the ${step} step`);
+  for (const [number, step] of now)
+    if (!before.has(number))
+      lines.push(step ? `#${number} is starting the ${step} step` : `#${number} is starting a session`);
   for (const [number, step] of before) {
     if (now.has(number)) continue;
     const card = cards.find((other) => other.number === number);
     if (card?.warning) lines.push(`#${number}: ${card.warning}`);
-    else if (card?.sessionId) lines.push(`#${number} started the ${step} step`);
+    else if (card?.sessionId) lines.push(step ? `#${number} started the ${step} step` : `#${number} opened a session`);
   }
   return lines;
 };
@@ -1092,18 +1112,19 @@ const project = (board: Board): Board => {
       else if (
         launch.phase !== 'failed' &&
         card.step === launch.step &&
-        (card.state === null || card.state === 'no-progress')
+        (card.state === null || card.state === 'no-progress' || (card.state === 'blocked' && launch.step === null))
       )
         columns.running.unshift({
           ...card,
           state: 'starts',
           act: null,
+          assist: false,
           run: false,
           resume: false,
           go: false,
           warning: null,
         });
-      else columns[key].push({ ...card, run: false, resume: false });
+      else columns[key].push({ ...card, assist: false, run: false, resume: false });
     }
   return { ...board, columns };
 };
@@ -1113,6 +1134,8 @@ const render = (canMove = true) => {
   const cards = JSON.stringify([
     next.repo,
     next.noRun,
+    next.agents,
+    next.defaultAgent,
     next.flow,
     next.tracker,
     next.columns,
@@ -1129,7 +1152,7 @@ const render = (canMove = true) => {
   lastLayout = layout;
 };
 
-const launch = async (card: Card, path: '/api/run' | '/api/resume', agent?: string) => {
+const launch = async (card: Card, path: '/api/run' | '/api/resume' | '/api/assist', agent?: string) => {
   if (isReconnecting()) return false;
   const number = card.number as number;
   const current =
@@ -1137,8 +1160,8 @@ const launch = async (card: Card, path: '/api/run' | '/api/resume', agent?: stri
     Object.values(project(data).columns)
       .flat()
       .find((other) => other.sessionId === null && other.number === number);
-  if (!current?.[path === '/api/run' ? 'run' : 'resume']) return false;
-  const reason = path === '/api/run' ? runReason(agent ?? null) : data?.noRun;
+  if (!current?.[path === '/api/run' ? 'run' : path === '/api/assist' ? 'assist' : 'resume']) return false;
+  const reason = path === '/api/resume' ? data?.noRun : runReason(path === '/api/assist' ? null : (agent ?? null));
   if (reason) {
     toast(reason, { isError: true });
     return false;
@@ -1150,8 +1173,8 @@ const launch = async (card: Card, path: '/api/run' | '/api/resume', agent?: stri
     document.querySelector<HTMLElement>(`[data-key="${CSS.escape(keyOf(card))}"]`)?.focus({ preventScroll: true });
   const isOk = await post(
     path,
-    { number, ...(agent ? { agent } : {}) },
-    path === '/api/run' ? 'Run failed' : 'Resume failed',
+    { number, ...(path === '/api/run' && agent ? { agent } : {}) },
+    path === '/api/run' ? 'Run failed' : path === '/api/assist' ? 'Open agent failed' : 'Resume failed',
   );
   entry.phase = isOk ? 'done' : 'failed';
   settled = reads;

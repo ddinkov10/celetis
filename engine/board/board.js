@@ -168,6 +168,24 @@ var actionsOf = (card) => {
       run: () => act("/api/go", { sessionId: card.sessionId }, "Go failed", () => toast(`Focused the pane of ${who(card)} in herdr`, { detail: "Switch to your terminal to see it." }))
     });
   }
+  if (card.state === "blocked") {
+    const reason = runReason(null);
+    list.push({
+      id: "assist",
+      label: "Open agent",
+      icon: "terminal",
+      busy: "Starting",
+      name: `Open agent for #${card.number}`,
+      title: reason ?? "Open an assistance session in a new herdr tab (Enter)",
+      isDisabled: Boolean(reason) || !card.assist,
+      run: async () => {
+        if (await launch(card, "/api/assist"))
+          toast(`Opened an assistance session for #${card.number} in a new herdr tab`, {
+            detail: "Switch to your terminal to see it."
+          });
+      }
+    });
+  }
   if (card.state === "no-progress") {
     if (card.resume) {
       list.push({
@@ -219,7 +237,7 @@ var actionsOf = (card) => {
       label: "Open issue",
       icon: "open",
       name: `Open issue #${card.number}${onTracker()}`,
-      title: `Open the issue${onTracker()} (Enter)`,
+      title: `Open the issue${onTracker()}${list.length === 0 ? " (Enter)" : ""}`,
       href: card.url
     });
   }
@@ -729,7 +747,7 @@ var startNotices = (columns) => {
     return lines;
   for (const [number, step] of now)
     if (!before.has(number))
-      lines.push(`#${number} is starting the ${step} step`);
+      lines.push(step ? `#${number} is starting the ${step} step` : `#${number} is starting a session`);
   for (const [number, step] of before) {
     if (now.has(number))
       continue;
@@ -737,7 +755,7 @@ var startNotices = (columns) => {
     if (card?.warning)
       lines.push(`#${number}: ${card.warning}`);
     else if (card?.sessionId)
-      lines.push(`#${number} started the ${step} step`);
+      lines.push(step ? `#${number} started the ${step} step` : `#${number} opened a session`);
   }
   return lines;
 };
@@ -956,18 +974,19 @@ var project = (board) => {
       const launch = card.sessionId === null ? launches.get(card.number) : undefined;
       if (!launch)
         columns[key].push(card);
-      else if (launch.phase !== "failed" && card.step === launch.step && (card.state === null || card.state === "no-progress"))
+      else if (launch.phase !== "failed" && card.step === launch.step && (card.state === null || card.state === "no-progress" || card.state === "blocked" && launch.step === null))
         columns.running.unshift({
           ...card,
           state: "starts",
           act: null,
+          assist: false,
           run: false,
           resume: false,
           go: false,
           warning: null
         });
       else
-        columns[key].push({ ...card, run: false, resume: false });
+        columns[key].push({ ...card, assist: false, run: false, resume: false });
     }
   return { ...board, columns };
 };
@@ -976,6 +995,8 @@ var render = (canMove = true) => {
   const cards = JSON.stringify([
     next.repo,
     next.noRun,
+    next.agents,
+    next.defaultAgent,
     next.flow,
     next.tracker,
     next.columns,
@@ -998,9 +1019,9 @@ var launch = async (card, path, agent) => {
     return false;
   const number = card.number;
   const current = data && Object.values(project(data).columns).flat().find((other) => other.sessionId === null && other.number === number);
-  if (!current?.[path === "/api/run" ? "run" : "resume"])
+  if (!current?.[path === "/api/run" ? "run" : path === "/api/assist" ? "assist" : "resume"])
     return false;
-  const reason = path === "/api/run" ? runReason(agent ?? null) : data?.noRun;
+  const reason = path === "/api/resume" ? data?.noRun : runReason(path === "/api/assist" ? null : agent ?? null);
   if (reason) {
     toast(reason, { isError: true });
     return false;
@@ -1010,7 +1031,7 @@ var launch = async (card, path, agent) => {
   render(false);
   if (document.activeElement === document.body)
     document.querySelector(`[data-key="${CSS.escape(keyOf(card))}"]`)?.focus({ preventScroll: true });
-  const isOk = await post(path, { number, ...agent ? { agent } : {} }, path === "/api/run" ? "Run failed" : "Resume failed");
+  const isOk = await post(path, { number, ...path === "/api/run" && agent ? { agent } : {} }, path === "/api/run" ? "Run failed" : path === "/api/assist" ? "Open agent failed" : "Resume failed");
   entry.phase = isOk ? "done" : "failed";
   settled = reads;
   render();

@@ -13,7 +13,7 @@ no immutable-resource or automatic skill-reload guarantee (ADR-0028). Desktop au
 
 The repository holds:
 
-- 28 skills: the lanes, the steps of a lane, the skills for review and memory, the engineering
+- 29 skills: the lanes, the steps of a lane, the skills for review and memory, the engineering
   principles, and the helpers ("The skills");
 - the scripts: the runner, the resolver, the landing script, the worktree script, the setup
   script, and the capability scorer ("The commands");
@@ -759,6 +759,7 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | | [`/celetis:type-system-discipline`](skills/type-system-discipline/SKILL.md) | Uses types and compiler checks to prevent identified errors |
 | | [`/celetis:test-behavior-not-implementation`](skills/test-behavior-not-implementation/SKILL.md) | Checks required behavior through observable results |
 | **Helpers** | [`/celetis:prototype`](skills/prototype/SKILL.md) | Builds throwaway code that answers a design question: a logic demo in one HTML file, or the live variants of a look decision, with a capture of each variant in each state on the issue |
+| | [`/celetis:assist #<n>`](skills/assist/SKILL.md) | Reads the current block and helps you complete it. It leaves human reports, hold removal, and lane continuation to you |
 | | [`/celetis:writing-for-agents`](skills/writing-for-agents/SKILL.md) | The reference for a document that an agent reads: a skill, or an `AGENTS.md` |
 | | [`/celetis:guide`](skills/guide/SKILL.md) | Says which command fits a goal. Only you can start it |
 | | [`/celetis:setup`](skills/setup/SKILL.md) | Proposes and tests the worktree setup of a product project, writes the wiring in its main checkout, and commits and pushes the wiring after your yes. Only you can start it |
@@ -800,6 +801,7 @@ usage: celetis [--agent <host>] <command> [<argument>...]
   celetis update                     Updates the program and the plugin of each host; asks once.
   celetis update check               Shows the installed and the available revision of each part.
   celetis board                      Starts the board of the project in this checkout.
+  celetis assist <n>                 Starts fresh interactive assistance for an issue in the main checkout.
   celetis celetis-flow               Starts the automatic runner.
   celetis celetis-flow <n>...        Runs the next step of each issue, in this order.
   celetis celetis-flow --resume <n>  Opens the session of a step with no progress again.
@@ -820,6 +822,7 @@ setup"):
 
 | Command | What it does |
 |---|---|
+| `celetis --agent <host> assist <n>` | Starts fresh interactive assistance for the issue in the main checkout. It explains the current block and permits scoped machine work. It does not record human evidence, remove `ready-for-human`, start or resume the runner, or land |
 | `celetis --agent <host> worktree <n>` | Makes the lane worktree and the branch of the issue, or enters the one that is there and brings it up to the trunk, and prints its path |
 | `celetis --agent <host> worktree --remove <n>` | Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first |
 | `celetis --agent <host> land <n> '<subject>'` | Lands the change of the issue by the `landing` field of `.celetis.yaml`. It is the one landing path of an agent. It refuses an issue that is not ready to land. Exit status: 0 landed, 1 internal error, 2 usage, 3 prerequisite, 4 repair, 5 checks, 6 blocked, 7 landed with a stopped cleanup (run it again), 128+n signal |
@@ -981,8 +984,10 @@ Until the program is installed, the skills of the new release stop with the inst
 ## The agent board
 
 The board is `engine/board/` of the plugin, a part of its engine. It shows each agent session and
-the next step of each issue, and starts a step with one press. Start it in the main checkout or one
-of its subfolders, then open the URL on its last line:
+the next step of each issue, and starts a step with one press. A blocked issue has Open agent as
+its main action in Now, Pipeline, details, the card menu, and search. Enter opens assistance;
+Open issue remains a secondary action, and `o` still opens the issue. Start it in the main
+checkout or one of its subfolders, then open the URL on its last line:
 
 ```bash
 celetis --agent <host> board
@@ -1000,8 +1005,8 @@ change. For an update, follow [Updates](#updates), including resource limits for
 and start the board again for its new code.
 
 The `agents` entries of the data report executable availability for Claude and Codex. Sign-in,
-trust, and enabled plugin discovery need their own checks. At each Run or Resume press, the fixed
-adapter `engine/board/adapter.ts` reads the installed program. `<command>` is its command:
+trust, and enabled plugin discovery need their own checks. At each Run, Resume, or Open agent
+press, the fixed adapter `engine/board/adapter.ts` reads the installed program. `<command>` is its command:
 `<base>/.local/bin/celetis`, or `<base>\.local\bin\celetis.cmd` on Windows ("First install"). A
 Run press types this line, with the selected agent, into a new herdr tab:
 
@@ -1021,7 +1026,20 @@ changes:
 '<command>' 'celetis-flow' '--resume' <n> && exit
 ```
 
-On Windows, both lines are for Windows PowerShell 5.1, the default pane shell of herdr: each line
+Open agent uses the current default agent without an agent choice. It opens and focuses a
+`#<n> assist` tab in the main checkout, with this line:
+
+```text
+'<command>' '--agent' '<agent>' 'assist' <n> && exit
+```
+
+Switch to your terminal to use the session. Starting prevents another press; the detected session
+then has Go. A failed start keeps a retry. After 30 seconds without detection, check the terminal
+before starting again. An unavailable default agent or `noRun` disables Open agent with its cause.
+The server reads the issue again and refuses assistance if it is no longer blocked or has a
+live session.
+
+On Windows, these lines are for Windows PowerShell 5.1, the default pane shell of herdr: each line
 starts with `&` and ends with `; if ($?) { exit }`. The program supplies Bun and its isolation
 flags. Each press reads the program again, so after `celetis update` the next press starts the
 new program with no board restart; new board code still needs a restart. A missing or foreign
