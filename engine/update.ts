@@ -18,12 +18,21 @@ import {
   object,
 } from './lib/plugin-metadata.ts';
 import { checkClaudePolicy, claudePolicy, requireUpdatePolicy } from './lib/plugin-policy.ts';
-import { bunArgs, childEnv, type run } from './lib/process.ts';
-import { installProgram, programRevision, programSource, readProgram } from './lib/program.ts';
+import { bunArgs, childEnv, run } from './lib/process.ts';
+import {
+  installProgram,
+  type Program,
+  type ProgramSource,
+  programRevision,
+  programSource,
+  readProgram,
+} from './lib/program.ts';
 import { UpdateLock, withPluginRead } from './lib/update-lock.ts';
+import type { UpdateStage } from './lib/update-types.ts';
+
+export type { UpdateStage };
 
 export type UpdateTarget = { home: string; root: string; source: string; installed: string; target: string };
-export type UpdateOffer = UpdateTarget & { host: Host };
 export type Installation = {
   host: Host;
   home: string;
@@ -41,6 +50,21 @@ export type Part =
   | { part: 'program' | Host; error: string }
   | ({ part: 'program' } & Offer)
   | ({ part: Host } & UpdateTarget & { ref: string });
+export type PreparedUpdate = {
+  parts: Part[];
+  program: { installed: Program; source: ProgramSource };
+  plugins: (Installation & { target: string; resolvedRef: string })[];
+  target: string;
+};
+export type UpdateCheck = { parts: Part[]; offer: PreparedUpdate | null; error: string | null };
+export type UpdateResult = {
+  ok: boolean;
+  target: string;
+  completed: ('program' | Host)[];
+  incomplete: ('program' | Host)[];
+  error: string | null;
+};
+type PluginUpdate = PreparedUpdate['plugins'][number];
 const revision = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 
 function gitSource(value: unknown): { source: string; ref: string } {
@@ -116,7 +140,7 @@ export async function installation(host: Host, cwd: string): Promise<Installatio
     const nativeMarket = policies.find(
       (record) => record.path === join(configHome(host), 'plugins/known_marketplaces.json'),
     )?.value.celetis;
-    registeredSource = object(nativeMarket) ? nativeMarket.source : undefined;
+    registeredSource = nativeMarket;
     let configuredSource: unknown;
     for (const { value } of policies) {
       const markets = value.extraKnownMarketplaces;
@@ -163,6 +187,11 @@ export async function installation(host: Host, cwd: string): Promise<Installatio
       throw new HostError(
         'update: selected Codex marketplace is not a Git source; no remote update check is available',
       );
+    registeredSource = {
+      source: metadata.record.source,
+      marketplaceSource: market,
+      root: await realpath((metadata.record.source as { path: string }).path),
+    };
     const reply = await codexRequest(cwd, 'config/read', { cwd, includeLayers: true }, metadata.home);
     const config = object(reply) && object(reply.result) && object(reply.result.config) ? reply.result.config : null;
     const markets = config?.marketplaces;
@@ -174,9 +203,9 @@ export async function installation(host: Host, cwd: string): Promise<Installatio
     configured = gitSource({ source: 'git', url: effective.source, ref: effective.ref });
     if (config?.plugins !== undefined && !object(config.plugins))
       throw new HostError('update: invalid effective Codex plugin configuration; inspect its native sources');
-    siblings = [...new Set([...metadata.marketplacePlugins, ...Object.keys(config?.plugins ?? {})])].filter(
-      (id) => id.endsWith('@celetis') && id !== 'celetis@celetis',
-    );
+    siblings = [...new Set([...metadata.marketplacePlugins, ...Object.keys(config?.plugins ?? {})])]
+      .filter((id) => id.endsWith('@celetis') && id !== 'celetis@celetis')
+      .sort();
   }
   const installed = await installedRevision(host, root, configured.source, nativeRevision);
   return {
@@ -232,36 +261,110 @@ async function settle(part: 'program' | Host, read: () => Promise<Part>): Promis
   }
 }
 
-async function programPart(cwd: string): Promise<Part> {
-  const program = await readProgram();
-  if (!program) return { part: 'program', skipped: 'the celetis program is not installed' };
-  const { source, branch, revision: installed } = await programSource(program.root);
-  const { ref, target } = await remoteTarget(source, `refs/heads/${branch}`, cwd);
-  return { part: 'program', root: program.root, source, ref, installed, target };
-}
-
-async function hostPart(host: Host, cwd: string): Promise<Part> {
-  if (!Bun.which(host, { PATH: childEnv().PATH })) return { part: host, skipped: `no ${host} command on PATH` };
+async function inspectPlugin(host: Host, cwd: string, ownerPid?: number): Promise<PluginUpdate | string> {
+  if (!Bun.which(host, { PATH: childEnv().PATH })) return `no ${host} command on PATH`;
   if (host === 'codex') {
     const home = configHome(host);
     if (process.env.CODEX_HOME === undefined && !(await lstat(home).catch(() => null)))
-      return { part: host, skipped: `Codex has no home folder ${home}` };
+      return `Codex has no home folder ${home}`;
     const listed = await nativeJson(host, ['plugin', 'marketplace', 'list', '--json'], cwd);
     if (!object(listed) || !Array.isArray(listed.marketplaces))
       throw new HostError('celetis: invalid Codex marketplace source list');
     if (!listed.marketplaces.some((market) => object(market) && market.name === 'celetis'))
-      return { part: host, skipped: 'Celetis is not installed in codex' };
+      return 'Celetis is not installed in codex';
   }
-  const { home, root, source, resolvedRef, installed, target } = await withPluginRead(host, () => inspect(host, cwd));
+  const decoded = (output: string): PluginUpdate | string => {
+    const value = JSON.parse(output) as PluginUpdate | { skipped: string };
+    return 'skipped' in value ? value.skipped : value;
+  };
+  const args = bunArgs(import.meta.path, ['--inspect', host]);
+  if (ownerPid !== undefined) {
+    const home = await realpath(configHome(host));
+    const lock = await UpdateLock.acquire(join(home, 'celetis-update.lock'), ownerPid, { refuseBusy: true });
+    try {
+      return decoded(await lock.run(process.execPath, args, { cwd, env: childEnv() }));
+    } finally {
+      await lock.close();
+    }
+  }
+  return withPluginRead(host, async () => {
+    const result = await run(process.execPath, args, { cwd, timeout: 120_000 });
+    if (result.code !== 0) {
+      throw new HostError(result.stderr.trimEnd(), result.code);
+    }
+    return decoded(result.stdout);
+  });
+}
+
+function pluginPart({ host, home, root, source, resolvedRef, installed, target }: PluginUpdate): Part {
   return { part: host, home, root, source, ref: resolvedRef, installed, target };
 }
 
-export async function parts(cwd: string): Promise<Part[]> {
-  return [
-    await settle('program', () => programPart(cwd)),
-    await settle('claude', () => hostPart('claude', cwd)),
-    await settle('codex', () => hostPart('codex', cwd)),
+async function discoverUpdate(
+  cwd: string,
+  ownerPid?: number,
+): Promise<{ parts: Part[]; prepared: PreparedUpdate | null; error: string | null }> {
+  let program: PreparedUpdate['program'] | null = null;
+  const plugins: PluginUpdate[] = [];
+  const found = [
+    await settle('program', async () => {
+      const installed = await readProgram();
+      if (!installed) return { part: 'program', skipped: 'the celetis program is not installed' };
+      const source = await programSource(installed.root);
+      if (installed.revision !== source.revision)
+        throw new HostError('update: installed program link and Git revision disagree; repair the program');
+      const resolved = await remoteTarget(source.source, `refs/heads/${source.branch}`, cwd);
+      program = { installed, source };
+      return {
+        part: 'program',
+        root: installed.root,
+        source: source.source,
+        ref: resolved.ref,
+        installed: source.revision,
+        target: resolved.target,
+      };
+    }),
   ];
+  for (const host of ['claude', 'codex'] as const)
+    found.push(
+      await settle(host, async () => {
+        const inspected = await inspectPlugin(host, cwd, ownerPid);
+        if (typeof inspected === 'string') return { part: host, skipped: inspected };
+        plugins.push(inspected);
+        return pluginPart(inspected);
+      }),
+    );
+  const ready = found.filter((part) => 'installed' in part);
+  let error: string | null = null;
+  if (found.some((part) => 'error' in part)) error = 'update: fix the errors above; nothing changed';
+  else if (!program)
+    error = 'update: the celetis program is not installed; run the first install of README.md, "First install"';
+  else if (!plugins.length)
+    error = 'update: no host has Celetis installed; install the plugin as README.md, "Wire a product project", says';
+  else if (new Set(ready.map(({ source, ref, target }) => JSON.stringify([source, ref, target]))).size > 1)
+    error = [
+      'update: the parts do not name one source, ref, and revision; nothing changed',
+      ...ready.map((part) => `update: ${part.part} uses ${part.source} ${part.ref} at ${short(part.target)}`),
+    ].join('\n');
+  const target = ready[0]?.target;
+  return {
+    parts: found,
+    prepared: !error && program && target ? { parts: found, program, plugins, target } : null,
+    error,
+  };
+}
+
+export async function inspectUpdate(cwd: string): Promise<UpdateCheck> {
+  const { parts, prepared, error } = await discoverUpdate(cwd);
+  return {
+    parts,
+    offer: prepared?.parts.some((part) => 'installed' in part && part.installed !== part.target) ? prepared : null,
+    error,
+  };
+}
+
+export async function parts(cwd: string): Promise<Part[]> {
+  return (await inspectUpdate(cwd)).parts;
 }
 
 async function check(cwd: string): Promise<number> {
@@ -307,7 +410,7 @@ async function replaceClaudeMarketplace(
   }
 }
 
-export async function updatePlugin(ownerPid: number, host: Host, target: UpdateTarget): Promise<string> {
+async function updatePlugin(ownerPid: number, host: Host, target: PluginUpdate): Promise<PluginUpdate> {
   if (
     !target.home ||
     !target.root ||
@@ -319,28 +422,28 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
       'update: apply needs the offered home, root, source and full installed and target revisions',
       2,
     );
-  const config = await bindUpdateHome(host, target.home);
+  const config = await realpath(configHome(host)).catch(() => null);
   if (config !== target.home || (await realpath(target.root).catch(() => null)) !== target.root)
     throw new HostError('update: offered home and root must be existing canonical paths', 2);
-  const env = childEnv();
+  const env = childEnv({
+    ...process.env,
+    [host === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'CODEX_HOME']: config,
+  });
   const lock = await UpdateLock.acquire(join(config, 'celetis-update.lock'), ownerPid, { refuseBusy: true });
   try {
-    const output = await lock.run(process.execPath, bunArgs(import.meta.path, ['--inspect', host]), {
-      cwd: process.cwd(),
-      env,
-    });
-    const current = JSON.parse(output) as UpdateOffer;
-    if (
-      current.home !== target.home ||
-      current.root !== target.root ||
-      current.source !== target.source ||
-      current.installed !== target.installed ||
-      current.target !== target.target
-    )
-      throw new HostError(
-        `update: offered home, root, source, installed revision, or target changed; this attempt is consumed. Check again and obtain a new direct user response. Observed: ${JSON.stringify(current)}`,
-      );
-    const details = current as UpdateOffer & { ref: string; scope?: string; registered?: unknown; siblings: string[] };
+    const revalidate = async () => {
+      const output = await lock.run(process.execPath, bunArgs(import.meta.path, ['--inspect', host]), {
+        cwd: process.cwd(),
+        env,
+      });
+      const current = JSON.parse(output) as PluginUpdate;
+      if (!isDeepStrictEqual(current, target))
+        throw new HostError(
+          `update: offered installation identity or target changed; this attempt is consumed. Check again and obtain a new direct user response. Observed: ${JSON.stringify(current)}`,
+        );
+      return current;
+    };
+    const details = await revalidate();
     if (host === 'codex' && details.siblings.length)
       throw new HostError(
         `update: native whole-marketplace upgrade would also replace configured plugins ${details.siblings.join(', ')}; no mutation ran. Celetis approval does not include these plugins`,
@@ -370,7 +473,7 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
           (original.source.source !== 'git' && original.source.source !== 'github')
         )
           throw new HostError('update: native marketplace needs its original Git/GitHub source; recovery is required');
-        if (!isDeepStrictEqual(original.source, details.registered))
+        if (!isDeepStrictEqual(original, details.registered))
           throw new HostError('update: native marketplace source changed before replacement; check again');
         if (gitSource(original.source).source !== target.source)
           throw new HostError('update: native marketplace source does not match the approved source');
@@ -424,6 +527,7 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
           }),
           { mode: 0o600 },
         );
+        await revalidate();
         await replaceClaudeMarketplace(registryPath, original, staged);
         operation = 'claude target-bound plugin update';
         let installationError: unknown;
@@ -478,6 +582,7 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
         }
       } else {
         operation = 'codex target-bound marketplace upgrade';
+        await revalidate();
         await lock.run(
           'codex',
           [
@@ -530,7 +635,19 @@ export async function updatePlugin(ownerPid: number, host: Host, target: UpdateT
         throw new HostError(`update: enabled revision is ${installed}, expected approved target ${target.target}`);
       if (!(await lstat(join(root, 'step-prompt.md')).catch(() => null))?.isFile())
         throw new HostError(`update: target package has no step-prompt.md: ${root}`);
-      return root;
+      const fresh = JSON.parse(
+        await lock.run(process.execPath, bunArgs(import.meta.path, ['--inspect', host]), {
+          cwd: process.cwd(),
+          env,
+        }),
+      ) as PluginUpdate;
+      if (
+        fresh.root !== root ||
+        fresh.installed !== target.target ||
+        !isDeepStrictEqual({ ...fresh, root: target.root, installed: target.installed }, target)
+      )
+        throw new HostError('update: fresh installation does not match the approved source, ref, scope, or target');
+      return fresh;
     } catch (error) {
       let state = 'unknown';
       let sourceState: unknown = 'unknown';
@@ -589,31 +706,93 @@ export async function requireSameRevision(host: Host, cwd: string, root: string)
   return plugin;
 }
 
-export async function update(found: Part[]): Promise<number> {
-  const summary = found.map(line).join('\n');
-  const stop = (message: string) => {
+export async function executeUpdate(
+  offer: PreparedUpdate,
+  stage: (value: UpdateStage) => void,
+  ownerPid: number,
+): Promise<UpdateResult> {
+  const pending: ('program' | Host)[] = offer.plugins
+    .filter((plugin) => plugin.installed !== offer.target)
+    .map((plugin) => plugin.host);
+  if (offer.program.source.revision !== offer.target) pending.push('program');
+  const completed: ('program' | Host)[] = [];
+  const expected = structuredClone(offer);
+  try {
+    const before = await discoverUpdate(process.cwd(), ownerPid);
+    if (before.error || !isDeepStrictEqual(before.prepared, offer))
+      throw new HostError(
+        [
+          'update: offered installation identity, inventory, or target changed; check again and obtain a new direct user response',
+          ...before.parts.filter((part) => 'error' in part).map((part) => part.error),
+          before.error,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      );
+    if (!pending.length) throw new HostError('update: the offer has no differing part; check again');
+    for (const part of pending) {
+      stage({ part, state: 'started' });
+      if (part === 'program') {
+        const installed = await installProgram(
+          offer.program.source.source,
+          { ...offer.program.source, revision: offer.target },
+          undefined,
+          offer.program.installed,
+        );
+        const source = await programSource(installed.root);
+        if (
+          source.source !== offer.program.source.source ||
+          source.branch !== offer.program.source.branch ||
+          source.revision !== offer.target ||
+          (await installedRevision('program', installed.root, source.source)) !== offer.target
+        )
+          throw new HostError('update: fresh program does not match the approved source, ref, or target');
+        expected.program = { installed, source };
+        expected.parts = expected.parts.map((value) =>
+          value.part === part && 'installed' in value
+            ? { ...value, root: installed.root, installed: offer.target }
+            : value,
+        );
+      } else {
+        const plugin = offer.plugins.find((plugin) => plugin.host === part);
+        if (!plugin) throw new HostError(`update: the offer has no ${part} installation`);
+        const fresh = await updatePlugin(ownerPid, part, plugin);
+        expected.plugins = expected.plugins.map((value) => (value.host === part ? fresh : value));
+        expected.parts = expected.parts.map((value) => (value.part === part ? pluginPart(fresh) : value));
+      }
+      completed.push(part);
+      stage({ part, state: 'completed' });
+    }
+    const final = await discoverUpdate(process.cwd(), ownerPid);
+    if (final.error || !isDeepStrictEqual(final.prepared, expected))
+      throw new HostError(
+        [
+          'update: final installation validation found a changed identity, inventory, or target; check again',
+          ...final.parts.map((part) => ('error' in part ? part.error : line(part))),
+        ].join('\n'),
+      );
+    return { ok: true, target: offer.target, completed, incomplete: [], error: null };
+  } catch (error) {
+    return {
+      ok: false,
+      target: offer.target,
+      completed,
+      incomplete: pending.filter((part) => !completed.includes(part)),
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+export async function update(checked: UpdateCheck): Promise<number> {
+  const summary = checked.parts.map(line).join('\n');
+  if (checked.error) {
     console.log(summary);
-    return new HostError(message);
-  };
-  const ready = found.filter((part) => 'installed' in part);
-  const program = ready.find((part) => part.part === 'program');
-  const hosts = ready.filter((part) => part.part !== 'program');
-  if (found.some((part) => 'error' in part)) throw stop('update: fix the errors above; nothing changed');
-  if (!program)
-    throw stop('update: the celetis program is not installed; run the first install of README.md, "First install"');
-  if (!hosts.length)
-    throw stop(
-      'update: no host has Celetis installed; install the plugin as README.md, "Wire a product project", says',
-    );
-  if (new Set(ready.map(({ source, ref, target }) => JSON.stringify([source, ref, target]))).size > 1)
-    throw stop(
-      [
-        'update: the parts do not name one source, ref, and revision; nothing changed',
-        ...ready.map((part) => `update: ${part.part} uses ${part.source} ${part.ref} at ${short(part.target)}`),
-      ].join('\n'),
-    );
-  const pending = [...hosts, program].filter((part) => part.installed !== part.target);
-  if (!pending.length) {
+    throw new HostError(checked.error);
+  }
+  const program = checked.parts.find((part) => part.part === 'program');
+  if (!program || !('installed' in program)) throw new HostError('update: no installed program was inspected');
+  const offer = checked.offer;
+  if (!offer) {
     console.log(`${summary}\nupdate: Celetis is up to date at ${short(program.target)}`);
     return 0;
   }
@@ -625,32 +804,22 @@ export async function update(found: Part[]): Promise<number> {
     console.log('update: cancelled; nothing changed');
     return 0;
   }
-  const completed: string[] = [];
-  for (const [index, part] of pending.entries()) {
-    try {
-      const path =
-        part.part === 'program'
-          ? (
-              await installProgram(part.source, {
-                source: part.source,
-                branch: (await programSource(part.root)).branch,
-                revision: part.target,
-              })
-            ).entry
-          : await updatePlugin(process.pid, part.part, part);
-      console.log(`  ${part.part}  updated  ${path}`);
-      completed.push(part.part);
-    } catch (error) {
-      const waiting = pending.slice(index + 1).map((part) => part.part);
-      console.error(
-        [
-          error instanceof Error ? error.message : String(error),
-          `update: completed: ${completed.join(', ') || 'none'}`,
-          `update: not started: ${waiting.join(', ') || 'none'}`,
-        ].join('\n'),
-      );
-      return 1;
-    }
+  const result = await executeUpdate(
+    offer,
+    ({ part, state }) => {
+      if (state === 'completed') console.log(`  ${part}  updated  ${short(offer.target)}`);
+    },
+    process.pid,
+  );
+  if (!result.ok) {
+    console.error(
+      [
+        result.error,
+        `update: completed: ${result.completed.join(', ') || 'none'}`,
+        `update: incomplete: ${result.incomplete.join(', ') || 'none'}`,
+      ].join('\n'),
+    );
+    return 1;
   }
   console.log('update: open a fresh session to use the updated skills');
   return 0;
@@ -662,11 +831,16 @@ export async function main(argv: string[]): Promise<number> {
     const { args } = commandInput(argv);
     if (args[0] === '--policy' && args.length === 2 && (args[1] === 'claude' || args[1] === 'codex'))
       await requireUpdatePolicy(args[1], process.cwd());
-    else if (args[0] === '--inspect' && args.length === 2 && (args[1] === 'claude' || args[1] === 'codex'))
-      console.log(JSON.stringify(await inspect(args[1], process.cwd())));
-    else if (args.length === 1 && args[0] === 'check') return await check(process.cwd());
+    else if (args[0] === '--inspect' && args.length === 2 && (args[1] === 'claude' || args[1] === 'codex')) {
+      try {
+        console.log(JSON.stringify(await inspect(args[1], process.cwd())));
+      } catch (error) {
+        if (!(error instanceof NotInstalled)) throw error;
+        console.log(JSON.stringify({ skipped: `Celetis is not installed in ${args[1]}` }));
+      }
+    } else if (args.length === 1 && args[0] === 'check') return await check(process.cwd());
     else if (args.length) throw new HostError(`usage: celetis update [check]\n${updateHint}`, 2);
-    else return await update(await parts(process.cwd()));
+    else return await update(await inspectUpdate(process.cwd()));
     return 0;
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));

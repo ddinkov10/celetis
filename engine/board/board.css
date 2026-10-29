@@ -2304,7 +2304,7 @@ a.chip2:hover {
 }
 @media (max-height: 700px) {
   body {
-    display: block;
+    display: flex;
     height: auto;
     min-height: 100dvh;
     overflow: visible;
@@ -2347,7 +2347,7 @@ a.chip2:hover {
 }
 @media (max-width: 1099px) {
   body {
-    display: block;
+    display: flex;
     height: auto;
     min-height: 100dvh;
     overflow: visible;
@@ -2570,5 +2570,136 @@ a.chip2:hover {
   .human-go {
     width: 36px;
     height: 36px;
+  }
+}
+.update-dialog {
+  position: fixed;
+  z-index: 100;
+  inset: auto 20px 52px auto;
+  width: min(380px, calc(100vw - 24px));
+  max-height: calc(100dvh - 88px);
+  margin: 0;
+  padding: 20px;
+  overflow: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: var(--card);
+  color: var(--fg);
+  box-shadow: var(--float);
+  font: inherit;
+  scrollbar-color: var(--fg3) var(--card);
+}
+.update-dialog h2 {
+  font-size: 18px;
+  font-weight: 620;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+.update-description {
+  margin: 10px 0 14px;
+  font-size: 13px;
+  color: var(--fg2);
+  line-height: 1.6;
+}
+.update-revisions {
+  display: flex;
+  gap: 18px;
+  color: var(--fg2);
+  font-size: 12px;
+}
+.update-installed {
+  display: grid;
+  gap: 8px;
+}
+.update-installed > span,
+.update-target {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+}
+.update-revisions code {
+  font: 12px var(--mono);
+  color: var(--fg);
+}
+.update-status {
+  margin: 14px 0 0;
+  color: var(--working);
+  font-size: 12px;
+}
+.update-status:not(.is-busy) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.update-status.is-busy::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 10px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.update-note {
+  margin: 14px 0 0;
+  color: var(--fg2);
+  font-size: 12px;
+}
+.update-failure,
+.update-error {
+  color: var(--danger);
+}
+.update-error,
+.update-recovery {
+  margin: 12px 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font-size: 12px;
+}
+.update-recovery {
+  color: var(--fg2);
+}
+.update-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+.update-actions .btn {
+  min-height: 38px;
+  padding: 8px 14px;
+}
+.update-actions .primary {
+  background: var(--primary);
+  color: var(--on-primary);
+  border-color: transparent;
+}
+.update-actions .primary:hover {
+  opacity: 0.88;
+}
+.update-actions .btn:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+.update-open {
+  color: var(--working);
+}
+@media (max-width: 719px) {
+  .update-dialog {
+    inset: auto 12px 60px auto;
+    max-height: calc(100dvh - 84px);
+    padding: 18px;
+  }
+  .update-actions .btn {
+    min-height: 44px;
+  }
+  .update-actions .primary {
+    flex: 1;
+  }
+  .update-open {
+    min-height: 44px;
   }
 }

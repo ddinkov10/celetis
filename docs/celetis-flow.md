@@ -561,8 +561,9 @@ PORT=4500 celetis --agent <host> board
 
 The command takes no arguments. It fully validates the main YAML, refuses a lane start, and checks
 the plugin update policy of the selected host once. `--agent` selects the host of the board process
-only: its policy check and, for Codex, its `CODEX_HOME`. The start reads no program: each Run and
-Resume reads the installed program at the press ("Run and Resume"). The start prints two lines,
+only: its policy check and, for Codex, its `CODEX_HOME`. The start records its own program
+revision and starts an independent update check after it listens. Each Run and Resume reads the
+installed program at the press ("Run and Resume"). The start prints two lines,
 the main checkout and the URL:
 
 ```text
@@ -581,10 +582,10 @@ in-process resolver (`nextBoard` of `next-step.ts`), and the issue locks, the ru
 record through `engine/lib/locks.ts`, the module of the runner. So resolution, displayed gates, and
 the default host share that refresh's operation, and a change of `host` or `gates` in the main YAML
 shows at the next refresh. Each module of this path is a static import: a refresh loads no plugin
-file, takes no plugin read lock, and checks no update policy. The board checks that policy once,
-at its start. Each Run and Resume starts a new `celetis-flow` process, which makes its own check. So
-a conflict that starts while the board runs shows in the pane of the next Run or Resume, not on the
-status line of the board.
+file, takes no plugin read lock, and checks no update policy. The start checks the selected
+host's policy. Independent update checks validate the native update policy. Each Run and Resume
+starts a new `celetis-flow` process, which makes its own check. A conflict can show in the update
+check or in the pane of the next Run or Resume.
 
 The resolver makes these `gh api` calls: 2 paginated lists (open issues and open PRs),
 one paginated call for the timeline of each open issue that has a comment, and 3 calls for each
@@ -623,8 +624,25 @@ phone. Each semantic row has issue and commit links and accessible full commit i
 initial error are separate states. Read failures preserve both cards and history with the visible
 read error; a later good read clears it. The snapshot's `history` is null before a good document.
 
-The board runs the data code that it loaded at its start. After `celetis update`, start the board
-again for new data code, as for new server code.
+The board runs the data and server code that it loaded at its start. A board-approved update
+starts the approved installed program at the same URL. A terminal-started `celetis update` still
+needs a manual board restart for new data and server code.
+
+The board checks at startup and every 10 minutes, with one joined check and a 120-second limit.
+`GET /api/update` returns the update snapshot and `{revision, instance}` runtime identity.
+`POST /api/update/check` takes exactly `{}` and starts or joins a check without waiting for its
+result. `POST /api/update/start` takes exactly one opaque `offerId` string. These routes share
+the existing HTTP trust checks and do not wait for issue or herdr reads. The browser supplies
+no program path, host, or command.
+
+An approved start consumes one exact offer for one attempt. After complete validated success,
+the board drains the worker and its HTTP start response, stops its reads, and closes its listener
+and connections. It validates the installed program before and after teardown, then uses
+`execConsumer` to load the approved installed entry. The main checkout, startup host, native
+profile, captured environment, and actual port stay the same. Only this board stops. A failed
+validation before teardown retains the running board and shows an error. A later activation
+failure prints diagnostics and `PORT=<actual> celetis --agent <host> board` to run from the main
+checkout. A failure or stale offer needs a new check and decision; there is no automatic retry.
 
 The board puts these values in the fields of its document (`Document` of `engine/board/types.ts`):
 
@@ -712,11 +730,11 @@ The board shows the default as read-only in its agent menu and command palette. 
 `POST /api/agent` returns 409 with `The main .celetis.yaml controls the default agent. Change host there.`
 It changes no YAML or Git setting. Change `host` in the main YAML to set the project default.
 
-An update does not stop the board. Each Run and Resume reads the installed program again; the
-adapter keeps no program path between presses. After `celetis update`, the next press starts the
-new program with no board restart. New board code still needs a board restart: the board runs the
-code of the version folder that started it. Reload or restart the board if an update removes a
-file that it still needs. Follow [Updates](../README.md#updates) for manual updates.
+Each Run and Resume reads the installed program again; the adapter keeps no program path
+between presses. After `celetis update`, the next press starts the new program. A board-approved
+update also restarts this board automatically. A terminal-started update keeps the board open;
+start it again to load new board code. Reload or restart the board if a terminal-started update
+removes a file that it still needs. Follow [Updates](../README.md#updates) for manual updates.
 Real Run/Resume acceptance remains a separate live gate.
 
 **The page.** [`engine/board/README.md`](../engine/board/README.md) of the plugin holds the page: the
@@ -1063,6 +1081,17 @@ The observer was never installed, and all probe files stayed outside the checkou
 "Acceptance evidence of #161" comment records the commands, native events, and probe corrections.
 Installed startup after a terminal-confirmed `celetis update` remains an after-landing check.
 
+[Issue #164](https://github.com/ddinkov10/celetis/issues/164) checked automatic board activation
+on macOS with Bun 1.4.4. Two clean temporary full-program installations had distinct server
+import and browser asset markers. The same nondefault origin returned the target revision and
+a new runtime instance, with the target import and asset, main checkout, explicit startup host,
+native profile, captured environment, and actual port. An occupied port failed without an update
+worker. Signals during check and apply stopped only the owned board. A changed installed target
+was refused before teardown. A second board and a sentinel child survived all cases. The focused
+check ended with `restart: PASS`. This proves the macOS process replacement path with an arranged
+update result, not a real native plugin replacement. Linux process replacement and final browser
+reconnect acceptance remain open; Windows board activation has no acceptance claim.
+
 **Native cache replacement follows the host.** The user chose terminal confirmation and updates
 with sessions left open (ADR-0028). Celetis no longer scans native processes or holds consumer
 admission for their lifetime. Updater serialization, exact-target application, source restoration,
@@ -1173,8 +1202,9 @@ remains unknown.
   `.claude/launch.json` of the main checkout, so the build of a lane cannot start the entry `board`
   of its branch. When that entry does not start the board, start the board in a terminal.
 - A runner keeps the version folder of the program that started it for its resolver, entry, and
-  step text. An install or an update keeps the three newest version folders and the current one,
-  so a runner that stays open through three later updates can lose its folder. After that, the
+  step text. An install or an update keeps the three newest version folders, the current one,
+  and the installed version that runs that install. A runner that stays open while other versions
+  run three later updates can lose its folder. After that, the
   runner stops with the true cause. The automatic runner prints
   `celetis-flow: stop the program version of this runner was removed after an update; start the
   runner again` and exits 1. A runner with numbers prints
@@ -1182,7 +1212,8 @@ remains unknown.
   runner again` for each number. The cure is a new start of the runner (ADR-0012). A board whose
   version folder is gone keeps its data reads, because it loaded their code at its start. Each
   Run and Resume reads the installed program again. An update needs no board restart for these
-  presses; new board code still needs a restart (ADR-0042).
+  presses. A board-approved update restarts that board automatically; a terminal-started update
+  still needs a manual restart for new board code (ADR-0042).
 - A host can update its plugin by itself, for example with a marketplace auto-update. Then the
   runner starts no new step session until `celetis update` ("How a step runs").
 

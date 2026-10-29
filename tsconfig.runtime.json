@@ -9,7 +9,8 @@
     "engine/board/view.ts",
     "engine/board/ui.ts",
     "engine/board/panel.ts",
-    "engine/board/palette.ts"
+    "engine/board/palette.ts",
+    "engine/board/update-dialog.ts"
   ],
   "compilerOptions": {
     "lib": ["ESNext"],

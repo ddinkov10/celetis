@@ -16,6 +16,7 @@ import {
   timed,
   toast
 } from "./ui.mjs";
+import { isReconnecting, setupUpdates } from "./update-dialog.mjs";
 import {
   age,
   agentOf,
@@ -79,6 +80,8 @@ var copyWhat = (card) => card.act ? COPY[card.state] : null;
 var onTracker = () => data.tracker ? ` on ${data.tracker}` : "";
 var readAgain = () => data?.tracker ? `Read ${data.tracker} again` : "Read the issues again";
 var act = async (path, value, failure, onDone) => {
+  if (isReconnecting())
+    return false;
   const isOk = await post(path, value, failure);
   if (isOk)
     onDone?.();
@@ -991,6 +994,8 @@ var render = (canMove = true) => {
   lastLayout = layout;
 };
 var launch = async (card, path, agent) => {
+  if (isReconnecting())
+    return false;
   const number = card.number;
   const current = data && Object.values(project(data).columns).flat().find((other) => other.sessionId === null && other.number === number);
   if (!current?.[path === "/api/run" ? "run" : "resume"])
@@ -1012,12 +1017,18 @@ var launch = async (card, path, agent) => {
   load();
   return isOk;
 };
+var loadRequest;
+document.addEventListener("board-reconnect", () => loadRequest?.abort());
+document.addEventListener("board-connected", () => void load());
 async function load() {
   clearTimeout(timer);
+  if (isReconnecting())
+    return;
+  loadRequest = new AbortController;
   const isLocal = hasRead && document.hidden;
   const read = ++reads;
   try {
-    const response = await fetch(`/api/board${isLocal ? "?local=1" : ""}`);
+    const response = await fetch(`/api/board${isLocal ? "?local=1" : ""}`, { signal: loadRequest.signal });
     if (!response.ok)
       throw new Error(response.statusText);
     const next = await response.json();
@@ -1033,7 +1044,8 @@ async function load() {
       drawStatus(source, false);
     }
   } catch {
-    drawStatus(source, true);
+    if (!isReconnecting())
+      drawStatus(source, true);
   }
   tick();
   timer = setTimeout(load, document.hidden ? 15000 : 5000);
@@ -1208,8 +1220,9 @@ var CARD_KEYS = {
       openMenu(card.querySelector(".more") ?? card, menuOf(entry.card, card.dataset.key));
   }
 };
+var updates = setupUpdates();
 document.addEventListener("keydown", (event) => {
-  if (event.defaultPrevented)
+  if (event.defaultPrevented || updates.contains(event.target))
     return;
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
     event.preventDefault();

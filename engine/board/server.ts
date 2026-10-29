@@ -3,7 +3,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Host } from '../lib/config-core.ts';
 import type { Adapter } from './adapter.ts';
-import type { Board, Card, Diff, Document, Session } from './types.ts';
+import type { Board, BoardRuntime, Card, Diff, Document, Session } from './types.ts';
+import type { UpdateController } from './updates.ts';
 
 type Result = { code: number; stdout: string; stderr: string };
 export type Execute = (file: string, args: string[], options?: ExecFileOptions) => Promise<Result>;
@@ -39,10 +40,20 @@ const FILES: Record<string, [string, string]> = {
   '/ui.mjs': ['ui.mjs', 'text/javascript; charset=utf-8'],
   '/panel.mjs': ['panel.mjs', 'text/javascript; charset=utf-8'],
   '/palette.mjs': ['palette.mjs', 'text/javascript; charset=utf-8'],
+  '/update-dialog.mjs': ['update-dialog.mjs', 'text/javascript; charset=utf-8'],
   '/fonts/geist.woff2': ['fonts/geist.woff2', 'font/woff2'],
   '/fonts/geist-mono.woff2': ['fonts/geist-mono.woff2', 'font/woff2'],
 };
-const POSTS = new Set(['/api/run', '/api/resume', '/api/shell', '/api/go', '/api/refresh', '/api/agent']);
+const POSTS = new Set([
+  '/api/run',
+  '/api/resume',
+  '/api/shell',
+  '/api/go',
+  '/api/refresh',
+  '/api/agent',
+  '/api/update/check',
+  '/api/update/start',
+]);
 const CSP =
   "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src data:; " +
   "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
@@ -102,12 +113,16 @@ export const createBoard = ({
   main,
   read,
   adapter,
+  updates,
+  runtime,
   exec = run,
   now = Date.now,
 }: {
   main: string;
   read: (signal: AbortSignal) => Promise<Document>;
   adapter: Adapter;
+  updates: () => UpdateController;
+  runtime: BoardRuntime;
   exec?: Execute;
   now?: () => number;
 }) => {
@@ -427,14 +442,14 @@ export const createBoard = ({
     await herdr('agent', 'focus', session.paneId);
   };
 
-  const readBody = async (request: IncomingMessage): Promise<Record<string, unknown>> => {
+  const readBody = async (request: IncomingMessage): Promise<unknown> => {
     let text = '';
     for await (const chunk of request) {
       text += chunk;
       if (text.length > 1024) throw new Refusal(400, 'the body is too long');
     }
     try {
-      return JSON.parse(text) ?? {};
+      return JSON.parse(text);
     } catch {
       throw new Refusal(400, 'the body is not JSON');
     }
@@ -463,6 +478,8 @@ export const createBoard = ({
       const [name, type] = FILES[path] as [string, string];
       return send(response, 200, type, await readFile(join(HERE, name)));
     }
+    if (request.method === 'GET' && path === '/api/update')
+      return sendJson(response, 200, { runtime, update: updates().snapshot() });
     if (request.method === 'GET' && path === '/api/board') {
       const isLocal = new URLSearchParams(url.split('?')[1] ?? '').get('local') === '1';
       if (!pending && !isLocal && now() - askedAt > STALE_MS) void refresh();
@@ -475,7 +492,31 @@ export const createBoard = ({
     if (request.headers.origin !== `http://${host}`) throw new Refusal(403, 'the Origin is not this page');
     if (!/^application\/json\s*(;|$)/.test(request.headers['content-type'] ?? ''))
       throw new Refusal(403, 'the content type is not application/json');
-    const input = await readBody(request);
+    const body = await readBody(request);
+    if (path.startsWith('/api/update/') && (body === null || typeof body !== 'object' || Array.isArray(body)))
+      throw new Refusal(400, 'the body is not an object');
+    const input = (body ?? {}) as Record<string, unknown>;
+    if (path === '/api/update/check') {
+      if (Object.keys(input).length) throw new Refusal(400, 'the update check takes an empty object');
+      void updates().check();
+      return sendJson(response, 200, { runtime, update: updates().snapshot() });
+    }
+    if (path === '/api/update/start') {
+      if (Object.keys(input).length !== 1 || typeof input.offerId !== 'string' || !input.offerId)
+        throw new Refusal(400, 'the update start takes one offerId string');
+      const finished = new Promise<void>((done) => {
+        response.once('finish', done);
+        response.once('close', done);
+      });
+      try {
+        updates().start(input.offerId);
+      } catch (cause) {
+        if ((cause as { status?: number }).status === 409) throw new Refusal(409, (cause as Error).message);
+        throw cause;
+      }
+      updateResponse = finished;
+      return sendJson(response, 202, { runtime, update: updates().snapshot() });
+    }
     const starts: Record<string, (number: number) => Promise<void>> = {
       '/api/run': runStep,
       '/api/resume': resume,
@@ -506,11 +547,15 @@ export const createBoard = ({
     });
   });
   let nextCheck: ReturnType<typeof setTimeout> | undefined;
+  let updateResponse = Promise.resolve();
   const check = () => {
     if (now() - askedAt >= BACKGROUND_MS) void refresh();
     nextCheck = setTimeout(check, askedAt + BACKGROUND_MS - now());
   };
   server.on('listening', check);
   server.on('close', () => clearTimeout(nextCheck));
-  return server;
+  return Object.assign(server, {
+    drainUpdateResponse: () => updateResponse,
+    stopReads: () => clearTimeout(nextCheck),
+  });
 };

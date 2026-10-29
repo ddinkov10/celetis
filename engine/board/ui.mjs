@@ -226,21 +226,37 @@ var toast = (title, { detail = "", isError = false } = {}) => {
 };
 var SERVER_DOWN = "The board server does not answer";
 var RESTART = "Start the board again in a terminal.";
-var post = async (path, value, failure) => {
+async function post(path, value, failure, options) {
+  const controller = options ? new AbortController : undefined;
+  const timeout = options ? setTimeout(() => controller?.abort(), options.timeout) : undefined;
   try {
     const response = await fetch(path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(value)
+      body: JSON.stringify(value),
+      signal: controller?.signal
     });
+    if (options) {
+      if (response.ok)
+        return { status: "accepted" };
+      if (response.status >= 400 && response.status < 500) {
+        const body = await response.json();
+        return { status: "rejected", error: body.error };
+      }
+      return { status: "unavailable" };
+    }
     if (!response.ok)
       toast(failure, { detail: (await response.json()).error, isError: true });
     return response.ok;
   } catch {
+    if (options)
+      return { status: "unavailable" };
     toast(SERVER_DOWN, { detail: RESTART, isError: true });
     return false;
+  } finally {
+    clearTimeout(timeout);
   }
-};
+}
 var copy = async (text, what) => {
   try {
     await navigator.clipboard.writeText(text);

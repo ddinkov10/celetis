@@ -1,8 +1,21 @@
 import { randomUUID } from 'node:crypto';
 import { closeSync, openSync } from 'node:fs';
-import { lstat, mkdir, readdir, readFile, readlink, rename, rm, symlink, utimes, writeFile } from 'node:fs/promises';
+import {
+  lstat,
+  mkdir,
+  readdir,
+  readFile,
+  readlink,
+  realpath,
+  rename,
+  rm,
+  symlink,
+  utimes,
+  writeFile,
+} from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { HostError } from './host.ts';
 import { revision as fullRevision, git, installedRevision } from './plugin-metadata.ts';
 import { run } from './process.ts';
@@ -138,7 +151,12 @@ async function replace(path: string, text: string): Promise<void> {
   }
 }
 
-export async function installProgram(from: string, wanted: ProgramSource, paths = programPaths()): Promise<Program> {
+export async function installProgram(
+  from: string,
+  wanted: ProgramSource,
+  paths = programPaths(),
+  expected?: Program,
+): Promise<Program> {
   if (!fullRevision.test(wanted.revision)) throw new HostError(`celetis: invalid program revision ${wanted.revision}`);
   await readProgram(paths);
   await mkdir(paths.versions, { recursive: true });
@@ -146,6 +164,22 @@ export async function installProgram(from: string, wanted: ProgramSource, paths 
   try {
     if (!tryFlock(lock))
       throw new HostError('celetis: another celetis install or update runs; try again after it ends');
+    const validateExpected = async () => {
+      if (!expected) return;
+      const installed = await readProgram(paths);
+      if (!isDeepStrictEqual(installed, expected))
+        throw new HostError('update: installed program changed; check again and obtain a new direct user response');
+      const source = await programSource(expected.root);
+      const remote = await git(['ls-remote', '--', wanted.source, `refs/heads/${wanted.branch}`], expected.root);
+      if (
+        source.source !== wanted.source ||
+        source.branch !== wanted.branch ||
+        source.revision !== expected.revision ||
+        remote !== `${wanted.revision}\trefs/heads/${wanted.branch}`
+      )
+        throw new HostError('update: program source, ref, or target changed; check again and obtain a new decision');
+    };
+    await validateExpected();
     for (const name of await readdir(paths.versions))
       if (name.startsWith('.')) await rm(join(paths.versions, name), { recursive: true, force: true });
     const root = join(paths.versions, wanted.revision);
@@ -178,6 +212,7 @@ export async function installProgram(from: string, wanted: ProgramSource, paths 
       throw new HostError(
         `celetis: revision ${wanted.revision} has no celetis program file; the program did not change`,
       );
+    await validateExpected();
     await mkdir(paths.bin, { recursive: true });
     if (process.platform === 'win32') {
       await replace(paths.current, `${wanted.revision}\n`);
@@ -198,8 +233,11 @@ export async function installProgram(from: string, wanted: ProgramSource, paths 
     for (const name of await readdir(paths.versions))
       if (fullRevision.test(name)) folders.push({ name, time: (await lstat(join(paths.versions, name))).mtimeMs });
     folders.sort((one, two) => two.time - one.time);
+    const versions = await realpath(paths.versions);
+    const running = resolve(import.meta.dir, '../..');
     for (const { name } of folders.slice(3))
-      if (name !== wanted.revision) await rm(join(paths.versions, name), { recursive: true, force: true });
+      if (name !== wanted.revision && join(versions, name) !== running)
+        await rm(join(paths.versions, name), { recursive: true, force: true });
     const program = await readProgram(paths);
     if (!program) throw new HostError(`celetis: the install did not make ${paths.link}`);
     return program;

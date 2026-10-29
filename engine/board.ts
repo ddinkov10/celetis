@@ -1,3 +1,4 @@
+import { dirname } from 'node:path';
 import { celetisAdapter } from './board/adapter.ts';
 import { startBoard } from './board/start.ts';
 import { HostError, requireBun, updateHint } from './lib/host.ts';
@@ -5,6 +6,7 @@ import { commandInput, createOperation, locateCheckouts } from './lib/operation.
 import { codexHome } from './lib/plugin-metadata.ts';
 import { requireUpdatePolicy } from './lib/plugin-policy.ts';
 import { childEnv } from './lib/process.ts';
+import { programRevision } from './lib/program.ts';
 import { withPluginRead } from './lib/update-lock.ts';
 
 export async function main(argv: string[]): Promise<number> {
@@ -29,7 +31,11 @@ export async function main(argv: string[]): Promise<number> {
       if (operation.checkout.cwd !== main) await requireUpdatePolicy(operation.host, main);
     });
     const adapter = await celetisAdapter(main);
-    return await startBoard(main, config?.board?.port ?? 4403, adapter);
+    return await startBoard(main, config?.board?.port ?? 4403, adapter, {
+      host: operation.host,
+      env: { ...process.env },
+      revision: await programRevision(dirname(import.meta.dir)),
+    });
   } catch (error) {
     console.error(error instanceof HostError ? error.message : `celetis-board: ${(error as Error).message}`);
     return error instanceof HostError ? error.code : 1;

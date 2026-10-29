@@ -8,7 +8,9 @@ disable-model-invocation: true
 
 The session holds setup approval; `celetis --agent <host> setup` makes each project change.
 Setup approval does not approve a plugin update. The entry contract owns the read-only update
-check. One affirmative response in an interactive terminal permits one exact update attempt.
+check. One affirmative response in an interactive terminal, or a person's direct click on the
+board's **Update and restart** control, permits one exact update attempt. An agent cannot supply
+either response for the person. Verification with temporary installation data is permitted.
 New and unchanged old owned Celetis entries use `autoUpdate: false`; show the precise replacement
 before the existing write/push decision. Leave unowned or independently changed entries for their
 owner. Report effective local, project, user, managed, and native global policy conflicts and
@@ -16,7 +18,8 @@ file-only coverage limits. A project false value does not override a managed tru
 
 Sessions, runners, boards, and daemons may stay open. Discovery holds a short read lock and
 releases it before foreground execution; only updaters serialize on the update mutex. Native
-replacement can remove resources that open work still needs. A person may restart affected work.
+replacement can remove resources that open work still needs. The board restarts itself after its
+approved update succeeds. A person may restart other affected work.
 A fresh session loads changed skills; an existing session does not reload them automatically.
 
 1. **The checkout.** Run in the main checkout of the product project, and enter no lane worktree. Run each call as `celetis --agent <host> setup <sub-command>`, with `<host>` the host that runs this session.

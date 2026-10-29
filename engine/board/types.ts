@@ -1,3 +1,27 @@
+import type { Host } from '../lib/config-core.ts';
+import type { UpdateStage } from '../lib/update-types.ts';
+
+export type { UpdateStage };
+export type BoardOffer = {
+  id: string;
+  target: string;
+  parts: { part: 'program' | Host; installed: string; target: string }[];
+};
+export type UpdateView = {
+  phase: 'checking' | 'current' | 'available' | 'updating' | 'restarting' | 'check-failed' | 'update-failed';
+  offer: BoardOffer | null;
+  target: string | null;
+  stage: UpdateStage | null;
+  completed: ('program' | Host)[];
+  incomplete: ('program' | Host)[];
+  error: string | null;
+  recovery: string | null;
+};
+export type BoardRuntime = { revision: string; instance: string };
+export type UpdateResponse = { runtime: BoardRuntime; update: UpdateView };
+export type UpdateCheckRequest = Record<string, never>;
+export type UpdateStartRequest = { offerId: string };
+
 export type Flow = {
   lanes: Record<string, string[]>;
   stages: { name: string; steps: string[] }[];

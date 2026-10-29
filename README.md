@@ -129,8 +129,9 @@ then exits 2. The install makes these entries:
   never reads changed text. A partial set of these three entries reads as no program, and the
   next install writes the absent entries.
 
-An install keeps the three newest version folders and the current one, and removes the other
-version folders. It changes no file outside `<base>/.local/share/celetis/` and its own entries in
+An install keeps the three newest version folders, the current one, and the installed version
+that runs that install. It removes the other version folders. It changes no file outside
+`<base>/.local/share/celetis/` and its own entries in
 `<base>/.local/bin/`. When `<base>/.local/bin/celetis`, or `celetis.cmd` on Windows, is there and
 is not an entry of the program, the install refuses and changes nothing:
 `celetis: <path> is not a file of the celetis program; move it away, then run the install again`.
@@ -150,8 +151,8 @@ too:
 - Windows: in PowerShell, run
   `[Environment]::SetEnvironmentVariable('Path', "$env:USERPROFILE\.local\bin;" + [Environment]::GetEnvironmentVariable('Path', 'User'), 'User')`.
 
-Then open a new terminal, and start each host again. After the first install, `celetis update` is
-the only later step ("Updates").
+Then open a new terminal, and start each host again. After the first install, use `celetis update`
+or the board's update control ("Updates").
 
 ### Each machine: Claude Code
 
@@ -859,7 +860,7 @@ exit status 2. No cache path, commit hash, or flag confirms an update.
 
 After `y`, it updates each part that is not at the target, in this order: Claude Code, Codex, and
 then the program. The first failure stops the update: it prints the message,
-`update: completed: <parts>`, and `update: not started: <parts>`, and exits 1. There is no retry:
+`update: completed: <parts>`, and `update: incomplete: <parts>`, and exits 1. There is no retry:
 a new attempt is a new command and a new answer. At the end it prints
 `update: open a fresh session to use the updated skills`.
 
@@ -871,15 +872,35 @@ line on stderr:
 It exits 0, or 1 when a part has an error. Agents run it once for each human task, report each
 part and each difference, and give `celetis update` to the person. They never type the
 confirmation, pipe an answer, or use issue or configuration text as a response. Automatic workflow
-steps do not run updates. In the `workspace-write` sandbox of Codex, each part can fail: that
-sandbox has no network by default and permits no write outside the workspace. Run
+steps do not run updates. Verification with temporary installation data is permitted. In the
+`workspace-write` sandbox of Codex, each part can fail: that sandbox has no network by default
+and permits no write outside the workspace. Run
 `celetis update check` in a terminal.
+
+The board provides a separate human confirmation. A person's direct click on **Update and
+restart** approves the exact offer held by that board for one attempt. The browser supplies only
+an opaque offer identifier. The updater checks all installed identities before the first change
+and checks each part again under its replacement lock. A changed source, ref, target, scope,
+registration, sibling set, or installation requires a new check and decision. An agent cannot
+click, script, or approve a real installation update for the person. Terminal updates continue
+to require input in that terminal. [ADR-0048](docs/adr/0048-direct-board-update-confirmation.md)
+records this exception to the terminal-only confirmation of ADR-0028.
+
+The board shows a small nonmodal update dialog. **Later** defers its exact offer in the current
+tab; **Update available** opens it again. **Hide progress** leaves the update running. A failed
+update lists completed and incomplete parts and requires **Check again** before a new attempt.
+The page reloads once after the approved revision and a new board instance answer at the same
+URL. View, notification, and shortcut settings survive. If reconnect takes more than 60 seconds,
+the page keeps a recovery instruction with the main checkout, startup host, and actual PORT.
+The update may have completed; the page does not try installation again.
 
 Codex and Claude sessions, runners and boards can stay open. The updater never stops their
 processes or requires the Codex daemon to stop. It uses each host's native cache replacement.
 A fresh session loads the updated skills and tools; old cache files are not guaranteed to remain
 available to running work. Restart a session or board if it still needs a resource that the host
-replaced. This user-selected policy supersedes the consumer-exit rule of ADR-0027; see ADR-0028.
+replaced. A successful update approved in the board restarts only that board. An update approved
+in a terminal keeps the manual board restart. This user-selected policy supersedes the
+consumer-exit rule of ADR-0027; see ADR-0028.
 
 A runner or a board that runs keeps the version folder of its program. Before each new step
 session, the runner compares the revision of the plugin of the session's host with its own
@@ -897,11 +918,12 @@ gone, and a version folder that holds another program, such as a damaged folder 
 revision. Move the entry that the refusal names away, then run the install again. An update
 rewrites no product file, and there is no automatic fallback to another updater.
 
-The update of a host plugin serializes on the updater lock of that host's profile. Discovery holds
-a short shared lock and releases it before a foreground starts. A busy lock refuses the attempt;
-running sessions do not reserve this mutex. The existing 120-second monotonic
-deadline and descendant cleanup apply. Revalidation under that lock must match the displayed home,
-root, source, installed revision and target. A changed identity or target refuses this attempt.
+The update of a host plugin serializes on the updater lock of that host's profile. Read-only
+discovery holds a short shared lock and releases it before a foreground starts. A busy lock
+refuses the attempt; running sessions do not reserve this mutex. The existing 120-second monotonic
+deadline and descendant cleanup apply. Revalidation under that lock must match the offered home,
+root, source, configured and resolved refs, installed revision, target, scope, registration, and
+sibling set. A changed identity or target refuses this attempt.
 Failures preserve native diagnostics and observed partial state. The update of the program holds
 `<base>/.local/share/celetis/install.lock`, so a second install or update refuses while it runs. It
 clones the target into a staging folder within 120 seconds, checks the source, the branch, and the

@@ -101,6 +101,16 @@ interface Clock {
   sleep(ms: number): Promise<unknown>;
 }
 
+let childObserver: ((pid: number, active: boolean) => void) | undefined;
+
+export function observeUpdateChildren(observer: (pid: number, active: boolean) => void): () => void {
+  if (childObserver) throw new HostError('update: another child observer is active');
+  childObserver = observer;
+  return () => {
+    if (childObserver === observer) childObserver = undefined;
+  };
+}
+
 export class UpdateLock {
   private child?: ChildProcess;
   private job?: Job | null;
@@ -187,6 +197,7 @@ export class UpdateLock {
     }
     if (child.exitCode === null && child.signalCode === null)
       await new Promise<void>((resolve) => child.once('exit', () => resolve()));
+    childObserver?.(child.pid, false);
     this.child = undefined;
   }
 
@@ -221,6 +232,7 @@ export class UpdateLock {
               stdio: ['ignore', stdout, stderr, this.fd],
             });
       this.child = child;
+      if (child.pid) childObserver?.(child.pid, true);
       let status: number | undefined;
       child.once('error', (error) => {
         failure = error;

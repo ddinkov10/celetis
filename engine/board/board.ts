@@ -16,6 +16,7 @@ import {
   timed,
   toast,
 } from './ui.ts';
+import { isReconnecting, setupUpdates } from './update-dialog.ts';
 import {
   age,
   agentOf,
@@ -85,6 +86,7 @@ const onTracker = () => ((data as Board).tracker ? ` on ${(data as Board).tracke
 const readAgain = () => (data?.tracker ? `Read ${(data as Board).tracker} again` : 'Read the issues again');
 
 const act = async (path: string, value: unknown, failure: string, onDone?: () => void) => {
+  if (isReconnecting()) return false;
   const isOk = await post(path, value, failure);
   if (isOk) onDone?.();
   await load();
@@ -1128,6 +1130,7 @@ const render = (canMove = true) => {
 };
 
 const launch = async (card: Card, path: '/api/run' | '/api/resume', agent?: string) => {
+  if (isReconnecting()) return false;
   const number = card.number as number;
   const current =
     data &&
@@ -1157,12 +1160,18 @@ const launch = async (card: Card, path: '/api/run' | '/api/resume', agent?: stri
   return isOk;
 };
 
+let loadRequest: AbortController | undefined;
+document.addEventListener('board-reconnect', () => loadRequest?.abort());
+document.addEventListener('board-connected', () => void load());
+
 async function load() {
   clearTimeout(timer);
+  if (isReconnecting()) return;
+  loadRequest = new AbortController();
   const isLocal = hasRead && document.hidden;
   const read = ++reads;
   try {
-    const response = await fetch(`/api/board${isLocal ? '?local=1' : ''}`);
+    const response = await fetch(`/api/board${isLocal ? '?local=1' : ''}`, { signal: loadRequest.signal });
     if (!response.ok) throw new Error(response.statusText);
     const next = (await response.json()) as Board;
     if (read > accepted && read > settled) {
@@ -1175,7 +1184,7 @@ async function load() {
       drawStatus(source, false);
     }
   } catch {
-    drawStatus(source, true);
+    if (!isReconnecting()) drawStatus(source, true);
   }
   tick();
   timer = setTimeout(load, document.hidden ? 15_000 : 5000);
@@ -1365,8 +1374,9 @@ const CARD_KEYS: Record<string, (card: HTMLElement) => void> = {
   },
 };
 
+const updates = setupUpdates();
 document.addEventListener('keydown', (event) => {
-  if (event.defaultPrevented) return;
+  if (event.defaultPrevented || updates.contains(event.target)) return;
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault();
     if (!$('palette').open) openPalette(paletteItems());

@@ -69,7 +69,7 @@ agent board", gives this start.
 
 The start validates the main `.celetis.yaml`, refuses a lane start, and checks the plugin update
 policy of the selected host once. `--agent` selects the host of the board process only: its policy
-check and, for Codex, its `CODEX_HOME`. The start does not check the program. At each Run and
+check and, for Codex, its `CODEX_HOME`. The start records its own program revision and starts an independent update check after it listens. At each Run and
 Resume, the fixed adapter (`adapter.ts`) reads the installed `celetis` program and types its
 command ("The line of a pane").
 
@@ -114,17 +114,53 @@ worktree holds the files of a branch, which do not have the trust of the trunk. 
 start in a checkout that is not the main checkout, and it removes each `node_modules/.bin` item
 from `PATH` before it starts `git`, `gh`, or `herdr`.
 
-**Open work during updates.** Follow [Updates](../../README.md#updates) for the read-only check,
-exact offer, and one affirmative response in an interactive terminal for one target-bound attempt.
-Discovery releases its short read lock before foreground execution. Only updaters serialize on
-the update mutex; sessions, runners, boards, and daemons may stay open.
+**Open work during updates.** The board checks at startup and every 10 minutes. Concurrent
+checks share one worker, with a 120-second limit. These checks do not wait for issue or herdr
+reads. A direct board decision approves one exact offer for one attempt. The browser sends only
+the offer ID; the controller keeps its complete identity. A stale offer, conflict, or failure needs
+a new check and decision. The native update locks and validation also apply to this path.
+
+The nonmodal update dialog sits at the bottom right and keeps the board usable. It shows each
+installed revision and the common target. **Later** or Escape inside the dialog defers that exact
+offer in this tab; **Update available** opens it again. A different offer opens a new dialog.
+**Hide progress** hides the dialog without cancelling the update. **Update in progress** opens
+it again. These choices survive a page reload in tab storage when the browser permits storage.
+A background check failure shows a quiet **Update check failed** control. Open it for the error
+and **Check again**. A failed update shows the completed and incomplete components and requires
+**Check again** before another attempt.
+
+The page reads update status every 5 seconds, or every second during update and reconnect,
+including hidden tabs. These reads do no remote discovery. It retains the target and original
+runtime instance before sending an approval. A lost response or a pending start restored after
+reload starts status reconciliation and never sends another start. Only an `updating` response
+with that target and original instance allows native progress without a reconnect deadline.
+Other pending states, a restart, or the first disconnect after a start stop other polling and
+allow 60 seconds to reconnect. The page reloads once only after the target revision
+and a different runtime instance answer at the same URL. Existing view, notification, and
+shortcut choices remain in local storage. A timeout keeps the old page with the server-supplied
+main-checkout, host, and actual PORT recovery instruction. **Check again** clears the pending
+start and requests a fresh check and decision. The update may have completed; the page makes no
+installation retry.
+
+After a successful board-approved update, this board drains its finished worker and start response,
+stops its reads, closes its listener and connections, and starts the approved installed program
+at the same URL. It preserves the main checkout, startup host, native profile, environment, and
+actual port. Other boards, runners, sessions, and daemons stay open. Activation validates the
+installed target before and after teardown. A failed validation before teardown leaves this board
+running with an error. A failure after teardown prints the cause and the recovery command,
+`PORT=<actual> celetis --agent <host> board`, to run from the main checkout. It makes no retry.
+
+Follow [Updates](../../README.md#updates) for a terminal-started update and its affirmative
+terminal response. A terminal-started update keeps the board open and needs a manual board restart
+for new board code. Discovery releases its short read lock before foreground execution. Only
+updaters serialize on the update mutex; sessions, runners, boards, and daemons may stay open.
 
 The server reads page files on later requests. It runs the server code and the code of the issue
 read that it loaded at its start. Native replacement can remove resources that open work still
 needs, so a person may reload or restart affected work. Each Run and Resume reads the installed
 program again. After `celetis update`, the next press types the command of the new program with no
-board restart. Start the board again for its new code. A fresh session loads changed skills; an open session
-does not reload them automatically. A change of `board.port` also
+board restart. After a terminal-started update, start the board again for its new code. A fresh
+session loads changed skills; an open session does not reload them automatically. A change of `board.port` also
 needs a board restart. A change of `host` or `gates` in the main `.celetis.yaml` shows at the next
 read ("The data").
 
@@ -148,8 +184,9 @@ The read then gets the typed rows of the resolver (`nextBoard` of
 rule that gives each row its state.
 
 Each module of the data path is a static import. So a read loads no file of the plugin, takes no
-plugin read lock, and checks no update policy. The board checks the policy once, at its start. Each
-Run and Resume starts a new runner process, which makes its own check.
+plugin read lock, and checks no update policy. The start checks the selected host's policy.
+Independent update checks validate the native update policy. Each Run and Resume starts a new
+runner process, which makes its own check.
 
 One read runs at a time: a cause of a read during a read joins that read. A read has a limit of 60
 seconds. The stop of the board also stops a read that runs. In each case, the `gh` process of that
@@ -235,7 +272,8 @@ A later turn starts with no retained verdict, even when the board misses its wor
 Missing, invalid, unreadable, or stale evidence keeps the ordinary wait. A dialog always wins.
 Resume and unmanaged sessions have no completion watcher. The runner keeps an exiting verdict
 until the foreground exits, then removes it. This local read adds no GitHub request.
-Start a new board process to load updated server code.
+A board-approved update starts the new program automatically. After a terminal-started update,
+start a new board process to load updated server code.
 
 The state of a session wins over the state of its issue, and an issue with a session has no card of
 its own. Two sessions of one issue make two cards. A session card shows the title, the type, the
@@ -422,6 +460,20 @@ The answer to a press that the server did is 200 with `{"ok": true}`. Each other
 | 502 | A `herdr` call failed: the first line of its error. `herdr gave no id for the workspace`, `herdr gave no id for the new tab`, and `herdr gave no pane for the new tab` are the lines for an answer of herdr with an id that is not safe. |
 | 500 | The server failed for another cause: the first line of the error, or `the server failed`. |
 
+The update API is independent of issue and herdr reads. Each success returns
+`{runtime: {revision, instance}, update: <snapshot>}`. `revision` is the full revision of the
+program that started this board. `instance` is a random ID for this startup.
+
+| Request | Body | Result |
+|---|---|---|
+| `GET /api/update` | none | The current update snapshot and runtime. |
+| `POST /api/update/check` | An empty object, `{}`. | Starts or joins a check and returns the current snapshot immediately. |
+| `POST /api/update/start` | Exactly `{"offerId": "<opaque ID>"}`. | Consumes an available offer before mutation and returns 202 with the current snapshot. |
+
+The POST routes use the same Host, Origin, JSON content-type, body limit, CSP, and JSON response
+paths as other board actions. A non-object or unexpected field gives 400. An unavailable or
+consumed offer gives 409. The start response finishes before this board closes for activation.
+
 ## The trust boundary
 
 A Run press starts the runner of the `celetis` program in a herdr pane. Eleven rules hold for the
@@ -433,19 +485,22 @@ server and the page:
    type is not `application/json`.
 4. It accepts only digits, as a number or a string, as the number of an issue, and only the terminal
    id of a herdr agent of the repository as the id of a session.
-5. The page sends an issue number, a session id, or a selected Run agent, never a command.
+5. The page sends an issue number, a session id, a selected Run agent, or an opaque update offer
+   ID, never a command or an installation path.
    Resume takes only the issue number. A default-agent request changes no configuration.
 6. An id of the answer of herdr (a workspace, a tab, a pane) goes into a `herdr` command only when
    it has letters, digits, `_`, `:`, `.`, and `-`, and does not start with `-`. An id that is absent
    goes into no command.
 7. The server starts `herdr` and `git` with no shell, and the issue read starts `gh`, `git`, and,
    on macOS and Linux, `ps` with no shell.
-8. It runs `git` only in the main checkout or in a lane worktree. The `git diff` of a session runs
-   with `--no-optional-locks`, so it writes nothing.
+8. For issue and session data, it runs `git` only in the main checkout or in a lane worktree.
+   The `git diff` of a session runs with `--no-optional-locks`, so it writes nothing. Update
+   workers also validate the native plugin and program installations.
 9. Open shell refuses a path that is not under `.claude/worktrees/` of the main checkout.
-10. The server writes nothing in a working tree.
+10. The server writes nothing in a product working tree. An approved update changes only the
+    validated native plugin and program installations.
 11. The page writes each text of the data, of a pane, and of an error as text, never as HTML. Its
-    Content-Security-Policy allows its own files (the page, its five scripts, its stylesheet, and
+    Content-Security-Policy allows its own files (the page, its six scripts, its stylesheet, and
     its two fonts) and `data:` images (the tab icon) only.
 
 Five rules hold for the start, the lines, and the data:
@@ -458,7 +513,8 @@ Five rules hold for the start, the lines, and the data:
    `celetis` program ("The line of a pane"). That program starts the first `bun` on the `PATH` of
    the pane shell, through its `env -S` shebang, or through its shim on Windows. The server starts
    `herdr` and `git`, and the issue read starts `gh`, `git`, and, on macOS and Linux, `ps`. No
-   other program starts.
+   other program starts for these two actions. Update workers have the separate fixed update
+   protocol above.
 3. **Only validated values go into a line.** The number is the digits of the issue. The agent of
    Run is a name of lowercase letters that `agents` of the last document has. Resume takes no
    agent. No title, no reason, no act, no path of the data, and no step goes into the line of a
@@ -578,12 +634,13 @@ the texts are `Open the issue` and `Read the issues again`.
 
 ## Versions
 
-- **The board has no version of its own.** `celetis update` gives a new board at its next start
-  ("Start").
+- **The board shares the program revision.** A board-approved update starts that installed
+  revision automatically. A terminal-started `celetis update` needs a manual board restart
+  ("Start"). Each startup has a distinct runtime instance.
 - **The document has no version.** The board and the engine are one package, and the compiler
   checks the `Document` type between them.
 
-Browser sources are `board.ts`, `view.ts`, `ui.ts`, `panel.ts`, and `palette.ts`. The pinned Bun
+Browser sources are `board.ts`, `view.ts`, `ui.ts`, `panel.ts`, `palette.ts`, and `update-dialog.ts`. The pinned Bun
 1.4.4 build program, `<plugin>/scripts/build.ts`, generates their existing `.js` and `.mjs` URLs.
 It compiles every target before it writes any output. Plugin users run no build.
 
@@ -594,8 +651,8 @@ Of the distribution:
 - A start from a program with no terminal, for example a launch entry of a desktop app, needs
   `bun`, `gh`, and `herdr` on the `PATH` of that program. This is not checked. When such a start
   fails, start the board in a terminal.
-- The board checks the plugin update policy at its start only. A conflict that starts while the
-  board runs shows in the pane of the next Run or Resume, not on the status bar.
+- Issue reads check no plugin update policy. A conflict can show in the independent update
+  check, or in the pane of the next Run or Resume.
 
 Of the sessions and herdr:
 

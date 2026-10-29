@@ -242,20 +242,42 @@ export const toast = (title: string, { detail = '', isError = false } = {}) => {
 export const SERVER_DOWN = 'The board server does not answer';
 const RESTART = 'Start the board again in a terminal.';
 
-export const post = async (path: string, value: unknown, failure: string) => {
+export type PostOutcome = { status: 'accepted' } | { status: 'rejected'; error: string } | { status: 'unavailable' };
+export function post(path: string, value: unknown, failure: string): Promise<boolean>;
+export function post(path: string, value: unknown, failure: string, options: { timeout: number }): Promise<PostOutcome>;
+export async function post(
+  path: string,
+  value: unknown,
+  failure: string,
+  options?: { timeout: number },
+): Promise<boolean | PostOutcome> {
+  const controller = options ? new AbortController() : undefined;
+  const timeout = options ? setTimeout(() => controller?.abort(), options.timeout) : undefined;
   try {
     const response = await fetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(value),
+      signal: controller?.signal,
     });
+    if (options) {
+      if (response.ok) return { status: 'accepted' };
+      if (response.status >= 400 && response.status < 500) {
+        const body = (await response.json()) as { error: string };
+        return { status: 'rejected', error: body.error };
+      }
+      return { status: 'unavailable' };
+    }
     if (!response.ok) toast(failure, { detail: ((await response.json()) as { error: string }).error, isError: true });
     return response.ok;
   } catch {
+    if (options) return { status: 'unavailable' };
     toast(SERVER_DOWN, { detail: RESTART, isError: true });
     return false;
+  } finally {
+    clearTimeout(timeout);
   }
-};
+}
 
 export const copy = async (text: string, what: string) => {
   try {

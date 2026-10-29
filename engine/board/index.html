@@ -18,6 +18,7 @@
   <button type="button" class="find" id="find" aria-label="Search the cards, history, and commands" aria-keyshortcuts="Control+K Meta+K /"><span class="find-text">Search or run a step</span><kbd>⌘K</kbd></button>
   <button type="button" class="btn ghost" id="history" aria-controls="panel" aria-expanded="false" title="Show or hide history (d)"><span class="label">History</span></button>
   <button type="button" class="btn ghost" id="refresh" title="Read the issues again (r)"><span class="label">Refresh</span></button>
+  <button type="button" class="btn ghost update-open" id="update-open" aria-controls="update-dialog" aria-expanded="false" hidden>Update available</button>
 </header>
 <div class="banners">
   <p class="banner warn" id="dirty" role="alert" hidden></p>
@@ -66,6 +67,21 @@
     <div><dt><kbd>?</kbd></dt><dd>Show this list</dd></div>
   </dl>
   <label class="keys-switch"><input type="checkbox" id="keys-on"><span>Single-key shortcuts (<kbd>j</kbd> <kbd>k</kbd> <kbd>h</kbd> <kbd>l</kbd> <kbd>v</kbd> <kbd>d</kbd> <kbd>r</kbd> <kbd>/</kbd> <kbd>?</kbd>). The keys of a focused card always work.</span></label>
+</dialog>
+<p class="sr-only" id="update-status" role="status" aria-live="polite"></p>
+<dialog class="update-dialog" id="update-dialog" aria-labelledby="update-title" aria-describedby="update-description">
+  <h2 id="update-title" tabindex="-1"></h2>
+  <p class="update-description" id="update-description"></p>
+  <div class="update-revisions" id="update-revisions"></div>
+  <p class="update-status" id="update-progress" aria-hidden="true"></p>
+  <p class="update-note" id="update-note"></p>
+  <p class="update-error" id="update-error" hidden></p>
+  <p class="update-recovery" id="update-recovery" hidden></p>
+  <div class="update-actions">
+    <button type="button" class="btn ghost" id="update-later">Later</button>
+    <button type="button" class="btn primary" id="update-start">Update and restart</button>
+    <button type="button" class="btn primary" id="update-check" hidden>Check again</button>
+  </div>
 </dialog>
 <script type="module" src="/board.js"></script>
 </body>
