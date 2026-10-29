@@ -81,9 +81,10 @@ Do the steps in this order. The build of the variants starts after step 2.
 1. **The states and the row.** Take the list of states from the code and the issue, with a key for
    each state. Take the kind and its row from `AGENTS.md` or the code. Read the design document
    that `AGENTS.md` names, when it names one. Run the tools check of
-   "Captures". Show the list of states, the kind, and the row to the user, and wait for the
-   correction. After an opt-out of the questions in `specify`, the list and the row are marked
-   assumptions, and the step goes on with no wait.
+   "Captures". Show the list of states, the kind, and the row to the user. If anything is unclear
+   or the user must make a decision, ask about that point and wait for the answer. Otherwise,
+   continue without a follow-up question. After an opt-out of the questions in `specify`, the list
+   and the row are marked assumptions, and the step goes on with no wait.
 2. **The research.** In `specify` or `bug`, add the guidelines of the platform to the
    `## Prior art` section that the step wrote (`<plugin>/docs/procedures/prior-art.md`, "What to find"), with
    no second search for the same problem. For a look decision of a new problem, add its findings to the same
