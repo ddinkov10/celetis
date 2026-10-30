@@ -1,7 +1,7 @@
 import type { Stats } from 'node:fs';
 import { lstat, readdir, readFile, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, isAbsolute, join, relative, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import type { Host } from './config-core.ts';
 import { codexRequest, HostError, mainCheckout, NotInstalled } from './host.ts';
@@ -360,10 +360,10 @@ export async function codexPlugin(cwd: string, execute: typeof run = run): Promi
       typeof skill.path !== 'string' ||
       !isAbsolute(skill.path) ||
       [...skill.path].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127) ||
-      !/\/skills\/[a-z][a-z0-9-]*\/SKILL\.md$/.test(skill.path)
+      !/\/skills\/[a-z][a-z0-9-]*\/SKILL\.md$/.test(skill.path.split(sep).join('/'))
     )
       throw new HostError('celetis: invalid Codex Celetis skill identity; repair the native skill discovery');
-    const path = skill.path.replace(/\/skills\/[^/]+\/SKILL\.md$/, '');
+    const path = dirname(dirname(dirname(skill.path)));
     const canonical = await realpath(path).catch(() => null);
     if (!canonical)
       throw new HostError(`celetis: cannot resolve Codex skill root: ${path}; repair the native skill discovery`);
