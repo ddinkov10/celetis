@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import type { Host } from './lib/config-core.ts';
 import { HostError, updateHint } from './lib/host.ts';
 import { lineOf } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
@@ -21,10 +22,11 @@ import {
   specified,
 } from './lib/workflow.ts';
 
-const usage = `celetis --agent <host> issue <issue number> route feature|bug|chore|hotfix | epic | needs-info <file> | wontfix <file> | spec <file> | root-cause <file> | plan <file> | built | before-landing <file> [--during-the-build] | landing-refused <file> | stopped <file> | ready-for-human | state, e.g. celetis --agent <host> issue 415 state\n${updateHint}`;
+const usage = `celetis --agent <host> issue <issue number> route feature|bug|chore|hotfix | epic | needs-info <file> | wontfix <file> | spec <file> | root-cause <file> | plan <file> | built | before-landing <file> [--during-the-build] | landing-refused <file> | stopped <file> | ready-for-human | assisted <file> | state, e.g. celetis --agent <host> issue 415 state\n${updateHint}`;
 const statuses = { usage: 2, prerequisite: 3, blocked: 6 } as const;
 
 type Context = Readonly<{
+  host: Host;
   data: IssueData;
   found: LaneOf;
   decision: Decision;
@@ -119,6 +121,18 @@ const acts: Readonly<Record<string, Act>> = {
     ready: open,
     writes: () => ({ add: ['ready-for-human'], remove: ['ready-for-agent'] }),
   },
+  assisted: {
+    argument: 'file',
+    ready: ({ data, found }) =>
+      data.state === 'open' &&
+      (data.labels.includes('needs-info') ||
+        data.labels.includes('ready-for-human') ||
+        factsOf(data, found.kind === 'lane' ? found.lane : null).open.length > 0),
+    writes: ({ host, text }) => ({
+      comment: headed(headings.humanStepsDone, `Reported by the assistance agent (\`${host}\`).\n\n${text}`),
+      remove: ['needs-info', 'ready-for-human'],
+    }),
+  },
   state: { argument: 'none', ready: () => true, writes: () => ({}) },
 };
 
@@ -185,7 +199,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     process.stderr.write(gh.stderr());
     return 0;
   }
-  const context: Context = { data, found, decision, argument, text, during };
+  const context: Context = { host: operation.host, data, found, decision, argument, text, during };
   if (!act.ready(context)) die('prerequisite', `#${n} cannot ${name}: ${lineOf(n, decision)}`);
   const { comment, add = [], remove = [], body, ...close } = act.writes(context);
   const adding = add.filter((label) => !data.labels.includes(label));

@@ -52,8 +52,10 @@ is an act of "During the build" that no such comment names: write a file with no
 names each such act, with the report form of each act of "During the build", run
 `celetis --agent <host> issue <n> before-landing <file>`, with `--during-the-build` after the file
 when it names an act of "During the build", and stop. The command posts the file with
-`## Before landing` as its first line, then adds `ready-for-human`. The maintainer completes the
-act and clears the label.
+`## Before landing` as its first line, then adds `ready-for-human`. The maintainer supplies the
+required contribution. Assistance can record verified completion
+and clear the hold by `<plugin>/docs/procedures/assisted-completion.md`; lane sessions keep this
+precondition and its evidence requirements.
 
 Before landing on re-entry, read the `open:` lines of `celetis --agent <host> issue <n> state`:
 the engine reads the completion evidence of each `## Before landing` comment of this build from

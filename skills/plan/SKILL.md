@@ -57,7 +57,7 @@ Judge "many" and "not simple" from the number of tasks, the CAP line of each tas
   Put the emitted `CAP: J_ V_ B_ N_ S_ X_ = n [+bN] → model/effort` line in the task header, in both flows. The user reviews the scores with the plan. On the subagent flow, `implement` reuses the digits and written bias, resolves the current host's model and effort, and re-scores only a task whose scope materially changed. On the inline flow, the line is a recommendation for the session and evidence for the choice of the flow. An absent `+bN` means bias 0; the model label is a historical binding.
 
 **Open the plan with `### Your steps`.** It is the first section of the plan, before the header of `superpowers:writing-plans`. The publish of Terminal writes the `## Plan` line above it, so the plan file starts with `### Your steps`. It names each human act of the lane that the plan can see, in two lists:
-- **During the build**: each act that prepares an agent check (for example a scratch repository, an install, or a secret), and each precondition of the landing (for example an environment variable that the new code reads). An item names the act, the step that needs it (a Verify scenario, or Land), and its report: a line of the maintainer's comment whose first line is `## Human steps done`.
+- **During the build**: each act that prepares an agent check (for example a scratch repository, an install, or a secret), and each precondition of the landing (for example an environment variable that the new code reads). An item names the act, the step that needs it (a Verify scenario, or Land), and its report: a line of a completed-step report whose first line is `## Human steps done`. The maintainer can post it, or assistance can record verified work and sourced human answers by `<plugin>/docs/procedures/assisted-completion.md`.
 - **After the landing**: each check by hand on the built change. An item names its commands and its expected result.
 
 A list with no item is one line: `**During the build.** None.` or `**After the landing.** None.` A list with items has this form:
@@ -68,7 +68,7 @@ A list with no item is one line: `**During the build.** None.` or `**After the l
 **During the build.** Do these now. The build does not wait for you until it needs them.
 
 1. <the act>. Needed by: <Verify Vn, or Land>.
-   Report: the line `<the line>` in your `## Human steps done` comment.
+   Report: the line `<the line>` in the `## Human steps done` report.
 
 **After the landing.** Run these after `/celetis:implement #<n>` lands the change.
 

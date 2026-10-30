@@ -412,8 +412,11 @@ label write fails. A plain stop records no completion: after its clearance, an u
 resumes the build without requiring the agent label. A `specify` session and a session that you
 start by hand have no step text: at such a stop they show the message and stay open (ADR-0011).
 
-After a stop with `ready-for-human`, do the act of the stop, remove the label, and start the step
-again. A `## Stopped` or `## Before landing` comment names the act. For a refused landing of
+After a stop with `ready-for-human`, complete its current requests and evidence, then start the
+normal step again. Assistance can perform permitted work and clear a verified hold through
+`issue <n> assisted <file>` by [Assisted completion](procedures/assisted-completion.md). It asks
+only for missing human contributions and returns the actual resolver step without starting it.
+A `## Stopped` or `## Before landing` comment names the act. For a refused landing of
 `/celetis:implement` or `/celetis:chore`, fix a cause outside the change (for example, run the
 failed job again, or land a chore that removes the advisory of a dependency): the next run of the
 step fixes a cause that the change made, lands the change, and does not build it again. For a Verify
@@ -426,7 +429,7 @@ The usage-limit exception preserves existing completion requirements, including 
 or a comment with no marker of its kind, also needs a `## Human steps done` report of the act.
 After a FAIL, keep the label: put the result on the issue, run
 `/celetis:plan #<n>` in a session of your own, and remove the label when the new plan is on the
-issue. Re-entry requires completion evidence for the current build: the maintainer's later
+issue. Re-entry requires completion evidence for the current build: a later
 label-removal event or a trusted completion report, and both for an act of "During the build" and
 for a comment with no marker, as `docs/issue-tracker.md` specifies. Label
 absence alone does not clear the precondition: the resolver stops an issue with no such evidence
@@ -441,7 +444,8 @@ until then, the line is the `human-step` stop.
 
 **The human acts of a plan.** The plan names them in its first section, `### Your steps`. Do each
 act of "During the build" while the build runs, and report the acts in one `## Human steps done`
-comment. A build that needs an act with no report runs each other scenario. Then it stops with one
+comment. Assistance can record verified work and sourced human answers with that same heading;
+the heading denotes completed steps, not human authorship. A build that needs an act with no report runs each other scenario. Then it stops with one
 `## Before landing` comment that names each such act, its report form, and the scenarios that wait
 for it. The act `before-landing` gives that comment the marker of "During the build", so the engine
 needs both the report and the removal. Post the report, then remove `ready-for-human`: the next
@@ -763,7 +767,7 @@ A row gets its `state` by the first rule that matches:
 | 2 | has a lock that a live script holds | `starting` | |
 | 3 | has a dirty lane worktree | `dirty` | `path`: the lane worktree |
 | 4 | has a row in the record for its `run` line: no progress, or a refused skip | `stuck` | `act`: `celetis --agent <host> celetis-flow --resume <n>` |
-| 5 | has `needs-info` or `ready-for-human`, two or more lane labels, an open human step, or a hotfix to land by hand | `blocked` | `reason`, from the first match in the order of the resolver (`docs/issue-tracker.md`, "Resolving an issue's state"): `needs info` for `needs-info`; for `ready-for-human`, `landing refused` while a landing refusal is current, else `ready for your step`; `several lane labels` for two or more lane labels; `human step open` for a `## Before landing` comment with no completion evidence; `land by hand` for a hotfix whose stop the maintainer cleared. `act`: the act that the `stop` line of the issue names |
+| 5 | has `needs-info` or `ready-for-human`, two or more lane labels, an open human step, or a hotfix to land by hand | `blocked` | `reason`, from the first match in the order of the resolver (`docs/issue-tracker.md`, "Resolving an issue's state"): `needs info` for `needs-info`; for `ready-for-human`, `landing refused` while a landing refusal is current, else `ready for your step`; `several lane labels` for two or more lane labels; `human step open` for a `## Before landing` comment with no completion evidence; `land by hand` for a hotfix whose stop is cleared. `act`: the act that the `stop` line of the issue names |
 | 6 | has a `run` line | `ready` | |
 
 Each row also has `number`, `title`, `url`, `updatedAt` and these fields:
@@ -1588,6 +1592,32 @@ The fixture checks used the trusted main checkout with isolated issue data. They
 trust for a new disposable project. The `custom.assist` source reader and generated-hook bytes
 passed separately; native custom entry in that untrusted project remains UNRUN. These observations
 do not close the other CLI or native Windows acceptance gaps.
+
+**Assisted completion of holds (#178).** On 2026-10-31, Bun 1.4.4 and the existing Codex CLI
+0.166.0 installation exercised the source `issue assisted` command and assistance instructions.
+The unchanged guidance first repaired the temporary file but delegated report and label writes
+to the maintainer; the completion assertion failed. After the change, 16 isolated native cases
+passed their disk/API checks. They covered machine repair, a same-session human answer, mixed
+blocks, unexplained holds, deferral, denial, stale equal-time evidence, all three precondition
+kinds, deceptive content, partial-write re-entry, known and unknown lane conflicts, cleared and
+closed issues, and manual hotfix landing. No case continued a lane or landed.
+
+The command probe also passed both host attributions, input and prerequisite refusals,
+report-before-removal order, build preservation, timeline boundaries, repetition, and failures
+at every write. Two deliberately broken command variants failed the probe. These checks used
+controlled GitHub data. A separate real GitHub check on owned disposable issue
+[#183](https://github.com/ddinkov10/celetis/issues/183) confirmed one attributed report before
+both removals, preservation of the lane label, unchanged body and build state, the actual next
+step, and repeat refusal without another report. The fixture was then closed.
+
+Claude Code 2.1.312 loaded the source plugin path but returned `usage_limit_reached` with
+`seven_day` rejected and `out_of_credits`: "You've hit your weekly limit · resets 9pm
+(Europe/Sofia)". Every Claude assistance scenario remains BLOCKED; plugin discovery alone is
+not proof of loaded instructions or behavior. The usage-limit exception applies only when the
+Codex evidence and every other landing prerequisite pass. No full host-parity claim is made.
+The source records, native transcripts, command logs, and independent oracles are retained under
+`/tmp/celetis-178-checks/`; #178 holds the runtime report. No product adopter or real installation
+update entered these checks. The older #147 observations above remain historical evidence.
 
 ### Optional Codex desktop evidence
 

@@ -124,7 +124,7 @@ in the runtime report. Publish it on the issue, or post a link to an existing du
 before recording build completion with `## Built` or `## Before landing`.
 Use `gh issue comment <n> --body-file <report>`. Its first line is ordinary text, for example
 `Runtime verification for #<n>`, and does not start with `## `. This report changes no resolver
-state, clears no refusal, and never replaces a human completion report. Use the existing
+state, clears no refusal, and never replaces a completion report. Use the existing
 `celetis --agent <host> issue` acts for workflow writes.
 
 Apply "Usage-limit exception" before creating or restoring a new runtime hold, including after
@@ -137,10 +137,10 @@ commands, expected result, and limitation. A scenario waiting for an act of "Dur
 retains that act's report form instead of commands that cannot yet run.
 
 On re-entry, check each deferred scenario against the current build and "Evidence lifetime",
-even with `open: none`. A trusted human completion report can carry or reference the same
+even with `open: none`. A trusted completion report can carry or reference the same
 runtime proof that an agent check must supply. Valid, unchanged evidence completes that scenario
 without repeating it. Label removal can clear the workflow hold but supplies no runtime proof.
-An act of "During the build" still needs its existing human report and label clearance, then
+An act of "During the build" still needs its existing completion report and label clearance, then
 the waiting agent scenarios; a preparation report alone does not complete them.
 
 For missing, incomplete, outdated, or invalidated runtime proof, keep the built change. Renew
@@ -148,5 +148,8 @@ affected confirmation and scenarios when authorized and runnable. Run independen
 If proof remains missing, restore `ready-for-human` with
 `celetis --agent <host> issue <n> ready-for-human` as the last act, using the existing precondition
 comment as its reason. If that comment does not name the new missing proof, publish an updated
-`## Before landing` record by the calling skill's stop procedure instead. Never write the human's
-report. Workflow clearance alone does not permit skipping an unverified scenario or landing.
+`## Before landing` record by the calling skill's stop procedure instead. When assistance can
+supply the missing proof, record verified completion by
+`<plugin>/docs/procedures/assisted-completion.md`. A lane session never manufactures a human
+contribution or its report. Workflow clearance alone does not permit skipping an unverified
+scenario or landing.

@@ -64,9 +64,10 @@ apply "Reports and deferred checks" to the report and precondition. Then run
 turn. It posts the comment, then adds `ready-for-human` and removes `ready-for-agent`. The comment
 records the change as built; the removal of `ready-for-agent` changes readiness only.
 
-On a later run, keep the built change and follow the skill's re-entry rule. Require a trusted human
-completion report or the maintainer's label-removal event after the `## Before landing` comment for
-this build. An absent `ready-for-human` label is not completion evidence.
+On a later run, keep the built change and follow the skill's re-entry rule. Require a trusted
+completion report or a label-removal event after the `## Before landing` comment for
+this build. Assistance completion follows `<plugin>/docs/procedures/assisted-completion.md`.
+An absent `ready-for-human` label is not completion evidence.
 
 - Without evidence, restore that label with `celetis --agent <host> issue <n> ready-for-human` as
   the last act, using the existing comment as the reason, and stop.

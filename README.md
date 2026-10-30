@@ -558,7 +558,7 @@ repository does not have, with this description:
 | `epic` | parent of several feature sub-issues |
 | `needs-info` | the report lacks what its lane needs; the questions are in a comment |
 | `ready-for-agent` | plan posted; no human hold; build completion is recorded in comments |
-| `ready-for-human` | a step only a human runs |
+| `ready-for-human` | a step needs assistance before continuation |
 | `wontfix` | This will not be worked on |
 
 GitHub gives a new repository three of them (`bug`, `enhancement`, and `wontfix`), and their
@@ -880,7 +880,7 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | | [`/celetis:type-system-discipline`](skills/type-system-discipline/SKILL.md) | Uses types and compiler checks to prevent identified errors |
 | | [`/celetis:test-behavior-not-implementation`](skills/test-behavior-not-implementation/SKILL.md) | Checks required behavior through observable results |
 | **Helpers** | [`/celetis:prototype`](skills/prototype/SKILL.md) | Builds throwaway code that answers a design question: a logic demo in one HTML file, or the live variants of a look decision, with a capture of each variant in each state on the issue |
-| | [`/celetis:assist #<n>`](skills/assist/SKILL.md) | Reads the current block and helps you complete it. It leaves human reports, hold removal, and lane continuation to you |
+| | [`/celetis:assist #<n>`](skills/assist/SKILL.md) | Completes permitted work for the current block, records verified completion, and clears the hold. It asks for missing human contributions and leaves continuation to the normal runner |
 | | [`/celetis:writing-for-agents`](skills/writing-for-agents/SKILL.md) | The reference for a document that an agent reads: a skill, or an `AGENTS.md` |
 | | [`/celetis:guide`](skills/guide/SKILL.md) | Says which command fits a goal. Only you can start it |
 | | [`/celetis:setup`](skills/setup/SKILL.md) | Proposes and tests the worktree setup of a product project, writes the wiring in its main checkout, and commits and pushes the wiring after your yes. Only you can start it |
@@ -947,11 +947,11 @@ setup"):
 
 | Command | What it does |
 |---|---|
-| `celetis --agent <host> assist <n>` | Starts fresh interactive assistance for the issue in the main checkout. It explains the current block and permits scoped machine work. It does not record human evidence, remove `ready-for-human`, start or resume the runner, or land |
+| `celetis --agent <host> assist <n>` | Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses `issue <n> assisted <file>` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume the runner or land |
 | `celetis --agent <host> worktree <n>` | Makes the lane worktree and the branch of the issue, or enters the one that is there and brings it up to the trunk, and prints its path |
 | `celetis --agent <host> worktree --remove <n>` | Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first |
 | `celetis --agent <host> land <n> '<subject>'` | Lands the change of the issue by the `landing` field of `.celetis.yaml`. It is the one landing path of an agent. It refuses an issue that is not ready to land. Exit status: 0 landed, 1 internal error, 2 usage, 3 prerequisite, 4 repair, 5 checks, 6 blocked, 7 landed with a stopped cleanup (run it again), 128+n signal |
-| `celetis --agent <host> issue <n> <act>` | Makes each workflow write that the engine reads: `route <lane>`, `epic`, `needs-info <file>`, `wontfix <file>`, `spec <file>`, `root-cause <file>`, `plan <file>`, `built`, `before-landing <file> [--during-the-build]`, `landing-refused <file>`, `stopped <file>`, `ready-for-human`. It writes the heading of each comment, posts the comment before the label change, and refuses an act whose prerequisite the issue does not meet. `state` writes nothing and prints the lifecycle facts of the issue. `docs/issue-tracker.md`, "Conventions", gives each act. Exit status: 0 done, 1 internal error, 2 usage, 3 prerequisite, 6 blocked |
+| `celetis --agent <host> issue <n> <act>` | Makes each workflow write that the engine reads: `route <lane>`, `epic`, `needs-info <file>`, `wontfix <file>`, `spec <file>`, `root-cause <file>`, `plan <file>`, `built`, `before-landing <file> [--during-the-build]`, `landing-refused <file>`, `stopped <file>`, `ready-for-human`, `assisted <file>`. The assistance act records an attributed `## Human steps done` report before removing present blocking labels; it adds no label and preserves build state. It writes the heading of each comment, posts the comment before the label change, and refuses an act whose prerequisite the issue does not meet. `state` writes nothing and prints the lifecycle facts of the issue. `docs/issue-tracker.md`, "Conventions", gives each act. Exit status: 0 done, 1 internal error, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis --agent <host> next-step <n> \| --open` | The resolver: the next step of one issue, or of each open issue |
 | `celetis --agent <host> capscore J V B N S X` | Resolves the six digits. `--json` gives portable scores and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null |
 | `celetis --agent <host> dispatch <act>` | Acts: `next`, `report <dispatch-id> <report-file>`, `gate`, `review`, `close`, `show`. The task loop applies each returned pair and reports exact native arguments/results. Evidence is agent-reported, not independently checked. Records: `/tmp/celetis-<uid>/dispatch/<host>-<session>.json` on macOS and Linux; `<os.tmpdir()>/celetis/dispatch/<host>-<session>.json` on Windows. Exits: 0 ready, reported, or closed (also `show`), 1 internal error, 2 usage, 3 refused, 4 stop, 5 setup |
