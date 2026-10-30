@@ -1,5 +1,5 @@
 import type { BoardOffer, UpdateResponse } from './types.ts';
-import { $, el, post } from './ui.ts';
+import { $, el, icon, post } from './ui.ts';
 
 type Pending = {
   target: string;
@@ -47,6 +47,8 @@ export function setupUpdates(): { contains(target: EventTarget | null): boolean 
   if (controls) return controls;
   const dialog = $('update-dialog') as HTMLDialogElement;
   const opener = $('update-open') as HTMLButtonElement;
+  const label = opener.querySelector('.label') as HTMLElement;
+  opener.prepend(icon('refresh'));
   const title = $('update-title');
   const description = $('update-description');
   const revisions = $('update-revisions');
@@ -65,6 +67,7 @@ export function setupUpdates(): { contains(target: EventTarget | null): boolean 
   let hidden = session.get('hidden');
   let returning: HTMLElement | null = null;
   let refusal: string | null = null;
+  let checkFailure: string | null = null;
   let checking = false;
   let submitting = false;
   let timedOut = false;
@@ -89,11 +92,11 @@ export function setupUpdates(): { contains(target: EventTarget | null): boolean 
     if (dialog.open) return;
     returning = isAutomatic ? opener : (document.activeElement as HTMLElement | null);
     dialog.show();
-    opener.hidden = true;
     opener.setAttribute('aria-expanded', 'true');
     title.focus();
   };
-  const close = () => {
+  const close = (restoreFocus = true) => {
+    const focused = contains(document.activeElement);
     if (response?.update.offer && !pending) {
       deferred = response.update.offer.id;
       session.set('deferred', deferred);
@@ -103,11 +106,10 @@ export function setupUpdates(): { contains(target: EventTarget | null): boolean 
     }
     dialog.close();
     draw();
-    (returning?.isConnected && !returning.hidden ? returning : opener).focus();
+    if (restoreFocus || focused) (returning?.isConnected && !returning.hidden ? returning : opener).focus();
   };
-  const draw = () => {
-    const update = response?.update;
-    const phase = timedOut
+  const phaseOf = () =>
+    timedOut
       ? 'timeout'
       : refusal
         ? 'update-failed'
@@ -115,19 +117,37 @@ export function setupUpdates(): { contains(target: EventTarget | null): boolean 
           ? reconnecting
             ? 'restarting'
             : 'updating'
-          : update?.phase;
+          : checking
+            ? 'checking'
+            : checkFailure
+              ? 'check-failed'
+              : response?.update.phase;
+  const draw = () => {
+    const update = response?.update;
+    const phase = phaseOf();
     const busy = phase === 'updating' || phase === 'restarting';
     const failed = phase === 'update-failed' || phase === 'check-failed' || phase === 'timeout';
-    opener.hidden = dialog.open || !phase || phase === 'current' || phase === 'checking';
-    opener.textContent = busy
+    label.textContent = busy
       ? 'Update in progress'
-      : phase === 'check-failed'
-        ? 'Update check failed'
-        : failed
-          ? 'Update needs attention'
-          : 'Update available';
+      : phase === 'checking'
+        ? 'Checking…'
+        : phase === 'check-failed'
+          ? 'Update check failed'
+          : failed
+            ? 'Update needs attention'
+            : phase === 'available'
+              ? 'Update available'
+              : phase === 'current'
+                ? 'Up to date'
+                : 'Check for updates';
+    const name = !phase || phase === 'current' ? 'Check for Celetis updates' : `Celetis: ${label.textContent}`;
+    opener.setAttribute('aria-label', name);
+    opener.title = name;
+    opener.setAttribute('aria-disabled', String(phase === 'checking'));
+    opener.setAttribute('aria-expanded', String(dialog.open));
     if (!phase || phase === 'current') {
-      if (dialog.open) dialog.close();
+      if (phase === 'current' && live.textContent !== 'Up to date') live.textContent = 'Up to date';
+      if (dialog.open) close(false);
       return;
     }
     title.textContent = {
@@ -194,7 +214,7 @@ export function setupUpdates(): { contains(target: EventTarget | null): boolean 
             .join(' ')
         : 'Your agent sessions keep running.';
     note.classList.toggle('update-failure', phase === 'update-failed');
-    diagnostic.textContent = refusal ?? (failed ? (update?.error ?? '') : '');
+    diagnostic.textContent = failed ? (checkFailure ?? refusal ?? update?.error ?? '') : '';
     diagnostic.hidden = !diagnostic.textContent;
     recovery.textContent = failed ? (pending?.recovery ?? update?.recovery ?? '') : '';
     recovery.hidden = !recovery.textContent;
@@ -280,7 +300,7 @@ export function setupUpdates(): { contains(target: EventTarget | null): boolean 
     clearTimeout(timer);
     if (!timedOut) timer = setTimeout(poll, pending ? 1000 : 5000);
   };
-  const poll = async () => {
+  const poll = async (forCheck = false) => {
     if (expire()) return;
     const request = ++epoch;
     const controller = new AbortController();
@@ -293,13 +313,22 @@ export function setupUpdates(): { contains(target: EventTarget | null): boolean 
       const result = await fetch('/api/update', { cache: 'no-store', signal: controller.signal });
       if (!result.ok) throw new Error('The board server does not answer.');
       const next = (await result.json()) as UpdateResponse;
-      if (request === epoch) accept(next);
-    } catch {
-      if (request !== epoch) return;
-      if (pending) {
-        beginReconnect();
+      if (!next.runtime || !next.update) throw new Error('The update status could not be read.');
+      if (request === epoch) {
+        if (forCheck) checking = false;
+        accept(next);
         draw();
       }
+    } catch {
+      if (request !== epoch) return;
+      if (forCheck || (!pending && response?.update.phase === 'checking')) {
+        checking = false;
+        checkFailure ??= 'The update status could not be read. Check again.';
+      }
+      if (pending) {
+        beginReconnect();
+      }
+      draw();
     } finally {
       clearTimeout(timeout);
       if (request === epoch) {
@@ -314,6 +343,12 @@ export function setupUpdates(): { contains(target: EventTarget | null): boolean 
     active?.abort();
   };
   opener.addEventListener('click', () => {
+    const phase = phaseOf();
+    if (phase === 'checking') return;
+    if (!phase || phase === 'current') {
+      void requestCheck();
+      return;
+    }
     if (pending) {
       hidden = null;
       session.set('hidden', null);
@@ -321,7 +356,7 @@ export function setupUpdates(): { contains(target: EventTarget | null): boolean 
     open();
     draw();
   });
-  later.addEventListener('click', close);
+  later.addEventListener('click', () => close());
   dialog.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       event.preventDefault();
@@ -359,8 +394,8 @@ export function setupUpdates(): { contains(target: EventTarget | null): boolean 
     } else beginReconnect();
     await poll();
   });
-  check.addEventListener('click', async () => {
-    if (checking || (pending && !timedOut)) return;
+  const requestCheck = async (): Promise<void> => {
+    if (phaseOf() === 'checking' || (pending && !timedOut)) return;
     if (timedOut) {
       pending = null;
       timedOut = false;
@@ -370,14 +405,14 @@ export function setupUpdates(): { contains(target: EventTarget | null): boolean 
     }
     checking = true;
     refusal = null;
+    checkFailure = null;
     stopPoll();
-    response = response ? { ...response, update: { ...response.update, phase: 'checking', offer: null } } : response;
     draw();
     const result = await post('/api/update/check', {}, 'Update check failed');
-    checking = false;
-    if (!result) refusal = 'The update check could not start. Check again.';
-    await poll();
-  });
+    if (!result) checkFailure = 'The update check could not start. Check again.';
+    await poll(true);
+  };
+  check.addEventListener('click', () => void requestCheck());
   draw();
   void poll();
   return controls;

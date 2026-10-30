@@ -1749,11 +1749,13 @@ a.chip2:hover {
 }
 
 .statusbar {
+  anchor-name: --statusbar;
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 18px;
-  height: 34px;
+  min-height: 34px;
   padding: 0 var(--gutter);
   border-top: 1px solid var(--line);
   font-size: 12px;
@@ -2479,7 +2481,7 @@ a.chip2:hover {
   }
   .statusbar {
     gap: 8px;
-    height: 52px;
+    min-height: 52px;
     padding: 3px 12px;
   }
   .sb-end {
@@ -2861,10 +2863,11 @@ a.chip2:hover {
 }
 .update-dialog {
   position: fixed;
+  position-anchor: --statusbar;
   z-index: 100;
-  inset: auto 20px 52px auto;
+  inset: auto 20px calc(anchor(--statusbar top) + 8px) auto;
   width: min(380px, calc(100vw - 24px));
-  max-height: calc(100dvh - 88px);
+  max-height: calc(100dvh - anchor-size(--statusbar height) - 20px);
   margin: 0;
   padding: 20px;
   overflow: auto;
@@ -2972,12 +2975,16 @@ a.chip2:hover {
   opacity: 0.5;
 }
 .update-open {
+  flex: none;
+}
+.update-open[aria-disabled="true"] {
   color: var(--working);
+  cursor: wait;
+  background: var(--fill);
 }
 @media (max-width: 719px) {
   .update-dialog {
-    inset: auto 12px 60px auto;
-    max-height: calc(100dvh - 84px);
+    right: 12px;
     padding: 18px;
   }
   .update-actions .btn {

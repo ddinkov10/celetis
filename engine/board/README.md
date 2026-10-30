@@ -114,7 +114,15 @@ worktree holds the files of a branch, which do not have the trust of the trunk. 
 start in a checkout that is not the main checkout, and it removes each `node_modules/.bin` item
 from `PATH` before it starts `git`, `gh`, or `herdr`.
 
-**Open work during updates.** The board checks at startup and every 10 minutes. Concurrent
+**Open work during updates.** The status bar keeps one update control after the agent selector.
+**Check for updates** starts discovery in one press. **Checking…** retains focus and ignores
+another press. **Up to date** reports that the installed program and registered plugins match
+the configured target; it does not mean that an open board or agent session has reloaded new
+code. Press **Up to date** for a fresh check. Progress and results use the polite status region,
+without a success toast or current-result dialog. A check does not refresh issues or approve
+installation. Only the separate **Update and restart** decision approves an offer.
+
+The board checks at startup and every 10 minutes. Concurrent
 checks share one worker, with a 120-second limit. These checks do not wait for issue or herdr
 reads. A direct board decision approves one exact offer for one attempt. The browser sends only
 the offer ID; the controller keeps its complete identity. A stale offer, conflict, or failure needs
@@ -127,7 +135,10 @@ offer in this tab; **Update available** opens it again. A different offer opens 
 it again. These choices survive a page reload in tab storage when the browser permits storage.
 A background check failure shows a quiet **Update check failed** control. Open it for the error
 and **Check again**. A failed update shows the completed and incomplete components and requires
-**Check again** before another attempt.
+**Check again** before another attempt. **Update needs attention** opens that recovery dialog
+or the reconnect-timeout instructions. A refused check request or unreadable status also shows
+**Update check failed** with explicit **Check again** recovery. An old current snapshot cannot
+erase that request error, and the page never retries a check POST automatically.
 
 The page reads update status every 5 seconds, or every second during update and reconnect,
 including hidden tabs. These reads do no remote discovery. It retains the target and original
@@ -620,6 +631,12 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   and of landed issues, Search, Queue, History, and Refresh. The title of the browser tab is
   `(<n>) <folder> · Agent board` while `<n>` cards need you, and the tab icon has an orange dot
   then; it has a blue dot while an agent of an issue works and nothing needs you.
+- The status bar keeps the Celetis update control after the agent selector, including on phones
+  and while its nonmodal dialog is open. The same button shows **Check for updates**, **Checking…**,
+  **Up to date**, **Update available**, **Update check failed**, **Update in progress**, or
+  **Update needs attention**. The footer can wrap; its controls remain below the dialog. Checks
+  keep the cards and other controls usable. Closing the dialog returns focus under the existing
+  focus rules; a background close does not take focus from other board work.
 - Human sessions is a strip between the header and the columns, in Now and in Pipeline. Each human
   session is one item: the letter of the agent, the label of the tab, the state with its age, and
   Go. A tab with an empty label shows `A session` on its item and as the title of its details. A

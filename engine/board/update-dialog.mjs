@@ -1,5 +1,5 @@
 // engine/board/update-dialog.ts
-import { $, el, post } from "./ui.mjs";
+import { $, el, icon, post } from "./ui.mjs";
 var session = {
   get(key) {
     try {
@@ -34,6 +34,8 @@ function setupUpdates() {
     return controls;
   const dialog = $("update-dialog");
   const opener = $("update-open");
+  const label = opener.querySelector(".label");
+  opener.prepend(icon("refresh"));
   const title = $("update-title");
   const description = $("update-description");
   const revisions = $("update-revisions");
@@ -52,6 +54,7 @@ function setupUpdates() {
   let hidden = session.get("hidden");
   let returning = null;
   let refusal = null;
+  let checkFailure = null;
   let checking = false;
   let submitting = false;
   let timedOut = false;
@@ -79,11 +82,11 @@ function setupUpdates() {
       return;
     returning = isAutomatic ? opener : document.activeElement;
     dialog.show();
-    opener.hidden = true;
     opener.setAttribute("aria-expanded", "true");
     title.focus();
   };
-  const close = () => {
+  const close = (restoreFocus = true) => {
+    const focused = contains(document.activeElement);
     if (response?.update.offer && !pending) {
       deferred = response.update.offer.id;
       session.set("deferred", deferred);
@@ -93,18 +96,26 @@ function setupUpdates() {
     }
     dialog.close();
     draw();
-    (returning?.isConnected && !returning.hidden ? returning : opener).focus();
+    if (restoreFocus || focused)
+      (returning?.isConnected && !returning.hidden ? returning : opener).focus();
   };
+  const phaseOf = () => timedOut ? "timeout" : refusal ? "update-failed" : pending ? reconnecting ? "restarting" : "updating" : checking ? "checking" : checkFailure ? "check-failed" : response?.update.phase;
   const draw = () => {
     const update = response?.update;
-    const phase = timedOut ? "timeout" : refusal ? "update-failed" : pending ? reconnecting ? "restarting" : "updating" : update?.phase;
+    const phase = phaseOf();
     const busy = phase === "updating" || phase === "restarting";
     const failed = phase === "update-failed" || phase === "check-failed" || phase === "timeout";
-    opener.hidden = dialog.open || !phase || phase === "current" || phase === "checking";
-    opener.textContent = busy ? "Update in progress" : phase === "check-failed" ? "Update check failed" : failed ? "Update needs attention" : "Update available";
+    label.textContent = busy ? "Update in progress" : phase === "checking" ? "Checking…" : phase === "check-failed" ? "Update check failed" : failed ? "Update needs attention" : phase === "available" ? "Update available" : phase === "current" ? "Up to date" : "Check for updates";
+    const name = !phase || phase === "current" ? "Check for Celetis updates" : `Celetis: ${label.textContent}`;
+    opener.setAttribute("aria-label", name);
+    opener.title = name;
+    opener.setAttribute("aria-disabled", String(phase === "checking"));
+    opener.setAttribute("aria-expanded", String(dialog.open));
     if (!phase || phase === "current") {
+      if (phase === "current" && live.textContent !== "Up to date")
+        live.textContent = "Up to date";
       if (dialog.open)
-        dialog.close();
+        close(false);
       return;
     }
     title.textContent = {
@@ -169,7 +180,7 @@ function setupUpdates() {
       update.incomplete.length ? `Incomplete: ${update.incomplete.map((part) => names[part]).join(", ")}.` : ""
     ].filter(Boolean).join(" ") : "Your agent sessions keep running.";
     note.classList.toggle("update-failure", phase === "update-failed");
-    diagnostic.textContent = refusal ?? (failed ? update?.error ?? "" : "");
+    diagnostic.textContent = failed ? checkFailure ?? refusal ?? update?.error ?? "" : "";
     diagnostic.hidden = !diagnostic.textContent;
     recovery.textContent = failed ? pending?.recovery ?? update?.recovery ?? "" : "";
     recovery.hidden = !recovery.textContent;
@@ -261,7 +272,7 @@ function setupUpdates() {
     if (!timedOut)
       timer = setTimeout(poll, pending ? 1000 : 5000);
   };
-  const poll = async () => {
+  const poll = async (forCheck = false) => {
     if (expire())
       return;
     const request = ++epoch;
@@ -273,15 +284,25 @@ function setupUpdates() {
       if (!result.ok)
         throw new Error("The board server does not answer.");
       const next = await result.json();
-      if (request === epoch)
+      if (!next.runtime || !next.update)
+        throw new Error("The update status could not be read.");
+      if (request === epoch) {
+        if (forCheck)
+          checking = false;
         accept(next);
+        draw();
+      }
     } catch {
       if (request !== epoch)
         return;
+      if (forCheck || !pending && response?.update.phase === "checking") {
+        checking = false;
+        checkFailure ??= "The update status could not be read. Check again.";
+      }
       if (pending) {
         beginReconnect();
-        draw();
       }
+      draw();
     } finally {
       clearTimeout(timeout);
       if (request === epoch) {
@@ -296,6 +317,13 @@ function setupUpdates() {
     active?.abort();
   };
   opener.addEventListener("click", () => {
+    const phase = phaseOf();
+    if (phase === "checking")
+      return;
+    if (!phase || phase === "current") {
+      requestCheck();
+      return;
+    }
     if (pending) {
       hidden = null;
       session.set("hidden", null);
@@ -303,7 +331,7 @@ function setupUpdates() {
     open();
     draw();
   });
-  later.addEventListener("click", close);
+  later.addEventListener("click", () => close());
   dialog.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       event.preventDefault();
@@ -344,8 +372,8 @@ function setupUpdates() {
       beginReconnect();
     await poll();
   });
-  check.addEventListener("click", async () => {
-    if (checking || pending && !timedOut)
+  const requestCheck = async () => {
+    if (phaseOf() === "checking" || pending && !timedOut)
       return;
     if (timedOut) {
       pending = null;
@@ -356,15 +384,15 @@ function setupUpdates() {
     }
     checking = true;
     refusal = null;
+    checkFailure = null;
     stopPoll();
-    response = response ? { ...response, update: { ...response.update, phase: "checking", offer: null } } : response;
     draw();
     const result = await post("/api/update/check", {}, "Update check failed");
-    checking = false;
     if (!result)
-      refusal = "The update check could not start. Check again.";
-    await poll();
-  });
+      checkFailure = "The update check could not start. Check again.";
+    await poll(true);
+  };
+  check.addEventListener("click", () => void requestCheck());
   draw();
   poll();
   return controls;
