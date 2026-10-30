@@ -40,14 +40,52 @@ start step N+1.
    checked per `<plugin>/docs/procedures/docs-lookup.md` before the report names it the root cause. A bug that
    shows on screen gets a capture repro at the failing state and size, posted on the issue per
    `<plugin>/docs/procedures/ui.md`, "Captures", before the report.
-5. **Write a states table in the report.** For every value the fix guards or depends on, list each
+5. **Write the report evidence.** Keep these checks together before the decision in step 6.
+
+   **Causal chain — every report.** Include `## Causal chain`. Trace backward from the failing
+   expression through the relevant bad state and its producer to a reachable user action, system
+   event, lifecycle event, or race. Present the chain in causal order, with `file:line` evidence
+   for every link. Explain how the affected flow reaches the trigger. Include a producer that
+   fails to run or finish, and a missing wait, when relevant. Name the expected invariant and
+   the earliest relevant violation that the project controls. The red repro must exercise this
+   trigger. A failing expression alone does not establish the root cause.
+
+   Check issue claims against source. A link that depends on library, platform, or vendor behavior
+   cites its settled fact in `## External facts`. Mark unsettled links uncertain; they cannot
+   establish the root cause. Use step 4's debugging and step 6's escalation rules for missing
+   evidence. The chain is complete only when source evidence connects the reachable trigger to
+   the violated invariant and identifies the project-controlled cause.
+
+   **States table — every report.** For every value the fix guards or depends on, list each
    distinct state and name the code that writes it (file:line) — both the producer of the absent
    state AND the writer of the consulted value (a flag or field), not its default initializer. A
    field's default is not a writer. If "absent" and a writer-set value come from different code,
    they are distinct states.
-6. **Resolve alone, or escalate.** Read the states table before fixing. Judge from the root cause
-   and the states table whether the fix chooses new behavior: it adds a mechanism (for example a
-   retry, a timer, a cache, a lock, or a queue), or it chooses behavior that the spec does not
+
+   **Masking check — a guard leaves suspect state.** When the proposed fix guards the failure
+   and leaves suspect state in place, include `## Masking check`. Null checks, early returns,
+   catches, and default values are examples; the effect triggers the check, not the syntax.
+   Answer both questions with `file:line` evidence:
+
+   - Does a writer intentionally produce this state, with behavior defined by the spec, or does
+     it violate an invariant? Cite the writer and the defined behavior. An initializer or a
+     similar guard does not establish intentional absence.
+   - Where can the state be used after the guard? Trace every reachable later consumer in the
+     affected flow and the state's lifetime. Include other values the same producer leaves
+     unset, and uses by callers or callbacks. Explain how each consumer gets valid state or
+     becomes unreachable. A return from one function does not prove that another caller or
+     callback cannot use the state.
+
+   For an invariant violation, fix the causal origin or end the affected flow before any invalid
+   use. A moved failure or silent substitution of wrong state fails the check. A guard for
+   intentional absence can pass when the defined behavior and every later consumer support it.
+   The check is complete only when every reachable later use is accounted for. Step 6's
+   escalation rules still apply when state meaning or behavior needs a maintainer decision.
+   A repair at the causal origin that leaves no suspect state needs no masking section; its
+   causal chain and states table remain mandatory.
+6. **Resolve alone, or escalate.** Read the causal chain, states table, and applicable masking
+   check before fixing. Judge from this evidence whether the fix chooses new behavior: it adds a
+   mechanism (for example a retry, a timer, a cache, a lock, or a queue), or it chooses behavior that the spec does not
    define. When it does, research the prior art per `<plugin>/docs/procedures/prior-art.md` before the
    decision below. This trigger is wider than the escalation: a fix that adds a mechanism does the
    research also when the spec defines each state. A fix that restores behavior that the spec or
@@ -67,6 +105,7 @@ start step N+1.
    look, and the fix is self-contained.
 7. **Post the report, then invoke `celetis:plan #<n>`.** `celetis --agent <host> issue <n> root-cause <report>`
    posts the report with `## Root cause` as its first line, so the report file has no heading; the report is the spec (root cause + red repro + intended
-   behavior + step 3's traps + its `## External facts` section + its `## Prior art` section when
+   behavior + step 3's traps + its `## Causal chain` section + its states table + its `## Masking check`
+   section when applicable + its `## External facts` section + its `## Prior art` section when
    step 6 did the research + the link of the capture repro when step 4 made one) and `plan` drives
    the rest of the chain.
