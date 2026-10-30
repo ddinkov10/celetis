@@ -42,6 +42,8 @@ N+1. Too little time for the lane → the change does not ship tonight.
      `### Your steps` and no `Bias:` line, so this line is its header.
    - The task is the root-cause fix under `### Task 1: <title>`, with step 3's traps as its
      constraints. Both build flows of `implement` find a task by its `Task <N>` heading.
+   - Carry matched lesson rules into that task per `<plugin>/docs/procedures/task-lessons.md`,
+     "Authoring".
    - Each library call the fix adds is checked per `<plugin>/docs/procedures/docs-lookup.md`; the facts go
      in the micro-plan's `## External facts` section.
    - Put the exact applicable principle paths in the task text, alongside its external facts.
