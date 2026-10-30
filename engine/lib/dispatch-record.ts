@@ -392,6 +392,9 @@ function childOf(record: DispatchRecord, key: Key, role: Role): Dispatch | undef
     (dispatch) => (dispatch.action === 'spawn' || dispatch.action === 'replace') && started(dispatch),
   );
 }
+function samePair(left: Pair, right: Pair): boolean {
+  return left.model === right.model && left.effort === right.effort && left.runtime === right.runtime;
+}
 function trailOf(record: DispatchRecord, task: Task): unknown[] {
   return task.entries.map((entry) => {
     if (entry.kind !== 'dispatch') return structuredClone(entry);
@@ -487,20 +490,18 @@ function validateHistory(record: DispatchRecord, task: Task): void {
     if (entry.kind === 'dispatch') {
       const dispatch = record.dispatches.find((dispatch) => dispatch.id === entry.id) as Dispatch;
       const child = childOf(history, task, dispatch.role);
+      const previous = dispatchesOf(history, task, dispatch.role).at(-1);
       if (dispatch.role === 'reviewer') need(reviewerAllowed(history, prefix), 'dispatch.reviewer gate');
       if (dispatch.action === 'resume') {
         need(child && dispatch.child === workerOf(child), 'dispatch.child');
-        need(
-          child.pair.model === dispatch.pair.model &&
-            child.pair.effort === dispatch.pair.effort &&
-            child.pair.runtime === dispatch.pair.runtime,
-          'dispatch.pair',
-        );
+        need(samePair(child.pair, dispatch.pair), 'dispatch.pair');
       } else if (dispatch.action === 'spawn') need(!child, 'dispatch.action');
       else
         need(
           child &&
-            (dispatch.round >= 4 ||
+            (!samePair(child.pair, dispatch.pair) ||
+              (previous?.action === 'replace' && previous.voided && previous.execution?.result === 'failed') ||
+              dispatch.round >= 4 ||
               task.entries
                 .slice(0, prefix.entries.length)
                 .some((entry) => entry.kind === 'review' && entry.result === 'blocked')),
@@ -532,7 +533,6 @@ function issueDispatch(
       ? previous
       : undefined;
   const child = childOf(record, task, role);
-  const selectedAction = retry?.action ?? action ?? (child ? 'resume' : 'spawn');
   const level = retry?.level ?? (role === 'reviewer' ? task.attempt : Math.max(task.attempt, task.escalated ? 3 : 1));
   let pair: Pair | null;
   try {
@@ -542,9 +542,11 @@ function issueDispatch(
     return refused(record, task, error.message, 'setup');
   }
   if (!pair) return refused(record, task, `attempt ${task.attempt}: escalate with the failure trail`, 'stop');
+  const selectedAction =
+    retry?.action ?? action ?? (child ? (samePair(child.pair, pair) ? 'resume' : 'replace') : 'spawn');
   if (selectedAction === 'resume') {
     if (!child) return refused(record, task, `no recorded ${role} child to resume`, 'setup');
-    if (child.pair.model !== pair.model || child.pair.effort !== pair.effort || child.pair.runtime !== pair.runtime)
+    if (!samePair(child.pair, pair))
       return refused(
         record,
         task,

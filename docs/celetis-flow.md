@@ -75,8 +75,9 @@ of the product project, apart from a path that starts with `~/` or `/`.
   host. A missing required `superpowers:*` skill stops the lane.
 - For Codex children with model tiers, the profile and current runtime allowlist from
   `docs/capability.md`. With no profile, each Codex child keeps the parent's model.
-  The actual dispatch surface must support the resolved model and effort and the required
-  same-child follow-up controls. CLI and desktop capabilities can differ.
+  The actual dispatch surface must support the resolved model and effort on isolated starts
+  and same-pair follow-up. The task loop replaces a child when its effective pair changes
+  ([Dispatch records](capability.md#dispatch-records)). CLI and desktop capabilities can differ.
 - The board has more requirements: "The board" names them.
 
 ## Start the script

@@ -49,7 +49,7 @@ fix after the final review. The acts and their arguments are:
 
 | Act and arguments | When to use it |
 | --- | --- |
-| `next <n> <task> implementer\|reviewer J V B N S X --bias N` | For the first dispatch of a role, an answer to a child's question, or a retry after an accepted report that no worker started. |
+| `next <n> <task> implementer\|reviewer J V B N S X --bias N` | For the first dispatch of a role, an answer to a child's question, a retry after an accepted report that no worker started, or recovery after a saved gate issued no repair. |
 | `report <dispatch-id> <report-file>` | After each issued native call, before the next engine act. Use the execution report of the selected host. |
 | `gate <n> <task> pass\|fail <gate> <report>` | After each implementer `DONE`, with the gate name and the report path. |
 | `review <n> <task> findings` | After a task review reports spec ❌, a Critical finding, or an Important finding. |
@@ -67,8 +67,11 @@ fix after the final review. The acts and their arguments are:
   `pair.model` and `pair.effort` with the host's actual spawn controls, and omit the model field
   when it is null. Follow `action`: `spawn` starts a child; `resume` sends to `child` with the
   host's follow-up tool; `replace` starts a fresh child in place of the prior child of that role.
-  A resume retains the recorded pair; when the tool cannot apply the required pair, stop for setup
-  with the reason and the failure trail.
+  A resume retains the recorded pair. A changed model, effort, or runtime returns `replace`.
+  Give the replacement the same checkout, saved work, task constraints, prior child and pair,
+  failure reports, and current counters. Continue that task; keep its earlier evidence.
+- When an earlier gate failure was saved but no repair dispatch was issued, use `next` with that
+  task's saved digits and bias. Do not report the same gate failure again or reset the record.
 - Send each returned `ready` dispatch once. Save the exact tool name, arguments, and native result
   of the real call in an execution report, then run `report <dispatch-id> <report-file>` before
   the next engine act. Report only `call` and `outcome`; the engine binds the report to the active
@@ -95,8 +98,9 @@ fix after the final review. The acts and their arguments are:
 
 Use `Agent` to spawn or replace a child. Apply the model and the effort of the pair through its
 actual controls with a non-fork `subagent_type`. Use `SendMessage` to resume the recorded child;
-it has no model or effort control, so a changed pair stops before a resume. Put the CAP line
-first in the prompt or the message. Keep the parent settings.
+it has no model or effort control. In the task loop, use the returned replacement for a changed
+pair. Outside that loop, keep the setup stop of "One child". Put the CAP line first in the prompt
+or the message. Keep the parent settings.
 
 In the task loop, after the call, run
 `celetis --agent claude dispatch report <dispatch-id> <report-file>`. The report is agent-reported
@@ -141,9 +145,9 @@ Use `collaboration.spawn_agent` with `fork_turns: "none"` and the CAP line first
 Set the effort of the pair as `reasoning_effort`, and omit `model` when the model of the pair is
 null. Keep the parent settings. For `resume`, use the actual `collaboration.followup_task` with
 `target` equal to the recorded child and the CAP line first in `message`. That follow-up has no
-model or effort controls. The engine stops a changed pair before issuing a resume; an unchanged
-pair can use the same child. A returned stable task name, such as `/root/worker`, is a usable
-identity.
+model or effort controls. In the task loop, the engine returns a replacement for a changed pair;
+an unchanged pair can use the same child. Outside that loop, keep the setup stop of "One child".
+A returned stable task name, such as `/root/worker`, is a usable identity.
 
 With a nonempty `codexProfiles` mapping or an explicit profile, pass fresh model and effort
 evidence from the active dispatch tools through `--runtime-models` to each `capscore` call and

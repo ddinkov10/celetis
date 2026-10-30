@@ -146,8 +146,12 @@ need no fresh runtime allowlist.
 On `status: "ready"`, schema-1 JSON includes `line`, `pair`, `action`, `child`, and `dispatch`.
 Send the CAP line first and unchanged. Apply the actual model and effort controls on an isolated
 spawn; omit `model` when null. Follow `spawn`, same-child `resume`, or engine-authorized `replace`.
-Keep the parent settings. A same-pair follow-up uses the recorded child. A changed pair stops
-before a resume because the observed follow-up tools cannot set model or effort.
+Keep the parent settings. A same-pair follow-up uses the recorded child. A changed model, effort,
+or runtime issues `replace`, because the observed follow-up tools cannot change the pair.
+Replacement preserves the task, counters, saved work, and earlier execution and failure evidence.
+Give the fresh child that saved context through [the child dispatch](procedures/dispatch.md).
+After a saved gate failure that issued no repair, request `next` with the saved task digits and
+bias. Do not replay the gate failure or reset the record.
 
 After each native call, save its exact tool name, arguments, and complete result. Submit
 `report <dispatch-id> <report-file>` before the next task act. The
@@ -191,9 +195,10 @@ A later implementer call or adverse gate/review result makes earlier evidence st
 pending, mismatched, incomplete, or unsupported calls cannot close a normal or `final` task.
 
 The engine owns attempts and fix rounds. Gate failures advance attempts; attempt 4 stops.
-Rounds 1–3 retain the implementer and pair. Rounds 4–5 and `BLOCKED` permit an engine-issued fresh
-implementer at the attempt-3 pair. A further adverse review is saved and stops all later acts for
-that task without round 6. Report failures change neither count. Keep no parallel counters.
+Rounds 1–3 retain the implementer when the effective pair is unchanged. A changed pair issues a
+replacement. Rounds 4–5 and `BLOCKED` permit an engine-issued fresh implementer at the attempt-3
+pair. A further adverse review is saved and stops all later acts for that task without round 6.
+Report failures change neither count. Keep no parallel counters.
 
 Exit 0 returns `ready`, `reported`, or `closed`, or prints `show`. Exit 2 is usage; exit 3 is a
 refused act. Exit 4 is a terminal stop and exit 5 is a setup stop. Both carry a reason and trail
@@ -399,5 +404,5 @@ follow-up tool has no override. The scorer returns the binding; the dispatch con
 creation, identity, and execution records.
 
 For the task loop of `implement`, use `dispatch` and its `pair` and `action` fields. Its agent-reported
-child identity, changed-pair stop, and execution reports are defined in
+child identity, pair-change replacement, and execution reports are defined in
 [Dispatch records](#dispatch-records).
