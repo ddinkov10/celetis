@@ -12,7 +12,7 @@ mapping root. Comments are allowed. Put nothing after a `---` marker on its line
 | `landing` | Required: `pr` or `merge` | None |
 | `gates` | Mapping from a step name to `me` or `auto` | `me` for each omitted step |
 | `board` | Mapping with optional `port`, an integer from 1024 to 65535 | Port 4403 |
-| `worktreeSetup` | One TypeScript program string | No setup |
+| `worktreeSetup` | A root-relative `.ts` file reference, or exactly `""` | No setup |
 | `suite` | A relative path of a TypeScript file in the checkout; required with `landing: merge`, refused with `landing: pr` | With `merge`, the config is refused |
 | `custom` | Mapping from a Celetis skill stem to an instruction string | No addition for an omitted skill |
 | `codexProfiles` | Mapping from a runtime identity to its profile | Each Codex child keeps the parent's model |
@@ -27,7 +27,7 @@ The allowed custom keys are `assist`, `attack-the-premise`, `boundary-discipline
 `model-the-domain`, `plan`, `polishing-code-comments`, `prototype`,
 `record-architecture-decisions`, `separate-before-serializing-shared-state`, `setup`, `specify`,
 `test-behavior-not-implementation`, `triage`, `type-system-discipline`, and `writing-for-agents`.
-An empty setup string runs no setup. An empty instruction string gives no addition.
+Exactly `""` as the setup reference runs no setup. An empty instruction string gives no addition.
 An empty `custom` or `codexProfiles` mapping is valid.
 
 Agent selection is `--agent`, then `CELETIS_AGENT`, then the main config's `host`, then
@@ -51,37 +51,67 @@ each Codex child keeps the parent's model and gets the effort of its rank
 Explicit `--profile` and `CAP_MODEL_PROFILE` inputs take precedence for standalone or one-run
 scoring.
 
-## Script and instruction text
+## Setup file and instruction text
 
-Use a literal block, `|` or `|-`, for multiline text. `|` keeps one final newline;
-`|-` removes it. `|+` keeps all trailing newlines. A short value can be a normal YAML string.
-Folded blocks (`>`) and arrays are not accepted for setup or instructions.
-Quotes, backslashes, Unicode, blank lines, and parsed trailing newlines stay intact.
+`worktreeSetup` names a normal TypeScript file of the product. Use `/` separators and a
+case-sensitive `.ts` suffix. The value is root-relative, also when a command starts in a
+subfolder. Celetis preserves accepted characters exactly: it does not trim, expand variables or
+`~`, split arguments, or interpret the value as code. A literal `$` or `~` stays literal.
+
+Reject absolute, rooted, drive, and UNC paths; backslashes; colons; empty, `.`, `..`, and `.git`
+components; U+0000–U+001F; and U+007F. Omission or exactly `""` means no setup. Null,
+whitespace-only text, inline code, and wrong types are errors. Configuration validation checks
+the reference only; a valid reference to a missing file can be read. Skill entry neither reads
+nor executes the setup file.
+
+Use a literal block, `|` or `|-`, for multiline `custom` instructions. `|` keeps one final
+newline; `|-` removes it; `|+` keeps all trailing newlines. A short instruction can be a normal
+YAML string. Folded blocks (`>`) and arrays are not accepted for instructions. Quotes,
+backslashes, Unicode, blank lines, and parsed trailing newlines stay intact.
 
 ```yaml
 landing: pr
-worktreeSetup: |
-  console.log(process.argv[2]);
+worktreeSetup: "scripts/worktree-setup.ts"
 custom:
   bug: |-
     Keep the change small.
 ```
 
-The setup program runs on the selected Bun in the new lane checkout. Celetis writes the exact
-parsed string to a private 0600 TypeScript file outside the canonical main checkout and lane.
-`process.argv[2]` is the absolute main checkout. Stdin, stdout and stderr stay inherited. The
-worktree command adds an LF separator after nonempty setup output and prints the final absolute
-lane path. `setup try` prints its path even when preparation or execution fails.
-Pass each external executable and its arguments as an array. Check its exit status and stop on
-failure. Variables and functions share one program. Reading the config or entering a skill
-executes no setup. An omitted or empty program runs no setup. Signals stop the owned child and
-remove the temporary file; the existing marker and lane cleanup rules remain below.
+Immediately before execution, the reference must identify a readable regular file inside the
+canonical target checkout. Celetis rejects final and ancestor symlinks below that root,
+directories, special files, outside targets, nested repositories, submodules, and other
+worktrees. An invalid target starts no setup child. A canonical alias of the checkout root is
+accepted. The trusted-checkout boundary is not a file-swap transaction and adds no restrictions
+to transitive imports.
+
+The selected Bun executes the lane file directly, with cwd at the lane root. The file keeps its
+source path and ordinary sibling imports. It needs no executable bit or exported-function API.
+`process.argv[2]` is one absolute main-checkout argument. Stdin, stdout, and stderr stay
+inherited. Product `.env`, Bun configuration, preloads, macros, automatic package installation,
+and transpiler cache remain disabled. Pass each external executable and its arguments as an
+array; check its status and stop on failure. Signals stop the owned child. The worktree command
+adds an LF separator after nonempty setup output and prints the final absolute lane path.
+`setup try` prints its path even when preparation or execution fails, and returns the child
+status. `worktree` and `setup lane` report setup failure as status 1.
+
+The setup skill proposes the relative path and complete contents for review. Before a detached
+wiring test, the product owner approves, creates, and commits the entry and required helpers on
+the local trunk in a separate product change. `setup try` and `setup write --setup-file <path>`
+require the entry in local trunk HEAD with an unchanged index and working file. They resolve the
+option from the main root and add only the reference. They create, copy, stage, own, commit, and
+push no application source to make testing possible. A changed proposal requires another owner
+source commit before retry. Existing references, including `""`, stay unchanged; a conflict
+prints `setup: warning: .celetis.yaml: worktreeSetup differs from the requested setup reference; setup leaves it`.
 
 The main config is checked before Git prune, branch or worktree changes, runtime state creation,
 host sessions, and landing pushes. The runner checks it again before each new
 session. The worktree command also checks the lane config on every entry, including a lane with
-its setup marker. An unmarked lane runs setup once and receives the marker only after a script
-that is not empty succeeded. With an empty or missing `worktreeSetup`, the lane stays unmarked.
+its setup marker. An unmarked lane runs setup once and receives the marker only after a nonempty
+reference succeeded, including a zero-byte file. With exactly `""` or missing `worktreeSetup`,
+the lane stays unmarked. Source edits do not clear a marker. Explicit `setup lane <path>` uses
+the main reference and target lane source, and clears an old marker before file validation or
+execution. It writes the marker again only on success. An older lane with missing source needs
+the owner to bring that committed source into the lane; there is no copy or merge fallback.
 A setup failure or invalid new lane config uses the existing cleanup: remove the new worktree
 and a branch created by the command; keep an existing branch or worktree for repair and retry.
 Old Git defaults have no effect.
@@ -129,7 +159,8 @@ Unknown fields are errors at every level. Supplied null values, wrong types, inv
 values, duplicate keys, non-string keys, aliases, merge keys, custom tags, and non-JSON YAML
 values are errors. Only the standard map, sequence, string, null, Boolean, integer, and float
 tags can pass the parser check; the field schema then limits each value. Non-finite numbers
-are not accepted. Script and instruction strings cannot contain NUL.
+are not accepted. Instruction strings cannot contain NUL. Setup references use the lexical
+rules above.
 Plain `yes` and `on` are strings under YAML 1.2.
 
 `engine/lib/config-core.ts` of the plugin owns parsing, validation, types, and diagnostics. It has
@@ -150,7 +181,8 @@ Both projections require safe file access, strict UTF-8, one mapping document, s
 unique keys, supported tags, finite scalars, and no aliases or merge keys. Host selection does
 not check unrelated field values or require `landing`: `host: codex` alone selects Codex.
 An unknown root field, invalid gate, or invalid board port can pass that projection. Only full
-validation checks allowed fields, required `landing`, literal text styles, and field-specific
+validation checks allowed fields, required `landing`, instruction literal styles, setup reference
+syntax, and field-specific
 integer forms and ranges. A host projection is never a full `Config`.
 
 Bootstrap uses this shared source instead of `Bun.YAML.parse`. Duplicate keys, aliases, unsafe

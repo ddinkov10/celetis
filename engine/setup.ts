@@ -5,7 +5,7 @@ import { constants, tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { readConfig } from './lib/config.ts';
-import { type Config, ConfigError, formatConfigError } from './lib/config-core.ts';
+import { type Config, ConfigError, formatConfigError, validateWorktreeSetup } from './lib/config-core.ts';
 import { HostError, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
@@ -13,7 +13,7 @@ import { checkClaudePolicy } from './lib/plugin-policy.ts';
 import { childEnv, run } from './lib/process.ts';
 import { parseAllDocuments } from './lib/vendor/yaml.mjs';
 import { type Label, labels } from './lib/workflow.ts';
-import { markerOf, removeCheckout, runSetup, worktrees } from './lib/worktree.ts';
+import { markerOf, removeCheckout, runSetup, setupFile, worktrees } from './lib/worktree.ts';
 
 const wiring = '.claude/celetis-flow/wiring.json';
 const settings = '.claude/settings.json';
@@ -113,13 +113,19 @@ function options(argv: string[]): Options {
   if (landing !== 'pr' && landing !== 'merge') return badUsage();
   const suite = values['--suite'] ?? '';
   if ((landing === 'merge') !== !!suite) return badUsage();
+  const setup = values['--setup-file'] ?? '';
+  try {
+    validateWorktreeSetup(setup);
+  } catch (error) {
+    fail(`--setup-file ${setup}: ${error instanceof Error ? error.message : String(error)}`);
+  }
   const absolute = (value = '') => (!value || isAbsolute(value) || win32.isAbsolute(value) ? value : resolve(value));
   return {
     hosts: hosts.split(','),
     default: selected,
     landing,
     suite,
-    setup: absolute(values['--setup-file']),
+    setup,
     baseline: absolute(values['--baseline-file']),
     ignores,
   };
@@ -164,19 +170,6 @@ function settingsForm(): Entry[] {
     },
     { path: ['enabledPlugins', 'superpowers@superpowers-marketplace'], value: true },
   ];
-}
-
-function block(text: string): string {
-  const breaks = text.length - text.replace(/\n+$/, '').length;
-  const indent = lines(text)
-    .find((line) => line.length > 0)
-    ?.startsWith(' ')
-    ? '2'
-    : '';
-  const chomp = breaks === 0 ? '-' : breaks === 1 ? '' : '+';
-  return `worktreeSetup: |${indent}${chomp}\n${lines(text)
-    .map((line) => (line ? `  ${line}\n` : '\n'))
-    .join('')}`;
 }
 
 function sortedKeys(value: unknown): unknown {
@@ -341,8 +334,45 @@ class Setup {
     const result = await run('git', ['diff', '--cached', '--quiet'], { cwd: this.cwd });
     if (result.code !== 0) fail('the index holds staged changes; commit or unstage them first');
   }
-  async check(): Promise<void> {
+  private async checkSetupSource(reference: string): Promise<void> {
+    await setupFile(this.top, reference);
+    const tracked = await run(
+      'git',
+      ['--literal-pathspecs', 'ls-files', '--stage', '--error-unmatch', '-z', '--', reference],
+      { cwd: this.cwd },
+    );
+    if (tracked.code !== 0) fail(`cannot check ${reference} in the index: ${tracked.stderr.trimEnd()}`);
+    const [entry, path] = tracked.stdout.split('\t');
+    if (!/^100(?:644|755) [0-9a-f]+ 0$/.test(entry ?? '') || path !== `${reference}\0`)
+      fail(`${reference} is no regular tracked file; commit it on ${this.trunk} first`);
+    for (const cached of [true, false]) {
+      const result = await run(
+        'git',
+        [
+          '--literal-pathspecs',
+          'diff',
+          '--no-ext-diff',
+          '--quiet',
+          ...(cached ? ['--cached', 'HEAD'] : []),
+          '--',
+          reference,
+        ],
+        { cwd: this.cwd },
+      );
+      if (result.code === 1)
+        fail(
+          `${reference} differs in the ${cached ? 'index from local trunk HEAD' : 'working tree from the index'}; commit it first`,
+        );
+      if (result.code !== 0) fail(`cannot check ${reference}: ${result.stderr.trimEnd()}`);
+    }
+    const hash = await run('git', ['hash-object', `--path=${reference}`, '--', reference], { cwd: this.cwd });
+    if (hash.code !== 0) fail(`cannot check ${reference}: ${hash.stderr.trimEnd()}`);
+    if (hash.stdout.trimEnd() !== entry?.split(' ')[1])
+      fail(`${reference} differs in the working tree from the index; commit it first`);
+  }
+  async check(reference = ''): Promise<void> {
     await this.checkTrunk();
+    if (reference) await this.checkSetupSource(reference);
     if (/^i\/(?:crlf|mixed)/.test(await this.git(['ls-files', '--eol', '--', configFile])))
       fail(`the index holds ${configFile} with CRLF line endings; convert it to LF and commit it first`);
     const dirty = await this.changedPaths();
@@ -530,13 +560,12 @@ class Setup {
       await check(desired, `cannot add the line ${added[0]} to ${configFile}; add it by hand first`, false);
     }
     if (opts.setup) {
-      const setup = await readFile(opts.setup, 'utf8');
       if (original.worktreeSetup !== undefined) {
-        if (original.worktreeSetup !== setup)
-          this.warn(`${configFile}: worktreeSetup differs from the setup file; setup leaves it`);
+        if (original.worktreeSetup !== opts.setup)
+          this.warn(`${configFile}: worktreeSetup differs from the requested setup reference; setup leaves it`);
       } else {
-        proposed += `${proposed && !proposed.endsWith('\n') ? '\n' : ''}${block(setup)}`;
-        desired.worktreeSetup = setup;
+        proposed += `${proposed && !proposed.endsWith('\n') ? '\n' : ''}worktreeSetup: ${JSON.stringify(opts.setup)}\n`;
+        desired.worktreeSetup = opts.setup;
         await check(desired, `cannot add worktreeSetup to ${configFile}; add it by hand first`, true);
       }
     }
@@ -592,12 +621,12 @@ class Setup {
       this.review(settings, 'enabledPlugins.celetis@celetis');
   }
   async plan(opts: Options, scratch: string): Promise<void> {
-    for (const file of [opts.setup, opts.baseline].filter(Boolean)) {
+    if (opts.baseline) {
       try {
-        if (!(await stat(file)).isFile()) fail(`cannot read ${file}`);
-        await access(file, fsConstants.R_OK);
+        if (!(await stat(opts.baseline)).isFile()) fail(`cannot read ${opts.baseline}`);
+        await access(opts.baseline, fsConstants.R_OK);
       } catch {
-        fail(`cannot read ${file}`);
+        fail(`cannot read ${opts.baseline}`);
       }
     }
     const baseline = opts.baseline ? await readFile(opts.baseline, 'utf8') : '';
@@ -860,7 +889,7 @@ class Setup {
     }
     const opts = input.options;
     this.diagnostic = command === 'try';
-    await this.check();
+    await this.check(opts.setup);
     const scratch = await mkdtemp(join(tmpdir(), 'celetis-plan.'));
     try {
       if (command === 'try') {

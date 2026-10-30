@@ -230,11 +230,7 @@ function checkFieldMetadata(nodes: NodeRecord[]): void {
   const rules: [string, (node: NodeRecord) => Path | false][] = [
     [
       'use a literal block for multiline text',
-      (node) =>
-        !node.key &&
-        node.style === 'BLOCK_FOLDED' &&
-        (at(node.path, 'worktreeSetup') || at(node.path, 'custom.*')) &&
-        node.path,
+      (node) => !node.key && node.style === 'BLOCK_FOLDED' && at(node.path, 'custom.*') && node.path,
     ],
     [
       'need an integer',
@@ -282,6 +278,20 @@ function text(value: unknown, path: Path): void {
   if (value.includes('\0')) throw new ConfigError(path, 'NUL is not allowed');
 }
 
+export function validateWorktreeSetup(value: unknown): string {
+  if (typeof value !== 'string') throw new ConfigError(['worktreeSetup'], 'need a string');
+  if (
+    value !== '' &&
+    (!value.endsWith('.ts') ||
+      /[\\:]/.test(value) ||
+      [...value].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127) ||
+      value.split('/').some((part) => ['', '.', '..', '.git'].includes(part)))
+  ) {
+    throw new ConfigError(['worktreeSetup'], 'need a relative path of a .ts file in the checkout');
+  }
+  return value;
+}
+
 function integer(value: unknown, min: number, max: number, path: Path): void {
   if (typeof value !== 'number') throw new ConfigError(path, 'need an integer');
   if (!Number.isInteger(value) || value < min || value > max) throw new ConfigError(path, 'integer is out of range');
@@ -325,7 +335,7 @@ function checkSchema(value: unknown): asserts value is Config {
     keysOnly(board, ['port'], ['board']);
     if (Object.hasOwn(board, 'port')) integer(board.port, 1024, 65535, ['board', 'port']);
   }
-  if (Object.hasOwn(config, 'worktreeSetup')) text(config.worktreeSetup, ['worktreeSetup']);
+  if (Object.hasOwn(config, 'worktreeSetup')) validateWorktreeSetup(config.worktreeSetup);
   if (config.landing === 'merge') required(config, 'suite', []);
   if (Object.hasOwn(config, 'suite')) {
     text(config.suite, ['suite']);

@@ -250,19 +250,25 @@ Product procedures and stores stay with their owner.
   default host. For the landing and the default host, the session proposes the value of
   `.celetis.yaml` when the file has one.
 - After the landing, when `.celetis.yaml` has no `worktreeSetup`, the session proposes the
-  worktree setup: one script from the manifests, the lockfiles, the version pins, and the CI
-  workflows of the project. It shows the script, each ignored file that the script copies, each
+  worktree setup: a normal root-relative `.ts` file, such as `scripts/worktree-setup.ts`, from the
+  manifests, lockfiles, version pins, and CI workflows of the project. It shows the path and
+  complete script, each ignored file that the script copies, each
   credential path that it does not copy, each tool that each machine needs, and the checks that
   the test runs. A `worktreeSetup` that is there, also an empty one, stays as it is, and setup
-  tests it.
-- Before any write, `celetis --agent <host> setup try` runs the script in a test lane,
+  tests its referenced lane file. The product owner must approve, create, and commit the entry
+  and required helpers on the local trunk in a separate product change before the wiring test.
+  Missing or uncommitted source stops that test. Setup creates, copies, stages, owns, commits,
+  and pushes no application source to make its test possible.
+- Before any wiring write, `celetis --agent <host> setup try --setup-file <path>` takes the exact
+  root-relative reference and runs the committed file in a test lane,
   `.claude/worktrees/setup-try`: a detached worktree at the local trunk plus a commit of the
   wiring, which is the tree of a new lane after the push. There, the session runs the checks of
   the project, and it checks the import of the package of the project, a clean `git status`, and
   the hooks. Then it removes the test lane. A dirty path becomes a proposed `.gitignore` line. A
   failure of the base becomes a proposed section `## Baseline of the checks` for `AGENTS.md`,
   when `AGENTS.md` states no baseline rule. A proposed script that fails its test goes back to
-  the proposal, not to the write. Setup installs no tool and changes no hook: the report names
+  the proposal; the owner commits each source repair before another detached test. Setup
+  installs no tool and changes no hook: the report names
   each missing tool and each hook that skips its checks in the test lane (ADR-0018).
 - Setup writes the part of a host only when you choose that host: required entries in
   `.claude/settings.json` and imports from existing Claude instruction files, or the dedicated
@@ -284,7 +290,7 @@ Product procedures and stores stay with their owner.
   that a later run can tell them from the entries of the product. The schema stays 1. The record
   preserves the union of historical claims, including obsolete claims. A claim alone permits no
   replacement or removal of current content. Repeated committed runs preserve its bytes.
-- The write adds only the parts that you approved: the script as `worktreeSetup`, the ignore
+- The write adds only the parts that you approved: the file reference as `worktreeSetup`, the ignore
   lines, and the baseline section. These three parts are product parts: setup writes each one
   only when it is missing, and the record does not list it.
 - Setup shows the diff, and it commits and pushes the wiring only after your yes ("The wiring on
@@ -293,7 +299,10 @@ Product procedures and stores stay with their owner.
   there with `celetis --agent <host> setup lane <path>`. It does this also after a no or a failed push,
   and when no file changed. A lane branch with an older `.gitignore` can then show the new
   environment as untracked, and the resolver stops its issue: after the wiring is on the trunk, a
-  merge of the trunk into that branch brings the ignore lines.
+  merge of the trunk into that branch brings the ignore lines. Main selects the reference and
+  the target lane supplies the source. If an older lane lacks the entry or a helper, setup
+  reports the missing path and requires the owner to bring the committed source into that
+  lane before retry. It copies no source and performs no automatic merge or fallback.
 
 ### Claude permissions: `.claude/settings.json`
 
@@ -441,10 +450,14 @@ Commands that need repository setup require this file and stop if it is missing 
 `/celetis:setup` makes the file with `host`, `landing`, and, with `merge`, `suite` when there is
 none. It adds a missing
 `host` at the end of a valid file, or it stops when the file cannot take the line. After your yes,
-it adds a missing `worktreeSetup` as a literal block at the end of the file; a new file holds
-`host`, `landing`, `suite`, and then the block. The block must read back as the script, byte for byte, and
-each other value must stay the same. Else setup stops before any write, for example on a script
-with CRLF line endings or on a file with a `...` end marker: add the field by hand first. Setup
+it adds a missing `worktreeSetup` as a quoted file reference at the end of the file, for example
+`worktreeSetup: "scripts/worktree-setup.ts"`; a new file holds `host`, `landing`, `suite` with
+`merge`, and then the reference. The value must read back exactly and each other value must stay
+the same. Else setup stops before any write, for example on a file with a `...` end marker: add
+the field by hand first. `try` and `write --setup-file <path>` require the entry in local trunk
+HEAD, with an unchanged index and working file. An existing different value, including `""`,
+stays unchanged and prints `setup: warning: .celetis.yaml: worktreeSetup differs from the requested setup reference; setup leaves it`.
+Change that field by hand when the approved reference is intended. Setup
 changes no field that is there. Each other field stays by hand.
 
 | Field or file | What it holds | When omitted |
@@ -452,7 +465,7 @@ changes no field that is there. Each other field stays by hand.
 | `landing` | Required `pr` or `merge`. `pr` squash-merges a PR when each check is green. `merge` creates one squash commit on the trunk, with no PR. A project with no PR check uses `merge` | The command exits 2 |
 | `suite` | A relative path of a TypeScript file in the checkout. `land` runs it in the lane, with no argument, at the tip that it lands; exit status 0 is a pass. Required with `merge`, refused with `pr` | With `merge`, the command exits 2 |
 | `gates` | A mapping from the seven step names to `me` or `auto` | Each omitted step is `me` |
-| `worktreeSetup` | One TypeScript program for a lane, for example dependency installation and copying ignored files | No setup |
+| `worktreeSetup` | A root-relative `.ts` file reference, for example `"scripts/worktree-setup.ts"`, or exactly `""` | No setup |
 | `board.port` | The board port ("The agent board") | 4403 |
 | `codexProfiles.<runtime>` | Four ordered model slots and the reviewer minimum for that dispatch surface | Each Codex child keeps the parent's model |
 | `custom.<skill>` | An addition to the skill procedure | No addition |
@@ -467,16 +480,30 @@ changes no field that is there. Each other field stays by hand.
   adds the PR number (`docs/issue-tracker.md`, "Branches, PRs, merge").
   `gh api 'repos/{owner}/{repo}' --jq .squash_merge_commit_title` prints the value.
 - **The worktree setup.** `celetis --agent <host> worktree <n>` reads `worktreeSetup` from the lane's
-  `.celetis.yaml`. It writes the complete TypeScript string to a private 0600 temporary file outside the main
-  checkout and lane, then runs it on the selected Bun in that lane. `process.argv[2]` is the
-  absolute main checkout. Streams stay inherited. After nonempty setup output, stdout has an LF
+  `.celetis.yaml`. The reference uses `/` separators and a case-sensitive `.ts` suffix. Celetis
+  rejects absolute, rooted, drive, and UNC paths, backslashes, colons, empty/`.`/`..`/`.git`
+  components, U+0000–U+001F, and U+007F. It preserves other accepted characters exactly, with
+  no trim, expansion, splitting, or code interpretation. Omission or exactly `""` means no
+  setup; null, whitespace-only values, inline code, and wrong types fail validation. Immediately
+  before execution, the target must be a readable regular file inside the canonical lane.
+  Final or ancestor symlinks below that root, special files, directories, outside targets,
+  nested repositories, submodules, and other worktrees are refused before any setup child.
+  The selected Bun runs that file directly with cwd at the lane root, also after a subfolder
+  invocation. Its source identity and normal sibling imports stay intact; no execute bit or
+  exported-function API is needed. Product environment/configuration, preloads, macros,
+  automatic package installation, and transpiler cache stay disabled. Transitive imports have
+  no added restrictions; this trusted-checkout contract is not a file-swap transaction.
+  `process.argv[2]` is one absolute main-checkout argument. Streams stay inherited. Signals stop
+  the owned child. After nonempty setup output, stdout has an LF
   separator and the final absolute lane path. Check each external command status in the program.
   A failed setup removes a new worktree and a branch created by the command. An existing branch
-  or worktree stays for repair and retry. The command writes the marker only after a script that
-  is not empty succeeded, and that script then runs only once. With an empty or missing
+  or worktree stays for repair and retry. `setup try` returns the child status and retains its
+  diagnostic lane; `worktree` and `setup lane` map setup failure to status 1. The command writes
+  the marker only after a nonempty reference succeeded, including a zero-byte file. With exactly `""` or missing
   `worktreeSetup`, the command writes no marker. Each later entry reads the lane config again, so
-  a script that a merge of the trunk brings runs at the next entry. A lane that has a marker keeps
-  it; `celetis --agent <host> setup lane <path>` runs the script there. Every entry still checks the lane
+  a reference that a merge of the trunk brings runs at the next entry. Source edits do not
+  invalidate a marker. `celetis --agent <host> setup lane <path>` selects the main reference,
+  clears the old marker before file validation, and runs the target lane file. Every entry still checks the lane
   config (`docs/celetis-flow.md`).
 - **A custom part** is the parsed string `custom.<skill>` in `.celetis.yaml`: an addition to that
   one skill, which reaches only its own invocation. `chore` does not apply `custom.implement`, and

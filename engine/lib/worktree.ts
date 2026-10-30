@@ -1,7 +1,7 @@
-import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import type { Config } from './config-core.ts';
+import { constants } from 'node:fs';
+import { access, lstat, realpath, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
+import { type Config, validateWorktreeSetup } from './config-core.ts';
 import { HostError } from './host.ts';
 import { run, runBun } from './process.ts';
 
@@ -11,26 +11,36 @@ export async function markerOf(checkout: string): Promise<string> {
   return join(result.stdout.trimEnd(), 'celetis-flow-setup-done');
 }
 
+export async function setupFile(checkout: string, reference: string): Promise<string> {
+  let target = resolve(checkout, reference);
+  try {
+    if (validateWorktreeSetup(reference) === '') throw new Error('need a nonempty file reference');
+    const root = await realpath(checkout);
+    target = join(root, reference);
+    const parts = reference.split('/');
+    for (let i = 0; i < parts.length; i++) {
+      const component = join(root, ...parts.slice(0, i + 1));
+      const info = await lstat(component);
+      if (i < parts.length - 1 ? !info.isDirectory() : !info.isFile()) {
+        throw new Error(`${component} is no ${i < parts.length - 1 ? 'directory' : 'regular file'}`);
+      }
+    }
+    await access(target, constants.R_OK);
+    const result = await run('git', ['rev-parse', '--show-toplevel'], { cwd: dirname(target) });
+    if (result.code !== 0) throw new Error(result.stderr.trimEnd());
+    if ((await realpath(result.stdout.trimEnd())) !== root) throw new Error('file belongs to another checkout');
+    return target;
+  } catch (error) {
+    throw new HostError(`worktreeSetup ${target}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 export async function runSetup(checkout: string, config: Config, main: string): Promise<number> {
   const setup = config.worktreeSetup ?? '';
   if (setup === '') return 0;
   try {
-    const base = await realpath(tmpdir());
-    for (const root of [checkout, main]) {
-      const path = relative(await realpath(root), base);
-      if (!path || (!isAbsolute(path) && path !== '..' && !path.startsWith(`..${sep}`))) {
-        throw new HostError('worktree setup temporary directory must be outside the checkout');
-      }
-    }
-    const temp = await mkdtemp(join(base, 'celetis-setup.'));
-    let code: number;
-    try {
-      const file = join(temp, 'setup.ts');
-      await writeFile(file, setup, { mode: 0o600, flag: 'wx' });
-      code = await runBun(file, [resolve(main)], checkout);
-    } finally {
-      await rm(temp, { recursive: true, force: true });
-    }
+    const file = await setupFile(checkout, setup);
+    const code = await runBun(file, [resolve(main)], checkout);
     if (code === 0) await writeFile(await markerOf(checkout), '', { flag: 'a' });
     return code;
   } catch (error) {

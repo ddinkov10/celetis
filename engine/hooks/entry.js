@@ -6597,7 +6597,7 @@ function checkFieldMetadata(nodes) {
   const rules = [
     [
       "use a literal block for multiline text",
-      (node) => !node.key && node.style === "BLOCK_FOLDED" && (at(node.path, "worktreeSetup") || at(node.path, "custom.*")) && node.path
+      (node) => !node.key && node.style === "BLOCK_FOLDED" && at(node.path, "custom.*") && node.path
     ],
     [
       "need an integer",
@@ -6639,6 +6639,14 @@ function text(value, path) {
     throw new ConfigError(path, "need a string");
   if (value.includes("\x00"))
     throw new ConfigError(path, "NUL is not allowed");
+}
+function validateWorktreeSetup(value) {
+  if (typeof value !== "string")
+    throw new ConfigError(["worktreeSetup"], "need a string");
+  if (value !== "" && (!value.endsWith(".ts") || /[\\:]/.test(value) || [...value].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127) || value.split("/").some((part) => ["", ".", "..", ".git"].includes(part)))) {
+    throw new ConfigError(["worktreeSetup"], "need a relative path of a .ts file in the checkout");
+  }
+  return value;
 }
 function integer(value, min, max, path) {
   if (typeof value !== "number")
@@ -6683,7 +6691,7 @@ function checkSchema(value) {
       integer(board.port, 1024, 65535, ["board", "port"]);
   }
   if (Object.hasOwn(config, "worktreeSetup"))
-    text(config.worktreeSetup, ["worktreeSetup"]);
+    validateWorktreeSetup(config.worktreeSetup);
   if (config.landing === "merge")
     required(config, "suite", []);
   if (Object.hasOwn(config, "suite")) {

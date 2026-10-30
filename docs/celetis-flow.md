@@ -545,14 +545,39 @@ inputs remain available outside a repository. They need no project config.
 `gh api 'repos/{owner}/{repo}' --jq .default_branch` gives the trunk, and the command fetches it
 from `origin`. A new branch starts at that trunk. An existing branch comes up to it before the
 config check (`docs/issue-tracker.md`, "Branches, PRs, merge"). The command checks `.celetis.yaml`
-in the lane before setup. It reads `worktreeSetup`
-as one TypeScript string and writes its exact bytes to a private 0600 temporary file outside
-both the main checkout and lane. The selected Bun runs it in the lane. `process.argv[2]` is the
-absolute main checkout. Stdin, stdout, and stderr stay inherited. Check each external command
-status and stop on failure. After nonempty setup output, the command prints an LF separator and
-the final absolute lane path. `setup try` also prints its path after preparation or execution
-failure. Signals remove the temporary file and stop the owned child.
-An omitted or empty setup runs no script.
+in the lane before setup. `worktreeSetup: "scripts/worktree-setup.ts"` selects a normal
+root-relative TypeScript file. The value uses `/` separators and a case-sensitive `.ts` suffix.
+It rejects absolute, rooted, drive, and UNC paths; backslashes; colons; empty, `.`, `..`, and
+`.git` components; U+0000–U+001F; and U+007F. Accepted characters stay exact, with no trim,
+expansion, splitting, or code interpretation. Omission or exactly `""` means no setup. Null,
+whitespace-only text, inline code, and wrong types fail validation.
+
+Immediately before a run, the target must be a readable regular file inside the canonical
+target checkout. Final or ancestor symlinks below that root, directories, special files,
+outside targets, nested repositories, submodules, and other worktrees start no setup child.
+A canonical alias of the root is accepted. A config read checks only reference syntax and
+performs no script access. Entry never reads or executes that file. Normal sibling imports
+work; transitive imports have no added restrictions. The trusted-checkout boundary is not a
+file-swap transaction.
+
+The selected Bun runs the file directly, with its source identity intact and cwd at the lane
+root, also after a subfolder invocation. It needs no executable bit or exported-function API.
+`process.argv[2]` is one absolute main-checkout argument. Stdin, stdout, and stderr stay
+inherited. Product `.env`, Bun configuration, preloads, macros, automatic package installation,
+and transpiler cache stay disabled. Check each external command status and stop on failure.
+After nonempty setup output, the command prints an LF separator and the final absolute lane
+path. `setup try` also prints its path after preparation or execution failure and returns the
+child status. `worktree` and `setup lane` map setup failure to status 1. Signals stop the owned
+child.
+
+The setup skill shows the proposed relative path and complete contents for review. The product
+owner approves, creates, and commits the entry and required helpers on the local trunk in a
+separate product change before the detached wiring test. `try` and `write --setup-file <path>`
+require that entry in local trunk HEAD, with an unchanged index and working file. The option
+resolves from the main root. Setup writes only the reference; it creates, copies, stages, owns,
+commits, and pushes no application source to make its test possible. A changed failed proposal
+needs another owner source commit before retry. An existing reference, including `""`, stays
+unchanged. A conflict prints `setup: warning: .celetis.yaml: worktreeSetup differs from the requested setup reference; setup leaves it`.
 
 A failed setup or invalid new lane config prints `worktree setup failed:` and removes a new
 worktree and a branch created by the command. Configuration validation exits 2 after cleanup;
@@ -561,13 +586,18 @@ stays for repair and retry. A refused update of an existing branch prints its ow
 `worktree setup failed:`, and uses the same cleanup. Entry into the target lane creates a fresh
 operation before setup or marker acceptance. Setup validates again after it writes or selects a
 different file.
-The marker remains
-`<git dir of the worktree>/celetis-flow-setup-done`. The command writes it only after a script that
-is not empty succeeded. With an empty or missing `worktreeSetup`, it writes no marker. It runs
-setup again in an unmarked lane, so a script that a merge of the trunk brings runs at the next
-entry. A marked lane still needs valid config, but does not run setup again. A lane that has a
-marker keeps it; `celetis --agent <host> setup lane <path>` runs the script there. Reading config in
-another command never executes setup.
+The marker remains `<git dir of the worktree>/celetis-flow-setup-done`. The command writes it
+only after a nonempty reference succeeded, including a zero-byte file. With exactly `""` or
+missing `worktreeSetup`, it writes no marker. It runs setup again in an unmarked lane, so a
+reference that a merge of the trunk brings runs at the next entry. A marked lane still needs
+valid config; source edits do not clear its marker. Explicit
+`celetis --agent <host> setup lane <path>` selects the reference from main, clears the old marker
+before file validation or execution, and runs the target lane's file. An older lane that lacks
+the entry or a required helper needs the owner to bring that committed source into the lane.
+There is no source copy, automatic merge, or loader fallback. Reading config in another command
+never executes setup. Main supplies operational policy, the target lane supplies executable
+setup, and the active checkout supplies only the selected `custom.<skill>` at entry
+([ADR-0032](adr/0032-shared-configuration-operation-snapshots.md)).
 
 **A custom part.** `custom.<skill>` in the active checkout's `.celetis.yaml` holds an
 addition to that skill's procedure, for example a check on a real device after the build. It
@@ -938,6 +968,58 @@ not suppress that final error. These failures write no false no-progress row. A 
 null ID cannot be used for exact runner resume.
 
 ## Acceptance status
+
+**Product-owned setup references (#107), implementation complete; Codex native acceptance complete.**
+On 2026-10-30, the candidate checkout at `7eff11866df88ea26cd40b6ca88db971464800c0` plus the
+retained document/ADR diff passed V1–V5 with Bun 1.4.4. The independent temporary checks covered
+81 configuration groups, 13 filesystem groups, 6 direct and 4 command process groups, 3 direct
+and 6 command marker/cleanup groups, and 6 proposal/ownership groups. These are case groups,
+not individual assertions. Source identity, sibling imports, root cwd after subfolder entry,
+real unreadable-file denial, streams/statuses, owned-child signals, markers, committed-source
+ordering, and unchanged source ownership were observed. The generated hook harness and build
+byte check are separate from native host acceptance. Native Windows remains unverified.
+
+Codex CLI 0.166.0 completed native main/lane/subfolder entry, invalid-inline entry stop, a
+successful committed-source control, and an actual fixture-rule denial before process creation.
+It also completed the committed-source proposal/test case with the exact `--setup-file`
+reference, lane source/helper URLs, unchanged main HEAD/index/files and origin, and no source
+ownership. The earlier absent-source target `V7-task3-codex-2` remains refusal history: its
+setup-check fetch hit sandbox EPERM, and automatic approval review rejected the retry and the
+one safer attempt as a prohibited update. No further route was taken in that session.
+
+After explicit human approval for fixture Git metadata writes, the new target
+`V7-human-approved-codex-1/proposal-absent` passed the independent checker. Native session
+`01a18eaa-565f-70c2-89b6-7f1c480cea50` used the clean candidate checkout at
+`dcdf02875ec0f17bdb3367ea3a6fbd40ad737e95` with Codex CLI 0.166.0. Its setup check passed
+after the normal approved retry. The proposal gives a normal root-relative filename and
+complete TypeScript contents, and requires the owner to create and commit source and helpers
+on local `main` in a separate product change before `try`. No source was created or staged,
+no `try` ran, and main HEAD/index/files and origin stayed unchanged. The first checker result
+rejected Markdown code spans around `main`; a reviewed one-line temporary-checker correction
+accepts that format and preserves all behavioral checks. The original failure, older native
+negative, and six guard checks remain separate from the passing native result.
+
+Claude Code 2.1.312 was attempted through the existing authenticated executable and session-only
+candidate plugin for both V6 and V7. It reported `usage_limit_reached` and
+`You've hit your weekly limit · resets 9pm (Europe/Sofia)`, with a rejected `seven_day` event and
+`resetsAt: 1793473200` (`2026-10-31T19:00:00Z`, still in the future at the new Codex run).
+All six V6 cases (main, lane, subfolder, invalid inline, control, denial) and both V7 cases
+(absent source, committed source) remain BLOCKED. Codex completed all applicable native
+scenarios; Claude's explicit quota is the only remaining cause of incomplete checks, with no
+behavioral mismatch. The usage-limit exception permits the normal landing path when the
+project gate, required reviews, and all other landing prerequisites pass. It accepts these
+incomplete Claude checks; no full host parity, future gate, CI, installed-program, or landing
+PASS is claimed.
+
+Raw source/target records, exact invocations, native requests/results, independent oracles, and
+earlier discarded fixture attempts remain under `/private/tmp/celetis-107-checks.tGGtzI`.
+Current native cases use `V6-task3-codex-1` (main/lane/subfolder), `V6-task3-codex-2` (control),
+`V6-task3-codex-3` (invalid entry), `V6-task3-codex-5` (denial), `V7-human-approved-codex-1`
+(absent source), `V7-task3-codex-3` (committed source), `V6-task3-claude-1`, and
+`V7-task3-claude-2`. Their manifests retain the tested setup skill digest
+`96c1066ca93f076359d38413e582fae817ca4b2f487010e45c9cfabb7793d070`. The unchanged runtime
+inputs preserve the other native and 119 direct V1–V5 case-group results. Only this acceptance
+entry changed after the runs; no scenario reads it.
 
 **Reduced setup ownership (#106), built; Codex acceptance complete, Claude checks waived.** The implementation ends
 at `9793800497798e93682599f9363ef502543f3325`. On 2026-10-29–30, all four tasks and the final
