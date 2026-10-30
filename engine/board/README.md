@@ -456,16 +456,16 @@ repository in the dirty lane worktree, not in the main checkout.
 **The reads.** While the page is in view, it asks the server each 5 seconds. While its tab is
 hidden, it asks each 15 seconds with `?local=1`, so the tab title, the tab icon, and the
 notifications stay true. The server reads the issue data for these causes: the timer of the
-server; the last read started more than 60 seconds before a request that is not local; a session
+server; the last read started more than 5 minutes before a request that is not local; a session
 that had a card at the last request has no card at this one (not at a local request); a press of Run
 or Resume; a press of Assist; the end of the 30-second detection period; and a press of Refresh.
 Assist first waits for a read that already runs, then starts a new read. It refuses a failed new
 read, even when the last good document still has the blocked issue. The timer checks when the
 server starts to listen, and then 5 minutes after the start of the last read, for each cause. When the last read started 5 minutes ago
 or more, the timer starts a read. So with no page in view, the data is at most 5 minutes old, plus
-the time of one read. While a page is in view, the 60-second rule reads first, and the timer reads
-nothing. The stop of the board stops the timer. The server also starts these read-only commands,
-with no shell:
+the time of one read. A page in view uses the same 5-minute interval, so ordinary page requests
+do not cause more frequent GitHub reads. The stop of the board stops the timer. The server also
+starts these read-only commands, with no shell:
 
 - `herdr api snapshot`, at each request: the tabs and the agents of herdr in one call;
 - `herdr agent read <pane> --source visible`, at each request that is not local, for each session:

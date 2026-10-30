@@ -642,7 +642,7 @@ export const createBoard = ({
       return sendJson(response, 200, { runtime, update: updates().snapshot() });
     if (request.method === 'GET' && path === '/api/board') {
       const isLocal = new URLSearchParams(url.split('?')[1] ?? '').get('local') === '1';
-      if (!pending && !isLocal && now() - askedAt > STALE_MS) void refresh();
+      if (!pending && !isLocal && now() - askedAt > BACKGROUND_MS) void refresh();
       if (!board && !error && pending) await pending;
       const isDue = (press: { at: number }) => now() - press.at >= PRESS_MS && checkedFrom < press.at + PRESS_MS;
       if (!isLocal && Object.values(presses).some(isDue)) await refresh();
