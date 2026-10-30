@@ -4,8 +4,24 @@ export const helpCommands: readonly (readonly [form: string, summary: string])[]
   ['celetis board', 'Starts the board of the project in this checkout.'],
   ['celetis assist <n>', 'Starts fresh interactive assistance for an issue in the main checkout.'],
   ['celetis celetis-flow', 'Starts the automatic runner.'],
-  ['celetis celetis-flow <n>...', 'Runs the next step of each issue, in this order.'],
+  ['celetis celetis-flow <n>', 'Starts the next step of one issue, then follows its auto gates.'],
   ['celetis celetis-flow --resume <n>', 'Opens the session of a step with no progress again.'],
+  [
+    'celetis celetis-flow --queue start <step> <n>...',
+    'Submits a fixed order; explicitly starts only the first displayed step.',
+  ],
+  [
+    'celetis celetis-flow --queue continue <id> <revision> <step>',
+    'Starts the displayed waiting step, then follows fresh gates.',
+  ],
+  [
+    'celetis celetis-flow --queue retry <id> <revision> <step|none>',
+    'Recovers the displayed stopped queue; none acknowledges closure.',
+  ],
+  [
+    'celetis celetis-flow --queue reset <id> <revision>',
+    'Removes an unowned schedule; keeps issues, worktrees, and sessions.',
+  ],
   ['celetis root', 'Prints the folder of the program.'],
   ['celetis --version', 'Prints the revision of the program.'],
   ['celetis help', 'Prints this list.'],

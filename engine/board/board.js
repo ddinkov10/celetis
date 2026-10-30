@@ -1,6 +1,7 @@
 // engine/board/board.ts
 import { openMenu, openPalette, setupMenu, setupPalette } from "./palette.mjs";
 import { drawPanel } from "./panel.mjs";
+import { drawQueue, setQueueOpen, setupQueue } from "./queue.mjs";
 import {
   $,
   actionButton,
@@ -68,6 +69,7 @@ var view = store.get("view") === "pipeline" ? "pipeline" : "now";
 var isNotifyOn = store.get("notify") === "on";
 var isKeysOn = store.get("keys") !== "off";
 var isHistoryOpen = false;
+var isQueueOpen = false;
 var isServerDown = false;
 var seen = null;
 var needsKeys = null;
@@ -594,6 +596,8 @@ var pipelineView = (columns, flow) => {
   return sections;
 };
 var focusFirst = (selector) => {
+  if (isQueueOpen)
+    showQueue(false);
   const target = document.querySelector(selector);
   target?.focus();
   target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -687,6 +691,8 @@ var drawHistory = () => {
   }
 };
 var setHistory = (isOpen) => {
+  if (isOpen && isQueueOpen)
+    showQueue(false);
   if (!isOpen)
     return closePanel();
   selected = null;
@@ -849,6 +855,8 @@ var drawPanelFor = () => {
     ($("panel").querySelector(`[aria-label="${CSS.escape(focused)}"]`) ?? $("panel").querySelector(".panel-head > .icon-btn:last-child"))?.focus({ preventScroll: true });
 };
 var openPanel = (key) => {
+  if (isQueueOpen)
+    showQueue(false);
   if (!byKey.has(key))
     return;
   isHistoryOpen = false;
@@ -882,6 +890,7 @@ function closePanel() {
   updateTail();
 }
 var drawBoard = (next) => {
+  drawQueue(next);
   const active = document.activeElement;
   const holder = active?.closest?.(".human-pill, [data-key]");
   const target = (holder?.querySelector("[data-key]") ?? holder)?.dataset.key;
@@ -938,7 +947,19 @@ var drawSkeleton = () => $("columns").replaceChildren(...COLUMNS.map(({ key, nam
   section.append(head, body);
   return section;
 }));
+var showQueue = (open) => {
+  isQueueOpen = open;
+  if (open) {
+    closePanel();
+    setHistory(false);
+  }
+  setQueueOpen(open);
+  if (!open)
+    $("queue-open").focus();
+};
 var setView = (next) => {
+  if (isQueueOpen)
+    showQueue(false);
   view = next;
   store.set("view", next);
   for (const button of document.querySelectorAll(".views button"))
@@ -1001,10 +1022,13 @@ var render = (canMove = true) => {
     next.tracker,
     next.columns,
     next.history,
-    next.source.error
+    next.source.error,
+    next.queue
   ]);
-  if (cards === last)
+  if (cards === last) {
+    drawQueue(next);
     return;
+  }
   const layout = layoutOf(next);
   const isMove = lastLayout !== "" && layout !== lastLayout && !document.hidden;
   if (canMove && isMove && document.startViewTransition && !isCalm.matches)
@@ -1039,7 +1063,13 @@ var launch = async (card, path, agent) => {
   return isOk;
 };
 var loadRequest;
-document.addEventListener("board-reconnect", () => loadRequest?.abort());
+document.addEventListener("board-reconnect", () => {
+  loadRequest?.abort();
+  if (data) {
+    data = { ...data, queue: null };
+    drawQueue(project(data));
+  }
+});
 document.addEventListener("board-connected", () => void load());
 async function load() {
   clearTimeout(timer);
@@ -1065,8 +1095,14 @@ async function load() {
       drawStatus(source, false);
     }
   } catch {
-    if (!isReconnecting())
+    if (!isReconnecting() && read > accepted && read > settled) {
+      accepted = read;
+      if (data)
+        data = { ...data, queue: null };
       drawStatus(source, true);
+      if (data)
+        drawQueue(project(data));
+    }
   }
   tick();
   timer = setTimeout(load, document.hidden ? 15000 : 5000);
@@ -1088,6 +1124,7 @@ var move = (across, down) => {
   }
 };
 var boardActions = () => [
+  { label: "Show the issue queue", icon: "stages", key: "", run: () => showQueue(true) },
   { label: readAgain(), icon: "refresh", key: "r", run: () => $("refresh").click() },
   {
     label: isHistoryOpen ? "Hide history" : "Show history",
@@ -1263,6 +1300,8 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
     return closePanel();
   }
+  if (isQueueOpen && !["r", "d", "v", "?", "/"].includes(event.key))
+    return;
   const card = document.activeElement?.matches?.(".card[data-key]") ? document.activeElement : null;
   const press = card && CARD_KEYS[event.key] || isKeysOn && KEYS[event.key];
   if (!press)
@@ -1354,6 +1393,14 @@ $("toast-close").append(icon("close"));
 $("toast-close").addEventListener("click", () => {
   $("toast").hidden = true;
 });
+setupQueue({
+  back: () => showQueue(false),
+  refresh: async () => {
+    settled = reads;
+    await load();
+  }
+});
+$("queue-open").addEventListener("click", () => showQueue(!isQueueOpen));
 setupPalette();
 setupMenu();
 drawNotify();

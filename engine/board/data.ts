@@ -1,6 +1,7 @@
 import { isRecorded, lockHolder } from '../lib/locks.ts';
 import { createOperation, locateCheckouts } from '../lib/operation.ts';
 import { childEnv } from '../lib/process.ts';
+import { readQueueView } from '../lib/queue.ts';
 import { github } from '../lib/tracker.ts';
 import { defaultGate, lands, lanes, stageOf, stages, steps } from '../lib/workflow.ts';
 import { jsonRow, nextBoard } from '../next-step.ts';
@@ -71,5 +72,6 @@ export async function readBoard(main: string, signal: AbortSignal): Promise<Docu
     noRun: data.noRun,
     runner,
     issues,
+    queue: await readQueueView(operation, signal),
   };
 }

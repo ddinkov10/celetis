@@ -16,6 +16,7 @@
   <div class="views" role="group" aria-label="View"><button type="button" data-view="now"><span class="label">Now</span></button><button type="button" data-view="pipeline"><span class="label">Pipeline</span></button></div>
   <nav class="summary" id="summary" aria-label="Counts"></nav>
   <button type="button" class="find" id="find" aria-label="Search the cards, history, and commands" aria-keyshortcuts="Control+K Meta+K /"><span class="find-text">Search or run a step</span><kbd>⌘K</kbd></button>
+  <button type="button" class="btn ghost" id="queue-open" aria-controls="queue" aria-pressed="false">Queue</button>
   <button type="button" class="btn ghost" id="history" aria-controls="panel" aria-expanded="false" title="Show or hide history (d)"><span class="label">History</span></button>
   <button type="button" class="btn ghost" id="refresh" title="Read the issues again (r)"><span class="label">Refresh</span></button>
   <button type="button" class="btn ghost update-open" id="update-open" aria-controls="update-dialog" aria-expanded="false" hidden>Update available</button>
@@ -26,6 +27,7 @@
 </div>
 <section class="human" id="human" aria-labelledby="human-title" hidden></section>
 <div class="work">
+  <section class="queue" id="queue" aria-label="Issue queue" hidden></section>
   <main class="board" id="columns" aria-busy="true"></main>
   <aside class="panel" id="panel" aria-label="Card details" hidden></aside>
 </div>

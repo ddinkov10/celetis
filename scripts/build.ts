@@ -10,7 +10,7 @@ import { programEntry } from '../engine/lib/process.ts';
 
 const root = dirname(import.meta.dir);
 const nativeTargets = [{ entry: 'engine/hooks/entry.ts', output: 'engine/hooks/entry.js', mode: 0o644 }];
-const browserTargets = ['board', 'view', 'ui', 'panel', 'palette', 'update-dialog'].map((name) => ({
+const browserTargets = ['board', 'view', 'ui', 'panel', 'palette', 'queue', 'update-dialog'].map((name) => ({
   entry: `engine/board/${name}.ts`,
   output: `engine/board/${name === 'board' ? 'board.js' : `${name}.mjs`}`,
   mode: 0o644,
@@ -76,7 +76,7 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
             {
               name: 'browser-urls',
               setup(build) {
-                build.onResolve({ filter: /^\.\/(view|ui|panel|palette|update-dialog)\.ts$/ }, ({ path }) => ({
+                build.onResolve({ filter: /^\.\/(view|ui|panel|palette|queue|update-dialog)\.ts$/ }, ({ path }) => ({
                   path: path.replace(/\.ts$/, '.mjs'),
                   external: true,
                 }));

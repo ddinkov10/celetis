@@ -1,5 +1,6 @@
 import { openMenu, openPalette, setupMenu, setupPalette } from './palette.ts';
 import { drawPanel } from './panel.ts';
+import { drawQueue, setQueueOpen, setupQueue } from './queue.ts';
 import type { Action, Board, Card, Column, Columns, Flow, MenuEntry, PaletteItem } from './types.ts';
 import {
   $,
@@ -70,6 +71,7 @@ let view = store.get('view') === 'pipeline' ? 'pipeline' : 'now';
 let isNotifyOn = store.get('notify') === 'on';
 let isKeysOn = store.get('keys') !== 'off';
 let isHistoryOpen = false;
+let isQueueOpen = false;
 let isServerDown = false;
 let seen: Map<string, string> | null = null;
 let needsKeys: Set<string> | null = null;
@@ -655,6 +657,7 @@ const pipelineView = (columns: Columns, flow: Flow | null) => {
 };
 
 const focusFirst = (selector: string) => {
+  if (isQueueOpen) showQueue(false);
   const target = document.querySelector<HTMLElement>(selector);
   target?.focus();
   target?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -784,6 +787,7 @@ const drawHistory = () => {
 };
 
 const setHistory = (isOpen: boolean) => {
+  if (isOpen && isQueueOpen) showQueue(false);
   if (!isOpen) return closePanel();
   selected = null;
   for (const node of document.querySelectorAll('[data-key].is-selected')) node.classList.remove('is-selected');
@@ -979,6 +983,7 @@ const drawPanelFor = () => {
 };
 
 const openPanel = (key: string) => {
+  if (isQueueOpen) showQueue(false);
   if (!byKey.has(key)) return;
   isHistoryOpen = false;
   $('history').setAttribute('aria-expanded', 'false');
@@ -1011,6 +1016,7 @@ function closePanel() {
 }
 
 const drawBoard = (next: Board) => {
+  drawQueue(next);
   const active = document.activeElement as HTMLElement | null;
   const holder = active?.closest?.<HTMLElement>('.human-pill, [data-key]');
   const target = (holder?.querySelector<HTMLElement>('[data-key]') ?? holder)?.dataset.key;
@@ -1071,7 +1077,18 @@ const drawSkeleton = () =>
     }),
   );
 
+const showQueue = (open: boolean) => {
+  isQueueOpen = open;
+  if (open) {
+    closePanel();
+    setHistory(false);
+  }
+  setQueueOpen(open);
+  if (!open) $('queue-open').focus();
+};
+
 const setView = (next: string) => {
+  if (isQueueOpen) showQueue(false);
   view = next;
   store.set('view', next);
   for (const button of document.querySelectorAll<HTMLElement>('.views button'))
@@ -1141,8 +1158,12 @@ const render = (canMove = true) => {
     next.columns,
     next.history,
     next.source.error,
+    next.queue,
   ]);
-  if (cards === last) return;
+  if (cards === last) {
+    drawQueue(next);
+    return;
+  }
   const layout = layoutOf(next);
   const isMove = lastLayout !== '' && layout !== lastLayout && !document.hidden;
   if (canMove && isMove && document.startViewTransition && !isCalm.matches)
@@ -1184,7 +1205,13 @@ const launch = async (card: Card, path: '/api/run' | '/api/resume' | '/api/assis
 };
 
 let loadRequest: AbortController | undefined;
-document.addEventListener('board-reconnect', () => loadRequest?.abort());
+document.addEventListener('board-reconnect', () => {
+  loadRequest?.abort();
+  if (data) {
+    data = { ...data, queue: null };
+    drawQueue(project(data));
+  }
+});
 document.addEventListener('board-connected', () => void load());
 
 async function load() {
@@ -1207,7 +1234,12 @@ async function load() {
       drawStatus(source, false);
     }
   } catch {
-    if (!isReconnecting()) drawStatus(source, true);
+    if (!isReconnecting() && read > accepted && read > settled) {
+      accepted = read;
+      if (data) data = { ...data, queue: null };
+      drawStatus(source, true);
+      if (data) drawQueue(project(data));
+    }
   }
   tick();
   timer = setTimeout(load, document.hidden ? 15_000 : 5000);
@@ -1236,6 +1268,7 @@ const move = (across: number, down: number) => {
 };
 
 const boardActions = () => [
+  { label: 'Show the issue queue', icon: 'stages', key: '', run: () => showQueue(true) },
   { label: readAgain(), icon: 'refresh', key: 'r', run: () => $('refresh').click() },
   {
     label: isHistoryOpen ? 'Hide history' : 'Show history',
@@ -1415,6 +1448,7 @@ document.addEventListener('keydown', (event) => {
     event.preventDefault();
     return closePanel();
   }
+  if (isQueueOpen && !['r', 'd', 'v', '?', '/'].includes(event.key)) return;
   const card = document.activeElement?.matches?.('.card[data-key]') ? (document.activeElement as HTMLElement) : null;
   const press = (card && CARD_KEYS[event.key]) || (isKeysOn && KEYS[event.key]);
   if (!press) return;
@@ -1500,6 +1534,14 @@ $('toast-close').append(icon('close'));
 $('toast-close').addEventListener('click', () => {
   $('toast').hidden = true;
 });
+setupQueue({
+  back: () => showQueue(false),
+  refresh: async () => {
+    settled = reads;
+    await load();
+  },
+});
+$('queue-open').addEventListener('click', () => showQueue(!isQueueOpen));
 setupPalette();
 setupMenu();
 drawNotify();

@@ -49,7 +49,7 @@ the reasons why it reads its data in its own process and types fixed command lin
 - Bun 1.4.4 or later. The entry prints `celetis: need Bun >=1.4.4 on PATH, found <version>` and
   exits 2 on an older Bun.
 - git 2.31 or later.
-- The installed `celetis` program for Run, Resume, and Assist (the README of the plugin, "First install").
+- The installed `celetis` program for Run, Resume, Assist, and queue actions (the README of the plugin, "First install").
 - herdr 0.9 or later on `PATH` and a herdr server that runs, for the session cards and for each
   button.
 - `gh` on `PATH`, logged in, for the issue data.
@@ -135,7 +135,8 @@ runtime instance before sending an approval. A lost response or a pending start 
 reload starts status reconciliation and never sends another start. Only an `updating` response
 with that target and original instance allows native progress without a reconnect deadline.
 Other pending states, a restart, or the first disconnect after a start stop other polling and
-allow 60 seconds to reconnect. The page reloads once only after the target revision
+allow 60 seconds to reconnect. Queue actions wait for a fresh board read; the tab keeps its draft
+until reload. The page reloads once only after the target revision
 and a different runtime instance answer at the same URL. Existing view, notification, and
 shortcut choices remain in local storage. A timeout keeps the old page with the server-supplied
 main-checkout, host, and actual PORT recovery instruction. **Check again** clears the pending
@@ -179,7 +180,8 @@ of the main checkout, with `CELETIS_AGENT` and no explicit host. So each read va
 The read then gets the typed rows of the resolver (`nextBoard` of
 `engine/next-step.ts`), and the issue locks, the runner lock, and the record of the runner
 (`engine/lib/locks.ts`, which the runner also uses). It builds one typed document (`Document` of
-`types.ts`) with `tracker`, `agents`, `defaultAgent`, `flow`, `noRun`, `runner`, `issues`, and `history`.
+`types.ts`) with `tracker`, `agents`, `defaultAgent`, `flow`, `noRun`, `runner`, `issues`, `history`, and
+`queue`.
 `docs/celetis-flow.md` of the plugin `celetis`, "The board", gives the value of each field and the
 rule that gives each row its state.
 
@@ -201,6 +203,20 @@ read ends. When a read fails, the cards and history of the last good read stay, 
 | Another failure | The first line of its message, else `the issue read failed` |
 
 The next good read clears the line.
+
+`Document.queue` and the response's `Board.queue` use `QueueView` of
+`engine/lib/queue-types.ts`. `queue: null` means that no initial read succeeded. A successful read
+with `queue.record: null` means that no schedule was submitted. A submitted view holds the strict
+local record, the live owner PID, the resolver's fresh `next`, an error, and the allowed Continue,
+Try again, and Reset actions. `readBoard` calls `readQueueView` with the same fresh main operation
+as the issue read. A freshly unreadable issue permits no queue action, including Reset.
+
+Every placement, including `/api/board?local=1`, reads the local record and both the queue lock
+and the current issue's `issue-<n>` lock. A changed ID or revision clears the old `next` and action
+permissions and requests the existing coalesced workflow refresh. Ownership changes also request
+that refresh. No second poller is added. A local queue read error disables queue actions while
+the last good issue cards remain visible. An issue-read error or `noRun` also disables queue
+actions.
 
 ## Landed history
 
@@ -331,6 +347,7 @@ A press that fails ends the `Starting` card at once, and the next read gives the
 | The data of the issues | The read of "The data", in its own process, with a limit of 60 seconds. |
 | Run | A new herdr tab in the main checkout with the label `#<n> <step>` and no focus. In its pane: the Run line. |
 | Resume | The same tab with the focus. In its pane: the Resume line. |
+| A queue action | A quiet main-checkout herdr tab labelled `Queue`. In its pane: one fixed queue line. The runner renames the tab `#<n> <step>` while a step runs, preserving the session cards and Go. |
 | Assist | A focused herdr tab in the main checkout with the label `#<n> assist`. In its pane: the Assist line. |
 | Open shell | A herdr tab with the focus in the `path` of a `dirty` row, with the label `#<n> shell` and no command. |
 | Go | `herdr agent focus <pane>`; then change to the terminal window. |
@@ -369,6 +386,21 @@ command with `&`, doubles `'` and each of U+2018 to U+201B in a quoted item, and
 & '<base>\.local\bin\celetis.cmd' 'celetis-flow' '--resume' 12; if ($?) { exit }
 & '<base>\.local\bin\celetis.cmd' '--agent' 'claude' 'assist' 12; if ($?) { exit }
 ```
+
+Queue lines use the same program read and POSIX or PowerShell quoting. Only a parsed
+`QueueAction` and the allowed host `claude` or `codex` can supply their values. Start supplies the
+selected host; every later action takes the host from the stored record. The fixed POSIX forms
+are:
+
+```text
+'<command>' '--agent' '<host>' 'celetis-flow' '--queue' 'start' '<step>' <n>... && exit
+'<command>' '--agent' '<host>' 'celetis-flow' '--queue' 'continue' '<id>' <revision> '<step>' && exit
+'<command>' '--agent' '<host>' 'celetis-flow' '--queue' 'retry' '<id>' <revision> '<step|none>' && exit
+'<command>' '--agent' '<host>' 'celetis-flow' '--queue' 'reset' '<id>' <revision> && exit
+```
+
+`none` observes closure without authorizing a session. Reset needs no available host executable.
+It still requires a valid configuration, a readable current issue, and no live owner.
 
 **The default agent is read-only.** The footer shows `defaultAgent` of the document, or
 `No default agent` before the first good read. `defaultAgent` is the host that the engine selects
@@ -441,6 +473,27 @@ and opens no tab, unless each condition holds:
 | `POST /api/assist` | A fresh issue read succeeds. The issue has a card of its own, with no session. Its row is `blocked`, with `assist` true and `noRun` null. A current herdr snapshot succeeds. The current default agent is available. No Run, Resume, or Assist press on that issue is active. | The current read, `noRun`, agent, session, or state cause; otherwise `#<n> has no blocked issue to assist now`. |
 | `POST /api/shell` | The issue has a card of its own, with no session. Its row is `dirty`. Its `path` is a lane worktree of the main checkout. | `#<n> has no dirty worktree` |
 
+`POST /api/queue` accepts exactly `{"action": <QueueAction>, "agent": "claude" | "codex"}` for
+Start, and exactly `{"action": <QueueAction>}` for Continue, Try again, or Reset. The shared
+validator refuses extra fields, duplicate or non-positive issue numbers, unsafe integers,
+unknown actions or steps, and malformed identities. The existing 1024-byte body limit also bounds
+the submitted order; an order that cannot fit returns 400 with the body-size error. There is no
+command, path, argument array, gate override, or editable submitted order in the request.
+
+Each queue press refreshes workflow data and reads live ownership before tab creation. Start
+requires all selected rows to be currently eligible and the first issue's fresh step to match
+the press. Continue, Try again, and Reset require the stored ID and revision; Continue and Try
+again also match their requested step to fresh `QueueView.next`. That step need not equal the
+older persisted `record.current`: the new press authorizes the newly displayed step. An action
+that can start a session requires its host executable to be available. A stale request returns
+409 without a pane start; the next board read returns the new view.
+
+One board process serializes queue presses. Separate board processes can both pass HTTP
+preflight before either pane starts. The runner takes the queue lock and repeats the authoritative
+record, step, and current-issue ownership checks after the asynchronous pane start, so at most
+one runner owns the queue. Pending issues take no advance locks and are rechecked when reached;
+the runner can record a pending issue that closes after submission without starting a session.
+
 An Assist body must be an object with exactly one field, `number`. An extra field, including
 `agent`, a prompt, or execution text, gives 400. The number must be a positive safe integer,
 as a number or a digit string. Assist accepts every resolver reason whose card is `blocked`.
@@ -476,10 +529,10 @@ The answer to a press that the server did is 200 with `{"ok": true}`. Each other
 
 | Status | Case |
 |---|---|
-| 400 | The body is not JSON, the body has more than 1024 characters, the issue number is not a positive safe integer in digits, or Assist has an unexpected body field. |
+| 400 | The body is not JSON, the body has more than 1024 bytes, the issue number is not a positive safe integer in digits, the queue request is invalid, or Assist has an unexpected body field. |
 | 403 | The `Host`, the `Origin`, or the content type is not good ("The trust boundary"). |
 | 404 | The path is not a path of the board, or Go names a session that is no herdr agent of the repository. |
-| 409 | A condition of the table does not hold, the read of the program fails, the fresh issue read of Assist fails, Resume has no valid saved session, the agent of Run or Assist is not good, the agent of a Go press has no safe pane id, or the request tries to change the default agent. |
+| 409 | A condition of the table does not hold, the queue request is stale or unavailable, the read of the program fails, the fresh issue read of Assist fails, Resume has no valid saved session, the agent of Run or Assist is not good, the agent of a Go press has no safe pane id, or the request tries to change the default agent. |
 | 502 | A `herdr` call failed: the first line of its error. `herdr gave no id for the workspace`, `herdr gave no id for the new tab`, and `herdr gave no pane for the new tab` are the lines for an answer of herdr with an id that is not safe. |
 | 500 | The server failed for another cause: the first line of the error, or `the server failed`. |
 
@@ -508,7 +561,7 @@ server and the page:
    type is not `application/json`.
 4. It accepts only digits, as a number or a string, as the number of an issue, and only the terminal
    id of a herdr agent of the repository as the id of a session.
-5. The page sends an issue number, a session id, a selected Run agent, or an opaque update offer
+5. The page sends an issue number, a session id, a selected Run agent, a strict queue action, or an opaque update offer
    ID, never a command or an installation path.
    Resume and Assist take only the issue number. A default-agent request changes no configuration.
 6. An id of the answer of herdr (a workspace, a tab, a pane) goes into a `herdr` command only when
@@ -532,7 +585,7 @@ Five rules hold for the start, the lines, and the data:
    accepts only the own entry of the program in `<base>/.local/bin/`, which starts the program in
    its version folder, and the command path holds no control character. The page, the data, and a
    lane cannot supply a command path.
-2. **A press types one of three fixed lines.** Run and Resume start the runner of the installed
+2. **A press types a fixed line.** Run, Resume, and queue actions start the runner of the installed
    `celetis` program; Assist starts its interactive assistance command ("The line of a pane").
    That program starts the first `bun` on the `PATH` of the pane shell, through its `env -S`
    shebang, or through its shim on Windows. Assist starts the selected native host. The server
@@ -540,10 +593,10 @@ Five rules hold for the start, the lines, and the data:
    Update workers have the separate fixed update protocol above.
 3. **Only validated values go into a line.** The number is the digits of the issue. The agent of
    Run or Assist is a name of lowercase letters that `agents` of the document has. Assist gets
-   that agent from its fresh read. Resume takes no agent. No title, no reason, no act, no path of
-   the data, and no step goes into the line of a pane. A step name goes into one argument of
-   `herdr`, the tab label, with no shell and with
-   lowercase letters only.
+   that agent from its fresh read. Resume takes no agent. Queue fields pass the shared exact-shape validator; its step is an engine-defined
+   value, its ID is a UUID, its revision and issue numbers are positive safe integers, and its
+   host is `claude` or `codex`. No title, reason, act, or data path goes into a pane line. The
+   current step also goes into one argument of `herdr`, the tab label, with no shell.
 4. **The data comes from the engine, in the process of the board.** No other program gives the
    document. The lane keys and the step names come from the workflow definition of the engine,
    and the states come from the typed rows of the resolver and from the locks and the record of
@@ -564,7 +617,7 @@ its two fonts, Geist and Geist Mono, in `<plugin>/engine/board/fonts/` with thei
 SIL Open Font License 1.1), so it loads nothing from the network.
 
 - The header holds the folder name, the switch between Now and Pipeline, the count of each column
-  and of landed issues, Search, History, and Refresh. The title of the browser tab is
+  and of landed issues, Search, Queue, History, and Refresh. The title of the browser tab is
   `(<n>) <folder> · Agent board` while `<n>` cards need you, and the tab icon has an orange dot
   then; it has a blue dot while an agent of an issue works and nothing needs you.
 - Human sessions is a strip between the header and the columns, in Now and in Pipeline. Each human
@@ -583,6 +636,21 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   as Idle does. The label of a group stays in view while the column scrolls. When cards are below
   the fold, a line at the foot of the column names them, for example
   `3 more below: 1 input on the issue, 2 ready to run`; a press scrolls to the first of them.
+- Queue opens a dedicated view without changing the saved Now/Pipeline choice. Back to board
+  restores that choice; search and the existing Go actions remain available. On desktop, available
+  runnable issues sit beside the order. On a phone, the order comes first. Add selects each issue
+  once. Native Up, Down, and Remove buttons arrange the tab-local draft without an HTTP action.
+  Reload clears an unsubmitted draft. Start queue sends the displayed order and first step with
+  the selected available agent. The agent and order stay fixed after submission.
+- A submitted queue shows its current issue and step, later rows as Waiting, completed outcomes,
+  owner, and stop reason. A me gate stops the whole queue; Continue queue authorizes the displayed
+  waiting step. Try again appears for allowed recovery, and New queue appears only when reset is
+  permitted. A stale press refreshes the decision and requires another press. Opening a pane does
+  not itself prove that a runner exists. Submitted state survives reload and board restart.
+- Queue row controls keep focus on an enabled control of the moved issue, a neighboring row after
+  removal, or an available Add control. Polling restores the same control only when focus was in
+  Queue. Start and Continue announce their result and focus the current action or heading. The
+  hidden board's card shortcuts do nothing while Queue is open.
 - A card shows the type, the number, the title, the lane track, the state with its age, and its
   buttons. A working card shows the lines that it changed. A card whose row has `pr` shows the
   number, the CI result, and the review state. An act line that is a command or a path has a Copy
@@ -644,7 +712,7 @@ the texts are `Open the issue` and `Read the issues again`.
 **The errors.**
 
 - When a press fails, a toast names the press (`Go failed`, `Run failed`, `Resume failed`, `Open agent failed`,
-  `Open shell failed`, `Refresh failed`) above the line of the server. After Go, Open shell, or
+  `Open shell failed`, `Refresh failed`, `Queue action failed`) above the line of the server. After Go, Open shell, or
   Refresh, the card keeps its button. A failed Run, Resume, or Open agent ends its `Starting` card
   and permits a retry after the next read. This covers a herdr server that does not run, a `herdr`
   that is not on `PATH`, and a press that the server refuses.
@@ -654,6 +722,9 @@ the texts are `Open the issue` and `Read the issues again`.
   data"). The cards of the last good read stay.
 - The status bar shows `The board server does not answer` when a request of the page failed. A
   press at that time gives a toast with that text and `Start the board again in a terminal.`
+- Queue disables execution controls during a request or an unavailable authoritative read. A failed
+  press retains the draft or submitted schedule and shows the server reason. Recovery controls
+  follow the current engine action flags, including an interrupted runner.
 - The `noRun` text, the message of a server that does not answer, and each toast are alerts for a
   screen reader.
 
@@ -665,8 +736,8 @@ the texts are `Open the issue` and `Read the issues again`.
 - **The document has no version.** The board and the engine are one package, and the compiler
   checks the `Document` type between them.
 
-Browser sources are `board.ts`, `view.ts`, `ui.ts`, `panel.ts`, `palette.ts`, and `update-dialog.ts`. The pinned Bun
-1.4.4 build program, `<plugin>/scripts/build.ts`, generates their existing `.js` and `.mjs` URLs.
+Browser sources are `board.ts`, `view.ts`, `ui.ts`, `panel.ts`, `palette.ts`, `queue.ts`, and
+`update-dialog.ts`. The pinned Bun 1.4.4 build program, `<plugin>/scripts/build.ts`, generates their existing `.js` and `.mjs` URLs.
 It compiles every target before it writes any output. Plugin users run no build.
 
 ## Limits
@@ -702,7 +773,7 @@ Of the sessions and herdr:
   each item of a pane line for those shells. In a fish pane, an item that ends in `\` does not
   close its quote. Windows PowerShell 5.1 drops an empty item, and it passes an item with `"`, or
   with a space and a trailing `\`, wrongly. A `.cmd` or `.bat` first item parses `&`, `^`, and `%`
-  again. On Windows the first item is `celetis.cmd`: the other items of the three fixed lines have
+  again. On Windows the first item is `celetis.cmd`: the other items of the fixed lines have
   none of these forms, and a `<base>` path with `&`, `^`, or `%` is not checked.
 - `&& exit`, or `; if ($?) { exit }` on Windows, closes the tab of a command that exits 0. A runner
   that prints a message and exits 0 thus leaves no message: start

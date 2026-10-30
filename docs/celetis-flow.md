@@ -83,8 +83,12 @@ of the product project, apart from a path that starts with `~/` or `/`.
 
 ```bash
 celetis --agent <host> celetis-flow            # the automatic runner; it does not end
-celetis --agent <host> celetis-flow 373 374    # a start with numbers; it takes the issues in this order and ends
+celetis --agent <host> celetis-flow 373        # one issue; its first step is explicit
 celetis --agent <host> celetis-flow --resume 373    # the session of a step with no progress, again
+celetis --agent <host> celetis-flow --queue start plan 373 374    # a submitted order
+celetis celetis-flow --queue continue <id> <revision> <step>
+celetis celetis-flow --queue retry <id> <revision> <step|none>
+celetis celetis-flow --queue reset <id> <revision>
 ```
 
 These human commands use `CELETIS_AGENT`, then `host` in the main checkout's `.celetis.yaml`,
@@ -98,7 +102,7 @@ as the start of a comment: the script then gets neither that word nor the words 
 no number it starts the automatic runner. Each line of the script starts with `celetis-flow: `,
 apart from its usage line.
 
-**A start with numbers** does this for each issue. It reads the decision of the issue from the
+**A start with one number** reads the decision of the issue from the
 in-process resolver (`nextIssue` of `next-step.ts`), a Run of a step or a stop, and starts the step
 of a Run, whatever its gate. When the session ends, it reads the decision again and starts each
 next step whose gate is `auto`. It ends the issue at the first of these, in this order: a stop,
@@ -118,7 +122,7 @@ At a refusal
 the script prints `#<n>: <T> skips <steps> after <S>; fix the issue, or start <T> by hand: celetis --agent <host> celetis-flow <n>`,
 for example `#12: plan skips specify after triage; …`. It adds the row `<n>\t<run line of T>` to
 the record and ends the issue. The skip check comes before the gate check, so a refused step with a
-`me` gate also gets a row. The first step of a start with numbers, and the first step that the
+`me` gate also gets a row. The first step of a start with one number, and the first step that the
 automatic runner takes, have no skip check. So your start with the number is the override: it
 starts T.
 
@@ -157,6 +161,54 @@ The `no-progress` file there has one row for each step that ended with no progre
 each step that the script refused as a skip. The automatic runner and the board read it. An
 explicit issue start can start that step. `engine/lib/locks.ts` of the plugin owns the lock refs,
 the owner records, the liveness check of an owner, and the record; the runner and the board use it.
+
+### The submitted queue
+
+`--queue start <step> <n>...` submits one fixed order and one host for the repository. Duplicate
+numbers and multiple bare numbers are usage errors. Start explicitly authorizes only the first
+displayed issue's displayed step. That step can have a `me` gate. Every subsequent step reads
+fresh main configuration, including the first step of each later issue. A `me` gate stops the
+whole schedule before that step; `--queue continue <id> <revision> <step>` authorizes that one
+displayed step. It does not waive a later gate.
+
+The record is `<git common dir>/celetis-flow/queue.json`, with schema 1, a random UUID, and an
+increasing positive revision. It holds the order, fixed host, position, terminal results, current
+and last launched Runs, and a state of `running`, `me-gate`, `error`, or `complete`, with the reason
+and recovery action. It contains scheduling observations; GitHub remains the workflow state store.
+Start refuses an existing submitted queue, including a complete queue.
+
+Each queue command takes the shared `queue` lock and reads the record again. Continue, retry,
+and reset reject an old ID or revision without changing it. Continue and retry use the saved
+host and reject a conflicting explicit `--agent`. Before a session, the runner takes only the
+current issue's lock, checks the host, and resolves the issue again. If its step differs from the
+requested step, it saves the changed decision with a new revision and starts nothing. Refresh
+the displayed action and press again. An authorization never transfers to a later issue.
+
+The queue uses the existing launch loop, startup barrier, session identity checks, and completion
+watcher. It persists the issue and step before opening the barrier. It waits for the foreground
+to exit before releasing the issue lock or advancing. Pending issues hold no locks. A killed
+runner's live foreground retains both the issue and queue locks. A question remains an active
+session; use Go to answer it. The startup warning keeps monitoring and ownership.
+
+Only a resolver stop of `finished` or `wontfix` advances the order. An issue that launched no
+session records `already-closed`; otherwise it records its terminal result. Advancement clears
+the previous issue's last Run. An open epic, human hold, dirty checkout, active landing, ownership
+conflict, unreadable issue, host or policy failure, no progress, or refused skip stops the whole
+schedule with its exact reason. A failed record write prevents further launches and prints a
+recovery error. Completion and stored stops can exit 0; usage and invalid actions remain errors.
+
+An unowned `running` record means interruption and never starts again automatically. Use
+`--queue retry <id> <revision> <step|none>` to resolve it again. Retry can explicitly restart one
+displayed no-progress or refused step, as a single-issue Run does. After that first step, normal
+`sameResult`, skip, and gate checks apply. `none` acknowledges fresh closure and authorizes no
+session; each later issue still follows its first gate. If a paused issue closes or advances
+elsewhere, a fresh displayed action recovers it without a reset. An old action starts no new step.
+
+`--queue reset <id> <revision>` removes only an unowned schedule. It changes no issue, worktree,
+session, or no-progress record. It requires valid main configuration, fresh readable issue state,
+and free queue and current-issue ownership. It needs no host executable or plugin start check.
+Reset a complete queue before submitting a new order. Repair a malformed or unreadable queue
+record before retrying an action.
 
 ## How a step runs
 
@@ -432,8 +484,9 @@ The exit status and the first word after `land: ` give the result:
 
 ## Gates
 
-Each step has a gate. An `auto` step starts by itself. A `me` step starts only as the first step of
-a start with numbers. The step is the command of the `run` line with no prefix: `triage`, `bug`,
+Each step has a gate. An `auto` step starts by itself. A `me` step starts with an explicit
+single-issue start, the first queue start, or Continue for its displayed queue step. The step is
+the command of the `run` line with no prefix: `triage`, `bug`,
 `chore`, `hotfix`, `plan`, or `implement`. One command has another step name:
 `run /celetis:feature #<n>`, the line of an `enhancement` with no spec, is the step `specify`.
 
@@ -542,7 +595,7 @@ host references in `docs/hosts/` give the details.
 ## The board
 
 The board is `engine/board/` of the plugin, a part of its engine. It reads the data of the issues
-in its own process with the typed functions of the engine, and a press types one of two fixed
+in its own process with the typed functions of the engine, and a press types one of the fixed
 command lines into a new herdr tab. It has no config of its own: the main checkout's `.celetis.yaml`
 gives `board.port` at the start, and `host` and `gates` at each read. ADR-0020 makes the board a
 part of the plugin, and ADR-0035 makes it a part of the engine.
@@ -658,6 +711,7 @@ The board puts these values in the fields of its document (`Document` of `engine
 | `agents` | Entries `claude` and `codex`. Each has `available: true` and `cause: null` when its executable is on the `PATH` of the board, else `available: false` and `cause: "celetis: <agent> is not on PATH"`. |
 | `defaultAgent` | The agent selected by `CELETIS_AGENT`, `host` in the main YAML, or the default `claude`, in that order. The `--agent` of the board start does not set it. |
 | `history` | The remote trunk name, history URL, captured full head SHA, and up to 20 distinct landed issues. Each entry holds the issue number/title/URL and commit SHA/URL/committer time. |
+| `queue` | A `QueueView` from the same fresh operation: the submitted local record, live queue or current `issue-<n>` owner, fresh resolver result, error, and Continue/Try again/Reset permissions. `null` means no initial successful read; `record: null` means no submitted schedule. |
 | `issues` | One row for each open issue. An issue whose line of the resolver is the epic line or the `wontfix` line has no row. |
 
 A row gets its `state` by the first rule that matches:
@@ -736,6 +790,46 @@ update also restarts this board automatically. A terminal-started update keeps t
 start it again to load new board code. Reload or restart the board if a terminal-started update
 removes a file that it still needs. Follow [Updates](../README.md#updates) for manual updates.
 Real Run/Resume acceptance remains a separate live gate.
+
+**Queue actions.** `POST /api/queue` adds one fixed action boundary. Start accepts exactly
+`{"action":{"kind":"start","numbers":[101,102,103,104],"step":"plan"},"agent":"claude"}`.
+Continue and retry carry the displayed queue UUID, positive safe-integer revision, and step;
+retry uses `null` when closure needs no session. Reset carries only its kind, ID, and revision.
+Only Start accepts an agent. Later actions use the host of the stored queue. The shared
+`parseQueueAction` validator rejects unknown or extra fields, steps, and identities, and invalid
+or duplicate numbers. The Host, Origin, JSON, and 1024-byte body checks remain in force. An order
+that exceeds that body limit returns 400 with a body-size error.
+
+Before a tab is created, the board refreshes workflow data, reads live queue/current-issue
+ownership, and checks the requested ID, revision, and step against fresh `QueueView.next`.
+Start checks the first step and each selected row's current eligibility. A stale action returns
+409 and starts no pane; the next read gives the new view. A new press can authorize a fresh step
+that differs from the older persisted `record.current`. A fresh unreadable issue disables every
+action. Session starts require an available saved host; Reset and closure-only retry do not.
+
+The adapter reads the installed program on every press and types only these quoted fixed lines
+(with the same PowerShell quoting and exit form as Run and Resume):
+
+```text
+'<command>' '--agent' '<host>' 'celetis-flow' '--queue' 'start' '<step>' <n>... && exit
+'<command>' '--agent' '<host>' 'celetis-flow' '--queue' 'continue' '<id>' <revision> '<step>' && exit
+'<command>' '--agent' '<host>' 'celetis-flow' '--queue' 'retry' '<id>' <revision> '<step|none>' && exit
+'<command>' '--agent' '<host>' 'celetis-flow' '--queue' 'reset' '<id>' <revision> && exit
+```
+
+The browser supplies no command, path, argument array, gate override, or edited submitted order.
+A queue action opens a quiet main-checkout tab labelled `Queue`. During a live step, the runner
+renames it `#<n> <step>`, so session cards and Go keep their existing identity. One board process
+serializes queue presses. Separate board instances can pass HTTP preflight together, so the
+runner's queue lock remains the final authority after asynchronous pane start. It rechecks the
+record, step, and current issue's ownership, takes no pending issue locks, and can record later
+closed issues without a session.
+
+Every board placement, including `?local=1`, rereads the local record and live ownership. When
+the ID or revision changes, it clears the old `next` and action permissions and requests the
+existing coalesced workflow refresh. Ownership changes request that refresh too. It adds no
+poller. A queue read error disables queue actions while preserving the last good issue data;
+`noRun` and an issue-read failure also disable them.
 
 **The page.** [`engine/board/README.md`](../engine/board/README.md) of the plugin holds the page: the
 columns and the card of each state, the layout, the keys, the buttons Run, Resume,
@@ -1315,9 +1409,10 @@ remains unknown.
   run three later updates can lose its folder. After that, the
   runner stops with the true cause. The automatic runner prints
   `celetis-flow: stop the program version of this runner was removed after an update; start the
-  runner again` and exits 1. A runner with numbers prints
+  runner again` and exits 1. A runner with one number prints
   `celetis-flow: #<n>: the program version of this runner was removed after an update; start the
-  runner again` for each number. The cure is a new start of the runner (ADR-0012). A board whose
+  runner again` for that number. A submitted queue records a stop. The cure is a new start of the
+  runner (ADR-0012). A board whose
   version folder is gone keeps its data reads, because it loaded their code at its start. Each
   Run and Resume reads the installed program again. An update needs no board restart for these
   presses. A board-approved update restarts that board automatically; a terminal-started update

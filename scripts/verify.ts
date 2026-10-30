@@ -14,6 +14,7 @@ export const generatedFiles = [
   'engine/board/ui.mjs',
   'engine/board/panel.mjs',
   'engine/board/palette.mjs',
+  'engine/board/queue.mjs',
   'engine/board/update-dialog.mjs',
   'engine/hooks/entry.js',
   'celetis',

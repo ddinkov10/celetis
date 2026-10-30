@@ -4,14 +4,16 @@ import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { constants } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Config, Host } from './lib/config-core.ts';
+import type { Next } from './lib/lines.ts';
 import type { LockOwner } from './lib/locks.ts';
-import type { Operation } from './lib/operation.ts';
+import type { HostSelection, Operation } from './lib/operation.ts';
+import type { QueueAction, QueueRecord } from './lib/queue-types.ts';
 import type { SessionRecord } from './lib/session.ts';
 import type { StepEndRecord, StepEndState, TurnKey } from './lib/step-end.ts';
-import type { Run } from './lib/workflow.ts';
+import type { Run, Step } from './lib/workflow.ts';
 
 const usage =
-  'usage: celetis --agent <host> celetis-flow [<issue number>...] | --resume <issue number>, e.g. celetis --agent <host> celetis-flow 373 374; with no number, the automatic runner';
+  'usage: celetis --agent <host> celetis-flow [<issue number>] | --resume <issue number> | --queue start <step> <n>... | --queue continue <id> <revision> <step> | --queue retry <id> <revision> <step|none> | --queue reset <id> <revision>; with no number, the automatic runner';
 const removed = 'the program version of this runner was removed after an update; start the runner again';
 const here = import.meta.dir;
 const required = [
@@ -37,6 +39,8 @@ const required = [
   'lib/lines.ts',
   'lib/process.ts',
   'lib/program.ts',
+  'lib/queue.ts',
+  'lib/queue-types.ts',
   'lib/vendor/yaml.mjs',
 ];
 async function gone(files = required) {
@@ -63,6 +67,8 @@ export async function main(argv: string[]): Promise<number> {
     'lib/update-lock.ts',
     'lib/windows.ts',
     'lib/process-identity.ts',
+    'lib/queue.ts',
+    'lib/queue-types.ts',
     'lib/process.ts',
     'lib/session.ts',
     'lib/step-end.ts',
@@ -84,16 +90,39 @@ export async function main(argv: string[]): Promise<number> {
       return error.code;
     }
   } else if (argv[0] === '--agent') argv = argv.slice(2);
-  let mode: 'numbers' | 'auto' | 'resume' = 'numbers';
+  let mode: 'numbers' | 'auto' | 'resume' | 'queue' = 'numbers';
   let numbers: string[] = [];
-  if (argv.length === 2 && argv[0] === '--resume') {
+  let action: QueueAction | undefined;
+  if (argv[0] === '--queue' && !unavailable) {
+    try {
+      const { parseQueueAction } = await import('./lib/queue.ts');
+      const [, kind, first, second, third, ...rest] = argv;
+      const integer = (value: string | undefined) => (value && /^[1-9][0-9]*$/.test(value) ? Number(value) : NaN);
+      action = parseQueueAction(
+        kind === 'start'
+          ? { kind, step: first, numbers: argv.slice(3).map((n) => integer(n.replace(/^#/, ''))) }
+          : kind === 'reset' && argv.length === 4
+            ? { kind, id: first, revision: integer(second) }
+            : (kind === 'continue' || kind === 'retry') && argv.length === 5 && rest.length === 0
+              ? { kind, id: first, revision: integer(second), step: third === 'none' ? null : third }
+              : null,
+      );
+      mode = 'queue';
+    } catch {
+      console.error(usage);
+      return 2;
+    }
+  } else if (argv.length === 2 && argv[0] === '--resume') {
     mode = 'resume';
     numbers = [(argv[1] ?? '').replace(/^#/, '')];
   } else {
     numbers = argv.map((arg) => arg.replace(/^#/, ''));
     if (!numbers.length) mode = 'auto';
   }
-  if (numbers.some((n) => !/^[1-9][0-9]*$/.test(n)) || (argv[0] === '--resume' && mode === 'numbers')) {
+  if (
+    numbers.some((n) => !/^[1-9][0-9]*$/.test(n)) ||
+    (mode === 'numbers' && (numbers.length > 1 || argv[0] === '--resume'))
+  ) {
     console.error(usage);
     if (!unavailable) console.error((await import('./lib/host.ts')).updateHint);
     return 2;
@@ -110,6 +139,8 @@ export async function main(argv: string[]): Promise<number> {
   const { HostError, requireBun } = await import('./lib/host.ts');
   const { addRecord, createLockOwner, isRecorded, lockHolder } = await import('./lib/locks.ts');
   const { createOperation, locateCheckouts } = await import('./lib/operation.ts');
+  const { readQueue, removeQueue, writeQueue } = await import('./lib/queue.ts');
+  const { describe } = await import('./lib/lines.ts');
   const { bunArgs, childEnv, run } = await import('./lib/process.ts');
   const { processStart } = await import('./lib/process-identity.ts');
   const { removeStepEnd, writeStepEnd } = await import('./lib/step-end.ts');
@@ -131,7 +162,10 @@ export async function main(argv: string[]): Promise<number> {
     state = '';
   let operation: Operation;
   let initial: Operation | undefined;
-  const selection = { explicit, environment: process.env.CELETIS_AGENT };
+  let selection: HostSelection = { explicit, environment: process.env.CELETIS_AGENT };
+  let queue: QueueRecord | null = null;
+  let queueWritable = false;
+  let storageFailed = false;
   let managed = false;
   let pane = '';
   let savedId = '';
@@ -148,6 +182,19 @@ export async function main(argv: string[]): Promise<number> {
   const die = (message: string): never => {
     throw new HostError(`celetis-flow: ${message}`);
   };
+  const saveQueue = async (change: Partial<QueueRecord>) => {
+    if (queue === null) throw new HostError('celetis-flow: queue: no submitted queue', 2);
+    const next = { ...queue, ...change, revision: queue.revision + 1 };
+    try {
+      await writeQueue(common, next);
+      queue = next;
+    } catch (error) {
+      storageFailed = true;
+      throw new HostError(
+        `celetis-flow: queue: cannot save recovery state: ${(error as Error).message}; no further session will start. Repair access to the queue record, then use Try again.`,
+      );
+    }
+  };
   const say = (message: string) => {
     if (mode === 'auto' && message === said) return;
     said = message;
@@ -158,6 +205,16 @@ export async function main(argv: string[]): Promise<number> {
     const current = initial ?? fresh();
     initial = undefined;
     return current;
+  };
+  const requireStart = async (current: Operation) => {
+    const host = current.host;
+    if (host === 'codex') process.env.CODEX_HOME = await (await import('./lib/plugin-metadata.ts')).codexHome();
+    const { requireUpdatePolicy } = await import('./lib/plugin-policy.ts');
+    await (await import('./lib/update-lock.ts')).withPluginRead(host, async () => {
+      await requireUpdatePolicy(host, current.checkout.cwd);
+      if (current.checkout.cwd !== main) await requireUpdatePolicy(host, main);
+    });
+    if (!Bun.which(host, { PATH: childEnv().PATH })) throw new HostError(`celetis: ${host} is not on PATH`);
   };
   const nextOf = async (n: string, current: Operation, abort?: AbortSignal) => {
     const { nextIssue } = await import('./next-step.ts');
@@ -362,64 +419,107 @@ export async function main(argv: string[]): Promise<number> {
     }
     return { ended };
   };
-  const runIssue = async (n: string, first: 'any' | 'gated') => {
-    const holder = await locks?.take(`issue-${n}`);
-    if (holder !== null) {
-      say(`another celetis-flow.ts or its session (PID ${holder}) works on #${n}`);
-      return false;
+  type IssueOutcome = {
+    kind: 'closed' | 'gate' | 'stopped';
+    started: boolean;
+    next: Next | null;
+    last: Run | null;
+    exitCode: number;
+    reason: string;
+    act: string | null;
+  };
+  const finishSession = async () => {
+    if (session?.pid && session.exitCode === null && session.signalCode === null) {
+      session.kill('SIGTERM');
+      await new Promise<void>((done) => session?.once('exit', () => done()));
     }
-    let lastHost: Host = 'claude';
-    let last: Run | null = null;
+    session = undefined;
+  };
+  const runIssue = async (
+    n: string,
+    first: 'any' | 'gated',
+    request?: {
+      step: Step | null;
+      retry: boolean;
+    },
+    beforeStart?: (next: Run) => Promise<void>,
+  ): Promise<IssueOutcome> => {
+    let lastHost: Host = queue?.host ?? 'claude';
+    let last: Run | null = queue?.last ?? null;
     let started = false,
       exitCode = 0;
+    let resolved: Next | null = null;
+    const outcome = (kind: IssueOutcome['kind'], reason: string, act: string | null = null): IssueOutcome => ({
+      kind,
+      started,
+      next: resolved,
+      last,
+      exitCode,
+      reason,
+      act,
+    });
+    const holder = await locks?.take(`issue-${n}`);
+    if (holder !== null) {
+      const reason = `another celetis-flow.ts or its session (PID ${holder}) works on #${n}`;
+      say(reason);
+      return outcome('stopped', reason, 'Wait for that session to exit, then use Try again.');
+    }
     try {
       for (;;) {
         if (signalStatus) throw new HostError('', signalStatus);
         if (await gone()) {
           say(`#${n}: ${removed}`);
-          break;
+          return outcome('stopped', removed, 'Start the runner again.');
         }
         const current = nextOperation();
         const config = current.mainConfig as Config;
         const stepHost = current.host;
-        if (stepHost === 'codex') process.env.CODEX_HOME = await (await import('./lib/plugin-metadata.ts')).codexHome();
-        await (await import('./lib/plugin-policy.ts')).requireUpdatePolicy(stepHost, main);
-        if (!Bun.which(stepHost, { PATH: childEnv().PATH })) throw new HostError(`celetis: ${stepHost} is not on PATH`);
         const { next, line } = await nextOf(n, current);
+        resolved = next;
+        if (request && (next.kind === 'run' ? next.step : null) !== request.step) {
+          const reason = `#${n}: the displayed decision changed: ${line}; no step was started`;
+          say(reason);
+          return outcome('stopped', reason, 'Refresh the queue, then use its displayed action.');
+        }
         if (next.kind !== 'run') {
           say(line);
-          break;
+          return outcome(
+            next.kind === 'stop' && (next.reason === 'finished' || next.reason === 'wontfix') ? 'closed' : 'stopped',
+            line,
+            describe(n, next).row?.act ?? 'Fix the cause, then use Try again.',
+          );
         }
+        await requireStart(current);
         const { step } = next;
         const prompt = invocation(step, Number(n));
-        if (last && sameResult(next, last)) {
+        if (last && !request?.retry && sameResult(next, last)) {
           if (exitCode !== 0)
             die(
               `${lastHost} session exited with status ${exitCode} before issue progress; check startup output, then run ${manualRecovery(lastHost)} from the main checkout or start the step again`,
             );
-          say(`no progress: ${prompt}`);
+          const reason = `no progress: ${prompt}`;
+          say(reason);
           await addRecord(common, n, line);
-          break;
+          return outcome('stopped', reason, 'Open the saved session, or use Try again for this step.');
         }
         const skips = last ? skipped(last.step, step, next.lane) : [];
-        if (last && skips.length > 0) {
-          say(
-            `#${n}: ${step} skips ${skips.join(', ')} after ${last.step}; fix the issue, or start ${step} by hand: celetis --agent <host> celetis-flow ${n}`,
-          );
+        if (last && !request?.retry && skips.length > 0) {
+          const reason = `#${n}: ${step} skips ${skips.join(', ')} after ${last.step}; fix the issue, or start ${step} by hand: celetis --agent <host> celetis-flow ${n}`;
+          say(reason);
           await addRecord(common, n, line);
-          break;
+          return outcome('stopped', reason, 'Fix the issue, or use Try again for this displayed step.');
         }
         if (first !== 'any' && (config.gates?.[step] ?? defaultGate) !== 'auto') {
-          say(`the gate of ${step} is me: celetis --agent <host> celetis-flow ${n} starts ${prompt}`);
-          break;
+          const reason = `the gate of ${step} is me: celetis --agent <host> celetis-flow ${n} starts ${prompt}`;
+          say(reason);
+          return outcome('gate', reason, 'Use Continue queue to start this displayed step.');
         }
         const pluginRoot = await (await import('./update.ts')).requireSameRevision(stepHost, main, root);
         first = 'gated';
         say(`start: ${prompt}`);
-        started = true;
         if ((await gone()) || !(await stat(join(root, 'step-prompt.md')).catch(() => null))?.isFile()) {
           say(`#${n}: ${removed}`);
-          break;
+          return outcome('stopped', removed, 'Start the runner again.');
         }
         const args = await hostArguments(stepHost, Number(n), step, root, main, {
           pluginRoot,
@@ -470,7 +570,12 @@ export async function main(argv: string[]): Promise<number> {
               watchError = error;
             });
         }
+        await beforeStart?.(next);
+        request = undefined;
+        last = next;
+        lastHost = stepHost;
         await writeFile(join(watchDir, 'go'), '');
+        started = true;
         exitCode = await ended;
         session = undefined;
         watcher?.abort();
@@ -488,15 +593,13 @@ export async function main(argv: string[]): Promise<number> {
         await rm(watchDir, { recursive: true, force: true });
         watchDir = '';
         if (signalStatus) throw new HostError('', signalStatus);
-        last = next;
-        lastHost = stepHost;
       }
-      return started;
     } finally {
       watcher?.abort();
       await watching;
       await clearStepEnd();
       stepEndIssue = undefined;
+      await finishSession();
       await locks?.release(`issue-${n}`);
     }
   };
@@ -508,22 +611,81 @@ export async function main(argv: string[]): Promise<number> {
     main = checkout.main;
     locks = createLockOwner(main);
     state = join(common, 'celetis-flow');
+    if (action) {
+      const holder = await locks.take('queue');
+      if (holder !== null) die(`another queue runner or its session has PID ${holder}`);
+      queue = await readQueue(common);
+      if (action.kind === 'start') {
+        if (queue)
+          throw new HostError('celetis-flow: queue: a submitted queue already exists; use its displayed action', 2);
+      } else {
+        if (!queue || queue.id !== action.id || queue.revision !== action.revision)
+          throw new HostError('celetis-flow: queue: the ID or revision changed; refresh the queue', 2);
+        if (action.kind !== 'reset') {
+          if (explicit !== undefined && explicit !== queue.host)
+            throw new HostError(
+              `celetis-flow: queue: recorded host is ${queue.host}; omit --agent or use --agent ${queue.host}`,
+              2,
+            );
+          if (
+            queue.state === 'complete' ||
+            (action.kind === 'continue' && queue.state !== 'me-gate') ||
+            (action.kind === 'retry' && queue.state === 'me-gate' && action.step !== null)
+          )
+            throw new HostError('celetis-flow: queue: that action is not available; refresh the queue', 2);
+          selection = { ...selection, saved: queue.host };
+        }
+      }
+    }
     if (mode === 'resume') {
       const holder = await locks.take(`issue-${numbers[0]}`);
       if (holder !== null) die(`another celetis-flow.ts or its session (PID ${holder}) works on #${numbers[0]}`);
     }
     const saved = mode === 'resume' ? await selectSavedSession(main, Number(numbers[0]), explicit, common) : undefined;
-    operation = createOperation(checkout, { ...selection, saved: saved?.host }, 'main');
+    operation = createOperation(checkout, saved ? { ...selection, saved: saved.host } : selection, 'main');
+    if (action?.kind === 'reset') {
+      const n = queue?.numbers[queue.position];
+      if (n !== undefined) {
+        const holder = await locks.take(`issue-${n}`);
+        if (holder !== null) die(`another celetis-flow.ts or its session (PID ${holder}) works on #${n}`);
+        const { next, line } = await nextOf(String(n), operation);
+        if (next.kind === 'observed' && next.reason === 'unreadable') die(`queue: cannot reset: ${line}`);
+      }
+      await removeQueue(common);
+      say('queue: the submitted schedule was removed');
+      return 0;
+    }
+    if (action) {
+      if (action.kind === 'start') {
+        queue = {
+          schema: 1,
+          id: randomUUID(),
+          revision: 1,
+          host: operation.host,
+          numbers: action.numbers,
+          position: 0,
+          results: [],
+          state: 'running',
+          current: null,
+          last: null,
+          reason: null,
+          act: null,
+        };
+        try {
+          await writeQueue(common, queue);
+        } catch (error) {
+          throw new HostError(
+            `celetis-flow: queue: cannot submit queue: ${(error as Error).message}; no session started. Repair access to the queue record, then start the queue again.`,
+          );
+        }
+      }
+      queueWritable = true;
+      selection = { ...selection, saved: queue?.host };
+    }
     const host = operation.host;
     savedId = saved?.session_id ?? '';
-    if (host === 'codex') process.env.CODEX_HOME = await (await import('./lib/plugin-metadata.ts')).codexHome();
-    initial = mode === 'resume' ? undefined : operation;
-    const { requireUpdatePolicy } = await import('./lib/plugin-policy.ts');
-    await (await import('./lib/update-lock.ts')).withPluginRead(host, async () => {
-      await requireUpdatePolicy(host, operation.checkout.cwd);
-      if (operation.checkout.cwd !== main) await requireUpdatePolicy(host, main);
-    });
-    if (!Bun.which(host, { PATH: childEnv().PATH })) throw new HostError(`celetis: ${host} is not on PATH`);
+    initial = mode === 'resume' || mode === 'queue' ? undefined : operation;
+    if (action?.kind !== 'retry' || action.step !== null) await requireStart(operation);
     if (mode !== 'resume') {
       if (!Bun.which('gh', { PATH: childEnv().PATH })) die('gh is not on PATH');
       if (process.env.HERDR_ENV === '1') {
@@ -555,7 +717,47 @@ export async function main(argv: string[]): Promise<number> {
       return signalStatus || code;
     }
     if (mode === 'numbers') {
-      for (const n of numbers) await runIssue(n, 'any');
+      await runIssue(numbers[0] as string, 'any');
+      return 0;
+    }
+    if (action && queue) {
+      let request: Parameters<typeof runIssue>[2] = {
+        step: action.step,
+        retry: action.kind === 'retry',
+      };
+      while (queue.position < queue.numbers.length) {
+        const n = String(queue.numbers[queue.position]);
+        const result = await runIssue(n, request ? 'any' : 'gated', request, (next) =>
+          saveQueue({ state: 'running', current: next, last: next, reason: null, act: null }),
+        );
+        request = undefined;
+        if (result.kind !== 'closed') {
+          await saveQueue({
+            state: result.kind === 'gate' ? 'me-gate' : 'error',
+            current: result.next?.kind === 'run' ? result.next : null,
+            last: result.last,
+            reason: result.reason,
+            act: result.act,
+          });
+          return 0;
+        }
+        const next = result.next;
+        const reason =
+          next?.kind === 'stop' && (next.reason === 'finished' || next.reason === 'wontfix')
+            ? next.reason
+            : die('queue: cannot advance without a closed resolver result');
+        const position = queue.position + 1;
+        await saveQueue({
+          position,
+          results: [...queue.results, result.started || queue.last !== null ? reason : 'already-closed'],
+          state: position === queue.numbers.length ? 'complete' : 'running',
+          current: null,
+          last: null,
+          reason: null,
+          act: null,
+        });
+      }
+      say('queue: complete');
       return 0;
     }
     const holder = await locks.take('runner');
@@ -582,7 +784,7 @@ export async function main(argv: string[]): Promise<number> {
           pick = n;
           break;
         }
-        if (pick) started = await runIssue(pick, 'gated');
+        if (pick) started = (await runIssue(pick, 'gated')).started;
         else say('no auto step can start; the runner asks again each 60 seconds');
       } else say('stop cannot read the open issues from GitHub');
       if (!started) {
@@ -592,6 +794,26 @@ export async function main(argv: string[]): Promise<number> {
     }
     return signalStatus;
   } catch (error) {
+    if (mode === 'queue') {
+      const reason = signalStatus
+        ? `queue: interrupted with status ${signalStatus}; use Try again after the foreground exits`
+        : error instanceof Error
+          ? error.message
+          : String(error);
+      if (queueWritable && !storageFailed) {
+        await finishSession();
+        try {
+          await saveQueue({ state: 'error', reason, act: 'Fix the cause, then use Try again for the displayed step.' });
+        } catch (failure) {
+          console.error((failure as Error).message);
+          return 1;
+        }
+        if (reason) console.error(reason);
+        return signalStatus || 0;
+      }
+      if (reason) console.error(reason);
+      return error instanceof HostError ? error.code : 1;
+    }
     if (error instanceof HostError) {
       if (error.message) console.error(error.message);
       return error.code;
@@ -600,10 +822,7 @@ export async function main(argv: string[]): Promise<number> {
   } finally {
     watcher?.abort();
     await watching;
-    if (session?.pid && session.exitCode === null && session.signalCode === null) {
-      session.kill('SIGTERM');
-      await new Promise<void>((done) => session?.once('exit', () => done()));
-    }
+    await finishSession();
     if (watchDir) await rm(watchDir, { recursive: true, force: true });
     await clearStepEnd();
     await locks?.releaseAll();
