@@ -9,19 +9,18 @@ import { type Config, ConfigError, formatConfigError } from './lib/config-core.t
 import { HostError, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
-import { checkClaudePolicy, claudePolicy } from './lib/plugin-policy.ts';
+import { checkClaudePolicy } from './lib/plugin-policy.ts';
 import { childEnv, run } from './lib/process.ts';
+import { parseAllDocuments } from './lib/vendor/yaml.mjs';
 import { type Label, labels } from './lib/workflow.ts';
 import { markerOf, removeCheckout, runSetup, worktrees } from './lib/worktree.ts';
 
-const plugin = dirname(import.meta.dir);
 const wiring = '.claude/celetis-flow/wiring.json';
 const settings = '.claude/settings.json';
 const configFile = '.celetis.yaml';
 const subject = 'chore(celetis): wire the project for the celetis lanes';
 const usage = `usage: celetis --agent <host> setup check | write <options> | try <options> | try --remove | lane <path> | push; <options>: --hosts claude|codex|claude,codex [--default claude|codex] --landing pr|merge [--suite <file>] [--setup-file <file>] [--ignore <line>]... [--baseline-file <file>]\n${updateHint}`;
 const setupPaths = [
-  'scripts/celetis',
   configFile,
   wiring,
   '.codex/rules/celetis.rules',
@@ -31,9 +30,6 @@ const setupPaths = [
   'AGENTS.md',
   'CLAUDE.md',
   '.claude/CLAUDE.md',
-  'docs/adr/README.md',
-  'docs/adr/template.md',
-  'docs/lessons/INDEX.md',
 ];
 const ignores = [
   '.claude/worktrees/',
@@ -83,6 +79,10 @@ function fail(message: string): never {
 }
 function badUsage(): never {
   throw new HostError(usage, 2);
+}
+function checkJSONKeys(path: string, source: string): void {
+  if (parseAllDocuments(source, { uniqueKeys: true, merge: false }).some((doc) => doc.errors.length))
+    fail(`${path} is ambiguous; fix duplicate object keys first`);
 }
 
 function options(argv: string[]): Options {
@@ -166,35 +166,6 @@ function settingsForm(): Entry[] {
   ];
 }
 
-function section(text: string, want: string[]): string {
-  const source = lines(text);
-  const code = new Set<number>();
-  let opened: { marker: string; index: number } | undefined;
-  for (const [index, line] of source.entries()) {
-    if (!opened) {
-      const marker = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1];
-      if (marker) opened = { marker, index };
-    } else if (new RegExp(`^ {0,3}${opened.marker[0]}{${opened.marker.length},}[ \\t\\r]*$`).test(line)) {
-      for (let i = opened.index; i <= index; i++) code.add(i);
-      opened = undefined;
-    }
-  }
-  const start = source.findIndex((line, i) => !code.has(i) && normal(line) === normal(want[0] ?? ''));
-  if (start < 0)
-    return `${source.length ? `${source.join('\n')}\n${normal(source.at(-1) ?? '') ? '\n' : ''}` : ''}${want[0]}\n\n${want.slice(1).join('\n')}\n`;
-  let stop = source.findIndex((line, i) => i > start && !code.has(i) && /^#{1,2} /.test(line));
-  if (stop < 0) stop = source.length;
-  const bare = (line: string) => normal(normal(line).replace(/^[-*] /, ''));
-  const missing = want
-    .slice(1)
-    .filter((line) => !source.some((item, i) => i > start && i < stop && !code.has(i) && bare(item) === bare(line)));
-  if (!missing.length) return text;
-  let last = start;
-  for (let i = start + 1; i < stop; i++) if (normal(source[i] as string)) last = i;
-  source.splice(last + 1, 0, ...(last === start ? [''] : []), ...missing);
-  return `${source.join('\n')}\n`;
-}
-
 function block(text: string): string {
   const breaks = text.length - text.replace(/\n+$/, '').length;
   const indent = lines(text)
@@ -266,7 +237,6 @@ class Setup {
   config: Config | null;
   top = '';
   testLane = '';
-  repo = '';
   trunk = '';
   ahead = 0;
   diagnostic = false;
@@ -278,6 +248,11 @@ class Setup {
   }
   warn(message: string): void {
     this.output(`setup: warning: ${message}\n`);
+  }
+  review(path: string, evidence: string): void {
+    this.warn(
+      `${path}: ${evidence}; the owner must review this old wiring; setup preserves the content and any historical ownership; follow https://github.com/ddinkov10/celetis#review-old-wiring (README, "Review old wiring")`,
+    );
   }
   async git(args: string[], env?: NodeJS.ProcessEnv): Promise<string> {
     const result = await run('git', args, { cwd: this.cwd, env });
@@ -330,7 +305,6 @@ class Setup {
       ['repos/{owner}/{repo}'],
       'origin is not a GitHub repository that gh can read',
     );
-    this.repo = repo.full_name;
     this.trunk = repo.default_branch;
     const branch = await this.git(['branch', '--show-current']);
     if (branch !== this.trunk)
@@ -376,27 +350,60 @@ class Setup {
     await this.checkStaged();
   }
   async get(path: string): Promise<string> {
+    await this.checkDestination(path);
     const planned = this.files.get(path);
     if (planned) return planned.contents;
     try {
       return await readFile(join(this.cwd, path), 'utf8');
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return '';
-      throw error;
+      fail(`cannot read ${path}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  private async checkDestination(path: string): Promise<void> {
+    const parts = path.split('/');
+    for (let i = 0; i < parts.length; i++) {
+      const component = parts.slice(0, i + 1).join('/');
+      const info = await lstat(join(this.cwd, component)).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === 'ENOENT') return null;
+        fail(`cannot inspect ${path} at ${component}: ${error.message}`);
+      });
+      if (info === null) return;
+      if (info.isSymbolicLink()) fail(`${component} is a symbolic link; setup writes no file through a link`);
+      if (i < parts.length - 1 ? !info.isDirectory() : !info.isFile())
+        fail(`${component} is no ${i < parts.length - 1 ? 'directory' : 'regular file'} for ${path}`);
     }
   }
   async there(path: string): Promise<boolean> {
-    return (await stat(join(this.cwd, path)).catch(() => null)) !== null;
+    return (
+      (await lstat(join(this.cwd, path)).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === 'ENOENT') return null;
+        fail(`cannot inspect ${path}: ${error.message}`);
+      })) !== null
+    );
   }
   async same(a: string, b: string): Promise<boolean> {
     const [one, two] = await Promise.all([
-      stat(join(this.cwd, a)).catch(() => null),
-      stat(join(this.cwd, b)).catch(() => null),
+      stat(join(this.cwd, a)).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === 'ENOENT') return null;
+        fail(`cannot inspect ${a}: ${error.message}`);
+      }),
+      stat(join(this.cwd, b)).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === 'ENOENT') return null;
+        fail(`cannot inspect ${b}: ${error.message}`);
+      }),
     ]);
     return !!one && !!two && one.dev === two.dev && one.ino === two.ino;
   }
   async linked(path: string): Promise<boolean> {
-    return (await lstat(join(this.cwd, path)).catch(() => null))?.isSymbolicLink() ?? false;
+    return (
+      (
+        await lstat(join(this.cwd, path)).catch((error: NodeJS.ErrnoException) => {
+          if (error.code === 'ENOENT') return null;
+          fail(`cannot inspect ${path}: ${error.message}`);
+        })
+      )?.isSymbolicLink() ?? false
+    );
   }
   own(path: string, entry: unknown): void {
     this.owned.entries[path] ??= [];
@@ -419,6 +426,7 @@ class Setup {
       } catch {
         fail(`${settings} is no JSON object; fix it first`);
       }
+      checkJSONKeys(settings, source);
     }
     if (!object(doc)) fail(`${settings} is no JSON object; fix it first`);
     if (object(doc.permissions) && Object.hasOwn(doc.permissions, 'allow') && !Array.isArray(doc.permissions.allow))
@@ -428,8 +436,9 @@ class Setup {
       const parentKey = form.path[0] as string;
       const key = form.path[1] as string;
       let parent = doc[parentKey];
-      if (parent != null && !object(parent)) fail(`${settings}: ${parentKey} is no object; fix it first`);
-      if (parent == null) {
+      if (Object.hasOwn(doc, parentKey) && !object(parent))
+        fail(`${settings}: ${parentKey} is no object; fix it first`);
+      if (!Object.hasOwn(doc, parentKey)) {
         parent = {};
         doc[parentKey] = parent;
       }
@@ -464,21 +473,8 @@ class Setup {
           `${settings}: ${form.path.join('.')} differs from the current form; setup leaves it${parentKey === 'extraKnownMarketplaces' && key === 'celetis' ? '; review this entry and set autoUpdate to false by hand' : ''}`,
         );
     }
-    const enabled = object(doc.enabledPlugins) ? doc.enabledPlugins['celetis@celetis'] : undefined;
-    if (
-      enabled === true &&
-      (this.owned.entries[settings] ?? []).some((entry) =>
-        isDeepStrictEqual(entry, { path: ['enabledPlugins', 'celetis@celetis'] }),
-      )
-    )
-      this.warn(
-        `${settings}: enabledPlugins.celetis@celetis needs review by the owner of the active project; setup preserves the entry and its ownership; follow the plugin README, "Wire a product project"`,
-      );
-    const policies = await claudePolicy(this.cwd);
-    const projectPolicy = policies.find((entry) => entry.path === join(this.cwd, settings));
-    if (projectPolicy) projectPolicy.value = doc;
     try {
-      checkClaudePolicy(policies);
+      checkClaudePolicy([{ path: join(this.cwd, settings), value: doc }]);
     } catch (error) {
       this.warn((error as Error).message);
     }
@@ -546,6 +542,55 @@ class Setup {
     }
     if (proposed !== (await this.get(configFile))) this.files.set(configFile, { contents: proposed });
   }
+  async reportOldWiring(agentsPath: string): Promise<void> {
+    if ((await this.there('scripts/celetis')) || this.owned.files.includes('scripts/celetis'))
+      this.review('scripts/celetis', 'obsolete product launcher or recorded launcher ownership');
+    const flow = [
+      '## Celetis flow',
+      '- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `celetis --agent <host> land`.',
+      '- A lane never skips a step.',
+      '- The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.',
+    ];
+    for (const line of new Set([...lines(await this.get(agentsPath)), ...(this.owned.entries['AGENTS.md'] ?? [])]))
+      if (
+        typeof line === 'string' &&
+        (flow.includes(normal(line)) ||
+          /^- The lanes are the skills of the plugin `celetis`, on the issues of `[^`]+`\.$/.test(normal(line)))
+      )
+        this.review(agentsPath, line);
+    const attribute = 'scripts/celetis text eol=lf';
+    if (
+      hasLine(await this.get('.gitattributes'), attribute) ||
+      (this.owned.entries['.gitattributes'] ?? []).includes(attribute)
+    )
+      this.review('.gitattributes', attribute);
+    let doc: unknown = {};
+    if (await this.there(settings)) {
+      const source = await this.get(settings);
+      try {
+        doc = JSON.parse(source);
+      } catch {
+        fail(`${settings} is no JSON object; fix it first`);
+      }
+      checkJSONKeys(settings, source);
+      if (!object(doc)) fail(`${settings} is no JSON object; fix it first`);
+    }
+    const recorded = this.owned.entries[settings] ?? [];
+    const allow = object(doc) && object(doc.permissions) ? doc.permissions.allow : undefined;
+    for (const item of new Set([
+      ...(Array.isArray(allow) ? allow : []),
+      ...recorded.flatMap((entry) =>
+        object(entry) && isDeepStrictEqual(entry.path, ['permissions', 'allow']) ? [entry.item] : [],
+      ),
+    ]))
+      if (typeof item === 'string' && /^(Bash|PowerShell)\((\.\/)?(scripts\/celetis|celetis)([ )])/.test(item))
+        this.review(settings, `permissions.allow: ${item}`);
+    if (
+      (object(doc) && object(doc.enabledPlugins) && Object.hasOwn(doc.enabledPlugins, 'celetis@celetis')) ||
+      recorded.some((entry) => isDeepStrictEqual(entry, { path: ['enabledPlugins', 'celetis@celetis'] }))
+    )
+      this.review(settings, 'enabledPlugins.celetis@celetis');
+  }
   async plan(opts: Options, scratch: string): Promise<void> {
     for (const file of [opts.setup, opts.baseline].filter(Boolean)) {
       try {
@@ -555,11 +600,38 @@ class Setup {
         fail(`cannot read ${file}`);
       }
     }
+    const baseline = opts.baseline ? await readFile(opts.baseline, 'utf8') : '';
+    const touched = [configFile, wiring, '.gitignore', '.gitattributes'];
+    if (opts.hosts.includes('codex')) touched.push('.codex/rules/celetis.rules');
+    if (opts.hosts.includes('claude') || (await this.there(settings))) touched.push(settings);
+    for (const path of touched) await this.checkDestination(path);
+    let agentsPath = 'AGENTS.md';
+    const claudeFiles: string[] = [];
+    for (const path of ['CLAUDE.md', '.claude/CLAUDE.md']) {
+      if ((await this.linked('AGENTS.md')) && !(await this.linked(path)) && (await this.same('AGENTS.md', path)))
+        agentsPath = path;
+      if ((await this.there(path)) && !(await this.linked(path)) && !(await this.same('AGENTS.md', path)))
+        claudeFiles.push(path);
+    }
+    const hasAgents = (await this.there(agentsPath)) || baseline !== '';
+    if (hasAgents) touched.push(agentsPath);
+    if (opts.hosts.includes('claude') && hasAgents) touched.push(...claudeFiles);
+    for (const path of touched) {
+      await this.checkDestination(path);
+      const result = await run('git', ['check-ignore', '-q', '--', path], { cwd: this.cwd });
+      if (result.code === 0) fail(`git ignores ${path}; make git track it first`);
+      if (result.code !== 1) {
+        process.stderr.write(result.stderr);
+        fail(`${path} lies beyond a symbolic link or in a submodule; setup writes no file there`);
+      }
+    }
     if (await this.there(wiring)) {
+      const source = await this.get(wiring);
       let old: unknown;
       try {
-        old = JSON.parse(await this.get(wiring));
+        old = JSON.parse(source);
       } catch {}
+      if (old !== undefined) checkJSONKeys(wiring, source);
       if (
         !object(old) ||
         old.schema !== 1 ||
@@ -571,60 +643,26 @@ class Setup {
         fail(`${wiring} is no record of setup; fix or remove it first`);
       this.owned = { files: old.files, entries: old.entries as Record<string, unknown[]> };
     }
-    let agentsPath = 'AGENTS.md';
-    const claudeFiles: string[] = [];
-    for (const path of ['CLAUDE.md', '.claude/CLAUDE.md']) {
-      if ((await this.linked('AGENTS.md')) && !(await this.linked(path)) && (await this.same('AGENTS.md', path)))
-        agentsPath = path;
-      if (
-        (await stat(join(this.cwd, path)).catch(() => null))?.isFile() &&
-        !(await this.linked(path)) &&
-        !(await this.same('AGENTS.md', path))
-      )
-        claudeFiles.push(path);
-    }
-    const touched = [configFile, wiring, '.gitignore', '.gitattributes', agentsPath];
-    for (const path of ['docs/adr/README.md', 'docs/adr/template.md', 'docs/lessons/INDEX.md'])
-      if (!(await this.there(path))) touched.push(path);
-    if (opts.hosts.includes('codex')) touched.push('.codex/rules/celetis.rules');
-    if (opts.hosts.includes('claude')) touched.push(settings, ...claudeFiles);
-    for (const path of touched) {
-      if (await this.linked(path)) fail(`${path} is a symbolic link; setup writes no file through a link`);
-      const result = await run('git', ['check-ignore', '-q', '--', path], { cwd: this.cwd });
-      if (result.code === 0) fail(`git ignores ${path}; make git track it first`);
-      if (result.code !== 1) {
-        process.stderr.write(result.stderr);
-        fail(`${path} lies beyond a symbolic link or in a submodule; setup writes no file there`);
-      }
-    }
     if (opts.hosts.includes('claude')) await this.planSettings();
     await this.planConfig(opts, scratch);
-    const oldLauncher = (await this.there('scripts/celetis')) || this.owned.files.includes('scripts/celetis');
-    if (oldLauncher)
-      this.warn(
-        'scripts/celetis needs review by the owner of the active project; setup preserves its file and ownership; follow the plugin README, "Wire a product project" and "First install"',
-      );
-    if (opts.hosts.includes('codex') && !(oldLauncher && (await this.there('.codex/rules/celetis.rules')))) {
-      this.files.set('.codex/rules/celetis.rules', {
-        contents:
-          'prefix_rule(\n    pattern = ["gh", "pr", "merge"],\n    decision = "forbidden",\n    justification = "Use celetis --agent codex land from the main checkout.",\n)\n',
-      });
-      this.owned.files.push('.codex/rules/celetis.rules');
+    if (opts.hosts.includes('codex')) {
+      const path = '.codex/rules/celetis.rules';
+      const contents =
+        'prefix_rule(\n    pattern = ["gh", "pr", "merge"],\n    decision = "forbidden",\n    justification = "Use celetis --agent codex land from the main checkout.",\n)\n';
+      if (!(await this.there(path))) {
+        this.files.set(path, { contents });
+        this.owned.files.push(path);
+      } else if ((await this.get(path)) === contents) this.owned.files.push(path);
+      else
+        this.warn(
+          `${path} differs from the required form; setup preserves it and any historical ownership; the owner must review the direct-merge restriction and obsolete allows; follow https://github.com/ddinkov10/celetis#review-old-wiring (README, "Review old wiring")`,
+        );
     }
     await this.ownLines('.gitignore', ignores);
     await this.ownLines('.gitignore', opts.ignores, false);
     await this.ownLines('.gitattributes', ['.celetis.yaml text eol=lf']);
-    const flow = [
-      '## Celetis flow',
-      `- The lanes are the skills of the plugin \`celetis\`, on the issues of \`${this.repo}\`.`,
-      '- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `celetis --agent <host> land`.',
-      '- A lane never skips a step.',
-      '- The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.',
-    ];
-    for (const line of flow) this.own('AGENTS.md', line);
-    let agents = section(await this.get(agentsPath), flow);
-    if (opts.baseline) {
-      const baseline = await readFile(opts.baseline, 'utf8');
+    if (baseline) {
+      let agents = await this.get(agentsPath);
       const heading = baseline.split('\n')[0] ?? '';
       if (hasLine(agents, heading)) this.warn(`AGENTS.md: ${heading} is there; setup leaves it`);
       else {
@@ -632,23 +670,29 @@ class Setup {
         if (lines(agents).at(-1)) agents += '\n';
         agents += baseline;
         if (baseline && !baseline.endsWith('\n')) agents += '\n';
+        this.files.set(agentsPath, { contents: agents });
       }
     }
-    this.files.set(agentsPath, { contents: agents });
     if (opts.hosts.includes('claude')) {
       for (const path of ['CLAUDE.md', '.claude/CLAUDE.md'])
         if ((await this.linked(path)) && !(await this.same(path, 'AGENTS.md')))
           this.warn(
-            `${path} is a symbolic link to a file other than AGENTS.md; setup leaves it, so Claude reads AGENTS.md only if that file holds @AGENTS.md`,
+            `${path} is an unrelated symbolic link; setup preserves it; loading AGENTS.md requires owner review of that instruction file`,
           );
-      for (const path of claudeFiles) await this.ownLines(path, ['@AGENTS.md']);
+      for (const path of hasAgents ? claudeFiles : []) {
+        const required = `@${relative(dirname(path), 'AGENTS.md').split(sep).join('/')}`;
+        const wrong = lines(await this.get(path)).filter(
+          (line) => /^@(?:\.\.?\/)*AGENTS\.md$/.test(normal(line)) && normal(line) !== required,
+        );
+        if (wrong.length) {
+          for (const line of wrong)
+            this.warn(
+              `${path}: ${line}; the owner must review this import and the required ${required}; setup preserves the file`,
+            );
+        } else await this.ownLines(path, [required]);
+      }
     }
-    for (const path of ['docs/adr/README.md', 'docs/adr/template.md'])
-      if (!(await this.there(path))) this.files.set(path, { contents: await readFile(join(plugin, path), 'utf8') });
-    if (!(await this.there('docs/lessons/INDEX.md')))
-      this.files.set('docs/lessons/INDEX.md', {
-        contents: '# Lessons\n\n| Lesson | Tags | Date | Summary |\n|---|---|---|---|\n',
-      });
+    await this.reportOldWiring(agentsPath);
     this.owned.files.push(wiring);
     const entries = Object.fromEntries(
       Object.entries(this.owned.entries).map(([file, items]) => [
@@ -665,16 +709,25 @@ class Setup {
     this.files.set(wiring, { contents: `${JSON.stringify(sortedKeys(record), null, 2)}\n` });
   }
   async writeTree(): Promise<void> {
+    for (const path of this.files.keys()) await this.checkDestination(path);
     for (const [path, file] of this.files) {
-      const absolute = join(this.cwd, path);
-      if (!(await this.there(path)) || (await this.getUnplanned(path)) !== file.contents) {
-        await mkdir(dirname(absolute), { recursive: true });
-        await writeFile(absolute, file.contents);
-        if (path === configFile) this.config = this.read(this.cwd);
+      try {
+        const absolute = join(this.cwd, path);
+        if (!(await this.there(path)) || (await this.getUnplanned(path)) !== file.contents) {
+          await this.checkDestination(path);
+          await mkdir(dirname(absolute), { recursive: true });
+          await writeFile(absolute, file.contents);
+          if (path === configFile) this.config = this.read(this.cwd);
+        }
+      } catch (error) {
+        fail(
+          `cannot write ${path}: ${error instanceof Error ? error.message : String(error)}; review the partial product diff before retrying`,
+        );
       }
     }
   }
   async getUnplanned(path: string): Promise<string> {
+    await this.checkDestination(path);
     return readFile(join(this.cwd, path), 'utf8');
   }
   async makeLabels(): Promise<void> {

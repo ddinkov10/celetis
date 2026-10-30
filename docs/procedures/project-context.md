@@ -10,5 +10,9 @@ Read, in the checkout of the lane:
 - `docs/lessons/INDEX.md` — scan it for lessons matching this change; read each match in full.
 - `docs/adr/` — the architectural decisions that bear on the change; factor them in.
 
+A confirmed missing ADR store or lesson catalog means no recorded decisions or lessons. Create no
+store paths during grounding. Access failures and format failures in an existing store are errors:
+report the path and cause instead of treating the store as empty.
+
 Surface the traps of those subsystems as constraints on the change early, so that the change
 cannot violate them; a spec, a plan, or a report that the step writes carries them.

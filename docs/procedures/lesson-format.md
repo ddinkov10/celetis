@@ -4,6 +4,29 @@ The format of a lesson file in `docs/lessons/` and of its catalog row in `docs/l
 `lesson` writes each lesson in it, and `lesson-review` makes each draft conform to it before a
 promotion. Do not rename, reorder, or invent keys or sections.
 
+## The store
+
+Only a confirmed missing `docs/lessons/INDEX.md` or `docs/lessons/_pending/QUEUE.md` is empty.
+Access failures and format failures are errors: report the path and cause, then stop before
+writing. Validate an existing catalog's table and linked lessons against this format; preserve
+its introduction and existing rows. Cross-check an existing queue with its pending drafts.
+Report inconsistent rows or files as errors instead of accepting partial state.
+
+Create directories only for the lesson being saved. Before writing, check that the destination
+and its parent paths are in the project and are not symlinks. Recheck duplicates on a retry;
+retain an existing lesson and its single row instead of adding a second file or row.
+
+Interactive capture and approved promotion create the live catalog only when saving the first
+live lesson. Automatic capture creates only pending data. Create the catalog header once, with
+these exact bytes, then append the lesson's row:
+
+```markdown
+# Lessons
+
+| Lesson | Tags | Date | Summary |
+|---|---|---|---|
+```
+
 ## The frontmatter
 
 These keys, in this order; omit an optional key entirely rather than leaving it blank:

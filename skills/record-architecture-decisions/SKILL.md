@@ -14,17 +14,26 @@ engine or scheme choice) — the things code cannot express. A lane-type verdict
 belong here. This is harness-level memory; it is not a mechanical learning-loop that
 auto-promotes facts from runs.
 
+## Guidance and store
+
+Before a read or write, read `<plugin>/docs/adr/README.md` and
+`<plugin>/docs/adr/template.md`. Honor product ADR policy in `AGENTS.md` or the document it names.
+Preserve existing product `docs/adr/README.md` and `docs/adr/template.md` without rewriting or
+deleting them.
+
+A confirmed missing `docs/adr/` means no records. A read creates no store. Validate existing ADR
+records against the record format in the plugin template and the product policy. An access
+failure or a malformed record is an error: report its path and cause, then stop before writing.
+
 ## Read
 
 When classifying an issue — at triage or inside a lane — search the ADR store for
 decisions that bear on the verdict:
 
-1. List the store: `ls docs/adr/`.
-2. Read `docs/adr/README.md` if you have not already.
-3. Grep for relevant terms: `grep -ril "<term>" docs/adr/`.
-4. Read each matching ADR's `Decision` and `Reconsider when`. A decision whose premise just became
+1. If the store exists, list its records and search for relevant terms.
+2. Read each matching ADR's `Decision` and `Reconsider when`. A decision whose premise just became
    false (per `Reconsider when`) must not be inherited — re-evaluate and flag it.
-5. State in your handoff which ADRs you consulted and how each affected the verdict.
+3. State in your handoff which ADRs you consulted and how each affected the verdict.
 
 ## Write
 
@@ -40,7 +49,10 @@ makes obvious are not ADRs.
 
 When all three hold:
 
-1. Read `docs/adr/README.md` and `docs/adr/template.md`.
-2. Copy `template.md` to `docs/adr/NNNN-short-title.md` (the next number after the highest in the store) and fill every section.
+1. Check whether the decision is already recorded. Reuse that record instead of creating a duplicate.
+2. Create `docs/adr/` only when writing the record. Use `0001` with no existing records; otherwise
+   use the next number after the highest existing record number. Copy the plugin template to
+   `docs/adr/NNNN-short-title.md` and fill every section. Before writing, check that the destination
+   and its parent paths are in the project and are not symlinks.
 3. If replacing a prior decision, set `Supersedes: <old-title>`; never rewrite a landed ADR.
 4. Commit the landed ADR with the subject `docs(adr): <topic>`; no commit when no ADR landed.

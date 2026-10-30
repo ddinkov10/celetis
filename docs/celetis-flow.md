@@ -938,6 +938,105 @@ null ID cannot be used for exact runner resume.
 
 ## Acceptance status
 
+**Reduced setup ownership (#106), built; Codex acceptance complete, Claude checks waived.** The implementation ends
+at `9793800497798e93682599f9363ef502543f3325`. On 2026-10-29–30, all four tasks and the final
+whole-branch source review completed with no findings. Each task gate and the gate after final
+review ended with `verify: PASS`. The checks used Bun 1.4.4 with
+`--no-env-file --no-install --config=/dev/null --no-macros`, Codex CLI 0.165.0, and Claude Code
+2.1.312. The build generated the runner instruction in `engine/hooks/entry.js`; its byte check
+passed. Source assertions passed 21/21 after an observed RED run.
+
+On 2026-10-30, the maintainer explicitly permitted continuing without Claude tests for #106.
+Fresh Codex checks used the clean checkout at `9df8dd42ac6768edbd86b4130987c425d1b3dfb3`,
+Codex CLI 0.166.0, Bun 1.4.4, and the existing installation and authentication. Claude checks
+remain incomplete. This waiver records no Claude PASS or host parity.
+
+The final Verify results are:
+
+| Scenario | Result and evidence |
+| --- | --- |
+| V1, fresh setup and stable re-entry | PASS. The 55-case output/ownership matrix and 14 extra boundary cases check selected hosts, both landing modes, product bytes, imports, approved additions, and stable repeats. |
+| V2, conflicts, evidence, labels, and staging | PASS. The matrix, 13 preflight/label cases, and local-origin push check preserve conflicts and exclude dirty obsolete files. The exact seven-path synthetic cleanup diff and manifest pass; product board settings and an existing ADR stay unchanged. No product cleanup ran. |
+| V3, unsafe paths and recovery | PASS. The 34 entry-safety cases and 19 module-fault cases check preflight, real OS denials, injected I/O, partial bytes, interruption, record ordering, and reviewed recovery. Their evidence stays separate. |
+| V4, test lane and existing lane | PASS. Eight real-worktree/push regressions check detached plumbing commits, hook and marker sentinels, main configuration, failure recovery, and bounded removal. |
+| V5, native stores and grounding | PASS on Codex. Eighteen scenarios and 23 native runs check first records, numbering, exact catalog headers, approved promotion, pending-only capture, duplicates, product policy, existing stores, grounding, malformed and unreadable stores, interrupted states, and symlink paths. File snapshots and native reads confirm the results. Claude remains unrun under the waiver. |
+| V6, native restrictions and imports | PASS on Codex. Twenty argument-boundary checks pass. Direct guarded native sessions load both product markers and reject the merge call before either fake sentinel runs. A no-rule control executes its fake sentinel. Generated files add no shared entrypoint allow. Claude loading and imports remain unrun under the waiver. |
+| V7, native product-specific lane | PASS on Codex. A fresh plan step uses a fake issue and local origin. Entry and custom text precede its first response; the runner rule is read, only `custom.plan` runs, the fake plan is published, and both checkouts remain clean. No implementation or runner starts. Claude remains unrun under the waiver. |
+| V8, effective confirmed-update policy | PASS for the Codex Celetis session pin. Native configuration selects the installed local source over active project and user Git sources. Native discovery reports 29 enabled Celetis skills from that installed root. No update runs. Claude effective-policy checks remain incomplete under the waiver. |
+
+Claude's native request failed with `usage_limit_reached` (429):
+`You've hit your weekly limit · resets Oct 31 at 9pm (Europe/Sofia)`. Further Claude model calls
+were not made. Earlier Codex 0.165.0 probes persisted nine temporary project-trust entries.
+Only those entries were removed, with all other configuration bytes preserved. Those earlier
+native runs grant no V5–V8 PASS.
+
+A fresh 0.166.0 startup preflight also wrote one test trust entry before any model turn. Its
+removal restored the exact pre-probe configuration hash. Passing V5 and V7 runs start in the
+trusted main checkout and select the disposable directory per turn. That form is excluded from
+V6: its no-rule control still inherits the main checkout's deny. Passing V6 runs start directly
+in each disposable project with an additional OS guard against writes to user configuration.
+Their successful no-rule sentinel control separates actual rule enforcement from that inherited
+deny. Startup still warns about disabled project configuration in untrusted standalone data;
+the recorded native calls and control establish the observed execution-policy effect.
+
+V8 uses a detached temporary worktree, which inherits the main checkout's existing trust.
+Native layer metadata confirms that its conflicting project source is active. The local session
+pin wins over both that source and the active user Git source. The temporary worktree was
+removed after its input and native evidence were saved. This result covers the Celetis session
+pin, not arbitrary unpinned Codex sessions. Each passing run preserves the user configuration
+bytes, `on-request` approval, the `auto_review` reviewer, and the `workspace-write` sandbox.
+
+All harnesses, fixtures, raw native events, partial observations, and cleanup evidence remain
+outside the checkout under `/private/tmp/celetis-106-ZyRHuv/`. The fresh continuation evidence
+is under `/private/tmp/celetis-106-assist-lhjQjA/`, including target identity, exact commands,
+native events, file snapshots, independent oracles, controls, and configuration recovery.
+Native denials come from saved tool calls and results. No tracked test or fixture was added.
+No real installation update, merge probe, or product cleanup ran. The maintainer later cleared
+the runtime hold. The renewal below covers re-entry after the merge; #106 records the final
+landing commit and its separate CI result.
+
+**Re-entry after merging trunk (#106), renewed Codex acceptance.** On 2026-10-30, clean merge
+commit `4de23b2dd7cff701636c4ae892648d49f5b14e71` included trunk
+`f90d2ec135ed6d26a5c4fe9bda420b5c2c9a8e4f`. The repair retained both sides' acceptance reports
+and renumbered the unlanded setup record to ADR-0052. The shared entry, plan, and step text
+changed, so their earlier native observations were renewed rather than treated as current.
+
+V1–V4 pass again: 55 matrix cases, 14 extra boundaries, 13 preflight/label cases, 34 filesystem
+cases, 19 injected faults, eight worktree/push regressions, and one project-policy scope case.
+These checks use the absolute checkout entry with disposable repositories and local origins.
+The earlier reviewed cleanup sample remains unchanged; no product cleanup ran.
+
+V5 passes all 18 independent file/transcript oracles across 23 native Codex runs. V6 passes
+20 policy-file boundaries, both direct guarded denial targets, and the successful no-rule
+sentinel control. V7 passes the fresh product-specific plan probe with entry/custom text before
+response, fake issue publication, and two clean checkouts. V8 again selects the installed local
+Celetis session source over active project and user Git sources and discovers its 29 enabled
+skills. Its scope remains the Celetis session pin, not arbitrary unpinned Codex sessions.
+
+The host remains Codex CLI 0.166.0 with the executable digest recorded above. The probes use
+Bun 1.4.4, existing authentication, `on-request` approval, the `auto_review` reviewer, and the
+`workspace-write` sandbox. Every fresh native target adds an OS guard against user-configuration
+writes. Every passing run and the final audit preserve configuration SHA-256
+`4957ec04d5d2c0fe84dcd2e8f80812e0ce01fa8fd58b236c31937e0b0173a091`.
+
+Fresh source identities, input digests, exact commands, native events, snapshots, oracles, and
+program digests remain under `/private/tmp/celetis-106-reentry-JU60Oo/`. The policy oracle first
+rejected harmless spacing in a saved tool call; its corrected matcher accepts the same native
+events without changing the denial or control requirements. The serial store coordinator
+finished its active native target, then stopped before a new host start with code 75. Three
+workers completed the remaining fixtures with separate reports and one final aggregation.
+The paused coordinator record remains separate from the 23 completed native runs.
+
+Claude V5–V7 remain BLOCKED after the preserved explicit weekly-limit refusal from Claude Code
+2.1.312. Claude V8 remains UNVERIFIED: the earlier native metadata did not establish the effective
+policy value. The command, session, native output, and exact reset diagnostic remain in
+`/private/tmp/celetis-106-ZyRHuv/V5-claude-ground/`; `claude-usage-limit.json` in the renewal
+directory records the reference. No fresh Claude model call was made. The maintainer's explicit
+instruction on #106 permits continuing without these incomplete Claude checks, including the
+unresolved policy observation. The gate, review, and workflow prerequisites still apply. No
+Claude PASS or host parity is claimed. The final audit confirms that all tested source inputs
+remain unchanged by this reference-only acceptance update.
+
 **Explicit host usage limits (#172), decision-probe acceptance.** On 2026-10-30, the dirty lane
 snapshot based on `cebd8f7d61e0865f2d8f7d61eff7c10f7ebaa6fa` passed 33 fixture decisions on
 codex-cli 0.166.0. Five fresh read-only `exec` sessions loaded the six complete candidate

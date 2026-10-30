@@ -14,6 +14,8 @@ It is interactive — ask the reviewer per draft; never run it in an autonomous 
 
 ## Step 1: List the queue
 
+Read `<plugin>/docs/procedures/lesson-format.md` and apply its store rules for this review.
+
 Glob `docs/lessons/_pending/*.md`, EXCLUDING `QUEUE.md` and anything under
 `_pending/_rejected/`. Cross-check against `docs/lessons/_pending/QUEUE.md`.
 
@@ -25,7 +27,7 @@ Glob `docs/lessons/_pending/*.md`, EXCLUDING `QUEUE.md` and anything under
 For each draft, read it in full and present slug, frontmatter, and body. Then ask with an
 interactive question — options: **Approve**, **Edit & approve**, **Reject**, **Skip**.
 
-Before asking, run the duplicate check: read `docs/lessons/INDEX.md` and scan for an
+Before asking, run the duplicate check: read `docs/lessons/INDEX.md` when present and scan for an
 existing live lesson covering the same model. Note if the draft's body says "merge into existing
 `[[{slug}]]`" — that means it is an UPDATE, not a new lesson.
 
@@ -38,10 +40,11 @@ for the human decision; this rule grants no permission to change another project
 Two cases:
 
 - **New lesson** (no live duplicate):
-  1. Read `<plugin>/docs/procedures/lesson-format.md` once, on the first promotion, and reuse it for later drafts. Fix each part of the draft that does not conform to it: the frontmatter keys, the body headings, and the tags.
+  1. Fix each part of the draft that does not conform to the lesson format: the frontmatter keys, the body headings, and the tags.
   2. Set `status: active`, remove the `source:` key (keep `date:` as today's date).
   3. `mv docs/lessons/_pending/{slug}.md docs/lessons/{slug}.md`.
-  4. Add its catalog row to `docs/lessons/INDEX.md`.
+  4. Create a missing catalog with the header in the lesson format, then add its catalog row
+     once. Keep an existing catalog and its other rows.
   5. Remove the draft's row from `docs/lessons/_pending/QUEUE.md`.
 - **Update to an existing live lesson** (duplicate found / `-update-` draft): do NOT add a new catalog row. Merge the draft into the live `{slug}.md` — append the new attempt(s), bump `recurrences`, refresh `date`, and note the repeat means the lesson has not become a mechanism. Then `rm` the pending draft and remove its `QUEUE.md` row.
 

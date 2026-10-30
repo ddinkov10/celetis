@@ -19,8 +19,14 @@ Do not create one for:
 
 ## How to write one
 
-1. Read `template.md`.
-2. Copy it to `NNNN-short-title.md`, the next number after the highest in the store.
+The generic guidance and [template](template.md) are read from the plugin. Product ADR policy
+belongs in the product's `AGENTS.md` or the document it names. Existing product README and template
+files remain product content.
+
+1. Read the plugin template and the product ADR policy.
+2. Create `docs/adr/` when writing the first record. Copy the plugin template to
+   `docs/adr/NNNN-short-title.md`: `0001` for an empty store, otherwise the next number after the
+   highest existing record number.
 3. Fill every section. Omit `Supersedes` when no decision is being replaced.
 4. Use the `celetis:record-architecture-decisions` skill to review and land the record.
 

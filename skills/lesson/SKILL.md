@@ -21,7 +21,7 @@ Record a lesson from a correction, mistake, or incident so it is not repeated.
 A lesson captured by an automatic / non-interactive process must NOT land in the live catalog
 directly. Decide the path by who triggered the capture:
 
-- **Automatic capture** — invoked inside any autonomous or pipeline flow. Write the draft to `docs/lessons/_pending/{slug}.md` with `status: pending-review`, plus `source:` and `date:` frontmatter. Do NOT add an `INDEX.md` row and do NOT write under `docs/lessons/` directly. Append a row to `docs/lessons/_pending/QUEUE.md` (create it if absent). `_pending/` is gitignored, so the draft is never recalled until promoted.
+- **Automatic capture** — invoked inside any autonomous or pipeline flow. Write only pending data: the draft at `docs/lessons/_pending/{slug}.md` with `status: pending-review`, plus `source:` and `date:` frontmatter, and its row in `docs/lessons/_pending/QUEUE.md`. Create the pending directory and queue on first capture. Do not create the live catalog or add an `INDEX.md` row. `_pending/` is gitignored, so the draft is never recalled until promoted.
 - **Interactive capture** — a human typed `/celetis:lesson` (they are the reviewer). Write directly to `docs/lessons/{slug}.md` + an `INDEX.md` row.
 
 ## Process
@@ -32,7 +32,8 @@ If the invocation input is empty, analyze the conversation for: the mistake, the
 
 ### Step 2: Check for duplicates
 
-Read `docs/lessons/INDEX.md` (and `docs/lessons/_pending/QUEUE.md`). Scan Tags and Summary for:
+Read `<plugin>/docs/procedures/lesson-format.md` and apply its store rules. Read
+`docs/lessons/INDEX.md` and `docs/lessons/_pending/QUEUE.md` when present. Scan Tags and Summary for:
 - **Duplicate** — update the existing lesson instead of adding a new file; bump the `recurrences` key and note the lesson has not become a mechanism.
 - **Related** — merge, or cross-link with `[[slug]]` references.
 
@@ -42,11 +43,12 @@ Automatic capture keeps its draft and proposed mechanism in the pending queue.
 
 ### Step 3: Write the lesson file
 
-Read `<plugin>/docs/procedures/lesson-format.md`, and follow it: the frontmatter keys, the body headings, the catalog row, and the Tag Vocabulary.
+Use the lesson format: the frontmatter keys, the body headings, the catalog row, and the Tag Vocabulary.
 
 **3a.** Create `docs/lessons/{slug}.md` (or `_pending/{slug}.md` for automatic capture). The slug is a short kebab-case description of the model or problem, not an incident ID. Write its frontmatter and its body in the lesson format.
 
-**3b.** For interactive capture, add its catalog row to `INDEX.md`.
+**3b.** For interactive capture, create a missing catalog with the header in the lesson format,
+then add its catalog row once. Keep an existing catalog and its other rows.
 
 ### Step 4: Cross-reference
 

@@ -237,9 +237,12 @@ The [plugin configuration documentation](https://developers.openai.com/plugins/b
 describes project trust and enablement. Install each host's plugins separately. A Claude install
 does not provide the Codex installation.
 
-The three parts above stay by hand on each machine. The next parts are the files and labels of one
-product project. `/celetis:setup` writes them in its main checkout (ADR-0017), and each section
-below shows the current form that it writes. Where a part stays by hand, its section says so.
+The three parts above stay by hand on each machine. `/celetis:setup` writes required integration
+and approved product additions in the main checkout of one product project
+([ADR-0052](docs/adr/0052-setup-owns-required-configuration-and-host-wiring.md)). Its required set
+is the selected host settings, instruction imports, the dedicated Codex restriction, required
+configuration, ignore and attribute lines, and its record. It also makes missing tracker labels.
+Product procedures and stores stay with their owner.
 
 - The session asks for the issue tracker, the hosts (Claude, Codex, or both), and the landing. With
   `merge`, it also asks for the suite: a TypeScript file that `land` runs.
@@ -261,24 +264,26 @@ below shows the current form that it writes. Where a part stays by hand, its sec
   when `AGENTS.md` states no baseline rule. A proposed script that fails its test goes back to
   the proposal, not to the write. Setup installs no tool and changes no hook: the report names
   each missing tool and each hook that skips its checks in the test lane (ADR-0018).
-- Setup writes the part of a host only when you choose that host: `.claude/settings.json` and the
-  line `@AGENTS.md` for Claude, and `.codex/rules/celetis.rules` for Codex.
-- New setup owns `.codex/rules/celetis.rules`. It writes no launcher or machine path allow.
-  Setup preserves an existing `scripts/celetis` file and its ownership record. When that file or
-  its ownership entry is present, setup also preserves an existing Codex rules file. An owned
-  `enabledPlugins.celetis@celetis` entry in `.claude/settings.json` and its ownership record stay
-  intact. The owner of the active project reviews existing files, related permissions,
-  attributes, instructions, and ownership entries against the current wiring below and approves
-  each change or removal. Setup performs no migration. In a file that the product also uses,
-  setup adds each missing entry, and it changes or removes no entry that is there.
+- Setup writes the part of a host only when you choose that host: required entries in
+  `.claude/settings.json` and imports from existing Claude instruction files, or the dedicated
+  `.codex/rules/celetis.rules`. It imports product instructions only when they exist or an approved
+  baseline creates them. See [`AGENTS.md`](#agentsmd) for both relative import forms.
+- Setup writes no launcher, shared entrypoint allow, project `celetis@celetis` enablement,
+  generic flow section, ADR starter, or empty lesson catalog. It preserves differing Codex rules,
+  copied launchers, old project enablement, and historical ownership claims. It reports old
+  wiring for [owner review](#review-old-wiring); it performs no cleanup or migration. In shared
+  files it adds missing required entries. The one replacement is an unchanged, recorded canonical
+  Celetis marketplace entry, whose `autoUpdate` becomes false. A differing or unowned existing
+  marketplace entry stays unchanged and can leave an unresolved policy warning.
 - In `.celetis.yaml`, setup owns three entries: `host` (the default host, or the one host),
   `landing`, and `suite` (with `merge` only). It makes the file when there is none. In a valid file,
-  it adds a missing `host` as a
-  line at the end, and it keeps each byte of the product. When an entry is there with a value
+  it appends each missing required entry and keeps each byte of the product. When an entry has a value
   other than your answer, setup keeps that value and prints a warning. Change that field by hand
   when your answer is the intended value.
 - Setup records each file and each entry that it owns in `.claude/celetis-flow/wiring.json`, so
-  that a later run can tell them from the entries of the product.
+  that a later run can tell them from the entries of the product. The schema stays 1. The record
+  preserves the union of historical claims, including obsolete claims. A claim alone permits no
+  replacement or removal of current content. Repeated committed runs preserve its bytes.
 - The write adds only the parts that you approved: the script as `worktreeSetup`, the ignore
   lines, and the baseline section. These three parts are product parts: setup writes each one
   only when it is missing, and the record does not list it.
@@ -292,7 +297,8 @@ below shows the current form that it writes. Where a part stays by hand, its sec
 
 ### Claude permissions: `.claude/settings.json`
 
-The file holds the marketplace, the Superpowers plugin, and the permission rules:
+Setup adds the marketplace, Superpowers enablement, and the direct-merge denies. It adds no shared
+allow and no project Celetis enablement:
 
 ```json
 {
@@ -317,9 +323,15 @@ person. An `issue` allow is optional, and it has a risk.
 [Personal landing permission](#personal-landing-permission) gives the rules, the risk of the
 `issue` allow, and their lifetime across an update.
 
+The command checks only the planned project settings. The generated `autoUpdate: false` value
+does not prove that a native session loaded it or that a stronger policy disables automatic
+updates. Review each enabled or unknown policy warning and set the effective Celetis policy to
+false by hand. Setup preserves unrelated JSON values; its serializer can change formatting,
+including compact JSON, line endings, and the final newline. The setup report shows that diff.
+
 ### Codex permissions: `.codex/rules/celetis.rules`
 
-Setup saves these rules in the trusted project's `.codex/rules/` directory:
+Setup creates this file when it is absent and adopts an identical file without rewriting it:
 
 ```starlark
 prefix_rule(
@@ -333,6 +345,11 @@ This shared rule forbids direct merge. The personal rule of `land`, and the opti
 `issue`, name the program, the host, and their sub-command ("Personal landing permission").
 Codex matches literal prefixes. A policy-file check does not prove that an active session loaded
 the rule. Keep the host sandbox and approval settings.
+
+A differing file stays unchanged, even when the old record lists it. Setup reports the required
+direct-merge restriction and obsolete allows for [owner review](#review-old-wiring). That warning
+can accompany `setup: no file changed` and establishes no loaded-policy result. Project rule
+loading also needs the native host's project trust.
 
 ### Personal landing permission
 
@@ -534,50 +551,40 @@ The plugin names a role, and the `AGENTS.md` of the project names the thing. It 
 | **The design document and the look decision,** in a project with a UI: the document that holds the design rules, the kind of the product and each difference from its default row in `docs/procedures/ui.md`, and how a session starts the product with live data for the variants. A look decision is each change to what a person sees on screen or to how the screen behaves | `prototype` (`docs/procedures/ui.md`), which `specify` and `bug` follow; the two items "Prototype" of `docs/issue-tracker.md`, in "What lives on the issue" and in "Branches, PRs, merge" |
 | **The installed version of a dependency:** how a session reads it, and the documents that an installed package ships | `docs/procedures/docs-lookup.md`, which `specify`, `plan`, `bug`, `hotfix`, and `chore` cite |
 | **The lesson tags:** the tags of the project, for example the names of its subsystems and technologies, that a lesson can carry beside the controlled list of the plugin. A new tag goes here in the same change as its lesson | `lesson` and `lesson-review` (`docs/procedures/lesson-format.md`, "The Tag Vocabulary") |
-| **The celetis flow of the project:** what a session must know of the lanes there, for example that the lanes are the plugin `celetis`, the landing mechanism, a landing rule that both `implement` and `chore` follow, and the acts that only the maintainer does. It also holds two rules of the harness, "A lane never skips a step." and "The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.", because a session reads `AGENTS.md` at its start and reads a document of the plugin only when a skill cites it | Each session, also a step session |
+| **The product flow:** project-specific landing rules, deployment facts, and acts that only the maintainer does, when more than one step needs them | Each session, also a step session |
 
-Setup writes the celetis flow part as the section `## Celetis flow`, with these four lines.
-`<owner>/<repo>` is the repository on GitHub:
-
-```markdown
-## Celetis flow
-
-- The lanes are the skills of the plugin `celetis`, on the issues of `<owner>/<repo>`.
-- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `celetis --agent <host> land`.
-- A lane never skips a step.
-- The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.
-```
-
-Setup adds each missing line at the end of the section. With no section, it adds the section at
-the end of the file, and with no `AGENTS.md`, it makes the file. A line of the section counts when
-its text after the list mark is the same, also with `*` or with no list mark, and setup then adds
-no second copy. A bullet that wraps over two lines has no match, and setup adds the one-line form
-beside it. A line in a fenced code block is no heading and no line of the section. The rest of
-`AGENTS.md` stays by hand: the other rows of the table, and the acts of the celetis flow that only
-the maintainer does.
+Setup creates no generic flow section. Product instructions stay by hand, except for an approved
+baseline section. With no product instructions and no approved baseline, setup creates no
+`AGENTS.md`. The entry contract holds the runner-start rule. Lane handoffs and the workflow
+resolver enforce the sequence; the landing procedure and engine enforce landing. These generic
+rules need no generated copy in product instructions.
 
 The plugin has no role for the deployment of a project. It is a product fact, so it also goes into
 `AGENTS.md` when more than one step needs it: a lane ends when the change is on the trunk.
 
-Claude Code reads `AGENTS.md` at the start of a session only when the project and each folder above
-it have no `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md`. A project that keeps a
-`CLAUDE.md` imports the file from it, with the line `@AGENTS.md` (the documents of Claude Code,
-`https://code.claude.com/docs/en/memory`, read on 2026-10-13 for Claude Code 2.1.296). With Claude
-as a chosen host, setup adds that line to `CLAUDE.md` and to `.claude/CLAUDE.md`, each one only
-when it is there. It leaves a file that is a symbolic link alone, for example a `CLAUDE.md` that
-links to `AGENTS.md`, and it warns when the link leads to another file. When `AGENTS.md` links to
-one of the two files, setup writes the section into that file and adds no `@AGENTS.md` line.
+With Claude selected and product `AGENTS.md` present, setup adds the correct relative import to
+each existing regular Claude instruction file: `@AGENTS.md` in root `CLAUDE.md`, and
+`@../AGENTS.md` in `.claude/CLAUDE.md`. Imports resolve from the containing file
+([Claude Code memory documentation](https://code.claude.com/docs/en/memory), latest documentation
+read on 2026-10-29). Setup creates no Claude instruction file just for an import. A wrong existing
+import stays unchanged and gets an exact manual action. Generated imports do not prove native
+loading.
+
+Setup preserves supported instruction links without a write through a link. A Claude instruction
+file that links to `AGENTS.md` needs no import. When `AGENTS.md` links to a regular root or nested
+Claude instruction file, an approved baseline goes into that real in-project file. Setup adds no
+self-import. An unrelated instruction link stays unchanged and gets an owner-review warning.
 
 ### The stores
 
-Setup makes each of the three files below when it is missing, and it changes no file that is
-there. Its record does not list them: they are files of the product.
+Setup creates no store, starter README, template, or empty catalog. Store writers create only the
+paths that their first record needs:
 
-- `docs/adr/`, with a `README.md` and a `template.md`: the skill `record-architecture-decisions`
-  reads the two files and writes each record as `NNNN-short-title.md`, and the lanes read the
-  records. Setup copies `docs/adr/README.md` and `docs/adr/template.md` of the plugin.
-- `docs/lessons/INDEX.md`: the catalog of the lessons, with one table row for each lesson. The
-  lanes scan it, and the skill `lesson` adds a row to it. A new catalog has this head:
+- `record-architecture-decisions` reads generic guidance and the template from the plugin, plus
+  product policy named by `AGENTS.md`. It creates `docs/adr/` with the first numbered record.
+  Existing product ADR guidance and templates remain product content.
+- A live `lesson` or an approved promotion by `lesson-review` creates `docs/lessons/` and its
+  catalog when needed. The catalog has one row for each live lesson. A new catalog has this head:
 
   ```markdown
   # Lessons
@@ -585,6 +592,64 @@ there. Its record does not list them: they are files of the product.
   | Lesson | Tags | Date | Summary |
   |---|---|---|---|
   ```
+
+- Automatic capture creates only its pending record in `docs/lessons/_pending/`; it creates no
+  live catalog. Grounding treats absent stores as no records and makes no bootstrap write.
+
+An existing unreadable or malformed store is an error. Its failed read is not an absent store.
+Existing records, catalogs, guidance, and templates stay unchanged unless the relevant writer or
+owner explicitly changes them.
+
+### Review old wiring
+
+Setup reports old wiring but preserves its content and historical ownership. Review only the
+active product checkout. Installation and update remain separate explicit operations.
+
+1. Read `.claude/celetis-flow/wiring.json` and inspect the current file for every reported entry.
+   For each proposed removal, show the old record, the actual diff, and the remaining callers.
+   A historical claim records earlier intent; it gives no authority over current content. Missing
+   or ambiguous evidence authorizes no deletion.
+2. Review these candidates against the required forms above:
+
+   - Copied `scripts/celetis` launchers and every caller in scripts, CI, instructions, permissions,
+     and board configuration. Move an approved caller to the installed `celetis` program before
+     removing the launcher. Keep product additions until their owner has reviewed them.
+   - Old `permissions.allow` entries for `scripts/celetis`, `./scripts/celetis`, or broad `celetis`
+     calls in `.claude/settings.json`, and obsolete entrypoint allows in
+     `.codex/rules/celetis.rules`. Keep the direct-merge restriction. Personal `land` and optional
+     `issue` rules stay explicit and local.
+   - The old `.gitattributes` line `scripts/celetis text eol=lf`. Keep
+     `.celetis.yaml text eol=lf` and unrelated attributes.
+   - Project `enabledPlugins.celetis@celetis` in `.claude/settings.json`. The supported Celetis
+     installation is user-scoped. Keep Superpowers and other plugins, the required marketplace,
+     and product settings. Review effective automatic-update policy separately.
+   - Old generic board commands, including `scripts/celetis board` and its `./` form, in launch
+     files or scripts. Keep product-specific board configuration, port choices, and local desktop
+     entries. The terminal command remains `celetis --agent <host> board`.
+   - The exact generic flow lines below. Read the repository identity from the recorded flow line,
+     not from a current answer alone, and compare the current content. A matching phrase alone is
+     insufficient evidence of ownership.
+
+     ```markdown
+     ## Celetis flow
+
+     - The lanes are the skills of the plugin `celetis`, on the issues of `<owner>/<repo>`.
+     - `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `celetis --agent <host> land`.
+     - A lane never skips a step.
+     - The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.
+     ```
+
+3. The owner approves each exact removal and caller change. Remove only those reviewed entries
+   and their obsolete ownership claims in the same product change. Keep product-specific flow
+   instructions and every unreviewed entry. Remove an empty generic heading only when its whole
+   section was reviewed. Existing generic ADR files stay unless their owner reviews them
+   independently. Commit and review the complete diff together; run setup again only after the
+   product tree meets its preflight requirements.
+
+There is no cleanup command or automated rewrite. The optional local desktop configuration below
+stays local product content. A `setup: no file changed` line describes only the diff. With any
+unresolved wiring or policy warning, it establishes neither current wiring nor native policy
+loading. Keep the exact warning and its manual action in the setup report.
 
 ### Optional: the board in Claude desktop
 
@@ -619,10 +684,13 @@ of `origin`, so a file that is not there is in no lane worktree: `.celetis.yaml`
 including a custom part and the worktree setup. A file that git does not track also makes the main
 checkout dirty, and the resolver then stops each issue.
 
-Setup stops before any write when the index holds a staged change, or when a path that setup can
-write for either host has an uncommitted change. This includes each store file, also one that
-setup makes only when it is missing. So the commit of setup holds only its own changes. At the end,
-setup asks one question: commit and push to the trunk of `origin`?
+Setup stops before any write when the index holds a staged change, or when a current setup path
+has an uncommitted change. Obsolete launchers and starter documents are outside the setup commit
+set. Setup commits only its current eligible changed paths. An old ownership claim adds no path
+to that set. After a failed write, the report shows the failing path, `git status --short`, the
+diff of each changed setup path, and every new setup file in full. Partial writes stay for review;
+setup claims no success and makes no automatic push. After a successful write, setup asks one
+question: commit and push to the trunk of `origin`?
 
 - On a yes, setup commits the files that it changed, with the subject
   `chore(celetis): wire the project for the celetis lanes`, and it pushes the trunk. The push also

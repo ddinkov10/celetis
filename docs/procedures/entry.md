@@ -70,6 +70,7 @@ completion criterion of a skill.
   own checkout and its own custom text: a same-session handoff and an invocation in a child agent
   too. Keep the invocation input across a handoff. A missing required Superpowers skill stops the
   work.
+- **The runner.** The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.
 - **Modules.** Read a module of `<plugin>/docs/procedures/<name>.md` whole, in one read, when a step names
   it, not before.
 - **Custom text.** The custom text of the entry is an addition to this skill, for this invocation
