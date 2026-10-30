@@ -414,8 +414,11 @@ again. A `## Stopped` or `## Before landing` comment names the act. For a refuse
 `/celetis:implement` or `/celetis:chore`, fix a cause outside the change (for example, run the
 failed job again, or land a chore that removes the advisory of a dependency): the next run of the
 step fixes a cause that the change made, lands the change, and does not build it again. For a Verify
-scenario, the act is a run of the scenario. After a PASS and the removal of the label, the next run
-of `/celetis:implement` lands the built change. A comment that names an act of "During the build",
+scenario, the act is a run of the scenario with the source and running-target proof defined in
+[Runtime verification](procedures/runtime-verification.md), "Reports and deferred checks".
+The next `/celetis:implement` run checks that evidence and its lifetime before it can land the
+built change. Label removal clears a workflow hold; it supplies no runtime proof. Missing or
+invalidated proof preserves the built change and restores the hold. A comment that names an act of "During the build",
 or a comment with no marker of its kind, also needs a `## Human steps done` report of the act.
 After a FAIL, keep the label: put the result on the issue, run
 `/celetis:plan #<n>` in a session of your own, and remove the label when the new plan is on the
@@ -929,6 +932,29 @@ not suppress that final error. These failures write no false no-progress row. A 
 null ID cannot be used for exact runner resume.
 
 ## Acceptance status
+
+**Running-build evidence (#169), partial acceptance.** On 2026-10-30, clean lane revision
+`79d4d3120b521da4bb76c581764033e8d15f834a` passed the task gate and the gate after the
+whole-branch source review. The review found no defects. The direct checkout invocation of
+`celetis --agent codex capscore 0 0 0 0 0 0 --bias 0` exited 0 and returned
+`CAP: J0 V0 B0 N0 S0 X0 = 0 → inherit/low`. The evidence records the absolute entry, its local
+launcher import, the launcher's local command resolution, the process identity, and source hashes.
+This proves checkout execution only, not an installed Celetis check.
+
+The pre-change host probe reproduced the deferred-check gap: after reading the original
+implement, stop, and landing resources, it chose `land` with no runtime source or target proof.
+The candidate probe and one compact-output retry each reached the 180-second deadline without
+final decisions. Both observed complete reads of all seven candidate resources. V1 remains
+UNVERIFIED; reading the resources alone does not pass its behavioral oracle. The issue must keep
+its `Before landing` hold until that check completes with the required evidence.
+
+The checks used Bun 1.4.4 and the existing codex-cli 0.166.0 installation and authentication.
+The baseline is one observed decision; the two candidate attempts establish no passing decisions
+or model reliability rate. Device, browser, and process cases were synthetic inputs, not live
+checks of those runtimes. No product repository, new login, or real installation update took
+part. Temporary programs, snapshots, prompts, and raw events are in
+`/private/tmp/celetis-169.m9nYtn/`. A later reference-only acceptance note does not change the
+seven resources loaded by the probes; their hashes are checked again before the issue report.
 
 **Standalone engineering principles (#166), partial acceptance.** On 2026-10-29, lane commit
 `aac1e49758f9a9360fd02491fecafc1b979c43f6` completed all three implementation tasks, their

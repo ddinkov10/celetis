@@ -58,7 +58,9 @@ N+1. Too little time for the lane → the change does not ship tonight.
      `<plugin>/docs/principles/test-behavior-not-implementation.md`.
    - CAP line via `celetis --agent <host> capscore J V B N S X` — never hand-computed. It is a recommendation for the session, because `implement` builds a micro-plan inline.
    - Verify phase: the red repro re-run post-fix, plus one error branch of any newly-enabled
-     path (widened allow-list / enum / dispatch literal / flag).
+     path (widened allow-list / enum / dispatch literal / flag). Read
+     `<plugin>/docs/procedures/runtime-verification.md` and apply "Planning" to its runtime
+     scenarios.
    Fix crosses subsystems or unrolls a chain → not shim-able: route the issue to `bug` with
    `celetis --agent <host> issue <n> route bug`
    (the plan of a `bug` reads its `## Root cause` comment, which stays on the issue), then run the

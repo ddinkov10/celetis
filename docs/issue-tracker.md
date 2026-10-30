@@ -87,6 +87,11 @@ waits and gates.
 
 ## What lives on the issue
 
+- **Runtime evidence** — an ordinary comment whose first line does not start with `## ` holds
+  the tested source, actual target, both confirmation links, and scenario outcomes/oracles, or
+  links a durable report. [Runtime verification](procedures/runtime-verification.md) defines
+  the evidence and its lifetime. Publish it before `## Built` or `## Before landing`. It changes
+  no resolver state, clears no refusal, and does not replace `## Human steps done`.
 - **Intent** — `/celetis:intake` writes the intent template as the body of a new issue, or as a comment headed `## Intent` on an existing one. A reporter's body is never rewritten by intake.
 - **Spec** — `specify` replaces the body with the design spec (`issue <n> spec <file>`); its first line is `Spec: YYYY-MM-DD`. The body is the current truth for the item.
 - **Plan** — `plan` posts the implementation plan as a comment headed `## Plan` (`issue <n> plan <file>`). With no human hold, it adds `ready-for-agent`. With `ready-for-human`, it keeps the hold and removes the agent label when present. A new plan starts a new build. The plan header names the build flow with its `Execution:` line (`inline` or `subagent`), which `implement` follows. Its first section, `### Your steps`, lists the human acts of the lane in two lists: "During the build" (each act that the maintainer does while the build runs, the step that needs it, and its report) and "After the landing" (each check by hand on the built change; nothing in the lane waits for it). `implement` in a fresh context re-fetches the latest `## Plan` comment.
@@ -159,6 +164,14 @@ completion signal, as a trusted human completion report is. Without the evidence
 the comment needs, keep the change built, restore the human label (`issue <n> ready-for-human`)
 using the existing comment as its reason, and stop. No new approval is needed. Each
 required scenario still needs PASS; an unrun scenario has none.
+
+Workflow clearance is separate from runtime proof. Before skipping a deferred runtime scenario,
+apply [Runtime verification](procedures/runtime-verification.md), "Reports and deferred checks"
+and "Evidence lifetime", even when the resolver reports `open: none`. Label removal supplies no
+build identity or runtime PASS. A human completion report must carry or reference the same proof
+as an agent check. Missing or invalidated proof keeps the change built and restores its hold;
+valid, unchanged proof can complete the scenario without repeating it. These are agent
+obligations, not new engine parsing or clearance rules.
 
 When a `## Before landing` comment of this build names an act of "During the build", the evidence
 for that act is both: a `## Human steps done` comment after that comment that reports the act, and

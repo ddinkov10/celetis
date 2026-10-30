@@ -55,7 +55,9 @@ take no other route. Run each other scenario.
 
 Then the scenario is a human precondition of the landing. Write a new `## Before landing` comment
 for this build to a file, with no heading: the scenario, its commands, the expected result, and the
-refusal. Then run `celetis --agent <host> issue <n> before-landing <file>` as the last act of the
+refusal. For missing runtime proof, read `<plugin>/docs/procedures/runtime-verification.md` and
+apply "Reports and deferred checks" to the report and precondition. Then run
+`celetis --agent <host> issue <n> before-landing <file>` as the last act of the
 turn. It posts the comment, then adds `ready-for-human` and removes `ready-for-agent`. The comment
 records the change as built; the removal of `ready-for-agent` changes readiness only.
 
@@ -65,7 +67,9 @@ this build. An absent `ready-for-human` label is not completion evidence.
 
 - Without evidence, restore that label with `celetis --agent <host> issue <n> ready-for-human` as
   the last act, using the existing comment as the reason, and stop.
-- With evidence, skip the old Verify phase and go to the human precondition of the landing
+- With workflow completion evidence, apply `<plugin>/docs/procedures/runtime-verification.md`,
+  "Reports and deferred checks", before skipping deferred runtime scenarios. Continue to the
+  human precondition of the landing only when that procedure permits it
   (`<plugin>/docs/procedures/landing.md`, "Step 2: the human precondition").
 - A `## Before landing` comment that names an act of "During the build" of the plan is the
   exception: follow the re-entry rule of the skill, which runs the scenarios that waited for that

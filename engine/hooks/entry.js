@@ -106,6 +106,9 @@ completion criterion of a skill.
   review, for example Codex with the approval policy \`never\`.
 - **Decisions and evidence.** Ask for a decision that the issue, the spec, or the plan does not
   hold. Never write a human report or evidence that did not happen.
+- **Runtime PASS.** Before using any post-change runtime check to claim PASS, including an
+  optional check in another lane, read \`<plugin>/docs/procedures/runtime-verification.md\` and
+  apply "Confirming a target", "Evidence lifetime", and "Reports and deferred checks".
 
 ### Claude Code
 

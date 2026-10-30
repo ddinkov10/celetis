@@ -26,7 +26,9 @@ When a skill finds on re-entry that an earlier run built the change, read the la
   the trunk into the branch: run the verify gate of the project, so that the checks run on a new
   head.
 
-Then go to step 2.
+For deferred runtime checks or evidence affected by the repair or trunk changes, read
+`<plugin>/docs/procedures/runtime-verification.md` and apply "Evidence lifetime" and "Reports
+and deferred checks" before going to step 2.
 
 ## Step 1: the build mark
 
@@ -58,7 +60,10 @@ exists, not which acts it reports. So with an `open:` line, or with a `## Before
 of this build that names an act of "During the build" that no later `## Human steps done` comment
 reports, keep the change built, restore the label with
 `celetis --agent <host> issue <n> ready-for-human`, using the existing comment as the reason, and
-stop. With `open: none` and a report of each such act, continue to step 3.
+stop. For deferred runtime checks or evidence affected by changes since the previous run, apply
+`<plugin>/docs/procedures/runtime-verification.md`, "Reports and deferred checks" and "Evidence
+lifetime", before continuing. With that procedure satisfied, `open: none`, and a report of each
+such act, continue to step 3.
 
 ## Step 3: the landing
 
@@ -116,10 +121,13 @@ suite that fails on the diff, a conflict with the trunk, a branch that does not 
 head, a trunk head or a lane tip that changed during the landing.
 
 Enter the issue's worktree again (`<plugin>/docs/procedures/worktree.md`, "The entry"). Fix the
-cause by the fix rule of the skill that runs the landing, commit, and go to step 3. Debug a red
+cause by the fix rule of the skill that runs the landing and commit. Before going to step 3,
+renew affected runtime confirmation and scenarios per
+`<plugin>/docs/procedures/runtime-verification.md`, "Evidence lifetime". Debug a red
 check or a failed suite with `superpowers:systematic-debugging`, and start from the test that
 failed in CI or in the suite. For a stale branch or a moved trunk, the worktree entry brought the
-trunk in: run the verify gate of the project, then go to step 3. When the entry refuses, for
+trunk in: run the verify gate of the project and renew affected runtime evidence as above, then
+go to step 3. When the entry refuses, for
 example on a conflict with the trunk, show the user its message and stop.
 
 ## Step 5: the third refusal, or a cause outside the change
