@@ -663,6 +663,8 @@ host's skill selector. Native desktop selector acceptance is optional under
 
 - The plan and runtime checks use [Runtime verification](docs/procedures/runtime-verification.md)
   to identify the tested source and confirm the actual running target before a runtime PASS.
+  Its [Usage-limit exception](docs/procedures/runtime-verification.md#usage-limit-exception) can
+  permit landing with one host verified; the other host's quota-blocked coverage stays incomplete.
 - On a yes, `intake` hands on to `triage`, and `triage` hands on to the lane, so the first three
   rows can be one session. `plan` and `implement` each start in a fresh context, and each one reads
   the issue again.

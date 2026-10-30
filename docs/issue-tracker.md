@@ -91,7 +91,9 @@ waits and gates.
   the tested source, actual target, both confirmation links, and scenario outcomes/oracles, or
   links a durable report. [Runtime verification](procedures/runtime-verification.md) defines
   the evidence and its lifetime. Publish it before `## Built` or `## Before landing`. It changes
-  no resolver state, clears no refusal, and does not replace `## Human steps done`.
+  no resolver state, clears no refusal, and does not replace `## Human steps done`. Apply its
+  [Usage-limit exception](procedures/runtime-verification.md#usage-limit-exception) before creating
+  a new quota-only hold; its report keeps each incomplete host check BLOCKED.
 - **Intent** — `/celetis:intake` writes the intent template as the body of a new issue, or as a comment headed `## Intent` on an existing one. A reporter's body is never rewritten by intake.
 - **Spec** — `specify` replaces the body with the design spec (`issue <n> spec <file>`); its first line is `Spec: YYYY-MM-DD`. The body is the current truth for the item.
 - **Plan** — `plan` posts the implementation plan as a comment headed `## Plan` (`issue <n> plan <file>`). With no human hold, it adds `ready-for-agent`. With `ready-for-human`, it keeps the hold and removes the agent label when present. A new plan starts a new build. The plan header names the build flow with its `Execution:` line (`inline` or `subagent`), which `implement` follows. Its first section, `### Your steps`, lists the human acts of the lane in two lists: "During the build" (each act that the maintainer does while the build runs, the step that needs it, and its report) and "After the landing" (each check by hand on the built change; nothing in the lane waits for it). `implement` in a fresh context re-fetches the latest `## Plan` comment.
@@ -99,7 +101,7 @@ waits and gates.
 - **Root cause** — `/celetis:bug` and `/celetis:hotfix` post the debugging report as a comment headed `## Root cause` (`issue <n> root-cause <file>`).
 - **Prototype** — a look decision ([ui.md](procedures/ui.md), "The look decision") is recorded as a `## Prototype` section inside the spec (the issue body) or the `## Root cause` report, edited in place when that is already posted. It holds the question; the kind and each difference from its default row; the `prototype/<n>-<slug>` branch with its commit; one line per variant, with its pattern and its trade-off; the link of each capture comment, and each capture with example data; the recommendation with its reason; and the verdict with its reason. The captures are comments with attachments whose first line is no `## ` heading, so the resolver does not read them. The capture repro and the after-fix capture of a visual bug take the same form ([ui.md](procedures/ui.md), "Captures").
 - **Built** — a `## Built` or `## Before landing` comment after the latest `## Plan` comment records completion. The argument-free act `issue <n> built` posts `## Built`, then removes `ready-for-agent` when present. Readiness labels and their changes do not prove or erase completion. A plan without explicit completion remains unfinished, even when a readiness write failed. There is no compatibility reader for old label-removal completion.
-- **Before landing** — a comment headed `## Before landing` names a human precondition that the plan did not name, an act of "During the build" with no report (its report form, and the scenarios that wait for it), or a Verify scenario that a step session could not run; the issue carries `ready-for-human` until the maintainer did the act. `issue <n> before-landing <file>` posts it with `<!-- celetis-before-landing general -->` on its second line, or with `<!-- celetis-before-landing during-the-build -->` when `--during-the-build` follows the file, for a comment that names an act of "During the build" ("Completing a human precondition"). The comment also records the change as built. Then it adds `ready-for-human`, and removes `ready-for-agent` when it is on.
+- **Before landing** — a comment headed `## Before landing` names a human precondition that the plan did not name, an act of "During the build" with no report (its report form, and the scenarios that wait for it), or a Verify scenario that a step session could not run and that [Usage-limit exception](procedures/runtime-verification.md#usage-limit-exception) does not permit to remain incomplete; the issue carries `ready-for-human` until the maintainer did the act. `issue <n> before-landing <file>` posts it with `<!-- celetis-before-landing general -->` on its second line, or with `<!-- celetis-before-landing during-the-build -->` when `--during-the-build` follows the file, for a comment that names an act of "During the build" ("Completing a human precondition"). The comment also records the change as built. Then it adds `ready-for-human`, and removes `ready-for-agent` when it is on.
 - **Landing refused** — a comment headed `## Landing refused` holds the output of `celetis --agent <host> land` at a stop (`issue <n> landing-refused <file>`); a step session then adds `ready-for-human` (`issue <n> ready-for-human`). The refusal is current while this comment is the last comment of the issue that starts with `## ` ("Resolving an issue's state").
 - **Stopped** — a comment headed `## Stopped` holds the reason of a stop of a step session for which its skill posts no comment (a refusal of `celetis --agent <host> worktree`, the third failed gate of one task of `implement`, a blocked hotfix), and the act of the maintainer that lets the step go on; `issue <n> stopped <file>` posts it, adds `ready-for-human`, and removes `ready-for-agent` when present. The standalone `ready-for-human` act makes the same readiness change. These acts preserve the actual build state. After the maintainer clears the hold, the lane resumes that state without requiring an agent label. `docs/celetis-flow.md`, "How a step runs", defines a step session.
 - **External facts of a dependency bump** — `/celetis:chore` posts a comment headed `## External facts`.
@@ -163,7 +165,9 @@ For a general precondition, a maintainer's later removal of `ready-for-human` is
 completion signal, as a trusted human completion report is. Without the evidence that the kind of
 the comment needs, keep the change built, restore the human label (`issue <n> ready-for-human`)
 using the existing comment as its reason, and stop. No new approval is needed. Each
-required scenario still needs PASS; an unrun scenario has none.
+required scenario still needs PASS unless [Usage-limit exception](procedures/runtime-verification.md#usage-limit-exception)
+permits its incomplete coverage. An unrun scenario has no PASS. The exception clears no existing hold
+and changes none of its completion requirements.
 
 Workflow clearance is separate from runtime proof. Before skipping a deferred runtime scenario,
 apply [Runtime verification](procedures/runtime-verification.md), "Reports and deferred checks"
@@ -177,7 +181,7 @@ When a `## Before landing` comment of this build names an act of "During the bui
 for that act is both: a `## Human steps done` comment after that comment that reports the act, and
 the maintainer's removal of `ready-for-human` after that comment. One or more such reports can
 cover the acts that the comment names. The next run of `implement` then runs the scenarios that
-waited for the acts, and lands on a PASS. For a precondition of the landing, no scenario runs. With
+waited for the acts, and lands when the runtime procedure permits continuation. For a precondition of the landing, no scenario runs. With
 the reports and the removal, the next run lands. An act of "During the build" with no report that
 no `## Before landing` comment of this build names stops the landing with a new such comment, also
 after an earlier stop of this build. Each `gh` call uses the maintainer's token, so the

@@ -276,7 +276,7 @@ plugin root of the header; follow the skill, and start no step that a skill send
 context; ask only for a decision that the issue does not hold, and never for a go-ahead or a
 review; land only with `celetis --agent <host> land`, and only when the skill says so; and the stop
 rules, which cite `docs/procedures/stop.md` for a stop and for a Verify scenario that the session
-cannot run. It overrides no instruction of a skill: a skill says what it does "In a step session".
+cannot run, after applying [Usage-limit exception](procedures/runtime-verification.md#usage-limit-exception). It overrides no instruction of a skill: a skill says what it does "In a step session".
 A step session is a session that the runner starts with the step text. The exit status of the
 host decides nothing: the resolver decides.
 
@@ -398,8 +398,10 @@ as its last act. Both `stopped` and `ready-for-human` remove `ready-for-agent` w
 line becomes `stop #<n> is ready-for-human. …` and the job ends the session. A stop for which
 the skill adds a label, such as the `needs-info` stop of `/celetis:triage`, stays as the skill says.
 A question is not a stop: where a skill says to ask, rule 2 holds, and a session that asks for a
-decision waits in its pane. A Verify scenario that the session cannot run is a `## Before landing`
-stop (rule 5): the session does not land the change. The act `before-landing` posts the comment,
+decision waits in its pane. Before a Verify scenario that cannot run becomes a `## Before landing`
+stop (rule 5), the session applies [Usage-limit exception](procedures/runtime-verification.md#usage-limit-exception).
+An eligible decision retains BLOCKED results and permits the normal landing path without a new quota hold.
+Otherwise the session does not land the change. The act `before-landing` posts the comment,
 then adds `ready-for-human`, then removes `ready-for-agent`. The comment records the change as
 built. A failed human-label addition, or an interruption before that addition, can leave the
 comment with no `ready-for-human`. The line then becomes `stop #<n> has an open human step. …`
@@ -418,7 +420,8 @@ scenario, the act is a run of the scenario with the source and running-target pr
 [Runtime verification](procedures/runtime-verification.md), "Reports and deferred checks".
 The next `/celetis:implement` run checks that evidence and its lifetime before it can land the
 built change. Label removal clears a workflow hold; it supplies no runtime proof. Missing or
-invalidated proof preserves the built change and restores the hold. A comment that names an act of "During the build",
+invalidated proof preserves the built change and restores the existing hold.
+The usage-limit exception preserves existing completion requirements, including with `open: none`. A comment that names an act of "During the build",
 or a comment with no marker of its kind, also needs a `## Human steps done` report of the act.
 After a FAIL, keep the label: put the result on the issue, run
 `/celetis:plan #<n>` in a session of your own, and remove the label when the new plan is on the
@@ -441,7 +444,7 @@ comment. A build that needs an act with no report runs each other scenario. Then
 `## Before landing` comment that names each such act, its report form, and the scenarios that wait
 for it. The act `before-landing` gives that comment the marker of "During the build", so the engine
 needs both the report and the removal. Post the report, then remove `ready-for-human`: the next
-run of `/celetis:implement` runs those scenarios and lands on a PASS. A check of "After the landing" is no stop. The last message of
+run of `/celetis:implement` runs those scenarios and lands when the runtime procedure permits continuation. A check of "After the landing" is no stop. The last message of
 `/celetis:implement` quotes it after the landing.
 
 A `specify` session starts with the line `run /celetis:feature #<n>`. The paths of `specify` give
@@ -895,7 +898,9 @@ jobs of their workflow runs once for each commit before it refuses (ADR-0023).
 The main and lane checkout guards apply on both hosts. Host rules do not inspect the commands
 inside an allowed script or enforce every alternate command spelling. Codex prefix rules govern
 requests outside its sandbox; they do not create a stronger sandbox. A host refusal remains a
-stop. The deterministic script checks and final Verify results remain required (ADR-0008).
+stop. The deterministic script checks and final Verify results remain required (ADR-0008),
+subject only to [Usage-limit exception](procedures/runtime-verification.md#usage-limit-exception)
+for incomplete host checks. The exception changes no engine guard or existing human hold.
 
 ## Sessions
 
@@ -932,6 +937,31 @@ not suppress that final error. These failures write no false no-progress row. A 
 null ID cannot be used for exact runner resume.
 
 ## Acceptance status
+
+**Explicit host usage limits (#172), decision-probe acceptance.** On 2026-10-30, the dirty lane
+snapshot based on `cebd8f7d61e0865f2d8f7d61eff7c10f7ebaa6fa` passed 33 fixture decisions on
+codex-cli 0.166.0. Five fresh read-only `exec` sessions loaded the six complete candidate
+instructions and the named "Completing a human precondition" section of `docs/issue-tracker.md`.
+Retained contents, source digests, and successful native read output confirm those inputs.
+An independent oracle checked decisions, preserved holds, results, and evidence references.
+Wrong continuation and hidden-failure controls failed the oracle; reordered JSON fields passed.
+An earlier unmarked-hold case failed before the explicit completion-rule lookup was added.
+Every affected candidate group was renewed after that change.
+
+Claude Code 2.1.312's bounded `print`/Read probe exited 1 in session
+`a9135c02-274c-4e2e-94ad-f8cb60f14bfb` with
+`You've hit your weekly limit · resets Oct 31 at 9pm (Europe/Sofia)`.
+Claude V1 remains BLOCKED; Claude V2 remains BLOCKED and unrun after that same confirmed refusal.
+The [Usage-limit exception](procedures/runtime-verification.md#usage-limit-exception) accepts
+this incomplete host coverage, subject to the unchanged gate, review, and landing prerequisites.
+It establishes no Claude PASS or full host parity.
+
+These are synthetic evidence cases that test real host decisions against checkout resources.
+They do not establish execution of the fixture scenarios, installed-plugin behavior, or a model
+reliability rate. Each final case has one observed decision. Earlier failures and all temporary
+programs, snapshots, prompts, raw events, and oracle outputs remain in
+`/private/tmp/celetis-172-TIB699/` and the runtime report on #172. The acceptance note changes no
+loaded instruction input; their digests are checked again before the issue report.
 
 **Running-build evidence (#169), partial acceptance.** On 2026-10-30, clean lane revision
 `79d4d3120b521da4bb76c581764033e8d15f834a` passed the task gate and the gate after the

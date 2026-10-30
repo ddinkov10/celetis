@@ -28,5 +28,6 @@ clean.
 4. A stop is not a question: where a skill says to ask, rule 2 holds. Hand each other stop (a
    skill says to stop, to show the user a message, or to escalate to the user) to the issue by
    `<plugin>/docs/procedures/stop.md`, "A stop in a step session".
-5. A Verify scenario that you cannot run has no PASS, and the change does not land without it:
-   follow `<plugin>/docs/procedures/stop.md`, "A Verify scenario that cannot run".
+5. A Verify scenario that you cannot run has no PASS. First apply
+   `<plugin>/docs/procedures/runtime-verification.md`, "Usage-limit exception". When it does not
+   permit continuation, follow `<plugin>/docs/procedures/stop.md`, "A Verify scenario that cannot run".

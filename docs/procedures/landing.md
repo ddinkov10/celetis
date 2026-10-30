@@ -27,8 +27,8 @@ When a skill finds on re-entry that an earlier run built the change, read the la
   head.
 
 For deferred runtime checks or evidence affected by the repair or trunk changes, read
-`<plugin>/docs/procedures/runtime-verification.md` and apply "Evidence lifetime" and "Reports
-and deferred checks" before going to step 2.
+`<plugin>/docs/procedures/runtime-verification.md` and apply "Evidence lifetime", "Reports
+and deferred checks", and "Usage-limit exception" before going to step 2.
 
 ## Step 1: the build mark
 
@@ -42,6 +42,9 @@ or `built` when the change has its mark), go on to step 2.
 
 An act of "During the build" in `### Your steps` of the plan is done when a `## Human steps done`
 comment after the latest `## Plan` comment reports it.
+
+Before creating a new runtime hold, apply `<plugin>/docs/procedures/runtime-verification.md`,
+"Usage-limit exception". It preserves existing human holds and all other prerequisites.
 
 When the change needs an act that only a human can do before it reaches the trunk, no such report
 holds the act, and either the issue has no `## Before landing` comment for this build or the act
@@ -61,9 +64,9 @@ of this build that names an act of "During the build" that no later `## Human st
 reports, keep the change built, restore the label with
 `celetis --agent <host> issue <n> ready-for-human`, using the existing comment as the reason, and
 stop. For deferred runtime checks or evidence affected by changes since the previous run, apply
-`<plugin>/docs/procedures/runtime-verification.md`, "Reports and deferred checks" and "Evidence
-lifetime", before continuing. With that procedure satisfied, `open: none`, and a report of each
-such act, continue to step 3.
+`<plugin>/docs/procedures/runtime-verification.md`, "Reports and deferred checks", "Evidence
+lifetime", and "Usage-limit exception", before continuing. With that procedure satisfied,
+`open: none`, and a report of each such act, continue to step 3.
 
 ## Step 3: the landing
 
@@ -123,7 +126,8 @@ head, a trunk head or a lane tip that changed during the landing.
 Enter the issue's worktree again (`<plugin>/docs/procedures/worktree.md`, "The entry"). Fix the
 cause by the fix rule of the skill that runs the landing and commit. Before going to step 3,
 renew affected runtime confirmation and scenarios per
-`<plugin>/docs/procedures/runtime-verification.md`, "Evidence lifetime". Debug a red
+`<plugin>/docs/procedures/runtime-verification.md`, "Evidence lifetime", then apply its
+"Usage-limit exception" before a new runtime hold or continuation. Debug a red
 check or a failed suite with `superpowers:systematic-debugging`, and start from the test that
 failed in CI or in the suite. For a stale branch or a moved trunk, the worktree entry brought the
 trunk in: run the verify gate of the project and renew affected runtime evidence as above, then

@@ -48,9 +48,12 @@ contract".
 
 ## A Verify scenario that cannot run
 
-In a step session, a Verify scenario that the session cannot run has no PASS, and the change does
-not land without it. A guard that refuses its command (the host's approval review, the auto-mode
-classifier, the worktree guard, a `deny` rule) is a limit: try one safer form of the command, and
+In a step session, a Verify scenario that the session cannot run has no PASS. Before creating a
+hold, apply `<plugin>/docs/procedures/runtime-verification.md`, "Usage-limit exception".
+When it permits continuation, publish its report and continue the normal landing path.
+Otherwise the change does not land without the scenario. A guard that refuses its command
+(the host's approval review, the auto-mode classifier, the worktree guard, a `deny` rule) is a
+limit: try one safer form of the command, and
 take no other route. Run each other scenario.
 
 Then the scenario is a human precondition of the landing. Write a new `## Before landing` comment

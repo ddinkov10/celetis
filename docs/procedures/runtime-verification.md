@@ -4,12 +4,23 @@ Apply this procedure to post-change runtime checks used to claim PASS, including
 checks in another lane. Pre-fix red reproductions, static checks, suite scheduling, and checks
 by hand after landing keep their existing roles.
 
+## Contents
+
+- **Planning:** define runtime scenarios and their acceptance.
+- **Confirming a target:** link the tested source, loaded content, target, and oracle.
+- **Evidence lifetime:** renew evidence affected by changes.
+- **Usage-limit exception:** decide whether explicit host usage limits permit landing.
+- **Reports and deferred checks:** publish evidence and preserve existing human holds.
+
 ## Planning
 
 For each runtime scenario in a plan or hotfix micro-plan, name the actual target, the source
 identity, the methods that confirm both links below, and an independent behavioral oracle.
 Use the project's existing runtime tools. A runtime with no usable identity stays unverified;
 the plan must not assume a build-ID endpoint or add instrumentation to obtain one.
+
+Apply "Usage-limit exception" to host checks in every lane, in interactive and step sessions.
+The plan uses that decision before requiring a new runtime hold or a separate human quota waiver.
 
 ## Confirming a target
 
@@ -63,6 +74,49 @@ switch requires renewed confirmation and scenario results for the affected targe
 unrelated evidence and results whose inputs and instances did not change. Apply this rule after
 a review or landing repair, and on re-entry, before relying on earlier results.
 
+## Usage-limit exception
+
+Before creating or restoring a new runtime hold, evaluate these conditions together:
+
+1. One supported host completed every required runtime scenario applicable to that host for this
+   change. Each PASS has valid source, target, loaded-resource, and independent oracle evidence
+   under "Confirming a target" and "Evidence lifetime". A project gate PASS alone is insufficient.
+2. The other host explicitly reports an exhausted weekly, usage, or session allowance that
+   prevents its remaining host checks from running or finishing. Keep the actual diagnostic.
+   A prediction of quota exhaustion is insufficient.
+3. That usage limit is the only outstanding cause of incomplete checks on the other host.
+   A failed assertion or behavioral mismatch remains FAIL, including beside a quota diagnostic.
+4. The project gate, required reviews, and every other landing prerequisite pass under their
+   existing rules. Existing human holds retain their completion requirements below.
+
+Apply the rule equally to Claude Code and Codex. The passing host need not execute operations
+that exist only on the blocked host. This accepts incomplete coverage, never host parity.
+A generic HTTP 429, timeout, connection failure, missing login, missing tool, unsupported model,
+permission denial, invalid target proof, or context-length error does not qualify by itself.
+Mixed quota and non-quota causes retain ordinary failure, renewal, and stop handling.
+
+When all conditions hold, publish the normal runtime report before build completion, with:
+
+- The passing host's version and surface, source identity, target confirmation, scenario results,
+  and oracle evidence.
+- The blocked host's version and surface, attempted invocation, preserved output path or link,
+  exact observed diagnostic, and reset time only when the host supplied one.
+- Each incomplete or partially completed scenario as BLOCKED, with its preserved-output reference.
+  Identify each host-only scenario left unrun after the same confirmed refusal and that reason.
+- An explicit decision that the usage-limit exception permits the normal landing path, naming
+  the checks still incomplete and stating that no full host-parity claim is made.
+
+Keep BLOCKED distinct from PASS. Invent no reset time or claim that a reset has happened.
+An eligible decision needs no separate waiver request, quota-only `## Before landing` comment,
+or `ready-for-human` write. Every other prerequisite and the existing landing command still apply.
+
+This rule prevents new quota-only holds. It clears no existing human hold, replaces no existing
+`## Before landing` completion rule, and rewrites no issue history. For an existing hold, first
+read `<plugin>/docs/issue-tracker.md`, "Completing a human precondition", and confirm the evidence
+that its kind requires. Preserve unmet requirements even with an absent label or `open: none`.
+After a repair or re-entry, renew invalidated passing evidence before applying the exception;
+unchanged valid evidence needs no repeat.
+
 ## Reports and deferred checks
 
 Keep each source identity, target, both links, scenario result, and independent oracle together
@@ -72,6 +126,10 @@ Use `gh issue comment <n> --body-file <report>`. Its first line is ordinary text
 `Runtime verification for #<n>`, and does not start with `## `. This report changes no resolver
 state, clears no refusal, and never replaces a human completion report. Use the existing
 `celetis --agent <host> issue` acts for workflow writes.
+
+Apply "Usage-limit exception" before creating or restoring a new runtime hold, including after
+a repair and on re-entry. Publish its report when eligible; otherwise use the ordinary handling
+below. Existing human holds always keep their completion requirements.
 
 For a deferred runtime scenario, its `## Before landing` record also names the missing source
 or running-build proof and the action that supplies it, alongside the existing scenario,
