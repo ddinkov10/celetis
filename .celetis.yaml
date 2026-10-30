@@ -3,7 +3,7 @@ landing: merge
 suite: scripts/verify.ts
 gates:
   triage: auto
-  specify: me
+  specify: auto
   bug: auto
   chore: auto
   hotfix: auto
