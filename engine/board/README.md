@@ -356,7 +356,7 @@ A press that fails ends the `Starting` card at once, and the next read gives the
 | Press or read | What the server does |
 |---|---|
 | The data of the issues | The read of "The data", in its own process, with a limit of 60 seconds. |
-| Run | A new herdr tab in the main checkout with the label `#<n> <step>` and no focus. In its pane: the Run line. |
+| Run | A quiet herdr tab in the main checkout with the label `#<n> <step>` and the Run line. For the current issue of a queue paused at a `me` gate, use the queue Continue action below. |
 | Resume | The same tab with the focus. In its pane: the Resume line. |
 | A queue action | A quiet main-checkout herdr tab labelled `Queue`. In its pane: one fixed queue line. The runner renames the tab `#<n> <step>` while a step runs, preserving the session cards and Go. |
 | Assist | A focused herdr tab in the main checkout with the label `#<n> assist`. In its pane: the Assist line. |
@@ -371,7 +371,7 @@ starts the program in its version folder. The command path has no control charac
 keeps no program path between presses, so after `celetis update` the next press starts the new
 program.
 
-The adapter makes each line from fixed parts: the command of the program, then, for Run,
+The adapter makes each line from fixed parts: the command of the program, then, for an independent Run,
 `--agent`, the selected agent, and `celetis-flow`; for Resume, `celetis-flow` and `--resume`,
 with no agent; or, for Assist, `--agent`, the current default agent, and `assist`.
 Resume takes the host and the session from its saved record. The program supplies Bun and its
@@ -421,8 +421,10 @@ entry, `Default agent is read-only`. Activate it to see the reason:
 `The main .celetis.yaml controls the default agent. Change host there.`
 These controls send no request and change no configuration.
 
-To use another available agent for one Run, use the card's agent choices. A Run without a choice
-uses the current `defaultAgent`. A choice for one Run does not change that default. Resume sends
+To use another available agent for one independent Run, use the card's agent choices. An independent
+Run without a choice uses the current `defaultAgent`. Run on the current issue of a queue paused
+at a `me` gate uses Continue with the saved queue host. An absent or null choice keeps that host;
+an explicit different host is refused. A choice for one Run does not change the default. Resume sends
 only the issue number, and the runner selects the saved session. Assist also sends only the issue
 number. It reads the current default agent after a fresh issue read and offers no agent choice.
 
@@ -479,7 +481,7 @@ and opens no tab, unless each condition holds:
 
 | Press | Conditions | Line of the refusal |
 |---|---|---|
-| `POST /api/run` | The issue has a card of its own, with no session. Its row is `ready` or `stuck`. `noRun` is `null`. No press on that issue is active. | `#<n> has no step to start now` |
+| `POST /api/run` | A fresh issue and queue read succeeds. The issue has a card of its own, with no session. Its row is `ready` or `stuck`. `noRun` is `null`. No press on that issue is active. A current paused queue issue also meets the Continue conditions below. | The read or queue cause; otherwise `#<n> has no step to start now`. |
 | `POST /api/resume` | The issue has a card of its own, with no session. Its row is `stuck`. `noRun` is `null`. No press on that issue is active. | `#<n> has no session to resume now` |
 | `POST /api/assist` | A fresh issue read succeeds. The issue has a card of its own, with no session. Its row is `blocked`, with `assist` true and `noRun` null. A current herdr snapshot succeeds. The current default agent is available. No Run, Resume, or Assist press on that issue is active. | The current read, `noRun`, agent, session, or state cause; otherwise `#<n> has no blocked issue to assist now`. |
 | `POST /api/shell` | The issue has a card of its own, with no session. Its row is `dirty`. Its `path` is a lane worktree of the main checkout. | `#<n> has no dirty worktree` |
@@ -498,6 +500,13 @@ again also match their requested step to fresh `QueueView.next`. That step need 
 older persisted `record.current`: the new press authorizes the newly displayed step. An action
 that can start a session requires its host executable to be available. A stale request returns
 409 without a pane start; the next board read returns the new view.
+
+Run on the current issue of a `me-gate` queue captures the queue ID, revision, and fresh eligible
+step on the server. It uses this same serialized Continue handler and its full preflight. A
+changed identity or step, an unavailable saved host, or a live owner refuses the action without
+an independent Run. A failed queue read also refuses Run. A pending or unrelated issue keeps
+independent Run behavior, as does a queue outside `me-gate`; errors and interrupted queues still
+need explicit recovery.
 
 One board process serializes queue presses. Separate board processes can both pass HTTP
 preflight before either pane starts. The runner takes the queue lock and repeats the authoritative
@@ -522,7 +531,8 @@ Read-only `herdr` status calls can precede the failure:
   character gives `the celetis program path has a control character`.
 - **The saved session of Resume.** Resume refuses a missing or invalid saved record, or a record
   with no verified session ID, with the first line of its error.
-- **The agent of Run or Assist.** Run uses the choice, else `defaultAgent`. Assist uses only
+- **The agent of Run or Assist.** An independent Run uses the choice, else `defaultAgent`.
+  A queue continuation uses its saved host and refuses an explicit conflicting choice. Assist uses only
   `defaultAgent` from its fresh read. The agent must be a name of lowercase
   letters that `agents` of the document has. A choice that is not gives
   `#<n> has no agent "<name>"`, and no choice with no `defaultAgent` gives

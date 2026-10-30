@@ -97,8 +97,13 @@ const act = async (path: string, value: unknown, failure: string, onDone?: () =>
 
 const agentDisplay = (id: string) => agentOf({ agent: id })?.name ?? id;
 
-const runReason = (agent: string | null) => {
+const runReason = (agent: string | null, number?: number | null) => {
   if (data?.noRun) return data.noRun;
+  const record = data?.queue?.record;
+  if (record?.state === 'me-gate' && record.numbers[record.position] === number) {
+    if (agent !== null && agent !== record.host) return `queue: recorded host is ${record.host}`;
+    agent = record.host;
+  }
   const agents = data?.agents;
   if (agent) {
     const entry = agents?.[agent];
@@ -112,7 +117,7 @@ const runReason = (agent: string | null) => {
 
 const runAction = (card: Card, agent: string | null = null): Action => {
   const display = agent ? agentDisplay(agent) : null;
-  const reason = runReason(agent);
+  const reason = runReason(agent, card.number);
   const name = agent ? `Run ${card.step}, #${card.number} with ${display}` : `Run ${card.step}, #${card.number}`;
   return {
     id: agent ? `run:${agent}` : 'run',
@@ -1182,7 +1187,10 @@ const launch = async (card: Card, path: '/api/run' | '/api/resume' | '/api/assis
       .flat()
       .find((other) => other.sessionId === null && other.number === number);
   if (!current?.[path === '/api/run' ? 'run' : path === '/api/assist' ? 'assist' : 'resume']) return false;
-  const reason = path === '/api/resume' ? data?.noRun : runReason(path === '/api/assist' ? null : (agent ?? null));
+  const reason =
+    path === '/api/resume'
+      ? data?.noRun
+      : runReason(path === '/api/assist' ? null : (agent ?? null), path === '/api/run' ? number : undefined);
   if (reason) {
     toast(reason, { isError: true });
     return false;

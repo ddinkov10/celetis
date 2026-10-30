@@ -490,9 +490,29 @@ export const createBoard = ({
   const runStep = async (number: number, choice?: unknown) => {
     const refusal = `#${number} has no step to start now`;
     await press(number, refusal, async () => {
-      const agent = agentOf(number, choice);
+      await pending;
+      await refresh();
+      if (!board || error || board.noRun !== null) throw new Refusal(409, error || board?.noRun || refusal);
       const card = await issueCardOf(number);
       if (!card?.run) throw new Refusal(409, refusal);
+      const view = await queueView();
+      if (error || !view || (view.error && !view.next))
+        throw new Refusal(409, error || view?.error || 'queue: no successful initial read');
+      const record = view.record;
+      if (record?.state === 'me-gate' && record.numbers[record.position] === number) {
+        if (choice !== undefined && choice !== null && choice !== record.host)
+          throw new Refusal(409, `queue: recorded host is ${record.host}`);
+        if (!view.actions.continue || view.next?.kind !== 'run' || view.next.step !== card.step)
+          throw new Refusal(409, 'queue: that action is not available; refresh the queue');
+        const action: QueueAction = {
+          kind: 'continue',
+          id: record.id,
+          revision: record.revision,
+          step: view.next.step,
+        };
+        return { card, start: () => queue(action) };
+      }
+      const agent = agentOf(number, choice);
       return {
         card,
         start: async () => {

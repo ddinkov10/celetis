@@ -171,6 +171,11 @@ fresh main configuration, including the first step of each later issue. A `me` g
 whole schedule before that step; `--queue continue <id> <revision> <step>` authorizes that one
 displayed step. It does not waive a later gate.
 
+The board's Run button on the current issue of a queue paused at a `me` gate uses that Continue
+operation. It keeps the saved queue host and authorizes only the fresh displayed step. After
+the issue closes, the queue continues under the normal gates. A pending or unrelated issue keeps
+its independent Run behavior. A bare numbered CLI command remains an explicit single-issue start.
+
 The record is `<git common dir>/celetis-flow/queue.json`, with schema 1, a random UUID, and an
 increasing positive revision. It holds the order, fixed host, position, terminal results, current
 and last launched Runs, and a state of `running`, `me-gate`, `error`, or `complete`, with the reason
@@ -806,6 +811,13 @@ Start checks the first step and each selected row's current eligibility. A stale
 409 and starts no pane; the next read gives the new view. A new press can authorize a fresh step
 that differs from the older persisted `record.current`. A fresh unreadable issue disables every
 action. Session starts require an available saved host; Reset and closure-only retry do not.
+
+The current paused issue's card Run enters this same Continue handler. The server captures the
+queue ID, revision, and fresh eligible step; the browser still sends only the issue number and
+an optional host. An absent or null host keeps the queue's saved host. An explicit conflicting
+host is refused. A stale action, live owner, unavailable saved host, or failed queue or workflow
+read starts no pane and cannot fall back to an independent Run. Queues in `error` or unowned
+`running` state still require their explicit recovery action.
 
 The adapter reads the installed program on every press and types only these quoted fixed lines
 (with the same PowerShell quoting and exit form as Run and Resume):
