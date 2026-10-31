@@ -30,6 +30,10 @@ Superset of `superpowers:executing-plans` (the inline flow) and `superpowers:sub
 
 **Lesson rules — both flows.** Before each task, apply `<plugin>/docs/procedures/task-lessons.md`, "Delivery" and "Changed scope", to implementation, task review, and gate-repair context.
 
+**Project verification recipes — both flows.** Before building a task, read
+`<plugin>/docs/procedures/verification-recipes.md` and apply "Execution and retention". Include
+affected recipe edits and optional retention in the task scope before the existing final review.
+
 **Applicable principles — both flows.** Before building a task, read its applicable principle files. Derive missing paths, and revise paths for changed scope, from the actual task:
 
 - For external input or validation changes, read `<plugin>/docs/principles/boundary-discipline.md`.
@@ -74,6 +78,8 @@ plan and applicable lesson files on re-entry or after workspace cleanup. Give th
 and reviewer that same updated context.
 
 **Verify phase — prove the plan's Verify scenarios on the project's own runtime.** Read
+`<plugin>/docs/procedures/verification-recipes.md` and apply "Execution and retention" to the
+required scenarios. Read
 `<plugin>/docs/procedures/runtime-verification.md` and apply "Confirming a target", "Evidence
 lifetime", "Reports and deferred checks", and "Usage-limit exception" to each runtime scenario
 and its report, including a deferred scenario on re-entry. Execute the plan's Verify phase per the project's runtime shape (on-device for an app, a browser flow for web, a script for a backend). The phase runs no full suite: the CI of the lane PR runs it with the landing `pr`, and `land` runs it with the landing `merge` (Land step 3). A scenario that needs an act of "During the build" reads the value of the act from a `## Human steps done` comment after the latest `## Plan` comment. With no report of the act, the scenario cannot run and has no PASS: run each other scenario, then write one `## Before landing` comment for this build to a file, with no heading. It names each act with no report, its report form, and the scenarios that wait for it, not the commands of a scenario that waits for an act. In a step session, it also holds each scenario that a guard refused (`<plugin>/docs/procedures/stop.md`, "A Verify scenario that cannot run"). Publish the available runtime evidence before this completion record. Then run `celetis --agent <host> issue <n> before-landing <file> --during-the-build` as the last act, and stop. It posts the comment with the marker of an act of "During the build", then adds `ready-for-human` and removes `ready-for-agent`. This lane session never invents a human contribution or writes its completion report. An assistance report follows `<plugin>/docs/procedures/assisted-completion.md`; read its sourced evidence under the same current-build and runtime rules.

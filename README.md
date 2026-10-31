@@ -573,6 +573,7 @@ The plugin names a role, and the `AGENTS.md` of the project names the thing. It 
 | What `AGENTS.md` names | Who reads it |
 |---|---|
 | **The verify gate:** the one fast deterministic check of a change (lint, format, syntax, and config checks, with no test run), and how to read its result | `plan`, `implement`, `chore`, `hotfix`, and `guide` say "the verify gate of the project", and `celetis --agent <host> land` names it in a refusal |
+| **Optional verification instructions:** a short pointer to a project document's feature-map section or an existing index of documented user flows | `plan` and `implement` read the index and only relevant recipes (`docs/procedures/verification-recipes.md`) |
 | **The full suite** is no line of `AGENTS.md`: with the landing `merge`, `suite` in `.celetis.yaml` names the file that runs each test, and `land` runs it at the tip that it lands. With the landing `pr`, the CI of the lane PR runs it | `land`, which `implement`, `chore`, and `hotfix` run (`docs/procedures/landing.md`, "Step 3: the landing") |
 | **The architecture and the traps:** the shape of the project in the root file, and the traps of each subsystem in the `AGENTS.md` of its folder. They are the domain knowledge: the plugin has no domain skill (ADR-0006) | `specify`, `bug`, `hotfix`, `plan`, `chore`, and `critic-loop` |
 | **The design document and the look decision,** in a project with a UI: the document that holds the design rules, the kind of the product and each difference from its default row in `docs/procedures/ui.md`, and how a session starts the product with live data for the variants. A look decision is each change to what a person sees on screen or to how the screen behaves | `prototype` (`docs/procedures/ui.md`), which `specify` and `bug` follow; the two items "Prototype" of `docs/issue-tracker.md`, in "What lives on the issue" and in "Branches, PRs, merge" |
@@ -760,6 +761,14 @@ host's skill selector. Native desktop selector acceptance is optional under
   to identify the tested source and confirm the actual running target before a runtime PASS.
   Its [Usage-limit exception](docs/procedures/runtime-verification.md#usage-limit-exception) can
   permit landing with one host verified; the other host's quota-blocked coverage stays incomplete.
+- Projects can reuse [verification recipes](docs/procedures/verification-recipes.md) through an
+  optional `AGENTS.md` pointer. A small feature map links documented flows and their existing
+  tools; it does not promise complete coverage. Prefer an existing document, or
+  `docs/verification.md` when the project chooses and permits a new one. Without a pointer or
+  relevant recipe, planning and verification continue normally, with no new setup or landing
+  requirement. Plans still define change-specific acceptance and current evidence. Optional
+  retention belongs before final review; knowledge first found afterward stays in the runtime
+  report. Reuse adds no scenario run, and past success supplies no current PASS.
 - On a yes, `intake` hands on to `triage`, and `triage` hands on to the lane, so the first three
   rows can be one session. `plan` and `implement` each start in a fresh context, and each one reads
   the issue again.
