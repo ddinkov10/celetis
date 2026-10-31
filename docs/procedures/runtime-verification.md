@@ -122,6 +122,9 @@ unchanged valid evidence needs no repeat.
 Keep each source identity, target, both links, scenario result, and independent oracle together
 in the runtime report, with loaded resources, cleanup, and unresolved gaps.
 
+When the plan has an acceptance mapping, read `<plugin>/docs/procedures/acceptance-coverage.md`
+and apply "Reporting" to report publication and evidence renewal, including re-entry.
+
 For standalone operations, use the project's existing evidence location. With none, choose a
 clearly named local location outside disposable cleanup state; use
 `docs/superpowers/verification/<run-id>/report.md` when the project permits that scratch location.
