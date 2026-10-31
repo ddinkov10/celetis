@@ -1025,13 +1025,13 @@ full name, so the `HEAD` of Claude Code and the `main` of Codex and of the progr
 `refs/heads/main`. When each part is at the target, the command prints
 `update: Celetis is up to date at <revision>` and asks nothing.
 
-Else it names the source and the ref, and asks `Update Celetis now? [y/N]` one time in an
-interactive terminal. Enter `y` or `yes` to permit that exact attempt. Empty input, EOF, or any
+Else it names the source and the ref, and asks `Update Celetis now? [Y/n]` one time in an
+interactive terminal. Press Enter or enter `y` or `yes` to permit that exact attempt. EOF or any
 other answer leaves each part unchanged. With no interactive terminal, it stops with
 `update: run celetis update in an interactive terminal to review and confirm the update` and
 exit status 2. No cache path, commit hash, or flag confirms an update.
 
-After `y`, it updates each part that is not at the target, in this order: Claude Code, Codex, and
+After confirmation, it updates each part that is not at the target, in this order: Claude Code, Codex, and
 then the program. The first failure stops the update: it prints the message,
 `update: completed: <parts>`, and `update: incomplete: <parts>`, and exits 1. There is no retry:
 a new attempt is a new command and a new answer. At the end it prints

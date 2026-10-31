@@ -800,7 +800,7 @@ export async function update(checked: UpdateCheck): Promise<number> {
   if (!process.stdin.isTTY || !process.stdout.isTTY)
     throw new HostError('update: run celetis update in an interactive terminal to review and confirm the update', 2);
   console.log('Open sessions stay running; the host may replace cached files they still use.');
-  if (!/^(y|yes)$/i.test((prompt('Update Celetis now? [y/N] ') ?? '').trim())) {
+  if (!/^(y|yes)?$/i.test((prompt('Update Celetis now? [Y/n] ') ?? 'n').trim())) {
     console.log('update: cancelled; nothing changed');
     return 0;
   }
