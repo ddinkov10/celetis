@@ -24,7 +24,8 @@ diff, with `git diff --stat` on top. Write it to `.superpowers/critic/<scope>-<h
 
 ## 2. The rubric
 
-Five perspectives, each scored 0-2, total 0-10. **Pass: total >= 8 AND zero Critical AND zero Important.**
+Five perspectives, each scored 0-2, total 0-10. **Pass: total >= 8 AND zero accepted Critical AND
+zero accepted Important**, subject to the evidence and material-risk disposition below.
 
 | perspective | what it scores |
 |---|---|
@@ -37,7 +38,8 @@ Five perspectives, each scored 0-2, total 0-10. **Pass: total >= 8 AND zero Crit
 For the Contracts lens, read the root `AGENTS.md` and the `AGENTS.md` of each subsystem the diff
 touches, and name the files you read.
 
-Every finding carries a severity and a `file:line`, and names its perspective.
+Every finding carries a severity and a `file:line`, names its perspective, and carries its evidence
+category and record per `<plugin>/docs/procedures/review-evidence.md`.
 
 ## 3. Dispatch the critic
 
@@ -45,31 +47,43 @@ Dispatch a fresh reviewer per `<plugin>/docs/procedures/dispatch.md`, "One child
 review with `celetis --agent <host> capscore J V B N S X --reviewer --json`. Its brief also holds
 the diff file, the rubric above, and the Contracts-lens rule. Deliver the exact applicable
 principle paths with the diff to the critic and each fixer, with instructions to read them.
+Include `<plugin>/docs/procedures/review-evidence.md` and
+`<plugin>/docs/principles/demonstrate-behavioral-defects.md` in those resolved references. Read the
+module and apply "Reviewer" to the critic's brief, including each scoped re-review.
 Resolve `<plugin>` to the absolute path bound by the entry. Take paths supplied with the affected
 tasks; derive missing paths from the reviewed changes and revise them for the fix scope. When assessing
 behavioral verification checks, read `<plugin>/docs/principles/test-behavior-not-implementation.md`.
 When a finding relies on measured performance or quality evidence, read
 `<plugin>/docs/principles/explain-the-number.md`. The rubric score alone does not trigger this read.
-The critic returns ONLY: a
-per-perspective score, the total, findings (Critical/Important/Minor), and a PASS/FAIL verdict
-against the threshold. The critic never spawns subagents and never fixes anything.
+The critic returns the per-perspective scores, total, findings with severity, category and
+evidence, and a verdict under the threshold and evidence contract. The critic never spawns
+subagents and never fixes anything.
 
 ## 4. Iterate until threshold
 
-- PASS → report the score and stop.
-- First FAIL → dispatch a fresh **fixer** subagent per `<plugin>/docs/procedures/dispatch.md`, "One child",
+Apply `<plugin>/docs/procedures/review-evidence.md`, "Receiving session" and "Repairs and
+disposition", before accepting PASS or dispatching a fixer, and after each scoped re-review.
+Use its stop for unresolved material risks, including a risk-only report with a high score.
+
+- Accepted PASS → report the score and finding dispositions, then stop.
+- First FAIL with accepted Critical or Important findings → dispatch a fresh **fixer** subagent per `<plugin>/docs/procedures/dispatch.md`, "One child",
   scored for the fix with `celetis --agent <host> capscore J V B N S X --json`. Its brief also holds
-  the Critical and Important findings verbatim, the diff path, and the exact applicable principle
-  paths for the fix. The fixer fixes, re-runs the
+  the accepted Critical and Important findings and evidence, the unresolved context outside the
+  fix list, the diff path, and the exact applicable principle and review-evidence module paths
+  for the fix. The fixer fixes, re-runs the
   covering tests, and commits.
 - Resume the same critic for a scoped re-review: verdict each finding ADDRESSED or NOT ADDRESSED, re-score the five
-  perspectives, flag new breakage. New Critical or Important findings join the open list.
+  perspectives, flag new breakage. Newly accepted Critical or Important findings join the open list.
 - Rounds 1-3 resume the same fixer; rounds 4-5 dispatch a fresh fixer on a more capable tier (resolve the original fix score with `--attempt 3` and its explicit bias); round 5
   still FAIL → stop, report the score and remaining findings, escalate to the user with the trail.
 
 Never fix findings yourself in this session.
+When the score fails without accepted Critical or Important findings, report the remaining gap and stop by
+`<plugin>/docs/procedures/stop.md`, "The two modes"; invent no defect to start a fix round.
 
 ## Terminal
 
 End with the final score (e.g. `8/10 — pass`) and the finding trail: each fix round with its
-per-perspective deltas. The commits stay on the branch; this command never merges or pushes.
+per-perspective deltas, evidence categories, and disposition reasons. Keep unresolved risks and
+any sourced maintainer disposition visible. The commits stay on the branch; this command never
+merges or pushes.

@@ -28,6 +28,25 @@ Superset of `superpowers:executing-plans` (the inline flow) and `superpowers:sub
 
 **Task dispatch — every child in the subagent task loop and fixes after the final review.** Get each dispatch from `celetis --agent <host> dispatch` by `<plugin>/docs/procedures/dispatch.md`, "The task loop".
 
+**Review evidence — both flows and every repair.** Before preparing a review, read
+`<plugin>/docs/procedures/review-evidence.md` and apply its "Reviewer" section. Give each reviewer
+and fixer the exact resolved paths of that module and
+`<plugin>/docs/principles/demonstrate-behavioral-defects.md`, with instructions to read both.
+Carry the evidence and dispositions in the existing review record and repair brief.
+
+Apply "Receiving session" before an inline fix pass, before `dispatch review ... findings`,
+and before accepting a clean review or `close`. Apply "Repairs and disposition" to fixes and
+their existing scoped re-reviews. These requirements cover:
+
+- The combined task spec-compliance and quality review, its fixes, and scoped re-review.
+- The inline final review and its one fix pass, with a focused post-fix check and no second reviewer.
+- The subagent final review, its one fix wave, and scoped re-review.
+- Gate repairs and the task review that follows them.
+- `verify-<k>` and `land-<k>` repairs, including saved or reconstructed briefs on re-entry.
+
+Apply the module's material-risk disposition before accepting upstream parking, deferred-minor,
+or out-of-scope rulings. Keep the existing review counts, fix limits, and dispatch controls.
+
 **Lesson rules — both flows.** Before each task, apply `<plugin>/docs/procedures/task-lessons.md`, "Delivery" and "Changed scope", to implementation, task review, and gate-repair context.
 
 **Project verification recipes — both flows.** Before building a task, read
