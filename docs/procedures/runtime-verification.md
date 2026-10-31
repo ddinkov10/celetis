@@ -120,14 +120,25 @@ unchanged valid evidence needs no repeat.
 ## Reports and deferred checks
 
 Keep each source identity, target, both links, scenario result, and independent oracle together
-in the runtime report. Publish it on the issue, or post a link to an existing durable report,
+in the runtime report, with loaded resources, cleanup, and unresolved gaps.
+
+For standalone operations, use the project's existing evidence location. With none, choose a
+clearly named local location outside disposable cleanup state; use
+`docs/superpowers/verification/<run-id>/report.md` when the project permits that scratch location.
+Record the chosen absolute path before execution. Preserve the report and its evidence through
+cleanup, confirm they remain readable, and link the report in the final reply. No issue or
+GitHub access is required. An explicit issue-bound request uses the issue branch below.
+
+For lane work and explicit issue-bound requests, publish the report on the issue, or link an
+existing durable report,
 before recording build completion with `## Built` or `## Before landing`.
 Use `gh issue comment <n> --body-file <report>`. Its first line is ordinary text, for example
 `Runtime verification for #<n>`, and does not start with `## `. This report changes no resolver
 state, clears no refusal, and never replaces a completion report. Use the existing
 `celetis --agent <host> issue` acts for workflow writes.
 
-Apply "Usage-limit exception" before creating or restoring a new runtime hold, including after
+The remaining hold rules apply to lane work. Apply "Usage-limit exception" before creating or
+restoring a new runtime hold, including after
 a repair and on re-entry. Publish its report when eligible; otherwise use the ordinary handling
 below. Existing human holds always keep their completion requirements.
 

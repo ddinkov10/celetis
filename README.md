@@ -769,6 +769,17 @@ host's skill selector. Native desktop selector acceptance is optional under
   requirement. Plans still define change-specific acceptance and current evidence. Optional
   retention belongs before final review; knowledge first found afterward stays in the runtime
   report. Reuse adds no scenario run, and past success supplies no current PASS.
+- Explicit `/celetis:create-verification` creates recipes for up to three core flows, or your
+  requested scope, and requires at least one real flow with current PASS evidence. It reuses the
+  existing home and preserves other coverage. It edits documentation in the active checkout,
+  requires no issue, and creates no lane or delivery steps. It retains a local report and links
+  it in the reply; an explicit issue-bound request uses issue reporting. Normal changes keep
+  their relevant-only reuse and optional retention.
+- Explicit `/celetis:maintain-verification` reviews and exercises every existing map entry. It
+  corrects source-confirmed documentation drift and reports defects or capability gaps without
+  changing product behavior. A failed, blocked, or unverified mapped flow keeps maintenance
+  incomplete. With no map, it recommends creation. It uses the same documentation-only delivery
+  and retained-report rules as creation.
 - On a yes, `intake` hands on to `triage`, and `triage` hands on to the lane, so the first three
   rows can be one session. `plan` and `implement` each start in a fresh context, and each one reads
   the issue again.
@@ -888,6 +899,8 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | **Helpers** | [`/celetis:prototype`](skills/prototype/SKILL.md) | Builds throwaway code that answers a design question: a logic demo in one HTML file, or the live variants of a look decision, with a capture of each variant in each state on the issue |
 | | [`/celetis:assist #<n>`](skills/assist/SKILL.md) | Completes permitted work for the current block, records verified completion, and clears the hold. It asks for missing human contributions and leaves continuation to the normal runner |
 | | [`/celetis:writing-for-agents`](skills/writing-for-agents/SKILL.md) | The reference for a document that an agent reads: a skill, or an `AGENTS.md` |
+| | [`/celetis:create-verification`](skills/create-verification/SKILL.md) | Creates project-owned recipes and proves at least one core flow. Only you can start it |
+| | [`/celetis:maintain-verification`](skills/maintain-verification/SKILL.md) | Reviews and exercises the whole existing verification map. Only you can start it |
 | | [`/celetis:guide`](skills/guide/SKILL.md) | Says which command fits a goal. Only you can start it |
 | | [`/celetis:setup`](skills/setup/SKILL.md) | Proposes and tests the worktree setup of a product project, writes the wiring in its main checkout, and commits and pushes the wiring after your yes. Only you can start it |
 
@@ -910,9 +923,10 @@ Each principle is also a native skill. An ordinary engineering task can select i
 by name without an issue, a lane, or project configuration. The normal entry contract applies.
 Each invocation reads its one canonical rule file.
 
-`guide` and `setup` are explicit-only on both hosts. Claude reads `disable-model-invocation: true`;
-Codex reads `policy.allow_implicit_invocation: false` in `skills/guide/agents/openai.yaml` and
-`skills/setup/agents/openai.yaml`. Guide reads its custom part and gives advice; it starts no
+`guide`, `setup`, `create-verification`, and `maintain-verification` are explicit-only on both
+hosts. Claude reads `disable-model-invocation: true`;
+Codex reads `policy.allow_implicit_invocation: false` in each skill's
+`agents/openai.yaml`. Guide reads its custom part and gives advice; it starts no
 workflow command. Setup runs `celetis --agent <host> setup` in the main checkout, and it enters no
 lane worktree.
 

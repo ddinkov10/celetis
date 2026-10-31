@@ -24,6 +24,8 @@ Execute no recommended action and invoke no other skill. Goal: the invocation in
 | make a zero-behavior-change edit (dep bump, rename, docs) | `/celetis:chore <# or text>` |
 | turn an approved spec (the issue body) into a plan | `/celetis:plan <#>` in a fresh context |
 | build a posted plan and land the change | `/celetis:implement <#>` in a fresh context |
+| create initial recipes for core user flows | `/celetis:create-verification` |
+| refresh every flow in an existing verification map | `/celetis:maintain-verification` |
 | wire a product project to the plugin | `/celetis:setup` in the main checkout of the project |
 | see each agent session and each issue's next step, and start a step | the board: `celetis --agent <host> board` in the main checkout, then `http://127.0.0.1:<port>`, with `board.port` in `.celetis.yaml` (`<plugin>/docs/celetis-flow.md`) |
 | run the next step of an issue in a fresh session, in your own terminal | `celetis --agent <host> celetis-flow <n>...` in a Terminal tab; each gate is `me` by default, so it runs one step of each issue and ends. With no number it runs only the steps that `gates.<step>: auto` in `.celetis.yaml` makes `auto`, so with the defaults it starts nothing (`<plugin>/docs/celetis-flow.md`) |

@@ -22,8 +22,10 @@ The allowed gate names are `triage`, `specify`, `bug`, `chore`, `hotfix`, `plan`
 An empty `board` mapping uses port 4403. `PORT` takes precedence over the configured board port.
 
 The allowed custom keys are `assist`, `attack-the-premise`, `boundary-discipline`, `bug`, `chore`,
+`create-verification`,
 `critic-loop`, `doc-drift-sync`, `encode-lessons-in-structure`, `explain-the-number`, `feature`,
-`guide`, `hotfix`, `implement`, `intake`, `lesson`, `lesson-review`, `make-operations-idempotent`,
+`guide`, `hotfix`, `implement`, `intake`, `lesson`, `lesson-review`,
+`maintain-verification`, `make-operations-idempotent`,
 `model-the-domain`, `plan`, `polishing-code-comments`, `prototype`,
 `record-architecture-decisions`, `separate-before-serializing-shared-state`, `setup`, `specify`,
 `test-behavior-not-implementation`, `triage`, `type-system-discipline`, and `writing-for-agents`.
