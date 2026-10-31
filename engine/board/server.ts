@@ -20,7 +20,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { basename, join, relative, resolve, sep } from 'node:path';
 import { lockHolder } from '../lib/locks.ts';
-import { locateCheckouts } from '../lib/operation.ts';
+import { createOperation, locateCheckouts } from '../lib/operation.ts';
 import { childEnv } from '../lib/process.ts';
 import { parseQueueAction, readQueue } from '../lib/queue.ts';
 import type { QueueAction, QueueView } from '../lib/queue-types.ts';
@@ -50,6 +50,7 @@ const FILES: Record<string, [string, string]> = {
   '/fonts/geist-mono.woff2': ['fonts/geist-mono.woff2', 'font/woff2'],
 };
 const POSTS = new Set([
+  '/api/intake',
   '/api/assist',
   '/api/run',
   '/api/resume',
@@ -140,6 +141,7 @@ export const createBoard = ({
   let checkedFrom = -Infinity;
   let pending: Promise<void> | null = null;
   let queuePress = false;
+  let intakePending = false;
   const presses: Record<string, { step: string | null; at: number }> = {};
   const operations: Record<string, { step: string | null | undefined; observed: boolean }> = {};
   let shown = new Set<string>();
@@ -447,6 +449,27 @@ export const createBoard = ({
     return agent as Host;
   };
 
+  const intake = async () => {
+    if (intakePending) throw new Refusal(409, 'an intake tab is already opening');
+    intakePending = true;
+    try {
+      const command = await (async () => {
+        const operation = createOperation(
+          await locateCheckouts(main),
+          { environment: process.env.CELETIS_AGENT },
+          'main',
+        );
+        if (!Bun.which(operation.host, { PATH: childEnv().PATH })) throw new Error(`${operation.host} is not on PATH`);
+        return adapter.intake(operation.host);
+      })().catch((cause: Error) => {
+        throw new Refusal(409, cleanCause(cause.message));
+      });
+      await openTab({ cwd: main, label: 'Intake', command });
+    } finally {
+      intakePending = false;
+    }
+  };
+
   const assist = async (number: number) => {
     const refusal = `#${number} has no blocked issue to assist now`;
     await press(number, refusal, async () => {
@@ -654,11 +677,16 @@ export const createBoard = ({
       throw new Refusal(403, 'the content type is not application/json');
     const body = await readBody(request);
     if (
-      (path.startsWith('/api/update/') || path === '/api/assist') &&
+      (path.startsWith('/api/update/') || path === '/api/assist' || path === '/api/intake') &&
       (body === null || typeof body !== 'object' || Array.isArray(body))
     )
       throw new Refusal(400, 'the body is not an object');
     const input = (body ?? {}) as Record<string, unknown>;
+    if (path === '/api/intake') {
+      if (Object.keys(input).length) throw new Refusal(400, 'intake takes an empty object');
+      await intake();
+      return sendJson(response, 200, { ok: true });
+    }
     if (path === '/api/assist' && (Object.keys(input).length !== 1 || !Object.hasOwn(input, 'number')))
       throw new Refusal(400, 'assistance takes only the issue number');
     if (path === '/api/update/check') {

@@ -239,11 +239,11 @@ async function post(path, value, failure, options) {
     if (options) {
       if (response.ok)
         return { status: "accepted" };
-      if (response.status >= 400 && response.status < 500) {
-        const body = await response.json();
-        return { status: "rejected", error: body.error };
-      }
-      return { status: "unavailable" };
+      const body = await response.json();
+      const error = typeof body?.error === "string" ? body.error : undefined;
+      if (response.status >= 400 && response.status < 500 && error !== undefined)
+        return { status: "rejected", error };
+      return { status: "unavailable", ...error !== undefined ? { error } : {} };
     }
     if (!response.ok)
       toast(failure, { detail: (await response.json()).error, isError: true });

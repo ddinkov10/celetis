@@ -73,6 +73,7 @@ let isKeysOn = store.get('keys') !== 'off';
 let isHistoryOpen = false;
 let isQueueOpen = false;
 let isServerDown = false;
+let intakePending = false;
 let seen: Map<string, string> | null = null;
 let needsKeys: Set<string> | null = null;
 let starting: Map<number, string | null> | null = null;
@@ -94,6 +95,54 @@ const act = async (path: string, value: unknown, failure: string, onDone?: () =>
   await load();
   return isOk;
 };
+
+const intakeReason = () => {
+  if (isReconnecting()) return 'The board is reconnecting';
+  if (intakePending) return 'An intake tab is opening';
+  const readAt = Date.parse(data?.source.readAt ?? '');
+  if (!data || isServerDown || data.source.error || !Number.isFinite(readAt) || Date.now() - readAt > 60_000)
+    return null;
+  const agent = data.defaultAgent === null ? undefined : data.agents?.[data.defaultAgent];
+  return agent?.available === false ? cleanCause(agent.cause) || 'The default agent is unavailable' : null;
+};
+
+function drawIntake(): void {
+  const button = $('intake');
+  const reason = intakeReason();
+  button.setAttribute('aria-disabled', String(reason !== null));
+  button.setAttribute('aria-busy', String(intakePending));
+  button.title = reason ?? 'Open a fresh intake session';
+  (button.querySelector('.label') as HTMLElement).textContent = intakePending ? 'Opening…' : 'New intake';
+  $('intake-reason').textContent = intakePending ? '' : (reason ?? '');
+  $('intake-reason').hidden = intakePending || reason === null;
+}
+
+async function openIntake(): Promise<void> {
+  if (intakeReason() !== null) return;
+  intakePending = true;
+  drawIntake();
+  $('announce').textContent = 'Opening an intake tab';
+  try {
+    const outcome = await post('/api/intake', {}, 'New intake failed', { timeout: 10000 });
+    if (outcome.status === 'accepted') $('announce').textContent = 'Intake tab opened';
+    else {
+      const detail =
+        outcome.status === 'rejected'
+          ? outcome.error
+          : [
+              outcome.error,
+              'The launch outcome is unknown. Check Human sessions or herdr before pressing New intake again.',
+            ]
+              .filter(Boolean)
+              .join(' ');
+      toast('New intake failed', { detail, isError: true });
+      $('announce').textContent = `New intake failed. ${detail}`;
+    }
+  } finally {
+    intakePending = false;
+    drawIntake();
+  }
+}
 
 const agentDisplay = (id: string) => agentOf({ agent: id })?.name ?? id;
 
@@ -1102,6 +1151,7 @@ const setView = (next: string) => {
 };
 
 const tick = () => {
+  drawIntake();
   const now = Date.now();
   for (const node of document.querySelectorAll<HTMLElement>('[data-since]'))
     node.textContent = `${age(node.dataset.since as string, now, 'fine' in node.dataset)}${node.dataset.suffix ?? ''}`;
@@ -1152,6 +1202,7 @@ const project = (board: Board): Board => {
 };
 
 const render = (canMove = true) => {
+  drawIntake();
   const next = project(data as Board);
   const cards = JSON.stringify([
     next.repo,
@@ -1214,13 +1265,17 @@ const launch = async (card: Card, path: '/api/run' | '/api/resume' | '/api/assis
 
 let loadRequest: AbortController | undefined;
 document.addEventListener('board-reconnect', () => {
+  drawIntake();
   loadRequest?.abort();
   if (data) {
     data = { ...data, queue: null };
     drawQueue(project(data));
   }
 });
-document.addEventListener('board-connected', () => void load());
+document.addEventListener('board-connected', () => {
+  drawIntake();
+  void load();
+});
 
 async function load() {
   clearTimeout(timer);
@@ -1518,6 +1573,9 @@ for (const button of document.querySelectorAll<HTMLElement>('.views button')) {
   button.setAttribute('aria-pressed', String(button.dataset.view === view));
   button.addEventListener('click', () => setView(button.dataset.view as string));
 }
+$('intake').prepend(icon('spark'));
+$('intake').addEventListener('click', () => void openIntake());
+drawIntake();
 $('history').prepend(icon('clock'));
 $('history').addEventListener('click', () => setHistory(!isHistoryOpen));
 $('history-count').prepend(icon('clock'));

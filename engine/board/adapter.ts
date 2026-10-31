@@ -5,6 +5,7 @@ import type { QueueAction } from '../lib/queue-types.ts';
 import { selectSavedSession } from '../lib/session.ts';
 
 export type Adapter = Readonly<{
+  intake(agent: Host): Promise<string>;
   assist(number: number, agent: Host): Promise<string>;
   run(number: number, agent: Host): Promise<string>;
   resume(number: number): Promise<string>;
@@ -33,6 +34,7 @@ export async function celetisAdapter(
     return process.platform === 'win32' ? `& ${words}; if ($?) { exit }` : `${words} && exit`;
   };
   return {
+    intake: (agent) => line(['--agent', agent, 'intake']),
     assist: (number, agent) => line(['--agent', agent, 'assist', number]),
     run: (number, agent) => line(['--agent', agent, 'celetis-flow', number]),
     resume: async (number) => {

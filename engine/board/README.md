@@ -49,7 +49,7 @@ the reasons why it reads its data in its own process and types fixed command lin
 - Bun 1.4.4 or later. The entry prints `celetis: need Bun >=1.4.4 on PATH, found <version>` and
   exits 2 on an older Bun.
 - git 2.31 or later.
-- The installed `celetis` program for Run, Resume, Assist, and queue actions (the README of the plugin, "First install").
+- The installed `celetis` program for New intake, Run, Resume, Assist, and queue actions (the README of the plugin, "First install").
 - herdr 0.9 or later on `PATH` and a herdr server that runs, for the session cards and for each
   button.
 - `gh` on `PATH`, logged in, for the issue data.
@@ -69,7 +69,7 @@ agent board", gives this start.
 
 The start validates the main `.celetis.yaml`, refuses a lane start, and checks the plugin update
 policy of the selected host once. `--agent` selects the host of the board process only: its policy
-check and, for Codex, its `CODEX_HOME`. The start records its own program revision and starts an independent update check after it listens. At each Run,
+check and, for Codex, its `CODEX_HOME`. The start records its own program revision and starts an independent update check after it listens. At each New intake, Run,
 Resume, or Assist, the fixed adapter (`adapter.ts`) reads the installed `celetis` program and types its
 command ("The line of a pane").
 
@@ -359,6 +359,7 @@ A press that fails ends the `Starting` card at once, and the next read gives the
 | Run | A quiet herdr tab in the main checkout with the label `#<n> <step>` and the Run line. For the current issue of a queue paused at a `me` gate, use the queue Continue action below. |
 | Resume | The same tab with the focus. In its pane: the Resume line. |
 | A queue action | A quiet main-checkout herdr tab labelled `Queue`. In its pane: one fixed queue line. The runner renames the tab `#<n> <step>` while a step runs, preserving the session cards and Go. |
+| New intake | A focused `Intake` tab in the main checkout. The current default host asks for the request, then enters `celetis:intake` with the answer. The button creates no issue and starts no runner. |
 | Assist | A focused herdr tab in the main checkout with the label `#<n> assist`. In its pane: the Assist line. |
 | Open shell | A herdr tab with the focus in the `path` of a `dirty` row, with the label `#<n> shell` and no command. |
 | Go | `herdr agent focus <pane>`; then change to the terminal window. |
@@ -373,7 +374,8 @@ program.
 
 The adapter makes each line from fixed parts: the command of the program, then, for an independent Run,
 `--agent`, the selected agent, and `celetis-flow`; for Resume, `celetis-flow` and `--resume`,
-with no agent; or, for Assist, `--agent`, the current default agent, and `assist`.
+with no agent; for Assist, `--agent`, the current default agent, and `assist`; or for New intake,
+`--agent`, the current default agent, and `intake`, with no issue number.
 Resume takes the host and the session from its saved record. The program supplies Bun and its
 isolation flags. Each item is in single quotes, and the digits of the number
 and ` && exit` end the line. The shell of the pane reads each item as one word, so an item cannot
@@ -383,6 +385,7 @@ add a second command. For the issue 12 and the agent `claude`:
 '<base>/.local/bin/celetis' '--agent' 'claude' 'celetis-flow' 12 && exit
 '<base>/.local/bin/celetis' 'celetis-flow' '--resume' 12 && exit
 '<base>/.local/bin/celetis' '--agent' 'claude' 'assist' 12 && exit
+'<base>/.local/bin/celetis' '--agent' 'claude' 'intake' && exit
 ```
 
 `&& exit` closes the tab when the command ends with no error. A command that fails leaves the tab
@@ -396,6 +399,7 @@ command with `&`, doubles `'` and each of U+2018 to U+201B in a quoted item, and
 & '<base>\.local\bin\celetis.cmd' '--agent' 'claude' 'celetis-flow' 12; if ($?) { exit }
 & '<base>\.local\bin\celetis.cmd' 'celetis-flow' '--resume' 12; if ($?) { exit }
 & '<base>\.local\bin\celetis.cmd' '--agent' 'claude' 'assist' 12; if ($?) { exit }
+& '<base>\.local\bin\celetis.cmd' '--agent' 'claude' 'intake'; if ($?) { exit }
 ```
 
 Queue lines use the same program read and POSIX or PowerShell quoting. Only a parsed
@@ -428,6 +432,18 @@ an explicit different host is refused. A choice for one Run does not change the 
 only the issue number, and the runner selects the saved session. Assist also sends only the issue
 number. It reads the current default agent after a fresh issue read and offers no agent choice.
 
+**New intake is independent of issue reads.** `POST /api/intake` accepts exactly `{}`. A non-object
+or an extra field returns 400 before any pane mutation. Each press reads the main configuration
+and resolves `CELETIS_AGENT`, then its `host`, then `claude`. It checks the host executable and the
+current program before opening a focused `Intake` tab. A preflight failure returns 409; a herdr
+failure returns 502. It neither waits for nor starts an issue read and does not use queue or issue
+locks. One pending reservation per board process refuses concurrent intake requests with 409.
+The reservation clears on success or failure, so a later deliberate press opens a fresh session.
+Separate board processes share no reservation, and a lost response has no exactly-once guarantee.
+Success confirms delivery of the command to the pane, not readiness of the native host. Startup
+errors remain in that pane. The existing Human sessions strip observes the session without an
+issue number or a new session store.
+
 **The herdr calls** of Run, when a workspace has the label of the repository:
 
 ```text
@@ -440,7 +456,7 @@ Before these calls, the press reads the sessions as a request that is not local 
 The workspace is the first one whose label is the folder name of the main checkout. When none has
 that label, the press makes it: `herdr workspace create --cwd <folder> --label <folder name>` takes
 the place of `herdr tab create`, and one more call, `herdr tab rename <tab> <label>`, names the
-first tab of the new workspace. A Run, Resume, or Assist line then runs in the first pane of that
+first tab of the new workspace. A New intake, Run, Resume, or Assist line then runs in the first pane of that
 workspace. Each press keeps its folder, its focus, and its label in the two cases:
 
 | Press | Folder (`--cwd`) | Focus | Label | Calls | Calls with no workspace |
@@ -584,7 +600,7 @@ server and the page:
    id of a herdr agent of the repository as the id of a session.
 5. The page sends an issue number, a session id, a selected Run agent, a strict queue action, or an opaque update offer
    ID, never a command or an installation path.
-   Resume and Assist take only the issue number. A default-agent request changes no configuration.
+   New intake sends only an empty object. Resume and Assist take only the issue number. A default-agent request changes no configuration.
 6. An id of the answer of herdr (a workspace, a tab, a pane) goes into a `herdr` command only when
    it has letters, digits, `_`, `:`, `.`, and `-`, and does not start with `-`. An id that is absent
    goes into no command.
@@ -607,14 +623,15 @@ Five rules hold for the start, the lines, and the data:
    its version folder, and the command path holds no control character. The page, the data, and a
    lane cannot supply a command path.
 2. **A press types a fixed line.** Run, Resume, and queue actions start the runner of the installed
-   `celetis` program; Assist starts its interactive assistance command ("The line of a pane").
+   `celetis` program; New intake and Assist start their interactive commands ("The line of a pane").
    That program starts the first `bun` on the `PATH` of the pane shell, through its `env -S`
-   shebang, or through its shim on Windows. Assist starts the selected native host. The server
+   shebang, or through its shim on Windows. New intake and Assist start the selected native host. The server
    starts `herdr` and `git`, and the issue read starts `gh`, `git`, and, on macOS and Linux, `ps`.
    Update workers have the separate fixed update protocol above.
 3. **Only validated values go into a line.** The number is the digits of the issue. The agent of
    Run or Assist is a name of lowercase letters that `agents` of the document has. Assist gets
-   that agent from its fresh read. Resume takes no agent. Queue fields pass the shared exact-shape validator; its step is an engine-defined
+   that agent from its fresh read. New intake takes `claude` or `codex` from fresh main configuration
+   and environment resolution. Resume takes no agent. Queue fields pass the shared exact-shape validator; its step is an engine-defined
    value, its ID is a UUID, its revision and issue numbers are positive safe integers, and its
    host is `claude` or `codex`. No title, reason, act, or data path goes into a pane line. The
    current step also goes into one argument of `herdr`, the tab label, with no shell.
@@ -638,9 +655,21 @@ its two fonts, Geist and Geist Mono, in `<plugin>/engine/board/fonts/` with thei
 SIL Open Font License 1.1), so it loads nothing from the network.
 
 - The header holds the folder name, the switch between Now and Pipeline, the count of each column
-  and of landed issues, Search, Queue, History, and Refresh. The title of the browser tab is
+  and of landed issues, New intake, Search, Queue, History, and Refresh. The title of the browser tab is
   `(<n>) <folder> · Agent board` while `<n>` cards need you, and the tab icon has an orange dot
   then; it has a blue dot while an agent of an issue works and nothing needs you.
+- New intake stays in the header in Now, Pipeline, and Queue, with its label visible on phones.
+  Search becomes compact below 1600 px. During a request it reads `Opening…`, announces progress,
+  and rejects further activation without moving keyboard focus. A known unavailable host shows
+  its reason beside the unavailable control and in its title. Only a successful issue snapshot
+  no more than 60 seconds old can disable the control for host availability; missing, failed,
+  or older data permits a fresh endpoint check. Polls and the clock update this state even when
+  cards do not change. Reconnect prevents launches until the board connects again.
+- A successful intake request announces `Intake tab opened`. A rejected request shows
+  `New intake failed` with the server cause. A server failure or lost response also states:
+  `The launch outcome is unknown. Check Human sessions or herdr before pressing New intake again.`
+  No launch retries automatically. The button becomes available for deliberate recovery, and
+  completion never takes focus back from another control.
 - The status bar keeps the Celetis update control after the agent selector, including on phones
   and while its nonmodal dialog is open. The same button shows **Check for updates**, **Checking…**,
   **Up to date**, **Update available**, **Update check failed**, **Update in progress**, or
@@ -775,7 +804,7 @@ Of the distribution:
   `bun`, `gh`, and `herdr` on the `PATH` of that program. This is not checked. When such a start
   fails, start the board in a terminal.
 - Issue reads check no plugin update policy. A conflict can show in the independent update
-  check, or in the pane of the next Run, Resume, or Assist.
+  check, or in the pane of the next New intake, Run, Resume, or Assist.
 
 Of the sessions and herdr:
 
@@ -790,7 +819,7 @@ Of the sessions and herdr:
 - The time of a session state starts when the server first sees that state. The server sees nothing
   while no page asks, and a start of the server starts each time again.
 - Each agent in one tab links to the issue of the label of that tab.
-- The board needs a herdr server that runs. A press of Run, Resume, Assist, or Open shell without one gives
+- The board needs a herdr server that runs. A press of New intake, Run, Resume, Assist, or Open shell without one gives
   a toast, and the status bar shows `herdr down`.
 - A Go press focuses the pane inside herdr. It does not bring the terminal window to the front.
 - herdr states no compatibility policy for its CLI, and minor releases had breaking changes. The

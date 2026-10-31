@@ -71,6 +71,7 @@ var isKeysOn = store.get("keys") !== "off";
 var isHistoryOpen = false;
 var isQueueOpen = false;
 var isServerDown = false;
+var intakePending = false;
 var seen = null;
 var needsKeys = null;
 var starting = null;
@@ -90,6 +91,50 @@ var act = async (path, value, failure, onDone) => {
   await load();
   return isOk;
 };
+var intakeReason = () => {
+  if (isReconnecting())
+    return "The board is reconnecting";
+  if (intakePending)
+    return "An intake tab is opening";
+  const readAt = Date.parse(data?.source.readAt ?? "");
+  if (!data || isServerDown || data.source.error || !Number.isFinite(readAt) || Date.now() - readAt > 60000)
+    return null;
+  const agent = data.defaultAgent === null ? undefined : data.agents?.[data.defaultAgent];
+  return agent?.available === false ? cleanCause(agent.cause) || "The default agent is unavailable" : null;
+};
+function drawIntake() {
+  const button = $("intake");
+  const reason = intakeReason();
+  button.setAttribute("aria-disabled", String(reason !== null));
+  button.setAttribute("aria-busy", String(intakePending));
+  button.title = reason ?? "Open a fresh intake session";
+  button.querySelector(".label").textContent = intakePending ? "Opening…" : "New intake";
+  $("intake-reason").textContent = intakePending ? "" : reason ?? "";
+  $("intake-reason").hidden = intakePending || reason === null;
+}
+async function openIntake() {
+  if (intakeReason() !== null)
+    return;
+  intakePending = true;
+  drawIntake();
+  $("announce").textContent = "Opening an intake tab";
+  try {
+    const outcome = await post("/api/intake", {}, "New intake failed", { timeout: 1e4 });
+    if (outcome.status === "accepted")
+      $("announce").textContent = "Intake tab opened";
+    else {
+      const detail = outcome.status === "rejected" ? outcome.error : [
+        outcome.error,
+        "The launch outcome is unknown. Check Human sessions or herdr before pressing New intake again."
+      ].filter(Boolean).join(" ");
+      toast("New intake failed", { detail, isError: true });
+      $("announce").textContent = `New intake failed. ${detail}`;
+    }
+  } finally {
+    intakePending = false;
+    drawIntake();
+  }
+}
 var agentDisplay = (id) => agentOf({ agent: id })?.name ?? id;
 var runReason = (agent, number) => {
   if (data?.noRun)
@@ -974,6 +1019,7 @@ var setView = (next) => {
     drawBoard(project(data));
 };
 var tick = () => {
+  drawIntake();
   const now = Date.now();
   for (const node of document.querySelectorAll("[data-since]"))
     node.textContent = `${age(node.dataset.since, now, "fine" in node.dataset)}${node.dataset.suffix ?? ""}`;
@@ -1018,6 +1064,7 @@ var project = (board) => {
   return { ...board, columns };
 };
 var render = (canMove = true) => {
+  drawIntake();
   const next = project(data);
   const cards = JSON.stringify([
     next.repo,
@@ -1070,13 +1117,17 @@ var launch = async (card, path, agent) => {
 };
 var loadRequest;
 document.addEventListener("board-reconnect", () => {
+  drawIntake();
   loadRequest?.abort();
   if (data) {
     data = { ...data, queue: null };
     drawQueue(project(data));
   }
 });
-document.addEventListener("board-connected", () => void load());
+document.addEventListener("board-connected", () => {
+  drawIntake();
+  load();
+});
 async function load() {
   clearTimeout(timer);
   if (isReconnecting())
@@ -1374,6 +1425,9 @@ for (const button of document.querySelectorAll(".views button")) {
   button.setAttribute("aria-pressed", String(button.dataset.view === view));
   button.addEventListener("click", () => setView(button.dataset.view));
 }
+$("intake").prepend(icon("spark"));
+$("intake").addEventListener("click", () => void openIntake());
+drawIntake();
 $("history").prepend(icon("clock"));
 $("history").addEventListener("click", () => setHistory(!isHistoryOpen));
 $("history-count").prepend(icon("clock"));

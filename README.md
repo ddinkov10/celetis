@@ -922,6 +922,7 @@ usage: celetis [--agent <host>] <command> [<argument>...]
   celetis update                                                  Updates the program and the plugin of each host; asks once.
   celetis update check                                            Shows the installed and the available revision of each part.
   celetis board                                                   Starts the board of the project in this checkout.
+  celetis intake                                                  Starts a fresh session that asks for your request before intake.
   celetis assist <n>                                              Starts fresh interactive assistance for an issue in the main checkout.
   celetis celetis-flow                                            Starts the automatic runner.
   celetis celetis-flow <n>                                        Starts the next step of one issue, then follows its auto gates.
@@ -947,6 +948,7 @@ setup"):
 
 | Command | What it does |
 |---|---|
+| `celetis --agent <host> intake` | Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters `celetis:intake` with that request. It creates no issue before the answer and does not start the runner |
 | `celetis --agent <host> assist <n>` | Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses `issue <n> assisted <file>` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume the runner or land |
 | `celetis --agent <host> worktree <n>` | Makes the lane worktree and the branch of the issue, or enters the one that is there and brings it up to the trunk, and prints its path |
 | `celetis --agent <host> worktree --remove <n>` | Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first |

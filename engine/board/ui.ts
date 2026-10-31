@@ -242,7 +242,10 @@ export const toast = (title: string, { detail = '', isError = false } = {}) => {
 export const SERVER_DOWN = 'The board server does not answer';
 const RESTART = 'Start the board again in a terminal.';
 
-export type PostOutcome = { status: 'accepted' } | { status: 'rejected'; error: string } | { status: 'unavailable' };
+export type PostOutcome =
+  | { status: 'accepted' }
+  | { status: 'rejected'; error: string }
+  | { status: 'unavailable'; error?: string };
 export function post(path: string, value: unknown, failure: string): Promise<boolean>;
 export function post(path: string, value: unknown, failure: string, options: { timeout: number }): Promise<PostOutcome>;
 export async function post(
@@ -262,11 +265,10 @@ export async function post(
     });
     if (options) {
       if (response.ok) return { status: 'accepted' };
-      if (response.status >= 400 && response.status < 500) {
-        const body = (await response.json()) as { error: string };
-        return { status: 'rejected', error: body.error };
-      }
-      return { status: 'unavailable' };
+      const body = (await response.json()) as { error?: unknown } | null;
+      const error = typeof body?.error === 'string' ? body.error : undefined;
+      if (response.status >= 400 && response.status < 500 && error !== undefined) return { status: 'rejected', error };
+      return { status: 'unavailable', ...(error !== undefined ? { error } : {}) };
     }
     if (!response.ok) toast(failure, { detail: ((await response.json()) as { error: string }).error, isError: true });
     return response.ok;
