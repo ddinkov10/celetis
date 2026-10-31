@@ -146,8 +146,7 @@ runtime instance before sending an approval. A lost response or a pending start 
 reload starts status reconciliation and never sends another start. Only an `updating` response
 with that target and original instance allows native progress without a reconnect deadline.
 Other pending states, a restart, or the first disconnect after a start stop other polling and
-allow 60 seconds to reconnect. Queue actions wait for a fresh board read; the tab keeps its draft
-until reload. The page reloads once only after the target revision
+allow 60 seconds to reconnect. Queue actions persist independently of a full-board read; accepted order survives reload. The page reloads once only after the target revision
 and a different runtime instance answer at the same URL. Existing view, notification, and
 shortcut choices remain in local storage. A timeout keeps the old page with the server-supplied
 main-checkout, host, and actual PORT recovery instruction. **Check again** clears the pending
@@ -215,19 +214,12 @@ read ends. When a read fails, the cards and history of the last good read stay, 
 
 The next good read clears the line.
 
-`Document.queue` and the response's `Board.queue` use `QueueView` of
-`engine/lib/queue-types.ts`. `queue: null` means that no initial read succeeded. A successful read
-with `queue.record: null` means that no schedule was submitted. A submitted view holds the strict
-local record, the live owner PID, the resolver's fresh `next`, an error, and the allowed Continue,
-Try again, and Reset actions. `readBoard` calls `readQueueView` with the same fresh main operation
-as the issue read. A freshly unreadable issue permits no queue action, including Reset.
-
-Every placement, including `/api/board?local=1`, reads the local record and both the queue lock
-and the current issue's `issue-<n>` lock. A changed ID or revision clears the old `next` and action
-permissions and requests the existing coalesced workflow refresh. Ownership changes also request
-that refresh. No second poller is added. A local queue read error disables queue actions while
-the last good issue cards remain visible. An issue-read error or `noRun` also disables queue
-actions.
+`Document.queue` and `Board.queue` use QueueView. A null record means no saved queue yet.
+The view carries the schema-2 record, live owner, fresh next decision, error, and Add/Edit/Continue/Retry
+permissions. `readBoard` reconciles terminal members through the shared engine transition.
+Its server-only `queueWake` carries a newly issued token once and is never a browser command.
+Each placement reads local storage and ownership, requests the existing refresh after changes,
+and disables recovery until the current decision is fresh. Failed reads preserve the last good list.
 
 ## Landed history
 
@@ -358,7 +350,7 @@ A press that fails ends the `Starting` card at once, and the next read gives the
 | The data of the issues | The read of "The data", in its own process, with a limit of 60 seconds. |
 | Run | A quiet herdr tab in the main checkout with the label `#<n> <step>` and the Run line. For the current issue of a queue paused at a `me` gate, use the queue Continue action below. |
 | Resume | The same tab with the focus. In its pane: the Resume line. |
-| A queue action | A quiet main-checkout herdr tab labelled `Queue`. In its pane: one fixed queue line. The runner renames the tab `#<n> <step>` while a step runs, preserving the session cards and Go. |
+| A queue action | A persisted QueueView acknowledgement. Only a new wake opens a quiet main-checkout herdr tab labelled `Queue`. In its pane: the fixed queue run line. The runner renames the tab `#<n> <step>` while a step runs, preserving the session cards and Go. |
 | New intake | A focused `Intake` tab in the main checkout. The current default host asks for the request, then enters `celetis:intake` with the answer. The button creates no issue and starts no runner. |
 | Assist | A focused herdr tab in the main checkout with the label `#<n> assist`. In its pane: the Assist line. |
 | Open shell | A herdr tab with the focus in the `path` of a `dirty` row, with the label `#<n> shell` and no command. |
@@ -402,20 +394,16 @@ command with `&`, doubles `'` and each of U+2018 to U+201B in a quoted item, and
 & '<base>\.local\bin\celetis.cmd' '--agent' 'claude' 'intake'; if ($?) { exit }
 ```
 
-Queue lines use the same program read and POSIX or PowerShell quoting. Only a parsed
-`QueueAction` and the allowed host `claude` or `codex` can supply their values. Start supplies the
-selected host; every later action takes the host from the stored record. The fixed POSIX forms
-are:
+Queue admission invokes the installed Program.entry as a finite Bun process with isolation flags.
+The adapter validates its receipt. Only its wake opens a terminal using the existing POSIX or
+PowerShell quoting:
 
 ```text
-'<command>' '--agent' '<host>' 'celetis-flow' '--queue' 'start' '<step>' <n>... && exit
-'<command>' '--agent' '<host>' 'celetis-flow' '--queue' 'continue' '<id>' <revision> '<step>' && exit
-'<command>' '--agent' '<host>' 'celetis-flow' '--queue' 'retry' '<id>' <revision> '<step|none>' && exit
-'<command>' '--agent' '<host>' 'celetis-flow' '--queue' 'reset' '<id>' <revision> && exit
+'<command>' '--agent' '<host>' 'celetis-flow' '--queue' 'run' '<id>' '<token>' && exit
 ```
 
-`none` observes closure without authorizing a session. Reset needs no available host executable.
-It still requires a valid configuration, a readable current issue, and no live owner.
+Add supplies the selected host. Other actions use the saved host. Retry with null step resolves
+terminal work without authorizing a session. No batch Start or Reset command remains.
 
 **The default agent is read-only.** The footer shows `defaultAgent` of the document, or
 `No default agent` before the first good read. `defaultAgent` is the host that the engine selects
@@ -502,33 +490,34 @@ and opens no tab, unless each condition holds:
 | `POST /api/assist` | A fresh issue read succeeds. The issue has a card of its own, with no session. Its row is `blocked`, with `assist` true and `noRun` null. A current herdr snapshot succeeds. The current default agent is available. No Run, Resume, or Assist press on that issue is active. | The current read, `noRun`, agent, session, or state cause; otherwise `#<n> has no blocked issue to assist now`. |
 | `POST /api/shell` | The issue has a card of its own, with no session. Its row is `dirty`. Its `path` is a lane worktree of the main checkout. | `#<n> has no dirty worktree` |
 
-`POST /api/queue` accepts exactly `{"action": <QueueAction>, "agent": "claude" | "codex"}` for
-Start, and exactly `{"action": <QueueAction>}` for Continue, Try again, or Reset. The shared
-validator refuses extra fields, duplicate or non-positive issue numbers, unsafe integers,
-unknown actions or steps, and malformed identities. The existing 1024-byte body limit also bounds
-the submitted order; an order that cannot fit returns 400 with the body-size error. There is no
-command, path, argument array, gate override, or editable submitted order in the request.
+`POST /api/queue` accepts exactly `{"action": <QueueAction>, "agent": "claude" | "codex"}`
+for Add and exactly `{"action": <QueueAction>}` otherwise. The shared engine validator enforces
+the continuous-queue contract. Host, Origin, JSON, and the 1024-byte body limit stay in force.
 
-Each queue press refreshes workflow data and reads live ownership before tab creation. Start
-requires all selected rows to be currently eligible and the first issue's fresh step to match
-the press. Continue, Try again, and Reset require the stored ID and revision; Continue and Try
-again also match their requested step to fresh `QueueView.next`. That step need not equal the
-older persisted `record.current`: the new press authorizes the newly displayed step. An action
-that can start a session requires its host executable to be available. A stale request returns
-409 without a pane start; the next board read returns the new view.
+The fixed adapter reads the installed Program and invokes its entry with Bun and isolation flags
+for finite admission, bounded to 30 seconds. It parses the receipt as external input. The HTTP
+response is the persisted QueueView; it does not await History or terminal creation. Only a newly
+issued wake schedules a quiet Queue tab with this fixed, quoted POSIX command:
 
-Run on the current issue of a `me-gate` queue captures the queue ID, revision, and fresh eligible
-step on the server. It uses this same serialized Continue handler and its full preflight. A
-changed identity or step, an unavailable saved host, or a live owner refuses the action without
-an independent Run. A failed queue read also refuses Run. A pending or unrelated issue keeps
-independent Run behavior, as does a queue outside `me-gate`; errors and interrupted queues still
-need explicit recovery.
+```text
+'<command>' '--agent' '<host>' 'celetis-flow' '--queue' 'run' '<id>' '<token>' && exit
+```
 
-One board process serializes queue presses. Separate board processes can both pass HTTP
-preflight before either pane starts. The runner takes the queue lock and repeats the authoritative
-record, step, and current-issue ownership checks after the asynchronous pane start, so at most
-one runner owns the queue. Pending issues take no advance locks and are rechecked when reached;
-the runner can record a pending issue that closes after submission without starting a session.
+PowerShell uses the existing quoting and exit form. The browser supplies no executable or path.
+A known failure before command dispatch invalidates only the matching unclaimed token and saves
+recovery. An uncertain dispatch keeps pending intent and never launches it again automatically.
+The runner performs token and live-ownership checks after terminal creation.
+
+Run on the current paused issue uses Continue with the saved host and fresh displayed step.
+An explicit conflicting host refuses. Waiting edits remain available during runs and stops.
+The current runner never transfers explicit authorization to another issue.
+
+`GET /api/queue` reads authoritative state without a full-board refresh. After a stale or lost
+response, the browser reads state before another deliberate attempt. It merges acknowledged
+and polled queue revisions and keeps the last good list on a failed read. Pending admission,
+saved/starting, and verified running are separate states. Only existing session observations
+prove running. The existing refresh carries a server-only `Document.queueWake` once; placement
+never exposes or redispatches it. No second remote poller is added.
 
 An Assist body must be an object with exactly one field, `number`. An extra field, including
 `agent`, a prompt, or execution text, gives 400. The number must be a positive safe integer,
@@ -622,7 +611,7 @@ Five rules hold for the start, the lines, and the data:
    accepts only the own entry of the program in `<base>/.local/bin/`, which starts the program in
    its version folder, and the command path holds no control character. The page, the data, and a
    lane cannot supply a command path.
-2. **A press types a fixed line.** Run, Resume, and queue actions start the runner of the installed
+2. **A press types a fixed line.** Run, Resume, and queue wakes start the runner of the installed
    `celetis` program; New intake and Assist start their interactive commands ("The line of a pane").
    That program starts the first `bun` on the `PATH` of the pane shell, through its `env -S`
    shebang, or through its shim on Windows. New intake and Assist start the selected native host. The server
@@ -692,21 +681,17 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   as Idle does. The label of a group stays in view while the column scrolls. When cards are below
   the fold, a line at the foot of the column names them, for example
   `3 more below: 1 input on the issue, 2 ready to run`; a press scrolls to the first of them.
-- Queue opens a dedicated view without changing the saved Now/Pipeline choice. Back to board
-  restores that choice; search and the existing Go actions remain available. On desktop, available
-  runnable issues sit beside the order. On a phone, the order comes first. Add selects each issue
-  once. Native Up, Down, and Remove buttons arrange the tab-local draft without an HTTP action.
-  Reload clears an unsubmitted draft. Start queue sends the displayed order and first step with
-  the selected available agent. The agent and order stay fixed after submission.
-- A submitted queue shows its current issue and step, later rows as Waiting, completed outcomes,
-  owner, and stop reason. A me gate stops the whole queue; Continue queue authorizes the displayed
-  waiting step. Try again appears for allowed recovery, and New queue appears only when reset is
-  permitted. A stale press refreshes the decision and requires another press. Opening a pane does
-  not itself prove that a runner exists. Submitted state survives reload and board restart.
-- Queue row controls keep focus on an enabled control of the moved issue, a neighboring row after
-  removal, or an available Add control. Polling restores the same control only when focus was in
-  Queue. Start and Continue announce their result and focus the current action or heading. The
-  hidden board's card shortcuts do nothing while Queue is open.
+- Queue preserves the saved Now/Pipeline choice. Current work appears above Up next. The picker
+  sits beside waiting work on desktop and below it on a phone. Add persists immediately and starts
+  an empty queue. Only waiting rows expose Up, Down, and Remove, including during runs and stops.
+- The count includes current and waiting work only. Finished rows leave with the same update.
+  Continue authorizes one displayed step; Try again recovers a permitted stop. The host stays
+  fixed while nonempty. Accepted order survives reload and board restart, without a batch reset.
+- Queue keeps pending admission, saved/starting, and verified running distinct. A stale press
+  reads authoritative state and requires another press. Status uses the polite announcement region.
+  Focus returns to a queue control only when that control owned focus; unrelated work keeps focus.
+  The hidden board's card shortcuts do nothing while Queue is open.
+
 - A card shows the type, the number, the title, the lane track, the state with its age, and its
   buttons. A working card shows the lines that it changed. A card whose row has `pr` shows the
   number, the CI result, and the review state. An act line that is a command or a path has a Copy
@@ -779,7 +764,7 @@ the texts are `Open the issue` and `Read the issues again`.
 - The status bar shows `The board server does not answer` when a request of the page failed. A
   press at that time gives a toast with that text and `Start the board again in a terminal.`
 - Queue disables execution controls during a request or an unavailable authoritative read. A failed
-  press retains the draft or submitted schedule and shows the server reason. Recovery controls
+  press retains the accepted queue and shows the server reason. Recovery controls
   follow the current engine action flags, including an interrupted runner.
 - The `noRun` text, the message of a server that does not answer, and each toast are alerts for a
   screen reader.

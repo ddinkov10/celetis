@@ -2655,9 +2655,6 @@ a.chip2:hover {
 [data-state="running"] .queue-status h3 {
   color: var(--working);
 }
-[data-state="complete"] .queue-status h3 {
-  color: var(--ready);
-}
 .queue-actions {
   display: flex;
   align-items: center;
@@ -2732,10 +2729,6 @@ a.chip2:hover {
 [data-state="me-gate"] .queue-current .queue-meta {
   color: var(--needs);
 }
-.queue-done .queue-rank,
-.queue-done .queue-meta {
-  color: var(--ready);
-}
 .queue-move {
   display: flex;
   flex-wrap: wrap;
@@ -2794,7 +2787,24 @@ a.chip2:hover {
 .queue-picker {
   padding: 20px 28px;
   min-width: 0;
-  border-right: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+.queue-order > h3 {
+  padding: 20px 28px 0;
+  font-size: 13px;
+}
+.queue-current-section {
+  margin-top: 24px;
+}
+.queue-current-section h4 {
+  font-size: 13px;
+}
+.queue .queue-current-section .queue-list {
+  padding: 0;
+}
+.queue-current-section .queue-empty {
+  padding: 16px 0 0;
+  border: 0;
 }
 .queue-picker h3 {
   font-size: 13px;
@@ -2862,10 +2872,13 @@ a.chip2:hover {
   }
   .queue .queue-content {
     display: flex;
-    flex-direction: column-reverse;
+    flex-direction: column;
   }
   .queue .queue-list {
     padding: 0 16px 16px;
+  }
+  .queue-order > h3 {
+    padding: 16px 16px 0;
   }
   .queue-picker {
     border: 0;

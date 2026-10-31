@@ -819,27 +819,24 @@ by itself, and `celetis --agent <host> celetis-flow` with no number is the autom
 `auto` step of each open issue. A Run press on the agent board is the same start, in a new herdr
 tab.
 
-To submit several issues in a fixed order, use the queue forms:
+The queue stays available as issues finish. Read its current identity before an action:
 
 ```sh
-celetis --agent <host> celetis-flow --queue start plan 12 13 14
-celetis celetis-flow --queue continue <id> <revision> <step>
-celetis celetis-flow --queue retry <id> <revision> <step|none>
-celetis celetis-flow --queue reset <id> <revision>
+celetis --agent <host> celetis-flow --queue status
+celetis --agent <host> celetis-flow --queue action '{"kind":"add","number":12,"step":"plan","expected":{"id":null,"revision":0,"current":null}}'
 ```
 
-Start authorizes only the first displayed step (`plan` of #12 in the example). Each later
-step, including the first step of each later issue, follows the fresh main gates. A `me` gate
-stops the whole queue; Continue authorizes that displayed step once. Only a closed issue
-advances the order. A hold, failed read, refused transition, lost host, or dirty checkout stops
-the queue with its reason. Multiple bare issue numbers are a usage error.
+The example adds to missing storage; for an existing record use the ID, revision, and current
+issue from status. Add starts an empty queue and appends otherwise. Move and remove affect only
+waiting work. The host stays fixed while nonempty. Every later me gate requires Continue.
+Retry recovers an interrupted launch or stopped step; a null step acknowledges terminal work
+without authorizing another issue. Only fresh finished/wontfix decisions drain work. Read failures
+retain accepted work. The same empty queue accepts more work without reset or reload.
 
-The runner stores the schedule at `<git common dir>/celetis-flow/queue.json`. The submitted order
-and host stay fixed. Continue, retry, and reset require the displayed queue ID and revision;
-an old action starts nothing. Retry rechecks an interrupted or stopped queue; `none` acknowledges
-a fresh closure without authorizing the next issue's first step. Reset requires no live owner
-and removes only the schedule. It needs no host executable. An interrupted queue never restarts
-by itself. `docs/celetis-flow.md`, "The submitted queue", gives the recovery rules.
+The record remains at `<git common dir>/celetis-flow/queue.json`, now schema 2. Old batch forms
+and compatibility readers are removed. See `docs/celetis-flow.md`, "The continuous queue", for
+the action fields, locking, and manual recovery of an obsolete record. Preserve that file until
+its runner and foreground exit and an explicitly authorized archive retains its unfinished order.
 
 A step session follows the step text: it asks only for a decision that the issue does not hold, and
 at a stop it puts the reason on the issue and adds `ready-for-human`. The `specify` session has no
@@ -919,21 +916,19 @@ A product project runs each command through the installed program `celetis` ("Fi
 ```text
 usage: celetis [--agent <host>] <command> [<argument>...]
 
-  celetis update                                                  Updates the program and the plugin of each host; asks once.
-  celetis update check                                            Shows the installed and the available revision of each part.
-  celetis board                                                   Starts the board of the project in this checkout.
-  celetis intake                                                  Starts a fresh session that asks for your request before intake.
-  celetis assist <n>                                              Starts fresh interactive assistance for an issue in the main checkout.
-  celetis celetis-flow                                            Starts the automatic runner.
-  celetis celetis-flow <n>                                        Starts the next step of one issue, then follows its auto gates.
-  celetis celetis-flow --resume <n>                               Opens the session of a step with no progress again.
-  celetis celetis-flow --queue start <step> <n>...                Submits a fixed order; explicitly starts only the first displayed step.
-  celetis celetis-flow --queue continue <id> <revision> <step>    Starts the displayed waiting step, then follows fresh gates.
-  celetis celetis-flow --queue retry <id> <revision> <step|none>  Recovers the displayed stopped queue; none acknowledges closure.
-  celetis celetis-flow --queue reset <id> <revision>              Removes an unowned schedule; keeps issues, worktrees, and sessions.
-  celetis root                                                    Prints the folder of the program.
-  celetis --version                                               Prints the revision of the program.
-  celetis help                                                    Prints this list.
+  celetis update                                            Updates the program and the plugin of each host; asks once.
+  celetis update check                                      Shows the installed and the available revision of each part.
+  celetis board                                             Starts the board of the project in this checkout.
+  celetis intake                                            Starts a fresh session that asks for your request before intake.
+  celetis assist <n>                                        Starts fresh interactive assistance for an issue in the main checkout.
+  celetis celetis-flow                                      Starts the automatic runner.
+  celetis celetis-flow <n>                                  Starts the next step of one issue, then follows its auto gates.
+  celetis celetis-flow --resume <n>                         Opens the session of a step with no progress again.
+  celetis celetis-flow --queue action '<QueueAction JSON>'  Saves a queue action; starts its authorized wake in this foreground.
+  celetis celetis-flow --queue status                       Reads the current queue and its allowed actions.
+  celetis root                                              Prints the folder of the program.
+  celetis --version                                         Prints the revision of the program.
+  celetis help                                              Prints this list.
 
 In a terminal, --agent claude|codex is optional. With no --agent, the program uses host in
 .celetis.yaml, else claude.
@@ -948,6 +943,8 @@ setup"):
 
 | Command | What it does |
 |---|---|
+| `celetis --agent <host> celetis-flow --queue admit '<QueueAction JSON>'` | Internal finite admission for the board. Persists one validated action and returns a strict QueueReceipt without waiting for a session |
+| `celetis --agent <host> celetis-flow --queue run <id> <token>` | Internal foreground claim of a persisted wake. Refuses stale tokens and live owners, then follows the queue's gates |
 | `celetis --agent <host> intake` | Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters `celetis:intake` with that request. It creates no issue before the answer and does not start the runner |
 | `celetis --agent <host> assist <n>` | Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses `issue <n> assisted <file>` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume the runner or land |
 | `celetis --agent <host> worktree <n>` | Makes the lane worktree and the branch of the issue, or enters the one that is there and brings it up to the trunk, and prints its path |
@@ -1173,14 +1170,13 @@ new program with no board restart; new board code still needs a restart. A missi
 program returns 409 before tab creation or pane execution. Read-only herdr status calls can
 precede that failure.
 
-Queue opens a dedicated view. Add runnable issues, arrange them with Up and Down, choose an
-available agent, and press Start queue. The first displayed step starts explicitly; subsequent
-steps follow the project gates. A `me` gate stops the whole queue until Continue queue starts the
-displayed waiting step. Later issues wait. The submitted view shows progress, outcomes, and exact
-recovery text. Try again and New queue appear only when the engine permits them. The submitted
-order and agent stay fixed and survive a page reload or board restart. An unsubmitted draft lives
-only in its tab and clears on reload. Back to board restores the current Now/Pipeline view;
-search and Go remain available for an agent that asks a question.
+Queue opens a dedicated view with current work above Up next. The available-issue picker sits
+beside waiting work on desktop and below it on a phone. Add saves and starts an empty queue;
+waiting Up/Down/Remove edits save immediately, including during a run or stop. The count includes
+only current and waiting work. The host stays fixed while nonempty. Continue and Try again follow
+fresh engine permissions. Saved/starting is distinct from a verified running session. Accepted
+order survives reload and board restart. Finished work leaves automatically. Back to board
+restores Now/Pipeline; search and Go remain available.
 
 History opens the latest 20 distinct landed issues in the existing nonmodal side panel. The
 button sits between Search and Refresh and stays visible on a phone. The count, `d`, and search

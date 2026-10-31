@@ -7,13 +7,13 @@ import type { Config, Host } from './lib/config-core.ts';
 import type { Next } from './lib/lines.ts';
 import type { LockOwner } from './lib/locks.ts';
 import type { HostSelection, Operation } from './lib/operation.ts';
-import type { QueueAction, QueueRecord } from './lib/queue-types.ts';
+import type { QueueAction, QueueRecord, QueueWake } from './lib/queue-types.ts';
 import type { SessionRecord } from './lib/session.ts';
 import type { StepEndRecord, StepEndState, TurnKey } from './lib/step-end.ts';
 import type { Run, Step } from './lib/workflow.ts';
 
 const usage =
-  'usage: celetis --agent <host> celetis-flow [<issue number>] | --resume <issue number> | --queue start <step> <n>... | --queue continue <id> <revision> <step> | --queue retry <id> <revision> <step|none> | --queue reset <id> <revision>; with no number, the automatic runner';
+  "usage: celetis --agent <host> celetis-flow [<issue number>] | --resume <issue number> | --queue action '<QueueAction JSON>' | --queue status; with no number, the automatic runner";
 const removed = 'the program version of this runner was removed after an update; start the runner again';
 const here = import.meta.dir;
 const required = [
@@ -41,6 +41,7 @@ const required = [
   'lib/program.ts',
   'lib/queue.ts',
   'lib/queue-types.ts',
+  'lib/queue-actions.ts',
   'lib/vendor/yaml.mjs',
 ];
 async function gone(files = required) {
@@ -69,6 +70,7 @@ export async function main(argv: string[]): Promise<number> {
     'lib/process-identity.ts',
     'lib/queue.ts',
     'lib/queue-types.ts',
+    'lib/queue-actions.ts',
     'lib/process.ts',
     'lib/session.ts',
     'lib/step-end.ts',
@@ -93,20 +95,23 @@ export async function main(argv: string[]): Promise<number> {
   let mode: 'numbers' | 'auto' | 'resume' | 'queue' = 'numbers';
   let numbers: string[] = [];
   let action: QueueAction | undefined;
+  let queueCommand = '';
+  let wake: QueueWake | undefined;
   if (argv[0] === '--queue' && !unavailable) {
     try {
       const { parseQueueAction } = await import('./lib/queue.ts');
-      const [, kind, first, second, third, ...rest] = argv;
-      const integer = (value: string | undefined) => (value && /^[1-9][0-9]*$/.test(value) ? Number(value) : NaN);
-      action = parseQueueAction(
-        kind === 'start'
-          ? { kind, step: first, numbers: argv.slice(3).map((n) => integer(n.replace(/^#/, ''))) }
-          : kind === 'reset' && argv.length === 4
-            ? { kind, id: first, revision: integer(second) }
-            : (kind === 'continue' || kind === 'retry') && argv.length === 5 && rest.length === 0
-              ? { kind, id: first, revision: integer(second), step: third === 'none' ? null : third }
-              : null,
-      );
+      queueCommand = argv[1] ?? '';
+      if ((queueCommand === 'action' || queueCommand === 'admit') && argv.length === 3)
+        action = parseQueueAction(JSON.parse(argv[2] as string));
+      else if (
+        queueCommand === 'run' &&
+        argv.length === 4 &&
+        argv
+          .slice(2)
+          .every((value) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value))
+      ) {
+        wake = { id: argv[2] as string, token: argv[3] as string, host: explicit === 'codex' ? 'codex' : 'claude' };
+      } else if (queueCommand !== 'status' || argv.length !== 2) throw new Error(usage);
       mode = 'queue';
     } catch {
       console.error(usage);
@@ -139,7 +144,8 @@ export async function main(argv: string[]): Promise<number> {
   const { HostError, requireBun } = await import('./lib/host.ts');
   const { addRecord, createLockOwner, isRecorded, lockHolder } = await import('./lib/locks.ts');
   const { createOperation, locateCheckouts } = await import('./lib/operation.ts');
-  const { readQueue, removeQueue, writeQueue } = await import('./lib/queue.ts');
+  const { readQueue, readQueueView, queueOwner, updateQueue } = await import('./lib/queue.ts');
+  const { admitQueue, emptyQueue } = await import('./lib/queue-actions.ts');
   const { describe } = await import('./lib/lines.ts');
   const { bunArgs, childEnv, run } = await import('./lib/process.ts');
   const { processStart } = await import('./lib/process-identity.ts');
@@ -184,10 +190,13 @@ export async function main(argv: string[]): Promise<number> {
   };
   const saveQueue = async (change: Partial<QueueRecord>) => {
     if (queue === null) throw new HostError('celetis-flow: queue: no submitted queue', 2);
-    const next = { ...queue, ...change, revision: queue.revision + 1 };
+    const expected = queue;
     try {
-      await writeQueue(common, next);
-      queue = next;
+      queue = await updateQueue(common, async (current) => {
+        if (!current || current.id !== expected.id || current.numbers[0] !== expected.numbers[0])
+          throw new Error('queue: the current issue changed; refresh the queue');
+        return { ...current, ...change };
+      });
     } catch (error) {
       storageFailed = true;
       throw new HostError(
@@ -611,30 +620,12 @@ export async function main(argv: string[]): Promise<number> {
     main = checkout.main;
     locks = createLockOwner(main);
     state = join(common, 'celetis-flow');
-    if (action) {
-      const holder = await locks.take('queue');
-      if (holder !== null) die(`another queue runner or its session has PID ${holder}`);
+    if (mode === 'queue') {
       queue = await readQueue(common);
-      if (action.kind === 'start') {
-        if (queue)
-          throw new HostError('celetis-flow: queue: a submitted queue already exists; use its displayed action', 2);
-      } else {
-        if (!queue || queue.id !== action.id || queue.revision !== action.revision)
-          throw new HostError('celetis-flow: queue: the ID or revision changed; refresh the queue', 2);
-        if (action.kind !== 'reset') {
-          if (explicit !== undefined && explicit !== queue.host)
-            throw new HostError(
-              `celetis-flow: queue: recorded host is ${queue.host}; omit --agent or use --agent ${queue.host}`,
-              2,
-            );
-          if (
-            queue.state === 'complete' ||
-            (action.kind === 'continue' && queue.state !== 'me-gate') ||
-            (action.kind === 'retry' && queue.state === 'me-gate' && action.step !== null)
-          )
-            throw new HostError('celetis-flow: queue: that action is not available; refresh the queue', 2);
-          selection = { ...selection, saved: queue.host };
-        }
+      if (queue?.host && action?.kind !== 'add') {
+        if (explicit !== undefined && explicit !== queue.host)
+          throw new HostError(`queue: recorded host is ${queue.host}`, 2);
+        selection = { ...selection, saved: queue.host };
       }
     }
     if (mode === 'resume') {
@@ -643,49 +634,41 @@ export async function main(argv: string[]): Promise<number> {
     }
     const saved = mode === 'resume' ? await selectSavedSession(main, Number(numbers[0]), explicit, common) : undefined;
     operation = createOperation(checkout, saved ? { ...selection, saved: saved.host } : selection, 'main');
-    if (action?.kind === 'reset') {
-      const n = queue?.numbers[queue.position];
-      if (n !== undefined) {
-        const holder = await locks.take(`issue-${n}`);
-        if (holder !== null) die(`another celetis-flow.ts or its session (PID ${holder}) works on #${n}`);
-        const { next, line } = await nextOf(String(n), operation);
-        if (next.kind === 'observed' && next.reason === 'unreadable') die(`queue: cannot reset: ${line}`);
+    if (mode === 'queue') {
+      if (queueCommand === 'status') {
+        console.log(JSON.stringify(await readQueueView(operation)));
+        return 0;
       }
-      await removeQueue(common);
-      say('queue: the submitted schedule was removed');
-      return 0;
-    }
-    if (action) {
-      if (action.kind === 'start') {
-        queue = {
-          schema: 1,
-          id: randomUUID(),
-          revision: 1,
-          host: operation.host,
-          numbers: action.numbers,
-          position: 0,
-          results: [],
-          state: 'running',
-          current: null,
-          last: null,
-          reason: null,
-          act: null,
-        };
-        try {
-          await writeQueue(common, queue);
-        } catch (error) {
-          throw new HostError(
-            `celetis-flow: queue: cannot submit queue: ${(error as Error).message}; no session started. Repair access to the queue record, then start the queue again.`,
-          );
+      if (action) {
+        const receipt = await admitQueue(operation, action);
+        if (queueCommand === 'admit') {
+          console.log(JSON.stringify(receipt));
+          return 0;
         }
+        if (!receipt.wake) {
+          console.log(JSON.stringify(receipt.view));
+          return 0;
+        }
+        wake = receipt.wake;
       }
+      const pending = wake;
+      queue = await updateQueue(common, async (current) => {
+        if (!current || !pending || current.id !== pending.id || current.launch?.token !== pending.token)
+          throw new HostError('queue: stale launch token; no session started', 2);
+        if (await queueOwner(main, current))
+          throw new HostError('queue: a runner or its foreground still owns this work', 2);
+        const holder = await locks?.take('queue');
+        if (holder !== null) throw new HostError('queue: another runner owns this work', 2);
+        return current;
+      });
       queueWritable = true;
-      selection = { ...selection, saved: queue?.host };
+      selection = { ...selection, saved: queue.host ?? undefined };
+      operation = fresh();
     }
     const host = operation.host;
     savedId = saved?.session_id ?? '';
     initial = mode === 'resume' || mode === 'queue' ? undefined : operation;
-    if (action?.kind !== 'retry' || action.step !== null) await requireStart(operation);
+    if (mode !== 'queue') await requireStart(operation);
     if (mode !== 'resume') {
       if (!Bun.which('gh', { PATH: childEnv().PATH })) die('gh is not on PATH');
       if (process.env.HERDR_ENV === '1') {
@@ -720,13 +703,15 @@ export async function main(argv: string[]): Promise<number> {
       await runIssue(numbers[0] as string, 'any');
       return 0;
     }
-    if (action && queue) {
-      let request: Parameters<typeof runIssue>[2] = {
-        step: action.step,
-        retry: action.kind === 'retry',
-      };
-      while (queue.position < queue.numbers.length) {
-        const n = String(queue.numbers[queue.position]);
+    if (mode === 'queue' && queue) {
+      const authorization = queue.launch?.authorization;
+      let request: Parameters<typeof runIssue>[2] =
+        authorization && authorization.number === queue.numbers[0]
+          ? { step: authorization.step, retry: authorization.retry }
+          : undefined;
+      await saveQueue({ state: 'running', launch: null });
+      while (queue.numbers.length) {
+        const n = String(queue.numbers[0]);
         const result = await runIssue(n, request ? 'any' : 'gated', request, (next) =>
           saveQueue({ state: 'running', current: next, last: next, reason: null, act: null }),
         );
@@ -741,23 +726,34 @@ export async function main(argv: string[]): Promise<number> {
           });
           return 0;
         }
-        const next = result.next;
-        const reason =
-          next?.kind === 'stop' && (next.reason === 'finished' || next.reason === 'wontfix')
-            ? next.reason
-            : die('queue: cannot advance without a closed resolver result');
-        const position = queue.position + 1;
-        await saveQueue({
-          position,
-          results: [...queue.results, result.started || queue.last !== null ? reason : 'already-closed'],
-          state: position === queue.numbers.length ? 'complete' : 'running',
-          current: null,
-          last: null,
-          reason: null,
-          act: null,
-        });
+        for (;;) {
+          const snapshot = await readQueue(common);
+          if (!snapshot || snapshot.id !== queue.id || snapshot.numbers[0] !== Number(n))
+            throw new Error('queue: current issue changed during drain');
+          const { next } = await nextOf(n, fresh());
+          if (next.kind !== 'stop' || (next.reason !== 'finished' && next.reason !== 'wontfix'))
+            die('queue: cannot advance without a fresh closed resolver result');
+          let drained = false;
+          try {
+            queue = await updateQueue(common, async (current) => {
+              if (!current || current.id !== snapshot.id) throw new Error('queue: identity changed during drain');
+              if (current.revision !== snapshot.revision) return current;
+              const numbers = current.numbers.slice(1);
+              if (!numbers.length) await locks?.release('queue');
+              drained = true;
+              return numbers.length
+                ? { ...current, numbers, current: null, last: null, reason: null, act: null }
+                : emptyQueue(current);
+            });
+          } catch (error) {
+            storageFailed = true;
+            throw error;
+          }
+          if (drained) break;
+        }
       }
-      say('queue: complete');
+      queueWritable = false;
+      say('queue: empty; Add starts the next issue');
       return 0;
     }
     const holder = await locks.take('runner');
@@ -803,7 +799,12 @@ export async function main(argv: string[]): Promise<number> {
       if (queueWritable && !storageFailed) {
         await finishSession();
         try {
-          await saveQueue({ state: 'error', reason, act: 'Fix the cause, then use Try again for the displayed step.' });
+          await saveQueue({
+            state: 'error',
+            launch: null,
+            reason,
+            act: 'Fix the cause, then use Try again for the displayed step.',
+          });
         } catch (failure) {
           console.error((failure as Error).message);
           return 1;

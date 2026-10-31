@@ -140,7 +140,7 @@ var runReason = (agent, number) => {
   if (data?.noRun)
     return data.noRun;
   const record = data?.queue?.record;
-  if (record?.state === "me-gate" && record.numbers[record.position] === number) {
+  if (record?.state === "me-gate" && record.numbers[0] === number) {
     if (agent !== null && agent !== record.host)
       return `queue: recorded host is ${record.host}`;
     agent = record.host;

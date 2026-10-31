@@ -1,31 +1,34 @@
+import type { Host } from './config-core.ts';
 import type { Next } from './lines.ts';
 import type { Run, Step } from './workflow.ts';
 
-export type QueueAction =
-  | { kind: 'start'; numbers: number[]; step: Step }
-  | { kind: 'continue'; id: string; revision: number; step: Step }
-  | { kind: 'retry'; id: string; revision: number; step: Step | null }
-  | { kind: 'reset'; id: string; revision: number };
-
+export type QueueExpected = { id: string | null; revision: number; current: number | null };
+export type QueueAction = { expected: QueueExpected } & (
+  | { kind: 'add'; number: number; step: Step }
+  | { kind: 'move'; number: number; direction: 'up' | 'down' }
+  | { kind: 'remove'; number: number }
+  | { kind: 'continue'; step: Step }
+  | { kind: 'retry'; step: Step | null }
+);
 export type QueueRecord = {
-  schema: 1;
+  schema: 2;
   id: string;
   revision: number;
-  host: 'claude' | 'codex';
+  host: Host | null;
   numbers: number[];
-  position: number;
-  results: ('finished' | 'wontfix' | 'already-closed')[];
-  state: 'running' | 'me-gate' | 'error' | 'complete';
+  state: 'empty' | 'starting' | 'running' | 'me-gate' | 'error';
   current: Run | null;
   last: Run | null;
   reason: string | null;
   act: string | null;
+  launch: { token: string; authorization: { number: number; step: Step | null; retry: boolean } | null } | null;
 };
-
 export type QueueView = {
   record: QueueRecord | null;
   owner: string | null;
   next: Next | null;
   error: string | null;
-  actions: { continue: boolean; retry: boolean; reset: boolean };
+  actions: { add: boolean; edit: boolean; continue: boolean; retry: boolean };
 };
+export type QueueWake = { id: string; token: string; host: Host };
+export type QueueReceipt = { view: QueueView; wake: QueueWake | null };

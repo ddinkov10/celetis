@@ -1,12 +1,15 @@
 import { randomUUID } from 'node:crypto';
-import { type BigIntStats, constants } from 'node:fs';
+import { type BigIntStats, closeSync, constants, fstatSync, openSync } from 'node:fs';
 import { lstat, mkdir, open, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { nextIssue } from '../next-step.ts';
-import { lineOf } from './lines.ts';
+import { lineOf, type Next } from './lines.ts';
 import { lockHolder } from './locks.ts';
-import type { Operation } from './operation.ts';
-import type { QueueAction, QueueRecord, QueueView } from './queue-types.ts';
+import { createOperation, type Operation } from './operation.ts';
+import { childEnv } from './process.ts';
+import type { QueueAction, QueueReceipt, QueueRecord, QueueView } from './queue-types.ts';
+import { tryFlock } from './update-lock.ts';
+import { openLockFile } from './windows.ts';
 import { lanes, type Run, type Step, steps } from './workflow.ts';
 
 export type { QueueAction, QueueRecord, QueueView } from './queue-types.ts';
@@ -20,7 +23,7 @@ const step = (value: unknown): value is Step => typeof value === 'string' && ste
 const identity = (value: Record<string, unknown>) =>
   typeof value.id === 'string' && uuid.test(value.id) && positive(value.revision);
 const numbers = (value: unknown): value is number[] =>
-  Array.isArray(value) && value.length > 0 && Array.from(value).every(positive) && new Set(value).size === value.length;
+  Array.isArray(value) && Array.from(value).every(positive) && new Set(value).size === value.length;
 const text = (value: unknown) => value === null || typeof value === 'string';
 
 function run(value: unknown): value is Run | null {
@@ -39,13 +42,31 @@ function run(value: unknown): value is Run | null {
 }
 
 export function parseQueueAction(value: unknown): QueueAction {
-  if (object(value)) {
-    if (value.kind === 'start' && keys(value, 'kind,numbers,step') && numbers(value.numbers) && step(value.step))
-      return value as QueueAction;
-    if (identity(value)) {
-      if (value.kind === 'reset' && keys(value, 'id,kind,revision')) return value as QueueAction;
+  if (object(value) && object(value.expected) && keys(value.expected, 'current,id,revision')) {
+    const expected = value.expected;
+    const valid =
+      expected.id === null
+        ? expected.revision === 0 && expected.current === null
+        : identity(expected) && (expected.current === null || positive(expected.current));
+    if (valid) {
       if (
-        keys(value, 'id,kind,revision,step') &&
+        value.kind === 'add' &&
+        keys(value, 'expected,kind,number,step') &&
+        positive(value.number) &&
+        step(value.step)
+      )
+        return value as QueueAction;
+      if (
+        value.kind === 'move' &&
+        keys(value, 'direction,expected,kind,number') &&
+        positive(value.number) &&
+        (value.direction === 'up' || value.direction === 'down')
+      )
+        return value as QueueAction;
+      if (value.kind === 'remove' && keys(value, 'expected,kind,number') && positive(value.number))
+        return value as QueueAction;
+      if (
+        keys(value, 'expected,kind,step') &&
         ((value.kind === 'continue' && step(value.step)) ||
           (value.kind === 'retry' && (value.step === null || step(value.step))))
       )
@@ -56,30 +77,109 @@ export function parseQueueAction(value: unknown): QueueAction {
 }
 
 function validate(value: unknown): QueueRecord {
+  const invalid = () => new Error('queue: invalid or obsolete record');
   if (
     !object(value) ||
-    !keys(value, 'act,current,host,id,last,numbers,position,reason,results,revision,schema,state') ||
-    value.schema !== 1 ||
+    !keys(value, 'act,current,host,id,last,launch,numbers,reason,revision,schema,state') ||
+    value.schema !== 2 ||
     !identity(value) ||
-    (value.host !== 'claude' && value.host !== 'codex') ||
     !numbers(value.numbers) ||
-    !Number.isSafeInteger(value.position) ||
-    Number(value.position) < 0 ||
-    !Array.isArray(value.results) ||
-    value.results.length !== value.position ||
-    !Array.from(value.results).every((result) => ['finished', 'wontfix', 'already-closed'].includes(result)) ||
-    typeof value.state !== 'string' ||
-    !['running', 'me-gate', 'error', 'complete'].includes(value.state) ||
-    (value.state === 'complete'
-      ? value.position !== value.numbers.length
-      : Number(value.position) >= value.numbers.length) ||
     !run(value.current) ||
     !run(value.last) ||
     !text(value.reason) ||
     !text(value.act)
   )
-    throw new Error('queue: invalid or obsolete record');
+    throw invalid();
+  if (value.state === 'empty') {
+    if (
+      value.numbers.length ||
+      [value.host, value.current, value.last, value.reason, value.act, value.launch].some((item) => item !== null)
+    )
+      throw invalid();
+  } else {
+    if (
+      !value.numbers.length ||
+      (value.host !== 'claude' && value.host !== 'codex') ||
+      !['starting', 'running', 'me-gate', 'error'].includes(String(value.state))
+    )
+      throw invalid();
+    if ((value.state === 'starting') !== (value.launch !== null)) throw invalid();
+    if (value.state === 'me-gate' && value.current === null) throw invalid();
+    if (value.launch !== null) {
+      const launch = value.launch;
+      if (
+        !object(launch) ||
+        !keys(launch, 'authorization,token') ||
+        typeof launch.token !== 'string' ||
+        !uuid.test(launch.token)
+      )
+        throw invalid();
+      const auth = launch.authorization;
+      if (
+        auth !== null &&
+        (!object(auth) ||
+          !keys(auth, 'number,retry,step') ||
+          auth.number !== value.numbers[0] ||
+          typeof auth.retry !== 'boolean' ||
+          !(step(auth.step) || (auth.retry && auth.step === null)))
+      )
+        throw invalid();
+    }
+  }
   return value as QueueRecord;
+}
+
+function nextValue(value: unknown): boolean {
+  if (run(value)) return true;
+  if (!object(value)) return false;
+  if (value.kind === 'observed')
+    return value.reason === 'dirty'
+      ? keys(value, 'kind,path,reason') && typeof value.path === 'string'
+      : keys(value, 'kind,reason') && ['landing', 'unreadable'].includes(String(value.reason));
+  if (value.kind !== 'stop') return false;
+  if (value.reason === 'ready-for-human')
+    return keys(value, 'kind,reason,variant') && ['landing-refused', 'your-step'].includes(String(value.variant));
+  if (value.reason === 'human-step')
+    return keys(value, 'kind,reason,variant') && ['evidence', 'report', 'removal'].includes(String(value.variant));
+  if (value.reason === 'several-lanes')
+    return (
+      keys(value, 'kind,labels,reason') &&
+      Array.isArray(value.labels) &&
+      value.labels.every((item) => typeof item === 'string')
+    );
+  return (
+    keys(value, 'kind,reason') &&
+    ['wontfix', 'finished', 'needs-info', 'epic', 'land-by-hand'].includes(String(value.reason))
+  );
+}
+
+export function parseQueueReceipt(value: unknown): QueueReceipt {
+  if (!object(value) || !keys(value, 'view,wake') || !object(value.view)) throw new Error('queue: invalid receipt');
+  const view = value.view;
+  if (
+    !keys(view, 'actions,error,next,owner,record') ||
+    !text(view.owner) ||
+    !text(view.error) ||
+    !nextValue(view.next) ||
+    !object(view.actions) ||
+    !keys(view.actions, 'add,continue,edit,retry') ||
+    Object.values(view.actions).some((item) => typeof item !== 'boolean')
+  )
+    throw new Error('queue: invalid receipt view');
+  const record = view.record === null ? null : validate(view.record);
+  if (value.wake !== null) {
+    const wake = value.wake;
+    if (
+      !object(wake) ||
+      !keys(wake, 'host,id,token') ||
+      !record?.launch ||
+      wake.id !== record.id ||
+      wake.token !== record.launch.token ||
+      wake.host !== record.host
+    )
+      throw new Error('queue: invalid receipt wake');
+  }
+  return value as QueueReceipt;
 }
 
 const pathOf = (common: string) => join(common, 'celetis-flow', 'queue.json');
@@ -100,17 +200,20 @@ export async function readQueue(common: string): Promise<QueueRecord | null> {
     if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino)
       throw new Error(`queue: the record changed during the read: ${file}`);
     const source = new TextDecoder('utf-8', { fatal: true }).decode(await handle.readFile());
-    return validate(JSON.parse(source));
+    try {
+      return validate(JSON.parse(source));
+    } catch {
+      throw new Error(
+        `queue: invalid or obsolete record: ${file}; preserve this file and follow the manual recovery in ${join(import.meta.dir, '../../docs/celetis-flow.md')}, "The continuous queue"`,
+      );
+    }
   } finally {
     await handle.close();
   }
 }
 
-export async function writeQueue(common: string, record: QueueRecord): Promise<void> {
+async function writeQueue(common: string, record: QueueRecord): Promise<void> {
   validate(record);
-  const previous = await readQueue(common);
-  if (previous?.id === record.id && record.revision <= previous.revision)
-    throw new Error('queue: the revision must increase');
   const file = pathOf(common);
   const dir = join(file, '..');
   await mkdir(dir, { recursive: true, mode: 0o700 });
@@ -123,48 +226,102 @@ export async function writeQueue(common: string, record: QueueRecord): Promise<v
   }
 }
 
-export async function removeQueue(common: string): Promise<void> {
-  if (await readQueue(common)) await rm(pathOf(common));
+export async function updateQueue(
+  common: string,
+  change: (record: QueueRecord | null) => Promise<QueueRecord>,
+): Promise<QueueRecord> {
+  const dir = join(common, 'celetis-flow');
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  const path = join(dir, 'queue-write.lock');
+  const fd =
+    process.platform === 'win32'
+      ? openLockFile(path)
+      : openSync(path, constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW | constants.O_NONBLOCK, 0o600);
+  try {
+    if (!fstatSync(fd).isFile()) throw new Error(`queue: not a regular lock file: ${path}`);
+    const deadline = performance.now() + 5_000;
+    while (!tryFlock(fd)) {
+      if (performance.now() >= deadline) throw new Error('queue: write lock is busy; refresh and try again');
+      await Bun.sleep(50);
+    }
+    const previous = await readQueue(common);
+    const changed = await change(previous);
+    if (changed === previous) return changed;
+    const next = { ...changed, revision: (previous?.revision ?? 0) + 1 };
+    await writeQueue(common, next);
+    return next;
+  } finally {
+    closeSync(fd);
+  }
+}
+
+export function queueView(
+  record: QueueRecord | null,
+  owner: string | null,
+  next: Next | null,
+  error: string | null = null,
+): QueueView {
+  const terminal = next?.kind === 'stop' && (next.reason === 'finished' || next.reason === 'wontfix');
+  const unreadable = next?.kind === 'observed' && next.reason === 'unreadable';
+  if (!error && next && next.kind !== 'run' && !terminal) error = lineOf(String(record?.numbers[0]), next);
+  if (!error && record?.state === 'error') error = record.reason;
+  if (!error && record?.state === 'running' && !owner)
+    error = 'queue: the runner was interrupted. Use Try again to continue.';
+  return {
+    record,
+    owner,
+    next,
+    error,
+    actions: {
+      add: !unreadable,
+      edit: Boolean(record?.numbers.length) && !unreadable,
+      continue: !owner && record?.state === 'me-gate' && next?.kind === 'run',
+      retry:
+        !owner &&
+        Boolean(record?.numbers.length) &&
+        (terminal || (record?.state !== 'me-gate' && next?.kind === 'run')),
+    },
+  };
+}
+
+export async function queueOwner(main: string, record: QueueRecord | null): Promise<string | null> {
+  return (
+    (await lockHolder(main, 'queue')) ||
+    (record?.numbers[0] ? await lockHolder(main, `issue-${record.numbers[0]}`) : null) ||
+    null
+  );
 }
 
 export async function readQueueView(operation: Operation, signal?: AbortSignal): Promise<QueueView> {
-  const view: QueueView = {
-    record: null,
-    owner: null,
-    next: null,
-    error: null,
-    actions: { continue: false, retry: false, reset: false },
-  };
+  let record: QueueRecord | null = null;
   try {
     signal?.throwIfAborted();
     const { main, common } = operation.checkout;
     if (main === null || common === null) throw new Error('queue: need a Git checkout');
-    const record = await readQueue(common);
-    view.record = record;
-    view.owner = (await lockHolder(main, 'queue')) || null;
-    if (record === null) return view;
-    const n = record.numbers[record.position];
-    if (n !== undefined) {
-      view.owner ||= (await lockHolder(main, `issue-${n}`)) || null;
-      view.next = (await nextIssue(String(n), operation, signal)).next;
-    }
+    record = await readQueue(common);
+    const selected = record?.host ? createOperation(operation.checkout, { saved: record.host }, 'main') : operation;
+    const number = record?.numbers[0];
+    const next = number ? (await nextIssue(String(number), selected, signal)).next : null;
+    const owner = await queueOwner(main, record);
     signal?.throwIfAborted();
-    const { next, owner } = view;
-    const terminal = next?.kind === 'stop' && (next.reason === 'finished' || next.reason === 'wontfix');
-    if (next && next.kind !== 'run' && !terminal) view.error = lineOf(String(n), next);
-    else if (record.state === 'running' && !owner)
-      view.error = 'queue: the runner was interrupted. Use Try again to continue.';
-    else if (record.state === 'error') view.error = record.reason;
-    if (owner || (next?.kind === 'observed' && next.reason === 'unreadable')) return view;
-    view.actions.reset = true;
-    if (record.state === 'me-gate' && next?.kind === 'run') view.actions.continue = true;
-    if ((record.state === 'error' || record.state === 'running' || record.state === 'me-gate') && terminal)
-      view.actions.retry = true;
-    if ((record.state === 'error' || record.state === 'running') && next?.kind === 'run') view.actions.retry = true;
+    const latest = await readQueue(common);
+    if (latest?.id !== record?.id || latest?.revision !== record?.revision)
+      throw new Error('queue: changed during the read; refresh before acting');
+    const view = queueView(record, owner, next);
+    if (record?.host && !Bun.which(record.host, { PATH: childEnv().PATH })) {
+      view.error = `queue: ${record.host} is not on PATH`;
+      view.actions.add = false;
+      view.actions.continue = false;
+      if (next?.kind === 'run') view.actions.retry = false;
+    }
     return view;
   } catch (error) {
-    view.error = error instanceof Error ? error.message : String(error);
-    view.actions = { continue: false, retry: false, reset: false };
-    return view;
+    return {
+      record,
+      owner: null,
+      next: null,
+      error: error instanceof Error ? error.message : String(error),
+      actions: { add: false, edit: false, continue: false, retry: false },
+    };
   }
 }

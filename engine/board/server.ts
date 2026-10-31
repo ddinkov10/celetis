@@ -19,11 +19,11 @@ import { execFile } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { basename, join, relative, resolve, sep } from 'node:path';
-import { lockHolder } from '../lib/locks.ts';
 import { createOperation, locateCheckouts } from '../lib/operation.ts';
 import { childEnv } from '../lib/process.ts';
-import { parseQueueAction, readQueue } from '../lib/queue.ts';
-import type { QueueAction, QueueView } from '../lib/queue-types.ts';
+import { parseQueueAction, queueView as projectQueue, queueOwner, readQueue, readQueueView } from '../lib/queue.ts';
+import { failQueueLaunch } from '../lib/queue-actions.ts';
+import type { QueueAction, QueueView, QueueWake } from '../lib/queue-types.ts';
 import { readStepEnd } from '../lib/step-end.ts';
 import { launchMatches, place, sessionsOf, stepsOf } from './place.ts';
 
@@ -156,7 +156,16 @@ export const createBoard = ({
     // Some steps of the read (the lock reads, locateCheckouts) do not take the signal.
     const ended = new Promise<never>((_, reject) => limit.signal.addEventListener('abort', reject, { once: true }));
     try {
-      board = await Promise.race([read(limit.signal), ended]);
+      const next = await Promise.race([read(limit.signal), ended]);
+      if (
+        board?.queue?.record &&
+        next.queue?.record?.id === board.queue.record.id &&
+        next.queue.record.revision < board.queue.record.revision
+      )
+        next.queue = board.queue;
+      board = next;
+      if (next.queueWake) dispatchWake(next.queueWake);
+      next.queueWake = null;
       readAt = new Date(now()).toISOString();
       error = null;
     } catch (cause) {
@@ -183,29 +192,27 @@ export const createBoard = ({
       const { common } = await locateCheckouts(main);
       if (common === null) throw new Error('queue: need a Git checkout');
       const record = await readQueue(common);
-      let owner = (await lockHolder(main, 'queue')) || null;
-      const number = record?.numbers[record.position];
-      if (number !== undefined) owner ||= (await lockHolder(main, `issue-${number}`)) || null;
-      if (!projected) return null;
-      const matches = record?.id === projected.record?.id && record?.revision === projected.record?.revision;
-      if (!matches || owner !== projected.owner) void refresh();
-      const next = matches ? projected.next : null;
-      const actions = { continue: false, retry: false, reset: false };
-      if (matches && !owner && !error && board?.noRun === null) {
-        Object.assign(actions, projected.actions);
-        if (next?.kind === 'run' && record && !board.agents[record.host]?.available) {
-          actions.continue = false;
-          actions.retry = false;
+      const owner = await queueOwner(main, record);
+      const matches = record?.id === projected?.record?.id && record?.revision === projected?.record?.revision;
+      if (!matches || owner !== projected?.owner) void refresh();
+      const next = matches ? (projected?.next ?? null) : null;
+      const actions = projectQueue(record, owner, next).actions;
+      if (!matches || error || (projected?.next?.kind === 'observed' && projected.next.reason === 'unreadable')) {
+        actions.continue = false;
+        actions.retry = false;
+        if (error) {
+          actions.add = false;
+          actions.edit = false;
         }
       }
-      return { record, owner, next, error: matches ? projected.error : null, actions };
+      return { record, owner, next, error: matches ? (projected?.error ?? null) : null, actions };
     } catch (cause) {
       return projected
         ? {
             ...projected,
             next: null,
             error: firstLine(cause instanceof Error ? cause.message : String(cause)),
-            actions: { continue: false, retry: false, reset: false },
+            actions: { add: false, edit: false, continue: false, retry: false },
           }
         : null;
     }
@@ -376,11 +383,13 @@ export const createBoard = ({
     label,
     command,
     isQuiet,
+    beforeCommand,
   }: {
     cwd: string;
     label: string;
     command?: string;
     isQuiet?: boolean;
+    beforeCommand?: () => void;
   }) => {
     const name = basename(main);
     const focus = isQuiet ? ['--no-focus'] : ['--focus'];
@@ -406,7 +415,10 @@ export const createBoard = ({
       if (!isPane(made.tab.tab_id)) throw new Refusal(502, 'herdr gave no id for the new tab');
       await herdr('tab', 'rename', made.tab.tab_id, label);
     }
-    if (command) await herdr('pane', 'run', made.root_pane.pane_id, command);
+    if (command) {
+      beforeCommand?.();
+      await herdr('pane', 'run', made.root_pane.pane_id, command);
+    }
   };
 
   const issueCardOf = async (number: number) =>
@@ -522,18 +534,22 @@ export const createBoard = ({
       if (error || !view || (view.error && !view.next))
         throw new Refusal(409, error || view?.error || 'queue: no successful initial read');
       const record = view.record;
-      if (record?.state === 'me-gate' && record.numbers[record.position] === number) {
+      if (record?.state === 'me-gate' && record.numbers[0] === number) {
         if (choice !== undefined && choice !== null && choice !== record.host)
           throw new Refusal(409, `queue: recorded host is ${record.host}`);
         if (!view.actions.continue || view.next?.kind !== 'run' || view.next.step !== card.step)
           throw new Refusal(409, 'queue: that action is not available; refresh the queue');
         const action: QueueAction = {
           kind: 'continue',
-          id: record.id,
-          revision: record.revision,
+          expected: { id: record.id, revision: record.revision, current: number },
           step: view.next.step,
         };
-        return { card, start: () => queue(action) };
+        return {
+          card,
+          start: async () => {
+            await queue(action);
+          },
+        };
       }
       const agent = agentOf(number, choice);
       return {
@@ -565,47 +581,49 @@ export const createBoard = ({
     });
   };
 
-  const queue = async (action: QueueAction, choice?: Host) => {
+  const dispatchWake = (wake: QueueWake) => {
+    let sent = false;
+    void (async () => {
+      const command = await adapter.queueRun(wake);
+      await openTab({
+        cwd: main,
+        label: 'Queue',
+        command,
+        isQuiet: true,
+        beforeCommand: () => {
+          sent = true;
+        },
+      });
+    })().catch(async (cause) => {
+      try {
+        const operation = createOperation(await locateCheckouts(main), { saved: wake.host }, 'main');
+        if (!sent) {
+          const view = await failQueueLaunch(operation, wake.id, wake.token, cleanCause(cause.message));
+          if (board) board.queue = view;
+        } else {
+          await queueView();
+        }
+      } catch (failure) {
+        error = `queue: launch recovery failed: ${cleanCause(failure)}`;
+      }
+    });
+  };
+
+  const queue = async (action: QueueAction, choice?: Host): Promise<QueueView> => {
     if (queuePress) throw new Refusal(409, 'queue: another press is active');
     queuePress = true;
     try {
-      await refresh();
-      if (!board || error || board.noRun !== null)
-        throw new Refusal(409, error || board?.noRun || 'queue: cannot read the issues');
-      const view = await queueView();
-      if (!view) throw new Refusal(409, 'queue: no successful initial read');
-      if (view.owner) throw new Refusal(409, `queue: a runner or its session has PID ${view.owner}`);
-      let agent: Host;
-      if (action.kind === 'start') {
-        if (view.record || view.error) throw new Refusal(409, view.error || 'queue: a submitted queue already exists');
-        agent = choice as Host;
-        const cards = Object.values((await placement()).columns).flat();
-        for (const [index, number] of action.numbers.entries()) {
-          const card = cards.find((card) => card.number === number && card.sessionId === null);
-          if (!card?.run || (index === 0 && card.step !== action.step) || (await lockHolder(main, `issue-${number}`)))
-            throw new Refusal(409, `queue: #${number} has no matching step to start now`);
-        }
-      } else {
-        const record = view.record;
-        if (!record || record.id !== action.id || record.revision !== action.revision)
-          throw new Refusal(409, 'queue: the ID or revision changed; refresh the queue');
-        if (!view.actions[action.kind])
-          throw new Refusal(409, 'queue: that action is not available; refresh the queue');
-        if (action.kind !== 'reset') {
-          const step = view.next?.kind === 'run' ? view.next.step : null;
-          if (step !== action.step) throw new Refusal(409, 'queue: the step changed; refresh the queue');
-        }
-        agent = record.host;
-      }
-      if (action.kind === 'start' || (action.kind !== 'reset' && action.step !== null)) {
-        const member = board.agents[agent];
-        if (!member?.available) throw new Refusal(409, cleanCause(member?.cause || `queue: ${agent} is not available`));
-      }
-      const command = await adapter.queue(action, agent).catch((cause: Error) => {
+      const { common } = await locateCheckouts(main);
+      if (!common) throw new Refusal(409, 'queue: need a Git checkout');
+      const record = await readQueue(common);
+      const agent = action.kind === 'add' ? choice : record?.host;
+      if (agent !== 'claude' && agent !== 'codex') throw new Refusal(409, 'queue: no recorded host');
+      const receipt = await adapter.queue(action, agent).catch((cause: Error) => {
         throw new Refusal(409, cleanCause(cause.message));
       });
-      await openTab({ cwd: main, label: 'Queue', command, isQuiet: true });
-      await refresh();
+      if (board) board.queue = receipt.view;
+      if (receipt.wake) setTimeout(() => dispatchWake(receipt.wake as QueueWake), 0);
+      return receipt.view;
     } finally {
       queuePress = false;
     }
@@ -660,6 +678,10 @@ export const createBoard = ({
     if (request.method === 'GET' && Object.hasOwn(FILES, path)) {
       const [name, type] = FILES[path] as [string, string];
       return send(response, 200, type, await readFile(join(HERE, name)));
+    }
+    if (request.method === 'GET' && path === '/api/queue') {
+      const operation = createOperation(await locateCheckouts(main), {}, 'main');
+      return sendJson(response, 200, await readQueueView(operation));
     }
     if (request.method === 'GET' && path === '/api/update')
       return sendJson(response, 200, { runtime, update: updates().snapshot() });
@@ -726,11 +748,11 @@ export const createBoard = ({
       if (
         !input ||
         Array.isArray(input) ||
-        Object.keys(input).sort().join(',') !== (action.kind === 'start' ? 'action,agent' : 'action') ||
-        (action.kind === 'start' && input.agent !== 'claude' && input.agent !== 'codex')
+        Object.keys(input).sort().join(',') !== (action.kind === 'add' ? 'action,agent' : 'action') ||
+        (action.kind === 'add' && input.agent !== 'claude' && input.agent !== 'codex')
       )
         throw new Refusal(400, 'queue: invalid request fields or host');
-      await queue(action, input.agent as Host | undefined);
+      return sendJson(response, 200, await queue(action, input.agent as Host | undefined));
     } else if (Object.hasOwn(starts, path)) {
       const { number } = input;
       if (

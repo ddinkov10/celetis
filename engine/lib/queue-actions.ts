@@ -1,0 +1,200 @@
+import { randomUUID } from 'node:crypto';
+import { nextIssue } from '../next-step.ts';
+import type { Next } from './lines.ts';
+import { lineOf } from './lines.ts';
+import { lockHolder } from './locks.ts';
+import { createOperation, type Operation } from './operation.ts';
+import { childEnv } from './process.ts';
+import { parseQueueAction, queueOwner, queueView, readQueue, readQueueView, updateQueue } from './queue.ts';
+import type { QueueAction, QueueExpected, QueueReceipt, QueueRecord, QueueView, QueueWake } from './queue-types.ts';
+
+const terminal = (next: Next | null) =>
+  next?.kind === 'stop' && (next.reason === 'finished' || next.reason === 'wontfix');
+const expectedOf = (record: QueueRecord | null): QueueExpected => ({
+  id: record?.id ?? null,
+  revision: record?.revision ?? 0,
+  current: record?.numbers[0] ?? null,
+});
+const match = (record: QueueRecord | null, expected: QueueExpected) => {
+  const actual = expectedOf(record);
+  if (actual.id !== expected.id || actual.revision !== expected.revision || actual.current !== expected.current)
+    throw new Error('queue: the ID, revision, or current issue changed; refresh the queue');
+};
+const checkoutOf = (operation: Operation) => {
+  const { main, common } = operation.checkout;
+  if (main === null || common === null) throw new Error('queue: need a Git checkout');
+  return { main, common };
+};
+export const emptyQueue = (record?: QueueRecord | null): QueueRecord => ({
+  schema: 2,
+  id: record?.id ?? randomUUID(),
+  revision: record?.revision ?? 1,
+  host: null,
+  numbers: [],
+  state: 'empty',
+  current: null,
+  last: null,
+  reason: null,
+  act: null,
+  launch: null,
+});
+const wakeOf = (record: QueueRecord): QueueWake => {
+  if (!record.launch || !record.host) throw new Error('queue: no pending launch');
+  return { id: record.id, token: record.launch.token, host: record.host };
+};
+
+export async function admitQueue(operation: Operation, input: QueueAction): Promise<QueueReceipt> {
+  const action = parseQueueAction(input);
+  const { main, common } = checkoutOf(operation);
+  const snapshot = await readQueue(common);
+  match(snapshot, action.expected);
+  const host = snapshot?.host ?? operation.host;
+  if (action.kind === 'add' && host !== operation.host) throw new Error(`queue: recorded host is ${host}`);
+  const selected = createOperation(operation.checkout, { saved: host }, 'main');
+  const number = action.kind === 'add' ? action.number : snapshot?.numbers[0];
+  if (!number) throw new Error('queue: that action is not available; refresh the queue');
+  const next = (await nextIssue(String(number), selected)).next;
+  if (action.kind === 'add' || action.kind === 'continue' || action.kind === 'retry') {
+    if (
+      action.kind === 'retry' && action.step === null
+        ? !terminal(next)
+        : next.kind !== 'run' || next.step !== action.step
+    )
+      throw new Error(`queue: the displayed decision changed: ${lineOf(String(number), next)}`);
+    if (next.kind === 'run' && !Bun.which(host, { PATH: childEnv().PATH }))
+      throw new Error(`queue: ${host} is not on PATH`);
+  }
+  const currentNext =
+    snapshot?.numbers[0] && snapshot.numbers[0] !== number
+      ? (await nextIssue(String(snapshot.numbers[0]), selected)).next
+      : next;
+  let wake = false;
+  let owner: string | null = null;
+  const record = await updateQueue(common, async (current) => {
+    match(current, action.expected);
+    owner = await queueOwner(main, current);
+    if (action.kind === 'add') {
+      if (!queueView(current, owner, currentNext).actions.add)
+        throw new Error('queue: cannot read the current issue; refresh before acting');
+      if (current?.numbers.includes(action.number)) throw new Error('queue: that issue is already queued');
+      if (await lockHolder(main, `issue-${action.number}`))
+        throw new Error('queue: that issue already has a live owner');
+      if (current?.numbers.length) return { ...current, numbers: [...current.numbers, action.number] };
+      if (owner) throw new Error('queue: a previous runner still owns the queue');
+      wake = true;
+      return {
+        ...emptyQueue(current),
+        host,
+        numbers: [action.number],
+        state: 'starting',
+        current: next?.kind === 'run' ? next : null,
+        launch: { token: randomUUID(), authorization: { number: action.number, step: action.step, retry: false } },
+      };
+    }
+    if (!current?.numbers.length) throw new Error('queue: the queue is empty');
+    if (action.kind === 'move' || action.kind === 'remove') {
+      if (!queueView(current, owner, currentNext).actions.edit)
+        throw new Error('queue: cannot read the current issue; refresh before acting');
+      const index = current.numbers.indexOf(action.number);
+      if (index < 1) throw new Error('queue: only waiting issues can be edited');
+      const numbers = [...current.numbers];
+      if (action.kind === 'remove') numbers.splice(index, 1);
+      else {
+        const target = index + (action.direction === 'up' ? -1 : 1);
+        if (target < 1 || target >= numbers.length) throw new Error('queue: that move is not available');
+        [numbers[index], numbers[target]] = [numbers[target] as number, action.number];
+      }
+      return { ...current, numbers };
+    }
+    const view = queueView(current, owner, next);
+    if (!view.actions[action.kind]) throw new Error('queue: that action is not available; refresh the queue');
+    wake = true;
+    return {
+      ...current,
+      state: 'starting',
+      reason: null,
+      act: null,
+      launch: {
+        token: randomUUID(),
+        authorization: { number: current.numbers[0] as number, step: action.step, retry: action.kind === 'retry' },
+      },
+    };
+  });
+  return { view: queueView(record, owner, currentNext), wake: wake ? wakeOf(record) : null };
+}
+
+export async function reconcileQueue(operation: Operation, signal?: AbortSignal): Promise<QueueReceipt> {
+  const { main, common } = checkoutOf(operation);
+  let snapshot: QueueRecord | null;
+  try {
+    snapshot = await readQueue(common);
+  } catch {
+    return { view: await readQueueView(operation, signal), wake: null };
+  }
+  if (!snapshot?.numbers.length) return { view: await readQueueView(operation, signal), wake: null };
+  const selected = createOperation(operation.checkout, { saved: snapshot.host ?? operation.host }, 'main');
+  const observations = new Map<number, Next>();
+  for (const number of snapshot.numbers) {
+    signal?.throwIfAborted();
+    observations.set(number, (await nextIssue(String(number), selected, signal)).next);
+  }
+  let wake: QueueWake | null = null;
+  let owner: string | null = null;
+  let fresh = false;
+  const record = await updateQueue(common, async (current) => {
+    signal?.throwIfAborted();
+    if (!current) throw new Error('queue: the record disappeared during reconciliation');
+    if (current.id !== snapshot.id || current.revision !== snapshot.revision) return current;
+    fresh = true;
+    owner = await queueOwner(main, current);
+    const numbers: number[] = [];
+    for (const number of current.numbers) {
+      const observed = observations.get(number) ?? null;
+      const held = (number === current.numbers[0] && owner) || (await lockHolder(main, `issue-${number}`));
+      if (!terminal(observed) || held) numbers.push(number);
+    }
+    if (numbers.length === current.numbers.length) return current;
+    if (!numbers.length) return emptyQueue(current);
+    if (numbers[0] === current.numbers[0]) return { ...current, numbers };
+    const next: QueueRecord = {
+      ...current,
+      numbers,
+      state: 'starting',
+      current: null,
+      last: null,
+      reason: null,
+      act: null,
+      launch: { token: randomUUID(), authorization: null },
+    };
+    wake = wakeOf(next);
+    return next;
+  });
+  if (!fresh) return { view: await readQueueView(operation, signal), wake: null };
+  const unreadable = record.numbers.find((number) => {
+    const next = observations.get(number);
+    return next?.kind === 'observed' && next.reason === 'unreadable';
+  });
+  const view = queueView(
+    record,
+    owner,
+    observations.get(record.numbers[0] as number) ?? null,
+    unreadable ? `queue: cannot read #${unreadable} from GitHub; the issue remains queued` : null,
+  );
+  if (unreadable) view.actions = { add: false, edit: false, continue: false, retry: false };
+  return { view, wake };
+}
+
+export async function failQueueLaunch(
+  operation: Operation,
+  id: string,
+  token: string,
+  reason: string,
+): Promise<QueueView> {
+  const { main, common } = checkoutOf(operation);
+  await updateQueue(common, async (current) => {
+    if (!current) throw new Error('queue: the pending record disappeared');
+    if (current.id !== id || current.launch?.token !== token || (await queueOwner(main, current))) return current;
+    return { ...current, state: 'error', launch: null, reason, act: 'Fix the launch failure, then use Try again.' };
+  });
+  return readQueueView(operation);
+}

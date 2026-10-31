@@ -1,5 +1,5 @@
 import type { Host } from '../lib/config-core.ts';
-import type { QueueView } from '../lib/queue-types.ts';
+import type { QueueView, QueueWake } from '../lib/queue-types.ts';
 import type { UpdateStage } from '../lib/update-types.ts';
 
 export type { UpdateStage };
@@ -74,6 +74,7 @@ export type Document = {
   agents: Record<string, { available: boolean; cause: string | null }>;
   defaultAgent: string;
   queue: QueueView | null;
+  queueWake: QueueWake | null;
 };
 export type Session = {
   sessionId: string;

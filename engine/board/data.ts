@@ -1,7 +1,7 @@
 import { isRecorded, lockHolder } from '../lib/locks.ts';
 import { createOperation, locateCheckouts } from '../lib/operation.ts';
 import { childEnv } from '../lib/process.ts';
-import { readQueueView } from '../lib/queue.ts';
+import { reconcileQueue } from '../lib/queue-actions.ts';
 import { github } from '../lib/tracker.ts';
 import { defaultGate, lands, lanes, stageOf, stages, steps } from '../lib/workflow.ts';
 import { jsonRow, nextBoard } from '../next-step.ts';
@@ -63,6 +63,7 @@ export async function readBoard(main: string, signal: AbortSignal): Promise<Docu
       return [agent, { available, cause: available ? null : `celetis: ${agent} is not on PATH` }];
     }),
   );
+  const receipt = await reconcileQueue(operation, signal);
   return {
     history,
     tracker: 'GitHub',
@@ -72,6 +73,7 @@ export async function readBoard(main: string, signal: AbortSignal): Promise<Docu
     noRun: data.noRun,
     runner,
     issues,
-    queue: await readQueueView(operation, signal),
+    queue: receipt.view,
+    queueWake: receipt.wake,
   };
 }

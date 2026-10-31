@@ -1,7 +1,8 @@
 import type { Host } from '../lib/config-core.ts';
+import { bunArgs, run } from '../lib/process.ts';
 import { type Program, readProgram } from '../lib/program.ts';
-import { parseQueueAction } from '../lib/queue.ts';
-import type { QueueAction } from '../lib/queue-types.ts';
+import { parseQueueAction, parseQueueReceipt } from '../lib/queue.ts';
+import type { QueueAction, QueueReceipt, QueueWake } from '../lib/queue-types.ts';
 import { selectSavedSession } from '../lib/session.ts';
 
 export type Adapter = Readonly<{
@@ -9,7 +10,8 @@ export type Adapter = Readonly<{
   assist(number: number, agent: Host): Promise<string>;
   run(number: number, agent: Host): Promise<string>;
   resume(number: number): Promise<string>;
-  queue(action: QueueAction, agent: Host): Promise<string>;
+  queue(action: QueueAction, agent: Host): Promise<QueueReceipt>;
+  queueRun(wake: QueueWake): Promise<string>;
 }>;
 
 const CONTROL = /[\u0000-\u001f\u007f]/;
@@ -44,13 +46,21 @@ export async function celetisAdapter(
     queue: async (input, agent) => {
       const action = parseQueueAction(input);
       if (agent !== 'claude' && agent !== 'codex') throw new Error('queue: invalid host');
-      const args: (string | number)[] = ['--agent', agent, 'celetis-flow', '--queue', action.kind];
-      if (action.kind === 'start') args.push(action.step, ...action.numbers);
-      else {
-        args.push(action.id, action.revision);
-        if (action.kind !== 'reset') args.push(action.step ?? 'none');
+      const program = await read();
+      if (!program) throw new Error('queue: the celetis program is not installed');
+      const result = await run(
+        process.execPath,
+        bunArgs(program.entry, ['--agent', agent, 'celetis-flow', '--queue', 'admit', JSON.stringify(action)]),
+        { cwd: main, timeout: 30_000 },
+      );
+      if (result.code !== 0)
+        throw new Error(result.stderr || 'queue: admission outcome is uncertain; refresh before another attempt');
+      try {
+        return parseQueueReceipt(JSON.parse(result.stdout));
+      } catch {
+        throw new Error('queue: admission outcome is uncertain; refresh before another attempt');
       }
-      return line(args);
     },
+    queueRun: (wake) => line(['--agent', wake.host, 'celetis-flow', '--queue', 'run', wake.id, wake.token]),
   };
 }
