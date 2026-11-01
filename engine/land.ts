@@ -2,6 +2,8 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { constants } from 'node:os';
 import { join } from 'node:path';
 import type { Config } from './lib/config-core.ts';
+import { completeEpic } from './lib/epic.ts';
+import { parseEpicRepository } from './lib/epic-acceptance.ts';
 import { HostError, updateHint } from './lib/host.ts';
 import { lineOf } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
@@ -148,15 +150,16 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
         return die('blocked', message);
       }
     };
-    const list = async <T>(endpoint: string): Promise<T[]> =>
-      (await api<T[][]>(endpoint, { paginate: true, quiet: true })).flat();
     const closeIssue = async (issue: string, body: string) => {
       const gh = github(cwd, abort.signal);
       await gh.comment(issue, body);
       await gh.edit(issue, { state: 'closed', state_reason: 'completed' });
       process.stderr.write(gh.stderr());
     };
-    const repo = await checkedApi<{ default_branch: string }>('', 'cannot read the default branch from GitHub');
+    const repo = await checkedApi<{ default_branch: string; html_url: unknown }>(
+      '',
+      'cannot read the default branch from GitHub',
+    );
     if (typeof repo.default_branch !== 'string' || !repo.default_branch)
       die('blocked', 'cannot read the default branch from GitHub');
     trunk = repo.default_branch;
@@ -490,31 +493,36 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
       if (merge?.code !== 0)
         console.log(`land: the main checkout did not move to origin/${trunk}; run git pull on ${trunk} there`);
     };
-    const closeEpic = async () => {
-      let parent: { number: number; state: string };
+    const completeParent = async () => {
+      let parent: number;
       try {
-        parent = await api(`/issues/${n}/parent`, { quiet: true });
+        const result = await api<{ number: number; html_url: unknown } | null>(`/issues/${n}/parent`, { quiet: true });
+        if (!result || !Number.isSafeInteger(result.number) || result.number < 1)
+          throw new Error('the parent response has no valid issue number');
+        parent = result.number;
+        const suffix = `/issues/${parent}`;
+        if (typeof result.html_url !== 'string' || !result.html_url.endsWith(suffix))
+          throw new Error('the parent response has no canonical issue URL that matches its number');
+        const repository = parseEpicRepository(result.html_url.slice(0, -suffix.length));
+        if (repository !== parseEpicRepository(repo.html_url)) {
+          console.log(
+            `land: parent ${result.html_url} is in another repository; run /celetis:accept-epic #${parent} in that repository's main checkout`,
+          );
+          return;
+        }
       } catch (error) {
         if (!errorText(error).includes('HTTP 404'))
-          console.log(`land: cannot read the parent of #${n}; close its epic by hand: ${errorText(error)}`);
+          console.log(`land: warning: cannot read the parent of #${n}: ${errorText(error)}`);
         return;
       }
-      if (parent.state !== 'open') return;
-      let siblings: { number: number; state: string }[];
       try {
-        siblings = await list(`/issues/${parent.number}/sub_issues`);
+        const result = await completeEpic(main, common, String(parent));
+        if (result.kind === 'pending')
+          console.log(`land: parent #${parent} remains open: ${result.reason}; run ${result.nextAction}`);
       } catch (error) {
         console.log(
-          `land: cannot read the sub-issues of #${parent.number}; close the epic by hand: ${errorText(error)}`,
+          `land: warning: cannot complete parent #${parent}; run /celetis:accept-epic #${parent}: ${errorText(error)}`,
         );
-        return;
-      }
-      if (siblings.some((issue) => issue.state === 'open' && String(issue.number) !== n)) return;
-      try {
-        await closeIssue(String(parent.number), `Each sub-issue is closed: #${n} landed last.`);
-      } catch (error) {
-        emitError(error);
-        console.log(`land: cannot close the epic #${parent.number}; close it by hand`);
       }
     };
     if (config.landing === 'merge') await landMerge(config.suite);
@@ -522,7 +530,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     cleanup = `the change is on ${trunk}, but the removal of ${branch} stopped; run celetis --agent <host> land again`;
     console.log(`land: #${n} is on ${trunk}`);
     if (config.landing === 'pr') await pullMain();
-    await closeEpic();
+    await completeParent();
     interrupted();
     const deletion = await gitRaw(['push', '-q', 'origin', '--delete', branch]);
     if (deletion.code !== 0) {

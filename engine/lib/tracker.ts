@@ -1,8 +1,9 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { parseEpicAcceptance, parseEpicChildren, parseEpicRepository } from './epic-acceptance.ts';
 import { run } from './process.ts';
-import type { Entry, IssueData } from './workflow.ts';
+import type { Entry, EpicSnapshot, IssueData } from './workflow.ts';
 
 export type Issue = Readonly<{
   number: number;
@@ -28,6 +29,7 @@ export type GitHub = Readonly<{
   list(endpoint: string): Promise<unknown[]>;
   history(issue: Issue): Promise<readonly Entry[]>;
   read(n: string): Promise<Readonly<{ issue: Issue; data: IssueData }>>;
+  epic(n: string): Promise<EpicSnapshot>;
   comment(n: string, text: string): Promise<void>;
   addLabels(n: string, names: readonly string[]): Promise<void>;
   removeLabel(n: string, name: string): Promise<void>;
@@ -77,7 +79,9 @@ export function parseIssue(raw: unknown): Issue {
 export function parseTimeline(entries: readonly unknown[]): Entry[] {
   return entries.flatMap((raw): Entry[] => {
     const entry = record(raw);
-    switch (entry.event) {
+    const event = text(entry.event);
+    if (!event || /[\s\0]/.test(event)) throw malformed();
+    switch (event) {
       case 'commented':
         if (typeof entry.id !== 'number') throw malformed();
         return [{ kind: 'comment', id: entry.id, at: text(entry.created_at), body: text(entry.body) }];
@@ -86,7 +90,7 @@ export function parseTimeline(entries: readonly unknown[]): Entry[] {
         return [
           {
             kind: 'label',
-            change: entry.event === 'labeled' ? 'added' : 'removed',
+            change: event === 'labeled' ? 'added' : 'removed',
             name: text(record(entry.label).name),
             at: text(entry.created_at),
           },
@@ -119,7 +123,7 @@ export function github(cwd: string, signal?: AbortSignal): GitHub {
 
   async function list(endpoint: string): Promise<unknown[]> {
     const pages = await call(endpoint, true);
-    if (!Array.isArray(pages)) throw malformed();
+    if (!Array.isArray(pages) || !pages.every(Array.isArray)) throw malformed();
     return pages.flat();
   }
 
@@ -152,6 +156,55 @@ export function github(cwd: string, signal?: AbortSignal): GitHub {
     async read(n: string) {
       const issue = parseIssue(await call(`issues/${n}`, false));
       return { issue, data: issueData(issue, await history(issue)) };
+    },
+    async epic(n: string) {
+      if (!/^[1-9][0-9]*$/.test(n) || !Number.isSafeInteger(Number(n))) throw malformed();
+      const rawRepository = record(await call('', false));
+      const repository = parseEpicRepository(rawRepository.html_url);
+      if (
+        !Number.isSafeInteger(rawRepository.id) ||
+        Number(rawRepository.id) <= 0 ||
+        rawRepository.full_name !== new URL(repository).pathname.slice(1)
+      )
+        throw malformed();
+      const rawParent = record(await call(`issues/${n}`, false));
+      const issue = parseIssue(rawParent);
+      if (
+        Object.hasOwn(rawParent, 'pull_request') ||
+        issue.number !== Number(n) ||
+        issue.url !== `${repository}/issues/${n}` ||
+        !Number.isSafeInteger(issue.comments) ||
+        issue.comments < 0
+      )
+        throw malformed();
+      const entries = parseTimeline(await list(`issues/${n}/timeline?per_page=100`));
+      const ids = new Set<number>();
+      for (const entry of entries) {
+        if (entry.kind !== 'comment') continue;
+        if (!Number.isSafeInteger(entry.id) || entry.id <= 0 || ids.has(entry.id)) throw malformed();
+        ids.add(entry.id);
+      }
+      const children = parseEpicChildren(
+        (await list(`issues/${n}/sub_issues?per_page=100`)).map((raw) => {
+          const child = record(raw);
+          if (Object.hasOwn(child, 'pull_request')) throw malformed();
+          return {
+            url: child.html_url,
+            id: child.id,
+            number: child.number,
+            state: child.state,
+            stateReason: child.state_reason,
+            closedAt: child.closed_at,
+          };
+        }),
+      );
+      return {
+        repository,
+        parent: issue.number,
+        data: issueData(issue, entries),
+        declaration: parseEpicAcceptance(issue.body),
+        children,
+      };
     },
     comment: (n: string, text: string) => send('POST', `issues/${n}/comments`, { body: text }),
     addLabels: (n: string, names: readonly string[]) => send('POST', `issues/${n}/labels`, { labels: names }),

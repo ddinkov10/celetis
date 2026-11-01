@@ -459,7 +459,7 @@ the line stays the same, and the session stays open. A session that ends while t
 its next idle moment, and a Run press starts that lane.
 
 **A landing.** `celetis --agent <host> land` moves the line of the issue when it merges, and it then closes
-the epic and removes the worktree. While it runs, `celetis --agent <host> next-step <n>` prints
+the child and checks parent acceptance before it removes the worktree. While it runs, `celetis --agent <host> next-step <n>` prints
 `stop the landing of #<n> runs; wait until celetis --agent <host> land ends`. That line is the stop of an
 observation, not a stop of the issue, so the job does not end the session. herdr 0.9.3 reads an
 agent that waits for a background command as `done`, then `idle` (read on a live herdr on 2026-10-11). So while the script
@@ -470,6 +470,17 @@ completes the landing. After the merge the issue is finished, so Run and
 `celetis --agent <host> celetis-flow <n>` start nothing, and no card shows the lane worktree and the branch
 that stay. `celetis --agent <host> worktree --remove <n>` also removes them after the merge of the PR; it
 does not close the epic.
+
+After the child closes, `land` validates the parent's full issue URL. Automatic completion stays
+in the active repository. A parent in another repository stays open; the command prints its
+canonical URL and directs explicit acceptance from that repository's main checkout. For a local
+parent, `land` uses the shared completion guard with no acceptance submission.
+An independent epic closes only when its declaration is valid, its complete child
+list is nonempty and closed, and no hold or open human precondition remains. A combined or
+unresolved parent stays open; the command names the parent and `/celetis:accept-epic #<parent>`.
+Pending acceptance writes no comment and sets no hold. A parent read or completion failure
+prints a warning and child cleanup continues. A repeat uses the same guard and does not add a
+duplicate completion record.
 
 Before each push, PR, re-run of a check, and merge, `land` reads the issue again, as it reads the
 Git state again. It refuses an issue that is not ready to land: the issue is closed; it has no lane
@@ -485,7 +496,7 @@ The exit status and the first word after `land: ` give the result:
 
 | Status | First word | Result | Examples |
 |---|---|---|---|
-| 0 | none | landed | `land: #<n> is on <trunk>`; also with a warning, for example `land: cannot read the parent of #<n>; close its epic by hand: …` |
+| 0 | none | landed | `land: #<n> is on <trunk>`; also with a warning, for example `land: warning: cannot read the parent of #<n>: …` |
 | 1 | none | an internal error of `land` | an unexpected exception |
 | 2 | `usage` | usage | bad arguments (the line starts with `usage: `); a run from inside the lane worktree; a dirty lane worktree; no lane branch; nothing to land; an invalid configuration |
 | 3 | `prerequisite` | the issue is not ready to land | the refusals of the paragraph above |

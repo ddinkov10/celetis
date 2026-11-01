@@ -52,6 +52,9 @@ With evidence for the full scope of the report and both removals:
    required human repair after a partial write: run no part of its printed repair command and
    claim no success. Re-entry reads current state before another attempt; never blindly replay
    a partial write or duplicate its report.
-5. End with the actual remaining block or resolver step. Leave continuation to the normal
-   runner. Start or resume no runner, invoke no next lane, and perform no landing. A cleared
-   hotfix still requires `land` by the maintainer in their own shell.
+5. End with the actual remaining block or resolver step. For a cleared epic, report
+   `/celetis:accept-epic #<n>` for the maintainer's explicit re-entry. Assistance clearance does
+   not prove a parent scenario; acceptance must review current coverage and evidence lifetime.
+   An epic has no runner continuation. Other lanes leave continuation to the normal runner.
+   Start or resume no runner, invoke no next lane, and perform no landing. A cleared hotfix
+   still requires `land` by the maintainer in their own shell.

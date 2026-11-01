@@ -32,6 +32,7 @@ const yaml11Int = /^[-+]?(?:0[bB][01]+|0[oO][0-7]+|0[xX][0-9a-fA-F]+|[0-9]+)$/;
 const yaml11Float = /^[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?$/;
 const hosts = ['claude', 'codex'] as const;
 const skills = [
+  'accept-epic',
   'assist',
   'attack-the-premise',
   'boundary-discipline',

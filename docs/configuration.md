@@ -21,7 +21,7 @@ The allowed gate names are `triage`, `specify`, `bug`, `chore`, `hotfix`, `plan`
 `implement`. No other step is accepted. An empty `gates` mapping uses `me` for all seven.
 An empty `board` mapping uses port 4403. `PORT` takes precedence over the configured board port.
 
-The allowed custom keys are `assist`, `attack-the-premise`, `boundary-discipline`, `bug`, `chore`,
+The allowed custom keys are `accept-epic`, `assist`, `attack-the-premise`, `boundary-discipline`, `bug`, `chore`,
 `create-verification`,
 `critic-loop`, `doc-drift-sync`, `encode-lessons-in-structure`, `explain-the-number`, `feature`,
 `guide`, `hotfix`, `implement`, `intake`, `lesson`, `lesson-review`,

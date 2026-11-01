@@ -103,6 +103,102 @@ export type IssueData = Readonly<{
   history: readonly Entry[];
 }>;
 
+export type EpicScenario = Readonly<{
+  name: string;
+  criterion: string;
+  children: readonly string[];
+  setup: string;
+  preparation: string;
+  target: string;
+  expected: string;
+  timing: string;
+  sourceToFiles: string;
+  filesToTarget: string;
+  oracle: string;
+}>;
+
+export type EpicAcceptance =
+  | Readonly<{ mode: 'independent'; rationale: string }>
+  | Readonly<{ mode: 'combined'; scenarios: readonly EpicScenario[] }>;
+
+export type EpicDeclaration =
+  | Readonly<{ kind: 'valid'; acceptance: EpicAcceptance; definitionHash: string }>
+  | Readonly<{ kind: 'unresolved'; reason: string }>;
+
+export type EpicChild = Readonly<{
+  url: string;
+  id: number;
+  number: number;
+  state: 'open' | 'closed';
+  stateReason: 'completed' | 'not_planned' | 'duplicate' | 'reopened' | null;
+  closedAt: string | null;
+}>;
+
+export type EpicSource = Readonly<{ checkout: string; commit: string }> &
+  (Readonly<{ dirty: false }> | Readonly<{ dirty: true; snapshot: string }>);
+
+export type EpicTarget = Readonly<{
+  name: string;
+  source: EpicSource;
+  runtime: string;
+  sourceToFiles: string;
+  filesToTarget: string;
+}>;
+
+export type AcceptedEpicResult =
+  | Readonly<{
+      scenario: string;
+      result: 'PASS';
+      target: string;
+      observation: string;
+      oracle: string;
+      reports: readonly number[];
+    }>
+  | Readonly<{ scenario: string; result: 'inapplicable'; rationale: string; decision: number }>;
+
+export type EpicResult =
+  | AcceptedEpicResult
+  | Readonly<{
+      scenario: string;
+      result: 'FAIL' | 'BLOCKED' | 'unrun' | 'UNVERIFIED';
+      reason: string;
+      reports: readonly number[];
+    }>;
+
+export type EpicReview = Readonly<{ session: string; at: string }>;
+
+type EpicEvidence = Readonly<{
+  repository: string;
+  parent: number;
+  definitionHash: string;
+  children: readonly EpicChild[];
+  review: EpicReview;
+}>;
+
+export type EpicSubmission = EpicEvidence &
+  Readonly<{ targets: readonly EpicTarget[]; results: readonly EpicResult[] }>;
+
+export type AcceptedEpic = EpicEvidence &
+  (
+    | Readonly<{ mode: 'independent'; targets: readonly []; results: readonly [] }>
+    | Readonly<{ mode: 'combined'; targets: readonly EpicTarget[]; results: readonly AcceptedEpicResult[] }>
+  );
+
+export type EpicSnapshot = Readonly<{
+  repository: string;
+  parent: number;
+  data: IssueData;
+  declaration: EpicDeclaration;
+  children: readonly EpicChild[];
+}>;
+
+export type EpicCompletionInput = Readonly<{ snapshot: EpicSnapshot; submission: EpicSubmission | null }>;
+
+export type EpicCompletionDecision =
+  | Readonly<{ kind: 'closed' }>
+  | Readonly<{ kind: 'refused'; reason: string }>
+  | Readonly<{ kind: 'complete'; mode: EpicAcceptance['mode'] }>;
+
 export type Build = 'none' | 'planned' | 'built';
 
 export type HumanStep = Readonly<{
@@ -147,6 +243,69 @@ export function factsOf(issue: IssueData, lane: Lane | null): Facts {
     });
   const refusal = headed(history, '## ').at(-1)?.body.startsWith(headings.landingRefused) ?? false;
   return { plan: plan?.id ?? null, build, open, refusal };
+}
+
+export function decideEpicCompletion({ snapshot, submission }: EpicCompletionInput): EpicCompletionDecision {
+  const { data, declaration, children } = snapshot;
+  const refuse = (reason: string): EpicCompletionDecision => ({ kind: 'refused', reason });
+  if (data.state === 'closed') return { kind: 'closed' };
+  if (!data.labels.includes('epic')) return refuse('parent is not an epic');
+  if (children.length === 0) return refuse('epic has no children');
+  if (children.some((child) => child.state !== 'closed')) return refuse('epic has open children');
+  if (data.labels.includes('needs-info') || data.labels.includes('ready-for-human'))
+    return refuse('epic has a current hold');
+  if (factsOf(data, null).open.length) return refuse('epic has an unresolved human precondition');
+  if (declaration.kind === 'unresolved') return refuse(`unresolved epic acceptance: ${declaration.reason}`);
+  const { acceptance, definitionHash } = declaration;
+  if (acceptance.mode === 'independent') return { kind: 'complete', mode: 'independent' };
+  const childUrls = new Set(children.map((child) => child.url));
+  for (const scenario of acceptance.scenarios) {
+    if (scenario.children.some((url) => !childUrls.has(url)))
+      return refuse(`scenario ${scenario.name} references a child outside the current epic`);
+  }
+  if (!submission) return refuse('combined acceptance requires a current submission');
+  if (submission.repository !== snapshot.repository || submission.parent !== snapshot.parent)
+    return refuse('submission names a different repository or parent');
+  if (submission.definitionHash !== definitionHash) return refuse('submission uses a stale acceptance definition');
+  const submittedChildren = new Map(submission.children.map((child) => [child.url, child]));
+  if (
+    children.length !== submission.children.length ||
+    children.some((child) => {
+      const submitted = submittedChildren.get(child.url);
+      return (
+        !submitted ||
+        child.id !== submitted.id ||
+        child.number !== submitted.number ||
+        child.state !== submitted.state ||
+        child.stateReason !== submitted.stateReason ||
+        child.closedAt !== submitted.closedAt
+      );
+    })
+  )
+    return refuse('submission uses a stale child snapshot');
+  const names = new Set(acceptance.scenarios.map((scenario) => scenario.name));
+  const covered = new Set(submission.results.map((result) => result.scenario));
+  if (
+    submission.results.length !== names.size ||
+    covered.size !== names.size ||
+    [...covered].some((name) => !names.has(name))
+  )
+    return refuse('submission must cover each declared scenario exactly once');
+  const targets = new Set(submission.targets.map((target) => target.name));
+  const comments = new Set(data.history.flatMap((entry) => (entry.kind === 'comment' ? [entry.id] : [])));
+  for (const result of submission.results) {
+    if (result.result === 'inapplicable') {
+      if (!comments.has(result.decision))
+        return refuse(`scenario ${result.scenario} references a missing decision comment`);
+    } else if (result.result === 'PASS') {
+      if (!targets.has(result.target)) return refuse(`scenario ${result.scenario} references a missing target`);
+      if (result.reports.some((id) => !comments.has(id)))
+        return refuse(`scenario ${result.scenario} references a missing report comment`);
+    } else {
+      return refuse(`scenario ${result.scenario} is ${result.result}`);
+    }
+  }
+  return { kind: 'complete', mode: 'combined' };
 }
 
 export function specified(issue: IssueData): boolean {

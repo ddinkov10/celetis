@@ -24,12 +24,15 @@ Use the `gh` forms above only for the writes that the engine does not read, for 
 `## Intent` and `## External facts` comments. Each workflow write that the engine reads goes
 through `celetis --agent <host> issue <n> <act>`.
 In this document, `issue <n> <act>` stands for that command. The command reads the issue once,
-checks the prerequisite of the act with the rules of the resolver, and then writes:
+checks the prerequisite of the act with the rules of the resolver, and then writes. Epic acts
+also use the protected current-state reads in "Epic completion and repair":
 
 | Act | Prerequisite | Writes |
 |---|---|---|
 | `route <lane>` (`feature`, `bug`, `chore`, `hotfix`) | open; not an epic | the label of the lane; it removes the other lane labels and `needs-triage` |
-| `epic` | open; lane `feature` | adds `epic`, removes `enhancement` |
+| `epic <file>` | open feature or epic; valid declaration and current child references | the complete parent body, then adds `epic` and removes `enhancement` as needed; clears no hold |
+| `epic-state` | readable parent and complete children | nothing; the JSON snapshot of "Epic acceptance submission" |
+| `complete-epic [file]` | "Epic completion and repair" | an accepted record, then closes as completed; an already closed parent has no write |
 | `needs-info <file>` | open | the file as a comment, then `needs-info` |
 | `wontfix <file>` | open | the file as a comment, then `wontfix`, then the close as not planned |
 | `spec <file>` | open; lane `feature` | the body: `Spec: YYYY-MM-DD` (the local date), a blank line, then the file |
@@ -43,15 +46,17 @@ checks the prerequisite of the act with the rules of the resolver, and then writ
 | `assisted <file>` | open; has `needs-info`, `ready-for-human`, or a current open human precondition | a `## Human steps done` comment with assistance-agent attribution, then removes present `needs-info` and `ready-for-human`; adds no label |
 | `state` | none | nothing |
 
-- The command writes the heading of each comment. The `<file>` holds the text with no heading: the
+- The command writes the heading of each lifecycle comment. Its `<file>` holds text with no heading: the
   command refuses a file whose first line that is not blank starts with `## `, and, for `spec`,
   one that starts with `Spec:`. `assisted` inserts `Reported by the assistance agent (` followed
-  by the selected host in backticks and `).` before the supplied report text.
-- It posts the comment first (ADR-0011). Then it adds the labels in one call, removes each label in
+  by the selected host in backticks and `).` before the supplied report text. The epic definition
+  file instead holds the complete parent body, and a completion file holds strict JSON.
+- Lifecycle acts post the comment first (ADR-0011). Then they add the labels in one call, remove each label in
   a call of its own, and last changes the body or closes the issue. It never replaces the whole set
   of labels, so a label that a person adds or removes at the same time stays as the person set it.
   A label that is already on, or already off, is no change, and a write with no change is not
-  sent. The removal of a label that is already off on GitHub is no failure.
+  sent. The removal of a label that is already off on GitHub is no failure. Epic definition and
+  completion writes follow their separate order in "Epic completion and repair".
 - A successful `stopped`, `ready-for-human`, or `before-landing` act leaves only `ready-for-human`
   from the readiness pair. A partial failure can leave both labels; exit 6 names the repair and
   never reports success. The maintainer or verified assistance clears `ready-for-human`.
@@ -65,7 +70,8 @@ checks the prerequisite of the act with the rules of the resolver, and then writ
 - Exit status: 0 done, 1 internal error, 2 usage (bad arguments, or a file that the command
   refuses), 3 prerequisite (`issue: prerequisite: #<n> cannot <act>:` and the resolver line),
   6 blocked (GitHub does not answer, or a write failed). When a write after the first failed, the
-  line gives the `gh` command that completes each write that is not done. Until then, the
+  line gives the `gh` command that completes each write that is not done, except epic acts, which
+  require current-state reconciliation and re-entry through acceptance. Until then, the
   resolver stops a `## Before landing` comment with no `ready-for-human` as an open human step, and
   a failed plan-label addition leaves an unfinished plan. Readiness writes do not record build
   completion ("Resolving an issue's state").
@@ -131,9 +137,20 @@ Trunk-based. Every issue is its own work item: one lane branch off the trunk, la
 
 ## Epics
 
-A request that spans several independent features becomes an **epic**: the parent issue carries `epic` and no lane label, and has one native sub-issue per feature. The epic has no branch and no PR; each child runs its own `/celetis:feature #<child>`. GitHub leaves a parent open after its last sub-issue closes, so `celetis --agent <host> land` closes the epic, with a comment, when its last sub-issue lands. An epic whose last sub-issue closes with no landing by the script (`wontfix`, a merge by hand, a close that failed) stays open: close it by hand.
+A request that spans several features becomes an **epic**: the parent carries `epic` in place of
+a lane label and has one native sub-issue per feature. Each child uses its own lane. The parent
+has no branch, plan, build, landing, or runner stage. Its current body defines acceptance.
 
-Make the parent an epic: `issue <n> epic` ("Conventions"). Create a child, then link it — the sub-issues API wants the child's numeric database id (`.id`), not its `#number`:
+After the last child lands, `land` can complete an independent parent in the active repository
+through the shared guard. It validates the parent's full issue URL before completion. A parent
+in another repository stays open; the command prints its canonical URL and directs explicit
+acceptance from that repository's main checkout.
+A combined or unresolved parent stays open; the next action is `/celetis:accept-epic #<parent>`.
+The maintainer also uses that explicit skill after a last child closes by hand. Pending children
+alone create no human hold. Parent acceptance cannot undo child landing or block its cleanup.
+
+Agree scope through [The epic](procedures/epic.md). Inspect existing children before creating
+or linking missing ones. The sub-issues API takes the child's database ID, not its issue number:
 
 ```bash
 url=$(gh issue create --label enhancement --title "..." --body "...")
@@ -141,8 +158,173 @@ cid=$(gh api "repos/{owner}/{repo}/issues/${url##*/}" --jq .id)
 gh api --method POST "repos/{owner}/{repo}/issues/<epic>/sub_issues" -F sub_issue_id="$cid"
 ```
 
-- **List an epic's children**: `gh api repos/{owner}/{repo}/issues/<epic>/sub_issues --jq '.[] | "#\(.number) \(.state) \(.title)"'`.
+- **List all children**: `gh api --paginate repos/{owner}/{repo}/issues/<epic>/sub_issues --jq '.[] | "\(.html_url) \(.state) \(.title)"'`.
 - **Find a child's parent**: `gh api repos/{owner}/{repo}/issues/<n>/parent --jq .number` (404 when standalone). Read the parent's body before designing a child — its decisions bind.
+
+Publish the complete preserved parent body with `issue <n> epic <file>` after the actual child
+URLs are known. A later change to acceptance meaning requires a recorded maintainer decision.
+Repair issues keep the failed parent criterion and evidence in their brief. Read and reuse an
+existing linked repair issue on retries. Acceptance itself changes no retained product code.
+
+## Epic acceptance declaration
+
+The parent body contains exactly one top-level `## Epic acceptance` section. It ends at the next
+top-level `## ` heading or end of body. The content is one `json` fence with only whitespace
+outside it. CRLF is normalized to LF. Other body text remains human context and is preserved.
+These complete sections are valid examples:
+
+````markdown
+## Epic acceptance
+
+```json
+{"mode":"independent","rationale":"The children have separate outcomes and no shared behavior."}
+```
+````
+
+````markdown
+## Epic acceptance
+
+```json
+{
+  "mode": "combined",
+  "scenarios": [{
+    "name": "Imported data appears in search",
+    "criterion": "Done when: imported records are searchable.",
+    "children": ["https://github.com/owner/project/issues/11"],
+    "setup": "Load the authorized sample records.",
+    "preparation": "None.",
+    "target": "The current project service and search client.",
+    "expected": "Search returns the imported record.",
+    "timing": "After the import and search children close.",
+    "sourceToFiles": "Record the source revision and build artifact digest.",
+    "filesToTarget": "Confirm that the service loads that artifact.",
+    "oracle": "Read the stored record independently and compare its ID."
+  }]
+}
+```
+````
+
+These are exact shapes, with no extension fields. Every string is nonblank and NUL-free. Use
+`None.` for absent setup or human preparation. Combined scenarios and each contributing-child
+list are nonempty. Names are unique descriptive names. `criterion` quotes or locates the approved
+parent outcome; separate observations need separate scenarios. Child references are canonical
+full issue URLs from the current child list. Unrelated independent children need no scenario.
+
+Invalid objects include `{"mode":"independent"}` (missing rationale),
+`{"mode":"combined","scenarios":[]}` (empty scenarios),
+`{"mode":"independent","rationale":"Separate.","scenarios":[]}` (mixed fields), and
+`{"mode":"independent","mode":"combined","rationale":"Separate."}` (duplicate key).
+Duplicate nested keys, unknown fields, repeated scenario names, malformed child data, a missing
+or repeated section, a missing closing fence, and prose inside the section are also invalid.
+Parsing never skips a bad block to find a convenient valid one. Missing declarations stay
+unresolved; there is no compatibility interpretation or automatic independent default.
+
+## Epic acceptance submission
+
+`issue <n> epic-state` is read-only JSON. Its fields are `repository` (canonical repository URL),
+`parent` (number), `data` (current `state`, `labels`, `body`, and ordered `history`), `declaration`,
+`children`, and `open` (unresolved human preconditions). A valid `declaration` has `kind: "valid"`,
+`acceptance`, and `definitionHash`; otherwise it has `kind: "unresolved"` and `reason`.
+The hash is SHA-256 of the exact normalized acceptance section. A changed hash requires coverage
+review. Incomplete or malformed tracker data fails the read rather than returning a partial set.
+
+Each sorted child has `url`, positive safe-integer `id` and `number`, `state` (`open` or `closed`),
+`stateReason` (`completed`, `not_planned`, `duplicate`, `reopened`, or null), and `closedAt` (ISO
+timestamp or null). Duplicate identities are refused. Reopening and closing a child changes its
+terminal snapshot. Its state or reason supplies no behavioral PASS.
+
+Independent completion uses `issue <n> complete-epic` without a file. Combined completion needs
+one strict JSON file with exactly these fields:
+
+```json
+{
+  "repository": "https://github.com/owner/project",
+  "parent": 10,
+  "definitionHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "children": [{
+    "url": "https://github.com/owner/project/issues/11",
+    "id": 211,
+    "number": 11,
+    "state": "closed",
+    "stateReason": "completed",
+    "closedAt": "2026-10-31T10:00:00Z"
+  }],
+  "review": {"session": "current-acceptance-session", "at": "2026-10-31T11:00:00Z"},
+  "targets": [{
+    "name": "service",
+    "source": {"checkout": "/project", "commit": "0123456789abcdef0123456789abcdef01234567", "dirty": false},
+    "runtime": "Observed service process 1234 and its endpoint",
+    "sourceToFiles": "https://github.com/owner/project/issues/10#issuecomment-900",
+    "filesToTarget": "https://github.com/owner/project/issues/10#issuecomment-900"
+  }],
+  "results": [{
+    "scenario": "Imported data appears in search",
+    "result": "PASS",
+    "target": "service",
+    "observation": "Search returned sample record 42.",
+    "oracle": "Independent store read found the same record ID and content.",
+    "reports": [900]
+  }]
+}
+```
+
+The example identities are illustrative; copy the current repository, parent, hash, and exact
+child snapshot from `epic-state`. `review` records this session's nonblank identity and current
+ISO timestamp; it attests nothing. Target names are unique. `source.commit` is the full commit;
+`dirty: true` additionally requires `snapshot`, a durable reference to the retained diff and
+input manifest. `dirty: false` has no snapshot field. `runtime` identifies the actual target,
+and the two loading fields reference durable evidence.
+
+Results cover every declared scenario exactly once, with no extras. A PASS has exactly
+`scenario`, `result`, `target`, `observation`, `oracle`, and nonempty `reports` (parent comment
+IDs). Its target must exist. An approved inapplicable result instead has exactly `scenario`,
+`result: "inapplicable"`, `rationale`, and `decision` (the maintainer-decision parent comment ID).
+Diagnostic results have exactly `scenario`, `result` (`FAIL`, `BLOCKED`, `unrun`, or `UNVERIFIED`),
+`reason`, and nonempty `reports`. None permits completion. Unknown fields and duplicate keys
+are refused throughout. Referenced comments must exist in current parent history.
+
+The session checks semantic coverage, evidence truth, actual loaded targets, and evidence
+lifetime under [Runtime verification](procedures/runtime-verification.md). The engine checks
+shape, coverage, references, and current issue inputs; shared credentials attest neither
+authorship nor runtime truth. Publish the ordinary runtime report before submitting. Keep each
+criterion part and each mixed result. A child closed as `not_planned` cannot remove a required
+result. The usage-limit exception may permit child landing, but never incomplete parent closure.
+
+## Epic completion and repair
+
+An already closed parent returns its state without a write or new PASS. An open parent requires
+`epic`, a valid declaration, nonempty complete children all closed, and no `needs-info`,
+`ready-for-human`, or unresolved existing human precondition. Combined acceptance also needs a
+current fully covered submission. Historical prose, a previous accepted record, and hold
+clearance cannot substitute for that submission or current runtime review.
+
+Definition and completion acts share a per-parent process lock in the local Git common
+directory. They re-read under the lock. Completion reads again before protected writes and
+before close; observed changes to the definition, children, holds, or evidence references refuse
+stale completion. Different parents do not share one lock. Separate machines and direct GitHub
+writes are outside this serialization boundary; no cross-machine atomic snapshot is claimed.
+
+Definition publication writes the body, then adds `epic` and removes `enhancement` as needed.
+Completion posts `## Epic accepted`, a readable summary, and one bounded `json` fence before
+closing as `completed`. That fence contains the accepted submission, its `mode`, and stable
+`completionId`. The independent record has no targets or results and explicitly requires no
+combined runtime check. The identity binds repository, parent, definition, sorted children,
+targets, results, and evidence references, excluding only review session and timestamp. Target
+and scenario order and reference IDs are normalized. A matching parsed historical record
+prevents a duplicate publication; a matching text marker does not.
+
+Exit 2 names invalid input; exit 3 names unmet prerequisites; exit 6 names an access, lock, or
+write failure. For a partial definition write, inspect the actual body and labels. For an
+uncertain report or close, inspect current history and state before retrying. A published record
+with an open parent is partial completion. Repair the specific access or write failure, retain
+valid evidence, and re-enter explicit acceptance for fresh checks. Never bypass the guard with
+a direct close, blindly repeat an uncertain comment, or claim that an unacknowledged write
+failed to reach GitHub. Existing human-repair requirements remain binding.
+
+Acceptance preserves holds and writes `stopped` for a decision, access need, or repair it cannot
+resolve. It writes no `Built` or `Before landing`. Verified assistance can clear the block under
+[Assisted completion](procedures/assisted-completion.md), then ends. The maintainer re-enters
+`/celetis:accept-epic #<n>`; no parent runner starts.
 
 ## Completing a human precondition
 

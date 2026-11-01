@@ -1,5 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import type { Host } from './lib/config-core.ts';
+import { completeEpic, readEpic, writeEpicDefinition } from './lib/epic.ts';
+import { parseEpicAcceptance, parseEpicSubmission } from './lib/epic-acceptance.ts';
 import { HostError, updateHint } from './lib/host.ts';
 import { lineOf } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
@@ -9,6 +11,7 @@ import {
   type Decision,
   decide,
   diagnosed,
+  type EpicSubmission,
   factsOf,
   headings,
   type IssueData,
@@ -22,7 +25,7 @@ import {
   specified,
 } from './lib/workflow.ts';
 
-const usage = `celetis --agent <host> issue <issue number> route feature|bug|chore|hotfix | epic | needs-info <file> | wontfix <file> | spec <file> | root-cause <file> | plan <file> | built | before-landing <file> [--during-the-build] | landing-refused <file> | stopped <file> | ready-for-human | assisted <file> | state, e.g. celetis --agent <host> issue 415 state\n${updateHint}`;
+const usage = `celetis --agent <host> issue <issue number> route feature|bug|chore|hotfix | epic <file> | epic-state | complete-epic [file] | needs-info <file> | wontfix <file> | spec <file> | root-cause <file> | plan <file> | built | before-landing <file> [--during-the-build] | landing-refused <file> | stopped <file> | ready-for-human | assisted <file> | state, e.g. celetis --agent <host> issue 415 state\n${updateHint}`;
 const statuses = { usage: 2, prerequisite: 3, blocked: 6 } as const;
 
 type Context = Readonly<{
@@ -57,11 +60,6 @@ const acts: Readonly<Record<string, Act>> = {
       const others = Object.values(lanes).flatMap((lane) => (lane.label === label ? [] : [lane.label]));
       return { add: [label], remove: [...others, 'needs-triage'] };
     },
-  },
-  epic: {
-    argument: 'none',
-    ready: (context) => inLane(context, 'feature'),
-    writes: () => ({ add: ['epic'], remove: ['enhancement'] }),
   },
   'needs-info': { argument: 'file', ready: open, writes: ({ text }) => ({ comment: text, add: ['needs-info'] }) },
   wontfix: {
@@ -152,23 +150,42 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
   const [number = '', name = '', argument = '', flag] = argv;
   const n = number.replace(/^#/, '');
   const act = Object.hasOwn(acts, name) ? acts[name] : undefined;
+  const epic = ['epic', 'epic-state', 'complete-epic'].includes(name);
   const during = name === 'before-landing' && flag === '--during-the-build';
   if (
-    !act ||
     !/^[1-9][0-9]*$/.test(n) ||
-    argv.length !== (act.argument === 'none' ? 2 : during ? 4 : 3) ||
-    (act.argument === 'lane' && !Object.hasOwn(lanes, argument))
+    !Number.isSafeInteger(Number(n)) ||
+    (epic
+      ? name === 'complete-epic'
+        ? argv.length < 2 || argv.length > 3
+        : argv.length !== (name === 'epic' ? 3 : 2)
+      : !act ||
+        argv.length !== (act.argument === 'none' ? 2 : during ? 4 : 3) ||
+        (act.argument === 'lane' && !Object.hasOwn(lanes, argument)))
   )
     die('usage', usage);
   let text = '';
-  if (act.argument === 'file') {
+  if (act?.argument === 'file' || name === 'epic' || (name === 'complete-epic' && argv.length === 3)) {
     text = await readFile(argument, 'utf8').catch((error: Error) =>
       die('usage', `cannot read ${argument}: ${error.message}`),
     );
     const first = text.trimStart().split(/\r?\n/)[0] ?? '';
-    if (first.startsWith('## ')) die('usage', `${argument} starts with a ## line; give the text with no heading`);
+    if (!epic && first.startsWith('## '))
+      die('usage', `${argument} starts with a ## line; give the text with no heading`);
     if (name === 'spec' && first.startsWith('Spec:'))
       die('usage', `${argument} starts with Spec:; give the spec with no Spec: line`);
+  }
+  let submission: EpicSubmission | undefined;
+  if (name === 'complete-epic' && argv.length === 3) {
+    try {
+      submission = parseEpicSubmission(text);
+    } catch (error) {
+      die('usage', error instanceof Error ? error.message : String(error));
+    }
+  }
+  if (name === 'epic') {
+    const declaration = parseEpicAcceptance(text);
+    if (declaration.kind === 'unresolved') die('usage', declaration.reason);
   }
   const operation = createOperation(
     await locateCheckouts(process.cwd()),
@@ -177,6 +194,25 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
   );
   const main = operation.checkout.main ?? die('usage', 'run the command inside a Git checkout');
   if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
+  if (epic) {
+    const common = operation.checkout.common ?? die('usage', 'run the command inside a Git checkout');
+    if (name === 'epic-state') {
+      const snapshot = await readEpic(main, n);
+      console.log(JSON.stringify({ ...snapshot, open: factsOf(snapshot.data, null).open }, null, 2));
+    } else if (name === 'epic') {
+      await writeEpicDefinition(main, common, n, text);
+    } else {
+      const result = await completeEpic(main, common, n, submission);
+      if (result.kind === 'pending') die('prerequisite', `#${n}: ${result.reason}; next: ${result.nextAction}`);
+      console.log(
+        result.kind === 'closed'
+          ? `epic: #${n} is already closed`
+          : `epic: #${n} completed; record ${result.completionId}`,
+      );
+    }
+    return 0;
+  }
+  if (!act) die('usage', usage);
   const gh = github(main);
   const read = await gh.read(n).catch(() => null);
   if (!read) die('blocked', `cannot read #${n} from GitHub`, gh.stderr());
