@@ -1,3 +1,4 @@
+import { type Effort, type Level, levels } from '../lib/effort.ts';
 import { openMenu, openPalette, setupMenu, setupPalette } from './palette.ts';
 import { drawPanel } from './panel.ts';
 import { drawQueue, setQueueOpen, setupQueue } from './queue.ts';
@@ -23,6 +24,7 @@ import {
   agentOf,
   COLUMNS,
   cleanCause,
+  effortSource,
   favicon,
   groupNeeds,
   keyOf,
@@ -35,6 +37,7 @@ import {
   runTitle,
   shortPath,
   signature,
+  startTitle,
   stateLabel,
   tail,
   tone,
@@ -64,6 +67,7 @@ const STATUS_ICONS: Record<string, string> = {
 };
 const FIND_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K';
 const DEFAULT_AGENT_REASON = 'The main .celetis.yaml controls the default agent. Change host there.';
+const QUEUE_LEVEL = 'The queue starts this step at the decided level';
 
 let data: Board | null = null;
 let selected: string | null = null;
@@ -164,17 +168,20 @@ const runReason = (agent: string | null, number?: number | null) => {
   return null;
 };
 
+const runName = ({ step, effort, number }: Card) =>
+  `Run ${step}${effort ? ` at ${effort.level} (${effortSource(effort)})` : ''}, #${number}`;
+
 const runAction = (card: Card, agent: string | null = null): Action => {
   const display = agent ? agentDisplay(agent) : null;
   const reason = runReason(agent, card.number);
-  const name = agent ? `Run ${card.step}, #${card.number} with ${display}` : `Run ${card.step}, #${card.number}`;
+  const name = agent ? `Run ${card.step}, #${card.number} with ${display}` : runName(card);
   return {
     id: agent ? `run:${agent}` : 'run',
     label: agent ? `Run with ${display}` : 'Run',
     icon: 'run',
     busy: 'Starting',
     name,
-    title: reason ?? runTitle(card.step, (data as Board).flow),
+    title: reason ?? runTitle(card.step, (data as Board).flow, card.effort),
     isDisabled: Boolean(reason),
     run: reason
       ? async () => toast(reason, { isError: true })
@@ -201,6 +208,30 @@ const overrideActionsOf = (card: Card, isAgain: boolean): Action[] => {
         }
       : base;
   });
+};
+
+const levelEntries = (card: Card): (MenuEntry | 'rule')[] => {
+  const { effort } = card;
+  if (!effort || !(card.run || data?.noRun)) return [];
+  const record = data?.queue?.record;
+  const reason =
+    data?.noRun ||
+    (record?.state === 'me-gate' && record.numbers[0] === card.number ? QUEUE_LEVEL : runReason(null, card.number));
+  return [
+    'rule',
+    ...levels.map((level) => ({
+      icon: level === effort.level ? 'check' : 'run',
+      label: `Run at ${level}${level === effort.level ? ` (${effortSource(effort)})` : ''}`,
+      title: reason ?? startTitle(card.step, effort, level),
+      isDisabled: Boolean(reason),
+      run: reason
+        ? async () => toast(reason, { isError: true })
+        : async () => {
+            if (await launch(card, '/api/run', undefined, level))
+              toast(`Started the ${card.step} step of #${card.number} at ${level} in a new herdr tab`);
+          },
+    })),
+  ];
 };
 
 const defaultAgentEntry = {
@@ -321,7 +352,7 @@ const actionsOf = (card: Card): Action[] => {
       id: 'blocked',
       label: 'Run',
       icon: 'run',
-      name: `Run ${card.step}, #${card.number}`,
+      name: runName(card),
       title: noRun,
       isDisabled: true,
       run: async () => toast(noRun, { isError: true }),
@@ -348,6 +379,7 @@ const actionsOf = (card: Card): Action[] => {
 
 const menuOf = (card: Card, key: string): (MenuEntry | 'rule')[] => [
   ...actionsOf(card).map(toMenuEntry),
+  ...levelEntries(card),
   'rule',
   { icon: 'panel', label: 'Show the details', key: 'Space', run: () => openPanel(key) },
   ...(card.url && !ON_ISSUE.has(card.state as string)
@@ -392,6 +424,14 @@ const track = (card: Card) => {
 const gate = (value: string | null) =>
   value === 'auto' ? Object.assign(el('span', 'gate gate-auto', 'auto'), { title: GATES.auto }) : null;
 
+const effortChip = (effort: Effort) => {
+  const chip = el('span', `effort${effort.source === 'default' ? ' is-default' : ''}`, effort.level);
+  chip.title = `effort ${effort.level}, ${effortSource(effort)}`;
+  chip.setAttribute('role', 'img');
+  chip.setAttribute('aria-label', chip.title);
+  return chip;
+};
+
 const status = (card: Card, hasGlyph = true, isShort = false) => {
   const node = el('span', 'status');
   if (card.state) {
@@ -405,6 +445,7 @@ const status = (card: Card, hasGlyph = true, isShort = false) => {
     node.classList.add('next');
     if (hasGlyph) node.append(icon('pending'));
     node.append(el('span', 'lead', 'next'), el('span', 'mono step', card.step));
+    if (card.effort) node.append(effortChip(card.effort));
     const auto = gate(card.gate);
     if (auto) node.append(auto);
   }
@@ -504,8 +545,11 @@ const runWithButton = (card: Card) => {
   if (!['run', 'blocked'].includes(actions[0]?.id as string)) return null;
   const entries = actions.filter((action) => action.id.startsWith('run:')).map(toMenuEntry);
   if (entries.length === 0) return null;
-  const button = iconButton('chevron', 'Run with another agent', (event) =>
-    openMenu(event.currentTarget as HTMLElement, entries),
+  const levelled = levelEntries(card);
+  const button = iconButton(
+    'chevron',
+    levelled.length ? 'Run with another agent or at another level' : 'Run with another agent',
+    (event) => openMenu(event.currentTarget as HTMLElement, [...entries, ...levelled]),
   );
   button.setAttribute('aria-haspopup', 'menu');
   return button;
@@ -1195,6 +1239,7 @@ const project = (board: Board): Board => {
           resume: false,
           go: false,
           warning: null,
+          effort: null,
         });
       else columns[key].push({ ...card, assist: false, run: false, resume: false });
     }
@@ -1229,7 +1274,7 @@ const render = (canMove = true) => {
   lastLayout = layout;
 };
 
-const launch = async (card: Card, path: '/api/run' | '/api/resume' | '/api/assist', agent?: string) => {
+const launch = async (card: Card, path: '/api/run' | '/api/resume' | '/api/assist', agent?: string, effort?: Level) => {
   if (isReconnecting()) return false;
   const number = card.number as number;
   const current =
@@ -1253,7 +1298,11 @@ const launch = async (card: Card, path: '/api/run' | '/api/resume' | '/api/assis
     document.querySelector<HTMLElement>(`[data-key="${CSS.escape(keyOf(card))}"]`)?.focus({ preventScroll: true });
   const isOk = await post(
     path,
-    { number, ...(path === '/api/run' && agent ? { agent } : {}) },
+    {
+      number,
+      ...(path === '/api/run' && agent ? { agent } : {}),
+      ...(path === '/api/run' && effort ? { effort } : {}),
+    },
     path === '/api/run' ? 'Run failed' : path === '/api/assist' ? 'Open agent failed' : 'Resume failed',
   );
   entry.phase = isOk ? 'done' : 'failed';
@@ -1401,7 +1450,7 @@ const paletteItems = () => {
             icon: 'run',
             tone: group === 'Needs you' ? 'needs' : null,
             key: '',
-            title: runTitle(card.step, (data as Board).flow),
+            title: runTitle(card.step, (data as Board).flow, card.effort),
             run: async () => {
               if (await launch(card, '/api/run', id))
                 toast(`Started the ${card.step} step of #${card.number} with ${display} in a new herdr tab`);

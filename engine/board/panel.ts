@@ -1,6 +1,7 @@
+import type { Effort } from '../lib/effort.ts';
 import type { Action, Card, Flow } from './types.ts';
 import { $, actionButton, copy, el, icon, iconButton, link, mark, timed } from './ui.ts';
-import { agentOf, diffText, gateOf, laneTrack, prFacts, shortPath, stateLabel } from './view.ts';
+import { agentOf, diffText, effortSource, gateOf, laneTrack, prFacts, shortPath, stateLabel } from './view.ts';
 
 const TONES: Record<string, string> = {
   waits: 'needs',
@@ -109,6 +110,23 @@ const facts = (rows: (Fact | null | false | '' | undefined)[]) => {
   return list;
 };
 
+const effortFacts = (effort: Effort | null | undefined): Fact[] =>
+  effort
+    ? [
+        ['Effort', `${effort.level} · ${effortSource(effort)}`],
+        [
+          'Why',
+          el(
+            'span',
+            'why',
+            effort.source === 'default'
+              ? 'No decision on the issue; the default applies.'
+              : effort.reason || 'No reason given.',
+          ),
+        ],
+      ]
+    : [];
+
 const pr = (card: Card) => {
   const items = prFacts(card.pr);
   if (items.length === 0) return null;
@@ -203,6 +221,7 @@ export const drawPanel = (
             [card.act, COPIES[card.state as string] as string],
           ],
         card.act && !COPIES[card.state as string] && ['Your act', card.act],
+        ...effortFacts(card.effort),
         ['Updated', `${clock(card.since)}`],
       ];
   const pane = isSession && !asks ? screen(card) : null;

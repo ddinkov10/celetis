@@ -1,3 +1,4 @@
+import type { Effort, Level } from '../lib/effort.ts';
 import type { Card, Column, Columns, Diff, Flow, Pull } from './types.ts';
 export const COLUMNS: { key: Column; name: string; note: string; empty: [string, string] }[] = [
   {
@@ -42,9 +43,21 @@ const WAITS: Record<string, string> = { dialog: 'waits for your answer', turn: '
 export const gateOf = (flow: Partial<Flow> | null | undefined, step: string | null) =>
   flow?.steps?.[step as string]?.gate ?? null;
 
-export const runTitle = (step: string | null, flow: Partial<Flow> | null | undefined) => {
+export const effortSource = (effort: Effort) => (effort.source === 'decided' ? `decided by ${effort.by}` : 'default');
+
+export const startTitle = (step: string | null, effort: Effort, level: Level = effort.level) => {
+  const why =
+    level !== effort.level
+      ? 'this start only'
+      : effort.source === 'decided'
+        ? `decided by ${effort.by}`
+        : 'the default';
+  return `Start the ${step} step at ${level}, ${why}`;
+};
+
+export const runTitle = (step: string | null, flow: Partial<Flow> | null | undefined, effort?: Effort | null) => {
   const hint = flow?.steps?.[step as string]?.hint;
-  return `Start the ${step} step${hint ? `. ${hint}` : ''} (Enter)`;
+  return `${effort ? startTitle(step, effort) : `Start the ${step} step`}${hint ? `. ${hint}` : ''} (Enter)`;
 };
 
 export const AGENTS: Record<string, [string, string]> = {

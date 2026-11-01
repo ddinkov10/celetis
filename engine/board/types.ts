@@ -1,4 +1,5 @@
 import type { Host } from '../lib/config-core.ts';
+import type { Effort } from '../lib/effort.ts';
 import type { QueueView, QueueWake } from '../lib/queue-types.ts';
 import type { UpdateStage } from '../lib/update-types.ts';
 
@@ -48,6 +49,7 @@ export type Issue = {
   path?: string;
   reason: string | null;
   act: string | null;
+  effort: Effort | null;
   pr: Pull | null;
 };
 export type LandedIssue = {
@@ -116,6 +118,7 @@ export type Card = {
   cwd?: string | null;
   diff?: Diff | null;
   warning?: string | null;
+  effort?: Effort | null;
 };
 export type Column = 'needs' | 'running' | 'idle' | 'human';
 export type Columns = Record<Column, Card[]>;

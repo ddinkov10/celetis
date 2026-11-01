@@ -752,9 +752,9 @@ host's skill selector. Native desktop selector acceptance is optional under
 | You type | The session | It leaves on the issue |
 |---|---|---|
 | `/celetis:intake <the request>` | writes the intent in your words, and asks "proceed?" | a new issue `#<n>` with the intent and the label `needs-triage` |
-| `/celetis:triage #<n>` | picks the lane, and asks whether to go on | the lane label, here `enhancement` |
-| `/celetis:feature #<n>` | makes the lane worktree and runs `specify`: the design, in a conversation with you | the spec that you approved, as the body of the issue |
-| `/celetis:plan #<n>`, in a new session | writes the plan: your steps (the human acts of the lane), the build flow, tasks with a capability score, and a Verify phase | a `## Plan` comment; `ready-for-agent` unless `ready-for-human` holds the issue, in which case the human hold stays and the agent label is removed |
+| `/celetis:triage #<n>` | picks the lane and the effort level of its first step, and asks whether to go on | an `Effort: specify <level>` comment with its reason, and the lane label, here `enhancement` |
+| `/celetis:feature #<n>` | makes the lane worktree and runs `specify`: the design, in a conversation with you, then the effort level of `plan` | an `Effort: plan <level>` comment, and the spec that you approved, as the body of the issue |
+| `/celetis:plan #<n>`, in a new session | writes the plan: your steps (the human acts of the lane), the build flow, tasks with a capability score, and a Verify phase; then it picks the effort level of `implement` | an `Effort: implement <level>` comment; a `## Plan` comment; `ready-for-agent` unless `ready-for-human` holds the issue, in which case the human hold stays and the agent label is removed |
 | `/celetis:implement #<n>`, in a new session | builds the tasks in the flow that the `Execution:` line of the plan names (`inline`: the session builds each task and runs the verify gate of the project, then one review of the branch; `subagent`: an implementer, the verify gate of the project, and a review for each task), runs the Verify phase, and lands the change with `celetis --agent <host> land` | the change on the trunk, and a closed issue |
 
 - Change work includes affected current documentation in its existing tasks and reviews before
@@ -824,7 +824,10 @@ new interactive session, in the terminal tab where you start it. For each step, 
    landing mechanism), and the step text. Claude uses `--permission-mode auto` and gets the header
    and the step text through `--append-system-prompt`. Codex uses `--no-daemon`, keeps its
    configured permissions, and appends the header and the step text to effective
-   `developer_instructions`;
+   `developer_instructions`. Claude gets the effort level as `--effort <level>`, and Codex as
+   `-c model_reasoning_effort="<level>"` after a clamp to the levels of its model. The level is the
+   override of this start when there is one, else the decision of the step before, else `high`
+   (`docs/celetis-flow.md`, "Start the script", "The effort level");
 4. in a herdr pane, ends the session when the issue shows that the step is done.
 
 The runner starts at an issue: write one with `/celetis:intake`, or open one on GitHub. Then, for
@@ -950,6 +953,7 @@ usage: celetis [--agent <host>] <command> [<argument>...]
   celetis assist <n>                                        Starts fresh interactive assistance for an issue in the main checkout.
   celetis celetis-flow                                      Starts the automatic runner.
   celetis celetis-flow <n>                                  Starts the next step of one issue, then follows its auto gates.
+  celetis celetis-flow <n> --effort <level>                 Starts the next step of one issue at another effort level, this start only.
   celetis celetis-flow --resume <n>                         Opens the session of a step with no progress again.
   celetis celetis-flow --queue action '<QueueAction JSON>'  Saves a queue action; starts its authorized wake in this foreground.
   celetis celetis-flow --queue status                       Reads the current queue and its allowed actions.
@@ -970,6 +974,7 @@ setup"):
 
 | Command | What it does |
 |---|---|
+| `celetis --agent <host> celetis-flow <n> --effort <level>` | Starts the next step of the issue at `low`, `medium`, `high`, `xhigh`, or `max` instead of its decided or default level, for the first session of this start only. Each later step uses its own decision, and the flag writes no decision. It needs exactly one issue number; any other form exits 2 with the usage line |
 | `celetis --agent <host> celetis-flow --queue admit '<QueueAction JSON>'` | Internal finite admission for the board. Persists one validated action and returns a strict QueueReceipt without waiting for a session |
 | `celetis --agent <host> celetis-flow --queue run <id> <token>` | Internal foreground claim of a persisted wake. Refuses stale tokens and live owners, then follows the queue's gates |
 | `celetis --agent <host> intake` | Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters `celetis:intake` with that request. It creates no issue before the answer and does not start the runner |
@@ -977,7 +982,7 @@ setup"):
 | `celetis --agent <host> worktree <n>` | Makes the lane worktree and the branch of the issue, or enters the one that is there and brings it up to the trunk, and prints its path |
 | `celetis --agent <host> worktree --remove <n>` | Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first |
 | `celetis --agent <host> land <n> '<subject>'` | Lands the change of the issue by the `landing` field of `.celetis.yaml`. It is the one landing path of an agent. It refuses an issue that is not ready to land. Exit status: 0 landed, 1 internal error, 2 usage, 3 prerequisite, 4 repair, 5 checks, 6 blocked, 7 landed with a stopped cleanup (run it again), 128+n signal |
-| `celetis --agent <host> issue <n> <act>` | Makes each workflow write that the engine reads: `route <lane>`, `epic <file>`, `complete-epic [file]`, `needs-info <file>`, `wontfix <file>`, `spec <file>`, `root-cause <file>`, `plan <file>`, `built`, `before-landing <file> [--during-the-build]`, `landing-refused <file>`, `stopped <file>`, `ready-for-human`, `assisted <file>`. The assistance act records an attributed `## Human steps done` report before removing present blocking labels; it adds no label and preserves build state. Lifecycle acts write the comment heading before label changes. Each act refuses unmet prerequisites. `state` writes nothing and prints lifecycle facts. `epic-state` writes nothing and prints the current declaration, child snapshot, history, and holds. Epic definition writes preserve the complete parent body; guarded completion publishes its accepted record before closing and leaves readiness labels unchanged. `docs/issue-tracker.md`, "Conventions", gives each act. Exit status: 0 done, 1 internal error, 2 usage, 3 prerequisite, 6 blocked |
+| `celetis --agent <host> issue <n> <act>` | Makes each workflow write that the engine reads: `route <lane>`, `effort <step> <level> <file>`, `epic <file>`, `complete-epic [file]`, `needs-info <file>`, `wontfix <file>`, `spec <file>`, `root-cause <file>`, `plan <file>`, `built`, `before-landing <file> [--during-the-build]`, `landing-refused <file>`, `stopped <file>`, `ready-for-human`, `assisted <file>`. The assistance act records an attributed `## Human steps done` report before removing present blocking labels; it adds no label and preserves build state. Lifecycle acts write the comment heading before label changes. Each act refuses unmet prerequisites. `state` writes nothing and prints lifecycle facts. `epic-state` writes nothing and prints the current declaration, child snapshot, history, and holds. Epic definition writes preserve the complete parent body; guarded completion publishes its accepted record before closing and leaves readiness labels unchanged. `docs/issue-tracker.md`, "Conventions", gives each act. Exit status: 0 done, 1 internal error, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis --agent <host> next-step <n> \| --open` | The resolver: the next step of one issue, or of each open issue |
 | `celetis --agent <host> capscore J V B N S X` | Resolves the six digits. `--json` gives portable scores and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null |
 | `celetis --agent <host> dispatch <act>` | Acts: `next`, `report <dispatch-id> <report-file>`, `gate`, `review`, `close`, `show`. The task loop applies each returned pair and reports exact native arguments/results. Evidence is agent-reported, not independently checked. Records: `/tmp/celetis-<uid>/dispatch/<host>-<session>.json` on macOS and Linux; `<os.tmpdir()>/celetis/dispatch/<host>-<session>.json` on Windows. Exits: 0 ready, reported, or closed (also `show`), 1 internal error, 2 usage, 3 refused, 4 stop, 5 setup |

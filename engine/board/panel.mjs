@@ -1,6 +1,6 @@
 // engine/board/panel.ts
 import { $, actionButton, copy, el, icon, iconButton, link, mark, timed } from "./ui.mjs";
-import { agentOf, diffText, gateOf, laneTrack, prFacts, shortPath, stateLabel } from "./view.mjs";
+import { agentOf, diffText, effortSource, gateOf, laneTrack, prFacts, shortPath, stateLabel } from "./view.mjs";
 var TONES = {
   waits: "needs",
   blocked: "needs",
@@ -77,6 +77,13 @@ var facts = (rows) => {
   }
   return list;
 };
+var effortFacts = (effort) => effort ? [
+  ["Effort", `${effort.level} · ${effortSource(effort)}`],
+  [
+    "Why",
+    el("span", "why", effort.source === "default" ? "No decision on the issue; the default applies." : effort.reason || "No reason given.")
+  ]
+] : [];
 var pr = (card) => {
   const items = prFacts(card.pr);
   if (items.length === 0)
@@ -153,6 +160,7 @@ var drawPanel = (card, { actions, flow, on, close }) => {
       [card.act, COPIES[card.state]]
     ],
     card.act && !COPIES[card.state] && ["Your act", card.act],
+    ...effortFacts(card.effort),
     ["Updated", `${clock(card.since)}`]
   ];
   const pane = isSession && !asks ? screen(card) : null;

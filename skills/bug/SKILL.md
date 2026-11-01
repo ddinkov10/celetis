@@ -103,7 +103,9 @@ start step N+1.
    the evidence. Do not ship a guessed default.
    Proceed autonomously to step 7 only when every state is spec-defined, the fix chooses no new
    look, and the fix is self-contained.
-7. **Post the report, then invoke `celetis:plan #<n>`.** `celetis --agent <host> issue <n> root-cause <report>`
+7. **Decide the effort of `plan`, post the report, then invoke `celetis:plan #<n>`.** Record the
+   effort level of `plan` per `<plugin>/docs/procedures/effort.md`. Then
+   `celetis --agent <host> issue <n> root-cause <report>`
    posts the report with `## Root cause` as its first line, so the report file has no heading; the report is the spec (root cause + red repro + intended
    behavior + step 3's traps + its `## Causal chain` section + its states table + its `## Masking check`
    section when applicable + its `## External facts` section + its `## Prior art` section when

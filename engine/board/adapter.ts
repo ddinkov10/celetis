@@ -1,4 +1,5 @@
 import type { Host } from '../lib/config-core.ts';
+import type { Level } from '../lib/effort.ts';
 import { bunArgs, run } from '../lib/process.ts';
 import { type Program, readProgram } from '../lib/program.ts';
 import { parseQueueAction, parseQueueReceipt } from '../lib/queue.ts';
@@ -8,7 +9,7 @@ import { selectSavedSession } from '../lib/session.ts';
 export type Adapter = Readonly<{
   intake(agent: Host): Promise<string>;
   assist(number: number, agent: Host): Promise<string>;
-  run(number: number, agent: Host): Promise<string>;
+  run(number: number, agent: Host, effort?: Level): Promise<string>;
   resume(number: number): Promise<string>;
   queue(action: QueueAction, agent: Host): Promise<QueueReceipt>;
   queueRun(wake: QueueWake): Promise<string>;
@@ -38,7 +39,8 @@ export async function celetisAdapter(
   return {
     intake: (agent) => line(['--agent', agent, 'intake']),
     assist: (number, agent) => line(['--agent', agent, 'assist', number]),
-    run: (number, agent) => line(['--agent', agent, 'celetis-flow', number]),
+    run: (number, agent, effort) =>
+      line(['--agent', agent, 'celetis-flow', number, ...(effort ? ['--effort', effort] : [])]),
     resume: async (number) => {
       await selectSavedSession(main, number);
       return line(['celetis-flow', '--resume', number]);

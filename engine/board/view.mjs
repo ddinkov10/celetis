@@ -36,9 +36,14 @@ var STATES = {
 };
 var WAITS = { dialog: "waits for your answer", turn: "turn ended" };
 var gateOf = (flow, step) => flow?.steps?.[step]?.gate ?? null;
-var runTitle = (step, flow) => {
+var effortSource = (effort) => effort.source === "decided" ? `decided by ${effort.by}` : "default";
+var startTitle = (step, effort, level = effort.level) => {
+  const why = level !== effort.level ? "this start only" : effort.source === "decided" ? `decided by ${effort.by}` : "the default";
+  return `Start the ${step} step at ${level}, ${why}`;
+};
+var runTitle = (step, flow, effort) => {
   const hint = flow?.steps?.[step]?.hint;
-  return `Start the ${step} step${hint ? `. ${hint}` : ""} (Enter)`;
+  return `${effort ? startTitle(step, effort) : `Start the ${step} step`}${hint ? `. ${hint}` : ""} (Enter)`;
 };
 var AGENTS = {
   claude: ["Claude Code", "C"],
@@ -177,6 +182,7 @@ export {
   agentOf,
   cleanCause,
   diffText,
+  effortSource,
   favicon,
   filterItems,
   gateOf,
@@ -191,6 +197,7 @@ export {
   runTitle,
   shortPath,
   signature,
+  startTitle,
   stateLabel,
   tail,
   tone

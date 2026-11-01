@@ -6,6 +6,10 @@ export const helpCommands: readonly (readonly [form: string, summary: string])[]
   ['celetis assist <n>', 'Starts fresh interactive assistance for an issue in the main checkout.'],
   ['celetis celetis-flow', 'Starts the automatic runner.'],
   ['celetis celetis-flow <n>', 'Starts the next step of one issue, then follows its auto gates.'],
+  [
+    'celetis celetis-flow <n> --effort <level>',
+    'Starts the next step of one issue at another effort level, this start only.',
+  ],
   ['celetis celetis-flow --resume <n>', 'Opens the session of a step with no progress again.'],
   [
     "celetis celetis-flow --queue action '<QueueAction JSON>'",

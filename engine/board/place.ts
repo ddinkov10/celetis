@@ -96,7 +96,7 @@ const PLACERS: Record<Issue['state'], (issue: Issue, context: { flow: Flow; isOp
   ],
   ready: (issue, { flow, isOpen }) => [
     issue.started || issue.urgent ? 'needs' : 'idle',
-    issueCard(issue, { step: issue.step, gate: gateOf(flow, issue.step), run: isOpen }),
+    issueCard(issue, { step: issue.step, gate: gateOf(flow, issue.step), run: isOpen, effort: issue.effort }),
   ],
 };
 
@@ -187,7 +187,7 @@ export const place = ({
         }
         return [
           'running',
-          { ...card, state: 'starts', act: null, assist: false, run: false, resume: false, go: false },
+          { ...card, state: 'starts', act: null, assist: false, run: false, resume: false, go: false, effort: null },
         ];
       }),
   ];

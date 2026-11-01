@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { type Effort, effortOf } from './lib/effort.ts';
 import { HostError, updateHint } from './lib/host.ts';
 import { describe, lineOf, type Next, type Observed } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
@@ -34,6 +35,7 @@ export type BoardRow = Readonly<{
   updatedAt: string;
   closedAt: string | null;
   next: Decision;
+  effort: Effort | null;
   path: string | null;
   pr: PullState | null;
 }>;
@@ -48,6 +50,7 @@ export type JsonRow = {
   state: 'ready' | 'blocked' | 'done' | 'dirty';
   reason: string | null;
   act: string | null;
+  effort: Effort | null;
   pr: { number: number; url: string; draft: boolean; checks: string | null; review: string | null } | null;
   path?: string;
 };
@@ -70,6 +73,7 @@ export function jsonRow(row: BoardRow): JsonRow {
     state: row.path === null ? shown.state : 'dirty',
     reason: shown.reason,
     act: shown.act,
+    effort: row.effort,
     pr: row.pr
       ? { number: row.pr.number, url: row.pr.url, draft: row.pr.draft, checks: row.pr.checks, review: row.pr.review }
       : null,
@@ -223,18 +227,21 @@ export async function nextIssue(
   n: string,
   operation: Operation,
   signal?: AbortSignal,
-): Promise<{ next: Next; stderr: string }> {
+): Promise<{ next: Next; effort: Effort | null; stderr: string }> {
   const read = reader(operation, signal);
-  const { value, stderr } = await read.settle<Next>(unreadable, async () => {
+  const missing = { next: unreadable, effort: null };
+  const { value, stderr } = await read.settle<{ next: Next; effort: Effort | null }>(missing, async () => {
     const observed = await read.observe(n, await read.dirty(read.checkout));
-    if (observed) return observed;
+    if (observed) return { next: observed, effort: null };
     try {
-      return decide((await read.gh.read(n)).data);
+      const { data } = await read.gh.read(n);
+      const next = decide(data);
+      return { next, effort: effortOf(data, next) };
     } catch {
-      return unreadable;
+      return missing;
     }
   });
-  return { next: value, stderr };
+  return { ...value, stderr };
 }
 
 export async function nextOpen(
@@ -291,6 +298,7 @@ export async function nextBoard(
             updatedAt: issue.updatedAt,
             closedAt: issue.closedAt,
             next,
+            effort: effortOf(data, next),
             path: finished
               ? null
               : (dirtyLanes.find((path) => path.split('/').at(-1)?.startsWith(`${issue.number}-`)) ?? null),

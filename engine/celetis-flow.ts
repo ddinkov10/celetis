@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { constants } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Config, Host } from './lib/config-core.ts';
+import type { Level } from './lib/effort.ts';
 import type { Next } from './lib/lines.ts';
 import type { LockOwner } from './lib/locks.ts';
 import type { HostSelection, Operation } from './lib/operation.ts';
@@ -13,7 +14,7 @@ import type { StepEndRecord, StepEndState, TurnKey } from './lib/step-end.ts';
 import type { Run, Step } from './lib/workflow.ts';
 
 const usage =
-  "usage: celetis --agent <host> celetis-flow [<issue number>] | --resume <issue number> | --queue action '<QueueAction JSON>' | --queue status; with no number, the automatic runner";
+  "usage: celetis --agent <host> celetis-flow [<issue number> [--effort low|medium|high|xhigh|max]] | --resume <issue number> | --queue action '<QueueAction JSON>' | --queue status; with no number, the automatic runner";
 const removed = 'the program version of this runner was removed after an update; start the runner again';
 const here = import.meta.dir;
 const required = [
@@ -35,6 +36,7 @@ const required = [
   'lib/session.ts',
   'lib/step-end.ts',
   'lib/workflow.ts',
+  'lib/effort.ts',
   'lib/tracker.ts',
   'lib/lines.ts',
   'lib/process.ts',
@@ -75,6 +77,7 @@ export async function main(argv: string[]): Promise<number> {
     'lib/session.ts',
     'lib/step-end.ts',
     'lib/workflow.ts',
+    'lib/effort.ts',
     'lib/tracker.ts',
     'lib/lines.ts',
     'lib/vendor/yaml.mjs',
@@ -97,6 +100,7 @@ export async function main(argv: string[]): Promise<number> {
   let action: QueueAction | undefined;
   let queueCommand = '';
   let wake: QueueWake | undefined;
+  let override: Level | undefined;
   if (argv[0] === '--queue' && !unavailable) {
     try {
       const { parseQueueAction } = await import('./lib/queue.ts');
@@ -120,13 +124,22 @@ export async function main(argv: string[]): Promise<number> {
   } else if (argv.length === 2 && argv[0] === '--resume') {
     mode = 'resume';
     numbers = [(argv[1] ?? '').replace(/^#/, '')];
-  } else {
+  } else if (!argv.length) mode = 'auto';
+  else {
+    const at = argv.indexOf('--effort');
+    if (at !== -1) {
+      const level = argv[at + 1];
+      if (unavailable) argv = argv.toSpliced(at, 2);
+      else if ((await import('./lib/effort.ts')).isLevel(level)) {
+        override = level;
+        argv = argv.toSpliced(at, 2);
+      }
+    }
     numbers = argv.map((arg) => arg.replace(/^#/, ''));
-    if (!numbers.length) mode = 'auto';
   }
   if (
     numbers.some((n) => !/^[1-9][0-9]*$/.test(n)) ||
-    (mode === 'numbers' && (numbers.length > 1 || argv[0] === '--resume'))
+    (mode === 'numbers' && (numbers.length !== 1 || argv[0] === '--resume'))
   ) {
     console.error(usage);
     if (!unavailable) console.error((await import('./lib/host.ts')).updateHint);
@@ -156,11 +169,15 @@ export async function main(argv: string[]): Promise<number> {
     observeSession,
     readSession,
     reportedSessionId,
+    resumeArguments,
     selectSavedSession,
+    sessionEnv,
     sessionIdle,
+    startLine,
     startupError,
     writeSession,
   } = await import('./lib/session.ts');
+  const { defaultLevel } = await import('./lib/effort.ts');
   const { defaultGate, invocation, sameResult, skipped } = await import('./lib/workflow.ts');
   const root = dirname(here);
   let common = '',
@@ -174,7 +191,6 @@ export async function main(argv: string[]): Promise<number> {
   let storageFailed = false;
   let managed = false;
   let pane = '';
-  let savedId = '';
   let said = '';
   let locks: LockOwner | undefined;
   let session: ChildProcess | undefined;
@@ -228,9 +244,9 @@ export async function main(argv: string[]): Promise<number> {
   const nextOf = async (n: string, current: Operation, abort?: AbortSignal) => {
     const { nextIssue } = await import('./next-step.ts');
     const { lineOf } = await import('./lib/lines.ts');
-    const { next, stderr } = await nextIssue(n, current, abort);
+    const { next, effort, stderr } = await nextIssue(n, current, abort);
     process.stderr.write(stderr);
-    return { next, line: lineOf(n, next) };
+    return { next, effort, line: lineOf(n, next) };
   };
   const herdr = async (args: string[], abort?: AbortSignal) =>
     run('herdr', args, { cwd: main, env: childEnv(), signal: abort });
@@ -408,7 +424,7 @@ export async function main(argv: string[]): Promise<number> {
       bunArgs(import.meta.path, ['--session-start', watchDir, String(process.pid), sessionHost, ...args]),
       {
         cwd: main,
-        env: childEnv({ ...process.env, CELETIS_AGENT: sessionHost }),
+        env: childEnv(sessionEnv(sessionHost, { ...process.env, CELETIS_AGENT: sessionHost })),
         stdio: ['inherit', 'inherit', 'inherit'],
       },
     );
@@ -452,6 +468,7 @@ export async function main(argv: string[]): Promise<number> {
       retry: boolean;
     },
     beforeStart?: (next: Run) => Promise<void>,
+    override?: Level,
   ): Promise<IssueOutcome> => {
     let lastHost: Host = queue?.host ?? 'claude';
     let last: Run | null = queue?.last ?? null;
@@ -483,7 +500,7 @@ export async function main(argv: string[]): Promise<number> {
         const current = nextOperation();
         const config = current.mainConfig as Config;
         const stepHost = current.host;
-        const { next, line } = await nextOf(n, current);
+        const { next, effort, line } = await nextOf(n, current);
         resolved = next;
         if (request && (next.kind === 'run' ? next.step : null) !== request.step) {
           const reason = `#${n}: the displayed decision changed: ${line}; no step was started`;
@@ -525,23 +542,33 @@ export async function main(argv: string[]): Promise<number> {
         }
         const pluginRoot = await (await import('./update.ts')).requireSameRevision(stepHost, main, root);
         first = 'gated';
-        say(`start: ${prompt}`);
         if ((await gone()) || !(await stat(join(root, 'step-prompt.md')).catch(() => null))?.isFile()) {
           say(`#${n}: ${removed}`);
           return outcome('stopped', removed, 'Start the runner again.');
         }
-        const args = await hostArguments(stepHost, Number(n), step, root, main, {
-          pluginRoot,
-          landing: config.landing,
-        });
+        const { level: chosen, source } =
+          override === undefined
+            ? (effort ?? { level: defaultLevel, source: 'default' })
+            : { level: override, source: 'override' as const };
+        const { args, applied, model } = await hostArguments(
+          stepHost,
+          Number(n),
+          step,
+          root,
+          main,
+          { pluginRoot, landing: config.landing },
+          chosen,
+        );
+        say(startLine(prompt, chosen, source, applied, model));
         const announced = managed && stepHost === 'claude' ? randomUUID() : '';
         const record: SessionRecord = {
-          schema: 1,
+          schema: 2,
           host: stepHost,
           issue: Number(n),
           step,
           checkout: main,
           session_id: null,
+          effort: applied,
         };
         await writeSession(main, record);
         const { ended } = await startSession(announced ? ['--session-id', announced, ...args] : args, stepHost);
@@ -581,6 +608,7 @@ export async function main(argv: string[]): Promise<number> {
         }
         await beforeStart?.(next);
         request = undefined;
+        override = undefined;
         last = next;
         lastHost = stepHost;
         await writeFile(join(watchDir, 'go'), '');
@@ -666,7 +694,6 @@ export async function main(argv: string[]): Promise<number> {
       operation = fresh();
     }
     const host = operation.host;
-    savedId = saved?.session_id ?? '';
     initial = mode === 'resume' || mode === 'queue' ? undefined : operation;
     if (mode !== 'queue') await requireStart(operation);
     if (mode !== 'resume') {
@@ -689,18 +716,15 @@ export async function main(argv: string[]): Promise<number> {
       handlers.set(signal, handler);
       process.on(signal, handler);
     }
-    if (mode === 'resume') {
-      const { ended } = await startSession(
-        host === 'claude' ? ['--resume', savedId] : ['resume', '--no-daemon', savedId],
-        host,
-      );
+    if (saved) {
+      const { ended } = await startSession(resumeArguments(saved), host);
       await writeFile(join(watchDir, 'go'), '');
       const code = await ended;
       session = undefined;
       return signalStatus || code;
     }
     if (mode === 'numbers') {
-      await runIssue(numbers[0] as string, 'any');
+      await runIssue(numbers[0] as string, 'any', undefined, undefined, override);
       return 0;
     }
     if (mode === 'queue' && queue) {

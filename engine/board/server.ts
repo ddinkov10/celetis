@@ -19,6 +19,7 @@ import { execFile } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { basename, join, relative, resolve, sep } from 'node:path';
+import { isLevel, type Level, levels } from '../lib/effort.ts';
 import { createOperation, locateCheckouts } from '../lib/operation.ts';
 import { childEnv } from '../lib/process.ts';
 import { parseQueueAction, queueView as projectQueue, queueOwner, readQueue, readQueueView } from '../lib/queue.ts';
@@ -522,7 +523,7 @@ export const createBoard = ({
     });
   };
 
-  const runStep = async (number: number, choice?: unknown) => {
+  const runStep = async (number: number, choice?: unknown, effort?: Level) => {
     const refusal = `#${number} has no step to start now`;
     await press(number, refusal, async () => {
       await pending;
@@ -535,6 +536,7 @@ export const createBoard = ({
         throw new Refusal(409, error || view?.error || 'queue: no successful initial read');
       const record = view.record;
       if (record?.state === 'me-gate' && record.numbers[0] === number) {
+        if (effort) throw new Refusal(409, 'The queue starts this step at the decided level');
         if (choice !== undefined && choice !== null && choice !== record.host)
           throw new Refusal(409, `queue: recorded host is ${record.host}`);
         if (!view.actions.continue || view.next?.kind !== 'run' || view.next.step !== card.step)
@@ -555,7 +557,7 @@ export const createBoard = ({
       return {
         card,
         start: async () => {
-          const command = await adapter.run(number, agent).catch((cause: Error) => {
+          const command = await adapter.run(number, agent, effort).catch((cause: Error) => {
             throw new Refusal(409, cleanCause(cause.message));
           });
           await openTab({ cwd: main, label: `#${number} ${card.step}`, command, isQuiet: true });
@@ -761,8 +763,12 @@ export const createBoard = ({
         !Number.isSafeInteger(Number(number))
       )
         throw new Refusal(400, 'the number of the issue is not digits');
-      if (path === '/api/run') await runStep(Number(number), input.agent);
-      else await (starts[path] as (number: number) => Promise<void>)(Number(number));
+      if (path === '/api/run') {
+        const { effort } = input;
+        if (effort !== undefined && !isLevel(effort))
+          throw new Refusal(400, `the effort is not one of ${levels.join(', ')}`);
+        await runStep(Number(number), input.agent, effort);
+      } else await (starts[path] as (number: number) => Promise<void>)(Number(number));
     } else if (path === '/api/go') {
       await go(String(input.sessionId));
     } else if (path === '/api/agent') {

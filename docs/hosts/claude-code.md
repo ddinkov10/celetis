@@ -63,10 +63,15 @@ compares its bytes. The hook runtime has no Node and no DOM: a module that the h
 ## The runner
 
 `hostArguments` of `engine/lib/session.ts` starts a step as
-`claude --permission-mode auto -n '#<n> <step>' --append-system-prompt <step text> '/celetis:<command> #<n>'`.
+`claude --permission-mode auto --effort <level> -n '#<n> <step>' --append-system-prompt <step text> '/celetis:<command> #<n>'`.
 The step text is the facts header (`stepHeader`) and `step-prompt.md` of the version folder of the
 program. `specify` gets no step text. In a herdr pane, the runner puts `--session-id <uuid>` first
-and reports that ID to herdr (ADR-0039). The plugin root of the header is the `root` of
+and reports that ID to herdr (ADR-0039). `<level>` is the chosen level of the step, and a resume
+runs `claude --resume <id> --effort <level>` with the level of the session record.
+`sessionEnv` removes `CLAUDE_CODE_EFFORT_LEVEL` from the environment of the session and of a
+resume, because Claude Code ranks that variable above `--effort`. A settings `env` value of that
+variable, `maxEffortLevel`, and an organization cap stay with Claude Code
+(`docs/celetis-flow.md`, "Limits"). The plugin root of the header is the `root` of
 `installation('claude', …)` in `engine/update.ts`, which `requireSameRevision` returns
 (`docs/celetis-flow.md`, "How a step runs").
 

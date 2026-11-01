@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import type { Host } from './lib/config-core.ts';
+import { decidable, effortMarker, isLevel } from './lib/effort.ts';
 import { completeEpic, readEpic, writeEpicDefinition } from './lib/epic.ts';
 import { parseEpicAcceptance, parseEpicSubmission } from './lib/epic-acceptance.ts';
 import { HostError, updateHint } from './lib/host.ts';
@@ -25,7 +26,7 @@ import {
   specified,
 } from './lib/workflow.ts';
 
-const usage = `celetis --agent <host> issue <issue number> route feature|bug|chore|hotfix | epic <file> | epic-state | complete-epic [file] | needs-info <file> | wontfix <file> | spec <file> | root-cause <file> | plan <file> | built | before-landing <file> [--during-the-build] | landing-refused <file> | stopped <file> | ready-for-human | assisted <file> | state, e.g. celetis --agent <host> issue 415 state\n${updateHint}`;
+const usage = `celetis --agent <host> issue <issue number> route feature|bug|chore|hotfix | effort <step> <level> <file> | epic <file> | epic-state | complete-epic [file] | needs-info <file> | wontfix <file> | spec <file> | root-cause <file> | plan <file> | built | before-landing <file> [--during-the-build] | landing-refused <file> | stopped <file> | ready-for-human | assisted <file> | state, e.g. celetis --agent <host> issue 415 state\n${updateHint}`;
 const statuses = { usage: 2, prerequisite: 3, blocked: 6 } as const;
 
 type Context = Readonly<{
@@ -36,11 +37,12 @@ type Context = Readonly<{
   argument: string;
   text: string;
   during: boolean;
+  effort: string;
 }>;
 type Writes = Readonly<{ comment?: string; add?: readonly Label[]; remove?: readonly Label[] }> & Edit;
 type Write = Readonly<{ send(): Promise<void>; flags: readonly string[]; close?: boolean }>;
 type Act = Readonly<{
-  argument: 'none' | 'lane' | 'file';
+  argument: 'none' | 'lane' | 'effort' | 'file';
   ready(context: Context): boolean;
   writes(context: Context): Writes;
 }>;
@@ -61,6 +63,7 @@ const acts: Readonly<Record<string, Act>> = {
       return { add: [label], remove: [...others, 'needs-triage'] };
     },
   },
+  effort: { argument: 'effort', ready: open, writes: ({ effort, text }) => ({ comment: headed(effort, text.trim()) }) },
   'needs-info': { argument: 'file', ready: open, writes: ({ text }) => ({ comment: text, add: ['needs-info'] }) },
   wontfix: {
     argument: 'file',
@@ -152,6 +155,9 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
   const act = Object.hasOwn(acts, name) ? acts[name] : undefined;
   const epic = ['epic', 'epic-state', 'complete-epic'].includes(name);
   const during = name === 'before-landing' && flag === '--during-the-build';
+  const step = decidable.find((each) => each === argument);
+  const effort = step && isLevel(flag) ? effortMarker(step, flag) : '';
+  const file = act?.argument === 'effort' ? (argv[4] ?? '') : argument;
   if (
     !/^[1-9][0-9]*$/.test(n) ||
     !Number.isSafeInteger(Number(n)) ||
@@ -160,20 +166,24 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
         ? argv.length < 2 || argv.length > 3
         : argv.length !== (name === 'epic' ? 3 : 2)
       : !act ||
-        argv.length !== (act.argument === 'none' ? 2 : during ? 4 : 3) ||
-        (act.argument === 'lane' && !Object.hasOwn(lanes, argument)))
+        argv.length !== (act.argument === 'none' ? 2 : act.argument === 'effort' ? 5 : during ? 4 : 3) ||
+        (act.argument === 'lane' && !Object.hasOwn(lanes, argument)) ||
+        (act.argument === 'effort' && !effort))
   )
     die('usage', usage);
   let text = '';
-  if (act?.argument === 'file' || name === 'epic' || (name === 'complete-epic' && argv.length === 3)) {
-    text = await readFile(argument, 'utf8').catch((error: Error) =>
-      die('usage', `cannot read ${argument}: ${error.message}`),
-    );
+  if (
+    act?.argument === 'file' ||
+    act?.argument === 'effort' ||
+    name === 'epic' ||
+    (name === 'complete-epic' && argv.length === 3)
+  ) {
+    text = await readFile(file, 'utf8').catch((error: Error) => die('usage', `cannot read ${file}: ${error.message}`));
     const first = text.trimStart().split(/\r?\n/)[0] ?? '';
-    if (!epic && first.startsWith('## '))
-      die('usage', `${argument} starts with a ## line; give the text with no heading`);
+    if (!epic && first.startsWith('## ')) die('usage', `${file} starts with a ## line; give the text with no heading`);
     if (name === 'spec' && first.startsWith('Spec:'))
-      die('usage', `${argument} starts with Spec:; give the spec with no Spec: line`);
+      die('usage', `${file} starts with Spec:; give the spec with no Spec: line`);
+    if (name === 'effort' && !text.trim()) die('usage', `${file} is empty; give the reason of the level`);
   }
   let submission: EpicSubmission | undefined;
   if (name === 'complete-epic' && argv.length === 3) {
@@ -235,7 +245,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     process.stderr.write(gh.stderr());
     return 0;
   }
-  const context: Context = { host: operation.host, data, found, decision, argument, text, during };
+  const context: Context = { host: operation.host, data, found, decision, argument, text, during, effort };
   if (!act.ready(context)) die('prerequisite', `#${n} cannot ${name}: ${lineOf(n, decision)}`);
   const { comment, add = [], remove = [], body, ...close } = act.writes(context);
   const adding = add.filter((label) => !data.labels.includes(label));

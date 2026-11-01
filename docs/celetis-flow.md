@@ -85,6 +85,7 @@ of the product project, apart from a path that starts with `~/` or `/`.
 ```bash
 celetis --agent <host> celetis-flow            # the automatic runner; it does not end
 celetis --agent <host> celetis-flow 373        # one issue; its first step is explicit
+celetis --agent <host> celetis-flow 373 --effort xhigh    # the same, with its first session at xhigh
 celetis --agent <host> celetis-flow --resume 373    # the session of a step with no progress, again
 celetis --agent <host> celetis-flow --queue status
 celetis --agent <host> celetis-flow --queue action '{"kind":"add","number":12,"step":"plan","expected":{"id":null,"revision":0,"current":null}}'
@@ -107,6 +108,15 @@ of a Run, whatever its gate. When the session ends, it reads the decision again 
 next step whose gate is `auto`. It ends the issue at the first of these, in this order: a stop,
 the same step again ("no progress"), a refused skip, or a `me` gate. With the default gates, each
 next step is a `me` step, so a start with a number runs one step of that issue.
+
+**The effort level.** Each session that the script starts gets an effort level ("How a step runs").
+The level is the decision of the step before on the issue, the newest `Effort: <step> <level>`
+comment for the step (`docs/issue-tracker.md`, "What lives on the issue", "Effort"), else the
+default `high`. `--effort <level>`, before or after the one number, overrides that level for the
+first session of this start only: `low`, `medium`, `high`, `xhigh`, or `max`. Each later step of
+the same start uses its own decision, and the override writes no decision on the issue. With
+`--resume`, `--queue`, no number, two numbers, a second `--effort`, or another value, the script
+prints its usage line, exits 2, and starts nothing.
 
 **A refused skip.** Between two steps of one start, the script refuses a next step that skips a
 step of its lane. Let S be the step that ended, and T the next step in the lane of the decision.
@@ -140,7 +150,8 @@ only. With the default gates no step is `auto`, so the automatic runner starts n
 **The form `--resume <n>`** reopens the exact session from
 `<git common dir>/celetis-flow/sessions/<n>.json`. It first takes the shared issue lock and keeps it
 until the foreground exits. Under that lock, it reads and validates the current record, selects
-its saved host and checkout, and runs `claude --resume <id>` or `codex resume --no-daemon <id>`. A missing or
+its saved host and checkout, and runs `claude --resume <id> --effort <level>` or
+`codex resume --no-daemon -c model_reasoning_effort="<level>" <id>` with the level of the record. A missing or
 invalid record stops with a recovery action. It makes no `gh` call or update and starts no completion watcher,
 so the session stays open until you leave it. A Resume press of the board types this form ("The
 board").
@@ -244,16 +255,27 @@ Claude starts the step as:
 ```bash
 claude \
   --permission-mode auto \
+  --effort xhigh \
   -n '#402 plan' \
   --append-system-prompt '<the step text>' \
   '/celetis:plan #402'
 ```
 
 In a herdr pane, the runner puts `--session-id <uuid>` before these arguments ("The step end").
+`--effort` gives the chosen level ("Start the script", "The effort level"). The runner removes
+`CLAUDE_CODE_EFFORT_LEVEL` from the environment of each Claude session that it starts or resumes,
+because that variable outranks `--effort`.
 
 Codex reads effective `developer_instructions` with `config/read`, preserves that text, and
 appends the step text. It passes the combined value as one quoted `developer_instructions=...`
-value after `-c`. Its prompt is `Use the celetis:plan skill for #402. Complete its Celetis entry before any response, including commentary.`
+value after `-c`. For each step, `specify` too, the runner reads the session model: `model` of
+`config/read`, else the `isDefault` model of the app-server `model/list`. It reads every page of
+`model/list` with `includeHidden: true` and takes the supported levels of that model. It applies
+the highest supported level at or below the chosen level, else the lowest supported level, and
+passes it as `-c model_reasoning_effort="<level>"` before the prompt. A configured model that the
+list does not hold, a model with none of the five levels, or a failed read stops the start with a
+message: the runner starts no session and writes no session record.
+Its prompt is `Use the celetis:plan skill for #402. Complete its Celetis entry before any response, including commentary.`
 The prompt came from a wording test ("Acceptance status"): its second sentence, the startup
 sentence, changed first-response compliance from 0 of 5 to 5 of 5. The first sentence stays byte
 for byte. The current second sentence names the entry of `docs/procedures/entry.md` and needs a
@@ -262,6 +284,11 @@ exact resume, uses `--no-daemon` so its hooks use the current pane's environment
 support that option; it was checked on 0.162.1. The runner retains the configured sandbox,
 approval, and model settings. No document content is evaluated as shell code.
 `docs/hosts/claude-code.md` and `docs/hosts/codex.md` hold the integration facts of each host.
+
+After it builds the arguments, the runner prints the level and its source:
+`celetis-flow: start: /celetis:plan #402 at xhigh (decided)`. The source is `decided`, `default`,
+or `override`. When Codex applies another level, the line names both:
+`celetis-flow: start: /celetis:plan #402 at max (override); codex applies xhigh for <model>`.
 
 The lane uses the exact path returned by `celetis --agent <host> worktree`. Each skill that works
 on the branch follows [the lane worktree](procedures/worktree.md): it binds its commands, files,
@@ -282,7 +309,7 @@ The session of `specify` is the one session with no step text, so it is no step 
 `run /celetis:feature #402`:
 
 ```bash
-claude --permission-mode auto -n '#402 specify' '/celetis:feature #402'
+claude --permission-mode auto --effort high -n '#402 specify' '/celetis:feature #402'
 ```
 
 Rule 2 of the step text tells a session to publish with no wait for a review. `specify` publishes
@@ -785,6 +812,10 @@ Each row also has `number`, `title`, `url`, `updatedAt` and these fields:
   or with `epic`, also in the row of an issue that stops.
 - `step`: the step of the Run decision of the issue, the step of its `run` line ("Gates"), else
   `null`.
+- `effort`: the effort level of that step, from the read of the resolver (`docs/issue-tracker.md`,
+  "What lives on the issue", "Effort"): `level`, and `source` `decided` with `by` (the step before
+  in the lane) and `reason`, or `source` `default` with the level `high`. It is `null` for a row
+  whose line is not `run`.
 - `started`: `true` when the step comes after the define step of its lane (`plan` or `implement`),
   because an earlier step of the lane ran.
 - `urgent`: `true` for the type `hotfix`.
@@ -795,9 +826,11 @@ Each row also has `number`, `title`, `url`, `updatedAt` and these fields:
   those reviews requests changes, else `approved` when one approves, else `required` when a
   requested reviewer or team has not answered, else `null`.
 
-**Run and Resume.** The adapter types two fixed lines. Each item is in single quotes for the pane
-shell, the issue number is its digits, and ` && exit` ends the line. At each press, the adapter
-reads the installed program (`readProgram` of `engine/lib/program.ts`). `<command>` is its
+**Run and Resume.** The adapter types two fixed lines. A `Run at <level>` entry of the run menu
+adds `'--effort'` and the level after the number of the Run line (the second form below). Each
+item is in single quotes for the pane shell, the issue number is its digits, and ` && exit` ends
+the line. At each press, the adapter reads the installed program (`readProgram` of
+`engine/lib/program.ts`). `<command>` is its
 command: `<base>/.local/bin/celetis`, or `<base>\.local\bin\celetis.cmd` on Windows, where
 `<base>` is `CELETIS_HOME` or the home folder. The read refuses an entry that is not a file of the
 program, so the command always starts the program in its version folder, and the command path
@@ -808,6 +841,7 @@ failure.
 
 ```text
 '<command>' '--agent' '<agent>' 'celetis-flow' <n> && exit
+'<command>' '--agent' '<agent>' 'celetis-flow' <n> '--effort' '<level>' && exit
 '<command>' 'celetis-flow' '--resume' <n> && exit
 ```
 
@@ -817,6 +851,7 @@ ends the line in place of ` && exit`, with the same result:
 
 ```text
 & '<command>' '--agent' '<agent>' 'celetis-flow' <n>; if ($?) { exit }
+& '<command>' '--agent' '<agent>' 'celetis-flow' <n> '--effort' '<level>'; if ($?) { exit }
 & '<command>' 'celetis-flow' '--resume' <n>; if ($?) { exit }
 ```
 
@@ -830,6 +865,13 @@ be a name of `agents` of the last document, and available. Unknown or unavailabl
 409 and start no agent. Availability checks only executable presence; sign-in, trust, plugin
 discovery, and full host parity need separate checks. Run does not change the project default. Set
 that default with `host` in the main YAML; `CELETIS_AGENT` overrides it.
+
+A `Run at <level>` entry of the run menu of a `ready` card sends `effort` with the default agent.
+The server accepts only `low`, `medium`, `high`, `xhigh`, or `max`; another value returns 400 with
+`the effort is not one of low, medium, high, xhigh, max` before any read, and starts nothing. The
+runner starts that step at that level for this start only ("Start the script", "The effort
+level"). On the current issue of a queue paused at a `me` gate, an `effort` returns 409 with
+`The queue starts this step at the decided level`, because Run continues the queue there.
 
 Resume has no `--agent`. It uses the host and exact ID in the saved record, even after the project
 default changes.
@@ -932,7 +974,9 @@ for incomplete host checks. The exception changes no engine guard or existing hu
 The herdr tab label is `#<n> <step>`. It links the live card to the issue on the board. The label
 is not the saved session ID. From the main checkout, `celetis --agent <host> celetis-flow --resume 402`
 first takes the shared issue lock and keeps it until the foreground exits. Under that lock, it
-reads and validates the current record for #402 and opens its exact host and session ID.
+reads and validates the current record for #402 and opens its exact host and session ID at the
+level of the record: Claude gets `--effort <level>`, and Codex gets
+`-c model_reasoning_effort="<level>"`.
 No completion job or update runs during resume.
 
 A missing or invalid record stops with a recovery action. A record with no verified ID directs
@@ -940,9 +984,11 @@ you to `claude --resume` or `codex resume --no-daemon`, by its saved host, to se
 Exact runner resume needs the identity from herdr and a saved turn. A resumed session stays open
 until you leave it.
 
-The record at `<git common dir>/celetis-flow/sessions/<n>.json` has exactly six fields:
-`schema: 1`, `host`, `issue`, `step`, absolute main `checkout`, and `session_id` (UUID or null).
-The runner writes it atomically. It accepts no old record format and makes no migration.
+The record at `<git common dir>/celetis-flow/sessions/<n>.json` has exactly seven fields:
+`schema: 2`, `host`, `issue`, `step`, absolute main `checkout`, `session_id` (UUID or null), and
+`effort`, the level that the runner requested after the Codex clamp.
+The runner writes it atomically. It accepts no old record format and makes no migration: a
+schema-1 record stops resume with the invalid or obsolete record message.
 Herdr supplies `result.agent.agent_session.value`; a tab name is never an identity.
 For a Claude step in a herdr pane, the runner chooses that ID and reports it to herdr before the
 session starts ([ADR-0039](adr/0039-the-runner-announces-the-claude-session-id-to-herdr.md)).
@@ -1689,6 +1735,13 @@ remains unknown.
   still needs a manual restart for new board code (ADR-0042).
 - A host can update its plugin by itself, for example with a marketplace auto-update. Then the
   runner starts no new step session until `celetis update` ("How a step runs").
+- A host can run a session at another level than the runner chose, and the runner does not see
+  it. The runner removes only the process variable `CLAUDE_CODE_EFFORT_LEVEL`. It does not read
+  or change a `CLAUDE_CODE_EFFORT_LEVEL` in the `env` block of a Claude Code settings file, which
+  outranks `--effort`, or `maxEffortLevel` and an organization cap, which run a higher level at
+  the cap. Claude Code runs a level that the model does not support at the highest supported level
+  below it. The start line names the chosen level, and the applied level only when Codex applies
+  another level.
 
 `engine/board/README.md` of the plugin holds the limits of the page.
 

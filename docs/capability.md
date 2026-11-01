@@ -99,7 +99,10 @@ will read it:
   spawn controls of the host ([the child dispatch](procedures/dispatch.md), "One child").
 - **Plan headers** — print the CAP rec on session-executed tasks. Note: the **session model is the
   user's picker**; the rubric can only *recommend* there (max is auto-assignable for a spawn, a rec
-  for the session). The user may override any rec.
+  for the session). The user may override any rec. A runner or board start of a step session gets
+  the effort level that the step before decided on the issue, else `high`, not a rubric band
+  (`docs/celetis-flow.md`, "Start the script", "The effort level"); the rubric still only
+  recommends the session model.
 
 ## Worked examples (seed calibration, default bias 2)
 

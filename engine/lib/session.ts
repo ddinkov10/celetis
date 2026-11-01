@@ -3,19 +3,23 @@ import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promise
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Config, Host } from './config-core.ts';
+import { clampEffort, isLevel, type Level } from './effort.ts';
 import { codexRequest, commonDir, HostError } from './host.ts';
 import { run } from './process.ts';
 import { command, invocation, type Step, steps } from './workflow.ts';
 
 export interface SessionRecord {
-  schema: 1;
+  schema: 2;
   host: Host;
   issue: number;
   step: Step;
   checkout: string;
   session_id: string | null;
+  effort: Level;
 }
+export type SavedSession = SessionRecord & { session_id: string };
 const uuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+const modelsUnreadable = 'celetis-flow: cannot read the Codex models; start the runner again';
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -23,14 +27,15 @@ function object(value: unknown): value is Record<string, unknown> {
 export function validateSession(value: unknown, main: string, issue: number, file: string): SessionRecord {
   if (
     !object(value) ||
-    Object.keys(value).sort().join(',') !== 'checkout,host,issue,schema,session_id,step' ||
-    value.schema !== 1 ||
+    Object.keys(value).sort().join(',') !== 'checkout,effort,host,issue,schema,session_id,step' ||
+    value.schema !== 2 ||
     value.issue !== issue ||
     value.checkout !== main ||
     (value.host !== 'claude' && value.host !== 'codex') ||
     typeof value.step !== 'string' ||
     !steps.includes(value.step as Step) ||
-    !(value.session_id === null || (typeof value.session_id === 'string' && uuid.test(value.session_id)))
+    !(value.session_id === null || (typeof value.session_id === 'string' && uuid.test(value.session_id))) ||
+    !isLevel(value.effort)
   ) {
     throw new HostError(
       `celetis: invalid or obsolete session record ${file}; remove it and start a new step with celetis --agent <host> celetis-flow ${issue}`,
@@ -70,17 +75,32 @@ export async function selectSavedSession(
   issue: number,
   explicit?: string,
   common?: string,
-): Promise<SessionRecord> {
+): Promise<SavedSession> {
   const record = await readSession(main, issue, common);
   if (explicit !== undefined && explicit !== record.host)
     throw new HostError(
       `celetis: #${issue} recorded host is ${record.host}; resume without --agent or use --agent ${record.host}`,
     );
-  if (record.session_id === null)
+  const { session_id } = record;
+  if (session_id === null)
     throw new HostError(
       `celetis: #${issue} has no saved turn with a verified herdr identity; exact runner resume requires herdr identity. From the main checkout, run ${manualRecovery(record.host)} and select the saved session, or start a new step if none exists.`,
     );
-  return record;
+  return { ...record, session_id };
+}
+
+export function resumeArguments(record: SavedSession): string[] {
+  return record.host === 'claude'
+    ? ['--resume', record.session_id, '--effort', record.effort]
+    : ['resume', '--no-daemon', '-c', `model_reasoning_effort=${JSON.stringify(record.effort)}`, record.session_id];
+}
+
+export function sessionEnv(host: Host, source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  if (host === 'codex') return { ...source };
+  const windows = process.platform === 'win32';
+  return Object.fromEntries(
+    Object.entries(source).filter(([key]) => (windows ? key.toUpperCase() : key) !== 'CLAUDE_CODE_EFFORT_LEVEL'),
+  );
 }
 
 export async function writeSession(main: string, record: SessionRecord): Promise<void> {
@@ -236,6 +256,54 @@ export function stepHeader(facts: {
   ].join('\n');
 }
 
+export function selectCodexEffort(
+  config: Record<string, unknown>,
+  models: readonly unknown[],
+  chosen: Level,
+): { model: string; applied: Level } {
+  const configured = config.model;
+  if (!(configured == null || typeof configured === 'string')) throw new HostError(modelsUnreadable);
+  const entry = models
+    .filter(object)
+    .find((each) => (configured == null ? each.isDefault === true : each.model === configured));
+  if (!entry)
+    throw new HostError(
+      configured == null
+        ? modelsUnreadable
+        : `celetis-flow: the Codex model ${configured} is not in model/list; set model in the Codex config to a listed model, then start the runner again`,
+    );
+  const { model, supportedReasoningEfforts: options } = entry;
+  if (typeof model !== 'string' || !Array.isArray(options)) throw new HostError(modelsUnreadable);
+  const applied = clampEffort(
+    chosen,
+    options
+      .map((option) => (object(option) ? option.reasoningEffort : null))
+      .filter((each) => typeof each === 'string'),
+  );
+  if (!applied)
+    throw new HostError(
+      `celetis-flow: the Codex model ${model} supports no effort level of Celetis; set model in the Codex config to another model, then start the runner again`,
+    );
+  return { model, applied };
+}
+
+async function codexModels(cwd: string): Promise<unknown[]> {
+  const models: unknown[] = [];
+  const seen = new Set<string>();
+  let cursor: string | null = null;
+  do {
+    const reply = await codexRequest(cwd, 'model/list', { cursor, includeHidden: true });
+    const page = object(reply) && object(reply.result) ? reply.result : null;
+    const next = page?.nextCursor ?? null;
+    if (!page || !Array.isArray(page.data) || !(next === null || (typeof next === 'string' && !seen.has(next))))
+      throw new HostError(modelsUnreadable);
+    models.push(...page.data);
+    cursor = next;
+    if (next !== null) seen.add(next);
+  } while (cursor !== null);
+  return models;
+}
+
 export async function hostArguments(
   host: Host,
   issue: number,
@@ -243,35 +311,54 @@ export async function hostArguments(
   root: string,
   cwd: string,
   facts: { pluginRoot: string; landing: Config['landing'] },
-): Promise<string[]> {
+  effort: Level,
+): Promise<{ args: string[]; applied: Level; model: string | null }> {
   const stepText = async () =>
     `${stepHeader({ issue, step, host, main: cwd, ...facts })}\n\n${await readFile(join(root, 'step-prompt.md'), 'utf8')}`;
   if (host === 'claude')
-    return [
-      '--permission-mode',
-      'auto',
-      '-n',
-      `#${issue} ${step}`,
-      ...(step === 'specify' ? [] : ['--append-system-prompt', await stepText()]),
-      invocation(step, issue),
-    ];
+    return {
+      args: [
+        '--permission-mode',
+        'auto',
+        '--effort',
+        effort,
+        '-n',
+        `#${issue} ${step}`,
+        ...(step === 'specify' ? [] : ['--append-system-prompt', await stepText()]),
+        invocation(step, issue),
+      ],
+      applied: effort,
+      model: null,
+    };
   const args = ['--no-daemon'];
+  const reply = await codexRequest(cwd, 'config/read', { cwd, includeLayers: false });
+  const config = object(reply) && object(reply.result) && object(reply.result.config) ? reply.result.config : null;
   if (step !== 'specify') {
-    const reply = await codexRequest(cwd, 'config/read', { cwd, includeLayers: false });
-    const config = object(reply) && object(reply.result) ? reply.result.config : null;
-    if (
-      !object(config) ||
-      !(config.developer_instructions == null || typeof config.developer_instructions === 'string')
-    )
+    const existing = config?.developer_instructions ?? '';
+    if (config === null || typeof existing !== 'string')
       throw new HostError('celetis-flow: cannot read the step instructions; start the runner again');
     const text = await stepText();
-    const existing = config.developer_instructions ?? '';
     args.push('-c', `developer_instructions=${JSON.stringify(existing ? `${existing}\n\n${text}` : text)}`);
   }
+  if (config === null) throw new HostError(modelsUnreadable);
+  const { model, applied } = selectCodexEffort(config, await codexModels(cwd), effort);
   args.push(
+    '-c',
+    `model_reasoning_effort=${JSON.stringify(applied)}`,
     `Use the celetis:${command(step)} skill for #${issue}. Complete its Celetis entry before any response, including commentary.`,
   );
-  return args;
+  return { args, applied, model };
+}
+
+export function startLine(
+  prompt: string,
+  chosen: Level,
+  source: 'decided' | 'default' | 'override',
+  applied: Level,
+  model: string | null,
+): string {
+  const line = `start: ${prompt} at ${chosen} (${source})`;
+  return applied === chosen ? line : `${line}; codex applies ${applied} for ${model}`;
 }
 
 export async function startupError(issue: number, host: Host, detail: string): Promise<void> {

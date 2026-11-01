@@ -34,6 +34,16 @@ step text, and its configured developer instructions stay. Every interactive lau
 use the environment of the current pane. The runner keeps the configured sandbox, approval, and
 model settings.
 
+For each step, `specify` too, `hostArguments` also reads the session model: `model` of
+`config/read`, else the `isDefault` model of `model/list`. It reads every page of `model/list` with
+`includeHidden: true`, because a configured model can be hidden. `selectCodexEffort` takes the
+supported levels of that model (`supportedReasoningEfforts[].reasoningEffort`), keeps the five
+levels of Celetis, and applies the highest one at or below the chosen level, else the lowest one.
+The runner passes it as `-c model_reasoning_effort="<level>"` before the prompt and saves it in the
+session record. A resume runs `codex resume --no-daemon -c model_reasoning_effort="<level>" <id>`.
+A model that `model/list` does not list, a model with none of the five levels, or a failed read
+stops the start with a message.
+
 The plugin root of the header is the `root` of `installation('codex', …)` in `engine/update.ts`,
 which `requireSameRevision` returns. The lookup uses `skills/list` on a short-lived app-server
 connection, with no thread or model turn.

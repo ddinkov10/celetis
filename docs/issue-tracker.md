@@ -30,6 +30,7 @@ also use the protected current-state reads in "Epic completion and repair":
 | Act | Prerequisite | Writes |
 |---|---|---|
 | `route <lane>` (`feature`, `bug`, `chore`, `hotfix`) | open; not an epic | the label of the lane; it removes the other lane labels and `needs-triage` |
+| `effort <step> <level> <file>` | open | an `Effort: <step> <level>` comment ("What lives on the issue", "Effort"); no label change |
 | `epic <file>` | open feature or epic; valid declaration and current child references | the complete parent body, then adds `epic` and removes `enhancement` as needed; clears no hold |
 | `epic-state` | readable parent and complete children | nothing; the JSON snapshot of "Epic acceptance submission" |
 | `complete-epic [file]` | "Epic completion and repair" | an accepted record, then closes as completed; an already closed parent has no write |
@@ -48,9 +49,10 @@ also use the protected current-state reads in "Epic completion and repair":
 
 - The command writes the heading of each lifecycle comment. Its `<file>` holds text with no heading: the
   command refuses a file whose first line that is not blank starts with `## `, and, for `spec`,
-  one that starts with `Spec:`. `assisted` inserts `Reported by the assistance agent (` followed
-  by the selected host in backticks and `).` before the supplied report text. The epic definition
-  file instead holds the complete parent body, and a completion file holds strict JSON.
+  one that starts with `Spec:`. For `effort`, it also refuses a file with no text. `assisted`
+  inserts `Reported by the assistance agent (` followed by the selected host in backticks and
+  `).` before the supplied report text. The epic definition file instead holds the complete parent
+  body, and a completion file holds strict JSON.
 - Lifecycle acts post the comment first (ADR-0011). Then they add the labels in one call, remove each label in
   a call of its own, and last changes the body or closes the issue. It never replaces the whole set
   of labels, so a label that a person adds or removes at the same time stays as the person set it.
@@ -113,6 +115,7 @@ historical records. Local `docs/superpowers/` files remain scratch.
   acceptance mapping, the report includes each criterion's outcome, separate check results, evidence,
   and mapping corrections under [Acceptance coverage](procedures/acceptance-coverage.md#reporting).
 - **Intent** — `/celetis:intake` writes the intent template as the body of a new issue, or as a comment headed `## Intent` on an existing one. A reporter's body is never rewritten by intake.
+- **Effort** — the step before records the effort level of the next step with `issue <n> effort <step> <level> <file>`: a comment whose first line is exactly `Effort: <step> <level>`, then an empty line, then the reason from the file. `<level>` is `low`, `medium`, `high`, `xhigh`, or `max`. `triage` decides the first lane step (`specify`, `bug`, `chore`, or `hotfix`), `specify` and `bug` decide `plan` (a `bug` session normally writes the plan in the same turn, so the decision of `bug` applies only to a `plan` step that starts in a new session), and `plan` decides `implement`. Nothing decides `triage`: the act refuses it, and the read ignores a `triage` comment. The act needs no lane label, because `triage` decides before it routes the issue. For a `run` line, the resolver reads the newest comment whose first line has this form for the step of that line; its decider is the step before in the current lane, so a `plan` decision keeps its level after a change between `bug` and `feature`. A first line with another form (a trailing space, more text, another letter case, or a level that is not one of the five) is not a decision, and a comment for another step has no effect. With no decision, the level is `high`. The first line is not a `## ` heading, so the heading reads of the resolver ignore the comment.
 - **Spec** — `specify` replaces the body with the design spec (`issue <n> spec <file>`); its first line is `Spec: YYYY-MM-DD`. The body is the current truth for the item.
 - **Plan** — `plan` posts the implementation plan as a comment headed `## Plan` (`issue <n> plan <file>`). With no human hold, it adds `ready-for-agent`. With `ready-for-human`, it keeps the hold and removes the agent label when present. A new plan starts a new build. The plan header names the build flow with its `Execution:` line (`inline` or `subagent`), which `implement` follows. Its first section, `### Your steps`, lists the human acts of the lane in two lists: "During the build" (each act that the maintainer does while the build runs, the step that needs it, and its report) and "After the landing" (each check by hand on the built change; nothing in the lane waits for it). Its `## Acceptance coverage` table links approved criteria to work and verification under [Acceptance coverage](procedures/acceptance-coverage.md#mapping), without a second store or mandatory IDs. `implement` in a fresh context re-fetches the latest `## Plan` comment.
 - **Human steps done** — a report of completed requested steps, not a claim of human authorship. The maintainer can post it, or assistance can use `issue <n> assisted <file>` after [Assisted completion](procedures/assisted-completion.md). The heading remains `## Human steps done`. The report names the current requests, completed acts, observed results, and each human answer with its source. For "During the build", it follows the latest plan and the applicable precondition comment. `implement` reads these reports and still requires the applicable removal and runtime evidence.

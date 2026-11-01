@@ -310,8 +310,16 @@ no row, show the label of the tab as the title, with no link and no type.
 | `blocked` | Needs you | `reason` | `act` | Open agent |
 | `ready` | Needs you when `started` or `urgent`, else Idle | none: the card shows `next <step>` | none | Run |
 
-- A `ready` card shows `auto` when the `gate` of its step is `auto`. The title of Run is
-  `Start the <step> step`, plus the `hint` of that step.
+- A `ready` card shows `auto` when the `gate` of its step is `auto`.
+- A `ready` card shows the effort level of its step, the `effort` of its row, in a chip after
+  `next <step>` and before `auto`. The chip is solid for a decision on the issue and dashed for the
+  default. Its title and accessible name are `effort <level>, decided by <by>` or
+  `effort <level>, default`, where `<by>` is the step before the started step in the lane of the
+  issue (`docs/celetis-flow.md` of the plugin `celetis`, "The board").
+- On a `ready` card, the accessible name of Run is `Run <step> at <level> (decided by <by>), #<n>` or
+  `Run <step> at <level> (default), #<n>`. The title of Run is
+  `Start the <step> step at <level>, decided by <by>` or `Start the <step> step at <level>, the default`,
+  plus the `hint` of that step.
 - Open agent uses the current default agent, with no agent choice. It is the main action in Now,
   Pipeline, details, the card menu, and search. Open issue remains secondary, and `o` opens the issue.
   An unavailable default agent disables Open agent with its cause.
@@ -348,7 +356,7 @@ A press that fails ends the `Starting` card at once, and the next read gives the
 | Press or read | What the server does |
 |---|---|
 | The data of the issues | The read of "The data", in its own process, with a limit of 60 seconds. |
-| Run | A quiet herdr tab in the main checkout with the label `#<n> <step>` and the Run line. For the current issue of a queue paused at a `me` gate, use the queue Continue action below. |
+| Run | A quiet herdr tab in the main checkout with the label `#<n> <step>` and the Run line. A `Run at <level>` entry adds the level to that line. For the current issue of a queue paused at a `me` gate, use the queue Continue action below. |
 | Resume | The same tab with the focus. In its pane: the Resume line. |
 | A queue action | A persisted QueueView acknowledgement. Only a new wake opens a quiet main-checkout herdr tab labelled `Queue`. In its pane: the fixed queue run line. The runner renames the tab `#<n> <step>` while a step runs, preserving the session cards and Go. |
 | New intake | A focused `Intake` tab in the main checkout. The current default host asks for the request, then enters `celetis:intake` with the answer. The button creates no issue and starts no runner. |
@@ -367,14 +375,16 @@ program.
 The adapter makes each line from fixed parts: the command of the program, then, for an independent Run,
 `--agent`, the selected agent, and `celetis-flow`; for Resume, `celetis-flow` and `--resume`,
 with no agent; for Assist, `--agent`, the current default agent, and `assist`; or for New intake,
-`--agent`, the current default agent, and `intake`, with no issue number.
+`--agent`, the current default agent, and `intake`, with no issue number. A `Run at <level>` entry
+adds `--effort` and the level after the number.
 Resume takes the host and the session from its saved record. The program supplies Bun and its
-isolation flags. Each item is in single quotes, and the digits of the number
-and ` && exit` end the line. The shell of the pane reads each item as one word, so an item cannot
+isolation flags. Each item is in single quotes, the number is its digits, and ` && exit` ends the
+line. The shell of the pane reads each item as one word, so an item cannot
 add a second command. For the issue 12 and the agent `claude`:
 
 ```text
 '<base>/.local/bin/celetis' '--agent' 'claude' 'celetis-flow' 12 && exit
+'<base>/.local/bin/celetis' '--agent' 'claude' 'celetis-flow' 12 '--effort' 'xhigh' && exit
 '<base>/.local/bin/celetis' 'celetis-flow' '--resume' 12 && exit
 '<base>/.local/bin/celetis' '--agent' 'claude' 'assist' 12 && exit
 '<base>/.local/bin/celetis' '--agent' 'claude' 'intake' && exit
@@ -389,6 +399,7 @@ command with `&`, doubles `'` and each of U+2018 to U+201B in a quoted item, and
 
 ```text
 & '<base>\.local\bin\celetis.cmd' '--agent' 'claude' 'celetis-flow' 12; if ($?) { exit }
+& '<base>\.local\bin\celetis.cmd' '--agent' 'claude' 'celetis-flow' 12 '--effort' 'xhigh'; if ($?) { exit }
 & '<base>\.local\bin\celetis.cmd' 'celetis-flow' '--resume' 12; if ($?) { exit }
 & '<base>\.local\bin\celetis.cmd' '--agent' 'claude' 'assist' 12; if ($?) { exit }
 & '<base>\.local\bin\celetis.cmd' '--agent' 'claude' 'intake'; if ($?) { exit }
@@ -419,6 +430,14 @@ at a `me` gate uses Continue with the saved queue host. An absent or null choice
 an explicit different host is refused. A choice for one Run does not change the default. Resume sends
 only the issue number, and the runner selects the saved session. Assist also sends only the issue
 number. It reads the current default agent after a fresh issue read and offers no agent choice.
+
+To start one step of a `ready` card at another effort level, use a `Run at <level>` entry of its
+run menu ("The layout, the keys, and the errors"). An entry uses the current `defaultAgent`, as Run
+does, and sends the level. The Run line then has `--effort` and the level after the number, so the
+runner starts that step at that level once (`docs/celetis-flow.md` of the plugin `celetis`, "Start
+the script", "The effort level"). The entry writes no decision on the issue, and a later step uses
+its own decision. The current issue of a queue paused at a `me` gate takes no level: the queue
+starts its step at the decided level.
 
 **New intake is independent of issue reads.** `POST /api/intake` accepts exactly `{}`. A non-object
 or an extra field returns 400 before any pane mutation. Each press reads the main configuration
@@ -480,12 +499,14 @@ starts these read-only commands, with no shell:
 
 **The presses.** The page sends a press as a POST with a JSON body: `{"number": <n>}` to
 `/api/run`, `/api/resume`, `/api/assist`, and `/api/shell`, `{"sessionId": "<id>"}` to `/api/go`, and `{}` to
-`/api/refresh`. A Run body can also have `"agent": "<name>"`. The server refuses a press with 409
+`/api/refresh`. A Run body can also have `"agent": "<name>"` and `"effort": "<level>"`. Before any
+read, the server refuses an `effort` that is not `low`, `medium`, `high`, `xhigh`, or `max` with 400
+and `the effort is not one of low, medium, high, xhigh, max`. The server refuses a press with 409
 and opens no tab, unless each condition holds:
 
 | Press | Conditions | Line of the refusal |
 |---|---|---|
-| `POST /api/run` | A fresh issue and queue read succeeds. The issue has a card of its own, with no session. Its row is `ready` or `stuck`. `noRun` is `null`. No press on that issue is active. A current paused queue issue also meets the Continue conditions below. | The read or queue cause; otherwise `#<n> has no step to start now`. |
+| `POST /api/run` | A fresh issue and queue read succeeds. The issue has a card of its own, with no session. Its row is `ready` or `stuck`. `noRun` is `null`. No press on that issue is active. A current paused queue issue has no `effort` in the body and also meets the Continue conditions below. | The read or queue cause; `The queue starts this step at the decided level` for an `effort` on a current paused queue issue; otherwise `#<n> has no step to start now`. |
 | `POST /api/resume` | The issue has a card of its own, with no session. Its row is `stuck`. `noRun` is `null`. No press on that issue is active. | `#<n> has no session to resume now` |
 | `POST /api/assist` | A fresh issue read succeeds. The issue has a card of its own, with no session. Its row is `blocked`, with `assist` true and `noRun` null. A current herdr snapshot succeeds. The current default agent is available. No Run, Resume, or Assist press on that issue is active. | The current read, `noRun`, agent, session, or state cause; otherwise `#<n> has no blocked issue to assist now`. |
 | `POST /api/shell` | The issue has a card of its own, with no session. Its row is `dirty`. Its `path` is a lane worktree of the main checkout. | `#<n> has no dirty worktree` |
@@ -555,7 +576,7 @@ The answer to a press that the server did is 200 with `{"ok": true}`. Each other
 
 | Status | Case |
 |---|---|
-| 400 | The body is not JSON, the body has more than 1024 bytes, the issue number is not a positive safe integer in digits, the queue request is invalid, or Assist has an unexpected body field. |
+| 400 | The body is not JSON, the body has more than 1024 bytes, the issue number is not a positive safe integer in digits, the `effort` of Run is not one of the five levels, the queue request is invalid, or Assist has an unexpected body field. |
 | 403 | The `Host`, the `Origin`, or the content type is not good ("The trust boundary"). |
 | 404 | The path is not a path of the board, or Go names a session that is no herdr agent of the repository. |
 | 409 | A condition of the table does not hold, the queue request is stale or unavailable, the read of the program fails, the fresh issue read of Assist fails, Resume has no valid saved session, the agent of Run or Assist is not good, the agent of a Go press has no safe pane id, or the request tries to change the default agent. |
@@ -585,9 +606,10 @@ server and the page:
 2. It refuses, with 403, a request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>`.
 3. It refuses, with 403, a POST whose `Origin` is not `http://` and that `Host`, or whose content
    type is not `application/json`.
-4. It accepts only digits, as a number or a string, as the number of an issue, and only the terminal
-   id of a herdr agent of the repository as the id of a session.
-5. The page sends an issue number, a session id, a selected Run agent, a strict queue action, or an opaque update offer
+4. It accepts only digits, as a number or a string, as the number of an issue, only the terminal
+   id of a herdr agent of the repository as the id of a session, and only `low`, `medium`, `high`,
+   `xhigh`, or `max` as the effort level of a Run.
+5. The page sends an issue number, a session id, a selected Run agent, a selected Run effort level, a strict queue action, or an opaque update offer
    ID, never a command or an installation path.
    New intake sends only an empty object. Resume and Assist take only the issue number. A default-agent request changes no configuration.
 6. An id of the answer of herdr (a workspace, a tab, a pane) goes into a `herdr` command only when
@@ -618,7 +640,9 @@ Five rules hold for the start, the lines, and the data:
    starts `herdr` and `git`, and the issue read starts `gh`, `git`, and, on macOS and Linux, `ps`.
    Update workers have the separate fixed update protocol above.
 3. **Only validated values go into a line.** The number is the digits of the issue. The agent of
-   Run or Assist is a name of lowercase letters that `agents` of the document has. Assist gets
+   Run or Assist is a name of lowercase letters that `agents` of the document has. The effort level
+   of Run is one of the five levels, and the adapter puts it after the number as `--effort` and the
+   level. Assist gets
    that agent from its fresh read. New intake takes `claude` or `codex` from fresh main configuration
    and environment resolution. Resume takes no agent. Queue fields pass the shared exact-shape validator; its step is an engine-defined
    value, its ID is a UUID, its revision and issue numbers are positive safe integers, and its
@@ -699,14 +723,29 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   (`claude`, `codex`, `opencode`, or another); an issue card shows the icon of its type. The lane
   keys `bug`, `feature`, `chore`, and `hotfix` have an icon of their own, and a lane with another
   key gets the neutral icon. The main button of a card in Needs you is filled.
+- A card in one row (Idle, the last two groups of Needs you, and Pipeline) has its title beside its
+  buttons, and under both the number, the type, and the state. The title shows at most two lines,
+  and a narrow card hides the type. The step name, the effort chip, and `auto` of a `ready` card stay
+  whole; a card with no room for them in one line wraps them to a second line.
+- The chevron beside Run opens the run menu: Run with each agent. On a `ready` card, a rule and
+  `Run at low`, `Run at medium`, `Run at high`, `Run at xhigh`, and `Run at max` follow. The current
+  level has a check mark and the suffix `(decided by <by>)` or `(default)`; the title of another level is
+  `Start the <step> step at <level>, this start only`. With a `noRun` text, each level entry is
+  disabled with that text; on the current issue of a queue paused at a `me` gate, with
+  `The queue starts this step at the decided level`; else with the cause that disables Run. The `m`
+  menu of the card lists the same entries after its actions. Search and the actions of the details
+  have no level entries.
 - The lane track at the right of a card shows where the issue is in its lane. The current step has
   the colour of the state, and it moves while an agent works.
 - A press on a card, or `Space`, opens its details in place of Idle: for a session, the last 16
   lines of its pane (with no empty line, rule, or box border), so you can read the dialog or the end
   of the answer; the lane steps, with `auto` on a step whose gate is `auto`; the pull request, the
-  folder, and the lines changed. A waiting session shows its lines at the top, beside Go, except a
-  human session whose turn ended. `Esc` closes the details. Below 1100 px the details cover the
-  right side of the page, and below 720 px the whole page.
+  folder, and the lines changed; for a `ready` card, `Effort` (`<level> · decided by <by>` or
+  `<level> · default`) and `Why` before `Updated`. `Why` is the reason of the decision, wrapped,
+  `No reason given.` for a decision with no reason, or
+  `No decision on the issue; the default applies.` for the default. A waiting session shows its
+  lines at the top, beside Go, except a human session whose turn ended. `Esc` closes the details.
+  Below 1100 px the details cover the right side of the page, and below 720 px the whole page.
 - A card that changed since you last looked at the board has a dot, until you point at it or focus
   it. The board takes the cards as seen when its window loses the focus.
 - The status bar shows when the board last read the data, with the name of the tracker (`Issues`
