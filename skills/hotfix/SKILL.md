@@ -44,6 +44,8 @@ N+1. Too little time for the lane → the change does not ship tonight.
      constraints. Both build flows of `implement` find a task by its `Task <N>` heading.
    - Carry matched lesson rules into that task per `<plugin>/docs/procedures/task-lessons.md`,
      "Authoring".
+   - Assess current documentation per `<plugin>/docs/procedures/behavior-documentation.md`,
+     "Assessment" and "Change work", and include the affected sections in that task.
    - Each library call the fix adds is checked per `<plugin>/docs/procedures/docs-lookup.md`; the facts go
      in the micro-plan's `## External facts` section.
    - Put the exact applicable principle paths in the task text, alongside its external facts.

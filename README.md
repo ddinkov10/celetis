@@ -757,6 +757,9 @@ host's skill selector. Native desktop selector acceptance is optional under
 | `/celetis:plan #<n>`, in a new session | writes the plan: your steps (the human acts of the lane), the build flow, tasks with a capability score, and a Verify phase | a `## Plan` comment; `ready-for-agent` unless `ready-for-human` holds the issue, in which case the human hold stays and the agent label is removed |
 | `/celetis:implement #<n>`, in a new session | builds the tasks in the flow that the `Execution:` line of the plan names (`inline`: the session builds each task and runs the verify gate of the project, then one review of the branch; `subagent`: an implementer, the verify gate of the project, and a review for each task), runs the Verify phase, and lands the change with `celetis --agent <host> land` | the change on the trunk, and a closed issue |
 
+- Change work includes affected current documentation in its existing tasks and reviews before
+  completion. [Current behavior documentation](docs/procedures/behavior-documentation.md) also
+  covers repairs and drift maintenance, while preserving historical change records on GitHub.
 - The plan and runtime checks use [Runtime verification](docs/procedures/runtime-verification.md)
   to identify the tested source and confirm the actual running target before a runtime PASS.
   Its [Usage-limit exception](docs/procedures/runtime-verification.md#usage-limit-exception) can
@@ -886,7 +889,7 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | | [`/celetis:lesson`](skills/lesson/SKILL.md) | Writes a lesson from a correction or an incident to `docs/lessons/`, with a row in its catalog |
 | | [`/celetis:lesson-review`](skills/lesson-review/SKILL.md) | Your review of the lesson drafts that an automatic capture put in a queue |
 | | [`/celetis:record-architecture-decisions`](skills/record-architecture-decisions/SKILL.md) | Reads and writes the records of `docs/adr/` |
-| | [`/celetis:doc-drift-sync`](skills/doc-drift-sync/SKILL.md) | Keeps the documents of the project true against the code: it fixes the drift that the source proves, and it flags the rest |
+| | [`/celetis:doc-drift-sync`](skills/doc-drift-sync/SKILL.md) | Corrects mechanical drift from source and behavioral drift from approved intent; reports implementation defects and uncertain evidence |
 | **Principles** | [`/celetis:attack-the-premise`](skills/attack-the-premise/SKILL.md) | Checks a shared premise after two fixes fail |
 | | [`/celetis:encode-lessons-in-structure`](skills/encode-lessons-in-structure/SKILL.md) | Uses structural prevention when a mistake or corrective instruction repeats |
 | | [`/celetis:make-operations-idempotent`](skills/make-operations-idempotent/SKILL.md) | Checks duplicate runs and recovery for operations that change persistent state |

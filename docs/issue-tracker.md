@@ -98,6 +98,11 @@ waits and gates.
 
 ## What lives on the issue
 
+GitHub remains the durable handoff store. Historical issue specs, published plans, and decisions
+record their change; later approvals update existing current project documentation through
+[Current behavior documentation](procedures/behavior-documentation.md), without rewriting those
+historical records. Local `docs/superpowers/` files remain scratch.
+
 - **Runtime evidence** — an ordinary comment whose first line does not start with `## ` holds
   the tested source, actual target, both confirmation links, and scenario outcomes/oracles, or
   links a durable report. [Runtime verification](procedures/runtime-verification.md) defines

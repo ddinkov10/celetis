@@ -21,6 +21,10 @@ Superset of `superpowers:writing-plans` for project features. Delegates to it; a
 
 **Carry matched lesson rules into each affected task** per `<plugin>/docs/procedures/task-lessons.md`, "Authoring", after those context reads and before finalizing task text.
 
+**Assess current documentation** after those reads per
+`<plugin>/docs/procedures/behavior-documentation.md`, "Assessment" and "Change work". Include
+required document work in the task that owns the behavior.
+
 **Map acceptance coverage.** Read `<plugin>/docs/procedures/acceptance-coverage.md` and apply
 "Mapping" when authoring the plan, then "Review" in its existing self-review before publication.
 

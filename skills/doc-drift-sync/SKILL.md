@@ -1,22 +1,24 @@
 ---
 name: doc-drift-sync
-description: Run the daily doc-drift maintenance pass — keep the project living docs (AGENTS.md, docs/**, README/CLAUDE) truthful against current code. Auto-fix obvious, source-verified drift (stale file/symbol refs, broken .md links, dangling referenced files, source-line locators); flag judgment calls. Use when asked to sync/refresh/audit the docs against the code, or when invoked by the daily cron.
+description: Use when asked to sync, refresh, or audit current project documents against intended behavior and source, or when the daily doc-drift maintenance pass runs.
 ---
 
 **Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 # Doc-Drift Sync
 
-Keep the docs honest against the current code. Fix the obvious drift, flag the rest, never guess. A wrong edit is worse than a missed one.
+Keep current docs aligned with approved intent. Read
+`<plugin>/docs/procedures/behavior-documentation.md` and apply "Assessment" and "Standalone
+drift" to this pass. Fix supported drift and report unresolved discrepancies.
 
 ## Rules
-- **Verify, don't guess.** Every fix is backed by source you actually read. Can't confirm it? Flag it, don't edit.
+- **Verify, don't guess.** Read the evidence that the shared assessment requires. Can't confirm it? Flag it, don't edit.
 - **Smallest edit that makes the doc true.** Cover what this pass's diff made stale or silent, at the smallest size that makes it true — don't restyle, and don't document what the diff never touched.
 - **Docs stay big-picture.** No line numbers, no `search for x()` anchors. Keep the method/symbol name, drop the locator.
 
 ## Scope
-- **Edit only:** `docs/**/*.md` (not `docs/superpowers/**`), every `AGENTS.md`, `README.md`, plus the project's own doc landmarks (set by the project; e.g. a per-subsystem `docs/`).
-- **Source of truth:** the project source tree. For third-party library APIs check their docs — don't judge from memory.
+- **Edit only:** current `docs/**/*.md` (not `docs/superpowers/**` or historical decision records), every `AGENTS.md`, `README.md`, plus the project's own doc landmarks (set by the project; e.g. a per-subsystem `docs/`).
+- **Evidence:** use the shared assessment for behavioral claims and source for mechanical facts. For third-party library APIs check their docs — don't judge from memory.
 - **Blocked files:** anything the project marks blocked (secrets, generated config, credentials). Never read or reference them.
 
 ## What drift looks like
@@ -37,15 +39,18 @@ A doc token that no longer matches code:
 3. **Deep check** the docs that name a changed symbol/file: grep current source. If the symbol is gone, find out why from git (`git log -S` / `--follow`) before acting.
 
 ## Fix or flag
-The line is **confidence, not category**. Read source until you either know the one correct form or know you can't get there. Nothing is too big to fix if you are sure, and nothing is too small to flag if you are not.
+Use the shared assessment to separate mechanical drift, approved behavioral corrections, and
+implementation defects. Confidence about source behavior alone does not settle a behavioral claim.
 
-**Fix and commit** — source-verified, one unambiguous form. Not a closed list; these are the common shapes:
+**Fix and commit** — supported by the required evidence, with one unambiguous form:
 - locator → strip it
 - renamed/moved file or broken link with one clear target → repoint
 - renamed symbol/flag, or changed signature → update the token
-- behavior the code no longer has, or a change in this pass's diff the doc is silent about → say what the code now does, in the target's own form (see Writing prose into a doc)
+- an approved behavioral change in this pass's diff makes current prose stale or incomplete → update the affected section through the shared assessment, in the target's own form (see Writing prose into a doc)
 
-**Flag** (leave the doc alone, list it in your closing summary) when reading source does not settle it: an ambiguous rename with more than one plausible target, a count you would have to guess at, a call about what the doc *should* cover rather than what is true, or anything you are less than sure of. Flag it too when the gap is real and you are certain but the diff never touched that code — being sure is what makes it fixable, being in the diff is what makes it yours this run. **When unsure, flag.** A wrong edit is worse than a missed one.
+**Flag** unresolved discrepancies from the shared assessment in the closing summary, leaving
+disputed prose unchanged. Also flag an ambiguous rename, a count you would have to guess at, or
+a gap outside this pass's diff. Continue independent safe corrections within the scan boundary.
 
 ## Writing prose into a doc
 Applies the moment an edit adds or reshapes a sentence, bullet, or section — not to a bare token swap. Read the target before you write a word.
@@ -62,7 +67,7 @@ Important content is not a license to escalate form — a production-breaking co
 One local commit, in-scope docs only, in three parts:
 
 1. **Subject** — `docs(drift): <what you did>`, using any accurate verb (sync, correct, strip, document).
-2. **Body** — one entry per doc you touched: what it claimed, and what the code actually does, pointing at code by the name a reader can grep for: a symbol, flag, method or file. Nothing else. Git already records the parent, the author and the date, and how you arrived at the edit is not part of the record.
+2. **Body** — one entry per doc you touched: the corrected claim and its evidence under "Standalone drift" of the shared procedure. Name source by a symbol, flag, method, or file a reader can find; behavioral entries also cite the supporting approved intent.
 3. **Trailer** — `Co-Authored-By: <helper>` with a recognizable identity from the project convention.
 
 No drift → no commit, no churn. Never push.

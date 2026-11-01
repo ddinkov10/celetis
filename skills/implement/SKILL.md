@@ -14,6 +14,8 @@ Superset of `superpowers:executing-plans` (the inline flow) and `superpowers:sub
 1. Enter the issue's worktree per `<plugin>/docs/procedures/worktree.md`. Then fetch the plan into `docs/superpowers/plans/<n>.md`. A hotfix's micro-plan is already there, written by its lane. Every other lane's plan is the latest `## Plan` comment on the issue, which a local file from the `plan` session can lag: `mkdir -p docs/superpowers/plans && gh issue view <n> --json comments --jq '[.comments[] | select(.body | startswith("## Plan"))][-1].body' > docs/superpowers/plans/<n>.md`.
 
    **Re-entry**, for each lane but a hotfix (its micro-plan is a local file): run `celetis --agent <host> issue <n> state` and read its lines (`<plugin>/docs/issue-tracker.md`, "Conventions"). Each `open:` line names a `## Before landing` comment of this build that has no completion evidence, and the evidence that is missing. `build: planned` is a plan to build. `build: built` means that an earlier run built the change. Do not build again: run no task of the plan and skip Tail steps 1 to 3. For a plan produced by `celetis:plan`, read `<plugin>/docs/procedures/acceptance-coverage.md` and apply "Reporting" while refreshing runtime evidence before Land. For deferred runtime scenarios or evidence affected by later changes, first read `<plugin>/docs/procedures/runtime-verification.md` and apply "Reports and deferred checks", "Evidence lifetime", and "Usage-limit exception" before skipping old Verify scenarios or going to Land. Then handle the latest `## Landing refused` comment by `<plugin>/docs/procedures/landing.md`, "Re-entry after a refusal", which goes on to Land, step 2. A `## Before landing` comment of this build that names an act of "During the build" with no report keeps its existing rule (the Verify phase below, or Land, step 2). When no `open:` line names that comment, and one or more `## Human steps done` comments after it report each act that it names, run the Verify scenarios that the comment names as waiting for those acts. Go to Land, step 2 when the runtime procedure permits continuation; a FAIL loops back to a fix, as in the Verify phase. Without that evidence, go to Land, step 2. A plan without a later `## Built` or `## Before landing` comment stays `planned`, including after a stop or a failed readiness write. Clearing a human hold resumes that state without restoring `ready-for-agent`. A new `/celetis:plan` run starts a new build.
+   On built re-entry, apply `<plugin>/docs/procedures/behavior-documentation.md`, "Repairs and
+   re-entry", before continuing to Land.
 2. **Read the flow.** Do this step with `build: planned`, or with a hotfix micro-plan. The plan names its flow on a line of the form `Execution: inline — <one-sentence reason>` or `Execution: subagent — <one-sentence reason>`. Read the first line of the plan file that starts with `Execution: `. The first word after `Execution: `, after any more spaces and up to the next space or the end of the line, is the flow: `Execution:    inline — …` is `inline`. No such line, or a word other than `inline` or `subagent`, is an invalid line. An invalid line stops `implement` before the first task: show the user this message, with `<n>` and `<found>` filled in, and stop. `<found>` is the first line that starts with `Execution: `, or `none`.
    - A plan from the issue: `implement: the plan of #<n> has no valid Execution: line (found: <found>). Run /celetis:plan #<n> again; the new plan names the build flow.`
    - A hotfix micro-plan: `implement: the micro-plan of #<n> has no valid Execution: line (found: <found>). Write Execution: inline — one task as its first line (step 5 of /celetis:hotfix), then run /celetis:implement #<n>.`
@@ -26,6 +28,12 @@ Superset of `superpowers:executing-plans` (the inline flow) and `superpowers:sub
 ## Additions
 
 ### Both flows
+
+**Current documentation — tasks, reviews, and repairs.** Before each task, read
+`<plugin>/docs/procedures/behavior-documentation.md` and apply "Assessment" and "Change work".
+Carry its assessment and exact resolved module path into implementation, task review, and final
+review context. Apply "Repairs and re-entry" to gate repairs, final-review fixes, Verify fixes,
+and landing fixes, with the affected assessment in each existing repair brief and review.
 
 **Acceptance changes.** For plans produced by `celetis:plan`, apply
 `<plugin>/docs/procedures/acceptance-coverage.md`, "Changes", to task and repair context and its
@@ -100,6 +108,10 @@ The saved fix brief also carries the complete still-applicable lesson rules and 
 the repair scope per `<plugin>/docs/procedures/task-lessons.md`. Reconstruct them from the current
 plan and applicable lesson files on re-entry or after workspace cleanup. Give the implementer
 and reviewer that same updated context.
+
+Carry the affected documentation assessment by
+`<plugin>/docs/procedures/behavior-documentation.md`, "Repairs and re-entry", in that saved or
+reconstructed brief and its task review.
 
 **Verify phase — prove the plan's Verify scenarios on the project's own runtime.** Read
 `<plugin>/docs/procedures/verification-recipes.md` and apply "Execution and retention" to the

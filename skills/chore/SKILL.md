@@ -31,11 +31,14 @@ in `/celetis:bug` or `/celetis:feature`. If you have not completed step N, you c
    branch is `chore/<n>-<slug>`.
    **Re-entry.** When the branch already holds the commit of the chore and the tree is clean, an
    earlier run built the change: run `celetis --agent <host> issue <n> state`.
+   Apply `<plugin>/docs/procedures/behavior-documentation.md`, "Repairs and re-entry".
    With `refusal: current`, handle the latest `## Landing refused` comment by
    `<plugin>/docs/procedures/landing.md`, "Re-entry after a refusal", with the fix rule of step 6.
    Then go to step 4, then step 6.
    An `open:` line is an open human step: step 2 of the landing, which step 6 follows, handles it.
 3. **Do the change.** Read the project context per `<plugin>/docs/procedures/project-context.md`.
+   Read `<plugin>/docs/procedures/behavior-documentation.md` and apply "Assessment" and "Change
+   work". Complete its session check and report before step 4 and the commit.
    When choosing or checking an edit of types or signatures, read
    `<plugin>/docs/principles/type-system-discipline.md`. For changed behavioral verification
    checks, read `<plugin>/docs/principles/test-behavior-not-implementation.md`.
@@ -54,3 +57,5 @@ in `/celetis:bug` or `/celetis:feature`. If you have not completed step N, you c
    Before step 6, confirm that the issue's branch holds this commit and that
    `git status --porcelain` in the lane prints nothing.
 6. **Land.** Follow `<plugin>/docs/procedures/landing.md` from its step 2, with the commit subject of step 5 as the subject of `celetis --agent <host> land <n> '<subject>'`. A fix for a refusal or for a failure of the full suite stays inside the zero-behavior-change claim, passes the verify gate of the project, and is committed before the next landing. The session makes each such fix itself, as the fix rule of step 4 of the landing: the task loop of a build is for a lane with a plan. Invoking this lane authorizes the commit and the landing.
+   Apply `<plugin>/docs/procedures/behavior-documentation.md`, "Repairs and re-entry", to each
+   fix in the existing session check and report before its gate and commit.
