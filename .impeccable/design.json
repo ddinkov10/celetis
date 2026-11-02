@@ -1,0 +1,294 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-02T15:12:59Z",
+  "title": "Design System: Celetis Agent Board",
+  "extensions": {
+    "colorMeta": {
+      "beacon-orange": {
+        "role": "primary",
+        "displayName": "Beacon Orange",
+        "canonical": "#ff7a45",
+        "tonalRamp": [
+          "oklch(15% 0.090 41.2)",
+          "oklch(26% 0.135 41.2)",
+          "oklch(37% 0.164 41.2)",
+          "oklch(48% 0.175 41.2)",
+          "oklch(59% 0.170 41.2)",
+          "oklch(70% 0.148 41.2)",
+          "oklch(82% 0.104 41.2)",
+          "oklch(95% 0.033 41.2)"
+        ]
+      },
+      "current-blue": {
+        "role": "secondary",
+        "displayName": "Current Blue",
+        "canonical": "#5ea2ff",
+        "tonalRamp": [
+          "oklch(15% 0.078 256.7)",
+          "oklch(26% 0.118 256.7)",
+          "oklch(37% 0.143 256.7)",
+          "oklch(48% 0.153 256.7)",
+          "oklch(59% 0.148 256.7)",
+          "oklch(70% 0.129 256.7)",
+          "oklch(82% 0.091 256.7)",
+          "oklch(95% 0.029 256.7)"
+        ]
+      },
+      "go-green": {
+        "role": "tertiary",
+        "displayName": "Go Green",
+        "canonical": "#3dd68c",
+        "tonalRamp": [
+          "oklch(15% 0.084 157.3)",
+          "oklch(26% 0.127 157.3)",
+          "oklch(37% 0.154 157.3)",
+          "oklch(48% 0.165 157.3)",
+          "oklch(59% 0.160 157.3)",
+          "oklch(70% 0.139 157.3)",
+          "oklch(82% 0.098 157.3)",
+          "oklch(95% 0.031 157.3)"
+        ]
+      },
+      "fault-red": {
+        "role": "tertiary",
+        "displayName": "Fault Red",
+        "canonical": "#ff6170",
+        "tonalRamp": [
+          "oklch(15% 0.098 18.0)",
+          "oklch(26% 0.148 18.0)",
+          "oklch(37% 0.179 18.0)",
+          "oklch(48% 0.192 18.0)",
+          "oklch(59% 0.186 18.0)",
+          "oklch(70% 0.161 18.0)",
+          "oklch(82% 0.113 18.0)",
+          "oklch(95% 0.036 18.0)"
+        ]
+      },
+      "caution-amber": {
+        "role": "tertiary",
+        "displayName": "Caution Amber",
+        "canonical": "#f5b13d",
+        "tonalRamp": [
+          "oklch(15% 0.076 76.5)",
+          "oklch(26% 0.114 76.5)",
+          "oklch(37% 0.138 76.5)",
+          "oklch(48% 0.148 76.5)",
+          "oklch(59% 0.143 76.5)",
+          "oklch(70% 0.125 76.5)",
+          "oklch(82% 0.088 76.5)",
+          "oklch(95% 0.028 76.5)"
+        ]
+      },
+      "tower-night": {
+        "role": "neutral",
+        "displayName": "Tower Night",
+        "canonical": "#0d0d0f",
+        "tonalRamp": ["#0d0d0f", "#121215", "#19191d", "#1d1d22", "#8d8d97", "#a6a6af", "#ededf0", "#f7f7f8"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#ededf0",
+        "tonalRamp": ["#17171a", "#53535c", "#62626b", "#8d8d97", "#a6a6af", "#efeff2", "#ededf0", "#ffffff"]
+      }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Headline", "purpose": "The title in the details panel." },
+      "title": { "displayName": "Title", "purpose": "Card titles, clamped to two lines, and the brand name." },
+      "body": { "displayName": "Body", "purpose": "The base text of the page and toasts." },
+      "label": { "displayName": "Label", "purpose": "Buttons, the view switch, count chips, and the search field." },
+      "label-caps": { "displayName": "Label Caps", "purpose": "Uppercase group labels in Needs you." },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Card heads, issue and PR numbers, SHAs, paths, commands, and effort levels."
+      }
+    },
+    "shadows": [
+      {
+        "name": "raise",
+        "value": "0 1px 0 rgba(255, 255, 255, 0.035) inset, 0 1px 2px rgba(0, 0, 0, 0.25)",
+        "purpose": "Cards and the active view tab in the dark theme."
+      },
+      {
+        "name": "raise-light",
+        "value": "0 1px 2px rgba(16, 16, 24, 0.05), 0 0 0 0.5px rgba(16, 16, 24, 0.02)",
+        "purpose": "Cards and the active view tab in the light theme."
+      },
+      {
+        "name": "float",
+        "value": "0 16px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.08)",
+        "purpose": "The palette, toasts, menus, and dialogs in the dark theme."
+      },
+      {
+        "name": "float-light",
+        "value": "0 16px 40px rgba(16, 16, 24, 0.14), 0 0 0 1px rgba(16, 16, 24, 0.08)",
+        "purpose": "The palette, toasts, menus, and dialogs in the light theme."
+      },
+      {
+        "name": "focus-ring",
+        "value": "outline: 2px solid #5ea2ff; outline-offset: 2px",
+        "purpose": "Every focusable element."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-enter",
+        "value": "cubic-bezier(0.2, 0.8, 0.2, 1)",
+        "purpose": "The panel (0.18s), toasts (0.24s), and card moves in view transitions (0.42s)."
+      },
+      {
+        "name": "ease-pulse",
+        "value": "cubic-bezier(0.45, 0, 0.55, 1)",
+        "purpose": "The waiting-card pulse (3s) and the Needs you glyph breath (2.4s)."
+      },
+      { "name": "state-change", "value": "0.15s", "purpose": "Color, background, and border transitions." },
+      { "name": "press", "value": "transform 0.1s, scale(0.97)", "purpose": "Button press." },
+      { "name": "flow", "value": "1.6s linear infinite", "purpose": "The current lane segment of a working card." },
+      { "name": "turn", "value": "0.9s linear infinite", "purpose": "Busy and starting spinners." }
+    ],
+    "breakpoints": [
+      { "name": "search-compact", "value": "1599px" },
+      { "name": "hints-hidden", "value": "1279px" },
+      { "name": "two-column", "value": "1099px" },
+      { "name": "short-height", "value": "700px (max-height)" },
+      { "name": "stacked", "value": "719px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The main action of a card in Needs you, filled with Ink.",
+      "html": "<button class=\"ds-btn ds-btn-primary\"><svg class=\"ds-icon\" viewBox=\"0 0 16 16\"><path d=\"M5 3.5v9l7-4.5z\"/></svg>Run plan</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border: 1px solid transparent; border-radius: 8px; font: 500 12.5px / 1 Geist, system-ui, sans-serif; cursor: pointer; transition: background-color 0.15s, border-color 0.15s, opacity 0.15s, transform 0.1s; } .ds-btn:active { transform: scale(0.97); } .ds-btn:focus-visible { outline: 2px solid #5ea2ff; outline-offset: 2px; } .ds-icon { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; } .ds-btn-primary { background: #ededf0; color: #111114; } .ds-btn-primary:hover { opacity: 0.88; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "A secondary action with a Veil fill and a hairline border.",
+      "html": "<button class=\"ds-btn-ghost\">Open shell</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; height: 28px; padding: 0 11px; border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 8px; background: rgba(255, 255, 255, 0.05); color: #ededf0; font: 500 12.5px / 1 Geist, system-ui, sans-serif; cursor: pointer; transition: background-color 0.15s, border-color 0.15s, transform 0.1s; } .ds-btn-ghost:hover { border-color: rgba(255, 255, 255, 0.13); background: rgba(255, 255, 255, 0.085); } .ds-btn-ghost:active { transform: scale(0.97); } .ds-btn-ghost:focus-visible { outline: 2px solid #5ea2ff; outline-offset: 2px; }"
+    },
+    {
+      "name": "Icon Button",
+      "kind": "button",
+      "refersTo": "button-icon",
+      "description": "A 26px square for Close, Refresh, and card menus.",
+      "html": "<button class=\"ds-icon-btn\" aria-label=\"Close\"><svg viewBox=\"0 0 16 16\"><path d=\"M4 4l8 8M12 4l-8 8\"/></svg></button>",
+      "css": ".ds-icon-btn { display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: #8d8d97; cursor: pointer; } .ds-icon-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; } .ds-icon-btn:hover { background: rgba(255, 255, 255, 0.085); color: #ededf0; } .ds-icon-btn:focus-visible { outline: 2px solid #5ea2ff; outline-offset: 2px; }"
+    },
+    {
+      "name": "View Switch",
+      "kind": "nav",
+      "refersTo": "view-switch",
+      "description": "The Now and Pipeline switch in the header.",
+      "html": "<div class=\"ds-views\"><button aria-pressed=\"true\">Now</button><button aria-pressed=\"false\">Pipeline</button></div>",
+      "css": ".ds-views { display: inline-flex; gap: 2px; height: 30px; padding: 2px; border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 9px; background: rgba(255, 255, 255, 0.05); } .ds-views button { height: 24px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: #8d8d97; font: 500 12.5px / 1 Geist, system-ui, sans-serif; cursor: pointer; transition: background-color 0.15s, color 0.15s; } .ds-views button:hover { color: #ededf0; } .ds-views button[aria-pressed=\"true\"] { background: #19191d; color: #ededf0; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.035) inset, 0 1px 2px rgba(0, 0, 0, 0.25); } .ds-views button:focus-visible { outline: 2px solid #5ea2ff; outline-offset: 2px; }"
+    },
+    {
+      "name": "Count Chip",
+      "kind": "chip",
+      "refersTo": "count-chip-hot",
+      "description": "A header count; the hot variant shows while something needs you.",
+      "html": "<button class=\"ds-chip ds-chip-hot\"><span class=\"ds-dot\"></span><b>2</b> need you</button>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 10px; border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 8px; background: transparent; color: #a6a6af; font: 400 12.5px / 1 Geist, system-ui, sans-serif; cursor: pointer; transition: border-color 0.15s, background-color 0.15s; } .ds-chip:hover { border-color: rgba(255, 255, 255, 0.13); background: rgba(255, 255, 255, 0.05); } .ds-chip b { font-weight: 600; color: #ededf0; } .ds-dot { width: 6px; height: 6px; border-radius: 50%; background: #ff7a45; } .ds-chip-hot { border-color: color-mix(in srgb, #ff7a45 45%, transparent); background: color-mix(in srgb, #ff7a45 10%, transparent); color: #ededf0; } .ds-chip-hot b { color: #ff7a45; } .ds-chip:focus-visible { outline: 2px solid #5ea2ff; outline-offset: 2px; }"
+    },
+    {
+      "name": "Tags and Gates",
+      "kind": "chip",
+      "refersTo": "tag",
+      "description": "PR and check tags, the auto gate, and the effort chip.",
+      "html": "<span class=\"ds-tag ds-mono\">#231</span> <span class=\"ds-tag ds-pass\">checks pass</span> <span class=\"ds-gate\">auto</span> <span class=\"ds-effort\">high</span> <span class=\"ds-effort ds-default\">medium</span>",
+      "css": ".ds-tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px 0 6px; border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 6px; background: rgba(255, 255, 255, 0.05); color: #a6a6af; font: 500 11.5px / 1 Geist, system-ui, sans-serif; } .ds-mono { font-family: 'Geist Mono', ui-monospace, monospace; font-weight: 400; } .ds-pass { color: #3dd68c; border-color: color-mix(in srgb, #3dd68c 28%, transparent); background: color-mix(in srgb, #3dd68c 8%, transparent); } .ds-gate { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 5px; color: #3dd68c; background: color-mix(in srgb, #3dd68c 13%, transparent); font: 500 11px / 1 Geist, system-ui, sans-serif; } .ds-effort { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border: 1px solid color-mix(in srgb, currentColor 55%, transparent); border-radius: 9px; color: #a6a6af; font: 500 11px / 1 'Geist Mono', ui-monospace, monospace; } .ds-effort.ds-default { border-style: dashed; color: #8d8d97; }"
+    },
+    {
+      "name": "Search Field",
+      "kind": "input",
+      "refersTo": "search-field",
+      "description": "The header field that opens the search palette.",
+      "html": "<button class=\"ds-find\"><svg viewBox=\"0 0 16 16\"><circle cx=\"7\" cy=\"7\" r=\"4.5\"/><path d=\"M10.5 10.5L14 14\"/></svg><span>Search issues and commands</span><kbd>⌘K</kbd></button>",
+      "css": ".ds-find { display: flex; align-items: center; gap: 8px; width: 250px; height: 30px; padding: 0 5px 0 10px; border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 8px; background: rgba(255, 255, 255, 0.05); color: #8d8d97; font: 400 12.5px / 1 Geist, system-ui, sans-serif; text-align: left; cursor: pointer; transition: border-color 0.15s, background-color 0.15s; } .ds-find:hover { border-color: rgba(255, 255, 255, 0.13); color: #a6a6af; } .ds-find svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; } .ds-find span { flex: 1; } .ds-find kbd { padding: 3px 5px; border-radius: 5px; background: rgba(255, 255, 255, 0.085); font: 400 11px / 1 'Geist Mono', ui-monospace, monospace; } .ds-find:focus-visible { outline: 2px solid #5ea2ff; outline-offset: 2px; }"
+    },
+    {
+      "name": "Waiting Card with Lane Track",
+      "kind": "card",
+      "refersTo": "card-waits",
+      "description": "The beacon of the tower: a card that waits for the maintainer, with its lane track.",
+      "html": "<article class=\"ds-card ds-waits\"><div class=\"ds-head\"><span>#231</span><span>·</span><span>feature</span><span class=\"ds-track\"><i class=\"ds-done\"></i><i class=\"ds-done\"></i><i class=\"ds-now\"></i><i></i><i></i></span></div><h3 class=\"ds-title\">Show the effort level on each ready card</h3><div class=\"ds-foot\"><span class=\"ds-status\">waits for your answer · 4m</span><button class=\"ds-go\">Go</button></div></article>",
+      "css": ".ds-card { position: relative; isolation: isolate; display: flex; flex-direction: column; gap: 8px; width: 360px; padding: 12px 14px; border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 12px; background: #19191d; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.035) inset, 0 1px 2px rgba(0, 0, 0, 0.25); color: #a6a6af; font: 400 13px / 1.5 Geist, system-ui, sans-serif; } .ds-waits { border-color: color-mix(in srgb, #ff7a45 55%, transparent); background: color-mix(in srgb, #ff7a45 6%, #19191d); } .ds-waits::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: color-mix(in srgb, #ff7a45 10%, transparent); animation: ds-attention 3s cubic-bezier(0.45, 0, 0.55, 1) infinite; } @keyframes ds-attention { 0%, 100% { opacity: 0.15; } 50% { opacity: 1; } } @media (prefers-reduced-motion: reduce) { .ds-waits::before { animation: none; opacity: 0.7; } } .ds-head { display: flex; align-items: center; gap: 7px; height: 18px; font: 400 11.5px / 1 'Geist Mono', ui-monospace, monospace; color: #a6a6af; } .ds-track { display: inline-flex; gap: 3px; margin-left: auto; } .ds-track i { width: 14px; height: 4px; border-radius: 2px; background: color-mix(in srgb, #8d8d97 28%, transparent); } .ds-track i.ds-done { background: color-mix(in srgb, #8d8d97 80%, transparent); } .ds-track i.ds-now { width: 20px; background: #ff7a45; } .ds-title { margin: 0; font: 600 14px / 1.38 Geist, system-ui, sans-serif; letter-spacing: -0.012em; color: #ededf0; } .ds-foot { display: flex; align-items: center; justify-content: space-between; } .ds-status { color: #ff7a45; font-size: 12px; } .ds-go { height: 28px; padding: 0 11px; border: 0; border-radius: 8px; background: #ededf0; color: #111114; font: 500 12.5px / 1 Geist, system-ui, sans-serif; cursor: pointer; } .ds-go:focus-visible { outline: 2px solid #5ea2ff; outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Control Tower",
+    "overview": "The board is a watch post over many agents at once. From one seat, the maintainer sees every session and every issue of one repository, and the one thing that needs them stands out from the rest. The tower is quiet at rest: the surface is near-neutral grey and the furniture recedes. Color appears only as a signal, and each signal has one meaning.\n\nThe mood is calm, precise, and utilitarian. The density is high but ordered: small type (13px body), tight controls (28px), and a strict three-column field. The page must read at a glance after hours of use, so it uses no decorative graphics. It is never a marketing dashboard: no decorative gradients, no charts, no hero graphics. The board shows nothing of one product. Only the folder name of the checkout appears in the header, so the same look fits any repository.\n\nThe board follows the light or dark theme of the OS. Dark is the base definition, and light redefines every color token. It loads nothing from the network and carries its own two fonts.",
+    "keyCharacteristics": [
+      "Neutral grey surfaces in three tonal layers: page, column, card.",
+      "Five state colors, each with one meaning, used only for state.",
+      "Hairline borders and translucent fills instead of heavy shadows.",
+      "Geist for words and Geist Mono for numbers, paths, and identifiers.",
+      "Small, dense, keyboard-first controls with a visible focus ring.",
+      "Motion only for state: the beacon pulse, the working flow, and card moves. All of it stops for reduced motion."
+    ],
+    "rules": [
+      {
+        "name": "The One Meaning Rule",
+        "body": "Each signal color has one meaning: orange needs you, blue works, green is ready or passed, red failed, amber is a dirty tree. Never use a signal color for decoration, brand, or emphasis.",
+        "section": "colors"
+      },
+      {
+        "name": "The Ink Action Rule",
+        "body": "The primary button is filled with Ink, not with a signal color. A filled button means \"the main action of this card\", not a state.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tint Not Fill Rule",
+        "body": "A state reaches a surface only as a `color-mix` tint (6–13% for backgrounds, 22–55% for borders) over the neutral layer. Never fill a card or chip with a solid signal color.",
+        "section": "colors"
+      },
+      {
+        "name": "The Machine Text Rule",
+        "body": "Text that a machine wrote, or that a person copies (a number, a path, a command), is set in Geist Mono. Text written for a person to read is set in Geist.",
+        "section": "typography"
+      },
+      {
+        "name": "The Four Weights Rule",
+        "body": "Use 400 for reading, 500 for controls, and 600 for titles and labels. Do not add a weight above 600 for emphasis; use Ink color instead.",
+        "section": "typography"
+      },
+      {
+        "name": "The Two Shadows Rule",
+        "body": "A surface in the page uses Raise or nothing. Only a layer that floats above the page uses Float. No other shadow exists.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Ring Not Glow Rule",
+        "body": "Selection and focus are rings: a 2px Current Blue outline with a 2px offset for focus, and a 1px Ink Faint ring for the selected card. Never use a colored glow.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Nesting Rule",
+        "body": "A child radius is never larger than its parent radius. A 7px tab sits in a 9px track; a 12px card sits in a 16px column.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** keep every surface neutral grey and give color only to state, per the One Meaning Rule.",
+      "**Do** tint a state onto a surface with `color-mix` (6–13% fill, 22–55% border).",
+      "**Do** set numbers, SHAs, paths, commands, and effort levels in Geist Mono.",
+      "**Do** define every new color for both themes: the dark base and the light variant.",
+      "**Do** use the existing ease `cubic-bezier(0.2, 0.8, 0.2, 1)` for entrances and 0.15s for color and border transitions.",
+      "**Do** stop all animation and transition under `prefers-reduced-motion: reduce`.",
+      "**Do** check every change at desktop width and at 375×812 in Chromium."
+    ],
+    "donts": [
+      "**Don't** add decorative gradients, charts, illustrations, or hero graphics. The board is not a marketing dashboard.",
+      "**Don't** fill a button or a card with a solid signal color.",
+      "**Don't** add a shadow other than Raise and Float.",
+      "**Don't** load a font, an icon, or a script from the network.",
+      "**Don't** show a product's brand, logo, or colors; only the folder name identifies the repository.",
+      "**Don't** use a colored glow for focus or selection; use a ring."
+    ]
+  }
+}
