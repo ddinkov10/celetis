@@ -1,17 +1,19 @@
 # The celetis-flow runner
 
-`celetis --agent <host> celetis-flow` runs the celetis flow from a Terminal tab. It asks the resolver for
-the next step of an issue and starts that step in a new interactive Claude or Codex session in
-its tab. In an hc terminal of herdr-core, the script ends the session when the step is done, and
-starts the next step when its gate is `auto`. The GitHub issue stays the state store
+`celetis --agent <host> celetis-flow` runs the celetis flow from a terminal. It asks the resolver for
+the next step of an issue and starts that step in a new interactive Claude or Codex session. Each
+session starts in a new tab of the Herdr app, in an hc terminal of herdr-core of its own, and the
+script steers that tab from outside: it ends the session when the step is done, and starts the
+next step when its gate is `auto`. The GitHub issue stays the state store
 (`docs/issue-tracker.md`): every result of a step goes to the issue. The board is a local web page
 that shows each agent session and the next step of each issue, and its Run button starts the
-script for one issue in a new tab of the Herdr app. The board is `engine/board/` of the plugin: a
-product project, a repository that uses the plugin `celetis`, holds its config, and the plugin holds
-the board, which reads its data in its own process. ADR-0002 holds the reasons for the script,
+script for one issue in a hidden hc terminal, and the script opens the session tab. The board is
+`engine/board/` of the plugin: a product project, a repository that uses the plugin `celetis`,
+holds its config, and the plugin holds the board, which reads its data in its own process. ADR-0002 holds the reasons for the script,
 ADR-0003 holds the reasons for the board, ADR-0005 holds the reasons why the terminal program, not a
 mod, gives the session state and ends a step, ADR-0058 holds the reasons why herdr-core and the
-Herdr app are that program, and ADR-0007 holds the reasons why `specify` is a step of the script.
+Herdr app are that program, ADR-0062 holds the reasons why each session runs in a tab of its own
+that the script steers, and ADR-0007 holds the reasons why `specify` is a step of the script.
 ADR-0008 holds the reasons why the build step lands the change, ADR-0020 holds the reasons why the
 board is a part of the plugin, and ADR-0035 holds the reasons why the board reads its data with the
 engine and starts fixed commands. ADR-0011 holds the reasons why a step session hands a stop to the
@@ -72,13 +74,21 @@ of the product project, apart from a path that starts with `~/` or `/`.
   `celetis --agent <host> land` moves the trunk of the main checkout after each landing. After a merge by
   other means, or after its line `land: the main checkout did not move`, run `git pull` in the
   main checkout.
-- herdr-core 0.1.16 (`hc`) and its running server, for the step end. When the window of the Herdr
-  app 0.1.11 (`herdr-app`) is open, the runner names the tab of each step there. The support
-  target is macOS ([ADR-0058](adr/0058-herdr-core-hosts-the-agent-terminals.md)). The host reports
-  its status with OSC 7501 and needs no integration: Claude Code since 2.1.295, and Codex 0.166.0.
-  Complete the normal folder trust of the host before a run. The runner never answers that
-  prompt. It ends a session only in an hc terminal. In another terminal you leave each session
-  with `/exit`, and exact runner resume has no verified identity.
+- herdr-core 0.1.16 (`hc`) with its running server, and the open window of the Herdr app 0.1.11
+  (`herdr-app`), for each start: each session runs in a tab of the Herdr app ("How a step runs").
+  The support target is macOS ([ADR-0058](adr/0058-herdr-core-hosts-the-agent-terminals.md),
+  [ADR-0062](adr/0062-each-session-runs-in-a-tab-that-the-runner-steers.md)). Before it reads an
+  issue, each start of the runner (a number, the automatic runner, `--queue run`, and `--resume`)
+  checks them. A failed check stops the runner with exit 1 and one of these lines; in
+  `--queue run`, the line becomes the queue error:
+  - `celetis-flow: hc is not on PATH; install herdr-core 0.1.16, then start again`
+  - `celetis-flow: the hc server does not answer: <cause>; start the Herdr app, then start again`
+  - `celetis-flow: herdr-app is not on PATH; install the Herdr app 0.1.11, then start again`
+  - `celetis-flow: the Herdr app does not answer: <cause>; open the Herdr app window, then start again`
+
+  The host reports its status with OSC 7501 and needs no integration: Claude Code since 2.1.295,
+  and Codex 0.166.0. Complete the normal folder trust of the host before a run. The runner never
+  answers that prompt.
 - Superpowers installed and enabled on the selected host. The README holds its setup for each
   host. A missing required `superpowers:*` skill stops the lane.
 - For Codex children with model tiers, the profile and current runtime allowlist from
@@ -152,17 +162,24 @@ in the record. When no issue can start, when the issue started no session, or wh
 read GitHub, it waits 60 seconds. It prints one line for the whole wait. While it waits,
 `celetis --agent <host> next-step --open` shows the line of each open issue: a `stop` line gives the
 cause, and a `run` line that does not start has a `me` gate, a row in the record, or the lock of
-another script. To stop it, close its tab, or press ctrl+c while it waits. It reads open issues
+another script. To stop it, press ctrl+c or close its terminal, at any time. A session that works
+stays open in its tab ("How a step runs", "A stop of the runner"). It reads open issues
 only. With the default gates no step is `auto`, so the automatic runner starts nothing.
 
 **The form `--resume <n>`** reopens the exact session from
 `<git common dir>/celetis-flow/sessions/<n>.json`. It first takes the shared issue lock and keeps it
 until the foreground exits. Under that lock, it reads and validates the current record, selects
 its saved host and checkout, and runs `claude --resume <id> --effort <level>` or
-`codex resume --no-daemon -c model_reasoning_effort="<level>" <id>` with the level of the record. A missing or
+`codex resume --no-daemon -c model_reasoning_effort="<level>" <id>` with the level of the record,
+in a new tab that comes to the front ("How a step runs"). A missing or
 invalid record stops with a recovery action. It makes no `gh` call or update and starts no completion watcher,
 so the session stays open until you leave it. A Resume press of the board types this form ("The
 board").
+
+**The option `--quiet`** opens each session tab of the start in the background: the focus of the
+Herdr app does not move. The board passes it for a Run press and a Queue press. With no
+`--quiet`, each session tab comes to the front. `--resume` ignores it. A second `--quiet` is a
+usage error.
 
 The script asks for no confirmation. A start with the number of an issue whose next step is
 `implement`, `chore`, or `hotfix` builds the change and lands it with `celetis --agent <host> land` when
@@ -172,8 +189,10 @@ through that step by itself.
 Issue locks and the automatic-runner lock use shared Git refs under
 `refs/celetis-flow/locks/`. Their owner records hold the runner and foreground PIDs and process
 start times. Either live process keeps the lock, including after a killed runner; an exited
-process does not. Claims and releases use Git compare-and-set, and foreground registration
-updates all held locks in one transaction. Both hosts and manual resume share the issue lock.
+process does not. A runner that stops while its session lives leaves the lock to that session.
+A new start for the issue cannot begin until the session exits. Claims and releases use Git
+compare-and-set, and foreground registration updates all held locks in one transaction. Both
+hosts and manual resume share the issue lock.
 `celetis --agent <host> land` keeps its separate `land-<n>.lock` in `<git common dir>/celetis-flow/`.
 The `no-progress` file there has one row for each step that ended with no progress, and one row for
 each step that the script refused as a skip. The automatic runner and the board read it. An
@@ -234,8 +253,8 @@ This is manual guidance for installation adoption, not a build prerequisite or a
 
 ## How a step runs
 
-A session is one selected host process in the foreground of the tab, with its original terminal
-input, in the main checkout. `hostArguments` of `engine/lib/session.ts` builds its arguments. The
+A session is one selected host process in the foreground of a new tab of its own ("The session
+tab"), in the main checkout. `hostArguments` of `engine/lib/session.ts` builds its arguments. The
 step text is a facts header (`stepHeader`), an empty line, and `step-prompt.md` of the version
 folder of the program that runs the runner. For `run /celetis:plan #402`, the header is:
 
@@ -269,7 +288,7 @@ claude \
   '/celetis:plan #402'
 ```
 
-In an hc terminal, the runner puts `--session-id <uuid>` before these arguments ("The step end").
+The runner puts `--session-id <uuid>` before these arguments ("The step end").
 `--effort` gives the chosen level ("Start the script", "The effort level"). The runner removes
 `CLAUDE_CODE_EFFORT_LEVEL` from the environment of each Claude session that it starts or resumes,
 because that variable outranks `--effort`.
@@ -348,29 +367,65 @@ its updater mutex and deadline, and native cache replacement. Sessions may remai
 session loads updated skills and tools. A runner restart alone updates nothing; after
 `celetis update`, a new start runs the new program.
 
-**The step end.** In a terminal of herdr-core 0.1.16 (an hc terminal: `HC_TERMINAL_ID` holds a safe
-terminal ID, `hc` is on `PATH`, and `hc get` names the script as the leader of the foreground
-process group of that terminal), the script ends each step session by itself
+**The session tab.** For each session, also an exact resume, the runner opens a new hc terminal
+with a tab in the space of the repository in the Herdr app (`openTab` of
+`engine/lib/terminal.ts`): `hc run --bg --no-parent --no-notify` in the main checkout, with the
+labels `herdr.space=<id>` and `celetis.link=#<n> <step>`, and the tab name `#<n> <step>`
+(`herdr-app do tab.rename`). The space has the name of the folder of the main checkout. When that
+space is missing, the runner makes it with `herdr-app do space.new`, and the app shows it. The file
+lock `<git common dir>/celetis-flow/space.lock` lets one process at a time find or make the space.
+The tab runs the start barrier, `celetis-flow.ts --session-start <folder> <runner PID> <host>
+<arguments>`, through a login shell of `$SHELL` (`"$@"; exec "$0" -li`), so the tab keeps a shell
+after the barrier exits. `<folder>` is a private start folder in `<git common dir>/celetis-flow/`:
+
+1. The barrier writes `pid` there: its PID and its process start. The runner accepts that record
+   only when that process runs, has that start, and runs `celetis-flow.ts`.
+2. The runner registers that PID in the issue lock. For a step, it also publishes the step-end
+   record and starts the job of the step end. It then writes `go`: this is the release of the
+   barrier.
+3. The barrier waits for `go` while the runner lives. It then starts the host as its child, waits
+   for the host to exit, writes the exit status of the host to `status`, and exits with that
+   status.
+
+The exit of the barrier is the one sign that the session ended. A missing or invalid `status`,
+for example after a person closed the tab, is an unknown status, and it counts as a failure:
+before issue progress, the runner stops with the recovery line and `status unknown`.
+
+The session gets the login environment of its tab, not the environment of the runner. The barrier
+sets `CELETIS_AGENT` to the host, removes `CLAUDE_CODE_EFFORT_LEVEL` for Claude, and sets
+`CODEX_HOME` to the resolved native home for Codex. hc gives the terminal of the tab its own
+`HC_TERMINAL_ID`. The runner reads no `HC_TERMINAL_ID`, so a runner that the agent of a session
+starts from its shell tool opens tabs of its own and does not touch the terminal of that session.
+
+The tab of a typed start and of a resume comes to the front (`herdr-app do pane.focus`); with
+`--quiet`, a tab stays in the background. The runner closes a tab (`hc kill`, then `hc rm`) only
+after a normal end: the status is 0 and, for a step, a saved turn has a verified identity. It
+closes that tab after the next session tab of the same start is open, or when the runner ends.
+Each other end leaves the tab open with the last screen of the host and a shell under it: a
+nonzero or unknown status, a session with no verified identity, and a session whose runner
+stopped. A tab whose barrier the runner did not release closes, and no host starts in it. These
+lines stop a start with exit 1, apart from the warning:
+
+- `celetis-flow: #<n> cannot open the session tab: <cause>`.
+- The warning, once after 60 seconds, while the terminal of the tab stays live and the runner
+  waits:
+  `celetis-flow: #<n> <host> startup: the start barrier of the tab #<n> <step> did not report after 60 seconds; waiting continues. Check the login files of $SHELL in that tab.`
+- `celetis-flow: #<n> <host> startup: the tab #<n> <step> ended before its start barrier reported; check the login files of $SHELL, then start the step again`.
+- `celetis-flow: #<n> <host> startup: the start barrier record of the tab #<n> <step> is not valid; start the step again`.
+
+**A stop of the runner.** On SIGINT, SIGTERM, or SIGHUP, the runner stops the job of the step end,
+removes the step-end record, and exits with 128 plus the number of the signal. It does not end a
+session whose barrier it released: that session stays open in its tab and keeps the issue lock
+until it exits, so leave it with `/exit`. Before the release, the runner closes the tab. A stopped
+`--queue run` writes the queue state `error` with the reason
+`queue: interrupted with status <n>; use Try again after the foreground exits`.
+
+**The step end.** The script ends each step session by itself, from outside its tab
 ([ADR-0058](adr/0058-herdr-core-hosts-the-agent-terminals.md),
-[ADR-0059](adr/0059-a-runner-manages-only-the-hc-terminal-that-it-leads.md)). Each of these lines
-stops the script before it reads an issue, with exit 1. In `--queue run`, the line becomes the
-queue error:
-
-- An `HC_TERMINAL_ID` that is not a safe ID:
-  `celetis-flow: HC_TERMINAL_ID needs a safe terminal id; start from an hc terminal`.
-- No `hc` on `PATH`: `celetis-flow: hc is not on PATH`.
-- A failed `hc get` of that terminal: `celetis-flow: cannot read hc terminal <id>: <cause>`.
-- Another leader, or no foreground, after 5 seconds of reads (hc reports a new foreground late):
-  `celetis-flow: this runner does not lead hc terminal <id>; start it in a terminal of its own, for example with hc run --bg`.
-
-A runner that the agent of a step session starts from its shell tool does not lead the terminal
-of that session, so it stops with the last line. A check of the runner starts it in a terminal of
-its own with `hc run --bg`. When each step
-starts, the script sets the label `celetis.link` of its terminal to `#<n> <step>` (`hc label`), so
-the board links the session to the issue. Then it names the tab of its terminal `#<n> <step>` in
-the Herdr app 0.1.11 (`herdr-app do tab.rename`). With no app window, or with no tab for the
-terminal, it renames no tab, and the label still links the session. It also starts a job in the
-background that ends the session:
+[ADR-0062](adr/0062-each-session-runs-in-a-tab-that-the-runner-steers.md)). Each `hc` call of the
+step end names the session terminal, the hc terminal of the tab. Its label `celetis.link`,
+`#<n> <step>`, links the session to the issue on the board. Before the release, the script starts
+a job in the background that ends the session:
 
 1. The script starts each Claude step with a new session ID (`--session-id`). That ID is the
    identity of the step. For Codex, the job finds the thread of the step with the app-server
@@ -382,10 +437,9 @@ background that ends the session:
    check-in, because hc counts a terminal with no status as working.
 3. It reads the current turn of the terminal with `hc get <terminal>`. A turn is current when the
    status `app` names the host of the step, and the status changed at or after the start of the
-   step (`status_ms`). This rule keeps out a `done` that a former host left in the same terminal:
-   after its exit, Codex keeps `done` on a live terminal. The job verifies the current host and a
-   current `idle`, `done`, or `error` status, then reads the
-   decision of the issue from the in-process resolver of `next-step.ts`. A decision with a result
+   step (`status_ms`). The job verifies the current host and a current `idle`, `done`, or
+   `error` status, then reads the decision of the issue from the in-process resolver of
+   `next-step.ts`. A decision with a result
    other than the result that started the session permits an exit check: a Run of another step,
    or a stop of the issue. A stop from an observation (the dirty tree, a landing that runs, or a
    failed read) permits none. The job reads the resolver again, and that read must give the same
@@ -411,24 +465,24 @@ next step. Successful input delivery alone is not completion. After a successful
 job waits for the owned host process to exit. If it stays alive for 10 seconds, the job prints
 one recovery message and keeps waiting. Process exit cancels that diagnostic timer. The job
 does not repeat the request or force-kill the host. If a UI state consumes the keys without
-exiting, exit the session in its pane when ready.
+exiting, exit the session in its tab when ready.
 
-The managed runner publishes its completion disposition before it releases the foreground's
-start barrier. The private file is `<git common dir>/celetis-flow/step-end/<issue>.json`.
+The runner publishes its completion disposition before it releases the start barrier. The
+private file is `<git common dir>/celetis-flow/step-end/<issue>.json`.
 `checking` means that the current turn has no retained verdict. A resolver read of a landing that
 runs also keeps `checking`, because the decision is pending until the landing ends; the runner
 reads again at the next check. `waiting` records an idle turn that stays open after a complete
 decision. `exiting` lasts from the successful exit check until the foreground exits.
-The record binds the runner PID and process start to the hc terminal and host. A turn binds the
-terminal ID, the verified session UUID, and the hc `turn`. hc increases `turn` each time the status
-leaves `working`, so a change between `idle`, `done`, and `error` keeps the turn key.
+The record binds the runner PID and process start to the session terminal and host. A turn binds
+the terminal ID, the verified session UUID, and the hc `turn`. hc increases `turn` each time the
+status leaves `working`, so a change between `idle`, `done`, and `error` keeps the turn key.
 A slow resolver result cannot retain or close a different turn. Rechecking a retained turn keeps
 its waiting disposition, so board polls do not produce repeated attention transitions.
 
 The board reads this local record on every placement request, including `?local=1`, without a
 GitHub read. Only a live matching runner and valid snapshot identity can suppress attention.
 Pending and exiting idle turns stay in Running with `checks step`; retained and unowned turns
-keep Needs you. Dialogs always keep Needs you. Resume and unmanaged sessions publish no record.
+keep Needs you. Dialogs always keep Needs you. A resume publishes no record.
 The runner removes the record on foreground exit, startup rejection, watcher failure, abort, or
 package removal, before it releases the issue lock. A failed write withdraws the signal and
 reports its cause. If deletion fails, cleanup invalidates the existing file's contents.
@@ -440,13 +494,11 @@ needs a new board process.
 In each other case the session stays open: a decision with the same result, the dirty-tree line,
 the line of a landing that runs, the cannot-read line, and a resolver read that fails. So a
 session whose agent waits for an answer, waits for a background task, or left an uncommitted file
-stays open, and a session that you start by hand never ends by itself. The exit of the host
-process is the only sign that the session ended: the script then stops the job, and it reads no
-status after the exit. It also removes the label `celetis.link` from its terminal, so a `done`
-that Codex leaves after its exit links no card. When a session does not end
-and its agent waits for nothing, leave it with `/exit`: the script then asks the resolver again,
-and it prints the reason or starts the next step. Outside an hc terminal the script starts no job
-and makes no `hc` or `herdr-app` call, except the `hc get` reads of a stop above.
+stays open, and a session that you start by hand never ends by itself. The exit of the start
+barrier after the host exits is the only sign that the session ended: the script then stops the
+job, and it reads no terminal status after the exit. When a session does not end and its agent
+waits for nothing, leave it with `/exit` in its tab: the script then asks the resolver again, and
+it prints the reason or starts the next step.
 
 **A stop.** A step session hands a stop that is not a question to the issue (rule 4 of the step
 text), through the write command
@@ -716,8 +768,9 @@ host references in `docs/hosts/` give the details.
 
 The board is `engine/board/` of the plugin, a part of its engine. It reads the data of the issues
 in its own process with the typed functions of the engine, and a press starts one of the fixed
-argvs in a new tab of the Herdr app. It has no config of its own: the main checkout's `.celetis.yaml`
-gives `board.port` at the start, and `host` and `gates` at each read. ADR-0020 makes the board a
+argvs: Run, Resume, and a queue wake start the script in a hidden hc terminal, and New intake,
+Assist, and Open shell open a new tab of the Herdr app. It has no config of its own: the main
+checkout's `.celetis.yaml` gives `board.port` at the start, and `host` and `gates` at each read. ADR-0020 makes the board a
 part of the plugin, ADR-0035 makes it a part of the engine, and ADR-0058 gives its sessions to
 herdr-core and its tabs to the Herdr app.
 
@@ -760,7 +813,7 @@ shows at the next refresh. Each module of this path is a static import: a refres
 file, takes no plugin read lock, and checks no update policy. The start checks the selected
 host's policy. Independent update checks validate the native update policy. Each Run and Resume
 starts a new `celetis-flow` process, which makes its own check. A conflict can show in the update
-check or in the tab of the next Run or Resume.
+check. That process is hidden, so it shows the conflict nowhere ("Limits").
 
 A full collection makes these `gh api` calls: 2 paginated lists (open issues and open PRs),
 one paginated call for the timeline of each open issue that has a comment, and 3 calls for each
@@ -903,23 +956,29 @@ program, a failed read, or a saved record that Resume cannot use returns 409 wit
 of the error, before any terminal starts. Read-only `hc` calls can precede that failure.
 
 ```text
-<command> --agent <agent> celetis-flow <n>
-<command> --agent <agent> celetis-flow <n> --effort <level>
+<command> --agent <agent> celetis-flow <n> --quiet
+<command> --agent <agent> celetis-flow <n> --effort <level> --quiet
 <command> celetis-flow --resume <n>
 ```
 
-On macOS and Linux, the new terminal starts the argv in a login shell of `$SHELL`, with
-`hc run --rm` and the start form `"$@" || exec "$0" -li`. So the tab closes when the script exits
-0, and a failed script leaves its message and a shell there. On Windows, `hc run` gets the argv
-with no shell (not checked).
+A press starts the argv as a hidden runner: `startHidden` of `engine/lib/terminal.ts` runs
+`hc run --bg --no-parent --no-notify --rm` in the main checkout, with the label
+`celetis.runner=#<n>` and no `herdr.space` label, so the terminal has no tab. On macOS and Linux,
+a login shell of `$SHELL` starts the argv with `exec "$@"`, so the runner gets the login
+environment and no shell stays after it. herdr-core removes the terminal when the runner exits.
+On Windows, `hc run` gets the argv with no shell (not checked). Before `hc run`, the press checks
+`hc` and the Herdr app as the runner does (`requireTerminals`, "Requirements"). A failed check
+returns 502 with its line, for example
+`hc is not on PATH; install herdr-core 0.1.16, then start again`, and starts no terminal.
 
-Run opens a quiet tab `#<n> <step>` in the space of the repository in the Herdr app: the current
-tab keeps the focus. Resume opens a focused tab. Each tab gets its name as the link label
-`celetis.link` of its terminal, which links its session card to the issue. When the space does
-not exist, the first press makes it, with the session in its first tab, and the Herdr app shows
-that space, also for a quiet press. The app starts that first tab through its own login shell,
-`"$@"; exec "$0" -li`, so that tab keeps a shell after the step, also after an exit 0. Each later
-press is quiet. With the default `me` gates, a Run starts one step and ends when its session ends.
+The runner then opens the session tab `#<n> <step>` in the space of the repository ("How a step
+runs", "The session tab"). With `--quiet`, the tab of a Run stays in the background, and the
+current tab keeps the focus. The tab of a Resume comes to the front. The runner gives each tab the
+link label `celetis.link=#<n> <step>`, which links its session card to the issue. With the default
+`me` gates, a Run starts one step, and its runner ends when its session ends. The board has no
+control that stops a hidden runner: find its terminal with `hc ls --label 'celetis.runner=#<n>'`,
+then stop it with `hc kill <t>`. That stop does not end a session whose start barrier the runner
+released ("A stop of the runner").
 
 `POST /api/run` uses the chosen agent, or `defaultAgent` when no choice is supplied. The agent must
 be a name of `agents` of the last document, and available. Unknown or unavailable choices return
@@ -955,15 +1014,20 @@ the continuous-queue contract. Host, Origin, JSON, and the 1024-byte body limit 
 The fixed adapter reads the installed Program and invokes its entry with Bun and isolation flags
 for finite admission, bounded to 30 seconds. It parses the receipt as external input. The HTTP
 response is the persisted QueueView; it does not await History or terminal creation. Only a newly
-issued wake schedules a quiet Queue tab with this fixed argv:
+issued wake schedules a hidden runner with this fixed argv:
 
 ```text
-<command> --agent <host> celetis-flow --queue run <id> <token>
+<command> --agent <host> celetis-flow --queue run <id> <token> --quiet
 ```
+
+The wake starts the runner as Run does ("Run and Resume"), with the label `celetis.runner=queue`.
+For each step of the queue, the runner opens a quiet session tab `#<n> <step>`. To stop it, find
+its terminal with `hc ls --label celetis.runner=queue`, then use `hc kill <t>`.
 
 The browser supplies no executable or path.
 A known failure before command dispatch invalidates only the matching unclaimed token and saves
-recovery. An uncertain dispatch keeps pending intent and never launches it again automatically.
+recovery. A failed check of `hc` or the Herdr app before `hc run` is such a failure. An uncertain
+dispatch, from `hc run` on, keeps pending intent and never launches it again automatically.
 The runner performs token and live-ownership checks after terminal creation.
 
 Run on the current paused issue uses Continue with the saved host and fresh displayed step.
@@ -1002,9 +1066,9 @@ of the page.
 | `no progress:` with another command | open the session again, or read the issue | a Run press, or `celetis --agent <host> celetis-flow <n>` |
 | `#<n>: <T> skips <steps> after <S>; …` | read the issue ("A refused skip"). When a label or a heading is wrong, fix the issue. When the skip is correct, start `<T>` by hand | a Run press, or `celetis --agent <host> celetis-flow <n>`, starts the next step; the automatic runner does not start a refused step |
 
-A Run press runs the script in a new herdr tab. A script that ends with no error closes its tab, so
-read the state on the card of the issue: "The board" gives the state of each issue, and
-`engine/board/README.md` of the plugin gives the card of each state.
+A Run press runs the script in a hidden terminal, so its lines show nowhere: read the state on the
+card of the issue. "The board" gives the state of each issue, and `engine/board/README.md` of the
+plugin gives the card of each state.
 
 `stop … is finished` means that the issue is closed with no `wontfix` label. After a landing, the
 change is on the trunk.
@@ -1034,9 +1098,9 @@ for incomplete host checks. The exception changes no engine guard or existing hu
 
 ## Sessions
 
-While a managed step runs, the label `celetis.link` of its hc terminal is `#<n> <step>`. It links
-the live card to the issue on the board, and the runner removes it when the host exits. The label
-and the tab name are not the saved session ID. From the main checkout, `celetis --agent <host> celetis-flow --resume 402`
+The hc terminal of each session tab, also a resume tab, has the label `celetis.link` with the
+value `#<n> <step>`. It links the live card to the issue on the board. The label and the tab name
+are not the saved session ID. From the main checkout, `celetis --agent <host> celetis-flow --resume 402`
 first takes the shared issue lock and keeps it until the foreground exits. Under that lock, it
 reads and validates the current record for #402 and opens its exact host and session ID at the
 level of the record: Claude gets `--effort <level>`, and Codex gets
@@ -1046,7 +1110,7 @@ No completion job or update runs during resume.
 A missing or invalid record stops with a recovery action. A record with no verified ID directs
 you to `claude --resume` or `codex resume --no-daemon`, by its saved host, to select a saved session manually.
 Exact runner resume needs a verified session identity and a saved turn. The runner verifies and
-saves them only in an hc terminal. A resumed session stays open until you leave it.
+saves them for each step session that it starts. A resumed session stays open until you leave it.
 
 The record at `<git common dir>/celetis-flow/sessions/<n>.json` has exactly seven fields:
 `schema: 2`, `host`, `issue`, `step`, absolute main `checkout`, `session_id` (UUID or null), and
@@ -1066,9 +1130,9 @@ Codex verifies `thread/read` and `thread/turns/list` without resuming or startin
 
 If startup has not verified identity and a saved turn after 60 seconds, the runner prints one
 warning for Claude or Codex. It says that monitoring continues and directs the person to check
-setup prompts in the pane. Verification continues while the foreground runs, until a saved turn
-verifies, an invalid identity ends the watcher, or cancellation stops it. A late verified turn
-enters the normal completion checks without a restart.
+setup prompts in the tab of the session. Verification continues while the foreground runs, until
+a saved turn verifies, an invalid identity ends the watcher, or cancellation stops it. A late
+verified turn enters the normal completion checks without a restart.
 
 An invalid identity ends the watcher with the startup error and the last 40 lines of the
 terminal (`hc read`). Foreground
@@ -1719,6 +1783,42 @@ its exit text and the exit times are the evidence of that exit. One `ctrl+c` onl
 Claude turn, so V7 (d) ended the host with `ctrl+c ctrl+c`. Open: native Windows, and a board Run
 of the installed program with the real `gh` (the check after the landing of #182).
 
+**Session tabs (#232).** On 2026-11-02 on macOS 26.4.1, the checks used hc 0.1.16, the Herdr app
+0.1.11, Claude Code 2.1.316, Codex CLI 0.166.0, and Bun 1.4.4. The target was a clone at the
+installed revision `94b60b87cda2502c2becc3d05ab2283d4406afba` with the lane diff as uncommitted
+changes; its tree equals the tree of lane commit `733c3d1`. Each runner and each barrier ran the
+`celetis-flow.ts` of that clone, and the step sessions loaded the installed plugin at that
+revision. Two disposable fixtures with fake GitHub data held the issues. The first V1 run showed
+that the Herdr app removes a space when its last tab closes; `733c3d1` keeps the tab of a normal
+end until the next session tab of the same start is open or the runner ends, and all scenarios
+then ran again. V1 passed (Codex): each step opened its own front tab `#1 <step>` in a terminal
+other than the runner's, the saved ids were the `thread/list` matches of the triage and bug
+prompts, Codex exited 2.4 seconds after a changed result, the next tab opened in the same space
+before the old tab closed, and no `[99;5u` text reached the next tab. V2 passed (Claude): the
+saved id was the `--session-id` of the host, and the exit input of the runner reached Claude as a
+plain `/exit` (its prompt history recorded `/exit`, and its transcript had no `<hc` text); the tab
+closed 4 seconds after a changed result. V3 passed: a board Run started a hidden runner labeled
+`celetis.runner=#3` with `--quiet` and no tab, its session tab came with no focus change, the card
+named that terminal, and both went after the issue closed. V4 passed with a queue of two issues:
+the runner labeled `celetis.runner=queue` opened the tab of the second issue in the same space,
+quietly, 0.3 seconds before it closed the tab of the first, and the queue ended empty. V5 passed:
+a board Resume and a typed `--resume` opened a front tab whose host ran `claude --resume` with the
+saved id. V6 passed: a host killed with SIGKILL gave status 137, a refused trust dialog gave the
+startup error that names the tab, a killed tab gave status unknown with a free lock, and each tab
+of a failed end kept the last host screen and a shell. V7 passed: ctrl+c stopped a typed runner
+with 130 while its session worked on for more than 30 seconds, a second start was refused with the
+PID of the barrier, the card did not show `checks step`, and `hc kill` of a hidden runner left its
+session and card. V8 passed: a runner started from another hc terminal opened its own tab and
+changed no label, input, or screen of that terminal. V9 passed: each setup stop gave its line, exit
+1, and no issue read. V10 passed: two runners started at once made one space. V11 passed: a login
+shell that waited 70 seconds gave the 60-second warning once and then a verified session, and
+ctrl+c before the release closed the tab and started no host. A merge of the trunk with #193 then
+changed the board read and no runner file. On a clone whose tree equals the tree of lane commit
+`c2ae36d`, V3, V4 with two issues, V5 (a), and V7 (b) ran again and passed with the same
+results. Open: native Windows, a board Run of
+the installed program with the real `gh`, the focus outside the Herdr app, and the automatic runner
+(the checks after the landing of #232).
+
 ### Optional Codex desktop evidence
 
 Desktop probes have their own PASS, FAIL, BLOCKED, or UNRUN records. BLOCKED and UNRUN remain
@@ -1733,7 +1833,7 @@ model profiles, and permissions; a missing tool or denied read stops that operat
 ## Limits
 
 - A session that waits holds its script. Each Run press and each start with a number has its own
-  tab, so another issue can run beside it.
+  runner, so another issue can run beside it.
 - The runner sees only its own locks. While a script works on an issue, start each step of that
   issue through the script or the board, not by hand in a session of your own.
 - With the default gates the automatic runner starts nothing. The board has no control for it:
@@ -1741,21 +1841,35 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   classifies each new issue, and a splitter question of `/celetis:triage` holds it until you answer.
   With `specify` as `auto`, it opens a design session for the lowest feature with no spec, and that
   session holds it until the spec is on the issue or you leave the session.
-- With a gate that is `auto` in the main YAML, the script of a Run press goes on with that step in the
-  same tab. Between two sessions the card is in Running with `Starting`.
-- A Terminal tab and the script in it can end when the app starts again. The lock stays while
-  either the runner or its foreground session is live. After both exit, a new runner can claim
-  the stale lock; the session record stays.
+- With a gate that is `auto` in the main YAML, the script of a Run press goes on with that step in a
+  new tab. Between two sessions the card is in Running with `Starting`.
+- The terminal of a typed runner can end when its terminal program starts again. The runner then
+  stops, and its session stays open in its tab ("A stop of the runner"). The lock stays while
+  either the runner or its session is live. After both exit, a new runner can claim the stale
+  lock; the session record stays.
+- A long automatic runner opens one tab for each session. A normal end closes its tab. Each tab
+  of a failed end, and each tab whose runner stopped, stays open until you close it.
+- A session gets the login environment of its tab, not the environment of a typed runner, so a
+  variable that you export only in the shell of the runner does not reach the session. When
+  `CLAUDE_CONFIG_DIR` or `CODEX_HOME` of the runner differs from that of the session, the runner
+  looks for the saved turn in the wrong place: it warns after 60 seconds, and the session does not
+  end by itself.
+- For a typed runner in another terminal program, whether `herdr-app do pane.focus` brings the
+  window of the Herdr app to the front is not checked.
+- The Herdr app 0.1.11 removes a space when its last tab closes (observed in the Verify phase of
+  #232). The next session tab then makes the space again with `herdr-app do space.new`, and the
+  app shows that space and gives it the focus, also for a `--quiet` start. So a normal end closes
+  its tab only after the next session tab of the same start is open, or when the runner ends. An
+  automatic runner that waits for work keeps the tab of its last normal end open until it starts
+  the next session or stops.
 - A session outside herdr-core, for example in a Code tab of the desktop app or in another terminal
   program, has no card on the board, and the script does not end its step.
 - The script ends a step only from the status that the host reports with OSC 7501. A host that
   reports no status, for example Claude Code before 2.1.295, gets no step end and no card: leave
   its session with `/exit`.
 - After its exit, Codex keeps the status `done` on a live terminal (Codex 0.166.0 kept it for more
-  than 45 seconds). The script reads only a status that changed at or after the start of the step,
-  and it removes the label `celetis.link` when the host exits. So between two steps, the board shows
-  no session card for that terminal. When the next step has another host, the board shows no card
-  for that terminal until the new host reports. The issue keeps a card of its own.
+  than 45 seconds). Each session has a new terminal, so no later session reads that status. The
+  script also reads only a status that changed at or after the start of the step.
 - The script finds the thread of a Codex step by the exact prompt of the step in `preview` of
   `thread/list` ("Sessions"). When a Codex release changes `preview`, no thread matches: the script
   warns after 60 seconds, and the session does not end by itself. When a person starts the same
@@ -1767,13 +1881,12 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   10 seconds; the runner keeps ownership until the process exits ("The step end").
 - The `hc` and `herdr-app` calls of the script use the API of herdr-core 0.1.16 and the commands of
   the Herdr app 0.1.11. Both are previews (version 0.x), so a later 0.x release can break the step
-  end. On Windows, the step end in an hc terminal, the tab of a board press, and the card of its
-  session are not checked. There the board starts the argv with no shell, and a program that
-  `hc run` starts with no shell has no foreground in `hc get`, so its session can get no card. On
-  Windows the program entry starts the runner as a child process, so the runner does not lead its
-  hc terminal and stops with the "does not lead" line ("The step end"). On each platform, a start
-  through a shell with no job control (for example `sh -c` with two commands) or through a wrapper
-  that does not exec makes the runner stop with that line too. Two
+  end. On Windows, the session tab, its start barrier, the step end, the hidden runner and the tab
+  of a board press, and the card of a session are not checked. There the runner and the board
+  start the argv with no shell, so a session tab keeps no shell after its barrier exits, and a program that `hc run`
+  starts with no shell has no foreground in `hc get`, so its session can get no card. The start
+  barrier there also runs with no `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0` and no `DO_NOT_TRACK=1`,
+  because the argv of its tab has no shell and no `env` to set them. Two
   parts of the step end are not checked: the end of a session after its
   `celetis --agent <host> land` run ends (ADR-0008), and the end of a session after it adds
   `ready-for-human` at a stop (ADR-0011). Two shapes of the REST reads of the board data
@@ -1783,13 +1896,10 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   show a status that branch protection requires until that status reports. Until then,
   `celetis --agent <host> land` can read `pass` and ask for the merge. GitHub then refuses the merge, and
   the build step stops with `## Landing refused`. Until then, the board also shows `pass` for the PR.
-- The script exits 0 at each `stop` line, at a `me` gate, at "no progress", and at a refused
-  skip, so the tab of a board press closes at that exit, and the message of the script goes with
-  it. A Run press whose session ends at once thus leaves no message: start
-  `celetis --agent <host> celetis-flow <n>` in a terminal to see it. The first press that makes the
-  space of the repository is different. The Herdr app shows that space, also for a quiet Run, and
-  it starts the first tab through its own login shell, so that tab keeps a shell after the step,
-  also after an exit 0.
+- The runner of a board press is hidden: its lines show nowhere, and herdr-core removes its
+  terminal at its exit, with any exit status. So a runner that stops before a session starts, for
+  example at a `stop` line, at "no progress", at a refused skip, or at an error, leaves no
+  message: start `celetis --agent <host> celetis-flow <n>` in a terminal to see it.
 - A start of the board from the entry `board` of `.claude/launch.json`, in a project that has such
   an entry, needs `bun`, `hc`, `herdr-app`, and the tools of the command on the `PATH` of the
   desktop app, and no git credentials. This is not checked: the desktop app reads

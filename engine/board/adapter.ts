@@ -32,7 +32,7 @@ export async function celetisAdapter(
     intake: (agent) => argv(['--agent', agent, 'intake']),
     assist: (number, agent) => argv(['--agent', agent, 'assist', number]),
     run: (number, agent, effort) =>
-      argv(['--agent', agent, 'celetis-flow', number, ...(effort ? ['--effort', effort] : [])]),
+      argv(['--agent', agent, 'celetis-flow', number, ...(effort ? ['--effort', effort] : []), '--quiet']),
     resume: async (number) => {
       await selectSavedSession(main, number);
       return argv(['celetis-flow', '--resume', number]);
@@ -55,6 +55,6 @@ export async function celetisAdapter(
         throw new Error('queue: admission outcome is uncertain; refresh before another attempt');
       }
     },
-    queueRun: (wake) => argv(['--agent', wake.host, 'celetis-flow', '--queue', 'run', wake.id, wake.token]),
+    queueRun: (wake) => argv(['--agent', wake.host, 'celetis-flow', '--queue', 'run', wake.id, wake.token, '--quiet']),
   };
 }

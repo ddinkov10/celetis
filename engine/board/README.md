@@ -293,15 +293,17 @@ a landed-history panel.
 - Its host reports a status (OSC 7501), and the `app` of that status names `claude` or `codex`.
   A terminal with no status has no card.
 - Its foreground process is that host (the file name of its first item, with no `.exe`), or a
-  runner (an item with the file name `celetis-flow.ts`) while the terminal has a link label, or a
-  runner that resumes a session (`--resume` after that item). A shell whose host exited has no
-  card, also when Codex left a `done` status in it.
+  process with an item of the file name `celetis-flow.ts` while the terminal has a link label. In
+  a session tab of the runner, that process is the start barrier, the leader of the foreground
+  process group (`docs/celetis-flow.md` of the plugin `celetis`, "How a step runs", "The session
+  tab"). A shell whose host exited has no card, also when Codex left a `done` status in it.
 
 The link label of the terminal, `celetis.link`, links a session to an issue: `#<n> <step>` gives
 the issue `<n>` and the step, `#<n>` alone gives the issue only, and another label gives no issue.
-The step word counts only when `flow.lanes` of the document names that step. Each press sets the
-link label to the tab name, and the runner sets `#<n> <step>` at each step start and removes it at
-each step end. Assist uses `#<n> assist`, which links the issue but gives no workflow step. A tab
+The step word counts only when `flow.lanes` of the document names that step. The runner gives
+each session tab, also a resume tab, the link label `#<n> <step>`. A press that opens a tab
+(New intake, Assist, and Open shell) sets the link label to the tab name. Assist uses
+`#<n> assist`, which links the issue but gives no workflow step. A tab
 that you rename by hand links no session. A session with no link label, for example a resume that
 you start by hand, takes the name of its tab as its title: the part of the `where` label of
 herdr-core after the first ` / `. With no tab name, its title is empty. The time of a session state
@@ -323,11 +325,8 @@ Each board request, including a local request, reads the runner's private step-e
 the common Git directory. Its PID, process start, terminal, and host must identify a live runner.
 A retained verdict applies only to the recorded terminal and the hc `turn` of that terminal.
 A later turn starts with no retained verdict, even when the board misses its working state.
-When the record names the terminal and a host other than the host of its status, the terminal has
-no card: that status is a stale one of a former host, and the new host has not reported yet. The
-issue then keeps a card of its own.
 Missing, invalid, unreadable, or stale evidence keeps the ordinary wait. A dialog always wins.
-Resume and unmanaged sessions have no completion watcher. The runner keeps an exiting verdict
+A resume session has no completion watcher. The runner keeps an exiting verdict
 until the foreground exits, then removes it. This local read adds no GitHub request.
 A board-approved update starts the new program automatically. After a terminal-started update,
 start a new board process to load updated server code.
@@ -371,11 +370,12 @@ Human sessions has the order of their titles, with numbers in numeric order, and
 with one title in the order of their terminal ids.
 
 **During a press** of Run, Resume, or Assist, the page moves the card to Running at once. The card shows
-`Starting` with a turning status icon while the board reads the program and opens the tab. It keeps its
+`Starting` with a turning status icon while the board reads the program and starts the runner or
+opens the tab. It keeps its
 step, so Pipeline shows it at that step. Assist keeps a null step and remains in Not in a step.
 While the request runs, no control of the page sends a second press for that issue. Run, Resume,
 and Assist share one reservation in the server, from before the asynchronous eligibility read
-until the tab opens or the operation fails. A competing press from any browser client gets 409.
+until the runner or the tab starts, or the operation fails. A competing press from any browser client gets 409.
 After the operation succeeds, the card stays `Starting` for 30 seconds, or until a row with the state `starting` or a
 session of the issue shows. A session wins at each time: its card shows its state and Go. The page
 uses no read that started before the request ended, and an older read never replaces a newer one.
@@ -393,9 +393,9 @@ A press that fails ends the `Starting` card at once, and the next read gives the
 | Press or read | What the server does |
 |---|---|
 | The data of the issues | The read of "The data", in its own process, with a limit of 60 seconds. |
-| Run | A quiet tab `#<n> <step>` in the main checkout, with the Run argv. A `Run at <level>` entry adds the level to that argv. For the current issue of a queue paused at a `me` gate, use the queue Continue action below. |
-| Resume | The same tab with the focus, with the Resume argv. |
-| A queue action | A persisted QueueView acknowledgement. Only a new wake opens a quiet main-checkout tab `Queue`, with the fixed queue run argv. The runner renames the tab `#<n> <step>` and sets that link label while a step runs, preserving the session cards and Go. |
+| Run | A hidden runner in the main checkout, with the Run argv. The runner opens a quiet session tab `#<n> <step>`. A `Run at <level>` entry adds the level to that argv. For the current issue of a queue paused at a `me` gate, use the queue Continue action below. |
+| Resume | A hidden runner in the main checkout, with the Resume argv. The runner opens the session tab `#<n> <step>` with the focus. |
+| A queue action | A persisted QueueView acknowledgement. Only a new wake starts a hidden runner in the main checkout, with the fixed queue run argv. For each step, the runner opens a quiet session tab `#<n> <step>` with that link label, so the session cards and Go stay. |
 | New intake | A focused `Intake` tab in the main checkout. The current default host asks for the request, then enters `celetis:intake` with the answer. The button creates no issue and starts no runner. |
 | Assist | A focused tab `#<n> assist` in the main checkout, with the Assist argv. |
 | Open shell | A focused tab `#<n> shell` in the `path` of a `dirty` row, with no argv: herdr-core starts the shell of the machine. |
@@ -413,36 +413,42 @@ The adapter makes each argv from fixed items: the command of the program, then, 
 Run, `--agent`, the selected agent, and `celetis-flow`; for Resume, `celetis-flow` and `--resume`,
 with no agent; for Assist, `--agent`, the current default agent, and `assist`; or for New intake,
 `--agent`, the current default agent, and `intake`, with no issue number. A `Run at <level>` entry
-adds `--effort` and the level after the number.
+adds `--effort` and the level after the number. The Run argv ends with `--quiet`, so the runner
+opens each session tab in the background.
 Resume takes the host and the session from its saved record. The program supplies Bun and its
 isolation flags. The number is its digits. Each item is one argument: no shell reads the argv as
 a line, so an item cannot add a second command. For the issue 12 and the agent `claude`:
 
 ```text
-<base>/.local/bin/celetis --agent claude celetis-flow 12
-<base>/.local/bin/celetis --agent claude celetis-flow 12 --effort xhigh
+<base>/.local/bin/celetis --agent claude celetis-flow 12 --quiet
+<base>/.local/bin/celetis --agent claude celetis-flow 12 --effort xhigh --quiet
 <base>/.local/bin/celetis celetis-flow --resume 12
 <base>/.local/bin/celetis --agent claude assist 12
 <base>/.local/bin/celetis --agent claude intake
 ```
 
 On macOS and Linux, the new terminal starts the argv in a login shell of `$SHELL` (else `/bin/sh`),
-with `hc run --rm`. This is the start form:
+with `hc run --rm`. Run, Resume, and a queue wake use the first start form, and New intake and
+Assist use the second:
 
 ```text
+<shell> -lic 'exec "$@"' <shell> <argv>
 <shell> -lic '"$@" || exec "$0" -li' <shell> <argv>
 ```
 
-The shell gets each item as one item of `"$@"`. A program that exits 0 closes the tab: herdr-core
-removes its terminal. A program that fails leaves the tab open with its message and an interactive
-shell. On Windows, `hc run` gets the argv with no shell and with no `--rm`. On Windows, the start of
-the argv is not checked.
+The shell gets each item as one item of `"$@"`. In the first form, the program takes the place of
+the shell, so no shell stays after it, and herdr-core removes the terminal when the program exits.
+In the second form, a program that exits 0 closes the tab: herdr-core removes its terminal. A
+program that fails leaves the tab open with its message and an interactive shell. On Windows,
+`hc run` gets the argv with no shell, and a tab gets no `--rm`. On Windows, the start of the argv
+is not checked.
 
 Queue admission invokes the installed Program.entry as a finite Bun process with isolation flags.
-The adapter validates its receipt. Only its wake opens a terminal, with this fixed argv:
+The adapter validates its receipt. Only its wake starts a terminal, a hidden runner, with this
+fixed argv:
 
 ```text
-<command> --agent <host> celetis-flow --queue run <id> <token>
+<command> --agent <host> celetis-flow --queue run <id> <token> --quiet
 ```
 
 Add supplies the selected host. Other actions use the saved host. Retry with null step resolves
@@ -483,16 +489,52 @@ Success confirms that the terminal started with the argv, not readiness of the n
 errors remain in that tab. The existing Human sessions strip observes the session without an
 issue number or a new session store.
 
-**The terminal calls** of Run, when the Herdr app has a space with the name of the repository:
+**The terminal calls** of Run, Resume, and a queue wake:
+
+```text
+hc ls --json
+herdr-app ls
+hc run --bg --json --no-parent --no-notify --rm --cwd <main checkout> --label 'celetis.runner=#<n>' -- <shell> -lic 'exec "$@"' <shell> <argv>
+```
+
+Before these calls, a Run or Resume press reads the sessions as a request that is not local does
+("The reads"). The first two calls check that the hc server and the Herdr app answer, after a
+check that `hc` and `herdr-app` are on the `PATH` of the board. When a check fails, the press gets
+502 with the line of the check, for example
+`the Herdr app does not answer: <cause>; open the Herdr app window, then start again`, and no
+terminal starts. For a queue wake, that failure is a known failure before command dispatch.
+The new terminal has no `herdr.space` label, so it has no tab: the runner is hidden. A queue wake
+uses the label `celetis.runner=queue`. The board makes the label only from the digits of the issue
+or the word `queue`. `--no-parent` keeps the runner alive when the board itself runs in an hc
+terminal that ends. The runner then opens the session tab with the calls of
+`docs/celetis-flow.md` of the plugin `celetis`, "How a step runs", "The session tab": a Run and a
+queue wake pass `--quiet`, so the tab is quiet, and the tab of a Resume comes to the front.
+
+A hidden runner stops by itself. With the default `me` gates, the runner of a Run press ends with
+its one session. The board has no control that stops a hidden runner. To stop one, find its
+terminal, then end it:
+
+```text
+hc ls --label 'celetis.runner=#<n>'
+hc kill <t>
+```
+
+For the runner of a queue wake, use `hc ls --label celetis.runner=queue`. The stop of a runner does
+not end a session whose start barrier it released (`docs/celetis-flow.md` of the plugin `celetis`,
+"How a step runs", "A stop of the runner").
+
+The terminal calls of New intake, Assist, and Open shell, when the Herdr app has a space with the
+name of the repository:
 
 ```text
 herdr-app ls
-hc run --bg --json --no-parent --no-notify --rm --cwd <main checkout> --label herdr.space=<space> --label 'celetis.link=#<n> <step>' -- <the start form of the Run argv>
+hc run --bg --json --no-parent --no-notify --rm --cwd <folder> --label herdr.space=<space> --label 'celetis.link=<name>' -- <the start form of the argv>
 herdr-app ls
-herdr-app do tab.rename --id <tab> --name '#<n> <step>'
+herdr-app do tab.rename --id <tab> --name '<name>'
 ```
 
-Before these calls, the press reads the sessions as a request that is not local does ("The reads").
+Before these calls, Assist and Open shell read the sessions as a request that is not local does
+("The reads").
 When `herdr-app ls` fails, for example because the Herdr app does not run, the press gets 502 with
 the first line of the error, and no terminal starts. The space is the first local space whose name
 is the folder name of the main checkout. The label `herdr.space` puts the new terminal in a new
@@ -505,16 +547,17 @@ board itself runs in an hc terminal that ends.
 When no space has that name, the press makes it:
 `herdr-app do space.new --name <folder name> --folder <folder> --tab <name> --argv <the argv as JSON>`
 takes the place of `hc run` and the rename, and `hc label <id> celetis.link=<name>` labels the
-terminal of the first tab. The Herdr app shows the new space at once, also for a quiet press. Each
-later press is quiet. One board process finds or makes the space and starts the terminal for one
-press at a time, so two presses at once make one space. Each press keeps its folder, its focus,
-and its name in the two cases:
+terminal of the first tab. The Herdr app shows the new space at once. One board process finds or
+makes the space and starts the terminal for one press at a time, so two presses at once make one
+space. Each press keeps its folder, its focus, and its name in the two cases. Run, Resume, and a
+queue wake open no tab: the table gives the label of the hidden runner, and the runner opens the
+session tab.
 
 | Press | Folder | Focus | Tab name and link label | Argv |
 |---|---|---|---|---|
-| Run | the main checkout | none | `#<n> <step>` | the Run argv |
-| A queue wake | the main checkout | none | `Queue` | the queue run argv |
-| Resume | the main checkout | the new tab | `#<n> <step>` | the Resume argv |
+| Run | the main checkout | none: the session tab is quiet | none: a hidden runner, `celetis.runner=#<n>` | the Run argv |
+| A queue wake | the main checkout | none: each session tab is quiet | none: a hidden runner, `celetis.runner=queue` | the queue run argv |
+| Resume | the main checkout | the session tab | none: a hidden runner, `celetis.runner=#<n>` | the Resume argv |
 | Assist | the main checkout | the new tab | `#<n> assist` | the Assist argv |
 | New intake | the main checkout | the new tab | `Intake` | the New intake argv |
 | Open shell | the `path` of the row | the new tab | `#<n> shell` | none |
@@ -558,7 +601,7 @@ The server also starts these read-only commands, with no shell:
 `/api/refresh`. A Run body can also have `"agent": "<name>"` and `"effort": "<level>"`. Before any
 read, the server refuses an `effort` that is not `low`, `medium`, `high`, `xhigh`, or `max` with 400
 and `the effort is not one of low, medium, high, xhigh, max`. The server refuses a press with 409
-and opens no tab, unless each condition holds:
+and starts no terminal, unless each condition holds:
 
 | Press | Conditions | Line of the refusal |
 |---|---|---|
@@ -574,10 +617,10 @@ the continuous-queue contract. Host, Origin, JSON, and the 1024-byte body limit 
 The fixed adapter reads the installed Program and invokes its entry with Bun and isolation flags
 for finite admission, bounded to 30 seconds. It parses the receipt as external input. The HTTP
 response is the persisted QueueView; it does not await History or terminal creation. Only a newly
-issued wake schedules a quiet Queue tab with this fixed argv:
+issued wake schedules a hidden runner with this fixed argv ("The terminal calls"):
 
 ```text
-<command> --agent <host> celetis-flow --queue run <id> <token>
+<command> --agent <host> celetis-flow --queue run <id> <token> --quiet
 ```
 
 The browser supplies no executable or path.
@@ -636,7 +679,7 @@ The answer to a press that the server did is 200 with `{"ok": true}`. Each other
 | 403 | The `Host`, the `Origin`, or the content type is not good ("The trust boundary"). |
 | 404 | The path is not a path of the board, or Go names an id that is no session of the repository. |
 | 409 | A condition of the table does not hold, the queue request is stale or unavailable, the read of the program fails, the fresh issue read of Assist fails, Resume has no valid saved session, the agent of Run or Assist is not good, or the request tries to change the default agent. |
-| 502 | An `hc` or `herdr-app` call failed: the first line of its error. `hc gave no list of terminals`, `herdr gave no list of spaces`, `hc gave no terminal id`, and `herdr gave no terminal for the new space` are the lines for an answer with no list or with no safe id. |
+| 502 | At Run or Resume, `hc` or `herdr-app` is not on the `PATH` of the board, or the hc server or the Herdr app does not answer: the line of that check. An `hc` or `herdr-app` call failed: the first line of its error. `hc gave no list of terminals`, `herdr gave no list of spaces`, `hc gave no terminal id`, and `herdr gave no terminal for the new space` are the lines for an answer with no list or with no safe id. |
 | 500 | The server failed for another cause: the first line of the error, or `the server failed`. |
 
 The update API is independent of issue and terminal reads. Each success returns
@@ -655,7 +698,7 @@ consumed offer gives 409. The start response finishes before this board closes f
 
 ## The trust boundary
 
-A Run press starts the runner of the `celetis` program in a terminal of herdr-core. Eleven rules
+A Run press starts the runner of the `celetis` program in a hidden terminal of herdr-core. Eleven rules
 hold for the server and the page:
 
 1. The server listens on `127.0.0.1` only.
@@ -704,9 +747,9 @@ Five rules hold for the start, the argvs, and the data:
    that agent from its fresh read. New intake takes `claude` or `codex` from fresh main configuration
    and environment resolution. Resume takes no agent. Queue fields pass the shared exact-shape validator; its step is an engine-defined
    value, its ID is a UUID, its revision and issue numbers are positive safe integers, and its
-   host is `claude` or `codex`. No title, reason, act, or data path goes into an argv. The
-   current step also goes into the tab name and the link label, each one argument of `hc` or
-   `herdr-app`, with no shell.
+   host is `claude` or `codex`. No title, reason, act, or data path goes into an argv. The label
+   of a hidden runner holds only the digits of the issue or the word `queue`, one argument of
+   `hc`, with no shell.
 4. **The data comes from the engine, in the process of the board.** No other program gives the
    document. The lane keys and the step names come from the workflow definition of the engine,
    and the states come from the typed rows of the resolver and from the locks and the record of
@@ -887,7 +930,8 @@ Of the distribution:
   `bun`, `gh`, `hc`, and `herdr-app` on the `PATH` of that program. This is not checked. When such
   a start fails, start the board in a terminal.
 - Issue reads check no plugin update policy. A conflict can show in the independent update
-  check, or in the tab of the next New intake, Run, Resume, or Assist.
+  check, or in the tab of the next New intake or Assist. The hidden runner of a Run or Resume
+  shows it nowhere.
 
 Of the sessions, herdr-core, and the Herdr app:
 
@@ -916,13 +960,15 @@ Of the sessions, herdr-core, and the Herdr app:
 - The tab of a new terminal can show up to about 3 seconds after its start. The board waits 5
   seconds for it; after that time, the tab keeps the name that the Herdr app gives it.
 - On macOS and Linux, the login shell is `$SHELL`, else `/bin/sh`. It must read the POSIX start
-  form `"$@" || exec "$0" -li`; a `$SHELL` such as fish cannot read it, and the argv does not
-  start.
-- On macOS and Linux, a program that exits 0 closes its tab (`hc run --rm`). A runner that prints
-  a message and exits 0 thus leaves no message: start `celetis --agent <host> celetis-flow <n>` in
-  a terminal to see it. The first press that makes the space of the repository starts its argv
-  through the start form of the Herdr app, `"$@"; exec "$0" -li`, so that one tab keeps a shell
-  after its program ends.
+  forms `exec "$@"` and `"$@" || exec "$0" -li`; a `$SHELL` such as fish cannot read them, and the
+  argv does not start.
+- A hidden runner shows its lines nowhere, and herdr-core removes its terminal when it exits
+  (`hc run --rm`). So a runner of a Run, Resume, or queue wake that stops before a session starts,
+  for example at a `stop` line or at an error, leaves no message: start
+  `celetis --agent <host> celetis-flow <n>` in a terminal to see it.
+- On macOS and Linux, a New intake or Assist program that exits 0 closes its tab (`hc run --rm`).
+  The first press that makes the space of the repository starts its argv through the start form
+  of the Herdr app, `"$@"; exec "$0" -li`, so that one tab keeps a shell after its program ends.
 - On Windows, `hc run` gets the argv with no shell, and the first item is `celetis.cmd`. Such a
   start, its tab, and the card of its session are not checked.
 
@@ -932,8 +978,8 @@ Of the cards and the page:
   and has no lane track.
 - Before the first good read, Pipeline has no stage column: the strip Not in a step holds each
   session of an issue.
-- Separate board server processes share no start reservation. Their concurrent presses can make
-  two tabs for one issue, or two spaces of the repository.
+- Separate board server processes share no start reservation. Their concurrent presses can start
+  two runners for one issue; the issue lock lets only one of them start a session.
 - A start of the server forgets the times of the Run, Resume, and Assist presses.
 - The count of changed lines is against `origin/HEAD`. A clone with no `origin/HEAD` shows no count.
 - A notification shows only while the page is open in a tab. A browser that throttles a hidden tab

@@ -94,11 +94,11 @@ controls and applies only that skill's custom text.
   `PRODUCT.md` of the product. The session checks for both. It never installs `impeccable`, which
   is no plugin dependency, and you run `/impeccable init` once for the product
   (`docs/procedures/design.md`, "The check").
-- On macOS, herdr-core 0.1.16 (`hc`) and its server, for the step end of the runner and for the
-  board, and the Herdr app 0.1.11 (`herdr-app`), for the tabs (ADR-0058). The host reports its
-  status to herdr-core with OSC 7501 and needs no integration: Claude Code since 2.1.295, and Codex
-  0.166.0. A host release that reports no status gets no step end and no session card. In another
-  terminal the runner works too, but you leave each session with `/exit`.
+- On macOS, herdr-core 0.1.16 (`hc`) with its running server, and the open window of the Herdr app
+  0.1.11 (`herdr-app`), for each start of the runner and for the board: each session runs in a tab
+  of the Herdr app (ADR-0058, ADR-0062). The host reports its status to herdr-core with OSC 7501
+  and needs no integration: Claude Code since 2.1.295, and Codex 0.166.0. A host release that
+  reports no status gets no step end and no session card.
 - For the board: a Chromium browser.
 
 `docs/celetis-flow.md` gives each requirement in full ("Requirements", and "The board").
@@ -872,7 +872,7 @@ host's skill selector. Native desktop selector acceptance is optional under
   features becomes an epic, and each child issue runs its own flow.
 
 **Through the runner.** `celetis --agent <host> celetis-flow <n>` starts the next step of the issue in a
-new interactive session, in the terminal tab where you start it. For each step, the runner:
+new interactive session, in a new tab of the Herdr app. For each step, the runner:
 
 1. asks the resolver for the next step: `celetis --agent <host> next-step <n>` prints a `run` line with
    the command of the step, for example `run /celetis:plan #<n>`, or a `stop` line with the reason;
@@ -887,7 +887,8 @@ new interactive session, in the terminal tab where you start it. For each step, 
    `-c model_reasoning_effort="<level>"` after a clamp to the levels of its model. The level is the
    override of this start when there is one, else the decision of the step before, else `high`
    (`docs/celetis-flow.md`, "Start the script", "The effort level");
-4. in an hc terminal of herdr-core, ends the session when the issue shows that the step is done.
+4. opens each session in a new tab of the Herdr app, and ends it when the issue shows that the
+   step is done.
 
 The runner starts at an issue: write one with `/celetis:intake`, or open one on GitHub. Then, for
 the feature `#12`:
@@ -901,8 +902,8 @@ celetis --agent <host> celetis-flow 12    # implement: it builds, verifies, and 
 
 With each gate `me`, one start runs one step. With a gate `auto`, a start goes on through that step
 by itself, and `celetis --agent <host> celetis-flow` with no number is the automatic runner: it runs each
-`auto` step of each open issue. A Run press on the agent board is the same start, in a new herdr
-tab.
+`auto` step of each open issue. A Run press on the agent board is the same start, in a hidden
+terminal: the runner opens the session tab in the background.
 
 The queue stays available as issues finish. Read its current identity before an action:
 
@@ -1239,10 +1240,11 @@ The `agents` entries of the data report executable availability for Claude and C
 trust, and enabled plugin discovery need their own checks. At each Run, Resume, or Open agent
 press, the fixed adapter `engine/board/adapter.ts` reads the installed program. `<command>` is its command:
 `<base>/.local/bin/celetis`, or `<base>\.local\bin\celetis.cmd` on Windows ("First install"). A
-Run press starts this argv, with the selected agent, in a new quiet tab of the Herdr app:
+Run press starts this argv, with the selected agent, as a hidden runner. The runner opens the
+session tab, and `--quiet` keeps that tab in the background:
 
 ```text
-<command> --agent <agent> celetis-flow <n>
+<command> --agent <agent> celetis-flow <n> --quiet
 ```
 
 With no explicit choice, it uses `defaultAgent`: `CELETIS_AGENT`, then `host` in the main
@@ -1250,8 +1252,8 @@ YAML, then `claude`. Set the project default in that YAML field. A Run choice ch
 start. The board's default-agent menu and command palette show `Default agent is read-only`.
 They show the reason: `The main .celetis.yaml controls the default agent. Change host there.`
 Unknown or unavailable Run choices return 409 and start no agent. A Resume press starts this argv
-in a focused tab. The runner uses the host and the exact session ID of the saved record, even
-after the YAML default changes:
+as a hidden runner, and the runner opens the session tab in front. The runner uses the host and
+the exact session ID of the saved record, even after the YAML default changes:
 
 ```text
 <command> celetis-flow --resume <n>
@@ -1270,12 +1272,21 @@ before starting again. An unavailable default agent or `noRun` disables Open age
 The server reads the issue again and refuses assistance if it is no longer blocked or has a
 live session.
 
-Each item of an argv is one argument, and no shell reads it as a line. On macOS and Linux, the
-tab starts the argv in a login shell of `$SHELL`; the tab closes when the program exits 0, and a
-failed program leaves its message there. On Windows, the board passes the argv with no shell (not
-checked). When the space of the repository does not exist in the Herdr app, the first press makes
-it and shows it, also for a quiet Run. The app starts the first tab of that space through its own
-login shell, so that tab keeps a shell after the step. Each later press is quiet. The program
+A queue wake starts `<command> --agent <host> celetis-flow --queue run <id> <token> --quiet` as
+a hidden runner in the same way.
+
+Each item of an argv is one argument, and no shell reads it as a line. On macOS and Linux, a
+login shell of `$SHELL` starts the argv. A hidden runner has no tab and shows no line: herdr-core
+removes its terminal when it exits, so start `celetis --agent <host> celetis-flow <n>` in a
+terminal to see a stop before a session. Its terminal has the label `celetis.runner=#<n>`, or
+`celetis.runner=queue` for a queue wake: `hc ls --label 'celetis.runner=#<n>'` finds it, and
+`hc kill <t>` stops it. Before it starts a runner, the press checks `hc` and the Herdr app, and a
+failed check returns 502 with its line. The tab of Open agent closes when the program exits 0,
+and a failed program leaves its message there. On Windows, the board passes the argv with no shell
+(not checked). When the space of the repository does not exist in the Herdr app, the first tab
+that a runner or a press opens makes it, and the app shows it, also for a quiet session tab. The
+app starts the first tab of that space through its own login shell, so that tab keeps a shell
+after its program. The program
 supplies Bun and its isolation flags. Each press reads the program again, so after
 `celetis update` the next press starts the new program with no board restart; new board code still
 needs a restart. A missing or foreign program returns 409 before any terminal starts.

@@ -2,7 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { HostError } from './host.ts';
 import { childEnv, run } from './process.ts';
-import { processRuns, processRunsScript, processStart } from './process-identity.ts';
+import { processRunsScript, processStart, processState } from './process-identity.ts';
 
 export interface LockOwner {
   take(name: string): Promise<string | null>;
@@ -46,8 +46,7 @@ async function holderFrom(main: string, owner: string): Promise<string> {
       continue;
     const pid = Number(row.pid);
     if (kind === 'runner' && !(await processRunsScript(pid, 'celetis-flow.ts'))) continue;
-    if (!(await processRuns(pid))) continue;
-    if ((await processStart(pid)) !== row.start) continue;
+    if ((await processState(pid, row.start)) === 'gone') continue;
     return String(pid);
   }
   return '';
@@ -68,6 +67,7 @@ export async function addRecord(common: string, n: string, line: string): Promis
 
 export function createLockOwner(main: string): LockOwner {
   let owner = '';
+  let session: { pid: number; start: string } | null = null;
   const held = new Set<string>();
   const blob = async (value: unknown) => {
     const r = await git(main, ['hash-object', '-w', '--stdin'], `${JSON.stringify(value)}\n`);
@@ -75,7 +75,8 @@ export function createLockOwner(main: string): LockOwner {
     return r.stdout.trimEnd();
   };
   const release = async (name: string) => {
-    if (owner) await git(main, ['update-ref', '--no-deref', '-d', ref(name), owner]);
+    const sessionGone = session === null || (await processState(session.pid, session.start)) === 'gone';
+    if (owner && sessionGone) await git(main, ['update-ref', '--no-deref', '-d', ref(name), owner]);
     held.delete(name);
   };
   return {
@@ -108,6 +109,7 @@ export function createLockOwner(main: string): LockOwner {
       const r = await git(main, ['update-ref', '--no-deref', '--stdin'], input);
       if (r.code !== 0) die('cannot register the session in its locks; start the runner again');
       owner = next;
+      session = { pid, start };
     },
     release,
     async releaseAll() {

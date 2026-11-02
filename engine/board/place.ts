@@ -17,7 +17,7 @@ export const sessionsOf = (terminals: Terminal[], isHere: (path: string) => bool
     const words = foreground ?? [];
     const isHost = basename(words[0] ?? '').replace(/\.exe$/, '') === host;
     const runner = words.findIndex((word) => basename(word) === RUNNER);
-    const isRunner = runner >= 0 && (link !== '' || words.slice(runner + 1).includes('--resume'));
+    const isRunner = runner >= 0 && link !== '';
     if (!isHere(cwd) || host === null || status === null || !(isHost || isRunner)) return [];
     const [, issue, step = ''] = LABEL.exec(link) ?? [];
     return [

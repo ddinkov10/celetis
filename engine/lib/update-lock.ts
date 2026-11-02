@@ -32,7 +32,7 @@ function binding() {
 
 let native: ReturnType<typeof binding> | undefined;
 
-function spawnConsumer(file: string, argv: string[], env: NodeJS.ProcessEnv): Promise<number> {
+export function spawnConsumer(file: string, argv: string[], env: NodeJS.ProcessEnv): Promise<number> {
   const signals = ['SIGINT', 'SIGBREAK'] as const;
   const hold = () => {};
   for (const signal of signals) process.on(signal, hold);

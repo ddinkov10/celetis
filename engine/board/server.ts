@@ -15,6 +15,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { basename, join, relative, resolve, sep } from 'node:path';
 import { isLevel, type Level, levels } from '../lib/effort.ts';
+import { commonDir } from '../lib/host.ts';
 import { createOperation, locateCheckouts } from '../lib/operation.ts';
 import { childEnv } from '../lib/process.ts';
 import { parseQueueAction, queueView as projectQueue, queueOwner, readQueue, readQueueView } from '../lib/queue.ts';
@@ -26,6 +27,8 @@ import {
   listTerminals,
   openTab as openTerminalTab,
   readScreen,
+  requireTerminals,
+  startHidden,
   TerminalError,
 } from '../lib/terminal.ts';
 import { launchMatches, place, sessionsOf, stepsOf } from './place.ts';
@@ -358,7 +361,6 @@ export const createBoard = ({
     for (const session of found) {
       const record = dispositions.get(session.issue as number);
       if (record?.terminal === session.sessionId) {
-        if (record.host !== session.agent) continue;
         session.stepEnd =
           record.turn?.terminalId === session.sessionId && record.turn.sequence === session.turn
             ? record.state
@@ -420,8 +422,15 @@ export const createBoard = ({
     };
   };
 
-  const openTab = (request: Omit<OpenTab, 'space'>) =>
-    openTerminalTab({ space: basename(main), ...request }, exec).catch(refused);
+  const openTab = async (request: Omit<OpenTab, 'repository' | 'keepShell'>) =>
+    openTerminalTab({ repository: { main, common: await commonDir(main) }, keepShell: false, ...request }, exec).catch(
+      refused,
+    );
+
+  const startRunner = async (label: string, argv: string[]) => {
+    await requireTerminals(exec).catch(refused);
+    await startHidden({ folder: main, label, argv }, exec).catch(refused);
+  };
 
   const issueCardOf = async (number: number) =>
     Object.values((await placement()).columns)
@@ -561,7 +570,7 @@ export const createBoard = ({
           const argv = await adapter.run(number, agent, effort).catch((cause: Error) => {
             throw new Refusal(409, cleanCause(cause.message));
           });
-          await openTab({ folder: main, name: `#${number} ${card.step}`, argv, focus: false });
+          await startRunner(`#${number}`, argv);
         },
       };
     });
@@ -578,7 +587,7 @@ export const createBoard = ({
           const argv = await adapter.resume(number).catch((cause: Error) => {
             throw new Refusal(409, cleanCause(cause.message));
           });
-          await openTab({ folder: main, name: `#${number} ${card.step}`, argv, focus: true });
+          await startRunner(`#${number}`, argv);
         },
       };
     });
@@ -588,15 +597,9 @@ export const createBoard = ({
     let sent = false;
     void (async () => {
       const argv = await adapter.queueRun(wake);
-      await openTab({
-        folder: main,
-        name: 'Queue',
-        argv,
-        focus: false,
-        beforeStart: () => {
-          sent = true;
-        },
-      });
+      await requireTerminals(exec);
+      sent = true;
+      await startHidden({ folder: main, label: 'queue', argv }, exec);
     })().catch(async (cause) => {
       try {
         const operation = createOperation(await locateCheckouts(main), { saved: wake.host }, 'main');

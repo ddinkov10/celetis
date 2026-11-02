@@ -33,13 +33,13 @@ step text, and its configured developer instructions stay. Every interactive lau
 `specify` and exact resume, uses `--no-daemon`, so its hooks use the environment of the current
 pane. The runner keeps the configured sandbox, approval, and model settings.
 
-Codex has no option that sets the thread ID before the start (`codex --help`). In an hc terminal,
-the runner finds the thread of a step with the app-server `thread/list`: the one thread of the
+Codex has no option that sets the thread ID before the start (`codex --help`). The runner finds
+the thread of a step with the app-server `thread/list`: the one thread of the
 main checkout whose `createdAt` is at or after the start of the step and whose `preview` is the
 exact prompt above (`docs/celetis-flow.md`, "Sessions", and ADR-0058). It ends the step with
 `hc keys <terminal> ctrl+c ctrl+c`. After its exit, Codex 0.166.0 kept the status `done` on a live
 terminal for more than 45 seconds. So the runner reads only a status that changed at or after the
-start of the step, and it removes its label `celetis.link` when Codex exits.
+start of the step.
 
 For each step, `specify` too, `hostArguments` also reads the session model: `model` of
 `config/read`, else the `isDefault` model of `model/list`. It reads every page of `model/list` with

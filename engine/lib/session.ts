@@ -342,9 +342,15 @@ export function startLine(
   return applied === chosen ? line : `${line}; codex applies ${applied} for ${model}`;
 }
 
-export async function startupError(issue: number, host: Host, detail: string, terminal: string): Promise<void> {
+export async function startupError(
+  issue: number,
+  host: Host,
+  detail: string,
+  terminal: string,
+  tab: string,
+): Promise<void> {
   console.error(
-    `celetis-flow: #${issue} ${host} startup: ${detail}. Check the version, trust, and sign-in prompts in this pane. Complete the required action, then start the step again. Manual recovery: ${manualRecovery(host)} from the main checkout.`,
+    `celetis-flow: #${issue} ${host} startup: ${detail}. Check the version, trust, and sign-in prompts in the tab ${tab}. Complete the required action, then start the step again. Manual recovery: ${manualRecovery(host)} from the main checkout.`,
   );
   const screen = await readScreen(terminal, 40);
   if (screen) process.stderr.write(`${screen.trimEnd().split('\n').slice(-40).join('\n')}\n`);

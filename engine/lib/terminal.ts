@@ -1,29 +1,35 @@
+import { closeSync, constants, fstatSync, openSync } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
+import { basename, join } from 'node:path';
 import type { Host } from './config-core.ts';
 import { childEnv, run } from './process.ts';
 import type { Terminal, TerminalStatus } from './terminal-types.ts';
+import { tryFlock } from './update-lock.ts';
+import { openLockFile } from './windows.ts';
 
 type Result = { code: number; stdout: string; stderr: string };
-export type Exec = (
-  file: string,
-  args: string[],
-  options?: { timeout?: number; signal?: AbortSignal },
-) => Promise<Result>;
+type CallOptions = { signal?: AbortSignal; env?: NodeJS.ProcessEnv };
+export type Exec = (file: string, args: string[], options?: CallOptions & { timeout?: number }) => Promise<Result>;
+export type Repository = { main: string; common: string };
 export type OpenTab = {
-  space: string;
+  repository: Repository;
   folder: string;
   name: string;
   argv: string[] | null;
   focus: boolean;
-  beforeStart?: () => void;
+  keepShell: boolean;
 };
 type Space = { id: string | null; name: unknown; tabs: { id: string | null; terminals: unknown[] }[] };
 
 export class TerminalError extends Error {}
 
 export const LINK = 'celetis.link';
+export const RUNNER_LABEL = 'celetis.runner';
 const SAFE_ID = /^[\w:.][\w:.-]*$/;
 const POLL_MS = 250;
 const POLL_LIMIT_MS = 5_000;
+const LOCK_POLL_MS = 50;
+const LOCK_LIMIT_MS = 60_000;
 const STATUSES: Record<TerminalStatus, true> = { idle: true, working: true, done: true, blocked: true, error: true };
 const HOSTS: Record<Host, { app: string; exit: (id: string) => string[] }> = {
   claude: { app: 'claude-code', exit: (id) => ['send', id, '/exit'] },
@@ -52,8 +58,13 @@ const parse = (text: string): unknown => {
   }
 };
 const answer = (result: Result): unknown => (result.code === 0 ? parse(result.stdout) : null);
-const call = (exec: Exec, file: string, args: string[], signal?: AbortSignal) =>
-  exec(file, args, { timeout: 15_000, signal });
+const call = (exec: Exec, file: string, args: string[], options: CallOptions = {}) =>
+  exec(file, args, { timeout: 15_000, ...options });
+const inShell = (script: string, argv: string[]) => {
+  if (process.platform === 'win32') return argv;
+  const shell = process.env.SHELL || '/bin/sh';
+  return [shell, '-lic', script, shell, ...argv];
+};
 
 function failure(file: string, { code, stdout, stderr }: Result): string {
   const errors = [stderr, stdout].map((text) => {
@@ -73,33 +84,12 @@ async function poll<T>(read: () => Promise<T | null>): Promise<T | null> {
   }
 }
 
-export async function ownTerminal(env: NodeJS.ProcessEnv = process.env): Promise<string | null> {
-  const id = env.HC_TERMINAL_ID;
-  if (!id) return null;
-  if (!isSafeId(id)) throw new TerminalError('HC_TERMINAL_ID needs a safe terminal id; start from an hc terminal');
-  if (!Bun.which('hc', { PATH: childEnv(env).PATH ?? '' })) throw new TerminalError('hc is not on PATH');
-  // hc reports the previous foreground for a moment after a new job takes the terminal.
-  const leads = await poll(async () => {
-    const result = await call(run, 'hc', ['get', id, '--json']);
-    if (result.code !== 0) throw new TerminalError(`cannot read hc terminal ${id}: ${failure('hc', result)}`);
-    const value = parse(result.stdout);
-    if (!isRecord(value) || value.address !== id)
-      throw new TerminalError(`cannot read hc terminal ${id}: hc gave no terminal`);
-    return isRecord(value.foreground) && value.foreground.pid === process.pid ? true : null;
-  });
-  if (!leads)
-    throw new TerminalError(
-      `this runner does not lead hc terminal ${id}; start it in a terminal of its own, for example with hc run --bg`,
-    );
-  return id;
-}
-
 export async function readTerminal(
   id: string,
   { exec = run, signal }: { exec?: Exec; signal?: AbortSignal } = {},
 ): Promise<Terminal | null> {
   if (!isSafeId(id)) return null;
-  const value = answer(await call(exec, 'hc', ['get', id, '--json'], signal));
+  const value = answer(await call(exec, 'hc', ['get', id, '--json'], { signal }));
   if (!isRecord(value) || value.address !== id || !isCount(value.turn)) return null;
   const status = isRecord(value.status) ? value.status : {};
   const foreground = isRecord(value.foreground) ? value.foreground : {};
@@ -125,17 +115,26 @@ export async function readTerminal(
   };
 }
 
-export async function listTerminals(exec: Exec = run): Promise<Terminal[]> {
+async function terminalIds(exec: Exec): Promise<string[]> {
   const result = await call(exec, 'hc', ['ls', '--json']);
   if (result.code !== 0) throw new TerminalError(failure('hc', result));
   const value = parse(result.stdout);
   if (!isRecord(value) || !Array.isArray(value.terminals)) throw new TerminalError('hc gave no list of terminals');
-  const ids = records(value.terminals)
+  return records(value.terminals)
     .filter((entry) => isText(entry.status))
     .map((entry) => entry.address)
     .filter(isSafeId);
-  const terminals = await Promise.all(ids.map((id) => readTerminal(id, { exec })));
+}
+
+export async function listTerminals(exec: Exec = run): Promise<Terminal[]> {
+  const terminals = await Promise.all((await terminalIds(exec)).map((id) => readTerminal(id, { exec })));
   return terminals.filter((terminal) => terminal !== null);
+}
+
+export async function terminalLive(id: string, exec: Exec = run): Promise<boolean> {
+  if (!isSafeId(id)) return false;
+  const value = answer(await call(exec, 'hc', ['get', id, '--json']));
+  return isRecord(value) && value.address === id && value.state === 'live';
 }
 
 export async function waitTerminal(id: string, seconds: number, signal?: AbortSignal): Promise<boolean> {
@@ -144,14 +143,21 @@ export async function waitTerminal(id: string, seconds: number, signal?: AbortSi
   return code === 0 && !signal?.aborted;
 }
 
-export async function requestExit(id: string, host: Host, signal?: AbortSignal): Promise<boolean> {
+export async function requestExit(id: string, host: Host, signal?: AbortSignal, exec: Exec = run): Promise<boolean> {
   if (!isSafeId(id)) return false;
-  return (await call(run, 'hc', [...HOSTS[host].exit(id), '--json'], signal)).code === 0;
+  const env = { ...process.env };
+  delete env.HC_TERMINAL_ID;
+  return (await call(exec, 'hc', [...HOSTS[host].exit(id), '--json'], { signal, env })).code === 0;
 }
 
-export async function setLink(id: string, link: string | null, exec: Exec = run): Promise<boolean> {
-  if (!isSafeId(id)) return false;
-  return (await call(exec, 'hc', ['label', id, `${LINK}=${link ?? ''}`, '--json'])).code === 0;
+export async function closeTerminal(id: string, exec: Exec = run): Promise<void> {
+  if (!isSafeId(id)) return;
+  await call(exec, 'hc', ['kill', id, '--json']).catch(() => null);
+  await call(exec, 'hc', ['rm', id, '--json']).catch(() => null);
+}
+
+async function setLink(id: string, link: string, exec: Exec): Promise<void> {
+  if (isSafeId(id)) await call(exec, 'hc', ['label', id, `${LINK}=${link}`, '--json']);
 }
 
 export async function readScreen(id: string, history: number, exec: Exec = run): Promise<string | null> {
@@ -177,6 +183,24 @@ async function readSpaces(exec: Exec): Promise<Space[]> {
     }));
 }
 
+const reason = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+export async function requireTerminals(exec: Exec = run, env: NodeJS.ProcessEnv = process.env): Promise<void> {
+  const PATH = childEnv(env).PATH ?? '';
+  if (!Bun.which('hc', { PATH }))
+    throw new TerminalError('hc is not on PATH; install herdr-core 0.1.16, then start again');
+  await terminalIds(exec).catch((error: unknown) => {
+    throw new TerminalError(`the hc server does not answer: ${reason(error)}; start the Herdr app, then start again`);
+  });
+  if (!Bun.which('herdr-app', { PATH }))
+    throw new TerminalError('herdr-app is not on PATH; install the Herdr app 0.1.11, then start again');
+  await readSpaces(exec).catch((error: unknown) => {
+    throw new TerminalError(
+      `the Herdr app does not answer: ${reason(error)}; open the Herdr app window, then start again`,
+    );
+  });
+}
+
 const spaceNamed = (spaces: Space[], name: string) =>
   spaces.find((space): space is Space & { id: string } => space.name === name && space.id !== null);
 
@@ -188,24 +212,19 @@ async function tabOf(id: string, exec: Exec): Promise<string | null> {
 const rename = (tab: string, name: string, exec: Exec) =>
   call(exec, 'herdr-app', ['do', 'tab.rename', '--id', tab, '--name', name]);
 
-export async function renameTab(id: string, name: string, exec: Exec = run): Promise<void> {
-  const tab = await poll(() => tabOf(id, exec));
-  if (tab) await rename(tab, name, exec);
-}
-
 export async function focusTerminal(id: string, exec: Exec = run): Promise<void> {
   if (!isSafeId(id)) throw new TerminalError('the terminal id is not safe');
   const result = await call(exec, 'herdr-app', ['do', 'pane.focus', '--terminal', id]);
   if (result.code !== 0) throw new TerminalError(failure('herdr-app', result));
 }
 
-async function newSpace(request: OpenTab, exec: Exec): Promise<string> {
+async function newSpace(request: OpenTab, space: string, exec: Exec): Promise<string> {
   const argv = request.argv === null ? [] : ['--argv', JSON.stringify(request.argv)];
   const result = await call(exec, 'herdr-app', [
     'do',
     'space.new',
     '--name',
-    request.space,
+    space,
     '--folder',
     request.folder,
     '--tab',
@@ -219,7 +238,7 @@ async function newSpace(request: OpenTab, exec: Exec): Promise<string> {
       ? reply.terminal
       : await poll(async () => {
           const spaces = await readSpaces(exec).catch(() => []);
-          const terminals = spaceNamed(spaces, request.space)?.tabs[0]?.terminals ?? [];
+          const terminals = spaceNamed(spaces, space)?.tabs[0]?.terminals ?? [];
           const [only] = terminals;
           return terminals.length === 1 && isSafeId(only) ? only : null;
         });
@@ -228,39 +247,70 @@ async function newSpace(request: OpenTab, exec: Exec): Promise<string> {
   return id;
 }
 
-async function startTab(request: OpenTab, exec: Exec): Promise<{ id: string; shown: boolean }> {
-  const space = spaceNamed(await readSpaces(exec), request.space);
-  request.beforeStart?.();
-  if (!space) return { id: await newSpace(request, exec), shown: true };
-  const isWindows = process.platform === 'win32';
-  const shell = process.env.SHELL || '/bin/sh';
-  const wrap = (argv: string[]) => (isWindows ? argv : [shell, '-lic', '"$@" || exec "$0" -li', shell, ...argv]);
+async function runTerminal(exec: Exec, options: string[], argv: string[]): Promise<string> {
   const result = await call(exec, 'hc', [
     'run',
     '--bg',
     '--json',
     '--no-parent',
     '--no-notify',
-    ...(isWindows ? [] : ['--rm']),
-    '--cwd',
-    request.folder,
-    '--label',
-    `herdr.space=${space.id}`,
-    '--label',
-    `${LINK}=${request.name}`,
+    ...options,
     '--',
-    ...(request.argv === null ? [] : wrap(request.argv)),
+    ...argv,
   ]);
   if (result.code !== 0) throw new TerminalError(failure('hc', result));
   const reply = parse(result.stdout);
   if (!isRecord(reply) || !isSafeId(reply.address)) throw new TerminalError('hc gave no terminal id');
-  return { id: reply.address, shown: false };
+  return reply.address;
+}
+
+async function startTab(request: OpenTab, exec: Exec): Promise<{ id: string; shown: boolean }> {
+  const name = basename(request.repository.main);
+  const space = spaceNamed(await readSpaces(exec), name);
+  if (!space) return { id: await newSpace(request, name, exec), shown: true };
+  const script = request.keepShell ? '"$@"; exec "$0" -li' : '"$@" || exec "$0" -li';
+  const id = await runTerminal(
+    exec,
+    [
+      ...(process.platform === 'win32' || request.keepShell ? [] : ['--rm']),
+      '--cwd',
+      request.folder,
+      '--label',
+      `herdr.space=${space.id}`,
+      '--label',
+      `${LINK}=${request.name}`,
+    ],
+    request.argv === null ? [] : inShell(script, request.argv),
+  );
+  return { id, shown: false };
+}
+
+async function holdingSpaceLock<T>(common: string, work: () => Promise<T>): Promise<T> {
+  const folder = join(common, 'celetis-flow');
+  await mkdir(folder, { recursive: true, mode: 0o700 });
+  const lock = join(folder, 'space.lock');
+  const fd =
+    process.platform === 'win32'
+      ? openLockFile(lock)
+      : openSync(lock, constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW | constants.O_NONBLOCK, 0o600);
+  try {
+    if (!fstatSync(fd).isFile()) throw new TerminalError(`the space lock ${lock} is not a regular file`);
+    const until = performance.now() + LOCK_LIMIT_MS;
+    while (!tryFlock(fd)) {
+      if (performance.now() >= until)
+        throw new TerminalError(`the space lock ${lock} stays held after ${LOCK_LIMIT_MS / 1000} seconds; start again`);
+      await Bun.sleep(LOCK_POLL_MS);
+    }
+    return await work();
+  } finally {
+    closeSync(fd);
+  }
 }
 
 let opening: Promise<unknown> = Promise.resolve();
 
 export async function openTab(request: OpenTab, exec: Exec = run): Promise<string> {
-  const started = opening.then(() => startTab(request, exec));
+  const started = opening.then(() => holdingSpaceLock(request.repository.common, () => startTab(request, exec)));
   opening = started.catch(() => {});
   const { id, shown } = await started;
   if (shown) return id;
@@ -268,4 +318,15 @@ export async function openTab(request: OpenTab, exec: Exec = run): Promise<strin
   if (tab) await rename(tab, request.name, exec);
   if (request.focus) await focusTerminal(id, exec).catch(() => {});
   return id;
+}
+
+export async function startHidden(
+  request: { folder: string; label: string; argv: string[] },
+  exec: Exec = run,
+): Promise<string> {
+  return runTerminal(
+    exec,
+    ['--rm', '--cwd', request.folder, '--label', `${RUNNER_LABEL}=${request.label}`],
+    inShell('exec "$@"', request.argv),
+  );
 }

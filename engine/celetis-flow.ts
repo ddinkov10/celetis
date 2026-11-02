@@ -1,8 +1,7 @@
-import { type ChildProcess, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { constants } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import type { Config, Host } from './lib/config-core.ts';
 import type { Level } from './lib/effort.ts';
@@ -16,7 +15,7 @@ import type { TerminalStatus } from './lib/terminal-types.ts';
 import type { Run, Step } from './lib/workflow.ts';
 
 const usage =
-  "usage: celetis --agent <host> celetis-flow [<issue number> [--effort low|medium|high|xhigh|max]] | --resume <issue number> | --queue action '<QueueAction JSON>' | --queue status; with no number, the automatic runner";
+  "usage: celetis --agent <host> celetis-flow [<issue number> [--effort low|medium|high|xhigh|max]] [--quiet] | --resume <issue number> | --queue action '<QueueAction JSON>' | --queue status; with no number, the automatic runner; --quiet opens each session tab in the background";
 const removed = 'the program version of this runner was removed after an update; start the runner again';
 const here = import.meta.dir;
 const required = [
@@ -93,6 +92,8 @@ export async function main(argv: string[]): Promise<number> {
       return error.code;
     }
   } else if (argv[0] === '--agent') argv = argv.slice(2);
+  const quiet = argv.includes('--quiet');
+  if (quiet) argv = argv.toSpliced(argv.indexOf('--quiet'), 1);
   let mode: 'numbers' | 'auto' | 'resume' | 'queue' = 'numbers';
   let numbers: string[] = [];
   let action: QueueAction | undefined;
@@ -159,7 +160,7 @@ export async function main(argv: string[]): Promise<number> {
   const { admitQueue, emptyQueue } = await import('./lib/queue-actions.ts');
   const { describe } = await import('./lib/lines.ts');
   const { bunArgs, childEnv } = await import('./lib/process.ts');
-  const { processStart } = await import('./lib/process-identity.ts');
+  const { processRunsScript, processStart, processState } = await import('./lib/process-identity.ts');
   const { removeStepEnd, verdictOf, writeStepEnd } = await import('./lib/step-end.ts');
   const {
     codexClaim,
@@ -170,14 +171,20 @@ export async function main(argv: string[]): Promise<number> {
     readSession,
     resumeArguments,
     selectSavedSession,
-    sessionEnv,
     startLine,
     startupError,
     writeSession,
   } = await import('./lib/session.ts');
-  const { ownTerminal, readTerminal, renameTab, requestExit, setLink, TerminalError, waitTerminal } = await import(
-    './lib/terminal.ts'
-  );
+  const {
+    closeTerminal,
+    openTab,
+    readTerminal,
+    requestExit,
+    requireTerminals,
+    TerminalError,
+    terminalLive,
+    waitTerminal,
+  } = await import('./lib/terminal.ts');
   const { defaultLevel } = await import('./lib/effort.ts');
   const { defaultGate, invocation, sameResult, skipped } = await import('./lib/workflow.ts');
   const root = dirname(here);
@@ -190,12 +197,16 @@ export async function main(argv: string[]): Promise<number> {
   let queue: QueueRecord | null = null;
   let queueWritable = false;
   let storageFailed = false;
-  let managed = false;
   let terminal = '';
+  let tab = '';
+  let unreleased = '';
+  let finished = '';
   let said = '';
   let locks: LockOwner | undefined;
-  let session: ChildProcess | undefined;
   let signalStatus = 0;
+  const halt = new AbortController();
+  const halted = new Promise<null>((done) => halt.signal.addEventListener('abort', () => done(null), { once: true }));
+  const rest = (ms: number) => pause(ms, undefined, { signal: halt.signal }).catch(() => {});
   let watcher: AbortController | undefined;
   let watching: Promise<void> | undefined;
   let stepEndIssue: number | undefined;
@@ -256,7 +267,7 @@ export async function main(argv: string[]): Promise<number> {
     } catch (error) {
       console.error(`celetis-flow: #${stepEndIssue} cannot remove step-end: ${(error as Error).message}`);
       console.error(
-        'celetis-flow: cannot revoke watcher ownership; the runner stops. Exit the session in this pane when ready.',
+        `celetis-flow: cannot revoke watcher ownership; the runner stops. Exit the session in the tab ${tab} when ready.`,
       );
       process.exit(1);
     }
@@ -294,7 +305,7 @@ export async function main(argv: string[]): Promise<number> {
     record: SessionRecord,
     announced: string,
     startedMs: number,
-    ended: Promise<number>,
+    ended: Promise<number | null>,
     abort: AbortSignal,
   ) => {
     const startedAt = Math.floor(startedMs / 1000);
@@ -313,13 +324,13 @@ export async function main(argv: string[]): Promise<number> {
       }
       if (result === 2) {
         await writeFile(join(watchDir, 'error'), '');
-        await startupError(Number(n), record.host, 'no single session identity can be saved', terminal);
+        await startupError(Number(n), record.host, 'no single session identity can be saved', terminal, tab);
         return;
       }
       if (!warned && performance.now() >= deadline) {
         warned = true;
         console.error(
-          `celetis-flow: #${n} ${record.host} startup: no saved turn with a verified identity after 60 seconds; monitoring continues. Check setup prompts in this pane.`,
+          `celetis-flow: #${n} ${record.host} startup: no saved turn with a verified identity after 60 seconds; monitoring continues. Check setup prompts in the tab ${tab}.`,
         );
       }
       await Bun.sleep(1000);
@@ -361,7 +372,7 @@ export async function main(argv: string[]): Promise<number> {
               if (!abort.aborted) {
                 await publish(record.host, 'waiting', turn);
                 console.error(
-                  `celetis-flow: #${n} cannot request ${record.host} exit; the session stays open. Exit it in this pane when ready.`,
+                  `celetis-flow: #${n} cannot request ${record.host} exit; the session stays open. Exit it in the tab ${tab} when ready.`,
                 );
               }
               return false;
@@ -369,11 +380,11 @@ export async function main(argv: string[]): Promise<number> {
             const timer = setTimeout(() => {
               if (!abort.aborted)
                 console.error(
-                  `celetis-flow: #${n} ${record.host} did not exit within 10 seconds; the session stays open. Exit it in this pane when ready.`,
+                  `celetis-flow: #${n} ${record.host} did not exit within 10 seconds; the session stays open. Exit it in the tab ${tab} when ready.`,
                 );
             }, 10_000);
             try {
-              await ended;
+              await Promise.race([ended, halted]);
             } finally {
               clearTimeout(timer);
             }
@@ -389,50 +400,120 @@ export async function main(argv: string[]): Promise<number> {
       await pause(5000, undefined, { signal: abort }).catch(() => {});
     }
   };
-  const startSession = async (args: string[], sessionHost: Host) => {
-    if (sessionHost === 'codex')
-      args = [...(await (await import('./lib/plugin-metadata.ts')).codexSessionPin(main)), ...args];
-    watchDir = await mkdtemp(join(state, 'start.'));
-    session = spawn(
-      process.execPath,
-      bunArgs(import.meta.path, ['--session-start', watchDir, String(process.pid), sessionHost, ...args]),
-      {
-        cwd: main,
-        env: childEnv(sessionEnv(sessionHost, { ...process.env, CELETIS_AGENT: sessionHost })),
-        stdio: ['inherit', 'inherit', 'inherit'],
-      },
-    );
-    const ended = new Promise<number>((done) => {
-      session?.once('error', (error) => {
-        console.error(error.message);
-        done(1);
-      });
-      session?.once('exit', (code, signal) => done(code ?? (signal ? 128 + constants.signals[signal] : 1)));
-    });
-    await locks?.registerSession(session.pid);
-    if (signalStatus) {
-      session.kill('SIGTERM');
-      await ended;
-      session = undefined;
-      throw new HostError('', signalStatus);
+  const barrierOf = async (source: string) => {
+    let value: unknown;
+    try {
+      value = JSON.parse(source);
+    } catch {
+      return null;
     }
+    if (typeof value !== 'object' || value === null) return null;
+    const { pid, start } = value as Record<string, unknown>;
+    if (typeof pid !== 'number' || !Number.isSafeInteger(pid) || pid <= 0 || typeof start !== 'string' || !start)
+      return null;
+    const barrier = { pid, start };
+    return (await processState(pid, start)) === 'runs' && (await processRunsScript(pid, 'celetis-flow.ts'))
+      ? barrier
+      : null;
+  };
+  const closeFinished = async () => {
+    const id = finished;
+    finished = '';
+    if (id) await closeTerminal(id);
+  };
+  const closeUnreleased = async () => {
+    const id = unreleased;
+    unreleased = '';
+    if (id) await closeTerminal(id);
+  };
+  const closeTabs = async () => {
+    await closeUnreleased();
+    await closeFinished();
+  };
+  const startSession = async (n: string, step: Step, host: Host, args: string[], focus: boolean) => {
+    if (host === 'codex') args = [...(await (await import('./lib/plugin-metadata.ts')).codexSessionPin(main)), ...args];
+    const dir = await mkdtemp(join(state, 'start.'));
+    watchDir = dir;
+    tab = `#${n} ${step}`;
+    try {
+      terminal = await openTab({
+        repository: { main, common },
+        folder: main,
+        name: tab,
+        argv: [
+          // hc gives the tab the environment of its server, not of this runner.
+          ...(process.platform === 'win32' ? [] : ['env', 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0', 'DO_NOT_TRACK=1']),
+          process.execPath,
+          ...bunArgs(import.meta.path, ['--session-start', dir, String(process.pid), host, ...args]),
+        ],
+        focus,
+        keepShell: true,
+      });
+    } catch (error) {
+      if (!(error instanceof TerminalError)) throw error;
+      die(`#${n} cannot open the session tab: ${error.message}`);
+    }
+    unreleased = terminal;
+    await closeFinished();
+    const waited = performance.now();
+    let checked = waited;
+    let warned = false;
+    let source: string | null = null;
+    for (;;) {
+      if (signalStatus) throw new HostError('', signalStatus);
+      source = await readFile(join(dir, 'pid'), 'utf8').catch(() => null);
+      if (source !== null) break;
+      const now = performance.now();
+      if (now - checked >= 1000) {
+        checked = now;
+        if (!(await terminalLive(terminal)))
+          die(
+            `#${n} ${host} startup: the tab ${tab} ended before its start barrier reported; check the login files of $SHELL, then start the step again`,
+          );
+      }
+      if (!warned && now - waited >= 60_000) {
+        warned = true;
+        console.error(
+          `celetis-flow: #${n} ${host} startup: the start barrier of the tab ${tab} did not report after 60 seconds; waiting continues. Check the login files of $SHELL in that tab.`,
+        );
+      }
+      await rest(250);
+    }
+    const barrier =
+      (await barrierOf(source)) ??
+      die(`#${n} ${host} startup: the start barrier record of the tab ${tab} is not valid; start the step again`);
+    await locks?.registerSession(barrier.pid);
+    if (signalStatus) throw new HostError('', signalStatus);
+    const ended = (async (): Promise<number | null> => {
+      while (!halt.signal.aborted && (await processState(barrier.pid, barrier.start)) !== 'gone') await rest(500);
+      const status = await readFile(join(dir, 'status'), 'utf8').catch(() => '');
+      return /^\d+\n$/.test(status) ? Number(status) : null;
+    })();
     return { ended };
+  };
+  const releaseBarrier = async () => {
+    if (signalStatus) throw new HostError('', signalStatus);
+    await writeFile(join(watchDir, 'go'), '');
+    unreleased = '';
+  };
+  const sessionEnd = async (ended: Promise<number | null>) => {
+    const code = await Promise.race([ended, halted]);
+    if (!signalStatus) return code;
+    // The released barrier can still be waiting to read go in the start folder.
+    watchDir = '';
+    throw new HostError('', signalStatus);
+  };
+  const normalEnd = (code: number | null) => {
+    if (code === 0) finished = terminal;
   };
   type IssueOutcome = {
     kind: 'closed' | 'gate' | 'stopped';
     started: boolean;
     next: Next | null;
     last: Run | null;
-    exitCode: number;
+    exitCode: number | null;
     reason: string;
     act: string | null;
-  };
-  const finishSession = async () => {
-    if (session?.pid && session.exitCode === null && session.signalCode === null) {
-      session.kill('SIGTERM');
-      await new Promise<void>((done) => session?.once('exit', () => done()));
-    }
-    session = undefined;
   };
   const runIssue = async (
     n: string,
@@ -446,8 +527,8 @@ export async function main(argv: string[]): Promise<number> {
   ): Promise<IssueOutcome> => {
     let lastHost: Host = queue?.host ?? 'claude';
     let last: Run | null = queue?.last ?? null;
-    let started = false,
-      exitCode = 0;
+    let started = false;
+    let exitCode: number | null = 0;
     let resolved: Next | null = null;
     const outcome = (kind: IssueOutcome['kind'], reason: string, act: string | null = null): IssueOutcome => ({
       kind,
@@ -495,7 +576,7 @@ export async function main(argv: string[]): Promise<number> {
         if (last && !request?.retry && sameResult(next, last)) {
           if (exitCode !== 0)
             die(
-              `${lastHost} session exited with status ${exitCode} before issue progress; check startup output, then run ${manualRecovery(lastHost)} from the main checkout or start the step again`,
+              `${lastHost} session exited with status ${exitCode ?? 'unknown'} before issue progress; check startup output, then run ${manualRecovery(lastHost)} from the main checkout or start the step again`,
             );
           const reason = `no progress: ${prompt}`;
           say(reason);
@@ -534,7 +615,7 @@ export async function main(argv: string[]): Promise<number> {
           chosen,
         );
         say(startLine(prompt, chosen, source, applied, model));
-        const announced = managed && stepHost === 'claude' ? randomUUID() : '';
+        const announced = stepHost === 'claude' ? randomUUID() : '';
         const record: SessionRecord = {
           schema: 2,
           host: stepHost,
@@ -545,52 +626,54 @@ export async function main(argv: string[]): Promise<number> {
           effort: applied,
         };
         await writeSession(main, record);
-        const { ended } = await startSession(announced ? ['--session-id', announced, ...args] : args, stepHost);
+        const { ended } = await startSession(
+          n,
+          step,
+          stepHost,
+          announced ? ['--session-id', announced, ...args] : args,
+          !quiet,
+        );
         let watchError: unknown;
-        if (managed) {
-          stepEndIssue = Number(n);
-          stepEndOwner = { pid: process.pid, start: await processStart(process.pid) };
-          await publish(stepHost, 'checking', null);
-          await setLink(terminal, `#${n} ${step}`);
-          await renameTab(terminal, `#${n} ${step}`);
-          const startedMs = Date.now();
-          watcher = new AbortController();
-          watching = endWhenDone(n, next, record, announced, startedMs, ended, watcher.signal)
-            .then(async (exiting) => {
-              if (!exiting) await clearStepEnd();
-            })
-            .catch(async (error: unknown) => {
-              await clearStepEnd();
-              watchError = error;
-            });
-        }
+        stepEndIssue = Number(n);
+        stepEndOwner = { pid: process.pid, start: await processStart(process.pid) };
+        await publish(stepHost, 'checking', null);
+        const startedMs = Date.now();
+        watcher = new AbortController();
+        watching = endWhenDone(n, next, record, announced, startedMs, ended, watcher.signal)
+          .then(async (exiting) => {
+            if (!exiting) await clearStepEnd();
+          })
+          .catch(async (error: unknown) => {
+            await clearStepEnd();
+            watchError = error;
+          });
         await beforeStart?.(next);
         request = undefined;
         override = undefined;
         last = next;
         lastHost = stepHost;
-        await writeFile(join(watchDir, 'go'), '');
+        await releaseBarrier();
         started = true;
-        exitCode = await ended;
-        session = undefined;
+        exitCode = await sessionEnd(ended);
         watcher?.abort();
         await watching;
         watching = undefined;
         watcher = undefined;
-        if (managed) await setLink(terminal, null);
         await clearStepEnd();
         stepEndIssue = undefined;
         if (watchError !== undefined) throw watchError;
-        if (managed && (await readSession(main, Number(n))).session_id === null) {
+        if ((await readSession(main, Number(n))).session_id === null) {
           if (!(await stat(join(watchDir, 'error')).catch(() => null)))
             await startupError(
               Number(n),
               stepHost,
               'the session ended before a saved turn had a verified identity',
               terminal,
+              tab,
             );
           throw new HostError('', 1);
         }
+        normalEnd(exitCode);
         await rm(watchDir, { recursive: true, force: true });
         watchDir = '';
         if (signalStatus) throw new HostError('', signalStatus);
@@ -600,8 +683,7 @@ export async function main(argv: string[]): Promise<number> {
       await watching;
       await clearStepEnd();
       stepEndIssue = undefined;
-      await finishSession();
-      if (managed) await setLink(terminal, null);
+      await closeUnreleased();
       await locks?.release(`issue-${n}`);
     }
   };
@@ -661,32 +743,30 @@ export async function main(argv: string[]): Promise<number> {
     const host = operation.host;
     initial = mode === 'resume' || mode === 'queue' ? undefined : operation;
     if (mode !== 'queue') await requireStart(operation);
-    if (mode !== 'resume') {
-      if (!Bun.which('gh', { PATH: childEnv().PATH })) die('gh is not on PATH');
-      try {
-        terminal = (await ownTerminal()) ?? '';
-      } catch (error) {
-        if (!(error instanceof TerminalError)) throw error;
-        die(error.message);
-      }
-      managed = terminal !== '';
+    if (mode !== 'resume' && !Bun.which('gh', { PATH: childEnv().PATH })) die('gh is not on PATH');
+    try {
+      await requireTerminals();
+    } catch (error) {
+      if (!(error instanceof TerminalError)) throw error;
+      die(error.message);
     }
     await mkdir(state, { recursive: true });
     for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
       const handler = () => {
         signalStatus = 128 + constants.signals[signal];
         watcher?.abort();
+        halt.abort();
         void clearStepEnd();
       };
       handlers.set(signal, handler);
       process.on(signal, handler);
     }
     if (saved) {
-      const { ended } = await startSession(resumeArguments(saved), host);
-      await writeFile(join(watchDir, 'go'), '');
-      const code = await ended;
-      session = undefined;
-      return signalStatus || code;
+      const { ended } = await startSession(numbers[0] as string, saved.step, host, resumeArguments(saved), true);
+      await releaseBarrier();
+      const code = await sessionEnd(ended);
+      normalEnd(code);
+      return signalStatus || (code ?? 1);
     }
     if (mode === 'numbers') {
       await runIssue(numbers[0] as string, 'any', undefined, undefined, override);
@@ -786,7 +866,7 @@ export async function main(argv: string[]): Promise<number> {
           ? error.message
           : String(error);
       if (queueWritable && !storageFailed) {
-        await finishSession();
+        await closeTabs();
         try {
           await saveQueue({
             state: 'error',
@@ -812,7 +892,7 @@ export async function main(argv: string[]): Promise<number> {
   } finally {
     watcher?.abort();
     await watching;
-    await finishSession();
+    await closeTabs();
     if (watchDir) await rm(watchDir, { recursive: true, force: true });
     await clearStepEnd();
     await locks?.releaseAll();
@@ -822,16 +902,37 @@ export async function main(argv: string[]): Promise<number> {
 
 async function waitingSession(args: string[]): Promise<number> {
   const [dir, runner, host, ...hostArgs] = args;
-  if (!dir || !runner || (host !== 'claude' && host !== 'codex')) return 2;
+  if (!dir || !isAbsolute(dir) || !/^[1-9][0-9]*$/.test(runner ?? '') || (host !== 'claude' && host !== 'codex'))
+    return 2;
+  const { HostError } = await import('./lib/host.ts');
+  const { codexHome } = await import('./lib/plugin-metadata.ts');
   const { childEnv } = await import('./lib/process.ts');
-  const { processRuns } = await import('./lib/process-identity.ts');
+  const { processRuns, processStart } = await import('./lib/process-identity.ts');
+  const { sessionEnv } = await import('./lib/session.ts');
+  const { spawnConsumer } = await import('./lib/update-lock.ts');
+  const record = async (name: string, value: string) => {
+    const temp = join(dir, `.${name}.${randomUUID()}`);
+    await writeFile(temp, value, { mode: 0o600, flag: 'wx' });
+    await rename(temp, join(dir, name));
+  };
+  await record('pid', `${JSON.stringify({ pid: process.pid, start: await processStart(process.pid) })}\n`);
   while (!(await stat(join(dir, 'go')).catch(() => null))?.isFile()) {
     if (!(await processRuns(Number(runner)))) return 1;
     await Bun.sleep(50);
   }
-  const executable = Bun.which(host, { PATH: childEnv().PATH });
-  if (!executable) return 1;
-  return (await import('./lib/update-lock.ts')).execConsumer(executable, [executable, ...hostArgs], childEnv());
+  let code = 1;
+  try {
+    const env = childEnv(sessionEnv(host, { ...process.env, CELETIS_AGENT: host }));
+    if (host === 'codex') env.CODEX_HOME = await codexHome();
+    const executable = Bun.which(host, { PATH: env.PATH });
+    if (!executable) throw new HostError(`celetis: ${host} is not on PATH`);
+    code = await spawnConsumer(executable, [executable, ...hostArgs], env);
+  } catch (error) {
+    if (!(error instanceof HostError)) throw error;
+    console.error(error.message);
+  }
+  await record('status', `${code}\n`).catch(() => {});
+  return code;
 }
 
 if (import.meta.main)

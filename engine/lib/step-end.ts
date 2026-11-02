@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import type { Host } from './config-core.ts';
 import { commonDir } from './host.ts';
 import type { Next } from './lines.ts';
-import { processRuns, processRunsScript, processStart } from './process-identity.ts';
+import { processRunsScript, processState } from './process-identity.ts';
 import { isSafeId } from './terminal.ts';
 
 export type StepEndState = 'checking' | 'waiting' | 'exiting';
@@ -82,12 +82,7 @@ export async function readStepEnd(main: string, issue: number): Promise<StepEndR
     }
     if (!valid(record)) return null;
     const { pid, start } = record.runner;
-    if (
-      !(await processRunsScript(pid, 'celetis-flow.ts')) ||
-      !(await processRuns(pid)) ||
-      (await processStart(pid)) !== start
-    )
-      return null;
+    if (!(await processRunsScript(pid, 'celetis-flow.ts')) || (await processState(pid, start)) !== 'runs') return null;
     return record;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
