@@ -160,7 +160,7 @@ export async function main(argv: string[]): Promise<number> {
   const { describe } = await import('./lib/lines.ts');
   const { bunArgs, childEnv } = await import('./lib/process.ts');
   const { processStart } = await import('./lib/process-identity.ts');
-  const { removeStepEnd, writeStepEnd } = await import('./lib/step-end.ts');
+  const { removeStepEnd, verdictOf, writeStepEnd } = await import('./lib/step-end.ts');
   const {
     codexClaim,
     codexPrompt,
@@ -354,7 +354,8 @@ export async function main(argv: string[]): Promise<number> {
           if (!(await publish(record.host, 'checking', current.turn))) return false;
           if (current.idle) continue;
         } else if (!abort.aborted) {
-          if (changed) {
+          const verdict = verdictOf(first, changed);
+          if (verdict === 'exiting') {
             if (!(await publish(record.host, 'exiting', turn))) return false;
             if (!(await requestExit(terminal, record.host, abort))) {
               if (!abort.aborted) {
@@ -378,8 +379,8 @@ export async function main(argv: string[]): Promise<number> {
             }
             return true;
           }
-          if (!(await publish(record.host, 'waiting', turn))) return false;
-          retained = turn;
+          if (!(await publish(record.host, verdict, turn))) return false;
+          retained = verdict === 'waiting' ? turn : null;
         }
       } else {
         retained = null;

@@ -3,6 +3,7 @@ import { mkdir, open, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Host } from './config-core.ts';
 import { commonDir } from './host.ts';
+import type { Next } from './lines.ts';
 import { processRuns, processRunsScript, processStart } from './process-identity.ts';
 import { isSafeId } from './terminal.ts';
 
@@ -15,6 +16,11 @@ export type StepEndRecord = {
   state: StepEndState;
   turn: TurnKey | null;
 };
+
+export function verdictOf(first: Next, changed: boolean): StepEndState {
+  if (changed) return 'exiting';
+  return first.kind === 'observed' && first.reason === 'landing' ? 'checking' : 'waiting';
+}
 
 const uuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const object = (value: unknown): value is Record<string, unknown> =>

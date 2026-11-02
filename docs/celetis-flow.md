@@ -399,8 +399,10 @@ exiting, exit the session in its pane when ready.
 
 The managed runner publishes its completion disposition before it releases the foreground's
 start barrier. The private file is `<git common dir>/celetis-flow/step-end/<issue>.json`.
-`checking` means that the current turn has no retained verdict. `waiting` records an idle turn
-that stays open. `exiting` lasts from the successful exit check until the foreground exits.
+`checking` means that the current turn has no retained verdict. A resolver read of a landing that
+runs also keeps `checking`, because the decision is pending until the landing ends; the runner
+reads again at the next check. `waiting` records an idle turn that stays open after a complete
+decision. `exiting` lasts from the successful exit check until the foreground exits.
 The record binds the runner PID and process start to the hc terminal and host. A turn binds the
 terminal ID, the verified session UUID, and the hc `turn`. hc increases `turn` each time the status
 leaves `working`, so a change between `idle`, `done`, and `error` keeps the turn key.
