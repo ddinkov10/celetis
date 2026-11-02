@@ -1,61 +1,39 @@
+import { basename } from 'node:path';
+import { LINK } from '../lib/terminal.ts';
+import type { Terminal, TerminalStatus } from '../lib/terminal-types.ts';
 import type { Card, Column, Columns, Document, Flow, Issue, Placement, Session } from './types.ts';
-
-type Snapshot = {
-  tabs: { tab_id: string; label?: string }[];
-  agents: {
-    terminal_id: string;
-    pane_id?: string;
-    tab_id: string;
-    agent?: string;
-    agent_status: string;
-    agent_session?: { kind?: string; agent?: string; value?: string } | null;
-    state_change_seq?: number;
-    cwd: string;
-    foreground_cwd?: string;
-  }[];
-};
-
 import { gateOf } from './view.ts';
 
 const LABEL = /^#([1-9][0-9]*)(?: ([a-z]+))?/;
-const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+const RUNNER = 'celetis-flow.ts';
 
 const time = (iso: string) => Date.parse(iso);
 
 export const stepsOf = (flow: Flow | null | undefined): Set<string> => new Set(Object.values(flow?.lanes ?? {}).flat());
 
-export const sessionsOf = (snapshot: Snapshot, isHere: (path: string) => boolean, steps: Set<string>): Session[] => {
-  const labels = new Map(snapshot.tabs.map((tab) => [tab.tab_id, tab.label]));
-  return snapshot.agents
-    .filter((agent) => isHere(agent.foreground_cwd ?? agent.cwd))
-    .map((agent) => {
-      const label = labels.get(agent.tab_id) ?? '';
-      const [, issue, step] = LABEL.exec(label) ?? [];
-      return {
-        sessionId: agent.terminal_id,
-        paneId: agent.pane_id,
-        agent: agent.agent ?? null,
-        status: agent.agent_status,
-        agentSessionId:
-          (agent.agent === 'claude' || agent.agent === 'codex') &&
-          agent.agent_session?.kind === 'id' &&
-          agent.agent_session.agent === agent.agent &&
-          typeof agent.agent_session.value === 'string' &&
-          UUID.test(agent.agent_session.value)
-            ? agent.agent_session.value
-            : null,
-        stateChangeSeq:
-          Number.isSafeInteger(agent.state_change_seq) && Number(agent.state_change_seq) >= 0
-            ? (agent.state_change_seq as number)
-            : null,
+export const sessionsOf = (terminals: Terminal[], isHere: (path: string) => boolean, steps: Set<string>): Session[] =>
+  terminals.flatMap(({ id, host, status, turn, labels, cwd, foreground, tab }) => {
+    const link = labels[LINK] ?? '';
+    const words = foreground ?? [];
+    const isHost = basename(words[0] ?? '').replace(/\.exe$/, '') === host;
+    const runner = words.findIndex((word) => basename(word) === RUNNER);
+    const isRunner = runner >= 0 && (link !== '' || words.slice(runner + 1).includes('--resume'));
+    if (!isHere(cwd) || host === null || status === null || !(isHost || isRunner)) return [];
+    const [, issue, step = ''] = LABEL.exec(link) ?? [];
+    return [
+      {
+        sessionId: id,
+        agent: host,
+        status,
+        turn,
         stepEnd: null,
         issue: issue ? Number(issue) : null,
-        step: steps.has(step as string) ? (step as string) : null,
-        label,
-        cwd: agent.foreground_cwd ?? agent.cwd,
-      };
-    });
-};
+        step: steps.has(step) ? step : null,
+        label: link || (tab ?? ''),
+        cwd,
+      },
+    ];
+  });
 
 export const launchMatches = (issue: Issue | undefined, step: string | null) =>
   issue?.step === step &&
@@ -100,22 +78,20 @@ const PLACERS: Record<Issue['state'], (issue: Issue, context: { flow: Flow; isOp
   ],
 };
 
-const STATUSES: Record<string, [Column, string, string | null]> = {
+const STATUSES: Record<TerminalStatus, [Column, string, string | null]> = {
   working: ['running', 'works', null],
-  unknown: ['running', 'unknown', null],
   blocked: ['needs', 'waits', 'dialog'],
   idle: ['needs', 'waits', 'turn'],
   done: ['needs', 'waits', 'turn'],
+  error: ['needs', 'waits', 'turn'],
 };
 
 const placeSession = (session: Session, issue: Issue | undefined): [Column, Card] => {
-  const checking =
-    ['idle', 'done'].includes(session.status) && (session.stepEnd === 'checking' || session.stepEnd === 'exiting');
-  const [column, state, waitFor] = checking
-    ? (['running', 'checks-step', null] as const)
-    : Object.hasOwn(STATUSES, session.status)
-      ? (STATUSES[session.status] as [Column, string, string | null])
-      : (STATUSES.unknown as [Column, string, string | null]);
+  const status = STATUSES[session.status];
+  const [column, state, waitFor] =
+    status[2] === 'turn' && (session.stepEnd === 'checking' || session.stepEnd === 'exiting')
+      ? (['running', 'checks-step', null] as const)
+      : status;
   return [
     session.issue === null ? 'human' : column,
     {

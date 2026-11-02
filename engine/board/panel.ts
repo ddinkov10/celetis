@@ -10,7 +10,6 @@ const TONES: Record<string, string> = {
   starts: 'working',
   'no-progress': 'danger',
   'dirty-tree': 'amber',
-  unknown: 'muted',
 };
 const PILL_ICONS: Record<string, string> = {
   works: 'works',
@@ -19,7 +18,6 @@ const PILL_ICONS: Record<string, string> = {
   'no-progress': 'alert',
   'dirty-tree': 'diff',
   blocked: 'person',
-  unknown: 'pending',
 };
 const ASKS: Record<string, [string, string]> = {
   dialog: ['question', 'waits for your answer'],

@@ -90,8 +90,11 @@ controls and applies only that skill's custom text.
 - Superpowers, installed and enabled on the selected host: the lanes call its `superpowers:*` skills.
 - For a look decision and a visual bug: `gh` 2.99.0 or later on github.com, and the capture tool of
   the platform row (`docs/procedures/ui.md`, "Captures").
-- herdr 0.9.3, for the step end of the runner and for the board. In another terminal the
-  runner works too, but you leave each session with `/exit`.
+- On macOS, herdr-core 0.1.16 (`hc`) and its server, for the step end of the runner and for the
+  board, and the Herdr app 0.1.11 (`herdr-app`), for the tabs (ADR-0058). The host reports its
+  status to herdr-core with OSC 7501 and needs no integration: Claude Code since 2.1.295, and Codex
+  0.166.0. A host release that reports no status gets no step end and no session card. In another
+  terminal the runner works too, but you leave each session with `/exit`.
 - For the board: a Chromium browser.
 
 `docs/celetis-flow.md` gives each requirement in full ("Requirements", and "The board").
@@ -438,10 +441,8 @@ runtime allowlist to each `capscore` call and each `dispatch` act that issues a 
 A CLI catalog does not establish desktop dispatch support.
 A missing pair or a tool that cannot apply the required pair stops the dependent work.
 
-For herdr, run `herdr integration status` in the same host configuration used by the runner.
-Use `herdr integration install codex` for the Codex integration; it honors `CODEX_HOME`.
-Inspect the installed hook and complete the host's normal trust flow. A current integration alone does not prove that
-a model session can start. The runner reports startup dialogs and leaves them for the human.
+Complete the host's normal trust flow before a run. The runner reports startup dialogs and leaves
+them for the human.
 
 ### The config, the worktree setup, and the custom parts
 
@@ -858,7 +859,7 @@ new interactive session, in the terminal tab where you start it. For each step, 
    `-c model_reasoning_effort="<level>"` after a clamp to the levels of its model. The level is the
    override of this start when there is one, else the decision of the step before, else `high`
    (`docs/celetis-flow.md`, "Start the script", "The effort level");
-4. in a herdr pane, ends the session when the issue shows that the step is done.
+4. in an hc terminal of herdr-core, ends the session when the issue shows that the step is done.
 
 The runner starts at an issue: write one with `/celetis:intake`, or open one on GitHub. Then, for
 the feature `#12`:
@@ -1131,7 +1132,7 @@ revision. When they differ, it starts no session and prints
 `--resume` has no such check. So a host that updates its plugin by itself stops each new runner
 step until `celetis update`. The check reads the Git source of the plugin, so an installation
 whose marketplace source is not Git, such as a local Codex marketplace, cannot start a new runner
-step. The board types the command of the installed program at each press, so after
+step. The board starts the command of the installed program at each press, so after
 `celetis update` its next Run starts the new program.
 
 The program runs the updater of its own version folder. When the program is broken or missing,
@@ -1204,43 +1205,47 @@ The `agents` entries of the data report executable availability for Claude and C
 trust, and enabled plugin discovery need their own checks. At each Run, Resume, or Open agent
 press, the fixed adapter `engine/board/adapter.ts` reads the installed program. `<command>` is its command:
 `<base>/.local/bin/celetis`, or `<base>\.local\bin\celetis.cmd` on Windows ("First install"). A
-Run press types this line, with the selected agent, into a new herdr tab:
+Run press starts this argv, with the selected agent, in a new quiet tab of the Herdr app:
 
 ```text
-'<command>' '--agent' '<agent>' 'celetis-flow' <n> && exit
+<command> --agent <agent> celetis-flow <n>
 ```
 
 With no explicit choice, it uses `defaultAgent`: `CELETIS_AGENT`, then `host` in the main
 YAML, then `claude`. Set the project default in that YAML field. A Run choice changes only that
 start. The board's default-agent menu and command palette show `Default agent is read-only`.
 They show the reason: `The main .celetis.yaml controls the default agent. Change host there.`
-Unknown or unavailable Run choices return 409 and start no agent. A Resume press types this line.
-The runner uses the host and the exact session ID of the saved record, even after the YAML default
-changes:
+Unknown or unavailable Run choices return 409 and start no agent. A Resume press starts this argv
+in a focused tab. The runner uses the host and the exact session ID of the saved record, even
+after the YAML default changes:
 
 ```text
-'<command>' 'celetis-flow' '--resume' <n> && exit
+<command> celetis-flow --resume <n>
 ```
 
 Open agent uses the current default agent without an agent choice. It opens and focuses a
-`#<n> assist` tab in the main checkout, with this line:
+`#<n> assist` tab in the main checkout, with this argv:
 
 ```text
-'<command>' '--agent' '<agent>' 'assist' <n> && exit
+<command> --agent <agent> assist <n>
 ```
 
-Switch to your terminal to use the session. Starting prevents another press; the detected session
-then has Go. A failed start keeps a retry. After 30 seconds without detection, check the terminal
+Switch to the Herdr app window to use the session. Starting prevents another press; the detected
+session then has Go. A failed start keeps a retry. After 30 seconds without detection, check the terminal
 before starting again. An unavailable default agent or `noRun` disables Open agent with its cause.
 The server reads the issue again and refuses assistance if it is no longer blocked or has a
 live session.
 
-On Windows, these lines are for Windows PowerShell 5.1, the default pane shell of herdr: each line
-starts with `&` and ends with `; if ($?) { exit }`. The program supplies Bun and its isolation
-flags. Each press reads the program again, so after `celetis update` the next press starts the
-new program with no board restart; new board code still needs a restart. A missing or foreign
-program returns 409 before tab creation or pane execution. Read-only herdr status calls can
-precede that failure.
+Each item of an argv is one argument, and no shell reads it as a line. On macOS and Linux, the
+tab starts the argv in a login shell of `$SHELL`; the tab closes when the program exits 0, and a
+failed program leaves its message there. On Windows, the board passes the argv with no shell (not
+checked). When the space of the repository does not exist in the Herdr app, the first press makes
+it and shows it, also for a quiet Run. The app starts the first tab of that space through its own
+login shell, so that tab keeps a shell after the step. Each later press is quiet. The program
+supplies Bun and its isolation flags. Each press reads the program again, so after
+`celetis update` the next press starts the new program with no board restart; new board code still
+needs a restart. A missing or foreign program returns 409 before any terminal starts.
+Read-only `hc` calls can precede that failure.
 
 Queue opens a dedicated view with current work above Up next. The available-issue picker sits
 beside waiting work on desktop and below it on a phone. Add saves and starts an empty queue;
@@ -1264,7 +1269,7 @@ older evidence, and a later revert can undo a listed change. History shares the 
 and timeout. A read error keeps the last good cards and history and shows the error; recovery
 clears it. Loading and successful empty history have separate messages.
 
-`docs/celetis-flow.md`, "The board", gives the data, the fixed lines, and the card states.
+`docs/celetis-flow.md`, "The board", gives the data, the fixed argvs, and the card states.
 [`engine/board/README.md`](engine/board/README.md) describes the page.
 Open work may stay open. Required CLI workflow
 acceptance remains open; optional desktop evidence is separate in

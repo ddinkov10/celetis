@@ -7,8 +7,7 @@ var TONES = {
   works: "working",
   starts: "working",
   "no-progress": "danger",
-  "dirty-tree": "amber",
-  unknown: "muted"
+  "dirty-tree": "amber"
 };
 var PILL_ICONS = {
   works: "works",
@@ -16,8 +15,7 @@ var PILL_ICONS = {
   waits: "target",
   "no-progress": "alert",
   "dirty-tree": "diff",
-  blocked: "person",
-  unknown: "pending"
+  blocked: "person"
 };
 var ASKS = {
   dialog: ["question", "waits for your answer"],

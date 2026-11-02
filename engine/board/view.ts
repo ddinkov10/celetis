@@ -31,7 +31,6 @@ export const GROUPS = [
 export const STATES: Record<string, string> = {
   works: 'works',
   waits: 'waits for you',
-  unknown: 'state unknown',
   starts: 'Starting',
   'checks-step': 'checks step',
   'dirty-tree': 'dirty tree',

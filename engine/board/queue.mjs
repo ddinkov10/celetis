@@ -103,7 +103,7 @@ var stateOf = () => {
     return "me-gate";
   if (record.state === "error" || submitted?.error && !submitted.owner)
     return "error";
-  const observed = cards().some((card) => card.number === record.numbers[0] && card.sessionId && card.step === record.current?.step && !["starts", "unknown"].includes(card.state ?? "unknown"));
+  const observed = cards().some((card) => card.number === record.numbers[0] && card.sessionId && card.step === record.current?.step && card.state !== null && card.state !== "starts");
   return record.state === "running" && observed ? "running" : "starting";
 };
 var row = (number, index, numbers) => {

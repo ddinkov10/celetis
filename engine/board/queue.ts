@@ -106,7 +106,8 @@ const stateOf = () => {
       card.number === record.numbers[0] &&
       card.sessionId &&
       card.step === record.current?.step &&
-      !['starts', 'unknown'].includes(card.state ?? 'unknown'),
+      card.state !== null &&
+      card.state !== 'starts',
   );
   return record.state === 'running' && observed ? 'running' : 'starting';
 };

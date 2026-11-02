@@ -848,9 +848,6 @@ a.num:hover {
   background: var(--working);
   opacity: 0.6;
 }
-.card[data-state="unknown"] .seg.now {
-  background: var(--fg3);
-}
 
 .act {
   margin: 0;
@@ -1097,12 +1094,6 @@ a.chip2:hover {
 }
 .card[data-state="no-progress"] .status {
   color: var(--danger);
-}
-.card[data-state="unknown"] .status {
-  color: var(--fg3);
-}
-.card[data-state="unknown"] .title {
-  color: var(--fg2);
 }
 .card[data-state="starts"] .status .icon,
 .panel[data-state="starts"] .pill .icon {
@@ -1645,9 +1636,6 @@ a.chip2:hover {
 }
 .panel[data-state="dirty-tree"] .steps .now .node {
   color: var(--amber);
-}
-.panel[data-state="unknown"] .steps .now .node {
-  color: var(--fg3);
 }
 .steps .now .node .track {
   opacity: 0.3;

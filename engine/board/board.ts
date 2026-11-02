@@ -51,7 +51,7 @@ const SUMMARY: [Column | 'history', string][] = [
 ];
 const COPY: Record<string, string> = { 'no-progress': 'command', 'dirty-tree': 'path' };
 const ON_ISSUE = new Set(['blocked']);
-const LIVE = new Set(['works', 'waits', 'unknown']);
+const LIVE = new Set(['works', 'waits']);
 const GATES: Record<string, string> = {
   me: 'This step starts only when you press Run',
   auto: 'The automatic runner starts this step by itself',
@@ -60,7 +60,6 @@ const STATUS_ICONS: Record<string, string> = {
   works: 'works',
   starts: 'works',
   waits: 'target',
-  unknown: 'pending',
   'no-progress': 'alert',
   'dirty-tree': 'diff',
   blocked: 'person',
@@ -999,15 +998,12 @@ const drawStatus = (source: Board['source'], isDown: boolean) => {
   fresh.dataset.tone = state;
   fresh.title = source.readAt ? `${name} was read at ${new Date(source.readAt).toLocaleTimeString()}` : '';
   fresh.replaceChildren(el('i', 'dot'), el('span', 'sb-name', name), text);
-  const herdr = data?.herdr;
-  const herdrNode = $('herdr');
-  herdrNode.dataset.tone = herdr?.ok === true ? 'ok' : herdr?.ok === false ? 'fail' : 'wait';
-  herdrNode.title = herdr?.error ? `herdr: ${herdr.error}` : 'Run and Go use herdr';
-  herdrNode.replaceChildren(
-    el('i', 'dot'),
-    el('span', 'sb-name', 'herdr'),
-    el('span', 'sb-text', herdr?.ok === true ? 'up' : herdr?.ok === false ? 'down' : 'checking'),
-  );
+  const terminal = data?.terminal;
+  const terminalNode = $('terminal');
+  terminalNode.dataset.tone = terminal?.ok === true ? 'ok' : terminal?.ok === false ? 'fail' : 'wait';
+  terminalNode.title = terminal?.error ? `herdr: ${terminal.error}` : 'Run and Go use herdr';
+  (terminalNode.querySelector('.sb-text') as HTMLElement).textContent =
+    terminal?.ok === true ? 'up' : terminal?.ok === false ? 'down' : 'checking';
   const runner = $('runner');
   runner.hidden = data?.runner === null || data?.runner === undefined;
   runner.dataset.tone = data?.runner ? 'ok' : 'off';

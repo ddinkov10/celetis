@@ -4,12 +4,13 @@ import { join } from 'node:path';
 import type { Host } from './config-core.ts';
 import { commonDir } from './host.ts';
 import { processRuns, processRunsScript, processStart } from './process-identity.ts';
+import { isSafeId } from './terminal.ts';
 
 export type StepEndState = 'checking' | 'waiting' | 'exiting';
 export type TurnKey = { terminalId: string; sessionId: string; sequence: number };
 export type StepEndRecord = {
   runner: { pid: number; start: string };
-  pane: string;
+  terminal: string;
   host: Host;
   state: StepEndState;
   turn: TurnKey | null;
@@ -23,15 +24,14 @@ const valid = (value: unknown): value is StepEndRecord => {
   if (!object(value)) return false;
   const { runner, turn } = value;
   return (
-    keys(value, 'host,pane,runner,state,turn') &&
+    keys(value, 'host,runner,state,terminal,turn') &&
     object(runner) &&
     keys(runner, 'pid,start') &&
     Number.isSafeInteger(runner.pid) &&
     Number(runner.pid) > 0 &&
     typeof runner.start === 'string' &&
     runner.start.length > 0 &&
-    typeof value.pane === 'string' &&
-    /^w[A-Za-z0-9]+:p[A-Za-z0-9]+$/.test(value.pane) &&
+    isSafeId(value.terminal) &&
     (value.host === 'claude' || value.host === 'codex') &&
     (value.state === 'checking' || value.state === 'waiting' || value.state === 'exiting') &&
     ((turn === null && value.state === 'checking') ||

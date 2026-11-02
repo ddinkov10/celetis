@@ -1,6 +1,7 @@
 import type { Host } from '../lib/config-core.ts';
 import type { Effort } from '../lib/effort.ts';
 import type { QueueView, QueueWake } from '../lib/queue-types.ts';
+import type { TerminalStatus } from '../lib/terminal-types.ts';
 import type { UpdateStage } from '../lib/update-types.ts';
 
 export type { UpdateStage };
@@ -80,11 +81,9 @@ export type Document = {
 };
 export type Session = {
   sessionId: string;
-  paneId?: string | null;
-  agent: string | null;
-  status: string;
-  agentSessionId: string | null;
-  stateChangeSeq: number | null;
+  agent: Host;
+  status: TerminalStatus;
+  turn: number;
   stepEnd: 'checking' | 'waiting' | 'exiting' | null;
   issue: number | null;
   step: string | null;
@@ -131,7 +130,7 @@ export type Board = Placement & {
   agents: Document['agents'] | null;
   defaultAgent: string | null;
   queue: QueueView | null;
-  herdr: { ok: boolean | null; error: string | null };
+  terminal: { ok: boolean | null; error: string | null };
   source: { readAt: string | null; error: string | null };
   repo: string;
 };

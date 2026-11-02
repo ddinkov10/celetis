@@ -69,7 +69,7 @@ var SUMMARY = [
 ];
 var COPY = { "no-progress": "command", "dirty-tree": "path" };
 var ON_ISSUE = new Set(["blocked"]);
-var LIVE = new Set(["works", "waits", "unknown"]);
+var LIVE = new Set(["works", "waits"]);
 var GATES = {
   me: "This step starts only when you press Run",
   auto: "The automatic runner starts this step by itself"
@@ -78,7 +78,6 @@ var STATUS_ICONS = {
   works: "works",
   starts: "works",
   waits: "target",
-  unknown: "pending",
   "no-progress": "alert",
   "dirty-tree": "diff",
   blocked: "person"
@@ -910,11 +909,11 @@ var drawStatus = (source, isDown) => {
   fresh.dataset.tone = state;
   fresh.title = source.readAt ? `${name} was read at ${new Date(source.readAt).toLocaleTimeString()}` : "";
   fresh.replaceChildren(el("i", "dot"), el("span", "sb-name", name), text);
-  const herdr = data?.herdr;
-  const herdrNode = $("herdr");
-  herdrNode.dataset.tone = herdr?.ok === true ? "ok" : herdr?.ok === false ? "fail" : "wait";
-  herdrNode.title = herdr?.error ? `herdr: ${herdr.error}` : "Run and Go use herdr";
-  herdrNode.replaceChildren(el("i", "dot"), el("span", "sb-name", "herdr"), el("span", "sb-text", herdr?.ok === true ? "up" : herdr?.ok === false ? "down" : "checking"));
+  const terminal = data?.terminal;
+  const terminalNode = $("terminal");
+  terminalNode.dataset.tone = terminal?.ok === true ? "ok" : terminal?.ok === false ? "fail" : "wait";
+  terminalNode.title = terminal?.error ? `herdr: ${terminal.error}` : "Run and Go use herdr";
+  terminalNode.querySelector(".sb-text").textContent = terminal?.ok === true ? "up" : terminal?.ok === false ? "down" : "checking";
   const runner = $("runner");
   runner.hidden = data?.runner === null || data?.runner === undefined;
   runner.dataset.tone = data?.runner ? "ok" : "off";

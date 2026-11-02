@@ -2,20 +2,21 @@
 
 `celetis --agent <host> celetis-flow` runs the celetis flow from a Terminal tab. It asks the resolver for
 the next step of an issue and starts that step in a new interactive Claude or Codex session in
-its tab. In a herdr pane, the script ends the session when the step is done, and starts the next step
-when its gate is `auto`. The GitHub issue stays the state store (`docs/issue-tracker.md`): every
-result of a step goes to the issue. The board is a local web page that shows each agent session and
-the next step of each issue, and its Run button starts the script for one issue in a new herdr tab.
-The board is `engine/board/` of the plugin: a product project, a repository that uses the plugin
-`celetis`, holds its config, and the plugin holds the board, which reads its data in its own
-process. ADR-0002 holds the reasons for the script, ADR-0003 holds the reasons for the board,
-ADR-0005 holds the reasons why herdr, not a mod, gives the session state and ends a step, and
-ADR-0007 holds the reasons why `specify` is a step of the script. ADR-0008 holds the reasons why the
-build step lands the change, ADR-0020 holds the reasons why the board is a part of the plugin, and
-ADR-0035 holds the reasons why the board reads its data with the engine and types two fixed lines.
-ADR-0011 holds the reasons why a step session hands a stop to the issue, ADR-0033 holds the
-reasons for the one definition of the workflow and for the skip rule, and ADR-0038 holds the
-reasons why a `bug` session hands on to `plan` in that rule.
+its tab. In an hc terminal of herdr-core, the script ends the session when the step is done, and
+starts the next step when its gate is `auto`. The GitHub issue stays the state store
+(`docs/issue-tracker.md`): every result of a step goes to the issue. The board is a local web page
+that shows each agent session and the next step of each issue, and its Run button starts the
+script for one issue in a new tab of the Herdr app. The board is `engine/board/` of the plugin: a
+product project, a repository that uses the plugin `celetis`, holds its config, and the plugin holds
+the board, which reads its data in its own process. ADR-0002 holds the reasons for the script,
+ADR-0003 holds the reasons for the board, ADR-0005 holds the reasons why the terminal program, not a
+mod, gives the session state and ends a step, ADR-0058 holds the reasons why herdr-core and the
+Herdr app are that program, and ADR-0007 holds the reasons why `specify` is a step of the script.
+ADR-0008 holds the reasons why the build step lands the change, ADR-0020 holds the reasons why the
+board is a part of the plugin, and ADR-0035 holds the reasons why the board reads its data with the
+engine and starts fixed commands. ADR-0011 holds the reasons why a step session hands a stop to the
+issue, ADR-0033 holds the reasons for the one definition of the workflow and for the skip rule, and
+ADR-0038 holds the reasons why a `bug` session hands on to `plan` in that rule.
 
 `engine/lib/workflow.ts` of the plugin is the one definition of the workflow: the lanes, with the
 label, the branch prefix, and the steps in order of each lane; the stages; the command of each step;
@@ -67,10 +68,13 @@ of the product project, apart from a path that starts with `~/` or `/`.
   `celetis --agent <host> land` moves the trunk of the main checkout after each landing. After a merge by
   other means, or after its line `land: the main checkout did not move`, run `git pull` in the
   main checkout.
-- herdr 0.9.3, with the selected host's integration installed in its active configuration.
-  Use `herdr integration status`; complete normal folder and inspected-hook trust before a run.
-  The runner never answers those prompts. It ends a session only in a herdr pane. In another
-  terminal you leave each session with `/exit`, and exact runner resume has no observed identity.
+- herdr-core 0.1.16 (`hc`) and its running server, for the step end. When the window of the Herdr
+  app 0.1.11 (`herdr-app`) is open, the runner names the tab of each step there. The support
+  target is macOS ([ADR-0058](adr/0058-herdr-core-hosts-the-agent-terminals.md)). The host reports
+  its status with OSC 7501 and needs no integration: Claude Code since 2.1.295, and Codex 0.166.0.
+  Complete the normal folder trust of the host before a run. The runner never answers that
+  prompt. It ends a session only in an hc terminal. In another terminal you leave each session
+  with `/exit`, and exact runner resume has no verified identity.
 - Superpowers installed and enabled on the selected host. The README holds its setup for each
   host. A missing required `superpowers:*` skill stops the lane.
 - For Codex children with model tiers, the profile and current runtime allowlist from
@@ -261,7 +265,7 @@ claude \
   '/celetis:plan #402'
 ```
 
-In a herdr pane, the runner puts `--session-id <uuid>` before these arguments ("The step end").
+In an hc terminal, the runner puts `--session-id <uuid>` before these arguments ("The step end").
 `--effort` gives the chosen level ("Start the script", "The effort level"). The runner removes
 `CLAUDE_CODE_EFFORT_LEVEL` from the environment of each Claude session that it starts or resumes,
 because that variable outranks `--effort`.
@@ -340,32 +344,43 @@ its updater mutex and deadline, and native cache replacement. Sessions may remai
 session loads updated skills and tools. A runner restart alone updates nothing; after
 `celetis update`, a new start runs the new program.
 
-**The step end.** In a herdr pane (`HERDR_ENV=1` and a valid `HERDR_PANE_ID`), the script names its
-tab `#<n> <step>` with `herdr tab rename "$HERDR_TAB_ID"`, so the
-board links the session to the issue. It also starts a job in the background that ends the session:
+**The step end.** In a terminal of herdr-core 0.1.16 (an hc terminal: `HC_TERMINAL_ID` holds a safe
+terminal ID, and `hc` is on `PATH`), the script ends each step session by itself
+([ADR-0058](adr/0058-herdr-core-hosts-the-agent-terminals.md)). An
+`HC_TERMINAL_ID` that is not a safe ID stops the script before it reads an issue, with
+`celetis-flow: HC_TERMINAL_ID needs a safe terminal id; start from an hc terminal`; with no `hc`
+on `PATH`, the line is `celetis-flow: hc is not on PATH`. When each step
+starts, the script sets the label `celetis.link` of its terminal to `#<n> <step>` (`hc label`), so
+the board links the session to the issue. Then it names the tab of its terminal `#<n> <step>` in
+the Herdr app 0.1.11 (`herdr-app do tab.rename`). With no app window, or with no tab for the
+terminal, it renames no tab, and the label still links the session. It also starts a job in the
+background that ends the session:
 
-1. The script starts each Claude step with a new session ID (`--session-id`). Before the session
-   starts, it reports that ID to herdr for its pane with `herdr pane report-agent-session`, source
-   `herdr:claude`, and start source `clear`. herdr keeps the previous Claude ID while the runner
-   keeps the foreground ([ADR-0039](adr/0039-the-runner-announces-the-claude-session-id-to-herdr.md)).
-   The job then waits for the selected host's new identity and a saved turn in the correct
+1. The script starts each Claude step with a new session ID (`--session-id`). That ID is the
+   identity of the step. For Codex, the job finds the thread of the step with the app-server
+   `thread/list` ("Sessions"). The job then waits for that identity and a saved turn in the correct
    checkout. For both hosts, it warns once after 60 seconds and continues verification while the
    foreground runs. It saves the verified ID in the current session record
    ([ADR-0046](adr/0046-pending-startup-keeps-the-completion-watcher.md)).
-2. It waits until the agent is ready for the next prompt:
-   `herdr agent wait <pane> --until idle --until done`.
-3. It verifies the current host, identity, readiness, and idle/done state, then reads the
+2. It waits until the host does not work: `hc wait <terminal> --timeout 60`. A timeout is only a
+   check-in, because hc counts a terminal with no status as working.
+3. It reads the current turn of the terminal with `hc get <terminal>`. A turn is current when the
+   status `app` names the host of the step, and the status changed at or after the start of the
+   step (`status_ms`). This rule keeps out a `done` that a former host left in the same terminal:
+   after its exit, Codex keeps `done` on a live terminal. The job verifies the current host and a
+   current `idle`, `done`, or `error` status, then reads the
    decision of the issue from the in-process resolver of `next-step.ts`. A decision with a result
    other than the result that started the session permits an exit check: a Run of another step,
    or a stop of the issue. A stop from an observation (the dirty tree, a landing that runs, or a
    failed read) permits none. The job reads the resolver again, and that read must give the same
-   result. It then makes a final session-state check. A blocked or unknown state gets no exit.
-   For Codex, it requests exit with `herdr agent send-keys <pane> ctrl+c ctrl+c`, which clears
+   result. It then makes a final session-state check. A `working`, `blocked`, or missing status
+   gets no exit.
+   For Codex, it requests exit with `hc keys <terminal> ctrl+c ctrl+c`, which clears
    unsent composer text and requests native quit without submitting a chat message. Completion
-   can discard a draft. For Claude, it keeps `herdr agent prompt <pane> /exit`. A failed request
-   leaves the session open and prints a recovery action.
-4. Otherwise it waits up to five seconds for working or blocked state, pauses one second, and
-   checks again. This also permits a new resolver check while the session remains idle.
+   can discard a draft. For Claude, it sends `hc send <terminal> /exit`; hc refuses to send to a
+   blocked program. A failed request leaves the session open and prints a recovery action.
+4. Otherwise it pauses five seconds and checks again. `hc wait` returns at once while the host
+   does not work, so this pause permits a new resolver check while the session remains idle.
 
 Two decisions have the same result when both are a Run of the same step, or both are a stop with
 the same reason, variant, and data (for example, the labels of a stop for several lane labels). The
@@ -386,8 +401,9 @@ The managed runner publishes its completion disposition before it releases the f
 start barrier. The private file is `<git common dir>/celetis-flow/step-end/<issue>.json`.
 `checking` means that the current turn has no retained verdict. `waiting` records an idle turn
 that stays open. `exiting` lasts from the successful exit check until the foreground exits.
-The record binds the runner PID and process start to the pane and host. A turn binds the terminal
-ID, verified session UUID, and herdr `state_change_seq`; idle and done share one turn key.
+The record binds the runner PID and process start to the hc terminal and host. A turn binds the
+terminal ID, the verified session UUID, and the hc `turn`. hc increases `turn` each time the status
+leaves `working`, so a change between `idle`, `done`, and `error` keeps the turn key.
 A slow resolver result cannot retain or close a different turn. Rechecking a retained turn keeps
 its waiting disposition, so board polls do not produce repeated attention transitions.
 
@@ -406,11 +422,13 @@ needs a new board process.
 In each other case the session stays open: a decision with the same result, the dirty-tree line,
 the line of a landing that runs, the cannot-read line, and a resolver read that fails. So a
 session whose agent waits for an answer, waits for a background task, or left an uncommitted file
-stays open, and a session that you start by hand never ends by itself. herdr ends a wait when its agent exits, so the job
-ends with the session, and the script stops the job when the host process ends. When a session does not end
+stays open, and a session that you start by hand never ends by itself. The exit of the host
+process is the only sign that the session ended: the script then stops the job, and it reads no
+status after the exit. It also removes the label `celetis.link` from its terminal, so a `done`
+that Codex leaves after its exit links no card. When a session does not end
 and its agent waits for nothing, leave it with `/exit`: the script then asks the resolver again,
-and it prints the reason or starts the next step. Outside herdr the script starts no job and makes
-no `herdr` call.
+and it prints the reason or starts the next step. Outside an hc terminal the script starts no job
+and makes no `hc` or `herdr-app` call.
 
 **A stop.** A step session hands a stop that is not a question to the issue (rule 4 of the step
 text), through the write command
@@ -488,10 +506,10 @@ its next idle moment, and a Run press starts that lane.
 **A landing.** `celetis --agent <host> land` moves the line of the issue when it merges, and it then closes
 the child and checks parent acceptance before it removes the worktree. While it runs, `celetis --agent <host> next-step <n>` prints
 `stop the landing of #<n> runs; wait until celetis --agent <host> land ends`. That line is the stop of an
-observation, not a stop of the issue, so the job does not end the session. herdr 0.9.3 reads an
-agent that waits for a background command as `done`, then `idle` (read on a live herdr on 2026-10-11). So while the script
-runs, for up to 30 minutes, the board shows the session in Needs you as `turn ended`: do not leave
-that session. If a session ended during a landing, wait until `celetis --agent <host> next-step <n>` prints
+observation, not a stop of the issue, so the job does not end the session. An agent that waits
+for a background command can end its turn and report `done` or `idle`. So while the script
+runs, for up to 30 minutes, the board can show the session in Needs you as `turn ended`: do not
+leave that session. If a session ended during a landing, wait until `celetis --agent <host> next-step <n>` prints
 another line, and then run `celetis --agent <host> land <n> '<subject>'` again from the main checkout: it
 completes the landing. After the merge the issue is finished, so Run and
 `celetis --agent <host> celetis-flow <n>` start nothing, and no card shows the lane worktree and the branch
@@ -676,15 +694,17 @@ host references in `docs/hosts/` give the details.
 ## The board
 
 The board is `engine/board/` of the plugin, a part of its engine. It reads the data of the issues
-in its own process with the typed functions of the engine, and a press types one of the fixed
-command lines into a new herdr tab. It has no config of its own: the main checkout's `.celetis.yaml`
+in its own process with the typed functions of the engine, and a press starts one of the fixed
+argvs in a new tab of the Herdr app. It has no config of its own: the main checkout's `.celetis.yaml`
 gives `board.port` at the start, and `host` and `gates` at each read. ADR-0020 makes the board a
-part of the plugin, and ADR-0035 makes it a part of the engine.
+part of the plugin, ADR-0035 makes it a part of the engine, and ADR-0058 gives its sessions to
+herdr-core and its tabs to the Herdr app.
 
-**Requirements.** Bun 1.4.4 or later; Git 2.31 or later; herdr 0.9.3 and a
-running server; and a Chromium browser. The board reads GitHub with `gh`, as the runner does, and
-needs no GitHub credentials of its own. The read needs `gh` (logged in), `git`, and Bun, and `ps`
-on macOS and Linux. The script requirements above apply to Run and Resume.
+**Requirements.** Bun 1.4.4 or later; Git 2.31 or later; herdr-core 0.1.16 (`hc`) and its
+running server; the Herdr app 0.1.11 (`herdr-app`) with its window open; and a Chromium browser.
+The board reads GitHub with `gh`, as the runner does, and needs no GitHub credentials of its own.
+The read needs `gh` (logged in), `git`, and Bun, and `ps` on macOS and Linux. The script
+requirements above apply to Run and Resume.
 
 **Start the board** in the main checkout or a subfolder:
 
@@ -719,7 +739,7 @@ shows at the next refresh. Each module of this path is a static import: a refres
 file, takes no plugin read lock, and checks no update policy. The start checks the selected
 host's policy. Independent update checks validate the native update policy. Each Run and Resume
 starts a new `celetis-flow` process, which makes its own check. A conflict can show in the update
-check or in the pane of the next Run or Resume.
+check or in the tab of the next Run or Resume.
 
 The resolver makes these `gh api` calls: 2 paginated lists (open issues and open PRs),
 one paginated call for the timeline of each open issue that has a comment, and 3 calls for each
@@ -766,7 +786,7 @@ The board checks at startup and every 10 minutes, with one joined check and a 12
 `GET /api/update` returns the update snapshot and `{revision, instance}` runtime identity.
 `POST /api/update/check` takes exactly `{}` and starts or joins a check without waiting for its
 result. `POST /api/update/start` takes exactly one opaque `offerId` string. These routes share
-the existing HTTP trust checks and do not wait for issue or herdr reads. The browser supplies
+the existing HTTP trust checks and do not wait for issue or terminal reads. The browser supplies
 no program path, host, or command.
 
 An approved start consumes one exact offer for one attempt. After complete validated success,
@@ -826,39 +846,35 @@ Each row also has `number`, `title`, `url`, `updatedAt` and these fields:
   those reviews requests changes, else `approved` when one approves, else `required` when a
   requested reviewer or team has not answered, else `null`.
 
-**Run and Resume.** The adapter types two fixed lines. A `Run at <level>` entry of the run menu
-adds `'--effort'` and the level after the number of the Run line (the second form below). Each
-item is in single quotes for the pane shell, the issue number is its digits, and ` && exit` ends
-the line. At each press, the adapter reads the installed program (`readProgram` of
-`engine/lib/program.ts`). `<command>` is its
+**Run and Resume.** The adapter gives two fixed argvs. A `Run at <level>` entry of the run menu
+adds `--effort` and the level after the number of the Run argv (the second form below). Each item
+is one argument, and the issue number is its digits. At each press, the adapter reads the
+installed program (`readProgram` of `engine/lib/program.ts`). `<command>` is its
 command: `<base>/.local/bin/celetis`, or `<base>\.local\bin\celetis.cmd` on Windows, where
 `<base>` is `CELETIS_HOME` or the home folder. The read refuses an entry that is not a file of the
 program, so the command always starts the program in its version folder, and the command path
 has no control character. The program supplies Bun and its isolation flags (ADR-0042). A missing
 program, a failed read, or a saved record that Resume cannot use returns 409 with the first line
-of the error, before tab creation or pane execution. Read-only herdr status calls can precede that
-failure.
+of the error, before any terminal starts. Read-only `hc` calls can precede that failure.
 
 ```text
-'<command>' '--agent' '<agent>' 'celetis-flow' <n> && exit
-'<command>' '--agent' '<agent>' 'celetis-flow' <n> '--effort' '<level>' && exit
-'<command>' 'celetis-flow' '--resume' <n> && exit
+<command> --agent <agent> celetis-flow <n>
+<command> --agent <agent> celetis-flow <n> --effort <level>
+<command> celetis-flow --resume <n>
 ```
 
-On Windows, the default pane shell of herdr is Windows PowerShell 5.1. There each line starts the
-command with `&`, the quote doubles `'` and each of U+2018 to U+201B, and `; if ($?) { exit }`
-ends the line in place of ` && exit`, with the same result:
+On macOS and Linux, the new terminal starts the argv in a login shell of `$SHELL`, with
+`hc run --rm` and the start form `"$@" || exec "$0" -li`. So the tab closes when the script exits
+0, and a failed script leaves its message and a shell there. On Windows, `hc run` gets the argv
+with no shell (not checked).
 
-```text
-& '<command>' '--agent' '<agent>' 'celetis-flow' <n>; if ($?) { exit }
-& '<command>' '--agent' '<agent>' 'celetis-flow' <n> '--effort' '<level>'; if ($?) { exit }
-& '<command>' 'celetis-flow' '--resume' <n>; if ($?) { exit }
-```
-
-Run opens a quiet tab `#<n> <step>` in the herdr workspace of the repository and types its line.
-Resume opens a focused tab and types its line. The exit at the end of the line closes the tab on
-success; a failed script leaves its message there. With the default `me` gates, a Run starts one
-step and ends when its session ends.
+Run opens a quiet tab `#<n> <step>` in the space of the repository in the Herdr app: the current
+tab keeps the focus. Resume opens a focused tab. Each tab gets its name as the link label
+`celetis.link` of its terminal, which links its session card to the issue. When the space does
+not exist, the first press makes it, with the session in its first tab, and the Herdr app shows
+that space, also for a quiet press. The app starts that first tab through its own login shell,
+`"$@"; exec "$0" -li`, so that tab keeps a shell after the step, also after an exit 0. Each later
+press is quiet. With the default `me` gates, a Run starts one step and ends when its session ends.
 
 `POST /api/run` uses the chosen agent, or `defaultAgent` when no choice is supplied. The agent must
 be a name of `agents` of the last document, and available. Unknown or unavailable choices return
@@ -894,13 +910,13 @@ the continuous-queue contract. Host, Origin, JSON, and the 1024-byte body limit 
 The fixed adapter reads the installed Program and invokes its entry with Bun and isolation flags
 for finite admission, bounded to 30 seconds. It parses the receipt as external input. The HTTP
 response is the persisted QueueView; it does not await History or terminal creation. Only a newly
-issued wake schedules a quiet Queue tab with this fixed, quoted POSIX command:
+issued wake schedules a quiet Queue tab with this fixed argv:
 
 ```text
-'<command>' '--agent' '<host>' 'celetis-flow' '--queue' 'run' '<id>' '<token>' && exit
+<command> --agent <host> celetis-flow --queue run <id> <token>
 ```
 
-PowerShell uses the existing quoting and exit form. The browser supplies no executable or path.
+The browser supplies no executable or path.
 A known failure before command dispatch invalidates only the matching unclaimed token and saves
 recovery. An uncertain dispatch keeps pending intent and never launches it again automatically.
 The runner performs token and live-ownership checks after terminal creation.
@@ -971,8 +987,9 @@ for incomplete host checks. The exception changes no engine guard or existing hu
 
 ## Sessions
 
-The herdr tab label is `#<n> <step>`. It links the live card to the issue on the board. The label
-is not the saved session ID. From the main checkout, `celetis --agent <host> celetis-flow --resume 402`
+While a managed step runs, the label `celetis.link` of its hc terminal is `#<n> <step>`. It links
+the live card to the issue on the board, and the runner removes it when the host exits. The label
+and the tab name are not the saved session ID. From the main checkout, `celetis --agent <host> celetis-flow --resume 402`
 first takes the shared issue lock and keeps it until the foreground exits. Under that lock, it
 reads and validates the current record for #402 and opens its exact host and session ID at the
 level of the record: Claude gets `--effort <level>`, and Codex gets
@@ -981,17 +998,22 @@ No completion job or update runs during resume.
 
 A missing or invalid record stops with a recovery action. A record with no verified ID directs
 you to `claude --resume` or `codex resume --no-daemon`, by its saved host, to select a saved session manually.
-Exact runner resume needs the identity from herdr and a saved turn. A resumed session stays open
-until you leave it.
+Exact runner resume needs a verified session identity and a saved turn. The runner verifies and
+saves them only in an hc terminal. A resumed session stays open until you leave it.
 
 The record at `<git common dir>/celetis-flow/sessions/<n>.json` has exactly seven fields:
 `schema: 2`, `host`, `issue`, `step`, absolute main `checkout`, `session_id` (UUID or null), and
 `effort`, the level that the runner requested after the Codex clamp.
 The runner writes it atomically. It accepts no old record format and makes no migration: a
 schema-1 record stops resume with the invalid or obsolete record message.
-Herdr supplies `result.agent.agent_session.value`; a tab name is never an identity.
-For a Claude step in a herdr pane, the runner chooses that ID and reports it to herdr before the
-session starts ([ADR-0039](adr/0039-the-runner-announces-the-claude-session-id-to-herdr.md)).
+The runner supplies the identity, not the terminal; a label or a tab name is never an identity
+([ADR-0058](adr/0058-herdr-core-hosts-the-agent-terminals.md)).
+For a Claude step, the runner chooses the ID and passes it with `--session-id`. Codex has no option
+that sets the thread ID before the start. So for a Codex step, the runner asks the app-server
+`thread/list` of the main checkout, and it takes the one thread whose `cwd` is the main checkout,
+whose `createdAt` is at or after the start of the step, and whose `preview` is the exact prompt
+of the step. No match means that the thread is not there yet. Two or more matches are an invalid
+identity. The issue lock lets only one runner start that prompt for that issue.
 Claude persistence is a current saved user turn with matching ID, cwd, and launch time.
 Codex verifies `thread/read` and `thread/turns/list` without resuming or starting a model turn.
 
@@ -1001,7 +1023,8 @@ setup prompts in the pane. Verification continues while the foreground runs, unt
 verifies, an invalid identity ends the watcher, or cancellation stops it. A late verified turn
 enters the normal completion checks without a restart.
 
-An invalid identity ends the watcher with the startup error and local pane output. Foreground
+An invalid identity ends the watcher with the startup error and the last 40 lines of the
+terminal (`hc read`). Foreground
 exit without a verified saved turn also reports the startup error, unless an earlier terminal
 failure already reported it. The pending warning writes no terminal error marker, so it does
 not suppress that final error. These failures write no false no-progress row. A record with a
@@ -1298,7 +1321,6 @@ results as of 2026-10-20, not a certified minimum-version range:
 | Codex CLI 0.162.1 | Private Git marketplace install and refresh, shared manifest discovery, effective configuration, and saved-turn API checks passed. A fresh 21-case step run passed with product instructions and the clarified startup text. These do not prove a full live workflow or native desktop selection |
 | Claude Code 2.1.302 | The single-config Task 4 checks recorded 24 quoted cases and 24 native cases. The native result used 22 provider cases and two module-owned zero-usage stops, with strict event checks. Managed plugin setup and complete child bootstrap remain UNRUN. Changed inputs require fresh live results |
 | Superpowers 7.0.0 | Installation on the isolated Codex Git configuration passed. Each active surface must still expose the dispatch and follow-up controls its procedures require |
-| herdr 0.9.3 | The installed integrations report Claude v10 and Codex v8. Later reviewed-source Codex checks passed valid startup, real no-progress, and native exact Resume with a saved second turn. The resumed herdr reply still lacked `agent_session`. Claude recovery, compaction, and full workflow checks remain open |
 | agent-board 2.0.0, tag commit `e36283b` (earlier storage) | Contract 1 and the current config path passed. Released-browser Open shell and partial Claude Run/Go passed. The earlier Codex Run stopped on a local-marketplace setup error; Claude later stopped on quota. Later reviewed-source Codex Run, Resume, and Go passed with the correct issue and pane. Full acceptance remains open |
 | `board/` at source commit `95144d3` (ADR-0020; now `engine/board/`) | The board code of `95144d3` is the code of the release commit `2014361f365e03e18169ed75d602b729e25e03bb`. That release records a 322-test gate and read-only default-agent controls. The adapter and fixture Run/Resume checks of that release have separate evidence. Real browser/Herdr Run and Resume remain open |
 | Bash 3.2.57, Perl 5.34.1, Node 26.11.1 | Historical gate and released-board evidence before ADR-0025. Current commands require Bun 1.4.4 or later |
@@ -1312,37 +1334,6 @@ file-deny profile stopped at metadata access; a separate native command rule per
 and refused the whole-file read. No alternate read followed either denial. These checks used the
 existing installations and authentication. They establish checkout instruction behavior, not an
 installed-package update, a full lane, or closure of the other acceptance gaps below.
-
-[Issue #101](https://github.com/ddinkov10/celetis/issues/101) changed the step end from a compare
-of resolver lines to a compare of typed decisions ("The step end"). On 2026-10-26, with Claude
-Code 2.1.310 and herdr 0.9.3, the runner of the checkout at commit `bd3db8a` ran `celetis-flow 1` in
-a herdr tab, in a private product repository with a fake `gh`. A change with the same result (the
-label `needs-triage` on an unrouted issue) kept the session open for 49 seconds after it was idle,
-with no `/exit`. A change to a Run of `plan` that skips `specify` (the label `enhancement` and a
-`Spec:` body) ended the session with `/exit` within 5 seconds. The runner then printed the refusal
-line, exited 0, and recorded the row `1\trun /celetis:plan #1`. The triage session asked a type
-question, and the check cancelled it with Esc to get the idle state. The live Codex step end of
-that change is an open runtime check (Finding 2 of the plan of #101). The runner refuses a new
-step session when the plugin of the session's host is at another revision than the program
-(`requireSameRevision` of `engine/update.ts`). So the check needs an installed program and an
-installed Codex plugin at one revision that holds the change.
-
-[Issue #102](https://github.com/ddinkov10/celetis/issues/102) made the board read its data in its
-own process and type two fixed lines ("The board"). On 2026-10-26, with Claude Code 2.1.310,
-codex-cli 0.164.0, and herdr 0.9.3, a package copy of the lane at commit `0b18274` ran the board in
-a private product repository with a fake `gh` and the real herdr. The start printed only the
-repository line and the URL line, and the board read its document in process. Resume of a saved
-Claude record opened the tab `#3 triage` in the product and typed the exact Resume line, with no
-`--agent`. It continued the exact saved session (`claude --resume <id>`), and herdr reported the
-same session ID. `/exit` closed the tab. Resume of a saved Codex record stopped in its tab with
-`celetis: enabled package changed before session start; start a fresh runner`, because the copy is
-not the enabled installed Codex root. Run with the default agent and Run with the choice `codex`
-opened quiet tabs and typed the exact Run lines with `--agent claude` and `--agent codex`. With an
-invalid main `.celetis.yaml`, the runner stopped on the `landing` diagnostic, and the tab stayed
-open. The next refresh showed that line as the read error and kept the cards. A full Codex Run and
-Resume from the installed package is an open runtime check, by hand after the landing (the plan of
-#102, "Your steps"). A full Run session through the board was not observed, because a board tab
-runs with the real `gh`.
 
 On 2026-10-27, [issue #145](https://github.com/ddinkov10/celetis/issues/145) makes a board Codex Run
 start from the enabled Codex copy; the live session remains the check of "After the landing" in
@@ -1518,9 +1509,9 @@ and Codex prompts named the skill paths of the lane.
 Entry does not stop on an invalid UTF-8 byte (Claude's `Read` gives U+FFFD) or on a BOM. The command
 reader still refuses both at each command. Each Codex run printed a parse error of `hooks/hooks.json`
 of the installed plugin (`unknown field 'modules'`), and the runs continued; #105 did not change
-that file. Open: an installed entry after `celetis update`, a runner step in herdr with the header,
-the Codex rule-list entry with a file reader and no process tool, and Windows. The issue comment
-"Acceptance evidence of #105" holds the scenario tables.
+that file. Open: an installed entry after `celetis update`, a runner step in an hc terminal with
+the header, the Codex rule-list entry with a file reader and no process tool, and Windows. The
+issue comment "Acceptance evidence of #105" holds the scenario tables.
 
 **Codex empty hooks override.** On 2026-10-29, lane commit `9e0b46c` of
 [issue #161](https://github.com/ddinkov10/celetis/issues/161) passed its package checks with
@@ -1566,7 +1557,7 @@ installations, the runner check and the board line, one confirmed update on temp
 and the personal `land` rules. Open: native Windows (each check of "After the landing" 4 of that
 plan: the first install from Git Bash and the user `Path`; `celetis --version` and `next-step` in
 Git Bash and in Windows PowerShell 5.1; `celetis update check` in PowerShell; and a board Run
-whose herdr tab gets the `celetis.cmd` line), the `PATH` of a desktop host, and the first real
+that starts `celetis.cmd` in a new tab), the `PATH` of a desktop host, and the first real
 `celetis update` of the maintainer's installations.
 
 **Native Windows.** [Issue #125](https://github.com/ddinkov10/celetis/issues/125) checked the
@@ -1580,14 +1571,13 @@ the main checkout, so the board check ran from an export of the lane:
 | Bun 1.4.4, Git Bash and Windows PowerShell 5.1 | The launcher loaded in the documented form of that release from Git Bash, and from PowerShell with `--config=NUL`. With no arguments it exited 2 with `usage:`; the update check of that release exited 0 with an offer; `next-step 125` exited 0 |
 | Bun 1.4.4 and 1.4.2, the update lock | The updater refused as busy while a reader held the lock, and took the lock after the reader ended. A forced kill of the updater ended its child and a `.cmd`-shim grandchild within 2 seconds |
 | Bun 1.4.4, the board | The board started, and `/api/board` gave `source.error: null` and a card for #125 |
-| Claude Code 2.1.310, herdr 0.9.2-preview | Board Run on disposable #129 created a herdr tab with live runner and session PIDs and foreground `claude.exe`. The board card showed its Claude session. One Ctrl+C left the same Claude PID and both parent PIDs alive |
 
-Open on Windows: Codex (not installed), PowerShell 7, Resume, the step end, a real `land` run and its
-live land-lock check, and a confirmed update apply (only the lock probes and the update check of
-that release ran). The board of #102 is also open on Windows: the board row above
-checked the board before #102, which read its data through a `celetis-flow --board` subprocess
-and typed its lines from command lists. The personal rules of `land` and `issue` are also open on
-Windows, and so is the program of #126 ("The celetis program").
+Open on Windows: herdr-core and the Herdr app (a board Run, Resume, and the step end), Codex (not
+installed), PowerShell 7, a real `land` run and its live land-lock check, and a confirmed update
+apply (only the lock probes and the update check of that release ran). The board of #102 is also
+open on Windows: the board row above checked the board before #102, which read its data through a
+`celetis-flow --board` subprocess and typed its lines from command lists. The personal rules of
+`land` and `issue` are also open on Windows, and so is the program of #126 ("The celetis program").
 
 #125 left the moved POSIX process-identity path with no runtime check on macOS. The scratch checks
 of the merge of #125 into #102 then ran it on macOS through the runner and the board: a live
@@ -1655,6 +1645,33 @@ The source records, native transcripts, command logs, and independent oracles ar
 `/tmp/celetis-178-checks/`; #178 holds the runtime report. No product adopter or real installation
 update entered these checks. The older #147 observations above remain historical evidence.
 
+**herdr-core host (#182).** On 2026-11-02 on macOS, the checks used hc 0.1.16, the Herdr app
+0.1.11, Claude Code 2.1.316, Codex CLI 0.166.0, and Bun 1.4.4. The target was a clone at the
+installed revision `0828b798ba89c655b17b811d06e8aa2635bf0f9b` with the lane diff as uncommitted
+changes; its tree equals the tree of lane commit `cbca6917c2753439604ad9c29d799885e656e7e2`. The
+step sessions loaded the installed plugin at that revision. A disposable fixture with fake GitHub
+data held the issues. The first V2 run found that the runner renamed its tab before Herdr listed
+the new terminal; `cbca691` makes `renameTab` wait for the tab, and all scenarios then ran again.
+S1 passed (the greps, one module for `hc` and `herdr-app`, no hook change). V2 passed: the Claude
+step labeled its terminal and named its tab `#1 triage` within 5 seconds with no focus change,
+saved the id of `--session-id`, stayed open 56 seconds idle with no change, and ended 1.6 seconds
+after a changed result. V5 passed: a blocked session got no exit input for 32 seconds after a
+changed result. V3 passed: the saved Codex ids were the `thread/list` matches of the triage and
+bug prompts, `ctrl+c ctrl+c` ended the first session 3.9 seconds after a changed result, the
+runner started `bug` in the same terminal, and the closed issue ended it. hc cleared the status to
+null at each host exit, so no stale `done` occurred. V4 passed for both hosts. V6 passed: the
+cards showed `works`, `waits` for a dialog, and `waits` for a turn, the card screen equaled the
+cleaned `hc read` lines, a status-less shell had no card, and the status bar item matched the
+installed board in Chromium at 1440×900 and 375×812. V7 passed: the first press made one space
+whose first tab held the session, Run and Queue opened quiet tabs, two presses at once made one
+space, a tab kept a login shell after its runner failed, and the sessions lived after the board
+ended. V8 passed: Assist, Open shell, and New intake opened focused tabs, and Go focused the
+session. V9 passed: with the app closed, Run gave 502 and started no terminal, and a failed `hc`
+showed `herdr down`. V10 passed outside hc. Claude Code drew no `/exit` input at 30 ms sampling;
+its exit text and the exit times are the evidence of that exit. One `ctrl+c` only interrupts a
+Claude turn, so V7 (d) ended the host with `ctrl+c ctrl+c`. Open: native Windows, and a board Run
+of the installed program with the real `gh` (the check after the landing of #182).
+
 ### Optional Codex desktop evidence
 
 Desktop probes have their own PASS, FAIL, BLOCKED, or UNRUN records. BLOCKED and UNRUN remain
@@ -1665,14 +1682,6 @@ model profiles, and permissions; a missing tool or denied read stops that operat
 | Component | Evidence and limit |
 |---|---|
 | Codex desktop | The current selector cannot bind the owned isolated package: BLOCKED. CLI typed skill input and quoted tests do not establish desktop entry |
-
-On 2026-10-27, the #157 investigation checked native exit input on macOS with Codex CLI
-0.164.0 and Herdr client/server 0.9.3. `herdr agent send-keys <agent> ctrl+c ctrl+c` returned
-control to the shell for an empty composer, an unsent `§`, a visible two-line draft, and `/`
-with its slash-command popup open. No draft became a chat message. These observations cover
-the native operation, not the changed runner. The changed-watcher Verify results belong to
-[#157](https://github.com/ddinkov10/celetis/issues/157). The original incident's source of `§`
-remains unknown.
 
 ## Limits
 
@@ -1690,33 +1699,49 @@ remains unknown.
 - A Terminal tab and the script in it can end when the app starts again. The lock stays while
   either the runner or its foreground session is live. After both exit, a new runner can claim
   the stale lock; the session record stays.
-- A session outside herdr, for example in a Code tab of the desktop app, has no card on the board,
-  and the script does not end its step.
-- The script ends a step from the selected host state that herdr reports. A new host release can
-  need a new herdr integration or agent manifest
-  (`herdr server update-agent-manifests`).
+- A session outside herdr-core, for example in a Code tab of the desktop app or in another terminal
+  program, has no card on the board, and the script does not end its step.
+- The script ends a step only from the status that the host reports with OSC 7501. A host that
+  reports no status, for example Claude Code before 2.1.295, gets no step end and no card: leave
+  its session with `/exit`.
+- After its exit, Codex keeps the status `done` on a live terminal (Codex 0.166.0 kept it for more
+  than 45 seconds). The script reads only a status that changed at or after the start of the step,
+  and it removes the label `celetis.link` when the host exits. So between two steps, the board shows
+  no session card for that terminal. When the next step has another host, the board shows no card
+  for that terminal until the new host reports. The issue keeps a card of its own.
+- The script finds the thread of a Codex step by the exact prompt of the step in `preview` of
+  `thread/list` ("Sessions"). When a Codex release changes `preview`, no thread matches: the script
+  warns after 60 seconds, and the session does not end by itself. When a person starts the same
+  prompt in the main checkout at the same moment, two threads match, and the job ends with the
+  startup error `no single session identity can be saved`.
 - Automatic completion can discard an unsent Codex draft through native cancel/quit input.
   Claude still receives `/exit` through its composer, so concurrent text can join that command.
   A successful request that leaves either host alive prints recovery instructions after
   10 seconds; the runner keeps ownership until the process exits ("The step end").
-- The `herdr` commands of the script come from the documents and the source of herdr 0.9.3. The
-  step end of the script was checked against a live herdr on 2026-10-11 (ADR-0007). That check
-  covered the compare of lines. The compare of typed decisions was checked on Claude Code on
-  2026-10-26, and the Codex check is open ("Acceptance status"). Two parts of the step end are not
-  checked: the end of a session after its `celetis --agent <host> land` run ends (ADR-0008), and
-  the end of a session after it adds `ready-for-human` at a stop (ADR-0011). Two shapes of the REST
-  reads of the board data (`nextBoard`) for each open PR are not checked against a live GitHub: a
-  commit status list that is not empty, and a review list that is not empty.
+- The `hc` and `herdr-app` calls of the script use the API of herdr-core 0.1.16 and the commands of
+  the Herdr app 0.1.11. Both are previews (version 0.x), so a later 0.x release can break the step
+  end. On Windows, the step end in an hc terminal, the tab of a board press, and the card of its
+  session are not checked. There the board starts the argv with no shell, and a program that
+  `hc run` starts with no shell has no foreground in `hc get`, so its session can get no card. Two
+  parts of the step end are not checked: the end of a session after its
+  `celetis --agent <host> land` run ends (ADR-0008), and the end of a session after it adds
+  `ready-for-human` at a stop (ADR-0011). Two shapes of the REST reads of the board data
+  (`nextBoard`) for each open PR are not checked against a live GitHub: a commit status list that
+  is not empty, and a review list that is not empty.
 - The REST API of GitHub lists a commit status only after the status reports. So the list does not
   show a status that branch protection requires until that status reports. Until then,
   `celetis --agent <host> land` can read `pass` and ask for the merge. GitHub then refuses the merge, and
   the build step stops with `## Landing refused`. Until then, the board also shows `pass` for the PR.
 - The script exits 0 at each `stop` line, at a `me` gate, at "no progress", and at a refused
-  skip, so the exit that the board adds closes the tab with the message of the script. A Run press
-  whose session ends at once thus leaves no message: start `celetis --agent <host> celetis-flow <n>` in a terminal to see it.
+  skip, so the tab of a board press closes at that exit, and the message of the script goes with
+  it. A Run press whose session ends at once thus leaves no message: start
+  `celetis --agent <host> celetis-flow <n>` in a terminal to see it. The first press that makes the
+  space of the repository is different. The Herdr app shows that space, also for a quiet Run, and
+  it starts the first tab through its own login shell, so that tab keeps a shell after the step,
+  also after an exit 0.
 - A start of the board from the entry `board` of `.claude/launch.json`, in a project that has such
-  an entry, needs `bun`, `herdr`, and the tools of the command on the `PATH` of the desktop app,
-  and no git credentials. This is not checked: the desktop app reads
+  an entry, needs `bun`, `hc`, `herdr-app`, and the tools of the command on the `PATH` of the
+  desktop app, and no git credentials. This is not checked: the desktop app reads
   `.claude/launch.json` of the main checkout, so the build of a lane cannot start the entry `board`
   of its branch. When that entry does not start the board, start the board in a terminal.
 - A runner keeps the version folder of the program that started it for its resolver, entry, and

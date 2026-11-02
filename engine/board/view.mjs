@@ -28,7 +28,6 @@ var GROUPS = [
 var STATES = {
   works: "works",
   waits: "waits for you",
-  unknown: "state unknown",
   starts: "Starting",
   "checks-step": "checks step",
   "dirty-tree": "dirty tree",

@@ -2,18 +2,13 @@ import type { ExecFileOptions } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Host } from '../lib/config-core.ts';
+import type { OpenTab } from '../lib/terminal.ts';
 import type { Adapter } from './adapter.ts';
 import type { Board, BoardRuntime, Card, Diff, Document, Session } from './types.ts';
 import type { UpdateController } from './updates.ts';
 
 type Result = { code: number; stdout: string; stderr: string };
 export type Execute = (file: string, args: string[], options?: ExecFileOptions) => Promise<Result>;
-type HerdrResult = {
-  snapshot?: Parameters<typeof sessionsOf>[0];
-  workspaces?: { label: string; workspace_id: unknown }[];
-  root_pane?: { pane_id: unknown };
-  tab?: { tab_id: unknown };
-};
 
 import { execFile } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
@@ -26,6 +21,13 @@ import { parseQueueAction, queueView as projectQueue, queueOwner, readQueue, rea
 import { failQueueLaunch } from '../lib/queue-actions.ts';
 import type { QueueAction, QueueView, QueueWake } from '../lib/queue-types.ts';
 import { readStepEnd } from '../lib/step-end.ts';
+import {
+  focusTerminal,
+  listTerminals,
+  openTab as openTerminalTab,
+  readScreen,
+  TerminalError,
+} from '../lib/terminal.ts';
 import { launchMatches, place, sessionsOf, stepsOf } from './place.ts';
 
 const HERE = import.meta.dirname;
@@ -34,9 +36,7 @@ const PRESS_MS = 30_000;
 const BACKGROUND_MS = 300_000;
 const DIFF_MS = 15_000;
 const SCREEN_LINES = 16;
-const PANE = /^[\w:.][\w:.-]*$/;
 const RULE = /^[\s─━═╌┄-]*$/;
-const isPane = (id: unknown): id is string => typeof id === 'string' && PANE.test(id);
 const FILES: Record<string, [string, string]> = {
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/board.css': ['board.css', 'text/css; charset=utf-8'],
@@ -76,6 +76,9 @@ class Refusal extends Error {
   }
 }
 
+const refused = (cause: unknown): never => {
+  throw cause instanceof TerminalError ? new Refusal(502, cause.message) : cause;
+};
 const firstLine = (text: string) =>
   text
     .split('\n')
@@ -223,30 +226,15 @@ export const createBoard = ({
     typeof path === 'string' &&
     (resolve(path) === main || resolve(path).startsWith(`${main}${sep}.claude${sep}worktrees${sep}`));
 
-  const herdr = async (...args: string[]): Promise<HerdrResult | undefined> => {
-    const { code, stdout, stderr } = await exec('herdr', args, { timeout: 15_000 });
-    let answer: { result?: HerdrResult; error?: { message?: unknown } } | null = null;
-    try {
-      answer = JSON.parse(code === 0 ? stdout : stderr);
-    } catch {}
-    if (answer?.error) throw new Refusal(502, firstLine(String(answer.error.message ?? JSON.stringify(answer.error))));
-    if (code !== 0) throw new Refusal(502, firstLine(stderr) || firstLine(stdout) || `herdr exited ${code}`);
-    return answer?.result;
-  };
-
-  const readSessions = async () => {
-    const snapshot = (await herdr('api', 'snapshot'))?.snapshot;
-    if (!Array.isArray(snapshot?.agents) || !Array.isArray(snapshot.tabs))
-      throw new Refusal(502, 'herdr gave no snapshot');
-    return sessionsOf(snapshot, isInside, stepsOf(board?.flow));
-  };
+  const readSessions = async () => sessionsOf(await listTerminals(exec).catch(refused), isInside, stepsOf(board?.flow));
 
   const watchSessions = async () => {
     try {
       const sessions = await readSessions();
       const seen = new Map<string, number>();
       for (const session of sessions) {
-        const key = `${session.sessionId}|${session.status === 'done' ? 'idle' : session.status}`;
+        const status = session.status === 'done' || session.status === 'error' ? 'idle' : session.status;
+        const key = `${session.sessionId}|${status}`;
         seen.set(key, firstSeen.get(key) ?? now());
         session.since = new Date(seen.get(key) as number).toISOString();
       }
@@ -259,18 +247,10 @@ export const createBoard = ({
 
   const readScreens = async (sessions: Session[]) => {
     const read = await Promise.all(
-      sessions
-        .filter((session) => isPane(session.paneId))
-        .map(async (session) => {
-          const { code, stdout } = await exec(
-            'herdr',
-            ['agent', 'read', session.paneId as string, '--source', 'visible'],
-            {
-              timeout: 15_000,
-            },
-          );
-          return [session.sessionId, code === 0 ? screenOf(stdout) : (screens.get(session.sessionId) ?? [])] as const;
-        }),
+      sessions.map(async (session) => {
+        const text = await readScreen(session.sessionId, 0, exec);
+        return [session.sessionId, text === null ? (screens.get(session.sessionId) ?? []) : screenOf(text)] as const;
+      }),
     );
     screens = new Map(read);
   };
@@ -300,31 +280,25 @@ export const createBoard = ({
 
   const placement = async ({ isLocal = false } = {}): Promise<Board> => {
     const queue = await queueView();
-    const { sessions, health } = await watchSessions();
+    const { sessions: found, health } = await watchSessions();
     const dispositions = new Map(
       await Promise.all(
-        [...new Set(sessions.flatMap((session) => (session.issue === null ? [] : [session.issue])))].map(
+        [...new Set(found.flatMap((session) => (session.issue === null ? [] : [session.issue])))].map(
           async (issue) => [issue, await readStepEnd(main, issue)] as const,
         ),
       ),
     );
-    for (const session of sessions) {
+    const sessions: Session[] = [];
+    for (const session of found) {
       const record = dispositions.get(session.issue as number);
-      if (
-        !record ||
-        record.pane !== session.paneId ||
-        record.host !== session.agent ||
-        session.agentSessionId === null ||
-        session.stateChangeSeq === null
-      )
-        continue;
-      const turn = record.turn;
-      session.stepEnd =
-        turn?.terminalId === session.sessionId &&
-        turn.sessionId === session.agentSessionId &&
-        turn.sequence === session.stateChangeSeq
-          ? record.state
-          : 'checking';
+      if (record?.terminal === session.sessionId) {
+        if (record.host !== session.agent) continue;
+        session.stepEnd =
+          record.turn?.terminalId === session.sessionId && record.turn.sequence === session.turn
+            ? record.state
+            : 'checking';
+      }
+      sessions.push(session);
     }
     if (!isLocal) await readScreens(sessions);
     for (const session of sessions) session.screen = screens.get(session.sessionId);
@@ -373,54 +347,14 @@ export const createBoard = ({
       agents: board?.agents ?? null,
       defaultAgent: board?.defaultAgent ?? null,
       queue,
-      herdr: health,
+      terminal: health,
       source: { readAt, error },
       repo: basename(main),
     };
   };
 
-  const openTab = async ({
-    cwd,
-    label,
-    command,
-    isQuiet,
-    beforeCommand,
-  }: {
-    cwd: string;
-    label: string;
-    command?: string;
-    isQuiet?: boolean;
-    beforeCommand?: () => void;
-  }) => {
-    const name = basename(main);
-    const focus = isQuiet ? ['--no-focus'] : ['--focus'];
-    const workspaces = (await herdr('workspace', 'list'))?.workspaces;
-    if (!Array.isArray(workspaces)) throw new Refusal(502, 'herdr gave no list of workspaces');
-    const workspace = workspaces.find((w) => w.label === name);
-    if (workspace && !isPane(workspace.workspace_id)) throw new Refusal(502, 'herdr gave no id for the workspace');
-    const made = workspace
-      ? await herdr(
-          'tab',
-          'create',
-          '--workspace',
-          workspace.workspace_id as string,
-          '--cwd',
-          cwd,
-          '--label',
-          label,
-          ...focus,
-        )
-      : await herdr('workspace', 'create', '--cwd', cwd, '--label', name, ...focus);
-    if (!isPane(made?.root_pane?.pane_id)) throw new Refusal(502, 'herdr gave no pane for the new tab');
-    if (!workspace && made.tab?.tab_id) {
-      if (!isPane(made.tab.tab_id)) throw new Refusal(502, 'herdr gave no id for the new tab');
-      await herdr('tab', 'rename', made.tab.tab_id, label);
-    }
-    if (command) {
-      beforeCommand?.();
-      await herdr('pane', 'run', made.root_pane.pane_id, command);
-    }
-  };
+  const openTab = (request: Omit<OpenTab, 'space'>) =>
+    openTerminalTab({ space: basename(main), ...request }, exec).catch(refused);
 
   const issueCardOf = async (number: number) =>
     Object.values((await placement()).columns)
@@ -466,7 +400,7 @@ export const createBoard = ({
     if (intakePending) throw new Refusal(409, 'an intake tab is already opening');
     intakePending = true;
     try {
-      const command = await (async () => {
+      const argv = await (async () => {
         const operation = createOperation(
           await locateCheckouts(main),
           { environment: process.env.CELETIS_AGENT },
@@ -477,7 +411,7 @@ export const createBoard = ({
       })().catch((cause: Error) => {
         throw new Refusal(409, cleanCause(cause.message));
       });
-      await openTab({ cwd: main, label: 'Intake', command });
+      await openTab({ folder: main, name: 'Intake', argv, focus: true });
     } finally {
       intakePending = false;
     }
@@ -498,7 +432,7 @@ export const createBoard = ({
       if (error) throw new Refusal(409, cleanCause(error));
       if (board?.noRun) throw new Refusal(409, cleanCause(board.noRun));
       const agent = agentOf(number);
-      if (!current.herdr.ok) throw new Refusal(502, current.herdr.error ?? 'herdr gave no snapshot');
+      if (!current.terminal.ok) throw new Refusal(502, current.terminal.error ?? 'hc gave no terminal list');
       const cards = Object.values(current.columns).flat();
       const card = cards.find((card) => card.sessionId === null && card.number === number);
       if (!card) {
@@ -514,10 +448,10 @@ export const createBoard = ({
       return {
         card,
         start: async () => {
-          const command = await adapter.assist(number, agent).catch((cause: Error) => {
+          const argv = await adapter.assist(number, agent).catch((cause: Error) => {
             throw new Refusal(409, cleanCause(cause.message));
           });
-          await openTab({ cwd: main, label: `#${number} assist`, command });
+          await openTab({ folder: main, name: `#${number} assist`, argv, focus: true });
         },
       };
     });
@@ -557,10 +491,10 @@ export const createBoard = ({
       return {
         card,
         start: async () => {
-          const command = await adapter.run(number, agent, effort).catch((cause: Error) => {
+          const argv = await adapter.run(number, agent, effort).catch((cause: Error) => {
             throw new Refusal(409, cleanCause(cause.message));
           });
-          await openTab({ cwd: main, label: `#${number} ${card.step}`, command, isQuiet: true });
+          await openTab({ folder: main, name: `#${number} ${card.step}`, argv, focus: false });
         },
       };
     });
@@ -574,10 +508,10 @@ export const createBoard = ({
       return {
         card,
         start: async () => {
-          const command = await adapter.resume(number).catch((cause: Error) => {
+          const argv = await adapter.resume(number).catch((cause: Error) => {
             throw new Refusal(409, cleanCause(cause.message));
           });
-          await openTab({ cwd: main, label: `#${number} ${card.step}`, command });
+          await openTab({ folder: main, name: `#${number} ${card.step}`, argv, focus: true });
         },
       };
     });
@@ -586,13 +520,13 @@ export const createBoard = ({
   const dispatchWake = (wake: QueueWake) => {
     let sent = false;
     void (async () => {
-      const command = await adapter.queueRun(wake);
+      const argv = await adapter.queueRun(wake);
       await openTab({
-        cwd: main,
-        label: 'Queue',
-        command,
-        isQuiet: true,
-        beforeCommand: () => {
+        folder: main,
+        name: 'Queue',
+        argv,
+        focus: false,
+        beforeStart: () => {
           sent = true;
         },
       });
@@ -635,14 +569,13 @@ export const createBoard = ({
     const card = await issueCardOf(number);
     if (card?.state !== 'dirty-tree' || !isInside(card.act) || resolve(card.act) === main)
       throw new Refusal(409, `#${number} has no dirty worktree`);
-    await openTab({ cwd: resolve(card.act), label: `#${number} shell` });
+    await openTab({ folder: resolve(card.act), name: `#${number} shell`, argv: null, focus: true });
   };
 
   const go = async (sessionId: string) => {
-    const session = (await readSessions()).find((s) => s.sessionId === sessionId);
-    if (!session) throw new Refusal(404, 'no herdr agent of this repository has that id');
-    if (!isPane(session.paneId)) throw new Refusal(409, 'that agent has no herdr pane id');
-    await herdr('agent', 'focus', session.paneId);
+    if (!(await readSessions()).some((session) => session.sessionId === sessionId))
+      throw new Refusal(404, 'no herdr agent of this repository has that id');
+    await focusTerminal(sessionId, exec).catch(refused);
   };
 
   const readBody = async (request: IncomingMessage): Promise<unknown> => {

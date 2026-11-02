@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { Config, Host } from './config-core.ts';
 import { clampEffort, isLevel, type Level } from './effort.ts';
 import { codexRequest, commonDir, HostError } from './host.ts';
-import { run } from './process.ts';
+import { readScreen } from './terminal.ts';
 import { command, invocation, type Step, steps } from './workflow.ts';
 
 export interface SessionRecord {
@@ -18,6 +18,7 @@ export interface SessionRecord {
   effort: Level;
 }
 export type SavedSession = SessionRecord & { session_id: string };
+export type Claim = { kind: 'none' } | { kind: 'one'; id: string } | { kind: 'many' };
 const uuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const modelsUnreadable = 'celetis-flow: cannot read the Codex models; start the runner again';
 function object(value: unknown): value is Record<string, unknown> {
@@ -84,7 +85,7 @@ export async function selectSavedSession(
   const { session_id } = record;
   if (session_id === null)
     throw new HostError(
-      `celetis: #${issue} has no saved turn with a verified herdr identity; exact runner resume requires herdr identity. From the main checkout, run ${manualRecovery(record.host)} and select the saved session, or start a new step if none exists.`,
+      `celetis: #${issue} has no saved turn with a verified session identity; exact runner resume requires that identity. From the main checkout, run ${manualRecovery(record.host)} and select the saved session, or start a new step if none exists.`,
     );
   return { ...record, session_id };
 }
@@ -178,37 +179,39 @@ export async function verifySavedSession(record: SessionRecord, startedAt: numbe
   }
 }
 
-function agentOf(reply: unknown): Record<string, unknown> | null {
-  return object(reply) && object(reply.result) && object(reply.result.agent) ? reply.result.agent : null;
+export function codexPrompt(step: Step, issue: number): string {
+  return `Use the celetis:${command(step)} skill for #${issue}. Complete its Celetis entry before any response, including commentary.`;
 }
 
-export async function observeSession(
-  record: SessionRecord,
-  reply: unknown,
-  priorId: string,
-  startedAt: number,
-): Promise<0 | 1 | 2> {
-  const agent = agentOf(reply);
-  if (
-    !agent ||
-    (agent.agent !== 'claude' && agent.agent !== 'codex') ||
-    typeof agent.agent_status !== 'string' ||
-    !['idle', 'working', 'blocked', 'done', 'unknown'].includes(agent.agent_status)
-  )
-    return 2;
-  const identity = agent.agent_session;
-  if (identity == null) return 1;
-  if (agent.agent !== record.host && (!priorId || !object(identity) || identity.value !== priorId)) return 2;
-  if (
-    !object(identity) ||
-    identity.agent !== agent.agent ||
-    identity.kind !== 'id' ||
-    typeof identity.value !== 'string' ||
-    !uuid.test(identity.value)
-  )
-    return 2;
-  if (identity.value === priorId) return 1;
-  const next = { ...record, session_id: identity.value };
+export async function codexClaim(checkout: string, prompt: string, startedAt: number): Promise<Claim> {
+  let reply: unknown;
+  try {
+    reply = await codexRequest(checkout, 'thread/list', { cwd: checkout, limit: 20 });
+  } catch {
+    return { kind: 'none' };
+  }
+  const threads = object(reply) && object(reply.result) ? reply.result.data : null;
+  if (!Array.isArray(threads)) return { kind: 'none' };
+  const ids = threads.flatMap((thread) =>
+    object(thread) &&
+    typeof thread.id === 'string' &&
+    uuid.test(thread.id) &&
+    thread.cwd === checkout &&
+    typeof thread.createdAt === 'number' &&
+    thread.createdAt >= startedAt &&
+    thread.preview === prompt
+      ? [thread.id]
+      : [],
+  );
+  const [id] = ids;
+  if (id === undefined) return { kind: 'none' };
+  return ids.length === 1 ? { kind: 'one', id } : { kind: 'many' };
+}
+
+export async function observeSession(record: SessionRecord, claim: Claim, startedAt: number): Promise<0 | 1 | 2> {
+  if (claim.kind === 'none') return 1;
+  if (claim.kind === 'many') return 2;
+  const next = { ...record, session_id: claim.id };
   if (!(await verifySavedSession(next, startedAt))) return 1;
   try {
     await writeSession(record.checkout, next);
@@ -216,24 +219,6 @@ export async function observeSession(
     return 2;
   }
   return 0;
-}
-
-export function sessionIdle(reply: unknown, host: Host, id: string): boolean {
-  const agent = agentOf(reply);
-  return (
-    !!agent &&
-    agent.agent === host &&
-    ['idle', 'done'].includes(String(agent.agent_status)) &&
-    object(agent.agent_session) &&
-    agent.agent_session.agent === host &&
-    agent.agent_session.kind === 'id' &&
-    agent.agent_session.value === id
-  );
-}
-
-export function reportedSessionId(reply: unknown): string {
-  const identity = agentOf(reply)?.agent_session;
-  return object(identity) && typeof identity.value === 'string' ? identity.value : '';
 }
 
 export function stepHeader(facts: {
@@ -342,11 +327,7 @@ export async function hostArguments(
   }
   if (config === null) throw new HostError(modelsUnreadable);
   const { model, applied } = selectCodexEffort(config, await codexModels(cwd), effort);
-  args.push(
-    '-c',
-    `model_reasoning_effort=${JSON.stringify(applied)}`,
-    `Use the celetis:${command(step)} skill for #${issue}. Complete its Celetis entry before any response, including commentary.`,
-  );
+  args.push('-c', `model_reasoning_effort=${JSON.stringify(applied)}`, codexPrompt(step, issue));
   return { args, applied, model };
 }
 
@@ -361,18 +342,10 @@ export function startLine(
   return applied === chosen ? line : `${line}; codex applies ${applied} for ${model}`;
 }
 
-export async function startupError(issue: number, host: Host, detail: string): Promise<void> {
+export async function startupError(issue: number, host: Host, detail: string, terminal: string): Promise<void> {
   console.error(
     `celetis-flow: #${issue} ${host} startup: ${detail}. Check the version, trust, and sign-in prompts in this pane. Complete the required action, then start the step again. Manual recovery: ${manualRecovery(host)} from the main checkout.`,
   );
-  const result = await run('herdr', [
-    'pane',
-    'read',
-    process.env.HERDR_PANE_ID ?? '',
-    '--source',
-    'recent-unwrapped',
-    '--lines',
-    '40',
-  ]);
-  process.stderr.write(result.stdout);
+  const screen = await readScreen(terminal, 40);
+  if (screen) process.stderr.write(`${screen.trimEnd().split('\n').slice(-40).join('\n')}\n`);
 }

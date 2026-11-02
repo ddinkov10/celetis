@@ -3,14 +3,16 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { constants } from 'node:os';
 import { dirname, join } from 'node:path';
+import { setTimeout as pause } from 'node:timers/promises';
 import type { Config, Host } from './lib/config-core.ts';
 import type { Level } from './lib/effort.ts';
 import type { Next } from './lib/lines.ts';
 import type { LockOwner } from './lib/locks.ts';
 import type { HostSelection, Operation } from './lib/operation.ts';
 import type { QueueAction, QueueRecord, QueueWake } from './lib/queue-types.ts';
-import type { SessionRecord } from './lib/session.ts';
+import type { Claim, SessionRecord } from './lib/session.ts';
 import type { StepEndRecord, StepEndState, TurnKey } from './lib/step-end.ts';
+import type { TerminalStatus } from './lib/terminal-types.ts';
 import type { Run, Step } from './lib/workflow.ts';
 
 const usage =
@@ -35,6 +37,7 @@ const required = [
   'lib/process-identity.ts',
   'lib/session.ts',
   'lib/step-end.ts',
+  'lib/terminal.ts',
   'lib/workflow.ts',
   'lib/effort.ts',
   'lib/tracker.ts',
@@ -46,16 +49,10 @@ const required = [
   'lib/queue-actions.ts',
   'lib/vendor/yaml.mjs',
 ];
+const idle: Record<TerminalStatus, boolean> = { idle: true, done: true, error: true, working: false, blocked: false };
 async function gone(files = required) {
   for (const file of files) if (!(await stat(join(here, file)).catch(() => null))?.isFile()) return true;
   return false;
-}
-function parsed(source: string): unknown {
-  try {
-    return JSON.parse(source);
-  } catch {
-    return null;
-  }
 }
 
 export async function main(argv: string[]): Promise<number> {
@@ -76,6 +73,7 @@ export async function main(argv: string[]): Promise<number> {
     'lib/process.ts',
     'lib/session.ts',
     'lib/step-end.ts',
+    'lib/terminal.ts',
     'lib/workflow.ts',
     'lib/effort.ts',
     'lib/tracker.ts',
@@ -160,23 +158,26 @@ export async function main(argv: string[]): Promise<number> {
   const { readQueue, readQueueView, queueOwner, updateQueue } = await import('./lib/queue.ts');
   const { admitQueue, emptyQueue } = await import('./lib/queue-actions.ts');
   const { describe } = await import('./lib/lines.ts');
-  const { bunArgs, childEnv, run } = await import('./lib/process.ts');
+  const { bunArgs, childEnv } = await import('./lib/process.ts');
   const { processStart } = await import('./lib/process-identity.ts');
   const { removeStepEnd, writeStepEnd } = await import('./lib/step-end.ts');
   const {
+    codexClaim,
+    codexPrompt,
     hostArguments,
     manualRecovery,
     observeSession,
     readSession,
-    reportedSessionId,
     resumeArguments,
     selectSavedSession,
     sessionEnv,
-    sessionIdle,
     startLine,
     startupError,
     writeSession,
   } = await import('./lib/session.ts');
+  const { ownTerminal, readTerminal, renameTab, requestExit, setLink, TerminalError, waitTerminal } = await import(
+    './lib/terminal.ts'
+  );
   const { defaultLevel } = await import('./lib/effort.ts');
   const { defaultGate, invocation, sameResult, skipped } = await import('./lib/workflow.ts');
   const root = dirname(here);
@@ -190,7 +191,7 @@ export async function main(argv: string[]): Promise<number> {
   let queueWritable = false;
   let storageFailed = false;
   let managed = false;
-  let pane = '';
+  let terminal = '';
   let said = '';
   let locks: LockOwner | undefined;
   let session: ChildProcess | undefined;
@@ -248,8 +249,6 @@ export async function main(argv: string[]): Promise<number> {
     process.stderr.write(stderr);
     return { next, effort, line: lineOf(n, next) };
   };
-  const herdr = async (args: string[], abort?: AbortSignal) =>
-    run('herdr', args, { cwd: main, env: childEnv(), signal: abort });
   const clearStepEnd = async () => {
     if (stepEndIssue === undefined) return;
     try {
@@ -264,7 +263,7 @@ export async function main(argv: string[]): Promise<number> {
   };
   const publish = async (host: Host, state: StepEndState, turn: TurnKey | null) => {
     try {
-      await writeStepEnd(main, stepEndIssue as number, { runner: stepEndOwner, pane, host, state, turn });
+      await writeStepEnd(main, stepEndIssue as number, { runner: stepEndOwner, terminal, host, state, turn });
       return true;
     } catch (error) {
       await clearStepEnd();
@@ -275,33 +274,13 @@ export async function main(argv: string[]): Promise<number> {
   const sessionTurn = async (
     id: string,
     host: Host,
+    startedMs: number,
     abort: AbortSignal,
   ): Promise<{ turn: TurnKey; idle: boolean } | null> => {
-    const reply = await herdr(['agent', 'get', pane], abort);
-    const value = parsed(reply.stdout);
-    const agent = (value as { result?: { agent?: Record<string, unknown> } } | null)?.result?.agent;
-    const identity = agent?.agent_session as { agent?: unknown; kind?: unknown; value?: unknown } | null;
-    if (
-      reply.code !== 0 ||
-      !agent ||
-      agent.agent !== host ||
-      typeof agent.agent_status !== 'string' ||
-      !['idle', 'done', 'working', 'blocked', 'unknown'].includes(agent.agent_status) ||
-      identity?.agent !== host ||
-      identity.kind !== 'id' ||
-      identity.value !== id
-    )
+    const view = await readTerminal(terminal, { signal: abort });
+    if (!view || view.host !== host || view.status === null || view.statusMs === null || view.statusMs < startedMs)
       return null;
-    return typeof agent.terminal_id === 'string' &&
-      agent.terminal_id.length > 0 &&
-      agent.pane_id === pane &&
-      Number.isSafeInteger(agent.state_change_seq) &&
-      Number(agent.state_change_seq) >= 0
-      ? {
-          turn: { terminalId: agent.terminal_id, sessionId: id, sequence: Number(agent.state_change_seq) },
-          idle: sessionIdle(value, host, id),
-        }
-      : null;
+    return { turn: { terminalId: terminal, sessionId: id, sequence: view.turn }, idle: idle[view.status] };
   };
   const sameTurn = (a: TurnKey | null, b: TurnKey | null) =>
     a !== null &&
@@ -313,27 +292,29 @@ export async function main(argv: string[]): Promise<number> {
     n: string,
     start: Run,
     record: SessionRecord,
-    prior: string,
-    startedAt: number,
+    announced: string,
+    startedMs: number,
     ended: Promise<number>,
     abort: AbortSignal,
   ) => {
+    const startedAt = Math.floor(startedMs / 1000);
     const deadline = performance.now() + 60_000;
     let saved = false;
     let warned = false;
     while (!abort.aborted) {
-      const reply = await herdr(['agent', 'get', pane], abort);
-      if (reply.code === 0) {
-        const result = await observeSession(record, parsed(reply.stdout), prior, startedAt);
-        if (result === 0) {
-          saved = true;
-          break;
-        }
-        if (result === 2) {
-          await writeFile(join(watchDir, 'error'), '');
-          await startupError(Number(n), record.host, 'herdr returned an invalid identity');
-          return;
-        }
+      const claim: Claim =
+        record.host === 'claude'
+          ? { kind: 'one', id: announced }
+          : await codexClaim(main, codexPrompt(record.step, Number(n)), startedAt);
+      const result = await observeSession(record, claim, startedAt);
+      if (result === 0) {
+        saved = true;
+        break;
+      }
+      if (result === 2) {
+        await writeFile(join(watchDir, 'error'), '');
+        await startupError(Number(n), record.host, 'no single session identity can be saved', terminal);
+        return;
       }
       if (!warned && performance.now() >= deadline) {
         warned = true;
@@ -346,15 +327,12 @@ export async function main(argv: string[]): Promise<number> {
     if (!saved || abort.aborted) return false;
     const id = (await readSession(main, Number(n))).session_id ?? '';
     let retained: TurnKey | null = null;
-    while (
-      !abort.aborted &&
-      (await herdr(['agent', 'wait', pane, '--until', 'idle', '--until', 'done'], abort)).code === 0
-    ) {
+    while (!abort.aborted && (await waitTerminal(terminal, 60, abort))) {
       if (await gone()) {
         say(`#${n}: ${removed}`);
         return;
       }
-      const observed = await sessionTurn(id, record.host, abort);
+      const observed = await sessionTurn(id, record.host, startedMs, abort);
       const turn = observed?.turn;
       if (observed && !observed.idle) {
         retained = null;
@@ -367,7 +345,7 @@ export async function main(argv: string[]): Promise<number> {
           const { next: second } = await nextOf(n, fresh(), abort);
           changed = second.kind !== 'observed' && sameResult(second, first);
         }
-        const current = await sessionTurn(id, record.host, abort);
+        const current = await sessionTurn(id, record.host, startedMs, abort);
         if (!current) {
           retained = null;
           await clearStepEnd();
@@ -378,11 +356,7 @@ export async function main(argv: string[]): Promise<number> {
         } else if (!abort.aborted) {
           if (changed) {
             if (!(await publish(record.host, 'exiting', turn))) return false;
-            const args =
-              record.host === 'codex'
-                ? ['agent', 'send-keys', pane, 'ctrl+c', 'ctrl+c']
-                : ['agent', 'prompt', pane, '/exit'];
-            if ((await herdr(args, abort)).code !== 0) {
+            if (!(await requestExit(terminal, record.host, abort))) {
               if (!abort.aborted) {
                 await publish(record.host, 'waiting', turn);
                 console.error(
@@ -411,8 +385,7 @@ export async function main(argv: string[]): Promise<number> {
         retained = null;
         await clearStepEnd();
       }
-      await herdr(['agent', 'wait', pane, '--until', 'working', '--until', 'blocked', '--timeout', '5000'], abort);
-      if (!abort.aborted) await Bun.sleep(1000);
+      await pause(5000, undefined, { signal: abort }).catch(() => {});
     }
   };
   const startSession = async (args: string[], sessionHost: Host) => {
@@ -577,27 +550,11 @@ export async function main(argv: string[]): Promise<number> {
           stepEndIssue = Number(n);
           stepEndOwner = { pid: process.pid, start: await processStart(process.pid) };
           await publish(stepHost, 'checking', null);
-          if (process.env.HERDR_TAB_ID) await herdr(['tab', 'rename', process.env.HERDR_TAB_ID, `#${n} ${step}`]);
-          const prior = reportedSessionId(parsed((await herdr(['agent', 'get', pane])).stdout));
-          if (announced)
-            await herdr([
-              'pane',
-              'report-agent-session',
-              pane,
-              '--source',
-              'herdr:claude',
-              '--agent',
-              'claude',
-              '--seq',
-              String(BigInt(Date.now()) * 1_000_000n),
-              '--agent-session-id',
-              announced,
-              '--session-start-source',
-              'clear',
-            ]);
-          const startedAt = Math.floor(Date.now() / 1000);
+          await setLink(terminal, `#${n} ${step}`);
+          await renameTab(terminal, `#${n} ${step}`);
+          const startedMs = Date.now();
           watcher = new AbortController();
-          watching = endWhenDone(n, next, record, prior, startedAt, ended, watcher.signal)
+          watching = endWhenDone(n, next, record, announced, startedMs, ended, watcher.signal)
             .then(async (exiting) => {
               if (!exiting) await clearStepEnd();
             })
@@ -619,12 +576,18 @@ export async function main(argv: string[]): Promise<number> {
         await watching;
         watching = undefined;
         watcher = undefined;
+        if (managed) await setLink(terminal, null);
         await clearStepEnd();
         stepEndIssue = undefined;
         if (watchError !== undefined) throw watchError;
         if (managed && (await readSession(main, Number(n))).session_id === null) {
           if (!(await stat(join(watchDir, 'error')).catch(() => null)))
-            await startupError(Number(n), stepHost, 'the session ended before a saved turn had a verified identity');
+            await startupError(
+              Number(n),
+              stepHost,
+              'the session ended before a saved turn had a verified identity',
+              terminal,
+            );
           throw new HostError('', 1);
         }
         await rm(watchDir, { recursive: true, force: true });
@@ -637,6 +600,7 @@ export async function main(argv: string[]): Promise<number> {
       await clearStepEnd();
       stepEndIssue = undefined;
       await finishSession();
+      if (managed) await setLink(terminal, null);
       await locks?.release(`issue-${n}`);
     }
   };
@@ -698,13 +662,13 @@ export async function main(argv: string[]): Promise<number> {
     if (mode !== 'queue') await requireStart(operation);
     if (mode !== 'resume') {
       if (!Bun.which('gh', { PATH: childEnv().PATH })) die('gh is not on PATH');
-      if (process.env.HERDR_ENV === '1') {
-        pane = process.env.HERDR_PANE_ID ?? '';
-        if (!/^w[A-Za-z0-9]+:p[A-Za-z0-9]+$/.test(pane))
-          die('HERDR_ENV=1 needs a valid HERDR_PANE_ID; start from a herdr pane');
-        if (!Bun.which('herdr', { PATH: childEnv().PATH })) die('herdr is not on PATH');
-        managed = true;
+      try {
+        terminal = ownTerminal() ?? '';
+      } catch (error) {
+        if (!(error instanceof TerminalError)) throw error;
+        die(error.message);
       }
+      managed = terminal !== '';
     }
     await mkdir(state, { recursive: true });
     for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
