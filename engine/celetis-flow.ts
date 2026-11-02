@@ -664,7 +664,7 @@ export async function main(argv: string[]): Promise<number> {
     if (mode !== 'resume') {
       if (!Bun.which('gh', { PATH: childEnv().PATH })) die('gh is not on PATH');
       try {
-        terminal = ownTerminal() ?? '';
+        terminal = (await ownTerminal()) ?? '';
       } catch (error) {
         if (!(error instanceof TerminalError)) throw error;
         die(error.message);

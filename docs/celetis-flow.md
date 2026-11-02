@@ -345,11 +345,23 @@ session loads updated skills and tools. A runner restart alone updates nothing; 
 `celetis update`, a new start runs the new program.
 
 **The step end.** In a terminal of herdr-core 0.1.16 (an hc terminal: `HC_TERMINAL_ID` holds a safe
-terminal ID, and `hc` is on `PATH`), the script ends each step session by itself
-([ADR-0058](adr/0058-herdr-core-hosts-the-agent-terminals.md)). An
-`HC_TERMINAL_ID` that is not a safe ID stops the script before it reads an issue, with
-`celetis-flow: HC_TERMINAL_ID needs a safe terminal id; start from an hc terminal`; with no `hc`
-on `PATH`, the line is `celetis-flow: hc is not on PATH`. When each step
+terminal ID, `hc` is on `PATH`, and `hc get` names the script as the leader of the foreground
+process group of that terminal), the script ends each step session by itself
+([ADR-0058](adr/0058-herdr-core-hosts-the-agent-terminals.md),
+[ADR-0059](adr/0059-a-runner-manages-only-the-hc-terminal-that-it-leads.md)). Each of these lines
+stops the script before it reads an issue, with exit 1. In `--queue run`, the line becomes the
+queue error:
+
+- An `HC_TERMINAL_ID` that is not a safe ID:
+  `celetis-flow: HC_TERMINAL_ID needs a safe terminal id; start from an hc terminal`.
+- No `hc` on `PATH`: `celetis-flow: hc is not on PATH`.
+- A failed `hc get` of that terminal: `celetis-flow: cannot read hc terminal <id>: <cause>`.
+- Another leader, or no foreground, after 5 seconds of reads (hc reports a new foreground late):
+  `celetis-flow: this runner does not lead hc terminal <id>; start it in a terminal of its own, for example with hc run --bg`.
+
+A runner that the agent of a step session starts from its shell tool does not lead the terminal
+of that session, so it stops with the last line. A check of the runner starts it in a terminal of
+its own with `hc run --bg`. When each step
 starts, the script sets the label `celetis.link` of its terminal to `#<n> <step>` (`hc label`), so
 the board links the session to the issue. Then it names the tab of its terminal `#<n> <step>` in
 the Herdr app 0.1.11 (`herdr-app do tab.rename`). With no app window, or with no tab for the
@@ -430,7 +442,7 @@ status after the exit. It also removes the label `celetis.link` from its termina
 that Codex leaves after its exit links no card. When a session does not end
 and its agent waits for nothing, leave it with `/exit`: the script then asks the resolver again,
 and it prints the reason or starts the next step. Outside an hc terminal the script starts no job
-and makes no `hc` or `herdr-app` call.
+and makes no `hc` or `herdr-app` call, except the `hc get` reads of a stop above.
 
 **A stop.** A step session hands a stop that is not a question to the issue (rule 4 of the step
 text), through the write command
@@ -1724,7 +1736,11 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   the Herdr app 0.1.11. Both are previews (version 0.x), so a later 0.x release can break the step
   end. On Windows, the step end in an hc terminal, the tab of a board press, and the card of its
   session are not checked. There the board starts the argv with no shell, and a program that
-  `hc run` starts with no shell has no foreground in `hc get`, so its session can get no card. Two
+  `hc run` starts with no shell has no foreground in `hc get`, so its session can get no card. On
+  Windows the program entry starts the runner as a child process, so the runner does not lead its
+  hc terminal and stops with the "does not lead" line ("The step end"). On each platform, a start
+  through a shell with no job control (for example `sh -c` with two commands) or through a wrapper
+  that does not exec makes the runner stop with that line too. Two
   parts of the step end are not checked: the end of a session after its
   `celetis --agent <host> land` run ends (ADR-0008), and the end of a session after it adds
   `ready-for-human` at a stop (ADR-0011). Two shapes of the REST reads of the board data

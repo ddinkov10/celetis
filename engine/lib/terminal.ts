@@ -73,11 +73,24 @@ async function poll<T>(read: () => Promise<T | null>): Promise<T | null> {
   }
 }
 
-export function ownTerminal(env: NodeJS.ProcessEnv = process.env): string | null {
+export async function ownTerminal(env: NodeJS.ProcessEnv = process.env): Promise<string | null> {
   const id = env.HC_TERMINAL_ID;
   if (!id) return null;
   if (!isSafeId(id)) throw new TerminalError('HC_TERMINAL_ID needs a safe terminal id; start from an hc terminal');
   if (!Bun.which('hc', { PATH: childEnv(env).PATH ?? '' })) throw new TerminalError('hc is not on PATH');
+  // hc reports the previous foreground for a moment after a new job takes the terminal.
+  const leads = await poll(async () => {
+    const result = await call(run, 'hc', ['get', id, '--json']);
+    if (result.code !== 0) throw new TerminalError(`cannot read hc terminal ${id}: ${failure('hc', result)}`);
+    const value = parse(result.stdout);
+    if (!isRecord(value) || value.address !== id)
+      throw new TerminalError(`cannot read hc terminal ${id}: hc gave no terminal`);
+    return isRecord(value.foreground) && value.foreground.pid === process.pid ? true : null;
+  });
+  if (!leads)
+    throw new TerminalError(
+      `this runner does not lead hc terminal ${id}; start it in a terminal of its own, for example with hc run --bg`,
+    );
   return id;
 }
 
