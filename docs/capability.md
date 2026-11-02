@@ -149,8 +149,10 @@ need no fresh runtime allowlist.
 On `status: "ready"`, schema-1 JSON includes `line`, `pair`, `action`, `child`, and `dispatch`.
 Send the CAP line first and unchanged. Apply the actual model and effort controls on an isolated
 spawn; omit `model` when null. Follow `spawn`, same-child `resume`, or engine-authorized `replace`.
-Keep the parent settings. A same-pair follow-up uses the recorded child. A changed model, effort,
-or runtime issues `replace`, because the observed follow-up tools cannot change the pair.
+Keep the parent settings. A same-pair follow-up uses the recorded child. On Claude, its `to` is
+the child's agent ID, or the `Agent` spawn name that the recorded report binds to that ID when no
+other recorded `Agent` call used that name; the reported child stays the agent ID. A changed model, effort, or runtime issues `replace`,
+because the observed follow-up tools cannot change the pair.
 Replacement preserves the task, counters, saved work, and earlier execution and failure evidence.
 Give the fresh child that saved context through [the child dispatch](procedures/dispatch.md).
 After a saved gate failure that issued no repair, request `next` with the saved task digits and

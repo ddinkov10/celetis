@@ -387,6 +387,24 @@ function workerOf(dispatch: Dispatch | undefined): string | null {
   const outcome = dispatch?.execution?.report.outcome;
   return outcome?.result === 'started' ? outcome.child : null;
 }
+function spawnCall(dispatch: Dispatch): NativeCall | null {
+  const call = dispatch.execution?.report.call;
+  return started(dispatch) && call?.tool === 'Agent' ? call : null;
+}
+function followupAddress(record: DispatchRecord, dispatch: Dispatch, to: JsonValue | undefined): boolean {
+  if (to === dispatch.child) return true;
+  if (record.host !== 'claude' || !isText(to)) return false;
+  const holders = record.dispatches.filter((prior) => spawnCall(prior)?.arguments.name === to);
+  const bound = holders.some((prior) => {
+    const result = spawnCall(prior)?.result;
+    if (isText(result)) {
+      const lines = result.split('\n');
+      return lines.includes(`name: ${to}`) && lines.includes(`agent_id: ${workerOf(prior)}`);
+    }
+    return result !== null && typeof result === 'object' && !Array.isArray(result) && result.name === to;
+  });
+  return bound && holders.every((prior) => workerOf(prior) === dispatch.child);
+}
 function childOf(record: DispatchRecord, key: Key, role: Role): Dispatch | undefined {
   return dispatchesOf(record, key, role).findLast(
     (dispatch) => (dispatch.action === 'spawn' || dispatch.action === 'replace') && started(dispatch),
@@ -770,7 +788,7 @@ function executionResult(
   if (typeof prompt !== 'string' || prompt.split('\n', 1)[0] !== dispatch.line)
     return mismatch('the first message line must equal the issued CAP line');
   if (resume) {
-    if (args[claude ? 'to' : 'target'] !== dispatch.child)
+    if (!followupAddress(record, dispatch, args[claude ? 'to' : 'target']))
       return mismatch(`the follow-up needs recorded child ${dispatch.child}`);
     for (const key of ['model', 'effort', 'reasoning_effort', 'fork_turns', 'fork'])
       if (Object.hasOwn(args, key)) return mismatch(`the follow-up tool has no ${key} control`);

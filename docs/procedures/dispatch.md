@@ -70,8 +70,9 @@ fix after the final review. The acts and their arguments are:
   ID.
 - On `status: "ready"`, start the child by "One child" with the returned `line` and `pair`: apply
   `pair.model` and `pair.effort` with the host's actual spawn controls, and omit the model field
-  when it is null. Follow `action`: `spawn` starts a child; `resume` sends to `child` with the
-  host's follow-up tool; `replace` starts a fresh child in place of the prior child of that role.
+  when it is null. Follow `action`: `spawn` starts a child; `resume` sends to `child`, at an
+  address that the host part accepts, with the host's follow-up tool; `replace` starts a fresh
+  child in place of the prior child of that role.
   A resume retains the recorded pair. A changed model, effort, or runtime returns `replace`.
   Give the replacement the same checkout, saved work, task constraints, prior child and pair,
   failure reports, and current counters. Continue that task; keep its earlier evidence.
@@ -127,7 +128,12 @@ shape:
 ```
 
 For a same-pair resume, retain that child and report `SendMessage` with the exact `to` and
-`message` arguments, its full result, and the same `outcome.child`. For example:
+`message` arguments, its full result, and the same `outcome.child`. The `to` address is the
+`child` agent ID, or the spawn `name` that the recorded `Agent` report binds to it: its `name`
+argument, echoed in the native result as `name` next to `agentId`, or as a `name:` line next to
+the `agent_id:` line of a text result. When another recorded `Agent`
+call of the session also used that name, send to the agent ID: the engine refuses the name.
+`outcome.child` stays the agent ID. For example:
 
 ```json
 {
