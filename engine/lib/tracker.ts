@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseEpicAcceptance, parseEpicChildren, parseEpicRepository } from './epic-acceptance.ts';
 import { run } from './process.ts';
+import { writeRefreshHint } from './refresh-hints.ts';
 import type { Entry, EpicSnapshot, IssueData } from './workflow.ts';
 
 export type Issue = Readonly<{
@@ -36,6 +37,15 @@ export type GitHub = Readonly<{
   edit(n: string, fields: Edit): Promise<void>;
   stderr(): string;
 }>;
+
+export class GitHubReadError extends Error {
+  constructor(
+    readonly endpoint: string,
+    readonly notFound: boolean,
+  ) {
+    super('GitHub read failed');
+  }
+}
 
 function malformed(): Error {
   return new Error('malformed GitHub data');
@@ -117,7 +127,7 @@ export function github(cwd: string, signal?: AbortSignal): GitHub {
     );
     signal?.throwIfAborted();
     stderr += result.stderr;
-    if (result.code !== 0) throw new Error('GitHub read failed');
+    if (result.code !== 0) throw new GitHubReadError(endpoint, /\bHTTP 404\b/.test(result.stderr));
     return JSON.parse(result.stdout);
   }
 
@@ -137,6 +147,8 @@ export function github(cwd: string, signal?: AbortSignal): GitHub {
         cwd,
         signal,
       });
+      const issue = /^issues\/([1-9][0-9]*)(?:\/|$)/.exec(endpoint);
+      if (result.code === 0 && issue) await writeRefreshHint(cwd, Number(issue[1]));
       signal?.throwIfAborted();
       if (result.code !== 0) throw new Error(`${result.stdout}${result.stderr}`.trimEnd());
       stderr += result.stderr;

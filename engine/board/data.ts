@@ -1,6 +1,7 @@
 import { isRecorded, lockHolder } from '../lib/locks.ts';
 import { createOperation, locateCheckouts } from '../lib/operation.ts';
 import { childEnv } from '../lib/process.ts';
+import { readQueue } from '../lib/queue.ts';
 import { reconcileQueue } from '../lib/queue-actions.ts';
 import { github } from '../lib/tracker.ts';
 import { defaultGate, lands, lanes, stageOf, stages, steps } from '../lib/workflow.ts';
@@ -9,13 +10,30 @@ import { readHistory } from './history.ts';
 import type { Document, Flow, Issue } from './types.ts';
 
 export async function readBoard(main: string, signal: AbortSignal): Promise<Document> {
+  return readDocument(main, signal);
+}
+
+export async function readBoardTargets(
+  main: string,
+  numbers: readonly number[],
+  previous: Document,
+  signal: AbortSignal,
+): Promise<Document> {
+  return readDocument(main, signal, { numbers, previous });
+}
+
+async function readDocument(
+  main: string,
+  signal: AbortSignal,
+  target?: { numbers: readonly number[]; previous: Document },
+): Promise<Document> {
   const operation = createOperation(await locateCheckouts(main), { environment: process.env.CELETIS_AGENT }, 'main');
-  const { data, stderr } = await nextBoard(operation, signal);
+  const { data, stderr } = await nextBoard(operation, signal, target?.numbers);
   if (!data) {
     signal.throwIfAborted();
     throw new Error(stderr.trim() || 'cannot read the issues from GitHub');
   }
-  const history = await readHistory(github(main, signal));
+  const history = !target || data.closed ? await readHistory(github(main, signal)) : target.previous.history;
   const common = operation.checkout.common as string;
   const flow: Flow = {
     lanes: Object.fromEntries(Object.entries(lanes).map(([lane, definition]) => [lane, [...definition.steps]])),
@@ -55,6 +73,11 @@ export async function readBoard(main: string, signal: AbortSignal): Promise<Docu
             : {}),
     });
   }
+  if (target) {
+    const selected = new Set(target.numbers);
+    issues.push(...target.previous.issues.filter((issue) => !selected.has(issue.number)));
+    issues.sort((a, b) => a.number - b.number);
+  }
   const runner = !!(await lockHolder(main, 'runner'));
   signal.throwIfAborted();
   const agents = Object.fromEntries(
@@ -63,7 +86,13 @@ export async function readBoard(main: string, signal: AbortSignal): Promise<Docu
       return [agent, { available, cause: available ? null : `celetis: ${agent} is not on PATH` }];
     }),
   );
-  const receipt = await reconcileQueue(operation, signal);
+  const queue = target ? await readQueue(common) : null;
+  signal.throwIfAborted();
+  const receipt =
+    !target || queue?.numbers.some((number) => target.numbers.includes(number))
+      ? await reconcileQueue(operation, signal)
+      : { view: target.previous.queue, wake: null };
+  signal.throwIfAborted();
   return {
     history,
     tracker: 'GitHub',

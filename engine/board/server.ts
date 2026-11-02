@@ -124,6 +124,8 @@ export const run: Execute = (file, args, options = {}) =>
 export const createBoard = ({
   main,
   read,
+  readTargets,
+  hints,
   adapter,
   updates,
   runtime,
@@ -132,6 +134,8 @@ export const createBoard = ({
 }: {
   main: string;
   read: (signal: AbortSignal) => Promise<Document>;
+  readTargets: (numbers: readonly number[], previous: Document, signal: AbortSignal) => Promise<Document>;
+  hints: () => Promise<ReadonlyMap<string, number> | null>;
   adapter: Adapter;
   updates: () => UpdateController;
   runtime: BoardRuntime;
@@ -140,27 +144,43 @@ export const createBoard = ({
 }) => {
   let board: Document | null = null;
   let readAt: string | null = null;
-  let error: string | null = null;
+  let fullError: string | null = null;
+  let targetError: string | null = null;
+  const readError = () => targetError ?? fullError;
   let askedAt = -Infinity;
   let checkedFrom = -Infinity;
   let pending: Promise<void> | null = null;
+  const targets = new Set<number>();
+  let fullRequest: { promise: Promise<void>; done: () => void } | null = null;
+  let fullQueued = false;
+  let ready = false;
+  let stopped = false;
+  let activeRead: AbortController | null = null;
+  let nextCheck: ReturnType<typeof setTimeout> | undefined;
+  let nextHint: ReturnType<typeof setTimeout> | undefined;
+  let seenHints = new Set<string>();
   let queuePress = false;
   let intakePending = false;
   const presses: Record<string, { step: string | null; at: number }> = {};
   const operations: Record<string, { step: string | null | undefined; observed: boolean }> = {};
-  let shown = new Set<string>();
+  let shown = new Map<string, number | null>();
   let firstSeen = new Map<string, number>();
   let screens = new Map<string, string[]>();
   const diffs = new Map<string, { at: number; value: Diff | null }>();
 
-  const readData = async () => {
+  const readData = async (full: boolean, numbers: number[]) => {
     const from = now();
     const limit = new AbortController();
+    activeRead = limit;
     const timer = setTimeout(() => limit.abort(), STALE_MS);
     // Some steps of the read (the lock reads, locateCheckouts) do not take the signal.
     const ended = new Promise<never>((_, reject) => limit.signal.addEventListener('abort', reject, { once: true }));
     try {
-      const next = await Promise.race([read(limit.signal), ended]);
+      const next = await Promise.race([
+        full ? read(limit.signal) : readTargets(numbers, board as Document, limit.signal),
+        ended,
+      ]);
+      if (stopped) return;
       if (
         board?.queue?.record &&
         next.queue?.record?.id === board.queue.record.id &&
@@ -170,24 +190,70 @@ export const createBoard = ({
       board = next;
       if (next.queueWake) dispatchWake(next.queueWake);
       next.queueWake = null;
-      readAt = new Date(now()).toISOString();
-      error = null;
+      targetError = null;
+      if (full) {
+        readAt = new Date(now()).toISOString();
+        fullError = null;
+      }
     } catch (cause) {
-      error = limit.signal.aborted
+      if (stopped) return;
+      const error = limit.signal.aborted
         ? 'the issue read did not end in 60 seconds'
         : firstLine(cause instanceof Error ? cause.message : String(cause)) || 'the issue read failed';
+      if (full) {
+        fullError = error;
+        for (const number of numbers) targets.add(number);
+      } else targetError = error;
     } finally {
       clearTimeout(timer);
-      checkedFrom = from;
+      activeRead = null;
+      if (full) checkedFrom = from;
     }
   };
 
-  const refresh = () => {
-    askedAt = now();
-    pending ??= readData().finally(() => {
+  const drain = () => {
+    if (stopped || !ready || pending || (!fullQueued && (!board || targets.size === 0))) return;
+    const full = fullQueued;
+    if (full) {
+      fullQueued = false;
+      askedAt = now();
+      clearTimeout(nextCheck);
+      nextCheck = setTimeout(check, BACKGROUND_MS);
+    }
+    const numbers = [...targets].sort((a, b) => a - b);
+    targets.clear();
+    pending = readData(full, numbers).finally(() => {
       pending = null;
+      if (full) {
+        fullRequest?.done();
+        fullRequest = null;
+      }
+      drain();
     });
-    return pending;
+  };
+
+  const refresh = () => {
+    if (stopped) return Promise.resolve();
+    if (!fullRequest) {
+      let done = () => {};
+      const promise = new Promise<void>((resolve) => {
+        done = resolve;
+      });
+      fullRequest = { promise, done };
+      fullQueued = true;
+    }
+    const request = fullRequest.promise;
+    drain();
+    return request;
+  };
+
+  const target = (numbers: Iterable<number>) => {
+    if (stopped) return;
+    const received = [...numbers];
+    if (!received.length) return;
+    for (const number of received) targets.add(number);
+    if (!board) void refresh();
+    else drain();
   };
 
   const queueView = async (): Promise<QueueView | null> => {
@@ -198,13 +264,13 @@ export const createBoard = ({
       const record = await readQueue(common);
       const owner = await queueOwner(main, record);
       const matches = record?.id === projected?.record?.id && record?.revision === projected?.record?.revision;
-      if (!matches || owner !== projected?.owner) void refresh();
+      if (board && (!matches || owner !== projected?.owner)) void refresh();
       const next = matches ? (projected?.next ?? null) : null;
       const actions = projectQueue(record, owner, next).actions;
-      if (!matches || error || (projected?.next?.kind === 'observed' && projected.next.reason === 'unreadable')) {
+      if (!matches || fullError || (projected?.next?.kind === 'observed' && projected.next.reason === 'unreadable')) {
         actions.continue = false;
         actions.retry = false;
-        if (error) {
+        if (fullError) {
           actions.add = false;
           actions.edit = false;
         }
@@ -324,10 +390,11 @@ export const createBoard = ({
     }
     const placed = place({ sessions, board, launches });
     const cards = Object.values(placed.columns).flat();
-    const ids = new Set(cards.flatMap((card) => (card.sessionId ? [card.sessionId] : [])));
-    const hasEnded = [...shown].some((id) => !ids.has(id));
+    const ids = new Map(cards.flatMap((card) => (card.sessionId ? [[card.sessionId, card.number] as const] : [])));
+    const ended = [...shown].filter(([id]) => !ids.has(id)).map(([, number]) => number);
     shown = ids;
-    if (hasEnded && !isLocal) void refresh();
+    target(ended.filter((number) => number !== null));
+    if (ended.includes(null) && !isLocal) void refresh();
     await Promise.all(
       cards
         .filter((card) => card.sessionId)
@@ -348,7 +415,7 @@ export const createBoard = ({
       defaultAgent: board?.defaultAgent ?? null,
       queue,
       terminal: health,
-      source: { readAt, error },
+      source: { readAt, error: readError() },
       repo: basename(main),
     };
   };
@@ -422,14 +489,14 @@ export const createBoard = ({
     await press(number, refusal, async () => {
       await pending;
       await refresh();
-      if (error) throw new Refusal(409, cleanCause(error));
+      if (readError()) throw new Refusal(409, cleanCause(readError()));
       let observed: Document | null;
       let current: Board;
       do {
         observed = board;
         current = await placement();
       } while (board !== observed);
-      if (error) throw new Refusal(409, cleanCause(error));
+      if (readError()) throw new Refusal(409, cleanCause(readError()));
       if (board?.noRun) throw new Refusal(409, cleanCause(board.noRun));
       const agent = agentOf(number);
       if (!current.terminal.ok) throw new Refusal(502, current.terminal.error ?? 'hc gave no terminal list');
@@ -462,12 +529,12 @@ export const createBoard = ({
     await press(number, refusal, async () => {
       await pending;
       await refresh();
-      if (!board || error || board.noRun !== null) throw new Refusal(409, error || board?.noRun || refusal);
+      if (!board || readError() || board.noRun !== null) throw new Refusal(409, readError() || board?.noRun || refusal);
       const card = await issueCardOf(number);
       if (!card?.run) throw new Refusal(409, refusal);
       const view = await queueView();
-      if (error || !view || (view.error && !view.next))
-        throw new Refusal(409, error || view?.error || 'queue: no successful initial read');
+      if (readError() || !view || (view.error && !view.next))
+        throw new Refusal(409, readError() || view?.error || 'queue: no successful initial read');
       const record = view.record;
       if (record?.state === 'me-gate' && record.numbers[0] === number) {
         if (effort) throw new Refusal(409, 'The queue starts this step at the decided level');
@@ -540,7 +607,7 @@ export const createBoard = ({
           await queueView();
         }
       } catch (failure) {
-        error = `queue: launch recovery failed: ${cleanCause(failure)}`;
+        fullError = `queue: launch recovery failed: ${cleanCause(failure)}`;
       }
     });
   };
@@ -622,8 +689,8 @@ export const createBoard = ({
       return sendJson(response, 200, { runtime, update: updates().snapshot() });
     if (request.method === 'GET' && path === '/api/board') {
       const isLocal = new URLSearchParams(url.split('?')[1] ?? '').get('local') === '1';
-      if (!pending && !isLocal && now() - askedAt > BACKGROUND_MS) void refresh();
-      if (!board && !error && pending) await pending;
+      if (!isLocal && now() - askedAt > BACKGROUND_MS) void refresh();
+      if (!board && !readError() && pending) await pending;
       const isDue = (press: { at: number }) => now() - press.at >= PRESS_MS && checkedFrom < press.at + PRESS_MS;
       if (!isLocal && Object.values(presses).some(isDue)) await refresh();
       return sendJson(response, 200, await placement({ isLocal }));
@@ -720,16 +787,37 @@ export const createBoard = ({
       });
     });
   });
-  let nextCheck: ReturnType<typeof setTimeout> | undefined;
   let updateResponse = Promise.resolve();
   const check = () => {
+    if (stopped) return;
     if (now() - askedAt >= BACKGROUND_MS) void refresh();
-    nextCheck = setTimeout(check, askedAt + BACKGROUND_MS - now());
+    else nextCheck = setTimeout(check, askedAt + BACKGROUND_MS - now());
   };
-  server.on('listening', check);
-  server.on('close', () => clearTimeout(nextCheck));
+  const pollHints = async (initial = false) => {
+    const listed = await hints();
+    if (stopped) return;
+    if (listed !== null) {
+      const numbers = [...listed].filter(([name]) => !seenHints.has(name)).map(([, number]) => number);
+      seenHints = new Set(listed.keys());
+      if (!initial) target(numbers);
+    }
+    if (initial) {
+      ready = true;
+      void refresh();
+    }
+    nextHint = setTimeout(() => void pollHints(), 1_000);
+  };
+  const stopReads = () => {
+    stopped = true;
+    clearTimeout(nextCheck);
+    clearTimeout(nextHint);
+    activeRead?.abort();
+    fullRequest?.done();
+  };
+  server.on('listening', () => void pollHints(true));
+  server.on('close', stopReads);
   return Object.assign(server, {
     drainUpdateResponse: () => updateResponse,
-    stopReads: () => clearTimeout(nextCheck),
+    stopReads,
   });
 };

@@ -199,14 +199,24 @@ The read then gets the typed rows of the resolver (`nextBoard` of
 `docs/celetis-flow.md` of the plugin `celetis`, "The board", gives the value of each field and the
 rule that gives each row its state.
 
+A full read collects all open issues and their timelines, and the open PRs and their check and
+review results. A selected-issue read fetches each selected issue once and lists open PRs once.
+It reads timelines and PR details only for those issues. Both paths use the same row rules.
+The selected read replaces or removes only selected rows, sorts by issue number, and retains
+other rows. Closed issues, PR objects, and missing issues have no active row. Only an explicit
+404 from the initial issue request means missing; another request failure fails the batch.
+
 Each module of the data path is a static import. So a read loads no file of the plugin, takes no
 plugin read lock, and checks no update policy. The start checks the selected host's policy.
 Independent update checks validate the native update policy. Each Run and Resume starts a new
 runner process, which makes its own check. Assist checks the policy before it starts the native host.
 
-One read runs at a time: a cause of a read during a read joins that read. A read has a limit of 60
-seconds. The stop of the board also stops a read that runs. In each case, the `gh` process of that
-read ends. When a read fails, the cards and history of the last good read stay, and the status bar shows
+One read runs at a time. Full requests join an active full read or queue one full read after an
+active selected read. That full read takes priority over the next selected batch. Each read
+consumes the targets pending at its start; later hints remain pending, including the same issue.
+A failed full read restores its consumed targets; a failed selected read waits for another cause.
+Before the first good document, targets cause only full reads. A read has a limit of 60 seconds.
+The stop of the board also stops a read that runs. In each case, the `gh` process of that read ends. When a read fails, the cards and history of the last good read stay, and the status bar shows
 `cannot read:` with one line:
 
 | Cause | Line |
@@ -216,14 +226,21 @@ read ends. When a read fails, the cards and history of the last good read stay, 
 | The read does not end in 60 seconds | `the issue read did not end in 60 seconds` |
 | Another failure | The first line of its message, else `the issue read failed` |
 
-The next good read clears the line.
+A selected-read error takes display priority over a full-read error. A good selected read clears
+only its own error; a good full read clears both. Selected reads do not change the last-full-read
+time or the full-read evidence for the 30-second session detection period.
 
 `Document.queue` and `Board.queue` use QueueView. A null record means no saved queue yet.
 The view carries the schema-2 record, live owner, fresh next decision, error, and Add/Edit/Continue/Retry
-permissions. `readBoard` reconciles terminal members through the shared engine transition.
+permissions. A full read reconciles terminal members through the shared engine transition.
+A selected read uses that transition only when a selected issue is in the current queue. It
+retains the previous queue view otherwise. Remote row and History reads finish before this
+transition. Existing live-owner checks and wake authorization still apply.
 Its server-only `queueWake` carries a newly issued token once and is never a browser command.
 Each placement reads local storage and ownership, requests the existing refresh after changes,
-and disables recovery until the current decision is fresh. Failed reads preserve the last good list.
+and disables recovery until the current decision is fresh. A failed full read disables queue
+actions until a full read succeeds. A selected-read error alone does not disable them; all
+queue-specific restrictions still apply. Failed reads preserve the last good list.
 
 ## Landed history
 
@@ -234,7 +251,9 @@ landed count and the `d` shortcut open the same panel. Search finds landed issue
 History stays visible on a phone. Below 1100 px width or 701 px height the panel is a drawer;
 below 720 px width it fills the viewport. Closing it restores the board width.
 
-`history.ts` reads the remote repository metadata and captures the default branch head. It walks
+A full read, or a selected read that finds at least one closed issue, calls `history.ts` once.
+Other selected reads retain History. `history.ts` reads the remote repository metadata and
+captures the default branch head. It walks
 100-commit pages pinned to that SHA until it finds 20 distinct issues or exhausts history. It
 keeps traversal order and each issue's newest occurrence, with no closure-time cutoff. A direct
 Celetis Conventional Commit has an issue suffix. For a PR landing, the commit must match a merged
@@ -505,17 +524,26 @@ worktree, not in the main checkout.
 
 **The reads.** While the page is in view, it asks the server each 5 seconds. While its tab is
 hidden, it asks each 15 seconds with `?local=1`, so the tab title, the tab icon, and the
-notifications stay true. The server reads the issue data for these causes: the timer of the
-server; the last read started more than 5 minutes before a request that is not local; a session
-that had a card at the last request has no card at this one (not at a local request); a press of Run
-or Resume; a press of Assist; the end of the 30-second detection period; and a press of Refresh.
-Assist first waits for a read that already runs, then starts a new read. It refuses a failed new
-read, even when the last good document still has the blocked issue. The timer checks when the
-server starts to listen, and then 5 minutes after the start of the last read, for each cause. When the last read started 5 minutes ago
-or more, the timer starts a read. So with no page in view, the data is at most 5 minutes old, plus
-the time of one read. A page in view uses the same 5-minute interval, so ordinary page requests
-do not cause more frequent GitHub reads. The stop of the board stops the timer. The server also
-starts these read-only commands, with no shell:
+notifications stay true. The server checks local refresh hints each second, without overlapping
+listings, even with no page open. At startup it first lists existing hints and seeds its seen
+names, then starts a full read. New valid names select their issue numbers for the next batch.
+Each board consumes hints independently. A missing folder is empty; a listing failure keeps
+the prior seen names and pending targets without a diagnostic. Hints contain no issue data and
+authorize no action.
+
+A session card that disappears selects its known issue, including at a local request. A session
+with no issue keeps the full-read cause only at a request that is not local. Other full-read
+causes remain: the server timer; a nonlocal request more than 5 minutes after the last full-read
+start; Run, Resume, or Assist; the end of the 30-second detection period; local queue changes;
+and Refresh. Assist waits for an active read, then starts a fresh full read. It refuses a failed
+fresh read even when the last good document still has the blocked issue.
+
+The five-minute timer is measured from full-read starts. Selected reads do not postpone it.
+A due or manual full read waits for an active selected read, then runs before later target
+batches. This full read recovers direct GitHub edits that have no local hint. Requests can serve
+the last good document while a selected read runs. The last-read timestamp changes only after
+a successful full read. The stop of the board stops both timers and the active read.
+The server also starts these read-only commands, with no shell:
 
 - `hc ls --json`, at each request: the live terminals. Then `hc get <id> --json` for each terminal
   that reports a status: its status, its turn, its labels, its folders, and its foreground process;

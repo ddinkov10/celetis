@@ -9,6 +9,7 @@ import { lineOf } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
 import { run, runBun } from './lib/process.ts';
+import { writeRefreshHint } from './lib/refresh-hints.ts';
 import { github } from './lib/tracker.ts';
 import { branchGlobs, branchPattern, decide, landable } from './lib/workflow.ts';
 import { checkoutOf, removeLane } from './lib/worktree.ts';
@@ -297,6 +298,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
         const created = await checkedApi<{ html_url: string }>('/pulls', `cannot open the PR of ${branch}`, {
           fields: { base: trunk, head: branch, title: `${subject} (#${n})`, body: `Closes #${n}` },
         });
+        await writeRefreshHint(cwd, Number(n));
         const number = created.html_url.split('/').at(-1) ?? '';
         if (!/^[0-9]+$/.test(number)) die('blocked', `cannot read the number of the new PR: ${created.html_url}`);
         pull = {
@@ -476,6 +478,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
         method: 'PUT',
         fields: { merge_method: 'squash', sha: tip },
       });
+      await writeRefreshHint(cwd, Number(n));
       for (const check of flaky)
         console.log(
           `land: the check ${check.name} of PR #${pr} failed, then passed on its re-run; look for a flaky test: ${check.details_url}`,
@@ -544,6 +547,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     await removeLane(n, branch, checkout, cwd, abort.signal);
     interrupted();
     console.log(`land: ${branch} and its worktree are gone`);
+    await writeRefreshHint(main, Number(n));
     return 0;
   } catch (error) {
     if (cleanup) {

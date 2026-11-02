@@ -1225,7 +1225,11 @@ The command takes no arguments. It validates the main checkout's `.celetis.yaml`
 lane start before it starts the board. The start prints two lines: the main checkout and the
 URL. Each refresh reads the issue data in the board process,
 with the resolver and the locks of the engine and a fresh operation of the main checkout. So a
-change of `host` or `gates` in the main YAML shows at the next refresh. No config file is made.
+change of `host` or `gates` in the main YAML shows at the next refresh. The board checks local
+change hints each second and reads the affected issues. A disappeared session also selects its
+known issue. Full reads keep their five-minute schedule to recover direct GitHub edits, and a
+queued full read takes priority after an active selected read. Selected reads retain the
+last-full-read timestamp. No config file is made.
 Only `board.port` comes from YAML at the start; its default is 4403. `PORT` overrides it. This
 repository uses 4404, so its board can run beside a board on 4403. Restart the board after a port
 change. For an update, follow [Updates](#updates), including resource limits for open work,
@@ -1296,8 +1300,10 @@ History uses remote default-branch evidence for both `merge` and `pr` landings. 
 must identify the issue; its PR number is not an issue number. Issue closure alone adds nothing,
 and there is no 14-day closure window. The list covers recent landings; an absent issue can have
 older evidence, and a later revert can undo a listed change. History shares the existing refresh
-and timeout. A read error keeps the last good cards and history and shows the error; recovery
-clears it. Loading and successful empty history have separate messages.
+and timeout. A read error keeps the last good cards and history and shows the error. A good
+selected read clears only its own error; a good full read clears both error types. A full-read
+error disables queue actions until a full read succeeds; a selected-read error alone does not.
+Loading and successful empty history have separate messages.
 
 `docs/celetis-flow.md`, "The board", gives the data, the fixed argvs, and the card states.
 [`engine/board/README.md`](engine/board/README.md) describes the page.

@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { constants } from 'node:os';
 import type { Host } from '../lib/config-core.ts';
+import { commonDir } from '../lib/host.ts';
+import { readRefreshHints } from '../lib/refresh-hints.ts';
 import type { Adapter } from './adapter.ts';
-import { readBoard } from './data.ts';
+import { readBoard, readBoardTargets } from './data.ts';
 import { installedBoard, restartBoard } from './restart.ts';
 import { createBoard, run } from './server.ts';
 import { createUpdates, type UpdateController } from './updates.ts';
@@ -17,6 +19,7 @@ export async function startBoard(
 ): Promise<number> {
   context = { ...context, env: { ...context.env } };
   const port = Number(context.env.PORT) || configured;
+  const common = await commonDir(main);
   return new Promise<number>((done) => {
     const handlers = new Map<NodeJS.Signals, () => void>();
     const work = new AbortController();
@@ -26,6 +29,9 @@ export async function startBoard(
     const server = createBoard({
       main,
       read: (signal) => readBoard(main, AbortSignal.any([signal, work.signal])),
+      readTargets: (numbers, previous, signal) =>
+        readBoardTargets(main, numbers, previous, AbortSignal.any([signal, work.signal])),
+      hints: () => readRefreshHints(common),
       adapter,
       updates: () => updates,
       runtime: { revision: context.revision, instance: randomUUID() },

@@ -1,5 +1,5 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { type Effort, effortOf } from './lib/effort.ts';
 import { HostError, updateHint } from './lib/host.ts';
 import { describe, lineOf, type Next, type Observed } from './lib/lines.ts';
@@ -7,7 +7,7 @@ import { commandInput, createOperation, locateCheckouts, type Operation } from '
 import { codexHome } from './lib/plugin-metadata.ts';
 import { run as runProcess } from './lib/process.ts';
 import { processRunsScript } from './lib/process-identity.ts';
-import { github, type Issue, issueData, parseIssue } from './lib/tracker.ts';
+import { GitHubReadError, github, type Issue, issueData, parseIssue } from './lib/tracker.ts';
 import { type Decision, decide, type IssueData, type Lane, laneOf } from './lib/workflow.ts';
 
 type Fetched = Readonly<{ issue: Issue; data: IssueData }>;
@@ -268,52 +268,80 @@ export async function nextOpen(
   return { rows: value, stderr };
 }
 
+function boardRow({ issue, data }: Fetched, prs: readonly PullState[], dirtyLanes: readonly string[]): BoardRow | null {
+  const next = decide(data);
+  if (describe(String(issue.number), next).row === null) return null;
+  const finished = next.kind === 'stop' && next.reason === 'finished';
+  return {
+    number: issue.number,
+    title: issue.title,
+    url: issue.url,
+    labels: issue.labels,
+    updatedAt: issue.updatedAt,
+    closedAt: issue.closedAt,
+    next,
+    effort: effortOf(data, next),
+    path: finished ? null : (dirtyLanes.find((path) => basename(path).startsWith(`${issue.number}-`)) ?? null),
+    pr: prs.find((pr) => pr.headRefName.includes(`/${issue.number}-`)) ?? null,
+  };
+}
+
 export async function nextBoard(
   operation: Operation,
   signal: AbortSignal,
-): Promise<{ data: { noRun: string | null; rows: readonly BoardRow[] } | null; stderr: string }> {
+  targets?: readonly number[],
+): Promise<{ data: { noRun: string | null; rows: readonly BoardRow[]; closed: boolean } | null; stderr: string }> {
   const read = reader(operation, signal);
-  const { value, stderr } = await read.settle<{ noRun: string | null; rows: readonly BoardRow[] } | null>(
-    null,
-    async () => {
-      try {
-        const open = await read.openIssues();
-        const pulls = ((await read.gh.list('pulls?state=open&per_page=100')) as Pull[]).filter((pr) =>
-          /\/[0-9]+-/.test(pr.head.ref),
-        );
-        const prs: PullState[] = [];
-        for (const pr of pulls) prs.push(await read.pullState(pr));
-        const dirtyLanes: string[] = [];
-        for (const path of await read.lanes()) if (await read.dirty(path)) dirtyLanes.push(path);
-        const rows: BoardRow[] = [];
-        for (const { issue, data } of open.sort((a, b) => a.issue.number - b.issue.number)) {
-          const next = decide(data);
-          if (describe(String(issue.number), next).row === null) continue;
-          const finished = next.kind === 'stop' && next.reason === 'finished';
-          rows.push({
-            number: issue.number,
-            title: issue.title,
-            url: issue.url,
-            labels: issue.labels,
-            updatedAt: issue.updatedAt,
-            closedAt: issue.closedAt,
-            next,
-            effort: effortOf(data, next),
-            path: finished
-              ? null
-              : (dirtyLanes.find((path) => path.split('/').at(-1)?.startsWith(`${issue.number}-`)) ?? null),
-            pr: prs.find((pr) => pr.headRefName.includes(`/${issue.number}-`)) ?? null,
-          });
+  const { value, stderr } = await read.settle<{
+    noRun: string | null;
+    rows: readonly BoardRow[];
+    closed: boolean;
+  } | null>(null, async () => {
+    try {
+      const selected = targets === undefined ? null : new Set(targets);
+      const open: Fetched[] = [];
+      let closed = false;
+      if (selected === null) open.push(...(await read.openIssues()));
+      else {
+        for (const number of selected) {
+          let fetched: Fetched;
+          try {
+            fetched = await read.gh.read(String(number));
+          } catch (error) {
+            if (error instanceof GitHubReadError && error.endpoint === `issues/${number}` && error.notFound) continue;
+            throw error;
+          }
+          if (fetched.issue.pull) continue;
+          if (fetched.issue.state === 'closed') closed = true;
+          else open.push(fetched);
         }
-        const noRun = (await read.dirty(read.checkout))
-          ? `The main checkout is dirty: ${read.checkout}. Commit or stash first.`
-          : null;
-        return { noRun, rows };
-      } catch {
-        return null;
       }
-    },
-  );
+      const pulls = ((await read.gh.list('pulls?state=open&per_page=100')) as Pull[]).filter((pr) =>
+        selected === null
+          ? /\/[0-9]+-/.test(pr.head.ref)
+          : [...selected].some((number) => pr.head.ref.includes(`/${number}-`)),
+      );
+      const prs: PullState[] = [];
+      for (const pr of pulls) prs.push(await read.pullState(pr));
+      const dirtyLanes: string[] = [];
+      const paths =
+        selected === null
+          ? await read.lanes()
+          : (await Promise.all([...selected].map((number) => read.lanes(String(number))))).flat();
+      for (const path of paths) if (await read.dirty(path)) dirtyLanes.push(path);
+      const rows: BoardRow[] = [];
+      for (const fetched of open.sort((a, b) => a.issue.number - b.issue.number)) {
+        const row = boardRow(fetched, prs, dirtyLanes);
+        if (row !== null) rows.push(row);
+      }
+      const noRun = (await read.dirty(read.checkout))
+        ? `The main checkout is dirty: ${read.checkout}. Commit or stash first.`
+        : null;
+      return { noRun, rows, closed };
+    } catch {
+      return null;
+    }
+  });
   return { data: value, stderr };
 }
 

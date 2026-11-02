@@ -219,9 +219,9 @@ and foreground cleanup. A live foreground retains ownership when its runner dies
 prevents further starts. An unowned pending or running record permits deliberate Try again;
 it never silently starts again. A question remains a live session; use Go to answer it.
 
-Only fresh resolver results of finished or wontfix remove work. The existing board refresh
-resolves waiting members, including issues absent from the open list. Unreadable members stay
-queued with an error. A current issue cannot drain while its runner or foreground owns it.
+Only fresh resolver results of finished or wontfix remove work. A full board read, or a selected
+read of a queued issue, resolves waiting members, including issues absent from the open list.
+Unreadable members stay queued with an error. A current issue cannot drain while its runner or foreground owns it.
 When an unowned stopped current closes, reconciliation advances with normal gates or leaves
 empty. An Add after the final drain starts more work without reload or reset.
 
@@ -762,7 +762,7 @@ host's policy. Independent update checks validate the native update policy. Each
 starts a new `celetis-flow` process, which makes its own check. A conflict can show in the update
 check or in the tab of the next Run or Resume.
 
-The resolver makes these `gh api` calls: 2 paginated lists (open issues and open PRs),
+A full collection makes these `gh api` calls: 2 paginated lists (open issues and open PRs),
 one paginated call for the timeline of each open issue that has a comment, and 3 calls for each
 open PR whose branch holds `/<number>-`. It gives each row the state that it knows from GitHub and
 from the working trees: `blocked` with `reason` and `act`, `ready`, or `dirty` with `path`.
@@ -770,6 +770,27 @@ It also gives the `noRun` text for a dirty main checkout. The board adds what th
 `starting` for a lock that a live script holds, `stuck` with its `act` for a row of the record, the
 `step`, `started`, and `urgent` of each row, `runner`, `tracker`, and `flow` with the gate of each
 step.
+
+A selected collection reads each selected issue and its timeline, lists open PRs once, and
+reads check and review details only for matching issue branches. It uses the same row rules,
+checks only selected lane directories and the main checkout, and replaces or removes selected
+rows in number order. Other rows stay unchanged. Closed issues, PR objects, and an explicit 404
+from the initial issue request have no active row; a failed timeline or other request fails the
+batch. Each batch refreshes the configuration, runner, agents, and main dirty state. It calls
+the existing queue reconciliation only when a selected issue is in the current queue, after
+remote row and History reads finish. Existing ownership and launch rules remain authoritative.
+
+The server lists local refresh hints each second and selects newly seen issue numbers. Its first
+listing seeds existing names before the initial full read. A disappeared session selects its
+known issue, including at local requests; an unknown-issue session retains the nonlocal full-read
+cause. Each board consumes hints independently. GitHub remains authoritative.
+
+One full or selected read runs at a time. Hints that arrive after a read starts remain pending.
+Full requests join an active full read or queue one after an active selected read, with priority
+over subsequent selected batches. A failed full read restores its consumed targets; a failed
+selected read waits for another cause. Before a good document exists, only full reads run.
+The five-minute full-read schedule recovers direct GitHub edits without hints. Selected reads
+change neither that schedule, the last-full-read timestamp, nor session-start detection evidence.
 
 A read has a limit of 60 seconds, and the stop of the board also stops a read. On a failure, the
 board keeps its last document and shows one line after `cannot read:` on its status line:
@@ -780,7 +801,8 @@ board keeps its last document and shows one line after `cannot read:` on its sta
 - a read that passes 60 seconds: `the issue read did not end in 60 seconds`;
 - another failure: the first line of its message, else `the issue read failed`.
 
-The same read calls `readHistory` in `engine/board/history.ts`. It reads remote repository metadata,
+A full read, or a selected read that finds a closed issue, calls `readHistory` once in
+`engine/board/history.ts`. Other selected reads retain History. It reads remote repository metadata,
 captures the default branch head, and walks pages pinned to that SHA. It stops at 20 distinct issue
 identities or history exhaustion, preserving traversal order and the newest occurrence. Direct
 Celetis squash subjects resolve to real issues. Associated merged lane PRs must match the commit's
@@ -797,7 +819,9 @@ the same panel. At widths below 1100 px or heights below 701 px it is a drawer, 
 phone. Each semantic row has issue and commit links and accessible full commit identity/time.
 `View <trunk>` opens older history. History has no launch action. Loading, empty success, and
 initial error are separate states. Read failures preserve both cards and history with the visible
-read error; a later good read clears it. The snapshot's `history` is null before a good document.
+read error. A selected-read error takes priority over a full-read error. A good selected read
+clears only its own error; a good full read clears both. The snapshot's `history` is null before a
+good document.
 
 The board runs the data and server code that it loaded at its start. A board-approved update
 starts the approved installed program at the same URL. A terminal-started `celetis update` still
@@ -951,7 +975,9 @@ response, the browser reads state before another deliberate attempt. It merges a
 and polled queue revisions and keeps the last good list on a failed read. Pending admission,
 saved/starting, and verified running are separate states. Only existing session observations
 prove running. The existing refresh carries a server-only `Document.queueWake` once; placement
-never exposes or redispatches it. No second remote poller is added.
+never exposes or redispatches it. A full-read error disables queue actions until a full read
+succeeds. A selected-read error alone does not disable them; queue-specific restrictions remain.
+The hint timer reads local files, with no second remote poller.
 
 **The page.** [`engine/board/README.md`](../engine/board/README.md) of the plugin holds the page: the
 columns and the card of each state, the layout, the keys, the buttons Run, Resume,
