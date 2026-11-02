@@ -32,7 +32,10 @@ start step N+1.
 3. **Explore project context.** Explore files, docs, recent commits, and read the project context
    per `<plugin>/docs/procedures/project-context.md`. Its traps are the constraints on the fix.
 4. **Invoke `superpowers:systematic-debugging`** — MANDATORY, no self-granted exemptions; the red
-   repro is the spec's repro. After two failed fixes that share a premise, read
+   repro is the spec's repro. During diagnosis, after a substantive correction, after two failed
+   fixes of the same problem, and before an existing repair limit stops work, apply
+   `<plugin>/docs/procedures/lesson-capture.md`. Reuse a checkpoint already handled in the turn.
+   After two failed fixes that share a premise, read
    `<plugin>/docs/principles/attack-the-premise.md` before another already-permitted attempt;
    every existing attempt limit and stop still applies. When a hypothesis relies on a measured
    performance or quality result, read `<plugin>/docs/principles/explain-the-number.md`.

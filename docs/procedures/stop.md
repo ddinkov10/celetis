@@ -7,6 +7,12 @@ cite it.
 
 A skill stops when it says to stop, to show the user a message, or to escalate to the user.
 
+Before the terminal message or issue act, when useful task incident evidence exists, apply
+`<plugin>/docs/procedures/lesson-capture.md`. Reuse a checkpoint already handled in the turn.
+This adds no repair attempt. An entry read denial or another access stop takes precedence:
+perform no capture access that the stop prohibits. A capture block leaves the original terminal
+act and its order unchanged.
+
 - **In an interactive session**, which has no step text: show the user the message, and stop.
 - **In a step session**, which the runner started with its step text: hand the stop to the issue
   ("A stop in a step session").

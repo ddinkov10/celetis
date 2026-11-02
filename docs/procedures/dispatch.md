@@ -35,6 +35,11 @@ Each child that a step starts, in the task loop or outside it:
 5. **The brief.** Give the isolated child the exact checkout, the relevant project instructions,
    its task and constraints, the required skills and custom text, the gate, and the return
    contract.
+   For a correction, two failed fixes of the same problem, or a pre-stop incident, give the child
+   the exact resolved path of `<plugin>/docs/procedures/lesson-capture.md` and require its read.
+   The child returns the stable incident ID, action, expected/observed behavior, evidence and
+   source, uncertain cause, and candidate suggestion. It writes no lesson. The coordinator
+   applies that procedure once with the same ID and evidence, including a replayed report.
 
 A missing identity or an uncertain result stops the work that depends on the child. A setup stop
 needs the reported host setup before that work goes on: do not do that work in the main session.

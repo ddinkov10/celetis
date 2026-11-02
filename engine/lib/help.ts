@@ -17,6 +17,12 @@ export const helpCommands: readonly (readonly [form: string, summary: string])[]
   ],
   ['celetis celetis-flow --queue status', 'Reads the current queue and its allowed actions.'],
 
+  ['celetis lesson-store read main|active', 'Reads validated lessons; requires explicit --agent.'],
+  ['celetis lesson-store capture FILE', 'Saves a pending proposal; requires explicit --agent.'],
+  ['celetis lesson-store preview FILE', 'Prepares an exact lesson review; requires explicit --agent.'],
+  ['celetis lesson-store apply SNAPSHOT DIGEST', 'Applies the reviewed snapshot; requires explicit --agent.'],
+  ['celetis lesson-store recover', 'Completes an interrupted lesson write; requires explicit --agent.'],
+
   ['celetis root', 'Prints the folder of the program.'],
   ['celetis --version', 'Prints the revision of the program.'],
   ['celetis help', 'Prints this list.'],

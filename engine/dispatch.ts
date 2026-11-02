@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { closeSync, constants, fstatSync, openSync } from 'node:fs';
-import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { lstat, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { bindingMode, readBinding, resolvePair, ScoreError } from './lib/capability.ts';
 import type { Host } from './lib/config-core.ts';
@@ -22,6 +21,7 @@ import {
 } from './lib/dispatch-record.ts';
 import { HostError, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
+import { privateFolder, privateMode, privateRoot } from './lib/private-folder.ts';
 import { tryFlock } from './lib/update-lock.ts';
 import { openLockFile } from './lib/windows.ts';
 
@@ -101,27 +101,12 @@ function sessionOf(host: Host, session: unknown): string {
     throw new SetupError(`need a valid ${variable}`);
   return session;
 }
-function privateMode(stat: { uid: number; mode: number }): boolean {
-  return process.platform === 'win32' || (stat.uid === process.getuid?.() && (stat.mode & 0o077) === 0);
-}
-async function privateFolder(path: string): Promise<void> {
-  try {
-    await mkdir(path, { mode: 0o700 });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw new SetupError(`${path}: ${message(error)}`);
-  }
-  try {
-    const stat = await lstat(path);
-    if (!stat.isDirectory() || stat.isSymbolicLink() || !privateMode(stat))
-      throw new SetupError(`${path}: need a private directory owned by the current user (mode 0700)`);
-  } catch (error) {
-    if (error instanceof SetupError) throw error;
-    throw new SetupError(`${path}: ${message(error)}`);
-  }
+function setupFailure(path: string, reason: string): SetupError {
+  return new SetupError(`${path}: ${reason}`);
 }
 async function folders(root: string, dir: string): Promise<void> {
-  await privateFolder(root);
-  await privateFolder(dir);
+  await privateFolder(root, setupFailure);
+  await privateFolder(dir, setupFailure);
 }
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -131,7 +116,7 @@ async function withRecord<T>(
   session: string,
   act: (record: DispatchRecord | null) => Promise<{ value: T; record?: DispatchRecord }>,
 ): Promise<T> {
-  const root = process.platform === 'win32' ? join(tmpdir(), 'celetis') : `/tmp/celetis-${process.getuid?.()}`;
+  const root = privateRoot;
   const dir = join(root, 'dispatch');
   const file = join(dir, `${host}-${session}.json`);
   const lock = `${file}.lock`;

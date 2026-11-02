@@ -29,6 +29,13 @@ Superset of `superpowers:executing-plans` (the inline flow) and `superpowers:sub
 
 ### Both flows
 
+**Incident capture — tasks, reviews, and repairs.** After a substantive correction, after two
+failed fixes of the same problem, and before an existing repair limit stops work, apply
+`<plugin>/docs/procedures/lesson-capture.md`. This covers inline and child implementation, task
+and final review, gate, Verify, and landing repairs, including re-entry. Give children its exact
+resolved path and incident return contract; the coordinator owns the task's pending write.
+Reuse a checkpoint already handled in the turn. Keep every existing attempt limit and stop.
+
 **Current documentation — tasks, reviews, and repairs.** Before each task, read
 `<plugin>/docs/procedures/behavior-documentation.md` and apply "Assessment" and "Change work".
 Carry its assessment and exact resolved module path into implementation, task review, and final
@@ -60,7 +67,7 @@ their existing scoped re-reviews. These requirements cover:
 Apply the module's material-risk disposition before accepting upstream parking, deferred-minor,
 or out-of-scope rulings. Keep the existing review counts, fix limits, and dispatch controls.
 
-**Lesson rules — both flows.** Before each task, apply `<plugin>/docs/procedures/task-lessons.md`, "Delivery" and "Changed scope", to implementation, task review, and gate-repair context.
+**Lesson rules — both flows.** At each task and repair boundary, including the final review and re-entry, apply `<plugin>/docs/procedures/task-lessons.md`, "Refresh" and "Delivery", to implementation and review context.
 
 **Project verification recipes — both flows.** Before building a task, read
 `<plugin>/docs/procedures/verification-recipes.md` and apply "Execution and retention". Include
@@ -93,7 +100,7 @@ On the inline flow, the session builds each task itself and applies both blocks 
 
 **Tail — after every task is review-clean, in order:**
 1. `celetis:polishing-code-comments` sweep over the full branch diff (once per branch).
-2. Broad final whole-branch review (the final review of the upstream skill). Give each final reviewer the exact applicable principle paths for the reviewed changes, with instructions to read them. Carry applicable lesson rules into final-review and review-fix context per `<plugin>/docs/procedures/task-lessons.md`. For each repair, derive paths from the changed repair scope and retain applicable task constraints in its brief:
+2. Broad final whole-branch review (the final review of the upstream skill). Give each final reviewer the exact applicable principle paths for the reviewed changes, with instructions to read them. Refresh lesson rules for the final review and each review fix per `<plugin>/docs/procedures/task-lessons.md`. For each repair, derive paths from the changed repair scope and retain applicable task constraints in its brief:
    - On the inline flow, score the whole branch with `celetis --agent <host> capscore J V B N S X --bias BIAS --attempt 1 --reviewer --json`, and dispatch the reviewer by `<plugin>/docs/procedures/dispatch.md`, "One child", with the full diff in its brief. The session fixes Critical and Important findings in one pass, each fix test-first, with no second review.
    - On the subagent flow, score the whole branch, then run `celetis --agent <host> dispatch next <n> final reviewer J V B N S X --bias N`. Send findings to `review <n> final findings`; its returned action starts the one fix wave. After each implementer `DONE`, run the gate and report it with `gate`; on a pass, the engine issues the scoped re-review. Apply the upstream skill's rulings for each residual finding, then use `close <n> final`.
 3. A re-run of the verify gate of the project.
@@ -104,10 +111,9 @@ On the inline flow, the session builds each task itself and applies both blocks 
 
 **A fix after the final review.** A Verify FAIL and a refusal that the change caused (Land, step 4) use one rule in both flows. The rule needs no `Execution:` line, so it also works on re-entry. The fix runs the task loop of `superpowers:subagent-driven-development` with the fix as its one task: an implementer, the verify gate of the project, a task review, and `close`. The loop follows **Task dispatch** and **Gate each task before its review**. A session that did not invoke that skill invokes it now, for its task loop only. The plan has no task for the fix, and a clean final review deletes the plan's workspace. So the session writes the fix brief to a file in the workspace that `sdd-workspace PLAN_FILE` of that skill prints. The brief holds the cause (the failed scenario and its output, or the `land:` lines), the Global Constraints of the plan (for a micro-plan, the constraints of its task), the applicable task constraints, the exact applicable principle paths derived from the repair scope, and the verify gate of the project. The session scores the fix as a new `verify-<k>` or `land-<k>` task; no published digits exist for it. The task reviewer takes that task's digits and bias through the engine. It gets the brief, the report, and a review package over the fix range. No review follows such a fix, so its task review is its only review.
 
-The saved fix brief also carries the complete still-applicable lesson rules and new matches for
-the repair scope per `<plugin>/docs/procedures/task-lessons.md`. Reconstruct them from the current
-plan and applicable lesson files on re-entry or after workspace cleanup. Give the implementer
-and reviewer that same updated context.
+The saved fix brief also carries the lesson rules refreshed for the repair scope per
+`<plugin>/docs/procedures/task-lessons.md`. On re-entry or after workspace cleanup, rebuild them
+from the current plan by its "Refresh". Give the implementer and reviewer that same context.
 
 Carry the affected documentation assessment by
 `<plugin>/docs/procedures/behavior-documentation.md`, "Repairs and re-entry", in that saved or

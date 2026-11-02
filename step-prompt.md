@@ -31,3 +31,8 @@ clean.
 5. A Verify scenario that you cannot run has no PASS. First apply
    `<plugin>/docs/procedures/runtime-verification.md`, "Usage-limit exception". When it does not
    permit continuation, follow `<plugin>/docs/procedures/stop.md`, "A Verify scenario that cannot run".
+6. After a substantive correction, after two failed fixes of the same problem, and before an
+   existing repair limit stops the step, apply `<plugin>/docs/procedures/lesson-capture.md`.
+   Reuse a checkpoint already handled in this turn. The coordinator owns child incident writes.
+   Keep existing attempt limits and complete the check before the terminal issue act; an entry
+   denial or another access stop still takes precedence.
