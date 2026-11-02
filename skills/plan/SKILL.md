@@ -44,7 +44,7 @@ Put the exact applicable rule paths in each affected task's text, alongside its 
 **Save the plan to `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`** (gitignored scratch; the Terminal step publishes it to the issue).
 
 **Record in the plan header**, after `**Spec:**`:
-- `Bias:`, only if the session effort bias ≠ default 2:
+- `Bias:`, only if the session effort bias ≠ default 0:
   ```
   Bias:         <n>
   ```
@@ -57,9 +57,9 @@ Put the exact applicable rule paths in each affected task's text, alongside its 
 Judge "many" and "not simple" from the number of tasks, the CAP line of each task, and how much a task depends on the interfaces of an earlier task. The rule sets no number. Ask no person to choose the flow. The line replaces the question of the execution method of `superpowers:writing-plans`. In a project where the gate of `implement` is `me`, the maintainer reads the line in the plan review and can correct it before the build starts.
 
 **Per task:**
-- **Capability score.** Score the task on the six-dimension rubric (digit anchors: `<plugin>/docs/capability.md`) and emit the CAP line with the script — never hand-compute the tier:
+- **Capability score.** Apply `<plugin>/docs/capability.md`, "The rubric — six dimensions, each 0–2" and "Scorecard format — MANDATORY", to the task's digits and evidence reason. Emit the CAP line with the script — never hand-compute the tier:
   ```bash
-  celetis --agent <host> capscore J V B N S X          # add --bias 0|1 to lower a cheap task
+  celetis --agent <host> capscore J V B N S X [--bias N]
   ```
   Put the emitted `CAP: J_ V_ B_ N_ S_ X_ = n [+bN] → model/effort` line in the task header, in both flows. The user reviews the scores with the plan. On the subagent flow, `implement` reuses the digits and written bias, resolves the current host's model and effort, and re-scores only a task whose scope materially changed. On the inline flow, the line recommends the session model and is evidence for the choice of the flow; the effort decision of Terminal sets the level of an `implement` session that the runner or the board starts. An absent `+bN` means bias 0; the model label is a historical binding.
 

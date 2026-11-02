@@ -6,16 +6,50 @@ tier and effort level executes the next task. Digit assignment is agentic (judgm
 digits→tier arithmetic is deterministic and lives in `celetis --agent <host> capscore` (the doc is the
 spec; the script is the authority for the math — they must agree).
 
+The sum is an allocation heuristic that combines difficulty and the consequence of a defect,
+not a measurement of difficulty or a probability of success. [The approved design of #227](https://github.com/ddinkov10/celetis/issues/227)
+records all seven change-or-retain decisions. The maintainer delegated research-based decisions;
+the agent chose the rules, and the maintainer approved the written design. Historical score
+frequencies do not establish model quality, optimal bands, or savings.
+
 ## The rubric — six dimensions, each 0–2
 
-| dim | 0 | 1 | 2 |
+Score the actual delegated task after reading its scope and acceptance criteria. Separate work
+already decided in the approved spec from decisions the worker still has to make. Score each
+dimension once; do not increase a digit to force a desired tier.
+
+| Dimension | 0 | 1 | 2 |
 |---|---|---|---|
-| **J** judgment-density | mechanical / scripted | standard code, some choices | design / wording / architecture |
-| **V** verifiability *(inverted)* | deterministic gate catches failure (verify, tests) | partial coverage | only human review catches it |
-| **B** blast-radius | throwaway / scratch | local tooling, gitignored | shipped code or durable steering surface (skills, CLAUDE.md, published) |
-| **N** novelty | copy existing pattern | adapt existing pattern | new design |
-| **S** scope-size | 1 file | 2–5 files / 1 subsystem | >5 files or multi-subsystem |
-| **X** security-sensitivity | none | touches auth/crypto-adjacent code, semantics unchanged | changes auth/crypto/permission semantics |
+| **J** judgment | Exact transformation or prescribed action; no material choice remains. | Bounded implementation or editorial choices within an agreed design. | Material unresolved trade-offs, conflicting requirements, or architecture/policy decisions. |
+| **V** verification gap | Executable checks cover the decisive acceptance outcomes. | Executable checks cover only part of the acceptance; substantive review is also needed. | The decisive outcome has no reliable executable oracle and depends on judgment. |
+| **B** consequence of a defect | No product behavior, authority, or retained-data effect; for example a mechanically checked non-normative text correction. | A bounded, reversible effect in one behavior or component. | A shared behavioral rule, cross-workflow effect, data loss/corruption risk, or authority boundary with substantial consequences. |
+| **N** novelty | Use an existing solution or exact pattern without a new mechanism. | Adapt an existing pattern to a materially different case. | Introduce a mechanism or design with no suitable project precedent. |
+| **S** coupled scope | One local behavior/invariant, or an identical mechanical transformation at many locations. | Several interacting behaviors inside one established contract/subsystem. | Coordinated changes across contracts/subsystems, or a state model with several interacting invariants that must change together. |
+| **X** security | No security-relevant semantics; ordinary content hashing alone belongs here. | Work beside an existing security boundary while preserving its established decisions. | Change authentication, authorization, secret handling, cryptographic security, or a trust/permission decision. |
+
+B2 needs a named affected behavior and failure consequence. A shipped file, skill, or public
+document is not enough. A skill changing permission or workflow policy can still be B2. J2 needs
+the unresolved decision. N2 needs the missing precedent. S2 needs the coupled contracts or
+invariants. X2 needs the security decision that changes.
+
+V0 requires relevant behavioral checks. A static verify gate alone does not establish V0 for
+agent behavior. A small diff does not establish low S, and a large mechanical diff does not
+establish high S. Use no file-count or changed-line thresholds.
+
+These contrasts apply regardless of the file type:
+
+- An exact wording correction can be J0; unresolved policy design can be J2.
+- A digest used only to detect stale content is X0; a signature or digest whose acceptance grants
+  authority is not automatically X0.
+- Eleven identical mechanical edits can be S0; one state machine with interacting invariants
+  that must change together can be S2.
+- Static checks can validate file structure; only checks of decisive behavioral outcomes support
+  V0 for behavior changes.
+
+Read the relevant source when scope evidence is missing. If it remains unavailable, state the
+uncertainty and use the highest digit supported by a plausible, explicitly described in-scope
+consequence. Do not invent a security concern, label unknown code harmless, or treat missing
+tests as adequate verification. Normal task blocks stay separate from the arithmetic.
 
 ## Bands (sum 0–12)
 
@@ -24,8 +58,10 @@ spec; the script is the authority for the math — they must agree).
 Model tiers (low→high): **haiku · sonnet · opus · fable**. Effort tiers (low→high): **low · medium ·
 high · xhigh · max**.
 
-Fable is reached only at Σ=12 or by attempt-3 escalation from opus: Opus 5.5 covers 7–11 at
-$4/$20 per MTok against Fable 5.1's $10/$50. Revisit the 10–11 band when either model changes.
+Fable is reached only at Σ=12 or by attempt-3 escalation from opus. These bands remain an
+intentional allocation policy under #227, not a vendor performance or pricing result. Changing
+them requires outcome evidence; a concentration of scores in one band does not justify a target
+percentage for cheaper models.
 
 ## Floors (beat the sum, never lower it)
 
@@ -35,7 +71,8 @@ $4/$20 per MTok against Fable 5.1's $10/$50. Revisit the 10–11 band when eithe
 ## Effort bias
 
 `--bias N` (script flag) / `CAP_EFFORT_BIAS` (env fallback) raises **effort** by N tiers. **Model is
-never biased.** **Default 2** — lower per-dispatch with `--bias 0|1` when cost matters.
+never biased.** **Default 0**. An empty environment value also uses 0. A newly selected nonzero
+bias needs a task reason under "Scorecard format — MANDATORY".
 
 `--bias` and `CAP_EFFORT_BIAS` accept safe integers from 0 through 9007199254740991.
 The CLI bias takes precedence over the environment. `--attempt` accepts safe integers from 1
@@ -45,8 +82,8 @@ A non-string `reviewer.effort` is an error.
 **Application order:** sum → band → floors → bias → escalation → clamp.
 
 **Clamp (final invariant):** effort ceiling is **max**, EXCEPT a **fable** result caps at **xhigh**
-unless Σ=12 — `fable/max` is **reserved for Σ=12**. `opus/max` is the routine 7–11 result
-(opus/high or opus/xhigh + default b2) and is unaffected.
+unless Σ=12 — `fable/max` is **reserved for Σ=12**. Explicit bias and escalation can still raise
+an opus result to max.
 
 ## Escalation (deterministic, gate-fail count within one task)
 
@@ -61,17 +98,24 @@ below Σ=12.
 
 ## Scorecard format — MANDATORY
 
-Every dispatch prompt **and** every plan task header carries one line:
+Every dispatch prompt **and** every plan task header carries the emitted CAP line, immediately
+followed by an authored `CAP reason:`:
 
 ```
-CAP: J1 V0 B1 N1 S1 X0 = 4 → sonnet/medium
+CAP: J1 V1 B1 N1 S1 X0 = 5 → sonnet/medium
+CAP reason: J1 covers a bounded option implementation. V1 reflects partial behavioral checks. B1 limits a defect to one reversible command behavior. N1 adapts the command's existing option pattern. S1 covers its interacting local options.
 ```
 
-Non-zero bias shows a `+bN` token before the arrow:
+The reason names evidence for every nonzero digit, grouping related evidence where clear. Explain
+a potentially misleading zero, such as X0 for a content digest that grants no authority. Include
+the task reason for a newly selected nonzero bias; the emitted line shows it as `+bN` before the
+arrow. The reason is prose, not a CLI argument, JSON property, dispatch-record field, or parser
+input. It changes no byte of the emitted CAP line.
 
-```
-CAP: J1 V2 B2 N1 S1 X0 = 7 +b2 → opus/max
-```
+Published digits and explicit bias remain execution inputs. Reuse a supported existing reason,
+or explain those unchanged inputs from available task evidence. Mark missing historical evidence
+instead of inventing it. Re-score only changed scope; a new rubric or host does not reinterpret
+old tasks. An absent `+bN` in a published line means bias 0.
 
 For plan headers and children outside the task loop of `implement`, generate the line with
 `capscore` (do not hand-compute the tier). The task loop takes its line from `dispatch`
@@ -104,14 +148,99 @@ will read it:
   (`docs/celetis-flow.md`, "Start the script", "The effort level"); the rubric still only
   recommends the session model.
 
-## Worked examples (seed calibration, default bias 2)
+## Worked examples (explicit bias 0, attempt 1)
 
-- verify-gates plan: `CAP: J1 V0 B1 N1 S1 X0 = 4 +b2 → sonnet/xhigh` (base band sonnet/medium)
-- type-lanes plan: `CAP: J2 V2 B2 N1 S1 X0 = 8 +b2 → opus/max` (base band opus/high)
+These specified task shapes illustrate the anchors, not model success. Each pair uses the
+scorer with `--agent claude --bias 0`; each reason states the assumptions behind its digits.
 
-## Out of scope (v1)
+**Exact text correction.** Apply a prescribed non-normative correction at eleven README locations.
 
-Outcome-based score tuning; reuse of fail counts across sessions; per-tier cost accounting.
+```text
+CAP: J0 V0 B0 N0 S0 X0 = 0 → haiku/low
+CAP reason: The transformation is exact, checks cover every correction, and no behavior or retained data changes. Eleven identical edits are S0; publication adds no consequence by itself.
+```
+
+**Tiny helper.** Adapt a content-change digest helper within a fixed local contract.
+
+```text
+CAP: J1 V0 B1 N0 S0 X0 = 2 → haiku/low
+CAP reason: J1 covers bounded implementation choices. B1 covers reversible content-change detection errors in one helper. Complete behavior checks support V0; an exact established pattern supports N0 and one contract supports S0. X0 applies because the digest grants no authority and handles no secret.
+```
+
+**Bounded command option.** Extend one established command with several interacting options.
+
+```text
+CAP: J1 V1 B1 N1 S1 X0 = 5 → sonnet/medium
+CAP reason: J1 covers bounded implementation choices. V1 reflects partial behavioral checks. B1 limits a defect to a reversible command behavior. N1 adapts an existing option pattern to a different case. S1 covers interactions inside the command contract.
+```
+
+**Approved capture policy.** Apply a decided policy across workflow contracts, as in the
+specified implementation shape of #189 Task 3, without rescoring its historical task.
+
+```text
+CAP: J1 V1 B2 N1 S2 X0 = 7 → opus/high
+CAP reason: J1 covers bounded choices inside the approved policy. V1 reflects partial executable coverage. B2 covers missed capture across workflows. N1 adapts an existing capture pattern. S2 couples task and repair contracts. X0 preserves stop and authority decisions.
+```
+
+**Storage and recovery design.** Coordinate a new storage state model and recovery behavior.
+
+```text
+CAP: J2 V0 B2 N2 S2 X0 = 8 → opus/high
+CAP reason: J2 covers unresolved storage/recovery trade-offs. B2 covers retained-data loss or corruption. N2 assumes no suitable project mechanism. S2 couples storage and recovery invariants. Complete executable outcome checks support V0; no authentication or trust decision changes, so X0.
+```
+
+**Permission decision.** Implement one prescribed permission rule within one local contract.
+
+```text
+CAP: J1 V0 B2 N0 S0 X2 = 5 → opus/high
+CAP reason: J1 covers a bounded implementation choice. B2 covers an incorrect authority grant. X2 changes the permission decision. Complete checks support V0 and an existing mechanism supports N0. The local scope is S0, which does not remove the security floor.
+```
+
+**Judgment-based editorial choice.** Make a bounded editorial choice with a reversible effect.
+
+```text
+CAP: J1 V2 B1 N0 S0 X0 = 4 → sonnet/high
+CAP reason: J1 covers bounded editorial choices. V2 applies because decisive acceptance depends on judgment without a reliable executable oracle. B1 limits a defect to one reversible behavior. The task uses an existing pattern and one local contract with no security semantics.
+```
+
+**Novel authority design.** Resolve coupled authority rules without a reliable executable oracle.
+
+```text
+CAP: J2 V2 B2 N2 S2 X2 = 12 → fable/max
+CAP reason: J2 covers unresolved authority-policy trade-offs. V2 lacks a reliable oracle for the decisive outcome. B2 covers incorrect grants across workflows. N2 assumes no suitable project precedent. S2 couples permission and recovery contracts. X2 changes trust decisions.
+```
+
+## Outcome evidence procedure
+
+The objective is the lowest total cost that meets the task's quality requirement, including
+review and repairs. The anchors and equal-weight sum are not empirically calibrated. Lower
+allocations may increase repairs, and reasons make subjective scores reviewable without removing
+judgment. Use this manual procedure before claiming better quality or cost:
+
+1. Select representative tasks, fixed input snapshots, and acceptance outcomes before trials.
+   Separate mechanical edits, ordinary implementation, coupled state changes, and consequential
+   instruction changes. Exclude fixtures and duplicate session continuations from independent
+   task counts.
+2. Compare the accepted configuration and a candidate on the same tasks in isolated trials.
+   Hold the model fixed to compare effort, and hold effort fixed to compare models where
+   supported. Use repeated trials; one success does not calibrate the policy.
+3. Record model/runtime versions, loaded instructions, task/attempt identity, first-attempt
+   acceptance, material review findings, repairs, elapsed time, and actual available usage.
+   Count first-attempt acceptance separately from eventual acceptance. Include reviewer and
+   repair usage in total task cost. Missing billing evidence stays unknown.
+4. Report per-category results and failures, sample size, spread, exclusions, and uncertainty.
+   A favorable aggregate cannot hide a new consequential failure. A score distribution or
+   static gate PASS is not a quality comparison.
+
+Use existing authenticated hosts and temporary programs outside the checkout. Retain decisive
+evidence on the issue through the existing runtime verification process. This procedure adds no
+benchmark command, tracked test, telemetry, or automatic outcome tuning. It requires no benchmark
+campaign for #227 and makes no equal-quality or savings claim.
+
+## Out of scope
+
+Automatic outcome-based score tuning, reuse of fail counts across sessions, and a persistent
+per-tier cost store remain out of scope.
 
 ## Dispatch records
 
@@ -235,15 +364,15 @@ Codex uses its configured slots, or the parent model with no profile, even when 
 {
   "schema": 1,
   "digits": {"J": 1, "V": 0, "B": 2, "N": 1, "S": 1, "X": 0},
-  "bias": 2,
+  "bias": 0,
   "attempt": 1,
   "sum": 5,
   "rank": 1,
-  "effort": "xhigh",
+  "effort": "medium",
   "host": "claude",
   "status": "ready",
-  "dispatch": {"rank": 1, "model": "sonnet", "effort": "xhigh", "runtime": null, "reviewer": false},
-  "line": "CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → sonnet/xhigh"
+  "dispatch": {"rank": 1, "model": "sonnet", "effort": "medium", "runtime": null, "reviewer": false},
+  "line": "CAP: J1 V0 B2 N1 S1 X0 = 5 → sonnet/medium"
 }
 ```
 
@@ -277,12 +406,12 @@ gets the effort of its rank. The scorer names no model ID and reads no runtime f
 one. The applied effort follows the rules of a profile with four identical slots and a
 rank-1/medium reviewer minimum. `dispatch.model` and `dispatch.runtime` are null, and the human
 line shows `inherit`.
-For the digits `1 0 2 1 1 0` and the default bias 2, the result holds:
+For the digits `1 0 2 1 1 0` and the default bias 0, the result holds:
 
 ```json
 {"host": "codex", "status": "ready",
- "dispatch": {"rank": 1, "model": null, "effort": "xhigh", "runtime": null, "reviewer": false},
- "line": "CAP: J1 V0 B2 N1 S1 X0 = 5 +b2 → inherit/xhigh"}
+ "dispatch": {"rank": 1, "model": null, "effort": "medium", "runtime": null, "reviewer": false},
+ "line": "CAP: J1 V0 B2 N1 S1 X0 = 5 → inherit/medium"}
 ```
 
 For model tiers, supply a profile; the plugin bundles none. A profile has exactly four slots in
@@ -393,8 +522,9 @@ celetis --agent codex capscore 1 0 2 1 1 0 --json \
 
 Existing plan CAP lines remain historical records. At dispatch, reuse their six digits and
 written bias (`+bN`; an absent token means 0), plus the current task's attempt count. Do not
-rescore the task because the host changed, and do not replace a written zero bias with the
-scorer's default 2. Record the new human line and `dispatch` pair in the execution record.
+rescore the task because the host or rubric changed, and do not replace a written bias with a
+current default or environment override. Record the new human line and `dispatch` pair in the
+execution record. Apply "Scorecard format — MANDATORY" to the prompt's reason.
 
 For a Codex child scored with `capscore`, apply `dispatch.model` and `dispatch.effort` explicitly
 using the actual available spawn tool on an isolated child. With `dispatch.model: null`, send

@@ -38,8 +38,8 @@ row. `max` needs a reason that states why xhigh is not enough.
 **The level of `implement`.** On the inline flow, the session builds each task, so the level fits
 the hardest task. On the subagent flow, the session coordinates, and each child gets its own effort
 from `dispatch`, so the level fits the work of the session itself, not the tasks of the children.
-The table sets the level, also when a CAP line names another effort: the rubric is calibrated for
-child agents.
+The table sets the level, also when a CAP line names another effort: the rubric is an allocation
+policy for child agents.
 
 ## The record
 

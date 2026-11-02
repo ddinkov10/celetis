@@ -17,7 +17,8 @@ Each child that a step starts, in the task loop or outside it:
 
 1. **The score.** Outside the task loop, score the child with
    `celetis --agent <host> capscore J V B N S X --json`, with the digits, the bias, and the attempt
-   that the skill names (digit anchors: `<plugin>/docs/capability.md`). Add `--reviewer` for a
+   that the skill names. For new scores, apply `<plugin>/docs/capability.md`, "The rubric — six
+   dimensions, each 0–2". Add `--reviewer` for a
    review. Its `line` is the CAP line, and `dispatch.model` and `dispatch.effort` are the pair.
    The task loop takes the line and the pair from `dispatch` in place of a score
    ("The task loop"). Dispatch only on `status: "ready"`. A `stop` status dispatches no child:
@@ -25,7 +26,9 @@ Each child that a step starts, in the task loop or outside it:
 2. **The pair.** Inspect the active tool schema before each call. Apply the model and the effort
    of the pair through the host's actual spawn controls (the part of the host below). Omit the
    model when it is null. A CAP line alone does not set them. Keep the parent model and effort.
-3. **The CAP line** goes first in the child prompt, unchanged.
+3. **The scorecard.** Apply `<plugin>/docs/capability.md`, "Scorecard format — MANDATORY", to
+   new scores and reused published inputs. The emitted CAP line goes first in the child prompt,
+   unchanged, immediately followed by its evidence reason. This includes reviews and repairs.
 4. **The identity.** Record the applied arguments and the child identity that the host returns.
    A repair or a scoped re-review keeps the same child, unless `dispatch` returns `replace` or the
    skill names a fresh child. Resume a kept child with the host's follow-up tool, which keeps the
@@ -120,7 +123,7 @@ shape:
 {
   "call": {
     "tool": "Agent",
-    "arguments": {"prompt": "<issued CAP line>\nReply OK.", "model": "haiku", "effort": "low", "subagent_type": "general-purpose"},
+    "arguments": {"prompt": "<issued CAP line>\nCAP reason: <task evidence>\nReply OK.", "model": "haiku", "effort": "low", "subagent_type": "general-purpose"},
     "result": {"agentId": "worker-id"}
   },
   "outcome": {"result": "started", "child": "worker-id", "model": null, "effort": null}
@@ -139,7 +142,7 @@ call of the session also used that name, send to the agent ID: the engine refuse
 {
   "call": {
     "tool": "SendMessage",
-    "arguments": {"to": "worker-id", "message": "<issued CAP line>\nContinue."},
+    "arguments": {"to": "worker-id", "message": "<issued CAP line>\nCAP reason: <task evidence>\nContinue."},
     "result": {"success": true, "resumedAgentId": "worker-id"}
   },
   "outcome": {"result": "started", "child": "worker-id", "model": null, "effort": null}
@@ -175,7 +178,7 @@ native call. Save exact arguments and the complete native result. A spawn report
 {
   "call": {
     "tool": "collaboration.spawn_agent",
-    "arguments": {"task_name": "worker", "message": "<issued CAP line>\nReply OK.", "reasoning_effort": "low", "fork_turns": "none"},
+    "arguments": {"task_name": "worker", "message": "<issued CAP line>\nCAP reason: <task evidence>\nReply OK.", "reasoning_effort": "low", "fork_turns": "none"},
     "result": {"task_name": "/root/worker"}
   },
   "outcome": {"result": "started", "child": "/root/worker", "model": null, "effort": null}
@@ -188,7 +191,7 @@ For a same-pair resume, retain that identity and report the exact follow-up argu
 {
   "call": {
     "tool": "collaboration.followup_task",
-    "arguments": {"target": "/root/worker", "message": "<issued CAP line>\nContinue."},
+    "arguments": {"target": "/root/worker", "message": "<issued CAP line>\nCAP reason: <task evidence>\nContinue."},
     "result": {"task_name": "/root/worker"}
   },
   "outcome": {"result": "started", "child": "/root/worker", "model": null, "effort": null}

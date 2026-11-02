@@ -61,7 +61,7 @@ N+1. Too little time for the lane → the change does not ship tonight.
      for types or signatures in a statically typed language,
      `<plugin>/docs/principles/type-system-discipline.md`; for behavioral verification checks,
      `<plugin>/docs/principles/test-behavior-not-implementation.md`.
-   - CAP line via `celetis --agent <host> capscore J V B N S X` — never hand-computed. It is a recommendation for the session, because `implement` builds a micro-plan inline.
+   - Apply `<plugin>/docs/capability.md`, "The rubric — six dimensions, each 0–2" and "Scorecard format — MANDATORY", to the task's digits and evidence reason. Emit its CAP line via `celetis --agent <host> capscore J V B N S X` — never hand-computed. It is a recommendation for the session, because `implement` builds a micro-plan inline.
    - Verify phase: the red repro re-run post-fix, plus one error branch of any newly-enabled
      path (widened allow-list / enum / dispatch literal / flag). Read
      `<plugin>/docs/procedures/runtime-verification.md` and apply "Planning" to its runtime

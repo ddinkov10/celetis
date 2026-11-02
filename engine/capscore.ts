@@ -14,7 +14,7 @@ import { HostError, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 
 const usage = `usage: celetis --agent <host> capscore J V B N S X [options]
---bias N                 effort bias (CAP_EFFORT_BIAS; default 2)
+--bias N                 effort bias (CAP_EFFORT_BIAS; default 0)
 --attempt N              gate-fail attempt (default 1; 4 or later stops)
 --agent claude|codex      explicit agent (CELETIS_AGENT > project config > claude)
 --json                   portable score plus the applied dispatch pair
@@ -81,7 +81,7 @@ export async function main(argv: string[]): Promise<number> {
     const opencode = process.env.OPENCODE === '1';
     const environment = process.env.CELETIS_AGENT;
     if (biasText === undefined) {
-      biasText = process.env.CAP_EFFORT_BIAS || '2';
+      biasText = process.env.CAP_EFFORT_BIAS || '0';
       if (!/^\d+$/.test(biasText) || !Number.isSafeInteger(Number(biasText)))
         throw new ScoreError('CAP_EFFORT_BIAS must be a non-negative integer');
     }
