@@ -60,12 +60,11 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
 A session reads a skill, the step text, and each line that a script prints inside a product
 project, not here. So the text of this repository is general:
 
-- **It names a role, not a part of a product:** "the verify gate of the project", "the trunk", "the
-  design document that `AGENTS.md` names". A product line has one of three homes. The first is the
-  `AGENTS.md` of the product project, for a fact that more than one step needs. The second is a
-  custom part of that project (`custom.<skill>` in `.celetis.yaml`), for an addition to one
-  step. The third is no home, when a permission rule or the verify gate of that project holds the
-  line already.
+- **It names a role, not a part of a product:** "the verify gate of the project", "the trunk". A
+  product line has one of three homes. The first is the `AGENTS.md` of the product project, for a
+  fact that more than one step needs. The second is a custom part of that project
+  (`custom.<skill>` in `.celetis.yaml`), for an addition to one step. The third is no home, when a
+  permission rule or the verify gate of that project holds the line already.
 - **A path with no prefix is a path of the product project.** A skill, a module, a principle,
   and the step text cite a file of the plugin as `<plugin>/<path>`. The entry line of a skill binds
   `<plugin>` from the path of the loaded `SKILL.md`; on Claude Code, the `- plugin:` line of the
@@ -144,11 +143,10 @@ For installation changes, follow `README.md`, "Updates".
 - Keep the trust boundaries of `engine/board/server.ts` and the fixed adapter `engine/board/adapter.ts`.
 - Check a UI change in Chromium at desktop width and at 375×812.
 
-A look decision of the board uses these three facts:
+A look decision of the board uses these two facts:
 
 - The kind is web, with the default row of `prototype` (`docs/procedures/ui.md`, "The platform
   rows").
-- The design document is `engine/board/README.md`, "The layout, the keys, and the errors".
 - A prototype board with live data starts in the prototype checkout. A throwaway script there calls
   `startBoard` of `engine/board/start.ts` with the main checkout, a port other than 4404, and an
   adapter whose `run` and `resume` reject. The server reads its page files from its own folder

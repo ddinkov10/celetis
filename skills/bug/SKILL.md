@@ -97,15 +97,27 @@ start step N+1.
    the reason. If the fix merges two states
    that step 5 shows have different writers (for example, treating "absent" as "false"), or the
    spec does not define behavior for every listed state, STOP and ask the user — present the states
-   and the decision as concrete options. A fix that chooses a look that no spec, design document,
-   code, or issue text defines is a look decision (`<plugin>/docs/procedures/ui.md`, "The look
-   decision"): invoke `celetis:prototype`, and follow "The procedure" of that file
-   through its cleanup (step 10). The record of step 9 is the report's `## Prototype` section
-   (`<plugin>/docs/issue-tracker.md`). Stop for the pick also when each other state is defined.
-   A fix that restores a defined look, a regression too, builds no variants: its capture repro is
-   the evidence. Do not ship a guessed default.
-   Proceed autonomously to step 7 only when every state is spec-defined, the fix chooses no new
-   look, and the fix is self-contained.
+   and the decision as concrete options. Do not ship a guessed default.
+
+   A bug that shows on screen asks the maintainer whether the fix needs a new look. First check
+   `<plugin>/docs/procedures/design.md`, "Can the session ask": a session that cannot ask stops
+   there, before it opens the screen. Then open the failing screen live, by the row of its kind
+   (`<plugin>/docs/procedures/ui.md`, "The platform rows"), give its URL or its command, and ask.
+   The maintainer answers this question, also when each other state is defined and `DESIGN.md`,
+   the spec, the code, or the issue text defines the look. An answer that the host gives by its
+   own timeout is no answer: ask again, as the host part of `<plugin>/docs/procedures/design.md`
+   says. After the answer, stop what the live opening started: a later prototype can need its
+   port.
+   - **Yes:** the fix makes a look decision (`<plugin>/docs/procedures/ui.md`, "The look
+     decision"). Invoke `celetis:prototype`, and follow "The procedure" of that file through its
+     cleanup (step 10). The record of step 9 is the report's `## Prototype` section
+     (`<plugin>/docs/issue-tracker.md`).
+   - **No:** the fix restores the defined look, a regression too, and builds no variants. The
+     capture repro of step 4 is its evidence.
+
+   Proceed autonomously to step 7 only when every state is spec-defined, the maintainer answered
+   that the fix needs no new look or the bug does not show on screen, and the fix is
+   self-contained.
 7. **Decide the effort of `plan`, post the report, then invoke `celetis:plan #<n>`.** Record the
    effort level of `plan` per `<plugin>/docs/procedures/effort.md`. Then
    `celetis --agent <host> issue <n> root-cause <report>`

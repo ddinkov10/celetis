@@ -54,8 +54,10 @@ contract".
 
 ## A Verify scenario that cannot run
 
-In a step session, a Verify scenario that the session cannot run has no PASS. Before creating a
-hold, apply `<plugin>/docs/procedures/runtime-verification.md`, "Usage-limit exception".
+In a step session, a Verify scenario that the session cannot run has no PASS. The `detect`
+scenario of `<plugin>/docs/procedures/design.md` is the exception: when `impeccable` is missing by
+its "Missing", print its one line, and go on with no hold. Before creating a hold, apply
+`<plugin>/docs/procedures/runtime-verification.md`, "Usage-limit exception".
 When it permits continuation, publish its report and continue the normal landing path.
 Otherwise the change does not land without the scenario. A guard that refuses its command
 (the host's approval review, the auto-mode classifier, the worktree guard, a `deny` rule) is a

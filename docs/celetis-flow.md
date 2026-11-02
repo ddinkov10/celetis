@@ -53,7 +53,11 @@ of the product project, apart from a path that starts with `~/` or `/`.
 - The scripts use only the REST API of GitHub (`gh api`), so they also work where a proxy refuses
   GraphQL, as in a Claude Code cloud session.
 - For a look decision and a visual bug: `gh` 2.99.0 or later on github.com, and the capture tool of
-  the platform row ([ui.md](procedures/ui.md), "Captures").
+  the platform row ([ui.md](procedures/ui.md), "Captures"). A look decision on the `impeccable` path
+  (a whole web or mobile screen, or a smaller web change) also needs the `impeccable` skill and a
+  `PRODUCT.md` of the product. The session checks for both. It never installs `impeccable`, which
+  is no plugin dependency, and you run `/impeccable init` once for the product
+  ([design.md](procedures/design.md), "The check").
 - The program `celetis` on `PATH` (`README.md`, "First install"), and the plugin `celetis@celetis`
   of the selected host at the revision of the program. The scripts and the step text come from
   the version folder of the program: `celetis --agent <host> <name> <arguments>` runs
@@ -455,8 +459,11 @@ as its last act. Both `stopped` and `ready-for-human` remove `ready-for-agent` w
 line becomes `stop #<n> is ready-for-human. …` and the job ends the session. A stop for which
 the skill adds a label, such as the `needs-info` stop of `/celetis:triage`, stays as the skill says.
 A question is not a stop: where a skill says to ask, rule 2 holds, and a session that asks for a
-decision waits in its pane. Before a Verify scenario that cannot run becomes a `## Before landing`
-stop (rule 5), the session applies [Usage-limit exception](procedures/runtime-verification.md#usage-limit-exception).
+decision waits in its pane. The `detect` scenario of a web UI change is the exception of rule 5:
+when `impeccable` is missing, the session prints the one line of
+[design.md](procedures/design.md#missing), and the scenario is no stop. Before a Verify scenario
+that cannot run becomes a `## Before landing` stop (rule 5), the session applies
+[Usage-limit exception](procedures/runtime-verification.md#usage-limit-exception).
 An eligible decision retains BLOCKED results and permits the normal landing path without a new quota hold.
 Otherwise the session does not land the change. The act `before-landing` posts the comment,
 then adds `ready-for-human`, then removes `ready-for-agent`. The comment records the change as

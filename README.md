@@ -89,7 +89,11 @@ controls and applies only that skill's custom text.
   install and `celetis update` read it through its https URL.
 - Superpowers, installed and enabled on the selected host: the lanes call its `superpowers:*` skills.
 - For a look decision and a visual bug: `gh` 2.99.0 or later on github.com, and the capture tool of
-  the platform row (`docs/procedures/ui.md`, "Captures").
+  the platform row (`docs/procedures/ui.md`, "Captures"). A look decision on the `impeccable` path
+  (a whole web or mobile screen, or a smaller web change) also needs the `impeccable` skill and a
+  `PRODUCT.md` of the product. The session checks for both. It never installs `impeccable`, which
+  is no plugin dependency, and you run `/impeccable init` once for the product
+  (`docs/procedures/design.md`, "The check").
 - On macOS, herdr-core 0.1.16 (`hc`) and its server, for the step end of the runner and for the
   board, and the Herdr app 0.1.11 (`herdr-app`), for the tabs (ADR-0058). The host reports its
   status to herdr-core with OSC 7501 and needs no integration: Claude Code since 2.1.295, and Codex
@@ -577,7 +581,7 @@ The plugin names a role, and the `AGENTS.md` of the project names the thing. It 
 | **Optional verification instructions:** a short pointer to a project document's feature-map section or an existing index of documented user flows | `plan` and `implement` read the index and only relevant recipes (`docs/procedures/verification-recipes.md`) |
 | **The full suite** is no line of `AGENTS.md`: with the landing `merge`, `suite` in `.celetis.yaml` names the file that runs each test, and `land` runs it at the tip that it lands. With the landing `pr`, the CI of the lane PR runs it | `land`, which `implement`, `chore`, and `hotfix` run (`docs/procedures/landing.md`, "Step 3: the landing") |
 | **The architecture and the traps:** the shape of the project in the root file, and the traps of each subsystem in the `AGENTS.md` of its folder. They are the domain knowledge: the plugin has no domain skill (ADR-0006) | `specify`, `bug`, `hotfix`, `plan`, `chore`, and `critic-loop` |
-| **The design document and the look decision,** in a project with a UI: the document that holds the design rules, the kind of the product and each difference from its default row in `docs/procedures/ui.md`, and how a session starts the product with live data for the variants. A look decision is each change to what a person sees on screen or to how the screen behaves | `prototype` (`docs/procedures/ui.md`), which `specify` and `bug` follow; the two items "Prototype" of `docs/issue-tracker.md`, in "What lives on the issue" and in "Branches, PRs, merge" |
+| **The design document and the look decision,** in a project with a UI: the kind of the product and each difference from its default row in `docs/procedures/ui.md`, and how a session starts the product with live data for the variants. The design document is `DESIGN.md` at the root of the product, which `impeccable` and `prototype` share, so `AGENTS.md` does not name it. A look decision is each change to what a person sees on screen or to how the screen behaves | `prototype` (`docs/procedures/ui.md`), which `specify` and `bug` follow; the two items "Prototype" of `docs/issue-tracker.md`, in "What lives on the issue" and in "Branches, PRs, merge" |
 | **The installed version of a dependency:** how a session reads it, and the documents that an installed package ships | `docs/procedures/docs-lookup.md`, which `specify`, `plan`, `bug`, `hotfix`, and `chore` cite |
 | **The lesson tags:** the tags of the project, for example the names of its subsystems and technologies, that a lesson can carry beside the controlled list of the plugin. A new tag goes here in the same change as its lesson | `lesson` and `lesson-review` (`docs/procedures/lesson-format.md`, "The Tag Vocabulary") |
 | **The product flow:** project-specific landing rules, deployment facts, and acts that only the maintainer does, when more than one step needs them | Each session, also a step session |
@@ -916,7 +920,7 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | | [`/celetis:hotfix`](skills/hotfix/SKILL.md) | The lane for broken production: the root cause, a plan of one task, `implement`, and the ship checklist |
 | | [`/celetis:chore`](skills/chore/SKILL.md) | The lane for a change with no change of behavior: the change, the verify gate, the commit, and the landing |
 | **Steps** | [`/celetis:specify`](skills/specify/SKILL.md) | The design step. It adds the project context, prior-art research, and bounded probes for critical design unknowns to `superpowers:brainstorming`, and the spec that you approve becomes the body of the issue |
-| | [`/celetis:plan`](skills/plan/SKILL.md) | The plan step. It adds the choice of the build flow, a capability score for each task, and a Verify phase to `superpowers:writing-plans`, and it posts the plan on the issue |
+| | [`/celetis:plan`](skills/plan/SKILL.md) | The plan step. It adds the choice of the build flow, a capability score for each task, a design-review task for a web or mobile UI change, and a Verify phase to `superpowers:writing-plans`, and it posts the plan on the issue |
 | | [`/celetis:implement`](skills/implement/SKILL.md) | The build step. It runs the plan with `superpowers:executing-plans` or `superpowers:subagent-driven-development`, as the `Execution:` line of the plan says, and adds the verify gate at the end of each task, the Verify phase, and the landing |
 | **Review and memory** | [`/celetis:critic-loop`](skills/critic-loop/SKILL.md) | Scores the current diff from 0 to 10 across five perspectives, and fixes and scores again until the diff passes |
 | | [`/celetis:polishing-code-comments`](skills/polishing-code-comments/SKILL.md) | A pass that removes and tightens the comments of a diff or a file |
@@ -933,7 +937,7 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | | [`/celetis:model-the-domain`](skills/model-the-domain/SKILL.md) | Clarifies state combinations, branches, and repeated shape rules |
 | | [`/celetis:type-system-discipline`](skills/type-system-discipline/SKILL.md) | Uses types and compiler checks to prevent identified errors |
 | | [`/celetis:test-behavior-not-implementation`](skills/test-behavior-not-implementation/SKILL.md) | Checks required behavior through observable results |
-| **Helpers** | [`/celetis:prototype`](skills/prototype/SKILL.md) | Builds throwaway code that answers a design question: a logic demo in one HTML file, or the live variants of a look decision, with a capture of each variant in each state on the issue |
+| **Helpers** | [`/celetis:prototype`](skills/prototype/SKILL.md) | Builds throwaway code that answers a design question: a logic demo in one HTML file, or the live prototype of a look decision, with a capture of each variant in each state on the issue. The options of a whole web or mobile screen and of a smaller web change come from `impeccable` |
 | | [`/celetis:accept-epic #<n>`](skills/accept-epic/SKILL.md) | Checks current parent acceptance and completes an epic when its evidence and children permit it. Only you can start it; it creates no lane or runner |
 | | [`/celetis:assist #<n>`](skills/assist/SKILL.md) | Completes permitted work for the current block, records verified completion, and clears the hold. It asks for missing human contributions and leaves continuation to the normal runner |
 | | [`/celetis:writing-for-agents`](skills/writing-for-agents/SKILL.md) | The reference for a document that an agent reads: a skill, or an `AGENTS.md` |

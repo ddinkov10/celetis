@@ -14,7 +14,7 @@ A prototype is **throwaway code that answers a question**. The question decides 
 Identify which question is being answered, using the user's prompt, the surrounding code, or by asking if the user is around:
 
 - **"Does this logic / state model feel right?"** → [LOGIC.md](LOGIC.md). Build a single shareable HTML file (free-play buttons plus tabbed guided walkthroughs) that pushes the state machine through cases that are hard to reason about on paper, and that a non-developer can drive.
-- **"What should this look like?"** → `<plugin>/docs/procedures/ui.md`. A look decision: live variants on the real screen, in each state, at each size of the platform row, with captures on the issue.
+- **"What should this look like?"** → `<plugin>/docs/procedures/ui.md`. A look decision. On the web and on mobile, the options come from `impeccable` by `<plugin>/docs/procedures/design.md`, and the prototype builds the chosen option on the real screen, in each state, at each size of the platform row, with captures on the issue. A terminal program, a desktop app, and a smaller change on mobile keep the live variants built by hand.
 
 The two branches produce very different artifacts, so getting this wrong wastes the whole prototype. If the question is genuinely ambiguous and the user isn't reachable, default to whichever branch better matches the surrounding code (a backend module → logic; a page or component → UI) and state the assumption at the top of the prototype.
 

@@ -1,14 +1,18 @@
 # UI Prototype
 
-A UI prototype answers a look decision with **live variants**. Each variant is a complete option,
-built on the real screen. The user uses each variant in each state, at each size of the platform
-row, before the pick. The captures of the variants go on the issue and stay after the landing.
+A UI prototype answers a look decision on the real screen. `impeccable` gives the options of a
+whole web or mobile screen and of a smaller web change, and the maintainer picks one on its page or
+its overlay. Where `impeccable` has no variant source, the prototype builds **live variants** by
+hand ("The two paths"). The user uses the result in each state, at each size of the platform row.
+The captures go on the issue and stay after the landing.
 
 If the question is about logic or a state model, this is the wrong branch. Use `<plugin>/skills/prototype/LOGIC.md`.
 
 ## Contents
 
-- **The look decision:** what a look decision and a state are, and which steps build variants.
+- **The look decision:** what a look decision, a state, and the design document are, and which
+  steps follow the procedure.
+- **The two paths:** the `impeccable` path and the hand-built path, by kind and size of change.
 - **The platform rows:** the live use, the switches, the sizes, and the capture of each kind.
 - **Where the variants live:** the prototype checkout, and the two sub-shapes.
 - **The procedure:** the ten steps, from the list of states to the cleanup.
@@ -21,13 +25,31 @@ If the question is about logic or a state model, this is the wrong branch. Use `
 A look decision is each change to what a person sees on screen, or to how the screen behaves. It
 includes a change whose look the issue already describes. A **state** is one condition of the
 screen that shows differently, for example empty, loading, an error, many items, or an open dialog.
-The **kind** is the platform of the product: web, mobile, desktop, or terminal.
+The **kind** is the platform of the product: web, mobile, desktop, or terminal. The **design
+document** is `DESIGN.md` at the root of the product, when it exists. `impeccable` reads and writes
+the same file.
 
 - `specify` follows "The procedure" for each look decision.
-- `bug` follows it only for a fix that chooses a look that no spec, design document, code, or
-  issue text defines.
+- `bug` follows it when the maintainer answers that the fix needs a new look.
 - A `bug` fix that restores a defined look, a regression too, builds no variants. Its evidence is
   the capture repro ("Captures").
+
+## The two paths
+
+| Kind | A whole screen | A smaller change |
+| --- | --- | --- |
+| Web | `impeccable`: the structure round | `impeccable`: `generate` |
+| Mobile | `impeccable`: the structure round | Hand-built |
+| Desktop | Hand-built | Hand-built |
+| Terminal | Hand-built | Hand-built |
+
+- `<plugin>/docs/procedures/design.md`, "A whole screen or a smaller change", puts a change in one
+  of the two columns.
+- **The `impeccable` path** follows `<plugin>/docs/procedures/design.md`: its check in step 1, and
+  its pick in step 3. It has one variant, `A`: the locked card or the accepted variant. The
+  maintainer picks it before the switches, the check, and the captures.
+- **The hand-built path** builds 3 to 5 variants by hand in step 3. The user uses them, and picks
+  one in step 8.
 
 ## The platform rows
 
@@ -78,28 +100,44 @@ folder, so no branch holds a capture.
 
 Do the steps in this order. The build of the variants starts after step 2.
 
-1. **The states and the row.** Take the list of states from the code and the issue, with a key for
-   each state. Take the kind and its row from `AGENTS.md` or the code. Read the design document
-   that `AGENTS.md` names, when it names one. Run the tools check of
-   "Captures". Show the list of states, the kind, and the row to the user. If anything is unclear
-   or the user must make a decision, ask about that point and wait for the answer. Otherwise,
-   continue without a follow-up question. After an opt-out of the questions in `specify`, the list
-   and the row are marked assumptions, and the step goes on with no wait.
+1. **The states and the row.** Take the kind and its row from `AGENTS.md` or the code, and the path
+   from "The two paths". Then run the checks of `<plugin>/docs/procedures/design.md`: "The check"
+   and "Can the session ask" on the `impeccable` path, and "Can the session ask" on the hand-built
+   path. A failed check is the stop that the file names. On the `impeccable` path, run `shape`
+   only for its discovery questions and its brief. Skip its Phase 2, the direction or the concept
+   choice of `<impeccable>/reference/new-work.md`: the structure round or `generate` of step 3
+   gives the options. Take the list of states: on the `impeccable` path from the "States and
+   ranges" part of the brief of `shape`, and on the hand-built path from the code and the issue.
+   Give each state a kebab-case key. Read `DESIGN.md` when it exists. Run the tools check of
+   "Captures". Show the path, a whole screen or a smaller change on the `impeccable` path, the
+   list of states, the kind, and the row to the user. If anything is unclear or the user must make
+   a decision, ask about that point and wait for the answer. Otherwise, continue without a
+   follow-up question.
 2. **The research.** In `specify` or `bug`, add the guidelines of the platform to the
    `## Prior art` section that the step wrote (`<plugin>/docs/procedures/prior-art.md`, "What to find"), with
    no second search for the same problem. For a look decision of a new problem, add its findings to the same
-   section. Each variant follows a pattern that the research found. When the research found none,
-   the variant says so and names the source of its idea.
-3. **The variants.** Build 3 variants by default, and 5 at most. More stop being different and
-   become noise. Each variant is different in structure: its layout, its information hierarchy, or
-   its primary action. Each variant has a key, a name, the pattern that it follows, and its
-   trade-off, and it renders each state of the list. Use the component library and the styles of
-   the project. Each variant keeps the rules of the design document, or its trade-off names the rule
-   that it changes. Keep the data reads above the variants, so only the rendering changes.
+   section. On the hand-built path, each variant follows a pattern that the research found. When
+   the research found none, the variant says so and names the source of its idea.
+3. **The variants.** Use the component library and the styles of the project, and keep the data
+   reads above the variants, so only the rendering changes.
+   - **A whole screen on the `impeccable` path.** Run the structure round and its pick by
+     `<plugin>/docs/procedures/design.md`, "The pick". The locked card is the one variant, `A`.
+     Build its structure on the real screen, in each state of the list.
+   - **A smaller web change.** The prototype shows the real screen. Run `generate` on the element
+     and its pick by "The pick" of the same file. The accepted variant is the one variant, `A`.
+     The overlay is the only review channel before the accept: make no capture before it.
+   - **The hand-built path.** Build 3 variants by default, and 5 at most. More stop being
+     different and become noise. Each variant is different in structure: its layout, its
+     information hierarchy, or its primary action. Each variant has a key, a name, the pattern that
+     it follows, and its trade-off, and it renders each state of the list. Each variant keeps the
+     rules of `DESIGN.md`, or its trade-off names the rule that it changes.
 4. **The switches.** The variant and the state switch as the row says. Each state of the list has
    one value of the state switch. The user sees the key, the name, the pattern, and the trade-off
    with the variant: in the bar on the web, in the debug menu or an overlay of the prototype for
-   mobile and desktop, and in the hand-over for a terminal. On the web, the bar:
+   mobile and desktop, and in the hand-over for a terminal. On the `impeccable` path, the one
+   variant shows its source in place of the pattern and the trade-off: the locked card, or the
+   `generate` action. The web bar then has no variant arrows, and `←` and `→` do not cycle a
+   variant. On the web, the bar:
    - is a small fixed bar at the bottom center, high contrast, so that it is not part of the design;
    - shows the key, the name, the pattern, and the trade-off of the current variant, and a menu of
      the states;
@@ -112,33 +150,40 @@ Do the steps in this order. The build of the variants starts after step 2.
    - shows only outside a production build, for example behind
      `process.env.NODE_ENV !== 'production'`.
 5. **The check.** Open each variant in each state at each size of the row. Check keyboard use: the
-   focus order, a visible focus, and each action with keys. Check the rules of the design document
-   too. Fix what the check finds.
+   focus order, a visible focus, and each action with keys. Check the rules of `DESIGN.md` too. Fix
+   what the check finds.
 6. **The live opening.** Start the prototype with one command, and open it as the row says. On the
    web, open the browser pane of the host when the session has one, else the default browser:
    `open <url>` on macOS, `xdg-open <url>` on Linux, `cmd /c start "" "<url>"` on Windows. Give
    the URL too. For a terminal program, give the command with its switch values.
 7. **The captures.** Make one capture of each variant in each state at each size of the row, and
    post them on the issue as "Captures" says. Hide the bar or the overlay of step 4 for each
-   capture: the alt text names the variant, and the record names its pattern and its trade-off.
-8. **The hand-over.** Give the live opening, each variant with its key, name, pattern, and
-   trade-off, and the link of each capture comment. Recommend one variant, and give the reason.
-   Then ask for the pick. The best answer is often a merge, for example the header of B with the
-   list of C. After an opt-out of the questions in `specify`, the recommended variant is a marked
-   assumption, and the step asks nothing.
+   capture: the alt text names the variant, and the record of step 9 describes it.
+8. **The hand-over.** Give the live opening and the link of each capture comment.
+   - On the `impeccable` path, the lock or the accept of step 3 is the pick. Give the locked card
+     or the accepted variant, and ask for no second pick.
+   - On the hand-built path, give each variant with its key, name, pattern, and trade-off.
+     Recommend one variant, and give the reason. Then ask for the pick, and wait for the answer.
+     The best answer is often a merge, for example the header of B with the list of C.
 9. **The record.** Write the `## Prototype` section of the spec or of the root-cause report
    (`<plugin>/docs/issue-tracker.md`, "What lives on the issue"):
-   - the question;
+   - the question and the path;
    - the kind and each difference from its default row;
    - the branch and the commit that step 10 pushes;
-   - one line for each variant, with its pattern and its trade-off;
+   - on the hand-built path, one line for each variant, with its pattern and its trade-off, and
+     the recommendation and its reason;
+   - for the structure round, each dealt card with its name, its `kind`, and one line, and the
+     locked card;
+   - for `generate`, the accepted variant and each tuning of `generate`;
    - the link of each capture comment, and each capture with example data;
-   - the recommendation and its reason;
-   - the verdict and its reason.
+   - the verdict and its reason. On the `impeccable` path, the verdict is the lock or the accept of
+     the maintainer.
 10. **The cleanup.** Stop the prototype, commit the variants and any capture script, push the
     branch, and remove the checkout (`<plugin>/docs/issue-tracker.md`, "Branches, PRs, merge").
-    The build of the lane folds the winner into the real code. It writes the winner again under the
-    rules of production code.
+    Commit no file that the look decision wrote under `.impeccable/`. Before the removal of the
+    checkout, remove each such untracked file, so that `git status --porcelain` shows none of
+    them. The build of the lane folds the chosen variant into the real code. It writes the variant
+    again under the rules of production code.
 
 ## Captures
 
@@ -190,6 +235,9 @@ comments. `gh` prints the URL of each comment. Keep it for the hand-over and the
 ## A direct run
 
 A run of `/celetis:prototype` with no issue does steps 1 to 6, the captures of step 7, and step 8.
+It takes the same two paths and the same stops. On the `impeccable` path, the check, `shape`, the
+structure round or `generate`, and the pick as a terminal question follow
+`<plugin>/docs/procedures/design.md`.
 
 - The tools check checks only the capture tool.
 - The research of step 2 follows `<plugin>/docs/procedures/prior-art.md`. Its findings go in the hand-over.
@@ -207,9 +255,11 @@ A run of `/celetis:prototype` with no issue does steps 1 to 6, the captures of s
 - **Sharing too much code between variants.** A shared `<Header>` is fine; a shared `<Layout>` defeats the point. Each variant should be free to throw out the layout.
 - **Wiring variants to real mutations.** Read-only prototypes are fine. If a variant needs to mutate, point it at a stub: the question is "what should this look like", not "does the backend work".
 - **Promoting the prototype directly to production.** The variant code was written under prototype constraints (no tests, minimal error handling). Rewrite it properly when you fold it in.
-- **A text or ASCII list of options as the hand-over.** The hand-over is the live variants and their captures.
+- **A text or ASCII list of options as the hand-over, on the hand-built path.** The hand-over is the live variants and their captures. The terminal question of `<plugin>/docs/procedures/design.md`, "The fallback of the pick", is no such list: it is the question channel of `impeccable`.
 - **Variants before the list of states or before the research.** Step 1 and step 2 come first.
-- **A question for the pick before the user could use the variants.** The pick comes after the live opening and the captures.
+- **A question for the pick before the user could use the variants, on the hand-built path.** The pick comes after the live opening and the captures.
+- **A second pick after an `impeccable` lock or accept.** The lock or the accept is the pick.
+- **A look that the session chose.** The maintainer picks each look. THE ROLL, a recommended variant, and an answer that the host gives by its own timeout are no pick.
 - **A capture on a branch.** The captures go on the issue as attachments.
 - **A capture that shows a secret.** That state gets example data.
 - **A capture comment with a `## ` first line.** Its first line is one of the plain lines of "Captures".
