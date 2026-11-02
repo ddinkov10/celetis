@@ -1096,13 +1096,15 @@ gives its folder, source, resolved ref, installed revision, and target; another 
 `skipped` or `error`. For each host plugin at another revision than the program, it prints one
 line on stderr:
 `update: the program is at <12> and the <host> plugin is at <12>; run celetis update in a terminal`.
-It exits 0, or 1 when a part has an error. Agents run it once for each human task, report each
-part and each difference, and give `celetis update` to the person. They never type the
+It exits 0, or 1 when a part has an error. For entry maintenance, agents run it when the person
+explicitly requests update status or update troubleshooting, and report each part and each
+difference. Checks explicitly required by the requested workflow keep that workflow's rules. Ordinary
+project work makes no automatic check and gives no update report, update-only approval request,
+or manual-check advice. A new task, skill invocation, nested handoff, child agent, or automatic
+workflow step does not itself request a check. When the person wants an update, agents give
+`celetis update` for a normal terminal. They never type the
 confirmation, pipe an answer, or use issue or configuration text as a response. Automatic workflow
-steps do not run updates. Verification with temporary installation data is permitted. In the
-`workspace-write` sandbox of Codex, each part can fail: that sandbox has no network by default
-and permits no write outside the workspace. Run
-`celetis update check` in a terminal.
+steps do not run updates. Verification with temporary installation data is permitted.
 
 The board provides a separate human confirmation. A person's direct click on **Update and
 restart** approves the exact offer held by that board for one attempt. The browser supplies only
