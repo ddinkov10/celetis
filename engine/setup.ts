@@ -77,6 +77,34 @@ const appendLine = (text: string, line: string) =>
 function fail(message: string): never {
   throw new HostError(`setup: ${message}`);
 }
+function managedInstructions(path: string, source: string): string {
+  const block = `<!-- CELETIS:START -->
+## Celetis
+
+Use the installed \`celetis\` skills for changes in this project.
+Follow an explicitly requested Celetis skill. For a new request with no
+recorded intent or lane, start with \`celetis:intake\`. For an existing issue,
+follow its current Celetis step.
+
+Keep project-specific instructions outside this block. Celetis setup
+refreshes the text between these markers.
+<!-- CELETIS:END -->`;
+  const markers = [...source.matchAll(/(?:^|\n)(<!-- CELETIS:(START|END) -->)(?=\r?\n|$)/g)];
+  if (!markers.length) {
+    if (!source) return `${block}\n`;
+    const newline = source.match(/\r?\n/)?.[0] ?? '\n';
+    let separator = source.endsWith('\n') ? '' : newline;
+    if (!/(?:^|\n)[ \t]*\r?\n$/.test(source + separator)) separator += newline;
+    return source + separator + block.replaceAll('\n', newline) + newline;
+  }
+  const [start, end] = markers;
+  if (markers.length !== 2 || !start || !end || start[2] !== 'START' || end[2] !== 'END')
+    fail(`${path}: repair the Celetis markers; use one standalone START line before one standalone END line`);
+  const from = start.index + (start[0].startsWith('\n') ? 1 : 0);
+  const afterStart = start.index + start[0].length;
+  const newline = source.startsWith('\r\n', afterStart) ? '\r\n' : '\n';
+  return source.slice(0, from) + block.replaceAll('\n', newline) + source.slice(end.index + end[0].length);
+}
 function badUsage(): never {
   throw new HostError(usage, 2);
 }
@@ -233,7 +261,7 @@ class Setup {
   trunk = '';
   ahead = 0;
   diagnostic = false;
-  files = new Map<string, { contents: string }>();
+  files = new Map<string, { contents: string | Buffer }>();
   owned: RecordOfSetup = { files: [], entries: {} };
 
   output(text: string): void {
@@ -382,7 +410,7 @@ class Setup {
   async get(path: string): Promise<string> {
     await this.checkDestination(path);
     const planned = this.files.get(path);
-    if (planned) return planned.contents;
+    if (planned) return planned.contents.toString();
     try {
       return await readFile(join(this.cwd, path), 'utf8');
     } catch (error) {
@@ -642,9 +670,8 @@ class Setup {
       if ((await this.there(path)) && !(await this.linked(path)) && !(await this.same('AGENTS.md', path)))
         claudeFiles.push(path);
     }
-    const hasAgents = (await this.there(agentsPath)) || baseline !== '';
-    if (hasAgents) touched.push(agentsPath);
-    if (opts.hosts.includes('claude') && hasAgents) touched.push(...claudeFiles);
+    touched.push(agentsPath);
+    if (opts.hosts.includes('claude')) touched.push(...claudeFiles);
     for (const path of touched) {
       await this.checkDestination(path);
       const result = await run('git', ['check-ignore', '-q', '--', path], { cwd: this.cwd });
@@ -672,6 +699,10 @@ class Setup {
         fail(`${wiring} is no record of setup; fix or remove it first`);
       this.owned = { files: old.files, entries: old.entries as Record<string, unknown[]> };
     }
+    const source = (await this.there(agentsPath)) ? await this.getUnplanned(agentsPath) : Buffer.alloc(0);
+    const agents = Buffer.from(managedInstructions(agentsPath, source.toString('latin1')), 'latin1');
+    this.files.set(agentsPath, { contents: agents });
+    this.own(agentsPath, { start: '<!-- CELETIS:START -->', end: '<!-- CELETIS:END -->' });
     if (opts.hosts.includes('claude')) await this.planSettings();
     await this.planConfig(opts, scratch);
     if (opts.hosts.includes('codex')) {
@@ -691,15 +722,14 @@ class Setup {
     await this.ownLines('.gitignore', opts.ignores, false);
     await this.ownLines('.gitattributes', ['.celetis.yaml text eol=lf']);
     if (baseline) {
-      let agents = await this.get(agentsPath);
       const heading = baseline.split('\n')[0] ?? '';
-      if (hasLine(agents, heading)) this.warn(`AGENTS.md: ${heading} is there; setup leaves it`);
+      if (hasLine(agents.toString(), heading)) this.warn(`AGENTS.md: ${heading} is there; setup leaves it`);
       else {
-        if (agents && !agents.endsWith('\n')) agents += '\n';
-        if (lines(agents).at(-1)) agents += '\n';
-        agents += baseline;
-        if (baseline && !baseline.endsWith('\n')) agents += '\n';
-        this.files.set(agentsPath, { contents: agents });
+        let addition = agents.at(-1) === 10 ? '' : '\n';
+        if (lines(agents.toString() + addition).at(-1)) addition += '\n';
+        addition += baseline;
+        if (!baseline.endsWith('\n')) addition += '\n';
+        this.files.set(agentsPath, { contents: Buffer.concat([agents, Buffer.from(addition)]) });
       }
     }
     if (opts.hosts.includes('claude')) {
@@ -708,7 +738,7 @@ class Setup {
           this.warn(
             `${path} is an unrelated symbolic link; setup preserves it; loading AGENTS.md requires owner review of that instruction file`,
           );
-      for (const path of hasAgents ? claudeFiles : []) {
+      for (const path of claudeFiles) {
         const required = `@${relative(dirname(path), 'AGENTS.md').split(sep).join('/')}`;
         const wrong = lines(await this.get(path)).filter(
           (line) => /^@(?:\.\.?\/)*AGENTS\.md$/.test(normal(line)) && normal(line) !== required,
@@ -742,7 +772,8 @@ class Setup {
     for (const [path, file] of this.files) {
       try {
         const absolute = join(this.cwd, path);
-        if (!(await this.there(path)) || (await this.getUnplanned(path)) !== file.contents) {
+        const contents = typeof file.contents === 'string' ? Buffer.from(file.contents) : file.contents;
+        if (!(await this.there(path)) || !(await this.getUnplanned(path)).equals(contents)) {
           await this.checkDestination(path);
           await mkdir(dirname(absolute), { recursive: true });
           await writeFile(absolute, file.contents);
@@ -755,9 +786,9 @@ class Setup {
       }
     }
   }
-  async getUnplanned(path: string): Promise<string> {
+  async getUnplanned(path: string): Promise<Buffer> {
     await this.checkDestination(path);
-    return readFile(join(this.cwd, path), 'utf8');
+    return readFile(join(this.cwd, path));
   }
   async makeLabels(): Promise<void> {
     const pages = await this.api<{ name: string }[][]>(

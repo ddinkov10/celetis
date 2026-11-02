@@ -45,7 +45,7 @@ A product project holds no Celetis launcher, runtime source, skill, or document 
 | The record of setup | `.claude/celetis-flow/wiring.json` |
 | The worktree setup | `worktreeSetup` in `.celetis.yaml` |
 | The custom parts | `custom.<skill>` in `.celetis.yaml`, one string for each skill that needs one |
-| The product facts | `AGENTS.md` |
+| The product facts and Celetis entry pointer | `AGENTS.md` |
 | The stores | `docs/adr/` and `docs/lessons/` |
 
 No file of the plugin names a part of a product, apart from the records of `docs/adr/`. The plugin
@@ -279,15 +279,16 @@ Product procedures and stores stay with their owner.
   each missing tool and each hook that skips its checks in the test lane (ADR-0018).
 - Setup writes the part of a host only when you choose that host: required entries in
   `.claude/settings.json` and imports from existing Claude instruction files, or the dedicated
-  `.codex/rules/celetis.rules`. It imports product instructions only when they exist or an approved
-  baseline creates them. See [`AGENTS.md`](#agentsmd) for both relative import forms.
+  `.codex/rules/celetis.rules`. Every host selection creates or refreshes the marked Celetis entry
+  pointer in `AGENTS.md`. See [`AGENTS.md`](#agentsmd) for its ownership and both relative import forms.
 - Setup writes no launcher, shared entrypoint allow, project `celetis@celetis` enablement,
   generic flow section, ADR starter, or empty lesson catalog. It preserves differing Codex rules,
   copied launchers, old project enablement, and historical ownership claims. It reports old
   wiring for [owner review](#review-old-wiring); it performs no cleanup or migration. In shared
-  files it adds missing required entries. The one replacement is an unchanged, recorded canonical
-  Celetis marketplace entry, whose `autoUpdate` becomes false. A differing or unowned existing
-  marketplace entry stays unchanged and can leave an unresolved policy warning.
+  files it adds missing required entries and refreshes only the marked instruction block. The
+  separate marketplace replacement changes an unchanged, recorded canonical Celetis entry's
+  `autoUpdate` to false. A differing or unowned existing marketplace entry stays unchanged and
+  can leave an unresolved policy warning.
 - In `.celetis.yaml`, setup owns three entries: `host` (the default host, or the one host),
   `landing`, and `suite` (with `merge` only). It makes the file when there is none. In a valid file,
   it appends each missing required entry and keeps each byte of the product. When an entry has a value
@@ -586,27 +587,48 @@ The plugin names a role, and the `AGENTS.md` of the project names the thing. It 
 | **The lesson tags:** the tags of the project, for example the names of its subsystems and technologies, that a lesson can carry beside the controlled list of the plugin. A new tag goes here in the same change as its lesson | `lesson` and `lesson-review` (`docs/procedures/lesson-format.md`, "The Tag Vocabulary") |
 | **The product flow:** project-specific landing rules, deployment facts, and acts that only the maintainer does, when more than one step needs them | Each session, also a step session |
 
-Setup creates no generic flow section. Product instructions stay by hand, except for an approved
-baseline section. With no product instructions and no approved baseline, setup creates no
-`AGENTS.md`. The entry contract holds the runner-start rule. Lane handoffs and the workflow
-resolver enforce the sequence; the landing procedure and engine enforce landing. These generic
-rules need no generated copy in product instructions.
+Setup creates a missing or empty `AGENTS.md` with one marked `## Celetis` block. It appends the
+block to an unmarked file and refreshes an existing block. This short pointer directs a new
+request with no recorded intent or lane to `celetis:intake`, honors an explicitly requested
+Celetis skill, and follows the current step of an existing issue. It generates no project facts,
+empty sections, or generic flow procedures. Product instructions stay by hand, except for an
+approved baseline section (ADR-0061).
+
+The delimiters are the exact, case-sensitive standalone lines `<!-- CELETIS:START -->` and
+`<!-- CELETIS:END -->`. Inline mentions do not count. Complete delimiter lines are reserved even
+inside Markdown examples, so show them inline when documenting them. A missing, duplicate, or
+reversed delimiter refuses during planning, before project files or tracker labels change.
+
+A valid pair authorizes replacement from the start marker through the end marker, even without
+a wiring record. Edits inside the pair are replaced; put project instructions outside it. Setup
+preserves every byte outside the pair, including the end marker's following newline. Replacement
+uses the start marker's LF or CRLF convention. Appending uses the first existing line ending, or
+LF when none exists, and adds only the separator needed for a blank line. New files end with one
+LF. An unchanged block is not written again, so its modification time stays unchanged.
+
+The schema-1 record stores `{ "start": "<!-- CELETIS:START -->", "end": "<!-- CELETIS:END -->" }`
+under the actual instruction destination. Setup claims no whole instruction file, even on
+creation. Historical claims stay as evidence. An approved baseline is added after the managed
+block transformation, outside its ownership; an existing baseline keeps its collision warning.
+Old generic flow text outside the block remains unchanged and still needs owner review.
 
 The plugin has no role for the deployment of a project. It is a product fact, so it also goes into
 `AGENTS.md` when more than one step needs it: a lane ends when the change is on the trunk.
 
-With Claude selected and product `AGENTS.md` present, setup adds the correct relative import to
+With Claude selected, setup adds the correct relative import to
 each existing regular Claude instruction file: `@AGENTS.md` in root `CLAUDE.md`, and
 `@../AGENTS.md` in `.claude/CLAUDE.md`. Imports resolve from the containing file
 ([Claude Code memory documentation](https://code.claude.com/docs/en/memory), latest documentation
 read on 2026-10-29). Setup creates no Claude instruction file just for an import. A wrong existing
-import stays unchanged and gets an exact manual action. Generated imports do not prove native
-loading.
+import stays unchanged and gets an exact manual action. Codex-only setup adds no Claude import.
+Direct native loading depends on the host's instruction precedence and settings. Generated files
+and imports do not prove that a fresh host session loaded them.
 
 Setup preserves supported instruction links without a write through a link. A Claude instruction
 file that links to `AGENTS.md` needs no import. When `AGENTS.md` links to a regular root or nested
-Claude instruction file, an approved baseline goes into that real in-project file. Setup adds no
-self-import. An unrelated instruction link stays unchanged and gets an owner-review warning.
+Claude instruction file, the block and any approved baseline go into that real in-project file.
+The marker entry names that destination, and setup adds no self-import. An unrelated `AGENTS.md`
+link refuses; an unrelated Claude instruction link stays unchanged with an owner-review warning.
 
 ### The stores
 
@@ -667,6 +689,8 @@ owner explicitly changes them.
 
 Setup reports old wiring but preserves its content and historical ownership. Review only the
 active product checkout. Installation and update remain separate explicit operations.
+The marked `## Celetis` entry pointer is current wiring. Its valid markers authorize only its
+bounded refresh; a historical record does not authorize replacement of unmarked product text.
 
 1. Read `.claude/celetis-flow/wiring.json` and inspect the current file for every reported entry.
    For each proposed removal, show the old record, the actual diff, and the remaining callers.
