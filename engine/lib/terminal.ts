@@ -136,6 +136,31 @@ export async function terminalLive(id: string, exec: Exec = run): Promise<boolea
   return isRecord(value) && value.address === id && value.state === 'live';
 }
 
+export async function readTerminalState(
+  id: string,
+  exec: Exec = run,
+): Promise<{ state: 'live' } | { state: 'finished'; exitCode: number | null }> {
+  if (!isSafeId(id)) throw new TerminalError('the terminal id is not safe');
+  const result = await call(exec, 'hc', ['get', id, '--json']);
+  if (result.code !== 0) throw new TerminalError(failure('hc', result));
+  const value = parse(result.stdout);
+  if (
+    !isRecord(value) ||
+    value.address !== id ||
+    (value.state !== 'live' && value.state !== 'finished') ||
+    !(value.exit_code === null || isCount(value.exit_code)) ||
+    (value.state === 'live' && value.exit_code !== null)
+  )
+    throw new TerminalError(`hc gave an invalid lifecycle for ${id}`);
+  return value.state === 'live' ? { state: 'live' } : { state: 'finished', exitCode: value.exit_code as number | null };
+}
+
+export async function removeTerminal(id: string, exec: Exec = run): Promise<void> {
+  if (!isSafeId(id)) throw new TerminalError('the terminal id is not safe');
+  const result = await call(exec, 'hc', ['rm', id, '--json']);
+  if (result.code !== 0) throw new TerminalError(failure('hc', result));
+}
+
 export async function waitTerminal(id: string, seconds: number, signal?: AbortSignal): Promise<boolean> {
   if (!isSafeId(id)) return false;
   const { code } = await run('hc', ['wait', id, '--timeout', String(seconds), '--json'], { signal });
@@ -320,12 +345,12 @@ export async function openTab(request: OpenTab, exec: Exec = run): Promise<strin
 }
 
 export async function startHidden(
-  request: { folder: string; label: string; argv: string[] },
+  request: { folder: string; label: string; argv: string[]; removeOnExit: boolean },
   exec: Exec = run,
 ): Promise<string> {
   return runTerminal(
     exec,
-    ['--rm', '--cwd', request.folder, '--label', `${RUNNER_LABEL}=${request.label}`],
+    [...(request.removeOnExit ? ['--rm'] : []), '--cwd', request.folder, '--label', `${RUNNER_LABEL}=${request.label}`],
     inShell('exec "$@"', request.argv),
   );
 }

@@ -7,6 +7,12 @@ import { gateOf } from './view.ts';
 const LABEL = /^#([1-9][0-9]*)(?: ([a-z]+))?/;
 const RUNNER = 'celetis-flow.ts';
 
+export type LaunchFeedback = { step: string | null } & (
+  | { kind: 'timed'; expired: boolean }
+  | { kind: 'pending' }
+  | { kind: 'unknown' | 'failed'; warning: string }
+);
+
 const time = (iso: string) => Date.parse(iso);
 
 export const stepsOf = (flow: Flow | null | undefined): Set<string> => new Set(Object.values(flow?.lanes ?? {}).flat());
@@ -37,7 +43,10 @@ export const sessionsOf = (terminals: Terminal[], isHere: (path: string) => bool
 
 export const launchMatches = (issue: Issue | undefined, step: string | null) =>
   issue?.step === step &&
-  (issue.state === 'ready' || issue.state === 'stuck' || (issue.state === 'blocked' && step === null));
+  (issue.state === 'ready' ||
+    issue.state === 'starting' ||
+    issue.state === 'stuck' ||
+    (issue.state === 'blocked' && step === null));
 
 const issueCard = (issue: Issue, extra: Partial<Card>): Card => ({
   sessionId: null,
@@ -138,7 +147,7 @@ export const place = ({
 }: {
   sessions: Session[];
   board: Pick<Document, 'flow' | 'noRun' | 'issues'> | null;
-  launches: Record<string, { step: string | null; expired: boolean }>;
+  launches: Record<string, LaunchFeedback>;
 }): Placement => {
   const columns: Columns = { needs: [], running: [], idle: [], human: [] };
   const issues = board?.issues ?? [];
@@ -154,10 +163,14 @@ export const place = ({
         const feedback = launch && launchMatches(issue, launch.step) ? launch : null;
         const [column, card] = PLACERS[issue.state](issue, {
           flow: (board as Pick<Document, 'flow' | 'noRun' | 'issues'>).flow,
-          isOpen: noRun === null && (!feedback || feedback.expired),
+          isOpen:
+            noRun === null &&
+            (!feedback || feedback.kind === 'failed' || (feedback.kind === 'timed' && feedback.expired)),
         });
         if (!feedback) return [column, card];
-        if (feedback.expired) {
+        if (feedback.kind === 'unknown' || feedback.kind === 'failed') card.warning = feedback.warning;
+        if (feedback.kind === 'failed') return [column, card];
+        if (feedback.kind === 'timed' && feedback.expired) {
           card.warning = 'Session not detected. Check the terminal before starting again.';
           return [column, card];
         }

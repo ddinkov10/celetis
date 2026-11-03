@@ -80,6 +80,7 @@ let intakePending = false;
 let seen: Map<string, string> | null = null;
 let needsKeys: Set<string> | null = null;
 let starting: Map<number, string | null> | null = null;
+let startupWarnings = new Map<number, string>();
 let byKey = new Map<string, { card: Card; column: Column }>();
 let used = new Set<string>();
 
@@ -991,16 +992,21 @@ const startNotices = (columns: Columns) => {
   for (const card of cards) if (card.state === 'starts' && card.number !== null) now.set(card.number, card.step);
   const lines: string[] = [];
   const before = starting;
+  const previousWarnings = startupWarnings;
   starting = now;
+  startupWarnings = new Map(
+    cards.flatMap((card) => (card.number !== null && card.warning ? [[card.number, card.warning] as const] : [])),
+  );
   if (before === null) return lines;
+  for (const [number, warning] of startupWarnings)
+    if (previousWarnings.get(number) !== warning) lines.push(`#${number}: ${warning}`);
   for (const [number, step] of now)
     if (!before.has(number))
       lines.push(step ? `#${number} is starting the ${step} step` : `#${number} is starting a session`);
   for (const [number, step] of before) {
     if (now.has(number)) continue;
     const card = cards.find((other) => other.number === number);
-    if (card?.warning) lines.push(`#${number}: ${card.warning}`);
-    else if (card?.sessionId) lines.push(step ? `#${number} started the ${step} step` : `#${number} opened a session`);
+    if (card?.sessionId) lines.push(step ? `#${number} started the ${step} step` : `#${number} opened a session`);
   }
   return lines;
 };

@@ -235,7 +235,7 @@ The stop of the board also stops a read that runs. In each case, the `gh` proces
 
 A selected-read error takes display priority over a full-read error. A good selected read clears
 only its own error; a good full read clears both. Selected reads do not change the last-full-read
-time or the full-read evidence for the 30-second session detection period.
+time or the full-read evidence for the 30-second Assist detection period.
 
 `Document.queue` and `Board.queue` use QueueView. A null record means no saved queue yet.
 The view carries the schema-2 record, live owner, fresh next decision, error, and Add/Edit/Continue/Retry
@@ -391,16 +391,20 @@ step, so Pipeline shows it at that step. Assist keeps a null step and remains in
 While the request runs, no control of the page sends a second press for that issue. Run, Resume,
 and Assist share one reservation in the server, from before the asynchronous eligibility read
 until the runner or the tab starts, or the operation fails. A competing press from any browser client gets 409.
-After the operation succeeds, the card stays `Starting` for 30 seconds, or until a row with the state `starting` or a
-session of the issue shows. A session wins at each time: its card shows its state and Go. The page
-uses no read that started before the request ended, and an older read never replaces a newer one.
+After Run or Resume succeeds, the board retains the hidden terminal and observes its lifecycle.
+A live runner stays `Starting`, including after 30 seconds and through a same-step `starting` row.
+An invalid or failed terminal read shows its observation error and keeps actions disabled.
+A recovered read restores the observed state. Only a confirmed exit and a successful output read
+release the launch reservation. The card then shows a bounded, sanitized diagnostic from that
+output, including after exit 0. Empty output reports the exit code, or `unknown` for a null code.
+A session or a changed issue decision clears visible feedback, but retains cleanup ownership.
+A newer explicit press cannot receive an older runner's feedback. No automatic launch retry occurs.
 
-When the 30 seconds end, the next request that is not local reads the issues again. With no session
-and no `starting` row, the card goes back to its row with the text
-`Session not detected. Check the terminal before starting again.` The board does not
-stop a process or start a step again. The text stays until a session or a `starting` row shows,
-the step of the row changes, the row leaves the states `ready`, `stuck`, and `blocked`, or a new press starts.
-A blocked row matches Assist feedback only with a null step.
+Assist keeps its 30-second detection period. When it ends, the next nonlocal request reads the
+issues again. Without a session, Assist shows
+`Session not detected. Check the terminal before starting again.` A blocked row matches Assist
+feedback only with a null step. A session wins at each time: its card shows its state and Go.
+The page uses no read that started before the request ended, and an older read never replaces a newer one.
 A press that fails ends the `Starting` card at once, and the next read gives the card its buttons.
 
 ## The commands of the board
@@ -513,7 +517,7 @@ issue number or a new session store.
 ```text
 hc ls --json
 herdr-app ls
-hc run --bg --json --no-parent --no-notify --rm --cwd <main checkout> --label 'celetis.runner=#<n>' -- <shell> -lic 'exec "$@"' <shell> <argv>
+hc run --bg --json --no-parent --no-notify --cwd <main checkout> --label 'celetis.runner=#<n>' -- <shell> -lic 'exec "$@"' <shell> <argv>
 ```
 
 Before these calls, a Run or Resume press reads the sessions as a request that is not local does
@@ -523,11 +527,18 @@ check that `hc` and `herdr-app` are on the `PATH` of the board. When a check fai
 `the Herdr app does not answer: <cause>; open the Herdr app window, then start again`, and no
 terminal starts. For a queue wake, that failure is a known failure before command dispatch.
 The new terminal has no `herdr.space` label, so it has no tab: the runner is hidden. A queue wake
-uses the label `celetis.runner=queue`. The board makes the label only from the digits of the issue
+uses the label `celetis.runner=queue` and adds `--rm`; its persisted queue record remains authoritative. The board makes the label only from the digits of the issue
 or the word `queue`. `--no-parent` keeps the runner alive when the board itself runs in an hc
 terminal that ends. The runner then opens the session tab with the calls of
 `docs/celetis-flow.md` of the plugin `celetis`, "How a step runs", "The session tab": a Run and a
 queue wake pass `--quiet`, so the tab is quiet, and the tab of a Resume comes to the front.
+
+The board polls each owned Run/Resume terminal with `hc get <id> --json` through its existing
+one-second poll, also with no page open. Concurrent requests share one observation and cleanup.
+After confirmed exit, it reads `hc read <id> --lines 100 --json`, stores the diagnostic, then
+calls `hc rm <id> --json`. It never kills a runner for cleanup. Failed reads retain unread
+output; failed removal retains the record for a later poll. Board shutdown stops new observations
+and leaves live runners and unread output intact.
 
 A hidden runner stops by itself. With the default `me` gates, the runner of a Run press ends with
 its one session. The board has no control that stops a hidden runner. To stop one, find its
@@ -598,7 +609,7 @@ authorize no action.
 A session card that disappears selects its known issue, including at a local request. A session
 with no issue keeps the full-read cause only at a request that is not local. Other full-read
 causes remain: the server timer; a nonlocal request more than 5 minutes after the last full-read
-start; Run, Resume, or Assist; the end of the 30-second detection period; local queue changes;
+start; Run, Resume, or Assist; the end of the 30-second Assist detection period; local queue changes;
 and Refresh. Assist waits for an active read, then starts a fresh full read. It refuses a failed
 fresh read even when the last good document still has the blocked issue.
 
@@ -991,7 +1002,7 @@ Of the distribution:
   a start fails, start the board in a terminal.
 - Issue reads check no plugin update policy. A conflict can show in the independent update
   check, or in the tab of the next New intake or Assist. The hidden runner of a Run or Resume
-  shows it nowhere.
+  reports its startup stop in the existing card warning area.
 
 Of the sessions, herdr-core, and the Herdr app:
 
@@ -1022,10 +1033,9 @@ Of the sessions, herdr-core, and the Herdr app:
 - On macOS and Linux, the login shell is `$SHELL`, else `/bin/sh`. It must read the POSIX start
   forms `exec "$@"` and `"$@" || exec "$0" -li`; a `$SHELL` such as fish cannot read them, and the
   argv does not start.
-- A hidden runner shows its lines nowhere, and herdr-core removes its terminal when it exits
-  (`hc run --rm`). So a runner of a Run, Resume, or queue wake that stops before a session starts,
-  for example at a `stop` line or at an error, leaves no message: start
-  `celetis --agent <host> celetis-flow <n>` in a terminal to see it.
+- Run/Resume ownership and warnings live only in the board process. A restart does not recover
+  them or remove retained terminals from the earlier process. A queue wake retains automatic
+  removal (`hc run --rm`) and its persisted queue-state authority.
 - On macOS and Linux, a New intake, Assist, or Make visual program that exits 0 closes its tab
   (`hc run --rm`).
   The first press that makes the space of the repository starts its argv through the start form

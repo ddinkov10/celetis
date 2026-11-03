@@ -97,6 +97,7 @@ var intakePending = false;
 var seen = null;
 var needsKeys = null;
 var starting = null;
+var startupWarnings = new Map;
 var byKey = new Map;
 var used = new Set;
 var who = (card) => card.number === null ? card.title ? `human session "${card.title}"` : "a human session" : `#${card.number}`;
@@ -901,9 +902,14 @@ var startNotices = (columns) => {
       now.set(card.number, card.step);
   const lines = [];
   const before = starting;
+  const previousWarnings = startupWarnings;
   starting = now;
+  startupWarnings = new Map(cards.flatMap((card) => card.number !== null && card.warning ? [[card.number, card.warning]] : []));
   if (before === null)
     return lines;
+  for (const [number, warning] of startupWarnings)
+    if (previousWarnings.get(number) !== warning)
+      lines.push(`#${number}: ${warning}`);
   for (const [number, step] of now)
     if (!before.has(number))
       lines.push(step ? `#${number} is starting the ${step} step` : `#${number} is starting a session`);
@@ -911,9 +917,7 @@ var startNotices = (columns) => {
     if (now.has(number))
       continue;
     const card = cards.find((other) => other.number === number);
-    if (card?.warning)
-      lines.push(`#${number}: ${card.warning}`);
-    else if (card?.sessionId)
+    if (card?.sessionId)
       lines.push(step ? `#${number} started the ${step} step` : `#${number} opened a session`);
   }
   return lines;

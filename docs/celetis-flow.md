@@ -827,7 +827,7 @@ shows at the next refresh. Each module of this path is a static import: a refres
 file, takes no plugin read lock, and checks no update policy. The start checks the selected
 host's policy. Independent update checks validate the native update policy. Each Run and Resume
 starts a new `celetis-flow` process, which makes its own check. A conflict can show in the update
-check. That process is hidden, so it shows the conflict nowhere ("Limits").
+check. A startup stop in that hidden process appears in the card warning area.
 
 A full collection makes these `gh api` calls: 2 paginated lists (open issues and open PRs),
 one paginated call for the timeline of each open issue that has a comment, and 3 calls for each
@@ -857,7 +857,7 @@ Full requests join an active full read or queue one after an active selected rea
 over subsequent selected batches. A failed full read restores its consumed targets; a failed
 selected read waits for another cause. Before a good document exists, only full reads run.
 The five-minute full-read schedule recovers direct GitHub edits without hints. Selected reads
-change neither that schedule, the last-full-read timestamp, nor session-start detection evidence.
+change neither that schedule, the last-full-read timestamp, nor Assist session-start detection evidence.
 
 A read has a limit of 60 seconds, and the stop of the board also stops a read. On a failure, the
 board keeps its last document and shows one line after `cannot read:` on its status line:
@@ -977,10 +977,18 @@ of the error, before any terminal starts. Read-only `hc` calls can precede that 
 ```
 
 A press starts the argv as a hidden runner: `startHidden` of `engine/lib/terminal.ts` runs
-`hc run --bg --no-parent --no-notify --rm` in the main checkout, with the label
+`hc run --bg --no-parent --no-notify` in the main checkout, with the label
 `celetis.runner=#<n>` and no `herdr.space` label, so the terminal has no tab. On macOS and Linux,
 a login shell of `$SHELL` starts the argv with `exec "$@"`, so the runner gets the login
-environment and no shell stays after it. herdr-core removes the terminal when the runner exits.
+environment and no shell stays after it. The board retains the terminal until it confirms exit
+and reads the completed output. It then removes the finished terminal with `hc rm`, never `kill`.
+The existing one-second poll observes owned runners even with no browser open. Failed reads
+keep the outcome unknown and actions disabled; failed cleanup retries without another launch.
+A live runner stays pending without a timeout. A same-step `starting` lock row is not a session.
+An observed session or changed issue decision clears feedback without discarding cleanup ownership.
+A confirmed exit before startup shows its specific diagnostic, including after exit 0. Empty
+output reports the exit code, or `unknown` for a null code. Assist keeps its timed feedback.
+Queue wakes keep `--rm` and the persisted queue record as their authority.
 On Windows, `hc run` gets the argv with no shell (not checked). Before `hc run`, the press checks
 `hc` and the Herdr app as the runner does (`requireTerminals`, "Requirements"). A failed check
 returns 502 with its line, for example
@@ -1081,8 +1089,8 @@ of the page.
 | `no progress:` with another command | open the session again, or read the issue | a Run press, or `celetis --agent <host> celetis-flow <n>` |
 | `#<n>: <T> skips <steps> after <S>; …` | read the issue ("A refused skip"). When a label or a heading is wrong, fix the issue. When the skip is correct, start `<T>` by hand | a Run press, or `celetis --agent <host> celetis-flow <n>`, starts the next step; the automatic runner does not start a refused step |
 
-A Run press runs the script in a hidden terminal, so its lines show nowhere: read the state on the
-card of the issue. "The board" gives the state of each issue, and `engine/board/README.md` of the
+A Run press runs the script in a hidden terminal. Read the state on the issue card; a startup
+stop appears in its existing warning area after the board reads the completed output. "The board" gives the state of each issue, and `engine/board/README.md` of the
 plugin gives the card of each state.
 
 `stop … is finished` means that the issue is closed with no `wontfix` label. After a landing, the
@@ -1913,10 +1921,9 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   show a status that branch protection requires until that status reports. Until then,
   `celetis --agent <host> land` can read `pass` and ask for the merge. GitHub then refuses the merge, and
   the build step stops with `## Landing refused`. Until then, the board also shows `pass` for the PR.
-- The runner of a board press is hidden: its lines show nowhere, and herdr-core removes its
-  terminal at its exit, with any exit status. So a runner that stops before a session starts, for
-  example at a `stop` line, at "no progress", at a refused skip, or at an error, leaves no
-  message: start `celetis --agent <host> celetis-flow <n>` in a terminal to see it.
+- Run/Resume warnings and cleanup ownership do not survive a board process restart. Shutdown
+  leaves live runners and unread completed output intact. A later board does not recover those
+  records. Queue wakes still remove their terminals automatically and use persisted queue state.
 - A start of the board from the entry `board` of `.claude/launch.json`, in a project that has such
   an entry, needs `bun`, `hc`, `herdr-app`, and the tools of the command on the `PATH` of the
   desktop app, and no git credentials. This is not checked: the desktop app reads

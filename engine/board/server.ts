@@ -39,12 +39,14 @@ import {
   listTerminals,
   openTab as openTerminalTab,
   readScreen,
+  readTerminalState,
+  removeTerminal,
   requireTerminals,
   startHidden,
   TerminalError,
 } from '../lib/terminal.ts';
 import { hasPage, isCommit, visualLink, visualPage } from '../lib/visual.ts';
-import { launchMatches, place, sessionsOf, stepsOf } from './place.ts';
+import { type LaunchFeedback, launchMatches, place, sessionsOf, stepsOf } from './place.ts';
 
 const HERE = import.meta.dirname;
 const STALE_MS = 60_000;
@@ -180,7 +182,10 @@ export const createBoard = ({
   let queuePress = false;
   let intakePending = false;
   const visualPresses = new Set<number>();
-  const presses: Record<string, { step: string | null; at: number }> = {};
+  type Press = { feedback: LaunchFeedback; at: number };
+  const presses: Record<string, Press> = {};
+  const runners = new Map<string, { number: number; press: Press; consumed: boolean }>();
+  let observing: Promise<void> | null = null;
   const operations: Record<string, { step: string | null | undefined; observed: boolean }> = {};
   let shown = new Map<string, number | null>();
   let firstSeen = new Map<string, number>();
@@ -385,7 +390,55 @@ export const createBoard = ({
     return value;
   };
 
+  const observeRunners = (): Promise<void> => {
+    if (stopped) return Promise.resolve();
+    if (observing) return observing;
+    observing = (async () => {
+      for (const [id, record] of runners) {
+        if (stopped) break;
+        if (!record.consumed) {
+          const step = record.press.feedback.step;
+          try {
+            const state = await readTerminalState(id, exec);
+            if (stopped) break;
+            if (state.state === 'live') {
+              record.press.feedback = { step, kind: 'pending' };
+              continue;
+            }
+            const output = await readScreen(id, 100, exec);
+            if (stopped) break;
+            if (output === null) throw new TerminalError(`hc could not read completed output for ${id}`);
+            const lines = screenOf(output).filter((line) => !line.startsWith('celetis-flow: start:'));
+            const cause = lines.find((line) => !line.startsWith('celetis-flow: stop')) ?? lines[0];
+            const warning = cause
+              ? cleanCause(cause)
+              : `Runner exited before a session was detected (exit ${state.exitCode ?? 'unknown'}).`;
+            record.press.feedback = { step, kind: 'failed', warning };
+            record.consumed = true;
+          } catch (cause) {
+            if (stopped) break;
+            record.press.feedback = {
+              step,
+              kind: 'unknown',
+              warning: cleanCause(cause instanceof Error ? cause.message : cause),
+            };
+            continue;
+          }
+        }
+        if (stopped) break;
+        try {
+          await removeTerminal(id, exec);
+          runners.delete(id);
+        } catch {}
+      }
+    })().finally(() => {
+      observing = null;
+    });
+    return observing;
+  };
+
   const placement = async ({ isLocal = false } = {}): Promise<Board> => {
+    await observeRunners();
     const queue = await queueView();
     const { terminals, sessions: found, health } = await watchSessions();
     const dispositions = new Map(
@@ -413,7 +466,7 @@ export const createBoard = ({
     for (const number of new Set([...Object.keys(presses), ...Object.keys(operations)])) {
       const operation = operations[number];
       const active = operation?.step !== undefined;
-      const evidence = active ? operation : presses[number];
+      const evidence = active ? operation : presses[number]?.feedback;
       if (!evidence || evidence.step === undefined) continue;
       const issue = board?.issues.find((issue) => issue.number === Number(number));
       if (busy.has(Number(number)) || !launchMatches(issue, evidence.step)) {
@@ -422,10 +475,9 @@ export const createBoard = ({
       }
       const press = presses[number];
       if (active ? !operation.observed : press) {
-        launches[number] = {
-          step: evidence.step,
-          expired: !active && checkedFrom >= (press as { at: number }).at + PRESS_MS,
-        };
+        launches[number] = active ? { step: evidence.step, kind: 'pending' } : (press as Press).feedback;
+        if (press?.feedback.kind === 'timed')
+          launches[number] = { ...press.feedback, expired: checkedFrom >= press.at + PRESS_MS };
       }
     }
     const placed = place({ sessions, board, launches });
@@ -468,7 +520,7 @@ export const createBoard = ({
 
   const startRunner = async (label: string, argv: string[]) => {
     await requireTerminals(exec).catch(refused);
-    await startHidden({ folder: main, label, argv }, exec).catch(refused);
+    return startHidden({ folder: main, label, argv, removeOnExit: false }, exec).catch(refused);
   };
 
   const issueCardOf = async (number: number) =>
@@ -479,9 +531,13 @@ export const createBoard = ({
   const press = async (
     number: number,
     refusal: string,
-    prepare: () => Promise<{ card: Card; start: () => Promise<void> }>,
+    prepare: () => Promise<{ card: Card; start: () => Promise<string | undefined> }>,
   ) => {
-    if (number in operations || (presses[number] && now() - presses[number].at < PRESS_MS))
+    if (
+      number in operations ||
+      [...runners.values()].some((record) => record.number === number && !record.consumed) ||
+      (presses[number]?.feedback.kind === 'timed' && now() - presses[number].at < PRESS_MS)
+    )
       throw new Refusal(409, refusal);
     const operation: { step: string | null | undefined; observed: boolean } = { step: undefined, observed: false };
     operations[number] = operation;
@@ -489,8 +545,16 @@ export const createBoard = ({
       const { card, start } = await prepare();
       operation.step = card.step;
       delete presses[number];
-      await start();
-      if (!operation.observed) presses[number] = { step: operation.step, at: now() };
+      const id = await start();
+      const press: Press = {
+        feedback:
+          id === undefined
+            ? { step: operation.step, kind: 'timed', expired: false }
+            : { step: operation.step, kind: 'pending' },
+        at: now(),
+      };
+      if (id !== undefined) runners.set(id, { number, press, consumed: false });
+      if (!operation.observed) presses[number] = press;
     } finally {
       delete operations[number];
     }
@@ -628,7 +692,7 @@ export const createBoard = ({
           const argv = await adapter.run(number, agent, effort).catch((cause: Error) => {
             throw new Refusal(409, cleanCause(cause.message));
           });
-          await startRunner(`#${number}`, argv);
+          return startRunner(`#${number}`, argv);
         },
       };
     });
@@ -645,7 +709,7 @@ export const createBoard = ({
           const argv = await adapter.resume(number).catch((cause: Error) => {
             throw new Refusal(409, cleanCause(cause.message));
           });
-          await startRunner(`#${number}`, argv);
+          return startRunner(`#${number}`, argv);
         },
       };
     });
@@ -657,7 +721,7 @@ export const createBoard = ({
       const argv = await adapter.queueRun(wake);
       await requireTerminals(exec);
       sent = true;
-      await startHidden({ folder: main, label: 'queue', argv }, exec);
+      await startHidden({ folder: main, label: 'queue', argv, removeOnExit: true }, exec);
     })().catch(async (cause) => {
       try {
         const operation = createOperation(await locateCheckouts(main), { saved: wake.host }, 'main');
@@ -763,7 +827,8 @@ export const createBoard = ({
       if (!isLocal && now() - askedAt > BACKGROUND_MS) void refresh();
       if (!board && !readError() && pending) await pending;
       const isDue = (press: { at: number }) => now() - press.at >= PRESS_MS && checkedFrom < press.at + PRESS_MS;
-      if (!isLocal && Object.values(presses).some(isDue)) await refresh();
+      if (!isLocal && Object.values(presses).some((press) => press.feedback.kind === 'timed' && isDue(press)))
+        await refresh();
       return sendJson(response, 200, await placement({ isLocal }));
     }
     if (request.method === 'GET' && path.startsWith('/visual/')) {
@@ -884,7 +949,8 @@ export const createBoard = ({
       ready = true;
       void refresh();
     }
-    nextHint = setTimeout(() => void pollHints(), 1_000);
+    await observeRunners();
+    if (!stopped) nextHint = setTimeout(() => void pollHints(), 1_000);
   };
   const stopReads = () => {
     stopped = true;
