@@ -45,9 +45,9 @@ var runTitle = (step, flow, effort) => {
   return `${effort ? startTitle(step, effort) : `Start the ${step} step`}${hint ? `. ${hint}` : ""} (Enter)`;
 };
 var AGENTS = {
-  claude: ["Claude Code", "C"],
-  opencode: ["OpenCode", "O"],
-  codex: ["Codex", "X"]
+  claude: "Claude Code",
+  opencode: "OpenCode",
+  codex: "Codex"
 };
 var cleanCause = (cause) => {
   const line = String(cause ?? "").split(`
@@ -76,8 +76,8 @@ var laneTrack = (card, flow) => {
 var agentOf = (card) => {
   if (!card.agent)
     return null;
-  const [name, letter] = Object.hasOwn(AGENTS, card.agent) ? AGENTS[card.agent] : [card.agent, card.agent[0].toUpperCase()];
-  return { name, letter };
+  const name = Object.hasOwn(AGENTS, card.agent) ? AGENTS[card.agent] : card.agent;
+  return { name, letter: card.agent[0].toUpperCase() };
 };
 var stateLabel = (card) => {
   if (card.state === "waits" && WAITS[card.waitFor])

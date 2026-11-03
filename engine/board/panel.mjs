@@ -99,7 +99,7 @@ var drawPanel = (card, { actions, flow, on, close }) => {
   const asks = state === "waits" && (card.number !== null || card.waitFor === "dialog");
   const head = el("div", "panel-head");
   const crumbs = el("div", "crumbs");
-  crumbs.append(mark(card), card.number === null ? el("span", "num none", "human session") : link("num", `#${card.number}`, card.url));
+  crumbs.append(mark(card, true), card.number === null ? el("span", "num none", "human session") : link("num", `#${card.number}`, card.url));
   for (const part of [card.type, card.step === card.type ? null : card.step])
     if (part)
       crumbs.append(el("span", "sep", "·"), el("span", "", part));

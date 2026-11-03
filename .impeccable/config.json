@@ -1,0 +1,29 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": ["http://127.0.0.1:*", "http://127.0.0.1:*/"],
+        "createdAt": "2026-11-03T12:56:04.603Z",
+        "reason": "DESIGN.md Typography specifies the dense Board role scale. Issue #191 changes only agent marks and preserves layout and typography."
+      },
+      {
+        "rule": "nested-cards",
+        "value": "*",
+        "files": ["http://127.0.0.1:*", "http://127.0.0.1:*/"],
+        "createdAt": "2026-11-03T12:56:20.870Z",
+        "reason": "DESIGN.md Layout and Cards specify issue cards within state columns and Human session pills within their strip; these containers express task grouping, not decorative depth."
+      },
+      {
+        "rule": "overused-font",
+        "value": "geist",
+        "files": ["http://127.0.0.1:*", "http://127.0.0.1:*/"],
+        "createdAt": "2026-11-03T12:56:20.902Z",
+        "reason": "DESIGN.md pins Geist for the dense Board; issue #191 preserves the existing type system."
+      }
+    ]
+  }
+}

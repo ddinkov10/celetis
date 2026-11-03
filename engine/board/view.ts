@@ -59,10 +59,10 @@ export const runTitle = (step: string | null, flow: Partial<Flow> | null | undef
   return `${effort ? startTitle(step, effort) : `Start the ${step} step`}${hint ? `. ${hint}` : ''} (Enter)`;
 };
 
-export const AGENTS: Record<string, [string, string]> = {
-  claude: ['Claude Code', 'C'],
-  opencode: ['OpenCode', 'O'],
-  codex: ['Codex', 'X'],
+export const AGENTS: Record<string, string> = {
+  claude: 'Claude Code',
+  opencode: 'OpenCode',
+  codex: 'Codex',
 };
 
 export const cleanCause = (cause: unknown) => {
@@ -97,10 +97,8 @@ export const laneTrack = (card: Pick<Card, 'type' | 'step'>, flow: Partial<Flow>
 
 export const agentOf = (card: Pick<Card, 'agent'>) => {
   if (!card.agent) return null;
-  const [name, letter] = Object.hasOwn(AGENTS, card.agent)
-    ? (AGENTS[card.agent] as [string, string])
-    : [card.agent, (card.agent[0] as string).toUpperCase()];
-  return { name, letter };
+  const name = Object.hasOwn(AGENTS, card.agent) ? (AGENTS[card.agent] as string) : card.agent;
+  return { name, letter: (card.agent[0] as string).toUpperCase() };
 };
 
 export const stateLabel = (card: Card) => {

@@ -590,7 +590,7 @@ const drawCard = (
   }
   const head = el('div', 'card-head');
   if (node.classList.contains('is-unseen')) head.append(unseenDot());
-  head.append(mark(card), id);
+  head.append(mark(card, Boolean(card.state)), id);
   if (card.type) head.append(el('span', 'sep', '·'), el('span', 'type', card.type));
   const lane = track(card);
   if (lane) head.append(lane);

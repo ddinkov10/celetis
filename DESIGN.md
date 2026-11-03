@@ -199,7 +199,7 @@ components:
 The board is a watch post over many agents at once. From one seat, the maintainer sees every
 session and every issue of one repository, and the one thing that needs them stands out from the
 rest. The tower is quiet at rest: the surface is near-neutral grey and the furniture recedes. Color
-appears only as a signal, and each signal has one meaning.
+appears as a state signal or in the selected agent icons. Each state signal has one meaning.
 
 The mood is calm, precise, and utilitarian. The density is high but ordered: small type (13px
 body), tight controls (28px), and a strict three-column field. The page must read at a glance after
@@ -214,6 +214,7 @@ redefines every color token. It loads nothing from the network and carries its o
 
 - Neutral grey surfaces in three tonal layers: page, column, card.
 - Five state colors, each with one meaning, used only for state.
+- Fixed vendor colors in Codex and Claude Code icons identify the agent, not its state.
 - Hairline borders and translucent fills instead of heavy shadows.
 - Geist for words and Geist Mono for numbers, paths, and identifiers.
 - Small, dense, keyboard-first controls with a visible focus ring.
@@ -265,8 +266,11 @@ decoration.
 ### Named Rules
 
 **The One Meaning Rule.** Each signal color has one meaning: orange needs you, blue works, green is
-ready or passed, red failed, amber is a dirty tree. Never use a signal color for decoration, brand,
-or emphasis.
+ready or passed, red failed, amber is a dirty tree. Never use a signal color for decoration or
+emphasis. The selected Codex and Claude Code icons are the only vendor-color exception: retain
+their original colors and proportions at 18×18 px in both themes. Codex keeps its white background;
+Claude Code keeps its transparency. Add no tile background, border, or shadow. The icons identify
+the agent only; state indicators and card treatments keep their existing meanings.
 
 **The Ink Action Rule.** The primary button is filled with Ink, not with a signal color. A filled
 button means "the main action of this card", not a state.
@@ -426,7 +430,8 @@ rises in over 0.24s. It names the failed press above the server line.
 
 ### Do:
 
-- **Do** keep every surface neutral grey and give color only to state, per the One Meaning Rule.
+- **Do** keep every surface neutral grey and reserve color for state and the selected agent icons,
+  per the One Meaning Rule.
 - **Do** tint a state onto a surface with `color-mix` (6–13% fill, 22–55% border).
 - **Do** set numbers, SHAs, paths, commands, and effort levels in Geist Mono.
 - **Do** define every new color for both themes: the dark base and the light variant.
@@ -442,5 +447,6 @@ rises in over 0.24s. It names the failed press above the server line.
 - **Don't** fill a button or a card with a solid signal color.
 - **Don't** add a shadow other than Raise and Float.
 - **Don't** load a font, an icon, or a script from the network.
-- **Don't** show a product's brand, logo, or colors; only the folder name identifies the repository.
+- **Don't** show a repository product's brand, logo, or colors; only the folder name identifies
+  the repository. The selected agent icons identify hosts, not the repository product.
 - **Don't** use a colored glow for focus or selection; use a ring.

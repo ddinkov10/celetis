@@ -157,7 +157,7 @@ export const drawPanel = (
   const head = el('div', 'panel-head');
   const crumbs = el('div', 'crumbs');
   crumbs.append(
-    mark(card),
+    mark(card, true),
     card.number === null ? el('span', 'num none', 'human session') : link('num', `#${card.number}`, card.url),
   );
   for (const part of [card.type, card.step === card.type ? null : card.step])

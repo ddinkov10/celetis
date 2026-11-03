@@ -792,7 +792,7 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   keep the cards and other controls usable. Closing the dialog returns focus under the existing
   focus rules; a background close does not take focus from other board work.
 - Human sessions is a strip between the header and the columns, in Now and in Pipeline. Each human
-  session is one item: the letter of the agent, the title, the state with its age, and
+  session is one item: the agent mark, the title, the state with its age, and
   Go. A session with an empty title shows `A session` on its item and as the title of its details.
   A press on an item opens its details. The strip is hidden while no human session runs. A human
   session needs you only while its host reports `blocked`: then its item is orange, and
@@ -820,8 +820,9 @@ SIL Open Font License 1.1), so it loads nothing from the network.
 - A card shows the type, the number, the title, the lane track, the state with its age, and its
   buttons. A working card shows the lines that it changed. A card whose row has `pr` shows the
   number, the CI result, and the review state. An act line that is a command or a path has a Copy
-  button. The tile at the left of a session card is the letter of the host that its status names
-  (`claude` or `codex`); an issue card shows the icon of its type. The lane
+  button. The mark at the left of a session card identifies its host. Codex and Claude Code use
+  the selected [agent icons](agent-icons.md); other hosts use their initial letter. The same marks
+  appear in Human sessions and details. An issue card shows the icon of its type. The lane
   keys `bug`, `feature`, `chore`, and `hotfix` have an icon of their own, and a lane with another
   key gets the neutral icon. The main button of a card in Needs you is filled.
 - A card in one row (Idle, the last two groups of Needs you, and Pipeline) has its title beside its
