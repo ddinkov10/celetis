@@ -11,7 +11,7 @@ mapping root. Comments are allowed. Put nothing after a `---` marker on its line
 | `host` | `claude` or `codex` | `claude` |
 | `landing` | Required: `pr` or `merge` | None |
 | `gates` | Mapping from a step name to `me` or `auto` | `me` for each omitted step |
-| `board` | Mapping with optional `port`, an integer from 1024 to 65535 | Port 4403 |
+| `board` | Mapping with optional `port`, an integer from 1024 to 65535 | Search starts at 4403 |
 | `worktreeSetup` | A root-relative `.ts` file reference, or exactly `""` | No setup |
 | `suite` | A relative path of a TypeScript file in the checkout; required with `landing: merge`, refused with `landing: pr` | With `merge`, the config is refused |
 | `custom` | Mapping from a Celetis skill stem to an instruction string | No addition for an omitted skill |
@@ -19,7 +19,8 @@ mapping root. Comments are allowed. Put nothing after a `---` marker on its line
 
 The allowed gate names are `triage`, `specify`, `bug`, `chore`, `hotfix`, `plan`, and
 `implement`. No other step is accepted. An empty `gates` mapping uses `me` for all seven.
-An empty `board` mapping uses port 4403. `PORT` takes precedence over the configured board port.
+An empty `board` mapping starts the automatic port search at 4403. An effective `PORT` takes
+precedence and requests one exact port ("Start the board").
 
 The allowed custom keys are `accept-epic`, `assist`, `attack-the-premise`, `boundary-discipline`, `bug`, `chore`,
 `create-verification`,
@@ -257,7 +258,8 @@ step that needs a value of the file, and for the verify gate of this repository.
 | Configuration setup or test after a write | Fresh validation of the written or newly selected file |
 | Landing start and protected actions after asynchronous work | Fresh policy and repository preflight before push, PR creation, check rerun, or merge |
 
-The board port stays fixed at startup until restart. A changed default host applies to the next
+The selected board port stays fixed while the board runs. An update restart requests that same
+port exactly. A changed default host applies to the next
 new session; exact Resume retains its saved host and ID. Each skill entry is a native boundary of
 its own ("Skill entry"), independent of runtime operations.
 
@@ -272,7 +274,16 @@ not a filesystem transaction across checkouts or a transaction with GitHub.
 
 Run `celetis --agent <host> board` in the main checkout or a subfolder. It takes no arguments and
 refuses a lane start before it starts the board. At its start it reads the main config's
-`board.port`, default 4403, and keeps `PORT` above that value. Each data refresh creates a fresh
+`board.port`, default 4403. With no effective `PORT`, it binds consecutive ports on `127.0.0.1`
+through 65535, keeping the first successful listener. Only `EADDRINUSE` advances the search.
+Exhaustion exits 1 and names the range without printing a startup URL.
+
+A nonzero `Number(PORT)` requests that exact port instead; zero or NaN means no override.
+An occupied exact port exits 1 with the existing port-in-use error. Invalid effective values
+retain Bun's error, and other bind errors stop startup. Use the actual URL printed by the board.
+Concurrent starts claim ports by binding; no port is reserved by an earlier availability check.
+
+Each data refresh creates a fresh
 main operation, so a change of `host` or `gates` shows at the next refresh ("Operation values and
 freshness"). At each press, the fixed adapter reads the installed program and types two fixed
 lines with its command: Run with the selected agent, and Resume with no agent, using the saved host.

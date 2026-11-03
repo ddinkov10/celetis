@@ -77,16 +77,22 @@ check and, for Codex, its `CODEX_HOME`. The start records its own program revisi
 Resume, or Assist, the fixed adapter (`adapter.ts`) reads the installed `celetis` program and gives
 its argv ("The argv of a press").
 
-**The port** is `PORT` of the environment, else `board.port` of the main `.celetis.yaml`, else 4403.
-A `PORT` that is no number, or that is `0`, counts as absent. The server listens on `127.0.0.1`
-only. Each repository has the default port 4403, so a second board on one machine exits 1 at its
-start. Give it another port in `board.port`, or with `PORT`, which overrides it:
+**The port** starts at `board.port` of the main `.celetis.yaml`, or 4403. With no effective
+`PORT`, the board binds consecutive ports on `127.0.0.1` through 65535 and keeps the first
+successful listener. Only `EADDRINUSE` advances the search. A free lower port is not considered.
+Concurrent starts claim their ports with the actual listeners; there is no separate probe or
+reservation. Shutdown cancels further attempts and closes the listener.
+
+A nonzero `Number(PORT)` requests that exact port and disables the search. Zero or NaN,
+including an empty or nonnumeric string, means no override. Invalid effective values keep Bun's
+existing failure. Use an exact port when the origin must stay fixed:
 
 ```bash
 PORT=4404 celetis --agent <host> board
 ```
 
-**The start prints** the main checkout and the URL:
+**The start prints** the main checkout and the actual URL once, after a successful bind.
+Failed candidates print no success lines. The printed URL is authoritative:
 
 ```text
 agent-board: repository /Users/me/code/shop
@@ -105,7 +111,8 @@ checks in this order:
 | The main `.celetis.yaml` cannot be read or has an error | the diagnostic of the config reader, with the file and the field | 2 |
 | The current checkout is not the main checkout: a lane worktree, or another linked worktree | `celetis-board: start the board in the main checkout: <main>` | 1 |
 | The update policy of the selected host has a conflict, or an update still holds the installation after 2 minutes | the line of the check, for example `update: <path>: Celetis automatic updates are enabled or unknown; …` | 1 |
-| The port is in use | `agent-board: cannot listen on 127.0.0.1:<port>: the port is in use` | 1 |
+| The exact `PORT` is in use | `agent-board: cannot listen on 127.0.0.1:<port>: the port is in use` | 1 |
+| Every automatic candidate is occupied | `agent-board: cannot listen on 127.0.0.1:<start>-65535: all ports are in use` | 1 |
 | The server cannot listen for another cause, for example `PORT=99999` | `agent-board: cannot listen on 127.0.0.1:<port>: <the message of Bun>` | 1 |
 
 The engine finds the main checkout (`docs/configuration.md` of the plugin `celetis`, "Operation

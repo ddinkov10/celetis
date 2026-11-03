@@ -472,7 +472,7 @@ changes no field that is there. Each other field stays by hand.
 | `suite` | A relative path of a TypeScript file in the checkout. `land` runs it in the lane, with no argument, at the tip that it lands; exit status 0 is a pass. Required with `merge`, refused with `pr` | With `merge`, the command exits 2 |
 | `gates` | A mapping from the seven step names to `me` or `auto` | Each omitted step is `me` |
 | `worktreeSetup` | A root-relative `.ts` file reference, for example `"scripts/worktree-setup.ts"`, or exactly `""` | No setup |
-| `board.port` | The board port ("The agent board") | 4403 |
+| `board.port` | The first port to try for the board ("The agent board") | 4403 |
 | `codexProfiles.<runtime>` | Four ordered model slots and the reviewer minimum for that dispatch surface | Each Codex child keeps the parent's model |
 | `custom.<skill>` | An addition to the skill procedure | No addition |
 
@@ -749,7 +749,8 @@ use the terminal start. Add the example entry to the local file's `configuration
 Replace `<command>` with the absolute path of the program command: `<base>/.local/bin/celetis`, or
 `<base>\.local\bin\celetis.cmd` on Windows ("First install"). Write it as JSON data, with no shell
 quotes inside the value. Keep the resolved machine path local. The native preview port must match
-`board.port` in `.celetis.yaml`:
+the actual port in the printed URL. The example uses the default starting port. If automatic
+selection moves to another port, open the printed URL or adjust the local preview entry:
 
 ```json
 {
@@ -1234,9 +1235,14 @@ change hints each second and reads the affected issues. A disappeared session al
 known issue. Full reads keep their five-minute schedule to recover direct GitHub edits, and a
 queued full read takes priority after an active selected read. Selected reads retain the
 last-full-read timestamp. No config file is made.
-Only `board.port` comes from YAML at the start; its default is 4403. `PORT` overrides it. This
-repository uses 4404, so its board can run beside a board on 4403. Restart the board after a port
-change. For an update, follow [Updates](#updates), including resource limits for open work,
+Only `board.port` comes from YAML at the start; its default is 4403. Without an effective
+`PORT`, the board tries consecutive loopback ports from that start through 65535 and keeps the
+first successful bind. This repository starts at 4404. A nonzero `Number(PORT)` requests that
+exact port; zero or NaN means no override. Invalid effective values retain Bun's error. An
+occupied exact port or an exhausted automatic range exits 1. Other bind errors stop the search.
+The printed URL is authoritative. The listening port stays fixed until shutdown; an update
+restart requests that actual port exactly so the browser can reconnect. Restart the board after
+a configuration port change. For an update, follow [Updates](#updates), including resource limits for open work,
 and start the board again for its new code.
 
 The `agents` entries of the data report executable availability for Claude and Codex. Sign-in,
