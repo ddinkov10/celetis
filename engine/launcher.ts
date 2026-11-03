@@ -1,5 +1,6 @@
 import { stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { installRecorder, passOn } from './lib/events.ts';
 import { helpText } from './lib/help.ts';
 import { HostError, requireBun, updateHint } from './lib/host.ts';
 import { commandInput } from './lib/operation.ts';
@@ -10,6 +11,7 @@ import { execConsumer } from './lib/update-lock.ts';
 export const commandName = /^[a-z][a-z-]*$/;
 
 export async function main(argv: string[]): Promise<number> {
+  installRecorder('launcher');
   try {
     requireBun();
     const { args, explicit } = commandInput(argv);
@@ -35,7 +37,7 @@ export async function main(argv: string[]): Promise<number> {
     const entry = join(import.meta.dir, folder, `${name}.ts`);
     if (!(await stat(entry).catch(() => null))?.isFile()) throw missing;
     const forwarded = explicit === undefined ? args : ['--agent', explicit, ...args];
-    return await execConsumer(process.execPath, [process.execPath, ...bunArgs(entry, forwarded)], childEnv());
+    return passOn(await execConsumer(process.execPath, [process.execPath, ...bunArgs(entry, forwarded)], childEnv()));
   } catch (error) {
     if (!(error instanceof HostError)) throw error;
     if (error.message) console.error(error.message);

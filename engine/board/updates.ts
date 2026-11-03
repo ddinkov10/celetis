@@ -4,6 +4,7 @@ import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import type { Host } from '../lib/config-core.ts';
+import { recordEvent } from '../lib/events.ts';
 import { bunArgs, childEnv } from '../lib/process.ts';
 import { containProcess, type Job } from '../lib/windows.ts';
 import type { PreparedUpdate, UpdateCheck, UpdateResult } from '../update.ts';
@@ -266,8 +267,10 @@ export function createUpdates({
   let closed = false;
   let manual = false;
   const snapshot = () => structuredClone(view);
-  const publicFailure = (error: unknown, fallback: string) => {
-    console.error(error instanceof Error ? error.message : String(error));
+  const publicFailure = (error: unknown, fallback: string, report = false) => {
+    const line = error instanceof Error ? error.message : String(error);
+    console.error(line);
+    if (report) recordEvent({ name: 'board-update', message: line });
     return error instanceof WorkerFailure ? error.publicMessage : fallback;
   };
   const unavailable = () =>
@@ -405,11 +408,12 @@ export function createUpdates({
             publicFailure(
               result.error || 'update failed',
               'update: replacement failed; inspect the installation in a terminal, then check again',
+              true,
             ),
           );
         else view = { ...view, phase: 'restarting', error: null, recovery };
       })
-      .catch((error) => fail(publicFailure(error, 'update: replacement failed')))
+      .catch((error) => fail(publicFailure(error, 'update: replacement failed', true)))
       .then(() => {
         active = undefined;
         applying = undefined;
@@ -424,6 +428,7 @@ export function createUpdates({
           publicFailure(
             error,
             'update: installation completed, but the board could not restart; use the recovery command',
+            true,
           ),
         );
       }

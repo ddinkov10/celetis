@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type { Config } from './lib/config-core.ts';
 import { completeEpic } from './lib/epic.ts';
 import { parseEpicRepository } from './lib/epic-acceptance.ts';
+import { installRecorder, markDefect } from './lib/events.ts';
 import { HostError, updateHint } from './lib/host.ts';
 import { lineOf } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
@@ -576,6 +577,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     await writeRefreshHint(main, Number(n));
     return 0;
   } catch (error) {
+    markDefect(error);
     if (cleanup) {
       if (!signalStatus) emitError(error);
       console.error(`land: cleanup: ${cleanup}`);
@@ -596,4 +598,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
   }
 }
 
-if (import.meta.main) process.exitCode = await main(process.argv.slice(2));
+if (import.meta.main) {
+  installRecorder('land');
+  process.exitCode = await main(process.argv.slice(2));
+}

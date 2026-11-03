@@ -1,4 +1,5 @@
 import { delimiter, dirname, resolve } from 'node:path';
+import { installRecorder } from './lib/events.ts';
 import { HostError, requireBun, updateHint } from './lib/host.ts';
 import { commandInput } from './lib/operation.ts';
 import { childEnv } from './lib/process.ts';
@@ -25,4 +26,7 @@ export async function main(argv: string[]): Promise<number> {
   }
 }
 
-if (import.meta.main) process.exitCode = await main(process.argv.slice(2));
+if (import.meta.main) {
+  installRecorder('install');
+  process.exitCode = await main(process.argv.slice(2));
+}

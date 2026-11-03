@@ -1,4 +1,5 @@
 import { dirname } from 'node:path';
+import { installRecorder } from './lib/events.ts';
 import { HostError, requireBun } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
@@ -23,4 +24,7 @@ export async function main(argv: string[]): Promise<number> {
   }
 }
 
-if (import.meta.main) process.exitCode = await main(process.argv.slice(2));
+if (import.meta.main) {
+  installRecorder('root');
+  process.exitCode = await main(process.argv.slice(2));
+}

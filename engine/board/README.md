@@ -737,6 +737,8 @@ The answer to a press that the server did is 200 with `{"ok": true}`. Each other
 | 502 | At Run or Resume, `hc` or `herdr-app` is not on the `PATH` of the board, or the hc server or the Herdr app does not answer: the line of that check. An `hc` or `herdr-app` call failed, also the terminal list of Make visual: the first line of its error. `hc gave no list of terminals`, `herdr gave no list of spaces`, `hc gave no terminal id`, and `herdr gave no terminal for the new space` are the lines for an answer with no list or with no safe id. |
 | 500 | The server failed for another cause: the first line of the error, or `the server failed`. |
 
+Each 500 answer, each 502 answer, a failed queue launch, and a failed update or restart also add an entry to the event record of the user ([The event record](../../docs/celetis-flow.md)).
+
 The update API is independent of issue and terminal reads. Each success returns
 `{runtime: {revision, instance}, update: <snapshot>}`. `revision` is the full revision of the
 program that started this board. `instance` is a random ID for this startup.

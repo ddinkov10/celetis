@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import type { Host } from './lib/config-core.ts';
+import { installRecorder, markDefect } from './lib/events.ts';
 import { codexRequest, HostError, installedRoot, NotInstalled, requireBun, updateHint } from './lib/host.ts';
 import { commandInput } from './lib/operation.ts';
 import {
@@ -843,9 +844,13 @@ export async function main(argv: string[]): Promise<number> {
     else return await update(await inspectUpdate(process.cwd()));
     return 0;
   } catch (error) {
+    markDefect(error);
     console.error(error instanceof Error ? error.message : String(error));
     return error instanceof HostError ? error.code : 1;
   }
 }
 
-if (import.meta.main) process.exitCode = await main(process.argv.slice(2));
+if (import.meta.main) {
+  installRecorder('update');
+  process.exitCode = await main(process.argv.slice(2));
+}

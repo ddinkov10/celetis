@@ -26,6 +26,7 @@ const required = [
   'lib/help.ts',
   'lib/config-core.ts',
   'lib/config.ts',
+  'lib/events.ts',
   'lib/host.ts',
   'lib/locks.ts',
   'lib/operation.ts',
@@ -58,6 +59,7 @@ export async function main(argv: string[]): Promise<number> {
   const unavailable = await gone([
     'lib/config-core.ts',
     'lib/config.ts',
+    'lib/events.ts',
     'lib/host.ts',
     'lib/locks.ts',
     'lib/operation.ts',
@@ -79,6 +81,7 @@ export async function main(argv: string[]): Promise<number> {
     'lib/lines.ts',
     'lib/vendor/yaml.mjs',
   ]);
+  if (!unavailable) (await import('./lib/events.ts')).installRecorder('celetis-flow');
   let explicit: string | undefined;
   if (!unavailable) {
     try {
@@ -153,6 +156,7 @@ export async function main(argv: string[]): Promise<number> {
     else console.log(`celetis-flow: stop ${removed}`);
     return 1;
   }
+  const { markDefect, passOn, recordEvent } = await import('./lib/events.ts');
   const { HostError, requireBun } = await import('./lib/host.ts');
   const { addRecord, createLockOwner, isRecorded, lockHolder } = await import('./lib/locks.ts');
   const { createOperation, locateCheckouts } = await import('./lib/operation.ts');
@@ -233,9 +237,10 @@ export async function main(argv: string[]): Promise<number> {
     }
   };
   const say = (message: string) => {
-    if (mode === 'auto' && message === said) return;
+    if (mode === 'auto' && message === said) return false;
     said = message;
     console.log(`celetis-flow: ${message}`);
+    return true;
   };
   const fresh = () => createOperation(operation.checkout, selection, 'main');
   const nextOperation = () => {
@@ -278,7 +283,9 @@ export async function main(argv: string[]): Promise<number> {
       return true;
     } catch (error) {
       await clearStepEnd();
-      console.error(`celetis-flow: #${stepEndIssue} cannot write step-end: ${(error as Error).message}`);
+      const line = `celetis-flow: #${stepEndIssue} cannot write step-end: ${(error as Error).message}`;
+      console.error(line);
+      recordEvent({ name: 'step-end-write', message: line, issue: stepEndIssue });
       return false;
     }
   };
@@ -371,17 +378,17 @@ export async function main(argv: string[]): Promise<number> {
             if (!(await requestExit(terminal, record.host, abort))) {
               if (!abort.aborted) {
                 await publish(record.host, 'waiting', turn);
-                console.error(
-                  `celetis-flow: #${n} cannot request ${record.host} exit; the session stays open. Exit it in the tab ${tab} when ready.`,
-                );
+                const line = `celetis-flow: #${n} cannot request ${record.host} exit; the session stays open. Exit it in the tab ${tab} when ready.`;
+                console.error(line);
+                recordEvent({ name: 'exit-request', message: line, issue: Number(n) });
               }
               return false;
             }
             const timer = setTimeout(() => {
-              if (!abort.aborted)
-                console.error(
-                  `celetis-flow: #${n} ${record.host} did not exit within 10 seconds; the session stays open. Exit it in the tab ${tab} when ready.`,
-                );
+              if (abort.aborted) return;
+              const line = `celetis-flow: #${n} ${record.host} did not exit within 10 seconds; the session stays open. Exit it in the tab ${tab} when ready.`;
+              console.error(line);
+              recordEvent({ name: 'exit-timeout', message: line, issue: Number(n) });
             }, 10_000);
             try {
               await Promise.race([ended, halted]);
@@ -579,14 +586,14 @@ export async function main(argv: string[]): Promise<number> {
               `${lastHost} session exited with status ${exitCode ?? 'unknown'} before issue progress; check startup output, then run ${manualRecovery(lastHost)} from the main checkout or start the step again`,
             );
           const reason = `no progress: ${prompt}`;
-          say(reason);
+          if (say(reason)) recordEvent({ name: 'no-progress', message: `celetis-flow: ${reason}`, issue: Number(n) });
           await addRecord(common, n, line);
           return outcome('stopped', reason, 'Open the saved session, or use Try again for this step.');
         }
         const skips = last ? skipped(last.step, step, next.lane) : [];
         if (last && !request?.retry && skips.length > 0) {
           const reason = `#${n}: ${step} skips ${skips.join(', ')} after ${last.step}; fix the issue, or start ${step} by hand: celetis --agent <host> celetis-flow ${n}`;
-          say(reason);
+          if (say(reason)) recordEvent({ name: 'step-skip', message: `celetis-flow: ${reason}`, issue: Number(n) });
           await addRecord(common, n, line);
           return outcome('stopped', reason, 'Fix the issue, or use Try again for this displayed step.');
         }
@@ -766,7 +773,7 @@ export async function main(argv: string[]): Promise<number> {
       await releaseBarrier();
       const code = await sessionEnd(ended);
       normalEnd(code);
-      return signalStatus || (code ?? 1);
+      return signalStatus || (code === null ? 1 : passOn(code));
     }
     if (mode === 'numbers') {
       await runIssue(numbers[0] as string, 'any', undefined, undefined, override);
@@ -793,6 +800,7 @@ export async function main(argv: string[]): Promise<number> {
             reason: result.reason,
             act: result.act,
           });
+          if (result.kind !== 'gate') recordEvent({ name: 'queue-error', message: result.reason, issue: Number(n) });
           return 0;
         }
         for (;;) {
@@ -851,7 +859,8 @@ export async function main(argv: string[]): Promise<number> {
         }
         if (pick) started = (await runIssue(pick, 'gated')).started;
         else say('no auto step can start; the runner asks again each 60 seconds');
-      } else say('stop cannot read the open issues from GitHub');
+      } else if (say('stop cannot read the open issues from GitHub'))
+        recordEvent({ name: 'issues-read', message: 'celetis-flow: stop cannot read the open issues from GitHub' });
       if (!started) {
         const until = performance.now() + 60_000;
         while (!signalStatus && performance.now() < until) await Bun.sleep(50);
@@ -879,9 +888,17 @@ export async function main(argv: string[]): Promise<number> {
           return 1;
         }
         if (reason) console.error(reason);
+        if (!signalStatus)
+          recordEvent({
+            name: 'queue-error',
+            message: reason,
+            issue: queue?.numbers[0] ?? null,
+            error: error instanceof HostError ? undefined : error,
+          });
         return signalStatus || 0;
       }
       if (reason) console.error(reason);
+      markDefect(error);
       return error instanceof HostError ? error.code : 1;
     }
     if (error instanceof HostError) {
@@ -901,6 +918,8 @@ export async function main(argv: string[]): Promise<number> {
 }
 
 async function waitingSession(args: string[]): Promise<number> {
+  const { installRecorder, passOn } = await import('./lib/events.ts');
+  installRecorder('session-start');
   const [dir, runner, host, ...hostArgs] = args;
   if (!dir || !isAbsolute(dir) || !/^[1-9][0-9]*$/.test(runner ?? '') || (host !== 'claude' && host !== 'codex'))
     return 2;
@@ -926,7 +945,7 @@ async function waitingSession(args: string[]): Promise<number> {
     if (host === 'codex') env.CODEX_HOME = await codexHome();
     const executable = Bun.which(host, { PATH: env.PATH });
     if (!executable) throw new HostError(`celetis: ${host} is not on PATH`);
-    code = await spawnConsumer(executable, [executable, ...hostArgs], env);
+    code = passOn(await spawnConsumer(executable, [executable, ...hostArgs], env));
   } catch (error) {
     if (!(error instanceof HostError)) throw error;
     console.error(error.message);

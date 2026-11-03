@@ -1,5 +1,4 @@
-import type { Stats } from 'node:fs';
-import { lstat, mkdir } from 'node:fs/promises';
+import { lstatSync, mkdirSync, type Stats } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -14,18 +13,22 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export async function privateFolder(path: string, fail: (path: string, reason: string) => Error): Promise<void> {
+export function privateFolderSync(path: string, fail: (path: string, reason: string) => Error): void {
   try {
-    await mkdir(path, { mode: 0o700 });
+    mkdirSync(path, { mode: 0o700 });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw fail(path, message(error));
   }
   let stat: Stats;
   try {
-    stat = await lstat(path);
+    stat = lstatSync(path);
   } catch (error) {
     throw fail(path, message(error));
   }
   if (!stat.isDirectory() || stat.isSymbolicLink() || !privateMode(stat))
     throw fail(path, 'need a private directory owned by the current user (mode 0700)');
+}
+
+export async function privateFolder(path: string, fail: (path: string, reason: string) => Error): Promise<void> {
+  privateFolderSync(path, fail);
 }

@@ -1,6 +1,7 @@
 import { dirname } from 'node:path';
 import { celetisAdapter } from './board/adapter.ts';
 import { startBoard } from './board/start.ts';
+import { installRecorder, markDefect } from './lib/events.ts';
 import { HostError, requireBun, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
@@ -37,9 +38,13 @@ export async function main(argv: string[]): Promise<number> {
       revision: await programRevision(dirname(import.meta.dir)),
     });
   } catch (error) {
+    markDefect(error);
     console.error(error instanceof HostError ? error.message : `celetis-board: ${(error as Error).message}`);
     return error instanceof HostError ? error.code : 1;
   }
 }
 
-if (import.meta.main) process.exitCode = await main(process.argv.slice(2));
+if (import.meta.main) {
+  installRecorder('board');
+  process.exitCode = await main(process.argv.slice(2));
+}

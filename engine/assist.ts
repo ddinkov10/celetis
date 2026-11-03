@@ -1,6 +1,7 @@
 import { stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Host } from './lib/config-core.ts';
+import { installRecorder, markDefect, passOn } from './lib/events.ts';
 import { HostError, requireBun, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { codexHome, codexSessionPin } from './lib/plugin-metadata.ts';
@@ -46,11 +47,17 @@ export async function main(argv: string[]): Promise<number> {
       if (operation.checkout.cwd !== main) await requireUpdatePolicy(host, main);
       return host === 'codex' ? codexSessionPin(main) : [];
     });
-    return await execConsumer(executable, [executable, ...pin, ...assistArguments(host, issue, root)], childEnv());
+    return passOn(
+      await execConsumer(executable, [executable, ...pin, ...assistArguments(host, issue, root)], childEnv()),
+    );
   } catch (error) {
+    markDefect(error);
     console.error(error instanceof HostError ? error.message : `celetis-assist: ${(error as Error).message}`);
     return error instanceof HostError ? error.code : 1;
   }
 }
 
-if (import.meta.main) process.exitCode = await main(process.argv.slice(2));
+if (import.meta.main) {
+  installRecorder('assist');
+  process.exitCode = await main(process.argv.slice(2));
+}

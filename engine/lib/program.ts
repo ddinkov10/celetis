@@ -61,13 +61,14 @@ export async function programRevision(root: string): Promise<string> {
   return result.stdout.trimEnd();
 }
 
-export function programPaths(base?: string): ProgramPaths {
-  if (base === undefined) {
-    const selected = process.env.CELETIS_HOME;
-    if (selected && !isAbsolute(selected))
-      throw new HostError(`celetis: CELETIS_HOME must be an absolute path: ${selected}`, 2);
-    base = selected || homedir();
-  }
+export function celetisBase(): string {
+  const selected = process.env.CELETIS_HOME;
+  if (selected && !isAbsolute(selected))
+    throw new HostError(`celetis: CELETIS_HOME must be an absolute path: ${selected}`, 2);
+  return selected || homedir();
+}
+
+export function programPaths(base = celetisBase()): ProgramPaths {
   const data = join(base, '.local/share/celetis');
   const bin = join(base, '.local/bin');
   return {

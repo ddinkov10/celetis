@@ -3,6 +3,7 @@ import type { Host } from './lib/config-core.ts';
 import { decidable, effortMarker, isLevel } from './lib/effort.ts';
 import { completeEpic, readEpic, writeEpicDefinition } from './lib/epic.ts';
 import { parseEpicAcceptance, parseEpicSubmission } from './lib/epic-acceptance.ts';
+import { installRecorder, markDefect } from './lib/events.ts';
 import { HostError, updateHint } from './lib/host.ts';
 import { lineOf } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
@@ -289,9 +290,13 @@ export async function main(argv: string[]): Promise<number> {
     const { args, explicit } = commandInput(argv);
     return await execute(args, explicit);
   } catch (error) {
+    markDefect(error);
     console.error(error instanceof Error ? error.message : String(error));
     return error instanceof HostError ? error.code : 1;
   }
 }
 
-if (import.meta.main) process.exitCode = await main(process.argv.slice(2));
+if (import.meta.main) {
+  installRecorder('issue');
+  process.exitCode = await main(process.argv.slice(2));
+}

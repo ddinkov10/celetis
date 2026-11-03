@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
+import { installRecorder, markDefect } from '../lib/events.ts';
 import type { PreparedUpdate, UpdateCheck, UpdateResult, UpdateStage } from '../update.ts';
 
 export const UPDATE_PIPE_LIMIT = 1024 * 1024;
@@ -185,8 +186,11 @@ async function main(): Promise<void> {
   }
 }
 
-if (import.meta.main)
+if (import.meta.main) {
+  installRecorder('update-worker');
   main().catch((error) => {
+    markDefect(error);
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
   });
+}

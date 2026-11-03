@@ -1,6 +1,7 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { type Effort, effortOf } from './lib/effort.ts';
+import { installRecorder } from './lib/events.ts';
 import { HostError, updateHint } from './lib/host.ts';
 import { describe, lineOf, type Next, type Observed } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
@@ -360,4 +361,7 @@ async function resolveNext(
   return { code: failed ? 1 : 0, stdout: `${lineOf(n, next)}\n`, stderr };
 }
 
-if (import.meta.main) process.exitCode = await main(process.argv.slice(2));
+if (import.meta.main) {
+  installRecorder('next-step');
+  process.exitCode = await main(process.argv.slice(2));
+}

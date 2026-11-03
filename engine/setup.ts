@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:p
 import { isDeepStrictEqual } from 'node:util';
 import { readConfig } from './lib/config.ts';
 import { type Config, ConfigError, formatConfigError, validateWorktreeSetup } from './lib/config-core.ts';
+import { installRecorder, markDefect } from './lib/events.ts';
 import { HostError, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
@@ -968,10 +969,14 @@ export async function main(argv: string[]): Promise<number> {
     if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
     return await new Setup(operation).execute(input);
   } catch (error) {
+    if (!(error instanceof ConfigError)) markDefect(error);
     const message = error instanceof Error ? error.message : String(error);
     if (message) console.error(message);
     return error instanceof HostError ? error.code : 1;
   }
 }
 
-if (import.meta.main) process.exitCode = await main(process.argv.slice(2));
+if (import.meta.main) {
+  installRecorder('setup');
+  process.exitCode = await main(process.argv.slice(2));
+}

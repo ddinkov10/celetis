@@ -1,6 +1,7 @@
 import { lstat, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { readConfig } from './lib/config.ts';
+import { installRecorder, markDefect } from './lib/events.ts';
 import { HostError } from './lib/host.ts';
 import {
   LessonError,
@@ -80,8 +81,12 @@ export async function main(argv: string[]): Promise<number> {
     console.log(JSON.stringify(result));
     return 0;
   } catch (error) {
+    if (!(error instanceof LessonError)) markDefect(error);
     console.error(`lesson-store: ${error instanceof Error ? error.message : String(error)}`);
     return error instanceof LessonError ? error.code : error instanceof HostError && error.code === 2 ? 2 : 6;
   }
 }
-if (import.meta.main) process.exitCode = await main(process.argv.slice(2));
+if (import.meta.main) {
+  installRecorder('lesson-store');
+  process.exitCode = await main(process.argv.slice(2));
+}

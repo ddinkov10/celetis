@@ -19,6 +19,7 @@ import {
   validateExecutionReport,
   validateRecord,
 } from './lib/dispatch-record.ts';
+import { installRecorder, markDefect } from './lib/events.ts';
 import { HostError, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { privateFolder, privateMode, privateRoot } from './lib/private-folder.ts';
@@ -278,9 +279,13 @@ export async function main(argv: string[]): Promise<number> {
       console.error(`dispatch: setup: ${message(error)}`);
       return 5;
     }
+    markDefect(error);
     console.error(`dispatch: ${message(error)}`);
     return 1;
   }
 }
 
-if (import.meta.main) process.exitCode = await main(process.argv.slice(2));
+if (import.meta.main) {
+  installRecorder('dispatch');
+  process.exitCode = await main(process.argv.slice(2));
+}

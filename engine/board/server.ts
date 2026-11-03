@@ -26,6 +26,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { basename, join, relative, resolve, sep } from 'node:path';
 import { isLevel, type Level, levels } from '../lib/effort.ts';
+import { recordEvent } from '../lib/events.ts';
 import { commonDir } from '../lib/host.ts';
 import { createOperation, locateCheckouts } from '../lib/operation.ts';
 import { childEnv } from '../lib/process.ts';
@@ -723,17 +724,21 @@ export const createBoard = ({
       sent = true;
       await startHidden({ folder: main, label: 'queue', argv, removeOnExit: true }, exec);
     })().catch(async (cause) => {
+      let message = '';
       try {
+        message = cleanCause(cause.message);
         const operation = createOperation(await locateCheckouts(main), { saved: wake.host }, 'main');
         if (!sent) {
-          const view = await failQueueLaunch(operation, wake.id, wake.token, cleanCause(cause.message));
+          const view = await failQueueLaunch(operation, wake.id, wake.token, message);
           if (board) board.queue = view;
         } else {
           await queueView();
         }
       } catch (failure) {
         fullError = `queue: launch recovery failed: ${cleanCause(failure)}`;
+        message = fullError;
       }
+      recordEvent({ name: 'queue-launch', message });
     });
   };
 
@@ -926,9 +931,11 @@ export const createBoard = ({
   const server = createServer((request, response) => {
     request.setEncoding('utf8');
     answer(request, response).catch((cause) => {
-      sendJson(response, cause instanceof Refusal ? cause.status : 500, {
-        error: firstLine(String(cause.message)) || 'the server failed',
-      });
+      const status = cause instanceof Refusal ? cause.status : 500;
+      const error = firstLine(String(cause.message)) || 'the server failed';
+      sendJson(response, status, { error });
+      if (!(cause instanceof Refusal)) recordEvent({ name: 'board-request', message: '', code: 500, error: cause });
+      else if (status === 502) recordEvent({ name: 'board-terminal', message: error, code: 502 });
     });
   });
   let updateResponse = Promise.resolve();

@@ -1166,6 +1166,161 @@ failure already reported it. The pending warning writes no terminal error marker
 not suppress that final error. These failures write no false no-progress row. A record with a
 null ID cannot be used for exact runner resume.
 
+## The event record
+
+Each Celetis process that detects a failure appends one entry to the event record of the user. A
+later session reads the record with `celetis --agent <host> events [--after <id>]`. The record is
+local. It has no network part. [ADR-0066](adr/0066-one-shared-event-record-with-a-lock.md) holds
+the reasons why all processes write one shared file under a lock.
+
+The record folder is `<base>/.local/state/celetis/`. `<base>` is `CELETIS_HOME` when it is set,
+else the home folder. A relative `CELETIS_HOME` is an error of the record: no entry is written.
+The folder holds three files:
+
+- `events.jsonl` is the current file.
+- `events.1.jsonl` is the one older file. It exists after the first rotation.
+- `events.lock` is the lock file.
+
+The folder has mode 0700 and belongs to the current user. Each file has mode 0600. On Windows, the
+mode rule does not apply. Missing parent folders get the default mode. The first write makes the
+folder, so a process that writes no entry makes no folder.
+
+An entry is one JSON object on one line, ended by `\n`, in UTF-8:
+
+| Field | Value |
+| --- | --- |
+| `schema` | `1` |
+| `id` | `<time>-<pid>-<8 hex>`. It is unique. `--after` uses it |
+| `time` | ISO 8601 UTC with milliseconds |
+| `kind` | `defect`, `refusal`, or `workflow` |
+| `name` | `exit` for an exit entry; a stable kebab-case name for a workflow or board entry |
+| `command` | The sub-command name, or the role of a process with no sub-command: `launcher`, `config-reader`, `session-start`, `update-worker` |
+| `argv` | The arguments of the process after the sub-command name |
+| `cwd` | The absolute working directory |
+| `host` | `claude` or `codex` from the `--agent` argument, else from `CELETIS_AGENT`, else `null` |
+| `revision` | The full revision of the running program, or `null` when it is not known |
+| `pid` | The process ID |
+| `issue` | The issue number when the site knows it, else `null` |
+| `code` | The exit code of an exit entry, the HTTP status of a board entry, else `null` |
+| `message` | For a defect, the message of the error. For a refusal, the text that the process itself wrote to stderr. For a workflow entry, the line that the site printed or returned |
+| `exception.type` | The class name of the error. A defect only |
+| `exception.stacktrace` | `Error.stack`. A defect only |
+| `fingerprint` | 16 hex digits. The same failure gives the same fingerprint |
+| `truncated` | The names of the cut fields. It is absent when no field was cut |
+
+A whole line is 16 KiB at most. When a line is too long, the writer cuts `message` first, then
+`exception.stacktrace`, then the last items of `argv`. It keeps valid UTF-8 and valid JSON, and it
+lists each cut field in `truncated`. The record holds no environment value.
+
+A refusal keeps the last 16 384 UTF-16 units of the text that the process wrote with
+`process.stderr.write` or `console.error`. Text that a child process writes to an inherited
+stderr is not in it. `console.error` arguments are formatted with `util.format`. For an object
+argument, that text can differ from the terminal text of Bun.
+
+The three kinds:
+
+- **defect:** an error that is not a `HostError` ends a process, or a board request ends with
+  status 500. A top-level `catch` that prints such an error and returns exit 1 gives the error to
+  `markDefect`, so the entry is a defect with its stack.
+- **refusal:** a process ends with a nonzero code and no defect. Usage errors, config errors,
+  and results such as the exit 4 of `worktree` are refusals.
+- **workflow:** the runner or the board reports a failure and continues.
+
+These processes record: each sub-command, the launcher before it replaces its process, the config
+reader (`engine/lib/config.ts`), the session-start child of the runner, and the update worker of
+the board. These do not record: `build`, `verify`, `install-tools`, `events`, a product script
+that a Celetis process runs, the `bun --eval` helper, and the host sessions. A child process
+records its own failure. A parent that passes on the exit code of a child unchanged (`passOn`)
+records nothing. A parent that turns the failure of a child into a new error of its own records
+that error.
+
+A process that ends with 0, 129, 130, or 143 writes no exit entry. A successful `execve`
+replacement of the launcher ends no process, so the new process records its own exit. A workflow
+entry and the later exit entry of the same process are two reports, and both stay.
+
+The workflow and board entries, by `name`:
+
+| Name | Site |
+| --- | --- |
+| `no-progress` | The runner stops a step that gave no progress. `issue` is set |
+| `step-skip` | The runner stops a step that skips a step of the lane. `issue` is set |
+| `startup-error` | A session does not start (`startupError` in `engine/lib/session.ts`). `issue` is set |
+| `step-end-write` | The runner cannot write a step-end record and continues. `issue` is set |
+| `exit-request` | The runner cannot ask a session to exit. `issue` is set |
+| `exit-timeout` | A session does not exit within 10 seconds. `issue` is set |
+| `issues-read` | The automatic runner cannot read the open issues from GitHub |
+| `queue-error` | The queue of the runner saves the state `error`, or ends with an error |
+| `board-request` | A board request ends with status 500. A defect with the stack of the cause. `code` is 500 |
+| `board-terminal` | A board request ends with status 502 because the terminal core failed. `code` is 502 |
+| `queue-launch` | The hidden queue launch of the board fails |
+| `board-update` | The board cannot replace the program in an update, or it cannot restart after a completed installation |
+
+The runner records a line once for each printed line. A no-progress stop in the queue gives both
+`no-progress` and `queue-error`. A board request with status 4xx is a result, not a failure, and
+the board health reads are state that the board shows, so neither is recorded.
+
+The board does not stop a repeated failure. Each repeat is one more entry with the same
+fingerprint:
+
+- The board checks for an update when it starts and 10 minutes after each check ends. An update
+  that a person starts stops this timer. Each check starts the update worker, and the worker
+  starts one `engine/update.ts --inspect <host>` child for each host that it inspects. Each of
+  these processes records its own failed exit. A child that fails, for example because the update
+  source cannot be reached, gives one refusal entry (`command` `update`) at each check. The worker
+  exits 0 when it reports a failed check, so it records nothing then. A failure that the worker
+  finds itself, such as a source of the program that cannot be reached, gives no entry.
+- Each board answer with status 500 is one entry. The page reads the board state again 5 seconds
+  after each read, or 15 seconds after it when the page is hidden. A read that fails each time
+  gives one entry for each read.
+
+The fingerprint is the first 16 hex digits of SHA-256 over a key. The key parts are joined with
+`\n`:
+
+| Kind | Key |
+| --- | --- |
+| `defect` | `defect`, `command`, `exception.type`, and the first stack frame inside the program folder: its path relative to the program folder and its function name, with no line or column |
+| `refusal` | `refusal`, `command`, `code`, and the first line of `message`, with each run of digits replaced by `0` and the program folder replaced by `<program>` |
+| `workflow` | `workflow`, `command`, and `name` |
+
+Each write opens `events.lock` and takes an exclusive `flock` (`LockFileEx` on Windows). It
+retries for 2 seconds at most. Under the lock, the writer appends the whole line with one write.
+When `events.jsonl` is then larger than 5 MiB, the writer renames it to `events.1.jsonl`, which
+replaces the older file. The record is about 10 MiB at most. A process holds no lock between two
+writes. When the previous writer died in the middle of a line, the next writer ends that line with
+`\n` first.
+
+A record that cannot complete does not change the exit code, the stdout, or the other stderr text
+of the process. It prints one line, `celetis: cannot record the event: <reason>`, and writes no
+entry. The reasons are: the lock is busy after 2 seconds, the folder is not private, a relative
+`CELETIS_HOME`, a full disk, or a removed working directory.
+
+`celetis --agent <host> events [--after <id>]` takes a shared lock with the same 2-second bound,
+reads `events.1.jsonl` and then `events.jsonl`, and prints each entry as one JSON line on stdout,
+oldest first. The record file is input that the command does not trust. It prints a line
+only after it parsed the line as a JSON object with a string `id`. It skips the incomplete last
+line of a file (no `\n`). A line that is not a valid entry gives one stderr line with the file
+name and the line number, `events: <file>:<line>: not a valid entry; the read continues`, and the
+read continues. With `--after <id>`, it prints the entries after the last entry with that `id`.
+When no kept entry has the `id`, it prints one stderr line and then all entries. With no folder
+or no file, it prints nothing. The exit code is 0 for each of these. A usage error exits 2. A busy
+lock after 2 seconds, or a folder that is not a private directory of the user, exits 1 with one
+line. The command writes nothing to the record, also not its own failures.
+
+The record has these gaps:
+
+- A stop of the Claude Code entry hook is not in the record. The native API of the hook has no
+  file write.
+- A failure that only an agent sees, such as a failed tool call, is not in the record. The skills
+  `feedback` and `lesson` cover it.
+- A rejected promise that nothing awaits is not in the record. Bun 1.4.4 ends the process with
+  status 1, but gives the `exit` event the code 0.
+- A crash before the recorder loads, and a `SIGKILL`, leave no entry.
+- A process that an uncaught `HostError` ends records a refusal with an empty message. Bun does
+  not give the native crash text to the capture.
+- The exit codes 129, 130, and 143 are not recorded.
+- The checks of #239 ran on macOS only. The `flock` exit path on Linux, and `LockFileEx`, the
+  rename over an existing file, and the exit handler on Windows, have no runtime evidence.
+
 ## Acceptance status
 
 **Product-owned setup references (#107), implementation complete; Codex native acceptance complete.**

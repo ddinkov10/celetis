@@ -1,6 +1,7 @@
 import { stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { Config } from './lib/config-core.ts';
+import { installRecorder, markDefect } from './lib/events.ts';
 import { HostError, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
@@ -188,9 +189,13 @@ export async function main(argv: string[]): Promise<number> {
     const { args, explicit } = commandInput(argv);
     return await execute(args, explicit);
   } catch (error) {
+    markDefect(error);
     console.error(error instanceof Error ? error.message : String(error));
     return error instanceof HostError ? error.code : 1;
   }
 }
 
-if (import.meta.main) process.exitCode = await main(process.argv.slice(2));
+if (import.meta.main) {
+  installRecorder('worktree');
+  process.exitCode = await main(process.argv.slice(2));
+}

@@ -1,6 +1,7 @@
 import { realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute } from 'node:path';
+import { passOn } from '../lib/events.ts';
 import { HostError } from '../lib/host.ts';
 import { installedRevision, revision } from '../lib/plugin-metadata.ts';
 import { bunArgs, childEnv } from '../lib/process.ts';
@@ -24,9 +25,11 @@ export async function restartBoard(main: string, port: number, context: BoardSta
   const program = await installedBoard(target, context.env);
   process.chdir(await realpath(main));
   const env = childEnv({ ...context.env, PORT: String(port) });
-  return execConsumer(
-    process.execPath,
-    [process.execPath, ...bunArgs(program.entry, ['--agent', context.host, 'board'])],
-    env,
+  return passOn(
+    await execConsumer(
+      process.execPath,
+      [process.execPath, ...bunArgs(program.entry, ['--agent', context.host, 'board'])],
+      env,
+    ),
   );
 }

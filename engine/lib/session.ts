@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Config, Host } from './config-core.ts';
 import { clampEffort, isLevel, type Level } from './effort.ts';
+import { recordEvent } from './events.ts';
 import { codexRequest, commonDir, HostError } from './host.ts';
 import { readScreen } from './terminal.ts';
 import { command, invocation, type Step, steps } from './workflow.ts';
@@ -349,9 +350,9 @@ export async function startupError(
   terminal: string,
   tab: string,
 ): Promise<void> {
-  console.error(
-    `celetis-flow: #${issue} ${host} startup: ${detail}. Check the version, trust, and sign-in prompts in the tab ${tab}. Complete the required action, then start the step again. Manual recovery: ${manualRecovery(host)} from the main checkout.`,
-  );
+  const line = `celetis-flow: #${issue} ${host} startup: ${detail}. Check the version, trust, and sign-in prompts in the tab ${tab}. Complete the required action, then start the step again. Manual recovery: ${manualRecovery(host)} from the main checkout.`;
+  console.error(line);
+  recordEvent({ name: 'startup-error', message: line, issue });
   const screen = await readScreen(terminal, 40);
   if (screen) process.stderr.write(`${screen.trimEnd().split('\n').slice(-40).join('\n')}\n`);
 }

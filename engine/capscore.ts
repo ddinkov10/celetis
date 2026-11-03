@@ -10,6 +10,7 @@ import {
   ScoreError,
   scoreLabel,
 } from './lib/capability.ts';
+import { installRecorder } from './lib/events.ts';
 import { HostError, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 
@@ -146,4 +147,7 @@ export async function main(argv: string[]): Promise<number> {
   }
 }
 
-if (import.meta.main) process.exitCode = await main(process.argv.slice(2));
+if (import.meta.main) {
+  installRecorder('capscore');
+  process.exitCode = await main(process.argv.slice(2));
+}

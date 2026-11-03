@@ -8,6 +8,7 @@ import {
   parseConfigText,
   validateConfig,
 } from './config-core.ts';
+import { installRecorder } from './events.ts';
 
 const notRegularFile = 'need a regular, readable file, with no symlink';
 
@@ -56,6 +57,7 @@ export function readConfig(checkout: string): Config {
 }
 
 if (import.meta.main) {
+  installRecorder('config-reader');
   const checkout = process.argv[2] ?? 'undefined';
   try {
     console.log(JSON.stringify(readConfig(checkout)));
