@@ -121,7 +121,6 @@ async function terminalIds(exec: Exec): Promise<string[]> {
   const value = parse(result.stdout);
   if (!isRecord(value) || !Array.isArray(value.terminals)) throw new TerminalError('hc gave no list of terminals');
   return records(value.terminals)
-    .filter((entry) => isText(entry.status))
     .map((entry) => entry.address)
     .filter(isSafeId);
 }

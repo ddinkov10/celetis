@@ -884,7 +884,8 @@ starts closed on each page load, and stays open through refresh. Card details an
 each other. Escape and Close return focus to History. The count, `d`, and the search command use
 the same panel. At widths below 1100 px or heights below 701 px it is a drawer, including on a
 phone. Each semantic row has issue and commit links and accessible full commit identity/time.
-`View <trunk>` opens older history. History has no launch action. Loading, empty success, and
+`View <trunk>` opens older history. Each row has Make visual (Starting… while the press runs), Making… while its tab is open, or Open visual (`engine/board/README.md`,
+"Landed history" and "The commands of the board"). Loading, empty success, and
 initial error are separate states. Read failures preserve both cards and history with the visible
 read error. A selected-read error takes priority over a full-read error. A good selected read
 clears only its own error; a good full read clears both. The snapshot's `history` is null before a

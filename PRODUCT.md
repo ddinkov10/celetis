@@ -56,10 +56,12 @@ agent that waits.
   keys, and the errors", is the design document and the source of truth for behavior and copy.
 - The board holds nothing of one repository: the lanes, steps, stages, and tracker name come from
   the data document. Only the folder name of the main checkout identifies the repository.
-- The board loads nothing from the network. It carries its own fonts and has no dependency of its
-  own.
+- The board page loads nothing from the network. It carries its own fonts and has no dependency
+  of its own. A visual page served at `/visual/<sha>` is the output of `visual-explainer`: it
+  loads its CDN fonts and libraries, and it runs in a sandbox with an opaque origin.
 - `engine/board/server.ts` and the fixed adapter `engine/board/adapter.ts` are trust boundaries.
-  UI work must not widen them, including the Content-Security-Policy.
+  UI work must not widen them, including the Content-Security-Policy of the board page.
+  ADR-0065 records the one sandboxed route.
 - Browser sources are TypeScript. `scripts/build.ts` generates the browser `.js` and `.mjs` files.
   Product repositories run no build.
 - `scripts/verify.ts` is the only check of this repository. The repository adds no test file.

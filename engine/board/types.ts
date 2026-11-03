@@ -67,6 +67,9 @@ export type History = {
   head: string;
   entries: LandedIssue[];
 };
+export type VisualState = 'none' | 'starting' | 'making' | 'ready';
+export type HistoryRow = LandedIssue & { visual: VisualState };
+export type BoardHistory = Omit<History, 'entries'> & { entries: HistoryRow[] };
 export type Document = {
   history: History;
   tracker: string;
@@ -123,7 +126,7 @@ export type Column = 'needs' | 'running' | 'idle' | 'human';
 export type Columns = Record<Column, Card[]>;
 export type Placement = { noRun: string | null; columns: Columns };
 export type Board = Placement & {
-  history: History | null;
+  history: BoardHistory | null;
   flow: Flow | null;
   tracker: string | null;
   runner: boolean | null;

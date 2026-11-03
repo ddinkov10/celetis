@@ -4,6 +4,7 @@ export const helpCommands: readonly (readonly [form: string, summary: string])[]
   ['celetis board', 'Starts the board of the project in this checkout.'],
   ['celetis intake', 'Starts a fresh session that asks for your request before intake.'],
   ['celetis assist <n>', 'Starts fresh interactive assistance for an issue in the main checkout.'],
+  ['celetis visual <n> <sha>', 'Starts a fresh session that makes the visual of a landed commit.'],
   ['celetis celetis-flow', 'Starts the automatic runner.'],
   ['celetis celetis-flow <n>', 'Starts the next step of one issue, then follows its auto gates.'],
   [

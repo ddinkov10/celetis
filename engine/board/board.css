@@ -1750,9 +1750,13 @@ a.chip2:hover {
 }
 .history-row {
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr);
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "number title action"
+    "number meta action";
   gap: 6px 10px;
-  padding: 14px 0;
+  align-items: center;
+  padding: 16px 0;
   border-bottom: 1px solid var(--line);
   font-size: 13px;
 }
@@ -1765,19 +1769,49 @@ a.chip2:hover {
   font-size: 12px;
 }
 .history-number {
+  grid-area: number;
+  align-self: start;
   color: var(--ready);
 }
 .history-title {
+  grid-area: title;
+  align-self: end;
   color: var(--fg);
   overflow-wrap: anywhere;
 }
-.history-sha,
-.history-row time {
-  grid-column: 2;
+.history-meta {
+  grid-area: meta;
+  align-self: start;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   font-size: 12px;
   color: var(--fg3);
 }
-.history-row a:hover,
+.history-sha {
+  color: var(--fg3);
+}
+.history-action {
+  grid-area: action;
+}
+.history-making {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--working) 30%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--working) 10%, transparent);
+  color: color-mix(in srgb, var(--working) 80%, var(--fg));
+  font: 500 12.5px / 1 var(--sans);
+}
+.history-making .icon {
+  width: 13px;
+  height: 13px;
+  animation: turn 0.9s linear infinite;
+}
+.history-row a:not(.btn):hover,
 .history-more:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -3065,6 +3099,9 @@ a.chip2:hover {
     flex: 1;
   }
   .update-open {
+    min-height: 44px;
+  }
+  .history-action {
     min-height: 44px;
   }
 }

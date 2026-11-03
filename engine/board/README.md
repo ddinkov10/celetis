@@ -51,11 +51,11 @@ gives the reasons why its sessions come from herdr-core and its tabs from the He
 - Bun 1.4.4 or later. The entry prints `celetis: need Bun >=1.4.4 on PATH, found <version>` and
   exits 2 on an older Bun.
 - git 2.31 or later.
-- The installed `celetis` program for New intake, Run, Resume, Assist, and queue actions (the README of the plugin, "First install").
+- The installed `celetis` program for New intake, Run, Resume, Assist, Make visual, and queue actions (the README of the plugin, "First install").
 - herdr-core 0.1.16, with `hc` on `PATH` and its server that runs, for the session cards and for
   each button.
 - The Herdr app 0.1.11, with `herdr-app` on `PATH` and its window open, for New intake, Run,
-  Resume, Assist, Open shell, queue wakes, and Go.
+  Resume, Assist, Make visual, Open shell, queue wakes, and Go.
 - `gh` on `PATH`, logged in, for the issue data.
 - The lane worktree of the issue `<n>` at `<main>/.claude/worktrees/<n>-<slug>`, where `<main>` is
   the main checkout. This layout has no setting: an agent in a worktree at another place has no
@@ -281,6 +281,14 @@ time with its full accessible timestamp. The time is neither issue-close nor pus
 the first result, History shows loading; an initial failure shows an error. Successful empty
 history shows `No landed issues found on <trunk>.` A failed refresh retains the rows and shows
 the read error; recovery clears it. History has no Run or Resume action.
+Each row has one control on its right side. A row with no page has Make visual
+(`Make the visual of #<n>`); a press sends only the issue number, and the button reads `Starting…`
+(with `aria-busy`) while the press runs. While its `#<n> visual` tab is open, the row shows
+`Making…` (a status with a turning icon, in Current Blue). A row with a page has the link
+`Open visual` to `/visual/<sha>`, in a new browser tab. A refused press gives the toast
+`Make visual failed` with the line of the server, and the row then shows its server state. The
+focus stays on the control of its row through these states. Below 720 px the control is 44 px
+high.
 
 The list covers recent landings through both `merge` and `pr`. A closure alone proves no landing;
 an open issue can appear in both active work and history. Absence from 20 entries proves nothing
@@ -309,9 +317,9 @@ The link label of the terminal, `celetis.link`, links a session to an issue: `#<
 the issue `<n>` and the step, `#<n>` alone gives the issue only, and another label gives no issue.
 The step word counts only when `flow.lanes` of the document names that step. The runner gives
 each session tab, also a resume tab, the link label `#<n> <step>`. A press that opens a tab
-(New intake, Assist, and Open shell) sets the link label to the tab name. Assist uses
-`#<n> assist`, which links the issue but gives no workflow step. A tab
-that you rename by hand links no session. A session with no link label, for example a resume that
+(New intake, Assist, Make visual, and Open shell) sets the link label to the tab name. Assist uses
+`#<n> assist`, and Make visual uses `#<n> visual`: each links the issue but gives no workflow step.
+A tab that you rename by hand links no session. A session with no link label, for example a resume that
 you start by hand, takes the name of its tab as its title: the part of the `where` label of
 herdr-core after the first ` / `. With no tab name, its title is empty. The time of a session state
 is the time when the server first saw that state; `idle`, `done`, and `error` count as one state.
@@ -405,6 +413,7 @@ A press that fails ends the `Starting` card at once, and the next read gives the
 | A queue action | A persisted QueueView acknowledgement. Only a new wake starts a hidden runner in the main checkout, with the fixed queue run argv. For each step, the runner opens a quiet session tab `#<n> <step>` with that link label, so the session cards and Go stay. |
 | New intake | A focused `Intake` tab in the main checkout. The current default host asks for the request, then enters `celetis:intake` with the answer. The button creates no issue and starts no runner. |
 | Assist | A focused tab `#<n> assist` in the main checkout, with the Assist argv. |
+| Make visual | A focused tab `#<n> visual` in the main checkout, with the Make visual argv, for a History row with no page. The command in the tab makes the page `docs/superpowers/visuals/<sha>.html` of the main checkout. |
 | Open shell | A focused tab `#<n> shell` in the `path` of a `dirty` row, with no argv: herdr-core starts the shell of the machine. |
 | Go | `herdr-app do pane.focus --terminal <id>`; then change to the Herdr app window. |
 
@@ -418,8 +427,10 @@ program.
 
 The adapter makes each argv from fixed items: the command of the program, then, for an independent
 Run, `--agent`, the selected agent, and `celetis-flow`; for Resume, `celetis-flow` and `--resume`,
-with no agent; for Assist, `--agent`, the current default agent, and `assist`; or for New intake,
-`--agent`, the current default agent, and `intake`, with no issue number. A `Run at <level>` entry
+with no agent; for Assist, `--agent`, the current default agent, and `assist`; for Make visual,
+`--agent`, the current default agent, `visual`, the number, and the full commit hash of the
+History row of that number; or for New intake, `--agent`, the current default agent, and
+`intake`, with no issue number. A `Run at <level>` entry
 adds `--effort` and the level after the number. The Run argv ends with `--quiet`, so the runner
 opens each session tab in the background.
 Resume takes the host and the session from its saved record. The program supplies Bun and its
@@ -431,12 +442,13 @@ a line, so an item cannot add a second command. For the issue 12 and the agent `
 <base>/.local/bin/celetis --agent claude celetis-flow 12 --effort xhigh --quiet
 <base>/.local/bin/celetis celetis-flow --resume 12
 <base>/.local/bin/celetis --agent claude assist 12
+<base>/.local/bin/celetis --agent claude visual 12 <sha>
 <base>/.local/bin/celetis --agent claude intake
 ```
 
 On macOS and Linux, the new terminal starts the argv in a login shell of `$SHELL` (else `/bin/sh`),
-with `hc run --rm`. Run, Resume, and a queue wake use the first start form, and New intake and
-Assist use the second:
+with `hc run --rm`. Run, Resume, and a queue wake use the first start form, and New intake,
+Assist, and Make visual use the second:
 
 ```text
 <shell> -lic 'exec "$@"' <shell> <argv>
@@ -530,8 +542,8 @@ For the runner of a queue wake, use `hc ls --label celetis.runner=queue`. The st
 not end a session whose start barrier it released (`docs/celetis-flow.md` of the plugin `celetis`,
 "How a step runs", "A stop of the runner").
 
-The terminal calls of New intake, Assist, and Open shell, when the Herdr app has a space with the
-name of the repository:
+The terminal calls of New intake, Assist, Make visual, and Open shell, when the Herdr app has a
+space with the name of the repository:
 
 ```text
 herdr-app ls
@@ -541,7 +553,8 @@ herdr-app do tab.rename --id <tab> --name '<name>'
 ```
 
 Before these calls, Assist and Open shell read the sessions as a request that is not local does
-("The reads").
+("The reads"). Make visual reads only the terminal list: `hc ls --json`, then
+`hc get <id> --json` for each live terminal.
 When `herdr-app ls` fails, for example because the Herdr app does not run, the press gets 502 with
 the first line of the error, and no terminal starts. The space is the first local space whose name
 is the folder name of the main checkout. The label `herdr.space` puts the new terminal in a new
@@ -566,6 +579,7 @@ session tab.
 | A queue wake | the main checkout | none: each session tab is quiet | none: a hidden runner, `celetis.runner=queue` | the queue run argv |
 | Resume | the main checkout | the session tab | none: a hidden runner, `celetis.runner=#<n>` | the Resume argv |
 | Assist | the main checkout | the new tab | `#<n> assist` | the Assist argv |
+| Make visual | the main checkout | the new tab | `#<n> visual` | the Make visual argv |
 | New intake | the main checkout | the new tab | `Intake` | the New intake argv |
 | Open shell | the `path` of the row | the new tab | `#<n> shell` | none |
 
@@ -595,16 +609,27 @@ the last good document while a selected read runs. The last-read timestamp chang
 a successful full read. The stop of the board stops both timers and the active read.
 The server also starts these read-only commands, with no shell:
 
-- `hc ls --json`, at each request: the live terminals. Then `hc get <id> --json` for each terminal
-  that reports a status: its status, its turn, its labels, its folders, and its foreground process;
+- `hc ls --json`, at each request: the live terminals. Then `hc get <id> --json` for each live
+  terminal, also one that reports no status: its status, its turn, its labels, its folders, and its
+  foreground process;
 - `hc read <id> --lines 0 --json`, at each request that is not local, for each session: the screen
   of its terminal;
 - `git --no-optional-locks -C <folder> diff --shortstat --merge-base origin/HEAD`, at most once each
   15 seconds for each folder, for the lines that a session changed. The folder is the lane worktree
   of the issue (`.claude/worktrees/<n>-<slug>`), else the folder of the session.
 
+Each request, also a local one, gives each History row its `visual` state. It checks up to 20 page
+files `docs/superpowers/visuals/<sha>.html` of the main checkout with `lstat`, and it uses the
+terminal list of that request. A page that is a regular file gives `ready`, also while its tab
+stays open. Else a Make visual press of that number in this board process gives `starting`. Else
+a live terminal with the link label `#<n> visual`, in the main checkout or in a lane worktree,
+gives `making`. Else the state is `none`. A partial page, a symbolic link, and a terminal of
+another folder give no state. When `hc ls` fails, the request has no tab fact, so a row with no
+page and no press is `none`. A row moves to `ready` at the first read after the host renames its
+page.
+
 **The presses.** The page sends a press as a POST with a JSON body: `{"number": <n>}` to
-`/api/run`, `/api/resume`, `/api/assist`, and `/api/shell`, `{"sessionId": "<id>"}` to `/api/go`, and `{}` to
+`/api/run`, `/api/resume`, `/api/assist`, `/api/visual`, and `/api/shell`, `{"sessionId": "<id>"}` to `/api/go`, and `{}` to
 `/api/refresh`. A Run body can also have `"agent": "<name>"` and `"effort": "<level>"`. Before any
 read, the server refuses an `effort` that is not `low`, `medium`, `high`, `xhigh`, or `max` with 400
 and `the effort is not one of low, medium, high, xhigh, max`. The server refuses a press with 409
@@ -615,6 +640,7 @@ and starts no terminal, unless each condition holds:
 | `POST /api/run` | A fresh issue and queue read succeeds. The issue has a card of its own, with no session. Its row is `ready` or `stuck`. `noRun` is `null`. No press on that issue is active. A current paused queue issue has no `effort` in the body and also meets the Continue conditions below. | The read or queue cause; `The queue starts this step at the decided level` for an `effort` on a current paused queue issue; otherwise `#<n> has no step to start now`. |
 | `POST /api/resume` | The issue has a card of its own, with no session. Its row is `stuck`. `noRun` is `null`. No press on that issue is active. | `#<n> has no session to resume now` |
 | `POST /api/assist` | A fresh issue read succeeds. The issue has a card of its own, with no session. Its row is `blocked`, with `assist` true and `noRun` null. A current `hc` terminal list succeeds. The current default agent is available. No Run, Resume, or Assist press on that issue is active. | The current read, `noRun`, agent, session, or state cause; otherwise `#<n> has no blocked issue to assist now`. |
+| `POST /api/visual` | The issue has a History row in the last good read. The page of its commit does not exist. No live terminal with the link label `#<n> visual` is in the main checkout or a lane worktree. No Make visual press of that number is in flight. The current default agent is available. | `#<n> has no row in History`; `#<n> already has a visual; use Open visual`; `the tab #<n> visual is still open`; `a Make visual press of #<n> is in flight`; otherwise the agent cause. |
 | `POST /api/shell` | The issue has a card of its own, with no session. Its row is `dirty`. Its `path` is a lane worktree of the main checkout. | `#<n> has no dirty worktree` |
 
 `POST /api/queue` accepts exactly `{"action": <QueueAction>, "agent": "claude" | "codex"}`
@@ -652,7 +678,18 @@ as a number or a digit string. Assist accepts every resolver reason whose card i
 It opens assistance for the human action; it starts no workflow step. A 200 response means the
 tab opened, not that the host resolved the block. A later CLI refusal can remain in that tab.
 
-These checks of Run, Resume, and Assist also refuse with 409 before any terminal starts.
+A Make visual body must be an object with exactly one field, `number`. An extra field, including
+`sha` or `agent`, gives 400 with `making a visual takes only the issue number`. The number follows
+the rule of Assist. The server takes the full commit hash only from the History row of that number
+in the last good read. It makes no fresh read and checks no `noRun`. It checks in this order: the
+press in flight, the row, the terminal list, the page, the tab, the agent, and the program. A
+failed `hc ls` gives 502. Each Make visual press marks its number in the board process until it
+ends, so a second press of that number gets 409. This mark is separate from the Run, Resume, and
+Assist reservation. The tab check needs no state of the board, so it also holds after a start of
+the server. A 200 response means that the tab opened, not that the page exists. A later refusal
+of the command, for example a commit that is not on the remote trunk, stays in that tab.
+
+These checks of Run, Resume, Assist, and Make visual also refuse with 409 before any terminal starts.
 Read-only `hc` calls can precede the failure:
 
 - **The program.** No installed program gives
@@ -663,9 +700,9 @@ Read-only `hc` calls can precede the failure:
   character gives `the celetis program path has a control character`.
 - **The saved session of Resume.** Resume refuses a missing or invalid saved record, or a record
   with no verified session ID, with the first line of its error.
-- **The agent of Run or Assist.** An independent Run uses the choice, else `defaultAgent`.
+- **The agent of Run, Assist, or Make visual.** An independent Run uses the choice, else `defaultAgent`.
   A queue continuation uses its saved host and refuses an explicit conflicting choice. Assist uses only
-  `defaultAgent` from its fresh read. The agent must be a name of lowercase
+  `defaultAgent` from its fresh read. Make visual uses only `defaultAgent` of the last good read. The agent must be a name of lowercase
   letters that `agents` of the document has. A choice that is not gives
   `#<n> has no agent "<name>"`, and no choice with no `defaultAgent` gives
   `#<n> has no agent to run with`. An agent that is not available gives its `cause`, for example
@@ -682,11 +719,11 @@ The answer to a press that the server did is 200 with `{"ok": true}`. Each other
 
 | Status | Case |
 |---|---|
-| 400 | The body is not JSON, the body has more than 1024 bytes, the issue number is not a positive safe integer in digits, the `effort` of Run is not one of the five levels, the queue request is invalid, or Assist has an unexpected body field. |
-| 403 | The `Host`, the `Origin`, or the content type is not good ("The trust boundary"). |
-| 404 | The path is not a path of the board, or Go names an id that is no session of the repository. |
-| 409 | A condition of the table does not hold, the queue request is stale or unavailable, the read of the program fails, the fresh issue read of Assist fails, Resume has no valid saved session, the agent of Run or Assist is not good, or the request tries to change the default agent. |
-| 502 | At Run or Resume, `hc` or `herdr-app` is not on the `PATH` of the board, or the hc server or the Herdr app does not answer: the line of that check. An `hc` or `herdr-app` call failed: the first line of its error. `hc gave no list of terminals`, `herdr gave no list of spaces`, `hc gave no terminal id`, and `herdr gave no terminal for the new space` are the lines for an answer with no list or with no safe id. |
+| 400 | The body is not JSON, the body has more than 1024 bytes, the issue number is not a positive safe integer in digits, the `effort` of Run is not one of the five levels, the queue request is invalid, or the body of Assist or Make visual is not an object or has an unexpected field. |
+| 403 | The `Host`, the `Origin`, or the content type is not good, or the `Origin` is `null` ("The trust boundary"). |
+| 404 | The path is not a path of the board, a `/visual/` path names no page, or Go names an id that is no session of the repository. |
+| 409 | A condition of the table does not hold, the queue request is stale or unavailable, the read of the program fails, the fresh issue read of Assist fails, Resume has no valid saved session, the agent of Run, Assist, or Make visual is not good, the commit of Make visual is not 40 lowercase hex digits, or the request tries to change the default agent. |
+| 502 | At Run or Resume, `hc` or `herdr-app` is not on the `PATH` of the board, or the hc server or the Herdr app does not answer: the line of that check. An `hc` or `herdr-app` call failed, also the terminal list of Make visual: the first line of its error. `hc gave no list of terminals`, `herdr gave no list of spaces`, `hc gave no terminal id`, and `herdr gave no terminal for the new space` are the lines for an answer with no list or with no safe id. |
 | 500 | The server failed for another cause: the first line of the error, or `the server failed`. |
 
 The update API is independent of issue and terminal reads. Each success returns
@@ -705,33 +742,46 @@ consumed offer gives 409. The start response finishes before this board closes f
 
 ## The trust boundary
 
-A Run press starts the runner of the `celetis` program in a hidden terminal of herdr-core. Eleven rules
+A Run press starts the runner of the `celetis` program in a hidden terminal of herdr-core. Twelve rules
 hold for the server and the page:
 
 1. The server listens on `127.0.0.1` only.
 2. It refuses, with 403, a request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>`.
 3. It refuses, with 403, a POST whose `Origin` is not `http://` and that `Host`, or whose content
    type is not `application/json`.
-4. It accepts only digits, as a number or a string, as the number of an issue, only the terminal
+4. It refuses, with 403, each request whose `Origin` is `null`, on every path and method, before
+   it reads a file or data. The board page never sends that value; a sandboxed page or a `file://`
+   page sends it on a cors request and on a POST.
+5. It accepts only digits, as a number or a string, as the number of an issue, only the terminal
    id of a session of the repository ("The cards") as the id of a session, and only `low`,
    `medium`, `high`, `xhigh`, or `max` as the effort level of a Run.
-5. The page sends an issue number, a session id, a selected Run agent, a selected Run effort level, a strict queue action, or an opaque update offer
+6. The page sends an issue number, a session id, a selected Run agent, a selected Run effort level, a strict queue action, or an opaque update offer
    ID, never a command or an installation path.
-   New intake sends only an empty object. Resume and Assist take only the issue number. A default-agent request changes no configuration.
-6. An id of an answer of `hc` or `herdr-app` (a terminal, a space, a tab) goes into a command only
+   New intake sends only an empty object. Resume, Assist, and Make visual take only the issue number. A default-agent request changes no configuration.
+7. An id of an answer of `hc` or `herdr-app` (a terminal, a space, a tab) goes into a command only
    when it has letters, digits, `_`, `:`, `.`, and `-`, and does not start with `-` (`isSafeId` of
    `engine/lib/terminal.ts`). An id that is absent goes into no command.
-7. The server starts `hc`, `herdr-app`, and `git` with no shell, and the issue read starts `gh`,
+8. The server starts `hc`, `herdr-app`, and `git` with no shell, and the issue read starts `gh`,
    `git`, and, on macOS and Linux, `ps` with no shell.
-8. For issue and session data, it runs `git` only in the main checkout or in a lane worktree.
+9. For issue and session data, it runs `git` only in the main checkout or in a lane worktree.
    The `git diff` of a session runs with `--no-optional-locks`, so it writes nothing. Update
    workers also validate the native plugin and program installations.
-9. Open shell refuses a path that is not under `.claude/worktrees/` of the main checkout.
-10. The server writes nothing in a product working tree. An approved update changes only the
+10. Open shell refuses a path that is not under `.claude/worktrees/` of the main checkout.
+11. The server writes nothing in a product working tree. An approved update changes only the
     validated native plugin and program installations.
-11. The page writes each text of the data, of a terminal screen, and of an error as text, never as HTML. Its
+12. The page writes each text of the data, of a terminal screen, and of an error as text, never as HTML. Its
     Content-Security-Policy allows its own files (the page, its six scripts, its stylesheet, and
-    its two fonts) and `data:` images (the tab icon) only.
+    its two fonts) and `data:` images (the tab icon) only. A visual page at `/visual/<sha>` is
+    model-written HTML. The server sends it only when `<sha>` is 40 lowercase hex digits and
+    `docs/superpowers/visuals/<sha>.html` of the main checkout is a regular file, not a symbolic
+    link. Its response has `Content-Security-Policy: sandbox allow-scripts allow-popups
+    allow-popups-to-escape-sandbox` and `X-Content-Type-Options: nosniff`, with no
+    `allow-same-origin`. So the page has an opaque origin, and it cannot read a board response.
+    Its cors requests and its POSTs have `Origin: null` and get 403 (rule 4). A navigation, a
+    popup, and a no-cors GET (an image or a script) have no `Origin` and get the normal answer,
+    which the page cannot read. No GET of the board is a press. A `GET /api/board` can start the
+    full read of the data, which the timer of the server also starts. That read can update the
+    queue record and start a queue wake that is due. ADR-0065 records this route.
 
 Five rules hold for the start, the argvs, and the data:
 
@@ -740,18 +790,20 @@ Five rules hold for the start, the argvs, and the data:
    its version folder, and the command path holds no control character. The page, the data, and a
    lane cannot supply a command path.
 2. **A press starts a fixed argv.** Run, Resume, and queue wakes start the runner of the installed
-   `celetis` program; New intake and Assist start their interactive commands ("The argv of a
-   press"). On macOS and Linux, the login shell of the new terminal gets the argv as `"$@"`, so it
-   reads no item as shell text. That program starts the first `bun` on the `PATH` of that login
-   shell, through its `env -S` shebang, or through its shim on Windows. New intake and Assist start
-   the selected native host. The server starts `hc`, `herdr-app`, and `git`, and the issue read
-   starts `gh`, `git`, and, on macOS and Linux, `ps`. Update workers have the separate fixed update
+   `celetis` program; New intake, Assist, and Make visual start their interactive commands ("The
+   argv of a press"). On macOS and Linux, the login shell of the new terminal gets the argv as
+   `"$@"`, so it reads no item as shell text. That program starts the first `bun` on the `PATH` of
+   that login shell, through its `env -S` shebang, or through its shim on Windows. New intake,
+   Assist, and Make visual start the selected native host. The server starts `hc`, `herdr-app`,
+   and `git`, and the issue read starts `gh`, `git`, and, on macOS and Linux, `ps`. Update workers have the separate fixed update
    protocol above.
 3. **Only validated values go into an argv.** The number is the digits of the issue. The agent of
-   Run or Assist is a name of lowercase letters that `agents` of the document has. The effort level
+   Run, Assist, or Make visual is a name of lowercase letters that `agents` of the document has. The effort level
    of Run is one of the five levels, and the adapter puts it after the number as `--effort` and the
    level. Assist gets
-   that agent from its fresh read. New intake takes `claude` or `codex` from fresh main configuration
+   that agent from its fresh read. The commit of Make visual is the full hash of the History row of
+   that number in the last good read, and the adapter refuses a value that is not 40 lowercase hex
+   digits. The page never sends it. New intake takes `claude` or `codex` from fresh main configuration
    and environment resolution. Resume takes no agent. Queue fields pass the shared exact-shape validator; its step is an engine-defined
    value, its ID is a UUID, its revision and issue numbers are positive safe integers, and its
    host is `claude` or `codex`. No title, reason, act, or data path goes into an argv. The label
@@ -760,7 +812,7 @@ Five rules hold for the start, the argvs, and the data:
 4. **The data comes from the engine, in the process of the board.** No other program gives the
    document. The lane keys and the step names come from the workflow definition of the engine,
    and the states come from the typed rows of the resolver and from the locks and the record of
-   the runner. The page writes each text as text (rule 11), and the Content-Security-Policy stops
+   the runner. The page writes each text as text (rule 12), and the Content-Security-Policy stops
    a `javascript:` URL in the page.
 5. **The start runs in the main checkout only, with a clean `PATH`.** The entry refuses a start in
    another checkout, and it removes each `node_modules/.bin` item from `PATH`, so a planted `git`,
@@ -902,7 +954,7 @@ the texts are `Open the issue` and `Read the issues again`.
 **The errors.**
 
 - When a press fails, a toast names the press (`Go failed`, `Run failed`, `Resume failed`, `Open agent failed`,
-  `Open shell failed`, `Refresh failed`, `Queue action failed`) above the line of the server. After Go, Open shell, or
+  `Open shell failed`, `Refresh failed`, `Queue action failed`, `Make visual failed`) above the line of the server. After Go, Open shell, or
   Refresh, the card keeps its button. A failed Run, Resume, or Open agent ends its `Starting` card
   and permits a retry after the next read. This covers a herdr-core server or a Herdr app that does
   not run, an `hc` or a `herdr-app` that is not on `PATH`, and a press that the server refuses.
@@ -958,8 +1010,8 @@ Of the sessions, herdr-core, and the Herdr app:
   terminal links a session to an issue. The new name shows only as the title of a session with no
   link label.
 - The board needs a herdr-core server that runs and an open Herdr app window. When `herdr-app ls`
-  fails, a press of New intake, Run, Resume, Assist, or Open shell gives a toast and starts no
-  terminal. When `hc ls` fails, the status bar shows `herdr down`.
+  fails, a press of New intake, Run, Resume, Assist, Make visual, or Open shell gives a toast and
+  starts no terminal. When `hc ls` fails, the status bar shows `herdr down`.
 - A Go press focuses the pane of the session in the Herdr app (`pane.focus`). The board makes no
   call that brings the window to the front.
 - The API of herdr-core and the commands of the Herdr app are previews (version 0.x). The board
@@ -974,11 +1026,16 @@ Of the sessions, herdr-core, and the Herdr app:
   (`hc run --rm`). So a runner of a Run, Resume, or queue wake that stops before a session starts,
   for example at a `stop` line or at an error, leaves no message: start
   `celetis --agent <host> celetis-flow <n>` in a terminal to see it.
-- On macOS and Linux, a New intake or Assist program that exits 0 closes its tab (`hc run --rm`).
+- On macOS and Linux, a New intake, Assist, or Make visual program that exits 0 closes its tab
+  (`hc run --rm`).
   The first press that makes the space of the repository starts its argv through the start form
   of the Herdr app, `"$@"; exec "$0" -li`, so that one tab keeps a shell after its program ends.
 - On Windows, `hc run` gets the argv with no shell, and the first item is `celetis.cmd`. Such a
   start, its tab, and the card of its session are not checked.
+- A `#<n> visual` tab whose command fails keeps its message and a shell, and its History row shows
+  **Making…** until you close the tab.
+- A `#<n> visual` session of an issue that is still open takes the place of the card of that issue
+  while it runs, because the state of a session wins ("The cards").
 
 Of the cards and the page:
 
@@ -987,10 +1044,13 @@ Of the cards and the page:
 - Before the first good read, Pipeline has no stage column: the strip Not in a step holds each
   session of an issue.
 - Separate board server processes share no start reservation. Their concurrent presses can start
-  two runners for one issue; the issue lock lets only one of them start a session.
+  two runners for one issue; the issue lock lets only one of them start a session. Two Make visual
+  presses of one number in two board processes can open two tabs before either tab shows.
 - A start of the server forgets the times of the Run, Resume, and Assist presses.
 - The count of changed lines is against `origin/HEAD`. A clone with no `origin/HEAD` shows no count.
 - A notification shows only while the page is open in a tab. A browser that throttles a hidden tab
   can delay it by up to a minute.
 - The page has no login. Each program on the machine can ask the server.
+- A visual page at `/visual/<sha>` has no `localStorage` under its sandbox: an access throws
+  `SecurityError`, so a page script that needs storage can break.
 - The lane icons are the one place where the page knows four names of a flow. They change no rule.

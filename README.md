@@ -1021,6 +1021,7 @@ usage: celetis [--agent <host>] <command> [<argument>...]
   celetis board                                             Starts the board of the project in this checkout.
   celetis intake                                            Starts a fresh session that asks for your request before intake.
   celetis assist <n>                                        Starts fresh interactive assistance for an issue in the main checkout.
+  celetis visual <n> <sha>                                  Starts a fresh session that makes the visual of a landed commit.
   celetis celetis-flow                                      Starts the automatic runner.
   celetis celetis-flow <n>                                  Starts the next step of one issue, then follows its auto gates.
   celetis celetis-flow <n> --effort <level>                 Starts the next step of one issue at another effort level, this start only.
@@ -1059,6 +1060,7 @@ setup"):
 | `celetis --agent <host> celetis-flow --queue run <id> <token>` | Internal foreground claim of a persisted wake. Refuses stale tokens and live owners, then follows the queue's gates |
 | `celetis --agent <host> intake` | Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters `celetis:intake` with that request. It creates no issue before the answer and does not start the runner |
 | `celetis --agent <host> assist <n>` | Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses `issue <n> assisted <file>` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume the runner or land |
+| `celetis --agent <host> visual <n> <sha>` | Starts a fresh interactive session in the main checkout that makes the `visual-explainer` diff review of the landed commit `<sha>` of the issue `<n>`. It fetches the trunk from `origin` and refuses a commit that is not on it, and a commit whose page exists. The host writes `docs/superpowers/visuals/<sha>.html` and opens it, changes no other file, and makes no commit. A host with no `visual-explainer` skill says so in the tab and writes no file. The board's Make visual starts this command |
 | `celetis --agent <host> worktree <n>` | Makes the lane worktree and the branch of the issue, or enters the one that is there and brings it up to the trunk, and prints its path |
 | `celetis --agent <host> worktree --remove <n>` | Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first |
 | `celetis --agent <host> land <n> '<subject>'` | Lands the change of the issue by the `landing` field of `.celetis.yaml`. It is the one landing path of an agent. It refuses an issue that is not ready to land. Exit status: 0 landed, 1 internal error, 2 usage, 3 prerequisite, 4 repair, 5 checks, 6 blocked, 7 landed with a stopped cleanup (run it again), 128+n signal |
@@ -1288,6 +1290,20 @@ before starting again. An unavailable default agent or `noRun` disables Open age
 The server reads the issue again and refuses assistance if it is no longer blocked or has a
 live session.
 
+Make visual on a History row with no page uses the current default agent without an agent choice.
+It opens and focuses a `#<n> visual` tab in the main checkout, with this argv:
+
+```text
+<command> --agent <agent> visual <n> <sha>
+```
+
+The page sends only the issue number; the server takes the full commit hash `<sha>` from the
+History row of its last good read. The command in the tab makes the page
+`docs/superpowers/visuals/<sha>.html` of the main checkout and opens it in the browser. The server
+refuses a press for an issue with no History row, for a row whose page exists, while a live
+`#<n> visual` tab exists, and while another Make visual press of that number runs. A failed
+command leaves its message and a shell in the tab, and the row shows Making… until you close it.
+
 A queue wake starts `<command> --agent <host> celetis-flow --queue run <id> <token> --quiet` as
 a hidden runner in the same way.
 
@@ -1321,7 +1337,9 @@ button sits between Search and Refresh and stays visible on a phone. The count, 
 use the same panel. History starts closed on each page load, keeps its state through refresh, and
 closes card details. Escape or Close returns focus to History. Below 1100 px width or 701 px
 height it is a drawer. Each row links the issue and its remote trunk commit, with commit time.
-`View <trunk>` opens older history. History has no Run or Resume action.
+`View <trunk>` opens older history. History has no Run or Resume action. A row with no page has
+Make visual (Starting… while the press runs), or Making… while its `#<n> visual` tab is open. A row with a page has Open visual,
+which opens the page in a new browser tab.
 
 History uses remote default-branch evidence for both `merge` and `pr` landings. A merged lane PR
 must identify the issue; its PR number is not an issue number. Issue closure alone adds nothing,

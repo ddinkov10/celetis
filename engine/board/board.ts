@@ -2,7 +2,7 @@ import { type Effort, type Level, levels } from '../lib/effort.ts';
 import { openMenu, openPalette, setupMenu, setupPalette } from './palette.ts';
 import { drawPanel } from './panel.ts';
 import { drawQueue, setQueueOpen, setupQueue } from './queue.ts';
-import type { Action, Board, Card, Column, Columns, Flow, MenuEntry, PaletteItem } from './types.ts';
+import type { Action, Board, Card, Column, Columns, Flow, HistoryRow, MenuEntry, PaletteItem } from './types.ts';
 import {
   $,
   actionButton,
@@ -817,11 +817,53 @@ const drawHuman = (cards: Card[]) => {
   );
 };
 
+const visualPresses = new Set<number>();
+
+const makeVisual = async (number: number) => {
+  if (visualPresses.has(number)) return;
+  visualPresses.add(number);
+  if (isHistoryOpen) drawHistory();
+  await act('/api/visual', { number }, 'Make visual failed');
+  visualPresses.delete(number);
+  if (isHistoryOpen) drawHistory();
+};
+
+const visualControl = (entry: HistoryRow) => {
+  const { number } = entry;
+  const state = visualPresses.has(number) && entry.visual === 'none' ? 'starting' : entry.visual;
+  let node: HTMLElement;
+  if (state === 'ready') {
+    node = Object.assign(el('a', 'btn ghost history-action'), {
+      href: `/visual/${entry.sha}`,
+      target: '_blank',
+      rel: 'noreferrer',
+    });
+    node.append(icon('open'), el('span', 'label', 'Open visual'));
+    node.setAttribute('aria-label', `Open the visual of #${number}`);
+  } else if (state === 'making') {
+    node = el('span', 'history-action history-making');
+    node.setAttribute('role', 'status');
+    node.tabIndex = -1;
+    node.title = `The tab #${number} visual makes the page`;
+    node.append(icon('pending'), el('span', '', 'Making…'));
+  } else {
+    node = el('button', 'btn ghost history-action');
+    (node as HTMLButtonElement).type = 'button';
+    node.append(icon('diff'), el('span', 'label', state === 'starting' ? 'Starting…' : 'Make visual'));
+    node.setAttribute('aria-label', `Make the visual of #${number}`);
+    if (state === 'starting') node.setAttribute('aria-busy', 'true');
+    else node.addEventListener('click', () => void makeVisual(number));
+  }
+  node.dataset.visual = String(number);
+  return node;
+};
+
 const drawHistory = () => {
   const panel = $('panel');
   const active = panel.contains(document.activeElement) ? (document.activeElement as HTMLElement) : null;
   const href = active?.getAttribute('href');
   const label = active?.getAttribute('aria-label');
+  const visual = active?.dataset.visual;
   const scroll = panel.querySelector('.history-body')?.scrollTop ?? 0;
   const history = data?.history;
   const error = isServerDown ? SERVER_DOWN : data?.source.error;
@@ -863,7 +905,11 @@ const drawHistory = () => {
       time.dateTime = entry.committedAt;
       time.title = `Commit time: ${entry.committedAt}`;
       time.setAttribute('aria-label', time.title);
-      row.append(issue, title, commit, time);
+      const meta = el('span', 'history-meta');
+      const dot = el('span', '', '·');
+      dot.setAttribute('aria-hidden', 'true');
+      meta.append(commit, dot, time);
+      row.append(issue, title, meta, visualControl(entry));
       list.append(row);
     }
     body.append(history.entries.length ? list : el('p', 'history-note', `No landed issues found on ${history.trunk}.`));
@@ -872,12 +918,14 @@ const drawHistory = () => {
   panel.replaceChildren(head, body);
   body.scrollTop = scroll;
   if (active) {
-    const match = [...panel.querySelectorAll<HTMLElement>('a, button')].find((node) =>
-      href
-        ? node.getAttribute('href') === href &&
-          node.className === active.className &&
-          node.getAttribute('aria-label') === label
-        : node.getAttribute('aria-label') === label,
+    const match = [...panel.querySelectorAll<HTMLElement>('a, button, [data-visual]')].find((node) =>
+      visual
+        ? node.dataset.visual === visual
+        : href
+          ? node.getAttribute('href') === href &&
+            node.className === active.className &&
+            node.getAttribute('aria-label') === label
+          : node.getAttribute('aria-label') === label,
     );
     (match ?? panel.querySelector<HTMLElement>('button'))?.focus({ preventScroll: true });
   }

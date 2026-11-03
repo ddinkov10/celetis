@@ -3,8 +3,19 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Host } from '../lib/config-core.ts';
 import type { OpenTab } from '../lib/terminal.ts';
+import type { Terminal } from '../lib/terminal-types.ts';
 import type { Adapter } from './adapter.ts';
-import type { Board, BoardRuntime, Card, Diff, Document, Session } from './types.ts';
+import type {
+  Board,
+  BoardHistory,
+  BoardRuntime,
+  Card,
+  Diff,
+  Document,
+  LandedIssue,
+  Session,
+  VisualState,
+} from './types.ts';
 import type { UpdateController } from './updates.ts';
 
 type Result = { code: number; stdout: string; stderr: string };
@@ -24,6 +35,7 @@ import type { QueueAction, QueueView, QueueWake } from '../lib/queue-types.ts';
 import { readStepEnd } from '../lib/step-end.ts';
 import {
   focusTerminal,
+  LINK,
   listTerminals,
   openTab as openTerminalTab,
   readScreen,
@@ -31,6 +43,7 @@ import {
   startHidden,
   TerminalError,
 } from '../lib/terminal.ts';
+import { hasPage, isCommit, visualLink, visualPage } from '../lib/visual.ts';
 import { launchMatches, place, sessionsOf, stepsOf } from './place.ts';
 
 const HERE = import.meta.dirname;
@@ -56,6 +69,7 @@ const FILES: Record<string, [string, string]> = {
 const POSTS = new Set([
   '/api/intake',
   '/api/assist',
+  '/api/visual',
   '/api/run',
   '/api/resume',
   '/api/queue',
@@ -69,6 +83,7 @@ const POSTS = new Set([
 const CSP =
   "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src data:; " +
   "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+const VISUAL_CSP = 'sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox';
 
 class Refusal extends Error {
   constructor(
@@ -164,6 +179,7 @@ export const createBoard = ({
   let seenHints = new Set<string>();
   let queuePress = false;
   let intakePending = false;
+  const visualPresses = new Set<number>();
   const presses: Record<string, { step: string | null; at: number }> = {};
   const operations: Record<string, { step: string | null | undefined; observed: boolean }> = {};
   let shown = new Map<string, number | null>();
@@ -295,11 +311,13 @@ export const createBoard = ({
     typeof path === 'string' &&
     (resolve(path) === main || resolve(path).startsWith(`${main}${sep}.claude${sep}worktrees${sep}`));
 
-  const readSessions = async () => sessionsOf(await listTerminals(exec).catch(refused), isInside, stepsOf(board?.flow));
+  const sessionsIn = (terminals: Terminal[]) => sessionsOf(terminals, isInside, stepsOf(board?.flow));
+  const readSessions = async () => sessionsIn(await listTerminals(exec).catch(refused));
 
   const watchSessions = async () => {
     try {
-      const sessions = await readSessions();
+      const terminals = await listTerminals(exec);
+      const sessions = sessionsIn(terminals);
       const seen = new Map<string, number>();
       for (const session of sessions) {
         const status = session.status === 'done' || session.status === 'error' ? 'idle' : session.status;
@@ -308,10 +326,30 @@ export const createBoard = ({
         session.since = new Date(seen.get(key) as number).toISOString();
       }
       firstSeen = seen;
-      return { sessions, health: { ok: true, error: null } };
+      return { terminals, sessions, health: { ok: true, error: null } };
     } catch (cause) {
-      return { sessions: [], health: { ok: false, error: firstLine((cause as Error).message) } };
+      return { terminals: [], sessions: [], health: { ok: false, error: firstLine((cause as Error).message) } };
     }
+  };
+
+  const visualOf = async (row: LandedIssue, terminals: Terminal[], isPressed: boolean): Promise<VisualState> => {
+    if (await hasPage(main, row.sha)) return 'ready';
+    if (isPressed) return 'starting';
+    const link = visualLink(row.number);
+    if (terminals.some((terminal) => terminal.labels[LINK] === link && isInside(terminal.cwd))) return 'making';
+    return 'none';
+  };
+
+  const historyOf = async (terminals: Terminal[]): Promise<BoardHistory | null> => {
+    const history = board?.history;
+    if (!history) return null;
+    const entries = await Promise.all(
+      history.entries.map(async (row) => ({
+        ...row,
+        visual: await visualOf(row, terminals, visualPresses.has(row.number)),
+      })),
+    );
+    return { ...history, entries };
   };
 
   const readScreens = async (sessions: Session[]) => {
@@ -349,7 +387,7 @@ export const createBoard = ({
 
   const placement = async ({ isLocal = false } = {}): Promise<Board> => {
     const queue = await queueView();
-    const { sessions: found, health } = await watchSessions();
+    const { terminals, sessions: found, health } = await watchSessions();
     const dispositions = new Map(
       await Promise.all(
         [...new Set(found.flatMap((session) => (session.issue === null ? [] : [session.issue])))].map(
@@ -407,9 +445,10 @@ export const createBoard = ({
           card.cwd = relative(main, resolve(folder)) || '.';
         }),
     );
+    const history = await historyOf(terminals);
     return {
       ...placed,
-      history: board?.history ?? null,
+      history,
       flow: board?.flow ?? null,
       tracker: board?.tracker ?? null,
       runner: board?.runner ?? null,
@@ -531,6 +570,25 @@ export const createBoard = ({
         },
       };
     });
+  };
+
+  const visual = async (number: number) => {
+    if (visualPresses.has(number)) throw new Refusal(409, `a Make visual press of #${number} is in flight`);
+    visualPresses.add(number);
+    try {
+      const row = board?.history.entries.find((entry) => entry.number === number);
+      if (!row) throw new Refusal(409, `#${number} has no row in History`);
+      const state = await visualOf(row, await listTerminals(exec).catch(refused), false);
+      if (state === 'ready') throw new Refusal(409, `#${number} already has a visual; use Open visual`);
+      if (state === 'making') throw new Refusal(409, `the tab ${visualLink(number)} is still open`);
+      const agent = agentOf(number);
+      const argv = await adapter.visual(number, row.sha, agent).catch((cause: Error) => {
+        throw new Refusal(409, cleanCause(cause.message));
+      });
+      await openTab({ folder: main, name: visualLink(number), argv, focus: true });
+    } finally {
+      visualPresses.delete(number);
+    }
   };
 
   const runStep = async (number: number, choice?: unknown, effort?: Level) => {
@@ -672,12 +730,22 @@ export const createBoard = ({
   };
   const sendJson = (response: ServerResponse, status: number, value: unknown) =>
     send(response, status, 'application/json; charset=utf-8', JSON.stringify(value));
+  const sendVisual = (response: ServerResponse, content: Buffer) => {
+    response.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Content-Security-Policy': VISUAL_CSP,
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    response.end(content);
+  };
 
   const answer = async (request: IncomingMessage, response: ServerResponse) => {
     const host = request.headers.host;
     const { port } = server.address() as AddressInfo;
     if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}`)
       throw new Refusal(403, 'the Host is not this server');
+    if (request.headers.origin === 'null') throw new Refusal(403, 'the Origin is opaque');
     const url = request.url ?? '/';
     const path = url.split('?')[0] as string;
     if (request.method === 'GET' && Object.hasOwn(FILES, path)) {
@@ -698,13 +766,18 @@ export const createBoard = ({
       if (!isLocal && Object.values(presses).some(isDue)) await refresh();
       return sendJson(response, 200, await placement({ isLocal }));
     }
+    if (request.method === 'GET' && path.startsWith('/visual/')) {
+      const sha = path.slice('/visual/'.length);
+      if (isCommit(sha) && (await hasPage(main, sha)))
+        return sendVisual(response, await readFile(visualPage(main, sha)));
+    }
     if (request.method !== 'POST' || !POSTS.has(path)) throw new Refusal(404, 'no such path');
     if (request.headers.origin !== `http://${host}`) throw new Refusal(403, 'the Origin is not this page');
     if (!/^application\/json\s*(;|$)/.test(request.headers['content-type'] ?? ''))
       throw new Refusal(403, 'the content type is not application/json');
     const body = await readBody(request);
     if (
-      (path.startsWith('/api/update/') || path === '/api/assist' || path === '/api/intake') &&
+      (path.startsWith('/api/update/') || path === '/api/assist' || path === '/api/visual' || path === '/api/intake') &&
       (body === null || typeof body !== 'object' || Array.isArray(body))
     )
       throw new Refusal(400, 'the body is not an object');
@@ -716,6 +789,8 @@ export const createBoard = ({
     }
     if (path === '/api/assist' && (Object.keys(input).length !== 1 || !Object.hasOwn(input, 'number')))
       throw new Refusal(400, 'assistance takes only the issue number');
+    if (path === '/api/visual' && (Object.keys(input).length !== 1 || !Object.hasOwn(input, 'number')))
+      throw new Refusal(400, 'making a visual takes only the issue number');
     if (path === '/api/update/check') {
       if (Object.keys(input).length) throw new Refusal(400, 'the update check takes an empty object');
       void updates().check();
@@ -739,6 +814,7 @@ export const createBoard = ({
     }
     const starts: Record<string, (number: number) => Promise<void>> = {
       '/api/assist': assist,
+      '/api/visual': visual,
       '/api/run': runStep,
       '/api/resume': resume,
       '/api/shell': shell,

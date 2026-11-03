@@ -5,10 +5,12 @@ import { type Program, readProgram } from '../lib/program.ts';
 import { parseQueueAction, parseQueueReceipt } from '../lib/queue.ts';
 import type { QueueAction, QueueReceipt, QueueWake } from '../lib/queue-types.ts';
 import { selectSavedSession } from '../lib/session.ts';
+import { isCommit } from '../lib/visual.ts';
 
 export type Adapter = Readonly<{
   intake(agent: Host): Promise<string[]>;
   assist(number: number, agent: Host): Promise<string[]>;
+  visual(number: number, sha: string, agent: Host): Promise<string[]>;
   run(number: number, agent: Host, effort?: Level): Promise<string[]>;
   resume(number: number): Promise<string[]>;
   queue(action: QueueAction, agent: Host): Promise<QueueReceipt>;
@@ -31,6 +33,10 @@ export async function celetisAdapter(
   return {
     intake: (agent) => argv(['--agent', agent, 'intake']),
     assist: (number, agent) => argv(['--agent', agent, 'assist', number]),
+    visual: async (number, sha, agent) => {
+      if (!isCommit(sha)) throw new Error('the commit of the visual is not 40 lowercase hex digits');
+      return argv(['--agent', agent, 'visual', number, sha]);
+    },
     run: (number, agent, effort) =>
       argv(['--agent', agent, 'celetis-flow', number, ...(effort ? ['--effort', effort] : []), '--quiet']),
     resume: async (number) => {
