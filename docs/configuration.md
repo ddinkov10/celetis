@@ -24,7 +24,7 @@ precedence and requests one exact port ("Start the board").
 
 The allowed custom keys are `accept-epic`, `assist`, `attack-the-premise`, `boundary-discipline`, `bug`, `chore`,
 `create-verification`,
-`critic-loop`, `doc-drift-sync`, `encode-lessons-in-structure`, `explain-the-number`, `feature`,
+`critic-loop`, `doc-drift-sync`, `encode-lessons-in-structure`, `explain-the-number`, `feature`, `feedback`,
 `guide`, `hotfix`, `implement`, `intake`, `lesson`, `lesson-review`,
 `maintain-verification`, `make-operations-idempotent`,
 `model-the-domain`, `plan`, `polishing-code-comments`, `prototype`,

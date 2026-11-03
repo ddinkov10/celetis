@@ -13,7 +13,7 @@ no immutable-resource or automatic skill-reload guarantee (ADR-0028). Desktop au
 
 The repository holds:
 
-- 29 skills: the lanes, the steps of a lane, the skills for review and memory, the engineering
+- 33 skills: the lanes, the steps of a lane, the skills for review and memory, the engineering
   principles, and the helpers ("The skills");
 - the scripts: the runner, the resolver, the landing script, the worktree script, the setup
   script, and the capability scorer ("The commands");
@@ -175,7 +175,7 @@ or the board's update control ("Updates").
    ```
 
    The install enables the plugin at the `user` scope, so each session of the machine loads it, in
-   each folder. A session in a project that is not wired also lists the 28 skills, and a lane
+   each folder. A session in a project that is not wired also lists the 33 skills, and a lane
    skill that starts there from free text makes a GitHub issue before it validates product setup.
 
    The user install is the only supported Claude install. A project install of `celetis@celetis`
@@ -966,6 +966,7 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | | [`/celetis:type-system-discipline`](skills/type-system-discipline/SKILL.md) | Uses types and compiler checks to prevent identified errors |
 | | [`/celetis:test-behavior-not-implementation`](skills/test-behavior-not-implementation/SKILL.md) | Checks required behavior through observable results |
 | **Helpers** | [`/celetis:prototype`](skills/prototype/SKILL.md) | Builds throwaway code that answers a design question: a logic demo in one HTML file, or the live prototype of a look decision, with a capture of each variant in each state on the issue. The options of a whole web or mobile screen and of a smaller web change come from `impeccable` |
+| | [`/celetis:feedback`](skills/feedback/SKILL.md) | Files safe conversation evidence as an Intent in `github.com/ddinkov10/celetis` with `needs-triage`. Only you can start it; it files directly and supports corrections in the same session |
 | | [`/celetis:accept-epic #<n>`](skills/accept-epic/SKILL.md) | Checks current parent acceptance and completes an epic when its evidence and children permit it. Only you can start it; it creates no lane or runner |
 | | [`/celetis:assist #<n>`](skills/assist/SKILL.md) | Completes permitted work for the current block, records verified completion, and clears the hold. It asks for missing human contributions and leaves continuation to the normal runner |
 | | [`/celetis:writing-for-agents`](skills/writing-for-agents/SKILL.md) | The reference for a document that an agent reads: a skill, or an `AGENTS.md` |
@@ -993,12 +994,18 @@ Each principle is also a native skill. An ordinary engineering task can select i
 by name without an issue, a lane, or project configuration. The normal entry contract applies.
 Each invocation reads its one canonical rule file.
 
-`guide`, `setup`, `create-verification`, and `maintain-verification` are explicit-only on both
+`feedback`, `guide`, `setup`, `create-verification`, and `maintain-verification` are explicit-only on both
 hosts. Claude reads `disable-model-invocation: true`;
 Codex reads `policy.allow_implicit_invocation: false` in each skill's
 `agents/openai.yaml`. Guide reads its custom part and gives advice; it starts no
 workflow command. Setup runs `celetis --agent <host> setup` in the main checkout, and it enters no
 lane worktree.
+
+Feedback uses the fixed Celetis tracker, while intake uses the product tracker. An explicit
+feedback request files without another go-ahead and returns the verified URL; it starts no lane.
+Later corrections in the same session update that report, preserving external body edits and
+closed issues through correction comments. Failed or uncertain writes retain a sanitized draft
+for reconciliation instead of blindly creating another issue.
 
 ## The commands
 

@@ -44,6 +44,7 @@ const skills = [
   'encode-lessons-in-structure',
   'explain-the-number',
   'feature',
+  'feedback',
   'guide',
   'hotfix',
   'implement',
