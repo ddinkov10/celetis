@@ -212,12 +212,38 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
       if (checkout && (await git(['status', '--porcelain'], undefined, checkout)))
         die('usage', `the lane worktree is dirty: ${checkout}; commit first`);
       if (fresh.mainConfig?.landing === 'merge') {
-        if (await git(['status', '--porcelain'], undefined, main))
-          die('blocked', `the main checkout is dirty: ${main}; commit or stash first`);
-        if ((await git(['branch', '--show-current'], undefined, main)) !== trunk)
-          die('blocked', `the main checkout is not on ${trunk}: ${main}`);
-        if ((await git(['rev-parse', 'HEAD'], undefined, main)) !== base)
-          die('blocked', `the main checkout is not level with origin/${trunk}; run git pull, or push, there first`);
+        const [firstChange, ...otherChanges] = (await git(['status', '--porcelain'], undefined, main))
+          .split('\n')
+          .filter(Boolean);
+        if (firstChange !== undefined)
+          die(
+            'blocked',
+            `the main checkout has uncommitted changes, your work: ${main}: ${firstChange.slice(3)}${otherChanges.length ? ` and ${otherChanges.length} more` : ''}; commit or stash them there, then land again`,
+          );
+        const current = await git(['branch', '--show-current'], undefined, main);
+        if (current !== trunk)
+          die(
+            'blocked',
+            `the main checkout is on ${current || 'a detached HEAD'}, not on ${trunk}: ${main}; switch it to ${trunk} there, then land again`,
+          );
+        const head = await git(['rev-parse', 'HEAD'], undefined, main);
+        if (head !== base) {
+          const ancestry = await gitRaw(['merge-base', '--is-ancestor', 'HEAD', base], main);
+          process.stderr.write(ancestry.stderr);
+          if (ancestry.code === 0)
+            await git(
+              ['merge', '-q', '--ff-only', base],
+              ['blocked', `cannot fast-forward the main checkout to origin/${trunk}: ${main}`],
+              main,
+            );
+          else if (ancestry.code === 1) {
+            const ahead = (await git(['log', '--format=%h %s', `${base}..HEAD`], undefined, main)).split('\n');
+            die(
+              'blocked',
+              `the main checkout has ${ahead.length} commit(s) that origin/${trunk} does not have, your work: ${main}: ${ahead[0]}; push them, or move them to a branch there, then land again`,
+            );
+          } else throw new HostError(ancestry.stderr.trimEnd(), ancestry.code);
+        }
         const ancestor = await gitRaw(['merge-base', '--is-ancestor', base, tip]);
         process.stderr.write(ancestor.stderr);
         if (ancestor.code !== 0) die('repair', `${branch} does not contain the head of ${trunk}; ${stale}`);

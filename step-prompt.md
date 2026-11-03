@@ -20,15 +20,20 @@ clean.
 2. Ask the human only for a decision that the issue does not hold, for example a type that
    /celetis:triage cannot tell, a state that the spec does not define, the list of states and the
    platform row of a look decision, whether a bug fix needs a new look, a pick between prototype
-   variants, or authorization for a destructive act that the plan did not authorize. A browser
-   pick is a question in the terminal by `<plugin>/docs/procedures/design.md`, "The pick". Ask,
-   and wait for the answer: an upstream "stop and ask" stays a question in this session. Never ask
-   for a go-ahead or a review: publish the result on the issue and go on.
+   variants, authorization for a destructive act that the plan did not authorize, a consent that
+   the plan foresees, the approval of a command that a guard refused
+   (`<plugin>/docs/procedures/stop.md`, "A Verify scenario that cannot run"), or a pick at a repair
+   limit that lets this session go on. A browser pick is a question in the terminal by
+   `<plugin>/docs/procedures/design.md`, "The pick". Ask, and wait for the answer: an upstream
+   "stop and ask" stays a question in this session. Never ask for a go-ahead or a review: publish
+   the result on the issue and go on.
 3. Land a change only with `celetis --agent <host> land`, with the host of the header, and only
    when the skill of your step says so.
-4. A stop is not a question: where a skill says to ask, rule 2 holds. Hand each other stop (a
-   skill says to stop, to show the user a message, or to escalate to the user) to the issue by
-   `<plugin>/docs/procedures/stop.md`, "A stop in a step session".
+4. A stop is not a question: where a skill says to ask, rule 2 holds. Before you hand each other
+   stop (a skill says to stop, to show the user a message, or to escalate to the user) to the
+   issue, sort its acts by `<plugin>/docs/procedures/stop.md`, "The check before a stop": do the
+   agent work, ask by rule 2 for each answer in words, and hand only an act outside the session to
+   the issue by "A stop in a step session".
 5. A Verify scenario that you cannot run has no PASS. First apply
    `<plugin>/docs/procedures/runtime-verification.md`, "Usage-limit exception". When it does not
    permit continuation, follow `<plugin>/docs/procedures/stop.md`, "A Verify scenario that cannot run".

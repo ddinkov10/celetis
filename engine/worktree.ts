@@ -6,7 +6,15 @@ import { commandInput, createOperation, locateCheckouts } from './lib/operation.
 import { codexHome } from './lib/plugin-metadata.ts';
 import { run } from './lib/process.ts';
 import { branchGlobs, branchPattern, laneOf, lanes } from './lib/workflow.ts';
-import { checkoutOf, markerOf, removeCheckout, removeLane, runSetup, updateLane } from './lib/worktree.ts';
+import {
+  checkoutOf,
+  conflictStatus,
+  markerOf,
+  removeCheckout,
+  removeLane,
+  runSetup,
+  updateLane,
+} from './lib/worktree.ts';
 
 const usage = `usage: celetis --agent <host> worktree [--remove] <issue number>, e.g. 302 or #302\n${updateHint}`;
 type Issue = { title: string; state: string; labels: { name: string }[] };
@@ -142,7 +150,8 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
   try {
     await updateLane(path, branch, trunk, n);
   } catch (error) {
-    await discard();
+    if (error instanceof HostError && error.code === conflictStatus) process.stdout.write(`${path}\n`);
+    else await discard();
     throw error;
   }
   let setupRan = false;

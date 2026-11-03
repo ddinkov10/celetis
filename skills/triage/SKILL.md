@@ -86,8 +86,11 @@ Ambiguous — ask the one splitter that resolves it:
    - **Multi-type idea** ("fix the export crash *and* add CSV export") → this issue keeps the
      load-bearing type; `/celetis:intake` opens one issue per remaining type; triage each.
    - **Unclear** — the report lacks what its lane needs (a repro for a bug, an outcome for a
-     feature) → write the questions to a file, run `celetis --agent <host> issue <n> needs-info <file>`
-     (it posts the questions, then adds `needs-info`), stop.
+     feature) → sort the questions by `<plugin>/docs/procedures/stop.md`, "The check before a
+     stop". Ask the maintainer each question that an answer in words settles, and go on with the
+     answer. Write only the questions that the maintainer cannot answer in the session to a file,
+     run `celetis --agent <host> issue <n> needs-info <file>` (it posts the questions, then adds
+     `needs-info`), stop.
    - **No-fit idea** → write why to a file, run `celetis --agent <host> issue <n> wontfix <file>`
      (it posts the reason, adds `wontfix`, and closes the issue), stop.
 4. **Clean one-liner** — normalize the idea into the single-sentence description the lane consumes.

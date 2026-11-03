@@ -5,6 +5,8 @@ import { type Config, validateWorktreeSetup } from './config-core.ts';
 import { HostError } from './host.ts';
 import { run, runBun } from './process.ts';
 
+export const conflictStatus = 4;
+
 export async function markerOf(checkout: string): Promise<string> {
   const result = await run('git', ['rev-parse', '--path-format=absolute', '--git-dir'], { cwd: checkout });
   if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
@@ -99,15 +101,20 @@ export async function updateLane(checkout: string, branch: string, trunk: string
     ? await git(['merge', '-q', '--ff-only', upstream])
     : await git(['merge', '--no-ff', '--no-edit', '-m', `Merge ${upstream} into ${branch} (#${n})`, upstream]);
   if (merge.code === 0) return;
-  await git(['merge', '--abort']);
+  const unmerged = await git(['ls-files', '-u']);
+  const abort = await git(['merge', '--abort']);
+  const conflict = unmerged.code === 0 && unmerged.stdout !== '' && abort.code === 0;
   throw new HostError(
     [
       merge.stdout.trim(),
       merge.stderr.trim(),
-      `cannot merge ${upstream} into ${branch}; merge it by hand and commit, then run the step again`,
+      conflict
+        ? `cannot merge ${upstream} into ${branch}: a conflict; merge it in ${checkout} and commit, then run celetis --agent <host> worktree ${n} again`
+        : `cannot merge ${upstream} into ${branch}; merge it by hand and commit, then run the step again`,
     ]
       .filter(Boolean)
       .join('\n'),
+    conflict ? conflictStatus : 1,
   );
 }
 

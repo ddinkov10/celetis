@@ -71,9 +71,12 @@ of the product project, apart from a path that starts with `~/` or `/`.
 - The trunk of the main checkout is current. The trunk is the default branch of the repository on
   GitHub. The config comes from the main checkout of the product project, and so does the custom
   part of a step that the script starts ("The config and the custom parts"):
-  `celetis --agent <host> land` moves the trunk of the main checkout after each landing. After a merge by
-  other means, or after its line `land: the main checkout did not move`, run `git pull` in the
-  main checkout.
+  after each landing, `celetis --agent <host> land` moves the trunk of the main checkout. With the
+  landing `merge`, it also fast-forwards a clean main checkout on the trunk that is only behind
+  `origin/<trunk>` before it lands. A checkout with uncommitted changes, off the trunk, or with
+  commits that `origin/<trunk>` does not have is a refusal with exit 6 that names that work. After a
+  merge by other means, or after its line `land: the main checkout did not move`, run `git pull` in
+  the main checkout.
 - herdr-core 0.1.16 (`hc`) with its running server, and the open window of the Herdr app 0.1.11
   (`herdr-app`), for each start: each session runs in a tab of the Herdr app ("How a step runs").
   The support target is macOS ([ADR-0058](adr/0058-herdr-core-hosts-the-agent-terminals.md),
@@ -500,8 +503,12 @@ job, and it reads no terminal status after the exit. When a session does not end
 waits for nothing, leave it with `/exit` in its tab: the script then asks the resolver again, and
 it prints the reason or starts the next step.
 
-**A stop.** A step session hands a stop that is not a question to the issue (rule 4 of the step
-text), through the write command
+**A stop.** Before a stop, the session sorts each act that the stop would ask of the maintainer
+([The check before a stop](procedures/stop.md#the-check-before-a-stop)): it does the agent work,
+asks a live question for an answer in words, and makes a hold only for an act outside the session.
+A live question waits in the tab of the session; the board shows it in Needs you, and the
+maintainer answers in the tab or with Go. A step session hands a stop that is not a question to
+the issue (rule 4 of the step text), through the write command
 `celetis --agent <host> issue`
 (`docs/issue-tracker.md`, "Conventions"). The reason is a comment: the comment that its skill
 posts for the stop (`## Landing refused`, `## Before landing`), else a comment with `## Stopped` as
@@ -511,7 +518,7 @@ as its last act. Both `stopped` and `ready-for-human` remove `ready-for-agent` w
 line becomes `stop #<n> is ready-for-human. …` and the job ends the session. A stop for which
 the skill adds a label, such as the `needs-info` stop of `/celetis:triage`, stays as the skill says.
 A question is not a stop: where a skill says to ask, rule 2 holds, and a session that asks for a
-decision waits in its pane. The `detect` scenario of a web UI change is the exception of rule 5:
+decision waits in its tab. The `detect` scenario of a web UI change is the exception of rule 5:
 when `impeccable` is missing, the session prints the one line of
 [design.md](procedures/design.md#missing), and the scenario is no stop. Before a Verify scenario
 that cannot run becomes a `## Before landing` stop (rule 5), the session applies
@@ -557,9 +564,16 @@ After the removal, and until the landing, the line is
 starts. A `## Before landing` comment with no marker also needs its `## Human steps done` report:
 until then, the line is the `human-step` stop.
 
-**The human acts of a plan.** The plan names them in its first section, `### Your steps`. Do each
-act of "During the build" while the build runs, and report the acts in one `## Human steps done`
-comment. Assistance can record verified work and sourced human answers with that same heading;
+**The human acts of a plan.** The plan names them in its first section, `### Your steps`, in three
+lists: "Answers before the build", "During the build", and "After the landing". Before it publishes
+the plan, the plan step asks you each consent that a Verify scenario or the landing needs: an act
+that disturbs your live tools, changes an account or a shared resource, or sends data to a service
+beyond the normal use of the session. An act on temporary data in the lane or in a scratch folder
+needs no consent.
+"Answers before the build" records each answer and its source (your message in the plan session,
+with its date). The build uses that answer and does not ask again. "During the build" holds only
+acts outside the session, never a consent. Do each act of "During the build" while the build runs,
+and report the acts in one `## Human steps done` comment. Assistance can record verified work and sourced human answers with that same heading;
 the heading denotes completed steps, not human authorship. A build that needs an act with no report runs each other scenario. Then it stops with one
 `## Before landing` comment that names each such act, its report form, and the scenarios that wait
 for it. The act `before-landing` gives that comment the marker of "During the build", so the engine
@@ -620,7 +634,7 @@ The exit status and the first word after `land: ` give the result:
 | 3 | `prerequisite` | the issue is not ready to land | the refusals of the paragraph above |
 | 4 | `repair` | the lane needs a repair | a conflict with the trunk; a lane branch that does not contain the head of the trunk; a trunk head, a lane branch, a lane checkout, or a PR that changed during the landing; a missing lane worktree with the landing `merge` |
 | 5 | `checks` | a check is not green | a failed CI check, also after its re-run; a failed `suite` with the landing `merge` (`docs/configuration.md`) |
-| 6 | `blocked` | an external block | GitHub does not answer or refuses an act; a fetch or a push fails; the checks did not finish; no check ran; the main checkout is dirty, off the trunk, or not level; the landing mechanism or the default branch changed; two branches or two PRs match |
+| 6 | `blocked` | an external block | GitHub does not answer or refuses an act; a fetch or a push fails; the checks did not finish; no check ran; the main checkout is dirty, off the trunk, or with commits that the trunk does not have; the landing mechanism or the default branch changed; two branches or two PRs match |
 | 7 | `cleanup` | landed, the cleanup stopped | the change is on the trunk, and the removal, the pull of the main checkout, or the close of the issue stopped: run `land` again |
 | 128+n | none | a signal | a signal stopped `land` before it put the change on the trunk or found it there; a later signal gives 7 |
 
@@ -1091,8 +1105,10 @@ When each red check is a check of GitHub Actions that failed or timed out, it re
 jobs of their workflow runs once for each commit before it refuses (ADR-0023).
 The main and lane checkout guards apply on both hosts. Host rules do not inspect the commands
 inside an allowed script or enforce every alternate command spelling. Codex prefix rules govern
-requests outside its sandbox; they do not create a stronger sandbox. A host refusal remains a
-stop. The deterministic script checks and final Verify results remain required (ADR-0008),
+requests outside its sandbox; they do not create a stronger sandbox. A host refusal that the
+maintainer cannot lift in the session remains a stop
+([A Verify scenario that cannot run](procedures/stop.md#a-verify-scenario-that-cannot-run)).
+The deterministic script checks and final Verify results remain required (ADR-0008),
 subject only to [Usage-limit exception](procedures/runtime-verification.md#usage-limit-exception)
 for incomplete host checks. The exception changes no engine guard or existing human hold.
 

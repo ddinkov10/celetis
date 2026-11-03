@@ -41,10 +41,15 @@ or `built` when the change has its mark), go on to step 2.
 ## Step 2: the human precondition
 
 An act of "During the build" in `### Your steps` of the plan is done when a `## Human steps done`
-comment after the latest `## Plan` comment reports it.
+comment after the latest `## Plan` comment reports it. A consent of "Answers before the build" is
+no human act of the landing: use the recorded answer.
 
 Before creating a new runtime hold, apply `<plugin>/docs/procedures/runtime-verification.md`,
 "Usage-limit exception". It preserves existing human holds and all other prerequisites.
+
+Before the file below is written, sort each act by `<plugin>/docs/procedures/stop.md`, "The check
+before a stop": do the agent work, and ask each answer in words in the session. The file names only
+acts outside the session.
 
 When the change needs an act that only a human can do before it reaches the trunk, no such report
 holds the act, and either the issue has no `## Before landing` comment for this build or the act
@@ -133,15 +138,21 @@ renew affected runtime confirmation and scenarios per
 check or a failed suite with `superpowers:systematic-debugging`, and start from the test that
 failed in CI or in the suite. For a stale branch or a moved trunk, the worktree entry brought the
 trunk in: run the verify gate of the project and renew affected runtime evidence as above, then
-go to step 3. When the entry refuses, for
-example on a conflict with the trunk, show the user its message and stop.
+go to step 3. On exit 4 of the entry, the merge is the fix: resolve it by the fix rule of the skill
+and `<plugin>/docs/procedures/worktree.md`, "A conflict with the trunk", then go on as for a moved
+trunk. When the entry refuses with another status, show the user its message and stop.
 
 ## Step 5: the third refusal, or a cause outside the change
 
 The third refusal in one session, or a cause outside the change (status 6 or 1, a status 5 that
 the diff did not cause, a second 2 or 7 with the same line, or a second 128+n): a check that fails
 on an advisory for a dependency that the change did not touch, no check that ran, checks that did
-not finish, GitHub that does not answer, a main checkout that is dirty or off the trunk.
+not finish, GitHub that does not answer, a main checkout that is dirty, off the trunk, or with commits that the trunk does not have.
+
+Before the stop, apply `<plugin>/docs/procedures/stop.md`, "The check before a stop". At the third
+refusal, a pick between repair options that lets this session go on is a live question with the
+options and the `land:` lines, and the count of refusals stays. Post the `## Landing refused`
+comment only for a stop of class 3; the comment is the verbatim output.
 
 Write the output of the script to a file in a temporary directory outside the checkout, run
 `celetis --agent <host> issue <n> landing-refused <file>`, which posts it with `## Landing refused`

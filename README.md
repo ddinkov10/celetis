@@ -477,8 +477,10 @@ changes no field that is there. Each other field stays by hand.
 | `custom.<skill>` | An addition to the skill procedure | No addition |
 
 - **Operational settings** come from the main checkout, including when a command starts in a
-  lane or subfolder. `celetis --agent <host> land` moves the trunk of the main checkout; after a merge by
-  other means, or after its line `land: the main checkout did not move`, run `git pull` there.
+  lane or subfolder. After each landing, `celetis --agent <host> land` moves the trunk of the main
+  checkout. With the landing `merge`, it also fast-forwards a clean main checkout that is only behind
+  `origin/<trunk>` before it lands. After a merge by other means, or after its line
+  `land: the main checkout did not move`, run `git pull` there.
 - **The gate of a step** comes from `gates.<step>`. An `auto` step starts by itself. A `me` step
   starts when you supply a number or press Run on the board. Old Git defaults have no effect.
 - **With the landing `pr`,** keep the repository setting `squash_merge_commit_title` at
