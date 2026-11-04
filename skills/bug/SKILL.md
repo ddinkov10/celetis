@@ -90,7 +90,8 @@ start step N+1.
    check before fixing. Judge from this evidence whether the fix chooses new behavior: it adds a
    mechanism (for example a retry, a timer, a cache, a lock, or a queue), or it chooses behavior that the spec does not
    define. When it does, research the prior art per `<plugin>/docs/procedures/prior-art.md` before the
-   decision below. This trigger is wider than the escalation: a fix that adds a mechanism does the
+   decision below. When its `## Prior art` section has a `### Required behavior` list, the report
+   lists each of its behaviors as a requirement of the fix, in its intended behavior. This trigger is wider than the escalation: a fix that adds a mechanism does the
    research also when the spec defines each state. A fix that restores behavior that the spec or
    the code already defines skips it. An escalation presents the found patterns among its options;
    a fix that resolves alone follows "The recommendation" of that document, or the report states

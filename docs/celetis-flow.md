@@ -60,6 +60,11 @@ of the product project, apart from a path that starts with `~/` or `/`.
   `PRODUCT.md` of the product. The session checks for both. It never installs `impeccable`, which
   is no plugin dependency, and you run `/impeccable init` once for the product
   ([design.md](procedures/design.md), "The check").
+- For the research of a UI component, optional tools that you install: a code-search tool (for
+  example the grep.app MCP server), a web fetch or scrape tool, and a browser tool that the session
+  opens for itself (for example the Playwright MCP server with `--isolated`). The session uses each
+  one that it has and records a limit for each missing one
+  ([component-research.md](procedures/component-research.md)).
 - The program `celetis` on `PATH` (`README.md`, "First install"), and the plugin `celetis@celetis`
   of the selected host at the revision of the program. The scripts and the step text come from
   the version folder of the program: `celetis --agent <host> <name> <arguments>` runs

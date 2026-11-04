@@ -9,7 +9,8 @@ procedure, and the step text cite it.
 
 - **The check:** the skill, `<impeccable>`, the commands, and the context, in their order.
 - **Missing:** the stop of a look decision, and the one line of the review and of `detect`.
-- **The lane points:** the command and the result of each lane point.
+- **The lane points:** the command and the result of each lane point, and the research that
+  `shape` and `generate` get.
 - **A whole screen or a smaller change:** which path gives the options.
 - **Can the session ask:** the stop of a session that cannot ask.
 - **The pick:** the structure round and `generate`, each read after the terminal answer.
@@ -75,6 +76,10 @@ of either is missing, print this one line, and go on:
 | A smaller web change | `generate` on the element, in the prototype checkout | The accepted variant is the pick |
 | The design review after the build, web and mobile | `critique`, `audit`, the refine commands, and on the web `detect` ("The design review") | Fixes on the lane branch |
 | The `detect` scenario of Verify | `detect` | Evidence, web only, by exit code |
+
+At the `shape` and `generate` lane points, give the models and the `(measured)` lines of the
+`## Prior art` section as references, and the lines of its `### Required behavior` list as
+constraints. A measured value is never a target, and the pick stays the maintainer's ("The pick").
 
 ## A whole screen or a smaller change
 

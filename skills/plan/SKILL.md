@@ -28,6 +28,8 @@ required document work in the task that owns the behavior.
 **Map acceptance coverage.** Read `<plugin>/docs/procedures/acceptance-coverage.md` and apply
 "Mapping" when authoring the plan, then "Review" in its existing self-review before publication.
 
+**Carry the required behaviors.** Each line of a `### Required behavior` list in the spec or the `## Root cause` report gets a task or a Verify scenario, or the plan states the reason that it drops that line. A `(measured)` line of `## Prior art` is a look reference, never a task target or the bar of the Verify phase. A task copies the code of a source-file finding only when the license in that line permits it.
+
 **Check the external facts.** Read the `## External facts` section of the spec or the `## Root cause` report. Settle per `<plugin>/docs/procedures/docs-lookup.md` each library API a task calls that the section does not cover. Carry the merged section as the plan's `## External facts`; the published `## Plan` comment hands it to `implement`. Copy each fact line a task depends on into that task's text, because an implementer's brief carries only its own task.
 
 **Map applicable principles with the affected tasks.** Read only the files whose conditions hold:

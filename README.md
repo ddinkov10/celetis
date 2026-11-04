@@ -94,6 +94,11 @@ controls and applies only that skill's custom text.
   `PRODUCT.md` of the product. The session checks for both. It never installs `impeccable`, which
   is no plugin dependency, and you run `/impeccable init` once for the product
   (`docs/procedures/design.md`, "The check").
+- For the research of a UI component, optional tools that you install: a code-search tool (for
+  example the grep.app MCP server), a web fetch or scrape tool, and a browser tool that the session
+  opens for itself (for example the Playwright MCP server with `--isolated`). The session uses each
+  one that it has and records a limit for each missing one
+  (`docs/procedures/component-research.md`).
 - On macOS, herdr-core 0.1.16 (`hc`) with its running server, and the open window of the Herdr app
   0.1.11 (`herdr-app`), for each start of the runner and for the board: each session runs in a tab
   of the Herdr app (ADR-0058, ADR-0062). The host reports its status to herdr-core with OSC 7501

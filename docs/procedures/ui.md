@@ -116,8 +116,12 @@ Do the steps in this order. The build of the variants starts after step 2.
 2. **The research.** In `specify` or `bug`, add the guidelines of the platform to the
    `## Prior art` section that the step wrote (`<plugin>/docs/procedures/prior-art.md`, "What to find"), with
    no second search for the same problem. For a look decision of a new problem, add its findings to the same
-   section. On the hand-built path, each variant follows a pattern that the research found. When
-   the research found none, the variant says so and names the source of its idea.
+   section. For a look decision that adds or changes a UI component, follow
+   `<plugin>/docs/procedures/component-research.md`: its findings go to the same section, with no
+   second search of a component that the section already covers. On the hand-built path, each
+   variant follows a pattern that the research found, and keeps each line of
+   `### Required behavior`. When the research found none, the variant says so and names the source
+   of its idea.
 3. **The variants.** Use the component library and the styles of the project, and keep the data
    reads above the variants, so only the rendering changes.
    - **A whole screen on the `impeccable` path.** Run the structure round and its pick by
