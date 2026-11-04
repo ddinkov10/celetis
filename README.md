@@ -554,7 +554,8 @@ folders are scratch of the skills, and a file that git does not ignore makes a t
 
 - `docs/superpowers/` holds the drafts of the intents, the specs, and the plans;
 - `.superpowers/` holds the review package of `critic-loop`;
-- `docs/lessons/_pending/` holds the lesson drafts that wait for `lesson-review`.
+- `docs/lessons/_pending/` holds the lesson drafts that wait for the agent curation of the next
+  landing, or for `lesson-review`.
 
 ### The labels
 
@@ -645,24 +646,17 @@ paths that their first record needs:
 - `record-architecture-decisions` reads generic guidance and the template from the plugin, plus
   product policy named by `AGENTS.md`. It creates `docs/adr/` with the first numbered record.
   Existing product ADR guidance and templates remain product content.
-- An approved review by `lesson-review` creates `docs/lessons/` and its catalog when needed.
-  The catalog has one row for each active lesson. Superseded records remain as history.
-  A new catalog has this head:
-
-  ```markdown
-  # Lessons
-
-  | Lesson | Tags | Date | Summary |
-  |---|---|---|---|
-  ```
-
+- A review that activates a lesson creates `docs/lessons/` when needed, in the checkout where
+  the review runs. It writes no catalog: `lesson-store read` derives the active and history
+  lists from the lesson files. Superseded records remain as history. A leftover
+  `docs/lessons/INDEX.md` fails each lesson read, with its path, until you delete it.
 - Capture creates only a pending proposal and queue row in the main checkout's
-  `docs/lessons/_pending/`, also when the task runs in a linked worktree. It creates no live
-  catalog. Rejected records stay in `_pending/_rejected/`. Grounding reads active lessons from
-  the lane's own checkout with `lesson-store read active`. A plan copies each applicable active
-  rule with its path and digest. Each task and repair boundary, including the final review and
-  re-entry, refreshes those copies from the task checkout: changed rules replace old copies, and
-  superseded or retired rules drop out. A missing lesson or a rule that conflicts with the
+  `docs/lessons/_pending/`, also when the task runs in a linked worktree. Rejected records stay
+  in `_pending/_rejected/`. Grounding reads active lessons from the lane's own checkout with
+  `lesson-store read active`. A plan copies each applicable active rule with its path and digest.
+  Each task and repair boundary, including the final review and re-entry, refreshes those copies
+  from the task checkout: changed rules replace old copies, and superseded or retired rules drop
+  out. A missing lesson or a rule that conflicts with the
   approved scope stops the task or repair for a decision. Missing stores cause no bootstrap
   write. The first mutation creates a local `_pending/.gitignore` before its journal, so an
   unconfigured Git repository also ignores pending data. Existing ignore content is preserved or
@@ -680,13 +674,25 @@ paths that their first record needs:
 - `lesson-store` serializes writes with a private lock file in the per-user temporary folder:
   `/tmp/celetis-<uid>/lessons/<digest>.lock`, or `celetis\lessons\<digest>.lock` in the temporary
   folder on Windows. The digest is the SHA-256 of the real path of the common Git directory.
-  Reads of the main checkout's lessons take the same lock. An incomplete
-  `_pending/.transaction.json` blocks reads until `lesson-store recover` completes the recorded
-  operation. Recovery refuses conflicting bytes. Old-format records need explicit review.
-- `lesson-review` can promote, edit, merge, supersede, retire, or reject selected records. It
-  shows the exact snapshot before approval; changed inputs require a new review. Each result
-  keeps its origins, incident evidence, uncertainty, and review history. The command leaves the
-  Git index unchanged. Review commits only approved lesson paths when project policy permits it.
+  Each read in each checkout takes the same lock, so no read sees a write in progress. A lane
+  apply holds the lock through the commit hooks of the project. `capture` waits up to 120 seconds
+  for the lock, and each other command up to 10 seconds; then it exits 3 with `busy`. An
+  incomplete `_pending/.transaction.json` of the main checkout blocks each read in each checkout
+  until `lesson-store recover` completes or rolls back the recorded operation. A lane journal
+  also records the lane and its HEAD: recovery completes it when the lesson commit exists, and
+  rolls it back when the lane is still at that HEAD. When the lane HEAD moved without the lesson
+  commit, recovery names the repair: `git -C <lane> reset --soft <recorded HEAD>`, then `recover`
+  again. Recovery refuses conflicting bytes. Old-format records need explicit review.
+- Each agent landing curates the queue first, in the lane: one fresh reviewer child decides at
+  most the five oldest proposals by the reviewer rules of `docs/procedures/lesson-curation.md`,
+  and its lesson commits land with the lane. No human approves these decisions. A curation
+  failure keeps the decisions applied before it, leaves the other proposals pending, and the
+  landing runs. `lesson-review` is your optional review: it can promote, edit, merge, supersede,
+  retire, or reject selected records, and it shows the exact snapshot before your approval;
+  changed inputs require a new review. Each result keeps its origins, incident evidence,
+  uncertainty, and review history. In a linked checkout, `lesson-store apply` commits only the
+  live lesson paths on the lane branch, before the proposals leave the queue. In the main
+  checkout it leaves the Git index unchanged.
 
 An existing unreadable or malformed store is an error. Its failed read is not an absent store.
 Existing records, catalogs, guidance, and templates stay unchanged unless the relevant writer or
@@ -957,8 +963,8 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | | [`/celetis:implement`](skills/implement/SKILL.md) | The build step. It runs the plan with `superpowers:executing-plans` or `superpowers:subagent-driven-development`, as the `Execution:` line of the plan says, and adds the verify gate at the end of each task, the Verify phase, and the landing |
 | **Review and memory** | [`/celetis:critic-loop`](skills/critic-loop/SKILL.md) | Scores the current diff from 0 to 10 across five perspectives, and fixes and scores again until the diff passes |
 | | [`/celetis:polishing-code-comments`](skills/polishing-code-comments/SKILL.md) | A pass that removes and tightens the comments of a diff or a file |
-| | [`/celetis:lesson`](skills/lesson/SKILL.md) | Captures bounded evidence from corrections or failed repairs as pending proposals in the main checkout, including explicit save requests |
-| | [`/celetis:lesson-review`](skills/lesson-review/SKILL.md) | Your exact review of pending drafts or maintenance of selected active lessons |
+| | [`/celetis:lesson`](skills/lesson/SKILL.md) | Captures bounded evidence from corrections or failed repairs as pending proposals in the main checkout, including explicit save requests. An agent reviewer curates them at each landing |
+| | [`/celetis:lesson-review`](skills/lesson-review/SKILL.md) | Your optional review of pending drafts, or your audit, edit, supersession, or retirement of selected active lessons, with your approval of the exact change |
 | | [`/celetis:record-architecture-decisions`](skills/record-architecture-decisions/SKILL.md) | Reads and writes the records of `docs/adr/` |
 | | [`/celetis:doc-drift-sync`](skills/doc-drift-sync/SKILL.md) | Corrects mechanical drift from source and behavioral drift from approved intent; reports implementation defects and uncertain evidence |
 | **Principles** | [`/celetis:attack-the-premise`](skills/attack-the-premise/SKILL.md) | Checks a shared premise after two fixes fail |
@@ -1036,8 +1042,8 @@ usage: celetis [--agent <host>] <command> [<argument>...]
   celetis lesson-store read main|active                     Reads validated lessons; requires explicit --agent.
   celetis lesson-store capture FILE                         Saves a pending proposal; requires explicit --agent.
   celetis lesson-store preview FILE                         Prepares an exact lesson review; requires explicit --agent.
-  celetis lesson-store apply SNAPSHOT DIGEST                Applies the reviewed snapshot; requires explicit --agent.
-  celetis lesson-store recover                              Completes an interrupted lesson write; requires explicit --agent.
+  celetis lesson-store apply SNAPSHOT DIGEST                Applies a reviewed snapshot and commits it in a linked checkout; requires explicit --agent.
+  celetis lesson-store recover                              Completes or rolls back an interrupted lesson write; requires explicit --agent.
   celetis root                                              Prints the folder of the program.
   celetis --version                                         Prints the revision of the program.
   celetis help                                              Prints this list.
@@ -1055,11 +1061,11 @@ setup"):
 
 | Command | What it does |
 |---|---|
-| `celetis --agent <host> lesson-store read main\|active` | Returns validated lesson records, exact file contents, digests, and the resolved checkout as JSON. `main` includes pending and rejected data. Rejected records appear in `history` with `status: pending-review`; they are not past guidance. `active` reads the task checkout and ignores its pending folder |
-| `celetis --agent <host> lesson-store capture FILE` | Reads typed `{schema:1,candidate,expected,name,description,tags,date,source,incidents,body}` JSON and builds the pending record; `expected` is the pending SHA-256 or null for creation. An extension keeps the stored incidents and reviews. Saves pending evidence only. Equal incident replays are unchanged; stale updates are refused |
-| `celetis --agent <host> lesson-store preview FILE` | Reads a review request and returns its exact before/after contents, watched digests, and snapshot digest without lesson writes. Select pending UUIDs and complete resulting documents as defined in [the lesson format](docs/procedures/lesson-format.md) |
-| `celetis --agent <host> lesson-store apply SNAPSHOT DIGEST` | Recomputes the review and applies exactly the approved snapshot under the lock. Changed input or snapshot bytes are stale. Replaying the same review is unchanged; conflicting reuse of its ID is invalid. The digest identifies a version, not its reviewer |
-| `celetis --agent <host> lesson-store recover` | Completes the one journal under the lesson lock. These commands require Git and an explicit host, but no issue, runner, or configuration file. They preserve the Git index. Exit status: 0 success, 2 invalid input/store, 3 stale or busy, 6 access/I/O/recovery block |
+| `celetis --agent <host> lesson-store read main\|active` | Returns validated lesson records, exact file contents, digests, and the resolved checkout as JSON. `main` returns the live files of the checkout that runs it with the pending and rejected data of the main checkout, and `root` names the main checkout. Rejected records appear in `history` with `status: pending-review`; they are not past guidance. `active` reads the live files of the task checkout and ignores its pending folder. A leftover `docs/lessons/INDEX.md` fails both reads |
+| `celetis --agent <host> lesson-store capture FILE` | Reads typed `{schema:1,candidate,expected,name,description,tags,date,source,incidents,body}` JSON and builds the pending record; `expected` is the pending SHA-256 or null for creation. An extension keeps the stored incidents and reviews. Validates the store of `read main` and saves pending evidence in the main checkout only. Equal incident replays are unchanged; stale updates are refused |
+| `celetis --agent <host> lesson-store preview FILE` | Reads a review request and returns its exact before/after contents of the store of `read main`, watched digests, and snapshot digest without lesson writes. Select pending UUIDs and complete resulting documents as defined in [the lesson format](docs/procedures/lesson-format.md) |
+| `celetis --agent <host> lesson-store apply SNAPSHOT DIGEST` | Recomputes the review and applies exactly the approved snapshot under the lock. Changed input or snapshot bytes are stale. Replaying the same review is unchanged; conflicting reuse of its ID is invalid. The digest identifies a version, not its reviewer. In a linked checkout, a live change needs a clean checkout on a branch and becomes one local commit `docs(lessons): <decision> <names>` with a `Lesson-Transaction` trailer, made with the project's hooks; the proposals leave the queue only after that commit. When Git fails but the lesson commit exists, the apply completes. When the lane is still at its old HEAD, the apply restores the before bytes of the live paths, also a hook rewrite, and their index entries, and exits 6. When HEAD moved without the commit, the journal stays (exit 6), and the line names the repair: `git -C <lane> reset --soft <recorded HEAD>`, then `recover` |
+| `celetis --agent <host> lesson-store recover` | Completes or rolls back the one journal under the lesson lock, from any checkout of the repository. A lane journal completes when its lesson commit exists and rolls back when the lane is still at the recorded HEAD; a lane HEAD that moved without the commit blocks it until `git -C <lane> reset --soft <recorded HEAD>`. These commands require Git and an explicit host, but no issue, runner, or configuration file. Only a lane apply and its recovery change the Git index. Exit status: 0 success, 2 invalid input/store, 3 stale or busy, 6 access/I/O/recovery block |
 | `celetis --agent <host> celetis-flow <n> --effort <level>` | Starts the next step of the issue at `low`, `medium`, `high`, `xhigh`, or `max` instead of its decided or default level, for the first session of this start only. Each later step uses its own decision, and the flag writes no decision. It needs exactly one issue number; any other form exits 2 with the usage line |
 | `celetis --agent <host> celetis-flow --queue admit '<QueueAction JSON>'` | Internal finite admission for the board. Persists one validated action and returns a strict QueueReceipt without waiting for a session |
 | `celetis --agent <host> celetis-flow --queue run <id> <token>` | Internal foreground claim of a persisted wake. Refuses stale tokens and live owners, then follows the queue's gates |

@@ -21,8 +21,11 @@ export const helpCommands: readonly (readonly [form: string, summary: string])[]
   ['celetis lesson-store read main|active', 'Reads validated lessons; requires explicit --agent.'],
   ['celetis lesson-store capture FILE', 'Saves a pending proposal; requires explicit --agent.'],
   ['celetis lesson-store preview FILE', 'Prepares an exact lesson review; requires explicit --agent.'],
-  ['celetis lesson-store apply SNAPSHOT DIGEST', 'Applies the reviewed snapshot; requires explicit --agent.'],
-  ['celetis lesson-store recover', 'Completes an interrupted lesson write; requires explicit --agent.'],
+  [
+    'celetis lesson-store apply SNAPSHOT DIGEST',
+    'Applies a reviewed snapshot and commits it in a linked checkout; requires explicit --agent.',
+  ],
+  ['celetis lesson-store recover', 'Completes or rolls back an interrupted lesson write; requires explicit --agent.'],
 
   ['celetis root', 'Prints the folder of the program.'],
   ['celetis --version', 'Prints the revision of the program.'],

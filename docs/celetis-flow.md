@@ -595,7 +595,12 @@ the line stays the same, and the session stays open. A session that ends while t
 `/celetis:feature` moves the line too, for example to `run /celetis:bug #<n>`: the session ends at
 its next idle moment, and a Run press starts that lane.
 
-**A landing.** `celetis --agent <host> land` moves the line of the issue when it merges, and it then closes
+**A landing.** Before `land` puts the change on the trunk, the step curates the lesson queue in
+the lane (`docs/procedures/lesson-curation.md`, "Curation at a landing"): a fresh reviewer child
+decides at most the five oldest pending proposals, its lesson commits land with the change, and a
+curation failure does not stop the landing. A run of `land` again after the change is on the
+trunk curates nothing.
+`celetis --agent <host> land` moves the line of the issue when it merges, and it then closes
 the child and checks parent acceptance before it removes the worktree. While it runs, `celetis --agent <host> next-step <n>` prints
 `stop the landing of #<n> runs; wait until celetis --agent <host> land ends`. That line is the stop of an
 observation, not a stop of the issue, so the job does not end the session. An agent that waits
@@ -637,9 +642,9 @@ The exit status and the first word after `land: ` give the result:
 | 1 | none | an internal error of `land` | an unexpected exception |
 | 2 | `usage` | usage | bad arguments (the line starts with `usage: `); a run from inside the lane worktree; a dirty lane worktree; no lane branch; nothing to land; an invalid configuration |
 | 3 | `prerequisite` | the issue is not ready to land | the refusals of the paragraph above |
-| 4 | `repair` | the lane needs a repair | a conflict with the trunk; a lane branch that does not contain the head of the trunk; a trunk head, a lane branch, a lane checkout, or a PR that changed during the landing; a missing lane worktree with the landing `merge` |
+| 4 | `repair` | the lane needs a repair | a conflict with the trunk; a lane branch that does not contain the head of the trunk; a trunk head, a lane branch, a lane checkout, or a PR that changed during the landing; a missing lane worktree with the landing `merge`; lane lessons that do not validate |
 | 5 | `checks` | a check is not green | a failed CI check, also after its re-run; a failed `suite` with the landing `merge` (`docs/configuration.md`) |
-| 6 | `blocked` | an external block | GitHub does not answer or refuses an act; a fetch or a push fails; the checks did not finish; no check ran; the main checkout is dirty, off the trunk, or with commits that the trunk does not have; the landing mechanism or the default branch changed; two branches or two PRs match |
+| 6 | `blocked` | an external block | GitHub does not answer or refuses an act; a fetch or a push fails; the checks did not finish; no check ran; the main checkout is dirty, off the trunk, or with commits that the trunk does not have; the landing mechanism or the default branch changed; two branches or two PRs match; an incomplete lesson transaction (`lesson-store recover`); a lesson lock that stays busy for 10 seconds |
 | 7 | `cleanup` | landed, the cleanup stopped | the change is on the trunk, and the removal, the pull of the main checkout, or the close of the issue stopped: run `land` again |
 | 128+n | none | a signal | a signal stopped `land` before it put the change on the trunk or found it there; a later signal gives 7 |
 

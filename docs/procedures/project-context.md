@@ -8,7 +8,7 @@ Read, in the checkout of the lane:
 - `AGENTS.md` — the architecture of the project.
 - the `AGENTS.md` of each subsystem that the change touches, or likely touches.
 - the lessons — run `celetis --agent <host> lesson-store read active`. It validates this
-  checkout's catalog and lesson files. Scan its `active` records for lessons matching this change
+  checkout's lesson files. Scan its `active` records for lessons matching this change
   and read each match in full; its `files` entry holds the validated text and digest. A
   `history` record is evidence of past guidance, never a current instruction. A link between
   lessons is a lead to check, not a rule.

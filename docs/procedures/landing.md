@@ -10,7 +10,8 @@ caused (step 4).
 - **Re-entry after a refusal:** a built change with a `## Landing refused` comment.
 - **Step 1: the build mark:** `issue <n> built`.
 - **Step 2: the human precondition:** an act that only a human can do before the landing.
-- **Step 3: the landing:** the run of `land`, and each exit status.
+- **Step 3: the landing:** the curation of the lesson queue, the run of `land`, and each exit
+  status.
 - **Step 4: a refusal that the change caused:** the fix, then a new landing.
 - **Step 5: the third refusal, or a cause outside the change:** `## Landing refused`, and the stop.
 - **Claude Code** and **Codex:** the return to the main checkout and the run of `land` on each
@@ -77,6 +78,14 @@ lifetime", and "Usage-limit exception", before continuing. With that procedure s
 
 ## Step 3: the landing
 
+While the change is not on the trunk, each run of this step starts in the lane checkout, before
+the return to the main checkout, with the curation of the lesson queue by
+`<plugin>/docs/procedures/lesson-curation.md`, "Curation at a landing". A run after a refusal
+curates again. An empty queue starts no child, and a curation failure goes into the report: the
+step goes on to `land`. A run of `land` again after the change is on the trunk curates nothing:
+after exit 7, or after a landing that stopped once a `land:` line said that the change is on the
+trunk.
+
 The full suite runs once, on the tree that lands, so the session runs no full suite before
 `land`: with the landing `merge`, `land` runs the `suite` file of `.celetis.yaml` in the lane, at
 the tip that it lands; with the landing `pr`, the CI of the lane PR runs it.
@@ -115,7 +124,16 @@ The exit status gives the result (`<plugin>/docs/celetis-flow.md`, "A landing", 
 - **4** (`repair`) is a refusal that the change caused: step 4.
 - **5** (`checks`) is a red check or a failed suite. Decide whether the diff caused it: step 4
   when it did, else step 5.
-- **6** (`blocked`) and **1** are causes outside the change: step 5.
+- **6** (`blocked`) and **1** are causes outside the change: step 5. Two lines of status 6 from
+  the lesson check of `land` first get one retry. The retry is no refusal of the change, and
+  step 5 does not count it:
+  - `incomplete transaction`: a lesson write stopped. Run
+    `celetis --agent <host> lesson-store recover` once, then run the script again. A nonzero exit
+    of `recover` is a cause outside the change (step 5).
+  - `busy: timed out waiting for the lesson lock`: a lesson write still runs. Run the script again
+    once.
+
+  A second 6 with the same line is a cause outside the change (step 5).
 - **7** (`cleanup`) is **a stop after the landing** (a `land:` line that says
   `run celetis --agent <host> land again`). It is no refusal, and step 5 does not count it: the
   change is on the trunk, so do what the line says and run the script again. A second 7 with the
@@ -142,12 +160,17 @@ go to step 3. On exit 4 of the entry, the merge is the fix: resolve it by the fi
 and `<plugin>/docs/procedures/worktree.md`, "A conflict with the trunk", then go on as for a moved
 trunk. When the entry refuses with another status, show the user its message and stop.
 
+A refusal whose line names the lessons of the lane (`the lessons of <branch> do not validate`) is
+fixed by `<plugin>/docs/procedures/lesson-curation.md`, "Lesson conflicts"; a fix task brief
+carries that path.
+
 ## Step 5: the third refusal, or a cause outside the change
 
-The third refusal in one session, or a cause outside the change (status 6 or 1, a status 5 that
-the diff did not cause, a second 2 or 7 with the same line, or a second 128+n): a check that fails
-on an advisory for a dependency that the change did not touch, no check that ran, checks that did
-not finish, GitHub that does not answer, a main checkout that is dirty, off the trunk, or with commits that the trunk does not have.
+The third refusal in one session, or a cause outside the change (status 1, a status 6 that step 3
+does not retry, a status 5 that the diff did not cause, a second 2, 6, or 7 with the same line, a
+failed `recover`, or a second 128+n): a check that fails on an advisory for a dependency that the
+change did not touch, no check that ran, checks that did not finish, GitHub that does not answer,
+a main checkout that is dirty, off the trunk, or with commits that the trunk does not have.
 
 Before the stop, apply `<plugin>/docs/procedures/stop.md`, "The check before a stop". At the third
 refusal, a pick between repair options that lets this session go on is a live question with the

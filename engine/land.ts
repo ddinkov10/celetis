@@ -6,6 +6,8 @@ import { completeEpic } from './lib/epic.ts';
 import { parseEpicRepository } from './lib/epic-acceptance.ts';
 import { installRecorder, markDefect } from './lib/events.ts';
 import { HostError, updateHint } from './lib/host.ts';
+import { LessonError } from './lib/lesson-record.ts';
+import { readLessons } from './lib/lesson-store.ts';
 import { lineOf } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
@@ -174,6 +176,14 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     if (checkout) {
       if ((await git(['rev-parse', '--show-toplevel'])) === checkout)
         die('usage', `leave ${checkout} first: run celetis --agent <host> land from the main checkout`);
+      try {
+        await readLessons(checkout, 'active');
+      } catch (error) {
+        if (!(error instanceof LessonError)) throw error;
+        if (error.code === 2)
+          die('repair', `the lessons of ${branch} do not validate: ${error.message}; repair them, then land again`);
+        die('blocked', error.message);
+      }
       if (await git(['status', '--porcelain'], undefined, checkout))
         die('usage', `the lane worktree is dirty: ${checkout}; commit first`);
     }

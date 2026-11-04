@@ -1,15 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { closeSync, constants, fstatSync, openSync } from 'node:fs';
 import { lstat, mkdir, open, readdir, rename, unlink } from 'node:fs/promises';
-import { join } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
 import {
   type CaptureRequest,
   captureChanges,
   completedReview,
+  type Decision,
   digest,
   hash,
   ignorePath,
-  indexPath,
   journalPath,
   LessonError,
   type LessonSnapshot,
@@ -36,7 +36,8 @@ import { run } from './process.ts';
 import { tryFlock } from './update-lock.ts';
 import { openLockFile } from './windows.ts';
 
-export type LessonStore = { root: string; files: Map<string, string> };
+export type LessonStore = { main: string; active: string; files: Map<string, string> };
+type View = Pick<LessonStore, 'main' | 'active'>;
 type Change = {
   path: string;
   before: string | null;
@@ -45,7 +46,10 @@ type Change = {
   afterDigest: string | null;
   mode: number;
 };
-type Transaction = { schema: 1; id: string; kind: 'capture' | 'review'; changes: Change[] };
+type Lane = { root: string; head: string };
+type LaneCommit = 'committed' | 'absent' | 'moved';
+type Transaction = { schema: 1; id: string; kind: 'capture' | 'review'; changes: Change[]; lane?: Lane };
+const objectId = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const temporary = /^\.celetis-lessons-[0-9a-f-]{36}\.tmp$/;
 const lockFolder = join(privateRoot, 'lessons');
 
@@ -121,41 +125,58 @@ export async function readLessonFile(root: string, path: string): Promise<string
     blocked(full, error);
   }
 }
-async function scan(root: string, pending: boolean): Promise<Map<string, string>> {
-  const files = new Map<string, string>();
-  const folders = [lessonsPath, ...(pending ? [pendingPath, `${pendingPath}/_rejected`] : [])];
-  for (const folder of folders) {
-    if (!(await parents(root, `${folder}/placeholder`)) || !(await directory(join(root, folder)))) continue;
-    let names: string[];
-    try {
-      names = await readdir(join(root, folder));
-    } catch (error) {
-      blocked(join(root, folder), error);
-    }
-    for (const name of names.sort()) {
-      if ((folder === lessonsPath && name === '_pending') || (folder === pendingPath && name === '_rejected')) continue;
-      const path = `${folder}/${name}`;
-      if (path === journalPath) {
-        await readLessonFile(root, path);
-        continue;
-      }
-      if (temporary.test(name)) {
-        await parents(root, path);
-        const leaf = await stat(join(root, path));
-        if (!leaf?.isFile() || leaf.isSymbolicLink())
-          throw new LessonError(6, join(root, path), 'need a regular temporary file without a symlink');
-        continue;
-      }
-      if (!storePath(path)) {
-        if (name.startsWith('.')) continue;
-        throw new LessonError(2, join(root, path), 'unrecognized lesson store file; review it explicitly');
-      }
-      const text = await readLessonFile(root, path);
-      if (text === null) throw new LessonError(6, join(root, path), 'file disappeared during read');
-      files.set(path, text);
-    }
+async function scanFolder(root: string, folder: string, files: Map<string, string>): Promise<void> {
+  if (!(await parents(root, `${folder}/placeholder`)) || !(await directory(join(root, folder)))) return;
+  let names: string[];
+  try {
+    names = await readdir(join(root, folder));
+  } catch (error) {
+    blocked(join(root, folder), error);
   }
+  for (const name of names.sort()) {
+    if ((folder === lessonsPath && name === '_pending') || (folder === pendingPath && name === '_rejected')) continue;
+    const path = `${folder}/${name}`;
+    if (folder === lessonsPath && name === 'INDEX.md')
+      throw new LessonError(2, join(root, path), 'the lesson catalog INDEX.md is no longer used; delete this file');
+    if (path === journalPath) {
+      await readLessonFile(root, path);
+      continue;
+    }
+    if (temporary.test(name)) {
+      await parents(root, path);
+      const leaf = await stat(join(root, path));
+      if (!leaf?.isFile() || leaf.isSymbolicLink())
+        throw new LessonError(6, join(root, path), 'need a regular temporary file without a symlink');
+      continue;
+    }
+    if (!storePath(path)) {
+      if (name.startsWith('.')) continue;
+      throw new LessonError(2, join(root, path), 'unrecognized lesson store file; review it explicitly');
+    }
+    const text = await readLessonFile(root, path);
+    if (text === null) throw new LessonError(6, join(root, path), 'file disappeared during read');
+    files.set(path, text);
+  }
+}
+async function scanLive(root: string): Promise<Map<string, string>> {
+  const files = new Map<string, string>();
+  await scanFolder(root, lessonsPath, files);
   return files;
+}
+async function scanPending(root: string, files: Map<string, string>): Promise<void> {
+  await scanFolder(root, pendingPath, files);
+  await scanFolder(root, `${pendingPath}/_rejected`, files);
+}
+async function scanStore(view: View): Promise<Map<string, string>> {
+  const files = await scanLive(view.active);
+  await scanPending(view.main, files);
+  return files;
+}
+function pending(path: string): boolean {
+  return path.startsWith(`${pendingPath}/`);
+}
+function rootOf(view: View, path: string): string {
+  return pending(path) ? view.main : view.active;
 }
 async function identity(cwd: string): Promise<CheckoutIdentity & { main: string; active: string; common: string }> {
   try {
@@ -183,7 +204,7 @@ function tryLessonLock(fd: number, path: string): boolean {
     throw new LessonError(6, path, 'cannot acquire the lesson lock');
   }
 }
-async function withLock<T>(common: string, act: () => Promise<T>): Promise<T> {
+async function withLock<T>(common: string, act: () => Promise<T>, wait = 10_000): Promise<T> {
   const path = join(lockFolder, `${hash(common)}.lock`);
   await lockFolders();
   const previous = await stat(path);
@@ -206,7 +227,7 @@ async function withLock<T>(common: string, act: () => Promise<T>): Promise<T> {
       !privateMode(opened)
     )
       throw new LessonError(6, path, 'need a private regular lock file owned by the current user');
-    const deadline = performance.now() + 10_000;
+    const deadline = performance.now() + wait;
     while (!tryLessonLock(fd, path)) {
       if (performance.now() >= deadline) throw new LessonError(3, path, 'busy: timed out waiting for the lesson lock');
       await Bun.sleep(25);
@@ -224,19 +245,31 @@ async function requireComplete(root: string): Promise<void> {
   if ((await readLessonFile(root, journalPath)) !== null)
     throw new LessonError(6, join(root, journalPath), 'incomplete transaction; run lesson-store recover');
 }
-async function withLessonFiles<T>(cwd: string, act: (store: LessonStore) => Promise<T>): Promise<T> {
+async function withLessonFiles<T>(cwd: string, act: (store: LessonStore) => Promise<T>, wait?: number): Promise<T> {
   const checkout = await identity(cwd);
-  return withLock(checkout.common, async () => {
-    await requireComplete(checkout.main);
-    const files = await scan(checkout.main, true);
-    return act({ root: checkout.main, files });
-  });
+  const view = { main: checkout.main, active: checkout.active };
+  return withLock(
+    checkout.common,
+    async () => {
+      await requireComplete(view.main);
+      return act({ ...view, files: await scanStore(view) });
+    },
+    wait,
+  );
 }
-export async function withLessonStore<T>(cwd: string, act: (store: LessonStore) => Promise<T>): Promise<T> {
-  return withLessonFiles(cwd, async (store) => {
-    validateStore(store.files);
-    return act(store);
-  });
+export async function withLessonStore<T>(
+  cwd: string,
+  act: (store: LessonStore) => Promise<T>,
+  wait?: number,
+): Promise<T> {
+  return withLessonFiles(
+    cwd,
+    async (store) => {
+      validateStore(store.files);
+      return act(store);
+    },
+    wait,
+  );
 }
 function snapshot(root: string, files: Map<string, string>): LessonSnapshot {
   const result: LessonSnapshot = { schema: 1, root, active: [], history: [], pending: [], files: {} };
@@ -254,17 +287,13 @@ function snapshot(root: string, files: Map<string, string>): LessonSnapshot {
   return result;
 }
 export async function readLessons(cwd: string, scope: 'main' | 'active'): Promise<LessonSnapshot> {
-  const checkout = await identity(cwd);
-  if (scope === 'main' || checkout.active === checkout.main)
-    return withLock(checkout.common, async () => {
-      await requireComplete(checkout.main);
-      const files = await scan(checkout.main, scope === 'main');
-      validateStore(files, scope === 'main');
-      return snapshot(checkout.main, files);
-    });
-  const files = await scan(checkout.active, false);
-  validateStore(files, false);
-  return snapshot(checkout.active, files);
+  const { main, active, common } = await identity(cwd);
+  return withLock(common, async () => {
+    await requireComplete(main);
+    const files = scope === 'main' ? await scanStore({ main, active }) : await scanLive(active);
+    validateStore(files, scope === 'main');
+    return snapshot(scope === 'main' ? main : active, files);
+  });
 }
 async function replace(root: string, path: string, text: string, mode: number): Promise<void> {
   const full = join(root, path);
@@ -306,7 +335,7 @@ async function replace(root: string, path: string, text: string, mode: number): 
   }
 }
 function transaction(value: unknown, path: string): Transaction {
-  const row = object(value, path, ['schema', 'id', 'kind', 'changes']);
+  const row = object(value, path, ['schema', 'id', 'kind', 'changes'], ['lane']);
   if (
     row.schema !== 1 ||
     (row.kind !== 'capture' && row.kind !== 'review') ||
@@ -335,10 +364,7 @@ function transaction(value: unknown, path: string): Transaction {
       throw new LessonError(6, path, `invalid bytes, digests, or mode for ${item.path}`);
     if (
       row.kind === 'capture' &&
-      (item.path === indexPath ||
-        lessonFile(item.path) === 'live' ||
-        lessonFile(item.path) === 'rejected' ||
-        item.after === null)
+      (lessonFile(item.path) === 'live' || lessonFile(item.path) === 'rejected' || item.after === null)
     )
       throw new LessonError(6, path, 'capture transaction can only write pending proposals');
     return {
@@ -350,7 +376,19 @@ function transaction(value: unknown, path: string): Transaction {
       mode: item.mode,
     };
   });
-  return { schema: 1, id, kind: row.kind, changes };
+  if (row.lane === undefined) return { schema: 1, id, kind: row.kind, changes };
+  const lane = object(row.lane, `${path}.lane`, ['root', 'head']);
+  if (
+    row.kind !== 'review' ||
+    typeof lane.root !== 'string' ||
+    !isAbsolute(lane.root) ||
+    resolve(lane.root) !== lane.root ||
+    typeof lane.head !== 'string' ||
+    !objectId.test(lane.head) ||
+    !changes.some((change) => !pending(change.path))
+  )
+    throw new LessonError(6, path, 'invalid transaction lane');
+  return { schema: 1, id, kind: row.kind, changes, lane: { root: lane.root, head: lane.head } };
 }
 async function requireUntrackedPending(root: string): Promise<void> {
   const result = await run('git', ['ls-files', '-z', '--', pendingPath], { cwd: root });
@@ -368,116 +406,216 @@ async function requireUntrackedPending(root: string): Promise<void> {
       'pending path is tracked by Git; review its tracking explicitly before a lesson write',
     );
 }
-async function finish(root: string, journal: Transaction): Promise<void> {
-  await requireUntrackedPending(root);
-  const files = await scan(root, true);
+function gitError(result: { code: number; stderr: string }): string {
+  return result.stderr.trim().split('\n')[0] || `git exited ${result.code}`;
+}
+async function place(root: string, change: Change, text: string | null): Promise<void> {
+  if (text !== null) return replace(root, change.path, text, change.mode);
+  await parents(root, change.path);
+  try {
+    await unlink(join(root, change.path));
+  } catch (error) {
+    if (!missing(error)) blocked(join(root, change.path), error);
+  }
+}
+async function removeJournal(main: string): Promise<void> {
+  await parents(main, journalPath);
+  await readLessonFile(main, journalPath);
+  try {
+    await unlink(join(main, journalPath));
+  } catch (error) {
+    blocked(join(main, journalPath), error);
+  }
+}
+async function finish(view: View, journal: Transaction): Promise<void> {
+  const changes = journal.lane ? journal.changes.filter((change) => pending(change.path)) : journal.changes;
+  await requireUntrackedPending(view.main);
+  const files = await scanStore(view);
   if (!files.has(ignorePath))
-    throw new LessonError(6, join(root, ignorePath), 'recovery requires the pending ignore file');
-  for (const change of journal.changes) {
+    throw new LessonError(6, join(view.main, ignorePath), 'recovery requires the pending ignore file');
+  for (const change of changes) {
     const actual = files.get(change.path) ?? null;
     if (actual !== change.before && actual !== change.after)
-      throw new LessonError(6, join(root, change.path), 'recovery conflict: bytes match neither before nor after');
+      throw new LessonError(
+        6,
+        join(rootOf(view, change.path), change.path),
+        'recovery conflict: bytes match neither before nor after',
+      );
     if (change.after === null) files.delete(change.path);
     else files.set(change.path, change.after);
   }
   validateStore(files);
   for (const change of [
-    ...journal.changes.filter((item) => item.after !== null),
-    ...journal.changes.filter((item) => item.after === null),
+    ...changes.filter((item) => item.after !== null),
+    ...changes.filter((item) => item.after === null),
   ]) {
+    const root = rootOf(view, change.path);
     const actual = await readLessonFile(root, change.path);
     if (actual !== change.before && actual !== change.after)
       throw new LessonError(6, join(root, change.path), 'recovery conflict: target changed');
-    if (actual === change.after) continue;
-    if (change.after !== null) await replace(root, change.path, change.after, change.mode);
-    else {
-      await parents(root, change.path);
-      try {
-        await unlink(join(root, change.path));
-      } catch (error) {
-        blocked(join(root, change.path), error);
-      }
-    }
+    if (actual !== change.after) await place(root, change, change.after);
   }
-  const completed = await scan(root, true);
+  const completed = await scanStore(view);
   validateStore(completed);
-  for (const change of journal.changes)
+  for (const change of changes)
     if ((completed.get(change.path) ?? null) !== change.after)
-      throw new LessonError(6, join(root, change.path), 'transaction did not reach its after-state');
-  await parents(root, journalPath);
-  await readLessonFile(root, journalPath);
-  try {
-    await unlink(join(root, journalPath));
-  } catch (error) {
-    blocked(join(root, journalPath), error);
+      throw new LessonError(
+        6,
+        join(rootOf(view, change.path), change.path),
+        'transaction did not reach its after-state',
+      );
+  await removeJournal(view.main);
+}
+async function laneHead(root: string): Promise<Lane> {
+  const status = await run('git', ['status', '--porcelain'], { cwd: root });
+  if (status.code !== 0) throw new LessonError(6, root, `cannot read the Git status: ${gitError(status)}`);
+  if (status.stdout)
+    throw new LessonError(2, root, 'the checkout has uncommitted changes; commit or remove them, then apply again');
+  const branch = await run('git', ['symbolic-ref', '-q', 'HEAD'], { cwd: root });
+  if (branch.code === 1)
+    throw new LessonError(2, root, 'the checkout has a detached HEAD; check out its branch, then apply again');
+  if (branch.code !== 0) throw new LessonError(6, root, `cannot read the branch: ${gitError(branch)}`);
+  const head = await run('git', ['rev-parse', '--verify', '-q', 'HEAD^{commit}'], { cwd: root });
+  if (head.code !== 0) throw new LessonError(2, root, 'the branch has no commit; commit once, then apply again');
+  return { root, head: head.stdout.trim() };
+}
+async function rollBack(main: string, journal: Transaction, lane: Lane, anyLiveBytes = false): Promise<string[]> {
+  for (const change of journal.changes) {
+    const root = pending(change.path) ? main : lane.root;
+    const actual = await readLessonFile(root, change.path);
+    if (actual !== change.before && (pending(change.path) || (!anyLiveBytes && actual !== change.after)))
+      throw new LessonError(6, join(root, change.path), 'recovery conflict: bytes match neither before nor after');
   }
+  const live = journal.changes.filter((change) => !pending(change.path));
+  for (const change of live) await place(lane.root, change, change.before);
+  const paths = live.map((change) => change.path);
+  const reset = await run('git', ['reset', '-q', '--', ...paths], { cwd: lane.root });
+  if (reset.code !== 0) throw new LessonError(6, lane.root, `cannot unstage the lessons: ${gitError(reset)}`);
+  await removeJournal(main);
+  return paths;
+}
+async function commitLane(main: string, journal: Transaction, lane: Lane, decision: Decision): Promise<void> {
+  const live = journal.changes.filter((change) => !pending(change.path));
+  const paths = live.map((change) => change.path);
+  let failure: string;
+  try {
+    for (const change of live) await place(lane.root, change, change.after);
+    const add = await run('git', ['add', '--', ...paths], { cwd: lane.root });
+    if (add.code !== 0) failure = gitError(add);
+    else {
+      const names = paths.map((path) => path.slice(lessonsPath.length + 1, -'.md'.length)).join(', ');
+      const commit = await run(
+        'git',
+        ['commit', '-q', '-m', `docs(lessons): ${decision} ${names}`, '-m', `Lesson-Transaction: ${journal.id}`],
+        { cwd: lane.root },
+      );
+      if (commit.code === 0) return;
+      failure = gitError(commit);
+    }
+  } catch (error) {
+    failure = message(error);
+  }
+  let state: LaneCommit;
+  try {
+    state = await laneCommit(lane, journal.id);
+    // The lane was clean under the held lock, so only a commit hook can have changed the live bytes.
+    if (state === 'absent') await rollBack(main, journal, lane, true);
+  } catch (error) {
+    throw new LessonError(
+      6,
+      lane.root,
+      `cannot commit the lessons: ${failure}; the rollback stopped: ${message(error)}; run lesson-store recover`,
+    );
+  }
+  if (state === 'committed') return;
+  throw new LessonError(
+    6,
+    lane.root,
+    `cannot commit the lessons: ${failure}${state === 'moved' ? `; ${moved(lane)}` : ''}`,
+  );
 }
 export async function commitLessons(
   store: LessonStore,
   after: ReadonlyMap<string, string>,
-  kind: 'capture' | 'review',
+  operation: 'capture' | Decision,
 ): Promise<string[]> {
   const proposed = new Map(after);
   const oldIgnore = store.files.get(ignorePath);
   if (oldIgnore !== undefined && proposed.get(ignorePath) !== oldIgnore)
-    throw new LessonError(2, join(store.root, ignorePath), 'preserve the existing pending ignore file');
-  if (
-    ![...new Set([...store.files.keys(), ...proposed.keys()])].some(
-      (path) => store.files.get(path) !== proposed.get(path),
-    )
-  ) {
+    throw new LessonError(2, join(store.main, ignorePath), 'preserve the existing pending ignore file');
+  const paths = [...new Set([...store.files.keys(), ...proposed.keys()])];
+  if (!paths.some((path) => store.files.get(path) !== proposed.get(path))) {
     validateStore(proposed);
     return [];
   }
   proposed.set(ignorePath, oldIgnore ?? '*\n');
   validateStore(proposed);
-  await requireUntrackedPending(store.root);
+  await requireUntrackedPending(store.main);
+  const lane =
+    store.active !== store.main && paths.some((path) => !pending(path) && store.files.get(path) !== proposed.get(path))
+      ? await laneHead(store.active)
+      : undefined;
   after = proposed;
   const infrastructure: string[] = [];
   if (oldIgnore === undefined && proposed.has(ignorePath)) {
-    if ((await readLessonFile(store.root, ignorePath)) !== null)
-      throw new LessonError(3, join(store.root, ignorePath), 'stale: pending ignore file changed');
-    await replace(store.root, ignorePath, '*\n', 0o600);
+    if ((await readLessonFile(store.main, ignorePath)) !== null)
+      throw new LessonError(3, join(store.main, ignorePath), 'stale: pending ignore file changed');
+    await replace(store.main, ignorePath, '*\n', 0o600);
     store.files.set(ignorePath, '*\n');
     infrastructure.push(ignorePath);
   }
   const changes: Change[] = [];
   for (const path of [...new Set([...store.files.keys(), ...after.keys()])].sort()) {
-    if (!storePath(path)) throw new LessonError(2, join(store.root, path), 'invalid store destination');
+    const root = rootOf(store, path);
+    if (!storePath(path)) throw new LessonError(2, join(root, path), 'invalid store destination');
     const before = store.files.get(path) ?? null;
     const content = after.get(path) ?? null;
     if (before === content) continue;
-    if ((await readLessonFile(store.root, path)) !== before)
-      throw new LessonError(3, join(store.root, path), 'stale: target changed');
-    const current = await stat(join(store.root, path));
+    if ((await readLessonFile(root, path)) !== before)
+      throw new LessonError(3, join(root, path), 'stale: target changed');
+    const current = await stat(join(root, path));
     changes.push({
       path,
       before,
       after: content,
       beforeDigest: before === null ? null : hash(before),
       afterDigest: content === null ? null : hash(content),
-      mode: current ? current.mode & 0o777 : path.startsWith(`${pendingPath}/`) ? 0o600 : 0o644,
+      mode: current ? current.mode & 0o777 : pending(path) ? 0o600 : 0o644,
     });
   }
   if (!changes.length) return infrastructure;
-  const journal = transaction({ schema: 1, id: randomUUID(), kind, changes }, join(store.root, journalPath));
-  await requireComplete(store.root);
-  await replace(store.root, journalPath, `${JSON.stringify(journal)}\n`, 0o600);
-  await finish(store.root, journal);
+  const journal = transaction(
+    {
+      schema: 1,
+      id: randomUUID(),
+      kind: operation === 'capture' ? 'capture' : 'review',
+      changes,
+      ...(lane ? { lane } : {}),
+    },
+    join(store.main, journalPath),
+  );
+  await requireComplete(store.main);
+  await replace(store.main, journalPath, `${JSON.stringify(journal)}\n`, 0o600);
+  if (lane && operation !== 'capture') await commitLane(store.main, journal, lane, operation);
+  await finish(store, journal);
   return [...infrastructure, ...changes.map((change) => change.path)];
 }
 export async function captureLesson(cwd: string, input: CaptureRequest): Promise<StoreResult> {
   input = validateCapture(input, 'capture');
-  return withLessonStore(cwd, async (store) => {
-    const after = captureChanges(store.files, input);
-    if (after === null) return { schema: 1, status: 'unchanged', root: store.root, paths: [] };
-    const paths = await commitLessons(store, after, 'capture');
-    return { schema: 1, status: 'saved', root: store.root, paths };
-  });
+  return withLessonStore(
+    cwd,
+    async (store) => {
+      const after = captureChanges(store.files, input);
+      if (after === null) return { schema: 1, status: 'unchanged', root: store.main, paths: [] };
+      const paths = await commitLessons(store, after, 'capture');
+      return { schema: 1, status: 'saved', root: store.main, paths };
+    },
+    120_000,
+  );
 }
 export async function previewLessonReview(cwd: string, input: ReviewRequest): Promise<ReviewSnapshot> {
   input = validateReviewRequest(input, 'review');
-  return withLessonStore(cwd, async (store) => reviewSnapshot(store.root, store.files, input));
+  return withLessonStore(cwd, async (store) => reviewSnapshot(store.main, store.files, input));
 }
 export async function applyLessonReview(
   cwd: string,
@@ -501,7 +639,7 @@ export async function applyLessonReview(
     throw error;
   }
   return withLessonFiles(cwd, async (store) => {
-    if (store.root !== snapshot.root) throw new LessonError(3, snapshot.root, 'stale: main checkout changed');
+    if (store.main !== snapshot.root) throw new LessonError(3, snapshot.root, 'stale: main checkout changed');
     const changed = [...new Set([...store.files.keys(), ...Object.keys(snapshot.watched)])].find((path) => {
       const actual = store.files.get(path);
       return (actual === undefined ? null : hash(actual)) !== snapshot.watched[path];
@@ -510,25 +648,42 @@ export async function applyLessonReview(
       validateStore(store.files);
     } catch (error) {
       if (changed && error instanceof LessonError && error.code === 2)
-        throw new LessonError(3, join(store.root, changed), `stale: reviewed input changed: ${error.message}`);
+        throw new LessonError(
+          3,
+          join(rootOf(store, changed), changed),
+          `stale: reviewed input changed: ${error.message}`,
+        );
       throw error;
     }
     if (completedReview(store.files, snapshot.request)) {
-      return { schema: 1, status: 'unchanged', root: store.root, paths: [] };
+      return { schema: 1, status: 'unchanged', root: store.main, paths: [] };
     }
-    if (changed) throw new LessonError(3, join(store.root, changed), 'stale: reviewed input changed');
+    if (changed) throw new LessonError(3, join(rootOf(store, changed), changed), 'stale: reviewed input changed');
     const after = new Map<string, string>();
     for (const [path, text] of Object.entries(snapshot.after)) if (text !== null) after.set(path, text);
-    const paths = await commitLessons(store, after, 'review');
-    return { schema: 1, status: 'applied', root: store.root, paths };
+    const paths = await commitLessons(store, after, snapshot.request.decision);
+    return { schema: 1, status: 'applied', root: store.main, paths };
   });
+}
+async function laneCommit(lane: Lane, id: string): Promise<LaneCommit> {
+  const head = await run('git', ['rev-parse', '--verify', '-q', 'HEAD^{commit}'], { cwd: lane.root });
+  if (head.code !== 0) throw new LessonError(6, lane.root, `cannot read the lane HEAD: ${gitError(head)}`);
+  const log = await run('git', ['log', '-z', '--format=%B', `${lane.head}..HEAD`], { cwd: lane.root });
+  if (log.code !== 0) throw new LessonError(6, lane.root, `cannot read the lane history: ${gitError(log)}`);
+  const trailer = `Lesson-Transaction: ${id}`;
+  if (log.stdout.split('\0').some((body) => body.split('\n').some((line) => line.trimEnd() === trailer)))
+    return 'committed';
+  return head.stdout.trim() === lane.head ? 'absent' : 'moved';
+}
+function moved(lane: Lane): string {
+  return `the lane HEAD moved without the lesson commit; run git -C ${lane.root} reset --soft ${lane.head}, then lesson-store recover`;
 }
 export async function recoverLessons(cwd: string): Promise<StoreResult> {
   const checkout = await identity(cwd);
   return withLock(checkout.common, async () => {
     const text = await readLessonFile(checkout.main, journalPath);
     if (text === null) {
-      validateStore(await scan(checkout.main, true));
+      validateStore(await scanStore({ main: checkout.main, active: checkout.active }));
       return { schema: 1, status: 'unchanged', root: checkout.main, paths: [] };
     }
     let journal: Transaction;
@@ -537,8 +692,24 @@ export async function recoverLessons(cwd: string): Promise<StoreResult> {
     } catch (error) {
       throw new LessonError(6, join(checkout.main, journalPath), `invalid recovery journal: ${message(error)}`);
     }
+    const { lane } = journal;
+    let active = journal.changes.some((change) => !pending(change.path)) ? checkout.main : checkout.active;
+    if (lane) {
+      const located = await identity(lane.root);
+      if (located.common !== checkout.common || located.active !== lane.root)
+        throw new LessonError(6, lane.root, 'the recorded lane is not a checkout of this repository');
+      active = lane.root;
+    }
     try {
-      await finish(checkout.main, journal);
+      if (lane) {
+        const state = await laneCommit(lane, journal.id);
+        if (state === 'moved') throw new LessonError(6, lane.root, `recovery conflict: ${moved(lane)}`);
+        if (state === 'absent') {
+          const paths = await rollBack(checkout.main, journal, lane);
+          return { schema: 1, status: 'rolled-back', root: checkout.main, paths };
+        }
+      }
+      await finish({ main: checkout.main, active }, journal);
     } catch (error) {
       if (error instanceof LessonError && error.code === 2)
         throw new LessonError(6, join(checkout.main, journalPath), `invalid recovery state: ${error.message}`);

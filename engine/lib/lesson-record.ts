@@ -91,7 +91,7 @@ export type LessonSnapshot = {
 };
 export type StoreResult = {
   schema: 1;
-  status: 'saved' | 'applied' | 'recovered' | 'unchanged';
+  status: 'saved' | 'applied' | 'recovered' | 'rolled-back' | 'unchanged';
   root: string;
   paths: string[];
 };
@@ -108,11 +108,9 @@ export type ReviewSnapshot = {
 
 export const lessonsPath = 'docs/lessons';
 export const pendingPath = `${lessonsPath}/_pending`;
-export const indexPath = `${lessonsPath}/INDEX.md`;
 export const queuePath = `${pendingPath}/QUEUE.md`;
 export const journalPath = `${pendingPath}/.transaction.json`;
 export const ignorePath = `${pendingPath}/.gitignore`;
-export const liveHeader = '# Lessons\n\n| Lesson | Tags | Date | Summary |\n|---|---|---|---|\n';
 export const pendingHeader = '# Pending lessons\n\n| Candidate | Lesson | Date | Summary |\n|---|---|---|---|\n';
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -580,29 +578,14 @@ function retainedHistory(target: Lesson, inputs: Lesson[], path: string): void {
       fail(path, `preserve the exact union of earlier ${key}; record corrections in the new review`);
   }
 }
-function updateCatalog(
-  files: Map<string, string>,
-  path: string,
-  previous: Lesson | undefined,
-  next: Lesson | undefined,
-  kind: 'live' | 'pending',
-): void {
-  const oldRow =
-    previous && (kind === 'pending' || previous.status === 'active') ? catalogRow(previous, kind) : undefined;
-  const newRow = next && (kind === 'pending' || next.status === 'active') ? catalogRow(next, kind) : undefined;
-  if (oldRow === newRow) return;
-  let text = files.get(path) ?? (kind === 'live' ? liveHeader : pendingHeader);
-  if (oldRow) {
-    const at = text.lastIndexOf(oldRow);
-    if (at < 0) fail(path, 'missing selected catalog row');
-    const end = at + oldRow.length;
-    const newline = text.slice(end).startsWith('\r\n') ? 2 : text[end] === '\n' ? 1 : 0;
-    text = text.slice(0, at) + (newRow ?? '') + text.slice(end + (newRow ? 0 : newline));
-  } else if (newRow) {
-    const newline = text.includes('\r\n') ? '\r\n' : '\n';
-    text += `${text.endsWith('\n') ? '' : newline}${newRow}${newline}`;
-  }
-  files.set(path, text);
+function removeQueueRow(files: Map<string, string>, proposal: Lesson): void {
+  const row = queueRow(proposal);
+  const text = files.get(queuePath) ?? pendingHeader;
+  const at = text.lastIndexOf(row);
+  if (at < 0) fail(queuePath, 'missing selected queue row');
+  const end = at + row.length;
+  const newline = text.slice(end).startsWith('\r\n') ? 2 : text[end] === '\n' ? 1 : 0;
+  files.set(queuePath, text.slice(0, at) + text.slice(end + newline));
 }
 export function reviewChanges(files: ReadonlyMap<string, string>, input: ReviewRequest): Map<string, string> {
   if (completedReview(files, input)) fail('review', `review ${input.id} is already applied; use its retained snapshot`);
@@ -618,8 +601,11 @@ export function reviewChanges(files: ReadonlyMap<string, string>, input: ReviewR
   const targets = input.lessons.map(({ name, document }) => parseLesson(document, `${lessonsPath}/${name}.md`));
   for (const target of targets) {
     const path = `${lessonsPath}/${target.name}.md`;
-    if (path.toLowerCase() === indexPath.toLowerCase())
-      fail(path, 'reserved name: on a case-insensitive file system this is the catalog INDEX.md; select another name');
+    if (target.name === 'index')
+      fail(
+        path,
+        'reserved name: on a case-insensitive file system index.md is a leftover catalog INDEX.md; select another name',
+      );
   }
   const live = targets.flatMap((target) => {
     const path = `${lessonsPath}/${target.name}.md`;
@@ -706,7 +692,7 @@ export function reviewChanges(files: ReadonlyMap<string, string>, input: ReviewR
   for (const proposal of pending) {
     const path = `${pendingPath}/${proposal.candidate}.md`;
     after.delete(path);
-    updateCatalog(after, queuePath, proposal, undefined, 'pending');
+    removeQueueRow(after, proposal);
     if (input.decision === 'reject') {
       const rejected = `${pendingPath}/_rejected/${proposal.candidate}.md`;
       if (files.has(rejected)) fail(rejected, 'rejected destination already exists');
@@ -719,13 +705,6 @@ export function reviewChanges(files: ReadonlyMap<string, string>, input: ReviewR
   for (const target of targets) {
     const path = `${lessonsPath}/${target.name}.md`;
     after.set(path, serializeLesson({ ...target, reviews: [...target.reviews, review] }));
-    updateCatalog(
-      after,
-      indexPath,
-      live.find((item) => item.name === target.name),
-      target,
-      'live',
-    );
   }
   after.set(ignorePath, files.get(ignorePath) ?? '*\n');
   validateStore(after);
@@ -736,7 +715,7 @@ export function reviewSnapshot(root: string, files: ReadonlyMap<string, string>,
   const before: Record<string, string | null> = {};
   const after: Record<string, string | null> = {};
   const watched: Record<string, string | null> = {};
-  for (const path of [...new Set([...files.keys(), ...result.keys(), indexPath, queuePath, ignorePath])].sort()) {
+  for (const path of [...new Set([...files.keys(), ...result.keys(), queuePath, ignorePath])].sort()) {
     before[path] = files.get(path) ?? null;
     after[path] = result.get(path) ?? null;
     watched[path] = before[path] === null ? null : hash(before[path]);
@@ -765,7 +744,7 @@ export function lessonFile(path: string): 'live' | 'pending' | 'rejected' | null
   return null;
 }
 export function storePath(path: string): boolean {
-  return path === indexPath || path === queuePath || path === ignorePath || lessonFile(path) !== null;
+  return path === queuePath || path === ignorePath || lessonFile(path) !== null;
 }
 function cell(text: string): string {
   return text
@@ -775,59 +754,50 @@ function cell(text: string): string {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;');
 }
-export function catalogRow(lesson: Lesson, kind: 'live' | 'pending'): string {
-  return kind === 'live'
-    ? `| [${lesson.name}](${lesson.name}.md) | ${lesson.tags.map((tag) => `\`${cell(tag)}\``).join(' ')} | ${lesson.date} | ${cell(lesson.description)} |`
-    : `| [${lesson.candidate}](${lesson.candidate}.md) | ${lesson.name} | ${lesson.date} | ${cell(lesson.description)} |`;
+function queueRow(lesson: Lesson): string {
+  return `| [${lesson.candidate}](${lesson.candidate}.md) | ${lesson.name} | ${lesson.date} | ${cell(lesson.description)} |`;
 }
-export function validateCatalog(files: ReadonlyMap<string, string>, kind: 'live' | 'pending'): void {
-  const catalog = kind === 'live' ? indexPath : queuePath;
+function validateQueue(files: ReadonlyMap<string, string>): void {
   const expected = new Set<string>();
   for (const [path, text] of files) {
-    const fileKind = lessonFile(path);
-    if (!fileKind || (kind === 'live') !== (fileKind === 'live')) continue;
+    const kind = lessonFile(path);
+    if (kind !== 'pending' && kind !== 'rejected') continue;
     const lesson = parseLesson(text, path);
-    if (fileKind === 'live') {
-      if (lesson.status === 'pending-review' || path !== `${lessonsPath}/${lesson.name}.md`)
-        fail(path, 'live filename and status must match the lesson');
-      if (lesson.status === 'active') expected.add(catalogRow(lesson, kind));
-    } else {
-      if (
-        lesson.status !== 'pending-review' ||
-        path !== `${pendingPath}/${fileKind === 'rejected' ? '_rejected/' : ''}${lesson.candidate}.md`
-      )
-        fail(path, 'pending filename and status must match the candidate');
-      if (fileKind === 'pending') {
-        if (lesson.reason !== undefined || lesson.reviews.at(-1)?.decision === 'reject')
-          fail(path, 'rejected records belong in _rejected');
-        expected.add(catalogRow(lesson, kind));
-      } else if (!lesson.reason || lesson.reviews.at(-1)?.decision !== 'reject')
-        fail(path, 'rejected records need a reason and a reject review');
-    }
+    if (
+      lesson.status !== 'pending-review' ||
+      path !== `${pendingPath}/${kind === 'rejected' ? '_rejected/' : ''}${lesson.candidate}.md`
+    )
+      fail(path, 'pending filename and status must match the candidate');
+    if (kind === 'pending') {
+      if (lesson.reason !== undefined || lesson.reviews.at(-1)?.decision === 'reject')
+        fail(path, 'rejected records belong in _rejected');
+      expected.add(queueRow(lesson));
+    } else if (!lesson.reason || lesson.reviews.at(-1)?.decision !== 'reject')
+      fail(path, 'rejected records need a reason and a reject review');
   }
-  const content = files.get(catalog);
+  const content = files.get(queuePath);
   if (content === undefined) {
-    if (expected.size) fail(catalog, 'missing catalog for existing records');
+    if (expected.size) fail(queuePath, 'missing queue for existing records');
     return;
   }
-  string(content, catalog, 4_194_304, true);
+  string(content, queuePath, 4_194_304, true);
   const lines = content.split(/\r?\n/);
-  const heading = kind === 'live' ? '| Lesson | Tags | Date | Summary |' : '| Candidate | Lesson | Date | Summary |';
+  const heading = '| Candidate | Lesson | Date | Summary |';
   const start = lines.indexOf(heading);
   if (
     start < 0 ||
     start !== lines.lastIndexOf(heading) ||
     !/^\|\s*-+\s*\|\s*-+\s*\|\s*-+\s*\|\s*-+\s*\|$/.test(lines[start + 1] ?? '') ||
-    (kind === 'pending' && lines[0] !== '# Pending lessons')
+    lines[0] !== '# Pending lessons'
   )
-    fail(catalog, 'invalid catalog header');
+    fail(queuePath, 'invalid queue header');
   const actual = lines.slice(start + 2).filter((line) => line.trim());
   if (
     new Set(actual).size !== actual.length ||
     actual.length !== expected.size ||
     actual.some((line) => !expected.has(line))
   )
-    fail(catalog, 'catalog rows and lesson files do not agree');
+    fail(queuePath, 'queue rows and pending files do not agree');
 }
 export function validateIgnore(text: string): void {
   string(text, ignorePath, 1_048_576, true);
@@ -845,24 +815,31 @@ export function validateIgnore(text: string): void {
 export function validateStore(files: ReadonlyMap<string, string>, pending = true): void {
   const ignore = files.get(ignorePath);
   if (pending && ignore !== undefined) validateIgnore(ignore);
-  validateCatalog(files, 'live');
-  if (pending) validateCatalog(files, 'pending');
-  const incidents = new Map<string, { evidence: string; pending: boolean }>();
+  if (pending) validateQueue(files);
+  const incidents = new Map<string, { evidence: string; queued: boolean; pending: boolean }>();
   const reviews = new Map<string, string>();
   const candidates = new Set<string>();
   for (const [path, text] of files) {
-    if (!lessonFile(path)) continue;
+    const kind = lessonFile(path);
+    if (!kind) continue;
     const lesson = parseLesson(text, path);
+    if (kind === 'live' && (lesson.status === 'pending-review' || path !== `${lessonsPath}/${lesson.name}.md`))
+      fail(path, 'live filename and status must match the lesson');
     if (lesson.candidate) {
       if (candidates.has(lesson.candidate)) fail(path, 'candidate appears more than once');
       candidates.add(lesson.candidate);
     }
+    const queued = kind !== 'live';
     for (const item of lesson.incidents) {
       const old = incidents.get(item.id);
       if (old && old.evidence !== stable(item)) fail(path, `incident ${item.id} has unequal evidence`);
-      if (old && (old.pending || lessonFile(path) === 'pending'))
+      if (old?.queued && queued && (old.pending || kind === 'pending'))
         fail(path, `incident ${item.id} appears in more than one record with a pending proposal`);
-      incidents.set(item.id, { evidence: stable(item), pending: lessonFile(path) === 'pending' });
+      incidents.set(item.id, {
+        evidence: stable(item),
+        queued: queued || !!old?.queued,
+        pending: kind === 'pending' || !!old?.pending,
+      });
     }
     for (const item of lesson.reviews) {
       const old = reviews.get(item.id);
@@ -918,10 +895,10 @@ export function captureChanges(files: ReadonlyMap<string, string>, input: Captur
   const after = new Map(files);
   after.set(path, document);
   const queue = files.get(queuePath) ?? pendingHeader;
-  const row = catalogRow(proposal, 'pending');
+  const row = queueRow(proposal);
   if (!previous) after.set(queuePath, `${queue}${queue.endsWith('\n') ? '' : '\n'}${row}\n`);
   else {
-    const oldRow = catalogRow(previous, 'pending');
+    const oldRow = queueRow(previous);
     const at = queue.lastIndexOf(oldRow);
     after.set(queuePath, queue.slice(0, at) + row + queue.slice(at + oldRow.length));
   }
