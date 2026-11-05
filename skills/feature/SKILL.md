@@ -23,10 +23,13 @@ Each step is the next one's precondition, and the chain continues past step 3 �
 the spec, no code without the plan. Perceived simplicity waives nothing: a one-screen feature runs
 the same lane. If you have not completed step N, you cannot start step N+1.
 
+**Before step 1.** Check the wiring per `<plugin>/docs/procedures/lane-start.md`, "Before step 1".
+Only its exit 0 starts step 1.
+
 1. **Confirm classification.** New behavior → continue. Fixing existing behavior → `/celetis:bug` (or
    `/celetis:hotfix` if prod is on fire). Zero behavior change → `/celetis:chore`. Then start the
-   lane per `<plugin>/docs/procedures/lane-start.md`, with `feature` as `<lane>` and `enhancement`
-   as `<label>`.
+   issue per `<plugin>/docs/procedures/lane-start.md`, "Start the issue", with `feature` as
+   `<lane>` and `enhancement` as `<label>`.
    **Scope check (new behavior only):** run the scope check of `<plugin>/docs/procedures/epic.md`.
    An epic ends there: the relabel to `epic` moves the line, so the sub-issues and the report
    come in its turn (`<plugin>/docs/procedures/stop.md`, "The act that moves the line"). One

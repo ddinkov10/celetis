@@ -94,7 +94,9 @@ Reject absolute, rooted, drive, and UNC paths; backslashes; colons; empty, `.`, 
 components; U+0000–U+001F; and U+007F. Omission or exactly `""` means no setup. Null,
 whitespace-only text, inline code, and wrong types are errors. Configuration validation checks
 the reference only; a valid reference to a missing file can be read. Skill entry neither reads
-nor executes the setup file.
+nor executes the setup file. `setup status` checks that a configured `suite` and a nonempty
+`worktreeSetup` name readable regular files in the active checkout, by the target rules below,
+and runs neither file.
 
 Use a literal block, `|` or `|-`, for multiline `custom` instructions. `|` keeps one final
 newline; `|-` removes it; `|+` keeps all trailing newlines. A short instruction can be a normal
@@ -200,7 +202,8 @@ no `node:` import and no `Bun` global, so the native entry hook bundles it.
 `parseConfigText(text)` checks the characters and the source structure of one text.
 `validateHost(value)` defines accepted host inputs. `validateConfig(source)` checks the full schema and returns a deeply frozen
 `Config` without inserted defaults. `ConfigError` names the field, and `formatConfigError` renders
-the selected path, field, and message.
+the selected path, field, and message. A failed read also keeps its filesystem code (`ioCode`),
+so `setup status` reports an absent file as missing and a denied read as blocked.
 
 `engine/lib/config.ts` of the plugin owns byte access and the reader CLI. Importing it starts no
 installation discovery or setup. `readSnapshot(file)` reads the bytes of one regular file with no

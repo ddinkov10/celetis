@@ -6421,9 +6421,11 @@ var stages = stageNames.map((name, position) => ({
 
 // engine/lib/config-core.ts
 class ConfigError extends Error {
+  ioCode;
   field;
-  constructor(path, message) {
+  constructor(path, message, ioCode) {
     super(message);
+    this.ioCode = ioCode;
     this.field = field(path);
   }
 }

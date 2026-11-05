@@ -1,9 +1,9 @@
-import { constants } from 'node:fs';
-import { access, lstat, realpath, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { realpath, writeFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import { type Config, validateWorktreeSetup } from './config-core.ts';
 import { HostError } from './host.ts';
 import { run, runBun } from './process.ts';
+import { projectFile } from './setup-wiring.ts';
 
 export const conflictStatus = 4;
 
@@ -17,21 +17,8 @@ export async function setupFile(checkout: string, reference: string): Promise<st
   let target = resolve(checkout, reference);
   try {
     if (validateWorktreeSetup(reference) === '') throw new Error('need a nonempty file reference');
-    const root = await realpath(checkout);
-    target = join(root, reference);
-    const parts = reference.split('/');
-    for (let i = 0; i < parts.length; i++) {
-      const component = join(root, ...parts.slice(0, i + 1));
-      const info = await lstat(component);
-      if (i < parts.length - 1 ? !info.isDirectory() : !info.isFile()) {
-        throw new Error(`${component} is no ${i < parts.length - 1 ? 'directory' : 'regular file'}`);
-      }
-    }
-    await access(target, constants.R_OK);
-    const result = await run('git', ['rev-parse', '--show-toplevel'], { cwd: dirname(target) });
-    if (result.code !== 0) throw new Error(result.stderr.trimEnd());
-    if ((await realpath(result.stdout.trimEnd())) !== root) throw new Error('file belongs to another checkout');
-    return target;
+    target = join(await realpath(checkout), reference);
+    return await projectFile(checkout, reference);
   } catch (error) {
     throw new HostError(`worktreeSetup ${target}: ${error instanceof Error ? error.message : String(error)}`);
   }

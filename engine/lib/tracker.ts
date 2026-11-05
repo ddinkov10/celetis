@@ -115,7 +115,7 @@ export function issueData(issue: Issue, history: readonly Entry[]): IssueData {
   return { state: issue.state, labels: issue.labels, body: issue.body, history };
 }
 
-export function github(cwd: string, signal?: AbortSignal): GitHub {
+export function github(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEnv): GitHub {
   let stderr = '';
 
   async function call(endpoint: string, paginate: boolean): Promise<unknown> {
@@ -123,7 +123,7 @@ export function github(cwd: string, signal?: AbortSignal): GitHub {
     const result = await run(
       'gh',
       ['api', ...(paginate ? ['--paginate', '--slurp'] : []), `repos/{owner}/{repo}${endpoint ? `/${endpoint}` : ''}`],
-      { cwd, signal },
+      { cwd, signal, env },
     );
     signal?.throwIfAborted();
     stderr += result.stderr;
@@ -146,6 +146,7 @@ export function github(cwd: string, signal?: AbortSignal): GitHub {
       const result = await run('gh', ['api', '-X', method, `repos/{owner}/{repo}/${endpoint}`, '--silent', ...input], {
         cwd,
         signal,
+        env,
       });
       const issue = /^issues\/([1-9][0-9]*)(?:\/|$)/.exec(endpoint);
       if (result.code === 0 && issue) await writeRefreshHint(cwd, Number(issue[1]));

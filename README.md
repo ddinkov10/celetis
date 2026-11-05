@@ -180,8 +180,11 @@ or the board's update control ("Updates").
    ```
 
    The install enables the plugin at the `user` scope, so each session of the machine loads it, in
-   each folder. A session in a project that is not wired also lists the 33 skills, and a lane
-   skill that starts there from free text makes a GitHub issue before it validates product setup.
+   each folder. A session in a project that is not wired also lists the 33 skills. Before its
+   first step, each lane skill (`feature`, `bug`, `chore`, `hotfix`) runs
+   `celetis --agent <host> setup status`. When the wiring is incomplete, the lane shows each gap
+   and `Run /celetis:setup in the main checkout: <path>`, and stops before any issue, label,
+   branch, or worktree change.
 
    The user install is the only supported Claude install. A project install of `celetis@celetis`
    makes discovery refuse, with `Claude installation is ambiguous`. Setup writes no project
@@ -255,6 +258,17 @@ and approved product additions in the main checkout of one product project
 is the selected host settings, instruction imports, the dedicated Codex restriction, required
 configuration, ignore and attribute lines, and its record. It also makes missing tracker labels.
 Product procedures and stores stay with their owner.
+
+`celetis --agent <host> setup status` reads that required set in the active checkout, for the
+selected host only, and writes nothing. It reports each missing, invalid, different, or blocked
+part with its path or label name. A line for content that setup preserves names the owner
+repair; a new run of setup does not repair it. A permission failure is a blocked observation,
+never a missing part. The tracker reads go to the repository of `origin` only: its host must be
+`github.com` or a GitHub host that `gh` is logged in to, and an SSH host alias resolves by
+`ssh -G`. Unlike `setup check`, status needs no main checkout on the trunk, fetches
+nothing, and runs no product file. A pass proves only the file contents and the label names. It
+does not prove that a host loads the policy, that the worktree setup works, or that the wiring is
+on the remote trunk.
 
 - The session asks for the issue tracker, the hosts (Claude, Codex, or both), and the landing. With
   `merge`, it also asks for the suite: a TypeScript file that `land` runs.
@@ -1073,6 +1087,7 @@ usage: celetis [--agent <host>] <command> [<argument>...]
   celetis update                                            Updates the program and the plugin of each host; asks once.
   celetis update check                                      Shows the installed and the available revision of each part.
   celetis board                                             Starts the board of the project in this checkout.
+  celetis setup status                                      Reports each part of the required wiring that this checkout lacks; writes nothing.
   celetis agents read                                       Reads the local ordered agent preference and its version.
   celetis agents replace '<JSON>'                           Replaces the local order using order and expectedVersion.
   celetis intake                                            Starts a fresh session that asks for your request before intake.
@@ -1133,6 +1148,7 @@ setup"):
 | `bun --no-env-file --no-install --config=/dev/null --no-macros scripts/install-tools.ts DESTINATION [--claude]` | Installs pinned development tools into a private destination |
 | `bun --no-env-file --no-install --config=/dev/null --no-macros scripts/herdr-lab.ts up \| run <id> <command>... \| down <id>` | macOS only. `up` makes a lab, a private hc core and a second Herdr app window on temporary data under `/tmp/<id>`, and prints the id, then one JSON line. `run` runs one command in the lab environment. `down` stops only the processes of that lab, checks that the real core and window hold no lab text, and deletes the lab. Exit status of `up` and `down`: 0 done, 1 failed (`down` keeps the root and names the cause), 2 refused. `run` gives the status of its command, 128+n after signal n, 127 when the command cannot start, and 2 for a refused or missing lab |
 | `celetis --agent <host> setup check \| write ... \| try ... \| try --remove \| lane <path> \| push` | The deterministic part of `/celetis:setup`: the checks, the write of the wiring, the test lane (`try` makes it and runs the worktree setup there, and `try --remove` removes it), the run of the worktree setup in a lane that exists (`lane`), and the commit with the push. Every setup run calls the program; no product launcher is written |
+| `celetis --agent <host> setup status` | Reports the required wiring of the active checkout for the selected host, also from a subfolder or a lane worktree: `origin`, `.celetis.yaml` and its configured files, the Celetis block, the Claude imports and settings or the Codex restriction, the ignore and attribute lines, the record of setup, and the workflow labels. It writes nothing, runs no product file, and fetches nothing. An incomplete report ends with `Run /celetis:setup in the main checkout: <path>`. Exit status: 0 complete, 1 internal error, 2 usage, 3 missing, invalid, or different wiring, 6 blocked observation |
 | `celetis agents read \| replace '<JSON>'` | Reads the local ordered preference, or replaces it with exactly `order` and `expectedVersion`. It shares the Git common directory across worktrees and requires no YAML. Exit 3 returns a stale-edit conflict with the latest order; repeating the current order succeeds |
 
 - Each sub-command gives the output and the exit code of its script.

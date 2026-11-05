@@ -23,10 +23,13 @@ in `/celetis:bug` or `/celetis:feature`. If you have not completed step N, you c
 
 ## Flow
 
+**Before step 1.** Check the wiring per `<plugin>/docs/procedures/lane-start.md`, "Before step 1".
+Only its exit 0 starts step 1.
+
 1. **Confirm the zero-behavior-change claim.** Any behavior delta → redirect: misbehaviour → `/celetis:bug`,
    new behavior → `/celetis:feature`. Proceed only if nothing observable changes. Then start the
-   lane per `<plugin>/docs/procedures/lane-start.md`, with `chore` as `<lane>` and `chore` as
-   `<label>`.
+   issue per `<plugin>/docs/procedures/lane-start.md`, "Start the issue", with `chore` as
+   `<lane>` and `chore` as `<label>`.
 2. **Worktree.** Enter the issue's worktree per `<plugin>/docs/procedures/worktree.md`; a new
    branch is `chore/<n>-<slug>`.
    **Re-entry.** When the branch already holds the commit of the chore and the tree is clean, an

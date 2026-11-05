@@ -23,10 +23,13 @@ Each step is the next one's precondition — no debugging without exploring, no 
 root cause, no plan without the report. Perceived simplicity waives nothing: a one-character diff runs the same lane. If you have not completed step N, you cannot
 start step N+1.
 
+**Before step 1.** Check the wiring per `<plugin>/docs/procedures/lane-start.md`, "Before step 1".
+Only its exit 0 starts step 1.
+
 1. **Confirm classification.** Existing behavior misbehaves → continue. New behavior → `/celetis:feature`;
    prod broken + ship-now → `/celetis:hotfix`; zero behavior change → `/celetis:chore`. Then
-   start the lane per `<plugin>/docs/procedures/lane-start.md`, with `bug` as `<lane>` and `bug`
-   as `<label>`.
+   start the issue per `<plugin>/docs/procedures/lane-start.md`, "Start the issue", with `bug` as
+   `<lane>` and `bug` as `<label>`.
 2. **Worktree.** Enter the issue's worktree per `<plugin>/docs/procedures/worktree.md`; a new
    branch is `fix/<n>-<slug>`.
 3. **Explore project context.** Explore files, docs, recent commits, and read the project context

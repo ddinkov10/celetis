@@ -2,6 +2,7 @@ export const helpCommands: readonly (readonly [form: string, summary: string])[]
   ['celetis update', 'Updates the program and the plugin of each host; asks once.'],
   ['celetis update check', 'Shows the installed and the available revision of each part.'],
   ['celetis board', 'Starts the board of the project in this checkout.'],
+  ['celetis setup status', 'Reports each part of the required wiring that this checkout lacks; writes nothing.'],
   ['celetis agents read', 'Reads the local ordered agent preference and its version.'],
   ["celetis agents replace '<JSON>'", 'Replaces the local order using order and expectedVersion.'],
   ['celetis intake', 'Starts a fresh session that asks for your request before intake.'],

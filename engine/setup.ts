@@ -13,32 +13,44 @@ import { commandInput, createOperation, locateCheckouts, type Operation } from '
 import { codexHome } from './lib/plugin-metadata.ts';
 import { checkClaudePolicy } from './lib/plugin-policy.ts';
 import { childEnv, run } from './lib/process.ts';
-import { parseAllDocuments } from './lib/vendor/yaml.mjs';
+import { setupStatus } from './lib/setup-status.ts';
+import {
+  ambiguousJSON,
+  attribute,
+  claudeImport,
+  codexRestriction,
+  codexRules,
+  configFile,
+  destinationProblem,
+  hasLine,
+  ignores,
+  instructionFiles,
+  lines,
+  managedInstructions,
+  normal,
+  object,
+  type RecordOfSetup,
+  recordOfSetup,
+  settings,
+  settingsForm,
+  trackingProblem,
+  wiring,
+} from './lib/setup-wiring.ts';
 import { type Label, labels } from './lib/workflow.ts';
 import { markerOf, removeCheckout, runSetup, setupFile, worktrees } from './lib/worktree.ts';
 
-const wiring = '.claude/celetis-flow/wiring.json';
-const settings = '.claude/settings.json';
-const configFile = '.celetis.yaml';
 const subject = 'chore(celetis): wire the project for the celetis lanes';
-const usage = `usage: celetis --agent <host> setup check | write <options> | try <options> | try --remove | lane <path> | push; <options>: --hosts claude|codex|claude,codex|codex,claude --landing pr|merge [--suite <file>] [--setup-file <file>] [--ignore <line>]... [--baseline-file <file>]\n${updateHint}`;
+const usage = `usage: celetis --agent <host> setup check | status | write <options> | try <options> | try --remove | lane <path> | push; <options>: --hosts claude|codex|claude,codex|codex,claude --landing pr|merge [--suite <file>] [--setup-file <file>] [--ignore <line>]... [--baseline-file <file>]\n${updateHint}`;
 const setupPaths = [
   configFile,
   wiring,
-  '.codex/rules/celetis.rules',
+  codexRules,
   settings,
   '.gitignore',
   '.gitattributes',
   'AGENTS.md',
   'CLAUDE.md',
   '.claude/CLAUDE.md',
-];
-const ignores = [
-  '.claude/worktrees/',
-  '.claude/settings.local.json',
-  'docs/superpowers/',
-  '.superpowers/',
-  'docs/lessons/_pending/',
 ];
 const labelStyles = {
   'needs-triage': ['not yet classified', 'FBCA04'],
@@ -62,56 +74,21 @@ type Options = {
 };
 type Command =
   | { command: 'check' }
+  | { command: 'status' }
   | { command: 'push' }
   | { command: 'remove' }
   | { command: 'lane'; path: string }
   | { command: 'write' | 'try'; options: Options };
-type Entry = { path: string[]; item?: string; value?: unknown };
-type RecordOfSetup = { files: string[]; entries: Record<string, unknown[]> };
-const object = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === 'object' && !Array.isArray(value);
-const normal = (text: string) => text.replace(/\r$/, '').replace(/^[ \t]+|[ \t]+$/g, '');
-const lines = (text: string) => (text === '' ? [] : text.replace(/\n$/, '').split('\n'));
-const hasLine = (text: string, line: string) => lines(text).some((item) => normal(item) === line);
 const appendLine = (text: string, line: string) =>
   hasLine(text, line) ? text : `${text}${text && !text.endsWith('\n') ? '\n' : ''}${line}\n`;
 function fail(message: string): never {
   throw new HostError(`setup: ${message}`);
 }
-function managedInstructions(path: string, source: string): string {
-  const block = `<!-- CELETIS:START -->
-## Celetis
-
-Use the installed \`celetis\` skills for changes in this project.
-Follow an explicitly requested Celetis skill. For a new request with no
-recorded intent or lane, start with \`celetis:intake\`. For an existing issue,
-follow its current Celetis step.
-
-Keep project-specific instructions outside this block. Celetis setup
-refreshes the text between these markers.
-<!-- CELETIS:END -->`;
-  const markers = [...source.matchAll(/(?:^|\n)(<!-- CELETIS:(START|END) -->)(?=\r?\n|$)/g)];
-  if (!markers.length) {
-    if (!source) return `${block}\n`;
-    const newline = source.match(/\r?\n/)?.[0] ?? '\n';
-    let separator = source.endsWith('\n') ? '' : newline;
-    if (!/(?:^|\n)[ \t]*\r?\n$/.test(source + separator)) separator += newline;
-    return source + separator + block.replaceAll('\n', newline) + newline;
-  }
-  const [start, end] = markers;
-  if (markers.length !== 2 || !start || !end || start[2] !== 'START' || end[2] !== 'END')
-    fail(`${path}: repair the Celetis markers; use one standalone START line before one standalone END line`);
-  const from = start.index + (start[0].startsWith('\n') ? 1 : 0);
-  const afterStart = start.index + start[0].length;
-  const newline = source.startsWith('\r\n', afterStart) ? '\r\n' : '\n';
-  return source.slice(0, from) + block.replaceAll('\n', newline) + source.slice(end.index + end[0].length);
-}
 function badUsage(): never {
   throw new HostError(usage, 2);
 }
 function checkJSONKeys(path: string, source: string): void {
-  if (parseAllDocuments(source, { uniqueKeys: true, merge: false }).some((doc) => doc.errors.length))
-    fail(`${path} is ambiguous; fix duplicate object keys first`);
+  if (ambiguousJSON(source)) fail(`${path} is ambiguous; fix duplicate object keys first`);
 }
 
 function options(argv: string[]): Options {
@@ -155,7 +132,7 @@ function options(argv: string[]): Options {
 
 function parseCommand(argv: string[]): Command {
   const [command, ...args] = argv;
-  if (command === 'check' || command === 'push') {
+  if (command === 'check' || command === 'status' || command === 'push') {
     if (args.length) return badUsage();
     return { command };
   }
@@ -178,20 +155,6 @@ async function hasConfig(checkout: string): Promise<boolean> {
       return null;
     })) !== null
   );
-}
-
-function settingsForm(): Entry[] {
-  return [
-    ...['Bash(gh\u0020pr merge*)', 'PowerShell(gh\u0020pr merge*)'].map((item) => ({
-      path: ['permissions', 'deny'],
-      item,
-    })),
-    {
-      path: ['extraKnownMarketplaces', 'celetis'],
-      value: { source: { source: 'github', repo: 'ddinkov10/celetis' }, autoUpdate: false },
-    },
-    { path: ['enabledPlugins', 'superpowers@superpowers-marketplace'], value: true },
-  ];
 }
 
 function sortedKeys(value: unknown): unknown {
@@ -413,18 +376,8 @@ class Setup {
     }
   }
   private async checkDestination(path: string): Promise<void> {
-    const parts = path.split('/');
-    for (let i = 0; i < parts.length; i++) {
-      const component = parts.slice(0, i + 1).join('/');
-      const info = await lstat(join(this.cwd, component)).catch((error: NodeJS.ErrnoException) => {
-        if (error.code === 'ENOENT') return null;
-        fail(`cannot inspect ${path} at ${component}: ${error.message}`);
-      });
-      if (info === null) return;
-      if (info.isSymbolicLink()) fail(`${component} is a symbolic link; setup writes no file through a link`);
-      if (i < parts.length - 1 ? !info.isDirectory() : !info.isFile())
-        fail(`${component} is no ${i < parts.length - 1 ? 'directory' : 'regular file'} for ${path}`);
-    }
+    const problem = await destinationProblem(this.cwd, path);
+    if (problem) fail(problem.message);
   }
   async there(path: string): Promise<boolean> {
     return (
@@ -432,29 +385,6 @@ class Setup {
         if (error.code === 'ENOENT') return null;
         fail(`cannot inspect ${path}: ${error.message}`);
       })) !== null
-    );
-  }
-  async same(a: string, b: string): Promise<boolean> {
-    const [one, two] = await Promise.all([
-      stat(join(this.cwd, a)).catch((error: NodeJS.ErrnoException) => {
-        if (error.code === 'ENOENT') return null;
-        fail(`cannot inspect ${a}: ${error.message}`);
-      }),
-      stat(join(this.cwd, b)).catch((error: NodeJS.ErrnoException) => {
-        if (error.code === 'ENOENT') return null;
-        fail(`cannot inspect ${b}: ${error.message}`);
-      }),
-    ]);
-    return !!one && !!two && one.dev === two.dev && one.ino === two.ino;
-  }
-  async linked(path: string): Promise<boolean> {
-    return (
-      (
-        await lstat(join(this.cwd, path)).catch((error: NodeJS.ErrnoException) => {
-          if (error.code === 'ENOENT') return null;
-          fail(`cannot inspect ${path}: ${error.message}`);
-        })
-      )?.isSymbolicLink() ?? false
     );
   }
   own(path: string, entry: unknown): void {
@@ -650,26 +580,20 @@ class Setup {
     }
     const baseline = opts.baseline ? await readFile(opts.baseline, 'utf8') : '';
     const touched = [configFile, wiring, '.gitignore', '.gitattributes'];
-    if (opts.hosts.includes('codex')) touched.push('.codex/rules/celetis.rules');
+    if (opts.hosts.includes('codex')) touched.push(codexRules);
     if (opts.hosts.includes('claude') || (await this.there(settings))) touched.push(settings);
     for (const path of touched) await this.checkDestination(path);
-    let agentsPath = 'AGENTS.md';
-    const claudeFiles: string[] = [];
-    for (const path of ['CLAUDE.md', '.claude/CLAUDE.md']) {
-      if ((await this.linked('AGENTS.md')) && !(await this.linked(path)) && (await this.same('AGENTS.md', path)))
-        agentsPath = path;
-      if ((await this.there(path)) && !(await this.linked(path)) && !(await this.same('AGENTS.md', path)))
-        claudeFiles.push(path);
-    }
+    const instructions = await instructionFiles(this.cwd, opts.hosts.includes('claude'));
+    const agentsPath = instructions.destination;
+    const claudeFiles = instructions.imports;
     touched.push(agentsPath);
     if (opts.hosts.includes('claude')) touched.push(...claudeFiles);
     for (const path of touched) {
       await this.checkDestination(path);
-      const result = await run('git', ['check-ignore', '-q', '--', path], { cwd: this.cwd });
-      if (result.code === 0) fail(`git ignores ${path}; make git track it first`);
-      if (result.code !== 1) {
-        process.stderr.write(result.stderr);
-        fail(`${path} lies beyond a symbolic link or in a submodule; setup writes no file there`);
+      const problem = await trackingProblem(this.cwd, path);
+      if (problem) {
+        if (problem.stderr !== undefined) process.stderr.write(problem.stderr);
+        fail(problem.message);
       }
     }
     if (await this.there(wiring)) {
@@ -679,16 +603,9 @@ class Setup {
         old = JSON.parse(source);
       } catch {}
       if (old !== undefined) checkJSONKeys(wiring, source);
-      if (
-        !object(old) ||
-        old.schema !== 1 ||
-        !Array.isArray(old.files) ||
-        !old.files.every((file) => typeof file === 'string') ||
-        !object(old.entries) ||
-        !Object.values(old.entries).every(Array.isArray)
-      )
-        fail(`${wiring} is no record of setup; fix or remove it first`);
-      this.owned = { files: old.files, entries: old.entries as Record<string, unknown[]> };
+      const record = recordOfSetup(old);
+      if (!record) fail(`${wiring} is no record of setup; fix or remove it first`);
+      this.owned = record;
     }
     const source = (await this.there(agentsPath)) ? await this.getUnplanned(agentsPath) : Buffer.alloc(0);
     const agents = Buffer.from(managedInstructions(agentsPath, source.toString('latin1')), 'latin1');
@@ -697,21 +614,18 @@ class Setup {
     if (opts.hosts.includes('claude')) await this.planSettings();
     await this.planConfig(opts, scratch);
     if (opts.hosts.includes('codex')) {
-      const path = '.codex/rules/celetis.rules';
-      const contents =
-        'prefix_rule(\n    pattern = ["gh", "pr", "merge"],\n    decision = "forbidden",\n    justification = "Use celetis --agent codex land from the main checkout.",\n)\n';
-      if (!(await this.there(path))) {
-        this.files.set(path, { contents });
-        this.owned.files.push(path);
-      } else if ((await this.get(path)) === contents) this.owned.files.push(path);
+      if (!(await this.there(codexRules))) {
+        this.files.set(codexRules, { contents: codexRestriction });
+        this.owned.files.push(codexRules);
+      } else if ((await this.get(codexRules)) === codexRestriction) this.owned.files.push(codexRules);
       else
         this.warn(
-          `${path} differs from the required form; setup preserves it and any historical ownership; the owner must review the direct-merge restriction and obsolete allows; follow https://github.com/ddinkov10/celetis#review-old-wiring (README, "Review old wiring")`,
+          `${codexRules} differs from the required form; setup preserves it and any historical ownership; the owner must review the direct-merge restriction and obsolete allows; follow https://github.com/ddinkov10/celetis#review-old-wiring (README, "Review old wiring")`,
         );
     }
     await this.ownLines('.gitignore', ignores);
     await this.ownLines('.gitignore', opts.ignores, false);
-    await this.ownLines('.gitattributes', ['.celetis.yaml text eol=lf']);
+    await this.ownLines('.gitattributes', [attribute]);
     if (baseline) {
       const heading = baseline.split('\n')[0] ?? '';
       if (hasLine(agents.toString(), heading)) this.warn(`AGENTS.md: ${heading} is there; setup leaves it`);
@@ -724,13 +638,12 @@ class Setup {
       }
     }
     if (opts.hosts.includes('claude')) {
-      for (const path of ['CLAUDE.md', '.claude/CLAUDE.md'])
-        if ((await this.linked(path)) && !(await this.same(path, 'AGENTS.md')))
-          this.warn(
-            `${path} is an unrelated symbolic link; setup preserves it; loading AGENTS.md requires owner review of that instruction file`,
-          );
+      for (const path of instructions.links)
+        this.warn(
+          `${path} is an unrelated symbolic link; setup preserves it; loading AGENTS.md requires owner review of that instruction file`,
+        );
       for (const path of claudeFiles) {
-        const required = `@${relative(dirname(path), 'AGENTS.md').split(sep).join('/')}`;
+        const required = claudeImport(path);
         const wrong = lines(await this.get(path)).filter(
           (line) => /^@(?:\.\.?\/)*AGENTS\.md$/.test(normal(line)) && normal(line) !== required,
         );
@@ -890,7 +803,7 @@ class Setup {
     await rm(await markerOf(path), { force: true });
     if ((await runSetup(path, config, this.top)) !== 0) fail(`the worktree setup failed in ${path}`);
   }
-  async execute(input: Command): Promise<number> {
+  async execute(input: Exclude<Command, { command: 'status' }>): Promise<number> {
     const { command } = input;
     if (input.command === 'check') {
       await this.check();
@@ -952,13 +865,11 @@ export async function main(argv: string[]): Promise<number> {
     const { args, explicit } = commandInput(argv);
     const input = parseCommand(args);
     const checkout = await locateCheckouts(process.cwd());
+    const selection = { explicit, environment: process.env.CELETIS_AGENT };
+    if (input.command === 'status') return await setupStatus(createOperation(checkout, selection, 'host'));
     const config = checkout.main !== null && (await hasConfig(checkout.main));
     const full = ['check', 'write', 'lane', 'try'].includes(input.command);
-    const operation = createOperation(
-      checkout,
-      { explicit, environment: process.env.CELETIS_AGENT },
-      full && config ? 'main' : 'host',
-    );
+    const operation = createOperation(checkout, selection, full && config ? 'main' : 'host');
     if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
     return await new Setup(operation).execute(input);
   } catch (error) {

@@ -16,15 +16,16 @@ export function readSnapshot(file: string): Uint8Array {
   let before: fs.BigIntStats;
   try {
     before = fs.lstatSync(file, { bigint: true });
-  } catch {
-    throw new ConfigError([], notRegularFile);
+  } catch (error) {
+    throw new ConfigError([], notRegularFile, (error as NodeJS.ErrnoException).code);
   }
   if (!before.isFile()) throw new ConfigError([], notRegularFile);
   let fd: number;
   try {
     fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
   } catch (error) {
-    throw new ConfigError([], `cannot open the file: ${(error as NodeJS.ErrnoException).code}`);
+    const { code } = error as NodeJS.ErrnoException;
+    throw new ConfigError([], `cannot open the file: ${code}`, code);
   }
   try {
     const opened = fs.fstatSync(fd, { bigint: true });

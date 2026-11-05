@@ -20,9 +20,13 @@ Each step is the next one's precondition — no debugging without exploring, no 
 root cause, no ship without the verify. If you have not completed step N, you cannot start step
 N+1. Too little time for the lane → the change does not ship tonight.
 
+**Before step 1.** Check the wiring per `<plugin>/docs/procedures/lane-start.md`, "Before step 1".
+Only its exit 0 starts step 1.
+
 1. **Confirm classification.** Fire needing ship-now → continue. No fire → `/celetis:bug`. New behavior →
-   `/celetis:feature`. Zero behavior change → `/celetis:chore`. Then start the lane per
-   `<plugin>/docs/procedures/lane-start.md`, with `hotfix` as `<lane>` and `hotfix` as `<label>`.
+   `/celetis:feature`. Zero behavior change → `/celetis:chore`. Then start the issue per
+   `<plugin>/docs/procedures/lane-start.md`, "Start the issue", with `hotfix` as `<lane>` and
+   `hotfix` as `<label>`.
 2. **Worktree.** Enter the issue's worktree per `<plugin>/docs/procedures/worktree.md`; a new
    branch is `hotfix/<n>-<slug>`.
 3. **Explore project context.** Explore files, docs, recent commits, and read the project context

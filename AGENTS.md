@@ -197,3 +197,15 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
   command that a person types goes into `engine/lib/help.ts`.
 - **The skill `writing-for-agents` is vendored** from `mattpocock/skills`
   (ddinkov10/fwrh_calculator#265).
+
+<!-- CELETIS:START -->
+## Celetis
+
+Use the installed `celetis` skills for changes in this project.
+Follow an explicitly requested Celetis skill. For a new request with no
+recorded intent or lane, start with `celetis:intake`. For an existing issue,
+follow its current Celetis step.
+
+Keep project-specific instructions outside this block. Celetis setup
+refreshes the text between these markers.
+<!-- CELETIS:END -->

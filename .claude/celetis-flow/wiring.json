@@ -38,7 +38,11 @@
       "- A lane never skips a step.",
       "- The lanes are the skills of the plugin `celetis`, on the issues of `ddinkov10/celetis`.",
       "- The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.",
-      "- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `celetis --agent <host> land`."
+      "- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `celetis --agent <host> land`.",
+      {
+        "end": "<!-- CELETIS:END -->",
+        "start": "<!-- CELETIS:START -->"
+      }
     ]
   },
   "files": [".claude/celetis-flow/wiring.json", ".codex/rules/celetis.rules"],

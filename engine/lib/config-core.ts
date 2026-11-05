@@ -19,7 +19,11 @@ type NodeRecord = {
 export class ConfigError extends Error {
   field: string;
 
-  constructor(path: Path, message: string) {
+  constructor(
+    path: Path,
+    message: string,
+    readonly ioCode?: string,
+  ) {
     super(message);
     this.field = field(path);
   }
