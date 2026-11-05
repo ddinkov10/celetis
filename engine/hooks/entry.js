@@ -6432,6 +6432,7 @@ var typedTags = ["null", "bool", "int", "float"].map(coreTag);
 var coreTags = ["map", "seq", "str"].map(coreTag).concat(typedTags);
 var yaml11Int = /^[-+]?(?:0[bB][01]+|0[oO][0-7]+|0[xX][0-9a-fA-F]+|[0-9]+)$/;
 var yaml11Float = /^[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?$/;
+var hosts = ["claude", "codex"];
 var skills = [
   "accept-epic",
   "assist",
@@ -6677,7 +6678,7 @@ function profile(value, path) {
 }
 function checkSchema(value) {
   const config = object(value, []);
-  keysOnly(config, ["landing", "gates", "board", "worktreeSetup", "suite", "custom", "codexProfiles"], []);
+  keysOnly(config, ["landing", "gates", "agents", "board", "worktreeSetup", "suite", "custom", "codexProfiles"], []);
   required(config, "landing", []);
   oneOf(config.landing, ["pr", "merge"], ["landing"]);
   if (Object.hasOwn(config, "gates")) {
@@ -6685,6 +6686,12 @@ function checkSchema(value) {
     keysOnly(gates, steps, ["gates"]);
     for (const [step, gate] of Object.entries(gates))
       oneOf(gate, ["me", "auto"], ["gates", step]);
+  }
+  if (Object.hasOwn(config, "agents")) {
+    const agents = object(config.agents, ["agents"]);
+    keysOnly(agents, steps, ["agents"]);
+    for (const [step, host] of Object.entries(agents))
+      oneOf(host, hosts, ["agents", step]);
   }
   if (Object.hasOwn(config, "board")) {
     const board = object(config.board, ["board"]);

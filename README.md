@@ -434,11 +434,21 @@ migration. Check selection with an explicit host:
 celetis --agent codex root
 ```
 
-Selection is an explicit `--agent claude|codex`, then an explicit `CELETIS_AGENT`, then the local
-order. Control operations use its first host without a quota check; outside a Git checkout they
-use Claude. Explicit control commands and `agents` work without reading the preference for
+Selection is an explicit `--agent claude|codex`, then an explicit `CELETIS_AGENT`, then, for a
+step that the runner starts, the preferred agent of that step, then the local order. Control
+operations use the first host of the local order without a quota check; outside a Git checkout
+they use Claude. Explicit control commands and `agents` work without reading the preference for
 selection. Commands that require YAML still validate the whole file. Skills pass their actual
 host explicitly, including landing. Exact Resume keeps its saved host and session ID.
+
+The `agents` field of the main `.celetis.yaml` names a preferred agent for each runner step, for
+example `implement: codex`. It is tracked repository policy: it applies on each machine and
+changes through a commit, at the next new step. A default start of that step tries the preferred
+agent first, then the other agents of the local order. A blocked preferred agent gives the next
+agent with no wait. A step with no entry uses the local order. A local exclusion wins: a preferred
+agent that the local order excludes has no effect. When this machine cannot start the preferred
+agent (not installed or not signed in), the start stops at its preflight and tries no other
+agent; exclude that agent from the local order to continue with the others.
 
 New Intake, Assist, and Make visual sessions use the first included host without an active
 confirmed usage block. An explicit host remains pinned despite exclusion or a block.
@@ -499,6 +509,7 @@ changes no field that is there. Each other field stays by hand.
 | `landing` | Required `pr` or `merge`. `pr` squash-merges a PR when each check is green. `merge` creates one squash commit on the trunk, with no PR. A project with no PR check uses `merge` | The command exits 2 |
 | `suite` | A relative path of a TypeScript file in the checkout. `land` runs it in the lane, with no argument, at the tip that it lands; exit status 0 is a pass. Required with `merge`, refused with `pr` | With `merge`, the command exits 2 |
 | `gates` | A mapping from the seven step names to `me` or `auto` | Each omitted step is `me` |
+| `agents` | A mapping from the seven step names to `claude` or `codex`: the preferred agent of each step ("Agent selection and model setup") | Each omitted step uses the local order |
 | `worktreeSetup` | A root-relative `.ts` file reference, for example `"scripts/worktree-setup.ts"`, or exactly `""` | No setup |
 | `board.port` | The first port to try for the board ("The agent board") | 4403 |
 | `codexProfiles.<runtime>` | Four ordered model slots and the reviewer minimum for that dispatch surface | Each Codex child keeps the parent's model |
@@ -926,9 +937,11 @@ new interactive session, in a new tab of the Herdr app. For each step, the runne
    (`docs/celetis-flow.md`, "Start the script", "The effort level");
 4. opens each session in a new tab of the Herdr app, and ends it when the issue shows that the
    step is done;
-5. with the default choice, selects the first eligible host of the local order at each session
-   start. After a confirmed usage refusal, it ends only its own session and waits until no
-   process of the session's tree or with its attempt marker runs. It then starts the same step on
+5. with the default choice, selects the first eligible host of the effective order of the step at
+   each session start: the preferred agent of the step in `agents`, when the local order includes
+   it, then the other hosts of the local order ("Agent selection and model setup"). After a
+   confirmed usage refusal, it ends only its own session and waits until no process of the
+   session's tree or with its attempt marker runs. It then starts the same step on
    the next eligible host with the dirty lane kept. When it cannot prove that stop, as for Codex,
    or a background task still runs, no other agent starts. When all
    hosts are limited, it waits for the earliest supplied reset, or for
@@ -1312,9 +1325,10 @@ keeps that tab in the background:
 <command> [--agent <agent>] celetis-flow <n> --quiet
 ```
 
-A Run with no agent choice omits `--agent`, so the runner selects from the local ordered
-preference at each start ("Agent selection and model setup"). The `--agent` or `CELETIS_AGENT` of
-the board start does not pin it. An explicit Run choice adds `--agent <agent>` and changes only
+A Run with no agent choice omits `--agent`, so the runner selects from the effective order of each
+step: its preferred agent when the local order includes it, then the local ordered preference
+("Agent selection and model setup"). The `--agent` or `CELETIS_AGENT` of the board start does not
+pin it. An explicit Run choice adds `--agent <agent>` and changes only
 that start, also when that agent is limited. Unknown or unavailable Run choices return 409 and start
 no agent. When every included agent is limited, a default Run still starts the runner, and the
 runner waits. A Resume press starts this argv

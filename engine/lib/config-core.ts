@@ -83,6 +83,7 @@ export type ConfigSource = Readonly<{
 
 export type Config = Readonly<{
   gates?: Readonly<Partial<Record<Step, 'me' | 'auto'>>>;
+  agents?: Readonly<Partial<Record<Step, Host>>>;
   board?: Readonly<{ port?: number }>;
   worktreeSetup?: string;
   custom?: Readonly<Partial<Record<(typeof skills)[number], string>>>;
@@ -330,13 +331,18 @@ function profile(value: unknown, path: Path): void {
 
 function checkSchema(value: unknown): asserts value is Config {
   const config = object(value, []);
-  keysOnly(config, ['landing', 'gates', 'board', 'worktreeSetup', 'suite', 'custom', 'codexProfiles'], []);
+  keysOnly(config, ['landing', 'gates', 'agents', 'board', 'worktreeSetup', 'suite', 'custom', 'codexProfiles'], []);
   required(config, 'landing', []);
   oneOf(config.landing, ['pr', 'merge'], ['landing']);
   if (Object.hasOwn(config, 'gates')) {
     const gates = object(config.gates, ['gates']);
     keysOnly(gates, steps, ['gates']);
     for (const [step, gate] of Object.entries(gates)) oneOf(gate, ['me', 'auto'], ['gates', step]);
+  }
+  if (Object.hasOwn(config, 'agents')) {
+    const agents = object(config.agents, ['agents']);
+    keysOnly(agents, steps, ['agents']);
+    for (const [step, host] of Object.entries(agents)) oneOf(host, hosts, ['agents', step]);
   }
   if (Object.hasOwn(config, 'board')) {
     const board = object(config.board, ['board']);

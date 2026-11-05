@@ -444,8 +444,10 @@ The adapter makes each argv from fixed items: the command of the program, then, 
 Run, `--agent` and the selected agent only for an explicit choice, and `celetis-flow`; for Resume,
 `celetis-flow` and `--resume`, with no agent; for Assist, `assist`; for Make visual, `visual`, the
 number, and the full commit hash of the History row of that number; or for New intake, `intake`,
-with no issue number. With no `--agent`, the command selects from the local order. A `Run at <level>` entry
-adds `--effort` and the level after the number. The Run argv ends with `--quiet`, so the runner
+with no issue number. With no `--agent`, Run selects from the effective order of each step (the
+preferred agent of the step in `agents` when the local order includes it, then the local order),
+and the other commands select from the local order. A `Run at <level>` entry adds `--effort` and
+the level after the number. The Run argv ends with `--quiet`, so the runner
 opens each session tab in the background.
 Resume takes the host and the session from its saved record. The program supplies Bun and its
 isolation flags. The number is its digits. Each item is one argument: no shell reads the argv as
@@ -501,8 +503,9 @@ of the board command, not a default start. The command palette entry `Change the
 opens the list.
 
 To use another available agent for one independent Run, use the card's agent choices. An independent
-Run without a choice sends no agent, and the runner selects from the local order at each start. Run
-on the current issue of a queue paused at a `me` gate uses Continue with the saved queue choice. An
+Run without a choice sends no agent, and the runner selects from the effective order of each step:
+the preferred agent of the step in `agents` when the local order includes it, then the local
+order. Run on the current issue of a queue paused at a `me` gate uses Continue with the saved queue choice. An
 absent or null choice keeps that choice. An explicit host is refused when the saved choice is
 default or names another host.
 A choice for one Run does not change the order. Resume sends only the issue number, and the runner
@@ -930,7 +933,8 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   an empty queue. Only waiting rows expose Up, Down, and Remove, including during runs and stops.
 - The count includes current and waiting work only. Finished rows leave with the same update.
   Continue authorizes one displayed step; Try again recovers a permitted stop. The agent choice
-  stays fixed while nonempty. A default choice uses the current order at each new step.
+  stays fixed while nonempty. A default choice uses the effective order of each new step: the
+  preferred agent of the step in `agents` when the local order includes it, then the local order.
   Accepted order survives reload and board restart, without a batch reset.
 - Queue keeps pending admission, saved/starting, and verified running distinct. A stale press
   reads authoritative state and requires another press. Status uses the polite announcement region.

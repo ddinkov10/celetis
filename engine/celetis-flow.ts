@@ -196,7 +196,7 @@ export async function main(argv: string[]): Promise<number> {
     updateRecovery,
     validateRecovery,
   } = await import('./lib/quota-recovery.ts');
-  const { readAgentOrder } = await import('./lib/agent-order.ts');
+  const { effectiveOrder, readAgentOrder } = await import('./lib/agent-order.ts');
   const { beginUsageAttempt, readUsage, recordUsage, selectAgent } = await import('./lib/agent-usage.ts');
   const { prepareClaudeUsage, readClaudeUsage } = await import('./lib/usage-claude.ts');
   const { readCodexUsage } = await import('./lib/usage-codex.ts');
@@ -818,7 +818,7 @@ export async function main(argv: string[]): Promise<number> {
         }
         const decision = selectAgent(
           current.choice,
-          readAgentOrder(common).order,
+          effectiveOrder(readAgentOrder(common).order, config.agents?.[step]),
           await readUsage(common),
           Date.now(),
           attempted,

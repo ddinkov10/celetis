@@ -53,6 +53,11 @@ export function validateAgentOrder(value: unknown): readonly Host[] {
   return Object.freeze([...value]) as readonly Host[];
 }
 
+export function effectiveOrder(order: readonly Host[], preferred: Host | undefined): readonly Host[] {
+  if (preferred === undefined || !order.includes(preferred)) return order;
+  return [preferred, ...order.filter((host) => host !== preferred)];
+}
+
 function serialized(order: readonly Host[]): string {
   return `${JSON.stringify({ schema: 1, order })}\n`;
 }

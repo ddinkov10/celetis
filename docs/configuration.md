@@ -10,6 +10,7 @@ mapping root. Comments are allowed. Put nothing after a `---` marker on its line
 | --- | --- | --- |
 | `landing` | Required: `pr` or `merge` | None |
 | `gates` | Mapping from a step name to `me` or `auto` | `me` for each omitted step |
+| `agents` | Mapping from a step name to `claude` or `codex` | Each step uses the local order |
 | `board` | Mapping with optional `port`, an integer from 1024 to 65535 | Search starts at 4403 |
 | `worktreeSetup` | A root-relative `.ts` file reference, or exactly `""` | No setup |
 | `suite` | A relative path of a TypeScript file in the checkout; required with `landing: merge`, refused with `landing: pr` | With `merge`, the config is refused |
@@ -18,6 +19,9 @@ mapping root. Comments are allowed. Put nothing after a `---` marker on its line
 
 The allowed gate names are `triage`, `specify`, `bug`, `chore`, `hotfix`, `plan`, and
 `implement`. No other step is accepted. An empty `gates` mapping uses `me` for all seven.
+The `agents` keys are the same seven step names, and the allowed values are `claude` and
+`codex`. A step with no entry, an omitted `agents` field, and an empty `agents` mapping give no
+preference.
 An empty `board` mapping starts the automatic port search at 4403. An effective `PORT` takes
 precedence and requests one exact port ("Start the board").
 
@@ -32,9 +36,13 @@ The allowed custom keys are `accept-epic`, `assist`, `attack-the-premise`, `boun
 Exactly `""` as the setup reference runs no setup. An empty instruction string gives no addition.
 An empty `custom` or `codexProfiles` mapping is valid.
 
-Agent selection is `--agent`, then an explicit `CELETIS_AGENT`, then the local ordered
-preference. The record is `<Git common directory>/celetis-flow/agents.json`, shared by the
-main checkout and linked worktrees on this machine. Its schema is exactly
+Agent selection is `--agent`, then an explicit `CELETIS_AGENT`, then, for a step that the runner
+starts, the `agents` preference of that step in the main config, then the local ordered
+preference. A step preference puts its agent first and keeps the other agents in the local order.
+A preferred agent that the local order excludes has no effect: the local exclusion wins. Intake,
+Assist, Make visual, and control operations use the local order only. The record is
+`<Git common directory>/celetis-flow/agents.json`, shared by the main checkout and linked
+worktrees on this machine. Its schema is exactly
 `{"schema":1,"order":["claude","codex"]}`. That is also the missing-record order.
 The list is unique and nonempty; either host can be excluded. YAML `host` is an unknown field.
 Resume uses its saved host and session ID. A conflicting explicit host stops resume.
@@ -147,7 +155,7 @@ that changes the lane or the trunk stops the landing with a repair or usage line
 stays as it was. `land` runs the suite again on each run. A `pr` landing runs no suite: its checks
 are the checks of the PR.
 
-Use the main checkout for `landing`, `suite`, `gates`, `board`, and `codexProfiles`.
+Use the main checkout for `landing`, `suite`, `gates`, `agents`, `board`, and `codexProfiles`.
 Use the new lane checkout for setup. At each skill entry, use `custom.<skill>` from the active
 checkout ("Skill entry"). Commands that need repository setup require a valid file.
 
@@ -265,16 +273,17 @@ step that needs a value of the file, and for the verify gate of this repository.
 | --- | --- |
 | Public command | One operation before protected side effects; argument errors can fail first |
 | Board data refresh | One main operation for issue resolution, gates, and default host; Run and Resume start separate commands |
-| New workflow step | Fresh main policy for resolution, gate choice, and session start; original explicit and environment inputs retain precedence |
+| New workflow step | Fresh main policy for resolution, gate choice, the `agents` preference of the step, and session start; a fresh local order; original explicit and environment inputs retain precedence |
 | Active-session monitoring | A separate fresh operation for status; the running session retains its captured host and exact ID; a config failure waits until that child exits |
 | Target lane entry | Fresh main and lane validation before setup or acceptance of an existing setup marker |
 | Configuration setup or test after a write | Fresh validation of the written or newly selected file |
 | Landing start and protected actions after asynchronous work | Fresh policy and repository preflight before push, PR creation, check rerun, or merge |
 
 The selected board port stays fixed while the board runs. An update restart requests that same
-port exactly. A changed local order applies to the next
-new session; exact Resume retains its saved host and ID. Each skill entry is a native boundary of
-its own ("Skill entry"), independent of runtime operations.
+port exactly. A changed local order applies to the next new session, and a changed `agents`
+field to the next new runner session: a new step, or a recovery cycle of a step. A running
+session keeps its agent, and exact Resume retains its saved host and ID. Each skill entry is a
+native boundary of its own ("Skill entry"), independent of runtime operations.
 
 Landing keeps the mechanism selected at its start. If the mechanism changed, it stops and
 requires a new invocation. Invalid fresh configuration also stops it. Preflight rechecks checkout,

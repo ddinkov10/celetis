@@ -121,8 +121,9 @@ celetis celetis-flow --retry 373 <wait id>    # one bounded attempt cycle of a q
 These human commands use an explicit `CELETIS_AGENT`, then the local ordered preference.
 The absent preference is Claude, then Codex. Put `--agent claude` or `--agent codex` before `celetis-flow` to override that choice.
 Every skill call supplies that prefix. Invalid host values stop; PATH order never chooses a host.
-An explicit host stays fixed. A default step selects its host again at each session start, so a
-usage-limit recovery can continue the step on another host ("How a step runs"). Resume instead
+An explicit host stays fixed. A default step selects its host again at each session start, from
+the effective order of the step ("The agent of each start"), so a usage-limit recovery can
+continue the step on another host ("How a step runs"). Resume instead
 selects its recorded host and rejects an explicit prefix that names the other host. `--retry`
 needs no prefix: it only wakes the live waiter of a quota wait.
 
@@ -254,7 +255,8 @@ revision, ordered unique numbers, the fixed agent choice (`default`, or `explici
 the active host, current and last Runs, reason/action, a wait ID, and a nullable launch token with
 issue-bound one-step authorization. Its states are empty, starting, running, quota-wait, me-gate,
 and error. Empty retains the record identity but has no numbers, choice, or active host. A
-default choice stays default: each start selects its host from the current order. The active
+default choice stays default: each start selects its host from the effective order of its step
+("The agent of each start"). The active
 host is the host of the current session, or null. `quota-wait` has the wait ID of the issue's
 recovery record and no active host ("Usage-limit recovery"). A schema-2 record refuses as obsolete.
 It has no completed rows, history, reset, or tab-local draft.
@@ -534,10 +536,16 @@ job, and it reads no terminal status after the exit. When a session does not end
 waits for nothing, leave it with `/exit` in its tab: the script then asks the resolver again, and
 it prints the reason or starts the next step.
 
-**The agent of each start.** At each start, the runner reads the local order and the per-host
-usage records again (`selectAgent` of `engine/lib/agent-usage.ts`). The default choice takes the
-first included host with no active block; an explicit choice keeps its host. The preflight and
-the plugin revision check of the selected host run after this selection. Each step session gets a
+**The agent of each start.** At each start, the runner reads the local order, the main config, and
+the per-host usage records again. It computes the effective order of the step
+(`effectiveOrder` of `engine/lib/agent-order.ts`): when the `agents` field names a preferred agent
+for the step and the local order includes it, that agent comes first, then the other agents of the
+local order in their order; otherwise the effective order is the local order. It passes that order
+to `selectAgent` of `engine/lib/agent-usage.ts`. The default choice takes the first included host
+with no active block; an explicit choice keeps its host and ignores the preference. The preflight
+and the plugin revision check of the selected host run after this selection. A missing executable
+or another setup error of a preferred agent stops the start, and no next agent is tried; the
+remedy is a local exclusion of that agent, which then wins. Each step session gets a
 usage attempt. A Claude step gets attempt-local `Stop` and `StopFailure` callbacks through
 `--settings`, beside its `--session-id`. A Codex step is read through `thread/read` and
 `thread/turns/list` after the runner saves its verified ID. The runner acts only on the
@@ -572,16 +580,18 @@ agent starts. After a confirmed refusal of the default host, the runner:
    lane binding all match, the bound lane does not stop the read. A dirty main checkout, another
    dirty lane, a changed branch, HEAD, or digest, and an unresolved merge, rebase, cherry-pick, or
    revert still stop it.
-6. Starts the same step again on the next eligible host when the decision is the same step with
-   the same spec digest and `## Plan` comment. The first authorization of the start still holds,
-   so the skip, no-progress, and gate checks do not apply to this retry. A changed spec or plan of
-   that step stops. A new step follows the normal checks, its gate included.
+6. Starts the same step again on the next eligible host of the effective order of the step when
+   the decision is the same step with the same spec digest and `## Plan` comment. The first
+   authorization of the start still holds, so the skip, no-progress, and gate checks do not apply
+   to this retry. A changed spec or plan of that step stops. A new step follows the normal checks,
+   its gate included.
 
 The retry session gets `CELETIS_RECOVERY`, the attempt ID, in its environment, and `- recovery: yes`
 in its header. A `specify` session has no step text, so its retry gets no header line. That value
 is only a lookup key: `worktree` validates the recovery record again
 ([the lane worktree](procedures/worktree.md)). A normal end of a session removes the recovery
-record. The next start reads the order again, so a recovered preferred host takes the next step.
+record. The next step computes its own effective order, so a recovered preferred host takes the
+next step.
 A preference change or a recovered block does not stop a session that works.
 
 **Exhaustion.** In one cycle, the runner attempts each included host at most once. When no host can
@@ -598,8 +608,8 @@ no block. A clock change can move the wake; it cannot make a loop, because each 
 each host once and each wait needs a new wake. `--retry <n> <wait id>` writes one wake request
 for the live waiter of the issue. A repeated request with the same ID is one cycle. Another wait
 ID, no wait, or a runner that stopped refuses with exit 2; Retry never starts a runner. Retry lets
-that cycle attempt blocked hosts once each in the current order, and keeps their records. A
-signal ends the wait and its wake. The record stays with its stopped runner and authorizes
+that cycle attempt blocked hosts once each in the effective order of the step, and keeps their
+records. A signal ends the wait and its wake. The record stays with its stopped runner and authorizes
 nothing. A new runner start of the issue removes it and evaluates the issue again.
 
 **A stop.** Before a stop, the session sorts each act that the stop would ask of the maintainer
@@ -767,7 +777,7 @@ gates:
 commands start in a lane or subfolder. `docs/configuration.md` gives the full schema. The record
 of setup, `.claude/celetis-flow/wiring.json`, is no config: only `celetis --agent <host> setup` reads it.
 
-- `host` selects the default host for a new step ("Start the script").
+- `agents` names a preferred agent for each step ("The agent of each start").
 - `gates` selects `me` or `auto` for each step ("Gates").
 - `landing` selects `pr` or `merge` for `celetis --agent <host> land` (`docs/issue-tracker.md`).
 - `board.port` selects the board port ("The board").
@@ -779,9 +789,10 @@ state, host sessions, or landing pushes. A public command creates an immutable o
 the program starts it. Internal calls receive its values instead of reading again.
 The runner creates a fresh main operation before each new step. Its resolution, gate decision,
 and session start use that operation. It retains the original host-selection inputs, so a changed
-local order can select the next new session. A running session keeps its captured host and exact
-identity. Monitoring can refresh status separately; a monitoring config error is reported after
-the active child exits. Resume uses the recorded host and exact session ID; a changed default
+local order or `agents` field can select the agent of the next new session: a new step, or a
+recovery cycle of a step. A running session keeps its captured host and exact identity.
+Monitoring can refresh status separately; a monitoring config error is reported after the active
+child exits. Resume uses the recorded host and exact session ID; a changed default
 cannot select another saved session. [Configuration freshness](configuration.md#operation-values-and-freshness)
 defines the remaining boundaries, including landing's fresh policy and repository preflight
 after waits and before protected actions. A changed landing mechanism requires a new invocation.
@@ -1047,7 +1058,8 @@ Each `GET /api/board` reply reads the local agent state again and adds two field
 its reason and reset time, or `null`; a block whose reset time passed is `null`), `activeHosts`
 (the hosts of the live sessions of the repository), `waits` (`{number, waitId, nextResetAt}` of
 each issue whose live runner waits because every included agent is limited), and `error`. `next`
-is the decision of a new default start: `start` with its host, or `wait` with the blocks and the
+is the decision of a new default start from the local order, with no step preference: `start`
+with its host, or `wait` with the blocks and the
 earliest future reset. A waiting issue shows as a `quota-wait` card in Needs you, not as running
 work. A recovery record whose runner no longer runs adds a warning to the card of its issue.
 
@@ -1119,9 +1131,11 @@ released ("A stop of the runner").
 `POST /api/run` takes `number`, an optional `agent`, and an optional `effort`; another field returns
 400. With `agent`, the argv has `--agent <agent>`, and the host is pinned for that start, also
 when it is limited. The agent must be `claude` or `codex` and on `PATH`. With no `agent`, the argv
-has no `--agent`, and the runner selects from the local order at each start. At admission the
-server reads the local order and the usage records again, and it refuses with 409 when the first
-eligible host is not on `PATH`; it tries no other host. When every included host is limited, the
+has no `--agent`, and the runner selects from the effective order of each step ("The agent of
+each start"). At admission the server reads the local order and the usage records again, and it
+refuses with 409 when the first eligible host of the local order is not on `PATH`; it tries no
+other host. The admission reads no step preference: the runner preflight of the selected step
+agent decides the start. When every included host is limited, the
 runner starts and waits. Unknown or unavailable choices return 409 and start no agent.
 Availability checks only executable presence; sign-in, trust, plugin discovery, and full host
 parity need separate checks. The `--agent` and `CELETIS_AGENT` of the board start do not pin a
