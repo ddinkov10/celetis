@@ -1202,11 +1202,14 @@ const drawBoard = (next: Board) => {
   board.dataset.view = view;
   board.style.setProperty('--stages', String(Math.max(1, next.flow?.stages.length ?? 0)));
   board.classList.toggle('is-calm', needs === 0);
+  const idleScroll = board.querySelector<HTMLElement>('.col-idle .col-body')?.scrollTop;
   board.replaceChildren(
     ...(view === 'pipeline'
       ? pipelineView(next.columns, next.flow)
       : COLUMNS.map((spec) => column(spec, next.columns[spec.key]))),
   );
+  const idleBody = board.querySelector<HTMLElement>('.col-idle .col-body');
+  if (idleBody && idleScroll !== undefined) idleBody.scrollTop = idleScroll;
   drawHuman(next.columns.human);
   board.setAttribute('aria-busy', 'false');
   if (seen === null) {

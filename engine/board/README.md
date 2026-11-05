@@ -924,6 +924,7 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   as Idle does. The label of a group stays in view while the column scrolls. When cards are below
   the fold, a line at the foot of the column names them, for example
   `3 more below: 1 input on the issue, 2 ready to run`; a press scrolls to the first of them.
+  Idle keeps its current vertical position during a data refresh; the browser clamps it when the content shrinks.
 - Queue preserves the saved Now/Pipeline choice. Current work appears above Up next. The picker
   sits beside waiting work on desktop and below it on a phone. Add persists immediately and starts
   an empty queue. Only waiting rows expose Up, Down, and Remove, including during runs and stops.
