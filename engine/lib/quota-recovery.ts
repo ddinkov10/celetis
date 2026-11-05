@@ -4,7 +4,7 @@ import { lstat, mkdir, open, readdir, readFile, readlink, realpath, rename, rm, 
 import { basename, dirname, join } from 'node:path';
 import type { AgentChoice, Host } from './config-core.ts';
 import { commonDir, HostError } from './host.ts';
-import { lockHolder } from './locks.ts';
+import { type LockOwner, lockHolder } from './locks.ts';
 import { privateFolder, privateMode, sharedFolderSync, sharedMode } from './private-folder.ts';
 import { run } from './process.ts';
 import {
@@ -407,9 +407,14 @@ export async function permitHolds(main: string, permit: RecoveryPermit): Promise
   }
 }
 
-export async function archiveSession(main: string, issue: number, attemptId: string): Promise<NativeIdentity> {
+export async function archiveSession(
+  main: string,
+  issue: number,
+  attemptId: string,
+  owner?: LockOwner,
+): Promise<NativeIdentity> {
   if (!uuid.test(attemptId)) throw new RecoveryError('recovery: invalid attempt ID');
-  const record = await readSession(main, issue);
+  const record = await readSession(main, issue, undefined, owner);
   const flow = join(await realpath(await commonDir(main)), 'celetis-flow');
   sharedFolderSync(flow, fail);
   const dir = join(flow, 'sessions', String(issue));

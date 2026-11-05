@@ -57,7 +57,7 @@ const wakeOf = (record: QueueRecord): QueueWake => {
 export async function admitQueue(operation: Operation, input: QueueAction): Promise<QueueReceipt> {
   const action = parseQueueAction(input);
   const { main, common } = checkoutOf(operation);
-  const snapshot = await readQueue(common);
+  const snapshot = await readQueue(main, common);
   match(snapshot, action.expected);
   const choice = snapshot?.choice ?? operation.choice;
   requireQueueChoice(choice, operation.choice);
@@ -81,58 +81,62 @@ export async function admitQueue(operation: Operation, input: QueueAction): Prom
       : next;
   let wake = false;
   let owner: string | null = null;
-  const record = await updateQueue(common, async (current) => {
-    match(current, action.expected);
-    owner = await queueOwner(main, current);
-    if (action.kind === 'add') {
-      if (!queueView(current, owner, currentNext).actions.add)
-        throw new Error('queue: cannot read the current issue; refresh before acting');
-      if (current?.numbers.includes(action.number)) throw new Error('queue: that issue is already queued');
-      if (await lockHolder(main, `issue-${action.number}`))
-        throw new Error('queue: that issue already has a live owner');
-      if (current?.numbers.length) return { ...current, numbers: [...current.numbers, action.number] };
-      if (owner) throw new Error('queue: a previous runner still owns the queue');
+  const record = await updateQueue(
+    main,
+    async (current) => {
+      match(current, action.expected);
+      owner = await queueOwner(main, current);
+      if (action.kind === 'add') {
+        if (!queueView(current, owner, currentNext).actions.add)
+          throw new Error('queue: cannot read the current issue; refresh before acting');
+        if (current?.numbers.includes(action.number)) throw new Error('queue: that issue is already queued');
+        if (await lockHolder(main, `issue-${action.number}`))
+          throw new Error('queue: that issue already has a live owner');
+        if (current?.numbers.length) return { ...current, numbers: [...current.numbers, action.number] };
+        if (owner) throw new Error('queue: a previous runner still owns the queue');
+        wake = true;
+        return {
+          ...emptyQueue(current),
+          choice,
+          numbers: [action.number],
+          state: 'starting',
+          current: next?.kind === 'run' ? next : null,
+          launch: { token: randomUUID(), authorization: { number: action.number, step: action.step, retry: false } },
+        };
+      }
+      if (!current?.numbers.length) throw new Error('queue: the queue is empty');
+      if (action.kind === 'move' || action.kind === 'remove') {
+        if (!queueView(current, owner, currentNext).actions.edit)
+          throw new Error('queue: cannot read the current issue; refresh before acting');
+        const index = current.numbers.indexOf(action.number);
+        if (index < 1) throw new Error('queue: only waiting issues can be edited');
+        const numbers = [...current.numbers];
+        if (action.kind === 'remove') numbers.splice(index, 1);
+        else {
+          const target = index + (action.direction === 'up' ? -1 : 1);
+          if (target < 1 || target >= numbers.length) throw new Error('queue: that move is not available');
+          [numbers[index], numbers[target]] = [numbers[target] as number, action.number];
+        }
+        return { ...current, numbers };
+      }
+      const view = queueView(current, owner, next);
+      if (!view.actions[action.kind]) throw new Error('queue: that action is not available; refresh the queue');
       wake = true;
       return {
-        ...emptyQueue(current),
-        choice,
-        numbers: [action.number],
+        ...current,
         state: 'starting',
-        current: next?.kind === 'run' ? next : null,
-        launch: { token: randomUUID(), authorization: { number: action.number, step: action.step, retry: false } },
+        activeHost: null,
+        waitId: null,
+        reason: null,
+        act: null,
+        launch: {
+          token: randomUUID(),
+          authorization: { number: current.numbers[0] as number, step: action.step, retry: action.kind === 'retry' },
+        },
       };
-    }
-    if (!current?.numbers.length) throw new Error('queue: the queue is empty');
-    if (action.kind === 'move' || action.kind === 'remove') {
-      if (!queueView(current, owner, currentNext).actions.edit)
-        throw new Error('queue: cannot read the current issue; refresh before acting');
-      const index = current.numbers.indexOf(action.number);
-      if (index < 1) throw new Error('queue: only waiting issues can be edited');
-      const numbers = [...current.numbers];
-      if (action.kind === 'remove') numbers.splice(index, 1);
-      else {
-        const target = index + (action.direction === 'up' ? -1 : 1);
-        if (target < 1 || target >= numbers.length) throw new Error('queue: that move is not available');
-        [numbers[index], numbers[target]] = [numbers[target] as number, action.number];
-      }
-      return { ...current, numbers };
-    }
-    const view = queueView(current, owner, next);
-    if (!view.actions[action.kind]) throw new Error('queue: that action is not available; refresh the queue');
-    wake = true;
-    return {
-      ...current,
-      state: 'starting',
-      activeHost: null,
-      waitId: null,
-      reason: null,
-      act: null,
-      launch: {
-        token: randomUUID(),
-        authorization: { number: current.numbers[0] as number, step: action.step, retry: action.kind === 'retry' },
-      },
-    };
-  });
+    },
+    common,
+  );
   return { view: queueView(record, owner, currentNext), wake: wake ? wakeOf(record) : null };
 }
 
@@ -140,7 +144,7 @@ export async function reconcileQueue(operation: Operation, signal?: AbortSignal)
   const { main, common } = checkoutOf(operation);
   let snapshot: QueueRecord | null;
   try {
-    snapshot = await readQueue(common);
+    snapshot = await readQueue(main, common);
   } catch {
     return { view: await readQueueView(operation, signal), wake: null };
   }
@@ -153,36 +157,40 @@ export async function reconcileQueue(operation: Operation, signal?: AbortSignal)
   let wake: QueueWake | null = null;
   let owner: string | null = null;
   let fresh = false;
-  const record = await updateQueue(common, async (current) => {
-    signal?.throwIfAborted();
-    if (!current) throw new Error('queue: the record disappeared during reconciliation');
-    if (current.id !== snapshot.id || current.revision !== snapshot.revision) return current;
-    fresh = true;
-    owner = await queueOwner(main, current);
-    const numbers: number[] = [];
-    for (const number of current.numbers) {
-      const observed = observations.get(number) ?? null;
-      const held = (number === current.numbers[0] && owner) || (await lockHolder(main, `issue-${number}`));
-      if (!terminal(observed) || held) numbers.push(number);
-    }
-    if (numbers.length === current.numbers.length) return current;
-    if (!numbers.length) return emptyQueue(current);
-    if (numbers[0] === current.numbers[0]) return { ...current, numbers };
-    const next: QueueRecord = {
-      ...current,
-      numbers,
-      state: 'starting',
-      activeHost: null,
-      waitId: null,
-      current: null,
-      last: null,
-      reason: null,
-      act: null,
-      launch: { token: randomUUID(), authorization: null },
-    };
-    wake = wakeOf(next);
-    return next;
-  });
+  const record = await updateQueue(
+    main,
+    async (current) => {
+      signal?.throwIfAborted();
+      if (!current) throw new Error('queue: the record disappeared during reconciliation');
+      if (current.id !== snapshot.id || current.revision !== snapshot.revision) return current;
+      fresh = true;
+      owner = await queueOwner(main, current);
+      const numbers: number[] = [];
+      for (const number of current.numbers) {
+        const observed = observations.get(number) ?? null;
+        const held = (number === current.numbers[0] && owner) || (await lockHolder(main, `issue-${number}`));
+        if (!terminal(observed) || held) numbers.push(number);
+      }
+      if (numbers.length === current.numbers.length) return current;
+      if (!numbers.length) return emptyQueue(current);
+      if (numbers[0] === current.numbers[0]) return { ...current, numbers };
+      const next: QueueRecord = {
+        ...current,
+        numbers,
+        state: 'starting',
+        activeHost: null,
+        waitId: null,
+        current: null,
+        last: null,
+        reason: null,
+        act: null,
+        launch: { token: randomUUID(), authorization: null },
+      };
+      wake = wakeOf(next);
+      return next;
+    },
+    common,
+  );
   if (!fresh) return { view: await readQueueView(operation, signal), wake: null };
   const unreadable = record.numbers.find((number) => {
     const next = observations.get(number);
@@ -205,18 +213,22 @@ export async function failQueueLaunch(
   reason: string,
 ): Promise<QueueView> {
   const { main, common } = checkoutOf(operation);
-  await updateQueue(common, async (current) => {
-    if (!current) throw new Error('queue: the pending record disappeared');
-    if (current.id !== id || current.launch?.token !== token || (await queueOwner(main, current))) return current;
-    return {
-      ...current,
-      state: 'error',
-      activeHost: null,
-      waitId: null,
-      launch: null,
-      reason,
-      act: 'Fix the launch failure, then use Try again.',
-    };
-  });
+  await updateQueue(
+    main,
+    async (current) => {
+      if (!current) throw new Error('queue: the pending record disappeared');
+      if (current.id !== id || current.launch?.token !== token || (await queueOwner(main, current))) return current;
+      return {
+        ...current,
+        state: 'error',
+        activeHost: null,
+        waitId: null,
+        launch: null,
+        reason,
+        act: 'Fix the launch failure, then use Try again.',
+      };
+    },
+    common,
+  );
   return readQueueView(operation);
 }

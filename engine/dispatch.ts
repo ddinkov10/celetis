@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { closeSync, constants, fstatSync, openSync } from 'node:fs';
-import { lstat, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { bindingMode, readBinding, resolvePair, ScoreError } from './lib/capability.ts';
 import type { Host } from './lib/config-core.ts';
 import {
   type Context,
   closeTask,
+  convertDispatchRecord,
   type DispatchRecord,
   type ExecutionReport,
   emptyRecord,
@@ -23,6 +24,7 @@ import { installRecorder, markDefect } from './lib/events.ts';
 import { HostError, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { privateFolder, privateMode, privateRoot } from './lib/private-folder.ts';
+import { commitMigration, readLocalRecord } from './lib/state-migration.ts';
 import { tryFlock } from './lib/update-lock.ts';
 import { openLockFile } from './lib/windows.ts';
 
@@ -121,7 +123,16 @@ async function withRecord<T>(
   const dir = join(root, 'dispatch');
   const file = join(dir, `${host}-${session}.json`);
   const lock = `${file}.lock`;
-  await folders(root, dir);
+  let sourceSchema: unknown;
+  const failure = (error: unknown) =>
+    new SetupError(
+      `${file}: ${sourceSchema === undefined ? 'target schema 2' : `schema ${String(sourceSchema)} to 2`}: ${message(error)}`,
+    );
+  try {
+    await folders(root, dir);
+  } catch (error) {
+    throw failure(error);
+  }
   let fd: number;
   try {
     fd =
@@ -129,7 +140,7 @@ async function withRecord<T>(
         ? openLockFile(lock)
         : openSync(lock, constants.O_CREAT | constants.O_RDWR | constants.O_NOFOLLOW, 0o600);
   } catch (error) {
-    throw new SetupError(`${lock}: ${message(error)}`);
+    throw failure(new Error(`${lock}: ${message(error)}`));
   }
   try {
     const stat = fstatSync(fd);
@@ -141,13 +152,18 @@ async function withRecord<T>(
     }
     await folders(root, dir);
     let record: DispatchRecord | null = null;
-    try {
-      const stat = await lstat(file);
-      if (!stat.isFile() || stat.isSymbolicLink() || !privateMode(stat))
-        throw new SetupError(`${file}: need a private regular record file`);
-      record = validateRecord(JSON.parse(await readFile(file, 'utf8')), host, session);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new SetupError(`${file}: ${message(error)}`);
+    const source = await readLocalRecord(file, [root, dir], 'private');
+    if (source) {
+      const value = source.value;
+      if (value !== null && typeof value === 'object' && !Array.isArray(value))
+        sourceSchema = (value as Record<string, unknown>).schema;
+      if (sourceSchema === 1) {
+        record = convertDispatchRecord(value, host, session);
+        await commitMigration(source, 1, `${JSON.stringify(record)}\n`);
+      } else {
+        if (sourceSchema !== undefined && sourceSchema !== 2) throw new SetupError('unsupported schema');
+        record = validateRecord(value, host, session);
+      }
     }
     const result = await act(record);
     if (result.record !== undefined) {
@@ -164,8 +180,8 @@ async function withRecord<T>(
     }
     return result.value;
   } catch (error) {
-    if (error instanceof SetupError || error instanceof ScoreError) throw error;
-    throw new SetupError(`${file}: ${message(error)}`);
+    if (error instanceof ScoreError) throw error;
+    throw failure(error);
   } finally {
     closeSync(fd);
   }

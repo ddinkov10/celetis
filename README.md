@@ -990,10 +990,13 @@ Retry recovers an interrupted launch or stopped step; a null step acknowledges t
 without authorizing another issue. Only fresh finished/wontfix decisions drain work. Read failures
 retain accepted work. The same empty queue accepts more work without reset or reload.
 
-The record remains at `<git common dir>/celetis-flow/queue.json`, now schema 3. Old batch forms
-and compatibility readers are removed. See `docs/celetis-flow.md`, "The continuous queue", for
-the action fields, locking, and manual recovery of an obsolete record. Preserve that file until
-its runner and foreground exit and an explicitly authorized archive retains its unfinished order.
+The record remains at `<git common dir>/celetis-flow/queue.json`, now schema 3. Ordinary queue
+access, including status and the board, converts valid schema-1 and schema-2 records under
+execution ownership. It preserves the exact source bytes in a private sibling archive before
+replacement. Unfinished work keeps its order and recorded host; conversion starts no work.
+A live runner or foreground causes refusal; retry after it exits. Invalid or unsupported records
+stay intact. See `docs/celetis-flow.md`, "The continuous queue", for the mappings and locks.
+Old batch forms remain removed.
 
 A step session follows the step text: it asks only for a decision that the issue does not hold, and
 at a stop it puts the reason on the issue and adds `ready-for-human`. The `specify` session has no

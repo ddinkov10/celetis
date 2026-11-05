@@ -252,8 +252,11 @@ or `<os.tmpdir()>/celetis/dispatch/<host>-<session>.json` on Windows. It uses pr
 mode-0600 record and lock files, a lock, and atomic replacement. Its key is the host and
 `CLAUDE_CODE_SESSION_ID` or `CODEX_SESSION_ID`. A new session starts at attempt 1. GitHub remains
 workflow state; this file is local execution evidence. Record schema 2 stores host/session only
-at the record root. Schema-1 records are rejected without migration; retain them as evidence and
-start a fresh host session. The CLI result envelope remains schema 1.
+at the record root. An ordinary open converts a supported schema-1 record under the record lock,
+checks each report against the record and active host/session, and retains all history and an
+exact source archive before replacement. Invalid, unsupported, unmappable, unsafe, or unreadable records
+refuse intact; a busy lock or failed persistence also refuses. See
+[ADR-0070](adr/0070-automatic-runtime-state-migration.md). The CLI result envelope remains schema 1.
 
 Run each act as `celetis --agent <host> dispatch <act>`, with the running host
 ([the child dispatch](procedures/dispatch.md), "The task loop"):

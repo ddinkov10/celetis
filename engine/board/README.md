@@ -241,6 +241,12 @@ only its own error; a good full read clears both. Selected reads do not change t
 time or the full-read evidence for the 30-second Assist detection period.
 
 `Document.queue` and `Board.queue` use QueueView. A null record means no saved queue yet.
+Queue access, including the first document, selected reads, local placement, and action preflight,
+prepares valid schema-1/schema-2 storage through the same revision's finite runner path.
+Preparation holds queue and current-issue execution ownership before the write lock. It keeps
+unfinished order and the recorded host, archives exact source bytes, and starts no work.
+A live owner causes refusal; the next ordinary request can retry after it exits. Invalid or
+unsupported storage remains an error, with no empty-success result or extra refresh loop.
 The view carries the schema-3 record, live owner, fresh next decision, error, and Add/Edit/Continue/Retry
 permissions. A full read reconciles terminal members through the shared engine transition.
 A selected read uses that transition only when a selected issue is in the current queue. It

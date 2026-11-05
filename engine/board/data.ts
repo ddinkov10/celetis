@@ -92,7 +92,7 @@ async function readDocument(
       return [agent, { available, cause: available ? null : `celetis: ${agent} is not on PATH` }];
     }),
   );
-  const queue = target ? await readQueue(common) : null;
+  const queue = target ? await readQueue(main, common) : null;
   signal.throwIfAborted();
   const receipt =
     !target || queue?.numbers.some((number) => target.numbers.includes(number))

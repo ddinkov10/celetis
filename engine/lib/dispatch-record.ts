@@ -168,9 +168,13 @@ function jsonValue(value: unknown, path: string, parents = new Set<unknown>()): 
   }
   parents.delete(value);
 }
-export function validateExecutionReport(value: unknown): ExecutionReport {
+function executionReportValue(value: unknown, historical: boolean): ExecutionReport {
   jsonValue(value, 'report');
-  const report = shape(value, ['call', 'outcome'], 'report');
+  const report = shape(value, historical ? ['host', 'session', 'call', 'outcome'] : ['call', 'outcome'], 'report');
+  if (historical) {
+    need(report.host === 'claude' || report.host === 'codex', 'report.host');
+    need(isText(report.session), 'report.session');
+  }
   const outcome = report.outcome as Record<string, unknown> | null;
   need(outcome && typeof outcome === 'object', 'report.outcome');
   if (outcome.result === 'started') {
@@ -201,10 +205,13 @@ export function validateExecutionReport(value: unknown): ExecutionReport {
   }
   return structuredClone(value as ExecutionReport);
 }
-function executionValue(value: unknown, path: string): void {
+export function validateExecutionReport(value: unknown): ExecutionReport {
+  return executionReportValue(value, false);
+}
+function executionValue(value: unknown, path: string, historical: boolean): void {
   const execution = shape(value, ['provenance', 'report', 'result', 'reason', 'time'], path);
   need(execution.provenance === 'agent-reported', `${path}.provenance`);
-  validateExecutionReport(execution.report);
+  executionReportValue(execution.report, historical);
   need(
     ['started', 'failed', 'incomplete', 'mismatch', 'unsupported'].includes(execution.result as string),
     `${path}.result`,
@@ -217,7 +224,7 @@ function executionValue(value: unknown, path: string): void {
   );
   need(isText(execution.time), `${path}.time`);
 }
-function dispatchValue(value: unknown, path: string): void {
+function dispatchValue(value: unknown, path: string, historical: boolean): void {
   const dispatch = shape(
     value,
     [
@@ -255,7 +262,7 @@ function dispatchValue(value: unknown, path: string): void {
     `${path}.line`,
   );
   need(isText(dispatch.issued), `${path}.issued`);
-  if (dispatch.execution !== null) executionValue(dispatch.execution, `${path}.execution`);
+  if (dispatch.execution !== null) executionValue(dispatch.execution, `${path}.execution`, historical);
   need(typeof dispatch.voided === 'boolean', `${path}.voided`);
   if (dispatch.voided) need((dispatch.execution as Execution | null)?.result === 'failed', `${path}.voided`);
 }
@@ -265,9 +272,9 @@ export function emptyRecord(host: Host, session: string): DispatchRecord {
   need(isText(session), 'session');
   return { schema: 2, host, session, tasks: [], dispatches: [] };
 }
-export function validateRecord(value: unknown, host: Host, session: string): DispatchRecord {
+function recordValue(value: unknown, host: Host, session: string, historical: boolean): DispatchRecord {
   const record = shape(value, ['schema', 'host', 'session', 'tasks', 'dispatches'], '');
-  need(record.schema === 2, 'schema');
+  need(record.schema === (historical ? 1 : 2), 'schema');
   need((record.host === 'claude' || record.host === 'codex') && record.host === host, 'host');
   need(isText(record.session) && record.session === session, 'session');
   const keys = new Set<string>();
@@ -285,17 +292,23 @@ export function validateRecord(value: unknown, host: Host, session: string): Dis
     list(task.entries, `${path}.entries`, entryValue);
     need((task.entries as Entry[])[0]?.kind === 'score', `${path}.entries[0]`);
   });
-  list(record.dispatches, 'dispatches', dispatchValue);
+  list(record.dispatches, 'dispatches', (value, path) => dispatchValue(value, path, historical));
   const typed = record as unknown as DispatchRecord;
   const dispatches = new Map<string, Dispatch>();
   for (const [index, dispatch] of typed.dispatches.entries()) {
     need(!dispatches.has(dispatch.id), `dispatches[${index}].id`);
     need(keys.has(`${dispatch.issue}:${dispatch.task}`), `dispatches[${index}].task`);
     if (dispatch.execution) {
+      if (historical) {
+        const report = dispatch.execution.report as unknown as Record<string, unknown>;
+        need(report.host === host, `dispatches[${index}].execution.report.host`);
+        need(report.session === session, `dispatches[${index}].execution.report.session`);
+      }
       const expected = executionResult(
         { ...typed, dispatches: typed.dispatches.slice(0, index) },
         dispatch,
         dispatch.execution.report,
+        historical,
       );
       need(
         dispatch.execution.result === expected.result && dispatch.execution.reason === expected.reason,
@@ -354,7 +367,7 @@ export function validateRecord(value: unknown, host: Host, session: string): Dis
     need(task.attempt === attempt, `tasks[${index}].attempt`);
     need(task.round === round, `tasks[${index}].round`);
     need(task.escalated === escalated, `tasks[${index}].escalated`);
-    validateHistory(typed, task);
+    validateHistory(typed, task, historical);
     if (task.closed) {
       need(task.attempt < 4 && !stopped, `tasks[${index}].closed`);
       need(closeReason(typed, task) === null, `tasks[${index}].closed`);
@@ -363,6 +376,19 @@ export function validateRecord(value: unknown, host: Host, session: string): Dis
   for (const [index, dispatch] of typed.dispatches.entries())
     need(referenced.has(dispatch.id), `dispatches[${index}].id`);
   return structuredClone(typed);
+}
+export function validateRecord(value: unknown, host: Host, session: string): DispatchRecord {
+  return recordValue(value, host, session, false);
+}
+export function convertDispatchRecord(value: unknown, host: Host, session: string): DispatchRecord {
+  const record = recordValue(value, host, session, true);
+  for (const dispatch of record.dispatches) {
+    if (!dispatch.execution) continue;
+    const { call, outcome } = dispatch.execution.report;
+    dispatch.execution.report = { call, outcome };
+  }
+  record.schema = 2;
+  return validateRecord(record, host, session);
 }
 export function dispatchIdOf(text: string): string | null {
   return (
@@ -487,7 +513,7 @@ function reviewerAllowed(record: DispatchRecord, task: Task): boolean {
   const implementer = implementers.at(-1);
   return started(implementer) && freshGate(task, implementer) >= 0;
 }
-function validateHistory(record: DispatchRecord, task: Task): void {
+function validateHistory(record: DispatchRecord, task: Task, historical: boolean): void {
   const prefix = { ...task, entries: [] as Entry[] };
   const history = { ...record, tasks: [prefix], dispatches: [] as Dispatch[] };
   let terminal = false;
@@ -517,8 +543,9 @@ function validateHistory(record: DispatchRecord, task: Task): void {
       else
         need(
           child &&
-            (!samePair(child.pair, dispatch.pair) ||
-              (previous?.action === 'replace' && previous.voided && previous.execution?.result === 'failed') ||
+            ((!historical &&
+              (!samePair(child.pair, dispatch.pair) ||
+                (previous?.action === 'replace' && previous.voided && previous.execution?.result === 'failed'))) ||
               dispatch.round >= 4 ||
               task.entries
                 .slice(0, prefix.entries.length)
@@ -768,6 +795,7 @@ function executionResult(
   record: DispatchRecord,
   dispatch: Dispatch,
   report: ExecutionReport,
+  historical = false,
 ): Pick<Execution, 'result' | 'reason'> {
   const outcome = report.outcome;
   const mismatch = (reason: string) => ({ result: 'mismatch' as const, reason });
@@ -788,7 +816,11 @@ function executionResult(
   if (typeof prompt !== 'string' || prompt.split('\n', 1)[0] !== dispatch.line)
     return mismatch('the first message line must equal the issued CAP line');
   if (resume) {
-    if (!followupAddress(record, dispatch, args[claude ? 'to' : 'target']))
+    if (
+      historical
+        ? args[claude ? 'to' : 'target'] !== dispatch.child
+        : !followupAddress(record, dispatch, args[claude ? 'to' : 'target'])
+    )
       return mismatch(`the follow-up needs recorded child ${dispatch.child}`);
     for (const key of ['model', 'effort', 'reasoning_effort', 'fork_turns', 'fork'])
       if (Object.hasOwn(args, key)) return mismatch(`the follow-up tool has no ${key} control`);

@@ -1,15 +1,17 @@
 import { randomUUID } from 'node:crypto';
-import { type BigIntStats, closeSync, constants, fstatSync, openSync } from 'node:fs';
-import { lstat, mkdir, open, rename, rm, writeFile } from 'node:fs/promises';
+import { closeSync, constants, fstatSync, openSync } from 'node:fs';
+import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { nextIssue } from '../next-step.ts';
 import type { AgentChoice, Host } from './config-core.ts';
 import { lineOf, type Next } from './lines.ts';
-import { lockHolder } from './locks.ts';
-import type { Operation } from './operation.ts';
+import { type LockOwner, lockHolder } from './locks.ts';
+import { locateCheckouts, type Operation } from './operation.ts';
 import { childEnv } from './process.ts';
 import type { QueueAction, QueueReceipt, QueueRecord, QueueView } from './queue-types.ts';
 import { readRecovery, recoveryOwner } from './quota-recovery.ts';
+import { commitMigration, type LocalRecord, readLocalRecord } from './state-migration.ts';
+import { requestStatePreparation } from './state-preparation.ts';
 import { tryFlock } from './update-lock.ts';
 import { openLockFile } from './windows.ts';
 import { lanes, type Run, type Step, steps } from './workflow.ts';
@@ -225,32 +227,187 @@ export function parseQueueReceipt(value: unknown): QueueReceipt {
 
 const pathOf = (common: string) => join(common, 'celetis-flow', 'queue.json');
 
-export async function readQueue(common: string): Promise<QueueRecord | null> {
-  const file = pathOf(common);
-  let before: BigIntStats;
+function historical(value: unknown, file: string): QueueRecord {
+  const invalid = (cause: string): never => {
+    throw new Error(`queue: ${file}: schema ${object(value) ? String(value.schema) : 'unknown'} to 3: ${cause}`);
+  };
+  if (!object(value) || (value.schema !== 1 && value.schema !== 2)) invalid('unsupported schema');
+  const old = value as Record<string, unknown>;
+  if (
+    !keys(
+      old,
+      old.schema === 1
+        ? 'act,current,host,id,last,numbers,position,reason,results,revision,schema,state'
+        : 'act,current,host,id,last,launch,numbers,reason,revision,schema,state',
+    ) ||
+    !identity(old) ||
+    !numbers(old.numbers) ||
+    !run(old.current) ||
+    !run(old.last) ||
+    !text(old.reason) ||
+    !text(old.act)
+  )
+    invalid('invalid historical fields');
+  const originalNumbers = old.numbers as number[];
+  if (old.schema === 1) {
+    if (
+      (old.host !== 'claude' && old.host !== 'codex') ||
+      !originalNumbers.length ||
+      !Number.isSafeInteger(old.position) ||
+      Number(old.position) < 0 ||
+      !Array.isArray(old.results) ||
+      old.results.length !== old.position ||
+      !old.results.every((result) => ['finished', 'wontfix', 'already-closed'].includes(result)) ||
+      !['running', 'me-gate', 'error', 'complete'].includes(String(old.state)) ||
+      (old.state === 'complete'
+        ? old.position !== originalNumbers.length
+        : Number(old.position) >= originalNumbers.length)
+    )
+      invalid('invalid schema-1 state, position, or completed results');
+  } else if (old.state === 'empty') {
+    if (
+      originalNumbers.length ||
+      [old.host, old.current, old.last, old.reason, old.act, old.launch].some((field) => field !== null)
+    )
+      invalid('invalid schema-2 empty state');
+  } else if (
+    (old.host !== 'claude' && old.host !== 'codex') ||
+    !originalNumbers.length ||
+    !['starting', 'running', 'me-gate', 'error'].includes(String(old.state))
+  )
+    invalid('invalid schema-2 state');
+  if (old.revision === Number.MAX_SAFE_INTEGER) invalid('revision cannot advance as a safe integer');
+  const empty = old.state === 'complete' || old.state === 'empty';
+  const target = {
+    schema: 3,
+    id: old.id,
+    revision: Number(old.revision) + 1,
+    choice: empty ? null : { kind: 'explicit', host: old.host },
+    activeHost: null,
+    numbers: empty ? [] : old.schema === 1 ? originalNumbers.slice(Number(old.position)) : originalNumbers,
+    state: empty ? 'empty' : old.state,
+    waitId: null,
+    current: empty ? null : old.current,
+    last: empty ? null : old.last,
+    reason: empty ? null : old.reason,
+    act: empty ? null : old.act,
+    launch: empty || old.schema === 1 ? null : old.launch,
+  };
+  if (!empty && old.state === 'me-gate' && old.current === null) invalid('current Run is unmappable for me-gate');
   try {
-    before = await lstat(file, { bigint: true });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
-    throw error;
+    return validate(target);
+  } catch {
+    return invalid('historical state or launch cannot map to the current invariant');
   }
-  if (!before.isFile()) throw new Error(`queue: not a regular file: ${file}`);
-  const handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+}
+
+async function snapshot(common: string): Promise<LocalRecord | null> {
+  const file = pathOf(common);
   try {
-    const opened = await handle.stat({ bigint: true });
-    if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino)
-      throw new Error(`queue: the record changed during the read: ${file}`);
-    const source = new TextDecoder('utf-8', { fatal: true }).decode(await handle.readFile());
+    return await readLocalRecord(file, [common, join(common, 'celetis-flow')], 'shared');
+  } catch (error) {
+    throw new Error(
+      `queue: ${file}: target schema 3: cannot read record: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+const oldSchema = (source: LocalRecord) =>
+  object(source.value) && (source.value.schema === 1 || source.value.schema === 2);
+const currentRecord = (source: LocalRecord): QueueRecord => {
+  if (!object(source.value) || source.value.schema !== 3)
+    throw new Error(
+      `queue: ${source.path}: unsupported schema ${object(source.value) ? String(source.value.schema) : 'unknown'}; expected schema 3`,
+    );
+  try {
+    return validate(source.value);
+  } catch {
+    throw new Error(`queue: ${source.path}: invalid schema-3 record`);
+  }
+};
+async function currentQueue(common: string): Promise<QueueRecord | null> {
+  const source = await snapshot(common);
+  return source ? currentRecord(source) : null;
+}
+async function commonOf(main: string, common?: string): Promise<string> {
+  if (common !== undefined) return common;
+  const checkout = await locateCheckouts(main);
+  if (checkout.common === null || checkout.main !== main) throw new Error('queue: need the main Git checkout');
+  return checkout.common;
+}
+
+export async function prepareQueue(_main: string, common: string, owner: LockOwner): Promise<void> {
+  const first = await snapshot(common);
+  if (!first) return;
+  if (!oldSchema(first)) {
+    currentRecord(first);
+    return;
+  }
+  const decided = historical(first.value, first.path);
+  const context = `queue: ${first.path}: schema ${object(first.value) ? first.value.schema : 'unknown'} to 3`;
+  const issue = decided.numbers[0];
+  if (!owner.owns('queue') && issue !== undefined && owner.owns(`issue-${issue}`))
+    throw new Error(`${context}: cannot acquire queue ownership after issue-${issue}; retry after releasing the issue`);
+  const acquired: string[] = [];
+  const take = async (name: string) => {
+    if (owner.owns(name)) return;
+    let holder: string | null;
     try {
-      return validate(JSON.parse(source));
-    } catch {
+      holder = await owner.take(name);
+    } catch (error) {
       throw new Error(
-        `queue: invalid or obsolete record: ${file}; preserve this file and follow the manual recovery in ${join(import.meta.dir, '../../docs/celetis-flow.md')}, "The continuous queue"`,
+        `${context}: cannot take ${name} ownership: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+    if (holder !== null)
+      throw new Error(`${context}: busy ${name} ownership (PID ${holder}); retry after the owner exits`);
+    acquired.push(name);
+  };
+  try {
+    await take('queue');
+    const owned = await snapshot(common);
+    if (!owned) throw new Error(`${context}: source disappeared during preparation`);
+    if (!oldSchema(owned)) {
+      currentRecord(owned);
+      return;
+    }
+    const ownedTarget = historical(owned.value, owned.path);
+    if (ownedTarget.id !== decided.id || ownedTarget.numbers[0] !== issue)
+      throw new Error(`${context}: identity or current unfinished issue changed during preparation`);
+    if (issue !== undefined) await take(`issue-${issue}`);
+    await withQueueWrite(common, async () => {
+      const locked = await snapshot(common);
+      if (!locked) throw new Error(`${context}: source disappeared under the write lock`);
+      if (!oldSchema(locked)) {
+        currentRecord(locked);
+        return;
+      }
+      const target = historical(locked.value, locked.path);
+      if (target.id !== decided.id || target.numbers[0] !== issue)
+        throw new Error(`${context}: identity or current unfinished issue changed under the write lock`);
+      await commitMigration(
+        locked,
+        Number((locked.value as Record<string, unknown>).schema),
+        `${JSON.stringify(target)}\n`,
+      );
+    });
+  } catch (error) {
+    const cause = error instanceof Error ? error.message : String(error);
+    if (cause.startsWith(context)) throw error;
+    throw new Error(`${context}: ${cause}`);
   } finally {
-    await handle.close();
+    for (const name of acquired.reverse()) await owner.release(name);
   }
+}
+
+export async function readQueue(main: string, common?: string, owner?: LockOwner): Promise<QueueRecord | null> {
+  common = await commonOf(main, common);
+  const source = await snapshot(common);
+  if (!source) return null;
+  if (!oldSchema(source)) return currentRecord(source);
+  historical(source.value, source.path);
+  if (owner) await prepareQueue(main, common, owner);
+  else await requestStatePreparation(main, { kind: 'queue' });
+  return currentQueue(common);
 }
 
 async function writeQueue(common: string, record: QueueRecord): Promise<void> {
@@ -267,10 +424,7 @@ async function writeQueue(common: string, record: QueueRecord): Promise<void> {
   }
 }
 
-export async function updateQueue(
-  common: string,
-  change: (record: QueueRecord | null) => Promise<QueueRecord>,
-): Promise<QueueRecord> {
+async function withQueueWrite<T>(common: string, change: () => Promise<T>): Promise<T> {
   const dir = join(common, 'celetis-flow');
   await mkdir(dir, { recursive: true, mode: 0o700 });
   const path = join(dir, 'queue-write.lock');
@@ -282,18 +436,31 @@ export async function updateQueue(
     if (!fstatSync(fd).isFile()) throw new Error(`queue: not a regular lock file: ${path}`);
     const deadline = performance.now() + 5_000;
     while (!tryFlock(fd)) {
-      if (performance.now() >= deadline) throw new Error('queue: write lock is busy; refresh and try again');
+      if (performance.now() >= deadline) throw new Error(`queue: ${path}: write lock is busy; refresh and try again`);
       await Bun.sleep(50);
     }
-    const previous = await readQueue(common);
-    const changed = await change(previous);
-    if (changed === previous) return changed;
-    const next = { ...changed, revision: (previous?.revision ?? 0) + 1 };
-    await writeQueue(common, next);
-    return next;
+    return await change();
   } finally {
     closeSync(fd);
   }
+}
+
+export async function updateQueue(
+  main: string,
+  change: (record: QueueRecord | null) => Promise<QueueRecord>,
+  common?: string,
+  owner?: LockOwner,
+): Promise<QueueRecord> {
+  const storage = await commonOf(main, common);
+  await readQueue(main, storage, owner);
+  return withQueueWrite(storage, async () => {
+    const previous = await currentQueue(storage);
+    const changed = await change(previous);
+    if (changed === previous) return changed;
+    const next = { ...changed, revision: (previous?.revision ?? 0) + 1 };
+    await writeQueue(storage, next);
+    return next;
+  });
 }
 
 export function queueView(
@@ -339,12 +506,12 @@ export async function readQueueView(operation: Operation, signal?: AbortSignal):
     signal?.throwIfAborted();
     const { main, common } = operation.checkout;
     if (main === null || common === null) throw new Error('queue: need a Git checkout');
-    record = await readQueue(common);
+    record = await readQueue(main, common);
     const number = record?.numbers[0];
     const next = number ? (await nextIssue(String(number), operation, signal)).next : null;
     const owner = await queueOwner(main, record);
     signal?.throwIfAborted();
-    const latest = await readQueue(common);
+    const latest = await readQueue(main, common);
     if (latest?.id !== record?.id || latest?.revision !== record?.revision)
       throw new Error('queue: changed during the read; refresh before acting');
     const recovery = record?.state === 'quota-wait' && owner && number ? await readRecovery(main, number) : null;

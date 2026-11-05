@@ -48,6 +48,8 @@ const required = [
   'lib/process.ts',
   'lib/program.ts',
   'lib/queue.ts',
+  'lib/state-migration.ts',
+  'lib/state-preparation.ts',
   'lib/queue-types.ts',
   'lib/queue-actions.ts',
   'lib/quota-recovery.ts',
@@ -66,6 +68,39 @@ async function gone(files = required) {
 }
 
 export async function main(argv: string[]): Promise<number> {
+  if (argv[0] === '--prepare-state') {
+    const session =
+      argv[1] === 'session' &&
+      argv.length === 3 &&
+      /^[1-9][0-9]*$/.test(argv[2] ?? '') &&
+      Number.isSafeInteger(Number(argv[2]));
+    if (!(argv.length === 2 && argv[1] === 'queue') && !session) {
+      console.error('state preparation: invalid internal request');
+      return 2;
+    }
+    let owner: LockOwner | undefined;
+    try {
+      (await import('./lib/host.ts')).requireBun();
+      const checkout = await (await import('./lib/operation.ts')).locateCheckouts(process.cwd());
+      if (checkout.main === null || checkout.common === null) throw new Error('state preparation: need a Git checkout');
+      owner = (await import('./lib/locks.ts')).createLockOwner(checkout.main);
+      if (session) {
+        const name = `issue-${argv[2]}`;
+        const holder = await owner.take(name);
+        if (holder !== null)
+          throw new Error(
+            `session: ${join(checkout.common, 'celetis-flow', 'sessions', `${argv[2]}.json`)}: target schema 2: busy ${name} ownership (PID ${holder}); retry after the owner exits`,
+          );
+        await (await import('./lib/session.ts')).prepareSession(checkout.main, Number(argv[2]), checkout.common, owner);
+      } else await (await import('./lib/queue.ts')).prepareQueue(checkout.main, checkout.common, owner);
+      return 0;
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      return 1;
+    } finally {
+      await owner?.releaseAll();
+    }
+  }
   const unavailable = await gone([
     'lib/config-core.ts',
     'lib/config.ts',
@@ -79,6 +114,8 @@ export async function main(argv: string[]): Promise<number> {
     'lib/windows.ts',
     'lib/process-identity.ts',
     'lib/queue.ts',
+    'lib/state-migration.ts',
+    'lib/state-preparation.ts',
     'lib/queue-types.ts',
     'lib/queue-actions.ts',
     'lib/quota-recovery.ts',
@@ -182,9 +219,7 @@ export async function main(argv: string[]): Promise<number> {
   const { HostError, requireBun, selectHost } = await import('./lib/host.ts');
   const { addRecord, createLockOwner, isRecorded, lockHolder } = await import('./lib/locks.ts');
   const { createOperation, locateCheckouts } = await import('./lib/operation.ts');
-  const { explicitHost, readQueue, readQueueView, queueOwner, requireQueueChoice, updateQueue } = await import(
-    './lib/queue.ts'
-  );
+  const { explicitHost, readQueue, readQueueView, requireQueueChoice, updateQueue } = await import('./lib/queue.ts');
   const {
     archiveSession,
     endOwnedAttempt,
@@ -264,11 +299,16 @@ export async function main(argv: string[]): Promise<number> {
     if (queue === null) throw new HostError('celetis-flow: queue: no submitted queue', 2);
     const expected = queue;
     try {
-      queue = await updateQueue(common, async (current) => {
-        if (!current || current.id !== expected.id || current.numbers[0] !== expected.numbers[0])
-          throw new Error('queue: the current issue changed; refresh the queue');
-        return { ...current, ...change };
-      });
+      queue = await updateQueue(
+        main,
+        async (current) => {
+          if (!current || current.id !== expected.id || current.numbers[0] !== expected.numbers[0])
+            throw new Error('queue: the current issue changed; refresh the queue');
+          return { ...current, ...change };
+        },
+        common,
+        locks,
+      );
     } catch (error) {
       storageFailed = true;
       throw new HostError(
@@ -328,7 +368,7 @@ export async function main(argv: string[]): Promise<number> {
       warned = true;
     };
     while (!abort.aborted) {
-      const saved = await readSession(main, Number(n)).then(
+      const saved = await readSession(main, Number(n), common, locks).then(
         (record) => record.session_id,
         () => null,
       );
@@ -404,7 +444,7 @@ export async function main(argv: string[]): Promise<number> {
         record.host === 'claude'
           ? { kind: 'one', id: announced }
           : await codexClaim(main, codexPrompt(record.step, Number(n)), startedAt);
-      const result = await observeSession(record, claim, startedAt);
+      const result = await observeSession(record, claim, startedAt, locks);
       if (result === 0) {
         saved = true;
         break;
@@ -423,7 +463,7 @@ export async function main(argv: string[]): Promise<number> {
       await Bun.sleep(1000);
     }
     if (!saved || abort.aborted) return false;
-    const id = (await readSession(main, Number(n))).session_id ?? '';
+    const id = (await readSession(main, Number(n), common, locks)).session_id ?? '';
     let retained: TurnKey | null = null;
     while (!abort.aborted && (await waitTerminal(terminal, 60, abort))) {
       if (await gone()) {
@@ -889,7 +929,7 @@ export async function main(argv: string[]): Promise<number> {
           session_id: null,
           effort: applied,
         };
-        await writeSession(main, record);
+        await writeSession(main, record, locks);
         const { ended, barrier } = await startSession(n, step, stepHost, sessionArgs, !quiet, attempt.id, retrying);
         let watchError: unknown;
         stepEndIssue = issue;
@@ -934,7 +974,7 @@ export async function main(argv: string[]): Promise<number> {
           await clearStepEnd();
           stepEndIssue = undefined;
           if (watchError !== undefined) throw watchError;
-          if ((await readSession(main, issue)).session_id === null) {
+          if ((await readSession(main, issue, common, locks)).session_id === null) {
             if (!(await stat(join(watchDir, 'error')).catch(() => null)))
               await startupError(
                 issue,
@@ -976,7 +1016,7 @@ export async function main(argv: string[]): Promise<number> {
           recordEvent({ name: 'quota-unverified', message: `celetis-flow: ${line}`, issue });
           return outcome('stopped', line, 'Stop the session and its tasks in its tab, then use Try again.');
         }
-        const archived = await archiveSession(main, issue, attempt.id);
+        const archived = await archiveSession(main, issue, attempt.id, locks);
         finished = terminal;
         await rm(watchDir, { recursive: true, force: true });
         watchDir = '';
@@ -1016,7 +1056,7 @@ export async function main(argv: string[]): Promise<number> {
       return 0;
     }
     if (mode === 'queue') {
-      queue = await readQueue(common);
+      queue = await readQueue(main, common, locks);
       if (queue?.choice && action?.kind !== 'add') {
         const requested = selection.explicit ?? selection.environment;
         if (queueCommand !== 'status' && requested !== undefined) {
@@ -1034,7 +1074,8 @@ export async function main(argv: string[]): Promise<number> {
       const holder = await locks.take(`issue-${numbers[0]}`);
       if (holder !== null) die(`another celetis-flow.ts or its session (PID ${holder}) works on #${numbers[0]}`);
     }
-    const saved = mode === 'resume' ? await selectSavedSession(main, Number(numbers[0]), explicit, common) : undefined;
+    const saved =
+      mode === 'resume' ? await selectSavedSession(main, Number(numbers[0]), explicit, common, locks) : undefined;
     operation = createOperation(checkout, saved ? { ...selection, saved: saved.host } : selection, 'main');
     if (mode === 'queue') {
       if (queueCommand === 'status') {
@@ -1054,17 +1095,22 @@ export async function main(argv: string[]): Promise<number> {
         wake = receipt.wake;
       }
       const pending = wake ?? claim;
-      queue = await updateQueue(common, async (current) => {
-        if (!current || !pending || current.id !== pending.id || current.launch?.token !== pending.token)
-          throw new HostError('queue: stale launch token; no session started', 2);
-        if (!current.choice) throw new HostError('queue: no recorded agent choice', 2);
-        requireQueueChoice(current.choice, operation.choice);
-        if (await queueOwner(main, current))
-          throw new HostError('queue: a runner or its foreground still owns this work', 2);
-        const holder = await locks?.take('queue');
-        if (holder !== null) throw new HostError('queue: another runner owns this work', 2);
-        return current;
-      });
+      const holder = await locks.take('queue');
+      if (holder !== null) throw new HostError('queue: another runner owns this work', 2);
+      queue = await updateQueue(
+        main,
+        async (current) => {
+          if (!current || !pending || current.id !== pending.id || current.launch?.token !== pending.token)
+            throw new HostError('queue: stale launch token; no session started', 2);
+          if (!current.choice) throw new HostError('queue: no recorded agent choice', 2);
+          requireQueueChoice(current.choice, operation.choice);
+          if (await lockHolder(main, `issue-${current.numbers[0]}`))
+            throw new HostError('queue: a runner or its foreground still owns this work', 2);
+          return current;
+        },
+        common,
+        locks,
+      );
       queueWritable = true;
       const pinned = explicitHost(queue.choice);
       selection = pinned === null ? {} : { saved: pinned };
@@ -1146,7 +1192,7 @@ export async function main(argv: string[]): Promise<number> {
           return 0;
         }
         for (;;) {
-          const snapshot = await readQueue(common);
+          const snapshot = await readQueue(main, common, locks);
           if (!snapshot || snapshot.id !== queue.id || snapshot.numbers[0] !== Number(n))
             throw new Error('queue: current issue changed during drain');
           const { next } = await nextOf(n, fresh());
@@ -1154,16 +1200,21 @@ export async function main(argv: string[]): Promise<number> {
             die('queue: cannot advance without a fresh closed resolver result');
           let drained = false;
           try {
-            queue = await updateQueue(common, async (current) => {
-              if (!current || current.id !== snapshot.id) throw new Error('queue: identity changed during drain');
-              if (current.revision !== snapshot.revision) return current;
-              const numbers = current.numbers.slice(1);
-              if (!numbers.length) await locks?.release('queue');
-              drained = true;
-              return numbers.length
-                ? { ...current, numbers, current: null, last: null, reason: null, act: null }
-                : emptyQueue(current);
-            });
+            queue = await updateQueue(
+              main,
+              async (current) => {
+                if (!current || current.id !== snapshot.id) throw new Error('queue: identity changed during drain');
+                if (current.revision !== snapshot.revision) return current;
+                const numbers = current.numbers.slice(1);
+                if (!numbers.length) await locks?.release('queue');
+                drained = true;
+                return numbers.length
+                  ? { ...current, numbers, current: null, last: null, reason: null, act: null }
+                  : emptyQueue(current);
+              },
+              common,
+              locks,
+            );
           } catch (error) {
             storageFailed = true;
             throw error;

@@ -5,6 +5,7 @@ import { childEnv, run } from './process.ts';
 import { processRunsScript, processStart, processState } from './process-identity.ts';
 
 export interface LockOwner {
+  owns(name: string): boolean;
   take(name: string): Promise<string | null>;
   registerSession(pid: number | undefined): Promise<void>;
   release(name: string): Promise<void>;
@@ -80,7 +81,10 @@ export function createLockOwner(main: string): LockOwner {
     held.delete(name);
   };
   return {
+    owns: (name) => held.has(name),
     async take(name) {
+      if (name === 'queue' && [...held].some((lock) => lock.startsWith('issue-')))
+        die('cannot take queue ownership after an issue lock; release the issue lock first');
       if (!owner) {
         const start = await processStart(process.pid);
         if (!start) die('cannot read process identity; allow process access and start the runner again');

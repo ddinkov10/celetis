@@ -6,6 +6,9 @@ import type { Config, Host } from './config-core.ts';
 import { clampEffort, isLevel, type Level } from './effort.ts';
 import { recordEvent } from './events.ts';
 import { codexRequest, commonDir, HostError } from './host.ts';
+import type { LockOwner } from './locks.ts';
+import { commitMigration, type LocalRecord, readLocalRecord } from './state-migration.ts';
+import { requestStatePreparation } from './state-preparation.ts';
 import { readScreen } from './terminal.ts';
 import { command, invocation, type Step, steps } from './workflow.ts';
 
@@ -26,22 +29,26 @@ function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+function sessionFields(value: Record<string, unknown>, main: string, issue: number): boolean {
+  return (
+    value.issue === issue &&
+    value.checkout === main &&
+    (value.host === 'claude' || value.host === 'codex') &&
+    typeof value.step === 'string' &&
+    steps.includes(value.step as Step) &&
+    (value.session_id === null || (typeof value.session_id === 'string' && uuid.test(value.session_id)))
+  );
+}
+
 export function validateSession(value: unknown, main: string, issue: number, file: string): SessionRecord {
   if (
     !object(value) ||
     Object.keys(value).sort().join(',') !== 'checkout,effort,host,issue,schema,session_id,step' ||
     value.schema !== 2 ||
-    value.issue !== issue ||
-    value.checkout !== main ||
-    (value.host !== 'claude' && value.host !== 'codex') ||
-    typeof value.step !== 'string' ||
-    !steps.includes(value.step as Step) ||
-    !(value.session_id === null || (typeof value.session_id === 'string' && uuid.test(value.session_id))) ||
+    !sessionFields(value, main, issue) ||
     !isLevel(value.effort)
   ) {
-    throw new HostError(
-      `celetis: invalid or obsolete session record ${file}; remove it and start a new step with celetis --agent <host> celetis-flow ${issue}`,
-    );
+    throw new HostError(`session: ${file}: invalid schema-2 fields; preserve the record and repair its data`);
   }
   return value as unknown as SessionRecord;
 }
@@ -50,22 +57,107 @@ export function serializeSession(record: SessionRecord): string {
   return JSON.stringify(Object.fromEntries(Object.entries(record).sort(([a], [b]) => a.localeCompare(b))));
 }
 
-export async function readSession(main: string, issue: number, common?: string): Promise<SessionRecord> {
-  const file = join(common ?? (await commonDir(main)), 'celetis-flow/sessions', `${issue}.json`);
-  let source: string;
-  try {
-    source = await readFile(file, 'utf8');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+function historical(source: LocalRecord, main: string, issue: number): SessionRecord {
+  const value = source.value;
+  if (
+    !object(value) ||
+    value.schema !== 1 ||
+    Object.keys(value).sort().join(',') !== 'checkout,host,issue,schema,session_id,step' ||
+    !sessionFields(value, main, issue)
+  )
     throw new HostError(
-      `celetis: #${issue} has no current session record; start a new step with celetis --agent <host> celetis-flow ${issue}`,
+      `session: ${source.path}: schema 1 to 2: invalid historical fields; preserve and repair the record`,
+    );
+  return validateSession({ ...value, schema: 2, effort: 'high' }, main, issue, source.path);
+}
+
+const oldSchema = (source: LocalRecord) => object(source.value) && source.value.schema === 1;
+const pathOf = (common: string, issue: number) => join(common, 'celetis-flow', 'sessions', `${issue}.json`);
+async function snapshot(common: string, issue: number): Promise<LocalRecord | null> {
+  const file = pathOf(common, issue);
+  try {
+    return await readLocalRecord(
+      file,
+      [common, join(common, 'celetis-flow'), join(common, 'celetis-flow', 'sessions')],
+      'shared',
+    );
+  } catch (error) {
+    throw new HostError(
+      `session: ${file}: target schema 2: cannot read record: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
-  let value: unknown;
+}
+function currentRecord(source: LocalRecord, main: string, issue: number): SessionRecord {
+  if (!object(source.value) || source.value.schema !== 2)
+    throw new HostError(
+      `session: ${source.path}: unsupported schema ${object(source.value) ? String(source.value.schema) : 'unknown'}; expected schema 2`,
+    );
+  return validateSession(source.value, main, issue, source.path);
+}
+function missing(issue: number): HostError {
+  return new HostError(
+    `celetis: #${issue} has no current session record; start a new step with celetis --agent <host> celetis-flow ${issue}`,
+  );
+}
+
+export async function prepareSession(main: string, issue: number, common: string, owner: LockOwner): Promise<void> {
+  const source = await snapshot(common, issue);
+  if (!source) return;
+  if (!oldSchema(source)) {
+    currentRecord(source, main, issue);
+    return;
+  }
+  historical(source, main, issue);
+  const context = `session: ${source.path}: schema 1 to 2`;
+  const name = `issue-${issue}`;
+  let acquired = false;
   try {
-    value = JSON.parse(source);
-  } catch {}
-  return validateSession(value, main, issue, file);
+    if (!owner.owns(name)) {
+      const holder = await owner.take(name);
+      if (holder !== null)
+        throw new HostError(`${context}: busy ${name} ownership (PID ${holder}); retry after the owner exits`);
+      acquired = true;
+    }
+    const locked = await snapshot(common, issue);
+    if (!locked) throw new HostError(`${context}: source disappeared during preparation`);
+    if (!oldSchema(locked)) {
+      currentRecord(locked, main, issue);
+      return;
+    }
+    const target = historical(locked, main, issue);
+    await commitMigration(locked, 1, `${serializeSession(target)}\n`);
+  } catch (error) {
+    const cause = error instanceof Error ? error.message : String(error);
+    if (cause.startsWith(context)) throw error;
+    throw new HostError(`${context}: ${cause}`);
+  } finally {
+    if (acquired) await owner.release(name);
+  }
+}
+
+export async function readSession(
+  main: string,
+  issue: number,
+  common?: string,
+  owner?: LockOwner,
+): Promise<SessionRecord> {
+  common ??= await commonDir(main);
+  const source = await snapshot(common, issue);
+  if (!source) throw missing(issue);
+  if (!oldSchema(source)) return currentRecord(source, main, issue);
+  historical(source, main, issue);
+  try {
+    if (owner?.owns(`issue-${issue}`)) await prepareSession(main, issue, common, owner);
+    else await requestStatePreparation(main, { kind: 'session', issue });
+  } catch (error) {
+    const context = `session: ${source.path}: schema 1 to 2`;
+    const cause = error instanceof Error ? error.message : String(error);
+    if (cause.startsWith(context)) throw error;
+    throw new HostError(`${context}: ${cause}`);
+  }
+  const prepared = await snapshot(common, issue);
+  if (!prepared) throw missing(issue);
+  return currentRecord(prepared, main, issue);
 }
 
 export function manualRecovery(host: Host): string {
@@ -77,8 +169,9 @@ export async function selectSavedSession(
   issue: number,
   explicit?: string,
   common?: string,
+  owner?: LockOwner,
 ): Promise<SavedSession> {
-  const record = await readSession(main, issue, common);
+  const record = await readSession(main, issue, common, owner);
   if (explicit !== undefined && explicit !== record.host)
     throw new HostError(
       `celetis: #${issue} recorded host is ${record.host}; resume without --agent or use --agent ${record.host}`,
@@ -106,10 +199,12 @@ export function sessionEnv(host: Host, source: NodeJS.ProcessEnv): NodeJS.Proces
   );
 }
 
-export async function writeSession(main: string, record: SessionRecord): Promise<void> {
-  const dir = join(await commonDir(main), 'celetis-flow/sessions');
+export async function writeSession(main: string, record: SessionRecord, owner?: LockOwner): Promise<void> {
+  const common = await commonDir(main);
+  const dir = join(common, 'celetis-flow/sessions');
   const file = join(dir, `${record.issue}.json`);
   validateSession(record, main, record.issue, file);
+  if (await snapshot(common, record.issue)) await readSession(main, record.issue, common, owner);
   await mkdir(dir, { recursive: true });
   const temp = join(dir, `.${record.issue}.${randomUUID()}`);
   try {
@@ -219,13 +314,18 @@ export async function codexClaim(checkout: string, prompt: string, startedAt: nu
   return ids.length === 1 ? { kind: 'one', id } : { kind: 'many' };
 }
 
-export async function observeSession(record: SessionRecord, claim: Claim, startedAt: number): Promise<0 | 1 | 2> {
+export async function observeSession(
+  record: SessionRecord,
+  claim: Claim,
+  startedAt: number,
+  owner?: LockOwner,
+): Promise<0 | 1 | 2> {
   if (claim.kind === 'none') return 1;
   if (claim.kind === 'many') return 2;
   const next = { ...record, session_id: claim.id };
   if (!(await verifySavedSession(next, startedAt))) return 1;
   try {
-    await writeSession(record.checkout, next);
+    await writeSession(record.checkout, next, owner);
   } catch {
     return 2;
   }

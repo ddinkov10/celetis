@@ -320,10 +320,10 @@ export const createBoard = ({
     try {
       const { common } = await locateCheckouts(main);
       if (common === null) throw new Error('queue: need a Git checkout');
-      const record = await readQueue(common);
+      const record = await readQueue(main, common);
       const owner = await queueOwner(main, record);
       const matches = record?.id === projected?.record?.id && record?.revision === projected?.record?.revision;
-      if (board && (!matches || owner !== projected?.owner)) void refresh();
+      if (board && !fullError && (!matches || owner !== projected?.owner)) void refresh();
       const next = matches ? (projected?.next ?? null) : null;
       const actions = projectQueue(record, owner, next).actions;
       if (!matches || fullError || (projected?.next?.kind === 'observed' && projected.next.reason === 'unreadable')) {
@@ -805,7 +805,7 @@ export const createBoard = ({
     try {
       const { common } = await locateCheckouts(main);
       if (!common) throw new Refusal(409, 'queue: need a Git checkout');
-      const record = await readQueue(common);
+      const record = await readQueue(main, common);
       const choice = action.kind === 'add' ? requested : (record?.choice ?? requested);
       const receipt = await adapter.queue(action, choice).catch((cause: Error) => {
         throw new Refusal(409, cleanCause(cause.message));

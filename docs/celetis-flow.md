@@ -196,7 +196,8 @@ only. With the default gates no step is `auto`, so the automatic runner starts n
 
 **The form `--resume <n>`** reopens the exact session from
 `<git common dir>/celetis-flow/sessions/<n>.json`. It first takes the shared issue lock and keeps it
-until the foreground exits. Under that lock, it reads and validates the current record, selects
+until the foreground exits. Under that lock, it prepares a supported schema-1 record as schema 2,
+then reads and validates the current record, selects
 its saved host and checkout, and runs `claude --resume <id> --effort <level>` or
 `codex resume --no-daemon -c model_reasoning_effort="<level>" <id>` with the level of the record,
 in a new tab that comes to the front ("How a step runs"). A missing or
@@ -234,13 +235,14 @@ Later Add actions append without interrupting current work or authorizing a stop
 Only waiting issues can move or leave through an edit. The agent choice stays fixed while nonempty.
 An incoming explicit host must match that saved explicit choice. A saved default choice refuses
 an explicit host before admission or wake claim. With no explicit input, Continue, Retry, and
-waiting edits keep the saved choice. A read-only status command does not select work.
+waiting edits keep the saved choice. Status does not select work.
 Every later step, including the first step of waiting work, follows fresh project gates.
 Continue authorizes exactly the displayed step. Retry authorizes recovery of that displayed
 step; a null step only acknowledges a fresh terminal result and authorizes no later issue.
 
-The public forms are `--queue status` and `--queue action '<QueueAction JSON>'`. Status is
-read-only. Action persists a mutation, then runs its wake in that foreground if one was issued.
+The public forms are `--queue status` and `--queue action '<QueueAction JSON>'`. Status may
+prepare supported old storage, but performs no workflow action. Action persists a mutation,
+then runs its wake in that foreground if one was issued.
 The finite internal `--queue admit '<QueueAction JSON>'` returns a validated receipt;
 `--queue run <id> <token>` claims that wake. Old batch start and reset forms are removed.
 
@@ -258,7 +260,7 @@ and error. Empty retains the record identity but has no numbers, choice, or acti
 default choice stays default: each start selects its host from the effective order of its step
 ("The agent of each start"). The active
 host is the host of the current session, or null. `quota-wait` has the wait ID of the issue's
-recovery record and no active host ("Usage-limit recovery"). A schema-2 record refuses as obsolete.
+recovery record and no active host ("Usage-limit recovery").
 It has no completed rows, history, reset, or tab-local draft.
 
 The stable native `queue-write.lock` serializes short read-modify-write transactions. Acquisition
@@ -280,12 +282,30 @@ Unreadable members stay queued with an error. A current issue cannot drain while
 When an unowned stopped current closes, reconciliation advances with normal gates or leaves
 empty. An Add after the final drain starts more work without reload or reset.
 
-**Obsolete-record recovery.** Schema 1 refuses with its exact path and leaves its bytes intact.
-Let the old runner and foreground exit. Confirm that the queue and recorded issue locks have no
-live owner. Retain the old file and its unfinished issue order. Only after explicit authorization,
-move the file to a unique archive path without overwriting another file. Refresh and deliberately
-re-add still-needed issues. Invalid or unreadable storage requires repair; it is never empty.
-This is manual guidance for installation adoption, not a build prerequisite or an automatic migration.
+**Automatic storage preparation.** Ordinary queue readers and writers convert valid schema 1
+and schema 2 to schema 3. Schema 2 retains ordered numbers, state, current/last Runs,
+reason/action, and pending launch token and authorization. Schema 1 keeps only
+`numbers.slice(position)` as unfinished work; its completed prefix and results stay in the
+backup. Complete becomes empty. Nonempty work pins its recorded host as an explicit choice.
+Active host and wait ID become null; schema 1 has no launch. The revision advances once.
+A valid current record or absent record causes no conversion or archive.
+
+Preparation takes queue execution ownership, then ownership of the current unfinished issue,
+then the write lock, and rereads under those locks. A runner with those locks prepares directly.
+Other callers use a finite internal path in the same revision's `celetis-flow.ts`; it starts no
+terminal, host, GitHub read, or workflow action. Live owners and busy locks refuse without
+stealing ownership. Retry through the ordinary operation after the owner exits.
+
+Before atomic replacement, a private sibling
+`queue.json.schema-<source schema>.<SHA-256 of original bytes>.bak` retains the exact original
+bytes. An identical safe archive is reused; conflicting archives refuse. Backups remain
+indefinitely and are never restored over live data automatically. A retry after interruption
+sees either the old record or the complete current record; it does not advance the revision again.
+This is a process-interruption guarantee on the supported local filesystem, not a power-loss claim.
+Invalid JSON/UTF-8, unknown fields or schemas, unsafe storage, unmappable values, and failed
+persistence refuse with the record path and cause. No missing Run or authorization is invented.
+Invalid or unreadable storage requires repair; it is never empty. Product configuration and
+installation adoption remain outside this runtime-state exception (ADR-0070).
 
 ## How a step runs
 
@@ -1289,8 +1309,11 @@ saves them for each step session that it starts. A resumed session stays open un
 The record at `<git common dir>/celetis-flow/sessions/<n>.json` has exactly seven fields:
 `schema: 2`, `host`, `issue`, `step`, absolute main `checkout`, `session_id` (UUID or null), and
 `effort`, the level that the runner requested after the Codex clamp.
-The runner writes it atomically. It accepts no old record format and makes no migration: a
-schema-1 record stops resume with the invalid or obsolete record message.
+The runner writes it atomically. Before a current record is used or replaced, a valid schema-1
+record becomes schema 2 under the issue lock. This preserves its host, issue, step, checkout, and
+nullable native session ID exactly, and retains its original bytes in an immutable sibling backup.
+The new `effort` is `high`, the current Resume policy default; it does not describe the original
+session's effort. Unsupported schemas and invalid data stop without replacement.
 Before a usage-limit recovery replaces this record, the runner copies it unchanged to
 `<git common dir>/celetis-flow/sessions/<n>/<attempt id>.json`. That archive keeps the exact native
 session of each interrupted attempt; Resume reads only the current record.
