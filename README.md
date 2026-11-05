@@ -254,7 +254,7 @@ does not provide the Codex installation.
 
 The three parts above stay by hand on each machine. `/celetis:setup` writes required integration
 and approved product additions in the main checkout of one product project
-([ADR-0052](docs/adr/0052-setup-owns-required-configuration-and-host-wiring.md)). Its required set
+([ADR-0071](docs/adr/0071-setup-reconciles-recorded-owned-wiring.md)). Its required set
 is the selected host settings, instruction imports, the dedicated Codex restriction, required
 configuration, ignore and attribute lines, and its record. It also makes missing tracker labels.
 Product procedures and stores stay with their owner.
@@ -270,12 +270,13 @@ nothing, and runs no product file. A pass proves only the file contents and the 
 does not prove that a host loads the policy, that the worktree setup works, or that the wiring is
 on the remote trunk.
 
-- The session asks for the issue tracker, the hosts (Claude, Codex, or both), and the landing. With
-  `merge`, it also asks for the suite: a TypeScript file that `land` runs.
-  Setup stops on each tracker other than GitHub. With two hosts, the session asks for their
-  priority order. For the landing, it proposes the value of `.celetis.yaml` when present.
-  The ordered `--hosts` value initializes an absent local preference only during `setup write`.
-  `setup check` and `setup try` leave that preference unchanged.
+- The session runs `setup check` first and reuses its validated saved tracker and ordered hosts.
+  It uses landing and, with `merge`, suite from the current valid `.celetis.yaml`. It asks only
+  for an absent answer or a change explicitly requested in the invocation. An invalid present
+  answer refuses; it is not treated as absent. Only GitHub is supported. Both `try` and `write`
+  receive the same resolved selection and configuration options. The ordered `--hosts` value
+  initializes an absent local preference only during `setup write`; an existing valid preference
+  stays unchanged even after a host-selection change. `check` and `try` create no preference.
 - After the landing, when `.celetis.yaml` has no `worktreeSetup`, the session proposes the
   worktree setup: a normal root-relative `.ts` file, such as `scripts/worktree-setup.ts`, from the
   manifests, lockfiles, version pins, and CI workflows of the project. It shows the path and
@@ -302,21 +303,21 @@ on the remote trunk.
   `.codex/rules/celetis.rules`. Every host selection creates or refreshes the marked Celetis entry
   pointer in `AGENTS.md`. See [`AGENTS.md`](#agentsmd) for its ownership and both relative import forms.
 - Setup writes no launcher, shared entrypoint allow, project `celetis@celetis` enablement,
-  generic flow section, ADR starter, or empty lesson catalog. It preserves differing Codex rules,
-  copied launchers, old project enablement, and historical ownership claims. It reports old
-  wiring for [owner review](#review-old-wiring); it performs no cleanup or migration. In shared
-  files it adds missing required entries and refreshes only the marked instruction block. The
-  separate marketplace replacement changes an unchanged, recorded canonical Celetis entry's
-  `autoUpdate` to false. A differing or unowned existing marketplace entry stays unchanged and
-  can leave an unresolved policy warning.
-- In `.celetis.yaml`, setup owns `landing` and `suite` (with `merge` only). It makes the file when there is none. In a valid file,
-  it appends each missing required entry and keeps each byte of the product. When an entry has a value
-  other than your answer, setup keeps that value and prints a warning. Change that field by hand
-  when your answer is the intended value.
-- Setup records each file and each entry that it owns in `.claude/celetis-flow/wiring.json`, so
-  that a later run can tell them from the entries of the product. The schema stays 1. The record
-  preserves the union of historical claims, including obsolete claims. A claim alone permits no
-  replacement or removal of current content. Repeated committed runs preserve its bytes.
+  generic flow section, ADR starter, or empty lesson catalog. It refreshes current owned wiring
+  and removes obsolete owned scopes, including a recorded dedicated launcher. A valid recorded
+  object key owns its current value; a dedicated whole-file claim owns that file. Manual edits
+  inside those scopes are replaced or removed. Shared files retain content outside owned scopes.
+  Differing unowned settings and rules stay unchanged with exact path warnings and no new claim.
+  Unrecorded old wiring and remaining product callers need [owner review](#review-old-wiring).
+- In `.celetis.yaml`, setup owns required `landing` and `suite` (with `merge` only). It adds missing
+  entries, refreshes recorded owned values and removes an obsolete owned suite for `pr`, while
+  preserving unrelated bytes and values. A differing unowned value stays with an exact warning;
+  an unowned suite that blocks `pr` refuses before writes. Invalid current configuration still
+  needs owner repair; setup reads no old configuration format.
+- The schema-1 record at `.claude/celetis-flow/wiring.json` records the resulting owned files and
+  entries and the resolved tracker and hosts. Setup validates its complete shape and finite
+  wiring scope before using any claim. It drops retired claims rather than keeping their union.
+  An unchanged committed repeat changes no bytes or modification times.
 - The write adds only the parts that you approved: the file reference as `worktreeSetup`, the ignore
   lines, and the baseline section. These three parts are product parts: setup writes each one
   only when it is missing, and the record does not list it.
@@ -333,7 +334,8 @@ on the remote trunk.
 
 ### Claude permissions: `.claude/settings.json`
 
-Setup adds the marketplace, Superpowers enablement, and the direct-merge denies. It adds no shared
+Setup adds or refreshes owned marketplace settings, Superpowers enablement, and direct-merge denies.
+It removes obsolete recorded host entries. It adds no shared
 allow and no project Celetis enablement:
 
 ```json
@@ -367,7 +369,8 @@ including compact JSON, line endings, and the final newline. The setup report sh
 
 ### Codex permissions: `.codex/rules/celetis.rules`
 
-Setup creates this file when it is absent and adopts an identical file without rewriting it:
+Setup creates this file when absent, adopts an identical file without a content write, and
+refreshes a file with a validated whole-file claim:
 
 ```starlark
 prefix_rule(
@@ -382,8 +385,9 @@ This shared rule forbids direct merge. The personal rule of `land`, and the opti
 Codex matches literal prefixes. A policy-file check does not prove that an active session loaded
 the rule. Keep the host sandbox and approval settings.
 
-A differing file stays unchanged, even when the old record lists it. Setup reports the required
-direct-merge restriction and obsolete allows for [owner review](#review-old-wiring). That warning
+A differing unowned file stays unchanged with the required direct-merge restriction and obsolete
+allows reported for [owner review](#review-old-wiring). Removing Codex from the selected hosts
+removes its recorded owned rules file; shared requirements of a remaining host stay. That warning
 can accompany `setup: no file changed` and establishes no loaded-policy result. Project rule
 loading also needs the native host's project trust.
 
@@ -507,16 +511,17 @@ them for the human.
 Operational settings and setup are fields of `.celetis.yaml` (`docs/configuration.md`).
 Commands that need repository setup require this file and stop if it is missing or invalid.
 `/celetis:setup` makes the file with `landing` and, with `merge`, `suite` when there is
-none. It appends missing required entries to a valid file. After your yes,
+none. In a valid file it adds missing required entries, refreshes recorded owned landing and suite
+values, and removes an obsolete owned suite. It preserves unrelated bytes and values. After your yes,
 it adds a missing `worktreeSetup` as a quoted file reference at the end of the file, for example
 `worktreeSetup: "scripts/worktree-setup.ts"`; a new file holds `landing`, `suite` with
 `merge`, and then the reference. The value must read back exactly and each other value must stay
-the same. Else setup stops before any write, for example on a file with a `...` end marker: add
-the field by hand first. `try` and `write --setup-file <path>` require the entry in local trunk
+the same outside the planned owned edits. If that validation fails, setup stops before any write;
+repair the reported field by hand first. `try` and `write --setup-file <path>` require the entry in local trunk
 HEAD, with an unchanged index and working file. An existing different value, including `""`,
 stays unchanged and prints `setup: warning: .celetis.yaml: worktreeSetup differs from the requested setup reference; setup leaves it`.
-Change that field by hand when the approved reference is intended. Setup
-changes no field that is there. Each other field stays by hand.
+Change that field by hand when the approved reference is intended. A differing unowned landing
+or suite stays with its warning; each other field stays by hand.
 
 | Field or file | What it holds | When omitted |
 |---|---|---|
@@ -664,9 +669,10 @@ LF. An unchanged block is not written again, so its modification time stays unch
 
 The schema-1 record stores `{ "start": "<!-- CELETIS:START -->", "end": "<!-- CELETIS:END -->" }`
 under the actual instruction destination. Setup claims no whole instruction file, even on
-creation. Historical claims stay as evidence. An approved baseline is added after the managed
-block transformation, outside its ownership; an existing baseline keeps its collision warning.
-Old generic flow text outside the block remains unchanged and still needs owner review.
+creation. Retired claims are removed from the resulting record. An approved baseline is added
+after the managed block transformation, outside its ownership; an existing baseline keeps its
+collision warning. Complete recorded old flow lines can be removed outside the block; every
+other byte stays unchanged. Product flow content and unrecorded old text remain for owner review.
 
 The plugin has no role for the deployment of a project. It is a product fact, so it also goes into
 `AGENTS.md` when more than one step needs it: a lane ends when the change is on the trunk.
@@ -676,7 +682,8 @@ each existing regular Claude instruction file: `@AGENTS.md` in root `CLAUDE.md`,
 `@../AGENTS.md` in `.claude/CLAUDE.md`. Imports resolve from the containing file
 ([Claude Code memory documentation](https://code.claude.com/docs/en/memory), latest documentation
 read on 2026-10-29). Setup creates no Claude instruction file just for an import. A wrong existing
-import stays unchanged and gets an exact manual action. Codex-only setup adds no Claude import.
+unowned import stays unchanged and gets an exact manual action. Obsolete recorded imports are
+removed. Codex-only setup adds no Claude import.
 Direct native loading depends on the host's instruction precedence and settings. Generated files
 and imports do not prove that a fresh host session loaded them.
 
@@ -748,20 +755,23 @@ owner explicitly changes them.
 
 ### Review old wiring
 
-Setup reports old wiring but preserves its content and historical ownership. Review only the
-active product checkout. Installation and update remain separate explicit operations.
-The marked `## Celetis` entry pointer is current wiring. Its valid markers authorize only its
-bounded refresh; a historical record does not authorize replacement of unmarked product text.
+Setup reconciles valid recorded scopes in the active product checkout. It refreshes current
+owned requirements and removes obsolete owned entries, including edits within owned keys and
+dedicated files. It preserves differing unowned values and old unrecorded wiring with exact
+warnings. Installation and update remain separate explicit operations. The marked `## Celetis`
+entry pointer retains its bounded marker authority, even without a record.
 
-1. Read `.claude/celetis-flow/wiring.json` and inspect the current file for every reported entry.
-   For each proposed removal, show the old record, the actual diff, and the remaining callers.
-   A historical claim records earlier intent; it gives no authority over current content. Missing
-   or ambiguous evidence authorizes no deletion.
+1. Review the complete setup diff, including deleted paths, new files and JSON formatting.
+   The resulting record contains current ownership only. Setup reports surviving tracked callers
+   of a removed launcher by path; it changes no product caller. Its literal search cannot find
+   dynamic or external references. A remaining caller or unresolved wiring warning prevents a
+   claim that the wiring is current.
 2. Review these candidates against the required forms above:
 
    - Copied `scripts/celetis` launchers and every caller in scripts, CI, instructions, permissions,
-     and board configuration. Move an approved caller to the installed `celetis` program before
-     removing the launcher. Keep product additions until their owner has reviewed them.
+     and board configuration. Move each approved remaining caller to the installed `celetis`
+     program. A valid whole-file claim permits setup to remove the launcher; unrecorded launchers
+     need owner review. Keep product additions until their owner has reviewed them.
    - Old `permissions.allow` entries for `scripts/celetis`, `./scripts/celetis`, or broad `celetis`
      calls in `.claude/settings.json`, and obsolete entrypoint allows in
      `.codex/rules/celetis.rules`. Keep the direct-merge restriction. Personal `land` and optional
@@ -787,17 +797,18 @@ bounded refresh; a historical record does not authorize replacement of unmarked 
      - The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.
      ```
 
-3. The owner approves each exact removal and caller change. Remove only those reviewed entries
-   and their obsolete ownership claims in the same product change. Keep product-specific flow
-   instructions and every unreviewed entry. Remove an empty generic heading only when its whole
-   section was reviewed. Existing generic ADR files stay unless their owner reviews them
-   independently. Commit and review the complete diff together; run setup again only after the
-   product tree meets its preflight requirements.
+3. The owner reviews unowned removals and caller changes in a separate product change. Keep
+   product-specific flow instructions and every unreviewed unowned entry. Setup removes an old
+   recorded generic heading only when no product content remains in its section. Existing generic
+   ADR files and populated stores stay product content and need independent owner review. Commit
+   repairs before another setup run so the tree meets its preflight requirements.
 
-There is no cleanup command or automated rewrite. The optional local desktop configuration below
-stays local product content. A `setup: no file changed` line describes only the diff. With any
-unresolved wiring or policy warning, it establishes neither current wiring nor native policy
-loading. Keep the exact warning and its manual action in the setup report.
+The existing `setup try` and `setup write` share the reconciliation plan; there is no separate
+cleanup command. One final commit-and-push question covers all shown additions, replacements
+and removals. The optional local desktop configuration below stays product content.
+A `setup: no file changed` line describes only the diff. With any unresolved wiring or policy
+warning, it establishes neither current wiring nor native policy loading. Keep each exact warning
+and its manual action in the report.
 
 ### Optional: the board in Claude desktop
 
@@ -833,11 +844,13 @@ of `origin`, so a file that is not there is in no lane worktree: `.celetis.yaml`
 including a custom part and the worktree setup. A file that git does not track also makes the main
 checkout dirty, and the resolver then stops each issue.
 
-Setup stops before any write when the index holds a staged change, or when a current setup path
-has an uncommitted change. Obsolete launchers and starter documents are outside the setup commit
-set. Setup commits only its current eligible changed paths. An old ownership claim adds no path
-to that set. After a failed write, the report shows the failing path, `git status --short`, the
-diff of each changed setup path, and every new setup file in full. Partial writes stay for review;
+Setup stops before any write when the index holds a staged change, or when an affected setup path
+has an uncommitted change, including a planned deletion. Validated obsolete owned paths, such as
+the copied launcher, are in the plan and commit; starter documents stay product content. Setup
+stages only validated planned wiring paths and excludes unrelated product changes. After a failed
+write, the report shows the failing path, `git status --short`, the complete diff of each changed
+or deleted setup path, and every new setup file in full. Partial writes need owner review and
+a commit or restore before retry;
 setup claims no success and makes no automatic push. After a successful write, setup asks one
 question: commit and push to the trunk of `origin`?
 
@@ -1150,7 +1163,7 @@ setup"):
 | `bun --no-env-file --no-install --config=/dev/null --no-macros scripts/verify.ts` | Runs this plugin repository's fast gate in its checkout |
 | `bun --no-env-file --no-install --config=/dev/null --no-macros scripts/install-tools.ts DESTINATION [--claude]` | Installs pinned development tools into a private destination |
 | `bun --no-env-file --no-install --config=/dev/null --no-macros scripts/herdr-lab.ts up \| run <id> <command>... \| down <id>` | macOS only. `up` makes a lab, a private hc core and a second Herdr app window on temporary data under `/tmp/<id>`, and prints the id, then one JSON line. `run` runs one command in the lab environment. `down` stops only the processes of that lab, checks that the real core and window hold no lab text, and deletes the lab. Exit status of `up` and `down`: 0 done, 1 failed (`down` keeps the root and names the cause), 2 refused. `run` gives the status of its command, 128+n after signal n, 127 when the command cannot start, and 2 for a refused or missing lab |
-| `celetis --agent <host> setup check \| write ... \| try ... \| try --remove \| lane <path> \| push` | The deterministic part of `/celetis:setup`: the checks, the write of the wiring, the test lane (`try` makes it and runs the worktree setup there, and `try --remove` removes it), the run of the worktree setup in a lane that exists (`lane`), and the commit with the push. Every setup run calls the program; no product launcher is written |
+| `celetis --agent <host> setup check \| write ... \| try ... \| try --remove \| lane <path> \| push` | The deterministic part of `/celetis:setup`: validated saved answers from `check`, bounded owned refresh and removal in `write`, the test lane (`try` makes it and runs the worktree setup there, and `try --remove` removes it), the run of the worktree setup in a lane that exists (`lane`), and the commit of planned paths, including deletions, with the push. Every setup run calls the program; no product launcher is written |
 | `celetis --agent <host> setup status` | Reports the required wiring of the active checkout for the selected host, also from a subfolder or a lane worktree: `origin`, `.celetis.yaml` and its configured files, the Celetis block, the Claude imports and settings or the Codex restriction, the ignore and attribute lines, the record of setup, and the workflow labels. It writes nothing, runs no product file, and fetches nothing. An incomplete report ends with `Run /celetis:setup in the main checkout: <path>`. Exit status: 0 complete, 1 internal error, 2 usage, 3 missing, invalid, or different wiring, 6 blocked observation |
 | `celetis agents read \| replace '<JSON>'` | Reads the local ordered preference, or replaces it with exactly `order` and `expectedVersion`. It shares the Git common directory across worktrees and requires no YAML. Exit 3 returns a stale-edit conflict with the latest order; repeating the current order succeeds |
 

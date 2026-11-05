@@ -1,11 +1,11 @@
 import { lstat, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { validateAgentOrder } from './agent-order.ts';
 import { readConfig } from './config.ts';
 import { type Config, ConfigError, type Host } from './config-core.ts';
 import type { Operation } from './operation.ts';
 import { run } from './process.ts';
+import { parseSetupRecord, type WiringRecord } from './setup-record.ts';
 import {
   ambiguousJSON,
   attribute,
@@ -24,7 +24,6 @@ import {
   normal,
   object,
   projectFile,
-  recordOfSetup,
   settings,
   settingsForm,
   trackingProblem,
@@ -60,6 +59,7 @@ function originRepository(url: string): (Origin & { ssh: boolean }) | null {
 
 class Status {
   readonly findings: Finding[] = [];
+  saved: WiringRecord | null = null;
   constructor(
     readonly root: string,
     readonly host: Host,
@@ -254,8 +254,8 @@ class Status {
         this.add(
           'different',
           settings,
-          isDeepStrictEqual(value, { ...(form.value as object), autoUpdate: true })
-            ? `${name} sets autoUpdate to true; it must be false`
+          this.saved?.entries[settings]?.some((entry) => isDeepStrictEqual(entry, { path: form.path }))
+            ? `${name} differs from the required form; setup refreshes the recorded owned value`
             : `${name} differs from the required form; setup preserves it; repair it by hand`,
         );
     }
@@ -268,7 +268,9 @@ class Status {
       this.add(
         'different',
         codexRules,
-        'differs from the required form; setup preserves it; the owner must review the direct-merge restriction and obsolete allows (README, "Review old wiring")',
+        this.saved?.files.includes(codexRules)
+          ? 'differs from the required form; setup refreshes the recorded owned file'
+          : 'differs from the required form; setup preserves it; the owner must review the direct-merge restriction and obsolete allows (README, "Review old wiring")',
       );
   }
 
@@ -286,30 +288,18 @@ class Status {
       return;
     }
     if (source === undefined) return;
-    const value = this.json(wiring, source);
-    if (value === undefined) return;
-    if (!recordOfSetup(value) || !object(value)) {
-      this.add('invalid', wiring, 'is no schema-1 record of setup; repair or remove it by hand');
-      return;
-    }
-    if (!Object.hasOwn(value, 'answers')) {
-      this.add('missing', wiring, 'answers is missing; setup writes it');
-      return;
-    }
-    const answers = value.answers;
-    if (!object(answers)) {
-      this.add('invalid', wiring, 'answers is no object; repair or remove the record by hand');
-      return;
-    }
-    if (answers.tracker !== 'github') this.add('invalid', wiring, 'answers.tracker is not github');
-    let hosts: readonly Host[];
+    let value: WiringRecord;
     try {
-      hosts = validateAgentOrder(answers.hosts);
+      value = parseSetupRecord(new TextDecoder('utf-8', { fatal: true }).decode(source), wiring);
     } catch {
-      this.add('invalid', wiring, 'answers.hosts is no nonempty, unique list of claude or codex');
+      this.add('invalid', wiring, 'is no valid schema-1 setup record; repair or remove it by hand');
       return;
     }
-    if (!hosts.includes(this.host))
+    this.saved = value;
+    const answers = value.answers;
+    if (answers?.tracker !== 'github') this.add('missing', wiring, 'answers.tracker is missing; run setup with GitHub');
+    if (!answers?.hosts) this.add('missing', wiring, 'answers.hosts is missing; run setup with the selected hosts');
+    else if (!answers.hosts.includes(this.host))
       this.add('missing', wiring, `answers.hosts lacks ${this.host}; run setup with ${this.host}`);
   }
 
@@ -357,12 +347,12 @@ export async function setupStatus(operation: Operation): Promise<number> {
   const config = await status.config();
   if (config?.landing === 'merge') await status.configured('suite', config.suite);
   if (config?.worktreeSetup) await status.configured('worktreeSetup', config.worktreeSetup);
+  await status.record();
   await status.instructions();
   if (host === 'claude') await status.claude();
   else await status.codex();
   await status.requiredLines('.gitignore', ignores);
   await status.requiredLines('.gitattributes', [attribute]);
-  await status.record();
   if (origin !== null) await status.tracker(origin);
   for (const { kind, subject, cause } of status.findings) out(`setup: ${kind}: ${subject}: ${cause}`);
   if (!status.findings.length) {

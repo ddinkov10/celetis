@@ -10,8 +10,25 @@
   ],
   "date": "2026-11-04",
   "status": "active",
-  "source": "Implementation of ddinkov10/celetis#197, task gate attempt 1",
+  "source": "Implementation of ddinkov10/celetis#245, temporary verification correction\n\nImplementation of ddinkov10/celetis#197, task gate attempt 1",
   "incidents": [
+    {
+      "id": "922a909d-5b67-458b-bcff-7583eedf72b2",
+      "date": "2026-11-05",
+      "action": "The coordinator copied temporary browser and fixture programs into the ignored verification directory with .ts extensions.",
+      "expected": "Temporary checks remain outside the repository; evidence retention must not add executable source to the project type environment.",
+      "observed": "The verify gate failed tsc on docs/superpowers/verification/245-idle-scroll/check.ts and server.ts. tsconfig.runtime.json includes **/*.ts and does not exclude that ignored directory.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "task-1-gate.log: check.ts(1,26): error TS7016; server.ts(6,311): error TS2322; FAIL: tsc (exit 1). tsconfig.runtime.json: include [\"**/*.ts\"].",
+        "reference": "ddinkov10/celetis#245; retained verification logs"
+      },
+      "inference": "The local mismatch is confirmed. The reason for the unchecked assumption is inferred; no broader cause is established.",
+      "diagnosis": [
+        "unknown"
+      ],
+      "revision": "40a31cb92ecce73591fc4c75321489240c5392fa plus the Idle scroll fix"
+    },
     {
       "id": "celetis-197-task-gate-1-77d210c",
       "date": "2026-11-02",
@@ -66,7 +83,7 @@
       "brief": "The implement session active lesson read was empty. The matching proposal remained pending."
     }
   ],
-  "recurrences": 2,
+  "recurrences": 3,
   "reviews": [
     {
       "id": "c4e0d504-ecea-4638-b3d9-6812457d8fbc",
@@ -80,6 +97,21 @@
       "followUp": {
         "state": "proposed",
         "detail": "A separate change can make the evidence-copy step refuse a compilable snapshot inside compiler inputs, or exclude the evidence folder from the compiler configuration. This review does not authorize that change."
+      }
+    },
+    {
+      "id": "0a58ec11-7814-47d5-94d0-7878a4f4a0b2",
+      "requestDigest": "72cdf4528306a02f8b74c9dfaed3dc07ae790be4747d1f5b38f413e9c4c1a3e8",
+      "date": "2026-11-05",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #46; codex child host default/high\n\nMerge under the reviewer rules: the active lesson states the same applicability, action, and compiler-scope check. The new retained tsc failure is a distinct incident. Keep all four incidents and the prior review, label the cause as inferred, and retain the proposed structural follow-up. The rule preserves the project gate and the prohibition on tracked tests. No permission or compiler exclusion is added.",
+      "related": [
+        "keep-executable-evidence-outside-project-scans",
+        "retain-probe-sources-outside-compiler-globs"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "A separate authorized change can make evidence retention refuse compilable snapshots inside compiler inputs. This curation changes no instruction, compiler configuration, or enforcement."
       }
     }
   ]
@@ -95,13 +127,15 @@ The same mistake occurred in #193 at 6306e5e: retained land.ts, tracker.ts, and 
 
 The clean #236 implementation baseline also compiled ignored prototype snapshots at ed1f9bef and failed with TS2307. Moving the complete evidence directory unchanged outside the checkout restored the gate. The prior capture context is not available, and the active lesson set was empty.
 
+In #245, ignored check.ts and server.ts evidence copies also entered the same compiler include glob. The task gate failed with TS7016 and TS2322. The incident confirms the same scope mismatch; the reason for the assumption remains inferred.
+
 ## Root cause
 
 Observed: `tsconfig.runtime.json` includes `**/*.ts` and does not exclude `docs/superpowers`, so Git ignore status does not remove a file from compilation. Inferred: the controller treated Git ignore status as isolation from the compiler and did not compare the evidence location with the compiler include and exclude patterns. Why the pending proposal did not prevent the #193 and #236 recurrences is unknown; active lesson retrieval does not deliver a pending proposal.
 
 ## Fix
 
-Proposed prevention: retain source as non-executable text or an archive when it sits inside a compiler scan. Check the project compiler scope before copying probe sources. No instruction or compiler change is made by this pending proposal.
+Proposed prevention: retain source as non-executable text or an archive when it sits inside a compiler scan. Check the project compiler scope before copying probe sources. This lesson changes no instruction or compiler configuration.
 
 Proposed structural follow-up, not implemented or authorized by this capture: the evidence-copy helper can require non-compilable snapshot extensions and verify that copied files do not enter compiler inputs. The maintainer owns that separate change. A check must reject a .ts snapshot under the runtime include glob. Current enforcement is not claimed.
 

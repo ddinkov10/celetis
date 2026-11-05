@@ -23,7 +23,6 @@ export const claudeInstructions = ['CLAUDE.md', '.claude/CLAUDE.md'];
 export const markerRepair = 'repair the Celetis markers; use one standalone START line before one standalone END line';
 
 export type Entry = { path: string[]; item?: string; value?: unknown };
-export type RecordOfSetup = { files: string[]; entries: Record<string, unknown[]> };
 export type PathProblem = Readonly<{ kind: 'blocked' | 'invalid'; message: string; stderr?: string }>;
 type Markers = Readonly<
   { kind: 'none' } | { kind: 'invalid' } | { kind: 'pair'; from: number; to: number; newline: string }
@@ -37,19 +36,6 @@ export const hasLine = (text: string, line: string) => lines(text).some((item) =
 
 export function ambiguousJSON(source: string): boolean {
   return parseAllDocuments(source, { uniqueKeys: true, merge: false }).some((doc) => doc.errors.length > 0);
-}
-
-export function recordOfSetup(value: unknown): RecordOfSetup | null {
-  if (
-    !object(value) ||
-    value.schema !== 1 ||
-    !Array.isArray(value.files) ||
-    !value.files.every((file) => typeof file === 'string') ||
-    !object(value.entries) ||
-    !Object.values(value.entries).every(Array.isArray)
-  )
-    return null;
-  return { files: value.files, entries: value.entries as Record<string, unknown[]> };
 }
 
 export function settingsForm(): Entry[] {

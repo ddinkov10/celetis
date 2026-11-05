@@ -64,7 +64,18 @@ No quota record gates a control operation. With no Git checkout, control selecti
 Setup accepts `--hosts claude`, `codex`, `claude,codex`, or `codex,claude`; it rejects `--default`.
 Only `setup write` initializes an absent preference after setup validation. Existing valid
 preferences stay unchanged; `setup check` and `setup try` create no preference. Preference
-writes leave the independent usage observations and attempt sequence intact.
+writes leave the independent usage observations and attempt sequence intact. Explicit host-selection
+changes do not replace a valid local preference.
+
+The setup skill first gets validated saved tracker and ordered hosts from `setup check`'s
+`{"answers":{...}}` output. It asks only for absent answers or explicitly requested changes;
+invalid present answers refuse. Landing and merge suite come from one current validated config
+read. `try` and `write` take the same resolved explicit options. Setup refreshes recorded owned
+landing and suite values and removes an obsolete owned suite, while preserving unrelated YAML
+bytes and values. Differing unowned values stay with exact warnings; an unowned suite blocking
+`pr` refuses before writes. `worktreeSetup`, including exactly `""`, stays product-owned.
+The schema-1 wiring record keeps resolved tracker and hosts and resulting owned scopes; it drops
+retired claims. See `README.md`, "Review old wiring", for scope and remaining-caller limits.
 
 Each `codexProfiles` key must be a nonempty string that identifies the dispatch runtime.
 Each profile has exactly two required fields:

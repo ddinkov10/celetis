@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { constants as fsConstants } from 'node:fs';
-import { access, lstat, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { access, lstat, mkdir, mkdtemp, readFile, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import { constants, tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -13,6 +13,7 @@ import { commandInput, createOperation, locateCheckouts, type Operation } from '
 import { codexHome } from './lib/plugin-metadata.ts';
 import { checkClaudePolicy } from './lib/plugin-policy.ts';
 import { childEnv, run } from './lib/process.ts';
+import { parseSetupRecord, type SetupEntry, type WiringRecord } from './lib/setup-record.ts';
 import { setupStatus } from './lib/setup-status.ts';
 import {
   ambiguousJSON,
@@ -29,13 +30,12 @@ import {
   managedInstructions,
   normal,
   object,
-  type RecordOfSetup,
-  recordOfSetup,
   settings,
   settingsForm,
   trackingProblem,
   wiring,
 } from './lib/setup-wiring.ts';
+import { CST, Parser, type SourceToken } from './lib/vendor/yaml.mjs';
 import { type Label, labels } from './lib/workflow.ts';
 import { markerOf, removeCheckout, runSetup, setupFile, worktrees } from './lib/worktree.ts';
 
@@ -79,10 +79,83 @@ type Command =
   | { command: 'remove' }
   | { command: 'lane'; path: string }
   | { command: 'write' | 'try'; options: Options };
+type WiringChange = { kind: 'write'; contents: string | Buffer } | { kind: 'delete' };
 const appendLine = (text: string, line: string) =>
   hasLine(text, line) ? text : `${text}${text && !text.endsWith('\n') ? '\n' : ''}${line}\n`;
 function fail(message: string): never {
   throw new HostError(`setup: ${message}`);
+}
+function editConfig(source: string, updates: Map<string, string | undefined>): string {
+  if (!updates.size) return source;
+  if (!source)
+    return [...updates]
+      .filter(([, value]) => value !== undefined)
+      .map(([key, value]) => `${key}: ${JSON.stringify(value)}\n`)
+      .join('');
+  const tokens = [...new Parser().parse(source)];
+  const document = tokens.find((token) => token.type === 'document');
+  if (
+    document?.type !== 'document' ||
+    !document.value ||
+    (document.value.type !== 'block-map' && document.value.type !== 'flow-collection')
+  )
+    fail(`${configFile}: cannot edit its mapping; repair its fields by hand first`);
+  const map = document.value;
+  const flow = map.type === 'flow-collection';
+  for (const [key, value] of updates) {
+    const index = map.items.findIndex((item) => item.key && CST.resolveAsScalar(item.key)?.value === key);
+    const item = map.items[index];
+    if (item) {
+      if (value !== undefined) {
+        if (!item.value) fail(`${configFile}: ${key} has no editable value`);
+        CST.setScalarValue(item.value, value, { type: 'QUOTE_DOUBLE' });
+      } else {
+        const retained = [
+          ...item.start.filter((token) => token.type !== 'comma'),
+          ...(item.sep ?? []).filter((token) => ['comment', 'newline'].includes(token.type)),
+          ...(item.value && 'end' in item.value ? (item.value.end ?? []) : []),
+          ...(item.value?.type === 'block-scalar'
+            ? item.value.props.filter(
+                (token): token is SourceToken =>
+                  token.type === 'comment' || token.type === 'space' || token.type === 'newline',
+              )
+            : []),
+        ];
+        map.items.splice(index, 1);
+        const next = map.items[index];
+        if (next) {
+          if (flow && index === 0) next.start = next.start.filter((token) => token.type !== 'comma');
+          next.start.unshift(...retained);
+        } else if (map.type === 'flow-collection') map.end.unshift(...retained);
+        else document.end = [...retained, ...(document.end ?? [])];
+      }
+    } else if (value !== undefined) {
+      const token = [...new Parser().parse(`${JSON.stringify(key)}: ${JSON.stringify(value)}\n`)].find(
+        (token) => token.type === 'document',
+      );
+      if (token?.type !== 'document' || !token.value || !('items' in token.value) || !token.value.items[0])
+        fail(`${configFile}: cannot add ${key}`);
+      const addition = token.value.items[0];
+      if (flow) {
+        const trailing = map.items.at(-1);
+        if (trailing && !trailing.key && !trailing.value && trailing.start.some((token) => token.type === 'comma')) {
+          addition.start.unshift(...trailing.start);
+          map.items.pop();
+        } else if (map.items.length)
+          addition.start.push(
+            { type: 'comma', source: ',', offset: 0, indent: 0 },
+            { type: 'space', source: ' ', offset: 0, indent: 0 },
+          );
+        if (addition.value && 'end' in addition.value) addition.value.end = [];
+        map.items.push(addition);
+      } else {
+        if (map.indent && map.items[0])
+          map.items[0].start.unshift({ type: 'space', source: ' '.repeat(map.indent), offset: 0, indent: map.indent });
+        map.items.unshift(addition);
+      }
+    }
+  }
+  return tokens.map((token) => CST.stringify(token)).join('');
 }
 function badUsage(): never {
   throw new HostError(usage, 2);
@@ -218,8 +291,10 @@ class Setup {
   trunk = '';
   ahead = 0;
   diagnostic = false;
-  files = new Map<string, { contents: string | Buffer }>();
-  owned: RecordOfSetup = { files: [], entries: {} };
+  files = new Map<string, WiringChange>();
+  previous: WiringRecord = { schema: 1, files: [], entries: {} };
+  owned: { files: string[]; entries: Record<string, SetupEntry[]> } = { files: [], entries: {} };
+  affected = new Set(setupPaths);
 
   output(text: string): void {
     (this.diagnostic ? process.stderr : process.stdout).write(text);
@@ -229,7 +304,7 @@ class Setup {
   }
   review(path: string, evidence: string): void {
     this.warn(
-      `${path}: ${evidence}; the owner must review this old wiring; setup preserves the content and any historical ownership; follow https://github.com/ddinkov10/celetis#review-old-wiring (README, "Review old wiring")`,
+      `${path}: ${evidence}; the owner must review this old wiring; setup preserves the content; follow https://github.com/ddinkov10/celetis#review-old-wiring (README, "Review old wiring")`,
     );
   }
   async git(args: string[], env?: NodeJS.ProcessEnv): Promise<string> {
@@ -301,9 +376,13 @@ class Setup {
     }
   }
   async changedPaths(): Promise<string[]> {
-    const result = await run('git', ['status', '--porcelain', '-z', '--untracked-files=all', '--', ...setupPaths], {
-      cwd: this.cwd,
-    });
+    const result = await run(
+      'git',
+      ['--literal-pathspecs', 'status', '--porcelain', '-z', '--untracked-files=all', '--', ...this.affected],
+      {
+        cwd: this.cwd,
+      },
+    );
     if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
     const rows = result.stdout.split('\0');
     const paths: string[] = [];
@@ -360,6 +439,8 @@ class Setup {
     if (reference) await this.checkSetupSource(reference);
     if (/^i\/(?:crlf|mixed)/.test(await this.git(['ls-files', '--eol', '--', configFile])))
       fail(`the index holds ${configFile} with CRLF line endings; convert it to LF and commit it first`);
+    const record = await this.readRecord();
+    for (const path of [...record.files, ...Object.keys(record.entries)]) this.affected.add(path);
     const dirty = await this.changedPaths();
     if (dirty.length) fail(`commit or drop the uncommitted changes of these files first: ${dirty.join(' ')}`);
     await this.checkStaged();
@@ -367,13 +448,35 @@ class Setup {
   async get(path: string): Promise<string> {
     await this.checkDestination(path);
     const planned = this.files.get(path);
-    if (planned) return planned.contents.toString();
+    if (planned)
+      return planned.kind === 'delete'
+        ? ''
+        : Buffer.isBuffer(planned.contents)
+          ? planned.contents.toString(this.byteFile(path) ? 'latin1' : 'utf8')
+          : planned.contents;
     try {
-      return await readFile(join(this.cwd, path), 'utf8');
+      return await readFile(join(this.cwd, path), this.byteFile(path) ? 'latin1' : 'utf8');
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return '';
       fail(`cannot read ${path}: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+  async readRecord(): Promise<WiringRecord> {
+    await this.checkDestination(wiring);
+    let source: Buffer;
+    try {
+      source = await readFile(join(this.cwd, wiring));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { schema: 1, files: [], entries: {} };
+      fail(`cannot read ${wiring}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    let text: string;
+    try {
+      text = new TextDecoder('utf-8', { fatal: true }).decode(source);
+    } catch {
+      fail(`${wiring}: need valid UTF-8`);
+    }
+    return parseSetupRecord(text, wiring);
   }
   private async checkDestination(path: string): Promise<void> {
     const problem = await destinationProblem(this.cwd, path);
@@ -387,7 +490,19 @@ class Setup {
       })) !== null
     );
   }
-  own(path: string, entry: unknown): void {
+  byteFile(path: string): boolean {
+    return ['AGENTS.md', 'CLAUDE.md', '.claude/CLAUDE.md', '.gitignore', '.gitattributes'].includes(path);
+  }
+  claimed(path: string, entry: SetupEntry): boolean {
+    return (this.previous.entries[path] ?? []).some((old) => isDeepStrictEqual(old, entry));
+  }
+  put(path: string, contents: string | Buffer): void {
+    this.files.set(path, {
+      kind: 'write',
+      contents: typeof contents === 'string' && this.byteFile(path) ? Buffer.from(contents, 'latin1') : contents,
+    });
+  }
+  own(path: string, entry: SetupEntry): void {
     this.owned.entries[path] ??= [];
     this.owned.entries[path].push(entry);
   }
@@ -395,11 +510,11 @@ class Setup {
     let text = await this.get(path);
     for (const value of values) {
       if (owned) this.own(path, value);
-      text = appendLine(text, value);
+      text = appendLine(text, Buffer.from(value).toString('latin1'));
     }
-    this.files.set(path, { contents: text });
+    this.put(path, text);
   }
-  async planSettings(): Promise<void> {
+  async planSettings(selected: boolean): Promise<void> {
     const source = await this.get(settings);
     let doc: unknown = {};
     if (await this.there(settings)) {
@@ -414,7 +529,34 @@ class Setup {
     if (object(doc.permissions) && Object.hasOwn(doc.permissions, 'allow') && !Array.isArray(doc.permissions.allow))
       fail(`${settings}: permissions.allow is no array; fix it first`);
     let changed = false;
-    for (const form of settingsForm()) {
+    const wanted = selected ? settingsForm() : [];
+    for (const entry of this.previous.entries[settings] ?? []) {
+      if (
+        typeof entry === 'string' ||
+        !('path' in entry) ||
+        wanted.some((form) =>
+          isDeepStrictEqual({ path: form.path, ...(form.item === undefined ? {} : { item: form.item }) }, entry),
+        )
+      )
+        continue;
+      const group = doc[entry.path[0] as string];
+      if (!object(group)) continue;
+      const key = entry.path[1] as string;
+      if (entry.item === undefined) {
+        if (Object.hasOwn(group, key)) {
+          delete group[key];
+          changed = true;
+        }
+      } else if (Array.isArray(group[key])) {
+        const value = group[key] as unknown[];
+        const remaining = value.filter((item) => item !== entry.item);
+        if (remaining.length !== value.length) {
+          group[key] = remaining;
+          changed = true;
+        }
+      }
+    }
+    for (const form of wanted) {
       const parentKey = form.path[0] as string;
       const key = form.path[1] as string;
       let parent = doc[parentKey];
@@ -441,20 +583,28 @@ class Setup {
         group[key] = form.value;
         this.own(settings, { path: form.path });
         changed = true;
-      } else if (
-        parentKey === 'extraKnownMarketplaces' &&
-        key === 'celetis' &&
-        (this.owned.entries[settings] ?? []).some((entry) => isDeepStrictEqual(entry, { path: form.path })) &&
-        isDeepStrictEqual(value, { source: { source: 'github', repo: 'ddinkov10/celetis' }, autoUpdate: true })
-      ) {
-        group[key] = form.value;
-        changed = true;
+      } else if (this.claimed(settings, { path: form.path })) {
+        if (!isDeepStrictEqual(value, form.value)) {
+          group[key] = form.value;
+          changed = true;
+        }
+        this.own(settings, { path: form.path });
       } else if (isDeepStrictEqual(value, form.value)) this.own(settings, { path: form.path });
       else
         this.warn(
           `${settings}: ${form.path.join('.')} differs from the current form; setup leaves it${parentKey === 'extraKnownMarketplaces' && key === 'celetis' ? '; review this entry and set autoUpdate to false by hand' : ''}`,
         );
     }
+    if (!selected)
+      for (const form of settingsForm()) {
+        const group = doc[form.path[0] as string];
+        const value = object(group) ? group[form.path[1] as string] : undefined;
+        if (form.item === undefined ? value !== undefined : Array.isArray(value) && value.includes(form.item))
+          this.review(
+            settings,
+            `${form.path.join('.')}${form.item === undefined ? '' : `: ${form.item}`}; integration for the unselected Claude host`,
+          );
+      }
     try {
       checkClaudePolicy([{ path: join(this.cwd, settings), value: doc }]);
     } catch (error) {
@@ -463,7 +613,7 @@ class Setup {
     if (changed) {
       const lead = source.match(/^[ \t]+(?=[^ \t\r\n])/m)?.[0] ?? '';
       const indent = lead.startsWith('\t') ? '\t' : lead.length >= 1 && lead.length <= 7 ? lead.length : 2;
-      this.files.set(settings, { contents: `${JSON.stringify(doc, null, indent)}\n` });
+      this.put(settings, `${JSON.stringify(doc, null, indent)}\n`);
     }
   }
   configError(checkout: string, error: unknown): void {
@@ -481,55 +631,138 @@ class Setup {
       }
     }
     const desired = { ...original };
-    const added: string[] = [];
+    const updates = new Map<string, string | undefined>();
     const wanted: (readonly ['landing' | 'suite', string])[] = [['landing', opts.landing]];
-    if (opts.suite && (original.landing ?? opts.landing) === 'merge') wanted.push(['suite', opts.suite]);
-    for (const [key, value] of wanted) {
-      if (original[key] === undefined) {
-        added.push(`${key}: ${value}`);
-        Object.assign(desired, { [key]: value });
-        this.own(configFile, { path: [key] });
-      } else if (original[key] === value) this.own(configFile, { path: [key] });
-      else this.warn(`${configFile}: ${key} is ${original[key]}, not ${value}; setup leaves it`);
-    }
-    let proposed = await this.get(configFile);
-    const check = async (want: Partial<Config>, message: string, showError: boolean) => {
-      await writeFile(join(scratch, configFile), proposed);
-      let actual: Config;
-      try {
-        actual = readConfig(scratch);
-      } catch (error) {
-        if (showError) this.configError(scratch, error);
-        return fail(message);
+    const landing =
+      this.claimed(configFile, { path: ['landing'] }) || original.landing === undefined
+        ? opts.landing
+        : original.landing;
+    if (opts.suite && landing === 'merge') wanted.push(['suite', opts.suite]);
+    if (landing === 'pr' && original.suite !== undefined && !this.claimed(configFile, { path: ['suite'] }))
+      fail(`${configFile}: suite is unowned and blocks landing pr; remove suite by hand first`);
+    for (const entry of this.previous.entries[configFile] ?? []) {
+      if (typeof entry !== 'string' && 'path' in entry && !wanted.some(([key]) => key === entry.path[0])) {
+        const key = entry.path[0] as keyof typeof desired;
+        if (Object.hasOwn(desired, key)) {
+          delete desired[key];
+          updates.set(key, undefined);
+        }
       }
-      if (!isDeepStrictEqual(actual, want)) fail(message);
-    };
-    if (added.length) {
-      proposed += `${proposed && !proposed.endsWith('\n') ? '\n' : ''}${added.join('\n')}\n`;
-      await check(desired, `cannot add the line ${added[0]} to ${configFile}; add it by hand first`, false);
+    }
+    for (const [key, value] of wanted) {
+      if (original[key] === undefined || this.claimed(configFile, { path: [key] }) || original[key] === value) {
+        this.own(configFile, { path: [key] });
+        if (desired[key] !== value) {
+          Object.assign(desired, { [key]: value });
+          updates.set(key, value);
+        }
+      } else this.warn(`${configFile}: ${key} is ${original[key]}, not ${value}; setup leaves it`);
     }
     if (opts.setup) {
       if (original.worktreeSetup !== undefined) {
         if (original.worktreeSetup !== opts.setup)
           this.warn(`${configFile}: worktreeSetup differs from the requested setup reference; setup leaves it`);
       } else {
-        proposed += `${proposed && !proposed.endsWith('\n') ? '\n' : ''}worktreeSetup: ${JSON.stringify(opts.setup)}\n`;
         desired.worktreeSetup = opts.setup;
-        await check(desired, `cannot add worktreeSetup to ${configFile}; add it by hand first`, true);
+        updates.set('worktreeSetup', opts.setup);
       }
     }
-    if (proposed !== (await this.get(configFile))) this.files.set(configFile, { contents: proposed });
+    const source = await this.get(configFile);
+    const proposed = editConfig(source, updates);
+    if (proposed !== source) {
+      await writeFile(join(scratch, configFile), proposed);
+      let actual: Config;
+      try {
+        actual = readConfig(scratch);
+      } catch (error) {
+        this.configError(scratch, error);
+        fail(`cannot update ${configFile}; repair its fields by hand first`);
+      }
+      if (!isDeepStrictEqual(actual, desired))
+        fail(`cannot preserve unrelated values of ${configFile}; repair its fields by hand first`);
+      this.put(configFile, proposed);
+    }
+  }
+  async retireLines(agentsPath: string, hosts: readonly Host[]): Promise<void> {
+    for (const [recordedPath, entries] of Object.entries(this.previous.entries)) {
+      const path = recordedPath === 'AGENTS.md' ? agentsPath : recordedPath;
+      const retiring = entries
+        .filter((entry): entry is string => typeof entry === 'string')
+        .filter((entry) => {
+          if (path === '.gitignore') return !ignores.includes(entry);
+          if (path === '.gitattributes') return entry !== '.celetis.yaml text eol=lf';
+          if (recordedPath === 'CLAUDE.md' || recordedPath === '.claude/CLAUDE.md')
+            return (
+              !hosts.includes('claude') || entry !== `@${relative(dirname(path), 'AGENTS.md').split(sep).join('/')}`
+            );
+          return true;
+        });
+      const marker = entries.some((entry) => typeof entry !== 'string' && 'start' in entry);
+      if ((!retiring.length && (!marker || path === agentsPath)) || !(await this.there(path))) continue;
+      let source = await this.get(path);
+      if (marker && path !== agentsPath) {
+        managedInstructions(path, source);
+        const markers = [...source.matchAll(/(?:^|\n)(<!-- CELETIS:(START|END) -->)(?=\r?\n|$)/g)];
+        const [start, end] = markers;
+        if (start && end)
+          source =
+            source.slice(0, start.index + (start[0].startsWith('\n') ? 1 : 0)) +
+            source.slice(end.index + end[0].length);
+      }
+      const physical = source.match(/[^\n]*\n|[^\n]+$/g) ?? [];
+      for (const entry of retiring) {
+        const matches = physical.flatMap((line, index) => (normal(line.replace(/\n$/, '')) === entry ? [index] : []));
+        if (matches.length > 1)
+          fail(`${path}: repeated recorded line ${entry}; remove the ambiguous copy by hand first`);
+        const index = matches[0];
+        if (index === undefined || entry === '## Celetis flow') continue;
+        physical[index] = '';
+      }
+      if (retiring.includes('## Celetis flow')) {
+        const index = physical.findIndex((line) => normal(line.replace(/\n$/, '')) === '## Celetis flow');
+        if (index >= 0) {
+          let end = index + 1;
+          while (end < physical.length && !/^#{1,2} /.test(physical[end] ?? '')) end++;
+          if (!physical.slice(index + 1, end).some((line) => normal(line.replace(/\n$/, '')) !== ''))
+            physical[index] = '';
+        }
+      }
+      source = physical.join('');
+      this.put(path, source);
+    }
+  }
+  async reportCallers(): Promise<void> {
+    if (this.files.get('scripts/celetis')?.kind !== 'delete' && (await this.there('scripts/celetis'))) return;
+    const tracked = await run('git', ['ls-files', '-z'], { cwd: this.cwd });
+    if (tracked.code !== 0) fail('cannot inspect tracked callers of scripts/celetis');
+    for (const path of tracked.stdout.split('\0')) {
+      if (!path || path === wiring || path === 'scripts/celetis') continue;
+      const planned = this.files.get(path);
+      if (planned?.kind === 'delete') continue;
+      const info = await lstat(join(this.cwd, path)).catch(() => null);
+      if (!info?.isFile()) continue;
+      await this.checkDestination(path);
+      const bytes = planned?.kind === 'write' ? Buffer.from(planned.contents) : await readFile(join(this.cwd, path));
+      if (!bytes.includes(0) && bytes.includes(Buffer.from('scripts/celetis')))
+        this.warn(
+          `${path}: surviving tracked caller of scripts/celetis; the owner must review it by hand before the wiring can be current; setup preserves it`,
+        );
+    }
+    this.warn(
+      'scripts/celetis caller search covers literal tracked text only; constructed, external and untracked references are not covered',
+    );
   }
   async reportOldWiring(agentsPath: string): Promise<void> {
-    if ((await this.there('scripts/celetis')) || this.owned.files.includes('scripts/celetis'))
+    if ((await this.there('scripts/celetis')) && this.files.get('scripts/celetis')?.kind !== 'delete')
       this.review('scripts/celetis', 'obsolete product launcher or recorded launcher ownership');
     const flow = [
       '## Celetis flow',
       '- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `celetis --agent <host> land`.',
+      '- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `land` through the bound plugin entrypoint and personal host binding.',
       '- A lane never skips a step.',
       '- The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.',
     ];
-    for (const line of new Set([...lines(await this.get(agentsPath)), ...(this.owned.entries['AGENTS.md'] ?? [])]))
+    for (const line of new Set([...lines(await this.get(agentsPath))]))
       if (
         typeof line === 'string' &&
         (flow.includes(normal(line)) ||
@@ -537,11 +770,7 @@ class Setup {
       )
         this.review(agentsPath, line);
     const attribute = 'scripts/celetis text eol=lf';
-    if (
-      hasLine(await this.get('.gitattributes'), attribute) ||
-      (this.owned.entries['.gitattributes'] ?? []).includes(attribute)
-    )
-      this.review('.gitattributes', attribute);
+    if (hasLine(await this.get('.gitattributes'), attribute)) this.review('.gitattributes', attribute);
     let doc: unknown = {};
     if (await this.there(settings)) {
       const source = await this.get(settings);
@@ -553,20 +782,11 @@ class Setup {
       checkJSONKeys(settings, source);
       if (!object(doc)) fail(`${settings} is no JSON object; fix it first`);
     }
-    const recorded = this.owned.entries[settings] ?? [];
     const allow = object(doc) && object(doc.permissions) ? doc.permissions.allow : undefined;
-    for (const item of new Set([
-      ...(Array.isArray(allow) ? allow : []),
-      ...recorded.flatMap((entry) =>
-        object(entry) && isDeepStrictEqual(entry.path, ['permissions', 'allow']) ? [entry.item] : [],
-      ),
-    ]))
+    for (const item of new Set(Array.isArray(allow) ? allow : []))
       if (typeof item === 'string' && /^(Bash|PowerShell)\((\.\/)?(scripts\/celetis|celetis)([ )])/.test(item))
         this.review(settings, `permissions.allow: ${item}`);
-    if (
-      (object(doc) && object(doc.enabledPlugins) && Object.hasOwn(doc.enabledPlugins, 'celetis@celetis')) ||
-      recorded.some((entry) => isDeepStrictEqual(entry, { path: ['enabledPlugins', 'celetis@celetis'] }))
-    )
+    if (object(doc) && object(doc.enabledPlugins) && Object.hasOwn(doc.enabledPlugins, 'celetis@celetis'))
       this.review(settings, 'enabledPlugins.celetis@celetis');
   }
   async plan(opts: Options, scratch: string): Promise<void> {
@@ -578,6 +798,10 @@ class Setup {
         fail(`cannot read ${opts.baseline}`);
       }
     }
+    this.previous = await this.readRecord();
+    for (const path of [...this.previous.files, ...Object.keys(this.previous.entries)]) this.affected.add(path);
+    const dirty = await this.changedPaths();
+    if (dirty.length) fail(`commit or drop the uncommitted changes of these files first: ${dirty.join(' ')}`);
     const baseline = opts.baseline ? await readFile(opts.baseline, 'utf8') : '';
     const touched = [configFile, wiring, '.gitignore', '.gitattributes'];
     if (opts.hosts.includes('codex')) touched.push(codexRules);
@@ -588,7 +812,10 @@ class Setup {
     const claudeFiles = instructions.imports;
     touched.push(agentsPath);
     if (opts.hosts.includes('claude')) touched.push(...claudeFiles);
-    for (const path of touched) {
+    this.affected.add(agentsPath);
+    for (const path of new Set([...touched, ...this.affected])) {
+      if (path === 'AGENTS.md' && agentsPath !== path) continue;
+      if (!touched.includes(path) && !(this.previous.files.includes(path) || this.previous.entries[path])) continue;
       await this.checkDestination(path);
       const problem = await trackingProblem(this.cwd, path);
       if (problem) {
@@ -596,33 +823,32 @@ class Setup {
         fail(problem.message);
       }
     }
-    if (await this.there(wiring)) {
-      const source = await this.get(wiring);
-      let old: unknown;
-      try {
-        old = JSON.parse(source);
-      } catch {}
-      if (old !== undefined) checkJSONKeys(wiring, source);
-      const record = recordOfSetup(old);
-      if (!record) fail(`${wiring} is no record of setup; fix or remove it first`);
-      this.owned = record;
-    }
-    const source = (await this.there(agentsPath)) ? await this.getUnplanned(agentsPath) : Buffer.alloc(0);
+    await this.retireLines(agentsPath, opts.hosts);
+    const source = Buffer.from(await this.get(agentsPath), 'latin1');
     const agents = Buffer.from(managedInstructions(agentsPath, source.toString('latin1')), 'latin1');
-    this.files.set(agentsPath, { contents: agents });
+    this.put(agentsPath, agents);
     this.own(agentsPath, { start: '<!-- CELETIS:START -->', end: '<!-- CELETIS:END -->' });
-    if (opts.hosts.includes('claude')) await this.planSettings();
+    if (opts.hosts.includes('claude') || (await this.there(settings)))
+      await this.planSettings(opts.hosts.includes('claude'));
     await this.planConfig(opts, scratch);
     if (opts.hosts.includes('codex')) {
-      if (!(await this.there(codexRules))) {
-        this.files.set(codexRules, { contents: codexRestriction });
-        this.owned.files.push(codexRules);
-      } else if ((await this.get(codexRules)) === codexRestriction) this.owned.files.push(codexRules);
+      const path = codexRules;
+      const contents = codexRestriction;
+      if (!(await this.there(path)) || this.previous.files.includes(path)) {
+        this.put(path, contents);
+        this.owned.files.push(path);
+      } else if ((await this.get(path)) === contents) this.owned.files.push(path);
       else
         this.warn(
-          `${codexRules} differs from the required form; setup preserves it and any historical ownership; the owner must review the direct-merge restriction and obsolete allows; follow https://github.com/ddinkov10/celetis#review-old-wiring (README, "Review old wiring")`,
+          `${path} differs from the required form; setup preserves it; the owner must review the direct-merge restriction and obsolete allows; follow https://github.com/ddinkov10/celetis#review-old-wiring (README, "Review old wiring")`,
         );
     }
+    if (
+      !opts.hosts.includes('codex') &&
+      !this.previous.files.includes('.codex/rules/celetis.rules') &&
+      (await this.there('.codex/rules/celetis.rules'))
+    )
+      this.review('.codex/rules/celetis.rules', 'integration for the unselected Codex host');
     await this.ownLines('.gitignore', ignores);
     await this.ownLines('.gitignore', opts.ignores, false);
     await this.ownLines('.gitattributes', [attribute]);
@@ -634,7 +860,7 @@ class Setup {
         if (lines(agents.toString() + addition).at(-1)) addition += '\n';
         addition += baseline;
         if (!baseline.endsWith('\n')) addition += '\n';
-        this.files.set(agentsPath, { contents: Buffer.concat([agents, Buffer.from(addition)]) });
+        this.put(agentsPath, Buffer.concat([agents, Buffer.from(addition)]));
       }
     }
     if (opts.hosts.includes('claude')) {
@@ -655,7 +881,11 @@ class Setup {
         } else await this.ownLines(path, [required]);
       }
     }
+    for (const path of this.previous.files)
+      if (path !== wiring && !this.owned.files.includes(path) && (await this.there(path)))
+        this.files.set(path, { kind: 'delete' });
     await this.reportOldWiring(agentsPath);
+    await this.reportCallers();
     this.owned.files.push(wiring);
     const entries = Object.fromEntries(
       Object.entries(this.owned.entries).map(([file, items]) => [
@@ -669,17 +899,26 @@ class Setup {
       files: [...new Set(this.owned.files)].sort(),
       entries,
     };
-    this.files.set(wiring, { contents: `${JSON.stringify(sortedKeys(record), null, 2)}\n` });
+    const contents = `${JSON.stringify(sortedKeys(record), null, 2)}\n`;
+    parseSetupRecord(contents, wiring);
+    this.put(wiring, contents);
+    for (const path of this.files.keys()) this.affected.add(path);
   }
   async writeTree(): Promise<void> {
     for (const path of this.files.keys()) await this.checkDestination(path);
     for (const [path, file] of this.files) {
       try {
         const absolute = join(this.cwd, path);
+        await this.checkDestination(path);
+        if (file.kind === 'delete') {
+          if (await this.there(path)) await unlink(absolute);
+          continue;
+        }
         const contents = typeof file.contents === 'string' ? Buffer.from(file.contents) : file.contents;
         if (!(await this.there(path)) || !(await this.getUnplanned(path)).equals(contents)) {
           await this.checkDestination(path);
           await mkdir(dirname(absolute), { recursive: true });
+          await this.checkDestination(path);
           await writeFile(absolute, file.contents);
           if (path === configFile) this.config = this.read(this.cwd);
         }
@@ -724,12 +963,23 @@ class Setup {
     }
   }
   async stage(paths: string[]): Promise<void> {
-    for (const path of paths) await this.git(['add', '--', path]);
+    for (const path of paths) await this.git(['--literal-pathspecs', 'add', '--', path]);
   }
   async push(): Promise<void> {
     await this.checkTrunk();
     await this.checkStaged();
+    const current = await this.readRecord();
+    const head = await run('git', ['show', `HEAD:${wiring}`], { cwd: this.cwd });
+    const previous = head.code === 0 ? parseSetupRecord(head.stdout, `HEAD:${wiring}`) : { files: [], entries: {} };
+    for (const path of [
+      ...current.files,
+      ...previous.files,
+      ...Object.keys(current.entries),
+      ...Object.keys(previous.entries),
+    ])
+      this.affected.add(path);
     const paths = await this.changedPaths();
+    for (const path of paths) await this.checkDestination(path);
     if (!paths.length) {
       this.output('setup: no file changed; nothing to commit\n');
       if (!this.ahead) return;
@@ -738,7 +988,7 @@ class Setup {
       try {
         await this.live(['commit', '-q', '-m', subject]);
       } catch {
-        await this.git(['reset', '-q', '--', ...setupPaths]);
+        await this.git(['--literal-pathspecs', 'reset', '-q', '--', ...paths]);
         fail('the commit failed; the files stay uncommitted');
       }
     }
@@ -806,7 +1056,10 @@ class Setup {
   async execute(input: Exclude<Command, { command: 'status' }>): Promise<number> {
     const { command } = input;
     if (input.command === 'check') {
+      this.diagnostic = true;
       await this.check();
+      const record = await this.readRecord();
+      process.stdout.write(`${JSON.stringify({ answers: record.answers ?? {} })}\n`);
       return 0;
     }
     if (input.command === 'push') {
@@ -847,6 +1100,10 @@ class Setup {
         this.output(
           paths.length ? paths.map((path) => `setup: changed ${path}\n`).join('') : 'setup: no file changed\n',
         );
+        if (paths.length)
+          this.output(
+            'setup: valid recorded ownership can refresh or remove manual edits within owned keys and dedicated files; unowned product content stays unchanged\n',
+          );
         return 0;
       }
       await this.commitWiring();
