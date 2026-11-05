@@ -76,6 +76,7 @@ const issueCard = (issue: Issue, extra: Partial<Card>): Card => ({
   run: false,
   resume: false,
   go: false,
+  epic: issue.epic,
   pr: issue.pr,
   ...extra,
 });
@@ -131,6 +132,7 @@ const placeSession = (session: Session, issue: Issue | undefined): [Column, Card
       run: false,
       resume: false,
       go: true,
+      epic: issue?.epic ?? null,
       pr: issue?.pr ?? null,
       waitFor,
       screen: session.screen ?? [],

@@ -10,7 +10,7 @@ import { codexHome } from './lib/plugin-metadata.ts';
 import { run as runProcess } from './lib/process.ts';
 import { processRunsScript } from './lib/process-identity.ts';
 import { permitHolds, type RecoveryAuthority, type RecoveryPermit } from './lib/quota-recovery.ts';
-import { GitHubReadError, github, type Issue, issueData, parseIssue } from './lib/tracker.ts';
+import { type GitHub, GitHubReadError, github, type Issue, issueData, parseIssue } from './lib/tracker.ts';
 import { type Decision, decide, factsOf, type IssueData, type Lane, laneOf, specified } from './lib/workflow.ts';
 
 type Fetched = Readonly<{ issue: Issue; data: IssueData }>;
@@ -30,6 +30,7 @@ export type PullState = {
   checks: string | null;
   review: string | null;
 };
+export type ParentEpic = Readonly<{ number: number; title: string }>;
 export type BoardRow = Readonly<{
   number: number;
   title: string;
@@ -41,6 +42,7 @@ export type BoardRow = Readonly<{
   effort: Effort | null;
   path: string | null;
   pr: PullState | null;
+  epic: ParentEpic | null;
 }>;
 export type JsonRow = {
   number: number;
@@ -54,6 +56,7 @@ export type JsonRow = {
   reason: string | null;
   act: string | null;
   effort: Effort | null;
+  epic: { number: number; title: string } | null;
   pr: { number: number; url: string; draft: boolean; checks: string | null; review: string | null } | null;
   path?: string;
 };
@@ -77,6 +80,7 @@ export function jsonRow(row: BoardRow): JsonRow {
     reason: shown.reason,
     act: shown.act,
     effort: row.effort,
+    epic: row.epic,
     pr: row.pr
       ? { number: row.pr.number, url: row.pr.url, draft: row.pr.draft, checks: row.pr.checks, review: row.pr.review }
       : null,
@@ -288,7 +292,41 @@ export async function nextOpen(
   return { rows: value, stderr };
 }
 
-function boardRow({ issue, data }: Fetched, prs: readonly PullState[], dirtyLanes: readonly string[]): BoardRow | null {
+const asEpic = ({ number, title }: Issue): ParentEpic => ({ number, title });
+
+function parentNumber({ apiUrl, parentUrl }: Issue): string | null {
+  if (parentUrl === null) return null;
+  const prefix = apiUrl.slice(0, apiUrl.lastIndexOf('/') + 1);
+  const rest = parentUrl.slice(prefix.length);
+  return parentUrl.startsWith(prefix) && /^[1-9][0-9]*$/.test(rest) ? rest : null;
+}
+
+async function parentEpics(gh: GitHub, open: readonly Fetched[]): Promise<ReadonlyMap<string, ParentEpic>> {
+  const epics = new Map<string, ParentEpic>();
+  const read = new Set<string>();
+  for (const { issue } of open) {
+    const n = parentNumber(issue);
+    if (n === null || read.has(n)) continue;
+    read.add(n);
+    let parent: Issue;
+    try {
+      parent = parseIssue(await gh.api(`issues/${n}`));
+    } catch (error) {
+      if (error instanceof GitHubReadError && error.notFound) continue;
+      throw error;
+    }
+    if (!parent.pull && parent.state === 'open' && parent.labels.includes('epic') && parent.apiUrl === issue.parentUrl)
+      epics.set(parent.apiUrl, asEpic(parent));
+  }
+  return epics;
+}
+
+function boardRow(
+  { issue, data }: Fetched,
+  prs: readonly PullState[],
+  dirtyLanes: readonly string[],
+  epic: ParentEpic | null,
+): BoardRow | null {
   const next = decide(data);
   if (describe(String(issue.number), next).row === null) return null;
   const finished = next.kind === 'stop' && next.reason === 'finished';
@@ -303,6 +341,7 @@ function boardRow({ issue, data }: Fetched, prs: readonly PullState[], dirtyLane
     effort: effortOf(data, next),
     path: finished ? null : (dirtyLanes.find((path) => basename(path).startsWith(`${issue.number}-`)) ?? null),
     pr: prs.find((pr) => pr.headRefName.includes(`/${issue.number}-`)) ?? null,
+    epic,
   };
 }
 
@@ -349,9 +388,14 @@ export async function nextBoard(
           ? await read.lanes()
           : (await Promise.all([...selected].map((number) => read.lanes(String(number))))).flat();
       for (const path of paths) if (await read.dirty(path)) dirtyLanes.push(path);
+      const epics =
+        selected === null
+          ? new Map(open.filter((f) => f.issue.labels.includes('epic')).map((f) => [f.issue.apiUrl, asEpic(f.issue)]))
+          : await parentEpics(read.gh, open);
       const rows: BoardRow[] = [];
       for (const fetched of open.sort((a, b) => a.issue.number - b.issue.number)) {
-        const row = boardRow(fetched, prs, dirtyLanes);
+        const { parentUrl } = fetched.issue;
+        const row = boardRow(fetched, prs, dirtyLanes, parentUrl === null ? null : (epics.get(parentUrl) ?? null));
         if (row !== null) rows.push(row);
       }
       const noRun = (await read.dirty(read.checkout))

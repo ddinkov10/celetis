@@ -211,7 +211,9 @@ rule that gives each row its state.
 
 A full read collects all open issues and their timelines, and the open PRs and their check and
 review results. A selected-issue read fetches each selected issue once and lists open PRs once.
-It reads timelines and PR details only for those issues. Both paths use the same row rules.
+It reads timelines and PR details only for those issues. It also reads once each distinct parent
+of the open selected issues that is in the same repository, with `issues/<parent>` and no
+timeline; a 404 of that read gives no epic. Both paths use the same row rules.
 The selected read replaces or removes only selected rows, sorts by issue number, and retains
 other rows. Closed issues, PR objects, and missing issues have no active row. Only an explicit
 404 from the initial issue request means missing; another request failure fails the batch.
@@ -397,7 +399,7 @@ to the card of its row, and Run starts the step again.
   that list has no track.
 
 **The order.** Needs you has the urgent cards first, then the dialogs, then the longest wait first.
-Running has the newest first, and Idle has the highest number first. History follows remote trunk traversal order.
+Running has the newest first, and Idle has the highest number first. In Idle, and in each Pipeline stage for its Idle cards, the cards of one epic (`epic` of the card) take one group row at the place of their first card; Needs you, Running, and Not in a step never group. History follows remote trunk traversal order.
 Human sessions has the order of their titles, with numbers in numeric order, and two sessions
 with one title in the order of their terminal ids.
 
@@ -934,6 +936,8 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   the fold, a line at the foot of the column names them, for example
   `3 more below: 1 input on the issue, 2 ready to run`; a press scrolls to the first of them.
   Idle keeps its current vertical position during a data refresh; the browser clamps it when the content shrinks.
+  A group row in Idle holds a chevron, the epic number, the epic title, and the count of its cards.
+  A press shows or hides the children, and a group starts closed.
 - Queue preserves the saved Now/Pipeline choice. Current work appears above Up next. The picker
   sits beside waiting work on desktop and below it on a phone. Add persists immediately and starts
   an empty queue. Only waiting rows expose Up, Down, and Remove, including during runs and stops.
@@ -979,7 +983,8 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   lines at the top, beside Go, except a human session whose turn ended. `Esc` closes the details.
   Below 1100 px the details cover the right side of the page, and below 720 px the whole page.
 - A card that changed since you last looked at the board has a dot, until you point at it or focus
-  it. The board takes the cards as seen when its window loses the focus.
+  it. The board takes the cards as seen when its window loses the focus. A closed group row shows
+  the dot while one of its hidden cards has it.
 - The status bar shows when the board last read the data, with the name of the tracker (`Issues`
   before the first good read), whether herdr-core answers (the item `herdr`), and whether the
   automatic runner runs. It shows
@@ -994,7 +999,9 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   notification opens the details of the card. A screen reader hears each card that enters Needs you,
   each card that starts, and the session or the warning that ends a start.
 - Pipeline has one column for each item of `flow.stages`, in order, and it shows each issue at its
-  step. A strip at the top, Not in a step, holds the issues whose step is in no stage.
+  step. A strip at the top, Not in a step, holds the issues whose step is in no stage. The Idle
+  cards of a stage group in the same way: the row has the chevron, the number, the title, and the
+  count, a press shows or hides the children, and a group starts closed.
 - When a request of the page fails, the cards of the last good read stay, dimmed, under the message
   `The board read failed. The cards and history show the last good read.`
 - A card that changes its column moves to its new place. The page shows no motion when the OS asks
@@ -1002,8 +1009,9 @@ SIL Open Font License 1.1), so it loads nothing from the network.
 - Below 1100 px Needs you takes the left half and Running and Idle share the right half, and the
   page scrolls as one document; it also scrolls as one document at a height of 700 px or less. Below
   720 px the columns stack.
-- The page keeps three choices in the storage of the browser: the view, the Notify switch, and the
-  switch of the single-key shortcuts. A board on another port has its own choices.
+- The page keeps four choices in the storage of the browser: the view, the Notify switch, the
+  switch of the single-key shortcuts, and the open epic groups. The open epic groups follow a change
+  in another tab of the same board. A board on another port has its own choices.
 
 **The keys.** `⌘K` (`Ctrl K` off macOS) or `/` opens the search: it lists the issue work that needs
 you first, then the running cards, the steps that can start, the human sessions (a waiting one
@@ -1012,8 +1020,12 @@ finds a human session whose title is `<n>`. `j` and `k` move to the next or the 
 `h` and `l` to the column on the left or the right; `Enter` presses the main button of the card,
 `Space` opens its details, `m` opens all its actions, `o` opens the issue, and `c` copies the
 command or the path of the card. `v` changes between Now and Pipeline, `d` shows or hides History, `r`
-reads the issues again, and `?` shows the list. The list has a switch that turns the single-key
-shortcuts off; the keys of a focused card always work, and the arrow keys move from a focused card
+reads the issues again, and `?` shows the list. `j`, `k`, `h`, `l`, and the arrows stop at the row of an
+epic group and skip the issues of a closed group; `Enter` and `Space` on a row show or hide its
+issues. The search has `Expand all epic groups` and `Collapse all epic groups`. `#<n>` in the
+search, a notification press, and the return from the details open the group of a hidden issue and
+store that open. The list has a switch that turns the single-key shortcuts off; the keys of a
+focused card or epic group always work, and the arrow keys move from a focused card or epic group
 as `h`, `j`, `k`, and `l` do. After a Run, Resume, or Open agent press, the focus stays on the card
 of the issue in Running. A press in the details keeps the focus in the details: on the same button, or on
 Close when that button goes.

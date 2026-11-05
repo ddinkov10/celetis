@@ -65,6 +65,33 @@ var groupNeeds = (cards) => {
     return { ...group, cards: members };
   }).filter((group) => group.cards.length > 0);
 };
+var groupEpics = (cards, canGroup) => {
+  const groups = new Map;
+  const items = [];
+  for (const card of cards) {
+    if (!card.epic || !canGroup(card)) {
+      items.push({ kind: "card", card });
+      continue;
+    }
+    const known = groups.get(card.epic.number);
+    if (known) {
+      known.cards.push(card);
+      continue;
+    }
+    const group = { kind: "group", epic: card.epic, cards: [card] };
+    groups.set(card.epic.number, group);
+    items.push(group);
+  }
+  return items;
+};
+var parseOpenEpics = (value) => {
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed) && parsed.every((item) => Number.isSafeInteger(item) && item > 0))
+      return new Set(parsed);
+  } catch {}
+  return new Set;
+};
 var laneTrack = (card, flow) => {
   const steps = card.type && flow?.lanes?.[card.type];
   const at = steps ? steps.indexOf(card.step) : -1;
@@ -187,12 +214,14 @@ export {
   favicon,
   filterItems,
   gateOf,
+  groupEpics,
   groupNeeds,
   keyOf,
   laneTrack,
   needsYou,
   notice,
   pageTitle,
+  parseOpenEpics,
   pipeline,
   prFacts,
   runTitle,

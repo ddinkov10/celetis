@@ -314,16 +314,17 @@ var iconButton = (name, label, press, className = "") => {
   return node;
 };
 var store = {
+  key: (name) => `agent-board:${name}`,
   get: (key) => {
     try {
-      return localStorage.getItem(`agent-board:${key}`);
+      return localStorage.getItem(store.key(key));
     } catch {
       return null;
     }
   },
   set: (key, value) => {
     try {
-      localStorage.setItem(`agent-board:${key}`, value);
+      localStorage.setItem(store.key(key), value);
     } catch {}
   }
 };

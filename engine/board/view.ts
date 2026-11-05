@@ -1,5 +1,5 @@
 import type { Effort, Level } from '../lib/effort.ts';
-import type { Card, Column, Columns, Diff, Flow, Pull } from './types.ts';
+import type { Card, Column, Columns, Diff, Flow, ParentEpic, Pull } from './types.ts';
 export const COLUMNS: { key: Column; name: string; note: string; empty: [string, string] }[] = [
   {
     key: 'needs',
@@ -85,6 +85,37 @@ export const groupNeeds = (cards: Card[]) => {
     for (const card of members) left.delete(card);
     return { ...group, cards: members };
   }).filter((group) => group.cards.length > 0);
+};
+
+export type EpicItem = { kind: 'card'; card: Card } | { kind: 'group'; epic: ParentEpic; cards: Card[] };
+
+export const groupEpics = (cards: Card[], canGroup: (card: Card) => boolean): EpicItem[] => {
+  const groups = new Map<number, Extract<EpicItem, { kind: 'group' }>>();
+  const items: EpicItem[] = [];
+  for (const card of cards) {
+    if (!card.epic || !canGroup(card)) {
+      items.push({ kind: 'card', card });
+      continue;
+    }
+    const known = groups.get(card.epic.number);
+    if (known) {
+      known.cards.push(card);
+      continue;
+    }
+    const group = { kind: 'group' as const, epic: card.epic, cards: [card] };
+    groups.set(card.epic.number, group);
+    items.push(group);
+  }
+  return items;
+};
+
+export const parseOpenEpics = (value: string): Set<number> => {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (Array.isArray(parsed) && parsed.every((item) => Number.isSafeInteger(item) && item > 0))
+      return new Set<number>(parsed);
+  } catch {}
+  return new Set();
 };
 
 export const laneTrack = (card: Pick<Card, 'type' | 'step'>, flow: Partial<Flow> | null | undefined) => {

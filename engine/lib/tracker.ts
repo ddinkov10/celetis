@@ -10,6 +10,8 @@ export type Issue = Readonly<{
   number: number;
   title: string;
   url: string;
+  apiUrl: string;
+  parentUrl: string | null;
   state: 'open' | 'closed';
   labels: readonly string[];
   body: string | null;
@@ -72,10 +74,14 @@ export function parseIssue(raw: unknown): Issue {
     (pull !== undefined && pull !== null && typeof pull !== 'object')
   )
     throw malformed();
+  const parent = issue.parent_issue_url;
+  if (parent !== undefined && parent !== null && typeof parent !== 'string') throw malformed();
   return {
     number,
     title: text(issue.title),
     url: text(issue.html_url),
+    apiUrl: text(issue.url),
+    parentUrl: parent ?? null,
     state,
     labels: labels.map((label) => text(record(label).name)),
     body: body === null ? null : text(body),

@@ -982,6 +982,8 @@ from the initial issue request have no active row; a failed timeline or other re
 batch. Each batch refreshes the configuration, runner, agents, and main dirty state. It calls
 the existing queue reconciliation only when a selected issue is in the current queue, after
 remote row and History reads finish. Existing ownership and launch rules remain authoritative.
+It also reads once each distinct parent of the open selected issues that is in the same
+repository, with `issues/<parent>` and no timeline; a 404 of that read gives no epic.
 
 The server lists local refresh hints each second and selects newly seen issue numbers. Its first
 listing seeds existing names before the initial full read. A disappeared session selects its
@@ -1097,6 +1099,8 @@ Each row also has `number`, `title`, `url`, `updatedAt` and these fields:
 - `started`: `true` when the step comes after the define step of its lane (`plan` or `implement`),
   because an earlier step of the lane ran.
 - `urgent`: `true` for the type `hotfix`.
+- `epic`: `{ number, title }` of the parent issue when the `parent_issue_url` of the issue is the API
+  URL of an open issue of the same repository with the label `epic`, else `null`.
 - `pr`: the open pull request whose branch name holds `/<n>-`, with its number, URL, draft state, CI
   result (`pass`, `fail`, `pending`, or `null`), and review state (`approved`, `changes`,
   `required`, or `null`); else `null`. For the review state, the last review of each reviewer that

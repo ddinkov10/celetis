@@ -811,6 +811,72 @@ a.num:hover {
   top: 9px;
   left: 5px;
 }
+.epic-group {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.epic-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--fill);
+  color: var(--fg);
+  font: 500 13px / 18px var(--sans);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+}
+.epic-row:hover {
+  border-color: var(--line-strong);
+  background: var(--fill-strong);
+}
+.epic-row:focus-visible {
+  border-radius: 12px;
+}
+.epic-row .icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--fg2);
+  transition: transform 0.15s;
+}
+.epic-row[aria-expanded="true"] .icon {
+  transform: rotate(90deg);
+}
+.epic-num,
+.epic-count {
+  flex: none;
+  font: 400 12px / 18px var(--mono);
+  color: var(--fg3);
+}
+.epic-title {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.epic-row .unseen {
+  display: none;
+  margin-top: 5px;
+}
+.epic-group:has(> .epic-children[hidden] .card.is-unseen) > .epic-row .unseen {
+  display: block;
+}
+.epic-children {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-left: 6px;
+  padding-left: 12px;
+  border-left: 1px solid var(--line-strong);
+}
 
 .track {
   display: inline-flex;
@@ -2381,6 +2447,12 @@ a.chip2:hover {
   }
   .find-text {
     display: none;
+  }
+}
+@media (max-height: 700px), (max-width: 1099px) {
+  .card,
+  .epic-row {
+    scroll-margin-block: 190px 46px;
   }
 }
 @media (max-height: 700px) {

@@ -341,16 +341,17 @@ export const iconButton = (name: string, label: string, press: (event: MouseEven
 };
 
 export const store = {
+  key: (name: string) => `agent-board:${name}`,
   get: (key: string) => {
     try {
-      return localStorage.getItem(`agent-board:${key}`);
+      return localStorage.getItem(store.key(key));
     } catch {
       return null;
     }
   },
   set: (key: string, value: string) => {
     try {
-      localStorage.setItem(`agent-board:${key}`, value);
+      localStorage.setItem(store.key(key), value);
     } catch {}
   },
 };

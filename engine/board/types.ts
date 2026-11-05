@@ -37,6 +37,7 @@ export type Pull = {
   checks: string | null;
   review: string | null;
 };
+export type ParentEpic = { number: number; title: string };
 export type Issue = {
   number: number;
   title: string;
@@ -51,6 +52,7 @@ export type Issue = {
   reason: string | null;
   act: string | null;
   effort: Effort | null;
+  epic: ParentEpic | null;
   pr: Pull | null;
 };
 export type LandedIssue = {
@@ -125,6 +127,7 @@ export type Card = {
   run: boolean;
   resume: boolean;
   go: boolean;
+  epic: ParentEpic | null;
   pr: Pull | null;
   waitFor?: string | null;
   screen?: string[];

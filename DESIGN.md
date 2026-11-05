@@ -396,6 +396,10 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
 - **Waiting card:** a 55% Beacon Orange border, a 6% orange tint, and a slow pulse of the tint
   (3s). This card is the beacon of the tower.
 - **Compact card:** a one-row variant for Idle, Pipeline, and the last two groups of Needs you.
+- **Epic group row:** a full-width button with a Veil fill, a 1px hairline, and a 12px radius; hover
+  moves to Veil Strong and the strong hairline. It holds a 16px chevron (right closed, 90° down open,
+  0.15s), the number in Geist Mono, the title that wraps in full, and the count. Open children sit
+  beside a 1px strong left hairline, indented 12px. It uses no signal color.
 - **Column:** Console Grey, a hairline border, a 16px radius, and a 46px head with a state glyph and
   a count.
 
