@@ -25,6 +25,7 @@ export const GROUPS = [
   { key: 'answer', label: 'Waits for your answer', short: 'waiting', states: ['waits'], isCompact: false },
   { key: 'stuck', label: 'Stuck', short: 'stuck', states: ['no-progress', 'dirty-tree'], isCompact: false },
   { key: 'input', label: 'Your input on the issue', short: 'input on the issue', states: ['blocked'], isCompact: true },
+  { key: 'paused', label: 'Paused by usage limits', short: 'paused', states: ['quota-wait'], isCompact: true },
   { key: 'ready', label: 'Ready to run', short: 'ready to run', states: null, isCompact: true },
 ];
 
@@ -35,6 +36,7 @@ export const STATES: Record<string, string> = {
   'checks-step': 'checks step',
   'dirty-tree': 'dirty tree',
   'no-progress': 'no progress',
+  'quota-wait': 'waits for a usage limit',
 };
 
 const WAITS: Record<string, string> = { dialog: 'waits for your answer', turn: 'turn ended' };

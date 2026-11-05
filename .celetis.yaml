@@ -1,4 +1,3 @@
-host: claude
 landing: merge
 suite: scripts/verify.ts
 gates:

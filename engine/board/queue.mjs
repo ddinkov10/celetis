@@ -1,5 +1,7 @@
 // engine/board/queue.ts
 import { $, el, iconButton, toast } from "./ui.mjs";
+var recordedHost = (record) => record?.choice?.kind === "explicit" ? record.choice.host : null;
+var chosenHost = (record) => record?.choice ? recordedHost(record) : agent || null;
 var board = null;
 var submitted = null;
 var agent = "";
@@ -66,7 +68,10 @@ var request = async (action) => {
     const response = await fetch("/api/queue", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action, ...action.kind === "add" ? { agent: submitted?.record?.host ?? agent } : {} }),
+      body: JSON.stringify({
+        action,
+        ...action.kind === "add" && chosenHost(submitted?.record) ? { agent: chosenHost(submitted?.record) } : {}
+      }),
       signal: AbortSignal.timeout(30000)
     });
     if (!response.ok)
@@ -131,6 +136,10 @@ var row = (number, index, numbers) => {
   }
   return node;
 };
+var hostAvailable = (host) => {
+  const next = host ?? (board?.next?.kind === "start" ? board.next.host : null);
+  return next === null || board?.agents?.[next]?.available === true;
+};
 function draw() {
   if (!board)
     return;
@@ -172,12 +181,13 @@ function draw() {
   const select = el("select");
   select.dataset.control = "agent";
   select.setAttribute("aria-label", "Queue agent");
+  select.add(new Option("Default order", ""));
   for (const host of ["claude", "codex"]) {
     const option = new Option(host === "claude" ? "Claude" : "Codex", host);
     option.disabled = board.agents?.[host]?.available !== true;
     select.add(option);
   }
-  select.value = record?.host ?? agent;
+  select.value = chosenHost(record) ?? "";
   select.disabled = numbers.length > 0 || busy || !authoritative();
   select.addEventListener("change", () => {
     agent = select.value;
@@ -208,7 +218,7 @@ function draw() {
     const copy = el("div");
     copy.append(el("span", "queue-number", `#${number}`), el("span", "queue-title", card.title));
     const selected = numbers.includes(number);
-    const add = button(selected ? "In queue" : "Add", `add-${number}`, () => request({ kind: "add", number, step: card.step, expected: expected() }), selected || busy || !authoritative() || !submitted?.actions.add || !board.agents?.[record?.host ?? agent]?.available || Boolean(board.noRun));
+    const add = button(selected ? "In queue" : "Add", `add-${number}`, () => request({ kind: "add", number, step: card.step, expected: expected() }), selected || busy || !authoritative() || !submitted?.actions.add || !hostAvailable(chosenHost(record)) || Boolean(board.noRun));
     add.setAttribute("aria-label", `Add #${number} to queue`);
     item.append(copy, add);
     picker.append(item);
@@ -237,8 +247,6 @@ function setQueueOpen(value) {
 }
 function drawQueue(next) {
   board = next;
-  if (!agent && board.defaultAgent)
-    agent = board.defaultAgent;
   const before = submitted?.record?.numbers.length;
   if (board.queue) {
     accept(board.queue);

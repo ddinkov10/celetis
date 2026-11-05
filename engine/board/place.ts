@@ -1,11 +1,15 @@
-import { basename } from 'node:path';
+import { basename, join } from 'node:path';
+import { bunArgs } from '../lib/process.ts';
 import { LINK } from '../lib/terminal.ts';
 import type { Terminal, TerminalStatus } from '../lib/terminal-types.ts';
-import type { Card, Column, Columns, Document, Flow, Issue, Placement, Session } from './types.ts';
+import type { Card, Column, Columns, Document, Flow, Issue, Placement, QuotaState, Session } from './types.ts';
 import { gateOf } from './view.ts';
 
 const LABEL = /^#([1-9][0-9]*)(?: ([a-z]+))?/;
 const RUNNER = 'celetis-flow.ts';
+const INDEPENDENT = ['intake', 'assist', 'visual'].map((name) =>
+  bunArgs(join(import.meta.dir, '..', `${name}.ts`), []),
+);
 
 export type LaunchFeedback = { step: string | null } & (
   | { kind: 'timed'; expired: boolean }
@@ -14,6 +18,9 @@ export type LaunchFeedback = { step: string | null } & (
 );
 
 const time = (iso: string) => Date.parse(iso);
+const QUOTA_WAIT =
+  'Every included agent reached a usage limit. The runner waits; the agent order shows the resets and Retry.';
+const QUOTA_ORPHAN = 'The runner of this step stopped during a usage-limit recovery. Run starts the step again.';
 
 export const stepsOf = (flow: Flow | null | undefined): Set<string> => new Set(Object.values(flow?.lanes ?? {}).flat());
 
@@ -21,10 +28,13 @@ export const sessionsOf = (terminals: Terminal[], isHere: (path: string) => bool
   terminals.flatMap(({ id, host, status, turn, labels, cwd, foreground, tab }) => {
     const link = labels[LINK] ?? '';
     const words = foreground ?? [];
-    const isHost = basename(words[0] ?? '').replace(/\.exe$/, '') === host;
+    const executable = basename(words[0] ?? '').replace(/\.exe$/, '');
+    const isHost = executable === host;
+    const isIndependent =
+      executable === 'bun' && INDEPENDENT.some((args) => args.every((arg, index) => words[index + 1] === arg));
     const runner = words.findIndex((word) => basename(word) === RUNNER);
     const isRunner = runner >= 0 && link !== '';
-    if (!isHere(cwd) || host === null || status === null || !(isHost || isRunner)) return [];
+    if (!isHere(cwd) || host === null || status === null || !(isHost || isRunner || isIndependent)) return [];
     const [, issue, step = ''] = LABEL.exec(link) ?? [];
     return [
       {
@@ -144,10 +154,12 @@ export const place = ({
   sessions,
   board,
   launches,
+  quota = new Map(),
 }: {
   sessions: Session[];
   board: Pick<Document, 'flow' | 'noRun' | 'issues'> | null;
   launches: Record<string, LaunchFeedback>;
+  quota?: ReadonlyMap<number, QuotaState>;
 }): Placement => {
   const columns: Columns = { needs: [], running: [], idle: [], human: [] };
   const issues = board?.issues ?? [];
@@ -159,6 +171,9 @@ export const place = ({
     ...issues
       .filter((issue) => !busy.has(issue.number))
       .map((issue): [Column, Card] => {
+        const recovery = quota.get(issue.number);
+        if (recovery?.kind === 'waiting')
+          return ['needs', issueCard(issue, { step: issue.step, state: 'quota-wait', reason: QUOTA_WAIT })];
         const launch = launches[issue.number];
         const feedback = launch && launchMatches(issue, launch.step) ? launch : null;
         const [column, card] = PLACERS[issue.state](issue, {
@@ -167,11 +182,13 @@ export const place = ({
             noRun === null &&
             (!feedback || feedback.kind === 'failed' || (feedback.kind === 'timed' && feedback.expired)),
         });
+        const orphan = recovery?.kind === 'orphaned' ? QUOTA_ORPHAN : null;
+        if (orphan) card.warning = orphan;
         if (!feedback) return [column, card];
-        if (feedback.kind === 'unknown' || feedback.kind === 'failed') card.warning = feedback.warning;
+        if (feedback.kind === 'unknown' || feedback.kind === 'failed') card.warning = orphan ?? feedback.warning;
         if (feedback.kind === 'failed') return [column, card];
         if (feedback.kind === 'timed' && feedback.expired) {
-          card.warning = 'Session not detected. Check the terminal before starting again.';
+          card.warning = orphan ?? 'Session not detected. Check the terminal before starting again.';
           return [column, card];
         }
         return [

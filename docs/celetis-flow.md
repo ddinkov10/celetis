@@ -115,13 +115,32 @@ celetis --agent <host> celetis-flow 373 --effort xhigh    # the same, with its f
 celetis --agent <host> celetis-flow --resume 373    # the session of a step with no progress, again
 celetis --agent <host> celetis-flow --queue status
 celetis --agent <host> celetis-flow --queue action '{"kind":"add","number":12,"step":"plan","expected":{"id":null,"revision":0,"current":null}}'
+celetis celetis-flow --retry 373 <wait id>    # one bounded attempt cycle of a quota wait
 ```
 
-These human commands use `CELETIS_AGENT`, then `host` in the main checkout's `.celetis.yaml`,
-then Claude. Put `--agent claude` or `--agent codex` before `celetis-flow` to override that choice.
+These human commands use an explicit `CELETIS_AGENT`, then the local ordered preference.
+The absent preference is Claude, then Codex. Put `--agent claude` or `--agent codex` before `celetis-flow` to override that choice.
 Every skill call supplies that prefix. Invalid host values stop; PATH order never chooses a host.
-The selected host stays fixed for the new step. Resume instead selects its recorded host and
-rejects an explicit prefix that names the other host.
+An explicit host stays fixed. A default step selects its host again at each session start, so a
+usage-limit recovery can continue the step on another host ("How a step runs"). Resume instead
+selects its recorded host and rejects an explicit prefix that names the other host. `--retry`
+needs no prefix: it only wakes the live waiter of a quota wait.
+
+Intake, Assist, and Make visual share the independent-session launcher. Default launches read
+the current order and per-host usage records from the Git common directory. They select the
+first included host with no confirmed active block. Explicit choices keep their exact host.
+An elapsed supplied reset permits an attempt without changing the stored block. Exhausted
+defaults report each block and its supplied reset, or unknown, without starting an agent.
+The selected host's normal preflight remains binding; other errors do not select another host.
+
+Each independent launch allocates a per-host attempt number under its own limit-record lock.
+Native observations must match the verified session and attempt. Accepted attempt numbers
+and observation sequences reject stale updates and duplicate delivery. Unknown observations
+preserve blocks; verified availability can clear them. Preference records, per-host limits,
+and native per-attempt sequences have separate write targets. A running independent session
+keeps native recovery and its exit status; exhaustion never transfers its conversation or
+starts a replacement. `CELETIS_SESSION_AGENT` carries attribution only. An inherited explicit
+`CELETIS_AGENT` keeps its user meaning.
 
 An argument is `<n>`, or `'#<n>'` in quotes. A shell can read an unquoted word that starts with `#`
 as the start of a comment: the script then gets neither that word nor the words after it, and with
@@ -211,7 +230,10 @@ the owner records, the liveness check of an owner, and the record; the runner an
 
 Add persists one eligible issue and starts its displayed first step when the queue is empty.
 Later Add actions append without interrupting current work or authorizing a stopped step.
-Only waiting issues can move or leave through an edit. The host stays fixed while nonempty.
+Only waiting issues can move or leave through an edit. The agent choice stays fixed while nonempty.
+An incoming explicit host must match that saved explicit choice. A saved default choice refuses
+an explicit host before admission or wake claim. With no explicit input, Continue, Retry, and
+waiting edits keep the saved choice. A read-only status command does not select work.
 Every later step, including the first step of waiting work, follows fresh project gates.
 Continue authorizes exactly the displayed step. Retry authorizes recovery of that displayed
 step; a null step only acknowledges a fresh terminal result and authorizes no later issue.
@@ -225,12 +247,16 @@ Every action has `expected: {id, revision, current}`, where current is the first
 Only a missing record accepts null ID, revision 0, and null current. Add has kind, number, and
 step; move has kind, number, and direction up/down; remove has kind and number; continue and
 retry have kind and step. Retry alone permits a null step. Extra fields, unsafe integers,
-duplicates, stale identity/revision/current, current-row edits, and conflicting hosts refuse.
+duplicates, stale identity/revision/current, current-row edits, and a conflicting agent choice refuse.
 
-Schema 2 remains at `<git common dir>/celetis-flow/queue.json`. It has an ID and increasing
-revision, ordered unique numbers, fixed host, current and last Runs, reason/action, and a
-nullable launch token with issue-bound one-step authorization. Its states are empty, starting,
-running, me-gate, and error. Empty retains the record identity but has no numbers or host.
+Schema 3 is at `<git common dir>/celetis-flow/queue.json`. It has an ID and increasing
+revision, ordered unique numbers, the fixed agent choice (`default`, or `explicit` with its host),
+the active host, current and last Runs, reason/action, a wait ID, and a nullable launch token with
+issue-bound one-step authorization. Its states are empty, starting, running, quota-wait, me-gate,
+and error. Empty retains the record identity but has no numbers, choice, or active host. A
+default choice stays default: each start selects its host from the current order. The active
+host is the host of the current session, or null. `quota-wait` has the wait ID of the issue's
+recovery record and no active host ("Usage-limit recovery"). A schema-2 record refuses as obsolete.
 It has no completed rows, history, reset, or tab-local draft.
 
 The stable native `queue-write.lock` serializes short read-modify-write transactions. Acquisition
@@ -336,7 +362,7 @@ plugin root of the header; follow the skill, and start no step that a skill send
 context; ask only for a decision that the issue does not hold, and never for a go-ahead or a
 review; land only with `celetis --agent <host> land`, and only when the skill says so; and the stop
 rules, which cite `docs/procedures/stop.md` for a stop and for a Verify scenario that the session
-cannot run, after applying [Usage-limit exception](procedures/runtime-verification.md#usage-limit-exception). It overrides no instruction of a skill: a skill says what it does "In a step session".
+cannot run, after applying [Usage-limit exception](procedures/runtime-verification.md#usage-limit-exception); and, with `- recovery: yes` in the header, the continuation from the existing lane changes and the issue with no replay, reset, stash, or clean. It overrides no instruction of a skill: a skill says what it does "In a step session".
 A step session is a session that the runner starts with the step text. The exit status of the
 host decides nothing: the resolver decides.
 
@@ -382,7 +408,7 @@ labels `herdr.space=<id>` and `celetis.link=#<n> <step>`, and the tab name `#<n>
 (`herdr-app do tab.rename`). The space has the name of the folder of the main checkout. When that
 space is missing, the runner makes it with `herdr-app do space.new`, and the app shows it. The file
 lock `<git common dir>/celetis-flow/space.lock` lets one process at a time find or make the space.
-The tab runs the start barrier, `celetis-flow.ts --session-start <folder> <runner PID> <host>
+The tab runs the start barrier, `celetis-flow.ts --session-start <folder> <runner PID> <host> <attempt ID or -> <recovery or ->
 <arguments>`, through a login shell of `$SHELL` (`"$@"; exec "$0" -li`), so the tab keeps a shell
 after the barrier exits. `<folder>` is a private start folder in `<git common dir>/celetis-flow/`:
 
@@ -400,7 +426,7 @@ for example after a person closed the tab, is an unknown status, and it counts a
 before issue progress, the runner stops with the recovery line and `status unknown`.
 
 The session gets the login environment of its tab, not the environment of the runner. The barrier
-sets `CELETIS_AGENT` to the host, removes `CLAUDE_CODE_EFFORT_LEVEL` for Claude, and sets
+sets `CELETIS_SESSION_AGENT` to the host and `CELETIS_ATTEMPT` to the attempt ID of a step, removes `CLAUDE_CODE_EFFORT_LEVEL` for Claude, and sets
 `CODEX_HOME` to the resolved native home for Codex. hc gives the terminal of the tab its own
 `HC_TERMINAL_ID`. The runner reads no `HC_TERMINAL_ID`, so a runner that the agent of a session
 starts from its shell tool opens tabs of its own and does not touch the terminal of that session.
@@ -507,6 +533,74 @@ barrier after the host exits is the only sign that the session ended: the script
 job, and it reads no terminal status after the exit. When a session does not end and its agent
 waits for nothing, leave it with `/exit` in its tab: the script then asks the resolver again, and
 it prints the reason or starts the next step.
+
+**The agent of each start.** At each start, the runner reads the local order and the per-host
+usage records again (`selectAgent` of `engine/lib/agent-usage.ts`). The default choice takes the
+first included host with no active block; an explicit choice keeps its host. The preflight and
+the plugin revision check of the selected host run after this selection. Each step session gets a
+usage attempt. A Claude step gets attempt-local `Stop` and `StopFailure` callbacks through
+`--settings`, beside its `--session-id`. A Codex step is read through `thread/read` and
+`thread/turns/list` after the runner saves its verified ID. The runner acts only on the
+observation of its own attempt, also when the shared record keeps a newer attempt.
+
+**Usage-limit recovery.** Only a runner-owned step with the default choice continues on another
+agent. A confirmed refusal of an explicit host is recorded; that session stays open, and no other
+agent starts. After a confirmed refusal of the default host, the runner:
+
+1. Saves the block, writes `<git common dir>/celetis-flow/recovery/<n>.json` with the state
+   `recovering`, and stops the job of the step end.
+2. Ends only its own attempt (`endOwnedAttempt` of `engine/lib/quota-recovery.ts`). The barrier
+   gives the host `CELETIS_ATTEMPT=<attempt id>`, and each child inherits it. For Claude, the
+   runner records three groups: the process tree under the barrier, each process with that entry
+   in its environment (not in its arguments), and each process on the tab's controlling terminal
+   outside the tab shell's own tree. It sends `/exit` and reads the groups again until the barrier
+   and every recorded process are gone, for at most 20 seconds. So a writer that left the tree, as
+   with `cmd &` or `nohup`, still counts. A session with no controlling terminal (`ps` shows none, `?`, or `??`), a missing
+   marker, a failed process read, a native dialog, or a process that still runs at the deadline is
+   `unverified`, and the line names the running PIDs. Codex, and each host on Windows, have no
+   proved termination path, so their result is always `unverified`. The check cannot see a
+   process that leaves the tree and the terminal (a new session) and whose environment `ps`
+   cannot show: one that clears the entry, or a macOS platform binary such as `/bin/sh`. The check
+   accepts Linux terminal names (`pts/<n>`), but no Linux run has proved it.
+3. On `unverified`, starts no other agent. The session stays in its tab and keeps the issue lock.
+   The runner stops with
+   `celetis-flow: #<n>: <reason> The runner cannot prove that the <host> session and its delegated work stopped: <cause> (running PIDs: <PIDs>). No other agent starts. The session stays in the tab <tab>; its native resume from the main checkout: <command>`.
+4. After proof, archives the session record ("Sessions"), prints the native resume command, and
+   binds the one dirty lane of the issue: its path, branch, HEAD, and a digest of its status,
+   diff, and untracked files. Two or more dirty lanes of the issue give no binding.
+5. Reads the issue again. When the record, the live runner, the issue lock, the attempt, and the
+   lane binding all match, the bound lane does not stop the read. A dirty main checkout, another
+   dirty lane, a changed branch, HEAD, or digest, and an unresolved merge, rebase, cherry-pick, or
+   revert still stop it.
+6. Starts the same step again on the next eligible host when the decision is the same step with
+   the same spec digest and `## Plan` comment. The first authorization of the start still holds,
+   so the skip, no-progress, and gate checks do not apply to this retry. A changed spec or plan of
+   that step stops. A new step follows the normal checks, its gate included.
+
+The retry session gets `CELETIS_RECOVERY`, the attempt ID, in its environment, and `- recovery: yes`
+in its header. A `specify` session has no step text, so its retry gets no header line. That value
+is only a lookup key: `worktree` validates the recovery record again
+([the lane worktree](procedures/worktree.md)). A normal end of a session removes the recovery
+record. The next start reads the order again, so a recovered preferred host takes the next step.
+A preference change or a recovered block does not stop a session that works.
+
+**Exhaustion.** In one cycle, the runner attempts each included host at most once. When no host can
+start, it keeps the issue lock, writes the state `waiting` with a new wait ID, and prints:
+
+```text
+celetis-flow: #<n>: all default agents are limited (<host>: <reason> Reset: <ISO time or unknown>; …); <the runner waits until <ISO time> or no reset is known>. Retry: celetis celetis-flow --retry <n> <wait id>
+```
+
+Only a supplied future reset sets a wake, at the earliest one. A reset in the past and an unknown
+reset set none. Each second, the runner reads the record and the usage records. It starts one new
+cycle at the deadline, after Retry, or after a newer accepted observation of an included host has
+no block. A clock change can move the wake; it cannot make a loop, because each cycle attempts
+each host once and each wait needs a new wake. `--retry <n> <wait id>` writes one wake request
+for the live waiter of the issue. A repeated request with the same ID is one cycle. Another wait
+ID, no wait, or a runner that stopped refuses with exit 2; Retry never starts a runner. Retry lets
+that cycle attempt blocked hosts once each in the current order, and keeps their records. A
+signal ends the wait and its wake. The record stays with its stopped runner and authorizes
+nothing. A new runner start of the issue removes it and evaluates the issue again.
 
 **A stop.** Before a stop, the session sorts each act that the stop would ask of the maintainer
 ([The check before a stop](procedures/stop.md#the-check-before-a-stop)): it does the agent work,
@@ -685,7 +779,7 @@ state, host sessions, or landing pushes. A public command creates an immutable o
 the program starts it. Internal calls receive its values instead of reading again.
 The runner creates a fresh main operation before each new step. Its resolution, gate decision,
 and session start use that operation. It retains the original host-selection inputs, so a changed
-YAML default can select the next new session. A running session keeps its captured host and exact
+local order can select the next new session. A running session keeps its captured host and exact
 identity. Monitoring can refresh status separately; a monitoring config error is reported after
 the active child exits. Resume uses the recorded host and exact session ID; a changed default
 cannot select another saved session. [Configuration freshness](configuration.md#operation-values-and-freshness)
@@ -794,7 +888,7 @@ The board is `engine/board/` of the plugin, a part of its engine. It reads the d
 in its own process with the typed functions of the engine, and a press starts one of the fixed
 argvs: Run, Resume, and a queue wake start the script in a hidden hc terminal, and New intake,
 Assist, and Open shell open a new tab of the Herdr app. It has no config of its own: the main
-checkout's `.celetis.yaml` gives `board.port` at the start, and `host` and `gates` at each read. ADR-0020 makes the board a
+checkout's `.celetis.yaml` gives `board.port` at the start and `gates` at each read. ADR-0020 makes the board a
 part of the plugin, ADR-0035 makes it a part of the engine, and ADR-0058 gives its sessions to
 herdr-core and its tabs to the Herdr app.
 
@@ -831,9 +925,10 @@ program and uses the same port (`README.md`, "Optional: the board in Claude desk
 **The data.** Each refresh reads the data in the board process (`engine/board/data.ts`). It creates
 a fresh main operation with `CELETIS_AGENT` and no explicit host. It reads the typed rows of the
 in-process resolver (`nextBoard` of `next-step.ts`), and the issue locks, the runner lock, and the
-record through `engine/lib/locks.ts`, the module of the runner. So resolution, displayed gates, and
-the default host share that refresh's operation, and a change of `host` or `gates` in the main YAML
-shows at the next refresh. Each module of this path is a static import: a refresh loads no plugin
+record through `engine/lib/locks.ts`, the module of the runner. Resolution and displayed gates
+share that refresh's operation, and a change of `gates` in the main YAML shows at the next refresh.
+Each board response separately reads the current local agent order and usage blocks.
+Each module of this path is a static import: a refresh loads no plugin
 file, takes no plugin read lock, and checks no update policy. The start checks the selected
 host's policy. Independent update checks validate the native update policy. Each Run and Resume
 starts a new `celetis-flow` process, which makes its own check. A conflict can show in the update
@@ -933,9 +1028,8 @@ The board puts these values in the fields of its document (`Document` of `engine
 | `noRun` | `The main checkout is dirty: <path>. Commit or stash first.` while the main checkout is dirty, else `null`. |
 | `runner` | `true` while a live automatic runner holds its lock. |
 | `agents` | Entries `claude` and `codex`. Each has `available: true` and `cause: null` when its executable is on the `PATH` of the board, else `available: false` and `cause: "celetis: <agent> is not on PATH"`. |
-| `defaultAgent` | The agent selected by `CELETIS_AGENT`, `host` in the main YAML, or the default `claude`, in that order. The `--agent` of the board start does not set it. |
 | `history` | The remote trunk name, history URL, captured full head SHA, and up to 20 distinct landed issues. Each entry holds the issue number/title/URL and commit SHA/URL/committer time. |
-| `queue` | A `QueueView` with the schema-2 record, live owner, resolver result, error, and Add/Edit/Continue/Retry permissions. A null record means no saved queue yet. |
+| `queue` | A `QueueView` with the schema-3 record, live owner, resolver result, error, and Add/Edit/Continue/Retry permissions. A null record means no saved queue yet. |
 | `issues` | One row for each open issue. An issue whose line of the resolver is the epic line or the `wontfix` line has no row. |
 
 A row gets its `state` by the first rule that matches:
@@ -947,6 +1041,15 @@ A row gets its `state` by the first rule that matches:
 | 4 | has a row in the record for its `run` line: no progress, or a refused skip | `stuck` | `act`: `celetis --agent <host> celetis-flow --resume <n>` |
 | 5 | has `needs-info` or `ready-for-human`, two or more lane labels, an open human step, or a hotfix to land by hand | `blocked` | `reason`, from the first match in the order of the resolver (`docs/issue-tracker.md`, "Resolving an issue's state"): `needs info` for `needs-info`; for `ready-for-human`, `landing refused` while a landing refusal is current, else `ready for your step`; `several lane labels` for two or more lane labels; `human step open` for a `## Before landing` comment with no completion evidence; `land by hand` for a hotfix whose stop is cleared. `act`: the act that the `stop` line of the issue names |
 | 6 | has a `run` line | `ready` | |
+
+Each `GET /api/board` reply reads the local agent state again and adds two fields. `picker` holds
+`order` (the local order with its version), `usage` (the confirmed usage block of each host with
+its reason and reset time, or `null`; a block whose reset time passed is `null`), `activeHosts`
+(the hosts of the live sessions of the repository), `waits` (`{number, waitId, nextResetAt}` of
+each issue whose live runner waits because every included agent is limited), and `error`. `next`
+is the decision of a new default start: `start` with its host, or `wait` with the blocks and the
+earliest future reset. A waiting issue shows as a `quota-wait` card in Needs you, not as running
+work. A recovery record whose runner no longer runs adds a warning to the card of its issue.
 
 Each row also has `number`, `title`, `url`, `updatedAt` and these fields:
 
@@ -981,8 +1084,8 @@ program, a failed read, or a saved record that Resume cannot use returns 409 wit
 of the error, before any terminal starts. Read-only `hc` calls can precede that failure.
 
 ```text
-<command> --agent <agent> celetis-flow <n> --quiet
-<command> --agent <agent> celetis-flow <n> --effort <level> --quiet
+<command> [--agent <agent>] celetis-flow <n> --quiet
+<command> [--agent <agent>] celetis-flow <n> --effort <level> --quiet
 <command> celetis-flow --resume <n>
 ```
 
@@ -1013,25 +1116,42 @@ control that stops a hidden runner: find its terminal with `hc ls --label 'celet
 then stop it with `hc kill <t>`. That stop does not end a session whose start barrier the runner
 released ("A stop of the runner").
 
-`POST /api/run` uses the chosen agent, or `defaultAgent` when no choice is supplied. The agent must
-be a name of `agents` of the last document, and available. Unknown or unavailable choices return
-409 and start no agent. Availability checks only executable presence; sign-in, trust, plugin
-discovery, and full host parity need separate checks. Run does not change the project default. Set
-that default with `host` in the main YAML; `CELETIS_AGENT` overrides it.
+`POST /api/run` takes `number`, an optional `agent`, and an optional `effort`; another field returns
+400. With `agent`, the argv has `--agent <agent>`, and the host is pinned for that start, also
+when it is limited. The agent must be `claude` or `codex` and on `PATH`. With no `agent`, the argv
+has no `--agent`, and the runner selects from the local order at each start. At admission the
+server reads the local order and the usage records again, and it refuses with 409 when the first
+eligible host is not on `PATH`; it tries no other host. When every included host is limited, the
+runner starts and waits. Unknown or unavailable choices return 409 and start no agent.
+Availability checks only executable presence; sign-in, trust, plugin discovery, and full host
+parity need separate checks. The `--agent` and `CELETIS_AGENT` of the board start do not pin a
+default start.
 
-A `Run at <level>` entry of the run menu of a `ready` card sends `effort` with the default agent.
+A `Run at <level>` entry of the run menu of a `ready` card sends `effort` with no agent choice.
 The server accepts only `low`, `medium`, `high`, `xhigh`, or `max`; another value returns 400 with
 `the effort is not one of low, medium, high, xhigh, max` before any read, and starts nothing. The
 runner starts that step at that level for this start only ("Start the script", "The effort
 level"). On the current issue of a queue paused at a `me` gate, an `effort` returns 409 with
 `The queue starts this step at the decided level`, because Run continues the queue there.
 
-Resume has no `--agent`. It uses the host and exact ID in the saved record, even after the project
-default changes.
+Resume has no `--agent`. It uses the host and exact ID in the saved record, even after the local
+order changes.
 
-The board shows the default as read-only in its agent menu and command palette. A valid trusted
-`POST /api/agent` returns 409 with `The main .celetis.yaml controls the default agent. Change host there.`
-It changes no YAML or Git setting. Change `host` in the main YAML to set the project default.
+Open agent and Make visual send no agent choice, and their argvs have no `--agent`. They refuse
+with 409 when the first eligible host is not on `PATH` or every included host is limited.
+
+**The agent order.** `POST /api/agent` takes exactly `{"order": [...], "expectedVersion": "<64 hex>"}`.
+The order is a nonempty, unique list of `claude` and `codex`; another shape returns 400. The fixed
+adapter runs `celetis agents replace` with the program entry and parses its output as external
+input. Success returns `{"order": <AgentOrder>}`. A stale version returns 409 with `error` and
+`latest`, the current validated order, and writes nothing. A repeated replacement that is already
+saved returns 200 with the same version. The order lives in the Git common directory, so a change
+dirties no checkout.
+
+**Retry of a usage-limit wait.** `POST /api/run` with exactly `{"number": <n>, "waitId": "<uuid>"}`
+runs `celetis-flow --retry <n> <wait id>` through the fixed adapter. It wakes the live runner that
+owns that wait for one bounded attempt cycle and starts no runner. A stale wait ID, a finished wait,
+or a runner that no longer runs returns 409. A repeated Retry of a pending wake changes nothing.
 
 Each Run and Resume reads the installed program again; the adapter keeps no program path
 between presses. After `celetis update`, the next press starts the new program. A board-approved
@@ -1040,8 +1160,9 @@ start it again to load new board code. Reload or restart the board if a terminal
 removes a file that it still needs. Follow [Updates](../README.md#updates) for manual updates.
 Real Run/Resume acceptance remains a separate live gate.
 
-**Queue actions.** `POST /api/queue` accepts exactly `{"action": <QueueAction>, "agent": "claude" | "codex"}`
-for Add and exactly `{"action": <QueueAction>}` otherwise. The shared engine validator enforces
+**Queue actions.** `POST /api/queue` accepts exactly `{"action": <QueueAction>}`, or for Add with an
+explicit host `{"action": <QueueAction>, "agent": "claude" | "codex"}`. An Add with no agent records
+the default order. Another action uses the choice of the saved record. The shared engine validator enforces
 the continuous-queue contract. Host, Origin, JSON, and the 1024-byte body limit stay in force.
 
 The fixed adapter reads the installed Program and invokes its entry with Bun and isolation flags
@@ -1050,8 +1171,10 @@ response is the persisted QueueView; it does not await History or terminal creat
 issued wake schedules a hidden runner with this fixed argv:
 
 ```text
-<command> --agent <host> celetis-flow --queue run <id> <token> --quiet
+<command> [--agent <host>] celetis-flow --queue run <id> <token> --quiet
 ```
+
+`--agent` is there only when the record holds an explicit host.
 
 The wake starts the runner as Run does ("Run and Resume"), with the label `celetis.runner=queue`.
 For each step of the queue, the runner opens a quiet session tab `#<n> <step>`. To stop it, find
@@ -1063,8 +1186,10 @@ recovery. A failed check of `hc` or the Herdr app before `hc run` is such a fail
 dispatch, from `hc run` on, keeps pending intent and never launches it again automatically.
 The runner performs token and live-ownership checks after terminal creation.
 
-Run on the current paused issue uses Continue with the saved host and fresh displayed step.
-An explicit conflicting host refuses. Waiting edits remain available during runs and stops.
+Run on the current paused issue uses Continue with the saved agent choice and fresh displayed step.
+An explicit host refuses when the saved choice is default or names another host. The board
+disables those explicit Run actions; the server checks the choice again before Continue.
+Waiting edits remain available during runs and stops.
 The current runner never transfers explicit authorization to another issue.
 
 `GET /api/queue` reads authoritative state without a full-board refresh. After a stale or lost
@@ -1152,6 +1277,9 @@ The record at `<git common dir>/celetis-flow/sessions/<n>.json` has exactly seve
 `effort`, the level that the runner requested after the Codex clamp.
 The runner writes it atomically. It accepts no old record format and makes no migration: a
 schema-1 record stops resume with the invalid or obsolete record message.
+Before a usage-limit recovery replaces this record, the runner copies it unchanged to
+`<git common dir>/celetis-flow/sessions/<n>/<attempt id>.json`. That archive keeps the exact native
+session of each interrupted attempt; Resume reads only the current record.
 The runner supplies the identity, not the terminal; a label or a tab name is never an identity
 ([ADR-0058](adr/0058-herdr-core-hosts-the-agent-terminals.md)).
 For a Claude step, the runner chooses the ID and passes it with `--session-id`. Codex has no option
@@ -1207,7 +1335,7 @@ An entry is one JSON object on one line, ended by `\n`, in UTF-8:
 | `command` | The sub-command name, or the role of a process with no sub-command: `launcher`, `config-reader`, `session-start`, `update-worker` |
 | `argv` | The arguments of the process after the sub-command name |
 | `cwd` | The absolute working directory |
-| `host` | `claude` or `codex` from the `--agent` argument, else from `CELETIS_AGENT`, else `null` |
+| `host` | `claude` or `codex` from `--agent`, then `CELETIS_SESSION_AGENT`, then `CELETIS_AGENT`, else `null` |
 | `revision` | The full revision of the running program, or `null` when it is not known |
 | `pid` | The process ID |
 | `issue` | The issue number when the site knows it, else `null` |
@@ -1332,6 +1460,58 @@ The record has these gaps:
   rename over an existing file, and the exit handler on Windows, have no runtime evidence.
 
 ## Acceptance status
+
+**Owned-step usage recovery (#236), synthetic runner checks.** On 2026-11-04 on macOS, the lane
+source of this change, on base `16a108421e0ecb625f0f6fbd50a4a98f60431371`, ran with Bun 1.4.4, hc
+0.1.18, and herdr-app 0.1.13 in Herdr lab `celetis-lab-701be3`. Synthetic Claude and Codex
+stand-ins, a fake `gh`, and a local fixture repository drove the actual runner, start barrier,
+recovery record, and `worktree` entry. No provider and no installed host ran. After a Claude
+stand-in refused and then stopped its own writer on `/exit`, a Codex session started the same step
+with unchanged lane bytes, a new session ID, the recovery header, and a kept dirty lane at
+`worktree`. The native host does not do that: Claude Code 2.1.318 shows a background-task dialog on
+`/exit` and keeps the writer, so that path is `unverified`. Progress, a later `me` gate, a hold, a dirty main checkout, another dirty lane, a
+changed branch, HEAD, or snapshot, an unresolved merge, a competing runner, a live child, and a
+Codex refusal started no replacement. Waits covered a timer wake, a past reset, duplicate and
+stale Retry, a stopped runner, a preference change, early availability, and a default queue in
+`quota-wait`. Real interactive
+refusal, Codex termination, native delegated children, Linux, and Windows remain unverified. The
+evidence is in `docs/superpowers/verification/236-task-4/`.
+
+**Native usage adapters (#236), macOS observation checks.** On 2026-11-04, the candidate at
+`ed1f9befee7feb73958cccb5b94570c69a4d96b5` plus the retained adapter source passed focused
+checks with Bun 1.4.4, Claude Code 2.1.318, and Codex CLI 0.166.0. Both installed interactive
+hosts completed a real tool-free request with their existing authentication. Renewed checks
+of the adapter source classified real success, a synthetic allowance refusal, a generic 429,
+and successful model text that quoted a quota message. Repeated reads kept the same sequence.
+
+Claude uses an attempt-local native `Stop` or `StopFailure` callback. A matching session,
+project, attempt binding, and native prompt ID are required. The observed weekly and five-hour
+refusals combine `StopFailure`, `rate_limit`, and the anchored host-generated allowance message.
+A generic provider error could not imitate that prefix; an identical model message was `Stop`.
+The callback supplies no absolute reset, so its reset is null. Codex reads the exact saved
+thread and fresh UUIDv7 turn through the app-server helper. Only a failed turn's
+`usageLimitExceeded` establishes a block. Account percentages establish none. Reset lookup
+requires the OpenAI provider and a `codex` or matching-model limit bucket; it keeps the latest
+deadline of the applicable exhausted windows, or null when a required deadline is unknown.
+Custom-provider refusals receive no unrelated ChatGPT account deadline.
+
+Codex keeps a private sequence record per attempt under the Git common directory's
+`celetis-flow/usage-sequences/`. The same-attempt lock covers both the native reads and the
+record update. A changed turn or combined observation, including an updated reset deadline,
+gets a newer sequence; unchanged polling keeps its sequence across processes. Focused repair
+checks covered changed deadlines, overlapping reads, and invalid record boundaries. The
+original native transport evidence remains separate from these synthetic repair checks.
+
+The refusals came from dummy-credential loopback fixtures through the real interactive hosts;
+they were not live subscription exhaustion. Plain Claude `/exit` left a tracked background
+writer running at a native confirmation. Selecting the observed `Exit and stop tasks` choice
+ended the host, shell, and writer, with stable output and gone PID/start identities. This proves
+that controlled case, not blind confirmation of an unknown dialog. Codex delegated-writer
+shutdown remains unverified: the requested writer did not start in the attempted native checks.
+Unknown or detached ownership remains unsafe to switch. These adapter checks make no complete
+V1, Windows, or end-to-end recovery claim. The evidence is in
+`docs/superpowers/verification/236-native-signals/` and `236-native-adapters/`; the transport
+checkpoint is on [#236](https://github.com/ddinkov10/celetis/issues/236#issuecomment-6632153323).
 
 **Product-owned setup references (#107), implementation complete; Codex native acceptance complete.**
 On 2026-10-30, the candidate checkout at `7eff11866df88ea26cd40b6ca88db971464800c0` plus the

@@ -1,13 +1,19 @@
+import { realpath } from 'node:fs/promises';
+import { readAgentOrder } from '../lib/agent-order.ts';
+import { activeBlock, readUsage, selectAgent } from '../lib/agent-usage.ts';
+import type { AgentDecision, AgentOrder, Host, UsageBlock } from '../lib/config-core.ts';
+import { commonDir } from '../lib/host.ts';
 import { isRecorded, lockHolder } from '../lib/locks.ts';
 import { createOperation, locateCheckouts } from '../lib/operation.ts';
 import { childEnv } from '../lib/process.ts';
 import { readQueue } from '../lib/queue.ts';
 import { reconcileQueue } from '../lib/queue-actions.ts';
+import { listRecoveries, recoveryOwner } from '../lib/quota-recovery.ts';
 import { github } from '../lib/tracker.ts';
 import { defaultGate, lands, lanes, stageOf, stages, steps } from '../lib/workflow.ts';
 import { jsonRow, nextBoard } from '../next-step.ts';
 import { readHistory } from './history.ts';
-import type { Document, Flow, Issue } from './types.ts';
+import type { Document, Flow, Issue, QuotaState } from './types.ts';
 
 export async function readBoard(main: string, signal: AbortSignal): Promise<Document> {
   return readDocument(main, signal);
@@ -97,12 +103,39 @@ async function readDocument(
     history,
     tracker: 'GitHub',
     agents,
-    defaultAgent: operation.host,
     flow,
     noRun: data.noRun,
     runner,
     issues,
     queue: receipt.view,
     queueWake: receipt.wake,
+  };
+}
+
+export type AgentState = Readonly<{
+  order: AgentOrder;
+  usage: Record<Host, UsageBlock | null>;
+  next: AgentDecision;
+  quota: ReadonlyMap<number, QuotaState>;
+}>;
+
+export async function readAgentState(main: string, now: number): Promise<AgentState> {
+  const common = await realpath(await commonDir(main));
+  const order = readAgentOrder(common);
+  const records = await readUsage(common);
+  const quota = new Map<number, QuotaState>();
+  for (const record of await listRecoveries(main)) {
+    if (!(await recoveryOwner(record))) quota.set(record.issue, { kind: 'orphaned' });
+    else if (record.state === 'waiting' && record.waitId)
+      quota.set(record.issue, {
+        kind: 'waiting',
+        wait: { number: record.issue, waitId: record.waitId, nextResetAt: record.nextResetAt },
+      });
+  }
+  return {
+    order,
+    usage: { claude: activeBlock(records, 'claude', now), codex: activeBlock(records, 'codex', now) },
+    next: selectAgent({ kind: 'default' }, order.order, records, now, new Set(), false),
+    quota,
   };
 }

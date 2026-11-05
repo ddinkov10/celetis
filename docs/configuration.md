@@ -8,7 +8,6 @@ mapping root. Comments are allowed. Put nothing after a `---` marker on its line
 
 | Field | Accepted value | Default when omitted |
 | --- | --- | --- |
-| `host` | `claude` or `codex` | `claude` |
 | `landing` | Required: `pr` or `merge` | None |
 | `gates` | Mapping from a step name to `me` or `auto` | `me` for each omitted step |
 | `board` | Mapping with optional `port`, an integer from 1024 to 65535 | Search starts at 4403 |
@@ -33,9 +32,31 @@ The allowed custom keys are `accept-epic`, `assist`, `attack-the-premise`, `boun
 Exactly `""` as the setup reference runs no setup. An empty instruction string gives no addition.
 An empty `custom` or `codexProfiles` mapping is valid.
 
-Agent selection is `--agent`, then `CELETIS_AGENT`, then the main config's `host`, then
-`claude`. Resume uses the host and session ID in its saved record. An explicit host that
-conflicts with that record stops resume.
+Agent selection is `--agent`, then an explicit `CELETIS_AGENT`, then the local ordered
+preference. The record is `<Git common directory>/celetis-flow/agents.json`, shared by the
+main checkout and linked worktrees on this machine. Its schema is exactly
+`{"schema":1,"order":["claude","codex"]}`. That is also the missing-record order.
+The list is unique and nonempty; either host can be excluded. YAML `host` is an unknown field.
+Resume uses its saved host and session ID. A conflicting explicit host stops resume.
+
+`celetis agents read` returns the validated order and its canonical-content digest as `version`
+without creating a record. `celetis agents replace '<JSON>'` takes exactly `order` and
+`expectedVersion`. A differing stale replacement exits 3 with `{kind:"conflict",latest}`.
+Repeating the current order succeeds even with an older version. A private preference lock
+serializes writers, with a five-second wait limit, and atomic replacement preserves old bytes
+on a failed write. The record and lock must be private regular files, with no symbolic links.
+Their folder `<git common dir>/celetis-flow` is shared runner state: it must be a real directory
+of the current user with no group or other write access, so an existing 0755 folder is accepted.
+A store that creates it uses mode 0700. The record subfolders (`limits/`, `usage-captures/`,
+`usage-sequences/`, `recovery/`, and `sessions/<n>/`) must be private (0700).
+Malformed or unsafe records require repair of the reported cause before replacement.
+The `agents` command and explicit control selection bypass implicit preference reads.
+No quota record gates a control operation. With no Git checkout, control selection uses Claude.
+
+Setup accepts `--hosts claude`, `codex`, `claude,codex`, or `codex,claude`; it rejects `--default`.
+Only `setup write` initializes an absent preference after setup validation. Existing valid
+preferences stay unchanged; `setup check` and `setup try` create no preference. Preference
+writes leave the independent usage observations and attempt sequence intact.
 
 Each `codexProfiles` key must be a nonempty string that identifies the dispatch runtime.
 Each profile has exactly two required fields:
@@ -126,7 +147,7 @@ that changes the lane or the trunk stops the landing with a repair or usage line
 stays as it was. `land` runs the suite again on each run. A `pr` landing runs no suite: its checks
 are the checks of the PR.
 
-Use the main checkout for `host`, `landing`, `suite`, `gates`, `board`, and `codexProfiles`.
+Use the main checkout for `landing`, `suite`, `gates`, `board`, and `codexProfiles`.
 Use the new lane checkout for setup. At each skill entry, use `custom.<skill>` from the active
 checkout ("Skill entry"). Commands that need repository setup require a valid file.
 
@@ -169,8 +190,7 @@ Plain `yes` and `on` are strings under YAML 1.2.
 `engine/lib/config-core.ts` of the plugin owns parsing, validation, types, and diagnostics. It has
 no `node:` import and no `Bun` global, so the native entry hook bundles it.
 `parseConfigText(text)` checks the characters and the source structure of one text.
-`configHost(source)` validates only the optional `host`; `validateHost(value)` defines accepted
-configuration hosts. `validateConfig(source)` checks the full schema and returns a deeply frozen
+`validateHost(value)` defines accepted host inputs. `validateConfig(source)` checks the full schema and returns a deeply frozen
 `Config` without inserted defaults. `ConfigError` names the field, and `formatConfigError` renders
 the selected path, field, and message.
 
@@ -180,20 +200,12 @@ symlink. `readConfigSource(CHECKOUT)` checks the Bun floor, reads that checkout'
 once, decodes it as strict UTF-8, and parses it. `readConfig(CHECKOUT)` combines the source read
 and full validation.
 
-Both projections require safe file access, strict UTF-8, one mapping document, string keys,
-unique keys, supported tags, finite scalars, and no aliases or merge keys. Host selection does
-not check unrelated field values or require `landing`: `host: codex` alone selects Codex.
-An unknown root field, invalid gate, or invalid board port can pass that projection. Only full
-validation checks allowed fields, required `landing`, instruction literal styles, setup reference
-syntax, and field-specific
-integer forms and ranges. A host projection is never a full `Config`.
-
-Bootstrap uses this shared source instead of `Bun.YAML.parse`. Duplicate keys, aliases, unsafe
-files, invalid encoding, and other ambiguous source forms now fail during implicit selection.
-Implicit YAML host errors use `host: invalid value`, and syntax or root errors use `<document>` with the shared
-reader diagnostic. The former `invalid agent null`, mapping/sequence host messages, and native
-parser quirks are removed. `--agent` and `CELETIS_AGENT` select a host without a YAML read for
-selection; a command that needs full configuration still validates it before protected work.
+Source reads require safe file access, strict UTF-8, one mapping document, string keys,
+unique keys, supported tags, finite scalars, and no aliases or merge keys. Full validation
+checks allowed fields, required `landing`, instruction literal styles, setup reference syntax,
+and field-specific integer forms and ranges. There is no YAML host projection. Host selection
+reads the local preference only for default mode. A command that needs full configuration
+still validates it before protected work, including when a host is explicit.
 
 The reader CLI runs as:
 
@@ -236,9 +248,10 @@ Git directory. If Git cannot identify main, discovery fails before any configura
 It never uses an adjacent or parent directory as a policy source.
 
 `createOperation(checkout, selection, required)`
-captures these identities, the original selection inputs, selected host, and required validated
+captures these identities, the original selection inputs, derived `choice`, selected control host, and required validated
 values. Its mode is `host`, `main`, or `active`, or a selector resolved once from the selected
-host. `host` reads YAML only when selection needs it. `main` requires the main config; `active`
+host. `choice` is `{kind:'default'}` or `{kind:'explicit',host}`; saved Resume, `--agent`, and
+explicit `CELETIS_AGENT` select explicit mode. `host` requires no YAML. `main` requires the main config; `active`
 requires both files. Each distinct required checkout is read once. Equal main and active paths
 reuse one source and one `Config`. A null config means that projection was not required.
 
@@ -259,7 +272,7 @@ step that needs a value of the file, and for the verify gate of this repository.
 | Landing start and protected actions after asynchronous work | Fresh policy and repository preflight before push, PR creation, check rerun, or merge |
 
 The selected board port stays fixed while the board runs. An update restart requests that same
-port exactly. A changed default host applies to the next
+port exactly. A changed local order applies to the next
 new session; exact Resume retains its saved host and ID. Each skill entry is a native boundary of
 its own ("Skill entry"), independent of runtime operations.
 
@@ -284,14 +297,18 @@ retain Bun's error, and other bind errors stop startup. Use the actual URL print
 Concurrent starts claim ports by binding; no port is reserved by an earlier availability check.
 
 Each data refresh creates a fresh
-main operation, so a change of `host` or `gates` shows at the next refresh ("Operation values and
-freshness"). At each press, the fixed adapter reads the installed program and types two fixed
-lines with its command: Run with the selected agent, and Resume with no agent, using the saved host.
-No board config file is made. The board checks concrete replacement-policy conflicts at its
+main operation, so a change of `gates` shows at the next refresh ("Operation values and
+freshness"). Each read of `/api/board` reads the local order, the usage records, and the
+usage-limit waits again. At each press, the fixed adapter reads the installed program and builds a
+fixed argv with its command: a Run, an Open agent, a Make visual, or a queue action with no agent
+choice has no `--agent`, an explicit Run choice adds `--agent <agent>`, and Resume has no agent
+and uses the saved host. The `--agent` and `CELETIS_AGENT` of the board start select only the host
+of the board command; they do not pin a default start. No board config file is made. The board checks concrete replacement-policy conflicts at its
 start only; each Run and Resume checks them again in its own process. It can
 remain open during a manual update. After `celetis update`, Run and Resume need no board restart;
-new board code still needs a restart. The default agent is read-only on the board. Change `host` in
-the main YAML to set the project default. A board Run choice applies only to that start; Resume
+new board code still needs a restart. The agent order of the footer reads and replaces the local
+order through the `agents` command, with the version that it read; a stale version returns the
+current order and writes nothing. A board Run choice applies only to that start; Resume
 uses its saved host. See [The board](celetis-flow.md#the-board) for the exact lines.
 
 A deterministic gate check does not replace live board acceptance. Stable installed resources,

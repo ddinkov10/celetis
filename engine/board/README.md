@@ -125,7 +125,7 @@ worktree holds the files of a branch, which do not have the trust of the trunk. 
 start in a checkout that is not the main checkout, and it removes each `node_modules/.bin` item
 from `PATH` before it starts `git`, `gh`, `hc`, or `herdr-app`.
 
-**Open work during updates.** The status bar keeps one update control after the agent selector.
+**Open work during updates.** The status bar keeps one update control after the agent order.
 **Check for updates** starts discovery in one press. **Checking…** retains focus and ignores
 another press. **Up to date** reports that the installed program and registered plugins match
 the configured target; it does not mean that an open board or agent session has reloaded new
@@ -183,7 +183,7 @@ needs, so a person may reload or restart affected work. Each Run, Resume, and As
 program again. After `celetis update`, the next press starts the command of the new program with no
 board restart. After a terminal-started update, start the board again for its new code. A fresh
 session loads changed skills; an open session does not reload them automatically. A change of `board.port` also
-needs a board restart. A change of `host` or `gates` in the main `.celetis.yaml` shows at the next
+needs a board restart. A change of `gates` in the main `.celetis.yaml` shows at the next
 read ("The data").
 
 **Three values have no setting:**
@@ -197,12 +197,15 @@ read ("The data").
 
 The board reads its issue data in its own process (`data.ts`). Each read creates a fresh operation
 of the main checkout, with `CELETIS_AGENT` and no explicit host. So each read validates the main
-`.celetis.yaml` again, and it takes `gates` from it, and `host` when `CELETIS_AGENT` is not set.
+`.celetis.yaml` again, and it takes `gates` from it.
 The read then gets the typed rows of the resolver (`nextBoard` of
 `engine/next-step.ts`), and the issue locks, the runner lock, and the record of the runner
 (`engine/lib/locks.ts`, which the runner also uses). It builds one typed document (`Document` of
-`types.ts`) with `tracker`, `agents`, `defaultAgent`, `flow`, `noRun`, `runner`, `issues`, `history`, and
-`queue`.
+`types.ts`) with `tracker`, `agents`, `flow`, `noRun`, `runner`, `issues`, `history`, and
+`queue`. Each `GET /api/board` also reads the local agent order, the usage records, and the
+usage-limit recovery records again (`readAgentState` of `data.ts`), and its reply adds `picker`
+(the order, the usage blocks, the hosts of live sessions, the live usage-limit waits, and a read
+error) and `next` (the decision of a new default start). These reads do not wait for GitHub.
 `docs/celetis-flow.md` of the plugin `celetis`, "The board", gives the value of each field and the
 rule that gives each row its state.
 
@@ -238,7 +241,7 @@ only its own error; a good full read clears both. Selected reads do not change t
 time or the full-read evidence for the 30-second Assist detection period.
 
 `Document.queue` and `Board.queue` use QueueView. A null record means no saved queue yet.
-The view carries the schema-2 record, live owner, fresh next decision, error, and Add/Edit/Continue/Retry
+The view carries the schema-3 record, live owner, fresh next decision, error, and Add/Edit/Continue/Retry
 permissions. A full read reconciles terminal members through the shared engine transition.
 A selected read uses that transition only when a selected issue is in the current queue. It
 retains the previous queue view otherwise. Remote row and History reads finish before this
@@ -307,8 +310,10 @@ a landed-history panel.
   another folder has no card, and this includes a subfolder of the main checkout.
 - Its host reports a status (OSC 7501), and the `app` of that status names `claude` or `codex`.
   A terminal with no status has no card.
-- Its foreground process is that host (the file name of its first item, with no `.exe`), or a
-  process with an item of the file name `celetis-flow.ts` while the terminal has a link label. In
+- Its foreground process is that host (the file name of its first item, with no `.exe`), Bun
+  with the program's launch arguments and its exact `engine/intake.ts`, `engine/assist.ts`, or
+  `engine/visual.ts` entry, or a process with an item of the file name `celetis-flow.ts` while
+  the terminal has a link label. In
   a session tab of the runner, that process is the start barrier, the leader of the foreground
   process group (`docs/celetis-flow.md` of the plugin `celetis`, "How a step runs", "The session
   tab"). A shell whose host exited has no card, also when Codex left a `done` status in it.
@@ -361,6 +366,11 @@ no row, show the link label, else the tab name, as the title, with no link and n
 | `blocked` | Needs you | `reason` | `act` | Open agent |
 | `ready` | Needs you when `started` or `urgent`, else Idle | none: the card shows `next <step>` | none | Run |
 
+A row whose live runner waits because every included agent is limited makes a card in Needs you,
+in the group `Paused by usage limits`, with the state `waits for a usage limit`. Its main button,
+Agent order, opens the agent order, which has its Retry. A recovery record whose runner no longer runs adds a warning
+to the card of its row, and Run starts the step again.
+
 - A `ready` card shows `auto` when the `gate` of its step is `auto`.
 - A `ready` card shows the effort level of its step, the `effort` of its row, in a chip after
   `next <step>` and before `auto`. The chip is solid for a decision on the issue and dashed for the
@@ -371,9 +381,10 @@ no row, show the link label, else the tab name, as the title, with no link and n
   `Run <step> at <level> (default), #<n>`. The title of Run is
   `Start the <step> step at <level>, decided by <by>` or `Start the <step> step at <level>, the default`,
   plus the `hint` of that step.
-- Open agent uses the current default agent, with no agent choice. It is the main action in Now,
-  Pipeline, details, the card menu, and search. Open issue remains secondary, and `o` opens the issue.
-  An unavailable default agent disables Open agent with its cause.
+- Open agent sends no agent choice. It is the main action in Now, Pipeline, details, the card menu,
+  and search. Open issue remains secondary, and `o` opens the issue. When the first eligible agent
+  of the local order is not available, or every included agent is limited, Open agent is disabled
+  with its cause.
 - With a `noRun` text, the page shows that text above the columns and permits no Run, Resume, or Assist.
   A card that would have Run or Open agent shows it disabled with that text.
 - The lane track of a card is the list of `flow.lanes` for its `type`. A card whose step is not in
@@ -430,25 +441,31 @@ keeps no program path between presses, so after `celetis update` the next press 
 program.
 
 The adapter makes each argv from fixed items: the command of the program, then, for an independent
-Run, `--agent`, the selected agent, and `celetis-flow`; for Resume, `celetis-flow` and `--resume`,
-with no agent; for Assist, `--agent`, the current default agent, and `assist`; for Make visual,
-`--agent`, the current default agent, `visual`, the number, and the full commit hash of the
-History row of that number; or for New intake, `--agent`, the current default agent, and
-`intake`, with no issue number. A `Run at <level>` entry
+Run, `--agent` and the selected agent only for an explicit choice, and `celetis-flow`; for Resume,
+`celetis-flow` and `--resume`, with no agent; for Assist, `assist`; for Make visual, `visual`, the
+number, and the full commit hash of the History row of that number; or for New intake, `intake`,
+with no issue number. With no `--agent`, the command selects from the local order. A `Run at <level>` entry
 adds `--effort` and the level after the number. The Run argv ends with `--quiet`, so the runner
 opens each session tab in the background.
 Resume takes the host and the session from its saved record. The program supplies Bun and its
 isolation flags. The number is its digits. Each item is one argument: no shell reads the argv as
-a line, so an item cannot add a second command. For the issue 12 and the agent `claude`:
+a line, so an item cannot add a second command. For the issue 12, with no agent choice except the
+second line, which chooses `claude`:
 
 ```text
+<base>/.local/bin/celetis celetis-flow 12 --quiet
 <base>/.local/bin/celetis --agent claude celetis-flow 12 --quiet
-<base>/.local/bin/celetis --agent claude celetis-flow 12 --effort xhigh --quiet
+<base>/.local/bin/celetis celetis-flow 12 --effort xhigh --quiet
 <base>/.local/bin/celetis celetis-flow --resume 12
-<base>/.local/bin/celetis --agent claude assist 12
-<base>/.local/bin/celetis --agent claude visual 12 <sha>
-<base>/.local/bin/celetis --agent claude intake
+<base>/.local/bin/celetis assist 12
+<base>/.local/bin/celetis visual 12 <sha>
+<base>/.local/bin/celetis intake
 ```
+
+The adapter also runs two fixed control commands with the program entry, Bun and its isolation
+flags, and a 30-second limit, with no `CELETIS_AGENT` in their environment:
+`agents replace '<{"order", "expectedVersion"}>'` for the agent order, and
+`celetis-flow --retry <n> <wait id>` for Retry. It parses the output of `agents` as external input.
 
 On macOS and Linux, the new terminal starts the argv in a login shell of `$SHELL` (else `/bin/sh`),
 with `hc run --rm`. Run, Resume, and a queue wake use the first start form, and New intake,
@@ -471,39 +488,39 @@ The adapter validates its receipt. Only its wake starts a terminal, a hidden run
 fixed argv:
 
 ```text
-<command> --agent <host> celetis-flow --queue run <id> <token> --quiet
+<command> [--agent <host>] celetis-flow --queue run <id> <token> --quiet
 ```
 
-Add supplies the selected host. Other actions use the saved host. Retry with null step resolves
+Add supplies the default order, with no `--agent`, or one host. Other actions use the saved choice. Retry with null step resolves
 terminal work without authorizing a session. No batch Start or Reset command remains.
 
-**The default agent is read-only.** The footer shows `defaultAgent` of the document, or
-`No default agent` before the first good read. `defaultAgent` is the host that the engine selects
-for a new step: `CELETIS_AGENT`, then `host` of the main `.celetis.yaml`, then `claude`. The
-`--agent` of the board start does not set it. Its menu and the command palette show one unavailable
-entry, `Default agent is read-only`. Activate it to see the reason:
-`The main .celetis.yaml controls the default agent. Change host there.`
-These controls send no request and change no configuration.
+**The agent order.** The footer shows the local agent order (`picker.order`) and edits it
+("The layout, the keys, and the errors"). New default work uses the first included agent with no
+confirmed usage block. The `--agent` and `CELETIS_AGENT` of the board start select only the host
+of the board command, not a default start. The command palette entry `Change the agent order`
+opens the list.
 
 To use another available agent for one independent Run, use the card's agent choices. An independent
-Run without a choice uses the current `defaultAgent`. Run on the current issue of a queue paused
-at a `me` gate uses Continue with the saved queue host. An absent or null choice keeps that host;
-an explicit different host is refused. A choice for one Run does not change the default. Resume sends
-only the issue number, and the runner selects the saved session. Assist also sends only the issue
-number. It reads the current default agent after a fresh issue read and offers no agent choice.
+Run without a choice sends no agent, and the runner selects from the local order at each start. Run
+on the current issue of a queue paused at a `me` gate uses Continue with the saved queue choice. An
+absent or null choice keeps that choice. An explicit host is refused when the saved choice is
+default or names another host.
+A choice for one Run does not change the order. Resume sends only the issue number, and the runner
+selects the saved session. Assist also sends only the issue number and offers no agent choice.
 
 To start one step of a `ready` card at another effort level, use a `Run at <level>` entry of its
-run menu ("The layout, the keys, and the errors"). An entry uses the current `defaultAgent`, as Run
-does, and sends the level. The Run argv then has `--effort` and the level after the number, so the
+run menu ("The layout, the keys, and the errors"). An entry sends no agent, as Run does, and sends
+the level. The Run argv then has `--effort` and the level after the number, so the
 runner starts that step at that level once (`docs/celetis-flow.md` of the plugin `celetis`, "Start
 the script", "The effort level"). The entry writes no decision on the issue, and a later step uses
 its own decision. The current issue of a queue paused at a `me` gate takes no level: the queue
 starts its step at the decided level.
 
 **New intake is independent of issue reads.** `POST /api/intake` accepts exactly `{}`. A non-object
-or an extra field returns 400 before any terminal starts. Each press reads the main configuration
-and resolves `CELETIS_AGENT`, then its `host`, then `claude`. It checks the host executable and the
-current program before opening a focused `Intake` tab. A preflight failure returns 409; a failed
+or an extra field returns 400 before any terminal starts. Each press reads the local order and the
+usage records. It checks the executable of the first eligible host and the current program before
+opening a focused `Intake` tab, and its argv has no `--agent`. When every included host is limited,
+it returns 409 with the blocks. A preflight failure returns 409; a failed
 `hc` or `herdr-app` call returns 502. It neither waits for nor starts an issue read and does not use queue or issue
 locks. One pending reservation per board process refuses concurrent intake requests with 409.
 The reservation clears on success or failure, so a later deliberate press opens a fresh session.
@@ -641,7 +658,10 @@ page.
 
 **The presses.** The page sends a press as a POST with a JSON body: `{"number": <n>}` to
 `/api/run`, `/api/resume`, `/api/assist`, `/api/visual`, and `/api/shell`, `{"sessionId": "<id>"}` to `/api/go`, and `{}` to
-`/api/refresh`. A Run body can also have `"agent": "<name>"` and `"effort": "<level>"`. Before any
+`/api/refresh`. A Run body can also have `"agent": "<name>"` and `"effort": "<level>"`, and no other
+field. A Retry of a usage-limit wait sends exactly `{"number": <n>, "waitId": "<uuid>"}` to
+`/api/run`; the server checks only its shape, and `celetis-flow --retry` refuses a stale or
+finished wait or a runner that no longer runs with 409. Before any
 read, the server refuses an `effort` that is not `low`, `medium`, `high`, `xhigh`, or `max` with 400
 and `the effort is not one of low, medium, high, xhigh, max`. The server refuses a press with 409
 and starts no terminal, unless each condition holds:
@@ -650,12 +670,13 @@ and starts no terminal, unless each condition holds:
 |---|---|---|
 | `POST /api/run` | A fresh issue and queue read succeeds. The issue has a card of its own, with no session. Its row is `ready` or `stuck`. `noRun` is `null`. No press on that issue is active. A current paused queue issue has no `effort` in the body and also meets the Continue conditions below. | The read or queue cause; `The queue starts this step at the decided level` for an `effort` on a current paused queue issue; otherwise `#<n> has no step to start now`. |
 | `POST /api/resume` | The issue has a card of its own, with no session. Its row is `stuck`. `noRun` is `null`. No press on that issue is active. | `#<n> has no session to resume now` |
-| `POST /api/assist` | A fresh issue read succeeds. The issue has a card of its own, with no session. Its row is `blocked`, with `assist` true and `noRun` null. A current `hc` terminal list succeeds. The current default agent is available. No Run, Resume, or Assist press on that issue is active. | The current read, `noRun`, agent, session, or state cause; otherwise `#<n> has no blocked issue to assist now`. |
-| `POST /api/visual` | The issue has a History row in the last good read. The page of its commit does not exist. No live terminal with the link label `#<n> visual` is in the main checkout or a lane worktree. No Make visual press of that number is in flight. The current default agent is available. | `#<n> has no row in History`; `#<n> already has a visual; use Open visual`; `the tab #<n> visual is still open`; `a Make visual press of #<n> is in flight`; otherwise the agent cause. |
+| `POST /api/assist` | A fresh issue read succeeds. The issue has a card of its own, with no session. Its row is `blocked`, with `assist` true and `noRun` null. A current `hc` terminal list succeeds. A fresh read of the local order and the usage records gives a first eligible agent, and it is on `PATH`. No Run, Resume, or Assist press on that issue is active. | The current read, `noRun`, agent, session, or state cause; otherwise `#<n> has no blocked issue to assist now`. |
+| `POST /api/visual` | The issue has a History row in the last good read. The page of its commit does not exist. No live terminal with the link label `#<n> visual` is in the main checkout or a lane worktree. No Make visual press of that number is in flight. A fresh read of the local order and the usage records gives a first eligible agent, and it is on `PATH`. | `#<n> has no row in History`; `#<n> already has a visual; use Open visual`; `the tab #<n> visual is still open`; `a Make visual press of #<n> is in flight`; otherwise the agent cause. |
 | `POST /api/shell` | The issue has a card of its own, with no session. Its row is `dirty`. Its `path` is a lane worktree of the main checkout. | `#<n> has no dirty worktree` |
 
-`POST /api/queue` accepts exactly `{"action": <QueueAction>, "agent": "claude" | "codex"}`
-for Add and exactly `{"action": <QueueAction>}` otherwise. The shared engine validator enforces
+`POST /api/queue` accepts exactly `{"action": <QueueAction>}`, or for Add with one host
+`{"action": <QueueAction>, "agent": "claude" | "codex"}`. An Add with no agent records the default
+order. Another action uses the choice of the saved record. The shared engine validator enforces
 the continuous-queue contract. Host, Origin, JSON, and the 1024-byte body limit stay in force.
 
 The fixed adapter reads the installed Program and invokes its entry with Bun and isolation flags
@@ -664,7 +685,7 @@ response is the persisted QueueView; it does not await History or terminal creat
 issued wake schedules a hidden runner with this fixed argv ("The terminal calls"):
 
 ```text
-<command> --agent <host> celetis-flow --queue run <id> <token> --quiet
+<command> [--agent <host>] celetis-flow --queue run <id> <token> --quiet
 ```
 
 The browser supplies no executable or path.
@@ -672,7 +693,7 @@ A known failure before command dispatch invalidates only the matching unclaimed 
 recovery. An uncertain dispatch keeps pending intent and never launches it again automatically.
 The runner performs token and live-ownership checks after terminal creation.
 
-Run on the current paused issue uses Continue with the saved host and fresh displayed step.
+Run on the current paused issue uses Continue with the saved agent choice and fresh displayed step.
 An explicit conflicting host refuses. Waiting edits remain available during runs and stops.
 The current runner never transfers explicit authorization to another issue.
 
@@ -711,29 +732,32 @@ Read-only `hc` calls can precede the failure:
   character gives `the celetis program path has a control character`.
 - **The saved session of Resume.** Resume refuses a missing or invalid saved record, or a record
   with no verified session ID, with the first line of its error.
-- **The agent of Run, Assist, or Make visual.** An independent Run uses the choice, else `defaultAgent`.
-  A queue continuation uses its saved host and refuses an explicit conflicting choice. Assist uses only
-  `defaultAgent` from its fresh read. Make visual uses only `defaultAgent` of the last good read. The agent must be a name of lowercase
-  letters that `agents` of the document has. A choice that is not gives
-  `#<n> has no agent "<name>"`, and no choice with no `defaultAgent` gives
-  `#<n> has no agent to run with`. An agent that is not available gives its `cause`, for example
-  `celetis: codex is not on PATH`.
+- **The agent of Run, Assist, or Make visual.** An explicit Run choice must be `claude` or `codex`;
+  another choice gives `#<n> has no agent "<name>"`. A queue continuation uses its saved choice and
+  refuses an explicit conflicting host. With no choice, the server reads the local order and the
+  usage records again at the press; it never uses a host that the page showed. An agent that is not
+  on `PATH` gives `celetis: <agent> is not on PATH`, and no other host is tried. When every included
+  agent is limited, Assist and Make visual refuse with the blocks; a default Run starts its runner,
+  which waits.
 
-`POST /api/agent` is unavailable. After the Host, Origin, JSON content-type, and body checks, it
-returns HTTP 409 with
-`{"error":"The main .celetis.yaml controls the default agent. Change host there."}`.
-This applies to every parsed JSON body, regardless of the requested agent.
-The request writes no Git configuration or working-tree file and starts no read.
+`POST /api/agent` replaces the local agent order. After the Host, Origin, JSON content-type, and
+body checks, its body must be exactly `{"order": [...], "expectedVersion": "<64 hex>"}`, with a
+nonempty, unique list of `claude` and `codex`; another shape, including a path, a command, or usage
+data, gives 400 and starts nothing. The server then runs `agents replace` through the fixed
+adapter. Success gives 200 with `{"order": <AgentOrder>}`; a replacement that is already saved gives
+200 with the same version. A stale version gives 409 with `{"error": "<one line>", "latest":
+<AgentOrder>}` and writes nothing. Another failure of the command gives 409 with its first line.
+The order is in the Git common directory, so the request changes no working-tree file.
 
 The answer to a press that the server did is 200 with `{"ok": true}`. Each other answer is
 `{"error": "<one line>"}`, and the page shows the line in a toast:
 
 | Status | Case |
 |---|---|
-| 400 | The body is not JSON, the body has more than 1024 bytes, the issue number is not a positive safe integer in digits, the `effort` of Run is not one of the five levels, the queue request is invalid, or the body of Assist or Make visual is not an object or has an unexpected field. |
+| 400 | The body is not JSON, the body has more than 1024 bytes, the issue number is not a positive safe integer in digits, the `effort` of Run is not one of the five levels, a Run or Retry body has another field, the queue request is invalid, the order request has another shape, or the body of Assist or Make visual is not an object or has an unexpected field. |
 | 403 | The `Host`, the `Origin`, or the content type is not good, or the `Origin` is `null` ("The trust boundary"). |
 | 404 | The path is not a path of the board, a `/visual/` path names no page, or Go names an id that is no session of the repository. |
-| 409 | A condition of the table does not hold, the queue request is stale or unavailable, the read of the program fails, the fresh issue read of Assist fails, Resume has no valid saved session, the agent of Run, Assist, or Make visual is not good, the commit of Make visual is not 40 lowercase hex digits, or the request tries to change the default agent. |
+| 409 | A condition of the table does not hold, the queue request is stale or unavailable, the read of the program fails, the fresh issue read of Assist fails, Resume has no valid saved session, the agent of Run, Assist, or Make visual is not good, the commit of Make visual is not 40 lowercase hex digits, the order replacement is stale or fails, or a Retry names no live wait. |
 | 502 | At Run or Resume, `hc` or `herdr-app` is not on the `PATH` of the board, or the hc server or the Herdr app does not answer: the line of that check. An `hc` or `herdr-app` call failed, also the terminal list of Make visual: the first line of its error. `hc gave no list of terminals`, `herdr gave no list of spaces`, `hc gave no terminal id`, and `herdr gave no terminal for the new space` are the lines for an answer with no list or with no safe id. |
 | 500 | The server failed for another cause: the first line of the error, or `the server failed`. |
 
@@ -768,9 +792,10 @@ hold for the server and the page:
 5. It accepts only digits, as a number or a string, as the number of an issue, only the terminal
    id of a session of the repository ("The cards") as the id of a session, and only `low`,
    `medium`, `high`, `xhigh`, or `max` as the effort level of a Run.
-6. The page sends an issue number, a session id, a selected Run agent, a selected Run effort level, a strict queue action, or an opaque update offer
-   ID, never a command or an installation path.
-   New intake sends only an empty object. Resume, Assist, and Make visual take only the issue number. A default-agent request changes no configuration.
+6. The page sends an issue number, a session id, a selected Run agent, a selected Run effort level, a strict queue action, an
+   agent order with the version that it read, a usage-limit wait ID, or an opaque update offer
+   ID, never a command, an installation path, or a usage observation.
+   New intake sends only an empty object. Resume, Assist, and Make visual take only the issue number.
 7. An id of an answer of `hc` or `herdr-app` (a terminal, a space, a tab) goes into a command only
    when it has letters, digits, `_`, `:`, `.`, and `-`, and does not start with `-` (`isSafeId` of
    `engine/lib/terminal.ts`). An id that is absent goes into no command.
@@ -783,7 +808,7 @@ hold for the server and the page:
 11. The server writes nothing in a product working tree. An approved update changes only the
     validated native plugin and program installations.
 12. The page writes each text of the data, of a terminal screen, and of an error as text, never as HTML. Its
-    Content-Security-Policy allows its own files (the page, its six scripts, its stylesheet, and
+    Content-Security-Policy allows its own files (the page, its eight scripts, its stylesheet, and
     its two fonts) and `data:` images (the tab icon) only. A visual page at `/visual/<sha>` is
     model-written HTML. The server sends it only when `<sha>` is 40 lowercase hex digits and
     `docs/superpowers/visuals/<sha>.html` of the main checkout is a regular file, not a symbolic
@@ -811,15 +836,14 @@ Five rules hold for the start, the argvs, and the data:
    and `git`, and the issue read starts `gh`, `git`, and, on macOS and Linux, `ps`. Update workers have the separate fixed update
    protocol above.
 3. **Only validated values go into an argv.** The number is the digits of the issue. The agent of
-   Run, Assist, or Make visual is a name of lowercase letters that `agents` of the document has. The effort level
-   of Run is one of the five levels, and the adapter puts it after the number as `--effort` and the
-   level. Assist gets
-   that agent from its fresh read. The commit of Make visual is the full hash of the History row of
+   an explicit Run is `claude` or `codex`. Default Run, New intake, Assist, and Make visual retain
+   default mode; admission reads the current order and usage blocks. The effort level of Run is
+   one of the five levels, and the adapter puts it after the number as `--effort` and the level.
+   The commit of Make visual is the full hash of the History row of
    that number in the last good read, and the adapter refuses a value that is not 40 lowercase hex
-   digits. The page never sends it. New intake takes `claude` or `codex` from fresh main configuration
-   and environment resolution. Resume takes no agent. Queue fields pass the shared exact-shape validator; its step is an engine-defined
+   digits. The page never sends it. Resume takes no agent. Queue fields pass the shared exact-shape validator; its step is an engine-defined
    value, its ID is a UUID, its revision and issue numbers are positive safe integers, and its
-   host is `claude` or `codex`. No title, reason, act, or data path goes into an argv. The label
+   choice is default mode or an explicit `claude` or `codex`. No title, reason, act, or data path goes into an argv. The label
    of a hidden runner holds only the digits of the issue or the word `queue`, one argument of
    `hc`, with no shell.
 4. **The data comes from the engine, in the process of the board.** No other program gives the
@@ -857,7 +881,29 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   `The launch outcome is unknown. Check Human sessions or herdr before pressing New intake again.`
   No launch retries automatically. The button becomes available for deliberate recovery, and
   completion never takes focus back from another control.
-- The status bar keeps the Celetis update control after the agent selector, including on phones
+- The footer holds the agent order after the runner state. Its pill stacks the icons of the
+  included agents in priority order with a chevron; hover or focus spreads them. A press opens the
+  list upward, inside the viewport. Each row has a drag handle, its rank, the icon, the name, a
+  detail line, and `First` on the first included agent. The detail line shows `In use` for an agent
+  of a live session, `Limit reached · resets <time>` or `reset unknown` with the reason, `Available`,
+  or `Excluded from default work`. A drag shows the row under the pointer and an insertion line. A
+  press of a handle without a drag opens its menu: Move first, Move up, Move down, Move to bottom,
+  and Exclude from default work or Include in default work. The last included agent cannot be
+  excluded; inclusion puts the agent last. On a handle, Up and Down move the focus, Alt+Up and
+  Alt+Down move the agent, and Enter or Space opens the menu. Escape closes the menu, then the list,
+  and returns the focus to the handle or the pill. A press outside closes the list.
+- Each change is one replacement with the version that the list read, and the list shows the new
+  order at once. During a save, the list takes no other change. A failed save restores the
+  confirmed order and shows the cause. A stale change shows the current order and asks for the
+  change again. A refresh that brings another order during a drag stops the drag. The focus stays
+  on the handle of the same agent. While a runner waits because every included agent is limited,
+  the list names the issue, the cause, and its next reset or `No reset time is known`, with
+  `Retry #<n>` for each waiting issue. When every included agent is limited and no runner waits,
+  the list says that new default work waits. A long wait list scrolls inside the picker, which
+  stays above its pill and within the viewport. Changes and Retry results go to a polite live region.
+  Below 720 px width, the pill, the handles, the menu items, and Retry are at least 44 px high, and
+  the handles are 44 px wide.
+- The status bar keeps the Celetis update control after the agent order, including on phones
   and while its nonmodal dialog is open. The same button shows **Check for updates**, **Checking…**,
   **Up to date**, **Update available**, **Update check failed**, **Update in progress**, or
   **Update needs attention**. The footer can wrap; its controls remain below the dialog. Checks
@@ -873,8 +919,8 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   and its count hold only issue work, so the header can count more than the column, and an empty
   Needs you reads `No issue needs you`. `turn ended` and `works` need nothing from you.
 - Now shows the three columns. Needs you groups its cards by reason, in this order: Waits for your
-  answer, Stuck (no progress, a dirty tree), Your input on the issue (the `blocked` cards), and
-  Ready to run. The first two groups show full cards, and the last two show one row for each card,
+  answer, Stuck (no progress, a dirty tree), Your input on the issue (the `blocked` cards), Paused by
+  usage limits, and Ready to run. The first two groups show full cards, and the other groups show one row for each card,
   as Idle does. The label of a group stays in view while the column scrolls. When cards are below
   the fold, a line at the foot of the column names them, for example
   `3 more below: 1 input on the issue, 2 ready to run`; a press scrolls to the first of them.
@@ -882,8 +928,9 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   sits beside waiting work on desktop and below it on a phone. Add persists immediately and starts
   an empty queue. Only waiting rows expose Up, Down, and Remove, including during runs and stops.
 - The count includes current and waiting work only. Finished rows leave with the same update.
-  Continue authorizes one displayed step; Try again recovers a permitted stop. The host stays
-  fixed while nonempty. Accepted order survives reload and board restart, without a batch reset.
+  Continue authorizes one displayed step; Try again recovers a permitted stop. The agent choice
+  stays fixed while nonempty. A default choice uses the current order at each new step.
+  Accepted order survives reload and board restart, without a batch reset.
 - Queue keeps pending admission, saved/starting, and verified running distinct. A stale press
   reads authoritative state and requires another press. Status uses the polite announcement region.
   Focus returns to a queue control only when that control owned focus; unrelated work keeps focus.
@@ -980,6 +1027,8 @@ the texts are `Open the issue` and `Read the issues again`.
 - Queue disables execution controls during a request or an unavailable authoritative read. A failed
   press retains the accepted queue and shows the server reason. Recovery controls
   follow the current engine action flags, including an interrupted runner.
+- Agent-state read, order-save, and usage-limit Retry errors show a public cause without local
+  filesystem paths. A stale order replacement still returns the latest validated order.
 - The `noRun` text, the message of a server that does not answer, and each toast are alerts for a
   screen reader.
 
@@ -991,7 +1040,7 @@ the texts are `Open the issue` and `Read the issues again`.
 - **The document has no version.** The board and the engine are one package, and the compiler
   checks the `Document` type between them.
 
-Browser sources are `board.ts`, `view.ts`, `ui.ts`, `panel.ts`, `palette.ts`, `queue.ts`, and
+Browser sources are `board.ts`, `view.ts`, `ui.ts`, `panel.ts`, `palette.ts`, `queue.ts`, `agent-picker.ts`, and
 `update-dialog.ts`. The pinned Bun 1.4.4 build program, `<plugin>/scripts/build.ts`, generates their existing `.js` and `.mjs` URLs.
 It compiles every target before it writes any output. Plugin users run no build.
 

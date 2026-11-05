@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { type Effort, effortOf } from './lib/effort.ts';
@@ -8,8 +9,9 @@ import { commandInput, createOperation, locateCheckouts, type Operation } from '
 import { codexHome } from './lib/plugin-metadata.ts';
 import { run as runProcess } from './lib/process.ts';
 import { processRunsScript } from './lib/process-identity.ts';
+import { permitHolds, type RecoveryAuthority, type RecoveryPermit } from './lib/quota-recovery.ts';
 import { GitHubReadError, github, type Issue, issueData, parseIssue } from './lib/tracker.ts';
-import { type Decision, decide, type IssueData, type Lane, laneOf } from './lib/workflow.ts';
+import { type Decision, decide, factsOf, type IssueData, type Lane, laneOf, specified } from './lib/workflow.ts';
 
 type Fetched = Readonly<{ issue: Issue; data: IssueData }>;
 type Pull = {
@@ -198,14 +200,15 @@ function reader(operation: Operation, signal?: AbortSignal) {
       .map((name) => join(parent, name));
   }
 
-  async function dirtyLane(n: string): Promise<string | null> {
-    for (const path of await lanes(n)) if (await dirty(path)) return path;
+  async function dirtyLane(n: string, permit?: RecoveryPermit): Promise<string | null> {
+    for (const path of await lanes(n))
+      if ((await dirty(path)) && !(permit?.lane === path && (await permitHolds(checkout, permit)))) return path;
     return null;
   }
 
-  async function observe(n: string, mainDirty: boolean): Promise<Observed | null> {
+  async function observe(n: string, mainDirty: boolean, permit?: RecoveryPermit): Promise<Observed | null> {
     if (mainDirty) return { kind: 'observed', reason: 'dirty', path: checkout };
-    const path = await dirtyLane(n);
+    const path = await dirtyLane(n, permit);
     if (path !== null) return { kind: 'observed', reason: 'dirty', path };
     return (await landing(n)) ? { kind: 'observed', reason: 'landing' } : null;
   }
@@ -224,20 +227,36 @@ function reader(operation: Operation, signal?: AbortSignal) {
   return { checkout, gh, issues, openIssues, pullState, dirty, lanes, observe, settle };
 }
 
+type Resolved = { next: Next; effort: Effort | null; authority: RecoveryAuthority | null };
+
+function authorityOf(data: IssueData, next: Decision): RecoveryAuthority | null {
+  if (next.kind !== 'run') return null;
+  return {
+    step: next.step,
+    spec: specified(data)
+      ? createHash('sha256')
+          .update(data.body ?? '')
+          .digest('hex')
+      : null,
+    plan: factsOf(data, next.lane).plan,
+  };
+}
+
 export async function nextIssue(
   n: string,
   operation: Operation,
   signal?: AbortSignal,
-): Promise<{ next: Next; effort: Effort | null; stderr: string }> {
+  permit?: RecoveryPermit,
+): Promise<Resolved & { stderr: string }> {
   const read = reader(operation, signal);
-  const missing = { next: unreadable, effort: null };
-  const { value, stderr } = await read.settle<{ next: Next; effort: Effort | null }>(missing, async () => {
-    const observed = await read.observe(n, await read.dirty(read.checkout));
-    if (observed) return { next: observed, effort: null };
+  const missing: Resolved = { next: unreadable, effort: null, authority: null };
+  const { value, stderr } = await read.settle<Resolved>(missing, async () => {
+    const observed = await read.observe(n, await read.dirty(read.checkout), permit);
+    if (observed) return { next: observed, effort: null, authority: null };
     try {
       const { data } = await read.gh.read(n);
       const next = decide(data);
-      return { next, effort: effortOf(data, next) };
+      return { next, effort: effortOf(data, next), authority: authorityOf(data, next) };
     } catch {
       return missing;
     }

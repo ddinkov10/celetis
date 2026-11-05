@@ -10,11 +10,13 @@ import { programEntry } from '../engine/lib/process.ts';
 
 const root = dirname(import.meta.dir);
 const nativeTargets = [{ entry: 'engine/hooks/entry.ts', output: 'engine/hooks/entry.js', mode: 0o644 }];
-const browserTargets = ['board', 'view', 'ui', 'panel', 'palette', 'queue', 'update-dialog'].map((name) => ({
-  entry: `engine/board/${name}.ts`,
-  output: `engine/board/${name === 'board' ? 'board.js' : `${name}.mjs`}`,
-  mode: 0o644,
-}));
+const browserTargets = ['board', 'view', 'ui', 'panel', 'palette', 'queue', 'update-dialog', 'agent-picker'].map(
+  (name) => ({
+    entry: `engine/board/${name}.ts`,
+    output: `engine/board/${name === 'board' ? 'board.js' : `${name}.mjs`}`,
+    mode: 0o644,
+  }),
+);
 const helpBegin =
   '<!-- scripts/build.ts writes this block from engine/lib/help.ts. Edit that file, then run scripts/build.ts. -->';
 const helpEnd = '<!-- The end of the block that scripts/build.ts writes. -->';
@@ -76,10 +78,13 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
             {
               name: 'browser-urls',
               setup(build) {
-                build.onResolve({ filter: /^\.\/(view|ui|panel|palette|queue|update-dialog)\.ts$/ }, ({ path }) => ({
-                  path: path.replace(/\.ts$/, '.mjs'),
-                  external: true,
-                }));
+                build.onResolve(
+                  { filter: /^\.\/(view|ui|panel|palette|queue|update-dialog|agent-picker)\.ts$/ },
+                  ({ path }) => ({
+                    path: path.replace(/\.ts$/, '.mjs'),
+                    external: true,
+                  }),
+                );
               },
             },
           ]

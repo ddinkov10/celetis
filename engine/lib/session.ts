@@ -98,7 +98,8 @@ export function resumeArguments(record: SavedSession): string[] {
 }
 
 export function sessionEnv(host: Host, source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  if (host === 'codex') return { ...source };
+  source = { ...source, CELETIS_SESSION_AGENT: host };
+  if (host === 'codex') return source;
   const windows = process.platform === 'win32';
   return Object.fromEntries(
     Object.entries(source).filter(([key]) => (windows ? key.toUpperCase() : key) !== 'CLAUDE_CODE_EFFORT_LEVEL'),
@@ -120,11 +121,20 @@ export async function writeSession(main: string, record: SessionRecord): Promise
 }
 
 export async function verifySavedSession(record: SessionRecord, startedAt: number): Promise<boolean> {
-  if (!record.session_id || !uuid.test(record.session_id)) return false;
-  if (record.host === 'claude') {
+  return verifyNativeSession(record.host, record.checkout, record.session_id, startedAt);
+}
+
+export async function verifyNativeSession(
+  host: Host,
+  checkout: string,
+  sessionId: string | null,
+  startedAt: number,
+): Promise<boolean> {
+  if (!sessionId || !uuid.test(sessionId)) return false;
+  if (host === 'claude') {
     const projects = join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), 'projects');
     for (const name of await readdir(projects).catch(() => [])) {
-      const source = await readFile(join(projects, name, `${record.session_id}.jsonl`), 'utf8').catch(() => null);
+      const source = await readFile(join(projects, name, `${sessionId}.jsonl`), 'utf8').catch(() => null);
       if (source === null) continue;
       for (const line of source.split('\n').filter(Boolean)) {
         let row: unknown;
@@ -135,9 +145,9 @@ export async function verifySavedSession(record: SessionRecord, startedAt: numbe
         }
         if (
           object(row) &&
-          row.sessionId === record.session_id &&
+          row.sessionId === sessionId &&
           row.type === 'user' &&
-          row.cwd === record.checkout &&
+          row.cwd === checkout &&
           typeof row.timestamp === 'string' &&
           /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$/.test(row.timestamp) &&
           Date.parse(row.timestamp) / 1000 >= startedAt
@@ -148,22 +158,22 @@ export async function verifySavedSession(record: SessionRecord, startedAt: numbe
     return false;
   }
   try {
-    const reply = await codexRequest(record.checkout, 'thread/read', {
-      threadId: record.session_id,
+    const reply = await codexRequest(checkout, 'thread/read', {
+      threadId: sessionId,
       includeTurns: false,
     });
     const thread = object(reply) && object(reply.result) ? reply.result.thread : null;
     if (
       !object(thread) ||
-      thread.id !== record.session_id ||
-      thread.cwd !== record.checkout ||
+      thread.id !== sessionId ||
+      thread.cwd !== checkout ||
       thread.ephemeral !== false ||
       typeof thread.createdAt !== 'number' ||
       thread.createdAt < startedAt
     )
       return false;
-    const turns = await codexRequest(record.checkout, 'thread/turns/list', {
-      threadId: record.session_id,
+    const turns = await codexRequest(checkout, 'thread/turns/list', {
+      threadId: sessionId,
       limit: 1,
       itemsView: 'notLoaded',
     });
@@ -187,7 +197,7 @@ export function codexPrompt(step: Step, issue: number): string {
 export async function codexClaim(checkout: string, prompt: string, startedAt: number): Promise<Claim> {
   let reply: unknown;
   try {
-    reply = await codexRequest(checkout, 'thread/list', { cwd: checkout, limit: 20 });
+    reply = await codexRequest(checkout, 'thread/list', { cwd: checkout, limit: 20, modelProviders: [] });
   } catch {
     return { kind: 'none' };
   }
@@ -229,6 +239,7 @@ export function stepHeader(facts: {
   main: string;
   pluginRoot: string;
   landing: Config['landing'];
+  recovery?: boolean;
 }): string {
   return [
     'Celetis step session',
@@ -239,6 +250,7 @@ export function stepHeader(facts: {
     `- main checkout: ${facts.main}`,
     `- plugin root: ${facts.pluginRoot}`,
     `- landing: ${facts.landing}`,
+    ...(facts.recovery ? ['- recovery: yes'] : []),
   ].join('\n');
 }
 
@@ -296,7 +308,7 @@ export async function hostArguments(
   step: Step,
   root: string,
   cwd: string,
-  facts: { pluginRoot: string; landing: Config['landing'] },
+  facts: { pluginRoot: string; landing: Config['landing']; recovery?: boolean },
   effort: Level,
 ): Promise<{ args: string[]; applied: Level; model: string | null }> {
   const stepText = async () =>

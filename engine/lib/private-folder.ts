@@ -9,6 +9,26 @@ export function privateMode(stat: { uid: number; mode: number }): boolean {
   return process.platform === 'win32' || (stat.uid === process.getuid?.() && (stat.mode & 0o077) === 0);
 }
 
+export function sharedMode(stat: { uid: number; mode: number }): boolean {
+  return process.platform === 'win32' || (stat.uid === process.getuid?.() && (stat.mode & 0o022) === 0);
+}
+
+export function sharedFolderSync(path: string, fail: (path: string, reason: string) => Error): void {
+  try {
+    mkdirSync(path, { mode: 0o700 });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw fail(path, message(error));
+  }
+  let stat: Stats;
+  try {
+    stat = lstatSync(path);
+  } catch (error) {
+    throw fail(path, message(error));
+  }
+  if (!stat.isDirectory() || stat.isSymbolicLink() || !sharedMode(stat))
+    throw fail(path, 'need a directory owned by the current user with no group or other write access');
+}
+
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

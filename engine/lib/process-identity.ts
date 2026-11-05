@@ -38,6 +38,63 @@ export async function processState(pid: number, start: string): Promise<ProcessS
   return begun === start ? 'runs' : 'gone';
 }
 
+export type ProcessRow = Readonly<{ pid: number; ppid: number; tty: string; start: string }>;
+
+export async function processTable(): Promise<ProcessRow[] | null> {
+  if (process.platform === 'win32') return null;
+  const result = await run('ps', ['-A', '-o', 'pid=,ppid=,tty=,lstart='], { env: { ...process.env, LC_ALL: 'C' } });
+  if (result.code !== 0) return null;
+  return result.stdout.split('\n').flatMap((line) => {
+    const row = /^\s*(\d+)\s+(\d+)\s+(\S+)\s+(\S.*\S)\s*$/.exec(line);
+    return row ? [{ pid: Number(row[1]), ppid: Number(row[2]), tty: row[3] as string, start: row[4] as string }] : [];
+  });
+}
+
+export function controllingTerminal(name: string): boolean {
+  const trimmed = name.trim();
+  return trimmed !== '' && trimmed !== '?' && trimmed !== '??';
+}
+
+export function descendantsOf(rows: readonly ProcessRow[], root: number): ProcessRow[] {
+  const found: ProcessRow[] = [];
+  const pending = [root];
+  while (pending.length) {
+    const parent = pending.pop() as number;
+    for (const child of rows)
+      if (child.ppid === parent && !found.some((each) => each.pid === child.pid)) {
+        found.push(child);
+        pending.push(child.pid);
+      }
+  }
+  return found;
+}
+
+export async function processesWithEnvironment(entry: string): Promise<Set<number> | null> {
+  if (process.platform === 'win32') return null;
+  const env = { ...process.env, LC_ALL: 'C' };
+  const [plain, full] = await Promise.all([
+    run('ps', ['wwax', '-o', 'pid=,command='], { env }),
+    run('ps', ['ewwax', '-o', 'pid=,command='], { env }),
+  ]);
+  if (plain.code !== 0 || full.code !== 0) return null;
+  const rows = (text: string) =>
+    new Map(
+      text.split('\n').flatMap((line) => {
+        const row = /^\s*(\d+) (.*)$/.exec(line);
+        return row ? [[Number(row[1]), row[2] as string] as const] : [];
+      }),
+    );
+  const args = rows(plain.stdout);
+  const pattern = new RegExp(`(^|\\s)${entry.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`);
+  const found = new Set<number>();
+  for (const [pid, text] of rows(full.stdout)) {
+    const command = args.get(pid);
+    const environment = command !== undefined && text.startsWith(command) ? text.slice(command.length) : text;
+    if (pattern.test(environment)) found.add(pid);
+  }
+  return found;
+}
+
 export async function processRuns(pid: number): Promise<boolean> {
   if (process.platform === 'win32') return windowsProcess(pid) !== null;
   return (await pidState(pid)) === 'runs';

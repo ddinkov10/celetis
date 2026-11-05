@@ -1921,12 +1921,6 @@ a.chip2:hover {
   font-weight: 500;
   color: var(--fg2);
 }
-#agent {
-  min-width: 0;
-  background: var(--fill);
-  border: 1px solid var(--line);
-}
-#agent .i-chevron,
 .compact-btns .i-chevron,
 .foot-end .i-chevron {
   transform: rotate(90deg);
@@ -2591,7 +2585,6 @@ a.chip2:hover {
   #runner,
   .sb-item .sb-name,
   .sb-item .sb-text,
-  #agent .sb-name,
   #history-count,
   #notify,
   #keys-open,
@@ -3103,5 +3096,316 @@ a.chip2:hover {
   }
   .history-action {
     min-height: 44px;
+  }
+}
+
+.agent-picker {
+  --icon: 22px;
+  --ring: var(--card);
+  display: inline-flex;
+  color: var(--fg);
+  font: 13px / 1.4 var(--sans);
+  white-space: normal;
+}
+.ap-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 8px 0 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--fg2);
+  font: inherit;
+  cursor: pointer;
+}
+.ap-trigger:hover,
+.ap-trigger[aria-expanded="true"] {
+  --ring: var(--card-hover);
+  background: var(--card-hover);
+}
+.ap-trigger:focus-visible,
+.ap-handle:focus-visible,
+.ap-menu button:focus-visible,
+.ap-retry:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.ap-chev {
+  width: 10px;
+  height: 10px;
+  transition: transform 0.2s ease-in-out;
+}
+.ap-trigger[aria-expanded="true"] .ap-chev {
+  transform: rotate(180deg);
+}
+.ap-stack {
+  display: flex;
+}
+.ap-icon {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--icon);
+  height: var(--icon);
+  border-radius: 50%;
+  background: var(--panel);
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.ap-icon img {
+  display: block;
+  width: 15px;
+  height: 15px;
+}
+.ap-stack .ap-icon {
+  margin-inline-start: calc(var(--icon) * -0.55);
+  transition:
+    margin 0.2s ease-in-out,
+    opacity 0.2s ease-in-out;
+}
+.ap-stack .ap-icon:first-child {
+  z-index: 2;
+  margin-inline-start: 0;
+}
+.ap-trigger:hover .ap-stack .ap-icon,
+.ap-trigger:focus-visible .ap-stack .ap-icon {
+  margin-inline-start: 4px;
+}
+.ap-trigger:hover .ap-stack .ap-icon:first-child,
+.ap-trigger:focus-visible .ap-stack .ap-icon:first-child {
+  margin-inline-start: 0;
+}
+.ap-pop {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  max-width: calc(100vw - 32px);
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: var(--float);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px) scale(0.98);
+  transform-origin: bottom left;
+  transition:
+    opacity 0.16s ease-out,
+    transform 0.16s ease-out;
+}
+.ap-pop.ap-open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+.ap-head {
+  flex: none;
+  padding: 8px 10px 6px;
+}
+.ap-head h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ap-head p {
+  margin: 2px 0 0;
+  color: var(--fg3);
+  font-size: 12px;
+}
+.ap-list {
+  position: relative;
+  flex: none;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ap-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 8px;
+  user-select: none;
+}
+.ap-row + .ap-row {
+  margin-top: 2px;
+}
+.ap-row:hover {
+  background: var(--fill);
+}
+.ap-row .ap-icon {
+  --ring: transparent;
+}
+.ap-row.ap-dragging {
+  opacity: 0.4;
+}
+.ap-row.ap-excluded .ap-icon,
+.ap-row.ap-excluded .ap-name {
+  opacity: 0.55;
+}
+.ap-rank {
+  width: 14px;
+  color: var(--fg3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.ap-name {
+  flex: 1;
+  min-width: 0;
+}
+.ap-detail {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--fg3);
+  font-size: 10px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.ap-badge {
+  flex: none;
+  padding: 1px 7px;
+  border: 1px solid color-mix(in srgb, var(--ready) 40%, transparent);
+  border-radius: 999px;
+  color: var(--ready);
+  font-size: 11px;
+}
+.ap-handle {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg3);
+  cursor: grab;
+  touch-action: none;
+}
+.ap-handle:hover {
+  background: var(--fill-strong);
+  color: var(--fg);
+}
+.ap-handle[aria-disabled="true"] {
+  cursor: default;
+}
+.ap-grip {
+  width: 10px;
+  height: 14px;
+}
+.agent-picker.ap-is-dragging,
+.agent-picker.ap-is-dragging .ap-handle {
+  cursor: grabbing;
+}
+.ap-drop {
+  position: absolute;
+  right: 8px;
+  left: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--focus);
+  pointer-events: none;
+}
+.ap-drop::before {
+  position: absolute;
+  top: -3px;
+  left: -8px;
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--focus);
+  border-radius: 50%;
+  content: "";
+}
+.ap-row.ap-ghost {
+  position: fixed;
+  z-index: 50;
+  background: var(--card);
+  box-shadow: var(--float);
+  opacity: 0.95;
+  pointer-events: none;
+}
+.ap-menu {
+  position: absolute;
+  left: 30px;
+  z-index: 31;
+  min-width: 180px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: var(--float);
+}
+.ap-menu button {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ap-menu button:hover:not(:disabled),
+.ap-menu button:focus-visible {
+  background: var(--fill-strong);
+}
+.ap-menu button:disabled {
+  color: var(--fg3);
+  cursor: default;
+}
+.ap-menu hr {
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.ap-menu-note {
+  margin: 2px 10px 4px;
+  color: var(--fg3);
+  font-size: 11px;
+}
+.ap-notice {
+  flex: none;
+  margin: 6px 10px;
+  color: var(--fg2);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.ap-waits {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.ap-wait {
+  margin: 6px 10px;
+}
+.ap-wait p {
+  margin: 0 0 6px;
+  color: var(--fg2);
+  font-size: 12px;
+}
+@media (max-width: 719px) {
+  .ap-trigger,
+  .ap-handle,
+  .ap-menu button,
+  .ap-retry {
+    min-height: 44px;
+  }
+  .ap-handle {
+    min-width: 44px;
+  }
+  .ap-row {
+    min-height: 48px;
   }
 }

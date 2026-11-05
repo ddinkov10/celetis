@@ -52,12 +52,7 @@ export function requireBun(): void {
   }
 }
 
-export function selectHost(
-  explicit: string | undefined,
-  environment: string | undefined,
-  hint: Host | undefined,
-): Host {
-  const host = explicit ?? environment ?? hint ?? 'claude';
+export function selectHost(host: string): Host {
   if (host !== 'claude' && host !== 'codex')
     throw new HostError(`celetis: invalid agent ${host}; use claude or codex`, 2);
   return host;

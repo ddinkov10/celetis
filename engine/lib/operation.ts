@@ -1,10 +1,10 @@
 import { realpath } from 'node:fs/promises';
+import { readAgentOrder } from './agent-order.ts';
 import { readConfigSource } from './config.ts';
 import {
+  type AgentChoice,
   type Config,
   ConfigError,
-  type ConfigSource,
-  configHost,
   formatConfigError,
   type Host,
   validateConfig,
@@ -26,6 +26,7 @@ export type HostSelection = Readonly<{
 export type Operation = Readonly<{
   checkout: CheckoutIdentity;
   selection: HostSelection;
+  choice: AgentChoice;
   host: Host;
   mainConfig: Config | null;
   activeConfig: Config | null;
@@ -37,7 +38,7 @@ export function commandInput(argv: string[]): { args: string[]; explicit?: strin
   if (args[0] !== '--agent') return { args };
   if (args[1] === undefined) throw new HostError('celetis: --agent needs claude or codex', 2);
   const explicit = args[1];
-  selectHost(explicit, undefined, undefined);
+  selectHost(explicit);
   return { args: args.slice(2), explicit };
 }
 
@@ -76,32 +77,28 @@ export function createOperation(
       throw error;
     }
   };
-  let source: ConfigSource | undefined;
-  let hint: Host | undefined;
-  if (
-    selection.saved === undefined &&
-    selection.explicit === undefined &&
-    selection.environment === undefined &&
-    checkout.main !== null
-  ) {
-    const main = checkout.main;
-    const parsed = configured(main, () => readConfigSource(main));
-    source = parsed;
-    hint = configured(main, () => configHost(parsed));
-  }
-  const host = selection.saved ?? selectHost(selection.explicit, selection.environment, hint);
+  const selected = selection.saved ?? selection.explicit ?? selection.environment;
+  const choice: AgentChoice = Object.freeze(
+    selected === undefined ? { kind: 'default' } : { kind: 'explicit', host: selectHost(selected) },
+  );
+  const host =
+    choice.kind === 'explicit'
+      ? choice.host
+      : checkout.common === null
+        ? 'claude'
+        : (readAgentOrder(checkout.common).order[0] as Host);
   const mode = typeof required === 'function' ? required(host) : required;
   let mainConfig: Config | null = null;
   let activeConfig: Config | null = null;
   if (mode !== 'host') {
     const main = checkout.main;
     if (main === null) throw new HostError('celetis: need a Git checkout', 2);
-    mainConfig = configured(main, () => validateConfig(source ?? readConfigSource(main)));
+    mainConfig = configured(main, () => validateConfig(readConfigSource(main)));
     if (mode === 'active') {
       const active = checkout.active;
       if (active === null) throw new HostError('celetis: need an active Git checkout', 2);
       activeConfig = active === main ? mainConfig : configured(active, () => validateConfig(readConfigSource(active)));
     }
   }
-  return Object.freeze({ checkout, selection, host, mainConfig, activeConfig });
+  return Object.freeze({ checkout, selection, choice, host, mainConfig, activeConfig });
 }

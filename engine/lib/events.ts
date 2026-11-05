@@ -195,7 +195,7 @@ function isHost(value: unknown): value is Host {
 
 function host(argv: string[]): Host | null {
   if (argv[0] === '--agent' && isHost(argv[1])) return argv[1];
-  const agent = process.env.CELETIS_AGENT;
+  const agent = process.env.CELETIS_SESSION_AGENT ?? process.env.CELETIS_AGENT;
   return isHost(agent) ? agent : null;
 }
 

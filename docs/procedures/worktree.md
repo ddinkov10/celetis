@@ -15,6 +15,12 @@ with the trunk: follow "A conflict with the trunk" below. When it refuses with a
 the user its message and stop (`<plugin>/docs/issue-tracker.md`, "Branches, PRs, merge", gives
 each refusal).
 
+In a recovery session (the step header has `- recovery: yes`), the script can keep the dirty lane
+that the runner bound for the recovery. It then prints `worktree: #<n>: the quota recovery keeps
+the dirty lane; ...`, does not bring the branch up to the trunk, and prints the path. Inspect the
+existing changes and the issue before an edit. A later entry with a clean lane brings it up to the
+trunk.
+
 Bind the exact path that it prints, also on exit 4, to every later command, file operation,
 instruction read, and child task: every later step runs there, and the main checkout never changes
 branch. Reuse the binding when the session is already in that worktree, as it is after a

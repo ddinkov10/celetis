@@ -1,10 +1,11 @@
 import type { ExecFileOptions } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { Host } from '../lib/config-core.ts';
+import type { AgentChoice, Host } from '../lib/config-core.ts';
 import type { OpenTab } from '../lib/terminal.ts';
 import type { Terminal } from '../lib/terminal-types.ts';
 import type { Adapter } from './adapter.ts';
+import { type AgentState, readAgentState } from './data.ts';
 import type {
   Board,
   BoardHistory,
@@ -25,12 +26,21 @@ import { execFile } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { basename, join, relative, resolve, sep } from 'node:path';
+import { AgentOrderConflict } from '../lib/agent-order.ts';
 import { isLevel, type Level, levels } from '../lib/effort.ts';
 import { recordEvent } from '../lib/events.ts';
 import { commonDir } from '../lib/host.ts';
 import { createOperation, locateCheckouts } from '../lib/operation.ts';
 import { childEnv } from '../lib/process.ts';
-import { parseQueueAction, queueView as projectQueue, queueOwner, readQueue, readQueueView } from '../lib/queue.ts';
+import {
+  explicitHost,
+  parseQueueAction,
+  queueView as projectQueue,
+  queueOwner,
+  readQueue,
+  readQueueView,
+  requireQueueChoice,
+} from '../lib/queue.ts';
 import { failQueueLaunch } from '../lib/queue-actions.ts';
 import type { QueueAction, QueueView, QueueWake } from '../lib/queue-types.ts';
 import { readStepEnd } from '../lib/step-end.ts';
@@ -65,6 +75,7 @@ const FILES: Record<string, [string, string]> = {
   '/panel.mjs': ['panel.mjs', 'text/javascript; charset=utf-8'],
   '/palette.mjs': ['palette.mjs', 'text/javascript; charset=utf-8'],
   '/queue.mjs': ['queue.mjs', 'text/javascript; charset=utf-8'],
+  '/agent-picker.mjs': ['agent-picker.mjs', 'text/javascript; charset=utf-8'],
   '/update-dialog.mjs': ['update-dialog.mjs', 'text/javascript; charset=utf-8'],
   '/fonts/geist.woff2': ['fonts/geist.woff2', 'font/woff2'],
   '/fonts/geist-mono.woff2': ['fonts/geist-mono.woff2', 'font/woff2'],
@@ -87,6 +98,10 @@ const CSP =
   "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src data:; " +
   "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 const VISUAL_CSP = 'sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox';
+const VERSION = /^[a-f0-9]{64}$/;
+const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+const isHost = (value: unknown): value is Host => value === 'claude' || value === 'codex';
+const fieldsOf = (value: Record<string, unknown>) => Object.keys(value).sort().join(',');
 
 class Refusal extends Error {
   constructor(
@@ -109,6 +124,23 @@ const cleanCause = (cause: unknown) =>
   firstLine(String(cause ?? ''))
     .replace(/[\u0000-\u001f\u007f]/g, '')
     .slice(0, 200);
+const agentCause = (cause: unknown) => {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  if (/\b(EACCES|EPERM)\b|permission denied/.test(message)) return 'access to local agent state was denied';
+  if (/\b(ENOSPC|EDQUOT)\b/.test(message)) return 'local storage is full';
+  if (/\bEROFS\b/.test(message)) return 'local agent state is on a read-only filesystem';
+  if (message === 'agents: write lock is busy; try again') return 'the agent order is busy; try again';
+  if (/need a private|need a directory owned by/.test(message))
+    return 'local agent state has unsafe file permissions; check it in a terminal';
+  if (
+    /^recovery: (#[1-9][0-9]* (has no quota wait|waits with another wait ID; refresh, then use its Retry)|the runner of #[1-9][0-9]* no longer runs; start the runner again)$/.test(
+      message,
+    )
+  )
+    return message;
+  if (message.includes('the celetis program is not installed')) return 'the celetis program is not installed';
+  return 'local agent state could not be read or changed; check it in a terminal';
+};
 const count = (text: string, word: string) => Number(new RegExp(`(\\d+) ${word}`).exec(text)?.[1] ?? 0);
 const screenOf = (text: string) =>
   text
@@ -192,6 +224,8 @@ export const createBoard = ({
   let firstSeen = new Map<string, number>();
   let screens = new Map<string, string[]>();
   const diffs = new Map<string, { at: number; value: Diff | null }>();
+  let agentState: AgentState | null = null;
+  let agentError: string | null = null;
 
   const readData = async (full: boolean, numbers: number[]) => {
     const from = now();
@@ -481,7 +515,13 @@ export const createBoard = ({
           launches[number] = { ...press.feedback, expired: checkedFrom >= press.at + PRESS_MS };
       }
     }
-    const placed = place({ sessions, board, launches });
+    try {
+      agentState = await readAgentState(main, now());
+      agentError = null;
+    } catch (cause) {
+      agentError = agentCause(cause);
+    }
+    const placed = place({ sessions, board, launches, quota: agentState?.quota });
     const cards = Object.values(placed.columns).flat();
     const ids = new Map(cards.flatMap((card) => (card.sessionId ? [[card.sessionId, card.number] as const] : [])));
     const ended = [...shown].filter(([id]) => !ids.has(id)).map(([, number]) => number);
@@ -506,7 +546,14 @@ export const createBoard = ({
       tracker: board?.tracker ?? null,
       runner: board?.runner ?? null,
       agents: board?.agents ?? null,
-      defaultAgent: board?.defaultAgent ?? null,
+      picker: agentState && {
+        order: agentState.order,
+        usage: agentState.usage,
+        activeHosts: [...new Set(sessions.flatMap((session) => (isHost(session.agent) ? [session.agent] : [])))],
+        waits: [...agentState.quota.values()].flatMap((state) => (state.kind === 'waiting' ? [state.wait] : [])),
+        error: agentError,
+      },
+      next: agentState?.next ?? null,
       queue,
       terminal: health,
       source: { readAt, error: readError() },
@@ -562,33 +609,35 @@ export const createBoard = ({
     await refresh();
   };
 
-  const agentOf = (number: number, choice?: unknown): Host => {
-    const isChoice = choice !== undefined && choice !== null;
-    const agent = isChoice ? choice : (board?.defaultAgent ?? null);
-    const members = board?.agents;
-    if (typeof agent !== 'string' || !/^[a-z]+$/.test(agent) || !members || !Object.hasOwn(members, agent))
+  const choose = async (choice: unknown, unknown: string, work: 'runner' | 'session'): Promise<AgentChoice> => {
+    const available = (host: Host) => {
+      if (!Bun.which(host, { PATH: childEnv().PATH })) throw new Refusal(409, `celetis: ${host} is not on PATH`);
+    };
+    if (choice !== undefined && choice !== null) {
+      if (!isHost(choice)) throw new Refusal(409, unknown);
+      available(choice);
+      return { kind: 'explicit', host: choice };
+    }
+    const { next } = await readAgentState(main, now()).catch((cause: Error) => {
+      throw new Refusal(409, agentCause(cause));
+    });
+    if (next.kind === 'start') available(next.host);
+    else if (work === 'session')
       throw new Refusal(
         409,
-        isChoice ? `#${number} has no agent "${String(choice)}"` : `#${number} has no agent to run with`,
+        cleanCause(
+          `every included agent reached a usage limit (${next.blocked.map((block) => `${block.host}: ${block.reason}`).join('; ')}); change the agent order or wait for a reset`,
+        ),
       );
-    const member = members[agent] as { available: boolean; cause: string | null };
-    if (!member.available) throw new Refusal(409, cleanCause(member.cause));
-    return agent as Host;
+    return { kind: 'default' };
   };
 
   const intake = async () => {
     if (intakePending) throw new Refusal(409, 'an intake tab is already opening');
     intakePending = true;
     try {
-      const argv = await (async () => {
-        const operation = createOperation(
-          await locateCheckouts(main),
-          { environment: process.env.CELETIS_AGENT },
-          'main',
-        );
-        if (!Bun.which(operation.host, { PATH: childEnv().PATH })) throw new Error(`${operation.host} is not on PATH`);
-        return adapter.intake(operation.host);
-      })().catch((cause: Error) => {
+      const choice = await choose(null, 'intake has no agent to run with', 'session');
+      const argv = await adapter.intake(choice).catch((cause: Error) => {
         throw new Refusal(409, cleanCause(cause.message));
       });
       await openTab({ folder: main, name: 'Intake', argv, focus: true });
@@ -611,7 +660,7 @@ export const createBoard = ({
       } while (board !== observed);
       if (readError()) throw new Refusal(409, cleanCause(readError()));
       if (board?.noRun) throw new Refusal(409, cleanCause(board.noRun));
-      const agent = agentOf(number);
+      const choice = await choose(null, `#${number} has no agent to run with`, 'session');
       if (!current.terminal.ok) throw new Refusal(502, current.terminal.error ?? 'hc gave no terminal list');
       const cards = Object.values(current.columns).flat();
       const card = cards.find((card) => card.sessionId === null && card.number === number);
@@ -628,7 +677,7 @@ export const createBoard = ({
       return {
         card,
         start: async () => {
-          const argv = await adapter.assist(number, agent).catch((cause: Error) => {
+          const argv = await adapter.assist(number, choice).catch((cause: Error) => {
             throw new Refusal(409, cleanCause(cause.message));
           });
           await openTab({ folder: main, name: `#${number} assist`, argv, focus: true });
@@ -646,8 +695,8 @@ export const createBoard = ({
       const state = await visualOf(row, await listTerminals(exec).catch(refused), false);
       if (state === 'ready') throw new Refusal(409, `#${number} already has a visual; use Open visual`);
       if (state === 'making') throw new Refusal(409, `the tab ${visualLink(number)} is still open`);
-      const agent = agentOf(number);
-      const argv = await adapter.visual(number, row.sha, agent).catch((cause: Error) => {
+      const choice = await choose(null, `#${number} has no agent to run with`, 'session');
+      const argv = await adapter.visual(number, row.sha, choice).catch((cause: Error) => {
         throw new Refusal(409, cleanCause(cause.message));
       });
       await openTab({ folder: main, name: visualLink(number), argv, focus: true });
@@ -657,6 +706,8 @@ export const createBoard = ({
   };
 
   const runStep = async (number: number, choice?: unknown, effort?: Level) => {
+    if (choice !== undefined && choice !== null && !isHost(choice))
+      throw new Refusal(409, `#${number} has no agent "${String(choice)}"`);
     const refusal = `#${number} has no step to start now`;
     await press(number, refusal, async () => {
       await pending;
@@ -668,10 +719,15 @@ export const createBoard = ({
       if (readError() || !view || (view.error && !view.next))
         throw new Refusal(409, readError() || view?.error || 'queue: no successful initial read');
       const record = view.record;
-      if (record?.state === 'me-gate' && record.numbers[0] === number) {
+      if (record?.state === 'me-gate' && record.numbers[0] === number && record.choice) {
         if (effort) throw new Refusal(409, 'The queue starts this step at the decided level');
-        if (choice !== undefined && choice !== null && choice !== record.host)
-          throw new Refusal(409, `queue: recorded host is ${record.host}`);
+        if (isHost(choice)) {
+          try {
+            requireQueueChoice(record.choice, { kind: 'explicit', host: choice });
+          } catch (cause) {
+            throw new Refusal(409, (cause as Error).message);
+          }
+        }
         if (!view.actions.continue || view.next?.kind !== 'run' || view.next.step !== card.step)
           throw new Refusal(409, 'queue: that action is not available; refresh the queue');
         const action: QueueAction = {
@@ -686,7 +742,7 @@ export const createBoard = ({
           },
         };
       }
-      const agent = agentOf(number, choice);
+      const agent = await choose(choice, `#${number} has no agent "${String(choice)}"`, 'runner');
       return {
         card,
         start: async () => {
@@ -727,7 +783,8 @@ export const createBoard = ({
       let message = '';
       try {
         message = cleanCause(cause.message);
-        const operation = createOperation(await locateCheckouts(main), { saved: wake.host }, 'main');
+        const pinned = explicitHost(wake.choice);
+        const operation = createOperation(await locateCheckouts(main), pinned ? { saved: pinned } : {}, 'main');
         if (!sent) {
           const view = await failQueueLaunch(operation, wake.id, wake.token, message);
           if (board) board.queue = view;
@@ -742,16 +799,15 @@ export const createBoard = ({
     });
   };
 
-  const queue = async (action: QueueAction, choice?: Host): Promise<QueueView> => {
+  const queue = async (action: QueueAction, requested: AgentChoice = { kind: 'default' }): Promise<QueueView> => {
     if (queuePress) throw new Refusal(409, 'queue: another press is active');
     queuePress = true;
     try {
       const { common } = await locateCheckouts(main);
       if (!common) throw new Refusal(409, 'queue: need a Git checkout');
       const record = await readQueue(common);
-      const agent = action.kind === 'add' ? choice : record?.host;
-      if (agent !== 'claude' && agent !== 'codex') throw new Refusal(409, 'queue: no recorded host');
-      const receipt = await adapter.queue(action, agent).catch((cause: Error) => {
+      const choice = action.kind === 'add' ? requested : (record?.choice ?? requested);
+      const receipt = await adapter.queue(action, choice).catch((cause: Error) => {
         throw new Refusal(409, cleanCause(cause.message));
       });
       if (board) board.queue = receipt.view;
@@ -760,6 +816,28 @@ export const createBoard = ({
     } finally {
       queuePress = false;
     }
+  };
+
+  const retryQuota = async (number: number, waitId: string) => {
+    await adapter.retryQuota(number, waitId).catch((cause: Error) => {
+      throw new Refusal(409, agentCause(cause));
+    });
+  };
+
+  const replaceOrder = async (input: Record<string, unknown>) => {
+    const { order, expectedVersion } = input;
+    if (
+      fieldsOf(input) !== 'expectedVersion,order' ||
+      !Array.isArray(order) ||
+      order.length === 0 ||
+      order.length > 2 ||
+      !order.every(isHost) ||
+      new Set(order).size !== order.length ||
+      typeof expectedVersion !== 'string' ||
+      !VERSION.test(expectedVersion)
+    )
+      throw new Refusal(400, 'the order takes exactly a nonempty, unique list of claude or codex and expectedVersion');
+    return adapter.replaceAgentOrder(order, expectedVersion);
   };
 
   const shell = async (number: number) => {
@@ -847,7 +925,11 @@ export const createBoard = ({
       throw new Refusal(403, 'the content type is not application/json');
     const body = await readBody(request);
     if (
-      (path.startsWith('/api/update/') || path === '/api/assist' || path === '/api/visual' || path === '/api/intake') &&
+      (path.startsWith('/api/update/') ||
+        path === '/api/assist' ||
+        path === '/api/visual' ||
+        path === '/api/intake' ||
+        path === '/api/agent') &&
       (body === null || typeof body !== 'object' || Array.isArray(body))
     )
       throw new Refusal(400, 'the body is not an object');
@@ -896,14 +978,17 @@ export const createBoard = ({
       } catch {
         throw new Refusal(400, 'queue: invalid action');
       }
+      const fields = fieldsOf(input);
       if (
-        !input ||
         Array.isArray(input) ||
-        Object.keys(input).sort().join(',') !== (action.kind === 'add' ? 'action,agent' : 'action') ||
-        (action.kind === 'add' && input.agent !== 'claude' && input.agent !== 'codex')
+        !(fields === 'action' || (action.kind === 'add' && fields === 'action,agent' && isHost(input.agent)))
       )
         throw new Refusal(400, 'queue: invalid request fields or host');
-      return sendJson(response, 200, await queue(action, input.agent as Host | undefined));
+      return sendJson(
+        response,
+        200,
+        await queue(action, isHost(input.agent) ? { kind: 'explicit', host: input.agent } : { kind: 'default' }),
+      );
     } else if (Object.hasOwn(starts, path)) {
       const { number } = input;
       if (
@@ -912,8 +997,14 @@ export const createBoard = ({
         !Number.isSafeInteger(Number(number))
       )
         throw new Refusal(400, 'the number of the issue is not digits');
-      if (path === '/api/run') {
+      if (path === '/api/run' && Object.hasOwn(input, 'waitId')) {
+        if (fieldsOf(input) !== 'number,waitId' || typeof input.waitId !== 'string' || !UUID.test(input.waitId))
+          throw new Refusal(400, 'a quota Retry takes only the issue number and its wait ID');
+        await retryQuota(Number(number), input.waitId);
+      } else if (path === '/api/run') {
         const { effort } = input;
+        if (Object.keys(input).some((key) => !['number', 'agent', 'effort'].includes(key)))
+          throw new Refusal(400, 'Run takes only the issue number, an agent, and an effort');
         if (effort !== undefined && !isLevel(effort))
           throw new Refusal(400, `the effort is not one of ${levels.join(', ')}`);
         await runStep(Number(number), input.agent, effort);
@@ -921,7 +1012,14 @@ export const createBoard = ({
     } else if (path === '/api/go') {
       await go(String(input.sessionId));
     } else if (path === '/api/agent') {
-      throw new Refusal(409, 'The main .celetis.yaml controls the default agent. Change host there.');
+      try {
+        return sendJson(response, 200, { order: await replaceOrder(input) });
+      } catch (cause) {
+        if (cause instanceof AgentOrderConflict)
+          return sendJson(response, 409, { error: cause.message, latest: cause.latest });
+        if (cause instanceof Refusal) throw cause;
+        throw new Refusal(409, agentCause(cause));
+      }
     } else {
       await refresh();
     }

@@ -17,7 +17,7 @@ import { commandInput, createOperation, locateCheckouts } from './lib/operation.
 const usage = `usage: celetis --agent <host> capscore J V B N S X [options]
 --bias N                 effort bias (CAP_EFFORT_BIAS; default 0)
 --attempt N              gate-fail attempt (default 1; 4 or later stops)
---agent claude|codex      explicit agent (CELETIS_AGENT > project config > claude)
+--agent claude|codex      explicit agent (CELETIS_AGENT > local order; no checkout: claude)
 --json                   portable score plus the applied dispatch pair
 --reviewer               apply the selected host's reviewer minimum
 --profile FILE           Codex profile (CAP_MODEL_PROFILE > main config profile > parent model)

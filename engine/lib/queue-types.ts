@@ -1,4 +1,4 @@
-import type { Host } from './config-core.ts';
+import type { AgentChoice, Host } from './config-core.ts';
 import type { Next } from './lines.ts';
 import type { Run, Step } from './workflow.ts';
 
@@ -11,12 +11,14 @@ export type QueueAction = { expected: QueueExpected } & (
   | { kind: 'retry'; step: Step | null }
 );
 export type QueueRecord = {
-  schema: 2;
+  schema: 3;
   id: string;
   revision: number;
-  host: Host | null;
+  choice: AgentChoice | null;
+  activeHost: Host | null;
   numbers: number[];
-  state: 'empty' | 'starting' | 'running' | 'me-gate' | 'error';
+  state: 'empty' | 'starting' | 'running' | 'quota-wait' | 'me-gate' | 'error';
+  waitId: string | null;
   current: Run | null;
   last: Run | null;
   reason: string | null;
@@ -30,5 +32,5 @@ export type QueueView = {
   error: string | null;
   actions: { add: boolean; edit: boolean; continue: boolean; retry: boolean };
 };
-export type QueueWake = { id: string; token: string; host: Host };
+export type QueueWake = { id: string; token: string; choice: AgentChoice };
 export type QueueReceipt = { view: QueueView; wake: QueueWake | null };

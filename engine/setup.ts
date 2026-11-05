@@ -4,8 +4,9 @@ import { access, lstat, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'no
 import { constants, tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
+import { initializeAgentOrder, readAgentOrder, validateAgentOrder } from './lib/agent-order.ts';
 import { readConfig } from './lib/config.ts';
-import { type Config, ConfigError, formatConfigError, validateWorktreeSetup } from './lib/config-core.ts';
+import { type Config, ConfigError, formatConfigError, type Host, validateWorktreeSetup } from './lib/config-core.ts';
 import { installRecorder, markDefect } from './lib/events.ts';
 import { HostError, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
@@ -20,7 +21,7 @@ const wiring = '.claude/celetis-flow/wiring.json';
 const settings = '.claude/settings.json';
 const configFile = '.celetis.yaml';
 const subject = 'chore(celetis): wire the project for the celetis lanes';
-const usage = `usage: celetis --agent <host> setup check | write <options> | try <options> | try --remove | lane <path> | push; <options>: --hosts claude|codex|claude,codex [--default claude|codex] --landing pr|merge [--suite <file>] [--setup-file <file>] [--ignore <line>]... [--baseline-file <file>]\n${updateHint}`;
+const usage = `usage: celetis --agent <host> setup check | write <options> | try <options> | try --remove | lane <path> | push; <options>: --hosts claude|codex|claude,codex|codex,claude --landing pr|merge [--suite <file>] [--setup-file <file>] [--ignore <line>]... [--baseline-file <file>]\n${updateHint}`;
 const setupPaths = [
   configFile,
   wiring,
@@ -52,8 +53,7 @@ const labelStyles = {
   wontfix: ['This will not be worked on', 'ffffff'],
 } as const satisfies Record<Label, readonly [string, string]>;
 type Options = {
-  hosts: string[];
-  default: string;
+  hosts: readonly Host[];
   landing: string;
   suite: string;
   setup: string;
@@ -117,7 +117,7 @@ function checkJSONKeys(path: string, source: string): void {
 function options(argv: string[]): Options {
   const values: Record<string, string> = {};
   const ignores: string[] = [];
-  const flags = ['--hosts', '--default', '--landing', '--suite', '--setup-file', '--ignore', '--baseline-file'];
+  const flags = ['--hosts', '--landing', '--suite', '--setup-file', '--ignore', '--baseline-file'];
   for (let i = 0; i < argv.length; i += 2) {
     const flag = argv[i] as string;
     const value = argv[i + 1];
@@ -131,14 +131,8 @@ function options(argv: string[]): Options {
     else values[flag] = value;
   }
   const hosts = values['--hosts'];
-  const given = values['--default'] ?? '';
   const landing = values['--landing'];
-  let selected: string;
-  if (hosts === 'claude' || hosts === 'codex') {
-    if (given) badUsage();
-    selected = hosts;
-  } else if (hosts === 'claude,codex' && (given === 'claude' || given === 'codex')) selected = given;
-  else return badUsage();
+  if (!hosts || !['claude', 'codex', 'claude,codex', 'codex,claude'].includes(hosts)) return badUsage();
   if (landing !== 'pr' && landing !== 'merge') return badUsage();
   const suite = values['--suite'] ?? '';
   if ((landing === 'merge') !== !!suite) return badUsage();
@@ -150,8 +144,7 @@ function options(argv: string[]): Options {
   }
   const absolute = (value = '') => (!value || isAbsolute(value) || win32.isAbsolute(value) ? value : resolve(value));
   return {
-    hosts: hosts.split(','),
-    default: selected,
+    hosts: validateAgentOrder(hosts.split(',')),
     landing,
     suite,
     setup,
@@ -559,10 +552,7 @@ class Setup {
     }
     const desired = { ...original };
     const added: string[] = [];
-    const wanted: (readonly ['host' | 'landing' | 'suite', string])[] = [
-      ['host', opts.default],
-      ['landing', opts.landing],
-    ];
+    const wanted: (readonly ['landing' | 'suite', string])[] = [['landing', opts.landing]];
     if (opts.suite && (original.landing ?? opts.landing) === 'merge') wanted.push(['suite', opts.suite]);
     for (const [key, value] of wanted) {
       if (original[key] === undefined) {
@@ -934,9 +924,12 @@ class Setup {
           : null;
       }
       await this.plan(opts, scratch);
+      if (this.operation.checkout.common === null) fail('need a Git checkout');
+      readAgentOrder(this.operation.checkout.common);
       if (command === 'write') await this.makeLabels();
       await this.writeTree();
       if (command === 'write') {
+        await initializeAgentOrder(this.operation.checkout.common, opts.hosts);
         const paths = await this.changedPaths();
         this.output(
           paths.length ? paths.map((path) => `setup: changed ${path}\n`).join('') : 'setup: no file changed\n',

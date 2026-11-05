@@ -3,11 +3,13 @@ import { type BigIntStats, closeSync, constants, fstatSync, openSync } from 'nod
 import { lstat, mkdir, open, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { nextIssue } from '../next-step.ts';
+import type { AgentChoice, Host } from './config-core.ts';
 import { lineOf, type Next } from './lines.ts';
 import { lockHolder } from './locks.ts';
-import { createOperation, type Operation } from './operation.ts';
+import type { Operation } from './operation.ts';
 import { childEnv } from './process.ts';
 import type { QueueAction, QueueReceipt, QueueRecord, QueueView } from './queue-types.ts';
+import { readRecovery, recoveryOwner } from './quota-recovery.ts';
 import { tryFlock } from './update-lock.ts';
 import { openLockFile } from './windows.ts';
 import { lanes, type Run, type Step, steps } from './workflow.ts';
@@ -25,6 +27,27 @@ const identity = (value: Record<string, unknown>) =>
 const numbers = (value: unknown): value is number[] =>
   Array.isArray(value) && Array.from(value).every(positive) && new Set(value).size === value.length;
 const text = (value: unknown) => value === null || typeof value === 'string';
+
+export function choice(value: unknown): value is AgentChoice {
+  return (
+    object(value) &&
+    ((value.kind === 'default' && keys(value, 'kind')) ||
+      (value.kind === 'explicit' && keys(value, 'host,kind') && (value.host === 'claude' || value.host === 'codex')))
+  );
+}
+
+export const sameChoice = (a: AgentChoice, b: AgentChoice) =>
+  a.kind === b.kind && (a.kind === 'default' || (b.kind === 'explicit' && a.host === b.host));
+
+export const explicitHost = (value: AgentChoice | null | undefined): Host | null =>
+  value?.kind === 'explicit' ? value.host : null;
+
+export function requireQueueChoice(recorded: AgentChoice, requested: AgentChoice): void {
+  if (!sameChoice(recorded, requested))
+    throw new Error(
+      `queue: recorded agent choice is ${recorded.kind === 'default' ? 'the default order' : recorded.host}`,
+    );
+}
 
 function run(value: unknown): value is Run | null {
   return (
@@ -80,8 +103,8 @@ function validate(value: unknown): QueueRecord {
   const invalid = () => new Error('queue: invalid or obsolete record');
   if (
     !object(value) ||
-    !keys(value, 'act,current,host,id,last,launch,numbers,reason,revision,schema,state') ||
-    value.schema !== 2 ||
+    !keys(value, 'act,activeHost,choice,current,id,last,launch,numbers,reason,revision,schema,state,waitId') ||
+    value.schema !== 3 ||
     !identity(value) ||
     !numbers(value.numbers) ||
     !run(value.current) ||
@@ -93,14 +116,30 @@ function validate(value: unknown): QueueRecord {
   if (value.state === 'empty') {
     if (
       value.numbers.length ||
-      [value.host, value.current, value.last, value.reason, value.act, value.launch].some((item) => item !== null)
+      [
+        value.choice,
+        value.activeHost,
+        value.waitId,
+        value.current,
+        value.last,
+        value.reason,
+        value.act,
+        value.launch,
+      ].some((item) => item !== null)
     )
       throw invalid();
   } else {
     if (
       !value.numbers.length ||
-      (value.host !== 'claude' && value.host !== 'codex') ||
-      !['starting', 'running', 'me-gate', 'error'].includes(String(value.state))
+      !choice(value.choice) ||
+      !(value.activeHost === null || value.activeHost === 'claude' || value.activeHost === 'codex') ||
+      !['starting', 'running', 'quota-wait', 'me-gate', 'error'].includes(String(value.state))
+    )
+      throw invalid();
+    if (
+      value.state === 'quota-wait'
+        ? typeof value.waitId !== 'string' || !uuid.test(value.waitId) || value.activeHost !== null
+        : value.waitId !== null
     )
       throw invalid();
     if ((value.state === 'starting') !== (value.launch !== null)) throw invalid();
@@ -171,11 +210,13 @@ export function parseQueueReceipt(value: unknown): QueueReceipt {
     const wake = value.wake;
     if (
       !object(wake) ||
-      !keys(wake, 'host,id,token') ||
+      !keys(wake, 'choice,id,token') ||
       !record?.launch ||
+      !record.choice ||
       wake.id !== record.id ||
       wake.token !== record.launch.token ||
-      wake.host !== record.host
+      !choice(wake.choice) ||
+      !sameChoice(wake.choice, record.choice)
     )
       throw new Error('queue: invalid receipt wake');
   }
@@ -265,7 +306,7 @@ export function queueView(
   const unreadable = next?.kind === 'observed' && next.reason === 'unreadable';
   if (!error && next && next.kind !== 'run' && !terminal) error = lineOf(String(record?.numbers[0]), next);
   if (!error && record?.state === 'error') error = record.reason;
-  if (!error && record?.state === 'running' && !owner)
+  if (!error && (record?.state === 'running' || record?.state === 'quota-wait') && !owner)
     error = 'queue: the runner was interrupted. Use Try again to continue.';
   return {
     record,
@@ -299,17 +340,25 @@ export async function readQueueView(operation: Operation, signal?: AbortSignal):
     const { main, common } = operation.checkout;
     if (main === null || common === null) throw new Error('queue: need a Git checkout');
     record = await readQueue(common);
-    const selected = record?.host ? createOperation(operation.checkout, { saved: record.host }, 'main') : operation;
     const number = record?.numbers[0];
-    const next = number ? (await nextIssue(String(number), selected, signal)).next : null;
+    const next = number ? (await nextIssue(String(number), operation, signal)).next : null;
     const owner = await queueOwner(main, record);
     signal?.throwIfAborted();
     const latest = await readQueue(common);
     if (latest?.id !== record?.id || latest?.revision !== record?.revision)
       throw new Error('queue: changed during the read; refresh before acting');
-    const view = queueView(record, owner, next);
-    if (record?.host && !Bun.which(record.host, { PATH: childEnv().PATH })) {
-      view.error = `queue: ${record.host} is not on PATH`;
+    const recovery = record?.state === 'quota-wait' && owner && number ? await readRecovery(main, number) : null;
+    const kept =
+      recovery?.state === 'waiting' &&
+      recovery.waitId === record?.waitId &&
+      next?.kind === 'observed' &&
+      next.reason === 'dirty' &&
+      recovery.lane?.path === next.path &&
+      (await recoveryOwner(recovery));
+    const view = queueView(record, owner, next, kept ? (record?.reason ?? null) : null);
+    const pinned = explicitHost(record?.choice);
+    if (pinned && !Bun.which(pinned, { PATH: childEnv().PATH })) {
+      view.error = `queue: ${pinned} is not on PATH`;
       view.actions.add = false;
       view.actions.continue = false;
       if (next?.kind === 'run') view.actions.retry = false;

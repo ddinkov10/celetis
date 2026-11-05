@@ -6432,7 +6432,6 @@ var typedTags = ["null", "bool", "int", "float"].map(coreTag);
 var coreTags = ["map", "seq", "str"].map(coreTag).concat(typedTags);
 var yaml11Int = /^[-+]?(?:0[bB][01]+|0[oO][0-7]+|0[xX][0-9a-fA-F]+|[0-9]+)$/;
 var yaml11Float = /^[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?$/;
-var hosts = ["claude", "codex"];
 var skills = [
   "accept-epic",
   "assist",
@@ -6678,11 +6677,9 @@ function profile(value, path) {
 }
 function checkSchema(value) {
   const config = object(value, []);
-  keysOnly(config, ["host", "landing", "gates", "board", "worktreeSetup", "suite", "custom", "codexProfiles"], []);
+  keysOnly(config, ["landing", "gates", "board", "worktreeSetup", "suite", "custom", "codexProfiles"], []);
   required(config, "landing", []);
   oneOf(config.landing, ["pr", "merge"], ["landing"]);
-  if (Object.hasOwn(config, "host"))
-    validateHost(config.host);
   if (Object.hasOwn(config, "gates")) {
     const gates = object(config.gates, ["gates"]);
     keysOnly(gates, steps, ["gates"]);
@@ -6729,10 +6726,6 @@ function parseConfigText(text) {
   checkWellFormed(nodes);
   checkMetadata(nodes);
   return Object.freeze({ [sourceData]: { value: doc.toJS(), nodes } });
-}
-function validateHost(value) {
-  oneOf(value, hosts, ["host"]);
-  return value;
 }
 function freeze(value) {
   if (typeof value !== "object" || value === null)

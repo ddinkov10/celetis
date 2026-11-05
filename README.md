@@ -258,9 +258,10 @@ Product procedures and stores stay with their owner.
 
 - The session asks for the issue tracker, the hosts (Claude, Codex, or both), and the landing. With
   `merge`, it also asks for the suite: a TypeScript file that `land` runs.
-  Setup stops on each tracker other than GitHub. With two hosts, the session also asks for the
-  default host. For the landing and the default host, the session proposes the value of
-  `.celetis.yaml` when the file has one.
+  Setup stops on each tracker other than GitHub. With two hosts, the session asks for their
+  priority order. For the landing, it proposes the value of `.celetis.yaml` when present.
+  The ordered `--hosts` value initializes an absent local preference only during `setup write`.
+  `setup check` and `setup try` leave that preference unchanged.
 - After the landing, when `.celetis.yaml` has no `worktreeSetup`, the session proposes the
   worktree setup: a normal root-relative `.ts` file, such as `scripts/worktree-setup.ts`, from the
   manifests, lockfiles, version pins, and CI workflows of the project. It shows the path and
@@ -294,8 +295,7 @@ Product procedures and stores stay with their owner.
   separate marketplace replacement changes an unchanged, recorded canonical Celetis entry's
   `autoUpdate` to false. A differing or unowned existing marketplace entry stays unchanged and
   can leave an unresolved policy warning.
-- In `.celetis.yaml`, setup owns three entries: `host` (the default host, or the one host),
-  `landing`, and `suite` (with `merge` only). It makes the file when there is none. In a valid file,
+- In `.celetis.yaml`, setup owns `landing` and `suite` (with `merge` only). It makes the file when there is none. In a valid file,
   it appends each missing required entry and keeps each byte of the product. When an entry has a value
   other than your answer, setup keeps that value and prints a warning. Change that field by hand
   when your answer is the intended value.
@@ -423,19 +423,43 @@ codex execpolicy check --rules ~/.codex/rules/celetis-land.rules celetis --agent
 
 ### Agent selection and model setup
 
-`host` in `.celetis.yaml` selects the host of the human terminal and board commands. Setup writes
-it with the default host that you choose, or with the one host. Setup does not change a `host`
-that is there: to change the default host, edit `host` by hand. Check the host selection with an
-explicit host:
+The local agent preference is an ordered, nonempty list of `claude` and `codex`. It lives at
+`<Git common directory>/celetis-flow/agents.json`, shared by all linked worktrees on this
+machine. With no record, the order is `claude`, then `codex`. It changes no tracked file.
+`setup write --hosts claude|codex|claude,codex|codex,claude` initializes an absent record and
+preserves an existing valid order. YAML `host` and setup `--default` are refused; there is no
+migration. Check selection with an explicit host:
 
 ```bash
 celetis --agent codex root
 ```
 
-Selection is `--agent claude|codex`, then `CELETIS_AGENT`, then `host` in the main checkout's
-`.celetis.yaml`, then `claude`. An invalid value stops the command. Skills always pass their
-actual host explicitly on each call, including landing. The selected host is exported to child scripts. Both installed
-hosts can use one product project; their installations and configuration remain separate.
+Selection is an explicit `--agent claude|codex`, then an explicit `CELETIS_AGENT`, then the local
+order. Control operations use its first host without a quota check; outside a Git checkout they
+use Claude. Explicit control commands and `agents` work without reading the preference for
+selection. Commands that require YAML still validate the whole file. Skills pass their actual
+host explicitly, including landing. Exact Resume keeps its saved host and session ID.
+
+New Intake, Assist, and Make visual sessions use the first included host without an active
+confirmed usage block. An explicit host remains pinned despite exclusion or a block.
+`CELETIS_SESSION_AGENT` identifies the current native session; it does not select the next
+host. A real incoming `CELETIS_AGENT` remains an explicit choice. The selected host still
+runs its preflight; a missing executable or another setup error does not try a second host.
+
+Usage records live separately at `<Git common directory>/celetis-flow/limits/<host>.json`.
+A passed provider reset permits a new attempt. It does not clear the recorded block.
+An unknown observation keeps an existing block; a newer verified availability result can
+clear it. If every included host is blocked, these independent launchers report the hosts
+and known reset times without opening a session. A launched session keeps its native error
+and recovery controls. Intake, Assist, and Make visual never transfer their conversation or
+automatically start another host after exhaustion.
+
+`celetis agents read` prints `{schema:1,order,version}`. To change the order, pass exactly
+`order` and that `expectedVersion` to `celetis agents replace '<JSON>'`. A stale different edit
+exits 3 with `{kind:"conflict",latest}`; an already-current edit succeeds. The version is a
+digest of canonical content, not permission to write. Invalid or unsafe records fail without
+replacement. Preserve the file and correct its reported cause before retrying. Both installed
+hosts retain separate installations and configuration.
 
 `root` prints the folder of the program: the version folder that runs the command.
 `celetis update check` reports the enabled plugin of each host. Its Codex discovery uses a
@@ -458,11 +482,10 @@ them for the human.
 
 Operational settings and setup are fields of `.celetis.yaml` (`docs/configuration.md`).
 Commands that need repository setup require this file and stop if it is missing or invalid.
-`/celetis:setup` makes the file with `host`, `landing`, and, with `merge`, `suite` when there is
-none. It adds a missing
-`host` at the end of a valid file, or it stops when the file cannot take the line. After your yes,
+`/celetis:setup` makes the file with `landing` and, with `merge`, `suite` when there is
+none. It appends missing required entries to a valid file. After your yes,
 it adds a missing `worktreeSetup` as a quoted file reference at the end of the file, for example
-`worktreeSetup: "scripts/worktree-setup.ts"`; a new file holds `host`, `landing`, `suite` with
+`worktreeSetup: "scripts/worktree-setup.ts"`; a new file holds `landing`, `suite` with
 `merge`, and then the reference. The value must read back exactly and each other value must stay
 the same. Else setup stops before any write, for example on a file with a `...` end marker: add
 the field by hand first. `try` and `write --setup-file <path>` require the entry in local trunk
@@ -902,7 +925,14 @@ new interactive session, in a new tab of the Herdr app. For each step, the runne
    override of this start when there is one, else the decision of the step before, else `high`
    (`docs/celetis-flow.md`, "Start the script", "The effort level");
 4. opens each session in a new tab of the Herdr app, and ends it when the issue shows that the
-   step is done.
+   step is done;
+5. with the default choice, selects the first eligible host of the local order at each session
+   start. After a confirmed usage refusal, it ends only its own session and waits until no
+   process of the session's tree or with its attempt marker runs. It then starts the same step on
+   the next eligible host with the dirty lane kept. When it cannot prove that stop, as for Codex,
+   or a background task still runs, no other agent starts. When all
+   hosts are limited, it waits for the earliest supplied reset, or for
+   `celetis celetis-flow --retry <n> <wait id>` (`docs/celetis-flow.md`, "Usage-limit recovery").
 
 The runner starts at an issue: write one with `/celetis:intake`, or open one on GitHub. Then, for
 the feature `#12`:
@@ -928,12 +958,12 @@ celetis --agent <host> celetis-flow --queue action '{"kind":"add","number":12,"s
 
 The example adds to missing storage; for an existing record use the ID, revision, and current
 issue from status. Add starts an empty queue and appends otherwise. Move and remove affect only
-waiting work. The host stays fixed while nonempty. Every later me gate requires Continue.
+waiting work. The agent choice stays fixed while nonempty. Every later me gate requires Continue.
 Retry recovers an interrupted launch or stopped step; a null step acknowledges terminal work
 without authorizing another issue. Only fresh finished/wontfix decisions drain work. Read failures
 retain accepted work. The same empty queue accepts more work without reset or reload.
 
-The record remains at `<git common dir>/celetis-flow/queue.json`, now schema 2. Old batch forms
+The record remains at `<git common dir>/celetis-flow/queue.json`, now schema 3. Old batch forms
 and compatibility readers are removed. See `docs/celetis-flow.md`, "The continuous queue", for
 the action fields, locking, and manual recovery of an obsolete record. Preserve that file until
 its runner and foreground exit and an explicitly authorized archive retains its unfinished order.
@@ -1030,6 +1060,8 @@ usage: celetis [--agent <host>] <command> [<argument>...]
   celetis update                                            Updates the program and the plugin of each host; asks once.
   celetis update check                                      Shows the installed and the available revision of each part.
   celetis board                                             Starts the board of the project in this checkout.
+  celetis agents read                                       Reads the local ordered agent preference and its version.
+  celetis agents replace '<JSON>'                           Replaces the local order using order and expectedVersion.
   celetis intake                                            Starts a fresh session that asks for your request before intake.
   celetis assist <n>                                        Starts fresh interactive assistance for an issue in the main checkout.
   celetis visual <n> <sha>                                  Starts a fresh session that makes the visual of a landed commit.
@@ -1039,6 +1071,7 @@ usage: celetis [--agent <host>] <command> [<argument>...]
   celetis celetis-flow --resume <n>                         Opens the session of a step with no progress again.
   celetis celetis-flow --queue action '<QueueAction JSON>'  Saves a queue action; starts its authorized wake in this foreground.
   celetis celetis-flow --queue status                       Reads the current queue and its allowed actions.
+  celetis celetis-flow --retry <n> <wait-id>                Wakes the live quota waiter of an issue for one attempt cycle.
   celetis lesson-store read main|active                     Reads validated lessons; requires explicit --agent.
   celetis lesson-store capture FILE                         Saves a pending proposal; requires explicit --agent.
   celetis lesson-store preview FILE                         Prepares an exact lesson review; requires explicit --agent.
@@ -1048,8 +1081,8 @@ usage: celetis [--agent <host>] <command> [<argument>...]
   celetis --version                                         Prints the revision of the program.
   celetis help                                              Prints this list.
 
-In a terminal, --agent claude|codex is optional. With no --agent, the program uses host in
-.celetis.yaml, else claude.
+In a terminal, --agent claude|codex is optional. CELETIS_AGENT is an explicit choice too.
+With neither, the local agent order applies; its initial order is claude, codex.
 The skills run the other commands. README.md, "The commands", in the folder that celetis root
 prints, lists all of them.
 ```
@@ -1080,21 +1113,23 @@ setup"):
 | `celetis --agent <host> events [--after <id>]` | Prints each kept entry of the event record of the user as one JSON line, oldest first; `--after <id>` prints only the entries after that entry. `docs/celetis-flow.md`, "The event record", gives the record. Exit status: 0 done, 1 unsafe folder or busy lock, 2 usage or a relative `CELETIS_HOME` |
 | `celetis --agent <host> capscore J V B N S X` | Resolves the six digits. `--json` gives portable scores and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null |
 | `celetis --agent <host> dispatch <act>` | Acts: `next`, `report <dispatch-id> <report-file>`, `gate`, `review`, `close`, `show`. The task loop applies each returned pair and reports exact native arguments/results. Evidence is agent-reported, not independently checked. Records: `/tmp/celetis-<uid>/dispatch/<host>-<session>.json` on macOS and Linux; `<os.tmpdir()>/celetis/dispatch/<host>-<session>.json` on Windows. Exits: 0 ready, reported, or closed (also `show`), 1 internal error, 2 usage, 3 refused, 4 stop, 5 setup |
+| `bun --no-env-file --no-install --config=/dev/null --no-macros engine/usage-hook.ts <capture-directory> <attempt-id>` | Internal Claude usage callback. Reads one native event from stdin and records a bound observation in the private attempt folder. Session arguments select it; it changes no installed setting. Unsupported or mismatched events give no decisive observation. Exits: 0 handled, 1 invalid input or unavailable capture |
 | `celetis install` | Installs the revision of the clean checkout that it runs from as the program ("First install"); takes no arguments |
 | `bun --no-env-file --no-install --config=/dev/null --no-macros scripts/build.ts [--check]` | Builds the delivery with exactly Bun 1.4.4, or compares generated bytes, and modes on macOS and Linux, without writes |
 | `bun --no-env-file --no-install --config=/dev/null --no-macros scripts/verify.ts` | Runs this plugin repository's fast gate in its checkout |
 | `bun --no-env-file --no-install --config=/dev/null --no-macros scripts/install-tools.ts DESTINATION [--claude]` | Installs pinned development tools into a private destination |
 | `bun --no-env-file --no-install --config=/dev/null --no-macros scripts/herdr-lab.ts up \| run <id> <command>... \| down <id>` | macOS only. `up` makes a lab, a private hc core and a second Herdr app window on temporary data under `/tmp/<id>`, and prints the id, then one JSON line. `run` runs one command in the lab environment. `down` stops only the processes of that lab, checks that the real core and window hold no lab text, and deletes the lab. Exit status of `up` and `down`: 0 done, 1 failed (`down` keeps the root and names the cause), 2 refused. `run` gives the status of its command, 128+n after signal n, 127 when the command cannot start, and 2 for a refused or missing lab |
 | `celetis --agent <host> setup check \| write ... \| try ... \| try --remove \| lane <path> \| push` | The deterministic part of `/celetis:setup`: the checks, the write of the wiring, the test lane (`try` makes it and runs the worktree setup there, and `try --remove` removes it), the run of the worktree setup in a lane that exists (`lane`), and the commit with the push. Every setup run calls the program; no product launcher is written |
+| `celetis agents read \| replace '<JSON>'` | Reads the local ordered preference, or replaces it with exactly `order` and `expectedVersion`. It shares the Git common directory across worktrees and requires no YAML. Exit 3 returns a stale-edit conflict with the latest order; repeating the current order succeeds |
 
 - Each sub-command gives the output and the exit code of its script.
 - Run a command in a checkout of the product project: the program holds the scripts, so only the
   current folder names the project. `capscore` and `root` run in each folder.
 - The program needs `bun` on `PATH`: its entry starts Bun with the isolation flags. Host
   operations need the selected host CLI. After the program starts it, the named command creates
-  one operation. An implicit host uses the shared reader's
-  host projection of the main config; an explicit `--agent` or `CELETIS_AGENT` performs no YAML read
-  for selection. Project commands require full valid configuration before protected work, as
+  one operation. Default control selection uses the first host in the local ordered preference,
+  or Claude outside a Git checkout. An explicit `--agent` or `CELETIS_AGENT` needs no preference
+  or YAML read for selection. Project commands require full valid configuration before protected work, as
   described in `docs/configuration.md`. A missing tool or invalid installation
   stops with a setup action. Codex commands require no Claude binary. The current metadata must
   explicitly mark the installation enabled; missing fields are not an old-format fallback.
@@ -1251,7 +1286,7 @@ The command takes no arguments. It validates the main checkout's `.celetis.yaml`
 lane start before it starts the board. The start prints two lines: the main checkout and the
 URL. Each refresh reads the issue data in the board process,
 with the resolver and the locks of the engine and a fresh operation of the main checkout. So a
-change of `host` or `gates` in the main YAML shows at the next refresh. The board checks local
+change of `gates` in the main YAML shows at the next refresh. The board checks local
 change hints each second and reads the affected issues. A disappeared session also selects its
 known issue. Full reads keep their five-minute schedule to recover direct GitHub edits, and a
 queued full read takes priority after an active selected read. Selected reads retain the
@@ -1270,43 +1305,46 @@ The `agents` entries of the data report executable availability for Claude and C
 trust, and enabled plugin discovery need their own checks. At each Run, Resume, or Open agent
 press, the fixed adapter `engine/board/adapter.ts` reads the installed program. `<command>` is its command:
 `<base>/.local/bin/celetis`, or `<base>\.local\bin\celetis.cmd` on Windows ("First install"). A
-Run press starts this argv, with the selected agent, as a hidden runner. The runner opens the
-session tab, and `--quiet` keeps that tab in the background:
+Run press starts this argv as a hidden runner. The runner opens the session tab, and `--quiet`
+keeps that tab in the background:
 
 ```text
-<command> --agent <agent> celetis-flow <n> --quiet
+<command> [--agent <agent>] celetis-flow <n> --quiet
 ```
 
-With no explicit choice, it uses `defaultAgent`: `CELETIS_AGENT`, then `host` in the main
-YAML, then `claude`. Set the project default in that YAML field. A Run choice changes only that
-start. The board's default-agent menu and command palette show `Default agent is read-only`.
-They show the reason: `The main .celetis.yaml controls the default agent. Change host there.`
-Unknown or unavailable Run choices return 409 and start no agent. A Resume press starts this argv
+A Run with no agent choice omits `--agent`, so the runner selects from the local ordered
+preference at each start ("Agent selection and model setup"). The `--agent` or `CELETIS_AGENT` of
+the board start does not pin it. An explicit Run choice adds `--agent <agent>` and changes only
+that start, also when that agent is limited. Unknown or unavailable Run choices return 409 and start
+no agent. When every included agent is limited, a default Run still starts the runner, and the
+runner waits. A Resume press starts this argv
 as a hidden runner, and the runner opens the session tab in front. The runner uses the host and
-the exact session ID of the saved record, even after the YAML default changes:
+the exact session ID of the saved record, even after the local order changes:
 
 ```text
 <command> celetis-flow --resume <n>
 ```
 
-Open agent uses the current default agent without an agent choice. It opens and focuses a
-`#<n> assist` tab in the main checkout, with this argv:
+Open agent sends no agent choice. It opens and focuses a `#<n> assist` tab in the main checkout,
+with this argv, and the command selects from the local order:
 
 ```text
-<command> --agent <agent> assist <n>
+<command> assist <n>
 ```
 
 Switch to the Herdr app window to use the session. Starting prevents another press; the detected
 session then has Go. A failed start keeps a retry. After 30 seconds without detection, check the terminal
-before starting again. An unavailable default agent or `noRun` disables Open agent with its cause.
+before starting again. When the first available agent of the order is not on PATH, every included
+agent is limited, or `noRun` is set, Open agent is disabled with its cause, and the server refuses
+it with 409.
 The server reads the issue again and refuses assistance if it is no longer blocked or has a
 live session.
 
-Make visual on a History row with no page uses the current default agent without an agent choice.
-It opens and focuses a `#<n> visual` tab in the main checkout, with this argv:
+Make visual on a History row with no page sends no agent choice and follows the same rules. It
+opens and focuses a `#<n> visual` tab in the main checkout, with this argv:
 
 ```text
-<command> --agent <agent> visual <n> <sha>
+<command> visual <n> <sha>
 ```
 
 The page sends only the issue number; the server takes the full commit hash `<sha>` from the
@@ -1316,8 +1354,8 @@ refuses a press for an issue with no History row, for a row whose page exists, w
 `#<n> visual` tab exists, and while another Make visual press of that number runs. A failed
 command leaves its message and a shell in the tab, and the row shows Making… until you close it.
 
-A queue wake starts `<command> --agent <host> celetis-flow --queue run <id> <token> --quiet` as
-a hidden runner in the same way.
+A queue wake starts `<command> [--agent <host>] celetis-flow --queue run <id> <token> --quiet` as
+a hidden runner in the same way. `--agent` is there only when the queue records one host.
 
 Each item of an argv is one argument, and no shell reads it as a line. On macOS and Linux, a
 login shell of `$SHELL` starts the argv. A hidden runner has no tab and shows no line: herdr-core
@@ -1339,10 +1377,25 @@ Read-only `hc` calls can precede that failure.
 Queue opens a dedicated view with current work above Up next. The available-issue picker sits
 beside waiting work on desktop and below it on a phone. Add saves and starts an empty queue;
 waiting Up/Down/Remove edits save immediately, including during a run or stop. The count includes
-only current and waiting work. The host stays fixed while nonempty. Continue and Try again follow
+only current and waiting work. The Agent choice of Add is the default order or one host, and it
+stays fixed while the queue is nonempty. Continue and Try again follow
 fresh engine permissions. Saved/starting is distinct from a verified running session. Accepted
 order survives reload and board restart. Finished work leaves automatically. Back to board
 restores Now/Pipeline; search and Go remain available.
+
+The agent order sits in the footer. Its pill stacks the icons of the included agents in priority
+order and spreads them on hover or focus. A press opens the list upward. Each row has a handle:
+drag it, or press it for Move first, Move up, Move down, Move to bottom, and Exclude or Include.
+Alt+Up and Alt+Down move the focused row. An excluded agent stays in the list for inclusion and for
+explicit Run, and inclusion puts it last. The last included agent cannot be excluded. `First`
+marks the first agent of the order; `In use` marks an agent that a live session uses. A row shows
+a confirmed usage limit and its reset time, or `reset unknown`. Each change is one replacement of
+the local order through `celetis agents replace`. A stale change returns the current order, which
+the list shows; make the change again. A failed save restores the confirmed order and shows the
+cause. While a runner waits because every included agent is limited, its issue card shows
+`waits for a usage limit`, and the list shows `Retry #<n>`: Retry sends that wait ID to
+`celetis-flow --retry <n> <wait id>` and starts no runner. A card of a runner that stopped during
+such a wait shows a warning; Run starts the step again.
 
 History opens the latest 20 distinct landed issues in the existing nonmodal side panel. The
 button sits between Search and Refresh and stays visible on a phone. The count, `d`, and search

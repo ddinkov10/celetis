@@ -3,9 +3,18 @@ import { nextIssue } from '../next-step.ts';
 import type { Next } from './lines.ts';
 import { lineOf } from './lines.ts';
 import { lockHolder } from './locks.ts';
-import { createOperation, type Operation } from './operation.ts';
+import type { Operation } from './operation.ts';
 import { childEnv } from './process.ts';
-import { parseQueueAction, queueOwner, queueView, readQueue, readQueueView, updateQueue } from './queue.ts';
+import {
+  explicitHost,
+  parseQueueAction,
+  queueOwner,
+  queueView,
+  readQueue,
+  readQueueView,
+  requireQueueChoice,
+  updateQueue,
+} from './queue.ts';
 import type { QueueAction, QueueExpected, QueueReceipt, QueueRecord, QueueView, QueueWake } from './queue-types.ts';
 
 const terminal = (next: Next | null) =>
@@ -26,12 +35,14 @@ const checkoutOf = (operation: Operation) => {
   return { main, common };
 };
 export const emptyQueue = (record?: QueueRecord | null): QueueRecord => ({
-  schema: 2,
+  schema: 3,
   id: record?.id ?? randomUUID(),
   revision: record?.revision ?? 1,
-  host: null,
+  choice: null,
+  activeHost: null,
   numbers: [],
   state: 'empty',
+  waitId: null,
   current: null,
   last: null,
   reason: null,
@@ -39,8 +50,8 @@ export const emptyQueue = (record?: QueueRecord | null): QueueRecord => ({
   launch: null,
 });
 const wakeOf = (record: QueueRecord): QueueWake => {
-  if (!record.launch || !record.host) throw new Error('queue: no pending launch');
-  return { id: record.id, token: record.launch.token, host: record.host };
+  if (!record.launch || !record.choice) throw new Error('queue: no pending launch');
+  return { id: record.id, token: record.launch.token, choice: record.choice };
 };
 
 export async function admitQueue(operation: Operation, input: QueueAction): Promise<QueueReceipt> {
@@ -48,12 +59,12 @@ export async function admitQueue(operation: Operation, input: QueueAction): Prom
   const { main, common } = checkoutOf(operation);
   const snapshot = await readQueue(common);
   match(snapshot, action.expected);
-  const host = snapshot?.host ?? operation.host;
-  if (action.kind === 'add' && host !== operation.host) throw new Error(`queue: recorded host is ${host}`);
-  const selected = createOperation(operation.checkout, { saved: host }, 'main');
+  const choice = snapshot?.choice ?? operation.choice;
+  requireQueueChoice(choice, operation.choice);
+  const pinned = explicitHost(choice);
   const number = action.kind === 'add' ? action.number : snapshot?.numbers[0];
   if (!number) throw new Error('queue: that action is not available; refresh the queue');
-  const next = (await nextIssue(String(number), selected)).next;
+  const next = (await nextIssue(String(number), operation)).next;
   if (action.kind === 'add' || action.kind === 'continue' || action.kind === 'retry') {
     if (
       action.kind === 'retry' && action.step === null
@@ -61,12 +72,12 @@ export async function admitQueue(operation: Operation, input: QueueAction): Prom
         : next.kind !== 'run' || next.step !== action.step
     )
       throw new Error(`queue: the displayed decision changed: ${lineOf(String(number), next)}`);
-    if (next.kind === 'run' && !Bun.which(host, { PATH: childEnv().PATH }))
-      throw new Error(`queue: ${host} is not on PATH`);
+    if (next.kind === 'run' && pinned && !Bun.which(pinned, { PATH: childEnv().PATH }))
+      throw new Error(`queue: ${pinned} is not on PATH`);
   }
   const currentNext =
     snapshot?.numbers[0] && snapshot.numbers[0] !== number
-      ? (await nextIssue(String(snapshot.numbers[0]), selected)).next
+      ? (await nextIssue(String(snapshot.numbers[0]), operation)).next
       : next;
   let wake = false;
   let owner: string | null = null;
@@ -84,7 +95,7 @@ export async function admitQueue(operation: Operation, input: QueueAction): Prom
       wake = true;
       return {
         ...emptyQueue(current),
-        host,
+        choice,
         numbers: [action.number],
         state: 'starting',
         current: next?.kind === 'run' ? next : null,
@@ -112,6 +123,8 @@ export async function admitQueue(operation: Operation, input: QueueAction): Prom
     return {
       ...current,
       state: 'starting',
+      activeHost: null,
+      waitId: null,
       reason: null,
       act: null,
       launch: {
@@ -132,11 +145,10 @@ export async function reconcileQueue(operation: Operation, signal?: AbortSignal)
     return { view: await readQueueView(operation, signal), wake: null };
   }
   if (!snapshot?.numbers.length) return { view: await readQueueView(operation, signal), wake: null };
-  const selected = createOperation(operation.checkout, { saved: snapshot.host ?? operation.host }, 'main');
   const observations = new Map<number, Next>();
   for (const number of snapshot.numbers) {
     signal?.throwIfAborted();
-    observations.set(number, (await nextIssue(String(number), selected, signal)).next);
+    observations.set(number, (await nextIssue(String(number), operation, signal)).next);
   }
   let wake: QueueWake | null = null;
   let owner: string | null = null;
@@ -160,6 +172,8 @@ export async function reconcileQueue(operation: Operation, signal?: AbortSignal)
       ...current,
       numbers,
       state: 'starting',
+      activeHost: null,
+      waitId: null,
       current: null,
       last: null,
       reason: null,
@@ -194,7 +208,15 @@ export async function failQueueLaunch(
   await updateQueue(common, async (current) => {
     if (!current) throw new Error('queue: the pending record disappeared');
     if (current.id !== id || current.launch?.token !== token || (await queueOwner(main, current))) return current;
-    return { ...current, state: 'error', launch: null, reason, act: 'Fix the launch failure, then use Try again.' };
+    return {
+      ...current,
+      state: 'error',
+      activeHost: null,
+      waitId: null,
+      launch: null,
+      reason,
+      act: 'Fix the launch failure, then use Try again.',
+    };
   });
   return readQueueView(operation);
 }

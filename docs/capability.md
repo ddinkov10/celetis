@@ -349,8 +349,10 @@ rank 3 below Σ=12 caps at xhigh. A host binding can raise the applied effort wi
 the portable score. On Codex with no profile, the binding names no model: each child keeps the
 parent's model ("Codex model profiles").
 
-Agent selection is `--agent claude|codex` > `CELETIS_AGENT` > `host` in the main checkout's
-`.celetis.yaml` > `claude`. The launcher exports its selected host. Without a new flag, Claude's existing human
+Agent selection is `--agent claude|codex` > explicit `CELETIS_AGENT` > the first host in the local
+ordered preference. Its missing-record order is `claude`, `codex`; outside a Git checkout,
+control selection uses Claude. Scoring consults no usage-limit record. Explicit selection
+needs no preference read; required YAML validation still applies. Without a new flag, Claude's existing human
 CAP output is unchanged. When the selected host is Claude and `OPENCODE=1`, the existing opencode
 mode still uses its current model: `--current-model provider/id` > `CAP_CURRENT_MODEL` > the
 current-model database lookup. If none is found, its existing Claude-label fallback remains.

@@ -68,6 +68,12 @@ const skills = [
 ] as const;
 
 export type Host = (typeof hosts)[number];
+export type AgentChoice = Readonly<{ kind: 'default' } | { kind: 'explicit'; host: Host }>;
+export type AgentOrder = Readonly<{ schema: 1; order: readonly Host[]; version: string }>;
+export type UsageBlock = Readonly<{ reason: string; resetAt: number | null }>;
+export type AgentDecision =
+  | { kind: 'start'; host: Host }
+  | { kind: 'wait'; blocked: readonly (UsageBlock & { host: Host })[]; nextResetAt: number | null };
 
 const sourceData = Symbol('ConfigSource');
 
@@ -76,7 +82,6 @@ export type ConfigSource = Readonly<{
 }>;
 
 export type Config = Readonly<{
-  host?: Host;
   gates?: Readonly<Partial<Record<Step, 'me' | 'auto'>>>;
   board?: Readonly<{ port?: number }>;
   worktreeSetup?: string;
@@ -325,10 +330,9 @@ function profile(value: unknown, path: Path): void {
 
 function checkSchema(value: unknown): asserts value is Config {
   const config = object(value, []);
-  keysOnly(config, ['host', 'landing', 'gates', 'board', 'worktreeSetup', 'suite', 'custom', 'codexProfiles'], []);
+  keysOnly(config, ['landing', 'gates', 'board', 'worktreeSetup', 'suite', 'custom', 'codexProfiles'], []);
   required(config, 'landing', []);
   oneOf(config.landing, ['pr', 'merge'], ['landing']);
-  if (Object.hasOwn(config, 'host')) validateHost(config.host);
   if (Object.hasOwn(config, 'gates')) {
     const gates = object(config.gates, ['gates']);
     keysOnly(gates, steps, ['gates']);
@@ -380,11 +384,6 @@ export function parseConfigText(text: string): ConfigSource {
 export function validateHost(value: unknown): Host {
   oneOf(value, hosts, ['host']);
   return value as Host;
-}
-
-export function configHost(source: ConfigSource): Host | undefined {
-  const config = object(source[sourceData].value, []);
-  return Object.hasOwn(config, 'host') ? validateHost(config.host) : undefined;
 }
 
 function freeze(value: unknown): void {

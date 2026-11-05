@@ -11,7 +11,8 @@
     "engine/board/panel.ts",
     "engine/board/palette.ts",
     "engine/board/queue.ts",
-    "engine/board/update-dialog.ts"
+    "engine/board/update-dialog.ts",
+    "engine/board/agent-picker.ts"
   ],
   "compilerOptions": {
     "lib": ["ESNext"],

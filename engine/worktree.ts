@@ -6,6 +6,7 @@ import { HostError, updateHint } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
 import { run } from './lib/process.ts';
+import { RecoveryError, validateRecovery } from './lib/quota-recovery.ts';
 import { branchGlobs, branchPattern, laneOf, lanes } from './lib/workflow.ts';
 import {
   checkoutOf,
@@ -20,6 +21,22 @@ import {
 const usage = `usage: celetis --agent <host> worktree [--remove] <issue number>, e.g. 302 or #302\n${updateHint}`;
 type Issue = { title: string; state: string; labels: { name: string }[] };
 type Pull = { head: { ref: string; sha: string }; state: string; merged_at: string | null };
+
+const recoveryLine =
+  'the quota recovery keeps the dirty lane; trunk integration waits until the lane is clean. Inspect the existing changes and the issue before you edit.';
+
+async function recovered(main: string, n: string, path: string): Promise<boolean> {
+  const key = process.env.CELETIS_RECOVERY;
+  if (!key) return false;
+  const permit = await validateRecovery(main, Number(n), key).catch((error: unknown) => {
+    if (error instanceof RecoveryError) {
+      console.error(`worktree: ${error.message}; the normal entry applies`);
+      return null;
+    }
+    throw error;
+  });
+  return permit?.lane === path;
+}
 
 async function execute(argv: string[], explicit: string | undefined): Promise<number> {
   const remove = argv[0] === '--remove';
@@ -149,7 +166,8 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     }
   };
   try {
-    await updateLane(path, branch, trunk, n);
+    if (await recovered(main, n, path)) console.error(`worktree: #${n}: ${recoveryLine}`);
+    else await updateLane(path, branch, trunk, n);
   } catch (error) {
     if (error instanceof HostError && error.code === conflictStatus) process.stdout.write(`${path}\n`);
     else await discard();

@@ -1,8 +1,23 @@
+import type { AgentOrder, Host } from '../lib/config-core.ts';
 import { type Effort, type Level, levels } from '../lib/effort.ts';
+import { createAgentPicker, OrderConflict } from './agent-picker.ts';
 import { openMenu, openPalette, setupMenu, setupPalette } from './palette.ts';
 import { drawPanel } from './panel.ts';
 import { drawQueue, setQueueOpen, setupQueue } from './queue.ts';
-import type { Action, Board, Card, Column, Columns, Flow, HistoryRow, MenuEntry, PaletteItem } from './types.ts';
+import type {
+  Action,
+  AgentReplaceConflict,
+  AgentReplaceRequest,
+  Board,
+  Card,
+  Column,
+  Columns,
+  Flow,
+  HistoryRow,
+  MenuEntry,
+  PaletteItem,
+  RunRequest,
+} from './types.ts';
 import {
   $,
   actionButton,
@@ -63,9 +78,9 @@ const STATUS_ICONS: Record<string, string> = {
   'no-progress': 'alert',
   'dirty-tree': 'diff',
   blocked: 'person',
+  'quota-wait': 'clock',
 };
 const FIND_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K';
-const DEFAULT_AGENT_REASON = 'The main .celetis.yaml controls the default agent. Change host there.';
 const QUEUE_LEVEL = 'The queue starts this step at the decided level';
 
 let data: Board | null = null;
@@ -106,8 +121,7 @@ const intakeReason = () => {
   const readAt = Date.parse(data?.source.readAt ?? '');
   if (!data || isServerDown || data.source.error || !Number.isFinite(readAt) || Date.now() - readAt > 60_000)
     return null;
-  const agent = data.defaultAgent === null ? undefined : data.agents?.[data.defaultAgent];
-  return agent?.available === false ? cleanCause(agent.cause) || 'The default agent is unavailable' : null;
+  return defaultReason();
 };
 
 function drawIntake(): void {
@@ -150,12 +164,24 @@ async function openIntake(): Promise<void> {
 
 const agentDisplay = (id: string) => agentOf({ agent: id })?.name ?? id;
 
+const defaultReason = (work: 'runner' | 'session' = 'session') => {
+  const next = data?.next;
+  if (next?.kind === 'wait') return work === 'session' ? 'Every included agent is limited. See the agent order.' : null;
+  const entry = next ? data?.agents?.[next.host] : undefined;
+  return entry?.available === false ? cleanCause(entry.cause) : null;
+};
+
 const runReason = (agent: string | null, number?: number | null) => {
   if (data?.noRun) return data.noRun;
   const record = data?.queue?.record;
-  if (record?.state === 'me-gate' && record.numbers[0] === number) {
-    if (agent !== null && agent !== record.host) return `queue: recorded host is ${record.host}`;
-    agent = record.host;
+  if (record?.state === 'me-gate' && record.numbers[0] === number && record.choice) {
+    if (record.choice.kind === 'default') {
+      if (agent !== null) return 'queue: recorded agent choice is the default order';
+    } else {
+      if (agent !== null && agent !== record.choice.host)
+        return `queue: recorded agent choice is ${record.choice.host}`;
+      agent = record.choice.host;
+    }
   }
   const agents = data?.agents;
   if (agent) {
@@ -163,9 +189,7 @@ const runReason = (agent: string | null, number?: number | null) => {
     if (entry && entry.available === false) return cleanCause(entry.cause);
     return null;
   }
-  const def = data?.defaultAgent;
-  if (def != null && agents?.[def]?.available === false) return cleanCause(agents[def].cause);
-  return null;
+  return defaultReason('runner');
 };
 
 const runName = ({ step, effort, number }: Card) =>
@@ -234,16 +258,16 @@ const levelEntries = (card: Card): (MenuEntry | 'rule')[] => {
   ];
 };
 
-const defaultAgentEntry = {
+const agentOrderEntry = {
   icon: 'person',
-  label: 'Default agent is read-only',
+  label: 'Change the agent order',
   key: '',
-  isDisabled: true,
-  title: DEFAULT_AGENT_REASON,
-  run: async () => toast(DEFAULT_AGENT_REASON, { isError: true }),
+  title: 'Open the agent order in the footer',
+  run: () => {
+    const trigger = $('agent-picker').querySelector<HTMLElement>('.ap-trigger');
+    if (trigger?.getAttribute('aria-expanded') !== 'true') trigger?.click();
+  },
 };
-
-const agentMenuOf = () => [defaultAgentEntry];
 
 const toMenuEntry = (action: Action): MenuEntry => ({
   icon: action.icon,
@@ -270,8 +294,17 @@ const actionsOf = (card: Card): Action[] => {
         ),
     });
   }
+  if (card.state === 'quota-wait')
+    list.push({
+      id: 'agent-order',
+      label: 'Agent order',
+      icon: 'person',
+      name: `Show the agent order and Retry of #${card.number}`,
+      title: 'Show the usage limits and Retry in the agent order (Enter)',
+      run: agentOrderEntry.run,
+    });
   if (card.state === 'blocked') {
-    const reason = runReason(null);
+    const reason = data?.noRun || defaultReason();
     list.push({
       id: 'assist',
       label: 'Open agent',
@@ -1069,24 +1102,7 @@ const drawStatus = (source: Board['source'], isDown: boolean) => {
     el('span', 'sb-name', 'Runner'),
     el('span', 'sb-text', data?.runner ? 'on' : 'off'),
   );
-  const agentNode = $('agent');
-  if (agentNode) {
-    const agents = data?.agents;
-    const def = data?.defaultAgent;
-    agentNode.hidden = !data;
-    const defText = def ? agentDisplay(def) : 'No default agent';
-    const defReason = def != null && agents?.[def]?.available === false ? cleanCause(agents[def].cause) : null;
-    agentNode.dataset.tone = defReason ? 'fail' : def != null && agents?.[def]?.available ? 'ok' : 'wait';
-    agentNode.title = DEFAULT_AGENT_REASON;
-    agentNode.setAttribute('aria-haspopup', 'menu');
-    agentNode.setAttribute('aria-label', `Agent: ${defText}. ${DEFAULT_AGENT_REASON}`);
-    agentNode.replaceChildren(
-      icon('person'),
-      el('span', 'sb-name', 'Agent'),
-      el('span', 'sb-text', defText),
-      icon('chevron'),
-    );
-  }
+  if (data?.picker) picker.update(data.picker);
   document.body.toggleAttribute('data-stale', isDown);
   $('stale').hidden = !isDown && !source.error;
 };
@@ -1303,7 +1319,7 @@ const render = (canMove = true) => {
     next.repo,
     next.noRun,
     next.agents,
-    next.defaultAgent,
+    next.next,
     next.flow,
     next.tracker,
     next.columns,
@@ -1336,7 +1352,9 @@ const launch = async (card: Card, path: '/api/run' | '/api/resume' | '/api/assis
   const reason =
     path === '/api/resume'
       ? data?.noRun
-      : runReason(path === '/api/assist' ? null : (agent ?? null), path === '/api/run' ? number : undefined);
+      : path === '/api/assist'
+        ? data?.noRun || defaultReason()
+        : runReason(agent ?? null, number);
   if (reason) {
     toast(reason, { isError: true });
     return false;
@@ -1523,7 +1541,7 @@ const paletteItems = () => {
         run: () => window.open(card.url as string, '_blank', 'noopener,noreferrer'),
       });
   items.push(
-    { group: 'Board', number: null, context: '', ...defaultAgentEntry },
+    { group: 'Board', number: null, context: '', ...agentOrderEntry },
     {
       group: 'Board',
       number: null,
@@ -1594,7 +1612,8 @@ const CARD_KEYS: Record<string, (card: HTMLElement) => void> = {
 
 const updates = setupUpdates();
 document.addEventListener('keydown', (event) => {
-  if (event.defaultPrevented || updates.contains(event.target)) return;
+  if (event.defaultPrevented || updates.contains(event.target) || $('agent-picker').contains(event.target as Node))
+    return;
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault();
     if (!$('palette').open) openPalette(paletteItems());
@@ -1682,7 +1701,6 @@ $('history-count').addEventListener('click', () => setHistory(true));
 $('notify').addEventListener('click', toggleNotify);
 $('board-more').append(icon('dots'));
 $('board-more').addEventListener('click', () => openMenu($('board-more'), boardActions()));
-$('agent').addEventListener('click', () => openMenu($('agent'), agentMenuOf()));
 $('keys-open').prepend(icon('keyboard'));
 $('keys-open').addEventListener('click', () => $('keys').showModal());
 $('keys-close').append(icon('close'));
@@ -1707,6 +1725,41 @@ setupQueue({
   },
 });
 $('queue-open').addEventListener('click', () => showQueue(!isQueueOpen));
+const replaceOrder = async (order: readonly Host[], expectedVersion: string): Promise<AgentOrder> => {
+  if (isReconnecting()) throw new Error('the board is reconnecting');
+  settled = reads;
+  try {
+    let response: Response;
+    try {
+      response = await fetch('/api/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order, expectedVersion } satisfies AgentReplaceRequest),
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch {
+      throw new Error(`${SERVER_DOWN}. Refresh before another change.`);
+    }
+    const body = (await response.json().catch(() => null)) as
+      | { order: AgentOrder }
+      | AgentReplaceConflict
+      | { error: string }
+      | null;
+    if (response.ok && body && 'order' in body) return body.order;
+    if (response.status === 409 && body && 'latest' in body) throw new OrderConflict(body.latest, body.error);
+    throw new Error(body && 'error' in body ? body.error : `the server answered ${response.status}`);
+  } finally {
+    settled = reads;
+    void load();
+  }
+};
+const retryWait = async (number: number, waitId: string) => {
+  const outcome = await post('/api/run', { number, waitId } satisfies RunRequest, 'Retry failed', { timeout: 30_000 });
+  settled = reads;
+  void load();
+  if (outcome.status !== 'accepted') throw new Error(outcome.error ?? SERVER_DOWN);
+};
+const picker = createAgentPicker($('agent-picker'), { replace: replaceOrder, retry: retryWait });
 setupPalette();
 setupMenu();
 drawNotify();

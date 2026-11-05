@@ -1,7 +1,11 @@
-import type { QueueAction, QueueView } from '../lib/queue-types.ts';
+import type { QueueAction, QueueRecord, QueueView } from '../lib/queue-types.ts';
 import type { Step } from '../lib/workflow.ts';
 import type { Board } from './types.ts';
 import { $, el, iconButton, toast } from './ui.ts';
+
+const recordedHost = (record: QueueRecord | null | undefined) =>
+  record?.choice?.kind === 'explicit' ? record.choice.host : null;
+const chosenHost = (record: QueueRecord | null | undefined) => (record?.choice ? recordedHost(record) : agent || null);
 
 let board: Board | null = null;
 let submitted: QueueView | null = null;
@@ -69,7 +73,10 @@ const request = async (action: QueueAction) => {
     const response = await fetch('/api/queue', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action, ...(action.kind === 'add' ? { agent: submitted?.record?.host ?? agent } : {}) }),
+      body: JSON.stringify({
+        action,
+        ...(action.kind === 'add' && chosenHost(submitted?.record) ? { agent: chosenHost(submitted?.record) } : {}),
+      }),
       signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) throw new Error(((await response.json()) as { error: string }).error);
@@ -155,6 +162,11 @@ const row = (number: number, index: number, numbers: number[]) => {
   return node;
 };
 
+const hostAvailable = (host: string | null) => {
+  const next = host ?? (board?.next?.kind === 'start' ? board.next.host : null);
+  return next === null || board?.agents?.[next]?.available === true;
+};
+
 function draw(): void {
   if (!board) return;
   const active = section().contains(document.activeElement)
@@ -222,12 +234,13 @@ function draw(): void {
   const select = el('select');
   select.dataset.control = 'agent';
   select.setAttribute('aria-label', 'Queue agent');
+  select.add(new Option('Default order', ''));
   for (const host of ['claude', 'codex']) {
     const option = new Option(host === 'claude' ? 'Claude' : 'Codex', host);
     option.disabled = board.agents?.[host]?.available !== true;
     select.add(option);
   }
-  select.value = record?.host ?? agent;
+  select.value = chosenHost(record) ?? '';
   select.disabled = numbers.length > 0 || busy || !authoritative();
   select.addEventListener('change', () => {
     agent = select.value;
@@ -282,7 +295,7 @@ function draw(): void {
         busy ||
         !authoritative() ||
         !submitted?.actions.add ||
-        !board.agents?.[record?.host ?? agent]?.available ||
+        !hostAvailable(chosenHost(record)) ||
         Boolean(board.noRun),
     );
     add.setAttribute('aria-label', `Add #${number} to queue`);
@@ -312,7 +325,6 @@ export function setQueueOpen(value: boolean): void {
 }
 export function drawQueue(next: Board): void {
   board = next;
-  if (!agent && board.defaultAgent) agent = board.defaultAgent;
   const before = submitted?.record?.numbers.length;
   if (board.queue) {
     accept(board.queue);

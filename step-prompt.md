@@ -44,3 +44,6 @@ clean.
    Reuse a checkpoint already handled in this turn. The coordinator owns child incident writes.
    Keep existing attempt limits and complete the check before the terminal issue act; an entry
    denial or another access stop still takes precedence.
+7. When the header has `- recovery: yes`, an earlier session of this step stopped at a usage
+   limit. Before an edit, read the issue and the existing changes of the lane, and continue from
+   them. Do not replay a command of that session, and do not reset, stash, or clean the lane.

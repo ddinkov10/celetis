@@ -16,6 +16,7 @@ export const generatedFiles = [
   'engine/board/palette.mjs',
   'engine/board/queue.mjs',
   'engine/board/update-dialog.mjs',
+  'engine/board/agent-picker.mjs',
   'engine/hooks/entry.js',
   'celetis',
 ];

@@ -6,6 +6,8 @@ const CODEX_ICON =
 const CLAUDE_ICON =
   'data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjFlbSIgc3R5bGU9ImZsZXg6bm9uZTtsaW5lLWhlaWdodDoxIiB2aWV3Qm94PSIwIDAgMjQgMjQiIHdpZHRoPSIxZW0iIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHRpdGxlPkNsYXVkZSBDb2RlPC90aXRsZT48cGF0aCBjbGlwLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik0yMC45OTggMTAuOTQ5SDI0djMuMTAyaC0zdjMuMDI4aC0xLjQ4N1YyMEgxOHYtMi45MjFoLTEuNDg3VjIwSDE1di0yLjkyMUg5VjIwSDcuNDg4di0yLjkyMUg2VjIwSDQuNDg3di0yLjkyMUgzVjE0LjA1SDBWMTAuOTVoM1Y1aDE3Ljk5OHY1Ljk0OXpNNiAxMC45NDloMS40ODhWOC4xMDJINnYyLjg0N3ptMTAuNTEgMEgxOFY4LjEwMmgtMS40OXYyLjg0N3oiIGZpbGw9IiNEOTc3NTciIGZpbGwtcnVsZT0iZXZlbm9kZCI+PC9wYXRoPjwvc3ZnPg==';
 
+export const AGENT_ICONS = { claude: CLAUDE_ICON, codex: CODEX_ICON } as const;
+
 const NS = 'http://www.w3.org/2000/svg';
 const ring = (extra: Record<string, string> = {}): [string, Record<string, string | number>] => [
   'circle',
@@ -362,7 +364,7 @@ export const mark = (card: Card, identifiedByText = false) => {
     node.title = agent.name;
     if (card.agent === 'codex' || card.agent === 'claude') {
       const image = el('img');
-      image.src = card.agent === 'codex' ? CODEX_ICON : CLAUDE_ICON;
+      image.src = AGENT_ICONS[card.agent];
       image.alt = identifiedByText ? '' : agent.name;
       node.classList.add('agent-image');
       node.append(image);

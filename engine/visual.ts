@@ -2,11 +2,9 @@ import { mkdir, rm } from 'node:fs/promises';
 import type { Host } from './lib/config-core.ts';
 import { installRecorder, markDefect, passOn } from './lib/events.ts';
 import { HostError, requireBun, updateHint } from './lib/host.ts';
+import { runInteractive } from './lib/interactive.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
-import { codexHome, codexSessionPin } from './lib/plugin-metadata.ts';
-import { requireUpdatePolicy } from './lib/plugin-policy.ts';
 import { childEnv, run } from './lib/process.ts';
-import { execConsumer, withPluginRead } from './lib/update-lock.ts';
 import { hasPage, isCommit, partialPage, visualFolder, visualLink, visualPage } from './lib/visual.ts';
 
 const claudeInstall =
@@ -51,10 +49,6 @@ export async function main(argv: string[]): Promise<number> {
       'main',
     );
     const main = operation.checkout.main as string;
-    const host = operation.host;
-    const executable = Bun.which(host, { PATH: childEnv().PATH });
-    if (!executable) throw new HostError(`celetis-visual: ${host} is not on PATH`);
-    if (host === 'codex') process.env.CODEX_HOME = await codexHome();
     process.chdir(main);
     const remote = await run('git', ['ls-remote', '--symref', 'origin', 'HEAD'], { cwd: main });
     const trunk = /^ref: refs\/heads\/(\S+)\tHEAD$/.exec(firstLine(remote.stdout))?.[1];
@@ -75,14 +69,7 @@ export async function main(argv: string[]): Promise<number> {
       throw new HostError(`celetis-visual: the page exists: ${visualPage(main, sha)}; open it from History`);
     await mkdir(visualFolder(main), { recursive: true });
     await rm(partialPage(main, sha), { force: true });
-    const pin = await withPluginRead(host, async () => {
-      await requireUpdatePolicy(host, operation.checkout.cwd);
-      if (operation.checkout.cwd !== main) await requireUpdatePolicy(host, main);
-      return host === 'codex' ? codexSessionPin(main) : [];
-    });
-    return passOn(
-      await execConsumer(executable, [executable, ...pin, ...visualArguments(host, issue, sha, main)], childEnv()),
-    );
+    return passOn(await runInteractive(operation, async (host) => visualArguments(host, issue, sha, main)));
   } catch (error) {
     markDefect(error);
     console.error(error instanceof HostError ? error.message : `celetis-visual: ${(error as Error).message}`);

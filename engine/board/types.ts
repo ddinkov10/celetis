@@ -1,5 +1,5 @@
-import type { Host } from '../lib/config-core.ts';
-import type { Effort } from '../lib/effort.ts';
+import type { AgentDecision, AgentOrder, Host, UsageBlock } from '../lib/config-core.ts';
+import type { Effort, Level } from '../lib/effort.ts';
 import type { QueueView, QueueWake } from '../lib/queue-types.ts';
 import type { TerminalStatus } from '../lib/terminal-types.ts';
 import type { UpdateStage } from '../lib/update-types.ts';
@@ -78,10 +78,21 @@ export type Document = {
   runner: boolean;
   issues: Issue[];
   agents: Record<string, { available: boolean; cause: string | null }>;
-  defaultAgent: string;
   queue: QueueView | null;
   queueWake: QueueWake | null;
 };
+export type QuotaWait = { number: number; waitId: string; nextResetAt: number | null };
+export type QuotaState = { kind: 'waiting'; wait: QuotaWait } | { kind: 'orphaned' };
+export type AgentPickerView = {
+  order: AgentOrder;
+  usage: Record<Host, UsageBlock | null>;
+  activeHosts: readonly Host[];
+  waits: readonly QuotaWait[];
+  error: string | null;
+};
+export type AgentReplaceRequest = { order: readonly Host[]; expectedVersion: string };
+export type AgentReplaceConflict = { error: string; latest: AgentOrder };
+export type RunRequest = { number: number; agent?: Host; effort?: Level } | { number: number; waitId: string };
 export type Session = {
   sessionId: string;
   agent: Host;
@@ -131,7 +142,8 @@ export type Board = Placement & {
   tracker: string | null;
   runner: boolean | null;
   agents: Document['agents'] | null;
-  defaultAgent: string | null;
+  picker: AgentPickerView | null;
+  next: AgentDecision | null;
   queue: QueueView | null;
   terminal: { ok: boolean | null; error: string | null };
   source: { readAt: string | null; error: string | null };
