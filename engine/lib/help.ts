@@ -21,6 +21,9 @@ export const helpCommands: readonly (readonly [form: string, summary: string])[]
   ],
   ['celetis celetis-flow --queue status', 'Reads the current queue and its allowed actions.'],
   ['celetis celetis-flow --retry <n> <wait-id>', 'Wakes the live quota waiter of an issue for one attempt cycle.'],
+  ['celetis daemon start', 'Starts the master daemon of this repository, detached, and waits until it answers.'],
+  ['celetis daemon status', 'Shows the daemon, its automatic runner, and its runs.'],
+  ['celetis daemon stop', 'Stops the daemon and waits until its process ends.'],
 
   ['celetis lesson-store read main|active', 'Reads validated lessons; requires explicit --agent.'],
   ['celetis lesson-store capture FILE', 'Saves a pending proposal; requires explicit --agent.'],

@@ -1,7 +1,7 @@
 import { run } from './process.ts';
 import { windowsProcess } from './windows.ts';
 
-type ProcessState = 'runs' | 'gone' | 'unknown';
+export type ProcessState = 'runs' | 'gone' | 'unknown';
 
 async function field(pid: number, name: string): Promise<string | null> {
   const result = await run('ps', ['-p', String(pid), '-o', name], { env: { ...process.env, LC_ALL: 'C' } });
@@ -95,9 +95,17 @@ export async function processesWithEnvironment(entry: string): Promise<Set<numbe
   return found;
 }
 
-export async function processRuns(pid: number): Promise<boolean> {
-  if (process.platform === 'win32') return windowsProcess(pid) !== null;
-  return (await pidState(pid)) === 'runs';
+export async function processAlive(pid: number): Promise<ProcessState> {
+  if (process.platform === 'win32') return windowsProcess(pid) === null ? 'gone' : 'runs';
+  return pidState(pid);
+}
+
+export async function processScript(pid: number, script: string): Promise<ProcessState> {
+  if (process.platform === 'win32') return (await processRunsScript(pid, script)) ? 'runs' : 'gone';
+  if (!signalable(pid)) return 'gone';
+  const command = await field(pid, 'command=');
+  if (!command) return 'unknown';
+  return command.includes(script) ? 'runs' : 'gone';
 }
 
 export async function processRunsScript(pid: number, script: string, since?: number): Promise<boolean> {

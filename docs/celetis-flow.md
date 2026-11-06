@@ -218,7 +218,10 @@ through that step by itself.
 Issue locks and the automatic-runner lock use shared Git refs under
 `refs/celetis-flow/locks/`. Their owner records hold the runner and foreground PIDs and process
 start times. Either live process keeps the lock, including after a killed runner; an exited
-process does not. A runner that stops while its session lives leaves the lock to that session.
+process does not. A process that the script cannot read, for example after a failed `ps` call,
+also keeps the lock. Only a definite read frees it: the process does not exist, it has another
+start, or the runner PID does not run `celetis-flow.ts`. A runner that stops while its session
+lives leaves the lock to that session.
 A new start for the issue cannot begin until the session exits. Claims and releases use Git
 compare-and-set, and foreground registration updates all held locks in one transaction. Both
 hosts and manual resume share the issue lock.
@@ -306,6 +309,248 @@ Invalid JSON/UTF-8, unknown fields or schemas, unsafe storage, unmappable values
 persistence refuse with the record path and cause. No missing Run or authorization is invented.
 Invalid or unreadable storage requires repair; it is never empty. Product configuration and
 installation adoption remain outside this runtime-state exception (ADR-0070).
+
+### The master daemon
+
+The master daemon is one long-lived process for one repository, the Git common folder of its
+working folder. It runs many issue runs at the same time, with the run engine of the runner
+(`engine/lib/run-engine.ts`), and serves requests over HTTP on a Unix socket
+([ADR-0072](adr/0072-one-master-daemon-runs-every-issue-run.md)). Its process is
+`engine/celetis-flow.ts --daemon`, so the lock, step-end, and recovery checks accept it as a
+runner. Nothing starts a daemon by itself. The `celetis-flow` commands and the board presses still
+start the separate runner, and the shared locks keep one owner for each issue, for the queue, and
+for the automatic runner across the daemon, the runners, and a second daemon.
+
+**The commands.** `celetis daemon start`, `status`, and `stop` (`engine/daemon.ts`) find the Git
+common folder of the current folder, so a linked worktree reaches the daemon of its repository.
+They refuse Windows with exit 2, and the optional `--agent` selects nothing.
+
+- `start` prints the running daemon (`daemon: a daemon of this repository runs: PID <pid> at
+  <revision>`, with `; this program is at <revision>; it was not replaced` for another revision)
+  and exits 0. Otherwise it checks `gh`, `hc`, and the Herdr app (a missing one exits 1), then
+  spawns `engine/celetis-flow.ts --daemon` in the main checkout. The spawn is detached, with stdin
+  closed and stdout and stderr appended to `daemon/daemon.log` (0600). It polls the status for at
+  most 30 seconds, prints `daemon: started PID <pid> on <socket>`, and exits 0. A daemon that
+  ends or stays silent exits 1. Another daemon that wins a race is printed as above.
+- `status` prints the daemon line, `daemon: automatic runner on|off|stopping`, and one line for
+  each run; it exits 3 when no daemon runs.
+- `stop` sends `POST /stop`, reads the process until it is gone for at most 60 seconds, prints
+  `daemon: stopped PID <pid>`, and exits 0; with no daemon it exits 0 too.
+- A daemon is running only when the identity file names a PID with that start time and a command
+  that holds `celetis-flow.ts`. A failed read of the process table is neither: each form exits 6
+  and `start` spawns nothing.
+
+The daemon gets the environment of the command, except `HC_SCOPE`: `hc kill` ends each process
+that carries the scope of its terminal, so a daemon with that variable would end with the terminal
+that started it. A later change of the shell environment does not reach a running daemon.
+
+**The start.** In this order, the daemon:
+
+1. refuses Windows with `celetis-flow: daemon: Windows is not a support target` and exit 2;
+2. finds the main checkout and the Git common folder of its working folder;
+3. makes the socket path `/tmp/celetis-<uid>/daemon/<first 16 hex digits of the SHA-256 of the
+   Git common folder>.sock`. A path of 104 bytes or more stops the start with exit 1, before any
+   folder or lock;
+4. makes `<git common dir>/celetis-flow/daemon/` and its `runs/` folder (0700), and the socket
+   folder `/tmp/celetis-<uid>/daemon/` (0700);
+5. reads its process start, then takes the lock ref `daemon` with that start. A failed read of the
+   start stops the daemon before the lock, with
+   `celetis-flow: daemon: cannot read the process start of the daemon; allow process access and start the daemon again`
+   and exit 1. When another live process holds `daemon`, the daemon prints
+   `celetis-flow: daemon: another daemon of this repository has PID <n>; this one stops` and exits 1;
+6. reads the run records and makes one adoption attempt for each record ("The takeover");
+7. removes a socket file that a killed daemon left;
+8. serves on the socket;
+9. writes the identity file `daemon/daemon.json` (0600, a temporary file and a rename):
+   `{schema: 1, pid, start, revision, main, common, socket}`, where `start` is the process start
+   time and `revision` is the Git revision of the program;
+10. prints `celetis-flow: daemon: PID <pid> serves <socket>`.
+
+The socket folder is private to the user, and the daemon uses no token: any process of the same
+user can send a request. The automatic runner is off at each start.
+
+**The requests.** A body is JSON of at most 16 KiB, with exactly these keys:
+
+| Request | Body | Effect |
+| --- | --- | --- |
+| `GET /status` | none | The status object |
+| `POST /run` | `{number, selection, effort, quiet}` | A start with one number; `effort` is a level or `null` |
+| `POST /auto` | `{on, selection, quiet}` | The automatic runner on or off |
+| `POST /queue` | `{id, token, selection, quiet}` | The claim and the run of a queue wake, as `--queue run <id> <token>` |
+| `POST /resume` | `{number, selection}` | `--resume <number>` |
+| `POST /stop` | `{}` | The stop of the daemon |
+
+`selection` is `{explicit?, environment?}`: an explicit host (`claude` or `codex`), the
+`CELETIS_AGENT` value of the client, or neither. Each run selects its host from its own request,
+as `celetis --agent <host> celetis-flow` does from its prefix and its environment. The
+`CELETIS_AGENT` of the daemon never selects a host. A queue wake keeps the recorded agent choice of
+the queue, as `--queue run` does.
+
+An answer is `{accepted: true, run}` or `{accepted: false, line, code}`. `run` is the run ID, or
+`null` for `/auto` and `/stop`. A refusal has the line and the exit code that the runner gives
+today:
+
+| Status | When |
+| --- | --- |
+| 200 | An accepted request, and the status object |
+| 400 | A body that is not valid: the usage line, code 2 |
+| 404, 405 | Another path, or another method for a path; code 2 |
+| 409 | A refused admission, with its line and code: for example `celetis-flow: another celetis-flow.ts or its session (PID <n>) works on #<n>` with code 0 |
+| 413 | A body of more than 16 KiB; code 2 |
+| 503 | A request that arrives during a stop, and the answer of a run, queue, resume, or auto on request that comes after a stop began: `celetis-flow: daemon: the daemon stops; start it again, then send the request`, code 1. A status read that began before the stop answers 200 |
+| 500 | An unexpected error of the daemon while it answers: `celetis-flow: daemon: <message>`, code 1 |
+
+A run, queue, or resume request answers after the admission of its run: the issue lock, the queue
+claim, or the refusal before them. When a stop begins before that answer, the answer is 503, also
+after an admission. The stop detaches that run: it starts no session and keeps no lock and no run
+record, and a queue wake does not claim the queue, so the queue record does not change. Auto on
+starts the loop of the automatic runner, which takes one issue at a time and holds the `runner`
+lock. When an old automatic runner or its session holds that lock, auto on gets 409 with
+`celetis-flow: another automatic runner or its session has PID <n>`. A second auto on while the
+loop is on changes nothing. Auto off stops new picks: the issue run that the loop took continues to
+its end, and the loop then releases `runner`. Until then, the status says `stopping`. An auto on
+while the loop is `stopping` turns the same loop on again: the status says `on`, and the loop takes
+the next issue after its current issue run, with the same `runner` lock. When the loop has already
+started to end, auto on waits until it released `runner`, then starts a new loop. When a later auto
+on or auto off comes during that wait, the waiting auto on answers 200 and starts no loop, so the
+last auto request decides. An issue run that ends with a nonzero code ends the loop, as it ends the
+automatic runner today, and the status then says `off`.
+
+**The locks of a run.** Each run has its own lock owner. A run that ends while its session lives,
+for example with the `cannot prove` line of a quota recovery, leaves each lock that it holds to that
+session alone: the owner record then names no runner and that session. So a later request, an old
+runner, the board, and the automatic runner find the lock free when the session ends, as after the
+exit of a runner. A detached run keeps its owner records ("The stop").
+
+**The status object.** `{schema: 1, daemon, auto, runs}`. `daemon` is the identity file.
+`auto` is `on`, `off`, or `stopping`. Each run has one row, in start order:
+
+| Field | Value |
+| --- | --- |
+| `id` | The run ID |
+| `kind` | `number`, `auto`, `queue`, or `resume` |
+| `issue`, `numbers` | The current issue; the issue numbers of a queue run, else `null` |
+| `step`, `host`, `tab` | The step, the host, and the tab name of the current session, else `null` |
+| `state` | `starting`, `running`, `checking`, `waiting`, `exiting`, `quota-wait`, `ending`, `taken-over`, or `finished` |
+| `line` | The last `celetis-flow: ` line of the run, else `null` |
+| `changedMs` | The time of the last change of `state`, in milliseconds since 1970 UTC |
+| `session` | `runs`, `gone`, or `unknown`: a process read of the start barrier of the current session at this status read, else `null` |
+| `outcome` | `{kind, reason, code}` of a finished run (`closed`, `gate`, or `stopped`), else `null` |
+
+A finished run stays in the status, with its outcome, until the daemon stops. A refused run
+request is a finished run too. A text field has at most 4096 characters.
+
+**The output.** Each line that the daemon writes to its stdout or stderr starts with
+`<ISO time> <tag> `. The tag is the first 8 characters of the run ID for a line of a run, else
+`daemon`. The lines of a run are the lines of the runner today. The daemon writes nothing else to a
+file; the process that starts the daemon decides where its stdout and stderr go. A run that ends
+with a nonzero code adds the event `run-exit` to the event record, with its last line as
+`message`. The event record keeps its other entries ("The event record").
+
+**The stop.** A stop request, SIGINT, SIGTERM, or SIGHUP stops the daemon. The daemon answers the
+stop request first and gives each later request 503. It detaches each run and the loop, keeps the
+run record of each detached run, waits until each run ends, closes the socket (the socket file
+goes), removes the identity file, and releases `daemon`. It exits 0 after a stop request and 128
+plus the number of a signal.
+
+A detached run stops its step-end watch and its usage watch and removes its step-end record. It
+closes a tab whose start barrier it did not release, and the tab of a normal end that waits for the
+next session tab ("The session tab"). It does not end a released session, close its tab, or remove
+its start folder. A lock with a live session keeps its owner record, which names the daemon and that
+session: the session holds the lock after the daemon exits, and the next daemon adopts it. It does
+not write the queue record and does not change the recovery record. So a stopped queue keeps its
+state, where a stopped runner writes `error` ("A stop of the runner"). A stop while the run proves
+that a refused session and its delegated work stopped (the quota recovery) writes no end of that
+session: the next daemon proves the end again from the run record and the start folder, and the
+recovery continues there. A run that the stop detaches in or after its preflight, before its session
+tab is open or while it opens, starts no step: it closes that tab, writes no session record, and
+begins no usage attempt. The runner begins the usage attempt and writes the session record only
+after the tab is open. The run record then keeps the run before that step.
+
+**The takeover.** The daemon writes one run record for each run to `daemon/runs/<run ID>.json`
+(0600, a temporary file and a rename). The old runner writes no record. A record holds the facts
+that a new daemon needs: the daemon PID and start, the request input, the issue and its lock, the
+queue ID and the request of a queue authorization, the loop facts (the last Run and its host, the
+status of the last session, the gate rule of the next step, the hosts of a quota recovery, and the
+finished tab that waits for its close), a quota wait, and the current session. The session facts
+are its step, host, Run, session record, usage attempt, start folder, terminal, and tab, the start
+barrier (PID, start, the PID of its parent shell, and its terminal name), and the start time of the
+step. The daemon writes the record at the admission, before and after it opens a session tab,
+after the start barrier reports and before its release, after each session end, at a quota wait
+and its wake, at the claim of a queue wake, and after each drain of a queue issue. A run that ends
+removes its record. A detached run
+keeps it, except a run whose answer was 503. The `go` file of the start folder, not the record,
+tells whether the barrier was released.
+
+At its start, after it holds `daemon`, the daemon reads the records in the order of their file
+names. It does not take over a record that it cannot read, that is not valid JSON, that has another
+schema, or that does not validate, and the file does not change:
+`celetis-flow: daemon: cannot take over <path>: <cause>; its session stays in its tab`. For each
+other record, the daemon adopts the issue lock with a new lock owner and the session identity of the
+recorded barrier, else of the `pid` file of the start folder, else none. A queue run adopts the
+`queue` lock first, then the lock of its current issue. The adoption takes a free lock, and
+a lock whose owner record names no runner or a gone runner (a definite read), with no live session
+or with a live session equal to that identity; the owner record then names the new daemon and keeps
+that session.
+
+- Another live owner holds the lock: the run ends with
+  `celetis-flow: #<n>: another celetis-flow.ts or its session (PID <holder>) took #<n> while no daemon ran; this run ends`.
+  Its record goes. The queue record, the recovery record, and the tabs stay as they are.
+- A process read is unknown: the record and the lock stay, the state of the row is `taken-over`,
+  and the daemon reads again each 2 seconds.
+- The daemon takes the lock: it writes the record again with its own identity and continues the
+  run by its phase.
+
+The daemon serves requests only after one adoption attempt for each record. So a request for an
+issue whose record still reads unknown gets the lock refusal.
+
+| Phase | The daemon |
+| --- | --- |
+| A session whose start folder has no `go` file | Closes its tab, when the record knows it, and ends the run with `celetis-flow: #<n>: the daemon stopped before the step <step> started; no step was started` |
+| A live session: the barrier runs with its start, and its command holds `celetis-flow.ts` | Writes the step-end record `checking` under its own identity and runs the step-end watch and the usage watch. After the session end, the run continues with the gates of a continuing run, with no effort override |
+| An ended session: the barrier is gone | Verifies the saved session identity once, records one usage observation of the attempt, and applies the normal end with the status of the `status` file. No valid status is an unknown status. Then the next steps follow |
+| A barrier read that is unknown | Keeps the record, the lock, and the start folder, and reads again each 2 seconds |
+| Between two steps | Reads the resolver again and continues with the gates of a continuing run |
+| Before the first step | Starts the accepted request with its gate rule, its effort, and its queue request |
+
+A resume run has the same phases with no step-end watch. The finished tab of a record closes by the
+normal rule: when the next session tab opens, or at the end of the run. The automatic runner stays
+off after a takeover: a run of the loop continues as a run, and the loop picks no new issue. A
+usage block in the one observation of an ended session starts the quota recovery for the default
+choice ("Usage-limit recovery", "A session that ended while no daemon ran"); for an explicit host,
+the normal end applies.
+
+**A queue run.** After the adoption, the daemon reads the queue record again. A record with another
+ID, or whose first number is not the recorded issue, ends the run with
+`celetis-flow: queue: the queue changed while no daemon ran; this run ends`, and the queue record
+does not change. Else the run continues its issue by the phase, with the queue transitions of
+`--queue run`, then the drain to the next issues. When the queue record still holds the launch
+token of the claim, the daemon removes it and writes `running`. After each drain, the run record
+names the next issue with no session, so a stop between two issues continues the drain at the next
+start. A session whose start folder has no `go` file ends the issue as the table says, and the
+queue state becomes `error` with that line.
+
+**A quota recovery.** When the recovery record of the issue names a runner that is gone (a definite
+read), the daemon writes itself as its runner in one transaction. Retry and the bound lane of the
+recovery then accept the daemon. An unknown read keeps the record and reads again each 2 seconds. A
+quota wait continues with its recorded wait ID, step authority, agent choice, and the usage records
+that it saw. The daemon prints the wait line again and makes no new wait ID, so
+`--retry <n> <wait id>` of that wait wakes it. A wait whose ID the recovery record no longer has
+ends with `celetis-flow: #<n>: the quota wait record changed; start the runner again`.
+
+**Per-run failures.** A refusal line, a startup error, a failed queue save, a failed write of the
+run record (`celetis-flow: daemon: cannot write the run record <path>: <cause>`), and an unexpected
+error end only their run. Its outcome is `stopped` with the line and the code. An unexpected error
+also prints its stack and adds a defect event `run-defect`. One failure stops the whole daemon with
+exit 1: a step-end record that can neither be removed nor emptied. The runner prints its two lines
+(`#<n> cannot remove step-end: …` and `cannot revoke watcher ownership; …`), because only the end
+of the runner that the record names revokes it. The sessions stay open in their tabs.
+
+**A removed program version.** The daemon checks its program files each 5 seconds, and its runs
+check them as the runner does. When a file is gone after an update, the daemon prints
+`celetis-flow: daemon: the program version of this daemon was removed after an update; start the daemon again`,
+stops as above, and exits 1. The sessions stay in their tabs, and their run records stay for the
+next start.
 
 ## How a step runs
 
@@ -439,7 +684,9 @@ after the barrier exits. `<folder>` is a private start folder in `<git common di
 2. The runner registers that PID in the issue lock. For a step, it also publishes the step-end
    record and starts the job of the step end. It then writes `go`: this is the release of the
    barrier.
-3. The barrier waits for `go` while the runner lives. It then starts the host as its child, waits
+3. The barrier waits for `go` while the runner lives. A failed read of the runner process does not
+   end this wait; the barrier exits with status 1 before `go` only when the runner process does
+   not exist. After `go`, the barrier starts the host as its child, waits
    for the host to exit, writes the exit status of the host to `status`, and exits with that
    status.
 
@@ -613,6 +860,24 @@ is only a lookup key: `worktree` validates the recovery record again
 record. The next step computes its own effective order, so a recovered preferred host takes the
 next step.
 A preference change or a recovered block does not stop a session that works.
+
+**A session that ended while no daemon ran.** The master daemon ("The takeover") applies the same
+steps to a usage block that it reads after the session ended, with another proof in step 2. The
+barrier is gone, so the daemon sends no exit request, and the process tree under the barrier is
+gone with it. The run record keeps the PID of the tab shell and the terminal name of the barrier.
+The daemon starts a control child (Bun, alive until the proof ends) with a new `CELETIS_ATTEMPT`
+value and requires the environment read to show it. Then it reads two groups: each process with the
+attempt marker in its environment, and each process on the recorded terminal outside the tree of
+the tab shell. A failed process read, also the first read of the process table, reads again, for
+at most 20 seconds in total; then the result is `unverified` with
+`the process table could not be read`. A group process that runs gives `unverified` with its PIDs;
+no such process gives `quiescent`. A record with no tab shell or terminal, a control child that the
+read does not show, or a control child that ended before a read showed it gives `unverified`. The
+limits above stay: the proof cannot see a process that left the terminal and whose environment `ps`
+cannot show. When the barrier of a live refusal in the daemon ends before step 2 reads it, the
+daemon uses the same proof, and its first failed read of the process table reads again in the same
+way. The runner records no tab shell, so its result there, and after a failed first read, stays
+`unverified`.
 
 **Exhaustion.** In one cycle, the runner attempts each included host at most once. When no host can
 start, it keeps the issue lock, writes the state `waiting` with a new wait ID, and prints:
@@ -1429,6 +1694,8 @@ The workflow and board entries, by `name`:
 | `exit-timeout` | A session does not exit within 10 seconds. `issue` is set |
 | `issues-read` | The automatic runner cannot read the open issues from GitHub |
 | `queue-error` | The queue of the runner saves the state `error`, or ends with an error |
+| `run-exit` | A run of the master daemon ends with a nonzero code. `issue` and `code` are set |
+| `run-defect` | A run or the automatic runner of the master daemon ends with an unexpected error. A defect with its stack |
 | `board-request` | A board request ends with status 500. A defect with the stack of the cause. `code` is 500 |
 | `board-terminal` | A board request ends with status 502 because the terminal core failed. `code` is 502 |
 | `queue-launch` | The hidden queue launch of the board fails |
@@ -2331,6 +2598,10 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   still needs a manual restart for new board code (ADR-0042).
 - A host can update its plugin by itself, for example with a marketplace auto-update. Then the
   runner starts no new step session until `celetis update` ("How a step runs").
+- The master daemon keeps the environment of its start. A later change of `PATH`,
+  `CLAUDE_CONFIG_DIR`, or `CODEX_HOME` in a shell does not reach it until its next start. Each
+  session still gets the login environment of its tab.
+- The output of the master daemon grows with each run. The daemon does not rotate or trim it.
 - A host can run a session at another level than the runner chose, and the runner does not see
   it. The runner removes only the process variable `CLAUDE_CODE_EFFORT_LEVEL`. It does not read
   or change a `CLAUDE_CODE_EFFORT_LEVEL` in the `env` block of a Claude Code settings file, which

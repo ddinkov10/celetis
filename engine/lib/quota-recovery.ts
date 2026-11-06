@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { closeSync, constants, fstatSync, openSync } from 'node:fs';
 import { lstat, mkdir, open, readdir, readFile, readlink, realpath, rename, rm, writeFile } from 'node:fs/promises';
@@ -6,7 +7,7 @@ import type { AgentChoice, Host } from './config-core.ts';
 import { commonDir, HostError } from './host.ts';
 import { type LockOwner, lockHolder } from './locks.ts';
 import { privateFolder, privateMode, sharedFolderSync, sharedMode } from './private-folder.ts';
-import { run } from './process.ts';
+import { bunArgs, childEnv, run } from './process.ts';
 import {
   controllingTerminal,
   descendantsOf,
@@ -48,7 +49,13 @@ export type QuotaRecovery = Readonly<{
   blocked: readonly QuotaBlock[];
   nextResetAt: number | null;
 }>;
-export type OwnedSession = Readonly<{ pid: number; start: string; terminal: string }>;
+export type OwnedSession = Readonly<{
+  pid: number;
+  start: string;
+  terminal: string;
+  shell: number | null;
+  tty: string | null;
+}>;
 declare const permitBrand: unique symbol;
 export type RecoveryPermit = Readonly<{ issue: number; step: Step; lane: string; attemptId: string }> & {
   readonly [permitBrand]: true;
@@ -431,20 +438,77 @@ export async function archiveSession(
 export type AttemptEnd = { kind: 'quiescent' } | { kind: 'unverified'; reason: string; running: readonly number[] };
 
 const attemptMarker = (attemptId: string) => `CELETIS_ATTEMPT=${attemptId}`;
+const unverified = (reason: string, running: readonly number[] = []): AttemptEnd => ({
+  kind: 'unverified',
+  reason,
+  running,
+});
+
+async function endedAttempt(attempt: UsageAttempt, shell: number, tty: string, deadline: number): Promise<AttemptEnd> {
+  const marker = randomUUID();
+  const life = Math.ceil(deadline - performance.now()) + 5000;
+  // ps shows no environment that it cannot read, so a control child must prove that the marker read sees one.
+  const control = spawn(process.execPath, bunArgs('-e', [`setTimeout(() => {}, ${life})`]), {
+    env: { ...childEnv(), CELETIS_ATTEMPT: marker },
+    stdio: 'ignore',
+  });
+  let ended = false;
+  control.on('error', () => {
+    ended = true;
+  });
+  control.on('exit', () => {
+    ended = true;
+  });
+  const spawned = performance.now();
+  try {
+    for (;;) {
+      const [rows, marked, controls] = await Promise.all([
+        processTable(),
+        processesWithEnvironment(attemptMarker(attempt.id)),
+        processesWithEnvironment(attemptMarker(marker)),
+      ]);
+      if (rows && marked && controls) {
+        if (control.pid !== undefined && controls.has(control.pid)) {
+          const tree = new Set([shell, ...descendantsOf(rows, shell).map((row) => row.pid)]);
+          const running: number[] = [];
+          for (const row of rows)
+            if (
+              row.pid !== control.pid &&
+              (marked.has(row.pid) || (row.tty === tty && !tree.has(row.pid))) &&
+              (await processState(row.pid, row.start)) !== 'gone'
+            )
+              running.push(row.pid);
+          return running.length ? unverified('processes of the attempt still run', running) : { kind: 'quiescent' };
+        }
+        if (ended) return unverified('the control process ended before the process table showed it');
+        if (performance.now() - spawned >= 1000)
+          return unverified('the process table shows no environment of a control process');
+      } else if (performance.now() >= deadline) return unverified('the process table could not be read');
+      await Bun.sleep(250);
+    }
+  } finally {
+    control.kill('SIGKILL');
+  }
+}
 
 export async function endOwnedAttempt(
   attempt: UsageAttempt,
   owned: OwnedSession,
   limitMs = 20_000,
 ): Promise<AttemptEnd> {
-  const unverified = (reason: string, running: readonly number[] = []): AttemptEnd => ({
-    kind: 'unverified',
-    reason,
-    running,
-  });
   if (process.platform === 'win32' || attempt.host !== 'claude')
     return unverified(`no proved termination path for ${attempt.host} on ${process.platform}`);
-  const first = (await processTable())?.find((row) => row.pid === owned.pid && row.start === owned.start);
+  const readUntil = performance.now() + limitMs;
+  const recorded = owned.shell !== null && owned.tty !== null;
+  let rows = await processTable();
+  while (!rows && recorded && performance.now() < readUntil) {
+    await Bun.sleep(250);
+    rows = await processTable();
+  }
+  if (!rows && recorded) return unverified('the process table could not be read');
+  const first = rows?.find((row) => row.pid === owned.pid && row.start === owned.start);
+  if (rows && !first && owned.shell !== null && owned.tty !== null)
+    return endedAttempt(attempt, owned.shell, owned.tty, readUntil);
   if (!first) return unverified('the session process could not be read');
   if (!controllingTerminal(first.tty)) return unverified('the session has no controlling terminal');
   const seen = new Map<number, string>();
