@@ -2,18 +2,42 @@
 {
   "schema": 1,
   "name": "keep-launch-variables-when-a-launch-moves-terminals",
-  "description": "A launch into an hc terminal lost the ADR-0024 variables, and a lab start through open gave the app every shell value, also a secret",
+  "description": "A launch into an hc terminal lost the ADR-0024 variables, a lab start through open gave the app every shell value, and a login shell of a new Herdr space ran the real host",
   "tags": [
     "platform-quirk",
     "regression",
     "process",
     "platform",
-    "test"
+    "test",
+    "e2e"
   ],
   "date": "2026-11-06",
   "status": "active",
-  "source": "Final review of ddinkov10/celetis#271 (implement step, Claude Code)\n\nTask 3 review of ddinkov10/celetis#232",
+  "source": "Task 1 of ddinkov10/celetis#141 (implement session, child t1-impl); recorded by the coordinator\n\nFinal review of ddinkov10/celetis#271 (implement step, Claude Code)\n\nTask 3 review of ddinkov10/celetis#232",
   "incidents": [
+    {
+      "id": "288b1628-5e8c-41dd-b3ea-20eab96a2b80",
+      "date": "2026-11-06",
+      "action": "The Task 1 implementer reused the #248 lab fixture after a check of its Git remotes only, and ran the cli.ts probe and one debug run in lab celetis-lab-c00d86.",
+      "expected": "Each session tab of the lab runs the synthetic host fx/bin/claude: the plan of #141 says that hosts are synthetic stand-ins and that no real Claude or Codex session runs.",
+      "observed": "The first session tab of each new Herdr space ran /Users/dinq/.local/bin/claude (Claude Code 2.1.318), three times (base #1, lane #1, one debug run). Each had CLAUDE_CONFIG_DIR=fx/claude-home with no credentials, stopped at the onboarding screen, wrote only fixture files, fetched the public changelog, and ended at hc kill. No account session ran. The probe saw only a timeout for the session of #1.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "27834 27808 S+ ttys002 /Users/dinq/.local/bin/claude --session-id e93399c3-… -n #1 plan … under the barrier …/engine/daemon.ts --session-start …; a space.new terminal printed PATH=/opt/homebrew/opt/ruby/bin:/Users/dinq/.local/bin:…:/private/tmp/celetis-141-checks/fx/bin:… and which=/Users/dinq/.local/bin/claude; its shell was /bin/zsh -lic \"$@\"; exec \"$0\" -li … under the lab hc hold.",
+        "reference": "ddinkov10/celetis#141 Task 1 report; lane evidence docs/superpowers/verification/141-t1/attempt-1/incident.txt"
+      },
+      "inference": "Inferred from the tool output: openTab makes the first tab of a missing space with herdr-app do space.new --argv; the lab app, started by scripts/herdr-lab.ts with only the lab keys, has SHELL=/bin/zsh and runs that argv through /bin/zsh -lic, and the login profile of the user puts ~/.local/bin before the fixture bin. Later tabs come from hc run with SHELL=fx/shell. The #248 probes have the same hazard; whether they started the real host is unknown. Whether scripts/herdr-lab.ts should give the app a fixture PATH is an open alternative.",
+      "diagnosis": [
+        "not-followed"
+      ],
+      "revision": "28439a99528bb53f75f29dd6c6123b2c423eb97a",
+      "brief": "The Task 1 brief carried check-retained-verification-fixtures-against-current-boundaries (compare the fixture topology and side effects) and keep-launch-variables-when-a-launch-moves-terminals; the worker compared the remote topology but not the host binary of an app-made tab.",
+      "lesson": {
+        "name": "check-retained-verification-fixtures-against-current-boundaries",
+        "revision": "28439a99528bb53f75f29dd6c6123b2c423eb97a",
+        "digest": "afab3339d2b5440c1e57d9bd8e6906a0b9d28211a83c6720dfe68f0ea58589d5"
+      }
+    },
     {
       "id": "9d3a6c2e-1f4b-4a8d-b7e5-3c2f1a9d8e64",
       "date": "2026-11-06",
@@ -66,7 +90,7 @@
       "revision": "ae60ba8b15b8d60498eeeb7b13ea4b073265b4ab"
     }
   ],
-  "recurrences": 2,
+  "recurrences": 3,
   "reviews": [
     {
       "id": "16ab5145-be94-4fce-b6b5-049bc72834c7",
@@ -96,6 +120,21 @@
         "state": "proposed",
         "detail": "Structural follow-up, which needs separate authorization: the earlier helper and verify-gate check for the ADR-0024 variables, and a lab check that starts each launcher of scripts/herdr-lab.ts with a sentinel in the calling shell and asserts that the started process lacks it."
       }
+    },
+    {
+      "id": "1d7049d0-70ff-497e-8c45-948c8c139f7f",
+      "requestDigest": "0f120d8175fc62611e47b5b16ef77476cc6cf61fe7698d3803ab4a7c50b2edf3",
+      "date": "2026-11-06",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #274; claude child opus/high\n\nMerge, under the reviewer rules: the proposal states the rule of the active lesson keep-launch-variables-when-a-launch-moves-terminals for one more launcher case, and its incident recurs the #236 incident of that lesson: the first terminal of a new Herdr space runs through the /bin/zsh -lic of the app, so a lab check reached a real host. The retained ps and PATH output establishes the incident: three app-made tabs ran ~/.local/bin/claude, with no credentials and no account session. The brief carried this lesson (diagnosis not-followed). The survivor keeps the active name and every incident and review, adds the login-shell case to the action and the check (resolve each command to the intended binary, make the Herdr space first, and confirm the host binary of each session tab), and labels the cause as inference with its alternatives. The lane scripts/herdr-lab.ts gives the lab app PATH and no SHELL, which agrees with that inference. The rule finds lab processes only by the environment token of match-process-tokens-only-in-the-environment and ends only lab PIDs; it grants no permission, adds no network or credential act, and weakens no check. It applies only to a check whose plan uses synthetic hosts, so it agrees with Host checks of AGENTS.md. The structural follow-up stays proposed.",
+      "related": [
+        "check-the-host-binary-of-each-lab-session-tab",
+        "keep-launch-variables-when-a-launch-moves-terminals"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "Structural follow-up, which needs separate authorization: scripts/herdr-lab.ts gives the lab app a SHELL or PATH that keeps the fixture hosts first, and a lab check starts one app-made tab and asserts that command -v claude is under the fixture bin. The earlier proposed follow-ups of this lesson stay as they are."
+      }
     }
   ]
 }
@@ -110,9 +149,13 @@ During #236 re-entry on 2026-11-05, two temporary native recovery probes repeate
 
 In #271 the effect was the opposite. Task 1 ran `open -n -g --env <lab keys> -a Herdr.app` with the full lab environment as the environment of `open`. The final review exported `CELETIS_SECRET_TOKEN=s3cr3tvalue`, ran `up`, and read `ps eww -p <appPid>`: the app held that secret, `CLAUDE_CODE_MESSAGING_TOKEN`, and every other value of the calling shell. The argv of `open` held no secret. The spec probe had checked only the keys that `labEnv` removes. After c0d6806, which spawns `open` with only the `appEnv` keys, the same probe gave `secret-in-env: 0`.
 
+In Task 1 of #141 on 2026-11-06, a reused lab fixture of #248 started the real Claude Code binary three times. The first session tab of each new Herdr space ran `~/.local/bin/claude` in place of the synthetic host of the fixture. The tab ran under `/bin/zsh -lic`, and a `space.new` terminal printed a `PATH` with `~/.local/bin` before the fixture `bin`. Each process had the fixture config folder with no credentials, stopped at the onboarding screen, wrote only fixture files, and fetched the public changelog. No account session ran. The probe reported only a session timeout. The task brief carried this lesson; the worker compared the Git remotes of the fixture, not the host binary of an app-made tab.
+
 ## Root cause
 
 Inference: each change took the environment of the started process to be the environment of the caller, or the argv alone. A launcher has its own environment semantics. `hc run` gives an explicit command the environment of the hc server, so a variable set only in the caller does not arrive. The Herdr app wraps raw argv with its own inherited shell and core environment. macOS `open` passes its own environment to the app that it starts, in addition to the `--env` values (inferred from #271; uncertain for other macOS versions). Alternatives: in #232 the plan author assumed that the login shell sets the variables; in #271 the spec probe could not see the leak, because the keys that it looked for were absent from the environment of `open` too.
+
+In #141, inferred from the tool output: `openTab` makes the first tab of a missing space with `herdr-app do space.new --argv`, and the lab app runs that argv through `/bin/zsh -lic`. The login profile of the user then puts `~/.local/bin` before the fixture `bin`, so a login shell inside a launcher changed the environment that the launcher had set, and the command name `claude` resolved to the real host. Later tabs come from `hc run` with the fixture shell, so they got the fake host. Uncertain: whether the #248 runs started the real host too, and whether `scripts/herdr-lab.ts` should give the lab app a fixture `SHELL` or `PATH`.
 
 ## Fix
 
@@ -120,16 +163,18 @@ Proposed prevention, not enforced: when a launch moves from a spawn with an `env
 
 For temporary Herdr verification, configure the lab core and app at startup, then confirm the actual terminal argv and native proxy/provider records before accepting any behavioral evidence. Proposed structural follow-up: make the temporary probe assert its expected native proxy start before waiting for recovery, and fail on a provider mismatch. This follow-up needs separate authorization for any reusable repository helper; no permanent check was added.
 
+For a lab check with synthetic hosts, proposed in #141 and not enforced: make the Herdr space first with a `/bin/sleep` tab, so that no session tab goes through `space.new`, and fail the probe at once when a lab process runs a real `claude` or `codex` binary. Find lab processes only by the lab token in the environment part of `ps eww`, never by the binary name, and end only lab tabs and recorded fake-host PIDs. A structural follow-up needs separate authorization: `scripts/herdr-lab.ts` could give the lab app a `SHELL` or `PATH` that keeps the fixture hosts first, with a check that starts one app-made tab and asserts that `command -v claude` is under the fixture `bin`.
+
 The rule stays text, because each launcher has its own environment semantics.
 
 ## Detection signature
 
-Bun cache files (`Library/Caches/bun/@t@/*.pile`) under the HOME of a server-like environment after a plugin launch; a launch argv that starts with `process.execPath` outside `spawn`/`run` with `childEnv`; a value of the calling shell, for example a token, in `ps eww` of a process that a launcher started.
+Bun cache files (`Library/Caches/bun/@t@/*.pile`) under the HOME of a server-like environment after a plugin launch; a launch argv that starts with `process.execPath` outside `spawn`/`run` with `childEnv`; a value of the calling shell, for example a token, in `ps eww` of a process that a launcher started; a session tab of a synthetic-host lab whose process runs a host binary outside the fixture `bin`, for example `~/.local/bin/claude`, or a lab session that ends only with a timeout.
 
 ## Rule
 
-Applies when a change or a temporary check starts plugin code, an agent, or an app through another process launcher (an hc terminal, a Herdr tab or app, `open`, launchd, a login shell, a scheduler). Action: set the environment of the started process explicitly, and do not assume what the launcher passes on. Carry every variable that the old launch or the caller set and that the process needs, in the argv or in the launcher's own configuration, and keep the ADR-0024 Bun variables: some launchers (hc, the Herdr app) do not pass on a variable set only in the caller. When code limits that environment, also give the launcher itself only the allowed values: some launchers (`open`) pass their own environment on to the started process. Check: read the environment in the started process, not in the caller. Run the new launch under an `env -i` server-like environment and confirm the variables in the child and no Bun cache file. When the environment is limited, export a sentinel value in the calling shell, start the process, and confirm in `ps eww` of the started process that the sentinel is absent. For a temporary check, read the actual terminal argv and the expected provider or proxy records before accepting its evidence.
+Applies when a change or a temporary check starts plugin code, an agent, or an app through another process launcher (an hc terminal, a Herdr tab or app, `open`, launchd, a login shell, a scheduler). Action: set the environment of the started process explicitly, and do not assume what the launcher passes on. Carry every variable that the old launch or the caller set and that the process needs, in the argv or in the launcher's own configuration, and keep the ADR-0024 Bun variables: some launchers (hc, the Herdr app) do not pass on a variable set only in the caller. When code limits that environment, also give the launcher itself only the allowed values: some launchers (`open`) pass their own environment on to the started process. A login shell inside a launcher (for example the first tab of a new Herdr space) can change that environment again from the profile of the user, for example the order of `PATH`: make each launch path resolve each command to the intended binary, and for a Herdr lab make the space first, so that no session tab goes through `space.new`. Check: read the environment in the started process, not in the caller. Run the new launch under an `env -i` server-like environment and confirm the variables in the child and no Bun cache file. When the environment is limited, export a sentinel value in the calling shell, start the process, and confirm in `ps eww` of the started process that the sentinel is absent. For a temporary check, read the actual terminal argv and the expected provider or proxy records before accepting its evidence. For a check with synthetic hosts, confirm for each session tab that its process runs a host binary under the fixture `bin`, and fail the check at once when a lab process, found only by the lab token in its environment, runs a host binary outside the fixture.
 
 ## Related lessons
 
-[[probe-real-tool-semantics-behind-fakes]]
+[[probe-real-tool-semantics-behind-fakes]] [[check-retained-verification-fixtures-against-current-boundaries]] [[match-process-tokens-only-in-the-environment]]

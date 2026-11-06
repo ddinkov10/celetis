@@ -17,6 +17,7 @@ Execute no recommended action and invoke no other skill. Goal: the invocation in
 | You want to… | Run |
 |---|---|
 | turn a raw product request into an intent in the product tracker | `/celetis:intake <text>` |
+| record a design, a root cause, or a plan that a chat decided, and continue its lane | `/celetis:capture <# or text>` in that chat |
 | file feedback about Celetis in `github.com/ddinkov10/celetis` | `/celetis:feedback <concern or conversation reference>`; files directly without another go-ahead |
 | find the lane of an issue whose type is unclear | `/celetis:triage <#>` |
 | add behavior the app lacks | `/celetis:feature <# or text>` |

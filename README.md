@@ -13,7 +13,7 @@ no immutable-resource or automatic skill-reload guarantee (ADR-0028). Desktop au
 
 The repository holds:
 
-- 33 skills: the lanes, the steps of a lane, the skills for review and memory, the engineering
+- 34 skills: the lanes, the steps of a lane, the skills for review and memory, the engineering
   principles, and the helpers ("The skills");
 - the scripts: the runner, the resolver, the landing script, the worktree script, the setup
   script, and the capability scorer ("The commands");
@@ -181,7 +181,7 @@ or the board's update control ("Updates").
    ```
 
    The install enables the plugin at the `user` scope, so each session of the machine loads it, in
-   each folder. A session in a project that is not wired also lists the 33 skills. Before its
+   each folder. A session in a project that is not wired also lists the 34 skills. Before its
    first step, each lane skill (`feature`, `bug`, `chore`, `hotfix`) runs
    `celetis --agent <host> setup status`. When the wiring is incomplete, the lane shows each gap
    and `Run /celetis:setup in the main checkout: <path>`, and stops before any issue, label,
@@ -921,6 +921,10 @@ host's skill selector. Native desktop selector acceptance is optional under
 - On a yes, `intake` hands on to `triage`, and `triage` hands on to the lane, so the first three
   rows can be one session. `plan` and `implement` each start in a fresh context, and each one reads
   the issue again.
+- A chat that already decided the work runs `/celetis:capture <#n or the request>` in that chat.
+  The record goes on the issue as a `## Captured` comment, and the current step reads it as your
+  answers and still runs each of its checks. A captured plan is converted by `/celetis:plan #<n>`
+  in a fresh context; on a `bug` issue, `bug` hands on to `plan` in the same session.
 - When you know the type, start the lane directly, with a number or with free text:
   `/celetis:bug the export stops on a report with no rows`.
 - A lane and each step after it work in the lane worktree of the issue,
@@ -1065,6 +1069,7 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | | [`/celetis:test-behavior-not-implementation`](skills/test-behavior-not-implementation/SKILL.md) | Checks required behavior through observable results |
 | **Helpers** | [`/celetis:prototype`](skills/prototype/SKILL.md) | Builds throwaway code that answers a design question: a logic demo in one HTML file, or the live prototype of a look decision, with a capture of each variant in each state on the issue. The options of a whole web or mobile screen and of a smaller web change come from `impeccable` |
 | | [`/celetis:feedback`](skills/feedback/SKILL.md) | Files safe conversation evidence as an Intent in `github.com/ddinkov10/celetis` with `needs-triage`. Only you can start it; it files directly and supports corrections in the same session |
+| | [`/celetis:capture`](skills/capture/SKILL.md) | Records a design, a root cause, or a plan that a chat decided as a `## Captured` comment, and hands on to the current step. Only you can start it |
 | | [`/celetis:accept-epic #<n>`](skills/accept-epic/SKILL.md) | Checks current parent acceptance and completes an epic when its evidence and children permit it. Only you can start it; it creates no lane or runner |
 | | [`/celetis:assist #<n>`](skills/assist/SKILL.md) | Completes permitted work for the current block, records verified completion, and clears the hold. It asks for missing human contributions and leaves continuation to the normal runner |
 | | [`/celetis:writing-for-agents`](skills/writing-for-agents/SKILL.md) | The reference for a document that an agent reads: a skill, or an `AGENTS.md` |
@@ -1092,7 +1097,7 @@ Each principle is also a native skill. An ordinary engineering task can select i
 by name without an issue, a lane, or project configuration. The normal entry contract applies.
 Each invocation reads its one canonical rule file.
 
-`feedback`, `guide`, `setup`, `create-verification`, and `maintain-verification` are explicit-only on both
+`capture`, `feedback`, `guide`, `setup`, `create-verification`, and `maintain-verification` are explicit-only on both
 hosts. Claude reads `disable-model-invocation: true`;
 Codex reads `policy.allow_implicit_invocation: false` in each skill's
 `agents/openai.yaml`. Guide reads its custom part and gives advice; it starts no

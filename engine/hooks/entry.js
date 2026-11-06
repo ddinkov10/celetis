@@ -6441,6 +6441,7 @@ var skills = [
   "attack-the-premise",
   "boundary-discipline",
   "bug",
+  "capture",
   "chore",
   "create-verification",
   "critic-loop",

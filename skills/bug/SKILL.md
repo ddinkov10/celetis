@@ -34,8 +34,11 @@ Only its exit 0 starts step 1.
    branch is `fix/<n>-<slug>`.
 3. **Explore project context.** Explore files, docs, recent commits, and read the project context
    per `<plugin>/docs/procedures/project-context.md`. Its traps are the constraints on the fix.
+   Read the issue per `<plugin>/docs/procedures/capture.md`, "A step with a record": the newest
+   `## Captured` comment holds the person's answers.
 4. **Invoke `superpowers:systematic-debugging`** — MANDATORY, no self-granted exemptions; the red
-   repro is the spec's repro. During diagnosis, after a substantive correction, after two failed
+   repro is the spec's repro. A captured root cause (step 3) is the first hypothesis, and the red
+   repro and the causal chain decide it, as the module of step 3 says. During diagnosis, after a substantive correction, after two failed
    fixes of the same problem, and before an existing repair limit stops work, apply
    `<plugin>/docs/procedures/lesson-capture.md`. Reuse a checkpoint already handled in the turn.
    After two failed fixes that share a premise, read
@@ -103,7 +106,9 @@ Only its exit 0 starts step 1.
    spec does not define behavior for every listed state, STOP and ask the user — present the states
    and the decision as concrete options. Do not ship a guessed default.
 
-   A bug that shows on screen asks the maintainer whether the fix needs a new look. First check
+   A bug that shows on screen asks the maintainer whether the fix needs a new look, unless a
+   `### Decided` line of the record (step 3) answers it: that line is the maintainer's answer, and
+   the session neither opens the screen for the question nor asks it. First check
    `<plugin>/docs/procedures/design.md`, "Can the session ask": a session that cannot ask stops
    there, before it opens the screen. Then open the failing screen live, by the row of its kind
    (`<plugin>/docs/procedures/ui.md`, "The platform rows"), give its URL or its command, and ask.

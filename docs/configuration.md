@@ -25,7 +25,7 @@ preference.
 An empty `board` mapping starts the automatic port search at 4403. An effective `PORT` takes
 precedence and requests one exact port ("Start the board").
 
-The allowed custom keys are `accept-epic`, `assist`, `attack-the-premise`, `boundary-discipline`, `bug`, `chore`,
+The allowed custom keys are `accept-epic`, `assist`, `attack-the-premise`, `boundary-discipline`, `bug`, `capture`, `chore`,
 `create-verification`,
 `critic-loop`, `doc-drift-sync`, `encode-lessons-in-structure`, `explain-the-number`, `feature`, `feedback`,
 `guide`, `hotfix`, `implement`, `intake`, `lesson`, `lesson-review`,
