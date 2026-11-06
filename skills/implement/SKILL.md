@@ -142,7 +142,7 @@ A FAIL starts a new scored `verify-<k>` task through the dispatch task loop abov
 
 ### Inline flow only
 
-**The verify gate of the project is the test command of `task-done`.** End each task with `scripts/task-done PLAN_FILE N BASE -- <the verify gate of the project>` of `superpowers:executing-plans`. A task is complete only when the gate passes. `task-done` runs the command with no shell. A gate that starts with variable assignments starts with `/usr/bin/env`. A gate with a shell operator (`&&`, `;`, a pipe, a redirection) runs as `/bin/sh -c '<the verify gate of the project>'`.
+**The verify gate of the project is the test command of `task-done`.** End each task with the helper `task-done` of `superpowers:executing-plans`, run as that skill says: by its absolute path in the folder of that skill, from the lane worktree, as `<the folder of that skill>/scripts/task-done PLAN_FILE N BASE -- <the verify gate of the project>`. The folder of that skill is the folder of its loaded `SKILL.md`. A task is complete only when the gate passes. `task-done` runs the command with no shell. A gate that starts with variable assignments starts with `/usr/bin/env`. A gate with a shell operator (`&&`, `;`, a pipe, a redirection) runs as `/bin/sh -c '<the verify gate of the project>'`.
 
 **A failed gate** goes to `superpowers:systematic-debugging`, a fix, and a new run of `task-done`. Nothing raises the model or the effort, because no child runs.
 
