@@ -103,10 +103,9 @@ export type RunState =
   | 'ending'
   | 'taken-over'
   | 'finished';
-export type Halt = Readonly<{ kind: 'signal'; status: number }> | Readonly<{ kind: 'detach' }>;
 export type Admission = Readonly<{ ok: true }> | Readonly<{ ok: false; line: string; code: number }>;
 export type RunEnd = Readonly<{ kind: 'closed' | 'gate' | 'stopped' | 'detached'; code: number; reason: string }>;
-export type RunHooks = Readonly<{ ready?: () => Promise<void>; removed?: () => void; fatal: () => void }>;
+export type RunHooks = Readonly<{ ready?: () => Promise<void>; removed: () => void; fatal: () => void }>;
 export type RunView = Readonly<{
   issue: number | null;
   numbers: readonly number[] | null;
@@ -123,7 +122,7 @@ export interface RunHandle {
   readonly admitted: Promise<Admission>;
   readonly done: Promise<RunEnd>;
   view(): RunView;
-  halt(reason: Halt): void;
+  detach(): void;
 }
 
 export const removed = 'the program version of this runner was removed after an update; start the runner again';
@@ -207,11 +206,10 @@ type Journal = (record: RunRecord) => Promise<void>;
 type Started = Readonly<{
   hooks: RunHooks;
   locks: LockOwner;
-  owned: boolean;
   filter: Filter;
   checkout?: CheckoutIdentity;
   tabs?: Tabs;
-  journal?: Journal;
+  journal: Journal;
   from?: RunRecord;
 }>;
 type Facts = NonNullable<RunRecord['session']>;
@@ -240,12 +238,11 @@ function handled<T>(work: Promise<T>): Promise<T> {
 export function createRun(
   place: Place,
   input: RunInput,
-  options: { hooks: RunHooks; locks?: LockOwner; journal?: Journal; from?: RunRecord },
+  options: { hooks: RunHooks; locks?: LockOwner; journal: Journal; from?: RunRecord },
 ): RunHandle {
   return begin(place, input, {
     hooks: options.hooks,
     locks: options.locks ?? createLockOwner(place.main),
-    owned: true,
     filter: { said: '', repeat: input.kind === 'auto' },
     journal: options.journal,
     from: options.from,
@@ -302,7 +299,6 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
   let tab = '';
   let unreleased = '';
   const tabs = options.tabs ?? { finished: '' };
-  let signalStatus = 0;
   const detach = new AbortController();
   const halt = new AbortController();
   const halted = new Promise<null>((done) => halt.signal.addEventListener('abort', () => done(null), { once: true }));
@@ -326,24 +322,22 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
   const mark = (next: RunState) => {
     shown = { ...shown, state: next, changedMs: Date.now() };
   };
+  let told: string | null = null;
   const say = (message: string) => {
     if (filter.repeat && message === filter.said) return false;
     filter.said = message;
-    console.log(`celetis-flow: ${message}`);
+    told = `celetis-flow: ${message}`;
+    console.log(told);
     return true;
   };
   const stopped = () => {
-    if (signalStatus || detach.signal.aborted) throw new HostError('', signalStatus);
-  };
-  const keepRecords = () => {
     if (detach.signal.aborted) throw new HostError('');
   };
-  // Only the daemon journals, and it outlives its runs; a detach keeps the owner records for the takeover.
-  const handOff = () => options.journal !== undefined && !detach.signal.aborted;
+  // A detach keeps the owner records for the next daemon.
+  const handOff = () => !detach.signal.aborted;
   let fact: RunRecord | null = from ?? null;
   let self: Identity | undefined;
   const note = async (change: Partial<RunRecord> = {}) => {
-    if (!options.journal) return;
     if (!self?.start) self = { pid: process.pid, start: await processStart(process.pid) };
     fact = {
       ...(fact ?? {
@@ -377,7 +371,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     await options.journal(fact);
   };
   const noteBarrier = async (barrier: Identity, startedMs: number, change: Partial<RunRecord> = {}) => {
-    if (!options.journal || !fact?.session) return;
+    if (!fact?.session) return;
     const row = (await processTable())?.find((each) => each.pid === barrier.pid);
     await note({
       ...change,
@@ -397,16 +391,13 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     const same = recorded?.pid === barrier.pid && recorded.start === barrier.start;
     return { ...barrier, terminal, shell: same ? recorded.shell : null, tty: same ? recorded.tty : null };
   };
-  const removal = async (line: string) => {
-    if (hooks.removed) {
-      hooks.removed();
-      await halted;
-      stopped();
-    }
-    say(line);
+  const removal = async () => {
+    hooks.removed();
+    await halted;
+    stopped();
   };
   const saveQueue = async (change: Partial<QueueRecord>) => {
-    keepRecords();
+    stopped();
     if (queue === null) throw new HostError('celetis-flow: queue: no submitted queue', 2);
     const expected = queue;
     try {
@@ -585,7 +576,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     let retained: TurnKey | null = null;
     while (!abort.aborted && (await waitTerminal(terminal, 60, abort))) {
       if (await gone(root)) {
-        await removal(`#${n}: ${removed}`);
+        await removal();
         return;
       }
       const observed = await sessionTurn(id, record.host, startedMs, abort);
@@ -698,9 +689,9 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     const unstarted = async () => {
       if (!detach.signal.aborted) return;
       await note({ session: null });
-      keepRecords();
+      stopped();
     };
-    keepRecords();
+    stopped();
     const opening: Facts = { ...facts, folder: dir, terminal: null, tab, barrier: null, startedMs: null };
     await note({ session: opening });
     await unstarted();
@@ -779,10 +770,10 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
   };
   const sessionEnd = async (ended: Promise<number | null>) => {
     const code = await Promise.race([ended, halted]);
-    if (!signalStatus && !detach.signal.aborted) return code;
+    if (!detach.signal.aborted) return code;
     // The released barrier can still be waiting to read go in the start folder.
     watchDir = '';
-    throw new HostError('', signalStatus);
+    throw new HostError('');
   };
   const normalEnd = (code: number | null) => {
     if (code === 0) tabs.finished = terminal;
@@ -857,14 +848,13 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       }
       await noteLoop({ issue, lock: `issue-${n}`, request: request ?? null });
     }
-    admit({ ok: true });
     const runner = { pid: process.pid, start: await processStart(process.pid) };
     const saveRecovery = async (
       authority: RecoveryAuthority,
       choice: AgentChoice,
       change: (current: QuotaRecovery) => QuotaRecovery,
     ) => {
-      keepRecords();
+      stopped();
       recovery = await updateRecovery(main, issue, (current) =>
         change(
           current ?? {
@@ -892,7 +882,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       );
     };
     const endRecovery = async () => {
-      keepRecords();
+      stopped();
       if (recovery) await updateRecovery(main, issue, () => null);
       recovery = null;
       retrying = false;
@@ -906,6 +896,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       nextResetAt: number | null,
       kept: RunRecord['wait'] = null,
     ) => {
+      admit({ ok: true });
       const waitId = kept?.waitId ?? randomUUID();
       if (!kept)
         await saveRecovery(authority, choice, (current) => ({
@@ -1127,7 +1118,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     };
     try {
       if (!from || (from.phase === 'before' && from.record.wait === null)) {
-        keepRecords();
+        stopped();
         await updateRecovery(main, issue, () => null);
       } else recovery = await adoptRecovery();
       const session = from?.record.session;
@@ -1148,7 +1139,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       for (;;) {
         stopped();
         if (await gone(root)) {
-          await removal(`#${n}: ${removed}`);
+          await removal();
           return outcome('stopped', removed, 'Start the runner again.');
         }
         const current = nextOperation();
@@ -1235,7 +1226,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         }
         const stepHost = decision.host;
         const prepared = await preflight(async () => {
-          keepRecords();
+          stopped();
           await requireStart(stepHost, current.checkout.cwd);
           const pluginRoot = await (await import('../update.ts')).requireSameRevision(stepHost, main, root);
           if ((await gone(root)) || !(await stat(join(root, 'step-prompt.md')).catch(() => null))?.isFile())
@@ -1255,10 +1246,10 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
           );
           return { args, applied, model, ...chosen };
         });
-        keepRecords();
+        stopped();
         first = 'gated';
         if (prepared === null) {
-          await removal(`#${n}: ${removed}`);
+          await removal();
           return outcome('stopped', removed, 'Start the runner again.');
         }
         const { args, applied, model } = prepared;
@@ -1308,6 +1299,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         };
         let ticket: UsageTicket | undefined;
         let begun: Awaited<ReturnType<typeof startSession>>;
+        admit({ ok: true });
         try {
           begun = await startSession(n, step, stepHost, sessionArgs, !quiet, facts, attempt.id, retrying, async () => {
             ticket = await beginUsageAttempt(common, attempt);
@@ -1348,7 +1340,6 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       if (holder !== null) die(`another celetis-flow.ts or its session (PID ${holder}) works on #${n}`);
       await note({ issue: n, lock: `issue-${n}` });
     }
-    admit({ ok: true });
     const session = from?.record.session;
     let code: number | null;
     if (session?.barrier && (from?.phase === 'live' || from?.phase === 'ended')) {
@@ -1363,11 +1354,12 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       operation = createOperation(checkout, { ...selection, saved: saved.host }, 'main');
       const host = operation.host;
       await preflight(async () => {
-        keepRecords();
+        stopped();
         await requireStart(host, operation.checkout.cwd);
       });
-      keepRecords();
+      stopped();
       if (!from) await hooks.ready?.();
+      admit({ ok: true });
       const { ended, barrier } = await startSession(String(n), saved.step, host, resumeArguments(saved), true, {
         step: saved.step,
         host,
@@ -1385,17 +1377,17 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       code = await sessionEnd(ended);
     }
     normalEnd(code);
-    return { kind: 'stopped', code: signalStatus || (code === null ? 1 : passOn(code)), reason: '' };
+    return { kind: 'stopped', code: code === null ? 1 : passOn(code), reason: '' };
   };
   const queueRun = async (claim: Readonly<{ id: string; token: string }>): Promise<RunEnd> => {
     operation = createOperation(checkout, selection, 'main');
-    keepRecords();
+    stopped();
     const holder = await locks.take('queue');
     if (holder !== null) throw new HostError('queue: another runner owns this work', 2);
     queue = await updateQueue(
       main,
       async (current) => {
-        keepRecords();
+        stopped();
         if (!current || current.id !== claim.id || current.launch?.token !== claim.token)
           throw new HostError('queue: stale launch token; no session started', 2);
         if (!current.choice) throw new HostError('queue: no recorded agent choice', 2);
@@ -1414,7 +1406,6 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         ? { step: authorization.step, retry: authorization.retry }
         : undefined;
     await note({ issue: queue.numbers[0] ?? null, request: request ?? null });
-    admit({ ok: true });
     shown = { ...shown, numbers: queue.numbers };
     const pinned = explicitHost(queue.choice);
     selection = pinned === null ? {} : { saved: pinned };
@@ -1527,11 +1518,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     return runIssue(String(n), first, undefined, undefined, override);
   };
   const queueFailure = async (error: unknown): Promise<RunEnd> => {
-    const reason = signalStatus
-      ? `queue: interrupted with status ${signalStatus}; use Try again after the foreground exits`
-      : error instanceof Error
-        ? error.message
-        : String(error);
+    const reason = error instanceof Error ? error.message : String(error);
     if (queueWritable && !storageFailed) {
       await closeTabs();
       try {
@@ -1544,20 +1531,26 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
           act: 'Fix the cause, then use Try again for the displayed step.',
         });
       } catch (failure) {
-        console.error((failure as Error).message);
-        return { kind: 'stopped', code: 1, reason: (failure as Error).message };
+        told = (failure as Error).message;
+        console.error(told);
+        return { kind: 'stopped', code: 1, reason: told };
       }
-      if (reason) console.error(reason);
-      if (!signalStatus)
-        recordEvent({
-          name: 'queue-error',
-          message: reason,
-          issue: queue?.numbers[0] ?? null,
-          error: error instanceof HostError ? undefined : error,
-        });
-      return { kind: 'stopped', code: signalStatus || 0, reason };
+      if (reason) {
+        told = reason;
+        console.error(reason);
+      }
+      recordEvent({
+        name: 'queue-error',
+        message: reason,
+        issue: queue?.numbers[0] ?? null,
+        error: error instanceof HostError ? undefined : error,
+      });
+      return { kind: 'stopped', code: 0, reason };
     }
-    if (reason) console.error(reason);
+    if (reason) {
+      told = reason;
+      console.error(reason);
+    }
     markDefect(error);
     return { kind: 'stopped', code: error instanceof HostError ? error.code : 1, reason };
   };
@@ -1690,7 +1683,10 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       if (detach.signal.aborted && error instanceof HostError) return { kind: 'detached', code: 0, reason: '' };
       if (input.kind === 'queue') return await queueFailure(error);
       if (error instanceof HostError) {
-        if (error.message) console.error(error.message);
+        if (error.message) {
+          told = error.message;
+          console.error(told);
+        }
         return { kind: 'stopped', code: error.code, reason: error.message };
       }
       throw error;
@@ -1702,14 +1698,14 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       else await closeTabs();
       if (watchDir) await rm(watchDir, { recursive: true, force: true });
       await clearStepEnd();
-      if (options.owned) await locks.releaseAll(handOff());
+      await locks.releaseAll(handOff());
       mark('finished');
     }
   };
   const ended = handled(
     work().then(
       (end) => {
-        admit({ ok: false, line: end.reason, code: end.code });
+        admit({ ok: false, line: told ?? end.reason, code: end.code });
         return { end, started: issueStarted };
       },
       (error: unknown) => {
@@ -1724,12 +1720,10 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     admitted,
     done: handled(ended.then((each) => each.end)),
     view: () => Object.freeze({ ...shown }),
-    halt(reason) {
-      if (reason.kind === 'detach') detach.abort();
-      else signalStatus = reason.status;
+    detach() {
+      detach.abort();
       watcher?.abort();
       halt.abort();
-      if (reason.kind === 'signal') void clearStepEnd();
     },
   };
   return { handle, settled: ended };
@@ -1740,12 +1734,11 @@ export function autoLoop(
   input: { selection: HostSelection; quiet: boolean },
   options: {
     hooks: RunHooks;
-    shared: boolean;
     active: () => boolean;
     signal: AbortSignal;
-    launch?: <T extends Readonly<{ handle: RunHandle }>>(start: () => T) => T;
+    launch: <T extends Readonly<{ handle: RunHandle }>>(start: () => T) => T;
     leaving?: () => void;
-    journal?: Journal;
+    journal: Journal;
   },
 ): { admitted: Promise<Admission>; done: Promise<number> } {
   const { main, common, root } = place;
@@ -1779,13 +1772,9 @@ export function autoLoop(
       admit({ ok: true });
       while (running()) {
         if (await gone(root)) {
-          if (hooks.removed) {
-            hooks.removed();
-            await aborted;
-            return 0;
-          }
-          say(`stop ${removed}`);
-          return 1;
+          hooks.removed();
+          await aborted;
+          return 0;
         }
         const current = initial ?? fresh();
         initial = undefined;
@@ -1816,15 +1805,14 @@ export function autoLoop(
                 { kind: 'auto', number: pick, selection: input.selection, quiet: input.quiet },
                 {
                   hooks: { removed: hooks.removed, fatal: hooks.fatal },
-                  locks: options.shared ? locks : createLockOwner(main),
-                  owned: !options.shared,
-                  filter: options.shared ? filter : { said: '', repeat: true },
+                  locks: createLockOwner(main),
+                  filter: { said: '', repeat: true },
                   checkout,
                   tabs,
                   journal: options.journal,
                 },
               );
-            const run = options.launch ? options.launch(start) : start();
+            const run = options.launch(start);
             const result = await run.settled;
             if (result.end.code !== 0) return result.end.code;
             started = result.started;

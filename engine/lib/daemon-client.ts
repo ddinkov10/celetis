@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import {
   type DaemonAnswer,
   type DaemonIdentity,
@@ -8,9 +9,11 @@ import {
   parseAnswer,
   parseIdentity,
   parseStatus,
+  type Selection,
 } from './daemon-types.ts';
-import { HostError } from './host.ts';
+import { HostError, selectHost } from './host.ts';
 import { processScript, processState } from './process-identity.ts';
+import { programRevision } from './program.ts';
 
 export type Found =
   | Readonly<{ kind: 'none' }>
@@ -82,4 +85,52 @@ export async function readStatus(common: string, signal?: AbortSignal): Promise<
   if (response.status !== 200)
     throw new HostError(`daemon: the daemon answered status ${response.status} to the status request`, 6);
   return parseStatus(value);
+}
+
+export const shortRevision = (revision: string) => revision.slice(0, 12);
+
+export function requestSelection(explicit: string | undefined): Selection {
+  const environment = process.env.CELETIS_AGENT;
+  return {
+    ...(explicit === undefined ? {} : { explicit: selectHost(explicit) }),
+    ...(environment === undefined ? {} : { environment }),
+  };
+}
+
+type Prefix = 'celetis-flow' | 'daemon';
+
+export async function requireDaemon(common: string, prefix: Prefix): Promise<DaemonIdentity> {
+  if (process.platform === 'win32') throw new HostError(`${prefix}: Windows is not a support target`, 2);
+  const found = await findDaemon(common);
+  if (found.kind === 'none')
+    throw new HostError(`${prefix}: no daemon runs for this repository; start it: celetis daemon start`, 3);
+  if (found.kind === 'unknown')
+    throw new HostError(
+      `${prefix}: the daemon of this repository does not answer: ${found.reason}; read celetis daemon status`,
+      6,
+    );
+  const own = await programRevision(resolve(import.meta.dir, '../..'));
+  if (own !== found.identity.revision)
+    throw new HostError(
+      `${prefix}: the daemon runs the program at ${shortRevision(found.identity.revision)} and this program is at ${shortRevision(own)}; restart it: celetis daemon stop, then celetis daemon start`,
+      1,
+    );
+  return found.identity;
+}
+
+export async function askDaemon(
+  common: string,
+  request: Exclude<DaemonRequest, { kind: 'status' | 'stop' }>,
+  prefix: Prefix,
+): Promise<Readonly<{ identity: DaemonIdentity; answer: DaemonAnswer }>> {
+  const identity = await requireDaemon(common, prefix);
+  try {
+    return { identity, answer: await sendRequest(common, request, AbortSignal.timeout(120_000)) };
+  } catch (error) {
+    if (!(error instanceof HostError)) throw error;
+    throw new HostError(
+      `${prefix}: the outcome of the request is unknown: ${error.message}; read celetis daemon status`,
+      6,
+    );
+  }
 }

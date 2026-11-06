@@ -2,7 +2,15 @@ import { spawn } from 'node:child_process';
 import { closeSync, openSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { type Found, findDaemon, readStatus, sendRequest } from './lib/daemon-client.ts';
+import {
+  askDaemon,
+  type Found,
+  findDaemon,
+  readStatus,
+  requestSelection,
+  sendRequest,
+  shortRevision,
+} from './lib/daemon-client.ts';
 import { type DaemonIdentity, daemonPaths, type RunRow } from './lib/daemon-types.ts';
 import { installRecorder } from './lib/events.ts';
 import { HostError, requireBun } from './lib/host.ts';
@@ -12,10 +20,9 @@ import { processState } from './lib/process-identity.ts';
 import { programRevision } from './lib/program.ts';
 import { requireTerminals, TerminalError } from './lib/terminal.ts';
 
-const usage = 'usage: celetis daemon start | status | stop';
+const usage = 'usage: celetis daemon start | status | stop | auto on|off';
 const noDaemon = 'daemon: no daemon runs for this repository';
 const root = dirname(import.meta.dir);
-const short = (revision: string) => revision.slice(0, 12);
 
 function answerless(found: Extract<Found, { kind: 'unknown' }>): HostError {
   return new HostError(`daemon: the daemon of this repository does not answer: ${found.reason}`, 6);
@@ -23,8 +30,10 @@ function answerless(found: Extract<Found, { kind: 'unknown' }>): HostError {
 
 async function runsLine(identity: DaemonIdentity): Promise<string> {
   const revision = await programRevision(root);
-  const line = `daemon: a daemon of this repository runs: PID ${identity.pid} at ${short(identity.revision)}`;
-  return revision === identity.revision ? line : `${line}; this program is at ${short(revision)}; it was not replaced`;
+  const line = `daemon: a daemon of this repository runs: PID ${identity.pid} at ${shortRevision(identity.revision)}`;
+  return revision === identity.revision
+    ? line
+    : `${line}; this program is at ${shortRevision(revision)}; it was not replaced`;
 }
 
 async function requireStart(): Promise<void> {
@@ -112,9 +121,29 @@ async function status(common: string): Promise<number> {
     throw new HostError(error.message, 6);
   }
   const { daemon } = report;
-  console.log(`daemon: PID ${daemon.pid} at ${short(daemon.revision)}, main ${daemon.main}, socket ${daemon.socket}`);
+  console.log(
+    `daemon: PID ${daemon.pid} at ${shortRevision(daemon.revision)}, main ${daemon.main}, socket ${daemon.socket}`,
+  );
   console.log(`daemon: automatic runner ${report.auto}`);
   for (const row of report.runs) console.log(rowLine(row));
+  return 0;
+}
+
+async function auto(common: string, on: boolean, explicit: string | undefined): Promise<number> {
+  const selection = requestSelection(explicit);
+  const { answer } = await askDaemon(common, { kind: 'auto', on, selection, quiet: false }, 'daemon');
+  if (!answer.accepted) {
+    (answer.code === 0 ? console.log : console.error)(answer.line);
+    return answer.code;
+  }
+  let report: Awaited<ReturnType<typeof readStatus>>;
+  try {
+    report = await readStatus(common);
+  } catch (error) {
+    if (!(error instanceof HostError)) throw error;
+    throw new HostError(error.message, 6);
+  }
+  console.log(`daemon: automatic runner ${report.auto}`);
   return 0;
 }
 
@@ -147,10 +176,15 @@ async function stop(common: string): Promise<number> {
 
 export async function main(argv: string[]): Promise<number> {
   try {
-    const { args } = commandInput(argv);
+    const { args, explicit } = commandInput(argv);
     if (process.platform === 'win32') throw new HostError('daemon: Windows is not a support target', 2);
     const form = args[0];
-    if (args.length !== 1 || (form !== 'start' && form !== 'status' && form !== 'stop')) {
+    const word = form === 'auto' ? args[1] : undefined;
+    const valid =
+      form === 'auto'
+        ? args.length === 2 && (word === 'on' || word === 'off')
+        : args.length === 1 && (form === 'start' || form === 'status' || form === 'stop');
+    if (!valid) {
       console.error(usage);
       return 2;
     }
@@ -159,6 +193,7 @@ export async function main(argv: string[]): Promise<number> {
       throw new HostError('daemon: this folder is no Git checkout', 2);
     if (form === 'start') return await start(checkout.common, checkout.main);
     if (form === 'status') return await status(checkout.common);
+    if (form === 'auto') return await auto(checkout.common, word === 'on', explicit);
     return await stop(checkout.common);
   } catch (error) {
     if (!(error instanceof HostError)) throw error;

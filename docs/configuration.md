@@ -327,8 +327,9 @@ fixed argv with its command: a Run, an Open agent, a Make visual, or a queue act
 choice has no `--agent`, an explicit Run choice adds `--agent <agent>`, and Resume has no agent
 and uses the saved host. The `--agent` and `CELETIS_AGENT` of the board start select only the host
 of the board command; they do not pin a default start. No board config file is made. The board checks concrete replacement-policy conflicts at its
-start only; each Run and Resume checks them again in its own process. It can
-remain open during a manual update. After `celetis update`, Run and Resume need no board restart;
+start only; the daemon run of each Run and Resume checks them again. It can
+remain open during a manual update. After `celetis update` and a restart of the daemon, Run and
+Resume need no board restart;
 new board code still needs a restart. The agent order of the footer reads and replaces the local
 order through the `agents` command, with the version that it read; a stale version returns the
 current order and writes nothing. A board Run choice applies only to that start; Resume

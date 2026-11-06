@@ -1,15 +1,19 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, rename, stat, writeFile } from 'node:fs/promises';
-import { constants } from 'node:os';
-import { dirname, isAbsolute, join } from 'node:path';
+import { rename, stat, writeFile } from 'node:fs/promises';
+import { isAbsolute, join } from 'node:path';
+import type { DaemonRequest } from './lib/daemon-types.ts';
 import type { Level } from './lib/effort.ts';
 import type { LockOwner } from './lib/locks.ts';
 import type { HostSelection } from './lib/operation.ts';
-import type { QueueAction, QueueWake } from './lib/queue-types.ts';
-import type { Place, RunHandle } from './lib/run-engine.ts';
+import type { QueueAction, QueueRecord } from './lib/queue-types.ts';
+
+type QueueForm =
+  | { command: 'status' }
+  | { command: 'action' | 'admit'; action: QueueAction }
+  | { command: 'run'; id: string; token: string };
 
 const usage =
-  "usage: celetis --agent <host> celetis-flow [<issue number> [--effort low|medium|high|xhigh|max]] [--quiet] | --resume <issue number> | --queue action '<QueueAction JSON>' | --queue status | --retry <issue number> <wait id>; with no number, the automatic runner; --quiet opens each session tab in the background";
+  "usage: celetis --agent <host> celetis-flow <issue number> [--effort low|medium|high|xhigh|max] [--quiet] | --resume <issue number> | --queue action '<QueueAction JSON>' | --queue status | --retry <issue number> <wait id>; each form sends one request to the master daemon of this repository and returns; --quiet opens each session tab of the start in the background; the automatic runner: celetis daemon auto on|off";
 // The bootstrap loads no module, so it keeps its own copy of `removed` of lib/run-engine.ts.
 const removed = 'the program version of this runner was removed after an update; start the runner again';
 const here = import.meta.dir;
@@ -106,29 +110,27 @@ export async function main(argv: string[]): Promise<number> {
   } else if (argv[0] === '--agent') argv = argv.slice(2);
   const quiet = argv.includes('--quiet');
   if (quiet) argv = argv.toSpliced(argv.indexOf('--quiet'), 1);
-  let mode: 'numbers' | 'auto' | 'resume' | 'queue' | 'retry' = 'numbers';
+  let mode: 'numbers' | 'resume' | 'queue' | 'retry' = 'numbers';
   let numbers: string[] = [];
-  let action: QueueAction | undefined;
-  let queueCommand = '';
-  let wake: QueueWake | undefined;
-  let claim: { id: string; token: string } | undefined;
+  let form: QueueForm | undefined;
   let waitId = '';
   let override: Level | undefined;
   if (argv[0] === '--queue' && !unavailable) {
     try {
       const { parseQueueAction } = await import('./lib/queue.ts');
-      queueCommand = argv[1] ?? '';
-      if ((queueCommand === 'action' || queueCommand === 'admit') && argv.length === 3)
-        action = parseQueueAction(JSON.parse(argv[2] as string));
+      const command = argv[1];
+      if ((command === 'action' || command === 'admit') && argv.length === 3)
+        form = { command, action: parseQueueAction(JSON.parse(argv[2] as string)) };
       else if (
-        queueCommand === 'run' &&
+        command === 'run' &&
         argv.length === 4 &&
         argv
           .slice(2)
           .every((value) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value))
-      ) {
-        claim = { id: argv[2] as string, token: argv[3] as string };
-      } else if (queueCommand !== 'status' || argv.length !== 2) throw new Error(usage);
+      )
+        form = { command, id: argv[2] as string, token: argv[3] as string };
+      else if (command === 'status' && argv.length === 2) form = { command };
+      else throw new Error(usage);
       mode = 'queue';
     } catch {
       console.error(usage);
@@ -141,8 +143,7 @@ export async function main(argv: string[]): Promise<number> {
   } else if (argv.length === 2 && argv[0] === '--resume') {
     mode = 'resume';
     numbers = [(argv[1] ?? '').replace(/^#/, '')];
-  } else if (!argv.length) mode = 'auto';
-  else {
+  } else {
     const at = argv.indexOf('--effort');
     if (at !== -1) {
       const level = argv[at + 1];
@@ -164,122 +165,91 @@ export async function main(argv: string[]): Promise<number> {
   }
   if (unavailable) {
     if (mode === 'numbers') {
-      for (const n of numbers) console.log(`celetis-flow: #${n}: ${removed}`);
+      console.log(`celetis-flow: #${numbers[0]}: ${removed}`);
       return 0;
     }
-    if (mode === 'resume' || mode === 'retry') console.error(`celetis-flow: ${removed}`);
-    else console.log(`celetis-flow: stop ${removed}`);
+    console.error(`celetis-flow: ${removed}`);
     return 1;
   }
   const { markDefect } = await import('./lib/events.ts');
   const { HostError, requireBun, selectHost } = await import('./lib/host.ts');
+  const { askDaemon, requestSelection, requireDaemon } = await import('./lib/daemon-client.ts');
   const { createLockOwner } = await import('./lib/locks.ts');
   const { createOperation, locateCheckouts } = await import('./lib/operation.ts');
   const { explicitHost, readQueue, readQueueView, requireQueueChoice } = await import('./lib/queue.ts');
-  const { retryQuota } = await import('./lib/quota-recovery.ts');
   const { admitQueue } = await import('./lib/queue-actions.ts');
-  const { autoLoop, createRun, requireSetup } = await import('./lib/run-engine.ts');
-  let selection: HostSelection = { explicit, environment: process.env.CELETIS_AGENT };
-  let signalStatus = 0;
-  const handlers = new Map<NodeJS.Signals, () => void>();
-  const setup = (place: Place, gh: boolean, halt: (status: number) => void) => async () => {
-    await requireSetup(gh);
-    await mkdir(place.state, { recursive: true, mode: 0o700 });
-    for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
-      const handler = () => {
-        signalStatus = 128 + constants.signals[signal];
-        halt(signalStatus);
-      };
-      handlers.set(signal, handler);
-      process.on(signal, handler);
-    }
-  };
-  const fatal = () => process.exit(1);
   try {
     requireBun();
     const checkout = await locateCheckouts(process.cwd());
     if (checkout.main === null || checkout.common === null) throw new HostError('celetis: need a Git checkout', 2);
     const { main, common } = checkout;
-    const place: Place = { main, common, state: join(common, 'celetis-flow'), root: dirname(here) };
-    if (mode === 'retry') {
-      await retryQuota(main, Number(numbers[0]), waitId);
-      console.log(`celetis-flow: #${numbers[0]}: Retry requested; the waiting runner starts one bounded attempt cycle`);
-      return 0;
-    }
-    if (mode === 'queue') {
-      const queue = await readQueue(main, common, createLockOwner(main));
-      if (queue?.choice && action?.kind !== 'add') {
-        const requested = selection.explicit ?? selection.environment;
-        if (queueCommand !== 'status' && requested !== undefined) {
-          try {
-            requireQueueChoice(queue.choice, { kind: 'explicit', host: selectHost(requested) });
-          } catch (cause) {
-            throw new HostError((cause as Error).message, 2);
-          }
-        }
-        const pinned = explicitHost(queue.choice);
-        selection = pinned === null ? {} : { saved: pinned };
+    const requested = requestSelection(explicit);
+    const ask = async (request: Exclude<DaemonRequest, { kind: 'status' | 'stop' | 'auto' }>, subject: string) => {
+      const { identity, answer } = await askDaemon(common, request, 'celetis-flow');
+      if (!answer.accepted) {
+        (answer.code === 0 ? console.log : console.error)(answer.line);
+        return answer.code;
       }
-      const operation = createOperation(checkout, selection, 'main');
-      if (queueCommand === 'status') {
-        console.log(JSON.stringify(await readQueueView(operation)));
+      if (request.kind === 'retry') {
+        console.log(`celetis-flow: ${subject}: Retry requested; the waiting runner starts one bounded attempt cycle`);
         return 0;
       }
-      if (action) {
-        const receipt = await admitQueue(operation, action);
-        if (queueCommand === 'admit') {
-          console.log(JSON.stringify(receipt));
-          return 0;
+      if (answer.run === null)
+        throw new HostError(
+          'celetis-flow: the outcome of the request is unknown: daemon: the daemon sent no run ID; read celetis daemon status',
+          6,
+        );
+      console.log(
+        `celetis-flow: ${subject}: accepted as run ${answer.run.slice(0, 8)} of the daemon PID ${identity.pid}; read its progress: celetis daemon status`,
+      );
+      return 0;
+    };
+    const number = Number(numbers[0]);
+    if (mode === 'retry') return await ask({ kind: 'retry', number, waitId }, `#${number}`);
+    if (mode === 'resume') return await ask({ kind: 'resume', number, selection: requested }, `#${number}`);
+    if (form === undefined)
+      return await ask({ kind: 'run', number, selection: requested, effort: override ?? null, quiet }, `#${number}`);
+    const queue = await readQueue(main, common, createLockOwner(main));
+    let selection: HostSelection = { explicit, environment: process.env.CELETIS_AGENT };
+    const adding = (form.command === 'action' || form.command === 'admit') && form.action.kind === 'add';
+    if (queue?.choice && !adding) {
+      const named = selection.explicit ?? selection.environment;
+      if (form.command !== 'status' && named !== undefined) {
+        try {
+          requireQueueChoice(queue.choice, { kind: 'explicit', host: selectHost(named) });
+        } catch (cause) {
+          throw new HostError((cause as Error).message, 2);
         }
-        if (!receipt.wake) {
-          console.log(JSON.stringify(receipt.view));
-          return 0;
-        }
-        wake = receipt.wake;
       }
-      const pending = wake ?? claim;
-      const run: RunHandle = createRun(
-        place,
-        { kind: 'queue', id: pending?.id ?? '', token: pending?.token ?? '', selection, quiet },
-        { hooks: { ready: setup(place, true, (status) => run.halt({ kind: 'signal', status })), fatal } },
-      );
-      return (await run.done).code;
+      const pinned = explicitHost(queue.choice);
+      selection = pinned === null ? {} : { saved: pinned };
     }
-    if (mode === 'resume' || mode === 'numbers') {
-      const number = Number(numbers[0]);
-      const run: RunHandle = createRun(
-        place,
-        mode === 'resume'
-          ? { kind: 'resume', number, selection }
-          : { kind: 'number', number, selection, effort: override ?? null, quiet },
-        { hooks: { ready: setup(place, mode === 'numbers', (status) => run.halt({ kind: 'signal', status })), fatal } },
-      );
-      return (await run.done).code;
+    const operation = createOperation(checkout, selection, 'main');
+    const subject = (record: QueueRecord | null) =>
+      record?.numbers[0] === undefined ? 'queue' : `#${record.numbers[0]}`;
+    if (form.command === 'status') {
+      console.log(JSON.stringify(await readQueueView(operation)));
+      return 0;
     }
-    const stop = new AbortController();
-    let current: RunHandle | undefined;
-    const loop = autoLoop(
-      place,
-      { selection, quiet },
-      {
-        hooks: {
-          ready: setup(place, true, (status) => {
-            current?.halt({ kind: 'signal', status });
-            stop.abort();
-          }),
-          fatal,
-        },
-        shared: true,
-        active: () => true,
-        signal: stop.signal,
-        launch: (start) => {
-          const run = start();
-          current = run.handle;
-          return run;
-        },
-      },
+    if (form.command === 'run')
+      return await ask({ kind: 'queue', id: form.id, token: form.token, selection: requested, quiet }, subject(queue));
+    const { action } = form;
+    if (
+      form.command === 'action' &&
+      (action.kind === 'continue' || action.kind === 'retry' || (action.kind === 'add' && !queue?.numbers.length))
+    )
+      await requireDaemon(common, 'celetis-flow');
+    const receipt = await admitQueue(operation, action);
+    if (form.command === 'admit') {
+      console.log(JSON.stringify(receipt));
+      return 0;
+    }
+    console.log(JSON.stringify(receipt.view));
+    if (!receipt.wake) return 0;
+    return await ask(
+      { kind: 'queue', id: receipt.wake.id, token: receipt.wake.token, selection: requested, quiet },
+      subject(receipt.view.record),
     );
-    return (await loop.done) || signalStatus;
   } catch (error) {
     if (mode === 'queue') {
       const reason = error instanceof Error ? error.message : String(error);
@@ -292,8 +262,6 @@ export async function main(argv: string[]): Promise<number> {
       return error.code;
     }
     throw error;
-  } finally {
-    for (const [signal, handler] of handlers) process.off(signal, handler);
   }
 }
 

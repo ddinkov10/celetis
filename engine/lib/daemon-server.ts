@@ -25,6 +25,7 @@ import { privateFolderSync, privateRoot, sharedFolderSync } from './private-fold
 import { processStart, processState } from './process-identity.ts';
 import { programRevision } from './program.ts';
 import { explicitHost, readQueue, requireQueueChoice } from './queue.ts';
+import { type QuotaRecovery, recoveryOwner, retryQuota } from './quota-recovery.ts';
 import {
   type Admission,
   autoLoop,
@@ -222,7 +223,7 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
       },
     );
     entries.set(handle.id, entry);
-    if (stopping) handle.halt({ kind: 'detach' });
+    if (stopping) handle.detach();
     return run;
   };
   const begin = (input: RunInput, gh: boolean) =>
@@ -235,7 +236,6 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
       { selection, quiet },
       {
         hooks: { ready: () => requireSetup(true), removed, fatal },
-        shared: false,
         active: () => control.active,
         signal: abort.signal,
         launch,
@@ -372,6 +372,23 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
       }
       case 'resume':
         return answerRun(begin({ kind: 'resume', number: parsed.number, selection: parsed.selection }, false));
+      case 'retry': {
+        const { number, waitId } = parsed;
+        const waiting = async (record: QuotaRecovery) =>
+          record.runner.pid === identity.pid && record.runner.start === identity.start
+            ? [...entries.values()].some(({ handle }) => {
+                const view = handle.view();
+                return view.issue === number && view.state !== 'ending' && view.state !== 'finished';
+              })
+            : recoveryOwner(record);
+        try {
+          await retryQuota(main, number, waitId, waiting);
+        } catch (error) {
+          if (!(error instanceof HostError)) throw error;
+          return refusal(409, error.message, error.code);
+        }
+        return reply(200, { accepted: true, run: null });
+      }
     }
   };
 
@@ -418,7 +435,7 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
     }, 5000);
     await asked;
     clearInterval(poll);
-    for (const { handle } of entries.values()) handle.halt({ kind: 'detach' });
+    for (const { handle } of entries.values()) handle.detach();
     for (const loop of loops) {
       loop.control.active = false;
       loop.abort.abort();

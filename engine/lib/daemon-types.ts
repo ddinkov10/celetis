@@ -14,6 +14,7 @@ export type DaemonRequest =
   | { kind: 'auto'; on: boolean; selection: Selection; quiet: boolean }
   | { kind: 'queue'; id: string; token: string; selection: Selection; quiet: boolean }
   | { kind: 'resume'; number: number; selection: Selection }
+  | { kind: 'retry'; number: number; waitId: string }
   | { kind: 'status' }
   | { kind: 'stop' };
 export type DaemonAnswer = { accepted: true; run: string | null } | { accepted: false; line: string; code: number };
@@ -44,7 +45,7 @@ export type DaemonStatus = { schema: 1; daemon: DaemonIdentity; auto: 'on' | 'of
 
 export const textLimit = 4096;
 export const requestUsage =
-  'usage: GET /status | POST /run {"number":<issue>,"selection":<selection>,"effort":<level>|null,"quiet":<boolean>} | POST /auto {"on":<boolean>,"selection":<selection>,"quiet":<boolean>} | POST /queue {"id":<uuid>,"token":<uuid>,"selection":<selection>,"quiet":<boolean>} | POST /resume {"number":<issue>,"selection":<selection>} | POST /stop {}; <selection> is {"explicit"?:"claude"|"codex","environment"?:<text>}; <level> is low|medium|high|xhigh|max';
+  'usage: GET /status | POST /run {"number":<issue>,"selection":<selection>,"effort":<level>|null,"quiet":<boolean>} | POST /auto {"on":<boolean>,"selection":<selection>,"quiet":<boolean>} | POST /queue {"id":<uuid>,"token":<uuid>,"selection":<selection>,"quiet":<boolean>} | POST /resume {"number":<issue>,"selection":<selection>} | POST /stop {} | POST /retry {"number":<issue>,"waitId":<text>}; <selection> is {"explicit"?:"claude"|"codex","environment"?:<text>}; <level> is low|medium|high|xhigh|max';
 
 const routes = {
   '/status': 'GET',
@@ -53,6 +54,7 @@ const routes = {
   '/queue': 'POST',
   '/resume': 'POST',
   '/stop': 'POST',
+  '/retry': 'POST',
 } as const;
 const kinds: Record<RunInput['kind'], true> = { number: true, auto: true, queue: true, resume: true };
 const states: Record<RunState, true> = {
@@ -135,6 +137,10 @@ export function parseRequest(
   const refused = { status: 400 as const, line: requestUsage };
   if (!object(body)) return refused;
   if (path === '/stop') return exact(body, []) ? { kind: 'stop' } : refused;
+  if (path === '/retry')
+    return exact(body, ['number', 'waitId']) && count(body.number) && filled(body.waitId)
+      ? { kind: 'retry', number: body.number, waitId: body.waitId }
+      : refused;
   const selection = selectionOf(body.selection);
   if (selection === null) return refused;
   const { number, effort, quiet, on } = body;

@@ -298,7 +298,12 @@ export async function recoveryOwner(record: QuotaRecovery): Promise<boolean> {
   return (await processState(pid, start)) === 'runs' && (await processRunsScript(pid, 'celetis-flow.ts'));
 }
 
-export async function retryQuota(main: string, issue: number, expectedWaitId: string): Promise<void> {
+export async function retryQuota(
+  main: string,
+  issue: number,
+  expectedWaitId: string,
+  waiting: (record: QuotaRecovery) => Promise<boolean>,
+): Promise<void> {
   if (!uuid.test(expectedWaitId)) throw new RecoveryError('recovery: invalid wait ID', 2);
   const seen = await readRecovery(main, issue);
   if (!seen?.waitId) throw new RecoveryError(`recovery: #${issue} has no quota wait`, 2);
@@ -308,7 +313,7 @@ export async function retryQuota(main: string, issue: number, expectedWaitId: st
     if (!current?.waitId) throw new RecoveryError(`recovery: #${issue} has no quota wait`, 2);
     if (current.waitId !== expectedWaitId)
       throw new RecoveryError(`recovery: #${issue} waits with another wait ID; refresh, then use its Retry`, 2);
-    if (!(await recoveryOwner(current)))
+    if (!(await waiting(current)))
       throw new RecoveryError(`recovery: the runner of #${issue} no longer runs; start the runner again`, 2);
     if (current.wake === expectedWaitId) return current;
     if (current.state !== 'waiting')
