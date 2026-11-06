@@ -44,7 +44,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
   const n = args[0]?.replace(/^#/, '');
   if (args.length !== 1 || !n || !/^[1-9][0-9]*$/.test(n)) throw new HostError(usage, 2);
   const cwd = process.cwd();
-  const operation = createOperation(
+  const operation = await createOperation(
     await locateCheckouts(cwd),
     { explicit, environment: process.env.CELETIS_AGENT },
     'main',
@@ -178,7 +178,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
   try {
     const checkout = await locateCheckouts(path);
     validatingConfig = true;
-    const target = createOperation(checkout, operation.selection, 'active');
+    const target = await createOperation(checkout, operation.selection, 'active');
     validatingConfig = false;
     const config = target.activeConfig as Config;
     if (!(await stat(await markerOf(path)).catch(() => null))?.isFile()) {

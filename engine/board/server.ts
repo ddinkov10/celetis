@@ -133,7 +133,7 @@ const agentCause = (cause: unknown) => {
   if (/need a private|need a directory owned by/.test(message))
     return 'local agent state has unsafe file permissions; check it in a terminal';
   if (
-    /^recovery: (#[1-9][0-9]* (has no quota wait|waits with another wait ID; refresh, then use its Retry)|the runner of #[1-9][0-9]* no longer runs; start the runner again)$/.test(
+    /^recovery: (#[1-9][0-9]* (has no quota wait|waits with another wait ID; refresh, then use its Retry)|the run of #[1-9][0-9]* no longer runs; start the run again)$/.test(
       message,
     )
   )
@@ -217,7 +217,7 @@ export const createBoard = ({
   const visualPresses = new Set<number>();
   type Press = { feedback: LaunchFeedback; at: number };
   const presses: Record<string, Press> = {};
-  const runners = new Map<string, { number: number; press: Press; consumed: boolean }>();
+  const pressTerminals = new Map<string, { number: number; press: Press; consumed: boolean }>();
   let observing: Promise<void> | null = null;
   const operations: Record<string, { step: string | null | undefined; observed: boolean }> = {};
   let shown = new Map<string, number | null>();
@@ -425,11 +425,11 @@ export const createBoard = ({
     return value;
   };
 
-  const observeRunners = (): Promise<void> => {
+  const observePresses = (): Promise<void> => {
     if (stopped) return Promise.resolve();
     if (observing) return observing;
     observing = (async () => {
-      for (const [id, record] of runners) {
+      for (const [id, record] of pressTerminals) {
         if (stopped) break;
         if (!record.consumed) {
           const step = record.press.feedback.step;
@@ -443,8 +443,8 @@ export const createBoard = ({
             const output = await readScreen(id, 100, exec);
             if (stopped) break;
             if (output === null) throw new TerminalError(`hc could not read completed output for ${id}`);
-            const lines = screenOf(output).filter((line) => !line.startsWith('celetis-flow: start:'));
-            const cause = lines.find((line) => !line.startsWith('celetis-flow: stop')) ?? lines[0];
+            const lines = screenOf(output).filter((line) => !line.startsWith('daemon: start:'));
+            const cause = lines.find((line) => !line.startsWith('daemon: stop')) ?? lines[0];
             const warning = cause
               ? cleanCause(cause)
               : `Runner exited before a session was detected (exit ${state.exitCode ?? 'unknown'}).`;
@@ -463,7 +463,7 @@ export const createBoard = ({
         if (stopped) break;
         try {
           await removeTerminal(id, exec);
-          runners.delete(id);
+          pressTerminals.delete(id);
         } catch {}
       }
     })().finally(() => {
@@ -473,7 +473,7 @@ export const createBoard = ({
   };
 
   const placement = async ({ isLocal = false } = {}): Promise<Board> => {
-    await observeRunners();
+    await observePresses();
     const queue = await queueView();
     const { terminals, sessions: found, health } = await watchSessions();
     const dispositions = new Map(
@@ -544,7 +544,7 @@ export const createBoard = ({
       history,
       flow: board?.flow ?? null,
       tracker: board?.tracker ?? null,
-      runner: board?.runner ?? null,
+      auto: board?.auto ?? null,
       agents: board?.agents ?? null,
       picker: agentState && {
         order: agentState.order,
@@ -566,7 +566,7 @@ export const createBoard = ({
       refused,
     );
 
-  const startRunner = async (label: string, argv: string[]) => {
+  const startPress = async (label: string, argv: string[]) => {
     await requireTerminals(exec).catch(refused);
     return startHidden({ folder: main, label, argv, removeOnExit: false }, exec).catch(refused);
   };
@@ -583,7 +583,7 @@ export const createBoard = ({
   ) => {
     if (
       number in operations ||
-      [...runners.values()].some((record) => record.number === number && !record.consumed) ||
+      [...pressTerminals.values()].some((record) => record.number === number && !record.consumed) ||
       (presses[number]?.feedback.kind === 'timed' && now() - presses[number].at < PRESS_MS)
     )
       throw new Refusal(409, refusal);
@@ -601,7 +601,7 @@ export const createBoard = ({
             : { step: operation.step, kind: 'pending' },
         at: now(),
       };
-      if (id !== undefined) runners.set(id, { number, press, consumed: false });
+      if (id !== undefined) pressTerminals.set(id, { number, press, consumed: false });
       if (!operation.observed) presses[number] = press;
     } finally {
       delete operations[number];
@@ -609,7 +609,7 @@ export const createBoard = ({
     await refresh();
   };
 
-  const choose = async (choice: unknown, unknown: string, work: 'runner' | 'session'): Promise<AgentChoice> => {
+  const choose = async (choice: unknown, unknown: string, work: 'run' | 'session'): Promise<AgentChoice> => {
     const available = (host: Host) => {
       if (!Bun.which(host, { PATH: childEnv().PATH })) throw new Refusal(409, `celetis: ${host} is not on PATH`);
     };
@@ -742,14 +742,14 @@ export const createBoard = ({
           },
         };
       }
-      const agent = await choose(choice, `#${number} has no agent "${String(choice)}"`, 'runner');
+      const agent = await choose(choice, `#${number} has no agent "${String(choice)}"`, 'run');
       return {
         card,
         start: async () => {
           const argv = await adapter.run(number, agent, effort).catch((cause: Error) => {
             throw new Refusal(409, cleanCause(cause.message));
           });
-          return startRunner(`#${number}`, argv);
+          return startPress(`#${number}`, argv);
         },
       };
     });
@@ -766,7 +766,7 @@ export const createBoard = ({
           const argv = await adapter.resume(number).catch((cause: Error) => {
             throw new Refusal(409, cleanCause(cause.message));
           });
-          return startRunner(`#${number}`, argv);
+          return startPress(`#${number}`, argv);
         },
       };
     });
@@ -784,7 +784,7 @@ export const createBoard = ({
       try {
         message = cleanCause(cause.message);
         const pinned = explicitHost(wake.choice);
-        const operation = createOperation(await locateCheckouts(main), pinned ? { saved: pinned } : {}, 'main');
+        const operation = await createOperation(await locateCheckouts(main), pinned ? { saved: pinned } : {}, 'main');
         if (!sent) {
           const view = await failQueueLaunch(operation, wake.id, wake.token, message);
           if (board) board.queue = view;
@@ -900,7 +900,7 @@ export const createBoard = ({
       return send(response, 200, type, await readFile(join(HERE, name)));
     }
     if (request.method === 'GET' && path === '/api/queue') {
-      const operation = createOperation(await locateCheckouts(main), {}, 'main');
+      const operation = await createOperation(await locateCheckouts(main), {}, 'main');
       return sendJson(response, 200, await readQueueView(operation));
     }
     if (request.method === 'GET' && path === '/api/update')
@@ -1054,7 +1054,7 @@ export const createBoard = ({
       ready = true;
       void refresh();
     }
-    await observeRunners();
+    await observePresses();
     if (!stopped) nextHint = setTimeout(() => void pollHints(), 1_000);
   };
   const stopReads = () => {

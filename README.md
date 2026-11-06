@@ -9,15 +9,15 @@ hand-off reads the issue again.
 
 Codex remains opt-in while required CLI workflow acceptance is incomplete. Changed-pair same-child repair and final live workflows still need proof. Open sessions have
 no immutable-resource or automatic skill-reload guarantee (ADR-0028). Desktop automation is optional and has separate evidence in
-[Acceptance status](docs/celetis-flow.md#acceptance-status).
+[Acceptance status](docs/workflow.md#acceptance-status).
 
 The repository holds:
 
 - 34 skills: the lanes, the steps of a lane, the skills for review and memory, the engineering
   principles, and the helpers ("The skills");
-- the scripts: the runner, the resolver, the landing script, the worktree script, the setup
+- the scripts: the daemon and the run command, the resolver, the landing script, the worktree script, the setup
   script, and the capability scorer ("The commands");
-- the step text of the runner, `step-prompt.md`;
+- the step text of a run, `step-prompt.md`;
 - the modules, in `docs/procedures/`: the shared procedures that a step of a skill reads when it
   comes ("The skills");
 - the principles, in `docs/principles/`: the general engineering rules that a task reads when
@@ -25,7 +25,7 @@ The repository holds:
 - the maintainer documents, in `docs/`.
 
 The repository reaches a machine in two forms, at one revision. The program `celetis` runs each
-command, also the runner and the board, and the runner gives each step session a facts header and
+command, also the daemon and the board, and the daemon gives each step session a facts header and
 the step text of the program ("First install"). The plugin of each host gives its sessions the
 skills, the procedure modules, the principles, the entry hook, and the documents.
 
@@ -42,7 +42,7 @@ A product project holds no Celetis launcher, runtime source, skill, or document 
 |---|---|
 | The host wiring | Claude: `.claude/settings.json`. Codex: the installed plugins and trusted `.codex/config.toml` and `.codex/rules/` (below) |
 | The config | `.celetis.yaml` |
-| The record of setup | `.claude/celetis-flow/wiring.json` |
+| The record of setup | `.claude/celetis/wiring.json` |
 | The worktree setup | `worktreeSetup` in `.celetis.yaml` |
 | The custom parts | `custom.<skill>` in `.celetis.yaml`, one string for each skill that needs one |
 | The product facts and Celetis entry pointer | `AGENTS.md` |
@@ -70,18 +70,18 @@ controls and applies only that skill's custom text.
 
 ## Requirements
 
-- macOS or Linux for the runner. Native Windows has no runner: the daemon does not start there, and
-  each form of `celetis-flow` that sends a request exits 2. The program installs from Git Bash and
+- macOS or Linux for the daemon. Native Windows has no daemon: it does not start there, and
+  each form of `run` and `queue` that sends a request exits 2. The program installs from Git Bash and
   runs from Git Bash, PowerShell, and `cmd`, and its Windows checks are open. Before the program,
   the data of the board before #102 and the update lock passed their checks
-  ([Acceptance status](docs/celetis-flow.md#acceptance-status)).
+  ([Acceptance status](docs/workflow.md#acceptance-status)).
 - The selected host CLI: Claude Code 2.1.299 or later, or Codex CLI 0.162.1 or later. The Claude
   entry hook reads the `skill.prompt` fields `source`, `pluginName`, and `path`, which came in
   2.1.299. On an older release, the hook makes no entry, and the session takes "Entry without the
   hook" of `docs/procedures/entry.md`, as on Codex. Codex 0.162.1 is the lowest release
   on which the install, the refresh, and the lookup of the plugin were checked; an older release
   is not supported. These versions are a floor, not proof of the full workflow
-  ([Acceptance status](docs/celetis-flow.md#acceptance-status)).
+  ([Acceptance status](docs/workflow.md#acceptance-status)).
 - `gh` (logged in), Bun 1.4.4 or later, `git` 2.31 or later, and the program `celetis`
   ("First install") on `PATH`. On macOS and Linux, the program starts Bun through `env -S`. The
   `env` of macOS and of GNU coreutils 8.30 or later has `-S`; the `env` of busybox does not.
@@ -101,13 +101,13 @@ controls and applies only that skill's custom text.
   one that it has and records a limit for each missing one
   (`docs/procedures/component-research.md`).
 - On macOS, herdr-core 0.1.16 (`hc`) with its running server, and the open window of the Herdr app
-  0.1.11 (`herdr-app`), for each start of the runner and for the board: each session runs in a tab
+  0.1.11 (`herdr-app`), for each run and for the board: each session runs in a tab
   of the Herdr app (ADR-0058, ADR-0062). The host reports its status to herdr-core with OSC 7501
   and needs no integration: Claude Code since 2.1.295, and Codex 0.166.0. A host release that
   reports no status gets no step end and no session card.
 - For the board: a Chromium browser.
 
-`docs/celetis-flow.md` gives each requirement in full ("Requirements", and "The board").
+`docs/workflow.md` gives each requirement in full ("Requirements", and "The board").
 The [configuration reference](docs/configuration.md) gives the repository schema and the
 commands that install Bun.
 
@@ -138,7 +138,7 @@ then exits 2. The install makes these entries:
   on its branch, at that full revision. The install refuses a version folder that holds another
   program.
 - On macOS and Linux, `<base>/.local/bin/celetis` is a symbolic link to the file `celetis` of the
-  current version folder. An install replaces the link in one atomic step, so a runner or a board
+  current version folder. An install replaces the link in one atomic step, so the daemon or a board
   that runs keeps its own version folder.
 - On Windows, `<base>/.local/bin/` holds two shims of fixed text: `celetis` for Git Bash, and
   `celetis.cmd` for PowerShell and `cmd`. Both read the current revision from
@@ -192,7 +192,7 @@ or the board's update control ("Updates").
    enable of the plugin.
 
    The program finds the enabled plugin through native metadata (`celetis update check` and the
-   check of the runner), so the two commands are necessary on each machine. It is not shown that
+   check of the daemon), so the two commands are necessary on each machine. It is not shown that
    the block of the project file (below) loads the plugin with no install. In the probe, a
    headless turn in a new repository whose project
    file held the marketplace and the two plugins loaded no plugin and added no marketplace. A
@@ -222,9 +222,9 @@ codex plugin add celetis@celetis --json
 ```
 
 The program finds the enabled installation through `skills/list`; it does not calculate a cache
-path. A local-path marketplace is unsuitable: `celetis update` and the check of the runner compare
+path. A local-path marketplace is unsuitable: `celetis update` and the check of the daemon compare
 Git revisions, and `plugin marketplace upgrade celetis` requires a Git source. With a local source,
-no new runner step starts. `--ref main` selects the landed source, the branch of the program. For an unlanded check, use supported checkout loading with the existing host and authentication. These commands and result fields were checked
+no new step starts. `--ref main` selects the landed source, the branch of the program. For an unlanded check, use supported checkout loading with the existing host and authentication. These commands and result fields were checked
 on Codex 0.162.1. See the [Codex CLI reference](https://learn.chatgpt.com/docs/cli/reference).
 
 Install Superpowers from its Git marketplace:
@@ -315,7 +315,7 @@ on the remote trunk.
   preserving unrelated bytes and values. A differing unowned value stays with an exact warning;
   an unowned suite that blocks `pr` refuses before writes. Invalid current configuration still
   needs owner repair; setup reads no old configuration format.
-- The schema-1 record at `.claude/celetis-flow/wiring.json` records the resulting owned files and
+- The schema-1 record at `.claude/celetis/wiring.json` records the resulting owned files and
   entries and the resolved tracker and hosts. Setup validates its complete shape and finite
   wiring scope before using any claim. It drops retired claims rather than keeping their union.
   An unchanged committed repeat changes no bytes or modification times.
@@ -443,7 +443,7 @@ codex execpolicy check --rules ~/.codex/rules/celetis-land.rules celetis --agent
 ### Agent selection and model setup
 
 The local agent preference is an ordered, nonempty list of `claude` and `codex`. It lives at
-`<Git common directory>/celetis-flow/agents.json`, shared by all linked worktrees on this
+`<Git common directory>/celetis/agents.json`, shared by all linked worktrees on this
 machine. With no record, the order is `claude`, then `codex`. It changes no tracked file.
 `setup write --hosts claude|codex|claude,codex|codex,claude` initializes an absent record and
 preserves an existing valid order. YAML `host` and setup `--default` are refused; there is no
@@ -454,13 +454,15 @@ celetis --agent codex root
 ```
 
 Selection is an explicit `--agent claude|codex`, then an explicit `CELETIS_AGENT`, then, for a
-step that the runner starts, the preferred agent of that step, then the local order. Control
+step that a run starts, the preferred agent of that step, then the local order. Control
 operations use the first host of the local order without a quota check; outside a Git checkout
-they use Claude. Explicit control commands and `agents` work without reading the preference for
+they use Claude. The scripts of the verify gate (`scripts/verify.ts`, `scripts/build.ts`, and
+`scripts/install-tools.ts`) take `--agent`, else `CELETIS_AGENT`, else Claude, and read no order.
+Explicit control commands and `agents` work without reading the preference for
 selection. Commands that require YAML still validate the whole file. Skills pass their actual
 host explicitly, including landing. Exact Resume keeps its saved host and session ID.
 
-The `agents` field of the main `.celetis.yaml` names a preferred agent for each runner step, for
+The `agents` field of the main `.celetis.yaml` names a preferred agent for each step that a run starts, for
 example `implement: codex`. It is tracked repository policy: it applies on each machine and
 changes through a commit, at the next new step. A default start of that step tries the preferred
 agent first, then the other agents of the local order. A blocked preferred agent gives the next
@@ -475,7 +477,7 @@ confirmed usage block. An explicit host remains pinned despite exclusion or a bl
 host. A real incoming `CELETIS_AGENT` remains an explicit choice. The selected host still
 runs its preflight; a missing executable or another setup error does not try a second host.
 
-Usage records live separately at `<Git common directory>/celetis-flow/limits/<host>.json`.
+Usage records live separately at `<Git common directory>/celetis/limits/<host>.json`.
 A passed provider reset permits a new attempt. It does not clear the recorded block.
 An unknown observation keeps an existing block; a newer verified availability result can
 clear it. If every included host is blocked, these independent launchers report the hosts
@@ -504,7 +506,7 @@ runtime allowlist to each `capscore` call and each `dispatch` act that issues a 
 A CLI catalog does not establish desktop dispatch support.
 A missing pair or a tool that cannot apply the required pair stops the dependent work.
 
-Complete the host's normal trust flow before a run. The runner reports startup dialogs and leaves
+Complete the host's normal trust flow before a run. The daemon reports startup dialogs and leaves
 them for the human.
 
 ### The config, the worktree setup, and the custom parts
@@ -571,7 +573,7 @@ or suite stays with its warning; each other field stays by hand.
   a reference that a merge of the trunk brings runs at the next entry. Source edits do not
   invalidate a marker. `celetis --agent <host> setup lane <path>` selects the main reference,
   clears the old marker before file validation, and runs the target lane file. Every entry still checks the lane
-  config (`docs/celetis-flow.md`).
+  config (`docs/workflow.md`).
 - **A custom part** is the parsed string `custom.<skill>` in `.celetis.yaml`: an addition to that
   one skill, which reaches only its own invocation. `chore` does not apply `custom.implement`, and
   `lesson-review` does not apply `custom.lesson`. A product fact that two or more skills need, for
@@ -581,7 +583,7 @@ or suite stays with its warning; each other field stays by hand.
   and applies only its own string (ADR-0013, ADR-0015, and ADR-0047). On Claude, the native entry
   hook makes that read, parses the file, and puts the string into its facts block. On Codex, the
   session follows "Entry without the hook" of `docs/procedures/entry.md`: with a shell it runs the
-  config reader, else it reads the file with a dedicated reader. Entry runs no setup. A runner step
+  config reader, else it reads the file with a dedicated reader. Entry runs no setup. A step of a run
   starts in the main checkout; a later skill entered in a lane reads that lane's config. Each
   invocation is its own entry, also a same-session handoff and an invocation in a child agent.
   Missing checkout, config, or custom text gives no addition; an invalid, ambiguous, unreadable,
@@ -589,7 +591,7 @@ or suite stays with its warning; each other field stays by hand.
   cannot remove a rule of the general skill (ADR-0006). `custom.hotfix` holds the project's ship
   acts. Keep literal block text and parsed trailing newlines intact (`docs/configuration.md`).
 
-`docs/celetis-flow.md` holds these parts in full ("Gates", and "The config and the custom parts").
+`docs/workflow.md` holds these parts in full ("Gates", and "The config and the custom parts").
 
 ### `.gitignore`
 
@@ -836,7 +838,7 @@ The program needs `bun` on the `PATH` of the desktop app: its entry sets the iso
 The [desktop field contract](https://code.claude.com/docs/en/desktop#configuration-fields) keeps
 the executable and the argument array separate. The historical marker-only
 contract check covered those data boundaries; native desktop launch remains UNRUN
-(`docs/celetis-flow.md`, "Limits"). The terminal start has separate acceptance evidence.
+(`docs/workflow.md`, "Limits"). The terminal start has separate acceptance evidence.
 
 ### The wiring on the trunk
 
@@ -882,7 +884,7 @@ In a terminal, start Codex with `codex --no-daemon` so its hooks use the current
 The table uses Claude's `/celetis:<skill> <input>` form. In Codex CLI or a desktop chat, use the
 advertised skill name: `Use the celetis:<skill> skill for <input>. Complete its Celetis entry before any response, including commentary.`, or select that skill in the
 host's skill selector. Native desktop selector acceptance is optional under
-[Acceptance status](docs/celetis-flow.md#acceptance-status).
+[Acceptance status](docs/workflow.md#acceptance-status).
 
 | You type | The session | It leaves on the issue |
 |---|---|---|
@@ -951,12 +953,12 @@ host's skill selector. Native desktop selector acceptance is optional under
   run `land` in your own shell, then do the ship acts. A request that spans some independent
   features becomes an epic, and each child issue runs its own flow.
 
-**Through the runner.** The master daemon of the repository runs the steps. Start it once with
-`celetis daemon start`. Then `celetis --agent <host> celetis-flow <n>` sends one request to it and
+**Through the daemon.** The daemon of the repository runs the steps. Start it once with
+`celetis daemon start`. Then `celetis --agent <host> run <n>` sends one request to it and
 returns at once; the daemon starts the next step of the issue in a new interactive session, in a
-new tab of the Herdr app. The command prints a run line only when the run ends at its first
-decision or is refused; read the progress with `celetis daemon status`. For each step, the runner
-of the daemon:
+new tab of the Herdr app. An accepted start prints its accepted line, and a refusal prints the
+line of the daemon; read the progress with `celetis daemon status`. For each step, the run of the
+daemon:
 
 1. asks the resolver for the next step: `celetis --agent <host> next-step <n>` prints a `run` line with
    the command of the step, for example `run /celetis:plan #<n>`, or a `stop` line with the reason;
@@ -970,7 +972,7 @@ of the daemon:
    `developer_instructions`. Claude gets the effort level as `--effort <level>`, and Codex as
    `-c model_reasoning_effort="<level>"` after a clamp to the levels of its model. The level is the
    override of this start when there is one, else the decision of the step before, else `high`
-   (`docs/celetis-flow.md`, "Start the script", "The effort level");
+   (`docs/workflow.md`, "Start the script", "The effort level");
 4. opens each session in a new tab of the Herdr app, and ends it when the issue shows that the
    step is done;
 5. with the default choice, selects the first eligible host of the effective order of the step at
@@ -981,27 +983,27 @@ of the daemon:
    the next eligible host with the dirty lane kept. When it cannot prove that stop, as for Codex,
    or a background task still runs, no other agent starts. When all
    hosts are limited, it waits for the earliest supplied reset, or for
-   `celetis celetis-flow --retry <n> <wait id>` (`docs/celetis-flow.md`, "Usage-limit recovery").
+   `celetis run retry <n> <wait id>` (`docs/workflow.md`, "Usage-limit recovery").
 
-The runner starts at an issue: write one with `/celetis:intake`, or open one on GitHub. Then, for
+The daemon works at an issue: write one with `/celetis:intake`, or open one on GitHub. Then, for
 the feature `#12`:
 
 ```bash
-celetis --agent <host> celetis-flow 12    # triage
-celetis --agent <host> celetis-flow 12    # specify: the session asks, and it waits for your approval of the design
-celetis --agent <host> celetis-flow 12    # plan
-celetis --agent <host> celetis-flow 12    # implement: it builds, verifies, and lands
+celetis --agent <host> run 12    # triage
+celetis --agent <host> run 12    # specify: the session asks, and it waits for your approval of the design
+celetis --agent <host> run 12    # plan
+celetis --agent <host> run 12    # implement: it builds, verifies, and lands
 ```
 
 With each gate `me`, one start runs one step. Each command returns at the answer of the daemon, so
 read `celetis daemon status` before the next start. With a gate `auto`, a start goes on through
-that step by itself, and `celetis --agent <host> daemon auto on` turns on the automatic runner of
-the daemon: it runs each `auto` step of each open issue. A Run press on the agent board types the
+that step by itself, and `celetis --agent <host> daemon auto on` turns on auto mode of the
+daemon: it runs each `auto` step of each open issue. A Run press on the agent board types the
 same form in a hidden terminal, and the daemon opens the session tab in the background.
 
-The run lives in the daemon, with its tabs, its lines, and its exit code: read them in
+A run lives in the daemon, with its tabs, its lines, and its exit code: read them in
 `celetis daemon status` (the `line` of its row) and in
-`<git common dir>/celetis-flow/daemon/daemon.log`. It uses the environment of the daemon from its
+`<git common dir>/celetis/daemon/daemon.log`. It uses the environment of the daemon from its
 start. `--agent` and `CELETIS_AGENT` travel in the request; a variable that you export only in the
 shell of the command does not reach the run. Ctrl+C, a signal, or a closed terminal of the command
 stops no run. `celetis daemon stop` stops the daemon and detaches every run; no command stops one
@@ -1010,8 +1012,8 @@ run.
 The queue stays available as issues finish. Read its current identity before an action:
 
 ```sh
-celetis --agent <host> celetis-flow --queue status
-celetis --agent <host> celetis-flow --queue action '{"kind":"add","number":12,"step":"plan","expected":{"id":null,"revision":0,"current":null}}'
+celetis --agent <host> queue status
+celetis --agent <host> queue action '{"kind":"add","number":12,"step":"plan","expected":{"id":null,"revision":0,"current":null}}'
 ```
 
 The example adds to missing storage; for an existing record use the ID, revision, and current
@@ -1021,19 +1023,21 @@ Retry recovers an interrupted launch or stopped step; a null step acknowledges t
 without authorizing another issue. Only fresh finished/wontfix decisions drain work. Read failures
 retain accepted work. The same empty queue accepts more work without reset or reload.
 
-The record remains at `<git common dir>/celetis-flow/queue.json`, now schema 3. Ordinary queue
+The record remains at `<git common dir>/celetis/queue.json`, now schema 3. Ordinary queue
 access, including status and the board, converts valid schema-1 and schema-2 records under
-execution ownership. It preserves the exact source bytes in a private sibling archive before
-replacement. Unfinished work keeps its order and recorded host; conversion starts no work.
-A live runner or foreground causes refusal; retry after it exits. Invalid or unsupported records
-stay intact. See `docs/celetis-flow.md`, "The continuous queue", for the mappings and locks.
+execution ownership. The recovery record and the run records follow the same rule: a schema-1
+record converts to schema 2 when a process reads it ("The move of the old names" of
+`docs/workflow.md`). The conversion preserves the exact source bytes in a private sibling archive
+before replacement. Unfinished work keeps its order and recorded host; conversion starts no work.
+A live run or foreground causes refusal; retry after it exits. Invalid or unsupported records
+stay intact. See `docs/workflow.md`, "The continuous queue", for the mappings and locks.
 Old batch forms remain removed.
 
 A step session follows the step text: it asks only for a decision that the issue does not hold, and
 at a stop it puts the reason on the issue and adds `ready-for-human`. The `specify` session has no
 step text: it waits for your approval of the design, as a session by hand does.
 
-`docs/celetis-flow.md` holds the runner in full. `docs/issue-tracker.md` holds the labels, what
+`docs/workflow.md` holds the daemon and the runs in full. `docs/issue-tracker.md` holds the labels, what
 lives on the issue, the branches, and the order of the resolver.
 
 ## The skills
@@ -1070,8 +1074,8 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | **Helpers** | [`/celetis:prototype`](skills/prototype/SKILL.md) | Builds throwaway code that answers a design question: a logic demo in one HTML file, or the live prototype of a look decision, with a capture of each variant in each state on the issue. The options of a whole web or mobile screen and of a smaller web change come from `impeccable` |
 | | [`/celetis:feedback`](skills/feedback/SKILL.md) | Files safe conversation evidence as an Intent in `github.com/ddinkov10/celetis` with `needs-triage`. Only you can start it; it files directly and supports corrections in the same session |
 | | [`/celetis:capture`](skills/capture/SKILL.md) | Records a design, a root cause, or a plan that a chat decided as a `## Captured` comment, and hands on to the current step. Only you can start it |
-| | [`/celetis:accept-epic #<n>`](skills/accept-epic/SKILL.md) | Checks current parent acceptance and completes an epic when its evidence and children permit it. Only you can start it; it creates no lane or runner |
-| | [`/celetis:assist #<n>`](skills/assist/SKILL.md) | Completes permitted work for the current block, records verified completion, and clears the hold. It asks for missing human contributions and leaves continuation to the normal runner |
+| | [`/celetis:accept-epic #<n>`](skills/accept-epic/SKILL.md) | Checks current parent acceptance and completes an epic when its evidence and children permit it. Only you can start it; it creates no lane or run |
+| | [`/celetis:assist #<n>`](skills/assist/SKILL.md) | Completes permitted work for the current block, records verified completion, and clears the hold. It asks for missing human contributions and leaves continuation to the normal run |
 | | [`/celetis:writing-for-agents`](skills/writing-for-agents/SKILL.md) | The reference for a document that an agent reads: a skill, or an `AGENTS.md` |
 | | [`/celetis:create-verification`](skills/create-verification/SKILL.md) | Creates project-owned recipes and proves at least one core flow. Only you can start it |
 | | [`/celetis:maintain-verification`](skills/maintain-verification/SKILL.md) | Reviews and exercises the whole existing verification map. Only you can start it |
@@ -1119,33 +1123,33 @@ A product project runs each command through the installed program `celetis` ("Fi
 ```text
 usage: celetis [--agent <host>] <command> [<argument>...]
 
-  celetis update                                            Updates the program and the plugin of each host; asks once.
-  celetis update check                                      Shows the installed and the available revision of each part.
-  celetis board                                             Starts the board of the project in this checkout.
-  celetis setup status                                      Reports each part of the required wiring that this checkout lacks; writes nothing.
-  celetis agents read                                       Reads the local ordered agent preference and its version.
-  celetis agents replace '<JSON>'                           Replaces the local order using order and expectedVersion.
-  celetis intake                                            Starts a fresh session that asks for your request before intake.
-  celetis assist <n>                                        Starts fresh interactive assistance for an issue in the main checkout.
-  celetis visual <n> <sha>                                  Starts a fresh session that makes the visual of a landed commit.
-  celetis celetis-flow <n>                                  Asks the daemon to start the next step of one issue and follow its auto gates; returns at once.
-  celetis celetis-flow <n> --effort <level>                 Asks the daemon to start the next step of one issue at another effort level, for its first session only.
-  celetis celetis-flow --resume <n>                         Asks the daemon to open the session of a step with no progress again.
-  celetis celetis-flow --queue action '<QueueAction JSON>'  Saves a queue action; asks the daemon to run its authorized wake.
-  celetis celetis-flow --queue status                       Reads the current queue and its allowed actions.
-  celetis celetis-flow --retry <n> <wait-id>                Asks the daemon to wake the quota waiter of an issue for one attempt cycle.
-  celetis daemon start                                      Starts the master daemon of this repository, detached, and waits until it answers.
-  celetis daemon status                                     Shows the daemon, its automatic runner, and its runs.
-  celetis daemon stop                                       Stops the daemon and waits until its process ends.
-  celetis daemon auto on|off                                Turns the automatic runner of the daemon on or off, and prints its state.
-  celetis lesson-store read main|active                     Reads validated lessons; requires explicit --agent.
-  celetis lesson-store capture FILE                         Saves a pending proposal; requires explicit --agent.
-  celetis lesson-store preview FILE                         Prepares an exact lesson review; requires explicit --agent.
-  celetis lesson-store apply SNAPSHOT DIGEST                Applies a reviewed snapshot and commits it in a linked checkout; requires explicit --agent.
-  celetis lesson-store recover                              Completes or rolls back an interrupted lesson write; requires explicit --agent.
-  celetis root                                              Prints the folder of the program.
-  celetis --version                                         Prints the revision of the program.
-  celetis help                                              Prints this list.
+  celetis update                              Updates the program and the plugin of each host; asks once.
+  celetis update check                        Shows the installed and the available revision of each part.
+  celetis board                               Starts the board of the project in this checkout.
+  celetis setup status                        Reports each part of the required wiring that this checkout lacks; writes nothing.
+  celetis agents read                         Reads the local ordered agent preference and its version.
+  celetis agents replace '<JSON>'             Replaces the local order using order and expectedVersion.
+  celetis intake                              Starts a fresh session that asks for your request before intake.
+  celetis assist <n>                          Starts fresh interactive assistance for an issue in the main checkout.
+  celetis visual <n> <sha>                    Starts a fresh session that makes the visual of a landed commit.
+  celetis run <n>                             Asks the daemon to start the next step of one issue and follow its auto gates; returns at once.
+  celetis run <n> --effort <level>            Asks the daemon to start the next step of one issue at another effort level, for its first session only.
+  celetis run resume <n>                      Asks the daemon to open the session of a step with no progress again.
+  celetis run retry <n> <wait-id>             Asks the daemon to wake the quota waiter of an issue for one attempt cycle.
+  celetis queue action '<QueueAction JSON>'   Saves a queue action; asks the daemon to run its authorized wake.
+  celetis queue status                        Reads the current queue and its allowed actions.
+  celetis daemon start                        Starts the master daemon of this repository, detached, and waits until it answers.
+  celetis daemon status                       Shows the daemon, its auto mode, and its runs.
+  celetis daemon stop                         Stops the daemon and waits until its process ends.
+  celetis daemon auto on|off                  Turns auto mode of the daemon on or off, and prints its state.
+  celetis lesson-store read main|active       Reads validated lessons; requires explicit --agent.
+  celetis lesson-store capture FILE           Saves a pending proposal; requires explicit --agent.
+  celetis lesson-store preview FILE           Prepares an exact lesson review; requires explicit --agent.
+  celetis lesson-store apply SNAPSHOT DIGEST  Applies a reviewed snapshot and commits it in a linked checkout; requires explicit --agent.
+  celetis lesson-store recover                Completes or rolls back an interrupted lesson write; requires explicit --agent.
+  celetis root                                Prints the folder of the program.
+  celetis --version                           Prints the revision of the program.
+  celetis help                                Prints this list.
 
 In a terminal, --agent claude|codex is optional. CELETIS_AGENT is an explicit choice too.
 With neither, the local agent order applies; its initial order is claude, codex.
@@ -1164,20 +1168,22 @@ setup"):
 | `celetis --agent <host> lesson-store capture FILE` | Reads typed `{schema:1,candidate,expected,name,description,tags,date,source,incidents,body}` JSON and builds the pending record; `expected` is the pending SHA-256 or null for creation. An extension keeps the stored incidents and reviews. Validates the store of `read main` and saves pending evidence in the main checkout only. Equal incident replays are unchanged; stale updates are refused |
 | `celetis --agent <host> lesson-store preview FILE` | Reads a review request and returns its exact before/after contents of the store of `read main`, watched digests, and snapshot digest without lesson writes. Select pending UUIDs and complete resulting documents as defined in [the lesson format](docs/procedures/lesson-format.md) |
 | `celetis --agent <host> lesson-store apply SNAPSHOT DIGEST` | Recomputes the review and applies exactly the approved snapshot under the lock. Changed input or snapshot bytes are stale. Replaying the same review is unchanged; conflicting reuse of its ID is invalid. The digest identifies a version, not its reviewer. In a linked checkout, a live change needs a clean checkout on a branch and becomes one local commit `docs(lessons): <decision> <names>` with a `Lesson-Transaction` trailer, made with the project's hooks; the proposals leave the queue only after that commit. When Git fails but the lesson commit exists, the apply completes. When the lane is still at its old HEAD, the apply restores the before bytes of the live paths, also a hook rewrite, and their index entries, and exits 6. When HEAD moved without the commit, the journal stays (exit 6), and the line names the repair: `git -C <lane> reset --soft <recorded HEAD>`, then `recover` |
-| `celetis --agent <host> lesson-store recover` | Completes or rolls back the one journal under the lesson lock, from any checkout of the repository. A lane journal completes when its lesson commit exists and rolls back when the lane is still at the recorded HEAD; a lane HEAD that moved without the commit blocks it until `git -C <lane> reset --soft <recorded HEAD>`. These commands require Git and an explicit host, but no issue, runner, or configuration file. Only a lane apply and its recovery change the Git index. Exit status: 0 success, 2 invalid input/store, 3 stale or busy, 6 access/I/O/recovery block |
-| `celetis --agent <host> celetis-flow <n> --effort <level>` | Asks the daemon to start the next step of the issue at `low`, `medium`, `high`, `xhigh`, or `max` instead of its decided or default level; the request carries the level, for the first session of this start only. Each later step uses its own decision, and the flag writes no decision. It needs exactly one issue number; any other form exits 2 with the usage line |
-| `celetis --agent <host> celetis-flow --queue admit '<QueueAction JSON>'` | Internal finite admission for the board. Persists one validated action and returns a strict QueueReceipt without waiting for a session |
-| `celetis --agent <host> celetis-flow --queue run <id> <token>` | Internal request of a persisted wake to the daemon. The daemon refuses stale tokens and live owners, then follows the queue's gates |
-| `celetis --agent <host> daemon start \| status \| stop \| auto on\|off` | Starts, reads, and stops the master daemon of the repository of the current folder (`docs/celetis-flow.md`, "The master daemon"); `auto on\|off` turns its automatic runner on or off and prints `daemon: automatic runner <state>`. For `start`, `status`, and `stop` the optional `--agent` selects nothing; for `auto` it selects the host of the automatic runner. `start` spawns the daemon detached and exits 0 when it answers, or when a daemon already runs; it exits 1 when `gh`, `hc`, or the Herdr app is missing, or when the daemon ends or stays silent for 30 seconds. `status` prints the daemon, its automatic runner, and one line per run; it exits 3 when no daemon runs. `stop` exits 0 when the process ended or no daemon runs. `auto` exits 0 with the state, 3 when no daemon runs, 1 when the daemon runs another revision of the program, the code of a refusal, or 6 when the outcome is unknown. Each form exits 6 when a daemon is known but its process or socket does not answer; `stop` exits 6 too when the process stays for 60 seconds. Windows and any other form exit 2 |
-| `celetis --agent <host> intake` | Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters `celetis:intake` with that request. It creates no issue before the answer and does not start the runner |
-| `celetis --agent <host> assist <n>` | Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses `issue <n> assisted <file>` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume the runner or land |
+| `celetis --agent <host> lesson-store recover` | Completes or rolls back the one journal under the lesson lock, from any checkout of the repository. A lane journal completes when its lesson commit exists and rolls back when the lane is still at the recorded HEAD; a lane HEAD that moved without the commit blocks it until `git -C <lane> reset --soft <recorded HEAD>`. These commands require Git and an explicit host, but no issue, run, or configuration file. Only a lane apply and its recovery change the Git index. Exit status: 0 success, 2 invalid input/store, 3 stale or busy, 6 access/I/O/recovery block |
+| `celetis --agent <host> run <n> [--quiet] \| run resume <n> \| run retry <n> <wait-id>` | Each form sends one request to the master daemon of the repository of the current folder and returns at its answer. `run <n>` starts the next step of the issue, `run resume <n>` opens the saved session of a step with no progress again, and `run retry <n> <wait-id>` wakes the quota waiter of the issue for one attempt cycle. `--quiet` opens each session tab of the start in the background; `run resume` ignores it. An accepted start prints `run: #<n>: accepted as run <run id> of the daemon PID <pid>; read its progress: celetis daemon status`, and an accepted Retry prints `run: #<n>: Retry requested; the waiting run starts one bounded attempt cycle`; both exit 0. A refusal prints the line of the daemon, on stdout for code 0 and on stderr otherwise, and exits with its code. With no daemon, it exits 3 and starts nothing. It exits 1 when the daemon runs another revision of the program, and 6 when the daemon does not answer or the outcome is unknown. On Windows it exits 2 with `run: Windows is not a support target`. Any other form exits 2 with the usage line |
+| `celetis --agent <host> run <n> --effort <level>` | Asks the daemon to start the next step of the issue at `low`, `medium`, `high`, `xhigh`, or `max` instead of its decided or default level; the request carries the level, for the first session of this start only. Each later step uses its own decision, and the flag writes no decision. It needs exactly one issue number; any other form exits 2 with the usage line |
+| `celetis --agent <host> queue status \| queue action '<QueueAction JSON>'` | `status` prints the view of the queue as JSON. `action` saves one validated action and prints the view; when the action gives a wake, it then sends that wake to the master daemon and prints the answer as `run` does, with the prefix `queue:`. An Add to an empty queue, a Continue, and a Retry exit 3 with no daemon and save nothing. `--quiet` opens each session tab of the wake in the background. It exits 2 for another form or an agent that differs from the agent choice of the queue, and 1 for a refused action |
+| `celetis --agent <host> queue admit '<QueueAction JSON>'` | Internal finite admission for the board. Persists one validated action and returns a strict QueueReceipt without waiting for a session |
+| `celetis --agent <host> queue wake <id> <token> [--quiet]` | Internal request of a persisted wake to the daemon, for the board. The daemon refuses stale tokens and live owners, then follows the queue's gates |
+| `celetis --agent <host> daemon start \| status \| stop \| auto on\|off` | Starts, reads, and stops the master daemon of the repository of the current folder (`docs/workflow.md`, "The master daemon"); `auto on\|off` turns auto mode of the daemon on or off and prints `daemon: auto mode <state>`. For `start`, `status`, and `stop` the optional `--agent` selects nothing; for `auto` it selects the host of the auto steps. `start` spawns the daemon detached and exits 0 when it answers, or when a daemon already runs; it exits 1 when `gh`, `hc`, or the Herdr app is missing, or when the daemon ends or stays silent for 30 seconds. `status` prints the daemon, its auto mode, and one line per run; it exits 3 when no daemon runs. `stop` exits 0 when the process ended or no daemon runs. `auto` exits 0 with the state, 3 when no daemon runs, 1 when the daemon runs another revision of the program, the code of a refusal, or 6 when the outcome is unknown. Each form exits 6 when a daemon is known but its process or socket does not answer; `stop` exits 6 too when the process stays for 60 seconds. Windows and any other form exit 2 |
+| `celetis --agent <host> intake` | Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters `celetis:intake` with that request. It creates no issue before the answer and does not start a run |
+| `celetis --agent <host> assist <n>` | Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses `issue <n> assisted <file>` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume a run or land |
 | `celetis --agent <host> visual <n> <sha>` | Starts a fresh interactive session in the main checkout that makes the `visual-explainer` diff review of the landed commit `<sha>` of the issue `<n>`. It fetches the trunk from `origin` and refuses a commit that is not on it, and a commit whose page exists. The host writes `docs/superpowers/visuals/<sha>.html` and opens it, changes no other file, and makes no commit. A host with no `visual-explainer` skill says so in the tab and writes no file. The board's Make visual starts this command |
 | `celetis --agent <host> worktree <n>` | Makes the lane worktree and the branch of the issue, or enters the one that is there and brings it up to the trunk, and prints its path |
 | `celetis --agent <host> worktree --remove <n>` | Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first |
 | `celetis --agent <host> land <n> '<subject>'` | Lands the change of the issue by the `landing` field of `.celetis.yaml`. It is the one landing path of an agent. It refuses an issue that is not ready to land. Exit status: 0 landed, 1 internal error, 2 usage, 3 prerequisite, 4 repair, 5 checks, 6 blocked, 7 landed with a stopped cleanup (run it again), 128+n signal |
 | `celetis --agent <host> issue <n> <act>` | Makes each workflow write that the engine reads: `route <lane>`, `effort <step> <level> <file>`, `epic <file>`, `complete-epic [file]`, `needs-info <file>`, `wontfix <file>`, `spec <file>`, `root-cause <file>`, `plan <file>`, `built`, `before-landing <file> [--during-the-build]`, `landing-refused <file>`, `stopped <file>`, `ready-for-human`, `assisted <file>`. The assistance act records an attributed `## Human steps done` report before removing present blocking labels; it adds no label and preserves build state. Lifecycle acts write the comment heading before label changes. Each act refuses unmet prerequisites. `state` writes nothing and prints lifecycle facts. `epic-state` writes nothing and prints the current declaration, child snapshot, history, and holds. Epic definition writes preserve the complete parent body; guarded completion publishes its accepted record before closing and leaves readiness labels unchanged. `docs/issue-tracker.md`, "Conventions", gives each act. Exit status: 0 done, 1 internal error, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis --agent <host> next-step <n> \| --open` | The resolver: the next step of one issue, or of each open issue |
-| `celetis --agent <host> events [--after <id>]` | Prints each kept entry of the event record of the user as one JSON line, oldest first; `--after <id>` prints only the entries after that entry. `docs/celetis-flow.md`, "The event record", gives the record. Exit status: 0 done, 1 unsafe folder or busy lock, 2 usage or a relative `CELETIS_HOME` |
+| `celetis --agent <host> events [--after <id>]` | Prints each kept entry of the event record of the user as one JSON line, oldest first; `--after <id>` prints only the entries after that entry. `docs/workflow.md`, "The event record", gives the record. Exit status: 0 done, 1 unsafe folder or busy lock, 2 usage or a relative `CELETIS_HOME` |
 | `celetis --agent <host> capscore J V B N S X` | Resolves the six digits. `--json` gives portable scores and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null |
 | `celetis --agent <host> dispatch <act>` | Acts: `next`, `report <dispatch-id> <report-file>`, `gate`, `review`, `close`, `show`. The task loop applies each returned pair and reports exact native arguments/results. Evidence is agent-reported, not independently checked. Records: `/tmp/celetis-<uid>/dispatch/<host>-<session>.json` on macOS and Linux; `<os.tmpdir()>/celetis/dispatch/<host>-<session>.json` on Windows. Exits: 0 ready, reported, or closed (also `show`), 1 internal error, 2 usage, 3 refused, 4 stop, 5 setup |
 | `bun --no-env-file --no-install --config=/dev/null --no-macros engine/usage-hook.ts <capture-directory> <attempt-id>` | Internal Claude usage callback. Reads one native event from stdin and records a bound observation in the private attempt folder. Session arguments select it; it changes no installed setting. Unsupported or mismatched events give no decisive observation. Exits: 0 handled, 1 invalid input or unavailable capture |
@@ -1276,7 +1282,7 @@ URL. View, notification, and shortcut settings survive. If reconnect takes more 
 the page keeps a recovery instruction with the main checkout, startup host, and actual PORT.
 The update may have completed; the page does not try installation again.
 
-Codex and Claude sessions, runners and boards can stay open. The updater never stops their
+Codex and Claude sessions, the daemon, and boards can stay open, except for the move of #141 below. The updater never stops their
 processes or requires the Codex daemon to stop. It uses each host's native cache replacement.
 A fresh session loads the updated skills and tools; old cache files are not guaranteed to remain
 available to running work. Restart a session or board if it still needs a resource that the host
@@ -1285,17 +1291,33 @@ in a terminal keeps the manual board restart. This user-selected policy supersed
 consumer-exit rule of ADR-0027; see ADR-0028.
 
 The daemon or a board that runs keeps the version folder of its program. Before each new step
-session, the runner of the daemon compares the revision of the plugin of the session's host with
+session, the daemon compares the revision of the plugin of the session's host with
 its own revision. When they differ, it starts no session and prints
-`celetis: the <host> plugin is at <12> and this program is at <12>; run celetis update, then start the runner again`.
+`celetis: the <host> plugin is at <12> and this program is at <12>; run celetis update, then start the daemon again`.
 For the daemon, that means: run `celetis update`, restart the daemon, then send the request again.
-`--resume` has no such check. So a host that updates its plugin by itself stops each new runner
+`--resume` has no such check. So a host that updates its plugin by itself stops each new
 step until `celetis update` and a restart of the daemon. The check reads the Git source of the
 plugin, so an installation whose marketplace source is not Git, such as a local Codex marketplace,
-cannot start a new runner step. After `celetis update`, restart the daemon with
-`celetis daemon stop`, then `celetis daemon start`; a runner form of another revision refuses with
+cannot start a new step. After `celetis update`, restart the daemon with
+`celetis daemon stop`, then `celetis daemon start`; a `run` or `queue` form of another revision refuses with
 exit 1 until then. The board starts the command of the installed program at each press, so after
 that restart its next Run uses the new program.
+
+**The move of #141.** The update that names the workflow, the daemon, and a run moves the state of
+each repository from the old names to the new ones (`docs/workflow.md`, "The move of the old
+names"). The move refuses while an old process holds the state, so before `celetis update`:
+
+1. Run `celetis daemon stop` in each repository that has a daemon.
+2. Let each session end: the step sessions, and the sessions of `celetis assist`, `intake`, and
+   `visual`.
+3. Close each board.
+
+The first command after the update moves the state folder and the lock refs, and it converts the
+records when a process reads them. The marker of a lane worktree moves at the next
+`celetis --agent <host> worktree <n>` or `celetis --agent <host> setup lane <path>` for that
+worktree. A refusal names the old owner (its PID and the issue or the lock) or both folders; end
+the owner, or keep one folder by hand, then run the command again. `/celetis:setup` moves the setup record
+`.claude/celetis-flow/wiring.json` to `.claude/celetis/wiring.json`.
 
 The program runs the updater of its own version folder. When the program is broken or missing,
 run "First install" again. The install refuses a link or `current` file whose version folder is
@@ -1380,10 +1402,10 @@ Run press types this argv in a hidden terminal. The command sends its request to
 opens the session tab, and `--quiet` keeps that tab in the background:
 
 ```text
-<command> [--agent <agent>] celetis-flow <n> --quiet
+<command> [--agent <agent>] run <n> --quiet
 ```
 
-A Run with no agent choice omits `--agent`, so the runner selects from the effective order of each
+A Run with no agent choice omits `--agent`, so the daemon selects from the effective order of each
 step: its preferred agent when the local order includes it, then the local ordered preference
 ("Agent selection and model setup"). The `--agent` or `CELETIS_AGENT` of the board start does not
 pin it. An explicit Run choice adds `--agent <agent>` and changes only
@@ -1394,7 +1416,7 @@ in a hidden terminal, and the daemon opens the session tab in front. The run use
 the exact session ID of the saved record, even after the local order changes:
 
 ```text
-<command> celetis-flow --resume <n>
+<command> run resume <n>
 ```
 
 Open agent sends no agent choice. It opens and focuses a `#<n> assist` tab in the main checkout,
@@ -1426,7 +1448,7 @@ refuses a press for an issue with no History row, for a row whose page exists, w
 `#<n> visual` tab exists, and while another Make visual press of that number runs. A failed
 command leaves its message and a shell in the tab, and the row shows Making… until you close it.
 
-A queue wake types `<command> [--agent <host>] celetis-flow --queue run <id> <token> --quiet` in
+A queue wake types `<command> [--agent <host>] queue wake <id> <token> --quiet` in
 a hidden terminal in the same way. `--agent` is there only when the queue records one host.
 
 Each item of an argv is one argument, and no shell reads it as a line. On macOS and Linux, a
@@ -1434,14 +1456,14 @@ login shell of `$SHELL` starts the argv. A press needs a running daemon. Its ter
 and shows no line: the command exits at the answer, and herdr-core removes the terminal. A refusal
 shows on the card as before. An accepted request exits 0 before the session appears, so the card
 can show a short `failed` warning with the accepted line until the session appears (#249 removes
-it). To see the answer, start `celetis --agent <host> celetis-flow <n>` in a terminal, and read
-`celetis daemon status` for the run. The terminal has the label `celetis.runner=#<n>`, or
-`celetis.runner=queue` for a queue wake: `hc ls --label 'celetis.runner=#<n>'` finds it while it
+it). To see the answer, start `celetis --agent <host> run <n>` in a terminal, and read
+`celetis daemon status` for the run. The terminal has the label `celetis.press=#<n>`, or
+`celetis.press=queue` for a queue wake: `hc ls --label 'celetis.press=#<n>'` finds it while it
 lives, and `hc kill <t>` stops nothing. Before it types the argv, the press checks `hc` and the
 Herdr app, and a failed check returns 502 with its line. The tab of Open agent closes when the program exits 0,
 and a failed program leaves its message there. On Windows, the board passes the argv with no shell
 (not checked). When the space of the repository does not exist in the Herdr app, the first tab
-that a runner or a press opens makes it, and the app shows it, also for a quiet session tab. The
+that a run or a press opens makes it, and the app shows it, also for a quiet session tab. The
 app starts the first tab of that space through its own login shell, so that tab keeps a shell
 after its program. The program
 supplies Bun and its isolation flags. Each press reads the program again, so after
@@ -1467,9 +1489,9 @@ marks the first agent of the order; `In use` marks an agent that a live session 
 a confirmed usage limit and its reset time, or `reset unknown`. Each change is one replacement of
 the local order through `celetis agents replace`. A stale change returns the current order, which
 the list shows; make the change again. A failed save restores the confirmed order and shows the
-cause. While a runner waits because every included agent is limited, its issue card shows
+cause. While a run waits because every included agent is limited, its issue card shows
 `waits for a usage limit`, and the list shows `Retry #<n>`: Retry sends that wait ID to
-`celetis-flow --retry <n> <wait id>` and starts no runner. A card of a runner that stopped during
+`celetis run retry <n> <wait id>` and starts no run. A card of a run that stopped during
 such a wait shows a warning; Run starts the step again.
 
 History opens the latest 20 distinct landed issues in the existing nonmodal side panel. The
@@ -1490,11 +1512,11 @@ selected read clears only its own error; a good full read clears both error type
 error disables queue actions until a full read succeeds; a selected-read error alone does not.
 Loading and successful empty history have separate messages.
 
-`docs/celetis-flow.md`, "The board", gives the data, the fixed argvs, and the card states.
+`docs/workflow.md`, "The board", gives the data, the fixed argvs, and the card states.
 [`engine/board/README.md`](engine/board/README.md) describes the page.
 Open work may stay open. Required CLI workflow
 acceptance remains open; optional desktop evidence is separate in
-[Acceptance status](docs/celetis-flow.md#acceptance-status).
+[Acceptance status](docs/workflow.md#acceptance-status).
 
 ## Checks
 
@@ -1528,5 +1550,5 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
 BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros scripts/verify.ts
 ```
 
-`docs/celetis-flow.md`, "Check the harness", holds the reasons behind the facts of the gate and the
+`docs/workflow.md`, "Check the harness", holds the reasons behind the facts of the gate and the
 workflow.

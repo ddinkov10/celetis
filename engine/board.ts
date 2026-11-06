@@ -17,7 +17,7 @@ export async function main(argv: string[]): Promise<number> {
     if (args.length) throw new HostError(`usage: celetis --agent <host> board\n${updateHint}`, 2);
     const env = childEnv();
     process.env.PATH = env.PATH;
-    const operation = createOperation(
+    const operation = await createOperation(
       await locateCheckouts(process.cwd()),
       { explicit, environment: process.env.CELETIS_AGENT },
       'main',

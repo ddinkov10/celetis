@@ -71,20 +71,14 @@ export async function celetisAdapter(
       return argv([...agentFlag(choice), 'visual', number, sha]);
     },
     run: (number, choice, effort) =>
-      argv([...agentFlag(choice), 'celetis-flow', number, ...(effort ? ['--effort', effort] : []), '--quiet']),
+      argv([...agentFlag(choice), 'run', number, ...(effort ? ['--effort', effort] : []), '--quiet']),
     resume: async (number) => {
       await selectSavedSession(main, number);
-      return argv(['celetis-flow', '--resume', number]);
+      return argv(['run', 'resume', number]);
     },
     queue: async (input, choice) => {
       const action = parseQueueAction(input);
-      const result = await control([
-        ...agentFlag(choice),
-        'celetis-flow',
-        '--queue',
-        'admit',
-        JSON.stringify(action),
-      ]).catch(() => {
+      const result = await control([...agentFlag(choice), 'queue', 'admit', JSON.stringify(action)]).catch(() => {
         throw new Error('queue: the celetis program is not installed');
       });
       if (result.code !== 0)
@@ -95,8 +89,7 @@ export async function celetisAdapter(
         throw new Error('queue: admission outcome is uncertain; refresh before another attempt');
       }
     },
-    queueRun: (wake) =>
-      argv([...agentFlag(wake.choice), 'celetis-flow', '--queue', 'run', wake.id, wake.token, '--quiet']),
+    queueRun: (wake) => argv([...agentFlag(wake.choice), 'queue', 'wake', wake.id, wake.token, '--quiet']),
     replaceAgentOrder: async (order, expectedVersion) => {
       const replacement = { order: validateAgentOrder(order), expectedVersion };
       if (!VERSION.test(expectedVersion)) throw new Error('agents: expectedVersion must be an order version');
@@ -118,7 +111,7 @@ export async function celetisAdapter(
     retryQuota: async (number, waitId) => {
       if (!Number.isSafeInteger(number) || number < 1 || !UUID.test(waitId))
         throw new Error('recovery: invalid issue number or wait ID');
-      const result = await control(['celetis-flow', '--retry', String(number), waitId]);
+      const result = await control(['run', 'retry', String(number), waitId]);
       if (result.code !== 0) throw new Error(result.stderr.trim() || 'recovery: the Retry outcome is uncertain');
     },
   };

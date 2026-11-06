@@ -143,9 +143,9 @@ will read it:
   spawn controls of the host ([the child dispatch](procedures/dispatch.md), "One child").
 - **Plan headers** — print the CAP rec on session-executed tasks. Note: the **session model is the
   user's picker**; the rubric can only *recommend* there (max is auto-assignable for a spawn, a rec
-  for the session). The user may override any rec. A runner or board start of a step session gets
+  for the session). The user may override any rec. A run or board start of a step session gets
   the effort level that the step before decided on the issue, else `high`, not a rubric band
-  (`docs/celetis-flow.md`, "Start the script", "The effort level"); the rubric still only
+  (`docs/workflow.md`, "Start the script", "The effort level"); the rubric still only
   recommends the session model.
 
 ## Worked examples (explicit bias 0, attempt 1)
@@ -354,7 +354,9 @@ parent's model ("Codex model profiles").
 
 Agent selection is `--agent claude|codex` > explicit `CELETIS_AGENT` > the first host in the local
 ordered preference. Its missing-record order is `claude`, `codex`; outside a Git checkout,
-control selection uses Claude. Scoring consults no usage-limit record. Explicit selection
+control selection uses Claude. The scripts of the verify gate (`scripts/verify.ts`,
+`scripts/build.ts`, and `scripts/install-tools.ts`) take `--agent`, else `CELETIS_AGENT`, else
+Claude, and read no order. Scoring consults no usage-limit record. Explicit selection
 needs no preference read; required YAML validation still applies. Without a new flag, Claude's existing human
 CAP output is unchanged. When the selected host is Claude and `OPENCODE=1`, the existing opencode
 mode still uses its current model: `--current-model provider/id` > `CAP_CURRENT_MODEL` > the
@@ -430,7 +432,7 @@ Keep the current parent model; this setup controls children only.
 
 Native cache replacement and same-child retry still need their separate CLI evidence.
 Open sessions have no immutable-resource guarantee (ADR-0028). Desktop binding has separate optional acceptance under
-[Acceptance status](celetis-flow.md#acceptance-status); the active-surface profile and tool checks
+[Acceptance status](workflow.md#acceptance-status); the active-surface profile and tool checks
 still apply to each requested desktop operation.
 
 For attempts 2 and 3, the scorer resolves earlier attempts with the same digits, bias, profile,

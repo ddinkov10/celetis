@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { join } from 'node:path';
 import { bunArgs, childEnv } from './process.ts';
+import { daemonScript } from './process-identity.ts';
 
 export type StatePreparation = { kind: 'queue' } | { kind: 'session'; issue: number };
 
@@ -14,7 +15,7 @@ export async function requestStatePreparation(main: string, request: StatePrepar
   await new Promise<void>((resolve, reject) => {
     execFile(
       process.execPath,
-      bunArgs(join(import.meta.dir, '../celetis-flow.ts'), ['--prepare-state', ...args]),
+      bunArgs(join(import.meta.dir, '..', daemonScript), ['--prepare-state', ...args]),
       {
         cwd: main,
         env: childEnv(),

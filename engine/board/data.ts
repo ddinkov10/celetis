@@ -33,7 +33,11 @@ async function readDocument(
   signal: AbortSignal,
   target?: { numbers: readonly number[]; previous: Document },
 ): Promise<Document> {
-  const operation = createOperation(await locateCheckouts(main), { environment: process.env.CELETIS_AGENT }, 'main');
+  const operation = await createOperation(
+    await locateCheckouts(main),
+    { environment: process.env.CELETIS_AGENT },
+    'main',
+  );
   const { data, stderr } = await nextBoard(operation, signal, target?.numbers);
   if (!data) {
     signal.throwIfAborted();
@@ -74,7 +78,7 @@ async function readDocument(
           : stuck
             ? {
                 state: 'stuck',
-                act: `celetis --agent <host> celetis-flow --resume ${row.number}`,
+                act: `celetis --agent <host> run resume ${row.number}`,
               }
             : {}),
     });
@@ -84,7 +88,7 @@ async function readDocument(
     issues.push(...target.previous.issues.filter((issue) => !selected.has(issue.number)));
     issues.sort((a, b) => a.number - b.number);
   }
-  const runner = !!(await lockHolder(main, 'runner'));
+  const auto = !!(await lockHolder(main, 'auto'));
   signal.throwIfAborted();
   const agents = Object.fromEntries(
     ['claude', 'codex'].map((agent) => {
@@ -105,7 +109,7 @@ async function readDocument(
     agents,
     flow,
     noRun: data.noRun,
-    runner,
+    auto,
     issues,
     queue: receipt.view,
     queueWake: receipt.wake,
@@ -121,7 +125,7 @@ export type AgentState = Readonly<{
 
 export async function readAgentState(main: string, now: number): Promise<AgentState> {
   const common = await realpath(await commonDir(main));
-  const order = readAgentOrder(common);
+  const order = await readAgentOrder(common);
   const records = await readUsage(common);
   const quota = new Map<number, QuotaState>();
   for (const record of await listRecoveries(main)) {

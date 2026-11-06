@@ -16,7 +16,7 @@ the user its message and stop (`<plugin>/docs/issue-tracker.md`, "Branches, PRs,
 each refusal).
 
 In a recovery session (the step header has `- recovery: yes`), the script can keep the dirty lane
-that the runner bound for the recovery. It then prints `worktree: #<n>: the quota recovery keeps
+that the daemon bound for the recovery. It then prints `worktree: #<n>: the quota recovery keeps
 the dirty lane; ...`, does not bring the branch up to the trunk, and prints the path. Inspect the
 existing changes and the issue before an edit. A later entry with a clean lane brings it up to the
 trunk.

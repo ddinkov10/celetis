@@ -61,7 +61,7 @@ evidence references, cleanup, and remaining gaps together. Retain sourced inappl
 
 Preserve existing holds. Direct their verified completion to assistance through
 `<plugin>/docs/procedures/assisted-completion.md`; acceptance clears none. Assistance ends after
-its own completion. The maintainer then re-enters this skill; no runner starts for the parent.
+its own completion. The maintainer then re-enters this skill; no run starts for the parent.
 
 For a repair, read existing linked repair issues first. Reuse the issue that covers the failed
 criterion. If none exists, create and link a repair issue through the "Epics" recipe, with a

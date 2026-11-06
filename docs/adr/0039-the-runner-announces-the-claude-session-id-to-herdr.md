@@ -12,7 +12,7 @@
   runner evidence. [Issue #36](https://github.com/ddinkov10/celetis/issues/36): runner evidence.
 - [ADR-0005](0005-herdr-gives-the-session-state-and-ends-each-step.md): herdr gives the session
   state and the script ends each step through herdr.
-- `runIssue` and `endWhenDone` in [engine/celetis-flow.ts](../../engine/celetis-flow.ts).
+- `runIssue` and `endWhenDone` in [engine/celetis-flow.ts](../../engine/lib/run-engine.ts).
 
 ## Context
 

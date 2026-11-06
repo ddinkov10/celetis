@@ -10,6 +10,7 @@ import { locateCheckouts, type Operation } from './operation.ts';
 import { childEnv } from './process.ts';
 import type { QueueAction, QueueReceipt, QueueRecord, QueueView } from './queue-types.ts';
 import { readRecovery, recoveryOwner } from './quota-recovery.ts';
+import { stateFolder } from './state-folder.ts';
 import { commitMigration, type LocalRecord, readLocalRecord } from './state-migration.ts';
 import { requestStatePreparation } from './state-preparation.ts';
 import { tryFlock } from './update-lock.ts';
@@ -225,8 +226,6 @@ export function parseQueueReceipt(value: unknown): QueueReceipt {
   return value as QueueReceipt;
 }
 
-const pathOf = (common: string) => join(common, 'celetis-flow', 'queue.json');
-
 function historical(value: unknown, file: string): QueueRecord {
   const invalid = (cause: string): never => {
     throw new Error(`queue: ${file}: schema ${object(value) ? String(value.schema) : 'unknown'} to 3: ${cause}`);
@@ -302,9 +301,10 @@ function historical(value: unknown, file: string): QueueRecord {
 }
 
 async function snapshot(common: string): Promise<LocalRecord | null> {
-  const file = pathOf(common);
+  const folder = await stateFolder(common);
+  const file = join(folder, 'queue.json');
   try {
-    return await readLocalRecord(file, [common, join(common, 'celetis-flow')], 'shared');
+    return await readLocalRecord(file, [common, folder], 'shared');
   } catch (error) {
     throw new Error(
       `queue: ${file}: target schema 3: cannot read record: ${error instanceof Error ? error.message : String(error)}`,
@@ -412,8 +412,8 @@ export async function readQueue(main: string, common?: string, owner?: LockOwner
 
 async function writeQueue(common: string, record: QueueRecord): Promise<void> {
   validate(record);
-  const file = pathOf(common);
-  const dir = join(file, '..');
+  const dir = await stateFolder(common);
+  const file = join(dir, 'queue.json');
   await mkdir(dir, { recursive: true, mode: 0o700 });
   const temp = join(dir, `.queue.${randomUUID()}`);
   try {
@@ -425,7 +425,7 @@ async function writeQueue(common: string, record: QueueRecord): Promise<void> {
 }
 
 async function withQueueWrite<T>(common: string, change: () => Promise<T>): Promise<T> {
-  const dir = join(common, 'celetis-flow');
+  const dir = await stateFolder(common);
   await mkdir(dir, { recursive: true, mode: 0o700 });
   const path = join(dir, 'queue-write.lock');
   const fd =
@@ -474,7 +474,7 @@ export function queueView(
   if (!error && next && next.kind !== 'run' && !terminal) error = lineOf(String(record?.numbers[0]), next);
   if (!error && record?.state === 'error') error = record.reason;
   if (!error && (record?.state === 'running' || record?.state === 'quota-wait') && !owner)
-    error = 'queue: the runner was interrupted. Use Try again to continue.';
+    error = 'queue: the run was interrupted. Use Try again to continue.';
   return {
     record,
     owner,

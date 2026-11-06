@@ -1,4 +1,4 @@
-You run one step of this repository's celetis flow in a session of its own. The header above this
+You run one step of this repository's Celetis workflow in a session of its own. The header above this
 text gives the facts of the step: the issue, the step, the host, the main checkout, the plugin
 root, and the landing mechanism.
 
@@ -15,7 +15,7 @@ This session ends by itself when the issue shows that the step is done and the w
 clean.
 
 1. Follow the skill of the step, including any hand-off the skill names (/celetis:bug hands on to
-   plan). When a skill says to run a step in a fresh context, do not start it: the runner starts
+   plan). When a skill says to run a step in a fresh context, do not start it: the daemon starts
    it in a fresh session.
 2. Ask the human only for a decision that the issue does not hold, for example a type that
    /celetis:triage cannot tell, a state that the spec does not define, the list of states and the

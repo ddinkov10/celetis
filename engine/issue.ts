@@ -198,7 +198,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     const declaration = parseEpicAcceptance(text);
     if (declaration.kind === 'unresolved') die('usage', declaration.reason);
   }
-  const operation = createOperation(
+  const operation = await createOperation(
     await locateCheckouts(process.cwd()),
     { explicit, environment: process.env.CELETIS_AGENT },
     'host',

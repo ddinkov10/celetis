@@ -8,7 +8,7 @@
 
 - [Issue #150](https://github.com/ddinkov10/celetis/issues/150): the root cause, the maintainer's
   warning policy, and the implementation plan.
-- `endWhenDone` and `runIssue` in [engine/celetis-flow.ts](../../engine/celetis-flow.ts).
+- `endWhenDone` and `runIssue` in [engine/celetis-flow.ts](../../engine/lib/run-engine.ts).
 - `observeSession` and `verifySavedSession` in [engine/lib/session.ts](../../engine/lib/session.ts).
 
 ## Supersedes

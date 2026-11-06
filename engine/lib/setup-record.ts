@@ -24,6 +24,7 @@ type Scope = {
   items?: readonly { path: readonly string[]; values?: readonly string[]; entrypoint?: true }[];
 };
 const scopes: Record<string, Scope> = {
+  '.claude/celetis/wiring.json': { file: true },
   '.claude/celetis-flow/wiring.json': { file: true },
   '.codex/rules/celetis.rules': { file: true },
   'scripts/celetis': { file: true },

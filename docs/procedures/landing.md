@@ -99,7 +99,7 @@ one runs. The subject is the squash subject of the change, without the issue num
 adds ` (#<n>)`. When the lane branch holds one commit, pass the subject of that commit: the squash
 commit can take the subject of that commit in place of the argument.
 
-The exit status gives the result (`<plugin>/docs/celetis-flow.md`, "A landing", gives each class):
+The exit status gives the result (`<plugin>/docs/workflow.md`, "A landing", gives each class):
 
 - **0** ends the step: the change is on the trunk, and the worktree and the branch are gone.
   **An act of the maintainer** (each `land:` line other than `land: #<n> is on <trunk>` and

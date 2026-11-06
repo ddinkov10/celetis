@@ -2,14 +2,15 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { HostError } from './host.ts';
 import { childEnv, run } from './process.ts';
-import { type ProcessState, processScript, processStart, processState } from './process-identity.ts';
+import { daemonScript, type ProcessState, processScript, processStart, processState } from './process-identity.ts';
+import { stateFolder } from './state-folder.ts';
 
 export type Identity = Readonly<{ pid: number; start: string }>;
 export type LockClaim =
   | Readonly<{ kind: 'taken' }>
   | Readonly<{ kind: 'held'; holder: string }>
   | Readonly<{ kind: 'unknown' }>;
-type OwnerRecord = Readonly<{ runner: Identity | null; session: Identity | null }>;
+type OwnerRecord = Readonly<{ daemon: Identity | null; session: Identity | null }>;
 
 export interface LockOwner {
   owns(name: string): boolean;
@@ -21,7 +22,7 @@ export interface LockOwner {
 }
 
 function die(message: string): never {
-  throw new HostError(`celetis-flow: ${message}`);
+  throw new HostError(`daemon: ${message}`);
 }
 function parsed(source: string): unknown {
   try {
@@ -34,8 +35,8 @@ function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-const ref = (name: string) => `refs/celetis-flow/locks/${name}`;
-const recordPath = (common: string) => join(common, 'celetis-flow', 'no-progress');
+const ref = (name: string) => `refs/celetis/locks/${name}`;
+const recordPath = async (common: string) => join(await stateFolder(common), 'no-progress');
 const git = (main: string, args: string[], input?: string) => run('git', args, { cwd: main, env: childEnv(), input });
 const refValue = async (main: string, name: string) =>
   (await git(main, ['rev-parse', '--verify', ref(name)])).stdout.trimEnd();
@@ -48,13 +49,13 @@ function identity(row: unknown): Identity | null {
 
 async function ownerRecord(main: string, owner: string): Promise<OwnerRecord | null> {
   const data = parsed((await git(main, ['cat-file', 'blob', owner])).stdout);
-  return object(data) ? { runner: identity(data.runner), session: identity(data.session) } : null;
+  return object(data) ? { daemon: identity(data.daemon), session: identity(data.session) } : null;
 }
 
-async function runnerState(runner: Identity): Promise<ProcessState> {
-  const state = await processState(runner.pid, runner.start);
+async function daemonState(daemon: Identity): Promise<ProcessState> {
+  const state = await processState(daemon.pid, daemon.start);
   if (state === 'gone') return 'gone';
-  const script = await processScript(runner.pid, 'celetis-flow.ts');
+  const script = await processScript(daemon.pid, daemonScript);
   return script === 'runs' ? state : script;
 }
 
@@ -62,8 +63,8 @@ const same = (a: Identity | null, b: Identity | null) => !!a && !!b && a.pid ===
 
 async function holderFrom(main: string, owner: string): Promise<string> {
   const record = await ownerRecord(main, owner);
-  const { runner, session } = record ?? { runner: null, session: null };
-  if (runner && (await runnerState(runner)) !== 'gone') return String(runner.pid);
+  const { daemon, session } = record ?? { daemon: null, session: null };
+  if (daemon && (await daemonState(daemon)) !== 'gone') return String(daemon.pid);
   if (session && (await processState(session.pid, session.start)) !== 'gone') return String(session.pid);
   return '';
 }
@@ -74,11 +75,12 @@ export async function lockHolder(main: string, name: string): Promise<string> {
 }
 
 export async function isRecorded(common: string, n: string, line: string): Promise<boolean> {
-  return (await readFile(recordPath(common), 'utf8').catch(() => '')).split('\n').includes(`${n}\t${line}`);
+  const path = await recordPath(common);
+  return (await readFile(path, 'utf8').catch(() => '')).split('\n').includes(`${n}\t${line}`);
 }
 
 export async function addRecord(common: string, n: string, line: string): Promise<void> {
-  if (!(await isRecorded(common, n, line))) await writeFile(recordPath(common), `${n}\t${line}\n`, { flag: 'a' });
+  if (!(await isRecorded(common, n, line))) await writeFile(await recordPath(common), `${n}\t${line}\n`, { flag: 'a' });
 }
 
 export function createLockOwner(main: string, ownStart?: string): LockOwner {
@@ -97,8 +99,8 @@ export function createLockOwner(main: string, ownStart?: string): LockOwner {
   const begin = async () => {
     if (owner) return;
     const start = ownStart ?? (await processStart(process.pid));
-    if (!start) die('cannot read process identity; allow process access and start the runner again');
-    owner = await blob({ runner: { pid: process.pid, start }, session: null });
+    if (!start) die('cannot read process identity; allow process access and start the run again');
+    owner = await blob({ daemon: { pid: process.pid, start }, session: null });
   };
   const withSession = async (next: Identity) => {
     const current = parsed((await git(main, ['cat-file', 'blob', owner])).stdout);
@@ -110,7 +112,7 @@ export function createLockOwner(main: string, ownStart?: string): LockOwner {
     const sessionGone = session === null || (await processState(session.pid, session.start)) === 'gone';
     if (owner && sessionGone) await git(main, ['update-ref', '--no-deref', '-d', ref(name), owner]);
     else if (owner && handOff)
-      await git(main, ['update-ref', '--no-deref', ref(name), await blob({ runner: null, session }), owner]);
+      await git(main, ['update-ref', '--no-deref', ref(name), await blob({ daemon: null, session }), owner]);
     held.delete(name);
   };
   return {
@@ -128,7 +130,7 @@ export function createLockOwner(main: string, ownStart?: string): LockOwner {
           return null;
         }
         if ((await refValue(main, name)) === old)
-          die(`cannot take the ${name} lock; check Git access and start the runner again`);
+          die(`cannot take the ${name} lock; check Git access and start the run again`);
       }
     },
     async adopt(name, claimed) {
@@ -138,11 +140,11 @@ export function createLockOwner(main: string, ownStart?: string): LockOwner {
         const old = await refValue(main, name);
         if (old === owner && held.has(name)) return { kind: 'taken' };
         const record = old ? await ownerRecord(main, old) : null;
-        const { runner, session: recorded } = record ?? { runner: null, session: null };
+        const { daemon, session: recorded } = record ?? { daemon: null, session: null };
         let next = owner;
-        if (runner) {
-          const state = await runnerState(runner);
-          if (state === 'runs') return { kind: 'held', holder: String(runner.pid) };
+        if (daemon) {
+          const state = await daemonState(daemon);
+          if (state === 'runs') return { kind: 'held', holder: String(daemon.pid) };
           if (state === 'unknown') return { kind: 'unknown' };
         }
         if (recorded) {
@@ -171,16 +173,16 @@ export function createLockOwner(main: string, ownStart?: string): LockOwner {
           return { kind: 'taken' };
         }
         if ((await refValue(main, name)) === old)
-          die(`cannot take the ${name} lock; check Git access and start the runner again`);
+          die(`cannot take the ${name} lock; check Git access and start the run again`);
       }
     },
     async registerSession(pid) {
-      if (!pid) die('cannot read session process identity; start the runner again');
+      if (!pid) die('cannot read session process identity; start the run again');
       const start = await processStart(pid);
-      if (!start) die('cannot read session process identity; start the runner again');
+      if (!start) die('cannot read session process identity; start the run again');
       const next = await withSession({ pid, start });
       const r = await git(main, ['update-ref', '--no-deref', '--stdin'], moved(next));
-      if (r.code !== 0) die('cannot register the session in its locks; start the runner again');
+      if (r.code !== 0) die('cannot register the session in its locks; start the run again');
       owner = next;
       session = { pid, start };
     },

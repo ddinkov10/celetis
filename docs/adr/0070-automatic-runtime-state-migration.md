@@ -9,7 +9,7 @@
 - [Issue #244](https://github.com/ddinkov10/celetis/issues/244).
 - `engine/lib/state-migration.ts`, `engine/lib/state-preparation.ts`, and the queue, session,
   and dispatch stores.
-- [The continuous queue](../celetis-flow.md#the-continuous-queue).
+- [The continuous queue](../workflow.md#the-continuous-queue).
 
 ## Supersedes
 

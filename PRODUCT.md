@@ -35,7 +35,7 @@ agent that waits.
 - One copy of the skills and procedures serves both Claude Code and Codex.
 - The plugin names roles, not parts of a product. A product project keeps its own facts in its
   `AGENTS.md` and `.celetis.yaml`.
-- On the board, no card moves by hand. The flow and the runner place each card, and the board
+- On the board, no card moves by hand. The workflow and the daemon place each card, and the board
   starts no step by itself.
 
 ## Operating Context
@@ -45,7 +45,7 @@ agent that waits.
 - Sessions come from herdr-core (`hc`). The Herdr app shows the agent terminals as tabs. Issues come
   from `gh`.
 - The work is a set of lanes (`bug`, `feature`, `chore`, `hotfix`) with ordered steps. A gate says
-  who starts a step: `me` (a press of Run) or `auto` (the automatic runner).
+  who starts a step: `me` (a press of Run) or `auto` (auto mode of the daemon).
 - The maintainer works mostly on macOS. The board is checked in Chromium browsers only.
 - Each board UI change is checked at desktop width and at 375×812.
 
@@ -82,7 +82,7 @@ agent that waits.
 - `README.md`: the product, the requirements, the commands, and the update rule.
 - `engine/board/README.md`: the full board specification, including the layout, keys, errors, and
   trust boundary.
-- `docs/celetis-flow.md`: the runner, the board requirements, and the acceptance status of each
+- `docs/workflow.md`: the daemon, the runs, the board requirements, and the acceptance status of each
   host.
 - `docs/adr/`: the architecture decisions, for example ADR-0020, ADR-0035, and ADR-0058 for the
   board.
@@ -96,7 +96,7 @@ usage metrics. Future work must not invent them.
 - Show what needs the human first. An agent that waits must never go unseen.
 - One press does one thing. Each press says what happened, and a failed press names its cause.
 - Never hide the state. The last good read stays on screen when a read fails, with the cause.
-- The board reflects the flow; it does not own it. The issue and the runner stay the authority.
+- The board reflects the flow; it does not own it. The issue and the daemon stay the authority.
 - Stay general. Nothing on the board names a part of one product.
 
 ## Accessibility & Inclusion

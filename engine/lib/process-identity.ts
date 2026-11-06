@@ -3,6 +3,8 @@ import { windowsProcess } from './windows.ts';
 
 export type ProcessState = 'runs' | 'gone' | 'unknown';
 
+export const daemonScript = 'daemon.ts';
+
 async function field(pid: number, name: string): Promise<string | null> {
   const result = await run('ps', ['-p', String(pid), '-o', name], { env: { ...process.env, LC_ALL: 'C' } });
   return result.code === 0 ? result.stdout.trimEnd() : null;

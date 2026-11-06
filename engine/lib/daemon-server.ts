@@ -39,6 +39,7 @@ import {
   requireSetup,
 } from './run-engine.ts';
 import { type RunRecord, readRunRecords, removeRunRecord, writeRunRecord } from './run-record.ts';
+import { stateFolder } from './state-folder.ts';
 
 type Frame = { id: string; last: string | null };
 type Answer = 'none' | 'pending' | 'sent' | 'refused';
@@ -50,9 +51,8 @@ type Loop = {
   done: Promise<void>;
 };
 
-const stopLine = 'celetis-flow: daemon: the daemon stops; start it again, then send the request';
-const removedLine =
-  'celetis-flow: daemon: the program version of this daemon was removed after an update; start the daemon again';
+const stopLine = 'daemon: the daemon stops; start it again, then send the request';
+const removedLine = 'daemon: the program version of this daemon was removed after an update; start the daemon again';
 const bodyLimit = 16 * 1024;
 const root = resolve(import.meta.dir, '../..');
 
@@ -68,7 +68,7 @@ function routeOutput(frames: AsyncLocalStorage<Frame>): void {
     const frame = frames.getStore();
     const tag = `${new Date().toISOString()} ${frame ? frame.id.slice(0, 8) : 'daemon'}`;
     const lines = (text.endsWith('\n') ? text.slice(0, -1) : text).split('\n');
-    for (const line of lines) if (frame && line.startsWith('celetis-flow: ')) frame.last = line;
+    for (const line of lines) if (frame && line.startsWith('daemon: ')) frame.last = line;
     return lines.map((line) => `${tag} ${line}`).join('\n');
   };
   const log = console.log;
@@ -111,10 +111,10 @@ async function writeIdentity(file: string, identity: DaemonIdentity): Promise<vo
 
 export async function runDaemon(): Promise<number> {
   if (process.platform === 'win32') {
-    console.error('celetis-flow: daemon: Windows is not a support target');
+    console.error('daemon: Windows is not a support target');
     return 2;
   }
-  installRecorder('celetis-flow');
+  installRecorder('daemon');
   const frames = new AsyncLocalStorage<Frame>();
   routeOutput(frames);
   try {
@@ -130,15 +130,15 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
   const checkout = await locateCheckouts(process.cwd());
   if (checkout.main === null || checkout.common === null) throw new HostError('celetis: need a Git checkout', 2);
   const { main, common } = checkout;
-  const place: Place = { main, common, state: join(common, 'celetis-flow'), root };
-  const paths = daemonPaths(common);
-  const fail = (path: string, reason: string) => new HostError(`celetis-flow: daemon: ${path}: ${reason}`);
+  const place: Place = { main, common, state: await stateFolder(common), root };
+  const paths = await daemonPaths(common);
+  const fail = (path: string, reason: string) => new HostError(`daemon: ${path}: ${reason}`);
   sharedFolderSync(place.state, fail);
   for (const folder of [paths.folder, paths.runs, privateRoot, dirname(paths.socket)]) privateFolderSync(folder, fail);
   const start = await processStart(process.pid);
   if (!start)
     throw new HostError(
-      'celetis-flow: daemon: cannot read the process start of the daemon; allow process access and start the daemon again',
+      'daemon: cannot read the process start of the daemon; allow process access and start the daemon again',
     );
   const identity: DaemonIdentity = {
     schema: 1,
@@ -152,7 +152,7 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
   const owner = createLockOwner(main, start);
   const holder = await owner.take('daemon');
   if (holder !== null) {
-    console.error(`celetis-flow: daemon: another daemon of this repository has PID ${holder}; this one stops`);
+    console.error(`daemon: another daemon of this repository has PID ${holder}; this one stops`);
     return 1;
   }
 
@@ -195,15 +195,13 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
   const journal = (record: RunRecord) =>
     writeRunRecord(paths.runs, record).catch((error: unknown) => {
       throw new HostError(
-        `celetis-flow: daemon: cannot write the run record ${join(paths.runs, `${record.id}.json`)}: ${described(error)}`,
+        `daemon: cannot write the run record ${join(paths.runs, `${record.id}.json`)}: ${described(error)}`,
       );
     });
   const forget = async (entry: Entry, end: RunEnd | null) => {
     if (end?.kind === 'detached' && (entry.answer === 'none' || entry.answer === 'sent')) return;
     await removeRunRecord(paths.runs, entry.handle.id).catch((error: unknown) =>
-      frames.run(entry.frame, () =>
-        console.error(`celetis-flow: daemon: cannot remove the run record: ${described(error)}`),
-      ),
+      frames.run(entry.frame, () => console.error(`daemon: cannot remove the run record: ${described(error)}`)),
     );
   };
   const launch = <T extends Readonly<{ handle: RunHandle }>>(start: () => T, answer: Answer = 'none'): T => {
@@ -346,7 +344,7 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
     let body: unknown = null;
     if (request.method === 'POST') {
       const text = await bodyText(request);
-      if (text === null) return refusal(413, `celetis-flow: daemon: a request body has at most ${bodyLimit} bytes`, 2);
+      if (text === null) return refusal(413, `daemon: a request body has at most ${bodyLimit} bytes`, 2);
       try {
         body = JSON.parse(text);
       } catch {
@@ -375,7 +373,7 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
       case 'retry': {
         const { number, waitId } = parsed;
         const waiting = async (record: QuotaRecovery) =>
-          record.runner.pid === identity.pid && record.runner.start === identity.start
+          record.daemon.pid === identity.pid && record.daemon.start === identity.start
             ? [...entries.values()].some(({ handle }) => {
                 const view = handle.view();
                 return view.issue === number && view.state !== 'ending' && view.state !== 'finished';
@@ -399,11 +397,9 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
       handlers.set(signal, handler);
       process.on(signal, handler);
     }
-    for (const read of await readRunRecords(paths.runs)) {
+    for (const read of await readRunRecords(paths.runs, common)) {
       if ('error' in read) {
-        console.error(
-          `celetis-flow: daemon: cannot take over ${read.path}: ${read.error}; its session stays in its tab`,
-        );
+        console.error(`daemon: cannot take over ${read.path}: ${read.error}; its session stays in its tab`);
         continue;
       }
       const { record } = read;
@@ -423,11 +419,11 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
       fetch: respond,
       error: (error) => {
         console.error(error.stack ?? error.message);
-        return refusal(500, `celetis-flow: daemon: ${error.message}`, 1);
+        return refusal(500, `daemon: ${error.message}`, 1);
       },
     });
     await writeIdentity(paths.identity, identity);
-    console.log(`celetis-flow: daemon: PID ${process.pid} serves ${paths.socket}`);
+    console.log(`daemon: PID ${process.pid} serves ${paths.socket}`);
     const poll = setInterval(() => {
       void gone(root).then((missing) => {
         if (missing) removed();

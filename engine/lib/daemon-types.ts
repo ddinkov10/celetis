@@ -6,6 +6,7 @@ import { HostError } from './host.ts';
 import { privateRoot } from './private-folder.ts';
 import type { ProcessState } from './process-identity.ts';
 import type { RunInput, RunState } from './run-engine.ts';
+import { stateFolder } from './state-folder.ts';
 import { type Step, steps } from './workflow.ts';
 
 export type Selection = Readonly<{ explicit?: Host; environment?: string }>;
@@ -93,20 +94,23 @@ const nullable =
 const path = (value: unknown): value is string => filled(value) && isAbsolute(value);
 const isStep = (value: unknown): value is Step => (steps as readonly unknown[]).includes(value);
 
-export function daemonPaths(common: string): {
+export function daemonSocket(common: string): string {
+  const socket = join(privateRoot, 'daemon', `${createHash('sha256').update(common).digest('hex').slice(0, 16)}.sock`);
+  const bytes = Buffer.byteLength(socket);
+  if (bytes >= 104)
+    throw new HostError(`daemon: the socket path ${socket} has ${bytes} bytes; a socket path needs fewer than 104`);
+  return socket;
+}
+
+export async function daemonPaths(common: string): Promise<{
   folder: string;
   identity: string;
   log: string;
   runs: string;
   socket: string;
-} {
-  const folder = join(common, 'celetis-flow', 'daemon');
-  const socket = join(privateRoot, 'daemon', `${createHash('sha256').update(common).digest('hex').slice(0, 16)}.sock`);
-  const bytes = Buffer.byteLength(socket);
-  if (bytes >= 104)
-    throw new HostError(
-      `celetis-flow: daemon: the socket path ${socket} has ${bytes} bytes; a socket path needs fewer than 104`,
-    );
+}> {
+  const socket = daemonSocket(common);
+  const folder = join(await stateFolder(common), 'daemon');
   return {
     folder,
     identity: join(folder, 'daemon.json'),
@@ -129,10 +133,9 @@ export function parseRequest(
   path: string,
   body: unknown,
 ): DaemonRequest | { status: 400 | 404 | 405; line: string } {
-  if (!Object.hasOwn(routes, path))
-    return { status: 404, line: `celetis-flow: daemon: no request at ${path.slice(0, 200)}` };
+  if (!Object.hasOwn(routes, path)) return { status: 404, line: `daemon: no request at ${path.slice(0, 200)}` };
   const wanted = routes[path as keyof typeof routes];
-  if (method !== wanted) return { status: 405, line: `celetis-flow: daemon: ${path} takes ${wanted}` };
+  if (method !== wanted) return { status: 405, line: `daemon: ${path} takes ${wanted}` };
   if (path === '/status') return { kind: 'status' };
   const refused = { status: 400 as const, line: requestUsage };
   if (!object(body)) return refused;

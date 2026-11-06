@@ -12,7 +12,7 @@ This is the optional human review. Agent curation at each landing reviews the pe
 edits, supersedes, or retires a lesson, or decides a pending proposal. An approval is the
 decision of the reviewer, human or agent; in this skill, it is the person's approval of the exact
 snapshot below. Review grants no permission to change skills, principles, or project
-instructions, push, or start a runner.
+instructions, push, or start a run.
 
 ## 1. Select the records
 

@@ -4,6 +4,7 @@ import { rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AgentOrder, Host } from './config-core.ts';
 import { privateMode, sharedFolderSync, sharedMode } from './private-folder.ts';
+import { stateFolder } from './state-folder.ts';
 import { tryFlock } from './update-lock.ts';
 import { openLockFile } from './windows.ts';
 
@@ -14,8 +15,7 @@ export class AgentOrderConflict extends Error {
 }
 
 const invalid = (path: string, reason: string) => new Error(`agents: ${path}: ${reason}`);
-const directory = (common: string) => join(common, 'celetis-flow');
-const recordPath = (common: string) => join(directory(common), 'agents.json');
+const recordPath = (folder: string) => join(folder, 'agents.json');
 const sameFile = (a: BigIntStats, b: BigIntStats) => a.dev === b.dev && a.ino === b.ino;
 const privateStat = (stat: BigIntStats) => privateMode({ uid: Number(stat.uid), mode: Number(stat.mode) });
 
@@ -28,11 +28,10 @@ function statAt(path: string): BigIntStats | null {
   }
 }
 
-function checkDirectory(common: string): BigIntStats | null {
-  const path = directory(common);
-  const stat = statAt(path);
+function checkDirectory(folder: string): BigIntStats | null {
+  const stat = statAt(folder);
   if (stat && (!stat.isDirectory() || !sharedMode({ uid: Number(stat.uid), mode: Number(stat.mode) })))
-    throw invalid(path, 'need a directory owned by the current user with no group or other write access');
+    throw invalid(folder, 'need a directory owned by the current user with no group or other write access');
   return stat;
 }
 
@@ -66,9 +65,13 @@ function versioned(order: readonly Host[]): AgentOrder {
   return Object.freeze({ schema: 1, order, version: createHash('sha256').update(serialized(order)).digest('hex') });
 }
 
-export function readAgentOrder(common: string): AgentOrder {
-  const folder = checkDirectory(common);
-  const path = recordPath(common);
+export async function readAgentOrder(common: string): Promise<AgentOrder> {
+  return readOrder(await stateFolder(common));
+}
+
+function readOrder(dir: string): AgentOrder {
+  const folder = checkDirectory(dir);
+  const path = recordPath(dir);
   const before = folder ? statAt(path) : null;
   if (!before) return versioned(validateAgentOrder(['claude', 'codex']));
   regular(path, before);
@@ -90,7 +93,7 @@ export function readAgentOrder(common: string): AgentOrder {
     )
       throw new Error('need exactly schema: 1 and order');
     const result = versioned(validateAgentOrder(value.order));
-    const after = checkDirectory(common);
+    const after = checkDirectory(dir);
     const current = statAt(path);
     if (!after || !folder || !sameFile(folder, after) || !current || !sameFile(opened, current))
       throw new Error('the record changed during the read');
@@ -107,9 +110,9 @@ async function updateOrder(
   order: readonly Host[],
   expectedVersion: string | null,
 ): Promise<AgentOrder> {
-  const dir = directory(common);
+  const dir = await stateFolder(common);
   sharedFolderSync(dir, invalid);
-  const folder = checkDirectory(common) as BigIntStats;
+  const folder = checkDirectory(dir) as BigIntStats;
   const lock = join(dir, 'agents-write.lock');
   const before = statAt(lock);
   if (before) regular(lock, before);
@@ -122,7 +125,7 @@ async function updateOrder(
     regular(lock, opened);
     if (before && !sameFile(before, opened)) throw invalid(lock, 'the lock changed during open');
     const stable = () => {
-      const currentFolder = checkDirectory(common);
+      const currentFolder = checkDirectory(dir);
       const currentLock = statAt(lock);
       if (!currentFolder || !sameFile(folder, currentFolder) || !currentLock || !sameFile(opened, currentLock))
         throw invalid(lock, 'the directory or lock changed during the write');
@@ -134,8 +137,8 @@ async function updateOrder(
       await Bun.sleep(50);
     }
     stable();
-    const path = recordPath(common);
-    const previous = readAgentOrder(common);
+    const path = recordPath(dir);
+    const previous = readOrder(dir);
     const existed = statAt(path);
     const next = versioned(order);
     if (expectedVersion === null && existed) return previous;
@@ -151,8 +154,7 @@ async function updateOrder(
       const current = statAt(path);
       if (existed ? !current || !sameFile(existed, current) : current !== null)
         throw invalid(path, 'the record changed during the write');
-      if (readAgentOrder(common).version !== previous.version)
-        throw invalid(path, 'the content changed during the write');
+      if (readOrder(dir).version !== previous.version) throw invalid(path, 'the content changed during the write');
       await rename(temp, path);
     } finally {
       await rm(temp, { force: true });

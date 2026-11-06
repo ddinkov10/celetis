@@ -1,7 +1,8 @@
-# The celetis-flow runner
+# The Celetis workflow
 
-`celetis --agent <host> celetis-flow` sends the requests of the celetis flow from a terminal to the
-master daemon of the repository ("The master daemon"), and returns at once. The daemon asks the
+`celetis --agent <host> run` and `celetis --agent <host> queue` send the requests of the Celetis
+workflow from a terminal to the master daemon of the repository ("The master daemon"), and return
+at once. The daemon asks the
 resolver for the next step of an issue and starts that step in a new interactive Claude or Codex
 session. Each session starts in a new tab of the Herdr app, in an hc terminal of herdr-core of its
 own, and the daemon steers that tab from outside: it ends the session when the step is done, and
@@ -22,23 +23,23 @@ issue, ADR-0033 holds the reasons for the one definition of the workflow and for
 ADR-0038 holds the reasons why a `bug` session hands on to `plan` in that rule.
 ADR-0072 holds the reasons for the one master daemon of a repository, and
 [ADR-0073](adr/0073-the-runner-commands-are-clients-of-the-master-daemon.md) holds the reasons why
-each runner command sends one request to it and returns.
+each `run` and `queue` command sends one request to it and returns.
 
 `engine/lib/workflow.ts` of the plugin is the one definition of the workflow: the lanes, with the
 label, the branch prefix, and the steps in order of each lane; the stages; the command of each step;
-the default gate `me`; the decision of an issue; and the skip rule. The resolver, the runner, the
+the default gate `me`; the decision of an issue; and the skip rule. The resolver, the daemon, the
 board data, the config reader, the session record, `worktree`, `land`, and `setup` take these facts
 from it. A product project cannot change it.
 
 Two rules of the harness hold in each session, also in a session by hand:
 
 - A lane never skips a step.
-- The maintainer starts the runner; an agent starts it only when its task says so, with a number,
-  and in a terminal.
+- The maintainer starts the daemon and turns auto mode on; an agent starts a run only when its task
+  says so, with a number, and in a terminal.
 
 In this document, these names are files of the plugin `celetis`, also when a session reads the
 document inside a product project that has a `docs/` folder and an ADR store of its own: the five
-documents (`docs/celetis-flow.md`, `docs/issue-tracker.md`, `docs/capability.md`,
+documents (`docs/workflow.md`, `docs/issue-tracker.md`, `docs/capability.md`,
 `docs/procedures/docs-lookup.md`, `docs/procedures/prior-art.md`), `step-prompt.md`, a runtime of `engine/` or a program
 of `scripts/` that the text names by its file, and each ADR number, which is a record of
 `docs/adr/` in the folder of the plugin and not of the product project. Each other path is a path
@@ -46,9 +47,9 @@ of the product project, apart from a path that starts with `~/` or `/`.
 
 ## Requirements
 
-- macOS or Linux, with Bun 1.4.4 or later. Native Windows has no runner: the daemon does not
-  start there, and each form of `celetis-flow` that sends a request exits 2 with
-  `celetis-flow: Windows is not a support target`. The data of the board before #102 and the update
+- macOS or Linux, with Bun 1.4.4 or later. Native Windows has no daemon: it does not
+  start there, and each form of `run` and `queue` that sends a request exits 2 with
+  `run: Windows is not a support target` or `queue: Windows is not a support target`. The data of the board before #102 and the update
   lock passed their checks before the program. The program installs from Git Bash and runs from Git
   Bash, PowerShell, and `cmd`; its Windows checks are open ("Acceptance status").
 - The selected host CLI (`claude` 2.1.299 or later, or `codex` 0.162.1 or later; the README gives
@@ -74,7 +75,7 @@ of the product project, apart from a path that starts with `~/` or `/`.
   of the selected host at the revision of the program. The scripts and the step text come from
   the version folder of the program: `celetis --agent <host> <name> <arguments>` runs
   `engine/<name>.ts` of that folder with those arguments. Before each new step session, the
-  runner reads the enabled installation of the session's host ("How a step runs"). Missing,
+  daemon reads the enabled installation of the session's host ("How a step runs"). Missing,
   disabled, malformed, or ambiguous metadata stops that read. Codex lookup uses `skills/list` on a
   short-lived local app-server connection; it starts no model turn. The README holds the separate
   installation recipes and product permissions. A Codex-only machine needs no Claude CLI.
@@ -91,17 +92,16 @@ of the product project, apart from a path that starts with `~/` or `/`.
   (`herdr-app`), for each start: each session runs in a tab of the Herdr app ("How a step runs").
   The support target is macOS ([ADR-0058](adr/0058-herdr-core-hosts-the-agent-terminals.md),
   [ADR-0062](adr/0062-each-session-runs-in-a-tab-that-the-runner-steers.md)). `celetis daemon start`
-  checks them before it spawns the daemon, and exits 1 with the same line with `daemon: ` in place
-  of `celetis-flow: `. The daemon checks them again before each run reads its issue (a number, the
-  automatic runner, a queue wake, and `--resume`). A failed check there is the refusal of the
+  checks them before it spawns the daemon, and exits 1 with the same line. The daemon checks them
+  again before each run reads its issue (a number, auto mode, a queue wake, and `run resume`). A failed check there is the refusal of the
   request, with exit 1 and one of these lines; for a queue wake, the line becomes the queue error:
-  - `celetis-flow: hc is not on PATH; install herdr-core 0.1.16, then start again`
-  - `celetis-flow: the hc server does not answer: <cause>; start the Herdr app, then start again`
-  - `celetis-flow: herdr-app is not on PATH; install the Herdr app 0.1.11, then start again`
-  - `celetis-flow: the Herdr app does not answer: <cause>; open the Herdr app window, then start again`
+  - `daemon: hc is not on PATH; install herdr-core 0.1.16, then start again`
+  - `daemon: the hc server does not answer: <cause>; start the Herdr app, then start again`
+  - `daemon: herdr-app is not on PATH; install the Herdr app 0.1.11, then start again`
+  - `daemon: the Herdr app does not answer: <cause>; open the Herdr app window, then start again`
 
   The host reports its status with OSC 7501 and needs no integration: Claude Code since 2.1.295,
-  and Codex 0.166.0. Complete the normal folder trust of the host before a run. The runner never
+  and Codex 0.166.0. Complete the normal folder trust of the host before a run. The daemon never
   answers that prompt.
 - Superpowers installed and enabled on the selected host. The README holds its setup for each
   host. A missing required `superpowers:*` skill stops the lane.
@@ -116,22 +116,22 @@ of the product project, apart from a path that starts with `~/` or `/`.
 
 ```bash
 celetis daemon start                           # once: the master daemon of this repository
-celetis --agent <host> celetis-flow 373        # one issue; its first step is explicit
-celetis --agent <host> celetis-flow 373 --effort xhigh    # the same, with its first session at xhigh
-celetis --agent <host> celetis-flow --resume 373    # the session of a step with no progress, again
-celetis --agent <host> celetis-flow --queue status
-celetis --agent <host> celetis-flow --queue action '{"kind":"add","number":12,"step":"plan","expected":{"id":null,"revision":0,"current":null}}'
-celetis celetis-flow --retry 373 <wait id>    # one bounded attempt cycle of a quota wait
+celetis --agent <host> run 373                 # one issue; its first step is explicit
+celetis --agent <host> run 373 --effort xhigh  # the same, with its first session at xhigh
+celetis --agent <host> run resume 373          # the session of a step with no progress, again
+celetis --agent <host> queue status
+celetis --agent <host> queue action '{"kind":"add","number":12,"step":"plan","expected":{"id":null,"revision":0,"current":null}}'
+celetis run retry 373 <wait id>               # one bounded attempt cycle of a quota wait
 celetis daemon status                          # the runs of the daemon, with their progress
 ```
 
 These human commands use an explicit `CELETIS_AGENT`, then the local ordered preference.
-The absent preference is Claude, then Codex. Put `--agent claude` or `--agent codex` before `celetis-flow` to override that choice.
+The absent preference is Claude, then Codex. Put `--agent claude` or `--agent codex` before `run` or `queue` to override that choice.
 Every skill call supplies that prefix. Invalid host values stop; PATH order never chooses a host.
 An explicit host stays fixed. A default step selects its host again at each session start, from
 the effective order of the step ("The agent of each start"), so a usage-limit recovery can
 continue the step on another host ("How a step runs"). Resume instead
-selects its recorded host and rejects an explicit prefix that names the other host. `--retry`
+selects its recorded host and rejects an explicit prefix that names the other host. `run retry`
 needs no prefix: it only wakes the live waiter of a quota wait.
 
 A run uses the environment of the daemon, which it got from the shell of `celetis daemon start`.
@@ -158,44 +158,48 @@ starts a replacement. `CELETIS_SESSION_AGENT` carries attribution only. An inher
 
 An argument is `<n>`, or `'#<n>'` in quotes. A shell can read an unquoted word that starts with `#`
 as the start of a comment: the script then gets neither that word nor the words after it, and with
-no number it prints its usage line and exits 2. Each line of the script starts with `celetis-flow: `,
-apart from its usage line.
+no number it prints its usage line and exits 2. Each line of `run` starts with `run: `, each line of
+`queue` with `queue: `, and each line of the daemon with `daemon: `, apart from the usage line and
+the lines that keep their own prefix (`queue: `, `recovery: `, `session: `, and `state …: `). A
+client prints the answer of the daemon as it comes.
 
-**The answer.** Each form that starts work (`<n>`, `--resume`, `--retry`, a `--queue action` with a
-wake, and `--queue run`) sends one request to the master daemon of the Git common folder of the
+**The answer.** Each form that starts work (`run <n>`, `run resume`, `run retry`, a `queue action`
+with a wake, and `queue wake`) sends one request to the master daemon of the Git common folder of the
 current folder, so a linked worktree reaches the daemon of its main checkout. It waits at most 120
 seconds for the answer, prints it, and exits; it never sends the request again. The daemon answers
 after the checks before the first session of the run and after its first decision read ("The
 master daemon", "The requests"):
 
-- An accepted start prints `celetis-flow: #<n>: accepted as run <first 8 characters of the run ID>
+- An accepted start prints `run: #<n>: accepted as run <first 8 characters of the run ID>
   of the daemon PID <pid>; read its progress: celetis daemon status` and exits 0; for a queue with
-  no number, the subject is `queue`. A quota wait at the first session is accepted. An accepted
-  Retry prints `celetis-flow: #<n>: Retry requested; the waiting runner starts one bounded attempt
-  cycle` and exits 0.
+  no number, the subject is `queue`, and the prefix of a queue form is `queue: `. A quota wait at the
+  first session is accepted. An accepted Retry prints `run: #<n>: Retry requested; the waiting run
+  starts one bounded attempt cycle` and exits 0.
 - A refusal, or an end at the first decision (for example a closed issue, or a `me` gate of a queue
-  wake), prints the line of the daemon run, which is the line of the runner for that cause, and exits
-  with its code.
+  wake), prints the line of the daemon run for that cause, and exits with its code.
   A line with code 0 goes to stdout, any other line to stderr.
-- With no daemon, the form prints `celetis-flow: no daemon runs for this repository; start it:
+- With no daemon, the form prints `run: no daemon runs for this repository; start it:
   celetis daemon start`, exits 3, and starts nothing. No form starts the daemon.
-- A daemon of another revision of the program gets no request: the form prints `celetis-flow: the
+- A daemon of another revision of the program gets no request: the form prints `run: the
   daemon runs the program at <revision> and this program is at <revision>; restart it: celetis
   daemon stop, then celetis daemon start` and exits 1. After `celetis update`, restart the daemon.
-- A daemon that cannot be read exits 6 with `celetis-flow: the daemon of this repository does not
+- A daemon that cannot be read exits 6 with `run: the daemon of this repository does not
   answer: <reason>; read celetis daemon status`. A request with no answer in 120 seconds, or with an
-  answer that cannot be read, exits 6 with `celetis-flow: the outcome of the request is unknown:
+  answer that cannot be read, exits 6 with `run: the outcome of the request is unknown:
   <message>; read celetis daemon status`. Read the status before you send the request again: a
   second start can start a second step.
-- On Windows, each of these forms exits 2 with `celetis-flow: Windows is not a support target`.
+- On Windows, each of these forms exits 2 with `run: Windows is not a support target`.
+
+A `queue action` with a wake and `queue wake` print the lines of no daemon, another revision, a
+daemon that does not answer, an unknown outcome, and Windows with `queue: ` in place of `run: `.
 
 After the answer, the run lives in the daemon. `celetis daemon status` shows one line for each run,
-with its state and its last line, and `<git common dir>/celetis-flow/daemon/daemon.log` has each
+with its state and its last line, and `<git common dir>/celetis/daemon/daemon.log` has each
 line of the runs. Ctrl+C, a signal, or a closed terminal of the command stops no run.
 `celetis daemon stop` stops the daemon and detaches every run; no command stops one run.
 
-The lines of the runner that say `start the runner again` keep their text. For the daemon they mean:
-start the daemon when it does not run, then send the request again.
+The lines that say `start the run again` mean: send the request again. The lines that say `start the
+daemon again` mean: start the daemon when it does not run, then send the request again.
 
 **A start with one number** asks the daemon for a run of the issue. The daemon run reads the
 decision of the issue from the in-process resolver (`nextIssue` of `next-step.ts`), a Run of a step or a stop, and starts the step
@@ -210,7 +214,7 @@ comment for the step (`docs/issue-tracker.md`, "What lives on the issue", "Effor
 default `high`. `--effort <level>`, before or after the one number, overrides that level for the
 first session of this start only: `low`, `medium`, `high`, `xhigh`, or `max`. Each later step of
 the same start uses its own decision, and the override writes no decision on the issue. With
-`--resume`, `--queue`, no number, two numbers, a second `--effort`, or another value, the script
+`run resume`, `queue`, no number, two numbers, a second `--effort`, or another value, the command
 prints its usage line, exits 2, and starts nothing.
 
 **A refused skip.** Between two steps of one start, the script refuses a next step that skips a
@@ -223,14 +227,14 @@ the first or the second step of the lane. `triage` can always start. So `specify
 `implement` → `plan` can start, and `triage` → `plan`, `specify` → `implement`, and
 `triage` → `implement` cannot.
 At a refusal
-the run prints `#<n>: <T> skips <steps> after <S>; fix the issue, or start <T> by hand: celetis --agent <host> celetis-flow <n>`,
+the run prints `#<n>: <T> skips <steps> after <S>; fix the issue, or start <T> by hand: celetis --agent <host> run <n>`,
 for example `#12: plan skips specify after triage; …`. It adds the row `<n>\t<run line of T>` to
 the record and ends the issue. The skip check comes before the gate check, so a refused step with a
-`me` gate also gets a row. The first step of a start with one number, and the first step that the
-automatic runner takes, have no skip check. So your start with the number is the override: it
+`me` gate also gets a row. The first step of a start with one number, and the first step that
+auto mode takes, have no skip check. So your start with the number is the override: it
 starts T.
 
-**The automatic runner** of the daemon reads the decision of each open issue from the same resolver (`nextOpen`)
+**Auto mode** of the daemon reads the decision of each open issue from the same resolver (`nextOpen`)
 and takes the lowest open issue whose decision is a Run,
 whose step has the gate `auto`, whose step has no row in the record, and
 whose lock is free. It does the same work on that issue, but it starts no `me` step, and then it
@@ -239,13 +243,13 @@ in the record. When no issue can start, when the issue started no session, or wh
 read GitHub, it waits 60 seconds. It prints one line for the whole wait. While it waits,
 `celetis --agent <host> next-step --open` shows the line of each open issue: a `stop` line gives the
 cause, and a `run` line that does not start has a `me` gate, a row in the record, or the lock of
-another script. Start it with `celetis --agent <host> daemon auto on` and stop it with
+another run. Start it with `celetis --agent <host> daemon auto on` and stop it with
 `celetis daemon auto off`, at any time; the run that the loop took continues to its end. A session that works
-stays open in its tab ("How a step runs", "A stop of the runner"). It reads open issues
-only. With the default gates no step is `auto`, so the automatic runner starts nothing.
+stays open in its tab ("How a step runs", "A stop of a run"). It reads open issues
+only. With the default gates no step is `auto`, so auto mode starts nothing.
 
-**The form `--resume <n>`** asks the daemon to reopen the exact session from
-`<git common dir>/celetis-flow/sessions/<n>.json`. The daemon run first takes the shared issue lock
+**The form `run resume <n>`** asks the daemon to reopen the exact session from
+`<git common dir>/celetis/sessions/<n>.json`. The daemon run first takes the shared issue lock
 and keeps it until the session exits. Under that lock, it prepares a supported schema-1 record as schema 2,
 then reads and validates the current record, selects
 its saved host and checkout, and runs `claude --resume <id> --effort <level>` or
@@ -258,7 +262,7 @@ board").
 **The option `--quiet`** opens each session tab of the start in the background: the focus of the
 Herdr app does not move. The request carries it to the daemon run. The board passes it for a Run
 press and a Queue press. With no
-`--quiet`, each session tab comes to the front. `--resume` ignores it. A second `--quiet` is a
+`--quiet`, each session tab comes to the front. `run resume` ignores it. A second `--quiet` is a
 usage error.
 
 The script asks for no confirmation. A start with the number of an issue whose next step is
@@ -266,22 +270,22 @@ The script asks for no confirmation. A start with the number of an issue whose n
 its checks are green, with no more act of yours. With an `auto` gate on a step, the daemon run
 continues through that step by itself.
 
-Issue locks and the automatic-runner lock use shared Git refs under
-`refs/celetis-flow/locks/`. Their owner records hold the runner and foreground PIDs and process
-start times; the runner of a run is the daemon. Either live process keeps the lock, including after
+Issue locks and the lock `auto` of auto mode use shared Git refs under
+`refs/celetis/locks/`. Their owner records are `{ daemon, session }`: the daemon and foreground
+PIDs and process start times. Either live process keeps the lock, including after
 a killed daemon; an exited
-process does not. A process that the script cannot read, for example after a failed `ps` call,
+process does not. A process that the program cannot read, for example after a failed `ps` call,
 also keeps the lock. Only a definite read frees it: the process does not exist, it has another
-start, or the runner PID does not run `celetis-flow.ts`. A runner that stops while its session
+start, or the daemon PID does not run `daemon.ts`. A daemon that stops while its session
 lives leaves the lock to that session.
 A new start for the issue cannot begin until the session exits. Claims and releases use Git
 compare-and-set, and foreground registration updates all held locks in one transaction. Both
 hosts and manual resume share the issue lock.
-`celetis --agent <host> land` keeps its separate `land-<n>.lock` in `<git common dir>/celetis-flow/`.
+`celetis --agent <host> land` keeps its separate `land-<n>.lock` in `<git common dir>/celetis/`.
 The `no-progress` file there has one row for each step that ended with no progress, and one row for
-each step that the script refused as a skip. The automatic runner and the board read it. An
+each step that the script refused as a skip. Auto mode and the board read it. An
 explicit issue start can start that step. `engine/lib/locks.ts` of the plugin owns the lock refs,
-the owner records, the liveness check of an owner, and the record; the runner and the board use it.
+the owner records, the liveness check of an owner, and the record; the daemon and the board use it.
 
 ### The continuous queue
 
@@ -295,7 +299,7 @@ Every later step, including the first step of waiting work, follows fresh projec
 Continue authorizes exactly the displayed step. Retry authorizes recovery of that displayed
 step; a null step only acknowledges a fresh terminal result and authorizes no later issue.
 
-The public forms are `--queue status` and `--queue action '<QueueAction JSON>'`. Status may
+The public forms are `queue status` and `queue action '<QueueAction JSON>'`. Status may
 prepare supported old storage, but performs no workflow action. Action persists a mutation and
 prints the queue view; when the mutation issued a wake, it sends the wake to the daemon and prints
 the answer ("Start the script", "The answer"). When the action would issue a wake on the record
@@ -303,8 +307,8 @@ that it reads first (an Add to an empty queue, a Continue, or a Retry), it check
 before the admission: with no daemon it exits 3 and writes no queue record. A move, a remove, and
 an Add to a nonempty queue need no daemon. When the daemon stops between the admission and the
 wake, the queue keeps an unowned pending launch, which a deliberate Try again recovers.
-The finite internal `--queue admit '<QueueAction JSON>'` returns a validated receipt and needs no
-daemon; `--queue run <id> <token>` is the request of that wake, which the daemon claims. Old batch
+The finite internal `queue admit '<QueueAction JSON>'` returns a validated receipt and needs no
+daemon; `queue wake <id> <token>` is the request of that wake, which the daemon claims. Old batch
 start and reset forms are removed.
 
 Every action has `expected: {id, revision, current}`, where current is the first issue number.
@@ -313,7 +317,7 @@ step; move has kind, number, and direction up/down; remove has kind and number; 
 retry have kind and step. Retry alone permits a null step. Extra fields, unsafe integers,
 duplicates, stale identity/revision/current, current-row edits, and a conflicting agent choice refuse.
 
-Schema 3 is at `<git common dir>/celetis-flow/queue.json`. It has an ID and increasing
+Schema 3 is at `<git common dir>/celetis/queue.json`. It has an ID and increasing
 revision, ordered unique numbers, the fixed agent choice (`default`, or `explicit` with its host),
 the active host, current and last Runs, reason/action, a wait ID, and a nullable launch token with
 issue-bound one-step authorization. Its states are empty, starting, running, quota-wait, me-gate,
@@ -328,18 +332,18 @@ The stable native `queue-write.lock` serializes short read-modify-write transact
 waits at most 5 seconds. Remote reads and foreground execution stay outside this lock.
 The separate queue and issue execution locks retain the existing process-identity checks.
 Claim consumes a launch token once under ownership. A delayed or duplicate wake starts nothing.
-Waiting edits preserve a pending token and the current stop. The runner reads committed
+Waiting edits preserve a pending token and the current stop. The daemon reads committed
 membership before transitions. Final drain releases execution ownership and commits empty under
 the same write lock, so an Add on either side survives with an executor or explicit recovery.
 
 The existing launch loop retains startup barriers, saved-session checks, skip/no-progress checks,
-and foreground cleanup. A live foreground retains ownership when its runner dies. A save failure
+and foreground cleanup. A live foreground retains ownership when its daemon dies. A save failure
 prevents further starts. An unowned pending or running record permits deliberate Try again;
 it never silently starts again. A question remains a live session; use Go to answer it.
 
 Only fresh resolver results of finished or wontfix remove work. A full board read, or a selected
 read of a queued issue, resolves waiting members, including issues absent from the open list.
-Unreadable members stay queued with an error. A current issue cannot drain while its runner or foreground owns it.
+Unreadable members stay queued with an error. A current issue cannot drain while its run or foreground owns it.
 When an unowned stopped current closes, reconciliation advances with normal gates or leaves
 empty. An Add after the final drain starts more work without reload or reset.
 
@@ -352,8 +356,8 @@ Active host and wait ID become null; schema 1 has no launch. The revision advanc
 A valid current record or absent record causes no conversion or archive.
 
 Preparation takes queue execution ownership, then ownership of the current unfinished issue,
-then the write lock, and rereads under those locks. A runner with those locks prepares directly.
-Other callers use a finite internal path in the same revision's `celetis-flow.ts`; it starts no
+then the write lock, and rereads under those locks. A run with those locks prepares directly.
+Other callers use a finite internal path in the same revision's `daemon.ts`; it starts no
 terminal, host, GitHub read, or workflow action. Live owners and busy locks refuse without
 stealing ownership. Retry through the ordinary operation after the owner exits.
 
@@ -371,33 +375,33 @@ installation adoption remain outside this runtime-state exception (ADR-0070).
 ### The master daemon
 
 The master daemon is one long-lived process for one repository, the Git common folder of its
-working folder. It runs many issue runs at the same time, with the run engine of the runner
+working folder. It runs many issue runs at the same time, with the run engine
 (`engine/lib/run-engine.ts`), and serves requests over HTTP on a Unix socket
 ([ADR-0072](adr/0072-one-master-daemon-runs-every-issue-run.md)). Its process is
-`engine/celetis-flow.ts --daemon`, so the lock, step-end, and recovery checks accept it as a
-runner. Nothing starts a daemon by itself. The `celetis-flow` commands and the board presses
+`engine/daemon.ts --daemon`, so the lock, step-end, and recovery checks accept it as the
+daemon. Nothing starts a daemon by itself. The `run` and `queue` commands and the board presses
 send their requests to it ("Start the script", "The answer"), and the shared locks keep one owner
-for each issue, for the queue, and for the automatic runner across the daemon and a second daemon.
+for each issue, for the queue, and for auto mode across the daemon and a second daemon.
 
 **The commands.** `celetis daemon start`, `status`, `stop`, and `auto on|off` (`engine/daemon.ts`) find the Git
 common folder of the current folder, so a linked worktree reaches the daemon of its repository.
 They refuse Windows with exit 2. For `start`, `status`, and `stop`, the optional `--agent` selects
-nothing; for `auto`, it selects the host of the automatic runner.
+nothing; for `auto`, it selects the host of auto mode.
 
 - `start` prints the running daemon (`daemon: a daemon of this repository runs: PID <pid> at
   <revision>`, with `; this program is at <revision>; it was not replaced` for another revision)
   and exits 0. Otherwise it checks `gh`, `hc`, and the Herdr app (a missing one exits 1), then
-  spawns `engine/celetis-flow.ts --daemon` in the main checkout. The spawn is detached, with stdin
+  spawns `engine/daemon.ts --daemon` in the main checkout. The spawn is detached, with stdin
   closed and stdout and stderr appended to `daemon/daemon.log` (0600). It polls the status for at
   most 30 seconds, prints `daemon: started PID <pid> on <socket>`, and exits 0. A daemon that
   ends or stays silent exits 1. Another daemon that wins a race is printed as above.
-- `status` prints the daemon line, `daemon: automatic runner on|off|stopping`, and one line for
+- `status` prints the daemon line, `daemon: auto mode on|off|stopping`, and one line for
   each run; it exits 3 when no daemon runs.
 - `stop` sends `POST /stop`, reads the process until it is gone for at most 60 seconds, prints
   `daemon: stopped PID <pid>`, and exits 0; with no daemon it exits 0 too.
 - `auto on` and `auto off` send `POST /auto` with `quiet: false`, the host of `--agent`, and
   `CELETIS_AGENT` (each only when present), wait at most 120 seconds, and never send again. On an
-  accept they read the status and print `daemon: automatic runner <on|off|stopping>`, exit 0. A
+  accept they read the status and print `daemon: auto mode <on|off|stopping>`, exit 0. A
   refusal prints its line (stdout for code 0, else stderr) and exits with its code. With no daemon
   they print `daemon: no daemon runs for this repository; start it: celetis daemon start` and exit
   3; a daemon that cannot be read exits 6 with `daemon: the daemon of this repository does not
@@ -407,7 +411,7 @@ nothing; for `auto`, it selects the host of the automatic runner.
   `daemon: the outcome of the request is unknown: <message>; read celetis daemon status`. Any
   other form of `auto` prints `usage: celetis daemon start | status | stop | auto on|off`, exit 2.
 - A daemon is running only when the identity file names a PID with that start time and a command
-  that holds `celetis-flow.ts`. A failed read of the process table is neither: each form exits 6
+  that holds `daemon.ts`. A failed read of the process table is neither: each form exits 6
   and `start` spawns nothing.
 
 The daemon gets the environment of the shell of `daemon start`, except `HC_SCOPE`: `hc kill` ends
@@ -417,28 +421,28 @@ daemon, and so no run.
 
 **The start.** In this order, the daemon:
 
-1. refuses Windows with `celetis-flow: daemon: Windows is not a support target` and exit 2;
+1. refuses Windows with `daemon: Windows is not a support target` and exit 2;
 2. finds the main checkout and the Git common folder of its working folder;
 3. makes the socket path `/tmp/celetis-<uid>/daemon/<first 16 hex digits of the SHA-256 of the
    Git common folder>.sock`. A path of 104 bytes or more stops the start with exit 1, before any
    folder or lock;
-4. makes `<git common dir>/celetis-flow/daemon/` and its `runs/` folder (0700), and the socket
+4. makes `<git common dir>/celetis/daemon/` and its `runs/` folder (0700), and the socket
    folder `/tmp/celetis-<uid>/daemon/` (0700);
 5. reads its process start, then takes the lock ref `daemon` with that start. A failed read of the
    start stops the daemon before the lock, with
-   `celetis-flow: daemon: cannot read the process start of the daemon; allow process access and start the daemon again`
+   `daemon: cannot read the process start of the daemon; allow process access and start the daemon again`
    and exit 1. When another live process holds `daemon`, the daemon prints
-   `celetis-flow: daemon: another daemon of this repository has PID <n>; this one stops` and exits 1;
+   `daemon: another daemon of this repository has PID <n>; this one stops` and exits 1;
 6. reads the run records and makes one adoption attempt for each record ("The takeover");
 7. removes a socket file that a killed daemon left;
 8. serves on the socket;
 9. writes the identity file `daemon/daemon.json` (0600, a temporary file and a rename):
    `{schema: 1, pid, start, revision, main, common, socket}`, where `start` is the process start
    time and `revision` is the Git revision of the program;
-10. prints `celetis-flow: daemon: PID <pid> serves <socket>`.
+10. prints `daemon: PID <pid> serves <socket>`.
 
 The socket folder is private to the user, and the daemon uses no token: any process of the same
-user can send a request. The automatic runner is off at each start.
+user can send a request. Auto mode is off at each start.
 
 **The requests.** A body is JSON of at most 16 KiB, with exactly these keys:
 
@@ -446,17 +450,17 @@ user can send a request. The automatic runner is off at each start.
 | --- | --- | --- |
 | `GET /status` | none | The status object |
 | `POST /run` | `{number, selection, effort, quiet}` | A start with one number; `effort` is a level or `null` |
-| `POST /auto` | `{on, selection, quiet}` | The automatic runner on or off |
-| `POST /queue` | `{id, token, selection, quiet}` | The claim and the run of a queue wake, as `--queue run <id> <token>` |
-| `POST /resume` | `{number, selection}` | `--resume <number>` |
-| `POST /retry` | `{number, waitId}` | The wake of the live quota wait, as `--retry <number> <waitId>` |
+| `POST /auto` | `{on, selection, quiet}` | Auto mode on or off |
+| `POST /queue` | `{id, token, selection, quiet}` | The claim and the run of a queue wake, as `queue wake <id> <token>` |
+| `POST /resume` | `{number, selection}` | `run resume <number>` |
+| `POST /retry` | `{number, waitId}` | The wake of the live quota wait, as `run retry <number> <waitId>` |
 | `POST /stop` | `{}` | The stop of the daemon |
 
 `selection` is `{explicit?, environment?}`: an explicit host (`claude` or `codex`), the
 `CELETIS_AGENT` value of the client, or neither. Each run selects its host from its own request,
-as `celetis --agent <host> celetis-flow` does from its prefix and its environment. The
+as `celetis --agent <host> run` does from its prefix and its environment. The
 `CELETIS_AGENT` of the daemon never selects a host. A queue wake keeps the recorded agent choice of
-the queue, as `--queue run` does.
+the queue, as `queue wake` does.
 
 An answer is `{accepted: true, run}` or `{accepted: false, line, code}`. `run` is the run ID, or
 `null` for `/auto`, `/retry`, and `/stop`. A refusal has the line and the exit code of its
@@ -467,37 +471,37 @@ cause:
 | 200 | An accepted request, and the status object |
 | 400 | A body that is not valid: the usage line, code 2 |
 | 404, 405 | Another path, or another method for a path; code 2 |
-| 409 | A refused admission or an end before the first session, with its line and code: for example `celetis-flow: another celetis-flow.ts or its session (PID <n>) works on #<n>` with code 0 |
+| 409 | A refused admission or an end before the first session, with its line and code: for example `daemon: another run or its session (PID <n>) works on #<n>` with code 0 |
 | 413 | A body of more than 16 KiB; code 2 |
-| 503 | A request that arrives during a stop, and the answer of a run, queue, resume, or auto on request that comes after a stop began: `celetis-flow: daemon: the daemon stops; start it again, then send the request`, code 1. A status read that began before the stop answers 200 |
-| 500 | An unexpected error of the daemon while it answers: `celetis-flow: daemon: <message>`, code 1 |
+| 503 | A request that arrives during a stop, and the answer of a run, queue, resume, or auto on request that comes after a stop began: `daemon: the daemon stops; start it again, then send the request`, code 1. A status read that began before the stop answers 200 |
+| 500 | An unexpected error of the daemon while it answers: `daemon: <message>`, code 1 |
 
 A run, queue, or resume request answers after every check before the first session of its run:
 the issue lock, the host selection, the setup checks of `gh` (not for a resume), `hc`, and the
 Herdr app, a stale launch token, the first decision read for a run and a queue, and the saved
 session for a resume. The answer comes directly before the session tab opens, or at a quota
 wait. An end at the first decision is a refusal with the line and the code of that end, for
-example `celetis-flow: stop #<n> is finished.` with code 0. When a stop begins before the answer,
+example `daemon: stop #<n> is finished.` with code 0. When a stop begins before the answer,
 the answer is 503. The stop detaches that run: it starts no session and keeps no lock and no run
 record. A queue wake that the run claimed before the stop leaves the queue record `running` with
-no owner, and a deliberate Try again of the queue starts it. Auto on starts the loop of the
-automatic runner, which takes one issue at a time and holds the `runner` lock. When an old
-automatic runner or its session holds that lock, auto on gets 409 with
-`celetis-flow: another automatic runner or its session has PID <n>`. A second auto on while the
+no owner, and a deliberate Try again of the queue starts it. Auto on starts the loop of
+auto mode, which takes one issue at a time and holds the lock `auto`. When auto mode of another
+daemon or its session holds that lock, auto on gets 409 with
+`daemon: auto mode of another daemon or its session has PID <n>`. A second auto on while the
 loop is on changes nothing. Auto off stops new picks: the issue run that the loop took continues to
-its end, and the loop then releases `runner`. Until then, the status says `stopping`. An auto on
+its end, and the loop then releases `auto`. Until then, the status says `stopping`. An auto on
 while the loop is `stopping` turns the same loop on again: the status says `on`, and the loop takes
-the next issue after its current issue run, with the same `runner` lock. When the loop has already
-started to end, auto on waits until it released `runner`, then starts a new loop. When a later auto
+the next issue after its current issue run, with the same lock `auto`. When the loop has already
+started to end, auto on waits until it released `auto`, then starts a new loop. When a later auto
 on or auto off comes during that wait, the waiting auto on answers 200 and starts no loop, so the
 last auto request decides. An issue run that ends with a nonzero code ends the loop, and the
 status then says `off`.
 
 **The locks of a run.** Each run has its own lock owner. A run that ends while its session lives,
 for example with the `cannot prove` line of a quota recovery, leaves each lock that it holds to that
-session alone: the owner record then names no runner and that session. So a later request, an old
-runner, the board, and the automatic runner find the lock free when the session ends, as after the
-exit of a runner. A detached run keeps its owner records ("The stop").
+session alone: the owner record then names no daemon and that session. So a later request, a second
+daemon, the board, and auto mode find the lock free when the session ends, as after the
+exit of a daemon. A detached run keeps its owner records ("The stop").
 
 **The status object.** `{schema: 1, daemon, auto, runs}`. `daemon` is the identity file.
 `auto` is `on`, `off`, or `stopping`. Each run has one row, in start order:
@@ -509,7 +513,7 @@ exit of a runner. A detached run keeps its owner records ("The stop").
 | `issue`, `numbers` | The current issue; the issue numbers of a queue run, else `null` |
 | `step`, `host`, `tab` | The step, the host, and the tab name of the current session, else `null` |
 | `state` | `starting`, `running`, `checking`, `waiting`, `exiting`, `quota-wait`, `ending`, `taken-over`, or `finished` |
-| `line` | The last `celetis-flow: ` line of the run, else `null` |
+| `line` | The last `daemon: ` line of the run, else `null` |
 | `changedMs` | The time of the last change of `state`, in milliseconds since 1970 UTC |
 | `session` | `runs`, `gone`, or `unknown`: a process read of the start barrier of the current session at this status read, else `null` |
 | `outcome` | `{kind, reason, code}` of a finished run (`closed`, `gate`, or `stopped`), else `null` |
@@ -519,7 +523,7 @@ request is a finished run too. A text field has at most 4096 characters.
 
 **The output.** Each line that the daemon writes to its stdout or stderr starts with
 `<ISO time> <tag> `. The tag is the first 8 characters of the run ID for a line of a run, else
-`daemon`. The lines of a run keep the text that the runner printed before the daemon. The daemon writes
+`daemon`. A line of a run starts with `daemon: `, apart from the lines that keep their own prefix. The daemon writes
 nothing else to a file; the process that starts the daemon decides where its stdout and stderr go. A run that ends
 with a nonzero code adds the event `run-exit` to the event record, with its last line as
 `message`. The event record keeps its other entries ("The event record").
@@ -536,12 +540,12 @@ next session tab ("The session tab"). It does not end a released session, close 
 its start folder. A lock with a live session keeps its owner record, which names the daemon and that
 session: the session holds the lock after the daemon exits, and the next daemon adopts it. It does
 not write the queue record and does not change the recovery record. So a stopped queue keeps its
-state ("A stop of the runner"). A stop while the run proves
+state ("A stop of a run"). A stop while the run proves
 that a refused session and its delegated work stopped (the quota recovery) writes no end of that
 session: the next daemon proves the end again from the run record and the start folder, and the
 recovery continues there. A run that the stop detaches in or after its preflight, before its session
 tab is open or while it opens, starts no step: it closes that tab, writes no session record, and
-begins no usage attempt. The runner begins the usage attempt and writes the session record only
+begins no usage attempt. The run begins the usage attempt and writes the session record only
 after the tab is open. The run record then keeps the run before that step, except for a run that
 has not answered its request yet: that request gets 503, and the record goes ("The requests").
 
@@ -558,21 +562,22 @@ after the start barrier reports and before its release, after each session end, 
 and its wake, at the claim of a queue wake, and after each drain of a queue issue. A run that ends
 removes its record. A detached run
 keeps it, except a run whose answer was 503. The `go` file of the start folder, not the record,
-tells whether the barrier was released.
+tells whether the barrier was released. The record has `schema: 2`, with its paths under
+`<git common dir>/celetis/`; a schema-1 record converts as "The move of the old names" says.
 
 At its start, after it holds `daemon`, the daemon reads the records in the order of their file
 names. It does not take over a record that it cannot read, that is not valid JSON, that has another
 schema, or that does not validate, and the file does not change:
-`celetis-flow: daemon: cannot take over <path>: <cause>; its session stays in its tab`. For each
+`daemon: cannot take over <path>: <cause>; its session stays in its tab`. For each
 other record, the daemon adopts the issue lock with a new lock owner and the session identity of the
 recorded barrier, else of the `pid` file of the start folder, else none. A queue run adopts the
 `queue` lock first, then the lock of its current issue. The adoption takes a free lock, and
-a lock whose owner record names no runner or a gone runner (a definite read), with no live session
+a lock whose owner record names no daemon or a gone daemon (a definite read), with no live session
 or with a live session equal to that identity; the owner record then names the new daemon and keeps
 that session.
 
 - Another live owner holds the lock: the run ends with
-  `celetis-flow: #<n>: another celetis-flow.ts or its session (PID <holder>) took #<n> while no daemon ran; this run ends`.
+  `daemon: #<n>: another run or its session (PID <holder>) took #<n> while no daemon ran; this run ends`.
   Its record goes. The queue record, the recovery record, and the tabs stay as they are.
 - A process read is unknown: the record and the lock stay, the state of the row is `taken-over`,
   and the daemon reads again each 2 seconds.
@@ -584,15 +589,15 @@ issue whose record still reads unknown gets the lock refusal.
 
 | Phase | The daemon |
 | --- | --- |
-| A session whose start folder has no `go` file | Closes its tab, when the record knows it, and ends the run with `celetis-flow: #<n>: the daemon stopped before the step <step> started; no step was started` |
-| A live session: the barrier runs with its start, and its command holds `celetis-flow.ts` | Writes the step-end record `checking` under its own identity and runs the step-end watch and the usage watch. After the session end, the run continues with the gates of a continuing run, with no effort override |
+| A session whose start folder has no `go` file | Closes its tab, when the record knows it, and ends the run with `daemon: #<n>: the daemon stopped before the step <step> started; no step was started` |
+| A live session: the barrier runs with its start, and its command holds `daemon.ts` | Writes the step-end record `checking` under its own identity and runs the step-end watch and the usage watch. After the session end, the run continues with the gates of a continuing run, with no effort override |
 | An ended session: the barrier is gone | Verifies the saved session identity once, records one usage observation of the attempt, and applies the normal end with the status of the `status` file. No valid status is an unknown status. Then the next steps follow |
 | A barrier read that is unknown | Keeps the record, the lock, and the start folder, and reads again each 2 seconds |
 | Between two steps | Reads the resolver again and continues with the gates of a continuing run |
 | Before the first step | Starts the accepted request with its gate rule, its effort, and its queue request |
 
 A resume run has the same phases with no step-end watch. The finished tab of a record closes by the
-normal rule: when the next session tab opens, or at the end of the run. The automatic runner stays
+normal rule: when the next session tab opens, or at the end of the run. Auto mode stays
 off after a takeover: a run of the loop continues as a run, and the loop picks no new issue. A
 usage block in the one observation of an ended session starts the quota recovery for the default
 choice ("Usage-limit recovery", "A session that ended while no daemon ran"); for an explicit host,
@@ -600,45 +605,126 @@ the normal end applies.
 
 **A queue run.** After the adoption, the daemon reads the queue record again. A record with another
 ID, or whose first number is not the recorded issue, ends the run with
-`celetis-flow: queue: the queue changed while no daemon ran; this run ends`, and the queue record
-does not change. Else the run continues its issue by the phase, with the queue transitions of
-`--queue run`, then the drain to the next issues. When the queue record still holds the launch
+`daemon: queue: the queue changed while no daemon ran; this run ends`, and the queue record
+does not change. The outcome is `stopped` with code 0, and its reason is the text after `daemon: `.
+Else the run continues its issue by the phase, with the queue transitions of
+`queue wake`, then the drain to the next issues. When the queue record still holds the launch
 token of the claim, the daemon removes it and writes `running`. After each drain, the run record
 names the next issue with no session, so a stop between two issues continues the drain at the next
 start. A session whose start folder has no `go` file ends the issue as the table says, and the
 queue state becomes `error` with that line.
 
-**A quota recovery.** When the recovery record of the issue names a runner that is gone (a definite
-read), the daemon writes itself as its runner in one transaction. Retry and the bound lane of the
+**A quota recovery.** The recovery record has `schema: 2` with the key `daemon`; a schema-1 record converts as "The
+move of the old names" says. When the recovery record of the
+issue names a daemon that is gone (a definite read), the daemon writes itself as the owner of the record in one
+transaction. Retry and the bound lane of the
 recovery then accept the daemon. A `POST /retry` for a record that names this daemon needs a run of
 this daemon for that issue whose state is not `ending` or `finished`; else it gets
-`recovery: the runner of #<n> no longer runs; start the runner again` with code 2. So a second
+`recovery: the run of #<n> no longer runs; start the run again` with code 2. So a second
 Retry of a wait that woke gets the answer of the first. An unknown read keeps the record and reads
 again each 2 seconds. A quota wait continues with its recorded wait ID, step authority, agent
 choice, and the usage records that it saw. The daemon prints the wait line again and makes no new
-wait ID, so `--retry <n> <wait id>` of that wait wakes it. A wait whose ID the recovery record no
-longer has ends with `celetis-flow: #<n>: the quota wait record changed; start the runner again`.
+wait ID, so `run retry <n> <wait id>` of that wait wakes it. A wait whose ID the recovery record no
+longer has ends with `daemon: #<n>: the quota wait record changed; start the run again`.
 
 **Per-run failures.** A refusal line, a startup error, a failed queue save, a failed write of the
-run record (`celetis-flow: daemon: cannot write the run record <path>: <cause>`), and an unexpected
+run record (`daemon: cannot write the run record <path>: <cause>`), and an unexpected
 error end only their run. Its outcome is `stopped` with the line and the code. An unexpected error
 also prints its stack and adds a defect event `run-defect`. One failure stops the whole daemon with
-exit 1: a step-end record that can neither be removed nor emptied. The runner prints its two lines
-(`#<n> cannot remove step-end: …` and `cannot revoke watcher ownership; …`), because only the end
-of the runner that the record names revokes it. The sessions stay open in their tabs.
+exit 1: a step-end record that can neither be removed nor emptied. The daemon prints its two lines
+(`daemon: #<n> cannot remove step-end: …` and `daemon: cannot revoke watcher ownership; …`), because only the end
+of the daemon that the record names revokes it. The sessions stay open in their tabs.
 
 **A removed program version.** The daemon checks its program files each 5 seconds, and its runs
-check them as the runner does. When a file is gone after an update, the daemon prints
-`celetis-flow: daemon: the program version of this daemon was removed after an update; start the daemon again`,
+check them as the daemon does. When a file is gone after an update, the daemon prints
+`daemon: the program version of this daemon was removed after an update; start the daemon again`,
 stops as above, and exits 1. The sessions stay in their tabs, and their run records stay for the
 next start.
+
+#### The move of the old names
+
+A repository that an earlier program used holds its state under the old names. The first access to
+the state folder moves it (`stateFolder` of `engine/lib/state-folder.ts` calls `moveState` of
+`engine/lib/state-move.ts` once in each process for each Git common folder), so each command and
+the daemon do it with no step of yours:
+
+| Old | New |
+| --- | --- |
+| `<git common dir>/celetis-flow/` | `<git common dir>/celetis/` |
+| `refs/celetis-flow/locks/<name>` | `refs/celetis/locks/<name>`; the move deletes the old refs and moves no owner |
+| the key `runner` of an owner record, and the lock `runner` | the key `daemon`, and the lock `auto` |
+| `<git dir>/celetis-flow-setup-done` | `<git dir>/celetis-setup-done` |
+| `.claude/celetis-flow/wiring.json` | `.claude/celetis/wiring.json` |
+
+The move runs at most three rounds. Each round:
+
+1. lists the refs under `refs/celetis-flow/locks/` and looks at `<git common dir>/celetis-flow`.
+   With no ref and no folder, the move ends. An old path that is not a folder is a refusal;
+2. proves each owner of a listed ref by PID and process start, for the keys `runner` and `session`
+   of its owner record. A live owner, an owner that the process table does not show, and a record
+   that cannot be read are a refusal. Each process gives one line, and the lines come together;
+3. checks whether `celetis` exists while `celetis-flow` exists. If both exist, the round refuses
+   before it deletes any ref (if `celetis-flow` went away meanwhile, the next round starts). It
+   then lists the refs again; a changed list starts the next round;
+4. deletes the listed refs in one transaction, each with the object ID that it read; a failed
+   transaction starts the next round. It lists the refs again before the rename and before the
+   return that has refs only; a ref that remains starts the next round. It then renames the folder
+   to `celetis`.
+
+A refusal has exit 1 and starts with `state: `. A refusal before step 4 of the first round changes nothing. A later round, and the
+`cannot move` line and the `changed during the move` line, can follow a deletion in step 4 of an
+earlier round of the same command: that deletion removed only old lock refs whose owners were
+proven gone, and it stays; the folder did not move. `<subject>` is `#<n>` for the lock `issue-<n>`, else the name of the lock:
+
+- `state: <git common dir>/celetis-flow does not move: the old daemon PID <pid> holds <subject>; end PID <pid>, then run the command again`
+- `state: <git common dir>/celetis-flow does not move: the old session PID <pid> of <subject> still runs; let it finish or end it in its tab, then run the command again`
+- `state: <git common dir>/celetis-flow does not move: the process PID <pid> of <subject> cannot be read; run the command again`
+  (also `…: the owner record of <subject> cannot be read; run the command again`)
+- `state: <git common dir>/celetis-flow and <git common dir>/celetis both exist; nothing moves; keep one of them by hand, then run the command again`
+- `state: <git common dir>/celetis-flow is not a folder; nothing moves; remove it by hand, then run the command again`
+- `state: cannot read <path>: <cause>`, for the old or the new folder when `lstat` cannot read it
+- `state: cannot read refs/celetis-flow/locks/: <git error>`
+- `state: cannot move <git common dir>/celetis-flow to <git common dir>/celetis: <cause>`, after a
+  rename error other than a missing source or an existing target
+- `state: <git common dir>/celetis-flow changed during the move; run the command again`, after the
+  third round
+
+The owner proof has a named blind spot: an old process with no lock ref, such as an old board or an
+old `celetis assist`, `intake`, or `visual` session. It can make `celetis-flow` again after the
+move. The safe result is the both-exist refusal of a later access, with no merge. The daemon moves
+once, when it starts; a later old process is seen by the next process that reads the state.
+
+The records convert when a process reads them and keep the exact original bytes in an immutable
+sibling archive (ADR-0070). The recovery record converts under its record lock. The run records
+convert when the daemon starts, after it holds the lock `daemon` and before it serves; they have
+no record lock. An invalid record is refused with its path and its cause; it is never read as
+empty:
+
+- The recovery record: schema 1 with the key `runner` becomes schema 2 with the key `daemon`.
+- The run record: schema 1 becomes schema 2. The paths `session.folder` and `session.capture`
+  under the old folder move to `celetis/`. A path outside the old and the new folder is a refusal,
+  `the record names session.folder <path> outside <git common dir>/celetis-flow`, and the daemon
+  takes over no run from that record ("The takeover").
+- The step-end record has the key `daemon` only. A record with the key `runner` reads as no
+  record, and nothing converts it.
+- The queue record and the session record keep their schemas ("Automatic storage preparation",
+  "Sessions").
+- A hook settings file `usage-captures/<id>/settings.json` that an old program wrote keeps its old
+  absolute hook path. Claude Code reads it only when its session starts, and a new session gets a
+  new folder.
+
+Setup moves the setup record at its next run: `setup status` reports `the setup record is at
+.claude/celetis-flow/wiring.json; setup moves it`, and with both records present, setup refuses and
+asks you to remove the one that is not current. The first read of the marker of a worktree renames
+`celetis-flow-setup-done` to `celetis-setup-done`, or removes the old marker when the new one
+exists. A later `chore` issue removes the move.
 
 ## How a step runs
 
 A session is one selected host process in the foreground of a new tab of its own ("The session
 tab"), in the main checkout. `hostArguments` of `engine/lib/session.ts` builds its arguments. The
 step text is a facts header (`stepHeader`), an empty line, and `step-prompt.md` of the version
-folder of the program that runs the runner. For `run /celetis:plan #402`, the header is:
+folder of the program that runs the daemon. For `run /celetis:plan #402`, the header is:
 
 ```text
 Celetis step session
@@ -657,7 +743,7 @@ folder of the program: `requireSameRevision` of `engine/update.ts` returns the `
 difference after the resolution of both paths stops the step for setup. The landing comes from the
 validated main config. The header holds no custom text: the entry of the skill reads
 `custom.<skill>` of its active checkout through its own permission-checked read (ADR-0032), and a
-skill entered in a lane reads the lane's file, which the runner cannot know.
+skill entered in a lane reads the lane's file, which the daemon cannot know.
 
 Claude starts the step as:
 
@@ -670,34 +756,34 @@ claude \
   '/celetis:plan #402'
 ```
 
-The runner puts `--session-id <uuid>` before these arguments ("The step end").
-`--effort` gives the chosen level ("Start the script", "The effort level"). The runner removes
+The daemon puts `--session-id <uuid>` before these arguments ("The step end").
+`--effort` gives the chosen level ("Start the script", "The effort level"). The daemon removes
 `CLAUDE_CODE_EFFORT_LEVEL` from the environment of each Claude session that it starts or resumes,
 because that variable outranks `--effort`.
 
 Codex reads effective `developer_instructions` with `config/read`, preserves that text, and
 appends the step text. It passes the combined value as one quoted `developer_instructions=...`
-value after `-c`. For each step, `specify` too, the runner reads the session model: `model` of
+value after `-c`. For each step, `specify` too, the daemon reads the session model: `model` of
 `config/read`, else the `isDefault` model of the app-server `model/list`. It reads every page of
 `model/list` with `includeHidden: true` and takes the supported levels of that model. It applies
 the highest supported level at or below the chosen level, else the lowest supported level, and
 passes it as `-c model_reasoning_effort="<level>"` before the prompt. A configured model that the
 list does not hold, a model with none of the five levels, or a failed read stops the start with a
-message: the runner starts no session and writes no session record.
+message: the daemon starts no session and writes no session record.
 Its prompt is `Use the celetis:plan skill for #402. Complete its Celetis entry before any response, including commentary.`
 The prompt came from a wording test ("Acceptance status"): its second sentence, the startup
 sentence, changed first-response compliance from 0 of 5 to 5 of 5. The first sentence stays byte
 for byte. The current second sentence names the entry of `docs/procedures/entry.md` and needs a
 fresh compliance check. Every interactive Codex launch, including specify and
 exact resume, uses `--no-daemon` so its hooks use the current pane's environment. The CLI must
-support that option; it was checked on 0.162.1. The runner retains the configured sandbox,
+support that option; it was checked on 0.162.1. The daemon retains the configured sandbox,
 approval, and model settings. No document content is evaluated as shell code.
 `docs/hosts/claude-code.md` and `docs/hosts/codex.md` hold the integration facts of each host.
 
-After it builds the arguments, the runner prints the level and its source:
-`celetis-flow: start: /celetis:plan #402 at xhigh (decided)`. The source is `decided`, `default`,
+After it builds the arguments, the daemon prints the level and its source:
+`daemon: start: /celetis:plan #402 at xhigh (decided)`. The source is `decided`, `default`,
 or `override`. When Codex applies another level, the line names both:
-`celetis-flow: start: /celetis:plan #402 at max (override); codex applies xhigh for <model>`.
+`daemon: start: /celetis:plan #402 at max (override); codex applies xhigh for <model>`.
 
 The lane uses the exact path returned by `celetis --agent <host> worktree`. Each skill that works
 on the branch follows [the lane worktree](procedures/worktree.md): it binds its commands, files,
@@ -711,7 +797,7 @@ context; ask only for a decision that the issue does not hold, and never for a g
 review; land only with `celetis --agent <host> land`, and only when the skill says so; and the stop
 rules, which cite `docs/procedures/stop.md` for a stop and for a Verify scenario that the session
 cannot run, after applying [Usage-limit exception](procedures/runtime-verification.md#usage-limit-exception); and, with `- recovery: yes` in the header, the continuation from the existing lane changes and the issue with no replay, reset, stash, or clean. It overrides no instruction of a skill: a skill says what it does "In a step session".
-A step session is a session that the runner starts with the step text. The exit status of the
+A step session is a session that the daemon starts with the step text. The exit status of the
 host decides nothing: the resolver decides.
 
 The session of `specify` is the one session with no step text, so it is no step session. For
@@ -727,15 +813,15 @@ So that session asks and waits as a session that you start by hand does (ADR-000
 Codex also omits the step text for specify. Its configured developer instructions remain.
 
 **The program and the plugin.** The daemon uses the version folder of the program that started it
-for the resolver, entry, and step text of each run. Numbered starts, automatic starts, and later steps make no update call.
-The form `--resume` keeps its no-update behavior and saved identity.
-Before a step starts, the runner checks that its required files and step text still exist.
+for the resolver, entry, and step text of each run. Numbered starts, auto-mode starts, and later steps make no update call.
+The form `run resume` keeps its no-update behavior and saved identity.
+Before a step starts, the daemon checks that its required files and step text still exist.
 Before each new step session, it also compares the installed revision of the plugin of the
 session's host with its own revision (`requireSameRevision` of `engine/update.ts`). On a
 difference it starts no session, writes no session record, and ends with
-`celetis: the <host> plugin is at <12> and this program is at <12>; run celetis update, then start the runner again`.
+`celetis: the <host> plugin is at <12> and this program is at <12>; run celetis update, then start the daemon again`.
 For the daemon, that means: run `celetis update`, restart the daemon, then send the request again.
-So the skills, the step text, and the engine of a step session have one revision. `--resume` has
+So the skills, the step text, and the engine of a step session have one revision. `run resume` has
 no such check. The check reads the Git source of the plugin, so an installation whose marketplace
 source is not Git, such as a local Codex marketplace, cannot start a new step session.
 Known concrete policy conflicts are diagnosed. Running consumers do not reserve the update mutex. Run and exact Resume bind their Codex session to the active
@@ -749,58 +835,58 @@ read-only thread and configuration checks do not trigger startup refresh.
 its updater mutex and deadline, and native cache replacement. Sessions may remain open; a fresh
 session loads updated skills and tools. A restart of the daemon alone updates nothing. After
 `celetis update`, restart the daemon (`celetis daemon stop`, then `celetis daemon start`): its runs
-then use the new program, and a runner form of another revision refuses with exit 1 until then.
+then use the new program, and a `run` or `queue` form of another revision refuses with exit 1 until then.
 
-**The session tab.** For each session, also an exact resume, the runner opens a new hc terminal
+**The session tab.** For each session, also an exact resume, the daemon opens a new hc terminal
 with a tab in the space of the repository in the Herdr app (`openTab` of
 `engine/lib/terminal.ts`): `hc run --bg --no-parent --no-notify` in the main checkout, with the
 labels `herdr.space=<id>` and `celetis.link=#<n> <step>`, and the tab name `#<n> <step>`
 (`herdr-app do tab.rename`). The space has the name of the folder of the main checkout. When that
-space is missing, the runner makes it with `herdr-app do space.new`, and the app shows it. The file
-lock `<git common dir>/celetis-flow/space.lock` lets one process at a time find or make the space.
-The tab runs the start barrier, `celetis-flow.ts --session-start <folder> <runner PID> <host> <attempt ID or -> <recovery or ->
+space is missing, the daemon makes it with `herdr-app do space.new`, and the app shows it. The file
+lock `<git common dir>/celetis/space.lock` lets one process at a time find or make the space.
+The tab runs the start barrier, `daemon.ts --session-start <folder> <daemon PID> <host> <attempt ID or -> <recovery or ->
 <arguments>`, through a login shell of `$SHELL` (`"$@"; exec "$0" -li`), so the tab keeps a shell
-after the barrier exits. `<folder>` is a private start folder in `<git common dir>/celetis-flow/`:
+after the barrier exits. `<folder>` is a private start folder in `<git common dir>/celetis/`:
 
-1. The barrier writes `pid` there: its PID and its process start. The runner accepts that record
-   only when that process runs, has that start, and runs `celetis-flow.ts`.
-2. The runner registers that PID in the issue lock. For a step, it also publishes the step-end
+1. The barrier writes `pid` there: its PID and its process start. The daemon accepts that record
+   only when that process runs, has that start, and runs `daemon.ts`.
+2. The daemon registers that PID in the issue lock. For a step, it also publishes the step-end
    record and starts the job of the step end. It then writes `go`: this is the release of the
    barrier.
-3. The barrier waits for `go` while the runner lives. A failed read of the runner process does not
-   end this wait; the barrier exits with status 1 before `go` only when the runner process does
+3. The barrier waits for `go` while the daemon lives. A failed read of the daemon process does not
+   end this wait; the barrier exits with status 1 before `go` only when the daemon process does
    not exist. After `go`, the barrier starts the host as its child, waits
    for the host to exit, writes the exit status of the host to `status`, and exits with that
    status.
 
 The exit of the barrier is the one sign that the session ended. A missing or invalid `status`,
 for example after a person closed the tab, is an unknown status, and it counts as a failure:
-before issue progress, the runner stops with the recovery line and `status unknown`.
+before issue progress, the daemon stops with the recovery line and `status unknown`.
 
-The session gets the login environment of its tab, not the environment of the runner. The barrier
+The session gets the login environment of its tab, not the environment of the daemon. The barrier
 sets `CELETIS_SESSION_AGENT` to the host and `CELETIS_ATTEMPT` to the attempt ID of a step, removes `CLAUDE_CODE_EFFORT_LEVEL` for Claude, and sets
 `CODEX_HOME` to the resolved native home for Codex. hc gives the terminal of the tab its own
-`HC_TERMINAL_ID`. The runner reads no `HC_TERMINAL_ID`, so a runner that the agent of a session
+`HC_TERMINAL_ID`. The daemon reads no `HC_TERMINAL_ID`, so a run that the agent of a session
 starts from its shell tool opens tabs of its own and does not touch the terminal of that session.
 
 The tab of a start and of a resume comes to the front (`herdr-app do pane.focus`); with
-`--quiet`, a tab stays in the background. The runner closes a tab (`hc kill`, then `hc rm`) only
+`--quiet`, a tab stays in the background. The daemon closes a tab (`hc kill`, then `hc rm`) only
 after a normal end: the status is 0 and, for a step, a saved turn has a verified identity. It
-closes that tab after the next session tab of the same start is open, or when the runner ends.
+closes that tab after the next session tab of the same start is open, or when the run ends.
 Each other end leaves the tab open with the last screen of the host and a shell under it: a
-nonzero or unknown status, a session with no verified identity, and a session whose runner
-stopped. A tab whose barrier the runner did not release closes, and no host starts in it. These
+nonzero or unknown status, a session with no verified identity, and a session whose daemon
+stopped. A tab whose barrier the daemon did not release closes, and no host starts in it. These
 lines end the run with code 1, apart from the warning. No command prints them: they show as the
 `line` of the row of `celetis daemon status` and in `daemon/daemon.log`:
 
-- `celetis-flow: #<n> cannot open the session tab: <cause>`.
-- The warning, once after 60 seconds, while the terminal of the tab stays live and the runner
+- `daemon: #<n> cannot open the session tab: <cause>`.
+- The warning, once after 60 seconds, while the terminal of the tab stays live and the daemon
   waits:
-  `celetis-flow: #<n> <host> startup: the start barrier of the tab #<n> <step> did not report after 60 seconds; waiting continues. Check the login files of $SHELL in that tab.`
-- `celetis-flow: #<n> <host> startup: the tab #<n> <step> ended before its start barrier reported; check the login files of $SHELL, then start the step again`.
-- `celetis-flow: #<n> <host> startup: the start barrier record of the tab #<n> <step> is not valid; start the step again`.
+  `daemon: #<n> <host> startup: the start barrier of the tab #<n> <step> did not report after 60 seconds; waiting continues. Check the login files of $SHELL in that tab.`
+- `daemon: #<n> <host> startup: the tab #<n> <step> ended before its start barrier reported; check the login files of $SHELL, then start the step again`.
+- `daemon: #<n> <host> startup: the start barrier record of the tab #<n> <step> is not valid; start the step again`.
 
-**A stop of the runner.** A runner form has nothing to stop. Ctrl+C, a signal, or a closed terminal
+**A stop of a run.** A `run` or `queue` form has nothing to stop. Ctrl+C, a signal, or a closed terminal
 of the command stops no run, because the command returned at the answer ("The answer"), and the
 run lives in the daemon. No command stops one run. `celetis daemon stop` stops the daemon and
 detaches every run ("The master daemon", "The stop"): each run stops its job of the step end and
@@ -848,33 +934,33 @@ The two variants of `ready-for-human` (`landing refused` and `ready for your ste
 line, but they are two results. When the variant changes between the two reads of one check, the
 job sends no exit input at that check, and it checks again at the next idle moment.
 
-The runner waits for the foreground process to exit before it releases a lock or starts the
+The daemon waits for the foreground process to exit before it releases a lock or starts the
 next step. Successful input delivery alone is not completion. After a successful request, the
 job waits for the owned host process to exit. If it stays alive for 10 seconds, the job prints
 one recovery message and keeps waiting. Process exit cancels that diagnostic timer. The job
 does not repeat the request or force-kill the host. If a UI state consumes the keys without
 exiting, exit the session in its tab when ready.
 
-The runner publishes its completion disposition before it releases the start barrier. The
-private file is `<git common dir>/celetis-flow/step-end/<issue>.json`.
+The daemon publishes its completion disposition before it releases the start barrier. The
+private file is `<git common dir>/celetis/step-end/<issue>.json`.
 `checking` means that the current turn has no retained verdict. A resolver read of a landing that
-runs also keeps `checking`, because the decision is pending until the landing ends; the runner
+runs also keeps `checking`, because the decision is pending until the landing ends; the daemon
 reads again at the next check. `waiting` records an idle turn that stays open after a complete
 decision. `exiting` lasts from the successful exit check until the foreground exits.
-The record binds the runner PID and process start to the session terminal and host. A turn binds
+The record binds the daemon PID and process start, under the key `daemon`, to the session terminal and host. A turn binds
 the terminal ID, the verified session UUID, and the hc `turn`. hc increases `turn` each time the
 status leaves `working`, so a change between `idle`, `done`, and `error` keeps the turn key.
 A slow resolver result cannot retain or close a different turn. Rechecking a retained turn keeps
 its waiting disposition, so board polls do not produce repeated attention transitions.
 
 The board reads this local record on every placement request, including `?local=1`, without a
-GitHub read. Only a live matching runner and valid snapshot identity can suppress attention.
+GitHub read. Only a live matching daemon and valid snapshot identity can suppress attention.
 Pending and exiting idle turns stay in Running with `checks step`; retained and unowned turns
 keep Needs you. Dialogs always keep Needs you. A resume publishes no record.
-The runner removes the record on foreground exit, startup rejection, watcher failure, abort, or
+The daemon removes the record on foreground exit, startup rejection, watcher failure, abort, or
 package removal, before it releases the issue lock. A failed write withdraws the signal and
 reports its cause. If deletion fails, cleanup invalidates the existing file's contents.
-If neither act is possible, the runner stops so its record cannot claim a live watcher.
+If neither act is possible, the daemon stops so its record cannot claim a live watcher.
 The foreground stays open and keeps its issue lock until it exits. Restoring file access cannot
 revive the stopped watcher's ownership. A missing or invalid signal never authorizes `/exit`. Updated server code
 needs a new board process.
@@ -888,7 +974,7 @@ job, and it reads no terminal status after the exit. When a session does not end
 waits for nothing, leave it with `/exit` in its tab: the script then asks the resolver again, and
 it prints the reason or starts the next step.
 
-**The agent of each start.** At each start, the runner reads the local order, the main config, and
+**The agent of each start.** At each start, the daemon reads the local order, the main config, and
 the per-host usage records again. It computes the effective order of the step
 (`effectiveOrder` of `engine/lib/agent-order.ts`): when the `agents` field names a preferred agent
 for the step and the local order includes it, that agent comes first, then the other agents of the
@@ -900,18 +986,18 @@ or another setup error of a preferred agent stops the start, and no next agent i
 remedy is a local exclusion of that agent, which then wins. Each step session gets a
 usage attempt. A Claude step gets attempt-local `Stop` and `StopFailure` callbacks through
 `--settings`, beside its `--session-id`. A Codex step is read through `thread/read` and
-`thread/turns/list` after the runner saves its verified ID. The runner acts only on the
+`thread/turns/list` after the daemon saves its verified ID. The daemon acts only on the
 observation of its own attempt, also when the shared record keeps a newer attempt.
 
-**Usage-limit recovery.** Only a runner-owned step with the default choice continues on another
+**Usage-limit recovery.** Only a daemon-owned step with the default choice continues on another
 agent. A confirmed refusal of an explicit host is recorded; that session stays open, and no other
-agent starts. After a confirmed refusal of the default host, the runner:
+agent starts. After a confirmed refusal of the default host, the daemon:
 
-1. Saves the block, writes `<git common dir>/celetis-flow/recovery/<n>.json` with the state
+1. Saves the block, writes `<git common dir>/celetis/recovery/<n>.json` (schema 2, with the key `daemon`) with the state
    `recovering`, and stops the job of the step end.
 2. Ends only its own attempt (`endOwnedAttempt` of `engine/lib/quota-recovery.ts`). The barrier
    gives the host `CELETIS_ATTEMPT=<attempt id>`, and each child inherits it. For Claude, the
-   runner records three groups: the process tree under the barrier, each process with that entry
+   daemon records three groups: the process tree under the barrier, each process with that entry
    in its environment (not in its arguments), and each process on the tab's controlling terminal
    outside the tab shell's own tree. It sends `/exit` and reads the groups again until the barrier
    and every recorded process are gone, for at most 20 seconds. So a writer that left the tree, as
@@ -923,12 +1009,12 @@ agent starts. After a confirmed refusal of the default host, the runner:
    cannot show: one that clears the entry, or a macOS platform binary such as `/bin/sh`. The check
    accepts Linux terminal names (`pts/<n>`), but no Linux run has proved it.
 3. On `unverified`, starts no other agent. The session stays in its tab and keeps the issue lock.
-   The runner stops with
-   `celetis-flow: #<n>: <reason> The runner cannot prove that the <host> session and its delegated work stopped: <cause> (running PIDs: <PIDs>). No other agent starts. The session stays in the tab <tab>; its native resume from the main checkout: <command>`.
+   The daemon stops with
+   `daemon: #<n>: <reason> The daemon cannot prove that the <host> session and its delegated work stopped: <cause> (running PIDs: <PIDs>). No other agent starts. The session stays in the tab <tab>; its native resume from the main checkout: <command>`.
 4. After proof, archives the session record ("Sessions"), prints the native resume command, and
    binds the one dirty lane of the issue: its path, branch, HEAD, and a digest of its status,
    diff, and untracked files. Two or more dirty lanes of the issue give no binding.
-5. Reads the issue again. When the record, the live runner, the issue lock, the attempt, and the
+5. Reads the issue again. When the record, the live daemon, the issue lock, the attempt, and the
    lane binding all match, the bound lane does not stop the read. A dirty main checkout, another
    dirty lane, a changed branch, HEAD, or digest, and an unresolved merge, rebase, cherry-pick, or
    revert still stop it.
@@ -961,23 +1047,23 @@ read does not show, or a control child that ended before a read showed it gives 
 limits above stay: the proof cannot see a process that left the terminal and whose environment `ps`
 cannot show. When the barrier of a live refusal in the daemon ends before step 2 reads it, the
 daemon uses the same proof, and its first failed read of the process table reads again in the same
-way. The runner records no tab shell, so its result there, and after a failed first read, stays
+way. The daemon records no tab shell, so its result there, and after a failed first read, stays
 `unverified`.
 
-**Exhaustion.** In one cycle, the runner attempts each included host at most once. When no host can
+**Exhaustion.** In one cycle, the daemon attempts each included host at most once. When no host can
 start, it keeps the issue lock, writes the state `waiting` with a new wait ID, and prints:
 
 ```text
-celetis-flow: #<n>: all default agents are limited (<host>: <reason> Reset: <ISO time or unknown>; …); <the runner waits until <ISO time> or no reset is known>. Retry: celetis celetis-flow --retry <n> <wait id>
+daemon: #<n>: all default agents are limited (<host>: <reason> Reset: <ISO time or unknown>; …); <the run waits until <ISO time> or no reset is known>. Retry: celetis run retry <n> <wait id>
 ```
 
 Only a supplied future reset sets a wake, at the earliest one. A reset in the past and an unknown
-reset set none. Each second, the runner reads the record and the usage records. It starts one new
+reset set none. Each second, the daemon reads the record and the usage records. It starts one new
 cycle at the deadline, after Retry, or after a newer accepted observation of an included host has
 no block. A clock change can move the wake; it cannot make a loop, because each cycle attempts
-each host once and each wait needs a new wake. `--retry <n> <wait id>` writes one wake request
+each host once and each wait needs a new wake. `run retry <n> <wait id>` writes one wake request
 for the live waiter of the issue. A repeated request with the same ID is one cycle. Another wait
-ID, no wait, or a runner that stopped refuses with exit 2; Retry never starts a runner. Retry lets
+ID, no wait, or a run that stopped refuses with exit 2; Retry never starts a run. Retry lets
 that cycle attempt blocked hosts once each in the effective order of the step, and keeps their
 records. A stop of the daemon ends the wait loop and its wake. The record stays and authorizes
 nothing until the next daemon takes the wait over ("A quota recovery"). A new start of the issue
@@ -1084,7 +1170,7 @@ runs, for up to 30 minutes, the board can show the session in Needs you as `turn
 leave that session. If a session ended during a landing, wait until `celetis --agent <host> next-step <n>` prints
 another line, and then run `celetis --agent <host> land <n> '<subject>'` again from the main checkout: it
 completes the landing. After the merge the issue is finished, so Run and
-`celetis --agent <host> celetis-flow <n>` start nothing, and no card shows the lane worktree and the branch
+`celetis --agent <host> run <n>` start nothing, and no card shows the lane worktree and the branch
 that stay. `celetis --agent <host> worktree --remove <n>` also removes them after the merge of the PR; it
 does not close the epic.
 
@@ -1134,7 +1220,7 @@ the command of the `run` line with no prefix: `triage`, `bug`,
 `gates` in the main checkout's `.celetis.yaml` holds the project gates. Each omitted step is
 `me`. The only values are `me` and `auto`; a wrong value stops the command. Git gate settings
 have no effect. The default gates start one step for each number or Run press. With `specify`
-as `auto`, the runner starts a design session and waits for your first answer.
+as `auto`, the daemon starts a design session and waits for your first answer.
 
 ```yaml
 landing: pr
@@ -1146,7 +1232,7 @@ gates:
 
 **The config.** Operational settings are in the main checkout's `.celetis.yaml`, including when
 commands start in a lane or subfolder. `docs/configuration.md` gives the full schema. The record
-of setup, `.claude/celetis-flow/wiring.json`, is no config: only `celetis --agent <host> setup` reads it.
+of setup, `.claude/celetis/wiring.json`, is no config: only `celetis --agent <host> setup` reads it.
 
 - `agents` names a preferred agent for each step ("The agent of each start").
 - `gates` selects `me` or `auto` for each step ("Gates").
@@ -1158,7 +1244,7 @@ of setup, `.claude/celetis-flow/wiring.json`, is no config: only `celetis --agen
 A missing or invalid required config stops before branch or worktree changes, locks, runtime
 state, host sessions, or landing pushes. A public command creates an immutable operation after
 the program starts it. Internal calls receive its values instead of reading again.
-The runner creates a fresh main operation before each new step. Its resolution, gate decision,
+The daemon creates a fresh main operation before each new step. Its resolution, gate decision,
 and session start use that operation. It retains the original host-selection inputs, so a changed
 local order or `agents` field can select the agent of the next new session: a new step, or a
 recovery cycle of a step. A running session keeps its captured host and exact identity.
@@ -1216,7 +1302,7 @@ stays for repair and retry. A refused update of an existing branch prints its ow
 `worktree setup failed:`, and uses the same cleanup. Entry into the target lane creates a fresh
 operation before setup or marker acceptance. Setup validates again after it writes or selects a
 different file.
-The marker remains `<git dir of the worktree>/celetis-flow-setup-done`. The command writes it
+The marker remains `<git dir of the worktree>/celetis-setup-done`. The command writes it
 only after a nonempty reference succeeded, including a zero-byte file. With exactly `""` or
 missing `worktreeSetup`, it writes no marker. It runs setup again in an unmarked lane, so a
 reference that a merge of the trunk brings runs at the next entry. A marked lane still needs
@@ -1234,7 +1320,7 @@ addition to that skill's procedure, for example a check on a real device after t
 reaches only the invocation of that skill: `chore` does not apply `custom.implement`, and
 `lesson-review` does not apply `custom.lesson`. A product fact that two or more skills need goes
 into the `AGENTS.md` of the product. The text cannot remove a general rule. An added act comes
-before the skill moves the line of the issue, because the runner ends the session when the issue
+before the skill moves the line of the issue, because the daemon ends the session when the issue
 shows that the step is done. Domain knowledge stays in the `AGENTS.md` files (ADR-0006).
 
 **The entry.** Each `SKILL.md` holds one entry line: bind `<plugin>` from the path of the loaded
@@ -1252,7 +1338,7 @@ runtime snapshot (ADR-0013, ADR-0032, ADR-0047). `docs/configuration.md`, "Skill
 host references in `docs/hosts/` give the details.
 
 - **Which checkout.** The nearest folder at or above the active binding with a `.git` folder or
-  file, so a linked checkout counts. A runner step starts in the main checkout. A later skill
+  file, so a linked checkout counts. A step that the daemon starts runs in the main checkout. A later skill
   entered in a lane uses that lane's config. Read no parent config and combine no files.
 - **With no checkout or config,** continue with the common skill. Omitted or empty custom
   values also give no addition. An existing invalid, ambiguous, unreadable, or symlink config
@@ -1268,7 +1354,7 @@ host references in `docs/hosts/` give the details.
 
 The board is `engine/board/` of the plugin, a part of its engine. It reads the data of the issues
 in its own process with the typed functions of the engine, and a press starts one of the fixed
-argvs: Run, Resume, and a queue wake type a runner form in a hidden hc terminal, which sends its
+argvs: Run, Resume, and a queue wake type a `run` or `queue` form in a hidden hc terminal, which sends its
 request to the master daemon, and New intake,
 Assist, and Open shell open a new tab of the Herdr app. It has no config of its own: the main
 checkout's `.celetis.yaml` gives `board.port` at the start and `gates` at each read. ADR-0020 makes the board a
@@ -1277,7 +1363,7 @@ herdr-core and its tabs to the Herdr app.
 
 **Requirements.** Bun 1.4.4 or later; Git 2.31 or later; herdr-core 0.1.16 (`hc`) and its
 running server; the Herdr app 0.1.11 (`herdr-app`) with its window open; and a Chromium browser.
-The board reads GitHub with `gh`, as the runner does, and needs no GitHub credentials of its own.
+The board reads GitHub with `gh`, as the daemon does, and needs no GitHub credentials of its own.
 The read needs `gh` (logged in), `git`, and Bun, and `ps` on macOS and Linux. The script
 requirements above apply to Run and Resume, which also need a running master daemon ("The master
 daemon").
@@ -1308,23 +1394,23 @@ program and uses the same port (`README.md`, "Optional: the board in Claude desk
 
 **The data.** Each refresh reads the data in the board process (`engine/board/data.ts`). It creates
 a fresh main operation with `CELETIS_AGENT` and no explicit host. It reads the typed rows of the
-in-process resolver (`nextBoard` of `next-step.ts`), and the issue locks, the runner lock, and the
-record through `engine/lib/locks.ts`, the module of the runner. Resolution and displayed gates
+in-process resolver (`nextBoard` of `next-step.ts`), and the issue locks, the lock `auto`, and the
+record through `engine/lib/locks.ts`, the module of the daemon. Resolution and displayed gates
 share that refresh's operation, and a change of `gates` in the main YAML shows at the next refresh.
 Each board response separately reads the current local agent order and usage blocks.
 Each module of this path is a static import: a refresh loads no plugin
 file, takes no plugin read lock, and checks no update policy. The start checks the selected
 host's policy. Independent update checks validate the native update policy. Each Run and Resume
-starts a new `celetis-flow` process, which makes its own check. A conflict can show in the update
+starts a new `run` or `queue` process, which makes its own check. A conflict can show in the update
 check. A startup stop in that hidden process appears in the card warning area.
 
 A full collection makes these `gh api` calls: 2 paginated lists (open issues and open PRs),
 one paginated call for the timeline of each open issue that has a comment, and 3 calls for each
 open PR whose branch holds `/<number>-`. It gives each row the state that it knows from GitHub and
 from the working trees: `blocked` with `reason` and `act`, `ready`, or `dirty` with `path`.
-It also gives the `noRun` text for a dirty main checkout. The board adds what the runner knows:
+It also gives the `noRun` text for a dirty main checkout. The board adds what the daemon knows:
 `starting` for a lock that a live script holds, `stuck` with its `act` for a row of the record, the
-`step`, `started`, and `urgent` of each row, `runner`, `tracker`, and `flow` with the gate of each
+`step`, `started`, and `urgent` of each row, `auto`, `tracker`, and `flow` with the gate of each
 step.
 
 A selected collection reads each selected issue and its timeline, lists open PRs once, and
@@ -1332,7 +1418,7 @@ reads check and review details only for matching issue branches. It uses the sam
 checks only selected lane directories and the main checkout, and replaces or removes selected
 rows in number order. Other rows stay unchanged. Closed issues, PR objects, and an explicit 404
 from the initial issue request have no active row; a failed timeline or other request fails the
-batch. Each batch refreshes the configuration, runner, agents, and main dirty state. It calls
+batch. Each batch refreshes the configuration, auto mode, agents, and main dirty state. It calls
 the existing queue reconciliation only when a selected issue is in the current queue, after
 remote row and History reads finish. Existing ownership and launch rules remain authoritative.
 It also reads once each distinct parent of the open selected issues that is in the same
@@ -1412,7 +1498,7 @@ The board puts these values in the fields of its document (`Document` of `engine
 | `flow.steps.<step>.gate` | The gate of each of the seven steps, by the rule of "Gates". |
 | `flow.steps.<step>.hint` | `It lands the change when the build is done.` for `implement`, `chore`, and `hotfix`. No other step has a hint. |
 | `noRun` | `The main checkout is dirty: <path>. Commit or stash first.` while the main checkout is dirty, else `null`. |
-| `runner` | `true` while a live automatic runner holds its lock. |
+| `auto` | `true` while a live auto mode holds the lock `auto`. |
 | `agents` | Entries `claude` and `codex`. Each has `available: true` and `cause: null` when its executable is on the `PATH` of the board, else `available: false` and `cause: "celetis: <agent> is not on PATH"`. |
 | `history` | The remote trunk name, history URL, captured full head SHA, and up to 20 distinct landed issues. Each entry holds the issue number/title/URL and commit SHA/URL/committer time. |
 | `queue` | A `QueueView` with the schema-3 record, live owner, resolver result, error, and Add/Edit/Continue/Retry permissions. A null record means no saved queue yet. |
@@ -1424,7 +1510,7 @@ A row gets its `state` by the first rule that matches:
 |---|---|---|---|
 | 2 | has a lock that a live script holds | `starting` | |
 | 3 | has a dirty lane worktree | `dirty` | `path`: the lane worktree |
-| 4 | has a row in the record for its `run` line: no progress, or a refused skip | `stuck` | `act`: `celetis --agent <host> celetis-flow --resume <n>` |
+| 4 | has a row in the record for its `run` line: no progress, or a refused skip | `stuck` | `act`: `celetis --agent <host> run resume <n>` |
 | 5 | has `needs-info` or `ready-for-human`, two or more lane labels, an open human step, or a hotfix to land by hand | `blocked` | `reason`, from the first match in the order of the resolver (`docs/issue-tracker.md`, "Resolving an issue's state"): `needs info` for `needs-info`; for `ready-for-human`, `landing refused` while a landing refusal is current, else `ready for your step`; `several lane labels` for two or more lane labels; `human step open` for a `## Before landing` comment with no completion evidence; `land by hand` for a hotfix whose stop is cleared. `act`: the act that the `stop` line of the issue names |
 | 6 | has a `run` line | `ready` | |
 
@@ -1432,11 +1518,11 @@ Each `GET /api/board` reply reads the local agent state again and adds two field
 `order` (the local order with its version), `usage` (the confirmed usage block of each host with
 its reason and reset time, or `null`; a block whose reset time passed is `null`), `activeHosts`
 (the hosts of the live sessions of the repository), `waits` (`{number, waitId, nextResetAt}` of
-each issue whose live runner waits because every included agent is limited), and `error`. `next`
+each issue whose live run waits because every included agent is limited), and `error`. `next`
 is the decision of a new default start from the local order, with no step preference: `start`
 with its host, or `wait` with the blocks and the
 earliest future reset. A waiting issue shows as a `quota-wait` card in Needs you, not as running
-work. A recovery record whose runner no longer runs adds a warning to the card of its issue.
+work. A recovery record whose daemon no longer runs adds a warning to the card of its issue.
 
 Each row also has `number`, `title`, `url`, `updatedAt` and these fields:
 
@@ -1473,14 +1559,14 @@ program, a failed read, or a saved record that Resume cannot use returns 409 wit
 of the error, before any terminal starts. Read-only `hc` calls can precede that failure.
 
 ```text
-<command> [--agent <agent>] celetis-flow <n> --quiet
-<command> [--agent <agent>] celetis-flow <n> --effort <level> --quiet
-<command> celetis-flow --resume <n>
+<command> [--agent <agent>] run <n> --quiet
+<command> [--agent <agent>] run <n> --effort <level> --quiet
+<command> run resume <n>
 ```
 
 A press types the argv in a hidden hc terminal, as a person types it: `startHidden` of
 `engine/lib/terminal.ts` runs `hc run --bg --no-parent --no-notify` in the main checkout, with the
-label `celetis.runner=#<n>` and no `herdr.space` label, so the terminal has no tab. On macOS and
+label `celetis.press=#<n>` and no `herdr.space` label, so the terminal has no tab. On macOS and
 Linux, a login shell of `$SHELL` starts the argv with `exec "$@"`, so the command gets the login
 environment and no shell stays after it. The command sends its request to the master daemon of the
 repository and exits at the answer ("Start the script", "The answer"); the run uses the
@@ -1497,7 +1583,7 @@ accepted line until the board sees the session (#249 removes it). Empty
 output reports the exit code, or `unknown` for a null code. Assist keeps its timed feedback.
 Queue wakes keep `--rm` and the persisted queue record as their authority.
 On Windows, `hc run` gets the argv with no shell (not checked). Before `hc run`, the press checks
-`hc` and the Herdr app as the runner does (`requireTerminals`, "Requirements"). A failed check
+`hc` and the Herdr app as the daemon does (`requireTerminals`, "Requirements"). A failed check
 returns 502 with its line, for example
 `hc is not on PATH; install herdr-core 0.1.16, then start again`, and starts no terminal.
 
@@ -1508,7 +1594,7 @@ link label `celetis.link=#<n> <step>`, which links its session card to the issue
 `me` gates, a Run starts one step, and its run ends when its session ends. The board has no
 control that stops a run, and no command stops one: `hc kill` of a press terminal stops nothing,
 because the terminal exits at the answer. `celetis daemon stop` stops the daemon and detaches every
-run, and a session whose start barrier the daemon released stays open ("A stop of the runner").
+run, and a session whose start barrier the daemon released stays open ("A stop of a run").
 
 `POST /api/run` takes `number`, an optional `agent`, and an optional `effort`; another field returns
 400. With `agent`, the argv has `--agent <agent>`, and the host is pinned for that start, also
@@ -1516,9 +1602,9 @@ when it is limited. The agent must be `claude` or `codex` and on `PATH`. With no
 has no `--agent`, and the daemon run selects from the effective order of each step ("The agent of
 each start"). At admission the server reads the local order and the usage records again, and it
 refuses with 409 when the first eligible host of the local order is not on `PATH`; it tries no
-other host. The admission reads no step preference: the runner preflight of the selected step
+other host. The admission reads no step preference: the daemon preflight of the selected step
 agent decides the start. When every included host is limited, the
-runner starts and waits. Unknown or unavailable choices return 409 and start no agent.
+run starts and waits. Unknown or unavailable choices return 409 and start no agent.
 Availability checks only executable presence; sign-in, trust, plugin discovery, and full host
 parity need separate checks. The `--agent` and `CELETIS_AGENT` of the board start do not pin a
 default start.
@@ -1526,7 +1612,7 @@ default start.
 A `Run at <level>` entry of the run menu of a `ready` card sends `effort` with no agent choice.
 The server accepts only `low`, `medium`, `high`, `xhigh`, or `max`; another value returns 400 with
 `the effort is not one of low, medium, high, xhigh, max` before any read, and starts nothing. The
-runner starts that step at that level for this start only ("Start the script", "The effort
+daemon starts that step at that level for this start only ("Start the script", "The effort
 level"). On the current issue of a queue paused at a `me` gate, an `effort` returns 409 with
 `The queue starts this step at the decided level`, because Run continues the queue there.
 
@@ -1545,9 +1631,9 @@ saved returns 200 with the same version. The order lives in the Git common direc
 dirties no checkout.
 
 **Retry of a usage-limit wait.** `POST /api/run` with exactly `{"number": <n>, "waitId": "<uuid>"}`
-runs `celetis-flow --retry <n> <wait id>` through the fixed adapter, which waits for the answer of
-the daemon. The daemon wakes the live runner that owns that wait for one bounded attempt cycle and
-starts no runner. A stale wait ID, a finished wait, a runner that no longer runs, or a daemon that
+runs `run retry <n> <wait id>` through the fixed adapter, which waits for the answer of
+the daemon. The daemon wakes the live run that owns that wait for one bounded attempt cycle and
+starts no run. A stale wait ID, a finished wait, a run that no longer runs, or a daemon that
 does not run or does not answer returns 409. A repeated Retry of a pending wake changes nothing.
 
 Each Run and Resume reads the installed program again; the adapter keeps no program path
@@ -1566,15 +1652,15 @@ the continuous-queue contract. Host, Origin, JSON, and the 1024-byte body limit 
 The fixed adapter reads the installed Program and invokes its entry with Bun and isolation flags
 for finite admission, bounded to 30 seconds. It parses the receipt as external input. The HTTP
 response is the persisted QueueView; it does not await History or terminal creation. Only a newly
-issued wake types a runner form in a hidden terminal with this fixed argv:
+issued wake types a `queue` form in a hidden terminal with this fixed argv:
 
 ```text
-<command> [--agent <host>] celetis-flow --queue run <id> <token> --quiet
+<command> [--agent <host>] queue wake <id> <token> --quiet
 ```
 
 `--agent` is there only when the record holds an explicit host.
 
-The wake sends its request as Run does ("Run and Resume"), with the label `celetis.runner=queue`.
+The wake sends its request as Run does ("Run and Resume"), with the label `celetis.press=queue`.
 For each step of the queue, the daemon opens a quiet session tab `#<n> <step>`. `hc kill` of the
 terminal stops nothing; no command stops a queue run.
 
@@ -1582,13 +1668,13 @@ The browser supplies no executable or path.
 A known failure before command dispatch invalidates only the matching unclaimed token and saves
 recovery. A failed check of `hc` or the Herdr app before `hc run` is such a failure. An uncertain
 dispatch, from `hc run` on, keeps pending intent and never launches it again automatically.
-The runner performs token and live-ownership checks after terminal creation.
+The daemon performs token and live-ownership checks after terminal creation.
 
 Run on the current paused issue uses Continue with the saved agent choice and fresh displayed step.
 An explicit host refuses when the saved choice is default or names another host. The board
 disables those explicit Run actions; the server checks the choice again before Continue.
 Waiting edits remain available during runs and stops.
-The current runner never transfers explicit authorization to another issue.
+The current run never transfers explicit authorization to another issue.
 
 `GET /api/queue` reads authoritative state without a full-board refresh. After a stale or lost
 response, the browser reads state before another deliberate attempt. It merges acknowledged
@@ -1608,7 +1694,7 @@ of the page.
 
 | The script prints | The maintainer's act | Then |
 |---|---|---|
-| `stop … needs info` or `stop … ready-for-human` | do what the line says; for `ready-for-human`, the latest `## Stopped` or `## Before landing` comment names the act, and "How a step runs", **A stop**, gives the act after a refused landing. The card of an issue with a current landing refusal reads `landing refused`: its `## Landing refused` comment names the cause | the next step starts with a Run press or with `celetis --agent <host> celetis-flow <n>`; the automatic runner starts it only when its gate is `auto` |
+| `stop … needs info` or `stop … ready-for-human` | do what the line says; for `ready-for-human`, the latest `## Stopped` or `## Before landing` comment names the act, and "How a step runs", **A stop**, gives the act after a refused landing. The card of an issue with a current landing refusal reads `landing refused`: its `## Landing refused` comment names the cause | the next step starts with a Run press or with `celetis --agent <host> run <n>`; auto mode starts it only when its gate is `auto` |
 | `stop … has several lane labels …` | keep one lane label and remove the others | as the first row |
 | `stop … has an open human step. …` | do what the line says: the latest `## Before landing` comment names the act. The line names the evidence that is missing: a `## Human steps done` report and the removal of `ready-for-human` after the comment, the report, or the removal (`docs/issue-tracker.md`, "Completing a human precondition") | as the first row |
 | `stop … waits for a landing by hand. …` | run `land` in your own shell, from the main checkout, as the line says | none: the landing finishes the issue |
@@ -1616,16 +1702,16 @@ of the page.
 | `stop … is finished` or `stop … is closed as wontfix` | none | — |
 | `stop the working tree is dirty …` | commit or stash | as the first row |
 | `stop the landing of #<n> runs …` | none: a session lands the issue | start the script again when the landing ended |
-| `stop cannot read … from GitHub` | check `gh auth status`, the network, and the REST rate limit (`gh api rate_limit`) | the automatic runner tries again by itself; press Refresh on the board |
-| a `me` gate | a Run press on the card, or `celetis --agent <host> celetis-flow <n>` | — |
-| `no progress: /celetis:feature #<n>` | the session ended with no spec on the issue: open the session again, or read the comment of a spike | a Run press, or `celetis --agent <host> celetis-flow <n>` |
-| `no progress:` with another command | open the session again, or read the issue | a Run press, or `celetis --agent <host> celetis-flow <n>` |
-| `#<n>: <T> skips <steps> after <S>; …` | read the issue ("A refused skip"). When a label or a heading is wrong, fix the issue. When the skip is correct, start `<T>` by hand | a Run press, or `celetis --agent <host> celetis-flow <n>`, starts the next step; the automatic runner does not start a refused step |
+| `stop cannot read … from GitHub` | check `gh auth status`, the network, and the REST rate limit (`gh api rate_limit`) | auto mode tries again by itself; press Refresh on the board |
+| a `me` gate | a Run press on the card, or `celetis --agent <host> run <n>` | — |
+| `no progress: /celetis:feature #<n>` | the session ended with no spec on the issue: open the session again, or read the comment of a spike | a Run press, or `celetis --agent <host> run <n>` |
+| `no progress:` with another command | open the session again, or read the issue | a Run press, or `celetis --agent <host> run <n>` |
+| `#<n>: <T> skips <steps> after <S>; …` | read the issue ("A refused skip"). When a label or a heading is wrong, fix the issue. When the skip is correct, start `<T>` by hand | a Run press, or `celetis --agent <host> run <n>`, starts the next step; auto mode does not start a refused step |
 
 A Run press types the form in a hidden terminal, and the command returns at the answer of the daemon. The
 CLI prints a line of this table only when the run ends at its first decision or is refused. Else the
 line is the `line` of the row of `celetis daemon status` and a line of
-`<git common dir>/celetis-flow/daemon/daemon.log`. Read the state on the issue card; a startup stop
+`<git common dir>/celetis/daemon/daemon.log`. Read the state on the issue card; a startup stop
 appears in its existing warning area after the board reads the completed output. "The board" gives
 the state of each issue, and `engine/board/README.md` of the plugin gives the card of each state.
 
@@ -1661,7 +1747,7 @@ for incomplete host checks. The exception changes no engine guard or existing hu
 
 The hc terminal of each session tab, also a resume tab, has the label `celetis.link` with the
 value `#<n> <step>`. It links the live card to the issue on the board. The label and the tab name
-are not the saved session ID. From the main checkout, `celetis --agent <host> celetis-flow --resume 402`
+are not the saved session ID. From the main checkout, `celetis --agent <host> run resume 402`
 asks the daemon to resume. The daemon run first takes the shared issue lock and keeps it until the
 session exits. Under that lock, it reads and validates the current record for #402 and opens its exact host and session ID at the
 level of the record: Claude gets `--effort <level>`, and Codex gets
@@ -1670,32 +1756,32 @@ No completion job or update runs during resume.
 
 A missing or invalid record stops with a recovery action. A record with no verified ID directs
 you to `claude --resume` or `codex resume --no-daemon`, by its saved host, to select a saved session manually.
-Exact runner resume needs a verified session identity and a saved turn. The runner verifies and
+Exact run resume needs a verified session identity and a saved turn. The daemon verifies and
 saves them for each step session that it starts. A resumed session stays open until you leave it.
 
-The record at `<git common dir>/celetis-flow/sessions/<n>.json` has exactly seven fields:
+The record at `<git common dir>/celetis/sessions/<n>.json` has exactly seven fields:
 `schema: 2`, `host`, `issue`, `step`, absolute main `checkout`, `session_id` (UUID or null), and
-`effort`, the level that the runner requested after the Codex clamp.
-The runner writes it atomically. Before a current record is used or replaced, a valid schema-1
+`effort`, the level that the daemon requested after the Codex clamp.
+The daemon writes it atomically. Before a current record is used or replaced, a valid schema-1
 record becomes schema 2 under the issue lock. This preserves its host, issue, step, checkout, and
 nullable native session ID exactly, and retains its original bytes in an immutable sibling backup.
 The new `effort` is `high`, the current Resume policy default; it does not describe the original
 session's effort. Unsupported schemas and invalid data stop without replacement.
-Before a usage-limit recovery replaces this record, the runner copies it unchanged to
-`<git common dir>/celetis-flow/sessions/<n>/<attempt id>.json`. That archive keeps the exact native
+Before a usage-limit recovery replaces this record, the daemon copies it unchanged to
+`<git common dir>/celetis/sessions/<n>/<attempt id>.json`. That archive keeps the exact native
 session of each interrupted attempt; Resume reads only the current record.
-The runner supplies the identity, not the terminal; a label or a tab name is never an identity
+The daemon supplies the identity, not the terminal; a label or a tab name is never an identity
 ([ADR-0058](adr/0058-herdr-core-hosts-the-agent-terminals.md)).
-For a Claude step, the runner chooses the ID and passes it with `--session-id`. Codex has no option
-that sets the thread ID before the start. So for a Codex step, the runner asks the app-server
+For a Claude step, the daemon chooses the ID and passes it with `--session-id`. Codex has no option
+that sets the thread ID before the start. So for a Codex step, the daemon asks the app-server
 `thread/list` of the main checkout, and it takes the one thread whose `cwd` is the main checkout,
 whose `createdAt` is at or after the start of the step, and whose `preview` is the exact prompt
 of the step. No match means that the thread is not there yet. Two or more matches are an invalid
-identity. The issue lock lets only one runner start that prompt for that issue.
+identity. The issue lock lets only one run start that prompt for that issue.
 Claude persistence is a current saved user turn with matching ID, cwd, and launch time.
 Codex verifies `thread/read` and `thread/turns/list` without resuming or starting a model turn.
 
-If startup has not verified identity and a saved turn after 60 seconds, the runner prints one
+If startup has not verified identity and a saved turn after 60 seconds, the daemon prints one
 warning for Claude or Codex. It says that monitoring continues and directs the person to check
 setup prompts in the tab of the session. Verification continues while the foreground runs, until
 a saved turn verifies, an invalid identity ends the watcher, or cancellation stops it. A late
@@ -1706,7 +1792,7 @@ terminal (`hc read`). Foreground
 exit without a verified saved turn also reports the startup error, unless an earlier terminal
 failure already reported it. The pending warning writes no terminal error marker, so it does
 not suppress that final error. These failures write no false no-progress row. A record with a
-null ID cannot be used for exact runner resume.
+null ID cannot be used for exact run resume.
 
 ## The event record
 
@@ -1766,10 +1852,10 @@ The three kinds:
   `markDefect`, so the entry is a defect with its stack.
 - **refusal:** a process ends with a nonzero code and no defect. Usage errors, config errors,
   and results such as the exit 4 of `worktree` are refusals.
-- **workflow:** the runner or the board reports a failure and continues.
+- **workflow:** the daemon or the board reports a failure and continues.
 
 These processes record: each sub-command, the launcher before it replaces its process, the config
-reader (`engine/lib/config.ts`), the session-start child of the runner, and the update worker of
+reader (`engine/lib/config.ts`), the session-start child of the daemon, and the update worker of
 the board. These do not record: `build`, `verify`, `install-tools`, `events`, a product script
 that a Celetis process runs, the `bun --eval` helper, and the host sessions. A child process
 records its own failure. A parent that passes on the exit code of a child unchanged (`passOn`)
@@ -1784,22 +1870,22 @@ The workflow and board entries, by `name`:
 
 | Name | Site |
 | --- | --- |
-| `no-progress` | The runner stops a step that gave no progress. `issue` is set |
-| `step-skip` | The runner stops a step that skips a step of the lane. `issue` is set |
+| `no-progress` | The daemon stops a step that gave no progress. `issue` is set |
+| `step-skip` | The daemon stops a step that skips a step of the lane. `issue` is set |
 | `startup-error` | A session does not start (`startupError` in `engine/lib/session.ts`). `issue` is set |
-| `step-end-write` | The runner cannot write a step-end record and continues. `issue` is set |
-| `exit-request` | The runner cannot ask a session to exit. `issue` is set |
+| `step-end-write` | The daemon cannot write a step-end record and continues. `issue` is set |
+| `exit-request` | The daemon cannot ask a session to exit. `issue` is set |
 | `exit-timeout` | A session does not exit within 10 seconds. `issue` is set |
-| `issues-read` | The automatic runner cannot read the open issues from GitHub |
-| `queue-error` | The queue of the runner saves the state `error`, or ends with an error |
+| `issues-read` | Auto mode cannot read the open issues from GitHub |
+| `queue-error` | The queue of the daemon saves the state `error`, or ends with an error |
 | `run-exit` | A run of the master daemon ends with a nonzero code. `issue` and `code` are set |
-| `run-defect` | A run or the automatic runner of the master daemon ends with an unexpected error. A defect with its stack |
+| `run-defect` | A run or auto mode of the master daemon ends with an unexpected error. A defect with its stack |
 | `board-request` | A board request ends with status 500. A defect with the stack of the cause. `code` is 500 |
 | `board-terminal` | A board request ends with status 502 because the terminal core failed. `code` is 502 |
 | `queue-launch` | The hidden queue launch of the board fails |
 | `board-update` | The board cannot replace the program in an update, or it cannot restart after a completed installation |
 
-The runner records a line once for each printed line. A no-progress stop in the queue gives both
+The daemon records a line once for each printed line. A no-progress stop in the queue gives both
 `no-progress` and `queue-error`. A board request with status 4xx is a result, not a failure, and
 the board health reads are state that the board shows, so neither is recorded.
 
@@ -2610,9 +2696,9 @@ model profiles, and permissions; a missing tool or denied read stops that operat
 
 - A session that waits holds its run. Each Run press and each start with a number is its own run
   in the daemon, so another issue can run beside it.
-- The runner sees only its own locks. While a run works on an issue, start each step of that
+- The daemon sees only its own locks. While a run works on an issue, start each step of that
   issue through the script or the board, not by hand in a session of your own.
-- With the default gates the automatic runner starts nothing. The board has no control for it:
+- With the default gates auto mode starts nothing. The board has no control for it:
   start it with `celetis --agent <host> daemon auto on`, after you set a gate to `auto` in the main YAML. With `triage` as `auto`, it
   classifies each new issue, and a splitter question of `/celetis:triage` holds it until you answer.
   With `specify` as `auto`, it opens a design session for the lowest feature with no spec, and that
@@ -2621,11 +2707,11 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   new tab. Between two sessions the card is in Running with `Starting`.
 - A closed terminal, Ctrl+C, or a restart of the terminal program of a command stops no run: the
   command returned at the answer. Only the stop of the daemon stops its runs, and their sessions
-  stay open in their tabs ("A stop of the runner"). The lock stays while either the daemon or its
+  stay open in their tabs ("A stop of a run"). The lock stays while either the daemon or its
   session is live. After both exit, a new run can claim the stale lock; the session record stays.
-- A long automatic runner opens one tab for each session. A normal end closes its tab. Each tab
-  of a failed end, and each tab whose runner stopped, stays open until you close it.
-- A session gets the login environment of its tab, not the environment of the runner, so a
+- Auto mode that runs long opens one tab for each session. A normal end closes its tab. Each tab
+  of a failed end, and each tab whose daemon stopped, stays open until you close it.
+- A session gets the login environment of its tab, not the environment of the daemon, so a
   variable that you export only in the shell of the command, or of the daemon, does not reach the
   session. When `CLAUDE_CONFIG_DIR` or `CODEX_HOME` of the daemon differs from that of the session,
   the daemon looks for the saved turn in the wrong place: it warns after 60 seconds, and the
@@ -2635,8 +2721,8 @@ model profiles, and permissions; a missing tool or denied read stops that operat
 - The Herdr app 0.1.11 removes a space when its last tab closes (observed in the Verify phase of
   #232). The next session tab then makes the space again with `herdr-app do space.new`, and the
   app shows that space and gives it the focus, also for a `--quiet` start. So a normal end closes
-  its tab only after the next session tab of the same start is open, or when the runner ends. An
-  automatic runner that waits for work keeps the tab of its last normal end open until it starts
+  its tab only after the next session tab of the same start is open, or when the run ends. Auto
+  mode that waits for work keeps the tab of its last normal end open until it starts
   the next session or stops.
 - A session outside herdr-core, for example in a Code tab of the desktop app or in another terminal
   program, has no card on the board, and the script does not end its step.
@@ -2654,7 +2740,7 @@ model profiles, and permissions; a missing tool or denied read stops that operat
 - Automatic completion can discard an unsent Codex draft through native cancel/quit input.
   Claude still receives `/exit` through its composer, so concurrent text can join that command.
   A successful request that leaves either host alive prints recovery instructions after
-  10 seconds; the runner keeps ownership until the process exits ("The step end").
+  10 seconds; the daemon keeps ownership until the process exits ("The step end").
 - The `hc` and `herdr-app` calls of the script use the API of herdr-core 0.1.16 and the commands of
   the Herdr app 0.1.11. Both are previews (version 0.x), so a later 0.x release can break the step
   end. On Windows, no daemon runs and each request form exits 2 ("Requirements"), so a board Run,
@@ -2682,10 +2768,10 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   step text of its runs. An install or an update keeps the three newest version folders, the
   current one, and the installed version that runs that install. A daemon that stays open while
   other versions run three later updates can lose its folder. After that, it stops with the true
-  cause ("A removed program version"). A runner form that starts after its own folder went prints
-  `celetis-flow: #<n>: the program version of this runner was removed after an update; start the
-  runner again` for a start with one number and exits 0, else `celetis-flow: the program version of
-  this runner was removed after an update; start the runner again` and exits 1. The cure is to restart the
+  cause ("A removed program version"). A `run` or `queue` form that starts after its own folder went prints
+  `run: #<n>: the program version of this command was removed after an update; run the command
+  again` for a start with one number and exits 0, else `run: the program version of this command
+  was removed after an update; run the command again` (`queue: ` for a `queue` form) and exits 1. The cure is to restart the
   daemon from the installed program, then to send the request again (ADR-0012). A board whose
   version folder is gone keeps its data reads, because it loaded their code at its start. Each
   Run and Resume reads the installed program again. An update needs no board restart for these
@@ -2695,11 +2781,11 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   daemon starts no new step session until `celetis update` and a restart of the daemon ("How a
   step runs").
 - The master daemon keeps the environment of its start. A later change of `PATH`,
-  `CLAUDE_CONFIG_DIR`, or `CODEX_HOME` in a shell, also in the shell of a runner form, does not
+  `CLAUDE_CONFIG_DIR`, or `CODEX_HOME` in a shell, also in the shell of a `run` or `queue` form, does not
   reach it until its next start. Each session still gets the login environment of its tab.
 - The output of the master daemon grows with each run. The daemon does not rotate or trim it.
-- A host can run a session at another level than the runner chose, and the runner does not see
-  it. The runner removes only the process variable `CLAUDE_CODE_EFFORT_LEVEL`. It does not read
+- A host can run a session at another level than the daemon chose, and the daemon does not see
+  it. The daemon removes only the process variable `CLAUDE_CODE_EFFORT_LEVEL`. It does not read
   or change a `CLAUDE_CODE_EFFORT_LEVEL` in the `env` block of a Claude Code settings file, which
   outranks `--effort`, or `maxEffortLevel` and an organization cap, which run a higher level at
   the cap. Claude Code runs a level that the model does not support at the highest supported level

@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { completionIdentity, parseAcceptedEpic, parseEpicAcceptance } from './epic-acceptance.ts';
 import { HostError } from './host.ts';
+import { stateFolder } from './state-folder.ts';
 import { type GitHub, github } from './tracker.ts';
 import { tryFlock } from './update-lock.ts';
 import { openLockFile } from './windows.ts';
@@ -38,12 +39,12 @@ export async function readEpic(main: string, n: string): Promise<EpicSnapshot> {
 async function withEpicLock<T>(common: string, n: string, change: (signal: AbortSignal) => Promise<T>): Promise<T> {
   if (!/^[1-9][0-9]*$/.test(n) || !Number.isSafeInteger(Number(n)))
     throw new HostError('epic: need a positive safe issue number', 2);
+  const dir = await stateFolder(common);
   const controller = new AbortController();
   const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
   const interrupt = () => controller.abort(new Error('epic operation interrupted'));
   for (const signal of signals) process.on(signal, interrupt);
   try {
-    const dir = join(common, 'celetis-flow');
     await mkdir(dir, { recursive: true, mode: 0o700 });
     const path = join(dir, `epic-${n}.lock`);
     const fd =

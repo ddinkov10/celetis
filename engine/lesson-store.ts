@@ -41,7 +41,7 @@ export async function main(argv: string[]): Promise<number> {
     const checkout = await locateCheckouts(cwd).catch((error: unknown) => {
       throw new LessonError(6, cwd, error instanceof Error ? error.message : String(error));
     });
-    createOperation(checkout, { explicit: selected.explicit }, 'host');
+    await createOperation(checkout, { explicit: selected.explicit }, 'host');
     for (const root of new Set([checkout.main, checkout.active]))
       if (root) {
         const config = join(root, '.celetis.yaml');

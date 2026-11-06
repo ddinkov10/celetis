@@ -34,7 +34,7 @@ rules.
 
 Read the intent back. Ask "proceed?". On no, stop. On yes, invoke `/celetis:triage #<n>`. Triage owns the type decision — intake never classifies.
 
-In a step session, ask nothing: stop after the intent is on the issue, and leave triage to the runner, which starts it in a fresh session.
+In a step session, ask nothing: stop after the intent is on the issue, and leave triage to the daemon, which starts it in a fresh session.
 
 ## Rules
 

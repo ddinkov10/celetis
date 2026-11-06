@@ -65,7 +65,7 @@ result; keep it out of subsequent commands and use the no-URL recovery branch.
    record. Only then remove this operation's owned drafts and return the full verified URL.
    Leave pre-existing scratch files alone.
 5. End the feedback workflow. Keep the product task in its current session. Start no triage,
-   runner, worktree, implementation, or checkout switch.
+   run, worktree, implementation, or checkout switch.
 
 These are argument shapes, not shell interpolation templates:
 

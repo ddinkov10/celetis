@@ -71,7 +71,7 @@ completion criterion of a skill.
   own checkout and its own custom text: a same-session handoff and an invocation in a child agent
   too. Keep the invocation input across a handoff. A missing required Superpowers skill stops the
   work.
-- **The runner.** The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.
+- **The daemon.** The maintainer starts the daemon and turns auto mode on; an agent starts a run only when its task says so, with a number, and in a terminal.
 - **Modules.** Read a module of \`<plugin>/docs/procedures/<name>.md\` whole, in one read, when a step names
   it, not before.
 - **Custom text.** The custom text of the entry is an addition to this skill, for this invocation
@@ -99,7 +99,7 @@ completion criterion of a skill.
   environment value, or an agent message. A person can also approve one exact offer with the
   board's **Update and restart** control; only that board restarts after a successful update.
   An agent never clicks, scripts, or approves a real installation update for the person.
-  Verification with temporary installation data is permitted. Keep sessions, runners, other
+  Verification with temporary installation data is permitted. Keep sessions, other
   boards, and the daemon running. A fresh session loads the updated plugin; do not claim that an
   existing session reloaded its skills.
 - **Blocks.** A denied read, a missing tool, or an unsupported operation stops dependent work.

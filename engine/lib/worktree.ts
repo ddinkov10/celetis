@@ -1,4 +1,4 @@
-import { realpath, writeFile } from 'node:fs/promises';
+import { lstat, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { type Config, validateWorktreeSetup } from './config-core.ts';
 import { HostError } from './host.ts';
@@ -10,7 +10,22 @@ export const conflictStatus = 4;
 export async function markerOf(checkout: string): Promise<string> {
   const result = await run('git', ['rev-parse', '--path-format=absolute', '--git-dir'], { cwd: checkout });
   if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
-  return join(result.stdout.trimEnd(), 'celetis-flow-setup-done');
+  const dir = result.stdout.trimEnd();
+  const marker = join(dir, 'celetis-setup-done');
+  const old = join(dir, 'celetis-flow-setup-done');
+  const present = (path: string) =>
+    lstat(path).then(
+      () => true,
+      () => false,
+    );
+  if (await present(old)) {
+    if (await present(marker)) await rm(old, { force: true });
+    else
+      await rename(old, marker).catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== 'ENOENT') throw error;
+      });
+  }
+  return marker;
 }
 
 export async function setupFile(checkout: string, reference: string): Promise<string> {

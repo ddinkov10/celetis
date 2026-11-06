@@ -10,6 +10,7 @@ import { codexHome } from './lib/plugin-metadata.ts';
 import { run as runProcess } from './lib/process.ts';
 import { processRunsScript } from './lib/process-identity.ts';
 import { permitHolds, type RecoveryAuthority, type RecoveryPermit } from './lib/quota-recovery.ts';
+import { stateFolder } from './lib/state-folder.ts';
 import { type GitHub, GitHubReadError, github, type Issue, issueData, parseIssue } from './lib/tracker.ts';
 import { type Decision, decide, factsOf, type IssueData, type Lane, laneOf, specified } from './lib/workflow.ts';
 
@@ -102,7 +103,7 @@ export async function main(argv: string[]): Promise<number> {
       console.error(usage);
       return 2;
     }
-    const operation = createOperation(
+    const operation = await createOperation(
       await locateCheckouts(process.cwd()),
       { explicit, environment: process.env.CELETIS_AGENT },
       'main',
@@ -188,7 +189,7 @@ function reader(operation: Operation, signal?: AbortSignal) {
   }
 
   async function landing(n: string): Promise<boolean> {
-    const lockPath = join(common, 'celetis-flow', `land-${n}.lock`);
+    const lockPath = join(await stateFolder(common), `land-${n}.lock`);
     const pid = (await readFile(lockPath, 'utf8').catch(() => '')).trimEnd();
     if (!/^\d+$/.test(pid)) return false;
     const written = await stat(lockPath).catch(() => null);

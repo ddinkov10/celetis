@@ -6,13 +6,14 @@ import {
   type DaemonRequest,
   type DaemonStatus,
   daemonPaths,
+  daemonSocket,
   parseAnswer,
   parseIdentity,
   parseStatus,
   type Selection,
 } from './daemon-types.ts';
 import { HostError, selectHost } from './host.ts';
-import { processScript, processState } from './process-identity.ts';
+import { daemonScript, processScript, processState } from './process-identity.ts';
 import { programRevision } from './program.ts';
 
 export type Found =
@@ -24,9 +25,10 @@ const none: Found = { kind: 'none' };
 const unreadable = (reason: string): Found => ({ kind: 'unknown', reason });
 
 export async function findDaemon(common: string): Promise<Found> {
+  const { identity: file } = await daemonPaths(common);
   let text: string;
   try {
-    text = await readFile(daemonPaths(common).identity, 'utf8');
+    text = await readFile(file, 'utf8');
   } catch (error) {
     return (error as NodeJS.ErrnoException).code === 'ENOENT' ? none : unreadable(String(error));
   }
@@ -39,7 +41,7 @@ export async function findDaemon(common: string): Promise<Found> {
   const state = await processState(identity.pid, identity.start);
   if (state === 'gone') return none;
   if (state === 'unknown') return unreadable(`the process table does not show PID ${identity.pid}`);
-  const script = await processScript(identity.pid, 'celetis-flow.ts');
+  const script = await processScript(identity.pid, daemonScript);
   if (script === 'gone') return none;
   if (script === 'unknown') return unreadable(`the command of PID ${identity.pid} cannot be read`);
   return { kind: 'runs', identity };
@@ -47,7 +49,7 @@ export async function findDaemon(common: string): Promise<Found> {
 
 async function call(common: string, path: string, init: RequestInit, signal?: AbortSignal): Promise<Response> {
   try {
-    return await fetch(`http://daemon${path}`, { ...init, signal, unix: daemonPaths(common).socket });
+    return await fetch(`http://daemon${path}`, { ...init, signal, unix: daemonSocket(common) });
   } catch (error) {
     throw new HostError(
       `daemon: the daemon of this repository does not answer: ${error instanceof Error ? error.message : String(error)}`,
@@ -97,7 +99,7 @@ export function requestSelection(explicit: string | undefined): Selection {
   };
 }
 
-type Prefix = 'celetis-flow' | 'daemon';
+type Prefix = 'run' | 'queue' | 'daemon';
 
 export async function requireDaemon(common: string, prefix: Prefix): Promise<DaemonIdentity> {
   if (process.platform === 'win32') throw new HostError(`${prefix}: Windows is not a support target`, 2);
@@ -133,4 +135,26 @@ export async function askDaemon(
       6,
     );
   }
+}
+
+export async function sendRun(
+  common: string,
+  request: Extract<DaemonRequest, { kind: 'run' | 'resume' | 'queue' }>,
+  prefix: 'run' | 'queue',
+  subject: string,
+): Promise<number> {
+  const { identity, answer } = await askDaemon(common, request, prefix);
+  if (!answer.accepted) {
+    (answer.code === 0 ? console.log : console.error)(answer.line);
+    return answer.code;
+  }
+  if (answer.run === null)
+    throw new HostError(
+      `${prefix}: the outcome of the request is unknown: daemon: the daemon sent no run ID; read celetis daemon status`,
+      6,
+    );
+  console.log(
+    `${prefix}: ${subject}: accepted as run ${answer.run.slice(0, 8)} of the daemon PID ${identity.pid}; read its progress: celetis daemon status`,
+  );
+  return 0;
 }

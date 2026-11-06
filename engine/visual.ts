@@ -43,7 +43,7 @@ export async function main(argv: string[]): Promise<number> {
     if (args.length !== 2 || !/^[1-9][0-9]*$/.test(number ?? '') || !Number.isSafeInteger(issue) || !isCommit(sha))
       throw new HostError(`usage: celetis --agent <host> visual <n> <sha>\n${updateHint}`, 2);
     process.env.PATH = childEnv().PATH;
-    const operation = createOperation(
+    const operation = await createOperation(
       await locateCheckouts(process.cwd()),
       { explicit, environment: process.env.CELETIS_AGENT },
       'main',

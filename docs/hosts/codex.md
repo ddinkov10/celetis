@@ -21,9 +21,9 @@ its procedure, under its `Codex` part ("The module index").
   The prompt came from a wording test: its second sentence, the startup sentence, changed
   first-response compliance from 0 of 5 to 5 of 5. The first sentence stays byte for byte. The
   current second sentence names the entry of `docs/procedures/entry.md` and needs a fresh
-  compliance check. `docs/celetis-flow.md`, "Acceptance status", records each check.
+  compliance check. `docs/workflow.md`, "Acceptance status", records each check.
 
-## The runner and `developer_instructions`
+## The daemon and `developer_instructions`
 
 `hostArguments` of `engine/lib/session.ts` reads the effective `developer_instructions` with
 `config/read`, keeps that text, and appends the step text: the facts header (`stepHeader`) and
@@ -31,14 +31,14 @@ its procedure, under its `Codex` part ("The module index").
 `developer_instructions=<JSON string>` value after `-c`, then the prompt above. `specify` gets no
 step text, and its configured developer instructions stay. Every interactive launch, also
 `specify` and exact resume, uses `--no-daemon`, so its hooks use the environment of the current
-pane. The runner keeps the configured sandbox, approval, and model settings.
+pane. The daemon keeps the configured sandbox, approval, and model settings.
 
-Codex has no option that sets the thread ID before the start (`codex --help`). The runner finds
+Codex has no option that sets the thread ID before the start (`codex --help`). The daemon finds
 the thread of a step with the app-server `thread/list`: the one thread of the
 main checkout whose `createdAt` is at or after the start of the step and whose `preview` is the
-exact prompt above (`docs/celetis-flow.md`, "Sessions", and ADR-0058). It ends the step with
+exact prompt above (`docs/workflow.md`, "Sessions", and ADR-0058). It ends the step with
 `hc keys <terminal> ctrl+c ctrl+c`. After its exit, Codex 0.166.0 kept the status `done` on a live
-terminal for more than 45 seconds. So the runner reads only a status that changed at or after the
+terminal for more than 45 seconds. So the daemon reads only a status that changed at or after the
 start of the step.
 
 For each step, `specify` too, `hostArguments` also reads the session model: `model` of
@@ -46,7 +46,7 @@ For each step, `specify` too, `hostArguments` also reads the session model: `mod
 `includeHidden: true`, because a configured model can be hidden. `selectCodexEffort` takes the
 supported levels of that model (`supportedReasoningEfforts[].reasoningEffort`), keeps the five
 levels of Celetis, and applies the highest one at or below the chosen level, else the lowest one.
-The runner passes it as `-c model_reasoning_effort="<level>"` before the prompt and saves it in the
+The daemon passes it as `-c model_reasoning_effort="<level>"` before the prompt and saves it in the
 session record. A resume runs `codex resume --no-daemon -c model_reasoning_effort="<level>" <id>`.
 A model that `model/list` does not list, a model with none of the five levels, or a failed read
 stops the start with a message.
@@ -85,7 +85,7 @@ profiles").
   and so was `--no-daemon` (`README.md`, "Requirements"). An older release is not supported.
 - 0.164.0 ran the report-flow checks of #104; 0.165.0 is the release on which the entry of #105
   was built.
-- `docs/celetis-flow.md`, "Acceptance status", separates observed versions from open checks.
+- `docs/workflow.md`, "Acceptance status", separates observed versions from open checks.
 
 ## The module index
 

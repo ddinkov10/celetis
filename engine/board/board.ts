@@ -168,7 +168,7 @@ async function openIntake(): Promise<void> {
 
 const agentDisplay = (id: string) => agentOf({ agent: id })?.name ?? id;
 
-const defaultReason = (work: 'runner' | 'session' = 'session') => {
+const defaultReason = (work: 'run' | 'session' = 'session') => {
   const next = data?.next;
   if (next?.kind === 'wait') return work === 'session' ? 'Every included agent is limited. See the agent order.' : null;
   const entry = next ? data?.agents?.[next.host] : undefined;
@@ -193,7 +193,7 @@ const runReason = (agent: string | null, number?: number | null) => {
     if (entry && entry.available === false) return cleanCause(entry.cause);
     return null;
   }
-  return defaultReason('runner');
+  return defaultReason('run');
 };
 
 const runName = ({ step, effort, number }: Card) =>
@@ -1162,16 +1162,14 @@ const drawStatus = (source: Board['source'], isDown: boolean) => {
   terminalNode.title = terminal?.error ? `herdr: ${terminal.error}` : 'Run and Go use herdr';
   (terminalNode.querySelector('.sb-text') as HTMLElement).textContent =
     terminal?.ok === true ? 'up' : terminal?.ok === false ? 'down' : 'checking';
-  const runner = $('runner');
-  runner.hidden = data?.runner === null || data?.runner === undefined;
-  runner.dataset.tone = data?.runner ? 'ok' : 'off';
-  runner.title = data?.runner
-    ? 'The automatic runner starts each auto step'
-    : 'No automatic runner runs: auto steps wait';
-  runner.replaceChildren(
+  const auto = $('auto');
+  auto.hidden = data?.auto === null || data?.auto === undefined;
+  auto.dataset.tone = data?.auto ? 'ok' : 'off';
+  auto.title = data?.auto ? 'The automatic runner starts each auto step' : 'No automatic runner runs: auto steps wait';
+  auto.replaceChildren(
     el('i', 'dot'),
     el('span', 'sb-name', 'Runner'),
-    el('span', 'sb-text', data?.runner ? 'on' : 'off'),
+    el('span', 'sb-text', data?.auto ? 'on' : 'off'),
   );
   if (data?.picker) picker.update(data.picker);
   document.body.toggleAttribute('data-stale', isDown);

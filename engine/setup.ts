@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { constants as fsConstants } from 'node:fs';
-import { access, lstat, mkdir, mkdtemp, readFile, rm, stat, unlink, writeFile } from 'node:fs/promises';
+import { access, lstat, mkdir, mkdtemp, readFile, rm, rmdir, stat, unlink, writeFile } from 'node:fs/promises';
 import { constants, tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -30,6 +30,7 @@ import {
   managedInstructions,
   normal,
   object,
+  oldWiring,
   settings,
   settingsForm,
   trackingProblem,
@@ -44,6 +45,7 @@ const usage = `usage: celetis --agent <host> setup check | status | write <optio
 const setupPaths = [
   configFile,
   wiring,
+  oldWiring,
   codexRules,
   settings,
   '.gitignore',
@@ -462,21 +464,28 @@ class Setup {
     }
   }
   async readRecord(): Promise<WiringRecord> {
-    await this.checkDestination(wiring);
+    const path = await this.recordPath();
+    await this.checkDestination(path);
     let source: Buffer;
     try {
-      source = await readFile(join(this.cwd, wiring));
+      source = await readFile(join(this.cwd, path));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { schema: 1, files: [], entries: {} };
-      fail(`cannot read ${wiring}: ${error instanceof Error ? error.message : String(error)}`);
+      fail(`cannot read ${path}: ${error instanceof Error ? error.message : String(error)}`);
     }
     let text: string;
     try {
       text = new TextDecoder('utf-8', { fatal: true }).decode(source);
     } catch {
-      fail(`${wiring}: need valid UTF-8`);
+      fail(`${path}: need valid UTF-8`);
     }
-    return parseSetupRecord(text, wiring);
+    return parseSetupRecord(text, path);
+  }
+  private async recordPath(): Promise<string> {
+    if (!(await this.there(oldWiring))) return wiring;
+    if (await this.there(wiring))
+      fail(`${oldWiring} and ${wiring} both exist; remove the one that is not current by hand, then run setup again`);
+    return oldWiring;
   }
   private async checkDestination(path: string): Promise<void> {
     const problem = await destinationProblem(this.cwd, path);
@@ -736,7 +745,7 @@ class Setup {
     const tracked = await run('git', ['ls-files', '-z'], { cwd: this.cwd });
     if (tracked.code !== 0) fail('cannot inspect tracked callers of scripts/celetis');
     for (const path of tracked.stdout.split('\0')) {
-      if (!path || path === wiring || path === 'scripts/celetis') continue;
+      if (!path || path === wiring || path === oldWiring || path === 'scripts/celetis') continue;
       const planned = this.files.get(path);
       if (planned?.kind === 'delete') continue;
       const info = await lstat(join(this.cwd, path)).catch(() => null);
@@ -884,6 +893,7 @@ class Setup {
     for (const path of this.previous.files)
       if (path !== wiring && !this.owned.files.includes(path) && (await this.there(path)))
         this.files.set(path, { kind: 'delete' });
+    if (await this.there(oldWiring)) this.files.set(oldWiring, { kind: 'delete' });
     await this.reportOldWiring(agentsPath);
     await this.reportCallers();
     this.owned.files.push(wiring);
@@ -912,6 +922,10 @@ class Setup {
         await this.checkDestination(path);
         if (file.kind === 'delete') {
           if (await this.there(path)) await unlink(absolute);
+          if (path === oldWiring)
+            await rmdir(dirname(absolute)).catch((error: NodeJS.ErrnoException) => {
+              if (error.code !== 'ENOTEMPTY' && error.code !== 'ENOENT') throw error;
+            });
           continue;
         }
         const contents = typeof file.contents === 'string' ? Buffer.from(file.contents) : file.contents;
@@ -969,8 +983,13 @@ class Setup {
     await this.checkTrunk();
     await this.checkStaged();
     const current = await this.readRecord();
-    const head = await run('git', ['show', `HEAD:${wiring}`], { cwd: this.cwd });
-    const previous = head.code === 0 ? parseSetupRecord(head.stdout, `HEAD:${wiring}`) : { files: [], entries: {} };
+    let previous: Pick<WiringRecord, 'files' | 'entries'> = { files: [], entries: {} };
+    for (const path of [wiring, oldWiring]) {
+      const head = await run('git', ['show', `HEAD:${path}`], { cwd: this.cwd });
+      if (head.code !== 0) continue;
+      previous = parseSetupRecord(head.stdout, `HEAD:${path}`);
+      break;
+    }
     for (const path of [
       ...current.files,
       ...previous.files,
@@ -1047,7 +1066,7 @@ class Setup {
       !(await worktrees(this.cwd)).some((tree) => tree.path === path)
     )
       fail(`${input} is no lane worktree in .claude/worktrees/ of this repository`);
-    const target = createOperation(await locateCheckouts(path), this.operation.selection, 'active');
+    const target = await createOperation(await locateCheckouts(path), this.operation.selection, 'active');
     const config = target.mainConfig as Config;
     if (!(config.worktreeSetup ?? '')) fail(`the main ${configFile} has no worktreeSetup to run`);
     await rm(await markerOf(path), { force: true });
@@ -1086,12 +1105,12 @@ class Setup {
         const checkout = await locateCheckouts(this.testLane);
         this.cwd = checkout.active as string;
         this.config = (await hasConfig(this.cwd))
-          ? createOperation(checkout, this.operation.selection, 'active').activeConfig
+          ? (await createOperation(checkout, this.operation.selection, 'active')).activeConfig
           : null;
       }
       await this.plan(opts, scratch);
       if (this.operation.checkout.common === null) fail('need a Git checkout');
-      readAgentOrder(this.operation.checkout.common);
+      await readAgentOrder(this.operation.checkout.common);
       if (command === 'write') await this.makeLabels();
       await this.writeTree();
       if (command === 'write') {
@@ -1123,10 +1142,10 @@ export async function main(argv: string[]): Promise<number> {
     const input = parseCommand(args);
     const checkout = await locateCheckouts(process.cwd());
     const selection = { explicit, environment: process.env.CELETIS_AGENT };
-    if (input.command === 'status') return await setupStatus(createOperation(checkout, selection, 'host'));
+    if (input.command === 'status') return await setupStatus(await createOperation(checkout, selection, 'host'));
     const config = checkout.main !== null && (await hasConfig(checkout.main));
     const full = ['check', 'write', 'lane', 'try'].includes(input.command);
-    const operation = createOperation(checkout, selection, full && config ? 'main' : 'host');
+    const operation = await createOperation(checkout, selection, full && config ? 'main' : 'host');
     if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
     return await new Setup(operation).execute(input);
   } catch (error) {

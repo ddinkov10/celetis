@@ -118,9 +118,9 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
     console.error('usage: scripts/verify.ts');
     return 2;
   }
-  const operation = createOperation(
+  const operation = await createOperation(
     await locateCheckouts(process.cwd()),
-    { explicit, environment: process.env.CELETIS_AGENT },
+    { explicit: explicit ?? process.env.CELETIS_AGENT ?? 'claude' },
     'host',
   );
   if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();

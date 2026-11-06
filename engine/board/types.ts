@@ -77,7 +77,7 @@ export type Document = {
   tracker: string;
   flow: Flow;
   noRun: string | null;
-  runner: boolean;
+  auto: boolean;
   issues: Issue[];
   agents: Record<string, { available: boolean; cause: string | null }>;
   queue: QueueView | null;
@@ -143,7 +143,7 @@ export type Board = Placement & {
   history: BoardHistory | null;
   flow: Flow | null;
   tracker: string | null;
-  runner: boolean | null;
+  auto: boolean | null;
   agents: Document['agents'] | null;
   picker: AgentPickerView | null;
   next: AgentDecision | null;

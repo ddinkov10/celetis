@@ -31,4 +31,4 @@ Record the maintainer's decision and source before publishing or changing accept
 The definition publication moves the line (`<plugin>/docs/procedures/stop.md`, "The act that
 moves the line"). Only each later act that the citing skill names, and the report, follow it in
 the same turn. This procedure also resolves scope for an existing unresolved epic; it does not
-start a parent runner or replace explicit acceptance.
+start a parent run or replace explicit acceptance.

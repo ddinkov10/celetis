@@ -5,7 +5,7 @@ operations: skills (`skills/`), procedure modules (`docs/procedures/`), principl
 (`docs/principles/`), runtime (`engine/`), maintenance (`scripts/`), step text (`step-prompt.md`),
 and documents (`docs/`). It is also a
 product project of its own plugin. `README.md` holds the wiring of a product project, the commands,
-and the update rule. `docs/celetis-flow.md` holds the runner, and `docs/issue-tracker.md` holds the
+and the update rule. `docs/workflow.md` holds the daemon and the runs, and `docs/issue-tracker.md` holds the
 labels, the state of an issue, and the branches.
 
 ## Plugin development
@@ -29,10 +29,10 @@ limitation and continue independent checks.
 
 A check that uses the Herdr app or the hc core runs in a lab of `scripts/herdr-lab.ts`, never in
 the maintainer's window or core. One lab serves one Verify run. The setup runs `up` once and
-records the lab id. Each scenario runs its commands through `run <id> <command>…`: the checkout
-runner, a board script, and each `hc` and `herdr-app` read. The phase ends with `down <id>`. Run
+records the lab id. Each scenario runs its commands through `run <id> <command>…`: the entry of
+the checkout, a board script, and each `hc` and `herdr-app` read. The phase ends with `down <id>`. Run
 the script with the bun flags of the verify gate command. Such a check needs no consent and no
-human act. A check of the runner or the board takes its issues from a fake `gh` first on `PATH`.
+human act. A check of the daemon, a run, or the board takes its issues from a fake `gh` first on `PATH`.
 That `gh` answers `gh api` from local files, for a local fixture repository with no remote. So the
 check needs no GitHub repository, no real issue, and no human step. The lab scenarios before the
 landing are the whole Herdr proof of a change, so `### Your steps` lists no Herdr check, also not
@@ -114,7 +114,7 @@ exception in [ADR-0050](docs/adr/0050-standalone-engineering-principles-have-can
 6. **Product text** has two homes. `custom.<skill>` is an addition to that one skill and reaches
    only its invocation. A product fact that two or more skills need goes into the `AGENTS.md` of
    the product.
-7. **Maintainer reference.** `docs/celetis-flow.md`, `docs/configuration.md`, `docs/capability.md`,
+7. **Maintainer reference.** `docs/workflow.md`, `docs/configuration.md`, `docs/capability.md`,
    `docs/issue-tracker.md`, `docs/hosts/`, and the ADRs are never read at entry. A skill or a
    module cites a named section of one when a step needs a definition. Skills, modules, and
    principles never cite `docs/hosts/`.
@@ -130,7 +130,7 @@ and the step text: each `<plugin>/<path>` citation and each relative link names 
 each procedure module has two or more citers, each `SKILL.md` holds the entry line of
 `docs/procedures/entry.md` once, and no skill, module, or principle cites `docs/hosts/`.
 
-## Celetis flow
+## Celetis workflow
 
 The lanes of this repository are the skills of the plugin itself, on the issues of
 `ddinkov10/celetis` (`README.md`, "The full loop"). The landing is `merge`
@@ -140,13 +140,12 @@ The landing is the last act of a change: this repository has no deployment.
 For installation changes, follow `README.md`, "Updates".
 
 - A lane never skips a step.
-- The maintainer starts the runner; an agent starts it only when its task says so, with a number,
-  and in a terminal.
+- The maintainer starts the daemon and turns auto mode on; an agent starts a run only when its task
+  says so, with a number, and in a terminal.
 - A change of `skills/`, `step-prompt.md`, the program entry `celetis`, `engine/`, or `scripts/` changes the behavior of each product
   project, so its lane is `bug` or `feature`, not `chore`.
 - The lanes are the skills of the plugin `celetis`, on the issues of `ddinkov10/celetis`.
 - `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `celetis --agent <host> land`.
-- The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.
 
 ## The board
 
@@ -170,7 +169,7 @@ A look decision of the board uses these two facts:
 For the lookup of `docs/procedures/docs-lookup.md`, read `claude --version` or `codex --version` for the
 selected host. Claude's documents are `https://code.claude.com/docs/en/<page>`; Codex's are
 `https://learn.chatgpt.com/docs/`. Check the current CLI help and active tool schema before
-using a host operation. `docs/celetis-flow.md`, "Acceptance status", separates observed versions
+using a host operation. `docs/workflow.md`, "Acceptance status", separates observed versions
 from open runtime checks (ADR-0014).
 
 ## Traps
@@ -187,9 +186,9 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
   Skills, product instructions, board commands, and personal landing rules refer to that command.
   On macOS and Linux, two basenames also identify lock owners. Through `processRunsScript`,
   `engine/next-step.ts` accepts a live landing only when its process command line contains
-  `land.ts`, and `engine/lib/locks.ts` accepts a runner only when it contains `celetis-flow.ts`.
-  A rename makes a live owner look stale. The runner can then end a session during landing, or
-  two runners can take one issue. On Windows, owners match by PID and creation time instead
+  `land.ts`, and `engine/lib/locks.ts` accepts a daemon only when it contains `daemon.ts`.
+  A rename makes a live owner look stale. The daemon can then end a session during landing, or
+  two daemons can take one issue. On Windows, owners match by PID and creation time instead
   (ADR-0034).
 - **The skills table and the commands table of `README.md` are written by hand.** A new skill, a
   removed skill, or a new sub-command of `engine/` also changes the README, and no check fails when

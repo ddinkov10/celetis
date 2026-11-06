@@ -7,6 +7,7 @@ import { clampEffort, isLevel, type Level } from './effort.ts';
 import { recordEvent } from './events.ts';
 import { codexRequest, commonDir, HostError } from './host.ts';
 import type { LockOwner } from './locks.ts';
+import { stateFolder } from './state-folder.ts';
 import { commitMigration, type LocalRecord, readLocalRecord } from './state-migration.ts';
 import { requestStatePreparation } from './state-preparation.ts';
 import { readScreen } from './terminal.ts';
@@ -24,7 +25,7 @@ export interface SessionRecord {
 export type SavedSession = SessionRecord & { session_id: string };
 export type Claim = { kind: 'none' } | { kind: 'one'; id: string } | { kind: 'many' };
 const uuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-const modelsUnreadable = 'celetis-flow: cannot read the Codex models; start the runner again';
+const modelsUnreadable = 'daemon: cannot read the Codex models; start the run again';
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -72,15 +73,11 @@ function historical(source: LocalRecord, main: string, issue: number): SessionRe
 }
 
 const oldSchema = (source: LocalRecord) => object(source.value) && source.value.schema === 1;
-const pathOf = (common: string, issue: number) => join(common, 'celetis-flow', 'sessions', `${issue}.json`);
 async function snapshot(common: string, issue: number): Promise<LocalRecord | null> {
-  const file = pathOf(common, issue);
+  const folder = await stateFolder(common);
+  const file = join(folder, 'sessions', `${issue}.json`);
   try {
-    return await readLocalRecord(
-      file,
-      [common, join(common, 'celetis-flow'), join(common, 'celetis-flow', 'sessions')],
-      'shared',
-    );
+    return await readLocalRecord(file, [common, folder, join(folder, 'sessions')], 'shared');
   } catch (error) {
     throw new HostError(
       `session: ${file}: target schema 2: cannot read record: ${error instanceof Error ? error.message : String(error)}`,
@@ -96,7 +93,7 @@ function currentRecord(source: LocalRecord, main: string, issue: number): Sessio
 }
 function missing(issue: number): HostError {
   return new HostError(
-    `celetis: #${issue} has no current session record; start a new step with celetis --agent <host> celetis-flow ${issue}`,
+    `celetis: #${issue} has no current session record; start a new step with celetis --agent <host> run ${issue}`,
   );
 }
 
@@ -179,7 +176,7 @@ export async function selectSavedSession(
   const { session_id } = record;
   if (session_id === null)
     throw new HostError(
-      `celetis: #${issue} has no saved turn with a verified session identity; exact runner resume requires that identity. From the main checkout, run ${manualRecovery(record.host)} and select the saved session, or start a new step if none exists.`,
+      `celetis: #${issue} has no saved turn with a verified session identity; exact run resume requires that identity. From the main checkout, run ${manualRecovery(record.host)} and select the saved session, or start a new step if none exists.`,
     );
   return { ...record, session_id };
 }
@@ -201,7 +198,7 @@ export function sessionEnv(host: Host, source: NodeJS.ProcessEnv): NodeJS.Proces
 
 export async function writeSession(main: string, record: SessionRecord, owner?: LockOwner): Promise<void> {
   const common = await commonDir(main);
-  const dir = join(common, 'celetis-flow/sessions');
+  const dir = join(await stateFolder(common), 'sessions');
   const file = join(dir, `${record.issue}.json`);
   validateSession(record, main, record.issue, file);
   if (await snapshot(common, record.issue)) await readSession(main, record.issue, common, owner);
@@ -368,7 +365,7 @@ export function selectCodexEffort(
     throw new HostError(
       configured == null
         ? modelsUnreadable
-        : `celetis-flow: the Codex model ${configured} is not in model/list; set model in the Codex config to a listed model, then start the runner again`,
+        : `daemon: the Codex model ${configured} is not in model/list; set model in the Codex config to a listed model, then start the run again`,
     );
   const { model, supportedReasoningEfforts: options } = entry;
   if (typeof model !== 'string' || !Array.isArray(options)) throw new HostError(modelsUnreadable);
@@ -380,7 +377,7 @@ export function selectCodexEffort(
   );
   if (!applied)
     throw new HostError(
-      `celetis-flow: the Codex model ${model} supports no effort level of Celetis; set model in the Codex config to another model, then start the runner again`,
+      `daemon: the Codex model ${model} supports no effort level of Celetis; set model in the Codex config to another model, then start the run again`,
     );
   return { model, applied };
 }
@@ -434,7 +431,7 @@ export async function hostArguments(
   if (step !== 'specify') {
     const existing = config?.developer_instructions ?? '';
     if (config === null || typeof existing !== 'string')
-      throw new HostError('celetis-flow: cannot read the step instructions; start the runner again');
+      throw new HostError('daemon: cannot read the step instructions; start the run again');
     const text = await stepText();
     args.push('-c', `developer_instructions=${JSON.stringify(existing ? `${existing}\n\n${text}` : text)}`);
   }
@@ -462,7 +459,7 @@ export async function startupError(
   terminal: string,
   tab: string,
 ): Promise<void> {
-  const line = `celetis-flow: #${issue} ${host} startup: ${detail}. Check the version, trust, and sign-in prompts in the tab ${tab}. Complete the required action, then start the step again. Manual recovery: ${manualRecovery(host)} from the main checkout.`;
+  const line = `daemon: #${issue} ${host} startup: ${detail}. Check the version, trust, and sign-in prompts in the tab ${tab}. Complete the required action, then start the step again. Manual recovery: ${manualRecovery(host)} from the main checkout.`;
   console.error(line);
   recordEvent({ name: 'startup-error', message: line, issue });
   const screen = await readScreen(terminal, 40);

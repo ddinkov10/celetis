@@ -4,6 +4,7 @@ import { rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AgentChoice, AgentDecision, Host, UsageBlock } from './config-core.ts';
 import { privateFolderSync, privateMode, sharedFolderSync, sharedMode } from './private-folder.ts';
+import { stateFolder } from './state-folder.ts';
 import { tryFlock } from './update-lock.ts';
 import { type ObservedUsage, type UsageAttempt, usageAttempt, usageObject, usageUuid } from './usage-types.ts';
 import { openLockFile } from './windows.ts';
@@ -63,10 +64,9 @@ function block(value: unknown): value is UsageBlock {
   );
 }
 
-function readHost(common: string, host: Host): UsageRecord | null {
-  const flow = join(common, 'celetis-flow');
-  if (!sharedFolder(flow)) return null;
-  const dir = join(flow, 'limits');
+function readHost(state: string, host: Host): UsageRecord | null {
+  if (!sharedFolder(state)) return null;
+  const dir = join(state, 'limits');
   const directory = folder(dir);
   if (!directory) return null;
   const path = join(dir, `${host}.json`);
@@ -115,7 +115,8 @@ function readHost(common: string, host: Host): UsageRecord | null {
 }
 
 export async function readUsage(common: string): Promise<UsageState> {
-  return { claude: readHost(common, 'claude'), codex: readHost(common, 'codex') };
+  const state = await stateFolder(common);
+  return { claude: readHost(state, 'claude'), codex: readHost(state, 'codex') };
 }
 
 async function update<T>(
@@ -123,9 +124,9 @@ async function update<T>(
   host: Host,
   work: (previous: UsageRecord) => { next: UsageRecord; result: T },
 ): Promise<T> {
-  const flow = join(common, 'celetis-flow');
-  sharedFolderSync(flow, invalid);
-  const dir = join(flow, 'limits');
+  const state = await stateFolder(common);
+  sharedFolderSync(state, invalid);
+  const dir = join(state, 'limits');
   privateFolderSync(dir, invalid);
   const directory = folder(dir) as BigIntStats;
   const lock = join(dir, `${host}.lock`);
@@ -152,7 +153,7 @@ async function update<T>(
       await Bun.sleep(25);
     }
     stable();
-    const previous = readHost(common, host) ?? empty();
+    const previous = readHost(state, host) ?? empty();
     const { next, result } = work(previous);
     if (next === previous) return result;
     const path = join(dir, `${host}.json`);
@@ -164,7 +165,7 @@ async function update<T>(
       const current = statAt(path);
       if (original ? !current || !sameFile(original, current) : current !== null)
         throw invalid(path, 'record changed during write');
-      if (JSON.stringify(readHost(common, host) ?? empty()) !== JSON.stringify(previous))
+      if (JSON.stringify(readHost(state, host) ?? empty()) !== JSON.stringify(previous))
         throw invalid(path, 'content changed during write');
       await rename(temp, path);
     } finally {

@@ -62,11 +62,11 @@ export async function locateCheckouts(cwd: string): Promise<CheckoutIdentity> {
   });
 }
 
-export function createOperation(
+export async function createOperation(
   checkout: CheckoutIdentity,
   selection: HostSelection,
   required: RequiredConfig | ((host: Host) => RequiredConfig),
-): Operation {
+): Promise<Operation> {
   checkout = Object.freeze({ ...checkout });
   selection = Object.freeze({ ...selection });
   const configured = <T>(path: string, read: () => T): T => {
@@ -86,7 +86,7 @@ export function createOperation(
       ? choice.host
       : checkout.common === null
         ? 'claude'
-        : (readAgentOrder(checkout.common).order[0] as Host);
+        : ((await readAgentOrder(checkout.common)).order[0] as Host);
   const mode = typeof required === 'function' ? required(host) : required;
   let mainConfig: Config | null = null;
   let activeConfig: Config | null = null;

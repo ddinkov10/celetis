@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute, join, sep } from 'node:path';
 import type { UsageTicket } from './agent-usage.ts';
 import type { AgentChoice, Host } from './config-core.ts';
 import { isLevel } from './effort.ts';
@@ -8,11 +8,13 @@ import type { Identity } from './locks.ts';
 import type { RecoveryAttempt, RecoveryAuthority } from './quota-recovery.ts';
 import type { RunInput, RunState } from './run-engine.ts';
 import { type SessionRecord, validateSession } from './session.ts';
+import { stateFolder } from './state-folder.ts';
+import { commitMigration, type LocalRecord, readLocalRecord } from './state-migration.ts';
 import { usageAttempt } from './usage-types.ts';
 import { lanes, type Run, type Step, steps } from './workflow.ts';
 
 export type RunRecord = {
-  schema: 1;
+  schema: 2;
   id: string;
   daemon: Identity;
   input: RunInput;
@@ -57,6 +59,7 @@ export type RunRecord = {
   state: RunState;
   changedMs: number;
 };
+type Historical = Omit<RunRecord, 'schema'> & { schema: 1 };
 export type ReadRecord = { path: string; record: RunRecord } | { path: string; error: string };
 
 const uuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -249,10 +252,10 @@ function session(value: unknown, issue: number | null, resume: boolean): value i
   );
 }
 
-export function validRunRecord(value: unknown): value is RunRecord {
+function validFields(value: unknown, schema: 1 | 2): boolean {
   return !(
     !keys(value, 'changedMs,daemon,id,input,issue,lock,loop,queue,request,schema,session,state,wait') ||
-    value.schema !== 1 ||
+    value.schema !== schema ||
     !id(value.id) ||
     !identity(value.daemon) ||
     !input(value.input) ||
@@ -275,6 +278,12 @@ export function validRunRecord(value: unknown): value is RunRecord {
   );
 }
 
+export function validRunRecord(value: unknown): value is RunRecord {
+  return validFields(value, 2);
+}
+
+const historical = (value: unknown): value is Historical => validFields(value, 1);
+
 export async function writeRunRecord(folder: string, record: RunRecord): Promise<void> {
   const written: unknown = record;
   if (!validRunRecord(written)) throw new Error(`run record ${record.id}: not valid`);
@@ -291,8 +300,46 @@ export async function removeRunRecord(folder: string, id: string): Promise<void>
   await rm(join(folder, `${id}.json`), { force: true });
 }
 
-export async function readRunRecords(folder: string): Promise<ReadRecord[]> {
+async function convert(path: string, name: string, folder: string, old: string, state: string): Promise<ReadRecord> {
+  let source: LocalRecord | null;
+  try {
+    source = await readLocalRecord(path, [folder], 'private');
+  } catch (error) {
+    return { path, error: (error as Error).message };
+  }
+  if (!source) return { path, error: 'the record is missing' };
+  const value = source.value;
+  if (!historical(value)) return { path, error: 'the record is not a valid run record' };
+  if (`${value.id}.json` !== name) return { path, error: 'the record ID differs from its file name' };
+  const moved = (stored: string) =>
+    stored.startsWith(`${old}${sep}`)
+      ? `${state}${stored.slice(old.length)}`
+      : stored.startsWith(`${state}${sep}`)
+        ? stored
+        : null;
+  let session = value.session;
+  if (session) {
+    const folderAt = moved(session.folder);
+    if (folderAt === null) return { path, error: `the record names session.folder ${session.folder} outside ${old}` };
+    const captureAt = session.capture === null ? null : moved(session.capture);
+    if (session.capture !== null && captureAt === null)
+      return { path, error: `the record names session.capture ${session.capture} outside ${old}` };
+    session = { ...session, folder: folderAt, capture: captureAt };
+  }
+  const record: RunRecord = { ...value, schema: 2, session };
+  if (!validRunRecord(record)) return { path, error: 'the record is not a valid run record' };
+  try {
+    await commitMigration(source, 1, `${JSON.stringify(record)}\n`);
+  } catch (error) {
+    return { path, error: (error as Error).message };
+  }
+  return { path, record };
+}
+
+export async function readRunRecords(folder: string, common: string): Promise<ReadRecord[]> {
   const names = (await readdir(folder)).filter((name) => file.test(name)).sort();
+  const old = join(common, 'celetis-flow');
+  const state = await stateFolder(common);
   return Promise.all(
     names.map(async (name): Promise<ReadRecord> => {
       const path = join(folder, name);
@@ -308,7 +355,8 @@ export async function readRunRecords(folder: string): Promise<ReadRecord[]> {
       } catch {
         return { path, error: 'the record is not valid JSON' };
       }
-      if (!object(value) || value.schema !== 1) return { path, error: 'the record has another schema' };
+      if (object(value) && value.schema === 1) return convert(path, name, folder, old, state);
+      if (!object(value) || value.schema !== 2) return { path, error: 'the record has another schema' };
       if (!validRunRecord(value)) return { path, error: 'the record is not a valid run record' };
       if (`${value.id}.json` !== name) return { path, error: 'the record ID differs from its file name' };
       return { path, record: value };

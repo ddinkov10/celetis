@@ -36,12 +36,14 @@ The allowed custom keys are `accept-epic`, `assist`, `attack-the-premise`, `boun
 Exactly `""` as the setup reference runs no setup. An empty instruction string gives no addition.
 An empty `custom` or `codexProfiles` mapping is valid.
 
-Agent selection is `--agent`, then an explicit `CELETIS_AGENT`, then, for a step that the runner
+Agent selection is `--agent`, then an explicit `CELETIS_AGENT`, then, for a step that a run
 starts, the `agents` preference of that step in the main config, then the local ordered
 preference. A step preference puts its agent first and keeps the other agents in the local order.
 A preferred agent that the local order excludes has no effect: the local exclusion wins. Intake,
-Assist, Make visual, and control operations use the local order only. The record is
-`<Git common directory>/celetis-flow/agents.json`, shared by the main checkout and linked
+Assist, Make visual, and control operations use the local order only. The scripts of the verify
+gate (`scripts/verify.ts`, `scripts/build.ts`, and `scripts/install-tools.ts`) take `--agent`, else
+`CELETIS_AGENT`, else Claude, and read no order. The record is
+`<Git common directory>/celetis/agents.json`, shared by the main checkout and linked
 worktrees on this machine. Its schema is exactly
 `{"schema":1,"order":["claude","codex"]}`. That is also the missing-record order.
 The list is unique and nonempty; either host can be excluded. YAML `host` is an unknown field.
@@ -53,7 +55,7 @@ without creating a record. `celetis agents replace '<JSON>'` takes exactly `orde
 Repeating the current order succeeds even with an older version. A private preference lock
 serializes writers, with a five-second wait limit, and atomic replacement preserves old bytes
 on a failed write. The record and lock must be private regular files, with no symbolic links.
-Their folder `<git common dir>/celetis-flow` is shared runner state: it must be a real directory
+Their folder `<git common dir>/celetis` is shared daemon state: it must be a real directory
 of the current user with no group or other write access, so an existing 0755 folder is accepted.
 A store that creates it uses mode 0700. The record subfolders (`limits/`, `usage-captures/`,
 `usage-sequences/`, `recovery/`, and `sessions/<n>/`) must be private (0700).
@@ -149,7 +151,7 @@ source commit before retry. Existing references, including `""`, stay unchanged;
 prints `setup: warning: .celetis.yaml: worktreeSetup differs from the requested setup reference; setup leaves it`.
 
 The main config is checked before Git prune, branch or worktree changes, runtime state creation,
-host sessions, and landing pushes. The runner checks it again before each new
+host sessions, and landing pushes. The daemon checks it again before each new
 session. The worktree command also checks the lane config on every entry, including a lane with
 its setup marker. An unmarked lane runs setup once and receives the marker only after a nonempty
 reference succeeded, including a zero-byte file. With exactly `""` or missing `worktreeSetup`,
@@ -258,7 +260,7 @@ or `0b101`, is an error too. Quote such a value to keep it as a string.
 The program entry imports its own engine and replaces its process with the named command before
 configuration reads. On Windows, it spawns the command with the same stdio and environment,
 waits, and exits with its status. The command consumes the forwarded `--agent`, validates its
-arguments, and creates its operation. `land.ts` and `celetis-flow.ts` retain their process
+arguments, and creates its operation. `land.ts` and `daemon.ts` retain their process
 identities for lock-owner checks.
 
 `locateCheckouts(cwd)` in `engine/lib/operation.ts` resolves canonical active, main, and common
@@ -295,7 +297,7 @@ step that needs a value of the file, and for the verify gate of this repository.
 
 The selected board port stays fixed while the board runs. An update restart requests that same
 port exactly. A changed local order applies to the next new session, and a changed `agents`
-field to the next new runner session: a new step, or a recovery cycle of a step. A running
+field to the next new session of a run: a new step, or a recovery cycle of a step. A running
 session keeps its agent, and exact Resume retains its saved host and ID. Each skill entry is a
 native boundary of its own ("Skill entry"), independent of runtime operations.
 
@@ -333,11 +335,11 @@ Resume need no board restart;
 new board code still needs a restart. The agent order of the footer reads and replaces the local
 order through the `agents` command, with the version that it read; a stale version returns the
 current order and writes nothing. A board Run choice applies only to that start; Resume
-uses its saved host. See [The board](celetis-flow.md#the-board) for the exact lines.
+uses its saved host. See [The board](workflow.md#the-board) for the exact lines.
 
 A deterministic gate check does not replace live board acceptance. Stable installed resources,
 changed-pair child controls on required CLI surfaces, managed Claude setup, and complete child
-bootstrap keep their acceptance states in [Acceptance status](celetis-flow.md#acceptance-status).
+bootstrap keep their acceptance states in [Acceptance status](workflow.md#acceptance-status).
 Native Codex desktop binding is separate optional evidence; a desktop limit does not block
 otherwise complete required CLI checks. Active-surface validation and permission stops still
 apply to each requested operation.
@@ -368,7 +370,7 @@ curl -fsSL https://bun.com/install | bash -s "bun-v1.4.4"
 
 The official Windows installer runs in PowerShell. Then the first install of `README.md` installs
 the program from Git Bash, and the program runs from Git Bash, PowerShell, and `cmd`.
-[Acceptance status](celetis-flow.md#acceptance-status) gives the Windows checks and the open ones.
+[Acceptance status](workflow.md#acceptance-status) gives the Windows checks and the open ones.
 
 ```powershell
 powershell -c "irm bun.sh/install.ps1|iex"

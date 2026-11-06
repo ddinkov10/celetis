@@ -25,7 +25,7 @@ export async function main(argv: string[]): Promise<number> {
     if (args.length !== 1 || !/^#?[0-9]+$/.test(args[0] ?? '') || !Number.isSafeInteger(issue) || issue < 1)
       throw new HostError(`usage: celetis --agent <host> assist <n>\n${updateHint}`, 2);
     process.env.PATH = childEnv().PATH;
-    const operation = createOperation(
+    const operation = await createOperation(
       await locateCheckouts(process.cwd()),
       { explicit, environment: process.env.CELETIS_AGENT },
       'main',

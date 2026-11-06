@@ -27,7 +27,14 @@ import {
 } from './operation.ts';
 import { privateFolder } from './private-folder.ts';
 import { bunArgs, childEnv } from './process.ts';
-import { controllingTerminal, processScript, processStart, processState, processTable } from './process-identity.ts';
+import {
+  controllingTerminal,
+  daemonScript,
+  processScript,
+  processStart,
+  processState,
+  processTable,
+} from './process-identity.ts';
 import { explicitHost, readQueue, requireQueueChoice, updateQueue } from './queue.ts';
 import { emptyQueue } from './queue-actions.ts';
 import type { QueueRecord } from './queue-types.ts';
@@ -125,7 +132,7 @@ export interface RunHandle {
   detach(): void;
 }
 
-export const removed = 'the program version of this runner was removed after an update; start the runner again';
+export const removed = 'the program version of this daemon was removed after an update; start the daemon again';
 const required = [
   'next-step.ts',
   'update.ts',
@@ -154,7 +161,9 @@ const required = [
   'lib/process.ts',
   'lib/program.ts',
   'lib/queue.ts',
+  'lib/state-folder.ts',
   'lib/state-migration.ts',
+  'lib/state-move.ts',
   'lib/state-preparation.ts',
   'lib/queue-types.ts',
   'lib/queue-actions.ts',
@@ -180,7 +189,7 @@ export async function gone(root: string): Promise<boolean> {
 
 const idle: Record<TerminalStatus, boolean> = { idle: true, done: true, error: true, working: false, blocked: false };
 const die = (message: string): never => {
-  throw new HostError(`celetis-flow: ${message}`);
+  throw new HostError(`daemon: ${message}`);
 };
 
 export async function requireSetup(gh: boolean): Promise<void> {
@@ -306,7 +315,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
   let watcher: AbortController | undefined;
   let watching: Promise<void> | undefined;
   let stepEndIssue: number | undefined;
-  let stepEndOwner: StepEndRecord['runner'];
+  let stepEndOwner: StepEndRecord['daemon'];
   let unremovable = false;
   let watchDir = '';
   let shown: RunView = {
@@ -326,7 +335,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
   const say = (message: string) => {
     if (filter.repeat && message === filter.said) return false;
     filter.said = message;
-    told = `celetis-flow: ${message}`;
+    told = `daemon: ${message}`;
     console.log(told);
     return true;
   };
@@ -341,7 +350,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     if (!self?.start) self = { pid: process.pid, start: await processStart(process.pid) };
     fact = {
       ...(fact ?? {
-        schema: 1,
+        schema: 2,
         id,
         daemon: self,
         input,
@@ -398,7 +407,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
   };
   const saveQueue = async (change: Partial<QueueRecord>) => {
     stopped();
-    if (queue === null) throw new HostError('celetis-flow: queue: no submitted queue', 2);
+    if (queue === null) throw new HostError('daemon: queue: no submitted queue', 2);
     const expected = queue;
     try {
       queue = await updateQueue(
@@ -414,13 +423,13 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     } catch (error) {
       storageFailed = true;
       throw new HostError(
-        `celetis-flow: queue: cannot save recovery state: ${(error as Error).message}; no further session will start. Repair access to the queue record, then use Try again.`,
+        `daemon: queue: cannot save recovery state: ${(error as Error).message}; no further session will start. Repair access to the queue record, then use Try again.`,
       );
     }
   };
   const fresh = () => createOperation(checkout, selection, 'main');
-  const nextOperation = () => {
-    const current = initial ?? fresh();
+  const nextOperation = async () => {
+    const current = initial ?? (await fresh());
     initial = undefined;
     return current;
   };
@@ -455,7 +464,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
   const usageWarning = (n: string) => {
     let warned = false;
     return (error: unknown) => {
-      if (!warned) console.error(`celetis-flow: #${n} cannot record usage: ${(error as Error).message}`);
+      if (!warned) console.error(`daemon: #${n} cannot record usage: ${(error as Error).message}`);
       warned = true;
     };
   };
@@ -497,9 +506,9 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     try {
       await removeStepEnd(main, stepEndIssue);
     } catch (error) {
-      console.error(`celetis-flow: #${stepEndIssue} cannot remove step-end: ${(error as Error).message}`);
+      console.error(`daemon: #${stepEndIssue} cannot remove step-end: ${(error as Error).message}`);
       console.error(
-        `celetis-flow: cannot revoke watcher ownership; the runner stops. Exit the session in the tab ${tab} when ready.`,
+        `daemon: cannot revoke watcher ownership; the daemon stops. Exit the session in the tab ${tab} when ready.`,
       );
       unremovable = true;
       hooks.fatal();
@@ -507,12 +516,12 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
   };
   const publish = async (host: Host, state: StepEndState, turn: TurnKey | null) => {
     try {
-      await writeStepEnd(main, stepEndIssue as number, { runner: stepEndOwner, terminal, host, state, turn });
+      await writeStepEnd(main, stepEndIssue as number, { daemon: stepEndOwner, terminal, host, state, turn });
       mark(state);
       return true;
     } catch (error) {
       await clearStepEnd();
-      const line = `celetis-flow: #${stepEndIssue} cannot write step-end: ${(error as Error).message}`;
+      const line = `daemon: #${stepEndIssue} cannot write step-end: ${(error as Error).message}`;
       console.error(line);
       recordEvent({ name: 'step-end-write', message: line, issue: stepEndIssue });
       return false;
@@ -566,7 +575,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       if (!warned && performance.now() >= deadline) {
         warned = true;
         console.error(
-          `celetis-flow: #${n} ${record.host} startup: no saved turn with a verified identity after 60 seconds; monitoring continues. Check setup prompts in the tab ${tab}.`,
+          `daemon: #${n} ${record.host} startup: no saved turn with a verified identity after 60 seconds; monitoring continues. Check setup prompts in the tab ${tab}.`,
         );
       }
       await Bun.sleep(1000);
@@ -586,10 +595,10 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         if (!(await publish(record.host, 'checking', observed.turn))) return false;
       } else if (turn) {
         if (!sameTurn(turn, retained) && !(await publish(record.host, 'checking', turn))) return false;
-        const { next: first } = await nextOf(n, fresh(), abort);
+        const { next: first } = await nextOf(n, await fresh(), abort);
         let changed = false;
         if (first.kind !== 'observed' && !sameResult(first, start)) {
-          const { next: second } = await nextOf(n, fresh(), abort);
+          const { next: second } = await nextOf(n, await fresh(), abort);
           changed = second.kind !== 'observed' && sameResult(second, first);
         }
         const current = await sessionTurn(id, record.host, startedMs, abort);
@@ -607,7 +616,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
             if (!(await requestExit(terminal, record.host, abort))) {
               if (!abort.aborted) {
                 await publish(record.host, 'waiting', turn);
-                const line = `celetis-flow: #${n} cannot request ${record.host} exit; the session stays open. Exit it in the tab ${tab} when ready.`;
+                const line = `daemon: #${n} cannot request ${record.host} exit; the session stays open. Exit it in the tab ${tab} when ready.`;
                 console.error(line);
                 recordEvent({ name: 'exit-request', message: line, issue: Number(n) });
               }
@@ -615,7 +624,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
             }
             const timer = setTimeout(() => {
               if (abort.aborted) return;
-              const line = `celetis-flow: #${n} ${record.host} did not exit within 10 seconds; the session stays open. Exit it in the tab ${tab} when ready.`;
+              const line = `daemon: #${n} ${record.host} did not exit within 10 seconds; the session stays open. Exit it in the tab ${tab} when ready.`;
               console.error(line);
               recordEvent({ name: 'exit-timeout', message: line, issue: Number(n) });
             }, 10_000);
@@ -641,7 +650,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     if (found === null) return null;
     const { pid, start } = found;
     const state = await processState(pid, start);
-    const script = state === 'gone' ? 'gone' : await processScript(pid, 'celetis-flow.ts');
+    const script = state === 'gone' ? 'gone' : await processScript(pid, daemonScript);
     if (state === 'gone' || script === 'gone') return null;
     return state === 'runs' && script === 'runs' ? { pid, start } : 'unknown';
   };
@@ -701,10 +710,10 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         folder: main,
         name: tab,
         argv: [
-          // hc gives the tab the environment of its server, not of this runner.
+          // hc gives the tab the environment of its server, not of this daemon.
           ...(process.platform === 'win32' ? [] : ['env', 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0', 'DO_NOT_TRACK=1']),
           process.execPath,
-          ...bunArgs(join(root, 'engine', 'celetis-flow.ts'), [
+          ...bunArgs(join(root, 'engine', daemonScript), [
             '--session-start',
             dir,
             String(process.pid),
@@ -752,7 +761,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       if (!warned && now - waited >= 60_000) {
         warned = true;
         console.error(
-          `celetis-flow: #${n} ${host} startup: the start barrier of the tab ${tab} did not report after 60 seconds; waiting continues. Check the login files of $SHELL in that tab.`,
+          `daemon: #${n} ${host} startup: the start barrier of the tab ${tab} did not report after 60 seconds; waiting continues. Check the login files of $SHELL in that tab.`,
         );
       }
       await rest(250);
@@ -841,14 +850,14 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     if (!from) {
       const holder = await locks.take(`issue-${n}`);
       if (holder !== null) {
-        const reason = `another celetis-flow.ts or its session (PID ${holder}) works on #${n}`;
+        const reason = `another run or its session (PID ${holder}) works on #${n}`;
         say(reason);
-        admit({ ok: false, line: `celetis-flow: ${reason}`, code: 0 });
+        admit({ ok: false, line: `daemon: ${reason}`, code: 0 });
         return outcome('stopped', reason, 'Wait for that session to exit, then use Try again.');
       }
       await noteLoop({ issue, lock: `issue-${n}`, request: request ?? null });
     }
-    const runner = { pid: process.pid, start: await processStart(process.pid) };
+    const daemon = { pid: process.pid, start: await processStart(process.pid) };
     const saveRecovery = async (
       authority: RecoveryAuthority,
       choice: AgentChoice,
@@ -858,7 +867,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       recovery = await updateRecovery(main, issue, (current) =>
         change(
           current ?? {
-            schema: 1,
+            schema: 2,
             id: randomUUID(),
             revision: 1,
             issue,
@@ -869,7 +878,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
             choice,
             attempt: null,
             prior: [],
-            runner,
+            daemon,
             lock: `issue-${n}`,
             attempted: [],
             state: 'recovering',
@@ -910,11 +919,11 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         }));
       mark('quota-wait');
       const deadline =
-        nextResetAt === null ? 'no reset is known' : `the runner waits until ${new Date(nextResetAt).toISOString()}`;
-      const line = `#${n}: all default agents are limited (${blockedText(blocked)}); ${deadline}. Retry: celetis celetis-flow --retry ${n} ${waitId}`;
+        nextResetAt === null ? 'no reset is known' : `the run waits until ${new Date(nextResetAt).toISOString()}`;
+      const line = `#${n}: all default agents are limited (${blockedText(blocked)}); ${deadline}. Retry: celetis run retry ${n} ${waitId}`;
       say(line);
       if (!kept) {
-        recordEvent({ name: 'quota-wait', message: `celetis-flow: ${line}`, issue });
+        recordEvent({ name: 'quota-wait', message: `daemon: ${line}`, issue });
         await hooks?.onWait?.(waitId, line);
       }
       const snapshot = kept ? null : await readUsage(common);
@@ -928,9 +937,9 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         stopped();
         const current = await readRecovery(main, issue);
         if (!current || current.waitId !== waitId)
-          throw new HostError(`celetis-flow: #${n}: the quota wait record changed; start the runner again`);
+          throw new HostError(`daemon: #${n}: the quota wait record changed; start the run again`);
         const usage = await readUsage(common);
-        const renewed = readAgentOrder(common).order.some((each) => {
+        const renewed = (await readAgentOrder(common)).order.some((each) => {
           const now = usage[each];
           const before = seen[each];
           return (
@@ -987,9 +996,9 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       const resume = `${s.host} ${resumeArguments({ ...s.record, session_id: sessionId }).join(' ')}`;
       if (ownership.kind === 'unverified') {
         const running = ownership.running.length ? ` (running PIDs: ${ownership.running.join(', ')})` : '';
-        const line = `#${n}: ${reason} The runner cannot prove that the ${s.host} session and its delegated work stopped: ${ownership.reason}${running}. No other agent starts. The session stays in the tab ${tab}; its native resume from the main checkout: ${resume}`;
+        const line = `#${n}: ${reason} The daemon cannot prove that the ${s.host} session and its delegated work stopped: ${ownership.reason}${running}. No other agent starts. The session stays in the tab ${tab}; its native resume from the main checkout: ${resume}`;
         say(line);
-        recordEvent({ name: 'quota-unverified', message: `celetis-flow: ${line}`, issue });
+        recordEvent({ name: 'quota-unverified', message: `daemon: ${line}`, issue });
         return outcome('stopped', line, 'Stop the session and its tasks in its tab, then use Try again.');
       }
       const archived = await archiveSession(main, issue, s.owned.id, locks);
@@ -1076,7 +1085,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       const s = steered(session);
       if (phase === 'live') {
         stepEndIssue = issue;
-        stepEndOwner = runner;
+        stepEndOwner = daemon;
         await publish(s.host, 'checking', null);
         watchDir = session.folder;
         return follow({ ...s, ended: sessionExit(session.folder, s.barrier) }, false);
@@ -1108,9 +1117,9 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         let unknown = false;
         const kept = await updateRecovery(main, issue, async (current) => {
           if (!current || current.lock !== `issue-${n}`) return current;
-          const state = await processState(current.runner.pid, current.runner.start);
+          const state = await processState(current.daemon.pid, current.daemon.start);
           unknown = state === 'unknown';
-          return state === 'gone' ? { ...current, runner } : current;
+          return state === 'gone' ? { ...current, daemon } : current;
         });
         if (!unknown) return kept;
         await rest(2000);
@@ -1130,7 +1139,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       if (waiting) {
         const bound = recovery as QuotaRecovery | null;
         if (bound?.waitId !== waiting.waitId)
-          throw new HostError(`celetis-flow: #${n}: the quota wait record changed; start the runner again`);
+          throw new HostError(`daemon: #${n}: the quota wait record changed; start the run again`);
         const woke = await waitQuota(waiting.authority, waiting.choice, bound.blocked, bound.nextResetAt, waiting);
         attempted = new Set();
         retryBlocked = woke === 'retry';
@@ -1140,9 +1149,9 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         stopped();
         if (await gone(root)) {
           await removal();
-          return outcome('stopped', removed, 'Start the runner again.');
+          return outcome('stopped', removed, 'Start the daemon again.');
         }
-        const current = nextOperation();
+        const current = await nextOperation();
         const config = current.mainConfig as Config;
         const bound = recovery as QuotaRecovery | null;
         let permit: Awaited<ReturnType<typeof validateRecovery>> | undefined;
@@ -1192,26 +1201,26 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
                 `${lastHost} session exited with status ${exitCode ?? 'unknown'} before issue progress; check startup output, then run ${manualRecovery(lastHost)} from the main checkout or start the step again`,
               );
             const reason = `no progress: ${prompt}`;
-            if (say(reason)) recordEvent({ name: 'no-progress', message: `celetis-flow: ${reason}`, issue });
+            if (say(reason)) recordEvent({ name: 'no-progress', message: `daemon: ${reason}`, issue });
             await addRecord(common, n, line);
             return outcome('stopped', reason, 'Open the saved session, or use Try again for this step.');
           }
           const skips = last ? skipped(last.step, step, next.lane) : [];
           if (last && !request?.retry && skips.length > 0) {
-            const reason = `#${n}: ${step} skips ${skips.join(', ')} after ${last.step}; fix the issue, or start ${step} by hand: celetis --agent <host> celetis-flow ${n}`;
-            if (say(reason)) recordEvent({ name: 'step-skip', message: `celetis-flow: ${reason}`, issue });
+            const reason = `#${n}: ${step} skips ${skips.join(', ')} after ${last.step}; fix the issue, or start ${step} by hand: celetis --agent <host> run ${n}`;
+            if (say(reason)) recordEvent({ name: 'step-skip', message: `daemon: ${reason}`, issue });
             await addRecord(common, n, line);
             return outcome('stopped', reason, 'Fix the issue, or use Try again for this displayed step.');
           }
           if (first !== 'any' && (config.gates?.[step] ?? defaultGate) !== 'auto') {
-            const reason = `the gate of ${step} is me: celetis --agent <host> celetis-flow ${n} starts ${prompt}`;
+            const reason = `the gate of ${step} is me: celetis --agent <host> run ${n} starts ${prompt}`;
             say(reason);
             return outcome('gate', reason, 'Use Continue queue to start this displayed step.');
           }
         }
         const decision = selectAgent(
           current.choice,
-          effectiveOrder(readAgentOrder(common).order, config.agents?.[step]),
+          effectiveOrder((await readAgentOrder(common)).order, config.agents?.[step]),
           await readUsage(common),
           Date.now(),
           attempted,
@@ -1250,7 +1259,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         first = 'gated';
         if (prepared === null) {
           await removal();
-          return outcome('stopped', removed, 'Start the runner again.');
+          return outcome('stopped', removed, 'Start the daemon again.');
         }
         const { args, applied, model } = prepared;
         say(startLine(prompt, prepared.level, prepared.source, applied, model));
@@ -1320,7 +1329,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         const { ended, barrier } = begun;
         const steering: Steered = { ...facts, ticket };
         stepEndIssue = issue;
-        stepEndOwner = runner;
+        stepEndOwner = daemon;
         await publish(stepHost, 'checking', null);
         const result = await follow({ ...steering, ended, barrier, startedMs: Date.now() }, true);
         if (result) return result;
@@ -1337,7 +1346,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
   const resumeRun = async (n: number, from?: Resumed): Promise<RunEnd> => {
     if (!from) {
       const holder = await locks.take(`issue-${n}`);
-      if (holder !== null) die(`another celetis-flow.ts or its session (PID ${holder}) works on #${n}`);
+      if (holder !== null) die(`another run or its session (PID ${holder}) works on #${n}`);
       await note({ issue: n, lock: `issue-${n}` });
     }
     const session = from?.record.session;
@@ -1351,7 +1360,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       } else code = await exit;
     } else {
       const saved = await selectSavedSession(main, n, selection.explicit, common, locks);
-      operation = createOperation(checkout, { ...selection, saved: saved.host }, 'main');
+      operation = await createOperation(checkout, { ...selection, saved: saved.host }, 'main');
       const host = operation.host;
       await preflight(async () => {
         stopped();
@@ -1380,10 +1389,10 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     return { kind: 'stopped', code: code === null ? 1 : passOn(code), reason: '' };
   };
   const queueRun = async (claim: Readonly<{ id: string; token: string }>): Promise<RunEnd> => {
-    operation = createOperation(checkout, selection, 'main');
+    operation = await createOperation(checkout, selection, 'main');
     stopped();
     const holder = await locks.take('queue');
-    if (holder !== null) throw new HostError('queue: another runner owns this work', 2);
+    if (holder !== null) throw new HostError('queue: another run owns this work', 2);
     queue = await updateQueue(
       main,
       async (current) => {
@@ -1393,7 +1402,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         if (!current.choice) throw new HostError('queue: no recorded agent choice', 2);
         requireQueueChoice(current.choice, operation.choice);
         if (await lockHolder(main, `issue-${current.numbers[0]}`))
-          throw new HostError('queue: a runner or its foreground still owns this work', 2);
+          throw new HostError('queue: a run or its foreground still owns this work', 2);
         return current;
       },
       common,
@@ -1409,7 +1418,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     shown = { ...shown, numbers: queue.numbers };
     const pinned = explicitHost(queue.choice);
     selection = pinned === null ? {} : { saved: pinned };
-    operation = fresh();
+    operation = await fresh();
     await hooks.ready?.();
     await saveQueue({ state: 'running', launch: null });
     return drainQueue((n) => runIssue(n, request ? 'any' : 'gated', request, queueHooks));
@@ -1435,7 +1444,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       }),
   };
   const drainQueue = async (first: (n: string) => Promise<IssueOutcome>): Promise<RunEnd> => {
-    if (queue === null) throw new HostError('celetis-flow: queue: no submitted queue', 2);
+    if (queue === null) throw new HostError('daemon: queue: no submitted queue', 2);
     let start = first;
     while (queue.numbers.length) {
       const n = String(queue.numbers[0]);
@@ -1458,7 +1467,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         const snapshot = await readQueue(main, common, locks);
         if (!snapshot || snapshot.id !== queue.id || snapshot.numbers[0] !== Number(n))
           throw new Error('queue: current issue changed during drain');
-        const { next } = await nextOf(n, fresh(), halt.signal);
+        const { next } = await nextOf(n, await fresh(), halt.signal);
         stopped();
         if (next.kind !== 'stop' || (next.reason !== 'finished' && next.reason !== 'wontfix'))
           die('queue: cannot advance without a fresh closed resolver result');
@@ -1512,7 +1521,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     return { kind: 'closed', code: 0, reason };
   };
   const issueRun = async (n: number, first: 'any' | 'gated', override?: Level) => {
-    operation = createOperation(checkout, selection, 'main');
+    operation = await createOperation(checkout, selection, 'main');
     initial = operation;
     await hooks.ready?.();
     return runIssue(String(n), first, undefined, undefined, override);
@@ -1567,7 +1576,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         if (!session.barrier) throw new Error('run record: a released session has no start barrier');
         const { pid, start } = session.barrier;
         const state = await processState(pid, start);
-        const script = state === 'gone' ? 'gone' : await processScript(pid, 'celetis-flow.ts');
+        const script = state === 'gone' ? 'gone' : await processScript(pid, daemonScript);
         if (state === 'gone' || script === 'gone') return 'ended';
         if (state === 'runs' && script === 'runs') return 'live';
       }
@@ -1593,9 +1602,9 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       }
       if (claim.kind === 'taken') break;
       if (claim.kind === 'held') {
-        const reason = `#${n}: another celetis-flow.ts or its session (PID ${claim.holder}) took #${n} while no daemon ran; this run ends`;
+        const reason = `#${n}: another run or its session (PID ${claim.holder}) took #${n} while no daemon ran; this run ends`;
         say(reason);
-        admit({ ok: false, line: `celetis-flow: ${reason}`, code: 0 });
+        admit({ ok: false, line: `daemon: ${reason}`, code: 0 });
         return { kind: 'stopped', code: 0, reason };
       }
       admit({ ok: true });
@@ -1646,7 +1655,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       phase = read;
     }
     if (record.input.kind === 'resume') return await resumeRun(n, { record, phase });
-    operation = createOperation(checkout, selection, 'main');
+    operation = await createOperation(checkout, selection, 'main');
     initial = operation;
     const resumed: Resumed = { record, phase };
     if (record.queue) {
@@ -1752,7 +1761,7 @@ export function autoLoop(
   const say = (message: string) => {
     if (message === filter.said) return false;
     filter.said = message;
-    console.log(`celetis-flow: ${message}`);
+    console.log(`daemon: ${message}`);
     return true;
   };
   const aborted = new Promise<null>((done) => {
@@ -1765,10 +1774,10 @@ export function autoLoop(
     try {
       const checkout = await locateCheckouts(process.cwd());
       const fresh = () => createOperation(checkout, input.selection, 'main');
-      let initial: Operation | undefined = fresh();
+      let initial: Operation | undefined = await fresh();
       await hooks.ready?.();
-      const holder = await locks.take('runner');
-      if (holder !== null) die(`another automatic runner or its session has PID ${holder}`);
+      const holder = await locks.take('auto');
+      if (holder !== null) die(`auto mode of another daemon or its session has PID ${holder}`);
       admit({ ok: true });
       while (running()) {
         if (await gone(root)) {
@@ -1776,7 +1785,7 @@ export function autoLoop(
           await aborted;
           return 0;
         }
-        const current = initial ?? fresh();
+        const current = initial ?? (await fresh());
         initial = undefined;
         const config = current.mainConfig as Config;
         if (current.choice.kind === 'explicit')
@@ -1816,9 +1825,9 @@ export function autoLoop(
             const result = await run.settled;
             if (result.end.code !== 0) return result.end.code;
             started = result.started;
-          } else say('no auto step can start; the runner asks again each 60 seconds');
+          } else say('no auto step can start; auto mode asks again each 60 seconds');
         } else if (say('stop cannot read the open issues from GitHub'))
-          recordEvent({ name: 'issues-read', message: 'celetis-flow: stop cannot read the open issues from GitHub' });
+          recordEvent({ name: 'issues-read', message: 'daemon: stop cannot read the open issues from GitHub' });
         if (!started) {
           const until = performance.now() + 60_000;
           while (running() && performance.now() < until) await Bun.sleep(50);

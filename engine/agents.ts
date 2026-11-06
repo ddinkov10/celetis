@@ -30,7 +30,7 @@ export async function main(argv: string[]): Promise<number> {
       JSON.stringify(
         replacement
           ? await replaceAgentOrder(common, replacement.order, replacement.expectedVersion)
-          : readAgentOrder(common),
+          : await readAgentOrder(common),
       ),
     );
     return 0;

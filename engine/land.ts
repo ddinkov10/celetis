@@ -13,6 +13,7 @@ import { commandInput, createOperation, locateCheckouts, type Operation } from '
 import { codexHome } from './lib/plugin-metadata.ts';
 import { run, runBun } from './lib/process.ts';
 import { writeRefreshHint } from './lib/refresh-hints.ts';
+import { stateFolder } from './lib/state-folder.ts';
 import { github } from './lib/tracker.ts';
 import { branchGlobs, branchPattern, decide, landable } from './lib/workflow.ts';
 import { checkoutOf, removeLane } from './lib/worktree.ts';
@@ -92,7 +93,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     if (text) process.stderr.write(text.endsWith('\n') ? text : `${text}\n`);
   };
   try {
-    const operation = createOperation(
+    const operation = await createOperation(
       await locateCheckouts(cwd),
       { explicit, environment: process.env.CELETIS_AGENT },
       'main',
@@ -109,8 +110,9 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
       handlers.set(signal, handler);
       process.on(signal, handler);
     }
-    lock = join(common, 'celetis-flow', `land-${n}.lock`);
-    await mkdir(join(common, 'celetis-flow'), { recursive: true });
+    const state = await stateFolder(common);
+    lock = join(state, `land-${n}.lock`);
+    await mkdir(state, { recursive: true });
     await writeFile(lock, `${process.pid}\n`);
     const gitRaw = async (args: string[], at = cwd) => {
       interrupted();
@@ -195,7 +197,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     const stale = `merge origin/${trunk} into ${branch}, run the verify gate of the project again, then land again`;
     let checkPull: (() => Promise<void>) | undefined;
     const preflight = async (): Promise<Operation> => {
-      const fresh = createOperation(await locateCheckouts(cwd), operation.selection, 'main');
+      const fresh = await createOperation(await locateCheckouts(cwd), operation.selection, 'main');
       if (fresh.mainConfig?.landing !== config.landing || suiteOf(fresh.mainConfig) !== suiteOf(config))
         die('blocked', 'the landing mechanism changed; invoke landing again');
       if (fresh.checkout.main !== main || fresh.checkout.common !== common)
@@ -259,7 +261,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
         process.stderr.write(ancestor.stderr);
         if (ancestor.code !== 0) die('repair', `${branch} does not contain the head of ${trunk}; ${stale}`);
       }
-      const currentPolicy = createOperation(fresh.checkout, operation.selection, 'main');
+      const currentPolicy = await createOperation(fresh.checkout, operation.selection, 'main');
       if (currentPolicy.mainConfig?.landing !== config.landing || suiteOf(currentPolicy.mainConfig) !== suiteOf(config))
         die('blocked', 'the landing mechanism changed; invoke landing again');
       return currentPolicy;

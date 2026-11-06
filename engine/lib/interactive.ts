@@ -12,6 +12,7 @@ import { requireUpdatePolicy } from './plugin-policy.ts';
 import { privateFolder } from './private-folder.ts';
 import { childEnv } from './process.ts';
 import { codexClaim, verifyNativeSession } from './session.ts';
+import { stateFolder } from './state-folder.ts';
 import { withPluginRead } from './update-lock.ts';
 import { prepareClaudeUsage, readClaudeUsage } from './usage-claude.ts';
 import { readCodexUsage } from './usage-codex.ts';
@@ -25,7 +26,7 @@ export async function runInteractive(
   if (main === null || common === null) throw new HostError('celetis: need a Git checkout', 2);
   const decision = selectAgent(
     operation.choice,
-    readAgentOrder(common).order,
+    (await readAgentOrder(common)).order,
     await readUsage(common),
     Date.now(),
     new Set(),
@@ -57,7 +58,7 @@ export async function runInteractive(
   };
   if (host === 'codex') args[args.length - 1] = `${args.at(-1) ?? ''}\nLauncher attempt: ${attempt.id}.`;
   const ticket = await beginUsageAttempt(common, attempt);
-  const captureRoot = join(common, 'celetis-flow', 'usage-captures');
+  const captureRoot = join(await stateFolder(common), 'usage-captures');
   const capture = join(captureRoot, attempt.id);
   const extra: string[] = [];
   if (host === 'claude') {

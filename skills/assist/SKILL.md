@@ -8,7 +8,7 @@ argument-hint: "#<issue number>"
 
 # /celetis:assist — complete the current block
 
-Input: `#<n>`. This is an interactive helper. Continuation stays with the normal runner.
+Input: `#<n>`. This is an interactive helper. Continuation stays with the normal run.
 
 ## 1. Bind the checkout
 

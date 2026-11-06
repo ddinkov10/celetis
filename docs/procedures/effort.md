@@ -1,7 +1,7 @@
 # The effort decision
 
 How a step decides the effort level of the next step of its lane, and records the decision on the
-issue. The runner and the board start the next step session at the decided level, else at `high`.
+issue. The daemon and the board start the next step session at the decided level, else at `high`.
 `triage`, `specify`, `bug`, and `plan` cite it before the act that moves the line.
 
 ## The deciding step

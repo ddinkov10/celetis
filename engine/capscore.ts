@@ -103,7 +103,7 @@ export async function main(argv: string[]): Promise<number> {
     if (score) {
       const identity = await locateCheckouts(cwd);
       checkout = identity.main;
-      const operation = createOperation(identity, { explicit: agent, environment }, (selected) =>
+      const operation = await createOperation(identity, { explicit: agent, environment }, (selected) =>
         bindingMode(selected, profile, checkout),
       );
       const binding = await readBinding(

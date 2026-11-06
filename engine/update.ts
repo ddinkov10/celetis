@@ -702,7 +702,7 @@ export async function requireSameRevision(host: Host, cwd: string, root: string)
   const program = await programRevision(root);
   if (installed !== program)
     throw new HostError(
-      `celetis: the ${host} plugin is at ${short(installed)} and this program is at ${short(program)}; run celetis update, then start the runner again`,
+      `celetis: the ${host} plugin is at ${short(installed)} and this program is at ${short(program)}; run celetis update, then start the daemon again`,
     );
   return plugin;
 }

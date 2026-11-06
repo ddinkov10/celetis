@@ -27,7 +27,7 @@ Before a stop in either mode, apply "The check before a stop": a stop stays only
 outside the session (its class 3).
 
 - **In an interactive session**, which has no step text: show the user the message, and stop.
-- **In a step session**, which the runner started with its step text: hand the stop to the issue
+- **In a step session**, which the daemon started with its step text: hand the stop to the issue
   ("A stop in a step session").
 
 The message of a block (a denied path, a missing tool, or an unsupported operation) names the
@@ -142,10 +142,10 @@ An absent `ready-for-human` label is not completion evidence.
 
 ## The act that moves the line
 
-These acts move the line of the issue in the runner's resolver
+These acts move the line of the issue in the resolver of the daemon
 (`celetis --agent <host> next-step`): a label, a comment with a heading that the resolver reads, a
-published spec, and a closed issue. A session that the runner started ends at its first idle moment
-after such an act (`<plugin>/docs/celetis-flow.md`, "The step end"). So, in each session:
+published spec, and a closed issue. A session that the daemon started ends at its first idle moment
+after such an act (`<plugin>/docs/workflow.md`, "The step end"). So, in each session:
 
 - Get each answer from the user before the act.
 - Do each other act of the skill in the same turn, before the act: the act is the last act of the

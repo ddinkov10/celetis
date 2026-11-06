@@ -190,7 +190,7 @@ var runReason = (agent, number) => {
       return cleanCause(entry.cause);
     return null;
   }
-  return defaultReason("runner");
+  return defaultReason("run");
 };
 var runName = ({ step, effort, number }) => `Run ${step}${effort ? ` at ${effort.level} (${effortSource(effort)})` : ""}, #${number}`;
 var runAction = (card, agent = null) => {
@@ -1035,11 +1035,11 @@ var drawStatus = (source, isDown) => {
   terminalNode.dataset.tone = terminal?.ok === true ? "ok" : terminal?.ok === false ? "fail" : "wait";
   terminalNode.title = terminal?.error ? `herdr: ${terminal.error}` : "Run and Go use herdr";
   terminalNode.querySelector(".sb-text").textContent = terminal?.ok === true ? "up" : terminal?.ok === false ? "down" : "checking";
-  const runner = $("runner");
-  runner.hidden = data?.runner === null || data?.runner === undefined;
-  runner.dataset.tone = data?.runner ? "ok" : "off";
-  runner.title = data?.runner ? "The automatic runner starts each auto step" : "No automatic runner runs: auto steps wait";
-  runner.replaceChildren(el("i", "dot"), el("span", "sb-name", "Runner"), el("span", "sb-text", data?.runner ? "on" : "off"));
+  const auto = $("auto");
+  auto.hidden = data?.auto === null || data?.auto === undefined;
+  auto.dataset.tone = data?.auto ? "ok" : "off";
+  auto.title = data?.auto ? "The automatic runner starts each auto step" : "No automatic runner runs: auto steps wait";
+  auto.replaceChildren(el("i", "dot"), el("span", "sb-name", "Runner"), el("span", "sb-text", data?.auto ? "on" : "off"));
   if (data?.picker)
     picker.update(data.picker);
   document.body.toggleAttribute("data-stale", isDown);

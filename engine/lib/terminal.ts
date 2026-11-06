@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import type { Host } from './config-core.ts';
 import { childEnv, run } from './process.ts';
+import { stateFolder } from './state-folder.ts';
 import type { Terminal, TerminalStatus } from './terminal-types.ts';
 import { tryFlock } from './update-lock.ts';
 import { openLockFile } from './windows.ts';
@@ -24,7 +25,7 @@ type Space = { id: string | null; name: unknown; tabs: { id: string | null; term
 export class TerminalError extends Error {}
 
 export const LINK = 'celetis.link';
-export const RUNNER_LABEL = 'celetis.runner';
+export const PRESS_LABEL = 'celetis.press';
 const SAFE_ID = /^[\w:.][\w:.-]*$/;
 const POLL_MS = 250;
 const POLL_LIMIT_MS = 5_000;
@@ -310,7 +311,7 @@ async function startTab(request: OpenTab, exec: Exec): Promise<{ id: string; sho
 }
 
 async function holdingSpaceLock<T>(common: string, work: () => Promise<T>): Promise<T> {
-  const folder = join(common, 'celetis-flow');
+  const folder = await stateFolder(common);
   await mkdir(folder, { recursive: true, mode: 0o700 });
   const lock = join(folder, 'space.lock');
   const fd =
@@ -350,7 +351,7 @@ export async function startHidden(
 ): Promise<string> {
   return runTerminal(
     exec,
-    [...(request.removeOnExit ? ['--rm'] : []), '--cwd', request.folder, '--label', `${RUNNER_LABEL}=${request.label}`],
+    [...(request.removeOnExit ? ['--rm'] : []), '--cwd', request.folder, '--label', `${PRESS_LABEL}=${request.label}`],
     inShell('exec "$@"', request.argv),
   );
 }

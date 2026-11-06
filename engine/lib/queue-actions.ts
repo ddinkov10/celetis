@@ -93,7 +93,7 @@ export async function admitQueue(operation: Operation, input: QueueAction): Prom
         if (await lockHolder(main, `issue-${action.number}`))
           throw new Error('queue: that issue already has a live owner');
         if (current?.numbers.length) return { ...current, numbers: [...current.numbers, action.number] };
-        if (owner) throw new Error('queue: a previous runner still owns the queue');
+        if (owner) throw new Error('queue: a previous run still owns the queue');
         wake = true;
         return {
           ...emptyQueue(current),

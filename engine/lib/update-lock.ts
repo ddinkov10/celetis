@@ -121,7 +121,7 @@ export class UpdateLock {
 
   private constructor(
     private readonly fd: number,
-    private readonly runnerPid: number,
+    private readonly callerPid: number,
     private readonly timeoutMs: number,
     private readonly clock: Clock,
   ) {
@@ -137,12 +137,12 @@ export class UpdateLock {
 
   static async acquire(
     path: string,
-    runnerPid: number,
+    callerPid: number,
     options: { timeoutMs?: number; clock?: Clock; refuseBusy?: boolean } = {},
   ): Promise<UpdateLock> {
     const lock = new UpdateLock(
       openSync(path, 'a+', 0o600),
-      runnerPid,
+      callerPid,
       options.timeoutMs ?? 120_000,
       options.clock ?? { now: () => performance.now(), sleep: (ms) => Bun.sleep(ms) },
     );
@@ -166,10 +166,10 @@ export class UpdateLock {
   private check() {
     if (this.interrupted) throw new HostError(`update: interrupted by ${this.interrupted} during ${this.phase}`);
     try {
-      process.kill(this.runnerPid, 0);
+      process.kill(this.callerPid, 0);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EPERM')
-        throw new HostError(`update: the runner exited during ${this.phase}`);
+        throw new HostError(`update: the calling process exited during ${this.phase}`);
     }
     if (this.clock.now() >= this.deadline)
       throw new HostError(`update: timed out after ${this.timeoutMs / 1000} seconds during ${this.phase}`);

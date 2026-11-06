@@ -60,26 +60,26 @@ compares its bytes. The hook runtime has no Node and no DOM: a module that the h
 - **After the entry.** A later `Read` of `.celetis.yaml` in the same session returns
   `file_unchanged` with no content.
 
-## The runner
+## The daemon
 
 `hostArguments` of `engine/lib/session.ts` starts a step as
 `claude --permission-mode auto --effort <level> -n '#<n> <step>' --append-system-prompt <step text> '/celetis:<command> #<n>'`.
 The step text is the facts header (`stepHeader`) and `step-prompt.md` of the version folder of the
-program. `specify` gets no step text. For each step, the runner puts `--session-id <uuid>` first.
-That ID is the identity of the step. The session runs in a tab of its own, and the runner ends
+program. `specify` gets no step text. For each step, the daemon puts `--session-id <uuid>` first.
+That ID is the identity of the step. The session runs in a tab of its own, and the daemon ends
 the step with `hc send <terminal> /exit` from its own terminal, with no `HC_TERMINAL_ID` in the
 environment of that call (ADR-0058, ADR-0062). `<level>` is the chosen level of the step, and a
 resume runs `claude --resume <id> --effort <level>` with the level of the session record.
 `sessionEnv` removes `CLAUDE_CODE_EFFORT_LEVEL` from the environment of the session and of a
 resume, because Claude Code ranks that variable above `--effort`. A settings `env` value of that
 variable, `maxEffortLevel`, and an organization cap stay with Claude Code
-(`docs/celetis-flow.md`, "Limits"). The plugin root of the header is the `root` of
+(`docs/workflow.md`, "Limits"). The plugin root of the header is the `root` of
 `installation('claude', …)` in `engine/update.ts`, which `requireSameRevision` returns
-(`docs/celetis-flow.md`, "How a step runs").
+(`docs/workflow.md`, "How a step runs").
 
 ## Permissions
 
-- The runner starts each step with `--permission-mode auto`. In the checks of #103, auto mode ran
+- The daemon starts each step with `--permission-mode auto`. In the checks of #103, auto mode ran
   `celetis --agent claude issue` with no allow rule.
 - The personal rule of `land`, `Bash(celetis --agent claude land *)`, and the optional rule of
   `issue` are in `README.md`, "Personal landing permission". A Claude rule matches the whole
@@ -98,7 +98,7 @@ checks of #104, native results exposed no applied effort to the calling agent.
 - 2.1.299 is the floor: the hook reads the `skill.prompt` fields `source`, `pluginName`, and
   `path`, which came in that release (`README.md`, "Requirements").
 - 2.1.312 is the release on which the facts entry was built (#105).
-- `docs/celetis-flow.md`, "Acceptance status", separates observed versions from open checks.
+- `docs/workflow.md`, "Acceptance status", separates observed versions from open checks.
 
 ## The module index
 

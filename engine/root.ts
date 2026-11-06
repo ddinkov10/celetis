@@ -9,7 +9,7 @@ export async function main(argv: string[]): Promise<number> {
     requireBun();
     const { args, explicit } = commandInput(argv);
     if (args.length) throw new HostError('celetis: root takes no arguments', 2);
-    const operation = createOperation(
+    const operation = await createOperation(
       await locateCheckouts(process.cwd()),
       { explicit, environment: process.env.CELETIS_AGENT },
       'host',

@@ -102,7 +102,7 @@ Ambiguous — ask the one splitter that resolves it:
    human whether to proceed. On yes, invoke that lane with `#<n>` and follow it; the lane's step-1
    confirm is the redirect gate. On no, stop — the label already carries the verdict.
    In a step session, ask nothing here: stop after the label and the announcement, and leave the
-   lane to the runner, which starts it in a fresh session.
+   lane to the daemon, which starts it in a fresh session.
 
 ## Eval — self-check (read and judge, do not run)
 

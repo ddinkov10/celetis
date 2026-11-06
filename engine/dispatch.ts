@@ -236,7 +236,7 @@ export async function main(argv: string[]): Promise<number> {
     const profile = profileText ? resolve(cwd, profileText) : undefined;
     const runtimeFile = runtimeText ? resolve(cwd, runtimeText) : '';
     const checkout = await locateCheckouts(cwd);
-    const operation = createOperation(
+    const operation = await createOperation(
       checkout,
       { explicit: selected.explicit, environment: process.env.CELETIS_AGENT },
       (host) => (scoring ? bindingMode(host, profile, checkout.main) : 'main'),

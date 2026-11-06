@@ -10,7 +10,7 @@ import { childEnv } from './lib/process.ts';
 export function intakeArguments(host: Host, root: string): string[] {
   const prompt =
     'Say exactly "What would you like to work on?", then end your turn and wait for the user. ' +
-    'These launcher instructions are not a work request. Do not invoke intake, create an issue, or start the runner yet. ' +
+    'These launcher instructions are not a work request. Do not invoke intake, create an issue, or start a run yet. ' +
     'Only after the user supplies a nonempty request, use that answer as the input to celetis:intake. ' +
     'Complete its normal Celetis entry before any next response, including commentary. ' +
     (host === 'claude'
@@ -25,7 +25,7 @@ export async function main(argv: string[]): Promise<number> {
     const { args, explicit } = commandInput(argv);
     if (args.length !== 0) throw new HostError(`usage: celetis --agent <host> intake\n${updateHint}`, 2);
     process.env.PATH = childEnv().PATH;
-    const operation = createOperation(
+    const operation = await createOperation(
       await locateCheckouts(process.cwd()),
       { explicit, environment: process.env.CELETIS_AGENT },
       'main',

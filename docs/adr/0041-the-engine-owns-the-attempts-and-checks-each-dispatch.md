@@ -81,7 +81,7 @@ The revised V3/V4 checks passed on 2026-10-27 at checkout commit
 task after real gate repair, review fix, and scoped re-review. Each changed-pair request stopped
 with setup exit 5 before a resume or replacement. Every execution retains agent-reported provenance.
 
-[Acceptance status](../celetis-flow.md#acceptance-status) records the exact child identities,
+[Acceptance status](../workflow.md#acceptance-status) records the exact child identities,
 native arguments/results/completion checks, evidence paths, scorer results, and source boundary.
 The evidence root is `/tmp/celetis-104-report-check/`; `live/*-checked.json` retains the checked
 identities and sessions. The historical hook-based V5 remains FAIL/STOP and is superseded by the
@@ -134,7 +134,7 @@ On 2026-10-27, the checkout at `9afc18d2a17ad014a823ea1e4a80802e412ef0cc` ran li
 Claude Code 2.1.311 and codex-cli 0.164.0, using the existing installations and authentication.
 The scratch checkouts, prompts, stream transcripts, native Codex trace, and copied record JSON
 are in `/tmp/celetis-104-check/live/`. `evidence.json` holds the checked values. The
-[Acceptance status](../celetis-flow.md#acceptance-status) keeps the exact refusal and exit lines.
+[Acceptance status](../workflow.md#acceptance-status) keeps the exact refusal and exit lines.
 
 - **V3 passed.** Claude loaded the checkout with `--plugin-dir` in auto mode. Its session
   `b79161a6-b7e1-4870-a630-4830a087a653` equals the shell session and record session. Agent calls

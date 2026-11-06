@@ -1,12 +1,12 @@
 import { basename, join } from 'node:path';
 import { bunArgs } from '../lib/process.ts';
+import { daemonScript } from '../lib/process-identity.ts';
 import { LINK } from '../lib/terminal.ts';
 import type { Terminal, TerminalStatus } from '../lib/terminal-types.ts';
 import type { Card, Column, Columns, Document, Flow, Issue, Placement, QuotaState, Session } from './types.ts';
 import { gateOf } from './view.ts';
 
 const LABEL = /^#([1-9][0-9]*)(?: ([a-z]+))?/;
-const RUNNER = 'celetis-flow.ts';
 const INDEPENDENT = ['intake', 'assist', 'visual'].map((name) =>
   bunArgs(join(import.meta.dir, '..', `${name}.ts`), []),
 );
@@ -32,9 +32,9 @@ export const sessionsOf = (terminals: Terminal[], isHere: (path: string) => bool
     const isHost = executable === host;
     const isIndependent =
       executable === 'bun' && INDEPENDENT.some((args) => args.every((arg, index) => words[index + 1] === arg));
-    const runner = words.findIndex((word) => basename(word) === RUNNER);
-    const isRunner = runner >= 0 && link !== '';
-    if (!isHere(cwd) || host === null || status === null || !(isHost || isRunner || isIndependent)) return [];
+    const daemonAt = words.findIndex((word) => basename(word) === daemonScript);
+    const isSession = daemonAt >= 0 && link !== '';
+    if (!isHere(cwd) || host === null || status === null || !(isHost || isSession || isIndependent)) return [];
     const [, issue, step = ''] = LABEL.exec(link) ?? [];
     return [
       {

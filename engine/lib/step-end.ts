@@ -4,13 +4,14 @@ import { join } from 'node:path';
 import type { Host } from './config-core.ts';
 import { commonDir } from './host.ts';
 import type { Next } from './lines.ts';
-import { processRunsScript, processState } from './process-identity.ts';
+import { daemonScript, processRunsScript, processState } from './process-identity.ts';
+import { stateFolder } from './state-folder.ts';
 import { isSafeId } from './terminal.ts';
 
 export type StepEndState = 'checking' | 'waiting' | 'exiting';
 export type TurnKey = { terminalId: string; sessionId: string; sequence: number };
 export type StepEndRecord = {
-  runner: { pid: number; start: string };
+  daemon: { pid: number; start: string };
   terminal: string;
   host: Host;
   state: StepEndState;
@@ -28,15 +29,15 @@ const object = (value: unknown): value is Record<string, unknown> =>
 const keys = (value: Record<string, unknown>, names: string) => Object.keys(value).sort().join(',') === names;
 const valid = (value: unknown): value is StepEndRecord => {
   if (!object(value)) return false;
-  const { runner, turn } = value;
+  const { daemon, turn } = value;
   return (
-    keys(value, 'host,runner,state,terminal,turn') &&
-    object(runner) &&
-    keys(runner, 'pid,start') &&
-    Number.isSafeInteger(runner.pid) &&
-    Number(runner.pid) > 0 &&
-    typeof runner.start === 'string' &&
-    runner.start.length > 0 &&
+    keys(value, 'daemon,host,state,terminal,turn') &&
+    object(daemon) &&
+    keys(daemon, 'pid,start') &&
+    Number.isSafeInteger(daemon.pid) &&
+    Number(daemon.pid) > 0 &&
+    typeof daemon.start === 'string' &&
+    daemon.start.length > 0 &&
     isSafeId(value.terminal) &&
     (value.host === 'claude' || value.host === 'codex') &&
     (value.state === 'checking' || value.state === 'waiting' || value.state === 'exiting') &&
@@ -54,7 +55,7 @@ const valid = (value: unknown): value is StepEndRecord => {
 
 async function pathOf(main: string, issue: number): Promise<string> {
   if (!Number.isSafeInteger(issue) || issue <= 0) throw new Error('step-end: invalid issue number');
-  return join(await commonDir(main), 'celetis-flow/step-end', `${issue}.json`);
+  return join(await stateFolder(await commonDir(main)), 'step-end', `${issue}.json`);
 }
 
 export async function writeStepEnd(main: string, issue: number, record: StepEndRecord): Promise<void> {
@@ -81,8 +82,8 @@ export async function readStepEnd(main: string, issue: number): Promise<StepEndR
       return null;
     }
     if (!valid(record)) return null;
-    const { pid, start } = record.runner;
-    if (!(await processRunsScript(pid, 'celetis-flow.ts')) || (await processState(pid, start)) !== 'runs') return null;
+    const { pid, start } = record.daemon;
+    if (!(await processRunsScript(pid, daemonScript)) || (await processState(pid, start)) !== 'runs') return null;
     return record;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT')

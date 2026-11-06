@@ -10,6 +10,7 @@ import { privateFolder, privateMode, sharedFolderSync, sharedMode } from './priv
 import { bunArgs, childEnv, run } from './process.ts';
 import {
   controllingTerminal,
+  daemonScript,
   descendantsOf,
   processesWithEnvironment,
   processRunsScript,
@@ -17,6 +18,8 @@ import {
   processTable,
 } from './process-identity.ts';
 import { readSession, serializeSession } from './session.ts';
+import { stateFolder } from './state-folder.ts';
+import { commitMigration, type LocalRecord, readLocalRecord } from './state-migration.ts';
 import { requestExit } from './terminal.ts';
 import { tryFlock } from './update-lock.ts';
 import type { UsageAttempt } from './usage-types.ts';
@@ -29,7 +32,7 @@ export type NativeIdentity = Readonly<{ attemptId: string; host: Host; sessionId
 export type RecoveryAttempt = Readonly<{ id: string; host: Host; startedAt: number; sessionId: string | null }>;
 export type QuotaBlock = Readonly<{ host: Host; reason: string; resetAt: number | null }>;
 export type QuotaRecovery = Readonly<{
-  schema: 1;
+  schema: 2;
   id: string;
   revision: number;
   issue: number;
@@ -40,7 +43,7 @@ export type QuotaRecovery = Readonly<{
   choice: AgentChoice;
   attempt: RecoveryAttempt | null;
   prior: readonly NativeIdentity[];
-  runner: Readonly<{ pid: number; start: string }>;
+  daemon: Readonly<{ pid: number; start: string }>;
   lock: string;
   attempted: readonly Host[];
   state: 'recovering' | 'waiting';
@@ -62,6 +65,7 @@ export type RecoveryPermit = Readonly<{ issue: number; step: Step; lane: string;
 };
 
 export class RecoveryError extends HostError {}
+class ChangedRecord extends RecoveryError {}
 
 const issued = new WeakSet<object>();
 const uuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -73,6 +77,12 @@ const host = (value: unknown): value is Host => value === 'claude' || value === 
 const text = (value: unknown, limit = 4096): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= limit;
 const fail = (path: string, reason: string) => new RecoveryError(`recovery: ${path}: ${reason}`);
+const refusal = 'invalid or obsolete recovery record; inspect it, then remove it';
+const owners = { 1: 'runner', 2: 'daemon' } as const;
+const fields = {
+  1: 'attempt,attempted,authority,blocked,choice,common,id,issue,lane,lock,main,nextResetAt,prior,revision,runner,schema,state,waitId,wake',
+  2: 'attempt,attempted,authority,blocked,choice,common,daemon,id,issue,lane,lock,main,nextResetAt,prior,revision,schema,state,waitId,wake',
+} as const;
 
 function validChoice(value: unknown): value is AgentChoice {
   return (
@@ -108,14 +118,11 @@ function validAttempt(value: unknown): value is RecoveryAttempt {
   );
 }
 
-function validRecord(value: unknown, issue: number): value is QuotaRecovery {
+function validFields(value: unknown, issue: number, schema: 1 | 2): boolean {
   if (
     !object(value) ||
-    !keys(
-      value,
-      'attempt,attempted,authority,blocked,choice,common,id,issue,lane,lock,main,nextResetAt,prior,revision,runner,schema,state,waitId,wake',
-    ) ||
-    value.schema !== 1 ||
+    !keys(value, fields[schema]) ||
+    value.schema !== schema ||
     typeof value.id !== 'string' ||
     !uuid.test(value.id) ||
     !positive(value.revision) ||
@@ -130,7 +137,8 @@ function validRecord(value: unknown, issue: number): value is QuotaRecovery {
     !(value.nextResetAt === null || positive(value.nextResetAt))
   )
     return false;
-  const { authority, runner, prior, attempted, blocked, waitId, wake } = value;
+  const { authority, prior, attempted, blocked, waitId, wake } = value;
+  const owner = value[owners[schema]];
   return (
     object(authority) &&
     keys(authority, 'plan,spec,step') &&
@@ -138,10 +146,10 @@ function validRecord(value: unknown, issue: number): value is QuotaRecovery {
     steps.includes(authority.step as Step) &&
     (authority.spec === null || (typeof authority.spec === 'string' && /^[0-9a-f]{64}$/.test(authority.spec))) &&
     (authority.plan === null || positive(authority.plan)) &&
-    object(runner) &&
-    keys(runner, 'pid,start') &&
-    positive(runner.pid) &&
-    text(runner.start, 128) &&
+    object(owner) &&
+    keys(owner, 'pid,start') &&
+    positive(owner.pid) &&
+    text(owner.start, 128) &&
     Array.isArray(prior) &&
     prior.length <= 64 &&
     prior.every(
@@ -171,17 +179,19 @@ function validRecord(value: unknown, issue: number): value is QuotaRecovery {
   );
 }
 
+const validRecord = (value: unknown, issue: number): value is QuotaRecovery => validFields(value, issue, 2);
+
 async function existingFolder(main: string): Promise<string | null> {
-  const flow = join(await realpath(await commonDir(main)), 'celetis-flow');
+  const state = await stateFolder(await realpath(await commonDir(main)));
   const absent = (error: NodeJS.ErrnoException) => {
     if (error.code === 'ENOENT') return null;
     throw error;
   };
-  const shared = await lstat(flow).catch(absent);
+  const shared = await lstat(state).catch(absent);
   if (!shared) return null;
   if (!shared.isDirectory() || !sharedMode(shared))
-    throw fail(flow, 'need a directory owned by the current user with no group or other write access');
-  const dir = join(flow, 'recovery');
+    throw fail(state, 'need a directory owned by the current user with no group or other write access');
+  const dir = join(state, 'recovery');
   const own = await lstat(dir).catch(absent);
   if (!own) return null;
   if (!own.isDirectory() || !privateMode(own))
@@ -191,9 +201,9 @@ async function existingFolder(main: string): Promise<string | null> {
 
 async function recoveryFolder(main: string): Promise<{ common: string; dir: string }> {
   const common = await realpath(await commonDir(main));
-  const flow = join(common, 'celetis-flow');
-  sharedFolderSync(flow, fail);
-  const dir = join(flow, 'recovery');
+  const state = await stateFolder(common);
+  sharedFolderSync(state, fail);
+  const dir = join(state, 'recovery');
   await privateFolder(dir, fail);
   return { common, dir };
 }
@@ -210,7 +220,7 @@ async function readPrivate(path: string): Promise<string | null> {
   try {
     const opened = await handle.stat();
     if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino)
-      throw fail(path, 'the record changed during the read');
+      throw new ChangedRecord(`recovery: ${path}: the record changed during the read`);
     return new TextDecoder('utf-8', { fatal: true }).decode(await handle.readFile());
   } finally {
     await handle.close();
@@ -222,40 +232,23 @@ function parse(path: string, source: string, issue: number): QuotaRecovery {
   try {
     value = JSON.parse(source);
   } catch {}
-  if (!validRecord(value, issue)) throw fail(path, 'invalid or obsolete recovery record; inspect it, then remove it');
+  if (!validRecord(value, issue)) throw fail(path, refusal);
   return value;
 }
 
-export async function readRecovery(main: string, issue: number): Promise<QuotaRecovery | null> {
-  if (!positive(issue)) throw new RecoveryError('recovery: invalid issue number', 2);
-  const dir = await existingFolder(main);
-  if (dir === null) return null;
-  const path = join(dir, `${issue}.json`);
-  const source = await readPrivate(path);
-  return source === null ? null : parse(path, source, issue);
-}
-
-export async function listRecoveries(main: string): Promise<QuotaRecovery[]> {
-  const dir = await existingFolder(main);
-  if (dir === null) return [];
-  const records: QuotaRecovery[] = [];
-  for (const name of (await readdir(dir)).sort()) {
-    const issue = /^([1-9][0-9]*)\.json$/.exec(name)?.[1];
-    if (!issue) continue;
-    const path = join(dir, name);
-    const source = await readPrivate(path);
-    if (source !== null) records.push(parse(path, source, Number(issue)));
+function historical(path: string, source: string, issue: number): boolean {
+  let value: unknown;
+  try {
+    value = JSON.parse(source);
+  } catch {
+    return false;
   }
-  return records;
+  if (!object(value) || value.schema !== 1) return false;
+  if (!validFields(value, issue, 1)) throw fail(path, refusal);
+  return true;
 }
 
-export async function updateRecovery(
-  main: string,
-  issue: number,
-  change: (current: QuotaRecovery | null) => Promise<QuotaRecovery | null> | QuotaRecovery | null,
-): Promise<QuotaRecovery | null> {
-  if (!positive(issue)) throw new RecoveryError('recovery: invalid issue number', 2);
-  const { dir } = await recoveryFolder(main);
+async function locked<T>(dir: string, issue: number, work: () => Promise<T>): Promise<T> {
   const lock = join(dir, `${issue}.lock`);
   const fd =
     process.platform === 'win32'
@@ -269,9 +262,88 @@ export async function updateRecovery(
       if (performance.now() >= deadline) throw fail(lock, 'the recovery lock is busy; try again');
       await Bun.sleep(25);
     }
-    const path = join(dir, `${issue}.json`);
+    return await work();
+  } finally {
+    closeSync(fd);
+  }
+}
+
+async function convert(dir: string, issue: number): Promise<void> {
+  const path = join(dir, `${issue}.json`);
+  const failed = (error: unknown) =>
+    fail(path, `schema 1 to 2: ${error instanceof Error ? error.message : String(error)}`);
+  let source: LocalRecord | null;
+  try {
+    source = await readLocalRecord(path, [dir], 'private');
+  } catch (error) {
+    throw failed(error);
+  }
+  if (!source || !object(source.value) || source.value.schema !== 1) return;
+  if (!validFields(source.value, issue, 1)) throw fail(path, refusal);
+  const target = Object.fromEntries(
+    Object.entries(source.value).map(([key, value]) =>
+      key === 'schema' ? [key, 2] : key === owners[1] ? [owners[2], value] : [key, value],
+    ),
+  );
+  if (!validRecord(target, issue)) throw fail(path, refusal);
+  try {
+    await commitMigration(source, 1, `${JSON.stringify(target)}\n`);
+  } catch (error) {
+    throw failed(error);
+  }
+}
+
+async function readLocked(dir: string, issue: number): Promise<QuotaRecovery | null> {
+  const path = join(dir, `${issue}.json`);
+  let source = await readPrivate(path);
+  if (source !== null && historical(path, source, issue)) {
+    await convert(dir, issue);
+    source = await readPrivate(path);
+  }
+  return source === null ? null : parse(path, source, issue);
+}
+
+async function readOne(dir: string, issue: number): Promise<QuotaRecovery | null> {
+  const path = join(dir, `${issue}.json`);
+  try {
     const source = await readPrivate(path);
-    const current = source === null ? null : parse(path, source, issue);
+    if (source === null) return null;
+    if (!historical(path, source, issue)) return parse(path, source, issue);
+  } catch (error) {
+    if (!(error instanceof ChangedRecord)) throw error;
+  }
+  return locked(dir, issue, () => readLocked(dir, issue));
+}
+
+export async function readRecovery(main: string, issue: number): Promise<QuotaRecovery | null> {
+  if (!positive(issue)) throw new RecoveryError('recovery: invalid issue number', 2);
+  const dir = await existingFolder(main);
+  return dir === null ? null : readOne(dir, issue);
+}
+
+export async function listRecoveries(main: string): Promise<QuotaRecovery[]> {
+  const dir = await existingFolder(main);
+  if (dir === null) return [];
+  const records: QuotaRecovery[] = [];
+  for (const name of (await readdir(dir)).sort()) {
+    const issue = /^([1-9][0-9]*)\.json$/.exec(name)?.[1];
+    if (!issue) continue;
+    const record = await readOne(dir, Number(issue));
+    if (record !== null) records.push(record);
+  }
+  return records;
+}
+
+export async function updateRecovery(
+  main: string,
+  issue: number,
+  change: (current: QuotaRecovery | null) => Promise<QuotaRecovery | null> | QuotaRecovery | null,
+): Promise<QuotaRecovery | null> {
+  if (!positive(issue)) throw new RecoveryError('recovery: invalid issue number', 2);
+  const { dir } = await recoveryFolder(main);
+  return locked(dir, issue, async () => {
+    const path = join(dir, `${issue}.json`);
+    const current = await readLocked(dir, issue);
     const next = await change(current);
     if (next === current) return current;
     if (next === null) {
@@ -288,14 +360,12 @@ export async function updateRecovery(
       await rm(temp, { force: true });
     }
     return record;
-  } finally {
-    closeSync(fd);
-  }
+  });
 }
 
 export async function recoveryOwner(record: QuotaRecovery): Promise<boolean> {
-  const { pid, start } = record.runner;
-  return (await processState(pid, start)) === 'runs' && (await processRunsScript(pid, 'celetis-flow.ts'));
+  const { pid, start } = record.daemon;
+  return (await processState(pid, start)) === 'runs' && (await processRunsScript(pid, daemonScript));
 }
 
 export async function retryQuota(
@@ -314,7 +384,7 @@ export async function retryQuota(
     if (current.waitId !== expectedWaitId)
       throw new RecoveryError(`recovery: #${issue} waits with another wait ID; refresh, then use its Retry`, 2);
     if (!(await waiting(current)))
-      throw new RecoveryError(`recovery: the runner of #${issue} no longer runs; start the runner again`, 2);
+      throw new RecoveryError(`recovery: the run of #${issue} no longer runs; start the run again`, 2);
     if (current.wake === expectedWaitId) return current;
     if (current.state !== 'waiting')
       throw new RecoveryError(`recovery: #${issue} waits with another wait ID; refresh, then use its Retry`, 2);
@@ -388,9 +458,9 @@ export async function validateRecovery(main: string, issue: number, attemptId: s
   const common = await realpath(await commonDir(canonical));
   if (record.main !== canonical || record.common !== common) refuse('the record names another checkout');
   if (record.attempt?.id !== attemptId) refuse('the record names another attempt');
-  if (!(await recoveryOwner(record))) refuse('its runner no longer runs');
-  if ((await lockHolder(canonical, record.lock)) !== String(record.runner.pid))
-    refuse('its runner does not hold the issue lock');
+  if (!(await recoveryOwner(record))) refuse('its daemon no longer runs');
+  if ((await lockHolder(canonical, record.lock)) !== String(record.daemon.pid))
+    refuse('its daemon does not hold the issue lock');
   const lane = record.lane ?? refuse('no dirty lane is bound');
   if (dirname(lane.path) !== join(canonical, '.claude', 'worktrees') || !basename(lane.path).startsWith(`${issue}-`))
     refuse('the bound lane is not a lane of this issue');
@@ -427,9 +497,9 @@ export async function archiveSession(
 ): Promise<NativeIdentity> {
   if (!uuid.test(attemptId)) throw new RecoveryError('recovery: invalid attempt ID');
   const record = await readSession(main, issue, undefined, owner);
-  const flow = join(await realpath(await commonDir(main)), 'celetis-flow');
-  sharedFolderSync(flow, fail);
-  const dir = join(flow, 'sessions', String(issue));
+  const state = await stateFolder(await realpath(await commonDir(main)));
+  sharedFolderSync(state, fail);
+  const dir = join(state, 'sessions', String(issue));
   await mkdir(dirname(dir), { recursive: true, mode: 0o700 });
   await privateFolder(dir, fail);
   const path = join(dir, `${attemptId}.json`);
