@@ -1,6 +1,5 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { closeSync, openSync } from 'node:fs';
 import { lstat, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { createConnection } from 'node:net';
 import { constants } from 'node:os';
@@ -93,6 +92,7 @@ interface Row {
   pid: number;
   ppid: number;
   stat: string;
+  args: string;
   environment: string | null;
 }
 
@@ -124,6 +124,7 @@ async function processTable(): Promise<Row[]> {
       pid,
       ppid: Number(match[2]),
       stat: match[3] ?? '',
+      args: argv ?? '',
       environment: argv === undefined ? null : environmentOf(match[4] ?? '', argv),
     });
   }
@@ -219,6 +220,46 @@ async function herdrBinary(): Promise<string | null> {
   return link ? realpath(link) : null;
 }
 
+function appEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+  const keys = [
+    'HC_SESSION',
+    'XDG_STATE_HOME',
+    'XDG_RUNTIME_DIR',
+    'HERDR_APP_HOME',
+    'PATH',
+    'DO_NOT_TRACK',
+    'HERDR_TELEMETRY',
+  ];
+  return Object.fromEntries(
+    keys.flatMap((key) => {
+      const value = env[key];
+      return value === undefined ? [] : [[key, value]];
+    }),
+  );
+}
+
+function bundleOf(binary: string): string | null {
+  return /^(.+\.app)\/Contents\/MacOS\/[^/]+$/.exec(binary)?.[1] ?? null;
+}
+
+async function labApp(root: string, binary: string): Promise<number> {
+  const home = new RegExp(`(^|\\s)HERDR_APP_HOME=${root}/app(\\s|$)`);
+  const deadline = Date.now() + timeout;
+  for (;;) {
+    const rows = await processTable().catch(() => []);
+    const app = rows.find(
+      (row) =>
+        !row.stat.includes('Z') &&
+        row.environment !== null &&
+        home.test(row.environment) &&
+        (row.args === binary || row.args.startsWith(`${binary} `)),
+    );
+    if (app) return app.pid;
+    if (Date.now() > deadline) throw new Error('the Herdr app did not start');
+    await Bun.sleep(250);
+  }
+}
+
 async function down(id: LabId): Promise<number> {
   const root = rootOf(id);
   const state = await checkRoot(id);
@@ -290,13 +331,23 @@ async function up(): Promise<number> {
     const terminals = await run(hc, ['ls', '--json'], { env, timeout });
     if (terminals.code !== 0 || (JSON.parse(terminals.stdout) as { terminals: unknown[] }).terminals.length)
       throw new Error('the lab hc ls is not empty');
-    const log = openSync(`${root}/app.log`, 'a', 0o600);
-    const child = spawn(await realpath(app), [], { detached: true, stdio: ['ignore', log, log], env });
-    closeSync(log);
-    child.once('error', () => {});
-    if (!child.pid) throw new Error('the Herdr app did not start');
-    await writeFile(`${root}/app.pid`, `${child.pid}\n`);
-    child.unref();
+    const binary = await realpath(app);
+    const bundle = bundleOf(binary);
+    if (!bundle) throw new Error(`herdr-app is not in an app bundle: ${binary}`);
+    const log = `${root}/app.log`;
+    const keys = appEnv(env);
+    const pairs = Object.entries(keys).flatMap(([key, value]) => ['--env', `${key}=${value}`]);
+    // open passes its own environment to the app, so it gets only the lab keys too.
+    const opened = Bun.spawn(['open', '-n', '-g', '--stdout', log, '--stderr', log, ...pairs, '-a', bundle], {
+      env: keys,
+      stdout: 'ignore',
+      stderr: 'pipe',
+      timeout,
+    });
+    const code = await opened.exited;
+    if (code !== 0) throw new Error(`open: exit ${code}: ${firstLine(await new Response(opened.stderr).text())}`);
+    const appPid = await labApp(root, binary);
+    await writeFile(`${root}/app.pid`, `${appPid}\n`);
     const deadline = Date.now() + timeout;
     while ((await run(app, ['status'], { env, timeout })).code !== 0) {
       if (Date.now() > deadline) throw new Error('the lab herdr-app status did not answer in 30 s');
@@ -306,9 +357,7 @@ async function up(): Promise<number> {
     if (spaces.code !== 0 || (JSON.parse(spaces.stdout) as { spaces: unknown[] }).spaces.length)
       throw new Error('the lab herdr-app ls is not empty');
     const version = async (file: string) => (await run(file, ['--version'], { env, timeout })).stdout.trim();
-    console.log(
-      JSON.stringify({ id, root, socket, appPid: child.pid, hc: await version(hc), herdrApp: await version(app) }),
-    );
+    console.log(JSON.stringify({ id, root, socket, appPid, hc: await version(hc), herdrApp: await version(app) }));
     return 0;
   } catch (error) {
     console.error(`herdr-lab: up failed: ${(error as Error).message}`);
