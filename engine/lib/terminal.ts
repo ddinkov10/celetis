@@ -25,7 +25,6 @@ type Space = { id: string | null; name: unknown; tabs: { id: string | null; term
 export class TerminalError extends Error {}
 
 export const LINK = 'celetis.link';
-export const PRESS_LABEL = 'celetis.press';
 const SAFE_ID = /^[\w:.][\w:.-]*$/;
 const POLL_MS = 250;
 const POLL_LIMIT_MS = 5_000;
@@ -135,31 +134,6 @@ export async function terminalLive(id: string, exec: Exec = run): Promise<boolea
   if (!isSafeId(id)) return false;
   const value = answer(await call(exec, 'hc', ['get', id, '--json']));
   return isRecord(value) && value.address === id && value.state === 'live';
-}
-
-export async function readTerminalState(
-  id: string,
-  exec: Exec = run,
-): Promise<{ state: 'live' } | { state: 'finished'; exitCode: number | null }> {
-  if (!isSafeId(id)) throw new TerminalError('the terminal id is not safe');
-  const result = await call(exec, 'hc', ['get', id, '--json']);
-  if (result.code !== 0) throw new TerminalError(failure('hc', result));
-  const value = parse(result.stdout);
-  if (
-    !isRecord(value) ||
-    value.address !== id ||
-    (value.state !== 'live' && value.state !== 'finished') ||
-    !(value.exit_code === null || isCount(value.exit_code)) ||
-    (value.state === 'live' && value.exit_code !== null)
-  )
-    throw new TerminalError(`hc gave an invalid lifecycle for ${id}`);
-  return value.state === 'live' ? { state: 'live' } : { state: 'finished', exitCode: value.exit_code as number | null };
-}
-
-export async function removeTerminal(id: string, exec: Exec = run): Promise<void> {
-  if (!isSafeId(id)) throw new TerminalError('the terminal id is not safe');
-  const result = await call(exec, 'hc', ['rm', id, '--json']);
-  if (result.code !== 0) throw new TerminalError(failure('hc', result));
 }
 
 export async function waitTerminal(id: string, seconds: number, signal?: AbortSignal): Promise<boolean> {
@@ -343,15 +317,4 @@ export async function openTab(request: OpenTab, exec: Exec = run): Promise<strin
   if (tab) await rename(tab, request.name, exec);
   if (request.focus) await focusTerminal(id, exec).catch(() => {});
   return id;
-}
-
-export async function startHidden(
-  request: { folder: string; label: string; argv: string[]; removeOnExit: boolean },
-  exec: Exec = run,
-): Promise<string> {
-  return runTerminal(
-    exec,
-    [...(request.removeOnExit ? ['--rm'] : []), '--cwd', request.folder, '--label', `${PRESS_LABEL}=${request.label}`],
-    inShell('exec "$@"', request.argv),
-  );
 }

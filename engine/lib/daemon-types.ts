@@ -5,6 +5,8 @@ import { isLevel, type Level } from './effort.ts';
 import { HostError } from './host.ts';
 import { privateRoot } from './private-folder.ts';
 import type { ProcessState } from './process-identity.ts';
+import { parseQueueAction, parseQueueView } from './queue.ts';
+import type { QueueAction, QueueView } from './queue-types.ts';
 import type { RunInput, RunState } from './run-engine.ts';
 import { stateFolder } from './state-folder.ts';
 import { type Step, steps } from './workflow.ts';
@@ -16,9 +18,14 @@ export type DaemonRequest =
   | { kind: 'queue'; id: string; token: string; selection: Selection; quiet: boolean }
   | { kind: 'resume'; number: number; selection: Selection }
   | { kind: 'retry'; number: number; waitId: string }
+  | { kind: 'queue-action'; action: QueueAction; selection: Selection; quiet: boolean }
+  | { kind: 'queue-reconcile' }
   | { kind: 'status' }
   | { kind: 'stop' };
 export type DaemonAnswer = { accepted: true; run: string | null } | { accepted: false; line: string; code: number };
+export type QueueAnswer =
+  | { accepted: true; run: string | null; view: QueueView }
+  | { accepted: false; line: string; code: number };
 export type DaemonIdentity = {
   schema: 1;
   pid: number;
@@ -46,17 +53,22 @@ export type DaemonStatus = { schema: 1; daemon: DaemonIdentity; auto: 'on' | 'of
 
 export const textLimit = 4096;
 export const requestUsage =
-  'usage: GET /status | POST /run {"number":<issue>,"selection":<selection>,"effort":<level>|null,"quiet":<boolean>} | POST /auto {"on":<boolean>,"selection":<selection>,"quiet":<boolean>} | POST /queue {"id":<uuid>,"token":<uuid>,"selection":<selection>,"quiet":<boolean>} | POST /resume {"number":<issue>,"selection":<selection>} | POST /stop {} | POST /retry {"number":<issue>,"waitId":<text>}; <selection> is {"explicit"?:"claude"|"codex","environment"?:<text>}; <level> is low|medium|high|xhigh|max';
+  'usage: GET /status | POST /run {"number":<issue>,"selection":<selection>,"effort":<level>|null,"quiet":<boolean>} | POST /auto {"on":<boolean>,"selection":<selection>,"quiet":<boolean>} | POST /queue {"id":<uuid>,"token":<uuid>,"selection":<selection>,"quiet":<boolean>} | POST /resume {"number":<issue>,"selection":<selection>} | POST /stop {} | POST /retry {"number":<issue>,"waitId":<text>} | POST /queue/action {"action":<action>,"selection":<selection>,"quiet":<boolean>} | POST /queue/reconcile {}; <selection> is {"explicit"?:"claude"|"codex","environment"?:<text>}; <level> is low|medium|high|xhigh|max; <action> is a queue action of celetis queue action';
 
-const routes = {
-  '/status': 'GET',
-  '/run': 'POST',
-  '/auto': 'POST',
-  '/queue': 'POST',
-  '/resume': 'POST',
-  '/stop': 'POST',
-  '/retry': 'POST',
-} as const;
+export const requestPaths: Readonly<Record<Exclude<DaemonRequest['kind'], 'status'>, string>> = {
+  run: '/run',
+  auto: '/auto',
+  queue: '/queue',
+  resume: '/resume',
+  retry: '/retry',
+  stop: '/stop',
+  'queue-action': '/queue/action',
+  'queue-reconcile': '/queue/reconcile',
+};
+const routes: Readonly<Record<string, 'GET' | 'POST'>> = Object.fromEntries([
+  ['/status', 'GET'],
+  ...Object.values(requestPaths).map((path) => [path, 'POST']),
+]);
 const kinds: Record<RunInput['kind'], true> = { number: true, auto: true, queue: true, resume: true };
 const states: Record<RunState, true> = {
   starting: true,
@@ -134,12 +146,13 @@ export function parseRequest(
   body: unknown,
 ): DaemonRequest | { status: 400 | 404 | 405; line: string } {
   if (!Object.hasOwn(routes, path)) return { status: 404, line: `daemon: no request at ${path.slice(0, 200)}` };
-  const wanted = routes[path as keyof typeof routes];
+  const wanted = routes[path];
   if (method !== wanted) return { status: 405, line: `daemon: ${path} takes ${wanted}` };
   if (path === '/status') return { kind: 'status' };
   const refused = { status: 400 as const, line: requestUsage };
   if (!object(body)) return refused;
   if (path === '/stop') return exact(body, []) ? { kind: 'stop' } : refused;
+  if (path === '/queue/reconcile') return exact(body, []) ? { kind: 'queue-reconcile' } : refused;
   if (path === '/retry')
     return exact(body, ['number', 'waitId']) && count(body.number) && filled(body.waitId)
       ? { kind: 'retry', number: body.number, waitId: body.waitId }
@@ -147,6 +160,14 @@ export function parseRequest(
   const selection = selectionOf(body.selection);
   if (selection === null) return refused;
   const { number, effort, quiet, on } = body;
+  if (path === '/queue/action') {
+    if (!exact(body, ['action', 'selection', 'quiet']) || typeof quiet !== 'boolean') return refused;
+    try {
+      return { kind: 'queue-action', action: parseQueueAction(body.action), selection, quiet };
+    } catch {
+      return refused;
+    }
+  }
   if (path === '/run')
     return exact(body, ['number', 'selection', 'effort', 'quiet']) &&
       count(number) &&
@@ -184,6 +205,19 @@ export function parseAnswer(value: unknown): DaemonAnswer {
   )
     return { accepted: false, line: value.line, code: value.code };
   return invalid('answer');
+}
+
+export function parseQueueAnswer(value: unknown): QueueAnswer {
+  if (object(value) && value.accepted === true) {
+    if (!exact(value, ['accepted', 'run', 'view']) || !nullable(id)(value.run)) return invalid('answer');
+    try {
+      return { accepted: true, run: value.run, view: parseQueueView(value.view) };
+    } catch {
+      return invalid('answer');
+    }
+  }
+  const answer = parseAnswer(value);
+  return answer.accepted ? invalid('answer') : answer;
 }
 
 export function parseIdentity(value: unknown): DaemonIdentity {

@@ -6,8 +6,8 @@ import { commonDir } from '../lib/host.ts';
 import { isRecorded, lockHolder } from '../lib/locks.ts';
 import { createOperation, locateCheckouts } from '../lib/operation.ts';
 import { childEnv } from '../lib/process.ts';
-import { readQueue } from '../lib/queue.ts';
-import { reconcileQueue } from '../lib/queue-actions.ts';
+import { readQueue, readQueueView } from '../lib/queue.ts';
+import type { QueueView } from '../lib/queue-types.ts';
 import { listRecoveries, recoveryOwner } from '../lib/quota-recovery.ts';
 import { github } from '../lib/tracker.ts';
 import { defaultGate, lands, lanes, stageOf, stages, steps } from '../lib/workflow.ts';
@@ -15,21 +15,28 @@ import { jsonRow, nextBoard } from '../next-step.ts';
 import { readHistory } from './history.ts';
 import type { Document, Flow, Issue, QuotaState } from './types.ts';
 
-export async function readBoard(main: string, signal: AbortSignal): Promise<Document> {
-  return readDocument(main, signal);
+type Reconcile = (signal: AbortSignal) => Promise<QueueView>;
+
+// Half of the 60-second read limit of the server, which leaves time for the read-view fallback.
+const RECONCILE_MS = 30_000;
+
+export async function readBoard(main: string, reconcile: Reconcile, signal: AbortSignal): Promise<Document> {
+  return readDocument(main, reconcile, signal);
 }
 
 export async function readBoardTargets(
   main: string,
+  reconcile: Reconcile,
   numbers: readonly number[],
   previous: Document,
   signal: AbortSignal,
 ): Promise<Document> {
-  return readDocument(main, signal, { numbers, previous });
+  return readDocument(main, reconcile, signal, { numbers, previous });
 }
 
 async function readDocument(
   main: string,
+  reconcile: Reconcile,
   signal: AbortSignal,
   target?: { numbers: readonly number[]; previous: Document },
 ): Promise<Document> {
@@ -88,7 +95,6 @@ async function readDocument(
     issues.push(...target.previous.issues.filter((issue) => !selected.has(issue.number)));
     issues.sort((a, b) => a.number - b.number);
   }
-  const auto = !!(await lockHolder(main, 'auto'));
   signal.throwIfAborted();
   const agents = Object.fromEntries(
     ['claude', 'codex'].map((agent) => {
@@ -98,10 +104,12 @@ async function readDocument(
   );
   const queue = target ? await readQueue(main, common) : null;
   signal.throwIfAborted();
-  const receipt =
+  const view =
     !target || queue?.numbers.some((number) => target.numbers.includes(number))
-      ? await reconcileQueue(operation, signal)
-      : { view: target.previous.queue, wake: null };
+      ? await reconcile(AbortSignal.any([signal, AbortSignal.timeout(RECONCILE_MS)])).catch(() =>
+          readQueueView(operation, signal),
+        )
+      : target.previous.queue;
   signal.throwIfAborted();
   return {
     history,
@@ -109,10 +117,8 @@ async function readDocument(
     agents,
     flow,
     noRun: data.noRun,
-    auto,
     issues,
-    queue: receipt.view,
-    queueWake: receipt.wake,
+    queue: view,
   };
 }
 

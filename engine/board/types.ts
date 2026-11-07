@@ -1,6 +1,6 @@
 import type { AgentDecision, AgentOrder, Host, UsageBlock } from '../lib/config-core.ts';
 import type { Effort, Level } from '../lib/effort.ts';
-import type { QueueView, QueueWake } from '../lib/queue-types.ts';
+import type { QueueView } from '../lib/queue-types.ts';
 import type { TerminalStatus } from '../lib/terminal-types.ts';
 import type { UpdateStage } from '../lib/update-types.ts';
 
@@ -77,12 +77,15 @@ export type Document = {
   tracker: string;
   flow: Flow;
   noRun: string | null;
-  auto: boolean;
   issues: Issue[];
   agents: Record<string, { available: boolean; cause: string | null }>;
   queue: QueueView | null;
-  queueWake: QueueWake | null;
 };
+export type DaemonView =
+  | { kind: 'runs'; pid: number; auto: 'on' | 'off' | 'stopping' }
+  | { kind: 'none' }
+  | { kind: 'unknown'; line: string }
+  | { kind: 'restart'; line: string };
 export type QuotaWait = { number: number; waitId: string; nextResetAt: number | null };
 export type QuotaState = { kind: 'waiting'; wait: QuotaWait } | { kind: 'orphaned' };
 export type AgentPickerView = {
@@ -143,7 +146,7 @@ export type Board = Placement & {
   history: BoardHistory | null;
   flow: Flow | null;
   tracker: string | null;
-  auto: boolean | null;
+  daemon: DaemonView;
   agents: Document['agents'] | null;
   picker: AgentPickerView | null;
   next: AgentDecision | null;

@@ -77,7 +77,7 @@ const request = async (action: QueueAction) => {
         action,
         ...(action.kind === 'add' && chosenHost(submitted?.record) ? { agent: chosenHost(submitted?.record) } : {}),
       }),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(150_000),
     });
     if (!response.ok) throw new Error(((await response.json()) as { error: string }).error);
     accept((await response.json()) as QueueView);

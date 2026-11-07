@@ -75,7 +75,12 @@ var ON_ISSUE = new Set(["blocked"]);
 var LIVE = new Set(["works", "waits"]);
 var GATES = {
   me: "This step starts only when you press Run",
-  auto: "The automatic runner starts this step by itself"
+  auto: "Auto mode of the daemon starts this step by itself"
+};
+var AUTO = {
+  on: { tone: "ok", title: "Auto mode starts each auto step." },
+  off: { tone: "off", title: "Auto mode is off: auto steps wait." },
+  stopping: { tone: "off", title: "Auto mode stops after its current work." }
 };
 var STATUS_ICONS = {
   works: "works",
@@ -206,7 +211,7 @@ var runAction = (card, agent = null) => {
     title: reason ?? runTitle(card.step, data.flow, card.effort),
     isDisabled: Boolean(reason),
     run: reason ? async () => toast(reason, { isError: true }) : async () => {
-      if (await launch(card, "/api/run", agent ?? undefined))
+      if (await launch(card, "/api/run", agent ?? undefined) === "accepted")
         toast(`Started the ${card.step} step of #${card.number} in a new herdr tab`);
     }
   };
@@ -241,7 +246,7 @@ var levelEntries = (card) => {
       title: reason ?? startTitle(card.step, effort, level),
       isDisabled: Boolean(reason),
       run: reason ? async () => toast(reason, { isError: true }) : async () => {
-        if (await launch(card, "/api/run", undefined, level))
+        if (await launch(card, "/api/run", undefined, level) === "accepted")
           toast(`Started the ${card.step} step of #${card.number} at ${level} in a new herdr tab`);
       }
     }))
@@ -316,7 +321,7 @@ var actionsOf = (card) => {
         name: `Resume the ${card.step} session of #${card.number}`,
         title: "Open the session of this step again in a new herdr tab (Enter)",
         run: async () => {
-          if (await launch(card, "/api/resume"))
+          if (await launch(card, "/api/resume") === "accepted")
             toast(`Opened the ${card.step} session of #${card.number} in a new herdr tab`, {
               detail: "Switch to your terminal to see it."
             });
@@ -1010,6 +1015,19 @@ var drawHints = (card) => {
     return node;
   }));
 };
+var daemonItem = (daemon) => {
+  if (daemon.kind === "runs") {
+    const { tone, title } = AUTO[daemon.auto];
+    return { text: `auto ${daemon.auto}`, tone, title: `The daemon PID ${daemon.pid} runs. ${title}` };
+  }
+  if (daemon.kind === "none")
+    return {
+      text: "off",
+      tone: "off",
+      title: "No daemon runs for this repository. Start it in a terminal: celetis daemon start"
+    };
+  return { text: daemon.kind === "unknown" ? "no answer" : "restart", tone: "fail", title: daemon.line };
+};
 var drawStatus = (source, isDown) => {
   const changed = isServerDown !== isDown;
   isServerDown = isDown;
@@ -1035,11 +1053,14 @@ var drawStatus = (source, isDown) => {
   terminalNode.dataset.tone = terminal?.ok === true ? "ok" : terminal?.ok === false ? "fail" : "wait";
   terminalNode.title = terminal?.error ? `herdr: ${terminal.error}` : "Run and Go use herdr";
   terminalNode.querySelector(".sb-text").textContent = terminal?.ok === true ? "up" : terminal?.ok === false ? "down" : "checking";
-  const auto = $("auto");
-  auto.hidden = data?.auto === null || data?.auto === undefined;
-  auto.dataset.tone = data?.auto ? "ok" : "off";
-  auto.title = data?.auto ? "The automatic runner starts each auto step" : "No automatic runner runs: auto steps wait";
-  auto.replaceChildren(el("i", "dot"), el("span", "sb-name", "Runner"), el("span", "sb-text", data?.auto ? "on" : "off"));
+  const daemon = $("daemon");
+  daemon.hidden = !data;
+  if (data) {
+    const item = daemonItem(data.daemon);
+    daemon.dataset.tone = item.tone;
+    daemon.title = item.title;
+    daemon.replaceChildren(el("i", "dot"), el("span", "sb-name", "Daemon"), el("span", "sb-text", item.text));
+  }
   if (data?.picker)
     picker.update(data.picker);
   document.body.toggleAttribute("data-stale", isDown);
@@ -1295,16 +1316,16 @@ var launch = async (card, path, agent, effort) => {
   render(false);
   if (document.activeElement === document.body)
     document.querySelector(`[data-key="${CSS.escape(keyOf(card))}"]`)?.focus({ preventScroll: true });
-  const isOk = await post(path, {
+  const sent = await post(path, {
     number,
     ...path === "/api/run" && agent ? { agent } : {},
     ...path === "/api/run" && effort ? { effort } : {}
   }, path === "/api/run" ? "Run failed" : path === "/api/assist" ? "Open agent failed" : "Resume failed");
-  entry.phase = isOk ? "done" : "failed";
+  entry.phase = sent ? "done" : "failed";
   settled = reads;
   render();
   load();
-  return isOk;
+  return sent;
 };
 var loadRequest;
 document.addEventListener("board-reconnect", () => {
@@ -1438,7 +1459,7 @@ var paletteItems = () => {
             key: "",
             title: runTitle(card.step, data.flow, card.effort),
             run: async () => {
-              if (await launch(card, "/api/run", id))
+              if (await launch(card, "/api/run", id) === "accepted")
                 toast(`Started the ${card.step} step of #${card.number} with ${display} in a new herdr tab`);
             }
           });
@@ -1719,7 +1740,7 @@ var replaceOrder = async (order, expectedVersion) => {
   }
 };
 var retryWait = async (number, waitId) => {
-  const outcome = await post("/api/run", { number, waitId }, "Retry failed", { timeout: 30000 });
+  const outcome = await post("/api/run", { number, waitId }, "Retry failed", { timeout: 150000 });
   settled = reads;
   load();
   if (outcome.status !== "accepted")

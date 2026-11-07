@@ -998,8 +998,8 @@ celetis --agent <host> run 12    # implement: it builds, verifies, and lands
 With each gate `me`, one start runs one step. Each command returns at the answer of the daemon, so
 read `celetis daemon status` before the next start. With a gate `auto`, a start goes on through
 that step by itself, and `celetis --agent <host> daemon auto on` turns on auto mode of the
-daemon: it runs each `auto` step of each open issue. A Run press on the agent board types the
-same form in a hidden terminal, and the daemon opens the session tab in the background.
+daemon: it runs each `auto` step of each open issue. A Run press on the agent board sends the
+same request to the daemon, and the daemon opens the session tab in the background.
 
 A run lives in the daemon, with its tabs, its lines, and its exit code: read them in
 `celetis daemon status` (the `line` of its row) and in
@@ -1172,8 +1172,6 @@ setup"):
 | `celetis --agent <host> run <n> [--quiet] \| run resume <n> \| run retry <n> <wait-id>` | Each form sends one request to the master daemon of the repository of the current folder and returns at its answer. `run <n>` starts the next step of the issue, `run resume <n>` opens the saved session of a step with no progress again, and `run retry <n> <wait-id>` wakes the quota waiter of the issue for one attempt cycle. `--quiet` opens each session tab of the start in the background; `run resume` ignores it. An accepted start prints `run: #<n>: accepted as run <run id> of the daemon PID <pid>; read its progress: celetis daemon status`, and an accepted Retry prints `run: #<n>: Retry requested; the waiting run starts one bounded attempt cycle`; both exit 0. A refusal prints the line of the daemon, on stdout for code 0 and on stderr otherwise, and exits with its code. With no daemon, it exits 3 and starts nothing. It exits 1 when the daemon runs another revision of the program, and 6 when the daemon does not answer or the outcome is unknown. On Windows it exits 2 with `run: Windows is not a support target`. Any other form exits 2 with the usage line |
 | `celetis --agent <host> run <n> --effort <level>` | Asks the daemon to start the next step of the issue at `low`, `medium`, `high`, `xhigh`, or `max` instead of its decided or default level; the request carries the level, for the first session of this start only. Each later step uses its own decision, and the flag writes no decision. It needs exactly one issue number; any other form exits 2 with the usage line |
 | `celetis --agent <host> queue status \| queue action '<QueueAction JSON>'` | `status` prints the view of the queue as JSON. `action` saves one validated action and prints the view; when the action gives a wake, it then sends that wake to the master daemon and prints the answer as `run` does, with the prefix `queue:`. An Add to an empty queue, a Continue, and a Retry exit 3 with no daemon and save nothing. `--quiet` opens each session tab of the wake in the background. It exits 2 for another form or an agent that differs from the agent choice of the queue, and 1 for a refused action |
-| `celetis --agent <host> queue admit '<QueueAction JSON>'` | Internal finite admission for the board. Persists one validated action and returns a strict QueueReceipt without waiting for a session |
-| `celetis --agent <host> queue wake <id> <token> [--quiet]` | Internal request of a persisted wake to the daemon, for the board. The daemon refuses stale tokens and live owners, then follows the queue's gates |
 | `celetis --agent <host> daemon start \| status \| stop \| auto on\|off` | Starts, reads, and stops the master daemon of the repository of the current folder (`docs/workflow.md`, "The master daemon"); `auto on\|off` turns auto mode of the daemon on or off and prints `daemon: auto mode <state>`. For `start`, `status`, and `stop` the optional `--agent` selects nothing; for `auto` it selects the host of the auto steps. `start` spawns the daemon detached and exits 0 when it answers, or when a daemon already runs; it exits 1 when `gh`, `hc`, or the Herdr app is missing, or when the daemon ends or stays silent for 30 seconds. `status` prints the daemon, its auto mode, and one line per run; it exits 3 when no daemon runs. `stop` exits 0 when the process ended or no daemon runs. `auto` exits 0 with the state, 3 when no daemon runs, 1 when the daemon runs another revision of the program, the code of a refusal, or 6 when the outcome is unknown. Each form exits 6 when a daemon is known but its process or socket does not answer; `stop` exits 6 too when the process stays for 60 seconds. Windows and any other form exit 2 |
 | `celetis --agent <host> intake` | Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters `celetis:intake` with that request. It creates no issue before the answer and does not start a run |
 | `celetis --agent <host> assist <n>` | Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses `issue <n> assisted <file>` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume a run or land |
@@ -1395,29 +1393,38 @@ a configuration port change. For an update, follow [Updates](#updates), includin
 and start the board again for its new code.
 
 The `agents` entries of the data report executable availability for Claude and Codex. Sign-in,
-trust, and enabled plugin discovery need their own checks. At each Run, Resume, or Open agent
-press, the fixed adapter `engine/board/adapter.ts` reads the installed program. `<command>` is its command:
-`<base>/.local/bin/celetis`, or `<base>\.local\bin\celetis.cmd` on Windows ("First install"). A
-Run press types this argv in a hidden terminal. The command sends its request to the daemon, which
-opens the session tab, and `--quiet` keeps that tab in the background:
+trust, and enabled plugin discovery need their own checks. A Run press sends one request to the
+master daemon of the repository through the fixed adapter `engine/board/adapter.ts`. The daemon
+opens the session tab, and `quiet` keeps that tab in the background:
 
 ```text
-<command> [--agent <agent>] run <n> --quiet
+POST /run {"number":<n>,"selection":<selection>,"effort":<level>|null,"quiet":true}
 ```
 
-A Run with no agent choice omits `--agent`, so the daemon selects from the effective order of each
-step: its preferred agent when the local order includes it, then the local ordered preference
-("Agent selection and model setup"). The `--agent` or `CELETIS_AGENT` of the board start does not
-pin it. An explicit Run choice adds `--agent <agent>` and changes only
+A Run with no agent choice sends the selection `{}`, so the daemon selects from the effective
+order of each step: its preferred agent when the local order includes it, then the local ordered
+preference ("Agent selection and model setup"). The `--agent` or `CELETIS_AGENT` of the board
+start does not pin it. An explicit Run choice sends `{"explicit":"<agent>"}` and changes only
 that start, also when that agent is limited. Unknown or unavailable Run choices return 409 and start
 no agent. When every included agent is limited, a default Run is still accepted, and the run
-waits. A Resume press types this argv
-in a hidden terminal, and the daemon opens the session tab in front. The run uses the host and
-the exact session ID of the saved record, even after the local order changes:
+waits. A Resume press sends `POST /resume {"number":<n>,"selection":{}}`, and the daemon opens the
+session tab in front. The run uses the host and the exact session ID of the saved record, even
+after the local order changes.
 
-```text
-<command> run resume <n>
-```
+Each request needs a running daemon (`celetis daemon start`). A refusal shows as the toast
+`Run failed` or `Resume failed` above the line of the daemon. The request waits at most 120 seconds
+for the answer, and the card shows `Starting` while it waits. After the answer, the card follows
+the run of the press in the status of the daemon: it keeps `Starting` until the session appears,
+and it shows the reason of a run that ends before a session. A request with no answer has an
+unknown outcome: the board does not send it again, the page shows no toast, and the card keeps
+`Starting` with `run: the outcome of the request is unknown: <cause>; read celetis daemon status`.
+Read
+`celetis daemon status`; the card keeps that state until a session of the issue, a stop of the
+daemon, or a restart of the board.
+
+At each Open agent press, the fixed adapter reads the installed program. `<command>` is its
+command: `<base>/.local/bin/celetis`, or `<base>\.local\bin\celetis.cmd` on Windows ("First
+install").
 
 Open agent sends no agent choice. It opens and focuses a `#<n> assist` tab in the main checkout,
 with this argv, and the command selects from the local order:
@@ -1448,25 +1455,16 @@ refuses a press for an issue with no History row, for a row whose page exists, w
 `#<n> visual` tab exists, and while another Make visual press of that number runs. A failed
 command leaves its message and a shell in the tab, and the row shows Making… until you close it.
 
-A queue wake types `<command> [--agent <host>] queue wake <id> <token> --quiet` in
-a hidden terminal in the same way. `--agent` is there only when the queue records one host.
-
 Each item of an argv is one argument, and no shell reads it as a line. On macOS and Linux, a
-login shell of `$SHELL` starts the argv. A press needs a running daemon. Its terminal has no tab
-and shows no line: the command exits at the answer, and herdr-core removes the terminal. A refusal
-shows on the card as before. An accepted request exits 0 before the session appears, so the card
-can show a short `failed` warning with the accepted line until the session appears (#249 removes
-it). To see the answer, start `celetis --agent <host> run <n>` in a terminal, and read
-`celetis daemon status` for the run. The terminal has the label `celetis.press=#<n>`, or
-`celetis.press=queue` for a queue wake: `hc ls --label 'celetis.press=#<n>'` finds it while it
-lives, and `hc kill <t>` stops nothing. Before it types the argv, the press checks `hc` and the
-Herdr app, and a failed check returns 502 with its line. The tab of Open agent closes when the program exits 0,
+login shell of `$SHELL` starts the argv. The tab of Open agent closes when the program exits 0,
 and a failed program leaves its message there. On Windows, the board passes the argv with no shell
 (not checked). When the space of the repository does not exist in the Herdr app, the first tab
 that a run or a press opens makes it, and the app shows it, also for a quiet session tab. The
 app starts the first tab of that space through its own login shell, so that tab keeps a shell
 after its program. The program
-supplies Bun and its isolation flags. Each press reads the program again, so after
+supplies Bun and its isolation flags. Each press of Open agent or Make visual reads the program
+again, and a Run, Resume, Retry, or queue action sends its request to the daemon, which runs its
+own program. So after
 `celetis update` and a restart of the daemon the next press uses the new program with no board
 restart; new board code still needs a restart. A missing or foreign program returns 409 before any terminal starts.
 Read-only `hc` calls can precede that failure.

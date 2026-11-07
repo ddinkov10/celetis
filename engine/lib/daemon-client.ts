@@ -9,12 +9,21 @@ import {
   daemonSocket,
   parseAnswer,
   parseIdentity,
+  parseQueueAnswer,
   parseStatus,
+  type QueueAnswer,
+  requestPaths,
   type Selection,
 } from './daemon-types.ts';
 import { HostError, selectHost } from './host.ts';
 import { daemonScript, processScript, processState } from './process-identity.ts';
 import { programRevision } from './program.ts';
+
+export class UnknownOutcome extends HostError {
+  constructor(message: string) {
+    super(message, 6);
+  }
+}
 
 export type Found =
   | Readonly<{ kind: 'none' }>
@@ -66,19 +75,27 @@ async function json(response: Response): Promise<unknown> {
   }
 }
 
-export async function sendRequest(
+async function post(
   common: string,
   request: Exclude<DaemonRequest, { kind: 'status' }>,
   signal?: AbortSignal,
-): Promise<DaemonAnswer> {
+): Promise<unknown> {
   const { kind, ...fields } = request;
   const response = await call(
     common,
-    `/${kind}`,
+    requestPaths[kind],
     { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(fields) },
     signal,
   );
-  return parseAnswer(await json(response));
+  return json(response);
+}
+
+export async function sendRequest(
+  common: string,
+  request: Exclude<DaemonRequest, { kind: 'status' | 'queue-action' | 'queue-reconcile' }>,
+  signal?: AbortSignal,
+): Promise<DaemonAnswer> {
+  return parseAnswer(await post(common, request, signal));
 }
 
 export async function readStatus(common: string, signal?: AbortSignal): Promise<DaemonStatus> {
@@ -101,28 +118,53 @@ export function requestSelection(explicit: string | undefined): Selection {
 
 type Prefix = 'run' | 'queue' | 'daemon';
 
+const unanswered = (prefix: Prefix, reason: string) =>
+  `${prefix}: the daemon of this repository does not answer: ${reason}; read celetis daemon status`;
+export const unknownOutcome = (prefix: Prefix, cause: string) =>
+  new UnknownOutcome(`${prefix}: the outcome of the request is unknown: ${cause}; read celetis daemon status`);
+
 export async function requireDaemon(common: string, prefix: Prefix): Promise<DaemonIdentity> {
   if (process.platform === 'win32') throw new HostError(`${prefix}: Windows is not a support target`, 2);
   const found = await findDaemon(common);
   if (found.kind === 'none')
     throw new HostError(`${prefix}: no daemon runs for this repository; start it: celetis daemon start`, 3);
-  if (found.kind === 'unknown')
-    throw new HostError(
-      `${prefix}: the daemon of this repository does not answer: ${found.reason}; read celetis daemon status`,
-      6,
-    );
-  const own = await programRevision(resolve(import.meta.dir, '../..'));
-  if (own !== found.identity.revision)
-    throw new HostError(
-      `${prefix}: the daemon runs the program at ${shortRevision(found.identity.revision)} and this program is at ${shortRevision(own)}; restart it: celetis daemon stop, then celetis daemon start`,
-      1,
-    );
+  if (found.kind === 'unknown') throw new HostError(unanswered(prefix, found.reason), 6);
+  const restart = await anotherRevision(found.identity, prefix);
+  if (restart !== null) throw new HostError(restart, 1);
   return found.identity;
+}
+
+async function anotherRevision(identity: DaemonIdentity, prefix: Prefix): Promise<string | null> {
+  const own = await programRevision(resolve(import.meta.dir, '../..'));
+  return own === identity.revision
+    ? null
+    : `${prefix}: the daemon runs the program at ${shortRevision(identity.revision)} and this program is at ${shortRevision(own)}; restart it: celetis daemon stop, then celetis daemon start`;
+}
+
+export type DaemonState =
+  | Readonly<{ kind: 'none' }>
+  | Readonly<{ kind: 'unknown'; line: string }>
+  | Readonly<{ kind: 'restart'; line: string }>
+  | Readonly<{ kind: 'runs'; status: DaemonStatus; restart: string | null }>;
+
+export async function readDaemon(common: string): Promise<DaemonState> {
+  const found = await findDaemon(common);
+  if (found.kind === 'none') return found;
+  if (found.kind === 'unknown') return { kind: 'unknown', line: unanswered('daemon', found.reason) };
+  const restart = await anotherRevision(found.identity, 'daemon');
+  let status: DaemonStatus;
+  try {
+    status = await readStatus(common, AbortSignal.timeout(10_000));
+  } catch (error) {
+    if (restart !== null) return { kind: 'restart', line: restart };
+    return { kind: 'unknown', line: error instanceof Error ? error.message : String(error) };
+  }
+  return { kind: 'runs', status, restart };
 }
 
 export async function askDaemon(
   common: string,
-  request: Exclude<DaemonRequest, { kind: 'status' | 'stop' }>,
+  request: Exclude<DaemonRequest, { kind: 'status' | 'stop' | 'queue-action' | 'queue-reconcile' }>,
   prefix: Prefix,
 ): Promise<Readonly<{ identity: DaemonIdentity; answer: DaemonAnswer }>> {
   const identity = await requireDaemon(common, prefix);
@@ -130,10 +172,22 @@ export async function askDaemon(
     return { identity, answer: await sendRequest(common, request, AbortSignal.timeout(120_000)) };
   } catch (error) {
     if (!(error instanceof HostError)) throw error;
-    throw new HostError(
-      `${prefix}: the outcome of the request is unknown: ${error.message}; read celetis daemon status`,
-      6,
-    );
+    throw unknownOutcome(prefix, error.message);
+  }
+}
+
+export async function askQueue(
+  common: string,
+  request: Extract<DaemonRequest, { kind: 'queue-action' | 'queue-reconcile' }>,
+  signal?: AbortSignal,
+): Promise<QueueAnswer> {
+  await requireDaemon(common, 'queue');
+  const limit = AbortSignal.timeout(120_000);
+  try {
+    return parseQueueAnswer(await post(common, request, signal ? AbortSignal.any([limit, signal]) : limit));
+  } catch (error) {
+    if (!(error instanceof HostError)) throw error;
+    throw unknownOutcome('queue', error.message);
   }
 }
 
@@ -148,11 +202,7 @@ export async function sendRun(
     (answer.code === 0 ? console.log : console.error)(answer.line);
     return answer.code;
   }
-  if (answer.run === null)
-    throw new HostError(
-      `${prefix}: the outcome of the request is unknown: daemon: the daemon sent no run ID; read celetis daemon status`,
-      6,
-    );
+  if (answer.run === null) throw unknownOutcome(prefix, 'daemon: the daemon sent no run ID');
   console.log(
     `${prefix}: ${subject}: accepted as run ${answer.run.slice(0, 8)} of the daemon PID ${identity.pid}; read its progress: celetis daemon status`,
   );

@@ -160,7 +160,8 @@ A look decision of the board uses these two facts:
   rows").
 - A prototype board with live data starts in the prototype checkout. A throwaway script there calls
   `startBoard` of `engine/board/start.ts` with the main checkout, a port other than 4404, and an
-  adapter whose `run` and `resume` reject. The server reads its page files from its own folder
+  adapter that rejects each method, so the item `Daemon` shows `no answer` and the queue shows its
+  read view. The server reads its page files from its own folder
   (`HERE` in `engine/board/server.ts`), so the variants show with the live issues and sessions.
   After an edit of a page module, `scripts/build.ts` writes its browser files in that checkout.
 

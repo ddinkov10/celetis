@@ -2,16 +2,39 @@
 {
   "schema": 1,
   "name": "derive-plan-oracle-values-from-real-producers",
-  "description": "A plan oracle gave a hand-derived Idle list and a dot trigger that the real producers do not produce",
+  "description": "Plan oracles gave hand-derived values that the real producers, including guards of unchanged code, do not produce",
   "tags": [
     "test",
     "process",
     "recurring"
   ],
-  "date": "2026-11-05",
+  "date": "2026-11-07",
   "status": "active",
-  "source": "Implementation of ddinkov10/celetis#270, Task 2 and Verify corrections",
+  "source": "Task 1 implementer report of ddinkov10/celetis#249 (subagent-driven build, commit 0fd8ed3)\n\nImplementation of ddinkov10/celetis#270, Task 2 and Verify corrections",
   "incidents": [
+    {
+      "id": "484c9592-1377-4567-91b1-3365029703ba",
+      "date": "2026-11-07",
+      "action": "The #249 plan, Task 1 case (e), expected a refused queue wake with a live foreground holder of issue-A to leave the queue record `error`; case (g) expected a reconcile wake to reach `running` with a session of B.",
+      "expected": "Each oracle value that an unchanged producer derives (the guard of failQueueLaunch, holderFrom liveness, the plan gate of the fixture) is computed from that producer on the planned fixture.",
+      "observed": "The implementer observed that a createLockOwner holder in a non-daemon process is not live (holderFrom), so the run adopted the lock; with a holder that calls registerSession, the guard of failQueueLaunch counts the holder of the current issue as a live queue owner and keeps the record `starting`. A reconcile wake has authorization null, so with the default `me` gate (g) ends at me-gate.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "(e) live foreground: 409 with `queue: a run or its foreground still owns this work`, code 2. The record keeps its bytes. ... The default gate is `me` (`defaultGate` in `engine/lib/workflow.ts`), so the run correctly ends at `me-gate` with a 409 of code 0 (first GREEN run).",
+        "reference": "ddinkov10/celetis#249 lane .superpowers/sdd/249/task-1-report.md; engine/lib/locks.ts holderFrom; engine/lib/queue.ts queueOwner; engine/lib/queue-actions.ts failQueueLaunch"
+      },
+      "inference": "Inferred: the plan derived the oracles by hand from the spec sentences and did not run the existing guards (holderFrom, queueOwner, the failQueueLaunch guard, defaultGate) on the planned fixture. The spec itself states the guard; the oracle conflicted with it. Uncertain whether the plan session had the active lesson derive-plan-oracle-values-from-real-producers in context: the plan does not carry it in any task, and the plan transcript is not available.",
+      "diagnosis": [
+        "unknown"
+      ],
+      "revision": "050e54fc9e587f3e2c94c43704716619c69ba58d",
+      "brief": "Task 1 brief (e): 'a probe process that takes issue-A with the real createLockOwner of the lane in that window: 409 ... the record is error with that reason'",
+      "lesson": {
+        "name": "derive-plan-oracle-values-from-real-producers",
+        "revision": "050e54fc9e587f3e2c94c43704716619c69ba58d",
+        "digest": "96021f4353685d83fca5b2120fcf6c9be403f8f596ed87fe53771a305fae4689"
+      }
+    },
     {
       "id": "61139222-0d92-4326-95e8-13b31e08abb7",
       "date": "2026-11-05",
@@ -58,7 +81,7 @@
       }
     }
   ],
-  "recurrences": 1,
+  "recurrences": 2,
   "reviews": [
     {
       "id": "6b752a90-9785-461b-ae6b-5bab3892695f",
@@ -73,6 +96,21 @@
         "state": "proposed",
         "detail": "A plan review check that flags a derived oracle value with no producer or requirement reference; it needs separate authorization."
       }
+    },
+    {
+      "id": "38a51d74-8877-42f1-8a73-ed198599da4b",
+      "requestDigest": "d1baeb2cd6d63d1482e05e62734deb267a3662f5b70295bd1e2b04a336644104",
+      "date": "2026-11-07",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #249; claude child opus/high\n\nMerge under the reviewer rules. The incident is observed: the #249 Task 1 report retains the refusal \"queue: a run or its foreground still owns this work\" with code 2 and the me-gate end of a reconcile wake, and the lane code holds that refusal in engine/lib/run-engine.ts and defaultGate 'me' in engine/lib/workflow.ts. The proposal states the same rule as the active lesson derive-plan-oracle-values-from-real-producers: compute the part of an oracle that an existing, unaltered producer gives from that producer. A guard, a gate default, and a lock-holder liveness rule of unchanged code are such producers, so the rules are compatible. The survivor keeps the active name and the limit of the test-behavior-not-implementation principle of the plugin celetis, widens the applicability to record writes and liveness results, and adds the guard list and the live-owner fixture from the proposal. Incident evidence stays unchanged; the retained excerpt holds the evidence because the task report file is no longer in the lane.",
+      "related": [
+        "check-plan-oracles-against-guards-of-existing-producers",
+        "derive-plan-oracle-values-from-real-producers"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "A plan review check that flags a derived oracle value with no producer or requirement reference, and an oracle of a record write that names no guard that can refuse it; it needs separate authorization."
+      }
     }
   ]
 }
@@ -81,20 +119,21 @@
 
 ## What happened
 
-The #270 plan gave two hand-derived oracle values. Its Idle list and count omitted fixture #30, so the real count was 25, not 24. Its changed-dot probe used a title change, which the board signature ignores. The implementers caught both at execution and asserted the real behavior. The plan carried the related lesson and claimed to trace each state.
+Two plans gave hand-derived oracle values that the existing producers do not give. The #270 plan gave an Idle list and count that omitted fixture #30, so the real count was 25, not 24, and a changed-dot probe that used a title change, which the board signature ignores. The plan carried the related lesson and claimed to trace each state. The #249 plan, Task 1, expected a refused queue wake with a live foreground holder of the current issue to write `error` to the queue record, and a reconcile wake to reach `running` with a session. The implementer observed (tool output) that a `createLockOwner` holder in a process other than `daemon.ts` is not live (`holderFrom`), that a holder with `registerSession` is a live queue owner, so the guard of `failQueueLaunch` keeps the record unchanged, and that a reconcile wake with `authorization: null` ends at the default `me` gate (`defaultGate`). The spec of #249 states that guard. In each case, the implementers caught the error at execution and asserted the real behavior.
 
 ## Root cause
 
-Inferred: the related lesson covers fixture inputs and a check at execution, not the expected values that a plan writes into its oracles. The plan computed the values by hand. Alternative: two independent slips.
+Inferred: the plans computed the values by hand, from their own data lists or from spec sentences, and did not run the existing producers on the planned inputs. For #249, the unchanged producers were guards: a lock-holder liveness rule, an owner check, and a gate default. Uncertain: whether this lesson reached the #249 plan session; the plan carries it in no task, and the plan transcript is not available. Alternative: independent slips.
 
 ## Fix
 
-Proposed prevention, not proven enforcement: when a plan writes an expected list, count, or trigger for a derived state, it computes the part that an existing producer gives, and that the change does not alter, from that producer (for example a probe that runs the placer or the signature on the planned data), and records how. The part that the change adds comes from the requirement, as the test-behavior-not-implementation principle of the plugin celetis says: an oracle computed from the code under change cannot fail when that code is wrong. A structural follow-up needs separate authorization: a plan review check that flags a derived oracle value with no producer or requirement reference. Judgment decides which values are derived, so the rule stays text.
+Proposed prevention, not proven enforcement: when a plan writes an expected list, count, trigger, record write, or liveness result for a derived state, it computes the part that an existing producer gives, and that the change does not alter, from that producer (for example a probe that runs the placer, the signature, or the guards of the call path on the planned data or fixture), and records how. A guard, a gate default, and a lock-holder rule of unchanged code are such producers; the plan names how its fixture makes a live owner. The part that the change adds comes from the requirement, as the test-behavior-not-implementation principle of the plugin celetis says: an oracle computed from the code under change cannot fail when that code is wrong. A structural follow-up needs separate authorization: a plan review check that flags a derived oracle value with no producer or requirement reference, and an oracle of a record write that names no guard that can refuse it. Judgment decides which values are derived and which guards apply, so the rule stays text.
 
 ## Rule
 
-Applies when a plan or a brief states an expected value of a derived state (a list, an order, a count, a trigger) for a check, and an existing producer that the change does not alter gives part of that value. Action: compute that part from the existing producer on the planned inputs and cite the producer; derive the part that the change adds from the requirement. Check: each such oracle value names its producer or its requirement, and a run of the existing producer on the planned data gives the part that it covers.
+Applies when a plan or a brief states an expected value of a derived state (a list, an order, a count, a trigger, a record write, a liveness result) for a check, and an existing producer that the change does not alter gives part of that value, including each guard, gate default, or lock-holder rule on its call path. Action: compute that part from the existing producer on the planned inputs and cite the producer; for a record write or a state, list each such guard from the call path and name how the fixture makes a live owner; derive the part that the change adds from the requirement. Check: each such oracle value names its producer or its requirement, and a run of the existing producer, with its guards, on the planned data gives the part that it covers.
 
 ## Related lessons
 
 [[derive-fixture-state-from-real-producers]]
+[[check-refusal-contract-across-earlier-guards]]

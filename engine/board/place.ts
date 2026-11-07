@@ -19,8 +19,8 @@ export type LaunchFeedback = { step: string | null } & (
 
 const time = (iso: string) => Date.parse(iso);
 const QUOTA_WAIT =
-  'Every included agent reached a usage limit. The runner waits; the agent order shows the resets and Retry.';
-const QUOTA_ORPHAN = 'The runner of this step stopped during a usage-limit recovery. Run starts the step again.';
+  'Every included agent reached a usage limit. The run waits; the agent order shows the resets and Retry.';
+const QUOTA_ORPHAN = 'The run of this step stopped during a usage-limit recovery. Run starts the step again.';
 
 export const stepsOf = (flow: Flow | null | undefined): Set<string> => new Set(Object.values(flow?.lanes ?? {}).flat());
 

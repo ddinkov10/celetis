@@ -59,7 +59,7 @@ var steps = (card, flow) => {
     const note = step.state === "done" ? "done" : step.state === "now" ? card.state ? stateLabel(card) : "next" : "";
     item.append(node, el("span", "name", step.name), el("span", "note", note));
     item.append(gateOf(flow, step.name) === "auto" ? Object.assign(el("span", "gate gate-auto", "auto"), {
-      title: "The automatic runner starts this step by itself"
+      title: "Auto mode of the daemon starts this step by itself"
     }) : el("span"));
     list.append(item);
   }

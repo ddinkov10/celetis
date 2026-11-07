@@ -248,9 +248,11 @@ async function post(path, value, failure, options) {
         return { status: "rejected", error };
       return { status: "unavailable", ...error !== undefined ? { error } : {} };
     }
-    if (!response.ok)
+    if (!response.ok) {
       toast(failure, { detail: (await response.json()).error, isError: true });
-    return response.ok;
+      return false;
+    }
+    return (await response.json())?.unknown === true ? "unknown" : "accepted";
   } catch {
     if (options)
       return { status: "unavailable" };

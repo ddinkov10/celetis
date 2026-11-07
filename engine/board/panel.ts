@@ -81,7 +81,7 @@ const steps = (card: Card, flow: Flow | null) => {
     item.append(
       gateOf(flow, step.name) === 'auto'
         ? Object.assign(el('span', 'gate gate-auto', 'auto'), {
-            title: 'The automatic runner starts this step by itself',
+            title: 'Auto mode of the daemon starts this step by itself',
           })
         : el('span'),
     );

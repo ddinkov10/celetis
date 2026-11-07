@@ -1,33 +1,41 @@
 import { AgentOrderConflict, validateAgentOrder } from '../lib/agent-order.ts';
 import type { AgentChoice, AgentOrder, Host } from '../lib/config-core.ts';
+import { askDaemon, askQueue, type DaemonState, readDaemon, unknownOutcome } from '../lib/daemon-client.ts';
+import type { DaemonRequest, Selection } from '../lib/daemon-types.ts';
 import type { Level } from '../lib/effort.ts';
+import { locateCheckouts } from '../lib/operation.ts';
 import { bunArgs, run } from '../lib/process.ts';
 import { type Program, readProgram } from '../lib/program.ts';
-import { parseQueueAction, parseQueueReceipt } from '../lib/queue.ts';
-import type { QueueAction, QueueReceipt, QueueWake } from '../lib/queue-types.ts';
-import { selectSavedSession } from '../lib/session.ts';
+import { parseQueueAction } from '../lib/queue.ts';
+import type { QueueAction, QueueView } from '../lib/queue-types.ts';
 import { isCommit } from '../lib/visual.ts';
 
 export type Adapter = Readonly<{
   intake(choice: AgentChoice): Promise<string[]>;
   assist(number: number, choice: AgentChoice): Promise<string[]>;
   visual(number: number, sha: string, choice: AgentChoice): Promise<string[]>;
-  run(number: number, choice: AgentChoice, effort?: Level): Promise<string[]>;
-  resume(number: number): Promise<string[]>;
-  queue(action: QueueAction, choice: AgentChoice): Promise<QueueReceipt>;
-  queueRun(wake: QueueWake): Promise<string[]>;
+  run(number: number, choice: AgentChoice, effort?: Level): Promise<string>;
+  resume(number: number): Promise<string>;
+  queue(action: QueueAction, choice: AgentChoice): Promise<QueueView>;
   replaceAgentOrder(order: readonly Host[], expectedVersion: string): Promise<AgentOrder>;
   retryQuota(number: number, waitId: string): Promise<void>;
+  daemon(): Promise<DaemonState>;
+  reconcileQueue(signal: AbortSignal): Promise<QueueView>;
 }>;
 
 const CONTROL = /[\u0000-\u001f\u007f]/;
 const VERSION = /^[a-f0-9]{64}$/;
-const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 const agentFlag = (choice: AgentChoice) => {
   if (choice.kind === 'default') return [];
   if (choice.host !== 'claude' && choice.host !== 'codex') throw new Error('invalid host');
   return ['--agent', choice.host];
+};
+
+const selectionOf = (choice: AgentChoice): Selection => {
+  if (choice.kind === 'default') return {};
+  if (choice.host !== 'claude' && choice.host !== 'codex') throw new Error('invalid host');
+  return { explicit: choice.host };
 };
 
 const parseOrder = (value: unknown): AgentOrder => {
@@ -51,12 +59,20 @@ export async function celetisAdapter(
   main: string,
   read: () => Promise<Program | null> = readProgram,
 ): Promise<Adapter> {
+  const { common } = await locateCheckouts(main);
+  if (common === null) throw new Error('need a Git checkout');
   const program = async () => {
     const found = await read();
     if (!found)
       throw new Error('the celetis program is not installed; run the first install of README.md, "First install"');
     if (CONTROL.test(found.command)) throw new Error('the celetis program path has a control character');
     return found;
+  };
+  const start = async (request: Extract<DaemonRequest, { kind: 'run' | 'resume' }>) => {
+    const { answer } = await askDaemon(common, request, 'run');
+    if (!answer.accepted) throw new Error(answer.line);
+    if (answer.run === null) throw unknownOutcome('run', 'daemon: the daemon sent no run ID');
+    return answer.run;
   };
   const argv = async (args: (string | number)[]) => [(await program()).command, ...args.map(String)];
   const control = async (args: string[]) => {
@@ -71,25 +87,18 @@ export async function celetisAdapter(
       return argv([...agentFlag(choice), 'visual', number, sha]);
     },
     run: (number, choice, effort) =>
-      argv([...agentFlag(choice), 'run', number, ...(effort ? ['--effort', effort] : []), '--quiet']),
-    resume: async (number) => {
-      await selectSavedSession(main, number);
-      return argv(['run', 'resume', number]);
-    },
+      start({ kind: 'run', number, selection: selectionOf(choice), effort: effort ?? null, quiet: true }),
+    resume: (number) => start({ kind: 'resume', number, selection: {} }),
     queue: async (input, choice) => {
-      const action = parseQueueAction(input);
-      const result = await control([...agentFlag(choice), 'queue', 'admit', JSON.stringify(action)]).catch(() => {
-        throw new Error('queue: the celetis program is not installed');
+      const answer = await askQueue(common, {
+        kind: 'queue-action',
+        action: parseQueueAction(input),
+        selection: selectionOf(choice),
+        quiet: true,
       });
-      if (result.code !== 0)
-        throw new Error(result.stderr || 'queue: admission outcome is uncertain; refresh before another attempt');
-      try {
-        return parseQueueReceipt(JSON.parse(result.stdout));
-      } catch {
-        throw new Error('queue: admission outcome is uncertain; refresh before another attempt');
-      }
+      if (!answer.accepted) throw new Error(answer.line);
+      return answer.view;
     },
-    queueRun: (wake) => argv([...agentFlag(wake.choice), 'queue', 'wake', wake.id, wake.token, '--quiet']),
     replaceAgentOrder: async (order, expectedVersion) => {
       const replacement = { order: validateAgentOrder(order), expectedVersion };
       if (!VERSION.test(expectedVersion)) throw new Error('agents: expectedVersion must be an order version');
@@ -109,10 +118,14 @@ export async function celetisAdapter(
       return parseOrder(value);
     },
     retryQuota: async (number, waitId) => {
-      if (!Number.isSafeInteger(number) || number < 1 || !UUID.test(waitId))
-        throw new Error('recovery: invalid issue number or wait ID');
-      const result = await control(['run', 'retry', String(number), waitId]);
-      if (result.code !== 0) throw new Error(result.stderr.trim() || 'recovery: the Retry outcome is uncertain');
+      const { answer } = await askDaemon(common, { kind: 'retry', number, waitId }, 'run');
+      if (!answer.accepted) throw new Error(answer.line);
+    },
+    daemon: () => readDaemon(common),
+    reconcileQueue: async (signal) => {
+      const answer = await askQueue(common, { kind: 'queue-reconcile' }, signal);
+      if (!answer.accepted) throw new Error(answer.line);
+      return answer.view;
     },
   };
 }

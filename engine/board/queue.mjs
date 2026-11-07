@@ -72,7 +72,7 @@ var request = async (action) => {
         action,
         ...action.kind === "add" && chosenHost(submitted?.record) ? { agent: chosenHost(submitted?.record) } : {}
       }),
-      signal: AbortSignal.timeout(30000)
+      signal: AbortSignal.timeout(150000)
     });
     if (!response.ok)
       throw new Error((await response.json()).error);

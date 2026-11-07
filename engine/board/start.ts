@@ -31,9 +31,9 @@ export async function startBoard(
     let interrupted = false;
     const server = createBoard({
       main,
-      read: (signal) => readBoard(main, AbortSignal.any([signal, work.signal])),
+      read: (signal) => readBoard(main, adapter.reconcileQueue, AbortSignal.any([signal, work.signal])),
       readTargets: (numbers, previous, signal) =>
-        readBoardTargets(main, numbers, previous, AbortSignal.any([signal, work.signal])),
+        readBoardTargets(main, adapter.reconcileQueue, numbers, previous, AbortSignal.any([signal, work.signal])),
       hints: () => readRefreshHints(common),
       adapter,
       updates: () => updates,

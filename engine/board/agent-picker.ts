@@ -325,7 +325,7 @@ export function createAgentPicker(
     try {
       await actions.retry(wait.number, wait.waitId);
       notice = '';
-      announce(`Retry requested for #${wait.number}. Its runner starts one attempt with the current order.`);
+      announce(`Retry requested for #${wait.number}. Its run starts one attempt with the current order.`);
     } catch (cause) {
       notice = `Retry of #${wait.number} failed: ${cause instanceof Error ? cause.message : String(cause)}`;
       announce(notice);

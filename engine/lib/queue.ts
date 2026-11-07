@@ -4,9 +4,10 @@ import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { nextIssue } from '../next-step.ts';
 import type { AgentChoice, Host } from './config-core.ts';
+import { HostError, selectHost } from './host.ts';
 import { lineOf, type Next } from './lines.ts';
 import { type LockOwner, lockHolder } from './locks.ts';
-import { locateCheckouts, type Operation } from './operation.ts';
+import { type HostSelection, locateCheckouts, type Operation } from './operation.ts';
 import { childEnv } from './process.ts';
 import type { QueueAction, QueueReceipt, QueueRecord, QueueView } from './queue-types.ts';
 import { readRecovery, recoveryOwner } from './quota-recovery.ts';
@@ -50,6 +51,24 @@ export function requireQueueChoice(recorded: AgentChoice, requested: AgentChoice
     throw new Error(
       `queue: recorded agent choice is ${recorded.kind === 'default' ? 'the default order' : recorded.host}`,
     );
+}
+
+export function queueSelection(
+  queue: QueueRecord | null,
+  use: 'add' | 'act' | 'read',
+  selection: HostSelection,
+): HostSelection {
+  if (use === 'add' || !queue?.choice) return selection;
+  const named = selection.explicit ?? selection.environment;
+  if (use === 'act' && named !== undefined) {
+    try {
+      requireQueueChoice(queue.choice, { kind: 'explicit', host: selectHost(named) });
+    } catch (cause) {
+      throw new HostError((cause as Error).message, 2);
+    }
+  }
+  const host = explicitHost(queue.choice);
+  return host === null ? {} : { saved: host };
 }
 
 function run(value: unknown): value is Run | null {
@@ -195,20 +214,25 @@ function nextValue(value: unknown): boolean {
   );
 }
 
-export function parseQueueReceipt(value: unknown): QueueReceipt {
-  if (!object(value) || !keys(value, 'view,wake') || !object(value.view)) throw new Error('queue: invalid receipt');
-  const view = value.view;
+export function parseQueueView(value: unknown): QueueView {
   if (
-    !keys(view, 'actions,error,next,owner,record') ||
-    !text(view.owner) ||
-    !text(view.error) ||
-    !nextValue(view.next) ||
-    !object(view.actions) ||
-    !keys(view.actions, 'add,continue,edit,retry') ||
-    Object.values(view.actions).some((item) => typeof item !== 'boolean')
+    !object(value) ||
+    !keys(value, 'actions,error,next,owner,record') ||
+    !text(value.owner) ||
+    !text(value.error) ||
+    !nextValue(value.next) ||
+    !object(value.actions) ||
+    !keys(value.actions, 'add,continue,edit,retry') ||
+    Object.values(value.actions).some((item) => typeof item !== 'boolean')
   )
-    throw new Error('queue: invalid receipt view');
-  const record = view.record === null ? null : validate(view.record);
+    throw new Error('queue: invalid view');
+  if (value.record !== null) validate(value.record);
+  return value as QueueView;
+}
+
+export function parseQueueReceipt(value: unknown): QueueReceipt {
+  if (!object(value) || !keys(value, 'view,wake')) throw new Error('queue: invalid receipt');
+  const { record } = parseQueueView(value.view);
   if (value.wake !== null) {
     const wake = value.wake;
     if (

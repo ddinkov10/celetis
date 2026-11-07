@@ -12,19 +12,22 @@ import {
   type DaemonStatus,
   daemonPaths,
   parseRequest,
+  type QueueAnswer,
   type RunRow,
   requestUsage,
   type Selection,
   textLimit,
 } from './daemon-types.ts';
 import { installRecorder, recordEvent } from './events.ts';
-import { HostError, selectHost } from './host.ts';
+import { HostError } from './host.ts';
 import { createLockOwner } from './locks.ts';
-import { type HostSelection, locateCheckouts } from './operation.ts';
+import { createOperation, type HostSelection, locateCheckouts, type Operation } from './operation.ts';
 import { privateFolderSync, privateRoot, sharedFolderSync } from './private-folder.ts';
 import { processStart, processState } from './process-identity.ts';
 import { programRevision } from './program.ts';
-import { explicitHost, readQueue, requireQueueChoice } from './queue.ts';
+import { queueSelection, readQueue } from './queue.ts';
+import { admitQueue, failQueueLaunch, reconcileQueue } from './queue-actions.ts';
+import type { QueueReceipt } from './queue-types.ts';
 import { type QuotaRecovery, recoveryOwner, retryQuota } from './quota-recovery.ts';
 import {
   type Admission,
@@ -42,6 +45,8 @@ import { type RunRecord, readRunRecords, removeRunRecord, writeRunRecord } from 
 import { stateFolder } from './state-folder.ts';
 
 type Frame = { id: string; last: string | null };
+type Said = Readonly<{ status: number; answer: DaemonAnswer }>;
+type Wake = Omit<Extract<DaemonRequest, { kind: 'queue' }>, 'kind'>;
 type Answer = 'none' | 'pending' | 'sent' | 'refused';
 type Entry = { handle: RunHandle; frame: Frame; outcome: RunRow['outcome']; settled: Promise<void>; answer: Answer };
 type Loop = {
@@ -57,9 +62,14 @@ const bodyLimit = 16 * 1024;
 const root = resolve(import.meta.dir, '../..');
 
 const clip = (line: string) => line.slice(0, textLimit);
-const reply = (status: number, value: DaemonAnswer | DaemonStatus) => Response.json(value, { status });
-const refusal = (status: number, line: string, code: number) =>
-  reply(status, { accepted: false, line: clip(line), code });
+const reply = (status: number, value: DaemonAnswer | QueueAnswer | DaemonStatus) => Response.json(value, { status });
+const refused = (status: number, line: string, code: number): Said => ({
+  status,
+  answer: { accepted: false, line: clip(line), code },
+});
+const send = ({ status, answer }: Said) => reply(status, answer);
+const refusal = (status: number, line: string, code: number) => send(refused(status, line, code));
+const codeOf = (error: unknown) => (error instanceof HostError ? error.code : 1);
 const described = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 function routeOutput(frames: AsyncLocalStorage<Frame>): void {
@@ -286,17 +296,19 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
     auto: [...loops].some(({ control }) => control.active && !control.leaving) ? 'on' : loops.size ? 'stopping' : 'off',
     runs: await Promise.all([...entries.values()].map(row)),
   });
-  const answer = (admission: Admission, run: string | null) => {
-    if (stopping) return refusal(503, stopLine, 1);
-    if (admission.ok) return reply(200, { accepted: true, run });
-    return refusal(409, admission.line, admission.code);
+  const verdict = (admission: Admission, run: string | null): Said => {
+    if (stopping) return refused(503, stopLine, 1);
+    if (admission.ok) return { status: 200, answer: { accepted: true, run } };
+    return refused(409, admission.line, admission.code);
   };
-  const answerRun = async (handle: RunHandle) => {
-    const response = answer(await handle.admitted, handle.id);
+  const answer = (admission: Admission, run: string | null) => send(verdict(admission, run));
+  const runVerdict = async (handle: RunHandle): Promise<Said> => {
+    const said = verdict(await handle.admitted, handle.id);
     const entry = entries.get(handle.id);
-    if (entry) entry.answer = response.status === 200 ? 'sent' : 'refused';
-    return response;
+    if (entry) entry.answer = said.status === 200 ? 'sent' : 'refused';
+    return said;
   };
+  const answerRun = async (handle: RunHandle) => send(await runVerdict(handle));
   let autoRequests = 0;
   const auto = async ({ on, selection, quiet }: Extract<DaemonRequest, { kind: 'auto' }>) => {
     const request = ++autoRequests;
@@ -317,27 +329,40 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
     }
     return answer(await openLoop(selection, quiet).admitted, null);
   };
-  const wakeQueue = async ({ id, token, selection, quiet }: Extract<DaemonRequest, { kind: 'queue' }>) => {
-    let pinned: HostSelection = selection;
+  const wakeQueue = async ({ id, token, selection, quiet }: Wake) => {
+    let pinned: HostSelection;
     try {
-      const queue = await readQueue(main, common, createLockOwner(main));
-      if (queue?.choice) {
-        const requested = selection.explicit ?? selection.environment;
-        if (requested !== undefined) {
-          try {
-            requireQueueChoice(queue.choice, { kind: 'explicit', host: selectHost(requested) });
-          } catch (cause) {
-            throw new HostError(described(cause), 2);
-          }
-        }
-        const host = explicitHost(queue.choice);
-        pinned = host === null ? {} : { saved: host };
-      }
+      pinned = queueSelection(await readQueue(main, common, createLockOwner(main)), 'act', selection);
     } catch (error) {
       console.error(described(error));
-      return refusal(409, described(error), error instanceof HostError ? error.code : 1);
+      return refused(409, described(error), codeOf(error));
     }
-    return answerRun(begin({ kind: 'queue', id, token, selection: pinned, quiet }, true));
+    return runVerdict(begin({ kind: 'queue', id, token, selection: pinned, quiet }, true));
+  };
+  const changeQueue = async (
+    use: 'add' | 'act' | 'read',
+    selection: Selection,
+    quiet: boolean,
+    change: (operation: Operation) => Promise<QueueReceipt>,
+  ) => {
+    let operation: Operation;
+    let receipt: QueueReceipt;
+    try {
+      const queue = await readQueue(main, common, createLockOwner(main));
+      operation = await createOperation(checkout, queueSelection(queue, use, selection), 'main');
+      receipt = await change(operation);
+    } catch (error) {
+      return refusal(409, described(error), codeOf(error));
+    }
+    const { view, wake } = receipt;
+    if (!wake) return reply(200, { accepted: true, run: null, view });
+    const said = await wakeQueue({ id: wake.id, token: wake.token, selection, quiet });
+    if (said.answer.accepted) return reply(said.status, { ...said.answer, view });
+    if (said.status !== 503)
+      await failQueueLaunch(operation, wake.id, wake.token, said.answer.line).catch((error: unknown) =>
+        console.error(`daemon: cannot record the launch failure in the queue: ${described(error)}`),
+      );
+    return send(said);
   };
   const respond = async (request: Request): Promise<Response> => {
     if (stopping) return refusal(503, stopLine, 1);
@@ -363,7 +388,15 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
       case 'auto':
         return auto(parsed);
       case 'queue':
-        return wakeQueue(parsed);
+        return send(await wakeQueue(parsed));
+      case 'queue-action': {
+        const { action, selection, quiet } = parsed;
+        return changeQueue(action.kind === 'add' ? 'add' : 'act', selection, quiet, (operation) =>
+          admitQueue(operation, action),
+        );
+      }
+      case 'queue-reconcile':
+        return changeQueue('read', {}, true, (operation) => reconcileQueue(operation));
       case 'run': {
         const { number, selection, effort, quiet } = parsed;
         return answerRun(begin({ kind: 'number', number, selection, effort, quiet }, true));

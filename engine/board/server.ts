@@ -11,6 +11,7 @@ import type {
   BoardHistory,
   BoardRuntime,
   Card,
+  DaemonView,
   Diff,
   Document,
   LandedIssue,
@@ -27,13 +28,13 @@ import { readdir, readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { basename, join, relative, resolve, sep } from 'node:path';
 import { AgentOrderConflict } from '../lib/agent-order.ts';
+import { type DaemonState, UnknownOutcome } from '../lib/daemon-client.ts';
 import { isLevel, type Level, levels } from '../lib/effort.ts';
 import { recordEvent } from '../lib/events.ts';
 import { commonDir } from '../lib/host.ts';
 import { createOperation, locateCheckouts } from '../lib/operation.ts';
 import { childEnv } from '../lib/process.ts';
 import {
-  explicitHost,
   parseQueueAction,
   queueView as projectQueue,
   queueOwner,
@@ -41,8 +42,7 @@ import {
   readQueueView,
   requireQueueChoice,
 } from '../lib/queue.ts';
-import { failQueueLaunch } from '../lib/queue-actions.ts';
-import type { QueueAction, QueueView, QueueWake } from '../lib/queue-types.ts';
+import type { QueueAction, QueueView } from '../lib/queue-types.ts';
 import { readStepEnd } from '../lib/step-end.ts';
 import {
   focusTerminal,
@@ -50,10 +50,6 @@ import {
   listTerminals,
   openTab as openTerminalTab,
   readScreen,
-  readTerminalState,
-  removeTerminal,
-  requireTerminals,
-  startHidden,
   TerminalError,
 } from '../lib/terminal.ts';
 import { hasPage, isCommit, visualLink, visualPage } from '../lib/visual.ts';
@@ -124,6 +120,12 @@ const cleanCause = (cause: unknown) =>
   firstLine(String(cause ?? ''))
     .replace(/[\u0000-\u001f\u007f]/g, '')
     .slice(0, 200);
+const daemonView = (state: DaemonState): DaemonView => {
+  if (state.kind === 'none') return { kind: 'none' };
+  if (state.kind === 'unknown' || state.kind === 'restart') return { kind: state.kind, line: state.line };
+  if (state.restart !== null) return { kind: 'restart', line: state.restart };
+  return { kind: 'runs', pid: state.status.daemon.pid, auto: state.status.auto };
+};
 const agentCause = (cause: unknown) => {
   const message = cause instanceof Error ? cause.message : String(cause);
   if (/\b(EACCES|EPERM)\b|permission denied/.test(message)) return 'access to local agent state was denied';
@@ -216,9 +218,10 @@ export const createBoard = ({
   let intakePending = false;
   const visualPresses = new Set<number>();
   type Press = { feedback: LaunchFeedback; at: number };
+  type Started = { run: string } | { run: null; warning: string };
   const presses: Record<string, Press> = {};
-  const pressTerminals = new Map<string, { number: number; press: Press; consumed: boolean }>();
-  let observing: Promise<void> | null = null;
+  const pressRuns = new Map<number, { run: string | null; press: Press; since: number }>();
+  let daemonReads = 0;
   const operations: Record<string, { step: string | null | undefined; observed: boolean }> = {};
   let shown = new Map<string, number | null>();
   let firstSeen = new Map<string, number>();
@@ -247,8 +250,6 @@ export const createBoard = ({
       )
         next.queue = board.queue;
       board = next;
-      if (next.queueWake) dispatchWake(next.queueWake);
-      next.queueWake = null;
       targetError = null;
       if (full) {
         readAt = new Date(now()).toISOString();
@@ -425,55 +426,55 @@ export const createBoard = ({
     return value;
   };
 
-  const observePresses = (): Promise<void> => {
-    if (stopped) return Promise.resolve();
-    if (observing) return observing;
-    observing = (async () => {
-      for (const [id, record] of pressTerminals) {
-        if (stopped) break;
-        if (!record.consumed) {
-          const step = record.press.feedback.step;
-          try {
-            const state = await readTerminalState(id, exec);
-            if (stopped) break;
-            if (state.state === 'live') {
-              record.press.feedback = { step, kind: 'pending' };
-              continue;
-            }
-            const output = await readScreen(id, 100, exec);
-            if (stopped) break;
-            if (output === null) throw new TerminalError(`hc could not read completed output for ${id}`);
-            const lines = screenOf(output).filter((line) => !line.startsWith('daemon: start:'));
-            const cause = lines.find((line) => !line.startsWith('daemon: stop')) ?? lines[0];
-            const warning = cause
-              ? cleanCause(cause)
-              : `Runner exited before a session was detected (exit ${state.exitCode ?? 'unknown'}).`;
-            record.press.feedback = { step, kind: 'failed', warning };
-            record.consumed = true;
-          } catch (cause) {
-            if (stopped) break;
-            record.press.feedback = {
-              step,
-              kind: 'unknown',
-              warning: cleanCause(cause instanceof Error ? cause.message : cause),
-            };
-            continue;
-          }
-        }
-        if (stopped) break;
-        try {
-          await removeTerminal(id, exec);
-          pressTerminals.delete(id);
-        } catch {}
+  const followPresses = (state: DaemonState, read: number, busy: Set<number | null>) => {
+    for (const [number, record] of pressRuns) {
+      if (read <= record.since) continue;
+      record.since = read;
+      const { press, run } = record;
+      const step = press.feedback.step;
+      const fail = (warning: string) => {
+        press.feedback = { step, kind: 'failed', warning };
+        pressRuns.delete(number);
+        target([number]);
+      };
+      if (busy.has(number)) {
+        pressRuns.delete(number);
+        continue;
       }
-    })().finally(() => {
-      observing = null;
-    });
-    return observing;
+      if (state.kind === 'none') {
+        fail('The daemon stopped before the run of this press opened a session.');
+        continue;
+      }
+      if (state.kind === 'unknown' || state.kind === 'restart') {
+        if (run !== null) press.feedback = { step, kind: 'unknown', warning: cleanCause(state.line) };
+        continue;
+      }
+      if (run === null) continue;
+      const row = state.status.runs.find((row) => row.id === run);
+      if (!row) fail(`The daemon PID ${state.status.daemon.pid} has no run ${run.slice(0, 8)} of this press.`);
+      else if (row.session !== null) {
+        pressRuns.delete(number);
+        delete presses[number];
+      } else if (row.outcome)
+        fail(
+          cleanCause(
+            row.outcome.reason ||
+              row.line ||
+              `The run ${run.slice(0, 8)} ended with code ${row.outcome.code} before a session.`,
+          ),
+        );
+      else press.feedback = { step, kind: 'pending' };
+    }
   };
 
   const placement = async ({ isLocal = false } = {}): Promise<Board> => {
-    await observePresses();
+    const read = ++daemonReads;
+    const reading = adapter.daemon().catch(
+      (cause: unknown): DaemonState => ({
+        kind: 'unknown',
+        line: cleanCause(cause instanceof Error ? cause.message : cause),
+      }),
+    );
     const queue = await queueView();
     const { terminals, sessions: found, health } = await watchSessions();
     const dispositions = new Map(
@@ -497,6 +498,8 @@ export const createBoard = ({
     if (!isLocal) await readScreens(sessions);
     for (const session of sessions) session.screen = screens.get(session.sessionId);
     const busy = new Set(sessions.map((session) => session.issue));
+    const daemon = await reading;
+    followPresses(daemon, read, busy);
     const launches: Parameters<typeof place>[0]['launches'] = {};
     for (const number of new Set([...Object.keys(presses), ...Object.keys(operations)])) {
       const operation = operations[number];
@@ -544,7 +547,7 @@ export const createBoard = ({
       history,
       flow: board?.flow ?? null,
       tracker: board?.tracker ?? null,
-      auto: board?.auto ?? null,
+      daemon: daemonView(daemon),
       agents: board?.agents ?? null,
       picker: agentState && {
         order: agentState.order,
@@ -566,9 +569,13 @@ export const createBoard = ({
       refused,
     );
 
-  const startPress = async (label: string, argv: string[]) => {
-    await requireTerminals(exec).catch(refused);
-    return startHidden({ folder: main, label, argv, removeOnExit: false }, exec).catch(refused);
+  const started = async (request: () => Promise<string>): Promise<Started> => {
+    try {
+      return { run: await request() };
+    } catch (cause) {
+      if (cause instanceof UnknownOutcome) return { run: null, warning: cleanCause(cause.message) };
+      throw new Refusal(409, cleanCause(cause instanceof Error ? cause.message : cause));
+    }
   };
 
   const issueCardOf = async (number: number) =>
@@ -579,34 +586,40 @@ export const createBoard = ({
   const press = async (
     number: number,
     refusal: string,
-    prepare: () => Promise<{ card: Card; start: () => Promise<string | undefined> }>,
-  ) => {
+    prepare: () => Promise<{ card: Card; start: () => Promise<Started | undefined> }>,
+  ): Promise<boolean> => {
     if (
       number in operations ||
-      [...pressTerminals.values()].some((record) => record.number === number && !record.consumed) ||
+      pressRuns.has(number) ||
       (presses[number]?.feedback.kind === 'timed' && now() - presses[number].at < PRESS_MS)
     )
       throw new Refusal(409, refusal);
     const operation: { step: string | null | undefined; observed: boolean } = { step: undefined, observed: false };
     operations[number] = operation;
+    let unknown = false;
     try {
       const { card, start } = await prepare();
       operation.step = card.step;
       delete presses[number];
-      const id = await start();
+      const result = await start();
+      const step = operation.step;
       const press: Press = {
         feedback:
-          id === undefined
-            ? { step: operation.step, kind: 'timed', expired: false }
-            : { step: operation.step, kind: 'pending' },
+          result === undefined
+            ? { step, kind: 'timed', expired: false }
+            : result.run === null
+              ? { step, kind: 'unknown', warning: result.warning }
+              : { step, kind: 'pending' },
         at: now(),
       };
-      if (id !== undefined) pressTerminals.set(id, { number, press, consumed: false });
+      if (result !== undefined) pressRuns.set(number, { run: result.run, press, since: daemonReads });
+      unknown = result?.run === null;
       if (!operation.observed) presses[number] = press;
     } finally {
       delete operations[number];
     }
     await refresh();
+    return unknown;
   };
 
   const choose = async (choice: unknown, unknown: string, work: 'run' | 'session'): Promise<AgentChoice> => {
@@ -709,7 +722,7 @@ export const createBoard = ({
     if (choice !== undefined && choice !== null && !isHost(choice))
       throw new Refusal(409, `#${number} has no agent "${String(choice)}"`);
     const refusal = `#${number} has no step to start now`;
-    await press(number, refusal, async () => {
+    return press(number, refusal, async () => {
       await pending;
       await refresh();
       if (!board || readError() || board.noRun !== null) throw new Refusal(409, readError() || board?.noRun || refusal);
@@ -745,57 +758,20 @@ export const createBoard = ({
       const agent = await choose(choice, `#${number} has no agent "${String(choice)}"`, 'run');
       return {
         card,
-        start: async () => {
-          const argv = await adapter.run(number, agent, effort).catch((cause: Error) => {
-            throw new Refusal(409, cleanCause(cause.message));
-          });
-          return startPress(`#${number}`, argv);
-        },
+        start: () => started(() => adapter.run(number, agent, effort)),
       };
     });
   };
 
   const resume = async (number: number) => {
     const refusal = `#${number} has no session to resume now`;
-    await press(number, refusal, async () => {
+    return press(number, refusal, async () => {
       const card = await issueCardOf(number);
       if (!card?.resume) throw new Refusal(409, refusal);
       return {
         card,
-        start: async () => {
-          const argv = await adapter.resume(number).catch((cause: Error) => {
-            throw new Refusal(409, cleanCause(cause.message));
-          });
-          return startPress(`#${number}`, argv);
-        },
+        start: () => started(() => adapter.resume(number)),
       };
-    });
-  };
-
-  const dispatchWake = (wake: QueueWake) => {
-    let sent = false;
-    void (async () => {
-      const argv = await adapter.queueRun(wake);
-      await requireTerminals(exec);
-      sent = true;
-      await startHidden({ folder: main, label: 'queue', argv, removeOnExit: true }, exec);
-    })().catch(async (cause) => {
-      let message = '';
-      try {
-        message = cleanCause(cause.message);
-        const pinned = explicitHost(wake.choice);
-        const operation = await createOperation(await locateCheckouts(main), pinned ? { saved: pinned } : {}, 'main');
-        if (!sent) {
-          const view = await failQueueLaunch(operation, wake.id, wake.token, message);
-          if (board) board.queue = view;
-        } else {
-          await queueView();
-        }
-      } catch (failure) {
-        fullError = `queue: launch recovery failed: ${cleanCause(failure)}`;
-        message = fullError;
-      }
-      recordEvent({ name: 'queue-launch', message });
     });
   };
 
@@ -803,16 +779,13 @@ export const createBoard = ({
     if (queuePress) throw new Refusal(409, 'queue: another press is active');
     queuePress = true;
     try {
-      const { common } = await locateCheckouts(main);
-      if (!common) throw new Refusal(409, 'queue: need a Git checkout');
-      const record = await readQueue(main, common);
-      const choice = action.kind === 'add' ? requested : (record?.choice ?? requested);
-      const receipt = await adapter.queue(action, choice).catch((cause: Error) => {
-        throw new Refusal(409, cleanCause(cause.message));
-      });
-      if (board) board.queue = receipt.view;
-      if (receipt.wake) setTimeout(() => dispatchWake(receipt.wake as QueueWake), 0);
-      return receipt.view;
+      const view = await adapter
+        .queue(action, action.kind === 'add' ? requested : { kind: 'default' })
+        .catch((cause: Error) => {
+          throw new Refusal(409, cleanCause(cause.message));
+        });
+      if (board) board.queue = view;
+      return view;
     } finally {
       queuePress = false;
     }
@@ -820,7 +793,7 @@ export const createBoard = ({
 
   const retryQuota = async (number: number, waitId: string) => {
     await adapter.retryQuota(number, waitId).catch((cause: Error) => {
-      throw new Refusal(409, agentCause(cause));
+      throw new Refusal(409, cleanCause(cause.message));
     });
   };
 
@@ -964,7 +937,7 @@ export const createBoard = ({
       updateResponse = finished;
       return sendJson(response, 202, { runtime, update: updates().snapshot() });
     }
-    const starts: Record<string, (number: number) => Promise<void>> = {
+    const starts: Record<string, (number: number) => Promise<unknown>> = {
       '/api/assist': assist,
       '/api/visual': visual,
       '/api/run': runStep,
@@ -991,6 +964,7 @@ export const createBoard = ({
       );
     } else if (Object.hasOwn(starts, path)) {
       const { number } = input;
+      let unknown = false;
       if (
         !['number', 'string'].includes(typeof number) ||
         !/^[1-9][0-9]*$/.test(String(number)) ||
@@ -1007,8 +981,9 @@ export const createBoard = ({
           throw new Refusal(400, 'Run takes only the issue number, an agent, and an effort');
         if (effort !== undefined && !isLevel(effort))
           throw new Refusal(400, `the effort is not one of ${levels.join(', ')}`);
-        await runStep(Number(number), input.agent, effort);
-      } else await (starts[path] as (number: number) => Promise<void>)(Number(number));
+        unknown = await runStep(Number(number), input.agent, effort);
+      } else unknown = (await (starts[path] as (number: number) => Promise<unknown>)(Number(number))) === true;
+      return sendJson(response, 200, unknown ? { ok: true, unknown: true } : { ok: true });
     } else if (path === '/api/go') {
       await go(String(input.sessionId));
     } else if (path === '/api/agent') {
@@ -1054,7 +1029,6 @@ export const createBoard = ({
       ready = true;
       void refresh();
     }
-    await observePresses();
     if (!stopped) nextHint = setTimeout(() => void pollHints(), 1_000);
   };
   const stopReads = () => {

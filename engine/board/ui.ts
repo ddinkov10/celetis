@@ -253,14 +253,14 @@ export type PostOutcome =
   | { status: 'accepted' }
   | { status: 'rejected'; error: string }
   | { status: 'unavailable'; error?: string };
-export function post(path: string, value: unknown, failure: string): Promise<boolean>;
+export function post(path: string, value: unknown, failure: string): Promise<false | 'accepted' | 'unknown'>;
 export function post(path: string, value: unknown, failure: string, options: { timeout: number }): Promise<PostOutcome>;
 export async function post(
   path: string,
   value: unknown,
   failure: string,
   options?: { timeout: number },
-): Promise<boolean | PostOutcome> {
+): Promise<false | 'accepted' | 'unknown' | PostOutcome> {
   const controller = options ? new AbortController() : undefined;
   const timeout = options ? setTimeout(() => controller?.abort(), options.timeout) : undefined;
   try {
@@ -277,8 +277,11 @@ export async function post(
       if (response.status >= 400 && response.status < 500 && error !== undefined) return { status: 'rejected', error };
       return { status: 'unavailable', ...(error !== undefined ? { error } : {}) };
     }
-    if (!response.ok) toast(failure, { detail: ((await response.json()) as { error: string }).error, isError: true });
-    return response.ok;
+    if (!response.ok) {
+      toast(failure, { detail: ((await response.json()) as { error: string }).error, isError: true });
+      return false;
+    }
+    return ((await response.json()) as { unknown?: unknown } | null)?.unknown === true ? 'unknown' : 'accepted';
   } catch {
     if (options) return { status: 'unavailable' };
     toast(SERVER_DOWN, { detail: RESTART, isError: true });
