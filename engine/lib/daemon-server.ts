@@ -1,10 +1,14 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { rmSync } from 'node:fs';
-import { rename, rm, writeFile } from 'node:fs/promises';
+import { closeSync, openSync, rmSync } from 'node:fs';
+import { realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { constants } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { format } from 'node:util';
+import { celetisAdapter } from '../board/adapter.ts';
+import { type BoardDaemon, type BoardHandle, startBoard } from '../board/start.ts';
+import { shortRevision } from './daemon-client.ts';
 import {
   type DaemonAnswer,
   type DaemonIdentity,
@@ -14,17 +18,20 @@ import {
   parseRequest,
   type QueueAnswer,
   type RunRow,
+  requestPaths,
   requestUsage,
   type Selection,
+  stopLine,
   textLimit,
 } from './daemon-types.ts';
 import { installRecorder, recordEvent } from './events.ts';
 import { HostError } from './host.ts';
-import { createLockOwner } from './locks.ts';
+import { createLockOwner, type Identity } from './locks.ts';
 import { createOperation, type HostSelection, locateCheckouts, type Operation } from './operation.ts';
 import { privateFolderSync, privateRoot, sharedFolderSync } from './private-folder.ts';
-import { processStart, processState } from './process-identity.ts';
-import { programRevision } from './program.ts';
+import { bunArgs, childEnv } from './process.ts';
+import { daemonScript, processStart, processState } from './process-identity.ts';
+import { type Program, programPaths, programRevision } from './program.ts';
 import { queueSelection, readQueue } from './queue.ts';
 import { admitQueue, failQueueLaunch, reconcileQueue } from './queue-actions.ts';
 import type { QueueReceipt } from './queue-types.ts';
@@ -54,14 +61,32 @@ type Loop = {
   abort: AbortController;
   admitted: Promise<Admission>;
   done: Promise<void>;
+  selection: Selection;
+  quiet: boolean;
 };
+type AutoRequest = Extract<DaemonRequest, { kind: 'auto' }>;
+type Successor = Readonly<{ program: Program; auto: Readonly<{ selection: Selection; quiet: boolean }> | null }>;
+type Spawn = Successor & Readonly<{ port: number; start: string; main: string; log: string }>;
+type Carried = AutoRequest | Readonly<{ refused: string }>;
+type Handover = Readonly<{ after: Identity | null; auto: Carried | null }>;
 
-const stopLine = 'daemon: the daemon stops; start it again, then send the request';
+const takeoverLine = 'daemon: the daemon takes over its runs; send the request again after its start';
 const removedLine = 'daemon: the program version of this daemon was removed after an update; start the daemon again';
+const boardRequests: ReadonlySet<DaemonRequest['kind']> = new Set([
+  'run',
+  'resume',
+  'retry',
+  'queue-action',
+  'queue-reconcile',
+]);
 const bodyLimit = 16 * 1024;
 const root = resolve(import.meta.dir, '../..');
 
 const clip = (line: string) => line.slice(0, textLimit);
+const printable = (text: string) =>
+  [...text]
+    .map((character) => (character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127 ? ' ' : character))
+    .join('');
 const reply = (status: number, value: DaemonAnswer | QueueAnswer | DaemonStatus) => Response.json(value, { status });
 const refused = (status: number, line: string, code: number): Said => ({
   status,
@@ -71,6 +96,10 @@ const send = ({ status, answer }: Said) => reply(status, answer);
 const refusal = (status: number, line: string, code: number) => send(refused(status, line, code));
 const codeOf = (error: unknown) => (error instanceof HostError ? error.code : 1);
 const described = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const crashed = (error: unknown) => {
+  console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
+  return refusal(500, `daemon: ${described(error)}`, 1);
+};
 
 function routeOutput(frames: AsyncLocalStorage<Frame>): void {
   const decoder = new TextDecoder();
@@ -119,7 +148,84 @@ async function writeIdentity(file: string, identity: DaemonIdentity): Promise<vo
   }
 }
 
-export async function runDaemon(): Promise<number> {
+function handoverOf(argv: readonly string[]): Handover | null {
+  if (!argv.length) return { after: null, auto: null };
+  const [flag, pid, start, option, value, ...rest] = argv;
+  if (
+    flag !== '--after' ||
+    !/^[1-9][0-9]*$/.test(pid ?? '') ||
+    !Number.isSafeInteger(Number(pid)) ||
+    !start ||
+    rest.length
+  )
+    return null;
+  const after = { pid: Number(pid), start };
+  if (option === undefined) return { after, auto: null };
+  if (option !== '--auto' || value === undefined) return null;
+  return { after, auto: carriedAuto(value) };
+}
+
+function carriedAuto(value: string): Carried {
+  let carried: unknown = null;
+  try {
+    carried = JSON.parse(value);
+  } catch {}
+  if (carried !== null && typeof carried === 'object' && !Array.isArray(carried)) {
+    const request = parseRequest('POST', '/auto', { on: true, ...carried });
+    if (!('status' in request) && request.kind === 'auto' && request.on) return request;
+  }
+  return { refused: value };
+}
+
+async function outlived({ pid, start }: Identity): Promise<boolean> {
+  const deadline = Date.now() + 60_000;
+  while ((await processState(pid, start)) !== 'gone') {
+    if (Date.now() >= deadline) {
+      console.error(`daemon: the daemon PID ${pid} did not exit within 60 seconds; this successor stops`);
+      return false;
+    }
+    await Bun.sleep(250);
+  }
+  return true;
+}
+
+async function inVersionFolder(revision: string): Promise<boolean> {
+  try {
+    return (await realpath(root)) === (await realpath(join(programPaths().versions, revision)));
+  } catch {
+    return false;
+  }
+}
+
+async function startSuccessor({ program, auto, port, start, main, log }: Spawn): Promise<number> {
+  const env = childEnv({ ...process.env, PORT: String(port) });
+  delete env.HC_SCOPE;
+  const args = ['--daemon', '--after', String(process.pid), start, ...(auto ? ['--auto', JSON.stringify(auto)] : [])];
+  try {
+    const out = openSync(log, 'a', 0o600);
+    try {
+      const child = spawn(process.execPath, bunArgs(join(program.root, 'engine', daemonScript), args), {
+        detached: true,
+        stdio: ['ignore', out, out],
+        env,
+        cwd: main,
+      });
+      await new Promise<void>((spawned, failed) => {
+        child.once('spawn', spawned);
+        child.once('error', failed);
+      });
+      child.unref();
+    } finally {
+      closeSync(out);
+    }
+    return 0;
+  } catch (error) {
+    console.error(`daemon: cannot start the successor: ${described(error)}; run celetis daemon start`);
+    return 1;
+  }
+}
+
+export async function runDaemon(argv: readonly string[]): Promise<number> {
   if (process.platform === 'win32') {
     console.error('daemon: Windows is not a support target');
     return 2;
@@ -127,8 +233,15 @@ export async function runDaemon(): Promise<number> {
   installRecorder('daemon');
   const frames = new AsyncLocalStorage<Frame>();
   routeOutput(frames);
+  const handover = handoverOf(argv);
+  if (handover === null) {
+    console.error('daemon: invalid internal request');
+    return 2;
+  }
   try {
-    return await serve(frames);
+    if (handover.after && !(await outlived(handover.after))) return 1;
+    const { code, successor } = await serve(frames, handover);
+    return successor ? await startSuccessor(successor) : code;
   } catch (error) {
     if (!(error instanceof HostError)) throw error;
     if (error.message) console.error(error.message);
@@ -136,7 +249,10 @@ export async function runDaemon(): Promise<number> {
   }
 }
 
-async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
+async function serve(
+  frames: AsyncLocalStorage<Frame>,
+  handover: Handover,
+): Promise<{ code: number; successor: Spawn | null }> {
   const checkout = await locateCheckouts(process.cwd());
   if (checkout.main === null || checkout.common === null) throw new HostError('celetis: need a Git checkout', 2);
   const { main, common } = checkout;
@@ -163,23 +279,42 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
   const holder = await owner.take('daemon');
   if (holder !== null) {
     console.error(`daemon: another daemon of this repository has PID ${holder}; this one stops`);
-    return 1;
+    return { code: 1, successor: null };
   }
 
   const entries = new Map<string, Entry>();
   const loops = new Set<Loop>();
+  const opened = Promise.withResolvers<BoardHandle>();
+  let board: BoardHandle | undefined;
+  let taking = true;
   let stopping = false;
   let code = 0;
+  const claim: { successor: Successor | null } = { successor: null };
   let wake: () => void = () => {};
   const asked = new Promise<void>((done) => {
     wake = done;
   });
   const stop = (status: number, line?: string) => {
-    if (!stopping || status === 1) code = status;
-    if (stopping) return;
-    stopping = true;
+    if (stopping && claim.successor === null) {
+      if (status === 1) code = status;
+      return;
+    }
+    code = status;
     if (line) frames.exit(() => console.error(line));
+    if (stopping) {
+      claim.successor = null;
+      frames.exit(() => console.error('daemon: the stop cancels the restart; no successor starts'));
+      return;
+    }
+    stopping = true;
     wake();
+  };
+  const restart = (program: Program) => {
+    if (stopping) return;
+    frames.exit(() => console.log(`daemon: restarts on the program at ${shortRevision(program.revision)}`));
+    const kept = [...loops].find(({ control }) => control.active && !control.leaving);
+    claim.successor = { program, auto: kept ? { selection: kept.selection, quiet: kept.quiet } : null };
+    stop(0);
   };
   const fatal = () => stop(1);
   const removed = () => stop(1, removedLine);
@@ -236,7 +371,7 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
   };
   const begin = (input: RunInput, gh: boolean) =>
     launch(() => ({ handle: createRun(place, input, { hooks: hooksOf(gh), journal }) }), 'pending').handle;
-  const openLoop = (selection: Selection, quiet: boolean): Loop => {
+  const openLoop = (selection: Selection, quiet: boolean, adopted?: Promise<number>): Loop => {
     const control = { active: true, leaving: false };
     const abort = new AbortController();
     const started = autoLoop(
@@ -251,6 +386,7 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
           control.leaving = true;
         },
         journal,
+        adopted,
       },
     );
     const loop: Loop = {
@@ -268,6 +404,8 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
         .finally(() => {
           loops.delete(loop);
         }),
+      selection,
+      quiet,
     };
     loops.add(loop);
     return loop;
@@ -293,6 +431,7 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
   const status = async (): Promise<DaemonStatus> => ({
     schema: 1,
     daemon: identity,
+    board: (await opened.promise).url,
     auto: [...loops].some(({ control }) => control.active && !control.leaving) ? 'on' : loops.size ? 'stopping' : 'off',
     runs: await Promise.all([...entries.values()].map(row)),
   });
@@ -301,7 +440,6 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
     if (admission.ok) return { status: 200, answer: { accepted: true, run } };
     return refused(409, admission.line, admission.code);
   };
-  const answer = (admission: Admission, run: string | null) => send(verdict(admission, run));
   const runVerdict = async (handle: RunHandle): Promise<Said> => {
     const said = verdict(await handle.admitted, handle.id);
     const entry = entries.get(handle.id);
@@ -309,25 +447,26 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
     return said;
   };
   const answerRun = async (handle: RunHandle) => send(await runVerdict(handle));
+  const accepted: Said = { status: 200, answer: { accepted: true, run: null } };
   let autoRequests = 0;
-  const auto = async ({ on, selection, quiet }: Extract<DaemonRequest, { kind: 'auto' }>) => {
+  const auto = async ({ on, selection, quiet }: AutoRequest, adopted?: Promise<number>): Promise<Said> => {
     const request = ++autoRequests;
     if (!on) {
       for (const loop of loops) loop.control.active = false;
-      return reply(200, { accepted: true, run: null });
+      return accepted;
     }
     for (;;) {
-      if (stopping) return refusal(503, stopLine, 1);
-      if (request !== autoRequests) return reply(200, { accepted: true, run: null });
+      if (stopping) return refused(503, stopLine, 1);
+      if (request !== autoRequests) return accepted;
       const kept = [...loops].find((each) => !each.control.leaving);
       if (kept) {
         kept.control.active = true;
-        return answer(await kept.admitted, null);
+        return verdict(await kept.admitted, null);
       }
       if (!loops.size) break;
       await Promise.all([...loops].map((each) => each.done));
     }
-    return answer(await openLoop(selection, quiet).admitted, null);
+    return verdict(await openLoop(selection, quiet, adopted).admitted, null);
   };
   const wakeQueue = async ({ id, token, selection, quiet }: Wake) => {
     let pinned: HostSelection;
@@ -365,7 +504,7 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
     return send(said);
   };
   const respond = async (request: Request): Promise<Response> => {
-    if (stopping) return refusal(503, stopLine, 1);
+    if (stopping && claim.successor === null) return refusal(503, stopLine, 1);
     let body: unknown = null;
     if (request.method === 'POST') {
       const text = await bodyText(request);
@@ -378,7 +517,8 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
     }
     const parsed = parseRequest(request.method, new URL(request.url).pathname, body);
     if ('status' in parsed) return refusal(parsed.status, parsed.line, 2);
-    if (stopping) return refusal(503, stopLine, 1);
+    if (stopping && (parsed.kind !== 'stop' || claim.successor === null)) return refusal(503, stopLine, 1);
+    if (taking && boardRequests.has(parsed.kind)) return refusal(503, takeoverLine, 1);
     switch (parsed.kind) {
       case 'status':
         return reply(200, await status());
@@ -386,7 +526,7 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
         stop(0);
         return reply(200, { accepted: true, run: null });
       case 'auto':
-        return auto(parsed);
+        return send(await auto(parsed));
       case 'queue':
         return send(await wakeQueue(parsed));
       case 'queue-action': {
@@ -423,6 +563,25 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
     }
   };
 
+  const answering = new Set<Promise<Response>>();
+  const dispatcher: BoardDaemon = {
+    send: async ({ kind, ...fields }) => {
+      const request = new Request(`http://daemon${requestPaths[kind]}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(fields),
+      });
+      const answer = respond(request).catch(crashed);
+      answering.add(answer);
+      try {
+        return await (await answer).json();
+      } finally {
+        answering.delete(answer);
+      }
+    },
+    status,
+  };
+
   const handlers = new Map<NodeJS.Signals, () => void>();
   try {
     for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
@@ -430,6 +589,16 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
       handlers.set(signal, handler);
       process.on(signal, handler);
     }
+    const port = (await createOperation(checkout, {}, 'main')).mainConfig?.board?.port ?? 4403;
+    board = await startBoard(main, port, await celetisAdapter(main, dispatcher), {
+      env: process.env,
+      revision: identity.revision,
+      successor: handover.after !== null,
+      versioned: await inVersionFolder(identity.revision),
+      restarting: () => stopping,
+      restart,
+    });
+    opened.resolve(board);
     for (const read of await readRunRecords(paths.runs, common)) {
       if ('error' in read) {
         console.error(`daemon: cannot take over ${read.path}: ${read.error}; its session stays in its tab`);
@@ -446,15 +615,9 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
       }));
       await run.handle.admitted;
     }
+    taking = false;
     rmSync(paths.socket, { force: true });
-    const server = Bun.serve({
-      unix: paths.socket,
-      fetch: respond,
-      error: (error) => {
-        console.error(error.stack ?? error.message);
-        return refusal(500, `daemon: ${error.message}`, 1);
-      },
-    });
+    const server = Bun.serve({ unix: paths.socket, fetch: respond, error: crashed });
     await writeIdentity(paths.identity, identity);
     console.log(`daemon: PID ${process.pid} serves ${paths.socket}`);
     const poll = setInterval(() => {
@@ -462,6 +625,19 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
         if (missing) removed();
       });
     }, 5000);
+    if (handover.auto && 'refused' in handover.auto)
+      console.error(
+        `daemon: this program refuses the carried auto mode ${clip(printable(handover.auto.refused))}; auto mode stays off`,
+      );
+    else if (handover.auto) {
+      const adopted = [...entries.values()].filter(({ handle }) => handle.input.kind === 'auto');
+      const endCode = Promise.all(adopted.map(({ settled }) => settled)).then(
+        () => adopted.map(({ outcome }) => outcome?.code ?? 0).find((code) => code !== 0) ?? 0,
+      );
+      const said = await auto(handover.auto, endCode);
+      // The loop prints the line of its own refusal; only the stop refusal is not in the log yet.
+      if (said.status === 503 && !said.answer.accepted) console.error(said.answer.line);
+    }
     await asked;
     clearInterval(poll);
     for (const { handle } of entries.values()) handle.detach();
@@ -469,17 +645,28 @@ async function serve(frames: AsyncLocalStorage<Frame>): Promise<number> {
       loop.control.active = false;
       loop.abort.abort();
     }
-    let waited = -1;
-    while (waited < entries.size || loops.size) {
-      waited = entries.size;
-      await Promise.all([...[...entries.values()].map((each) => each.settled), ...[...loops].map((each) => each.done)]);
-    }
+    const settle = async () => {
+      let waited = -1;
+      while (waited < entries.size || loops.size) {
+        waited = entries.size;
+        await Promise.all([
+          ...[...entries.values()].map((each) => each.settled),
+          ...[...loops].map((each) => each.done),
+        ]);
+      }
+    };
+    await settle();
+    await Promise.race([Promise.all(answering), Bun.sleep(5000)]);
+    await settle();
+    await board.close();
     const closed = await Promise.race([server.stop().then(() => true), Bun.sleep(5000).then(() => false)]);
     if (!closed) await server.stop(true);
     await rm(paths.identity, { force: true });
-    return code;
+    const { successor } = claim;
+    return { code, successor: successor && { ...successor, port: board.port, start, main, log: paths.log } };
   } finally {
     for (const [signal, handler] of handlers) process.off(signal, handler);
+    await board?.close();
     await owner.releaseAll();
   }
 }

@@ -75,7 +75,7 @@ const GATES: Record<string, string> = {
   me: 'This step starts only when you press Run',
   auto: 'Auto mode of the daemon starts this step by itself',
 };
-const AUTO: Record<Extract<DaemonView, { kind: 'runs' }>['auto'], { tone: string; title: string }> = {
+const AUTO: Record<DaemonView['auto'], { tone: string; title: string }> = {
   on: { tone: 'ok', title: 'Auto mode starts each auto step.' },
   off: { tone: 'off', title: 'Auto mode is off: auto steps wait.' },
   stopping: { tone: 'off', title: 'Auto mode stops after its current work.' },
@@ -220,7 +220,7 @@ const runAction = (card: Card, agent: string | null = null): Action => {
     run: reason
       ? async () => toast(reason, { isError: true })
       : async () => {
-          if ((await launch(card, '/api/run', agent ?? undefined)) === 'accepted')
+          if (await launch(card, '/api/run', agent ?? undefined))
             toast(`Started the ${card.step} step of #${card.number} in a new herdr tab`);
         },
   };
@@ -261,7 +261,7 @@ const levelEntries = (card: Card): (MenuEntry | 'rule')[] => {
       run: reason
         ? async () => toast(reason, { isError: true })
         : async () => {
-            if ((await launch(card, '/api/run', undefined, level)) === 'accepted')
+            if (await launch(card, '/api/run', undefined, level))
               toast(`Started the ${card.step} step of #${card.number} at ${level} in a new herdr tab`);
           },
     })),
@@ -341,7 +341,7 @@ const actionsOf = (card: Card): Action[] => {
         name: `Resume the ${card.step} session of #${card.number}`,
         title: 'Open the session of this step again in a new herdr tab (Enter)',
         run: async () => {
-          if ((await launch(card, '/api/resume')) === 'accepted')
+          if (await launch(card, '/api/resume'))
             toast(`Opened the ${card.step} session of #${card.number} in a new herdr tab`, {
               detail: 'Switch to your terminal to see it.',
             });
@@ -1148,17 +1148,8 @@ const drawHints = (card: HTMLElement | null) => {
 };
 
 const daemonItem = (daemon: DaemonView): { text: string; tone: string; title: string } => {
-  if (daemon.kind === 'runs') {
-    const { tone, title } = AUTO[daemon.auto];
-    return { text: `auto ${daemon.auto}`, tone, title: `The daemon PID ${daemon.pid} runs. ${title}` };
-  }
-  if (daemon.kind === 'none')
-    return {
-      text: 'off',
-      tone: 'off',
-      title: 'No daemon runs for this repository. Start it in a terminal: celetis daemon start',
-    };
-  return { text: daemon.kind === 'unknown' ? 'no answer' : 'restart', tone: 'fail', title: daemon.line };
+  const { tone, title } = AUTO[daemon.auto];
+  return { text: `auto ${daemon.auto}`, tone, title: `The daemon PID ${daemon.pid} runs. ${title}` };
 };
 
 const drawStatus = (source: Board['source'], isDown: boolean) => {
@@ -1480,7 +1471,7 @@ const launch = async (card: Card, path: '/api/run' | '/api/resume' | '/api/assis
   render(false);
   if (document.activeElement === document.body)
     document.querySelector<HTMLElement>(`[data-key="${CSS.escape(keyOf(card))}"]`)?.focus({ preventScroll: true });
-  const sent = await post(
+  const isOk = await post(
     path,
     {
       number,
@@ -1489,11 +1480,11 @@ const launch = async (card: Card, path: '/api/run' | '/api/resume' | '/api/assis
     },
     path === '/api/run' ? 'Run failed' : path === '/api/assist' ? 'Open agent failed' : 'Resume failed',
   );
-  entry.phase = sent ? 'done' : 'failed';
+  entry.phase = isOk ? 'done' : 'failed';
   settled = reads;
   render();
   load();
-  return sent;
+  return isOk;
 };
 
 let loadRequest: AbortController | undefined;
@@ -1636,7 +1627,7 @@ const paletteItems = () => {
             key: '',
             title: runTitle(card.step, (data as Board).flow, card.effort),
             run: async () => {
-              if ((await launch(card, '/api/run', id)) === 'accepted')
+              if (await launch(card, '/api/run', id))
                 toast(`Started the ${card.step} step of #${card.number} with ${display} in a new herdr tab`);
             },
           });
@@ -1770,6 +1761,10 @@ document.addEventListener('keydown', (event) => {
   }
   if (event.metaKey || event.ctrlKey || event.altKey || $('keys').open || $('palette').open) return;
   if ((event.target as Element).closest?.<HTMLElement>('input, textarea, select, [contenteditable]')) return;
+  if (event.key === 'Escape' && !$('menu').matches(':popover-open') && updates.dismiss()) {
+    event.preventDefault();
+    return;
+  }
   if (event.key === 'Escape' && isHistoryOpen) {
     event.preventDefault();
     return setHistory(false);

@@ -14,7 +14,7 @@ const INDEPENDENT = ['intake', 'assist', 'visual'].map((name) =>
 export type LaunchFeedback = { step: string | null } & (
   | { kind: 'timed'; expired: boolean }
   | { kind: 'pending' }
-  | { kind: 'unknown' | 'failed'; warning: string }
+  | { kind: 'failed'; warning: string }
 );
 
 const time = (iso: string) => Date.parse(iso);
@@ -187,8 +187,10 @@ export const place = ({
         const orphan = recovery?.kind === 'orphaned' ? QUOTA_ORPHAN : null;
         if (orphan) card.warning = orphan;
         if (!feedback) return [column, card];
-        if (feedback.kind === 'unknown' || feedback.kind === 'failed') card.warning = orphan ?? feedback.warning;
-        if (feedback.kind === 'failed') return [column, card];
+        if (feedback.kind === 'failed') {
+          card.warning = orphan ?? feedback.warning;
+          return [column, card];
+        }
         if (feedback.kind === 'timed' && feedback.expired) {
           card.warning = orphan ?? 'Session not detected. Check the terminal before starting again.';
           return [column, card];

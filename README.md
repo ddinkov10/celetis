@@ -786,7 +786,7 @@ entry pointer retains its bounded marker authority, even without a record.
      and product settings. Review effective automatic-update policy separately.
    - Old generic board commands, including `scripts/celetis board` and its `./` form, in launch
      files or scripts. Keep product-specific board configuration, port choices, and local desktop
-     entries. The terminal command remains `celetis --agent <host> board`.
+     entries. `celetis daemon start` serves the board and prints its URL.
    - The exact generic flow lines below. Read the repository identity from the recorded flow line,
      not from a current answer alone, and compare the current content. A matching phrase alone is
      insufficient evidence of ownership.
@@ -808,37 +808,10 @@ entry pointer retains its bounded marker authority, even without a record.
 
 The existing `setup try` and `setup write` share the reconciliation plan; there is no separate
 cleanup command. One final commit-and-push question covers all shown additions, replacements
-and removals. The optional local desktop configuration below stays product content.
+and removals. A local desktop configuration stays product content.
 A `setup: no file changed` line describes only the diff. With any unresolved wiring or policy
 warning, it establishes neither current wiring nor native policy loading. Keep each exact warning
 and its manual action in the report.
-
-### Optional: the board in Claude desktop
-
-Use a personal, untracked `.claude/launch.json` in the main checkout. For a new file, put that
-path in `.git/info/exclude`. If the project already tracks the file, keep its shared content and
-use the terminal start. Add the example entry to the local file's `configurations` array.
-
-Replace `<command>` with the absolute path of the program command: `<base>/.local/bin/celetis`, or
-`<base>\.local\bin\celetis.cmd` on Windows ("First install"). Write it as JSON data, with no shell
-quotes inside the value. Keep the resolved machine path local. The native preview port must match
-the actual port in the printed URL. The example uses the default starting port. If automatic
-selection moves to another port, open the printed URL or adjust the local preview entry:
-
-```json
-{
-  "name": "board",
-  "runtimeExecutable": "<command>",
-  "runtimeArgs": ["--agent", "claude", "board"],
-  "port": 4403
-}
-```
-
-The program needs `bun` on the `PATH` of the desktop app: its entry sets the isolation of Bun.
-The [desktop field contract](https://code.claude.com/docs/en/desktop#configuration-fields) keeps
-the executable and the argument array separate. The historical marker-only
-contract check covered those data boundaries; native desktop launch remains UNRUN
-(`docs/workflow.md`, "Limits"). The terminal start has separate acceptance evidence.
 
 ### The wiring on the trunk
 
@@ -1125,7 +1098,6 @@ usage: celetis [--agent <host>] <command> [<argument>...]
 
   celetis update                              Updates the program and the plugin of each host; asks once.
   celetis update check                        Shows the installed and the available revision of each part.
-  celetis board                               Starts the board of the project in this checkout.
   celetis setup status                        Reports each part of the required wiring that this checkout lacks; writes nothing.
   celetis agents read                         Reads the local ordered agent preference and its version.
   celetis agents replace '<JSON>'             Replaces the local order using order and expectedVersion.
@@ -1138,8 +1110,8 @@ usage: celetis [--agent <host>] <command> [<argument>...]
   celetis run retry <n> <wait-id>             Asks the daemon to wake the quota waiter of an issue for one attempt cycle.
   celetis queue action '<QueueAction JSON>'   Saves a queue action; asks the daemon to run its authorized wake.
   celetis queue status                        Reads the current queue and its allowed actions.
-  celetis daemon start                        Starts the master daemon of this repository, detached, and waits until it answers.
-  celetis daemon status                       Shows the daemon, its auto mode, and its runs.
+  celetis daemon start                        Starts the master daemon of this repository, detached, waits until it answers, and prints the board URL.
+  celetis daemon status                       Shows the daemon, the board URL, its auto mode, and its runs.
   celetis daemon stop                         Stops the daemon and waits until its process ends.
   celetis daemon auto on|off                  Turns auto mode of the daemon on or off, and prints its state.
   celetis lesson-store read main|active       Reads validated lessons; requires explicit --agent.
@@ -1172,7 +1144,7 @@ setup"):
 | `celetis --agent <host> run <n> [--quiet] \| run resume <n> \| run retry <n> <wait-id>` | Each form sends one request to the master daemon of the repository of the current folder and returns at its answer. `run <n>` starts the next step of the issue, `run resume <n>` opens the saved session of a step with no progress again, and `run retry <n> <wait-id>` wakes the quota waiter of the issue for one attempt cycle. `--quiet` opens each session tab of the start in the background; `run resume` ignores it. An accepted start prints `run: #<n>: accepted as run <run id> of the daemon PID <pid>; read its progress: celetis daemon status`, and an accepted Retry prints `run: #<n>: Retry requested; the waiting run starts one bounded attempt cycle`; both exit 0. A refusal prints the line of the daemon, on stdout for code 0 and on stderr otherwise, and exits with its code. With no daemon, it exits 3 and starts nothing. It exits 1 when the daemon runs another revision of the program, and 6 when the daemon does not answer or the outcome is unknown. On Windows it exits 2 with `run: Windows is not a support target`. Any other form exits 2 with the usage line |
 | `celetis --agent <host> run <n> --effort <level>` | Asks the daemon to start the next step of the issue at `low`, `medium`, `high`, `xhigh`, or `max` instead of its decided or default level; the request carries the level, for the first session of this start only. Each later step uses its own decision, and the flag writes no decision. It needs exactly one issue number; any other form exits 2 with the usage line |
 | `celetis --agent <host> queue status \| queue action '<QueueAction JSON>'` | `status` prints the view of the queue as JSON. `action` saves one validated action and prints the view; when the action gives a wake, it then sends that wake to the master daemon and prints the answer as `run` does, with the prefix `queue:`. An Add to an empty queue, a Continue, and a Retry exit 3 with no daemon and save nothing. `--quiet` opens each session tab of the wake in the background. It exits 2 for another form or an agent that differs from the agent choice of the queue, and 1 for a refused action |
-| `celetis --agent <host> daemon start \| status \| stop \| auto on\|off` | Starts, reads, and stops the master daemon of the repository of the current folder (`docs/workflow.md`, "The master daemon"); `auto on\|off` turns auto mode of the daemon on or off and prints `daemon: auto mode <state>`. For `start`, `status`, and `stop` the optional `--agent` selects nothing; for `auto` it selects the host of the auto steps. `start` spawns the daemon detached and exits 0 when it answers, or when a daemon already runs; it exits 1 when `gh`, `hc`, or the Herdr app is missing, or when the daemon ends or stays silent for 30 seconds. `status` prints the daemon, its auto mode, and one line per run; it exits 3 when no daemon runs. `stop` exits 0 when the process ended or no daemon runs. `auto` exits 0 with the state, 3 when no daemon runs, 1 when the daemon runs another revision of the program, the code of a refusal, or 6 when the outcome is unknown. Each form exits 6 when a daemon is known but its process or socket does not answer; `stop` exits 6 too when the process stays for 60 seconds. Windows and any other form exit 2 |
+| `celetis --agent <host> daemon start \| status \| stop \| auto on\|off` | Starts, reads, and stops the master daemon of the repository of the current folder (`docs/workflow.md`, "The master daemon"); `auto on\|off` turns auto mode of the daemon on or off and prints `daemon: auto mode <state>`. For `start`, `status`, and `stop` the optional `--agent` selects nothing; for `auto` it selects the host of the auto steps. `start` spawns the daemon detached, which serves the board ("The agent board"), and exits 0 when it answers, or when a daemon already runs; it then prints `daemon: board http://127.0.0.1:<port>`, except for a daemon of another revision. It exits 1 when `gh`, `hc`, or the Herdr app is missing, or when the daemon ends or stays silent for 30 seconds, for example when its board port cannot open. `status` prints the daemon, the board URL, its auto mode, and one line per run; it exits 3 when no daemon runs, and 1 when the daemon runs another revision of the program. `stop` exits 0 when the process ended or no daemon runs. `auto` exits 0 with the state, 3 when no daemon runs, 1 when the daemon runs another revision of the program, the code of a refusal, or 6 when the outcome is unknown. Each form exits 6 when a daemon is known but its process or socket does not answer; `stop` exits 6 too when the process stays for 60 seconds. Windows and any other form exit 2 |
 | `celetis --agent <host> intake` | Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters `celetis:intake` with that request. It creates no issue before the answer and does not start a run |
 | `celetis --agent <host> assist <n>` | Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses `issue <n> assisted <file>` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume a run or land |
 | `celetis --agent <host> visual <n> <sha>` | Starts a fresh interactive session in the main checkout that makes the `visual-explainer` diff review of the landed commit `<sha>` of the issue `<n>`. It fetches the trunk from `origin` and refuses a commit that is not on it, and a commit whose page exists. The host writes `docs/superpowers/visuals/<sha>.html` and opens it, changes no other file, and makes no commit. A host with no `visual-explainer` skill says so in the tab and writes no file. The board's Make visual starts this command |
@@ -1275,20 +1247,34 @@ records this exception to the terminal-only confirmation of ADR-0028.
 The board shows a small nonmodal update dialog. **Later** defers its exact offer in the current
 tab; **Update available** opens it again. **Hide progress** leaves the update running. A failed
 update lists completed and incomplete parts and requires **Check again** before a new attempt.
-The page reloads once after the approved revision and a new board instance answer at the same
-URL. View, notification, and shortcut settings survive. If reconnect takes more than 60 seconds,
-the page keeps a recovery instruction with the main checkout, startup host, and actual PORT.
+The page reloads once after the new daemon answers with the approved revision at the same URL.
+View, notification, and shortcut settings survive. If reconnect takes more than 60 seconds, the
+page shows `From <main>, run celetis daemon status; when no daemon runs, run celetis daemon start`.
 The update may have completed; the page does not try installation again.
 
-Codex and Claude sessions, the daemon, and boards can stay open, except for the move of #141 below. The updater never stops their
+Codex and Claude sessions and the daemon can stay open, except for the move of #141 below. The updater never stops their
 processes or requires the Codex daemon to stop. It uses each host's native cache replacement.
 A fresh session loads the updated skills and tools; old cache files are not guaranteed to remain
-available to running work. Restart a session or board if it still needs a resource that the host
-replaced. A successful update approved in the board restarts only that board. An update approved
-in a terminal keeps the manual board restart. This user-selected policy supersedes the
-consumer-exit rule of ADR-0027; see ADR-0028.
+available to running work. Restart a session or the daemon if it still needs a resource that the
+host replaced. A successful update approved in the board restarts the daemon that serves that
+board: the daemon stops as `celetis daemon stop` does and starts one new process of the installed
+program, which takes over the runs. The agent sessions keep running in their tabs. A
+`celetis daemon stop` or a signal during that restart cancels the new process, so no daemon runs. A
+daemon that runs from a checkout does not restart; the dialog shows `Update completed`. An update
+approved in a terminal does not restart the daemon. After it, the board of a daemon that runs from
+a version folder shows **Restart needed** within 10 seconds: the daemon runs another program than
+the installed one. **Later** keeps **Restart needed** on the control. One click on **Restart** validates the installed program
+and restarts the daemon on it in the same way. The terminal restart (`celetis daemon stop`, then
+`celetis daemon start`) stays. A daemon that runs from a checkout never shows **Restart needed**.
+This user-selected policy supersedes the
+consumer-exit rule of ADR-0027; see ADR-0028 and
+[ADR-0077](docs/adr/0077-the-master-daemon-hosts-the-board-and-restarts-as-a-successor.md).
 
-The daemon or a board that runs keeps the version folder of its program. Before each new step
+An install or an update keeps the three newest version folders, the current one, and the folder
+of the program that runs that install. A daemon that stays open through three later updates can
+lose its version folder; it then prints
+`daemon: the program version of this daemon was removed after an update; start the daemon again`
+and exits 1. Before each new step
 session, the daemon compares the revision of the plugin of the session's host with
 its own revision. When they differ, it starts no session and prints
 `celetis: the <host> plugin is at <12> and this program is at <12>; run celetis update, then start the daemon again`.
@@ -1296,10 +1282,10 @@ For the daemon, that means: run `celetis update`, restart the daemon, then send 
 `--resume` has no such check. So a host that updates its plugin by itself stops each new
 step until `celetis update` and a restart of the daemon. The check reads the Git source of the
 plugin, so an installation whose marketplace source is not Git, such as a local Codex marketplace,
-cannot start a new step. After `celetis update`, restart the daemon with
-`celetis daemon stop`, then `celetis daemon start`; a `run` or `queue` form of another revision refuses with
-exit 1 until then. The board starts the command of the installed program at each press, so after
-that restart its next Run uses the new program.
+cannot start a new step. After `celetis update`, restart the daemon with **Restart** in the board,
+or with `celetis daemon stop`, then `celetis daemon start`; a `run` or `queue` form of another
+revision refuses with exit 1 until then. The daemon serves the board, so that restart also gives the board the new
+program.
 
 **The move of #141.** The update that names the workflow, the daemon, and a run moves the state of
 each repository from the old names to the new ones (`docs/workflow.md`, "The move of the old
@@ -1365,37 +1351,43 @@ Until the program is installed, the skills of the new release stop with the inst
 The board is `engine/board/` of the plugin, a part of its engine. It shows each agent session and
 the next step of each issue, and starts a step with one press. A blocked issue has Open agent as
 its main action in Now, Pipeline, details, the card menu, and search. Enter opens assistance;
-Open issue remains a secondary action, and `o` still opens the issue. Start it in the main
-checkout or one of its subfolders, then open the URL on its last line:
+Open issue remains a secondary action, and `o` still opens the issue. The master daemon of the
+repository serves it: run `celetis daemon start` in a checkout of the repository, then open the URL
+on its last line. `celetis daemon status` prints the URL again:
 
-```bash
-celetis --agent <host> board
-PORT=4500 celetis --agent <host> board
+```text
+daemon: board http://127.0.0.1:4403
 ```
 
-The command takes no arguments. It validates the main checkout's `.celetis.yaml` and refuses a
-lane start before it starts the board. The start prints two lines: the main checkout and the
-URL. Each refresh reads the issue data in the board process,
+With no daemon, nothing serves the board. The daemon validates the main checkout's
+`.celetis.yaml` at its start, and it opens the board port before it takes over its runs. Until the
+takeover ends, the board serves the page and its reads, and the daemon refuses each Run, Resume,
+Retry, and queue action with `daemon: the daemon takes over its runs; send the request again after
+its start`. The daemon log gets two lines: the main checkout and the URL. Each refresh reads the
+issue data in the daemon process,
 with the resolver and the locks of the engine and a fresh operation of the main checkout. So a
 change of `gates` in the main YAML shows at the next refresh. The board checks local
 change hints each second and reads the affected issues. A disappeared session also selects its
 known issue. Full reads keep their five-minute schedule to recover direct GitHub edits, and a
 queued full read takes priority after an active selected read. Selected reads retain the
 last-full-read timestamp. No config file is made.
-Only `board.port` comes from YAML at the start; its default is 4403. Without an effective
-`PORT`, the board tries consecutive loopback ports from that start through 65535 and keeps the
-first successful bind. This repository starts at 4404. A nonzero `Number(PORT)` requests that
-exact port; zero or NaN means no override. Invalid effective values retain Bun's error. An
-occupied exact port or an exhausted automatic range exits 1. Other bind errors stop the search.
-The printed URL is authoritative. The listening port stays fixed until shutdown; an update
-restart requests that actual port exactly so the browser can reconnect. Restart the board after
-a configuration port change. For an update, follow [Updates](#updates), including resource limits for open work,
-and start the board again for its new code.
+Only `board.port` comes from YAML at the start of the daemon; its default is 4403. Without an
+effective `PORT` in the environment of the daemon, the board tries consecutive loopback ports from
+that start through 65535 and keeps the first successful bind. This repository starts at 4404. A
+nonzero `Number(PORT)` requests that exact port; zero or NaN means no override. Invalid effective
+values retain Bun's error. An occupied exact port or an exhausted automatic range stops the start
+of the daemon: `daemon start` exits 1, and the daemon log has the line of the board. Other bind
+errors stop the search. The printed URL is authoritative. The listening port stays fixed until the
+daemon stops. Restart the daemon (`celetis daemon stop`, then `celetis daemon start`) after a
+configuration port change. For an update, follow [Updates](#updates), including resource limits
+for open work. An update approved in the board restarts the daemon by itself; after a terminal
+update, restart the daemon for the new board code.
 
 The `agents` entries of the data report executable availability for Claude and Codex. Sign-in,
-trust, and enabled plugin discovery need their own checks. A Run press sends one request to the
-master daemon of the repository through the fixed adapter `engine/board/adapter.ts`. The daemon
-opens the session tab, and `quiet` keeps that tab in the background:
+trust, and enabled plugin discovery need their own checks. A Run press is one request of the
+daemon that serves the board: the fixed adapter `engine/board/adapter.ts` gives it to the request
+dispatcher of the daemon in the same process, with the parser and the answers of a socket request.
+The daemon opens the session tab, and `quiet` keeps that tab in the background:
 
 ```text
 POST /run {"number":<n>,"selection":<selection>,"effort":<level>|null,"quiet":true}
@@ -1403,24 +1395,18 @@ POST /run {"number":<n>,"selection":<selection>,"effort":<level>|null,"quiet":tr
 
 A Run with no agent choice sends the selection `{}`, so the daemon selects from the effective
 order of each step: its preferred agent when the local order includes it, then the local ordered
-preference ("Agent selection and model setup"). The `--agent` or `CELETIS_AGENT` of the board
-start does not pin it. An explicit Run choice sends `{"explicit":"<agent>"}` and changes only
+preference ("Agent selection and model setup"). The `CELETIS_AGENT` of the daemon does not pin
+it. An explicit Run choice sends `{"explicit":"<agent>"}` and changes only
 that start, also when that agent is limited. Unknown or unavailable Run choices return 409 and start
 no agent. When every included agent is limited, a default Run is still accepted, and the run
 waits. A Resume press sends `POST /resume {"number":<n>,"selection":{}}`, and the daemon opens the
 session tab in front. The run uses the host and the exact session ID of the saved record, even
 after the local order changes.
 
-Each request needs a running daemon (`celetis daemon start`). A refusal shows as the toast
-`Run failed` or `Resume failed` above the line of the daemon. The request waits at most 120 seconds
-for the answer, and the card shows `Starting` while it waits. After the answer, the card follows
+A refusal shows as the toast `Run failed` or `Resume failed` above the line of the daemon. The
+card shows `Starting` while the request waits for the answer. After the answer, the card follows
 the run of the press in the status of the daemon: it keeps `Starting` until the session appears,
-and it shows the reason of a run that ends before a session. A request with no answer has an
-unknown outcome: the board does not send it again, the page shows no toast, and the card keeps
-`Starting` with `run: the outcome of the request is unknown: <cause>; read celetis daemon status`.
-Read
-`celetis daemon status`; the card keeps that state until a session of the issue, a stop of the
-daemon, or a restart of the board.
+and it shows the reason of a run that ends before a session.
 
 At each Open agent press, the fixed adapter reads the installed program. `<command>` is its
 command: `<base>/.local/bin/celetis`, or `<base>\.local\bin\celetis.cmd` on Windows ("First
@@ -1463,10 +1449,10 @@ that a run or a press opens makes it, and the app shows it, also for a quiet ses
 app starts the first tab of that space through its own login shell, so that tab keeps a shell
 after its program. The program
 supplies Bun and its isolation flags. Each press of Open agent or Make visual reads the program
-again, and a Run, Resume, Retry, or queue action sends its request to the daemon, which runs its
-own program. So after
-`celetis update` and a restart of the daemon the next press uses the new program with no board
-restart; new board code still needs a restart. A missing or foreign program returns 409 before any terminal starts.
+again, so after `celetis update` the next such press uses the new program. A Run, Resume, Retry,
+or queue action goes to the daemon, which runs its own program, and the board runs that program
+too: after `celetis update`, a restart of the daemon loads the new program for the runs and the
+board. A missing or foreign program returns 409 before any terminal starts.
 Read-only `hc` calls can precede that failure.
 
 Queue opens a dedicated view with current work above Up next. The available-issue picker sits
@@ -1475,7 +1461,7 @@ waiting Up/Down/Remove edits save immediately, including during a run or stop. T
 only current and waiting work. The Agent choice of Add is the default order or one host, and it
 stays fixed while the queue is nonempty. Continue and Try again follow
 fresh engine permissions. Saved/starting is distinct from a verified running session. Accepted
-order survives reload and board restart. Finished work leaves automatically. Back to board
+order survives reload and a restart of the daemon. Finished work leaves automatically. Back to board
 restores Now/Pipeline; search and Go remain available.
 
 The agent order sits in the footer. Its pill stacks the icons of the included agents in priority

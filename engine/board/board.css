@@ -3036,50 +3036,44 @@ a.chip2:hover {
   position-anchor: --statusbar;
   z-index: 100;
   inset: auto 20px calc(anchor(--statusbar top) + 8px) auto;
-  width: min(380px, calc(100vw - 24px));
+  width: min(340px, calc(100vw - 24px));
   max-height: calc(100dvh - anchor-size(--statusbar height) - 20px);
   margin: 0;
-  padding: 20px;
+  padding: 16px;
   overflow: auto;
   border: 1px solid var(--line-strong);
-  border-radius: 14px;
-  background: var(--card);
+  border-radius: 10px;
+  background: var(--panel);
   color: var(--fg);
-  box-shadow: var(--float);
+  box-shadow: none;
   font: inherit;
   scrollbar-color: var(--fg3) var(--card);
 }
 .update-dialog h2 {
-  font-size: 18px;
-  font-weight: 620;
-  line-height: 1.25;
-  letter-spacing: -0.025em;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 .update-description {
-  margin: 10px 0 14px;
+  margin: 4px 0 0;
   font-size: 13px;
   color: var(--fg2);
-  line-height: 1.6;
+  line-height: 1.5;
 }
 .update-revisions {
-  display: flex;
-  gap: 18px;
-  color: var(--fg2);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 12px 0 0;
+  color: var(--fg3);
   font-size: 12px;
 }
-.update-installed {
-  display: grid;
-  gap: 8px;
-}
-.update-installed > span,
-.update-target {
-  display: grid;
-  align-content: start;
-  gap: 3px;
+.update-revisions:empty {
+  display: none;
 }
 .update-revisions code {
-  font: 12px var(--mono);
-  color: var(--fg);
+  font: 11.5px / 1.6 var(--mono);
+  color: var(--fg2);
 }
 .update-status {
   margin: 14px 0 0;
@@ -3103,8 +3097,8 @@ a.chip2:hover {
   background: currentColor;
 }
 .update-note {
-  margin: 14px 0 0;
-  color: var(--fg2);
+  margin: 0;
+  color: var(--fg3);
   font-size: 12px;
 }
 .update-failure,
@@ -3123,22 +3117,35 @@ a.chip2:hover {
 }
 .update-actions {
   display: flex;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 18px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.update-buttons {
+  display: flex;
+  gap: 4px;
 }
 .update-actions .btn {
-  min-height: 38px;
-  padding: 8px 14px;
+  height: 28px;
+  padding: 0 10px;
+}
+.update-actions .ghost {
+  background: transparent;
+  color: var(--fg3);
+}
+.update-actions .ghost:hover {
+  color: var(--fg);
 }
 .update-actions .primary {
-  background: var(--primary);
-  color: var(--on-primary);
-  border-color: transparent;
+  border: 1px solid var(--line-strong);
+  background: var(--fill);
+  color: var(--fg);
 }
 .update-actions .primary:hover {
-  opacity: 0.88;
+  background: var(--fill-strong);
 }
 .update-actions .btn:disabled {
   cursor: wait;
@@ -3146,6 +3153,13 @@ a.chip2:hover {
 }
 .update-open {
   flex: none;
+}
+.update-open.is-accent {
+  background: color-mix(in srgb, var(--needs-tint) 10%, transparent);
+  color: var(--needs);
+}
+.update-open.is-accent:hover {
+  background: color-mix(in srgb, var(--needs-tint) 13%, transparent);
 }
 .update-open[aria-disabled="true"] {
   color: var(--working);
@@ -3155,12 +3169,13 @@ a.chip2:hover {
 @media (max-width: 719px) {
   .update-dialog {
     right: 12px;
-    padding: 18px;
+  }
+  .update-actions {
+    flex-direction: column;
+    align-items: stretch;
   }
   .update-actions .btn {
-    min-height: 44px;
-  }
-  .update-actions .primary {
+    height: 44px;
     flex: 1;
   }
   .update-open {

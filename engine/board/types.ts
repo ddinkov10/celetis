@@ -11,7 +11,16 @@ export type BoardOffer = {
   parts: { part: 'program' | Host; installed: string; target: string }[];
 };
 export type UpdateView = {
-  phase: 'checking' | 'current' | 'available' | 'updating' | 'restarting' | 'check-failed' | 'update-failed';
+  phase:
+    | 'checking'
+    | 'current'
+    | 'available'
+    | 'restart-needed'
+    | 'updating'
+    | 'restarting'
+    | 'updated'
+    | 'check-failed'
+    | 'update-failed';
   offer: BoardOffer | null;
   target: string | null;
   stage: UpdateStage | null;
@@ -24,6 +33,8 @@ export type BoardRuntime = { revision: string; instance: string };
 export type UpdateResponse = { runtime: BoardRuntime; update: UpdateView };
 export type UpdateCheckRequest = Record<string, never>;
 export type UpdateStartRequest = { offerId: string };
+export type UpdateRestartRequest = Record<string, never>;
+export type UpdateRestartResponse = { runtime: BoardRuntime; target: string };
 
 export type Flow = {
   lanes: Record<string, string[]>;
@@ -81,11 +92,7 @@ export type Document = {
   agents: Record<string, { available: boolean; cause: string | null }>;
   queue: QueueView | null;
 };
-export type DaemonView =
-  | { kind: 'runs'; pid: number; auto: 'on' | 'off' | 'stopping' }
-  | { kind: 'none' }
-  | { kind: 'unknown'; line: string }
-  | { kind: 'restart'; line: string };
+export type DaemonView = { pid: number; auto: 'on' | 'off' | 'stopping' };
 export type QuotaWait = { number: number; waitId: string; nextResetAt: number | null };
 export type QuotaState = { kind: 'waiting'; wait: QuotaWait } | { kind: 'orphaned' };
 export type AgentPickerView = {

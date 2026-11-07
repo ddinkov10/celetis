@@ -1748,6 +1748,7 @@ export function autoLoop(
     launch: <T extends Readonly<{ handle: RunHandle }>>(start: () => T) => T;
     leaving?: () => void;
     journal: Journal;
+    adopted?: Promise<number>;
   },
 ): { admitted: Promise<Admission>; done: Promise<number> } {
   const { main, common, root } = place;
@@ -1779,6 +1780,11 @@ export function autoLoop(
       const holder = await locks.take('auto');
       if (holder !== null) die(`auto mode of another daemon or its session has PID ${holder}`);
       admit({ ok: true });
+      if (options.adopted) {
+        const code = await Promise.race([options.adopted, aborted]);
+        if (code) return code;
+        initial = undefined;
+      }
       while (running()) {
         if (await gone(root)) {
           hooks.removed();

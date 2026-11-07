@@ -36,7 +36,7 @@
   <span class="sb-item" id="terminal"><i class="dot"></i><span class="sb-name">herdr</span><span class="sb-text">checking</span></span>
   <span class="sb-item" id="daemon" hidden></span>
   <div class="agent-picker" id="agent-picker" hidden></div>
-  <button type="button" class="sb-btn update-open" id="update-open" aria-controls="update-dialog" aria-expanded="false" aria-label="Check for Celetis updates" title="Check for Celetis updates"><span class="label">Check for updates</span></button>
+  <button type="button" class="sb-btn update-open" id="update-open" aria-controls="update-dialog" aria-expanded="false" aria-label="Celetis: Check for updates" title="Celetis: Check for updates"><span class="label">Check for updates</span></button>
   <span class="sb-end">
     <span class="hints" id="hints" aria-hidden="true"></span>
     <button type="button" class="sb-btn" id="history-count" aria-controls="panel" title="Open landed history"><span class="sb-name">Landed</span><b id="history-total">0</b></button>
@@ -78,13 +78,15 @@
   <p class="update-description" id="update-description"></p>
   <div class="update-revisions" id="update-revisions"></div>
   <p class="update-status" id="update-progress" aria-hidden="true"></p>
-  <p class="update-note" id="update-note"></p>
   <p class="update-error" id="update-error" hidden></p>
   <p class="update-recovery" id="update-recovery" hidden></p>
   <div class="update-actions">
-    <button type="button" class="btn ghost" id="update-later">Later</button>
-    <button type="button" class="btn primary" id="update-start">Update and restart</button>
-    <button type="button" class="btn primary" id="update-check" hidden>Check again</button>
+    <p class="update-note" id="update-note"></p>
+    <div class="update-buttons">
+      <button type="button" class="btn ghost" id="update-later">Later</button>
+      <button type="button" class="btn primary" id="update-start">Update and restart</button>
+      <button type="button" class="btn primary" id="update-check" hidden>Check again</button>
+    </div>
   </div>
 </dialog>
 <script type="module" src="/board.js"></script>

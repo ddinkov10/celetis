@@ -121,6 +121,16 @@ export async function readProgram(paths = programPaths()): Promise<Program | nul
   return program;
 }
 
+export async function installedProgram(target: string): Promise<Program> {
+  const program = await readProgram(programPaths());
+  if (!fullRevision.test(target) || !program || program.revision !== target)
+    throw new HostError('update: the installed program is not the approved target; check again');
+  const source = await programSource(program.root);
+  if (source.revision !== target || (await installedRevision('program', program.root, source.source)) !== target)
+    throw new HostError('update: the installed program identity differs from the approved target; check again');
+  return program;
+}
+
 export async function programSource(root: string): Promise<ProgramSource> {
   const source = await git(['config', '--get', 'remote.origin.url'], root);
   const branch = await git(['symbolic-ref', '--short', 'HEAD'], root);

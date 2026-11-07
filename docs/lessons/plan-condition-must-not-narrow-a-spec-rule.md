@@ -2,16 +2,39 @@
 {
   "schema": 1,
   "name": "plan-condition-must-not-narrow-a-spec-rule",
-  "description": "A plan changed a spec rule or its condition, and the build dropped a required case",
+  "description": "A plan or a repair ruling changed a spec rule or its condition with no maintainer decision, and the build dropped a required case",
   "tags": [
     "process",
     "ui",
     "recurring"
   ],
-  "date": "2026-11-02",
+  "date": "2026-11-07",
   "status": "active",
-  "source": "Task 3 review of #182 (ddinkov10/celetis), controller-confirmed reproduction",
+  "source": "Final review of ddinkov10/celetis#250, implement step session (coordinator incident)\n\nTask 3 review of #182 (ddinkov10/celetis), controller-confirmed reproduction",
   "incidents": [
+    {
+      "id": "eb9f3f71-4777-471e-affb-ba3a6017407c",
+      "date": "2026-11-07",
+      "action": "After the Task 3 review, the coordinator ruled that an automatic open of the board's update dialog keeps the focus where it is, and that Escape with the focus inside the dialog still closes it. The fix (88c9a37) followed the ruling. The coordinator did not list the other required behaviors of the same dialog against the new open mode.",
+      "expected": "The spec rule \"The dialog is nonmodal, Escape closes it, and focus returns to the control\" keeps holding for each open mode, or a maintainer decision records a narrower rule.",
+      "observed": "The final review reproduced it on 7e5b20b, and the coordinator reran it: after the automatic open {\"open\":true,\"active\":\"BODY\"}; after Escape {\"open\":true,\"active\":\"BODY\"}. Escape closed the dialog only with the focus inside it.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "Playwright Chromium 1440x900 on the mock fr-mock/mock.ts (sha256 147c8af5...): after load {\"open\":true,\"active\":\"BODY\"}; after Escape with the focus on the body {\"open\":true,\"active\":\"BODY\"}",
+        "reference": "Final review report and runtime report of ddinkov10/celetis#250"
+      },
+      "inference": "Inferred by the coordinator: the ruling resolved one required behavior (no focus move) and took the Escape behavior as unchanged, because the old automatic open put the focus inside the dialog, where the dialog's own Escape handler works. The ruling text even said \"Escape with the focus inside the dialog\", which narrowed the rule. Uncertain whether a listing step would have been done under time pressure.",
+      "diagnosis": [
+        "not-followed"
+      ],
+      "revision": "88c9a37",
+      "brief": "The Task 3 brief and its repair message carried plan-condition-must-not-narrow-a-spec-rule (sha256:6b5368a1...) with its rule (.superpowers/sdd/250/task-3-brief.md, Lesson rules).",
+      "lesson": {
+        "name": "plan-condition-must-not-narrow-a-spec-rule",
+        "revision": "b1c4a621bcd19a32f8badacd3515a039e560d318",
+        "digest": "6b5368a17a703d36bc27ed4fec41be2639d8729dab5cf59ba93344b624e82786"
+      }
+    },
     {
       "id": "5b1f0c2e-8a47-4d1e-9c3a-2f6e7d81a4b9",
       "date": "2026-11-02",
@@ -47,7 +70,7 @@
       "revision": "44d1e65"
     }
   ],
-  "recurrences": 1,
+  "recurrences": 2,
   "reviews": [
     {
       "id": "8385ab4c-cffb-479f-9c23-69fddfe2c2e9",
@@ -62,15 +85,30 @@
         "state": "proposed",
         "detail": "Consider a separate instruction change that compares each plan rule with its specification source during the existing acceptance coverage review. This review does not authorize that change."
       }
+    },
+    {
+      "id": "84bd20e4-e857-408a-b446-3987a7fe5fd0",
+      "requestDigest": "1434c2263251b770f6624dddca729679b27e7ad13325006f968ee93ada4fa244",
+      "date": "2026-11-07",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #250; claude child opus/high\n\nMerge under the reviewer rules: the active lesson plan-condition-must-not-narrow-a-spec-rule states the same rule, and the proposal names it as the lesson that its incident did not follow. The incident is observed: the repair message .superpowers/sdd/250/t3-fix1-message.txt of the lane holds the ruling \"Escape with the focus inside the dialog still closes it\", the plan context of #250 holds the spec rule \"the dialog is nonmodal, Escape closes it, focus returns to the control\", and the final review retains the Playwright output {\"open\":true,\"active\":\"BODY\"} after Escape. A repair ruling is a task brief that added a condition to a spec rule, so the active rule applies. The survivor keeps the active name and every incident and review, widens the applicability to repair briefs and review rulings, and adds the list of the sibling spec rules of the changed element, which the proposal adds. The cause stays labeled as the inference of the coordinator. The rule adds a check, weakens none, and agrees with the preserve-intended-behavior principle of the plugin celetis: an agent ruling cannot supersede a requirement.",
+      "related": [
+        "check-sibling-required-behaviors-before-a-repair-ruling",
+        "plan-condition-must-not-narrow-a-spec-rule"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "The earlier proposed follow-up stays open and now covers repair rulings too: the existing reviews compare each rule of a plan, a task brief, or a repair ruling that restates the spec with its source text, and with the other spec rules of the same element. It needs separate authorization; this review changes no skill or procedure."
+      }
     }
   ]
 }
 ---
-# A plan must not change a spec rule or its condition without a maintainer decision
+# A plan or a repair ruling must not change a spec rule or its condition without a maintainer decision
 
 ## What happened
 
-Two incidents. In #182, the plan added a link-label condition to the spec's session rule for a
+Three incidents. In #182, the plan added a link-label condition to the spec's session rule for a
 runner foreground. The build followed the plan. A hand-run `celetis-flow --resume <n>` sets no
 link label, so its terminal got no board card. The Task 3 review reproduced it at the
 `sessionsOf` boundary (`hand-run resume, no link label: []`), and fix 6506cd7 also accepts a
@@ -82,6 +120,17 @@ ends. The plan replaced "when the runner ends" with "when that issue run ends", 
 followed it. Verify V1 then showed that the app removes an empty space, so the build missed the
 spec rule for a start with more than one issue (a board Queue or the automatic runner).
 
+In #250, a task review found that an automatic open of the board's update dialog moved the
+keyboard focus, against the spec rule that the polite status region announces each state change
+with no focus move. The coordinator's repair ruling kept the focus in place for each automatic
+open, and said that Escape "with the focus inside the dialog" still closes it. The fix (88c9a37)
+followed the ruling. The final review then showed (Playwright Chromium on a mock server) that
+after an automatic open the dialog stayed open on Escape with the focus on the body:
+`{"open":true,"active":"BODY"}`. The only Escape handlers were on the dialog, and the focus was
+outside it. The spec says "The dialog is nonmodal, Escape closes it, and focus returns to the
+control", and no maintainer decision narrowed that rule. The task briefs and the repair message
+carried this lesson. The final fix wave (007e845) closes the dialog on Escape from anywhere.
+
 ## Root cause
 
 Inferred, not established: in #182 the condition was added to hold out a stale status between two
@@ -90,27 +139,48 @@ that a finished tab does not stay open while an automatic runner waits. In both 
 review did not hold the plan text to the spec rule text, and the change got no maintainer
 decision. The planning transcripts were not read.
 
+In #250, observed: the old automatic open put the focus inside the dialog, so the dialog's own
+Escape handler covered every open. Inferred by the coordinator: the ruling resolved one required
+behavior (no focus move) and did not check the other spec rules of the same dialog against the new
+open mode; its wording narrowed the Escape rule. The lesson was in context, so this is a
+recurrence of a rule that was not followed. Uncertain: whether a listing step would have been done
+under time pressure.
+
 ## Fix
 
 Proposed prevention (text, not enforced): when a plan states a rule that the spec states, quote
 the spec rule, and mark each difference (an added condition, a removed case, a changed scope) as
 a decision that the maintainer records before the build. List each mode or caller that the rule
 covers (for the runner: numbered, automatic, queue, resume) and check the plan rule against each
-one in a probe. This depends on judgment about which modes exist and which wording is a change,
-so it stays a text rule; a structural check would need a machine-readable spec rule, which the
-project does not have. A proposed follow-up, which needs separate authorization: the acceptance
-coverage review of the plan step compares each plan rule that quotes the spec with its source text.
+one in a probe.
+
+A repair ruling or a repair brief that changes how an element or an operation behaves in one mode
+can narrow another spec rule of the same element without naming it. So, before the ruling, list
+each spec rule of that element (for the dialog: no focus move, Escape closes it, focus returns to
+the control), state how the new mode keeps each one, and give each rule that the new mode can
+lose a probe case or a maintainer decision.
+
+This depends on judgment about which modes and rules exist and which wording is a change, so it
+stays a text rule; a structural check would need a machine-readable spec rule, which the project
+does not have. A proposed follow-up, which needs separate authorization: the acceptance coverage
+review of the plan step compares each plan rule that quotes the spec with its source text.
 
 ## Detection signature
 
 A plan sentence that adds `while`, `only when`, or `and` to a rule quoted from the spec, or
 replaces a scope word of the spec ("the runner", "the same start") with a narrower one, with a
-probe or a Verify scenario that covers fewer modes than the spec rule names.
+probe or a Verify scenario that covers fewer modes than the spec rule names. A ruling that changes
+how an element opens, takes the focus, or stops, and restates another rule of that element with a
+new condition ("with the focus inside the dialog").
 
 ## Rule
 
-Applies when a plan or a task brief changes a rule that the approved spec states: an added
-condition, a removed case, or a narrower scope. Action: quote the spec rule, name every mode,
-caller, or entry point that it covers, and add a probe case for each mode that the change can
-exclude. Check: each excluded mode is one that the spec excludes too, or the plan records a
-maintainer decision for it.
+Applies when a plan, a task brief, a repair brief, or a review ruling changes a rule that the
+approved spec states (an added condition, a removed case, or a narrower scope), or changes a mode
+of an element or an operation that other spec rules of that element cover (for example how a
+dialog opens, or when a process stops). Action: quote each affected spec rule, including each
+other rule of the same element that the changed mode can reach; name every mode, caller, or entry
+point that it covers; and add a probe case for each mode that the change can exclude. Check: each
+excluded mode is one that the spec excludes too, or the plan or the ruling records a maintainer
+decision for it; a repair brief names each sibling rule with its case, and the repair's probe runs
+each case.

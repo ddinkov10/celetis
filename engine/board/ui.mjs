@@ -228,7 +228,7 @@ var toast = (title, { detail = "", isError = false } = {}) => {
   }, 6000);
 };
 var SERVER_DOWN = "The board server does not answer";
-var RESTART = "Start the board again in a terminal.";
+var RESTART = "Start the daemon again in a terminal: celetis daemon start.";
 async function post(path, value, failure, options) {
   const controller = options ? new AbortController : undefined;
   const timeout = options ? setTimeout(() => controller?.abort(), options.timeout) : undefined;
@@ -241,18 +241,16 @@ async function post(path, value, failure, options) {
     });
     if (options) {
       if (response.ok)
-        return { status: "accepted" };
+        return { status: "accepted", body: await response.json().catch(() => null) };
       const body = await response.json();
       const error = typeof body?.error === "string" ? body.error : undefined;
       if (response.status >= 400 && response.status < 500 && error !== undefined)
         return { status: "rejected", error };
       return { status: "unavailable", ...error !== undefined ? { error } : {} };
     }
-    if (!response.ok) {
+    if (!response.ok)
       toast(failure, { detail: (await response.json()).error, isError: true });
-      return false;
-    }
-    return (await response.json())?.unknown === true ? "unknown" : "accepted";
+    return response.ok;
   } catch {
     if (options)
       return { status: "unavailable" };

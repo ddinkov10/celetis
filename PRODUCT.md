@@ -40,8 +40,9 @@ agent that waits.
 
 ## Operating Context
 
-- The board is a local page that `celetis --agent <host> board` serves from the main checkout. The
-  port comes from `PORT`, else `board.port` in `.celetis.yaml`, else 4403.
+- The board is a local page that the master daemon of the repository serves (`celetis daemon
+  start`). The port comes from `PORT`, else `board.port` in `.celetis.yaml`, else 4403.
+  `celetis daemon start` and `celetis daemon status` print its URL.
 - Sessions come from herdr-core (`hc`). The Herdr app shows the agent terminals as tabs. Issues come
   from `gh`.
 - The work is a set of lanes (`bug`, `feature`, `chore`, `hotfix`) with ordered steps. A gate says

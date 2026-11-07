@@ -16,6 +16,7 @@ import type {
   Document,
   LandedIssue,
   Session,
+  UpdateRestartResponse,
   VisualState,
 } from './types.ts';
 import type { UpdateController } from './updates.ts';
@@ -28,7 +29,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { basename, join, relative, resolve, sep } from 'node:path';
 import { AgentOrderConflict } from '../lib/agent-order.ts';
-import { type DaemonState, UnknownOutcome } from '../lib/daemon-client.ts';
+import type { DaemonStatus } from '../lib/daemon-types.ts';
 import { isLevel, type Level, levels } from '../lib/effort.ts';
 import { recordEvent } from '../lib/events.ts';
 import { commonDir } from '../lib/host.ts';
@@ -89,6 +90,7 @@ const POSTS = new Set([
   '/api/agent',
   '/api/update/check',
   '/api/update/start',
+  '/api/update/restart',
 ]);
 const CSP =
   "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src data:; " +
@@ -120,12 +122,7 @@ const cleanCause = (cause: unknown) =>
   firstLine(String(cause ?? ''))
     .replace(/[\u0000-\u001f\u007f]/g, '')
     .slice(0, 200);
-const daemonView = (state: DaemonState): DaemonView => {
-  if (state.kind === 'none') return { kind: 'none' };
-  if (state.kind === 'unknown' || state.kind === 'restart') return { kind: state.kind, line: state.line };
-  if (state.restart !== null) return { kind: 'restart', line: state.restart };
-  return { kind: 'runs', pid: state.status.daemon.pid, auto: state.status.auto };
-};
+const daemonView = (status: DaemonStatus): DaemonView => ({ pid: status.daemon.pid, auto: status.auto });
 const agentCause = (cause: unknown) => {
   const message = cause instanceof Error ? cause.message : String(cause);
   if (/\b(EACCES|EPERM)\b|permission denied/.test(message)) return 'access to local agent state was denied';
@@ -218,9 +215,8 @@ export const createBoard = ({
   let intakePending = false;
   const visualPresses = new Set<number>();
   type Press = { feedback: LaunchFeedback; at: number };
-  type Started = { run: string } | { run: null; warning: string };
   const presses: Record<string, Press> = {};
-  const pressRuns = new Map<number, { run: string | null; press: Press; since: number }>();
+  const pressRuns = new Map<number, { run: string; press: Press; since: number }>();
   let daemonReads = 0;
   const operations: Record<string, { step: string | null | undefined; observed: boolean }> = {};
   let shown = new Map<string, number | null>();
@@ -426,7 +422,7 @@ export const createBoard = ({
     return value;
   };
 
-  const followPresses = (state: DaemonState, read: number, busy: Set<number | null>) => {
+  const followPresses = (status: DaemonStatus, read: number, busy: Set<number | null>) => {
     for (const [number, record] of pressRuns) {
       if (read <= record.since) continue;
       record.since = read;
@@ -441,17 +437,8 @@ export const createBoard = ({
         pressRuns.delete(number);
         continue;
       }
-      if (state.kind === 'none') {
-        fail('The daemon stopped before the run of this press opened a session.');
-        continue;
-      }
-      if (state.kind === 'unknown' || state.kind === 'restart') {
-        if (run !== null) press.feedback = { step, kind: 'unknown', warning: cleanCause(state.line) };
-        continue;
-      }
-      if (run === null) continue;
-      const row = state.status.runs.find((row) => row.id === run);
-      if (!row) fail(`The daemon PID ${state.status.daemon.pid} has no run ${run.slice(0, 8)} of this press.`);
+      const row = status.runs.find((row) => row.id === run);
+      if (!row) fail(`The daemon PID ${status.daemon.pid} has no run ${run.slice(0, 8)} of this press.`);
       else if (row.session !== null) {
         pressRuns.delete(number);
         delete presses[number];
@@ -468,13 +455,6 @@ export const createBoard = ({
   };
 
   const placement = async ({ isLocal = false } = {}): Promise<Board> => {
-    const read = ++daemonReads;
-    const reading = adapter.daemon().catch(
-      (cause: unknown): DaemonState => ({
-        kind: 'unknown',
-        line: cleanCause(cause instanceof Error ? cause.message : cause),
-      }),
-    );
     const queue = await queueView();
     const { terminals, sessions: found, health } = await watchSessions();
     const dispositions = new Map(
@@ -498,7 +478,8 @@ export const createBoard = ({
     if (!isLocal) await readScreens(sessions);
     for (const session of sessions) session.screen = screens.get(session.sessionId);
     const busy = new Set(sessions.map((session) => session.issue));
-    const daemon = await reading;
+    const read = ++daemonReads;
+    const daemon = await adapter.status();
     followPresses(daemon, read, busy);
     const launches: Parameters<typeof place>[0]['launches'] = {};
     for (const number of new Set([...Object.keys(presses), ...Object.keys(operations)])) {
@@ -569,11 +550,10 @@ export const createBoard = ({
       refused,
     );
 
-  const started = async (request: () => Promise<string>): Promise<Started> => {
+  const started = async (request: () => Promise<string>) => {
     try {
-      return { run: await request() };
+      return await request();
     } catch (cause) {
-      if (cause instanceof UnknownOutcome) return { run: null, warning: cleanCause(cause.message) };
       throw new Refusal(409, cleanCause(cause instanceof Error ? cause.message : cause));
     }
   };
@@ -586,8 +566,8 @@ export const createBoard = ({
   const press = async (
     number: number,
     refusal: string,
-    prepare: () => Promise<{ card: Card; start: () => Promise<Started | undefined> }>,
-  ): Promise<boolean> => {
+    prepare: () => Promise<{ card: Card; start: () => Promise<string | undefined> }>,
+  ) => {
     if (
       number in operations ||
       pressRuns.has(number) ||
@@ -596,30 +576,22 @@ export const createBoard = ({
       throw new Refusal(409, refusal);
     const operation: { step: string | null | undefined; observed: boolean } = { step: undefined, observed: false };
     operations[number] = operation;
-    let unknown = false;
     try {
       const { card, start } = await prepare();
       operation.step = card.step;
       delete presses[number];
-      const result = await start();
+      const run = await start();
       const step = operation.step;
       const press: Press = {
-        feedback:
-          result === undefined
-            ? { step, kind: 'timed', expired: false }
-            : result.run === null
-              ? { step, kind: 'unknown', warning: result.warning }
-              : { step, kind: 'pending' },
+        feedback: run === undefined ? { step, kind: 'timed', expired: false } : { step, kind: 'pending' },
         at: now(),
       };
-      if (result !== undefined) pressRuns.set(number, { run: result.run, press, since: daemonReads });
-      unknown = result?.run === null;
+      if (run !== undefined) pressRuns.set(number, { run, press, since: daemonReads });
       if (!operation.observed) presses[number] = press;
     } finally {
       delete operations[number];
     }
     await refresh();
-    return unknown;
   };
 
   const choose = async (choice: unknown, unknown: string, work: 'run' | 'session'): Promise<AgentChoice> => {
@@ -937,6 +909,23 @@ export const createBoard = ({
       updateResponse = finished;
       return sendJson(response, 202, { runtime, update: updates().snapshot() });
     }
+    if (path === '/api/update/restart') {
+      if (Object.keys(input).length) throw new Refusal(400, 'the restart takes an empty object');
+      const finished = new Promise<void>((done) => {
+        response.once('finish', done);
+        response.once('close', done);
+      });
+      updateResponse = Promise.all([updateResponse, finished]).then(() => {});
+      let target: string;
+      try {
+        target = await updates().restart();
+      } catch (cause) {
+        const status = (cause as { status?: number }).status;
+        if (status === 409 || status === 503) throw new Refusal(status, (cause as Error).message);
+        throw cause;
+      }
+      return sendJson(response, 202, { runtime, target } satisfies UpdateRestartResponse);
+    }
     const starts: Record<string, (number: number) => Promise<unknown>> = {
       '/api/assist': assist,
       '/api/visual': visual,
@@ -964,7 +953,6 @@ export const createBoard = ({
       );
     } else if (Object.hasOwn(starts, path)) {
       const { number } = input;
-      let unknown = false;
       if (
         !['number', 'string'].includes(typeof number) ||
         !/^[1-9][0-9]*$/.test(String(number)) ||
@@ -981,9 +969,8 @@ export const createBoard = ({
           throw new Refusal(400, 'Run takes only the issue number, an agent, and an effort');
         if (effort !== undefined && !isLevel(effort))
           throw new Refusal(400, `the effort is not one of ${levels.join(', ')}`);
-        unknown = await runStep(Number(number), input.agent, effort);
-      } else unknown = (await (starts[path] as (number: number) => Promise<unknown>)(Number(number))) === true;
-      return sendJson(response, 200, unknown ? { ok: true, unknown: true } : { ok: true });
+        await runStep(Number(number), input.agent, effort);
+      } else await (starts[path] as (number: number) => Promise<unknown>)(Number(number));
     } else if (path === '/api/go') {
       await go(String(input.sessionId));
     } else if (path === '/api/agent') {

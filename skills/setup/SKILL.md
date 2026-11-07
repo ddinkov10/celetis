@@ -19,10 +19,10 @@ known effective local, user, managed, or native policy conflict. Generated polic
 that a host loaded it or that a stronger policy permits only confirmed updates. A project false
 value does not override a managed true value.
 
-Sessions, boards, and daemons may stay open. Discovery holds a short read lock and
-releases it before foreground execution; only updaters serialize on the update mutex. Native
-replacement can remove resources that open work still needs. The board restarts itself after its
-approved update succeeds. A person may restart other affected work.
+Sessions and daemons may stay open. Discovery holds a short read lock and releases it before
+foreground execution; only updaters serialize on the update mutex. Native replacement can remove
+resources that open work still needs. The daemon that serves the board restarts itself after an
+update approved in the board succeeds. A person may restart other affected work.
 A fresh session loads changed skills; an existing session does not reload them automatically.
 
 1. **The checkout.** Run in the main checkout of the product project, and enter no lane worktree. Run each call as `celetis --agent <host> setup <sub-command>`, with `<host>` the host that runs this session.

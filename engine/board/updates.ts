@@ -4,8 +4,11 @@ import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import type { Host } from '../lib/config-core.ts';
+import { stopLine } from '../lib/daemon-types.ts';
 import { recordEvent } from '../lib/events.ts';
+import { HostError } from '../lib/host.ts';
 import { bunArgs, childEnv } from '../lib/process.ts';
+import { installedProgram, programSource, readProgram } from '../lib/program.ts';
 import { containProcess, type Job } from '../lib/windows.ts';
 import type { PreparedUpdate, UpdateCheck, UpdateResult } from '../update.ts';
 import type { BoardOffer, UpdateStage, UpdateView } from './types.ts';
@@ -15,6 +18,7 @@ export interface UpdateController {
   snapshot(): UpdateView;
   check(): Promise<UpdateView>;
   start(id: string): void;
+  restart(): Promise<string>;
   close(): Promise<void>;
 }
 
@@ -238,12 +242,18 @@ export function createUpdates({
   main,
   env,
   recovery,
-  ready,
+  revision,
+  versioned,
+  busy,
+  relaunch,
 }: {
   main: string;
   env: NodeJS.ProcessEnv;
   recovery: string;
-  ready(target: string): Promise<void>;
+  revision: string;
+  versioned: boolean;
+  busy(): boolean;
+  relaunch(target: string): Promise<void>;
 }): UpdateController {
   main = realpathSync(main);
   const startupEnv = childEnv({ ...env });
@@ -266,15 +276,65 @@ export function createUpdates({
   let timer: ReturnType<typeof setTimeout> | undefined;
   let closed = false;
   let manual = false;
-  const snapshot = () => structuredClone(view);
+  let installed: string | null = null;
+  let reads = 0;
+  let applied = 0;
+  let watch: ReturnType<typeof setTimeout> | undefined;
+  const shown = (): UpdateView =>
+    versioned &&
+    installed !== null &&
+    installed !== revision &&
+    (view.phase === 'current' || view.phase === 'check-failed')
+      ? {
+          phase: 'restart-needed',
+          offer: null,
+          target: installed,
+          stage: null,
+          completed: [],
+          incomplete: [],
+          error: null,
+          recovery,
+        }
+      : view;
+  const snapshot = () => structuredClone(shown());
   const publicFailure = (error: unknown, fallback: string, report = false) => {
     const line = error instanceof Error ? error.message : String(error);
     console.error(line);
     if (report) recordEvent({ name: 'board-update', message: line });
     return error instanceof WorkerFailure ? error.publicMessage : fallback;
   };
-  const unavailable = () =>
-    Object.assign(new Error('this update offer is unavailable or consumed; check again'), { status: 409 });
+  const refusal = (status: 409 | 503, message: string) => Object.assign(new Error(message), { status });
+  const unavailable = () => refusal(409, 'this update offer is unavailable or consumed; check again');
+  const readInstalled = async () => {
+    const read = ++reads;
+    try {
+      const program = await readProgram();
+      if (program && program.revision !== revision && (await programSource(program.root)).revision !== program.revision)
+        return;
+      if (read > applied) {
+        applied = read;
+        installed = program?.revision ?? null;
+      }
+    } catch {}
+  };
+  const watchInstalled = async () => {
+    await readInstalled();
+    if (!closed) watch = setTimeout(() => void watchInstalled(), 5000);
+  };
+  const restartOn = async (target: string, fallback: string) => {
+    try {
+      await relaunch(target);
+    } catch (error) {
+      const line = publicFailure(error, fallback, true);
+      view = {
+        ...view,
+        phase: 'update-failed',
+        offer: null,
+        error: error instanceof HostError && error.message ? error.message : line,
+        recovery,
+      };
+    }
+  };
   const cancelTimer = () => {
     clearTimeout(timer);
     timer = undefined;
@@ -411,7 +471,7 @@ export function createUpdates({
               true,
             ),
           );
-        else view = { ...view, phase: 'restarting', error: null, recovery };
+        else view = { ...view, phase: versioned ? 'restarting' : 'updated', error: null, recovery };
       })
       .catch((error) => fail(publicFailure(error, 'update: replacement failed', true)))
       .then(() => {
@@ -421,25 +481,50 @@ export function createUpdates({
     applying = finished;
     void finished.then(async () => {
       if (view.phase !== 'restarting' || closed) return;
-      try {
-        await ready(approved.target);
-      } catch (error) {
-        fail(
-          publicFailure(
-            error,
-            'update: installation completed, but the board could not restart; use the recovery command',
-            true,
-          ),
-        );
-      }
+      await restartOn(
+        approved.target,
+        'update: installation completed, but the daemon could not restart; use the recovery command',
+      );
     });
+  };
+  const stopping = () => closed || busy() || view.phase === 'restarting';
+  const restart = async () => {
+    if (stopping()) throw refusal(503, stopLine);
+    await readInstalled();
+    const needed = shown();
+    if (needed.phase !== 'restart-needed' || needed.target === null)
+      throw refusal(409, 'update: no restart is needed; check again');
+    const target = needed.target;
+    try {
+      await installedProgram(target);
+    } catch (error) {
+      throw refusal(409, error instanceof Error ? error.message : String(error));
+    }
+    if (stopping()) throw refusal(503, stopLine);
+    if (shown().phase !== 'restart-needed') throw refusal(409, 'update: no restart is needed; check again');
+    cancelTimer();
+    manual = true;
+    view = {
+      phase: 'restarting',
+      offer: null,
+      target,
+      stage: null,
+      completed: [],
+      incomplete: [],
+      error: null,
+      recovery,
+    };
+    void restartOn(target, 'update: the daemon could not restart; check again');
+    return target;
   };
   const close = async () => {
     closed = true;
     cancelTimer();
+    clearTimeout(watch);
     active?.stop('update worker: board closed');
     await Promise.all([checking, applying]);
   };
   void check();
-  return { snapshot, check, start, close };
+  if (versioned) void watchInstalled();
+  return { snapshot, check, start, restart, close };
 }

@@ -1,14 +1,19 @@
 import { AgentOrderConflict, validateAgentOrder } from '../lib/agent-order.ts';
 import type { AgentChoice, AgentOrder, Host } from '../lib/config-core.ts';
-import { askDaemon, askQueue, type DaemonState, readDaemon, unknownOutcome } from '../lib/daemon-client.ts';
-import type { DaemonRequest, Selection } from '../lib/daemon-types.ts';
+import {
+  type DaemonRequest,
+  type DaemonStatus,
+  parseAnswer,
+  parseQueueAnswer,
+  type Selection,
+} from '../lib/daemon-types.ts';
 import type { Level } from '../lib/effort.ts';
-import { locateCheckouts } from '../lib/operation.ts';
 import { bunArgs, run } from '../lib/process.ts';
 import { type Program, readProgram } from '../lib/program.ts';
 import { parseQueueAction } from '../lib/queue.ts';
 import type { QueueAction, QueueView } from '../lib/queue-types.ts';
 import { isCommit } from '../lib/visual.ts';
+import type { BoardDaemon } from './start.ts';
 
 export type Adapter = Readonly<{
   intake(choice: AgentChoice): Promise<string[]>;
@@ -19,8 +24,8 @@ export type Adapter = Readonly<{
   queue(action: QueueAction, choice: AgentChoice): Promise<QueueView>;
   replaceAgentOrder(order: readonly Host[], expectedVersion: string): Promise<AgentOrder>;
   retryQuota(number: number, waitId: string): Promise<void>;
-  daemon(): Promise<DaemonState>;
-  reconcileQueue(signal: AbortSignal): Promise<QueueView>;
+  status(): Promise<DaemonStatus>;
+  reconcileQueue(): Promise<QueueView>;
 }>;
 
 const CONTROL = /[\u0000-\u001f\u007f]/;
@@ -57,10 +62,9 @@ const parseOrder = (value: unknown): AgentOrder => {
 
 export async function celetisAdapter(
   main: string,
+  daemon: BoardDaemon,
   read: () => Promise<Program | null> = readProgram,
 ): Promise<Adapter> {
-  const { common } = await locateCheckouts(main);
-  if (common === null) throw new Error('need a Git checkout');
   const program = async () => {
     const found = await read();
     if (!found)
@@ -69,10 +73,15 @@ export async function celetisAdapter(
     return found;
   };
   const start = async (request: Extract<DaemonRequest, { kind: 'run' | 'resume' }>) => {
-    const { answer } = await askDaemon(common, request, 'run');
+    const answer = parseAnswer(await daemon.send(request));
     if (!answer.accepted) throw new Error(answer.line);
-    if (answer.run === null) throw unknownOutcome('run', 'daemon: the daemon sent no run ID');
+    if (answer.run === null) throw new Error('daemon: the daemon sent no run ID');
     return answer.run;
+  };
+  const changeQueue = async (request: Extract<DaemonRequest, { kind: 'queue-action' | 'queue-reconcile' }>) => {
+    const answer = parseQueueAnswer(await daemon.send(request));
+    if (!answer.accepted) throw new Error(answer.line);
+    return answer.view;
   };
   const argv = async (args: (string | number)[]) => [(await program()).command, ...args.map(String)];
   const control = async (args: string[]) => {
@@ -89,16 +98,13 @@ export async function celetisAdapter(
     run: (number, choice, effort) =>
       start({ kind: 'run', number, selection: selectionOf(choice), effort: effort ?? null, quiet: true }),
     resume: (number) => start({ kind: 'resume', number, selection: {} }),
-    queue: async (input, choice) => {
-      const answer = await askQueue(common, {
+    queue: (input, choice) =>
+      changeQueue({
         kind: 'queue-action',
         action: parseQueueAction(input),
         selection: selectionOf(choice),
         quiet: true,
-      });
-      if (!answer.accepted) throw new Error(answer.line);
-      return answer.view;
-    },
+      }),
     replaceAgentOrder: async (order, expectedVersion) => {
       const replacement = { order: validateAgentOrder(order), expectedVersion };
       if (!VERSION.test(expectedVersion)) throw new Error('agents: expectedVersion must be an order version');
@@ -118,14 +124,10 @@ export async function celetisAdapter(
       return parseOrder(value);
     },
     retryQuota: async (number, waitId) => {
-      const { answer } = await askDaemon(common, { kind: 'retry', number, waitId }, 'run');
+      const answer = parseAnswer(await daemon.send({ kind: 'retry', number, waitId }));
       if (!answer.accepted) throw new Error(answer.line);
     },
-    daemon: () => readDaemon(common),
-    reconcileQueue: async (signal) => {
-      const answer = await askQueue(common, { kind: 'queue-reconcile' }, signal);
-      if (!answer.accepted) throw new Error(answer.line);
-      return answer.view;
-    },
+    status: () => daemon.status(),
+    reconcileQueue: () => changeQueue({ kind: 'queue-reconcile' }),
   };
 }

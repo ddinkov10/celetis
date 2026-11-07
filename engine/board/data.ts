@@ -15,10 +15,17 @@ import { jsonRow, nextBoard } from '../next-step.ts';
 import { readHistory } from './history.ts';
 import type { Document, Flow, Issue, QuotaState } from './types.ts';
 
-type Reconcile = (signal: AbortSignal) => Promise<QueueView>;
+type Reconcile = () => Promise<QueueView>;
 
 // Half of the 60-second read limit of the server, which leaves time for the read-view fallback.
 const RECONCILE_MS = 30_000;
+
+const reconciled = (reconcile: Reconcile, signal: AbortSignal) =>
+  new Promise<QueueView>((resolve, reject) => {
+    signal.throwIfAborted();
+    signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    reconcile().then(resolve, reject);
+  });
 
 export async function readBoard(main: string, reconcile: Reconcile, signal: AbortSignal): Promise<Document> {
   return readDocument(main, reconcile, signal);
@@ -40,11 +47,7 @@ async function readDocument(
   signal: AbortSignal,
   target?: { numbers: readonly number[]; previous: Document },
 ): Promise<Document> {
-  const operation = await createOperation(
-    await locateCheckouts(main),
-    { environment: process.env.CELETIS_AGENT },
-    'main',
-  );
+  const operation = await createOperation(await locateCheckouts(main), {}, 'main');
   const { data, stderr } = await nextBoard(operation, signal, target?.numbers);
   if (!data) {
     signal.throwIfAborted();
@@ -106,7 +109,7 @@ async function readDocument(
   signal.throwIfAborted();
   const view =
     !target || queue?.numbers.some((number) => target.numbers.includes(number))
-      ? await reconcile(AbortSignal.any([signal, AbortSignal.timeout(RECONCILE_MS)])).catch(() =>
+      ? await reconciled(reconcile, AbortSignal.any([signal, AbortSignal.timeout(RECONCILE_MS)])).catch(() =>
           readQueueView(operation, signal),
         )
       : target.previous.queue;

@@ -211,7 +211,7 @@ var runAction = (card, agent = null) => {
     title: reason ?? runTitle(card.step, data.flow, card.effort),
     isDisabled: Boolean(reason),
     run: reason ? async () => toast(reason, { isError: true }) : async () => {
-      if (await launch(card, "/api/run", agent ?? undefined) === "accepted")
+      if (await launch(card, "/api/run", agent ?? undefined))
         toast(`Started the ${card.step} step of #${card.number} in a new herdr tab`);
     }
   };
@@ -246,7 +246,7 @@ var levelEntries = (card) => {
       title: reason ?? startTitle(card.step, effort, level),
       isDisabled: Boolean(reason),
       run: reason ? async () => toast(reason, { isError: true }) : async () => {
-        if (await launch(card, "/api/run", undefined, level) === "accepted")
+        if (await launch(card, "/api/run", undefined, level))
           toast(`Started the ${card.step} step of #${card.number} at ${level} in a new herdr tab`);
       }
     }))
@@ -321,7 +321,7 @@ var actionsOf = (card) => {
         name: `Resume the ${card.step} session of #${card.number}`,
         title: "Open the session of this step again in a new herdr tab (Enter)",
         run: async () => {
-          if (await launch(card, "/api/resume") === "accepted")
+          if (await launch(card, "/api/resume"))
             toast(`Opened the ${card.step} session of #${card.number} in a new herdr tab`, {
               detail: "Switch to your terminal to see it."
             });
@@ -1016,17 +1016,8 @@ var drawHints = (card) => {
   }));
 };
 var daemonItem = (daemon) => {
-  if (daemon.kind === "runs") {
-    const { tone, title } = AUTO[daemon.auto];
-    return { text: `auto ${daemon.auto}`, tone, title: `The daemon PID ${daemon.pid} runs. ${title}` };
-  }
-  if (daemon.kind === "none")
-    return {
-      text: "off",
-      tone: "off",
-      title: "No daemon runs for this repository. Start it in a terminal: celetis daemon start"
-    };
-  return { text: daemon.kind === "unknown" ? "no answer" : "restart", tone: "fail", title: daemon.line };
+  const { tone, title } = AUTO[daemon.auto];
+  return { text: `auto ${daemon.auto}`, tone, title: `The daemon PID ${daemon.pid} runs. ${title}` };
 };
 var drawStatus = (source, isDown) => {
   const changed = isServerDown !== isDown;
@@ -1316,16 +1307,16 @@ var launch = async (card, path, agent, effort) => {
   render(false);
   if (document.activeElement === document.body)
     document.querySelector(`[data-key="${CSS.escape(keyOf(card))}"]`)?.focus({ preventScroll: true });
-  const sent = await post(path, {
+  const isOk = await post(path, {
     number,
     ...path === "/api/run" && agent ? { agent } : {},
     ...path === "/api/run" && effort ? { effort } : {}
   }, path === "/api/run" ? "Run failed" : path === "/api/assist" ? "Open agent failed" : "Resume failed");
-  entry.phase = sent ? "done" : "failed";
+  entry.phase = isOk ? "done" : "failed";
   settled = reads;
   render();
   load();
-  return sent;
+  return isOk;
 };
 var loadRequest;
 document.addEventListener("board-reconnect", () => {
@@ -1459,7 +1450,7 @@ var paletteItems = () => {
             key: "",
             title: runTitle(card.step, data.flow, card.effort),
             run: async () => {
-              if (await launch(card, "/api/run", id) === "accepted")
+              if (await launch(card, "/api/run", id))
                 toast(`Started the ${card.step} step of #${card.number} with ${display} in a new herdr tab`);
             }
           });
@@ -1591,6 +1582,10 @@ document.addEventListener("keydown", (event) => {
     return;
   if (event.target.closest?.("input, textarea, select, [contenteditable]"))
     return;
+  if (event.key === "Escape" && !$("menu").matches(":popover-open") && updates.dismiss()) {
+    event.preventDefault();
+    return;
+  }
   if (event.key === "Escape" && isHistoryOpen) {
     event.preventDefault();
     return setHistory(false);

@@ -247,20 +247,20 @@ export const toast = (title: string, { detail = '', isError = false } = {}) => {
 };
 
 export const SERVER_DOWN = 'The board server does not answer';
-const RESTART = 'Start the board again in a terminal.';
+const RESTART = 'Start the daemon again in a terminal: celetis daemon start.';
 
 export type PostOutcome =
-  | { status: 'accepted' }
+  | { status: 'accepted'; body: unknown }
   | { status: 'rejected'; error: string }
   | { status: 'unavailable'; error?: string };
-export function post(path: string, value: unknown, failure: string): Promise<false | 'accepted' | 'unknown'>;
+export function post(path: string, value: unknown, failure: string): Promise<boolean>;
 export function post(path: string, value: unknown, failure: string, options: { timeout: number }): Promise<PostOutcome>;
 export async function post(
   path: string,
   value: unknown,
   failure: string,
   options?: { timeout: number },
-): Promise<false | 'accepted' | 'unknown' | PostOutcome> {
+): Promise<boolean | PostOutcome> {
   const controller = options ? new AbortController() : undefined;
   const timeout = options ? setTimeout(() => controller?.abort(), options.timeout) : undefined;
   try {
@@ -271,17 +271,14 @@ export async function post(
       signal: controller?.signal,
     });
     if (options) {
-      if (response.ok) return { status: 'accepted' };
+      if (response.ok) return { status: 'accepted', body: await response.json().catch(() => null) };
       const body = (await response.json()) as { error?: unknown } | null;
       const error = typeof body?.error === 'string' ? body.error : undefined;
       if (response.status >= 400 && response.status < 500 && error !== undefined) return { status: 'rejected', error };
       return { status: 'unavailable', ...(error !== undefined ? { error } : {}) };
     }
-    if (!response.ok) {
-      toast(failure, { detail: ((await response.json()) as { error: string }).error, isError: true });
-      return false;
-    }
-    return ((await response.json()) as { unknown?: unknown } | null)?.unknown === true ? 'unknown' : 'accepted';
+    if (!response.ok) toast(failure, { detail: ((await response.json()) as { error: string }).error, isError: true });
+    return response.ok;
   } catch {
     if (options) return { status: 'unavailable' };
     toast(SERVER_DOWN, { detail: RESTART, isError: true });

@@ -49,9 +49,16 @@ export type RunRow = {
   session: ProcessState | null;
   outcome: { kind: 'closed' | 'gate' | 'stopped'; reason: string; code: number } | null;
 };
-export type DaemonStatus = { schema: 1; daemon: DaemonIdentity; auto: 'on' | 'off' | 'stopping'; runs: RunRow[] };
+export type DaemonStatus = {
+  schema: 1;
+  daemon: DaemonIdentity;
+  board: string;
+  auto: 'on' | 'off' | 'stopping';
+  runs: RunRow[];
+};
 
 export const textLimit = 4096;
+export const stopLine = 'daemon: the daemon stops; start it again, then send the request';
 export const requestUsage =
   'usage: GET /status | POST /run {"number":<issue>,"selection":<selection>,"effort":<level>|null,"quiet":<boolean>} | POST /auto {"on":<boolean>,"selection":<selection>,"quiet":<boolean>} | POST /queue {"id":<uuid>,"token":<uuid>,"selection":<selection>,"quiet":<boolean>} | POST /resume {"number":<issue>,"selection":<selection>} | POST /stop {} | POST /retry {"number":<issue>,"waitId":<text>} | POST /queue/action {"action":<action>,"selection":<selection>,"quiet":<boolean>} | POST /queue/reconcile {}; <selection> is {"explicit"?:"claude"|"codex","environment"?:<text>}; <level> is low|medium|high|xhigh|max; <action> is a queue action of celetis queue action';
 
@@ -85,6 +92,7 @@ const reads: Record<ProcessState, true> = { runs: true, gone: true, unknown: tru
 const ends: Record<NonNullable<RunRow['outcome']>['kind'], true> = { closed: true, gate: true, stopped: true };
 const autos: Record<DaemonStatus['auto'], true> = { on: true, off: true, stopping: true };
 const uuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+const boardUrl = /^http:\/\/127\.0\.0\.1:[0-9]{1,5}$/;
 
 const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -309,11 +317,19 @@ function rowOf(value: unknown): RunRow {
 export function parseStatus(value: unknown): DaemonStatus {
   if (
     !object(value) ||
-    !exact(value, ['schema', 'daemon', 'auto', 'runs']) ||
+    !exact(value, ['schema', 'daemon', 'board', 'auto', 'runs']) ||
     value.schema !== 1 ||
+    typeof value.board !== 'string' ||
+    !boardUrl.test(value.board) ||
     !member(autos, value.auto) ||
     !Array.isArray(value.runs)
   )
     return invalid('status');
-  return { schema: 1, daemon: parseIdentity(value.daemon), auto: value.auto, runs: value.runs.map(rowOf) };
+  return {
+    schema: 1,
+    daemon: parseIdentity(value.daemon),
+    board: value.board,
+    auto: value.auto,
+    runs: value.runs.map(rowOf),
+  };
 }

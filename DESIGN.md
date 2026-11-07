@@ -341,7 +341,8 @@ Shadows are small and have two jobs only.
 - **Raise** (dark: `0 1px 0 rgba(255,255,255,0.035) inset, 0 1px 2px rgba(0,0,0,0.25)`): cards and
   the active view tab. It gives a surface a faint top edge, not a lift.
 - **Float** (dark: `0 16px 40px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.08)`): only for
-  layers above the page: the search palette, toasts, menus, and dialogs.
+  layers above the page: the search palette, toasts, menus, and dialogs. The update dialog is the
+  exception: it is Flat, with no shadow ("Update dialog").
 
 ### Named Rules
 
@@ -354,7 +355,8 @@ offset for focus, and a 1px Ink Faint ring for the selected card. Never use a co
 ## Shapes
 
 Corners are gently rounded and nest: an inner shape is smaller than its container. Surfaces use
-16px (columns, the details panel), cards and toasts 12px, the palette 14px, controls 8px, the view
+16px (columns, the details panel), cards and toasts 12px, the palette 14px, the update dialog
+10px, controls 8px, the view
 switch 9px around 7px tabs, tags 6px, and small marks 5px. Dots are full circles. Borders are always
 1px hairlines. The effort chip uses a dashed border when its level is the default.
 
@@ -417,6 +419,10 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
   with Raise and Ink text; an inactive tab is Ink Faint and turns Ink on hover.
 - **Status bar:** 34px, 12px Ink Faint text, a top hairline. It wraps on a phone and keeps the
   update control.
+- **Update control:** a 24px status bar button (44px on a phone) whose label names the update
+  state. Only **Update available** and **Restart needed**, the states that need you, take the
+  accent: Beacon Orange text on a 10% Beacon Tint fill (13% on hover). Each other state is Ink
+  Faint, as the other status bar buttons.
 
 ### Lane Track (signature)
 
@@ -424,6 +430,21 @@ A row of 14px × 4px segments with a 2px radius at the right of each card. Done 
 at 80%; later steps are Ink Faint at 28%. The current step is 20px wide and takes the state color:
 Ink when idle, a moving Current Blue flow (1.6s) while the agent works, Beacon Orange when it waits
 or is blocked, Fault Red for no progress, and Caution Amber for a dirty tree.
+
+### Update dialog
+
+The update dialog is Flat: a nonmodal layer above the right end of the status bar, with no
+shadow, the Console Grey panel color, a 1px strong hairline border, a 10px radius, 16px padding,
+and a width of 340px (at most the viewport less 24px).
+
+- **Title:** 13px at 600, Ink. The description below it is 13px Ink Muted at line height 1.5.
+- **Revisions:** label–value rows in a two-column grid: an Ink Faint label (12px) and an 11.5px
+  Geist Mono value in Ink Muted, for example `Daemon` and `Installed`.
+- **Action row:** under a hairline. The note sits at the left in 12px Ink Faint. A text-style
+  secondary button (transparent, Ink Faint, Ink on hover) and a ghost main button (Veil fill, the
+  strong hairline, Ink) sit at the right, each 28px high.
+- **Phone:** below 720px the dialog keeps a 12px right inset, the note stacks above the buttons,
+  and the two buttons share the row at 44px high.
 
 ### Toast
 

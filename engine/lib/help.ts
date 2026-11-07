@@ -1,7 +1,6 @@
 export const helpCommands: readonly (readonly [form: string, summary: string])[] = [
   ['celetis update', 'Updates the program and the plugin of each host; asks once.'],
   ['celetis update check', 'Shows the installed and the available revision of each part.'],
-  ['celetis board', 'Starts the board of the project in this checkout.'],
   ['celetis setup status', 'Reports each part of the required wiring that this checkout lacks; writes nothing.'],
   ['celetis agents read', 'Reads the local ordered agent preference and its version.'],
   ["celetis agents replace '<JSON>'", 'Replaces the local order using order and expectedVersion.'],
@@ -20,8 +19,11 @@ export const helpCommands: readonly (readonly [form: string, summary: string])[]
   ['celetis run retry <n> <wait-id>', 'Asks the daemon to wake the quota waiter of an issue for one attempt cycle.'],
   ["celetis queue action '<QueueAction JSON>'", 'Saves a queue action; asks the daemon to run its authorized wake.'],
   ['celetis queue status', 'Reads the current queue and its allowed actions.'],
-  ['celetis daemon start', 'Starts the master daemon of this repository, detached, and waits until it answers.'],
-  ['celetis daemon status', 'Shows the daemon, its auto mode, and its runs.'],
+  [
+    'celetis daemon start',
+    'Starts the master daemon of this repository, detached, waits until it answers, and prints the board URL.',
+  ],
+  ['celetis daemon status', 'Shows the daemon, the board URL, its auto mode, and its runs.'],
   ['celetis daemon stop', 'Stops the daemon and waits until its process ends.'],
   ['celetis daemon auto on|off', 'Turns auto mode of the daemon on or off, and prints its state.'],
 

@@ -2,16 +2,40 @@
 {
   "schema": 1,
   "name": "retain-probe-sources-outside-compiler-globs",
-  "description": "Ignored TypeScript evidence copies entered the project compiler and failed the task gate",
+  "description": "TypeScript evidence copies in an ignored folder entered the project compiler five times, also with this rule in the brief",
   "tags": [
     "test",
     "build",
-    "process"
+    "process",
+    "recurring"
   ],
-  "date": "2026-11-04",
+  "date": "2026-11-07",
   "status": "active",
-  "source": "Implementation of ddinkov10/celetis#245, temporary verification correction\n\nImplementation of ddinkov10/celetis#197, task gate attempt 1",
+  "source": "Task 1 of ddinkov10/celetis#250, implement step session (child report to the coordinator)\n\nImplementation of ddinkov10/celetis#245, temporary verification correction\n\nImplementation of ddinkov10/celetis#197, task gate attempt 1",
   "incidents": [
+    {
+      "id": "0b0ad6a4-3d0e-4a8f-9a55-250e1a5c0a01",
+      "date": "2026-11-07",
+      "action": "While saving evidence, the Task 1 implementer ran one cp of a mixed file list (serve.ts, seed-queue.ts, make-delayed.ts, and others) into docs/superpowers/verification/250-t1/ of the lane, which put three TypeScript probe sources with the .ts extension inside the checkout.",
+      "expected": "Retained probe sources inside a compiler scan are non-compilable text or an archive (active lesson retain-probe-sources-outside-compiler-globs), so the gate never compiles an evidence path.",
+      "observed": "The three .ts files existed in the evidence folder for one command; the implementer renamed them to .ts.txt at once, before any gate run. tsconfig.runtime.json includes **/*.ts and does not exclude docs/superpowers.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "Child report: ls of the folder then showed serve.ts.txt, seed-queue.ts.txt, make-delayed.ts.txt; find . -name '*.ts' | wc -l -> 0; the later gate passed (verify: PASS) and tsc --listFilesOnly -p tsconfig.runtime.json listed 335 files and no docs/superpowers path.",
+        "reference": ".superpowers/sdd/250/task-1-report.md of the lane feat/250-host-the-board-server-the (workspace scratch); summary retained in the runtime report of #250"
+      },
+      "inference": "Reported by the child: the earlier copies of the same step used explicit .txt names, and the batch form of one cp dropped them. Uncertain: whether a structural exclude would have removed the need for the rule; the cause of the batch form is the child's own account.",
+      "diagnosis": [
+        "not-followed"
+      ],
+      "revision": "7a2f331",
+      "brief": "The Task 1 dispatch quoted the complete Rule of retain-probe-sources-outside-compiler-globs with its path and digest (.superpowers/sdd/250/task-1-dispatch.md, section Lesson rules).",
+      "lesson": {
+        "name": "retain-probe-sources-outside-compiler-globs",
+        "revision": "b1c4a621bcd19a32f8badacd3515a039e560d318",
+        "digest": "f9413c92f89a51e137f8109288035a19a9ebdd977309b72606527eee4948022a"
+      }
+    },
     {
       "id": "922a909d-5b67-458b-bcff-7583eedf72b2",
       "date": "2026-11-05",
@@ -83,7 +107,7 @@
       "brief": "The implement session active lesson read was empty. The matching proposal remained pending."
     }
   ],
-  "recurrences": 3,
+  "recurrences": 4,
   "reviews": [
     {
       "id": "c4e0d504-ecea-4638-b3d9-6812457d8fbc",
@@ -113,6 +137,22 @@
         "state": "proposed",
         "detail": "A separate authorized change can make evidence retention refuse compilable snapshots inside compiler inputs. This curation changes no instruction, compiler configuration, or enforcement."
       }
+    },
+    {
+      "id": "a0a34f48-f249-4cc1-afcf-4fa3e618b349",
+      "requestDigest": "fd57ace655956617b66d178c8aed853a8e57f2993b99e0c3047fcdfc87482cc3",
+      "date": "2026-11-07",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #250; claude child opus/high\n\nMerge under the reviewer rules: the active lesson retain-probe-sources-outside-compiler-globs states the same rule (retain a snapshot inside a compiler scan only as non-compilable text, and check the compiler file list), and the proposal names it as the lesson that its incident did not follow. The incident is observed: the Task 1 report of #250 in the lane retains the cp of serve.ts, seed-queue.ts, and make-delayed.ts into docs/superpowers/verification/250-t1/, the rename to .ts.txt before any gate run, and the tsc --listFilesOnly result; the folder now holds only the .ts.txt names, and tsconfig.runtime.json of the lane includes **/*.ts with no exclude of docs/superpowers. The proposed rule adds only a structural change, which this review cannot make: the survivor keeps the active name, every incident and review, and the active rule, adds the check of each file of a batch copy, and records the specific exclude as a proposed follow-up under the encode-lessons-in-structure principle of the plugin celetis. The cause stays labeled as the report of the child and as inference. The rule adds a check and weakens none.",
+      "related": [
+        "exclude-ignored-evidence-folders-from-the-runtime-compiler",
+        "retain-probe-sources-outside-compiler-globs"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "Add docs/superpowers/ to the exclude of tsconfig.runtime.json, which already excludes .claude and .superpowers, and of each other compiler configuration with a broad include; or let scripts/verify.ts refuse to compile an untracked file under an ignored folder. Check: a .ts file placed in docs/superpowers/verification/x/ gives no compiler input and no gate error. It needs separate authorization; this review changes no compiler configuration, gate, or instruction.",
+        "owner": "the maintainer"
+      }
     }
   ]
 }
@@ -129,16 +169,20 @@ The clean #236 implementation baseline also compiled ignored prototype snapshots
 
 In #245, ignored check.ts and server.ts evidence copies also entered the same compiler include glob. The task gate failed with TS7016 and TS2322. The incident confirms the same scope mismatch; the reason for the assumption remains inferred.
 
+In Task 1 of #250 on 2026-11-07, the implementer saved its probe evidence with one `cp` of a mixed file list into `docs/superpowers/verification/250-t1/`, so three TypeScript probe sources kept the `.ts` extension inside the checkout. The dispatch of the task quoted the complete rule of this lesson. The implementer renamed the files to `.ts.txt` in the next command, before any gate run; the gate passed, and `tsc --listFilesOnly -p tsconfig.runtime.json` listed no evidence path.
+
 ## Root cause
 
-Observed: `tsconfig.runtime.json` includes `**/*.ts` and does not exclude `docs/superpowers`, so Git ignore status does not remove a file from compilation. Inferred: the controller treated Git ignore status as isolation from the compiler and did not compare the evidence location with the compiler include and exclude patterns. Why the pending proposal did not prevent the #193 and #236 recurrences is unknown; active lesson retrieval does not deliver a pending proposal.
+Observed: `tsconfig.runtime.json` includes `**/*.ts` and excludes `.claude` and `.superpowers`, but not `docs/superpowers`, so Git ignore status does not remove a file there from compilation. Inferred: the controller treated Git ignore status as isolation from the compiler and did not compare the evidence location with the compiler include and exclude patterns. Why the pending proposal did not prevent the #193 and #236 recurrences is unknown; active lesson retrieval does not deliver a pending proposal.
+
+In #250, reported by the child: the earlier copies of the same step used explicit `.txt` names, and the batch form of one `cp` dropped them. Inferred: a text rule that each session must apply at each copy keeps the mistake possible; this recurrence happened with the rule in the brief.
 
 ## Fix
 
-Proposed prevention: retain source as non-executable text or an archive when it sits inside a compiler scan. Check the project compiler scope before copying probe sources. This lesson changes no instruction or compiler configuration.
+Proposed prevention: retain source as non-executable text or an archive when it sits inside a compiler scan. Check the project compiler scope before copying probe sources, and check the name of each file of a batch copy. This lesson changes no instruction or compiler configuration.
 
-Proposed structural follow-up, not implemented or authorized by this capture: the evidence-copy helper can require non-compilable snapshot extensions and verify that copied files do not enter compiler inputs. The maintainer owns that separate change. A check must reject a .ts snapshot under the runtime include glob. Current enforcement is not claimed.
+Proposed structural follow-up, not implemented or authorized by this lesson: add the ignored scratch folder `docs/superpowers/` to the `exclude` of `tsconfig.runtime.json` and of each other project compiler configuration with a broad include, or let the project verify gate refuse to compile an untracked file under an ignored folder; an evidence-copy helper that requires non-compilable snapshot extensions is an alternative. The mistake has five incidents, and the exclude needs no judgment, so the encode-lessons-in-structure principle of the plugin celetis points to the structure. The maintainer owns that separate change. Its check: a `.ts` file placed in `docs/superpowers/verification/x/` gives no compiler input and no gate error. Current enforcement is not claimed; until the change exists, this text rule stays the prevention.
 
 ## Rule
 
-Applies when a task retains probe source or source snapshots inside a checkout. Action: compare the evidence location and extension with the include and exclude patterns of each project compiler configuration. Keep runnable probes outside those inputs, and retain a snapshot inside a compiler scan as non-compilable text or an archive. Check: the compiler file list of the project (for example `tsc --listFilesOnly -p <config>`) names no retained evidence path, and the project gate gives no error for an evidence path.
+Applies when a task retains probe source or source snapshots inside a checkout. Action: compare the evidence location and the extension of each copied file, also each file of a batch copy, with the include and exclude patterns of each project compiler configuration. Keep runnable probes outside those inputs, and retain a snapshot inside a compiler scan as non-compilable text or an archive. Check: after each copy, the compiler file list of the project (for example `tsc --listFilesOnly -p <config>`) names no retained evidence path, and the project gate gives no error for an evidence path.

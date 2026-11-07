@@ -9,10 +9,11 @@ import {
   findDaemon,
   readStatus,
   requestSelection,
+  revisionRefusal,
   sendRequest,
   shortRevision,
 } from './lib/daemon-client.ts';
-import { type DaemonIdentity, daemonPaths, type RunRow } from './lib/daemon-types.ts';
+import { type DaemonIdentity, type DaemonStatus, daemonPaths, type RunRow } from './lib/daemon-types.ts';
 import { installRecorder, passOn } from './lib/events.ts';
 import { HostError, requireBun } from './lib/host.ts';
 import type { LockOwner } from './lib/locks.ts';
@@ -39,6 +40,17 @@ async function runsLine(identity: DaemonIdentity): Promise<string> {
     : `${line}; this program is at ${shortRevision(revision)}; it was not replaced`;
 }
 
+const boardLine = (status: DaemonStatus) => `daemon: board ${status.board}`;
+
+async function report(common: string): Promise<DaemonStatus> {
+  try {
+    return await readStatus(common);
+  } catch (error) {
+    if (!(error instanceof HostError)) throw error;
+    throw new HostError(error.message, 6);
+  }
+}
+
 async function requireStart(): Promise<void> {
   try {
     requireBun();
@@ -56,6 +68,7 @@ async function start(common: string, main: string): Promise<number> {
   if (found.kind === 'unknown') throw answerless(found);
   if (found.kind === 'runs') {
     console.log(await runsLine(found.identity));
+    if ((await revisionRefusal(found.identity, 'daemon')) === null) console.log(boardLine(await report(common)));
     return 0;
   }
   await requireStart();
@@ -83,16 +96,18 @@ async function start(common: string, main: string): Promise<number> {
   while (Date.now() < deadline) {
     const now = await findDaemon(common);
     if (now.kind === 'runs') {
-      const answered = await readStatus(common).then(
-        () => true,
-        () => false,
-      );
-      if (answered && now.identity.pid === child.pid) {
-        console.log(`daemon: started PID ${now.identity.pid} on ${paths.socket}`);
+      if ((await revisionRefusal(now.identity, 'daemon')) !== null) {
+        console.log(await runsLine(now.identity));
         return 0;
       }
-      if (answered) {
-        console.log(await runsLine(now.identity));
+      const status = await readStatus(common).catch(() => null);
+      if (status) {
+        console.log(
+          now.identity.pid === child.pid
+            ? `daemon: started PID ${now.identity.pid} on ${paths.socket}`
+            : await runsLine(now.identity),
+        );
+        console.log(boardLine(status));
         return 0;
       }
     } else if (ended.code !== null) {
@@ -116,19 +131,16 @@ async function status(common: string): Promise<number> {
     return 3;
   }
   if (found.kind === 'unknown') throw answerless(found);
-  let report: Awaited<ReturnType<typeof readStatus>>;
-  try {
-    report = await readStatus(common);
-  } catch (error) {
-    if (!(error instanceof HostError)) throw error;
-    throw new HostError(error.message, 6);
-  }
-  const { daemon } = report;
+  const refusal = await revisionRefusal(found.identity, 'daemon');
+  if (refusal !== null) throw new HostError(refusal, 1);
+  const read = await report(common);
+  const { daemon } = read;
   console.log(
     `daemon: PID ${daemon.pid} at ${shortRevision(daemon.revision)}, main ${daemon.main}, socket ${daemon.socket}`,
   );
-  console.log(`daemon: auto mode ${report.auto}`);
-  for (const row of report.runs) console.log(rowLine(row));
+  console.log(boardLine(read));
+  console.log(`daemon: auto mode ${read.auto}`);
+  for (const row of read.runs) console.log(rowLine(row));
   return 0;
 }
 
@@ -139,14 +151,7 @@ async function auto(common: string, on: boolean, explicit: string | undefined): 
     (answer.code === 0 ? console.log : console.error)(answer.line);
     return answer.code;
   }
-  let report: Awaited<ReturnType<typeof readStatus>>;
-  try {
-    report = await readStatus(common);
-  } catch (error) {
-    if (!(error instanceof HostError)) throw error;
-    throw new HostError(error.message, 6);
-  }
-  console.log(`daemon: auto mode ${report.auto}`);
+  console.log(`daemon: auto mode ${(await report(common)).auto}`);
   return 0;
 }
 
@@ -286,8 +291,8 @@ async function waitingSession(args: string[]): Promise<number> {
 
 if (import.meta.main) {
   const form = process.argv[2];
-  if (form === '--daemon' && process.argv.length === 3)
-    process.exit(await (await import('./lib/daemon-server.ts')).runDaemon());
+  if (form === '--daemon')
+    process.exit(await (await import('./lib/daemon-server.ts')).runDaemon(process.argv.slice(3)));
   if (form === '--session-start') process.exitCode = await waitingSession(process.argv.slice(3));
   else if (form === '--prepare-state') process.exitCode = await prepareState(process.argv.slice(2));
   else {

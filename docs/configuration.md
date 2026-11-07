@@ -310,29 +310,30 @@ not a filesystem transaction across checkouts or a transaction with GitHub.
 
 ## Start the board
 
-Run `celetis --agent <host> board` in the main checkout or a subfolder. It takes no arguments and
-refuses a lane start before it starts the board. At its start it reads the main config's
-`board.port`, default 4403. With no effective `PORT`, it binds consecutive ports on `127.0.0.1`
-through 65535, keeping the first successful listener. Only `EADDRINUSE` advances the search.
-Exhaustion exits 1 and names the range without printing a startup URL.
+The master daemon serves the board: run `celetis daemon start` in a checkout of the repository,
+and open the URL of its line `daemon: board http://127.0.0.1:<port>`. At its start the daemon reads
+the main config's `board.port`, default 4403, with the full validation of the config. With no
+effective `PORT` in its environment, it binds consecutive ports on `127.0.0.1` through 65535,
+keeping the first successful listener. Only `EADDRINUSE` advances the search. Exhaustion stops the
+start of the daemon with exit 1 and names the range in the daemon log.
 
 A nonzero `Number(PORT)` requests that exact port instead; zero or NaN means no override.
-An occupied exact port exits 1 with the existing port-in-use error. Invalid effective values
-retain Bun's error, and other bind errors stop startup. Use the actual URL printed by the board.
-Concurrent starts claim ports by binding; no port is reserved by an earlier availability check.
+An occupied exact port stops the start of the daemon with the existing port-in-use error. Invalid
+effective values retain Bun's error, and other bind errors stop the start. Use the actual URL that
+`celetis daemon start` or `celetis daemon status` prints. Concurrent starts claim ports by binding;
+no port is reserved by an earlier availability check.
 
 Each data refresh creates a fresh
 main operation, so a change of `gates` shows at the next refresh ("Operation values and
 freshness"). Each read of `/api/board` reads the local order, the usage records, and the
-usage-limit waits again. At each press, the fixed adapter reads the installed program and builds a
-fixed argv with its command: a Run, an Open agent, a Make visual, or a queue action with no agent
-choice has no `--agent`, an explicit Run choice adds `--agent <agent>`, and Resume has no agent
-and uses the saved host. The `--agent` and `CELETIS_AGENT` of the board start select only the host
-of the board command; they do not pin a default start. No board config file is made. The board checks concrete replacement-policy conflicts at its
-start only; the daemon run of each Run and Resume checks them again. It can
-remain open during a manual update. After `celetis update` and a restart of the daemon, Run and
-Resume need no board restart;
-new board code still needs a restart. The agent order of the footer reads and replaces the local
+usage-limit waits again. At each press of Open agent or Make visual, the fixed adapter reads the
+installed program and builds a fixed argv with its command and no `--agent`. A Run or a queue
+action with no agent choice gives the selection `{}` to the daemon, an explicit Run choice gives
+`{"explicit":"<agent>"}`, and Resume has no agent and uses the saved host. The `CELETIS_AGENT` of the daemon selects no host for the board reads and
+does not pin a default start. No board config file is made. The board start checks no
+replacement policy; the daemon run of each Run and Resume checks it. The board can remain open
+during a manual update. After `celetis update`, a restart of the daemon loads the new program for
+the runs and the board. The agent order of the footer reads and replaces the local
 order through the `agents` command, with the version that it read; a stale version returns the
 current order and writes nothing. A board Run choice applies only to that start; Resume
 uses its saved host. See [The board](workflow.md#the-board) for the exact lines.
