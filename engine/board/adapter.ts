@@ -14,8 +14,11 @@ import { type Program, readProgram } from '../lib/program.ts';
 import { parseQueueAction } from '../lib/queue.ts';
 import type { QueueAction, QueueView } from '../lib/queue-types.ts';
 import { isCommit } from '../lib/visual.ts';
-import type { BoardDaemon } from './start.ts';
 
+export type BoardDaemon = Readonly<{
+  send(request: Exclude<DaemonRequest, { kind: 'status' | 'land' }>): Promise<unknown>;
+  status(): Promise<DaemonStatus>;
+}>;
 export type Adapter = Readonly<{
   intake(choice: AgentChoice): Promise<string[]>;
   assist(number: number, choice: AgentChoice): Promise<string[]>;

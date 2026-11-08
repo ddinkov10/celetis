@@ -1,5 +1,5 @@
 import { chmod, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { bunFloor } from '../engine/lib/config-core.ts';
 import { commands, type Entry, exitClasses, exits, formText, helpText, issueActs } from '../engine/lib/contract.ts';
 import { entryParts } from '../engine/lib/entry-text.ts';
@@ -10,13 +10,7 @@ import { programEntry } from '../engine/lib/process.ts';
 
 const root = dirname(import.meta.dir);
 const nativeTargets = [{ entry: 'engine/hooks/entry.ts', output: 'engine/hooks/entry.js', mode: 0o644 }];
-const browserTargets = ['board', 'view', 'ui', 'panel', 'palette', 'queue', 'update-dialog', 'agent-picker'].map(
-  (name) => ({
-    entry: `engine/board/${name}.ts`,
-    output: `engine/board/${name === 'board' ? 'board.js' : `${name}.mjs`}`,
-    mode: 0o644,
-  }),
-);
+const browserTargets = [{ entry: 'engine/board/page/board.ts', output: 'engine/board/board.js', mode: 0o644 }];
 const marks = (name: string) => ({
   begin: `<!-- scripts/build.ts writes the ${name} from engine/lib/contract.ts. Edit that file, then run scripts/build.ts. -->`,
   end: `<!-- The end of the ${name} that scripts/build.ts writes. -->`,
@@ -137,27 +131,23 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
       naming: target.output,
       minify: false,
       sourcemap: 'none',
-      plugins: browser
-        ? [
-            {
-              name: 'browser-urls',
-              setup(build) {
-                build.onResolve(
-                  { filter: /^\.\/(view|ui|panel|palette|queue|update-dialog|agent-picker)\.ts$/ },
-                  ({ path }) => ({
-                    path: path.replace(/\.ts$/, '.mjs'),
-                    external: true,
-                  }),
-                );
-              },
-            },
-          ]
-        : [],
+      metafile: browser,
     });
     const artifact = result.outputs[0];
     if (!result.success || result.outputs.length !== 1 || !artifact) {
       for (const log of result.logs) console.error(String(log));
       return 1;
+    }
+    if (browser) {
+      const inputs = Object.keys(result.metafile?.inputs ?? {});
+      const outside = inputs.filter((input) => {
+        const path = relative(join(root, 'engine/board'), resolve(process.cwd(), input));
+        return path.startsWith('..') || isAbsolute(path);
+      });
+      if (inputs.length === 0) console.error(`build: ${target.output} has no bundle inputs to check`);
+      for (const input of outside)
+        console.error(`build: ${target.output} bundles ${input}, a file outside engine/board/`);
+      if (inputs.length === 0 || outside.length > 0) return 1;
     }
     const bytes = Buffer.from(await artifact.arrayBuffer());
     built.push({ output: target.output, mode: target.mode, bytes });

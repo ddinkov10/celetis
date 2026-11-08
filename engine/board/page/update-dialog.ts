@@ -1,4 +1,4 @@
-import type { BoardOffer, UpdateResponse, UpdateRestartRequest, UpdateRestartResponse, UpdateView } from './types.ts';
+import type { BoardOffer, UpdateResponse, UpdateRestartRequest, UpdateRestartResponse, UpdateView } from '../types.ts';
 import { $, el, icon, post } from './ui.ts';
 
 type Kind = 'update' | 'restart';
@@ -14,15 +14,15 @@ type Pending = {
 const session = {
   get(key: string) {
     try {
-      return sessionStorage.getItem(`agent-board:update-${key}`);
+      return sessionStorage.getItem(`celetis:update-${key}`);
     } catch {
       return null;
     }
   },
   set(key: string, value: string | null) {
     try {
-      if (value === null) sessionStorage.removeItem(`agent-board:update-${key}`);
-      else sessionStorage.setItem(`agent-board:update-${key}`, value);
+      if (value === null) sessionStorage.removeItem(`celetis:update-${key}`);
+      else sessionStorage.setItem(`celetis:update-${key}`, value);
     } catch {}
   },
 };

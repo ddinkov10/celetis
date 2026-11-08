@@ -40,6 +40,7 @@ export type Flow = {
   lanes: Record<string, string[]>;
   stages: { name: string; steps: string[] }[];
   steps: Record<string, { gate: 'me' | 'auto'; hint?: string }>;
+  levels: Level[];
 };
 export type Pull = {
   number: number;

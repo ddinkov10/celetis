@@ -1552,7 +1552,7 @@ Run the checks in a checkout of this repository. No check needs model credential
   sources, and other file exemptions have exact paths and roles. A new unexplained path fails.
   Checks use bounded workers and install nothing. The last line is `verify: PASS`.
 - **Build delivery** with exactly Bun 1.4.4. `scripts/build.ts` generates the program entry
-  `celetis`, the browser modules, the native hook modules, the help block, the command table, and the exit-class table of "The commands",
+  `celetis`, the browser bundle, the native hook modules, the help block, the command table, and the exit-class table of "The commands",
   and the act table of `docs/issue-tracker.md`, from `engine/lib/contract.ts`. `engine/hooks/entry.js` embeds `docs/procedures/entry.md`, so an edit
   of that Markdown file needs a run of `scripts/build.ts`. `scripts/build.ts --check` fails on
   changed bytes, or on changed modes on macOS and Linux, and writes nothing. Both modes fail when a

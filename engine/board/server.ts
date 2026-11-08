@@ -67,13 +67,6 @@ const FILES: Record<string, [string, string]> = {
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/board.css': ['board.css', 'text/css; charset=utf-8'],
   '/board.js': ['board.js', 'text/javascript; charset=utf-8'],
-  '/view.mjs': ['view.mjs', 'text/javascript; charset=utf-8'],
-  '/ui.mjs': ['ui.mjs', 'text/javascript; charset=utf-8'],
-  '/panel.mjs': ['panel.mjs', 'text/javascript; charset=utf-8'],
-  '/palette.mjs': ['palette.mjs', 'text/javascript; charset=utf-8'],
-  '/queue.mjs': ['queue.mjs', 'text/javascript; charset=utf-8'],
-  '/agent-picker.mjs': ['agent-picker.mjs', 'text/javascript; charset=utf-8'],
-  '/update-dialog.mjs': ['update-dialog.mjs', 'text/javascript; charset=utf-8'],
   '/fonts/geist.woff2': ['fonts/geist.woff2', 'font/woff2'],
   '/fonts/geist-mono.woff2': ['fonts/geist-mono.woff2', 'font/woff2'],
 };

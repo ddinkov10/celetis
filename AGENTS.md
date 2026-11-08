@@ -177,7 +177,7 @@ A look decision of the board uses these two facts:
   adapter rejects each method except `status`, which answers a fixed status with auto mode off, so
   the item `Daemon` shows `auto off` and the queue shows its read view. The server reads its page files from its own folder
   (`HERE` in `engine/board/server.ts`), so the variants show with the live issues and sessions.
-  After an edit of a page module, `scripts/build.ts` writes its browser files in that checkout.
+  After an edit of a page module, `scripts/build.ts` writes `engine/board/board.js` in that checkout.
 
 ## External facts
 

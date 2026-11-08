@@ -63,7 +63,7 @@ agent that waits.
 - `engine/board/server.ts` and the fixed adapter `engine/board/adapter.ts` are trust boundaries.
   UI work must not widen them, including the Content-Security-Policy of the board page.
   ADR-0065 records the one sandboxed route.
-- Browser sources are TypeScript. `scripts/build.ts` generates the browser `.js` and `.mjs` files.
+- Browser sources are TypeScript. `scripts/build.ts` generates the browser bundle `board.js`.
   Product repositories run no build.
 - `scripts/verify.ts` is the only check of this repository. The repository adds no test file.
 - Full keyboard use is part of the product: single-key shortcuts, `⌘K` search, and card focus

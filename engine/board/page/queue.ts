@@ -1,6 +1,6 @@
-import type { QueueAction, QueueRecord, QueueView } from '../lib/queue-types.ts';
-import type { Step } from '../lib/workflow.ts';
-import type { Board } from './types.ts';
+import type { QueueAction, QueueRecord, QueueView } from '../../lib/queue-types.ts';
+import type { Step } from '../../lib/workflow.ts';
+import type { Board } from '../types.ts';
 import { $, el, iconButton, toast } from './ui.ts';
 
 const recordedHost = (record: QueueRecord | null | undefined) =>

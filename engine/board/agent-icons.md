@@ -1,7 +1,7 @@
 # Agent icons
 
 The Board embeds the selected Codex and Claude Code SVGs as base64 data URLs in
-`ui.ts`. `scripts/build.ts` carries those bytes into `ui.mjs`; no remote image or runtime
+`page/ui.ts`. `scripts/build.ts` carries those bytes into `board.js`; no remote image or runtime
 read of Herdr is required. The shared mark renderer uses the images at 18×18 px with their
 original proportions, colors, and backgrounds in both themes.
 

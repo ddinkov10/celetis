@@ -1,394 +1,2134 @@
-// engine/lib/contract.ts
-var exitClasses = [
-  { code: 0, name: "done", meaning: "The act completed, or it had no change to make." },
+// engine/board/view.ts
+var COLUMNS = [
   {
-    code: 1,
-    name: "internal",
-    meaning: "An unexpected failure, for example an uncaught error; the message names it."
-  },
-  { code: 2, name: "usage", meaning: "Bad arguments, or an input file or value that the command refuses." },
-  {
-    code: 3,
-    name: "prerequisite",
-    meaning: "The current state does not permit the act: an unmet prerequisite, a busy lock, stale input, no daemon, or missing wiring."
+    key: "needs",
+    name: "Needs you",
+    note: "Answer, unblock, or run the next step",
+    empty: ["No issue needs you", "No agent of an issue waits, and no step is stuck."]
   },
   {
-    code: 4,
-    name: "repair",
-    meaning: "The session repairs the lane, then runs the command again: a conflict with the trunk, or a branch or a checkout that moved."
+    key: "running",
+    name: "Running",
+    note: "Agents at work",
+    empty: ["No agent runs", "Run starts the next step of an issue."]
   },
-  { code: 5, name: "checks", meaning: "A check of the change is not green." },
   {
-    code: 6,
-    name: "blocked",
-    meaning: "A system outside the command failed or did not answer (GitHub, git, the host, the file system, access); a write can be partial."
-  },
-  { code: 7, name: "cleanup", meaning: "The change landed, and its cleanup stopped." },
-  { code: 8, name: "stop", meaning: "The engine stops the task; the session escalates." },
-  { code: "128+n", name: "signal", meaning: "The signal n ended the command." }
+    key: "idle",
+    name: "Idle",
+    note: "Next steps not started yet",
+    empty: ["No issue waits", "Open issues show here until their first step runs."]
+  }
 ];
-var brand = (code) => code;
-var exits = Object.fromEntries(exitClasses.flatMap(({ code, name }) => typeof code === "number" ? [[name, brand(code)]] : []));
-var required = (name, value) => ({
-  name,
-  ...value ? { value } : {},
-  optional: false
+var GROUPS = [
+  { key: "answer", label: "Waits for your answer", short: "waiting", states: ["waits"], isCompact: false },
+  { key: "stuck", label: "Stuck", short: "stuck", states: ["no-progress", "dirty-tree"], isCompact: false },
+  { key: "input", label: "Your input on the issue", short: "input on the issue", states: ["blocked"], isCompact: true },
+  { key: "paused", label: "Paused by usage limits", short: "paused", states: ["quota-wait"], isCompact: true },
+  { key: "ready", label: "Ready to run", short: "ready to run", states: null, isCompact: true }
+];
+var STATES = {
+  works: "works",
+  waits: "waits for you",
+  starts: "Starting",
+  "checks-step": "checks step",
+  "dirty-tree": "dirty tree",
+  "no-progress": "no progress",
+  "quota-wait": "waits for a usage limit"
+};
+var WAITS = { dialog: "waits for your answer", turn: "turn ended" };
+var gateOf = (flow, step) => flow?.steps?.[step]?.gate ?? null;
+var effortSource = (effort) => effort.source === "decided" ? `decided by ${effort.by}` : "default";
+var startTitle = (step, effort, level = effort.level) => {
+  const why = level !== effort.level ? "this start only" : effort.source === "decided" ? `decided by ${effort.by}` : "the default";
+  return `Start the ${step} step at ${level}, ${why}`;
+};
+var runTitle = (step, flow, effort) => {
+  const hint = flow?.steps?.[step]?.hint;
+  return `${effort ? startTitle(step, effort) : `Start the ${step} step`}${hint ? `. ${hint}` : ""} (Enter)`;
+};
+var AGENTS = {
+  claude: "Claude Code",
+  opencode: "OpenCode",
+  codex: "Codex"
+};
+var cleanCause = (cause) => {
+  const line = String(cause ?? "").split(`
+`).map((part) => part.trim()).find(Boolean) ?? "";
+  return line.replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 200);
+};
+var groupNeeds = (cards) => {
+  const left = new Set(cards);
+  return GROUPS.map((group) => {
+    const members = cards.filter((card) => left.has(card) && (group.states === null || group.states.includes(card.state)));
+    for (const card of members)
+      left.delete(card);
+    return { ...group, cards: members };
+  }).filter((group) => group.cards.length > 0);
+};
+var groupEpics = (cards, canGroup) => {
+  const groups = new Map;
+  const items = [];
+  for (const card of cards) {
+    if (!card.epic || !canGroup(card)) {
+      items.push({ kind: "card", card });
+      continue;
+    }
+    const known = groups.get(card.epic.number);
+    if (known) {
+      known.cards.push(card);
+      continue;
+    }
+    const group = { kind: "group", epic: card.epic, cards: [card] };
+    groups.set(card.epic.number, group);
+    items.push(group);
+  }
+  return items;
+};
+var parseOpenEpics = (value) => {
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed) && parsed.every((item) => Number.isSafeInteger(item) && item > 0))
+      return new Set(parsed);
+  } catch {}
+  return new Set;
+};
+var laneTrack = (card, flow) => {
+  const steps = card.type && flow?.lanes?.[card.type];
+  const at = steps ? steps.indexOf(card.step) : -1;
+  if (at < 0)
+    return null;
+  return steps.map((name, index) => ({
+    name,
+    state: index < at ? "done" : index === at ? "now" : "next"
+  }));
+};
+var agentOf = (card) => {
+  if (!card.agent)
+    return null;
+  const name = Object.hasOwn(AGENTS, card.agent) ? AGENTS[card.agent] : card.agent;
+  return { name, letter: card.agent[0].toUpperCase() };
+};
+var stateLabel = (card) => {
+  if (card.state === "waits" && WAITS[card.waitFor])
+    return WAITS[card.waitFor];
+  if (card.state === "blocked")
+    return card.reason;
+  return STATES[card.state] ?? card.state;
+};
+var age = (iso, now, isFine = false) => {
+  const seconds = Math.max(0, Math.floor((now - Date.parse(iso)) / 1000));
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  if (Number.isNaN(seconds))
+    return "";
+  if (minutes < 1)
+    return `${seconds}s`;
+  if (hours < 1)
+    return isFine ? `${minutes}m ${String(seconds % 60).padStart(2, "0")}s` : `${minutes}m`;
+  if (hours < 24)
+    return isFine ? `${hours}h ${String(minutes % 60).padStart(2, "0")}m` : `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+};
+var keyOf = (card) => `k-${String(card.number ?? card.sessionId).replace(/[^\w-]/g, "-")}`;
+var signature = (card, column) => [column, card.state, card.step, card.waitFor].join("|");
+var pageTitle = (repo, needs) => `${needs > 0 ? `(${needs}) ` : ""}${repo} · Agent board`;
+var needsYou = (columns) => [
+  ...columns.human.filter((card) => card.waitFor === "dialog"),
+  ...columns.needs
+];
+var tone = (columns) => {
+  if (needsYou(columns).length > 0)
+    return "needs";
+  return columns.running.some((card) => card.state === "works") ? "works" : "calm";
+};
+var BADGES = { needs: "#FF7A45", works: "#5EA2FF" };
+var favicon = (badge) => {
+  const dot = BADGES[badge] ? `<circle cx="24" cy="8" r="6" fill="${BADGES[badge]}" stroke="#18181B" stroke-width="2"/>` : "";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#18181B"/><rect x="7" y="7" width="7.5" height="18" rx="2.25" fill="#EEEEF0"/><rect x="17.5" y="7" width="7.5" height="11" rx="2.25" fill="#EEEEF0"/>${dot}</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+};
+var who = (card) => card.number === null ? card.title ? `Human session "${card.title}"` : "A human session" : `#${card.number}`;
+var NOTICES = {
+  waits: (card) => card.waitFor === "turn" ? "ended its turn" : "waits for your answer",
+  "no-progress": () => "made no progress",
+  "dirty-tree": () => "has a dirty worktree",
+  blocked: (card) => card.reason
+};
+var notice = (card) => ({
+  title: `${who(card)} ${(NOTICES[card.state] ?? (() => `is ready to run ${card.step}`))(card)}`,
+  body: card.title || ""
 });
-var optional = (name, value) => ({ name, ...value ? { value } : {}, optional: true });
-var form = (words, flags = [], extra = {}) => ({ words: typeof words === "string" ? words.split(" ") : words, flags, ...extra });
-var helped = (order, summary) => ({ help: { order, summary } });
-var sessionCode = "the exit code of the host session";
-var profileFlags = [optional("--profile", "FILE"), optional("--runtime-models", "FILE")];
-var setupOptions = [
-  required("--hosts", "claude|codex|claude,codex|codex,claude"),
-  required("--landing", "pr|merge"),
-  optional("--suite", "<file>"),
-  optional("--setup-file", "<file>"),
-  optional("--ignore", "<line>"),
-  optional("--baseline-file", "<file>")
+var tail = (groups) => {
+  const parts = groups.filter((group) => group.count > 0).map((group) => `${group.count} ${group.short}`);
+  const total = groups.reduce((sum, group) => sum + group.count, 0);
+  return total > 0 ? `${total} more below: ${parts.join(", ")}` : "";
+};
+var diffText = (diff) => diff ? `+${diff.added} −${diff.removed}` : "";
+var shortPath = (path) => path.includes("/.claude/worktrees/") ? path.slice(path.indexOf(".claude/worktrees/")) : path;
+var CHECKS = { pass: "CI passed", fail: "CI failed", pending: "CI running" };
+var REVIEWS = {
+  approved: "Approved",
+  changes: "Changes requested",
+  required: "Review required"
+};
+var prFacts = (pr) => pr ? [
+  { kind: "pr", text: `${pr.draft ? "Draft " : ""}PR #${pr.number}`, url: pr.url },
+  ...CHECKS[pr.checks] ? [{ kind: `checks-${pr.checks}`, text: CHECKS[pr.checks] }] : [],
+  ...REVIEWS[pr.review] ? [{ kind: `review-${pr.review}`, text: REVIEWS[pr.review] }] : []
+] : [];
+var pipeline = (cards, flow) => {
+  const stages = (flow?.stages ?? []).map((stage, index) => ({
+    ...stage,
+    key: index,
+    cards: cards.filter((card) => stage.steps.includes(card.step))
+  }));
+  const placed = new Set(stages.flatMap((stage) => stage.cards));
+  return { stages, hold: cards.filter((card) => !placed.has(card)) };
+};
+var filterItems = (items, query) => {
+  const text = query.trim().toLowerCase();
+  if (text === "")
+    return items;
+  const number = /^#?(\d+)$/.exec(text)?.[1];
+  if (number) {
+    const found = items.filter((item) => item.number !== null && String(item.number).startsWith(number));
+    return [
+      ...found.filter((item) => String(item.number) === number),
+      ...items.filter((item) => item.number === null && item.context === text),
+      ...found.filter((item) => String(item.number) !== number)
+    ];
+  }
+  const words = text.split(/\s+/);
+  return items.filter((item) => words.every((word) => `${item.label} ${item.context ?? ""}`.toLowerCase().includes(word)));
+};
+
+// engine/board/page/ui.ts
+var CODEX_ICON = "data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjFlbSIgc3R5bGU9ImZsZXg6bm9uZTtsaW5lLWhlaWdodDoxIiB2aWV3Qm94PSIwIDAgMjQgMjQiIHdpZHRoPSIxZW0iIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHRpdGxlPkNvZGV4PC90aXRsZT48cGF0aCBkPSJNMTkuNTAzIDBINC40OTZBNC40OTYgNC40OTYgMCAwMDAgNC40OTZ2MTUuMDA3QTQuNDk2IDQuNDk2IDAgMDA0LjQ5NiAyNGgxNS4wMDdBNC40OTYgNC40OTYgMCAwMDI0IDE5LjUwM1Y0LjQ5NkE0LjQ5NiA0LjQ5NiAwIDAwMTkuNTAzIDB6IiBmaWxsPSIjZmZmIj48L3BhdGg+PHBhdGggZD0iTTkuMDY0IDMuMzQ0YTQuNTc4IDQuNTc4IDAgMDEyLjI4NS0uMzEyYzEgLjExNSAxLjg5MS41NCAyLjY3MyAxLjI3NS4wMS4wMS4wMjQuMDE3LjAzNy4wMjFhLjA5LjA5IDAgMDAuMDQzIDAgNC41NSA0LjU1IDAgMDEzLjA0Ni4yNzVsLjA0Ny4wMjIuMTE2LjA1N2E0LjU4MSA0LjU4MSAwIDAxMi4xODggMi4zOTljLjIwOS41MS4zMTMgMS4wNDEuMzE1IDEuNTk1YTQuMjQgNC4yNCAwIDAxLS4xMzQgMS4yMjMuMTIzLjEyMyAwIDAwLjAzLjExNWMuNTk0LjYwNy45ODggMS4zMyAxLjE4MyAyLjE3LjI4OSAxLjQyNS0uMDA3IDIuNzEtLjg4NyAzLjg1NGwtLjEzNi4xNjZhNC41NDggNC41NDggMCAwMS0yLjIwMSAxLjM4OC4xMjMuMTIzIDAgMDAtLjA4MS4wNzZjLS4xOTEuNTUxLS4zODMgMS4wMjMtLjc0IDEuNDk0LS45IDEuMTg3LTIuMjIyIDEuODQ2LTMuNzExIDEuODM4LTEuMTg3LS4wMDYtMi4yMzktLjQ0LTMuMTU3LTEuMzAyYS4xMDcuMTA3IDAgMDAtLjEwNS0uMDI0Yy0uMzg4LjEyNS0uNzguMTQzLTEuMjA0LjEzOGE0LjQ0MSA0LjQ0MSAwIDAxLTEuOTQ1LS40NjYgNC41NDQgNC41NDQgMCAwMS0xLjYxLTEuMzM1Yy0uMTUyLS4yMDItLjMwMy0uMzkyLS40MTQtLjYxN2E1LjgxIDUuODEgMCAwMS0uMzctLjk2MSA0LjU4MiA0LjU4MiAwIDAxLS4wMTQtMi4yOTguMTI0LjEyNCAwIDAwLjAwNi0uMDU2LjA4NS4wODUgMCAwMC0uMDI3LS4wNDggNC40NjcgNC40NjcgMCAwMS0xLjAzNC0xLjY1MSAzLjg5NiAzLjg5NiAwIDAxLS4yNTEtMS4xOTIgNS4xODkgNS4xODkgMCAwMS4xNDEtMS42Yy4zMzctMS4xMTIuOTgyLTEuOTg1IDEuOTMzLTIuNjE4LjIxMi0uMTQxLjQxMy0uMjUxLjYwMS0uMzMuMjE1LS4wODkuNDMtLjE2NC42NDYtLjIyN2EuMDk4LjA5OCAwIDAwLjA2NS0uMDY2IDQuNTEgNC41MSAwIDAxLjgyOS0xLjYxNSA0LjUzNSA0LjUzNSAwIDAxMS44MzctMS4zODh6bTMuNDgyIDEwLjU2NWEuNjM3LjYzNyAwIDAwMCAxLjI3MmgzLjYzNmEuNjM3LjYzNyAwIDEwMC0xLjI3MmgtMy42MzZ6TTguNDYyIDkuMjNhLjYzNy42MzcgMCAwMC0xLjEwNi42MzFsMS4yNzIgMi4yMjQtMS4yNjYgMi4xMzZhLjYzNi42MzYgMCAxMDEuMDk1LjY0OWwxLjQ1NC0yLjQ1NWEuNjM2LjYzNiAwIDAwLjAwNS0uNjRMOC40NjIgOS4yM3oiIGZpbGw9InVybCgjbG9iZS1pY29ucy1jb2RleC1fUl8wXykiPjwvcGF0aD48ZGVmcz48bGluZWFyR3JhZGllbnQgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiIGlkPSJsb2JlLWljb25zLWNvZGV4LV9SXzBfIiB4MT0iMTIiIHgyPSIxMiIgeTE9IjMiIHkyPSIyMSI+PHN0b3Agc3RvcC1jb2xvcj0iI0IxQTdGRiI+PC9zdG9wPjxzdG9wIG9mZnNldD0iLjUiIHN0b3AtY29sb3I9IiM3QTlERkYiPjwvc3RvcD48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMzOTQxRkYiPjwvc3RvcD48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48L3N2Zz4=";
+var CLAUDE_ICON = "data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjFlbSIgc3R5bGU9ImZsZXg6bm9uZTtsaW5lLWhlaWdodDoxIiB2aWV3Qm94PSIwIDAgMjQgMjQiIHdpZHRoPSIxZW0iIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHRpdGxlPkNsYXVkZSBDb2RlPC90aXRsZT48cGF0aCBjbGlwLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik0yMC45OTggMTAuOTQ5SDI0djMuMTAyaC0zdjMuMDI4aC0xLjQ4N1YyMEgxOHYtMi45MjFoLTEuNDg3VjIwSDE1di0yLjkyMUg5VjIwSDcuNDg4di0yLjkyMUg2VjIwSDQuNDg3di0yLjkyMUgzVjE0LjA1SDBWMTAuOTVoM1Y1aDE3Ljk5OHY1Ljk0OXpNNiAxMC45NDloMS40ODhWOC4xMDJINnYyLjg0N3ptMTAuNTEgMEgxOFY4LjEwMmgtMS40OXYyLjg0N3oiIGZpbGw9IiNEOTc3NTciIGZpbGwtcnVsZT0iZXZlbm9kZCI+PC9wYXRoPjwvc3ZnPg==";
+var AGENT_ICONS = { claude: CLAUDE_ICON, codex: CODEX_ICON };
+var NS = "http://www.w3.org/2000/svg";
+var ring = (extra = {}) => [
+  "circle",
+  { cx: 8, cy: 8, r: 6, ...extra }
 ];
-var issueActs = {
-  route: {
-    words: ["route", "feature|bug|chore|hotfix"],
-    flags: [],
-    argument: "lane",
-    prerequisite: "open; not an epic",
-    writes: "the label of the lane; it removes the other lane labels and `needs-triage`"
-  },
-  effort: {
-    words: ["effort", "<step>", "<level>", "<file>"],
-    flags: [],
-    argument: "effort",
-    prerequisite: "open",
-    writes: 'an `Effort: <step> <level>` comment ("What lives on the issue", "Effort"); no label change'
-  },
-  epic: {
-    words: ["epic", "<file>"],
-    flags: [],
-    argument: "file",
-    prerequisite: "open feature or epic; valid declaration and current child references",
-    writes: "the complete parent body, then adds `epic` and removes `enhancement` as needed; clears no hold"
-  },
-  "epic-state": {
-    words: ["epic-state"],
-    flags: [],
-    argument: "none",
-    prerequisite: "readable parent and complete children",
-    writes: 'nothing; the JSON snapshot of "Epic acceptance submission"'
-  },
-  "complete-epic": {
-    words: ["complete-epic", "[file]"],
-    flags: [],
-    argument: "optional-file",
-    prerequisite: '"Epic completion and repair"',
-    writes: "an accepted record, then closes as completed; an already closed parent has no write"
-  },
-  "needs-info": {
-    words: ["needs-info", "<file>"],
-    flags: [],
-    argument: "file",
-    prerequisite: "open",
-    writes: "the file as a comment, then `needs-info`"
-  },
-  wontfix: {
-    words: ["wontfix", "<file>"],
-    flags: [],
-    argument: "file",
-    prerequisite: "open",
-    writes: "the file as a comment, then `wontfix`, then the close as not planned"
-  },
-  spec: {
-    words: ["spec", "<file>"],
-    flags: [],
-    argument: "file",
-    prerequisite: "open; lane `feature`",
-    writes: "the body: `Spec: YYYY-MM-DD` (the local date), a blank line, then the file"
-  },
-  "root-cause": {
-    words: ["root-cause", "<file>"],
-    flags: [],
-    argument: "file",
-    prerequisite: "open; lane `bug` or `hotfix`",
-    writes: "a `## Root cause` comment"
-  },
-  plan: {
-    words: ["plan", "<file>"],
-    flags: [],
-    argument: "file",
-    prerequisite: "open; a `feature` with a spec, or a `bug` with a `## Root cause` comment",
-    writes: "a `## Plan` comment; then `ready-for-agent` with no human hold, else keeps `ready-for-human` and removes `ready-for-agent`"
-  },
-  built: {
-    words: ["built"],
-    flags: [],
-    argument: "none",
-    prerequisite: "the resolver line is `implement` of a planned change",
-    writes: "a `## Built` comment, then removes `ready-for-agent` when present"
-  },
-  "before-landing": {
-    words: ["before-landing", "<file>"],
-    flags: [optional("--during-the-build")],
-    argument: "file",
-    prerequisite: "the resolver line is the step that lands the lane (`implement`, `chore`, `hotfix`)",
-    writes: 'a `## Before landing` comment with the marker of its kind ("Completing a human precondition"), then it adds `ready-for-human`, and removes `ready-for-agent` when it is on'
-  },
-  "landing-refused": {
-    words: ["landing-refused", "<file>"],
-    flags: [],
-    argument: "file",
-    prerequisite: "as `before-landing`",
-    writes: "a `## Landing refused` comment"
-  },
-  stopped: {
-    words: ["stopped", "<file>"],
-    flags: [],
-    argument: "file",
-    prerequisite: "open",
-    writes: "a `## Stopped` comment, then adds `ready-for-human` and removes `ready-for-agent` when present"
-  },
-  "ready-for-human": {
-    words: ["ready-for-human"],
-    flags: [],
-    argument: "none",
-    prerequisite: "open",
-    writes: "adds or retains `ready-for-human`, then removes `ready-for-agent` when present"
-  },
-  assisted: {
-    words: ["assisted", "<file>"],
-    flags: [],
-    argument: "file",
-    prerequisite: "open; has `needs-info`, `ready-for-human`, or a current open human precondition",
-    writes: "a `## Human steps done` comment with assistance-agent attribution, then removes present `needs-info` and `ready-for-human`; adds no label"
-  },
-  state: {
-    words: ["state"],
-    flags: [],
-    argument: "none",
-    prerequisite: "none",
-    writes: "nothing"
+var ICONS = {
+  logo: [
+    ["rect", { x: 1.5, y: 1.5, width: 5.5, height: 13, rx: 1.75, class: "fill" }],
+    ["rect", { x: 9, y: 1.5, width: 5.5, height: 8, rx: 1.75, class: "fill" }]
+  ],
+  "col-needs": [ring(), ["circle", { cx: 8, cy: 8, r: 2.6, class: "fill core" }]],
+  "col-running": [ring({ class: "track" }), ["path", { d: "M8 4.6a3.4 3.4 0 0 1 0 6.8Z", class: "fill" }]],
+  "col-idle": [ring({ "stroke-dasharray": "2.6 2.2" })],
+  nolane: [["circle", { cx: 8, cy: 8, r: 5.5, "stroke-dasharray": "2.3 2" }]],
+  clear: [ring(), ["path", { d: "m5.4 8.1 1.8 1.8 3.5-3.7" }]],
+  bug: [
+    [
+      "path",
+      {
+        d: "M5.5 5.5h5a1 1 0 0 1 1 1V9a3.5 3.5 0 0 1-7 0V6.5a1 1 0 0 1 1-1ZM6 5.5a2 2 0 0 1 4 0M8 8v4.25M2.75 8.5H4.5M11.5 8.5h1.75M3.5 5.5l1.25.9M12.5 5.5l-1.25.9M3.5 12.5l1.4-1M12.5 12.5l-1.4-1"
+      }
+    ]
+  ],
+  spark: [["path", { d: "M8 2.25 9.3 6.7 13.75 8 9.3 9.3 8 13.75 6.7 9.3 2.25 8 6.7 6.7Z" }]],
+  wrench: [
+    [
+      "path",
+      {
+        d: "M10.6 2.6a3.25 3.25 0 0 0-3.9 4.2L2.9 10.6a1.4 1.4 0 0 0 2 2l3.8-3.8a3.25 3.25 0 0 0 4.2-3.9l-2 2-1.8-.5-.5-1.8Z"
+      }
+    ]
+  ],
+  flame: [
+    [
+      "path",
+      { d: "M8 14a4 4 0 0 0 4-4c0-2.5-2-4-2.5-6.5C8 5 7.5 6.5 7.5 6.5S6.5 5.5 6.5 4C5 5.5 4 7.5 4 10a4 4 0 0 0 4 4Z" }
+    ]
+  ],
+  terminal: [
+    ["rect", { x: 1.75, y: 2.75, width: 12.5, height: 10.5, rx: 2 }],
+    ["path", { d: "m4.75 6.25 2 1.75-2 1.75M8.5 10h2.75" }]
+  ],
+  works: [
+    ["circle", { cx: 8, cy: 8, r: 5.75, class: "track" }],
+    ["path", { d: "M8 2.25A5.75 5.75 0 0 1 13.75 8" }]
+  ],
+  refresh: [["path", { d: "M13.25 8A5.25 5.25 0 1 1 11.7 4.3M13.25 2.5v3h-3" }]],
+  run: [["path", { d: "M5 3.6v8.8a.6.6 0 0 0 .9.5l7-4.4a.6.6 0 0 0 0-1L5.9 3.1a.6.6 0 0 0-.9.5Z", class: "fill" }]],
+  go: [["path", { d: "M5 11 11 5M6.25 5H11v4.75" }]],
+  open: [
+    [
+      "path",
+      {
+        d: "M9.5 2.5h4v4M13.5 2.5 7.5 8.5M12 9.5v2.75a1.25 1.25 0 0 1-1.25 1.25h-7A1.25 1.25 0 0 1 2.5 12.25v-7A1.25 1.25 0 0 1 3.75 4H6.5"
+      }
+    ]
+  ],
+  copy: [
+    ["rect", { x: 5.5, y: 5.5, width: 8, height: 8, rx: 1.75 }],
+    ["path", { d: "M10.5 3.5V3A1.5 1.5 0 0 0 9 1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5" }]
+  ],
+  check: [["path", { d: "m3.5 8.5 3 3 6-7" }]],
+  alert: [
+    ["path", { d: "M7.13 2.5a1 1 0 0 1 1.74 0l5.5 9.75a1 1 0 0 1-.87 1.5H2.5a1 1 0 0 1-.87-1.5Z" }],
+    ["path", { d: "M8 6.25v3" }],
+    ["circle", { cx: 8, cy: 11.4, r: 0.45, class: "fill" }]
+  ],
+  chevron: [["path", { d: "m6 4 4 4-4 4" }]],
+  keyboard: [
+    ["rect", { x: 1.5, y: 4, width: 13, height: 8.5, rx: 2 }],
+    ["path", { d: "M4.5 7h.01M7 7h.01M9.5 7h.01M12 7h.01M5.25 9.75h5.5" }]
+  ],
+  target: [
+    ["circle", { cx: 8, cy: 8, r: 5.75 }],
+    ["circle", { cx: 8, cy: 8, r: 2.25, class: "fill" }]
+  ],
+  pending: [["circle", { cx: 8, cy: 8, r: 5.75, "stroke-dasharray": "2.4 2.1" }]],
+  diff: [
+    ["rect", { x: 2.25, y: 2.25, width: 11.5, height: 11.5, rx: 2.5 }],
+    ["path", { d: "M8 4.75v4M6 6.75h4M6 11h4" }]
+  ],
+  question: [
+    ["circle", { cx: 8, cy: 8, r: 6 }],
+    ["path", { d: "M6.3 6.4a1.75 1.75 0 1 1 2.55 1.55c-.55.3-.85.65-.85 1.25" }],
+    ["circle", { cx: 8, cy: 11.2, r: 0.45, class: "fill" }]
+  ],
+  person: [
+    ["circle", { cx: 8, cy: 5.25, r: 2.75 }],
+    ["path", { d: "M2.75 14c.6-2.6 2.6-4 5.25-4s4.65 1.4 5.25 4" }]
+  ],
+  message: [
+    [
+      "path",
+      {
+        d: "M2.5 4.25A1.75 1.75 0 0 1 4.25 2.5h7.5a1.75 1.75 0 0 1 1.75 1.75v5a1.75 1.75 0 0 1-1.75 1.75H7.25L4.5 13.25V11h-.25A1.75 1.75 0 0 1 2.5 9.25Z"
+      }
+    ]
+  ],
+  close: [["path", { d: "m4.5 4.5 7 7M11.5 4.5l-7 7" }]],
+  dots: [
+    ["circle", { cx: 3.5, cy: 8, r: 1.1, class: "fill" }],
+    ["circle", { cx: 8, cy: 8, r: 1.1, class: "fill" }],
+    ["circle", { cx: 12.5, cy: 8, r: 1.1, class: "fill" }]
+  ],
+  bell: [
+    ["path", { d: "M4 11.25V7.5a4 4 0 0 1 8 0v3.75l1 1.25H3Z" }],
+    ["path", { d: "M6.5 14a1.6 1.6 0 0 0 3 0" }]
+  ],
+  "bell-off": [
+    [
+      "path",
+      {
+        d: "M5.2 4.4A4 4 0 0 1 12 7.5v2.4M12.6 12.5H3l1-1.25V7.5c0-.5.1-1 .25-1.45M6.5 14a1.6 1.6 0 0 0 3 0M2.5 2.5l11 11"
+      }
+    ]
+  ],
+  search: [
+    ["circle", { cx: 7.25, cy: 7.25, r: 4.25 }],
+    ["path", { d: "m10.5 10.5 3 3" }]
+  ],
+  pr: [
+    ["circle", { cx: 4.5, cy: 3.75, r: 1.6 }],
+    ["circle", { cx: 4.5, cy: 12.25, r: 1.6 }],
+    ["circle", { cx: 11.5, cy: 12.25, r: 1.6 }],
+    ["path", { d: "M4.5 5.35v5.3M11.5 10.65V6.5A2 2 0 0 0 9.5 4.5H7.25M8.75 3 7.25 4.5 8.75 6" }]
+  ],
+  xcircle: [
+    ["circle", { cx: 8, cy: 8, r: 6 }],
+    ["path", { d: "m6 6 4 4M10 6l-4 4" }]
+  ],
+  clock: [
+    ["circle", { cx: 8, cy: 8, r: 6 }],
+    ["path", { d: "M8 4.75V8l2 1.5" }]
+  ],
+  file: [
+    ["path", { d: "M4 1.75h5L12.5 5.25v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10.5a1 1 0 0 1 1-1Z" }],
+    ["path", { d: "M9 1.75v3.5h3.5" }]
+  ],
+  folder: [
+    [
+      "path",
+      {
+        d: "M2 4.25A1.25 1.25 0 0 1 3.25 3h3l1.5 1.75h5A1.25 1.25 0 0 1 14 6v5.75A1.25 1.25 0 0 1 12.75 13h-9.5A1.25 1.25 0 0 1 2 11.75Z"
+      }
+    ]
+  ],
+  board: [
+    ["rect", { x: 1.75, y: 2.5, width: 3.5, height: 11, rx: 1 }],
+    ["rect", { x: 6.25, y: 2.5, width: 3.5, height: 8, rx: 1 }],
+    ["rect", { x: 10.75, y: 2.5, width: 3.5, height: 5.5, rx: 1 }]
+  ],
+  stages: [
+    ["path", { d: "M1.75 8h2.5M6.75 8h2.5M11.75 8h2.5" }],
+    ["circle", { cx: 5.5, cy: 8, r: 1.25 }],
+    ["circle", { cx: 10.5, cy: 8, r: 1.25 }]
+  ],
+  panel: [
+    ["rect", { x: 1.75, y: 2.5, width: 12.5, height: 11, rx: 2 }],
+    ["path", { d: "M9.5 2.5v11" }]
+  ]
+};
+var $ = (id) => document.getElementById(id);
+var el = (tag, className, text) => {
+  const node = document.createElement(tag);
+  if (className)
+    node.className = className;
+  if (text !== undefined)
+    node.textContent = text;
+  return node;
+};
+var icon = (name) => {
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("class", `icon i-${name}`);
+  for (const [tag, attributes] of ICONS[name]) {
+    const part = document.createElementNS(NS, tag);
+    for (const [key, value] of Object.entries(attributes))
+      part.setAttribute(key, String(value));
+    svg.append(part);
+  }
+  return svg;
+};
+var link = (className, text, url) => {
+  if (url && !/[\u0000-\u0020\u007f-\u009f]/.test(url)) {
+    try {
+      const parsed = new URL(url);
+      if (["http:", "https:"].includes(parsed.protocol) && !parsed.username && !parsed.password)
+        return Object.assign(el("a", className, text), { href: url, target: "_blank", rel: "noreferrer" });
+    } catch {}
+  }
+  return el("span", className, text);
+};
+var timed = (iso, isFine = false, suffix = "") => {
+  const node = el("time", "time", `${age(iso, Date.now(), isFine)}${suffix}`);
+  node.dateTime = iso;
+  node.dataset.since = iso;
+  node.dataset.suffix = suffix;
+  node.title = new Date(iso).toLocaleString();
+  if (isFine)
+    node.dataset.fine = "";
+  return node;
+};
+var withCode = (text) => {
+  const node = el("span", "toast-detail");
+  text.split("`").forEach((part, index) => {
+    if (part)
+      node.append(index % 2 ? el("code", "", part) : part);
+  });
+  return node;
+};
+var toastTimer;
+var toast = (title, { detail = "", isError = false } = {}) => {
+  $("toast").dataset.tone = isError ? "error" : "ok";
+  $("toast-icon").replaceChildren(icon(isError ? "alert" : "check"));
+  $("toast-text").replaceChildren(el("strong", "toast-title", title));
+  if (detail)
+    $("toast-text").append(withCode(detail));
+  $("toast").hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    $("toast").hidden = true;
+  }, 6000);
+};
+var SERVER_DOWN = "The board server does not answer";
+var RESTART = "Start the daemon again in a terminal: celetis daemon start.";
+async function post(path, value, failure, options) {
+  const controller = options ? new AbortController : undefined;
+  const timeout = options ? setTimeout(() => controller?.abort(), options.timeout) : undefined;
+  try {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(value),
+      signal: controller?.signal
+    });
+    if (options) {
+      if (response.ok)
+        return { status: "accepted", body: await response.json().catch(() => null) };
+      const body = await response.json();
+      const error = typeof body?.error === "string" ? body.error : undefined;
+      if (response.status >= 400 && response.status < 500 && error !== undefined)
+        return { status: "rejected", error };
+      return { status: "unavailable", ...error !== undefined ? { error } : {} };
+    }
+    if (!response.ok)
+      toast(failure, { detail: (await response.json()).error, isError: true });
+    return response.ok;
+  } catch {
+    if (options)
+      return { status: "unavailable" };
+    toast(SERVER_DOWN, { detail: RESTART, isError: true });
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+var copy = async (text, what) => {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(`Copied the ${what}`);
+  } catch {
+    toast("Copy failed", { detail: "The browser did not allow access to the clipboard.", isError: true });
   }
 };
-var flagText = ({ name, value, optional }) => {
-  const text = value ? `${name} ${value}` : name;
-  return optional ? `[${text}]` : text;
+var pressable = (node, press, busy) => {
+  node.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    if (node.getAttribute("aria-busy") === "true")
+      return;
+    const label = node.querySelector(".label");
+    const text = label?.textContent;
+    node.setAttribute("aria-busy", "true");
+    if (label && busy)
+      label.textContent = busy;
+    await press();
+    node.removeAttribute("aria-busy");
+    if (label && busy)
+      label.textContent = text;
+  });
+  return node;
 };
-var formText = ({ words, flags }) => [...words, ...flags.map(flagText)].join(" ");
-var issueActList = Object.values(issueActs).filter(({ words }) => words[0] !== "epic-state" && words[0] !== "state").map((act) => `\`${formText(act)}\``).join(", ");
-var dispatchForms = [
-  form("dispatch next <n> <task> implementer|reviewer J V B N S X", [required("--bias", "N"), ...profileFlags]),
-  form("dispatch report <dispatch-id> <report-file>"),
-  form("dispatch gate <n> <task> pass|fail <gate> <report>", profileFlags),
-  form("dispatch review <n> <task> findings|blocked", profileFlags),
-  form("dispatch close <n> <task>"),
-  form("dispatch show")
-];
-var base = ["done", "internal", "usage", "prerequisite", "blocked"];
-var hosted = ["internal", "usage", "prerequisite", "blocked"];
-var worktreeExits = ["done", "internal", "usage", "prerequisite", "repair", "blocked"];
-var entry = (command, agent, forms, description, exitList = base, internal) => ({ command, forms, description, exits: exitList, agent, ...internal ? { internal } : {} });
-var commands = [
-  entry("lesson-store", true, [form("lesson-store read main|active", [], helped(19, "Reads validated lessons; requires explicit --agent."))], "Returns validated lesson records, exact file contents, digests, and the resolved checkout as JSON. `main` returns the live files of the checkout that runs it with the pending and rejected data of the main checkout, and `root` names the main checkout. Rejected records appear in `history` with `status: pending-review`; they are not past guidance. `active` reads the live files of the task checkout and ignores its pending folder. A leftover `docs/lessons/INDEX.md` fails both reads"),
-  entry("lesson-store", true, [form("lesson-store capture FILE", [], helped(20, "Saves a pending proposal; requires explicit --agent."))], "Reads typed `{schema:1,candidate,expected,name,description,tags,date,source,incidents,body}` JSON and builds the pending record; `expected` is the pending SHA-256 or null for creation. An extension keeps the stored incidents and reviews. Validates the store of `read main` and saves pending evidence in the main checkout only. Equal incident replays are unchanged; stale updates are refused"),
-  entry("lesson-store", true, [form("lesson-store preview FILE", [], helped(21, "Prepares an exact lesson review; requires explicit --agent."))], "Reads a review request and returns its exact before/after contents of the store of `read main`, watched digests, and snapshot digest without lesson writes. Select pending UUIDs and complete resulting documents as defined in [the lesson format](docs/procedures/lesson-format.md)"),
-  entry("lesson-store", true, [
-    form("lesson-store apply SNAPSHOT DIGEST", [], helped(22, "Applies a reviewed snapshot and commits it in a linked checkout; requires explicit --agent."))
-  ], `Recomputes the review and applies exactly the approved snapshot under the lock. Changed input or snapshot bytes are stale. Replaying the same review is unchanged; conflicting reuse of its ID is invalid. The digest identifies a version, not its reviewer. In a linked checkout, a live change needs a clean checkout on a branch and becomes one local commit \`docs(lessons): <decision> <names>\` with a \`Lesson-Transaction\` trailer, made with the project's hooks; the proposals leave the queue only after that commit. When Git fails but the lesson commit exists, the apply completes. When the lane is still at its old HEAD, the apply restores the before bytes of the live paths, also a hook rewrite, and their index entries, and exits ${exits.blocked}. When HEAD moved without the commit, the journal stays (exit ${exits.blocked}), and the line names the repair: \`git -C <lane> reset --soft <recorded HEAD>\`, then \`recover\``),
-  entry("lesson-store", true, [
-    form("lesson-store recover", [], helped(23, "Completes or rolls back an interrupted lesson write; requires explicit --agent."))
-  ], `Completes or rolls back the one journal under the lesson lock, from any checkout of the repository. A lane journal completes when its lesson commit exists and rolls back when the lane is still at the recorded HEAD; a lane HEAD that moved without the commit blocks it until \`git -C <lane> reset --soft <recorded HEAD>\`. These commands require Git and an explicit host, but no issue, run, or configuration file. Only a lane apply and its recovery change the Git index. It exits ${exits.usage} for invalid input or store, ${exits.prerequisite} when the input is stale or a lock is busy, and ${exits.blocked} for an access, I/O, or recovery block`),
-  entry("run", true, [
-    form("run <n>", [optional("--quiet")], helped(9, "Asks the daemon to start the next step of one issue and follow its auto gates; returns at once.")),
-    form("run resume <n>", [], helped(11, "Asks the daemon to open the session of a step with no progress again.")),
-    form("run retry <n> <wait-id>", [], helped(12, "Asks the daemon to wake the quota waiter of an issue for one attempt cycle."))
-  ], `Each form sends one request to the master daemon of the repository of the current folder and returns at its answer. \`run <n>\` starts the next step of the issue, \`run resume <n>\` opens the saved session of a step with no progress again, and \`run retry <n> <wait-id>\` wakes the quota waiter of the issue for one attempt cycle. \`--quiet\` opens each session tab of the start in the background; \`run resume\` ignores it. An accepted start prints \`run: #<n>: accepted as run <run id> of the daemon PID <pid>; read its progress: celetis daemon status\`, and an accepted Retry prints \`run: #<n>: Retry requested; the waiting run starts one bounded attempt cycle\`; both exit ${exits.done}. A refusal prints the line of the daemon, on stdout for code ${exits.done} and on stderr otherwise, and exits with its code: ${exits.prerequisite} for a busy issue lock, ${exits.blocked} for a failed GitHub read of the issue, ${exits.done} for each other end before the first session. With no daemon, it exits ${exits.prerequisite} and starts nothing. It exits ${exits.prerequisite} when the daemon runs another revision of the program or an update removed this program version, and ${exits.blocked} when the daemon does not answer or the outcome is unknown. On Windows it exits ${exits.prerequisite} with \`run: Windows is not a support target\`. Any other form exits ${exits.usage} with the usage line`),
-  entry("run", true, [
-    form("run <n>", [required("--effort", "<level>"), optional("--quiet")], helped(10, "Asks the daemon to start the next step of one issue at another effort level, for its first session only."))
-  ], `Asks the daemon to start the next step of the issue at \`low\`, \`medium\`, \`high\`, \`xhigh\`, or \`max\` instead of its decided or default level; the request carries the level, for the first session of this start only. Each later step uses its own decision, and the flag writes no decision. It needs exactly one issue number; any other form exits ${exits.usage} with the usage line`),
-  entry("queue", true, [
-    form(["queue", "action", "'<QueueAction JSON>'"], [optional("--quiet")], helped(13, "Saves a queue action; asks the daemon to run its authorized wake.")),
-    form("queue status", [], helped(14, "Reads the current queue and its allowed actions."))
-  ], `\`status\` prints the view of the queue as JSON. \`action\` saves one validated action and prints the view; when the action gives a wake, it then sends that wake to the master daemon and prints the answer as \`run\` does, with the prefix \`queue:\`. An Add to an empty queue, a Continue, and a Retry exit ${exits.prerequisite} with no daemon and save nothing. \`--quiet\` opens each session tab of the wake in the background. It exits ${exits.usage} for another form, an agent that differs from the agent choice of the queue, or a queue record that is not valid, ${exits.prerequisite} for a refused action (for example a stale \`expected\`), and ${exits.blocked} when GitHub or the queue record cannot be read`),
-  entry("daemon", true, [
-    form("daemon start", [], helped(15, "Starts the master daemon of this repository, detached, waits until it answers, and prints the board URL.")),
-    form("daemon status", [], helped(16, "Shows the daemon, the board URL, its auto mode, and its runs.")),
-    form("daemon stop", [], helped(17, "Stops the daemon and waits until its process ends.")),
-    form("daemon auto on|off", [], helped(18, "Turns auto mode of the daemon on or off, and prints its state."))
-  ], `Starts, reads, and stops the master daemon of the repository of the current folder (\`docs/workflow.md\`, "The master daemon"); \`auto on|off\` turns auto mode of the daemon on or off and prints \`daemon: auto mode <state>\`. For \`start\`, \`status\`, and \`stop\` the optional \`--agent\` selects nothing; for \`auto\` it selects the host of the auto steps. \`start\` spawns the daemon detached, which serves the board ("The agent board"), and exits ${exits.done} when it answers, or when a daemon already runs; it then prints \`daemon: board http://127.0.0.1:<port>\`, except for a daemon of another revision. It exits ${exits.prerequisite} when \`gh\`, \`hc\`, or the Herdr app is missing, and ${exits.blocked} when the hc server or the Herdr app does not answer, or when the daemon ends or stays silent for 30 seconds, for example when its board port cannot open. \`status\` prints the daemon, the board URL, its auto mode, and one line per run; it exits ${exits.prerequisite} when no daemon runs or the daemon runs another revision of the program. \`stop\` exits ${exits.done} when the process ended or no daemon runs. \`auto\` exits ${exits.done} with the state, ${exits.prerequisite} when no daemon runs or the daemon runs another revision of the program, the code of a refusal, or ${exits.blocked} when the outcome is unknown. Each form exits ${exits.blocked} when a daemon is known but its process or socket does not answer; \`stop\` exits ${exits.blocked} too when the process stays for 60 seconds. Windows exits ${exits.prerequisite}, and any other form exits ${exits.usage}`),
-  entry("intake", true, [
-    form("intake", [], {
-      ...helped(6, "Starts a fresh session that asks for your request before intake."),
-      passThrough: sessionCode
-    })
-  ], "Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters `celetis:intake` with that request. It creates no issue before the answer and does not start a run", hosted),
-  entry("assist", true, [
-    form("assist <n>", [], {
-      ...helped(7, "Starts fresh interactive assistance for an issue in the main checkout."),
-      passThrough: sessionCode
-    })
-  ], "Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses `issue <n> assisted <file>` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume a run or land", hosted),
-  entry("visual", true, [
-    form("visual <n> <sha>", [], {
-      ...helped(8, "Starts a fresh session that makes the visual of a landed commit."),
-      passThrough: sessionCode
-    })
-  ], "Starts a fresh interactive session in the main checkout that makes the `visual-explainer` diff review of the landed commit `<sha>` of the issue `<n>`. It fetches the trunk from `origin` and refuses a commit that is not on it, and a commit whose page exists. The host writes `docs/superpowers/visuals/<sha>.html` and opens it, changes no other file, and makes no commit. A host with no `visual-explainer` skill says so in the tab and writes no file. The board's Make visual starts this command", hosted),
-  entry("worktree", true, [form("worktree <n>")], "Makes the lane worktree and the branch of the issue, or enters the one that is there and brings it up to the trunk, and prints its path", worktreeExits),
-  entry("worktree", true, [form("worktree --remove <n>")], "Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first", worktreeExits),
-  entry("land", true, [form("land <n> '<subject>'")], `Lands the change of the issue by the \`landing\` field of \`.celetis.yaml\`. It is the one landing path of an agent. The master daemon of the repository runs the landing, and \`land\` prints its output and exits with its status; with no daemon, or a daemon of another revision, it exits ${exits.prerequisite}, when the daemon does not answer ${exits.blocked}, and for another refusal of the request by the daemon it exits with the code of that refusal. It refuses an issue that is not ready to land. It exits ${exits.cleanup} when the change landed and its cleanup stopped; run it again`, ["done", "internal", "usage", "prerequisite", "repair", "checks", "blocked", "cleanup", "signal"]),
-  entry("issue", true, Object.values(issueActs).map((act) => form(["issue", "<n>", ...act.words], act.flags)), `Makes each workflow write that the engine reads: ${issueActList}. The assistance act records an attributed \`## Human steps done\` report before removing present blocking labels; it adds no label and preserves build state. Lifecycle acts write the comment heading before label changes. Each act refuses unmet prerequisites. \`state\` writes nothing and prints lifecycle facts. \`epic-state\` writes nothing and prints the current declaration, child snapshot, history, and holds. Epic definition writes preserve the complete parent body; guarded completion publishes its accepted record before closing and leaves readiness labels unchanged. \`docs/issue-tracker.md\`, "Conventions", gives each act`),
-  entry("next-step", true, [form("next-step <n>"), form("next-step", [required("--open")])], "The resolver: the next step of one issue, or of each open issue"),
-  entry("events", true, [form("events", [optional("--after", "<id>")])], `Prints each kept entry of the event record of the user as one JSON line, oldest first; \`--after <id>\` prints only the entries after that entry. \`docs/workflow.md\`, "The event record", gives the record. It exits ${exits.usage} for a relative \`CELETIS_HOME\`, ${exits.prerequisite} when the record lock is busy, and ${exits.blocked} for an unsafe folder or lock file`),
-  entry("config", true, [form("config <checkout> <plugin>")], `The reader of \`.celetis.yaml\` for the agent. It first checks that \`<plugin>\` is a Celetis plugin: a folder whose \`.claude-plugin/plugin.json\` has \`"name": "celetis"\`. It then validates the whole file of \`<checkout>\`, and checks each \`custom\` key against \`<plugin>/skills/<key>/SKILL.md\`, a regular file with no symbolic link. It prints the configuration as one compact JSON line. \`--agent\` selects nothing. It exits ${exits.usage} for another form, a folder that is not a Celetis plugin, or a missing or invalid file; the line names the field or the plugin folder`),
-  entry("capscore", true, [
-    form("capscore J V B N S X", [
-      optional("--json"),
-      optional("--bias", "N"),
-      optional("--attempt", "N"),
-      optional("--reviewer"),
-      optional("--profile", "FILE"),
-      optional("--runtime-models", "FILE"),
-      optional("--current-model", "ID")
-    ])
-  ], "Resolves the six digits. `--json` gives portable scores and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null"),
-  entry("dispatch", true, dispatchForms, `Acts: ${dispatchForms.map(({ words }) => `\`${words[1]}\``).join(", ")}. The task loop applies each returned pair and reports exact native arguments/results. Evidence is agent-reported, not independently checked. Records: \`/tmp/celetis-<uid>/dispatch/<host>-<session>.json\` on macOS and Linux; \`<os.tmpdir()>/celetis/dispatch/<host>-<session>.json\` on Windows. It exits ${exits.done} for a ready, reported, or closed result (also \`show\`), ${exits.usage} for bad usage or an invalid \`.celetis.yaml\`, ${exits.prerequisite} for a refusal or a busy dispatch lock, ${exits.blocked} for a setup failure, and ${exits.stop} when the engine stops the task`, ["done", "internal", "usage", "prerequisite", "blocked", "stop"]),
-  entry("install", false, [form("install")], 'Installs the revision of the clean checkout that it runs from as the program ("First install"); takes no arguments'),
-  entry("setup", true, [
-    form("setup check"),
-    form("setup write", setupOptions),
-    form("setup try", setupOptions, { passThrough: "the exit code of the worktree setup script" }),
-    form("setup try", [required("--remove")]),
-    form("setup lane <path>"),
-    form("setup push")
-  ], "The deterministic part of `/celetis:setup`: validated saved answers from `check`, bounded owned refresh and removal in `write`, the test lane (`try` makes it and runs the worktree setup there, and `try --remove` removes it), the run of the worktree setup in a lane that exists (`lane`), and the commit of planned paths, including deletions, with the push. Every setup run calls the program; no product launcher is written"),
-  entry("setup", true, [
-    form("setup status", [], helped(3, "Reports each part of the required wiring that this checkout lacks; writes nothing."))
-  ], `Reports the required wiring of the active checkout for the selected host, also from a subfolder or a lane worktree: \`origin\`, \`.celetis.yaml\` and its configured files, the Celetis block, the Claude imports and settings or the Codex restriction, the ignore and attribute lines, the record of setup, and the workflow labels. It writes nothing, runs no product file, and fetches nothing. An incomplete report ends with \`Run /celetis:setup in the main checkout: <path>\`. It exits ${exits.done} when the wiring is complete, ${exits.prerequisite} when it is missing, invalid, or different, and ${exits.blocked} when an observation is blocked`),
-  entry("agents", false, [
-    form("agents read", [], helped(4, "Reads the local ordered agent preference and its version.")),
-    form(["agents", "replace", "'<JSON>'"], [], helped(5, "Replaces the local order using order and expectedVersion."))
-  ], `Reads the local ordered preference, or replaces it with exactly \`order\` and \`expectedVersion\`. It shares the Git common directory across worktrees and requires no YAML. It exits ${exits.usage} for a replacement that is not JSON or not a valid order, and for an \`agents.json\` that does not validate. It exits ${exits.prerequisite} for a stale-edit conflict, and returns the latest order; a busy write lock also exits ${exits.prerequisite}, with no JSON. It exits ${exits.blocked} for an unsafe or unreadable record. Repeating the current order succeeds`),
-  entry("update", false, [
-    form("update", [], helped(1, "Updates the program and the plugin of each host; asks once.")),
-    form("update check", [], helped(2, "Shows the installed and the available revision of each part."))
-  ], 'Updates the program and the plugin of each host, and asks once in an interactive terminal. `check` is read-only: it prints one JSON array of the parts. `README.md`, "Updates", gives the steps'),
-  entry("root", false, [form("root", [], helped(24, "Prints the folder of the program."))], "Prints the folder of the program. It takes no argument and runs in each folder"),
-  entry("daemon", false, [form(["daemon", "--daemon"])], "The detached master daemon process of `daemon start`.", [...base, "signal"], true),
-  entry("daemon", false, [
-    form(["daemon", "--session-start", "<dir>", "<daemon-pid>", "<host>", "<attempt>", "<recovery>", "<host-args>"], [], {
-      passThrough: sessionCode
-    })
-  ], "The waiting session of a daemon run.", hosted, true),
-  entry("daemon", false, [form("daemon --prepare-state queue"), form("daemon --prepare-state session <n>")], "The state preparation of the daemon.", base, true),
-  entry("update", false, [form("update --inspect <host>"), form("update --policy <host>")], "The inspection of an installation by the update of the daemon.", base, true)
-];
-var launcherForms = [
-  form([]),
-  form("help", [], helped(26, "Prints this list.")),
-  form("--help"),
-  form("-h"),
-  form("--version", [], helped(25, "Prints the revision of the program."))
-];
-var helpRows = [...commands.filter(({ internal }) => !internal).flatMap(({ forms }) => forms), ...launcherForms].flatMap((each) => each.help ? [
-  {
-    order: each.help.order,
-    summary: each.help.summary,
-    text: `celetis ${formText({ ...each, flags: each.flags.filter(({ optional }) => !optional) })}`
+var actionButton = (action, isQuiet = false) => {
+  const kind = `btn ${isQuiet || action.isGhost ? "ghost" : "primary"}${action.isMain ? " main-action" : ""}`;
+  const node = action.href ? Object.assign(el("a", kind), { href: action.href, target: "_blank", rel: "noreferrer" }) : el("button", kind);
+  if (!action.href)
+    node.type = "button";
+  node.append(icon(action.icon), el("span", "label", action.label));
+  node.title = action.title;
+  node.setAttribute("aria-label", action.name);
+  if (action.isDisabled)
+    node.setAttribute("aria-disabled", "true");
+  if (action.href)
+    node.addEventListener("click", (event) => event.stopPropagation());
+  else
+    pressable(node, action.run, action.busy);
+  return node;
+};
+var iconButton = (name, label, press, className = "") => {
+  const node = el("button", `icon-btn ${className}`.trim());
+  node.type = "button";
+  node.setAttribute("aria-label", label);
+  node.title = label;
+  node.append(icon(name));
+  node.addEventListener("click", (event) => {
+    event.stopPropagation();
+    press(event);
+  });
+  return node;
+};
+var store = {
+  key: (name) => `celetis:${name}`,
+  get: (key) => {
+    try {
+      return localStorage.getItem(store.key(key));
+    } catch {
+      return null;
+    }
+  },
+  set: (key, value) => {
+    try {
+      localStorage.setItem(store.key(key), value);
+    } catch {}
   }
-] : []).sort((a, b) => a.order - b.order);
-var helpWidth = Math.max(...helpRows.map(({ text }) => text.length));
-var helpText = [
-  "usage: celetis [--agent <host>] <command> [<argument>...]",
-  "",
-  ...helpRows.map(({ text, summary }) => `  ${text.padEnd(helpWidth)}  ${summary}`),
-  "",
-  "In a terminal, --agent claude|codex is optional. CELETIS_AGENT is an explicit choice too.",
-  "With neither, the local agent order applies; its initial order is claude, codex.",
-  'The skills run the other commands. README.md, "The commands", in the folder that celetis root',
-  "prints, lists all of them."
-].join(`
-`);
-var hinted = new Set([
-  "assist",
-  "capscore",
-  "events",
-  "install",
-  "intake",
-  "issue",
-  "land",
-  "next-step",
-  "run",
-  "setup",
-  "update",
-  "visual",
-  "worktree"
+};
+var TYPES = { bug: "bug", feature: "spark", chore: "wrench", hotfix: "flame" };
+var mark = (card, identifiedByText = false) => {
+  const agent = agentOf(card);
+  if (agent) {
+    const node = el("span", `mark agent agent-${Object.hasOwn(AGENTS, card.agent) ? card.agent : "other"}`);
+    node.title = agent.name;
+    if (card.agent === "codex" || card.agent === "claude") {
+      const image = el("img");
+      image.src = AGENT_ICONS[card.agent];
+      image.alt = identifiedByText ? "" : agent.name;
+      node.classList.add("agent-image");
+      node.append(image);
+    } else
+      node.textContent = agent.letter;
+    return node;
+  }
+  const node = el("span", `mark type-${card.type ?? "none"}`);
+  node.append(icon(Object.hasOwn(TYPES, card.type) ? TYPES[card.type] : card.number === null ? "terminal" : "nolane"));
+  if (!card.type && card.number !== null)
+    node.title = "No lane yet";
+  return node;
+};
+
+// engine/board/page/agent-picker.ts
+class OrderConflict extends Error {
+  latest;
+  constructor(latest, message) {
+    super(message);
+    this.latest = latest;
+  }
+}
+var HOSTS = ["claude", "codex"];
+var NAMES = { claude: "Claude Code", codex: "Codex" };
+var NS2 = "http://www.w3.org/2000/svg";
+var GAP = 8;
+var EDGE = 12;
+var svg = (className, viewBox, shapes) => {
+  const node = document.createElementNS(NS2, "svg");
+  node.setAttribute("class", className);
+  node.setAttribute("viewBox", viewBox);
+  node.setAttribute("aria-hidden", "true");
+  for (const [tag, attributes] of shapes) {
+    const shape = document.createElementNS(NS2, tag);
+    for (const [key, value] of Object.entries(attributes))
+      shape.setAttribute(key, value);
+    node.append(shape);
+  }
+  return node;
+};
+var chevron = () => svg("ap-chev", "0 0 10 10", [
+  [
+    "path",
+    {
+      d: "M2 3.5 5 6.5 8 3.5",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "1.4",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round"
+    }
+  ]
 ]);
-
-// engine/lib/workflow.ts
-var lanes = {
-  feature: { label: "enhancement", prefix: "feat", steps: ["triage", "specify", "plan", "implement"] },
-  bug: { label: "bug", prefix: "fix", steps: ["triage", "bug", "plan", "implement"] },
-  chore: { label: "chore", prefix: "chore", steps: ["triage", "chore"] },
-  hotfix: { label: "hotfix", prefix: "hotfix", steps: ["triage", "hotfix"] }
+var grip = () => svg("ap-grip", "0 0 10 14", [2.5, 7.5].flatMap((cx) => [2.5, 7, 11.5].map((cy) => [
+  "circle",
+  { cx: String(cx), cy: String(cy), r: "1.3", fill: "currentColor" }
+])));
+var agentIcon = (host) => {
+  const node = el("span", "ap-icon");
+  const image = el("img");
+  image.src = AGENT_ICONS[host];
+  image.alt = "";
+  node.append(image);
+  return node;
 };
-var laneNames = Object.keys(lanes);
-var stepsOf = (lane) => lanes[lane].steps;
-var steps = [...new Set(laneNames.flatMap(stepsOf))];
-var stageNames = ["Triage", "Define", "Plan", "Implement"];
-var stages = stageNames.map((name, position) => ({
-  name,
-  steps: [...new Set(laneNames.flatMap((lane) => stepsOf(lane).slice(position, position + 1)))]
-}));
+var resetText = (at) => {
+  if (at === null)
+    return "reset unknown";
+  const date = new Date(at);
+  const today = date.toDateString() === new Date().toDateString();
+  return `resets ${date.toLocaleString([], today ? { hour: "2-digit", minute: "2-digit" } : { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`;
+};
+var same = (a, b) => a.length === b.length && a.every((host, at) => b[at] === host);
+function createAgentPicker(root, actions) {
+  let view = null;
+  let confirmed = null;
+  let saving = null;
+  let notice = "";
+  let open = false;
+  let menuFor = null;
+  let drag = null;
+  let suppressClick = false;
+  let drawn = "";
+  const retrying = new Set;
+  const trigger = el("button", "ap-trigger");
+  trigger.type = "button";
+  trigger.setAttribute("aria-haspopup", "dialog");
+  trigger.setAttribute("aria-expanded", "false");
+  trigger.setAttribute("aria-controls", "agent-order");
+  const stack = el("span", "ap-stack");
+  trigger.append(stack, chevron());
+  const pop = el("section", "ap-pop");
+  pop.id = "agent-order";
+  pop.setAttribute("role", "dialog");
+  pop.setAttribute("aria-labelledby", "agent-order-title");
+  pop.inert = true;
+  const head = el("header", "ap-head");
+  const title = el("h2", "", "Agent order");
+  title.id = "agent-order-title";
+  head.append(title, el("p", "", "New default work uses the first available agent. Drag a handle, or press it for move actions."));
+  const list = el("ol", "ap-list");
+  list.setAttribute("aria-label", "Agents in priority order");
+  const message = el("p", "ap-notice");
+  message.setAttribute("role", "status");
+  const waits = el("div", "ap-waits");
+  pop.append(head, list, message, waits);
+  const live = el("p", "sr-only");
+  live.setAttribute("aria-live", "polite");
+  root.replaceChildren(trigger, pop, live);
+  root.hidden = true;
+  const announce = (text) => {
+    live.textContent = "";
+    setTimeout(() => {
+      live.textContent = text;
+    }, 50);
+  };
+  const shown = () => saving ?? confirmed?.order ?? [];
+  const excluded = () => HOSTS.filter((host) => !shown().includes(host));
+  const handleOf = (host) => list.querySelector(`.ap-row[data-host="${host}"] .ap-handle`);
+  const paused = () => Boolean(view && shown().every((host) => view?.usage[host]));
+  const place = () => {
+    if (!open)
+      return;
+    const box = trigger.getBoundingClientRect();
+    pop.style.maxHeight = `${Math.max(0, Math.min(innerHeight - EDGE * 2, box.top - GAP - EDGE))}px`;
+    const left = Math.max(EDGE, Math.min(box.left, innerWidth - pop.offsetWidth - EDGE));
+    pop.style.left = `${left}px`;
+    pop.style.top = `${Math.max(EDGE, box.top - pop.offsetHeight - GAP)}px`;
+  };
+  const resize = new ResizeObserver(place);
+  resize.observe(pop);
+  if (root.parentElement)
+    resize.observe(root.parentElement);
+  const detail = (host) => {
+    if (!shown().includes(host))
+      return "Excluded from default work";
+    const parts = [];
+    if (view?.activeHosts.includes(host))
+      parts.push("In use");
+    const block = view?.usage[host];
+    if (block)
+      parts.push(`Limit reached · ${resetText(block.resetAt)}`, block.reason);
+    else if (!parts.length)
+      parts.push("Available");
+    return parts.join(" · ");
+  };
+  const row = (host, rank) => {
+    const item = el("li", `ap-row${rank === null ? " ap-excluded" : ""}`);
+    item.dataset.host = host;
+    const handle = el("button", "ap-handle");
+    handle.type = "button";
+    handle.setAttribute("aria-haspopup", "menu");
+    handle.setAttribute("aria-label", rank === null ? `${NAMES[host]}, excluded from default work. Actions` : `${NAMES[host]}, priority ${rank} of ${shown().length}. Move or exclude`);
+    if (saving)
+      handle.setAttribute("aria-disabled", "true");
+    handle.append(grip());
+    const name = el("span", "ap-name", NAMES[host]);
+    const text = detail(host);
+    const availability = el("small", "ap-detail", text);
+    availability.title = text;
+    name.append(availability);
+    item.append(handle, el("span", "ap-rank", rank === null ? "–" : String(rank)), agentIcon(host), name);
+    if (rank === 1)
+      item.append(el("span", "ap-badge", "First"));
+    return item;
+  };
+  const waitLine = (wait) => {
+    const line = el("div", "ap-wait");
+    line.append(el("p", "", `#${wait.number} is paused: every included agent reached a usage limit. ${wait.nextResetAt === null ? "No reset time is known." : `It tries again at ${resetText(wait.nextResetAt).replace("resets ", "")}.`}`));
+    const button = el("button", "btn ghost ap-retry", `Retry #${wait.number}`);
+    button.type = "button";
+    button.dataset.wait = wait.waitId;
+    button.setAttribute("aria-label", `Retry #${wait.number} with the current agent order`);
+    if (retrying.has(wait.waitId))
+      button.setAttribute("aria-busy", "true");
+    button.addEventListener("click", () => void retry(wait));
+    line.append(button);
+    return line;
+  };
+  const focusKey = () => {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement) || !root.contains(active))
+      return null;
+    if (active === trigger)
+      return "trigger";
+    const host = active.closest(".ap-row")?.dataset.host;
+    if (active.matches(".ap-menu button"))
+      return `menu:${active.dataset.action}`;
+    if (host)
+      return `handle:${host}`;
+    if (active.dataset.wait)
+      return `wait:${active.dataset.wait}`;
+    return null;
+  };
+  const restore = (key) => {
+    if (!key)
+      return;
+    const target = key === "trigger" ? trigger : key.startsWith("menu:") ? list.querySelector(`.ap-menu [data-action="${key.slice(5)}"]:not(:disabled)`) : key.startsWith("handle:") ? handleOf(key.slice(7)) : waits.querySelector(`[data-wait="${CSS.escape(key.slice(5))}"]`);
+    (target ?? (open ? list.querySelector(".ap-handle") : trigger))?.focus({ preventScroll: true });
+  };
+  const draw = (force = false) => {
+    if (!view || !confirmed || drag)
+      return;
+    const signature = JSON.stringify([view, confirmed, saving, notice, open, menuFor, [...retrying]]);
+    if (!force && signature === drawn)
+      return;
+    drawn = signature;
+    const focus = focusKey();
+    root.hidden = false;
+    const order = shown();
+    stack.replaceChildren(...order.map(agentIcon));
+    const using = view.activeHosts.length ? ` In use: ${view.activeHosts.map((host) => NAMES[host]).join(", ")}.` : "";
+    trigger.setAttribute("aria-label", `Agent order: ${order.map((host) => NAMES[host]).join(", then ")}.${using}${paused() ? " Default work is paused." : ""}`);
+    trigger.title = `Agent order: ${order.map((host) => NAMES[host]).join(" › ")}`;
+    trigger.dataset.state = paused() ? "paused" : "ready";
+    list.replaceChildren(...order.map((host, at) => row(host, at + 1)), ...excluded().map((host) => row(host, null)), Object.assign(el("div", "ap-drop"), { hidden: true }));
+    list.setAttribute("aria-busy", String(Boolean(saving)));
+    const status = notice || (saving ? "Saving the agent order." : view.error ? `The agent state is unavailable: ${view.error}` : paused() && !view.waits.length ? "New default work waits: every included agent reached a usage limit." : "");
+    message.textContent = status;
+    message.hidden = !status;
+    waits.replaceChildren(...view.waits.map(waitLine));
+    if (menuFor)
+      showMenu(menuFor, false);
+    place();
+    restore(focus);
+  };
+  const commit = async (next, success) => {
+    if (!confirmed || saving || same(next, confirmed.order) || !next.length)
+      return;
+    const version = confirmed.version;
+    saving = next;
+    notice = "";
+    announce("Saving the agent order.");
+    draw();
+    try {
+      confirmed = await actions.replace(next, version);
+      notice = "";
+      announce(success);
+    } catch (cause) {
+      if (cause instanceof OrderConflict) {
+        confirmed = cause.latest;
+        notice = "Another tab or command saved a new order first. The current order shows now. Change it again.";
+      } else
+        notice = `The order was not saved: ${cause instanceof Error ? cause.message : String(cause)}`;
+      announce(notice);
+    } finally {
+      saving = null;
+      draw(true);
+    }
+  };
+  const move = (host, to) => {
+    const order = [...shown()];
+    const from = order.indexOf(host);
+    to = Math.max(0, Math.min(order.length - 1, to));
+    if (from < 0 || from === to)
+      return;
+    order.splice(from, 1);
+    order.splice(to, 0, host);
+    commit(order, to === 0 ? `${NAMES[host]} is now first.` : `${NAMES[host]} moved to position ${to + 1} of ${order.length}.`);
+  };
+  const toggle = (host) => {
+    const order = shown();
+    if (order.includes(host)) {
+      if (order.length > 1)
+        commit(order.filter((each) => each !== host), `${NAMES[host]} is excluded from default work.`);
+    } else
+      commit([...order, host], `${NAMES[host]} is included in default work, last in the order.`);
+  };
+  const retry = async (wait) => {
+    if (retrying.has(wait.waitId))
+      return;
+    retrying.add(wait.waitId);
+    draw();
+    try {
+      await actions.retry(wait.number, wait.waitId);
+      notice = "";
+      announce(`Retry requested for #${wait.number}. Its run starts one attempt with the current order.`);
+    } catch (cause) {
+      notice = `Retry of #${wait.number} failed: ${cause instanceof Error ? cause.message : String(cause)}`;
+      announce(notice);
+    } finally {
+      retrying.delete(wait.waitId);
+      draw();
+    }
+  };
+  const closeMenu = (refocus) => {
+    const host = menuFor;
+    list.querySelector(".ap-menu")?.remove();
+    menuFor = null;
+    if (refocus && host)
+      handleOf(host)?.focus();
+  };
+  const showMenu = (host, focus = true) => {
+    list.querySelector(".ap-menu")?.remove();
+    const item = list.querySelector(`.ap-row[data-host="${host}"]`);
+    if (!item) {
+      menuFor = null;
+      return;
+    }
+    menuFor = host;
+    const order = shown();
+    const at = order.indexOf(host);
+    const included = at >= 0;
+    const last = order.length - 1;
+    const menu = el("div", "ap-menu");
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("aria-label", `${NAMES[host]} actions`);
+    const entry = (action, label, disabled, run) => {
+      const button = el("button", "", label);
+      button.type = "button";
+      button.dataset.action = action;
+      button.setAttribute("role", "menuitem");
+      button.disabled = disabled || Boolean(saving);
+      button.addEventListener("click", () => {
+        closeMenu(false);
+        handleOf(host)?.focus();
+        run();
+      });
+      return button;
+    };
+    menu.append(entry("first", "Move first", !included || at === 0, () => move(host, 0)), el("hr"), entry("up", "Move up", !included || at === 0, () => move(host, at - 1)), entry("down", "Move down", !included || at === last, () => move(host, at + 1)), entry("bottom", "Move to bottom", !included || at === last, () => move(host, last)), el("hr"), included ? entry("exclude", "Exclude from default work", order.length === 1, () => toggle(host)) : entry("include", "Include in default work", false, () => toggle(host)));
+    if (included && order.length === 1)
+      menu.append(el("p", "ap-menu-note", "At least one agent stays included."));
+    list.append(menu);
+    const rows = list.getBoundingClientRect();
+    const box = item.getBoundingClientRect();
+    const below = box.bottom + menu.offsetHeight <= innerHeight - EDGE;
+    menu.style.top = `${(below ? box.bottom : Math.max(EDGE, box.top - menu.offsetHeight)) - rows.top}px`;
+    menu.addEventListener("keydown", (event) => {
+      const buttons = [...menu.querySelectorAll("button:not(:disabled)")];
+      const index = buttons.indexOf(document.activeElement);
+      const step = event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
+      if (step && buttons.length) {
+        event.preventDefault();
+        buttons[(index + step + buttons.length) % buttons.length]?.focus();
+      } else if (event.key === "Home" || event.key === "End") {
+        event.preventDefault();
+        (event.key === "Home" ? buttons[0] : buttons.at(-1))?.focus();
+      } else if (event.key === "Tab")
+        closeMenu(false);
+    });
+    if (focus)
+      menu.querySelector("button:not(:disabled)")?.focus();
+  };
+  const setOpen = (value, refocus = true) => {
+    open = value;
+    pop.classList.toggle("ap-open", open);
+    pop.inert = !open;
+    trigger.setAttribute("aria-expanded", String(open));
+    if (!open) {
+      cancelDrag();
+      closeMenu(false);
+      if (refocus)
+        trigger.focus();
+      return;
+    }
+    draw(true);
+    list.querySelector(".ap-handle")?.focus();
+  };
+  const cancelDrag = () => {
+    if (!drag)
+      return;
+    const { row: item, ghost, pointer } = drag;
+    drag = null;
+    ghost?.remove();
+    item.classList.remove("ap-dragging");
+    root.classList.remove("ap-is-dragging");
+    const marker = list.querySelector(".ap-drop");
+    if (marker)
+      marker.hidden = true;
+    const handle = item.querySelector(".ap-handle");
+    if (handle?.hasPointerCapture(pointer))
+      handle.releasePointerCapture(pointer);
+  };
+  trigger.addEventListener("click", () => setOpen(!open));
+  list.addEventListener("click", (event) => {
+    const handle = event.target.closest(".ap-handle");
+    if (!handle)
+      return;
+    if (suppressClick) {
+      suppressClick = false;
+      return;
+    }
+    const host = handle.closest(".ap-row")?.dataset.host;
+    if (menuFor === host)
+      closeMenu(true);
+    else
+      showMenu(host);
+  });
+  list.addEventListener("pointerdown", (event) => {
+    const handle = event.target.closest(".ap-handle");
+    suppressClick = false;
+    if (!handle || event.button !== 0 || saving)
+      return;
+    const item = handle.closest(".ap-row");
+    const host = item.dataset.host;
+    if (!shown().includes(host))
+      return;
+    drag = {
+      row: item,
+      host,
+      pointer: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      offset: event.clientY - item.getBoundingClientRect().top,
+      started: false,
+      to: null,
+      ghost: null
+    };
+    handle.setPointerCapture(event.pointerId);
+  });
+  list.addEventListener("pointermove", (event) => {
+    if (!drag || event.pointerId !== drag.pointer)
+      return;
+    if (!drag.started) {
+      if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 4)
+        return;
+      drag.started = true;
+      closeMenu(false);
+      root.classList.add("ap-is-dragging");
+      drag.row.classList.add("ap-dragging");
+      const box = drag.row.getBoundingClientRect();
+      const ghost = drag.row.cloneNode(true);
+      ghost.className = "ap-row ap-ghost";
+      ghost.setAttribute("aria-hidden", "true");
+      ghost.style.width = `${box.width}px`;
+      ghost.style.left = `${box.left}px`;
+      root.append(ghost);
+      drag.ghost = ghost;
+    }
+    drag.ghost.style.top = `${event.clientY - drag.offset}px`;
+    const rows = [...list.querySelectorAll(".ap-row:not(.ap-excluded)")];
+    let slot = rows.length;
+    for (const [index, each] of rows.entries()) {
+      const box = each.getBoundingClientRect();
+      if (event.clientY < box.top + box.height / 2) {
+        slot = index;
+        break;
+      }
+    }
+    const from = rows.indexOf(drag.row);
+    const marker = list.querySelector(".ap-drop");
+    if (slot === from || slot === from + 1) {
+      marker.hidden = true;
+      drag.to = null;
+      return;
+    }
+    const near = rows[Math.min(slot, rows.length - 1)];
+    marker.style.top = `${slot < rows.length ? near.offsetTop - 2 : near.offsetTop + near.offsetHeight}px`;
+    marker.hidden = false;
+    drag.to = slot > from ? slot - 1 : slot;
+  });
+  const endDrag = (event) => {
+    if (!drag || event.pointerId !== drag.pointer)
+      return;
+    const { started, host, to } = drag;
+    suppressClick = started;
+    cancelDrag();
+    if (started && to !== null)
+      move(host, to);
+    else if (started)
+      draw(true);
+    else
+      setTimeout(draw, 0);
+  };
+  list.addEventListener("pointerup", endDrag);
+  list.addEventListener("pointercancel", (event) => {
+    if (!drag || event.pointerId !== drag.pointer)
+      return;
+    suppressClick = drag.started;
+    cancelDrag();
+    draw(true);
+  });
+  list.addEventListener("keydown", (event) => {
+    const handle = event.target.closest(".ap-handle");
+    if (!handle)
+      return;
+    const host = handle.closest(".ap-row")?.dataset.host;
+    const handles = [...list.querySelectorAll(".ap-row .ap-handle")];
+    const index = handles.indexOf(handle);
+    const at = shown().indexOf(host);
+    if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+      event.preventDefault();
+      if (at >= 0)
+        move(host, at + (event.key === "ArrowUp" ? -1 : 1));
+    } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      event.preventDefault();
+      handles[Math.max(0, Math.min(handles.length - 1, index + (event.key === "ArrowUp" ? -1 : 1)))]?.focus();
+    } else if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      (event.key === "Home" ? handles[0] : handles.at(-1))?.focus();
+    }
+  });
+  const onKey = (event) => {
+    if (event.key !== "Escape" || !open)
+      return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (drag) {
+      cancelDrag();
+      draw(true);
+    } else if (menuFor)
+      closeMenu(true);
+    else
+      setOpen(false);
+  };
+  const onOutside = (event) => {
+    if (open && !root.contains(event.target))
+      setOpen(false, false);
+  };
+  root.addEventListener("keydown", onKey);
+  document.addEventListener("pointerdown", onOutside);
+  addEventListener("resize", place);
+  addEventListener("scroll", place, true);
+  return {
+    update(next) {
+      const changed = Boolean(confirmed && next.order.version !== confirmed.version);
+      view = next;
+      if (saving)
+        return;
+      if (changed && drag) {
+        const started = drag.started;
+        cancelDrag();
+        if (started) {
+          notice = "The order changed in another tab or command. The drag stopped. The current order shows now.";
+          announce(notice);
+        }
+      } else if (changed && notice.startsWith("Another tab"))
+        notice = "";
+      confirmed = next.order;
+      draw();
+    },
+    destroy() {
+      cancelDrag();
+      resize.disconnect();
+      root.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onOutside);
+      removeEventListener("resize", place);
+      removeEventListener("scroll", place, true);
+      root.replaceChildren();
+    }
+  };
+}
 
-// engine/lib/effort.ts
-var levels = ["low", "medium", "high", "xhigh", "max"];
-var decidable = steps.filter((step) => step !== "triage");
+// engine/board/page/palette.ts
+var items = [];
+var shown = [];
+var active = 0;
+var option = (item, index) => {
+  const node = el("div", `pal-row${index === active ? " on" : ""}${item.tone ? ` tone-${item.tone}` : ""}`);
+  node.id = `pal-${index}`;
+  node.setAttribute("role", "option");
+  node.setAttribute("aria-selected", String(index === active));
+  if (item.isDisabled)
+    node.setAttribute("aria-disabled", "true");
+  if (item.title)
+    node.title = item.title;
+  const context = el("span", "ctx");
+  if (item.number !== null)
+    context.append(el("span", "num", `#${item.number}`));
+  if (item.context)
+    context.append(item.context);
+  node.append(icon(item.icon), el("b", "", item.label), context, item.key ? el("kbd", "", item.key) : el("span"));
+  node.addEventListener("mousemove", () => {
+    if (active !== index)
+      select(index);
+  });
+  node.addEventListener("click", () => pick(index));
+  return node;
+};
+var draw = () => {
+  const list = $("pal-list");
+  const rows = [];
+  let group = null;
+  shown.forEach((item, index) => {
+    if (item.group !== group) {
+      group = item.group;
+      rows.push(el("div", "pal-group", group));
+    }
+    rows.push(option(item, index));
+  });
+  if (shown.length === 0)
+    rows.push(el("p", "pal-empty", "No card or command matches."));
+  list.replaceChildren(...rows);
+  $("pal-input").setAttribute("aria-activedescendant", shown.length ? `pal-${active}` : "");
+};
+var select = (index) => {
+  active = index;
+  draw();
+  $(`pal-${index}`)?.scrollIntoView({ block: "nearest" });
+};
+var pick = (index) => {
+  const item = shown[index];
+  if (!item)
+    return;
+  $("palette").close();
+  item.run();
+};
+var filter = () => {
+  shown = filterItems(items, $("pal-input").value);
+  active = 0;
+  draw();
+};
+var openPalette = (next) => {
+  items = next;
+  $("pal-input").value = "";
+  filter();
+  $("palette").showModal();
+  $("pal-input").focus();
+};
+var setupPalette = () => {
+  $("pal-input").addEventListener("input", filter);
+  $("pal-input").addEventListener("keydown", (event) => {
+    const moves = { ArrowDown: 1, ArrowUp: -1 };
+    if (event.key in moves && shown.length) {
+      event.preventDefault();
+      select((active + moves[event.key] + shown.length) % shown.length);
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      pick(active);
+    }
+  });
+  $("palette").addEventListener("click", (event) => {
+    if (event.target === $("palette"))
+      $("palette").close();
+  });
+};
+var anchor = null;
+var openMenu = (from, entries) => {
+  const menu = $("menu");
+  anchor = from;
+  menu.replaceChildren(...entries.map((entry) => {
+    if (entry === "rule")
+      return el("hr");
+    const node = el("button", `menu-row${entry.isDanger ? " danger" : ""}`);
+    node.type = "button";
+    node.setAttribute("role", "menuitem");
+    node.append(icon(entry.icon), el("span", "", entry.label), entry.key ? el("kbd", "", entry.key) : el("span"));
+    if (entry.isDisabled)
+      node.setAttribute("aria-disabled", "true");
+    if (entry.title)
+      node.title = entry.title;
+    node.addEventListener("click", (event) => {
+      event.stopPropagation();
+      menu.hidePopover();
+      entry.run();
+    });
+    return node;
+  }));
+  menu.showPopover();
+  const box = from.getBoundingClientRect();
+  const width = menu.offsetWidth;
+  const height = menu.offsetHeight;
+  const left = Math.min(Math.max(8, box.right - width), innerWidth - width - 8);
+  const below = box.bottom + 6 + height <= innerHeight - 8;
+  menu.style.left = `${left}px`;
+  menu.style.top = `${below ? box.bottom + 6 : Math.max(8, box.top - height - 6)}px`;
+  menu.querySelector(".menu-row")?.focus();
+};
+var setupMenu = () => {
+  const menu = $("menu");
+  menu.addEventListener("keydown", (event) => {
+    const rows = [...menu.querySelectorAll(".menu-row")];
+    const at = rows.indexOf(document.activeElement);
+    const moves = { ArrowDown: 1, ArrowUp: -1 };
+    if (event.key in moves) {
+      event.preventDefault();
+      rows[(at + moves[event.key] + rows.length) % rows.length]?.focus();
+    } else if (event.key === "Tab") {
+      menu.hidePopover();
+    }
+  });
+  menu.addEventListener("toggle", (event) => anchor?.setAttribute("aria-expanded", String(event.newState === "open")));
+};
 
-// engine/board/board.ts
-import { createAgentPicker, OrderConflict } from "./agent-picker.mjs";
-import { openMenu, openPalette, setupMenu, setupPalette } from "./palette.mjs";
-import { drawPanel } from "./panel.mjs";
-import { drawQueue, setQueueOpen, setupQueue } from "./queue.mjs";
-import {
-  $,
-  actionButton,
-  copy,
-  el,
-  icon,
-  iconButton,
-  link,
-  mark,
-  post,
-  SERVER_DOWN,
-  store,
-  timed,
-  toast
-} from "./ui.mjs";
-import { isReconnecting, setupUpdates } from "./update-dialog.mjs";
-import {
-  age,
-  agentOf,
-  COLUMNS,
-  cleanCause,
-  effortSource,
-  favicon,
-  groupEpics,
-  groupNeeds,
-  keyOf,
-  laneTrack,
-  needsYou,
-  notice,
-  pageTitle,
-  parseOpenEpics,
-  pipeline,
-  prFacts,
-  runTitle,
-  shortPath,
-  signature,
-  startTitle,
-  stateLabel,
-  tail,
-  tone
-} from "./view.mjs";
+// engine/board/page/panel.ts
+var TONES = {
+  waits: "needs",
+  blocked: "needs",
+  works: "working",
+  starts: "working",
+  "no-progress": "danger",
+  "dirty-tree": "amber"
+};
+var PILL_ICONS = {
+  works: "works",
+  starts: "works",
+  waits: "target",
+  "no-progress": "alert",
+  "dirty-tree": "diff",
+  blocked: "person"
+};
+var ASKS = {
+  dialog: ["question", "waits for your answer"],
+  turn: ["message", "ended its turn"]
+};
+var COPIES = { "no-progress": "command", "dirty-tree": "path" };
+var clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+var section = (title, aside, ...children) => {
+  const node = el("section", "sec");
+  const head = el("h3", "sec-label", title);
+  if (aside)
+    head.append(el("span", "aside", aside));
+  node.append(head, ...children);
+  return node;
+};
+var screen = (card) => card.screen?.length ? el("pre", "screen", card.screen.join(`
+`)) : null;
+var ask = (card, actions) => {
+  const [glyph, verb] = ASKS[card.waitFor] ?? ["target", "waits for your answer"];
+  const node = el("div", "ask");
+  const head = el("div", "ask-who");
+  head.append(icon(glyph), el("b", "", agentOf(card)?.name ?? "The agent"), el("span", "", verb), timed(card.since, true, " ago"));
+  node.append(head);
+  const lines = screen(card);
+  if (lines)
+    node.append(lines);
+  const foot = el("div", "ask-foot");
+  foot.append(el("span", "hint", "Answer it in the terminal pane."), ...actions.slice(0, 1).map((action) => actionButton(action)));
+  node.append(foot);
+  return node;
+};
+var steps = (card, flow) => {
+  const track = laneTrack(card, flow);
+  if (!track)
+    return null;
+  const list = el("ol", "steps");
+  for (const step of track) {
+    const item = el("li", step.state);
+    const node = el("span", "node");
+    node.append(icon(step.state === "done" ? "check" : step.state === "now" ? PILL_ICONS[card.state] ?? "pending" : "pending"));
+    const note = step.state === "done" ? "done" : step.state === "now" ? card.state ? stateLabel(card) : "next" : "";
+    item.append(node, el("span", "name", step.name), el("span", "note", note));
+    item.append(gateOf(flow, step.name) === "auto" ? Object.assign(el("span", "gate gate-auto", "auto"), {
+      title: "Auto mode of the daemon starts this step by itself"
+    }) : el("span"));
+    list.append(item);
+  }
+  return section("Lane", `${card.type} · step ${track.findIndex((step) => step.state === "now") + 1} of ${track.length}`, list);
+};
+var facts = (rows) => {
+  const list = el("dl", "facts");
+  for (const [term, value, copyable] of rows.filter((row) => Boolean(row))) {
+    const dd = el("dd", typeof value === "string" ? "mono" : "");
+    dd.append(value);
+    list.append(el("dt", "", term), dd);
+    list.append(copyable ? iconButton("copy", `Copy the ${copyable[1]}`, () => copy(copyable[0], copyable[1])) : el("span"));
+  }
+  return list;
+};
+var effortFacts = (effort) => effort ? [
+  ["Effort", `${effort.level} · ${effortSource(effort)}`],
+  [
+    "Why",
+    el("span", "why", effort.source === "default" ? "No decision on the issue; the default applies." : effort.reason || "No reason given.")
+  ]
+] : [];
+var pr = (card) => {
+  const items = prFacts(card.pr);
+  if (items.length === 0)
+    return null;
+  const row = el("div", "chips");
+  for (const item of items) {
+    const chip = link(`chip2 chip-${item.kind}`, "", item.url);
+    chip.append(icon(item.kind === "pr" ? "pr" : item.kind.startsWith("checks-fail") ? "xcircle" : item.kind.startsWith("checks-pass") || item.kind === "review-approved" ? "check" : "clock"), item.text);
+    row.append(chip);
+  }
+  return section("Pull request", null, row);
+};
+var drawPanel = (card, { actions, flow, on, close }) => {
+  const { state } = card;
+  const asks = state === "waits" && (card.number !== null || card.waitFor === "dialog");
+  const head = el("div", "panel-head");
+  const crumbs = el("div", "crumbs");
+  crumbs.append(mark(card, true), card.number === null ? el("span", "num none", "human session") : link("num", `#${card.number}`, card.url));
+  for (const part of [card.type, card.step === card.type ? null : card.step])
+    if (part)
+      crumbs.append(el("span", "sep", "·"), el("span", "", part));
+  head.append(crumbs);
+  if (card.url) {
+    const open = Object.assign(el("a", "icon-btn"), {
+      href: card.url,
+      target: "_blank",
+      rel: "noreferrer",
+      title: `Open the issue${on} (o)`
+    });
+    open.setAttribute("aria-label", `Open the issue${on}`);
+    open.append(icon("open"));
+    head.append(open);
+  }
+  head.append(iconButton("close", "Close the details (Esc)", close));
+  const top = el("div", "panel-top");
+  const title = el("h2", "panel-title", card.title || (card.number === null ? "A session" : `Issue #${card.number}`));
+  title.id = "panel-title";
+  const line = el("div", "panel-state");
+  if (state) {
+    const pill = el("span", `pill pill-${(state !== "waits" || asks ? TONES[state] : null) ?? "muted"}`);
+    pill.append(icon(PILL_ICONS[state] ?? "pending"), el("span", "pill-label", stateLabel(card)));
+    line.append(pill);
+  } else {
+    const pill = el("span", "pill pill-muted");
+    pill.append(icon("pending"), el("span", "pill-label", `next: ${card.step}`));
+    line.append(pill);
+  }
+  if (card.state !== "starts")
+    line.append(el("span", "", "since"), timed(card.since, Boolean(card.sessionId)));
+  top.append(title, line);
+  if (card.warning)
+    top.append(el("p", "warning", card.warning));
+  const body = el("div", "panel-body");
+  body.append(top);
+  if (asks)
+    body.append(ask(card, actions));
+  else if (actions.length) {
+    const row = el("div", "panel-actions");
+    row.append(...actions.map((action) => actionButton(action)));
+    body.append(row);
+  }
+  const isSession = Boolean(card.sessionId);
+  const details = isSession ? [
+    ["Agent", agentOf(card)?.name ?? "unknown"],
+    card.cwd && ["Folder", card.cwd, [card.cwd, "folder"]],
+    card.diff && [
+      "Changes",
+      `${diffText(card.diff)} · ${card.diff.files} ${card.diff.files === 1 ? "file" : "files"}`
+    ]
+  ] : [
+    card.act && COPIES[card.state] && [
+      COPIES[card.state] === "path" ? "Worktree" : "Command",
+      shortPath(card.act),
+      [card.act, COPIES[card.state]]
+    ],
+    card.act && !COPIES[card.state] && ["Your act", card.act],
+    ...effortFacts(card.effort),
+    ["Updated", `${clock(card.since)}`]
+  ];
+  const pane = isSession && !asks ? screen(card) : null;
+  body.append(...[
+    pr(card),
+    steps(card, flow),
+    section(isSession ? "Session" : "Issue", null, facts(details)),
+    pane && section("Screen", "the last lines of its pane", pane)
+  ].filter((node) => Boolean(node)));
+  $("panel").setAttribute("aria-labelledby", "panel-title");
+  $("panel").dataset.state = state ?? "next";
+  return [head, body];
+};
+
+// engine/board/page/queue.ts
+var recordedHost = (record) => record?.choice?.kind === "explicit" ? record.choice.host : null;
+var chosenHost = (record) => record?.choice ? recordedHost(record) : agent || null;
+var board = null;
+var submitted = null;
+var agent = "";
+var open = false;
+var busy = false;
+var uncertain = false;
+var retired = new Set;
+var options;
+var section2 = () => $("queue");
+var cards = () => Object.values(board?.columns ?? {}).flat();
+var available = () => cards().filter((card) => card.number !== null && !card.sessionId && card.run && card.step);
+var find = (number) => cards().find((card) => card.number === number);
+var heading = () => section2().querySelector(".queue-status h3");
+var expected = () => ({
+  id: submitted?.record?.id ?? null,
+  revision: submitted?.record?.revision ?? 0,
+  current: submitted?.record?.numbers[0] ?? null
+});
+var authoritative = () => Boolean(submitted && !uncertain && !board?.source.error);
+var announce = (message) => {
+  $("announce").textContent = message;
+};
+function accept(view) {
+  const old = submitted?.record;
+  const next = view.record;
+  if (next && (retired.has(next.id) || old?.id === next.id && next.revision < old.revision))
+    return;
+  if (!next && old) {
+    submitted = {
+      ...submitted,
+      error: view.error ?? "The queue record is unavailable. Refresh before acting.",
+      actions: { add: false, edit: false, continue: false, retry: false }
+    };
+    return;
+  }
+  if (old && next && old.id !== next.id)
+    retired.add(old.id);
+  submitted = view;
+}
+var restore = (key) => {
+  if (!key)
+    return;
+  const control = section2().querySelector(`[data-control="${CSS.escape(key)}"]:not(:disabled)`);
+  (control ?? section2().querySelector(".queue-move button:not(:disabled), .queue-pick button:not(:disabled)") ?? heading())?.focus({ preventScroll: true });
+};
+var button = (text, key, action, disabled = false) => {
+  const node = el("button", "btn ghost", text);
+  node.type = "button";
+  node.dataset.control = key;
+  node.disabled = disabled;
+  node.addEventListener("click", () => {
+    if (!node.disabled)
+      action();
+  });
+  return node;
+};
+var request = async (action) => {
+  if (busy || !authoritative())
+    return;
+  busy = true;
+  announce("Saving the queue");
+  draw2();
+  try {
+    const response = await fetch("/api/queue", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action,
+        ...action.kind === "add" && chosenHost(submitted?.record) ? { agent: chosenHost(submitted?.record) } : {}
+      }),
+      signal: AbortSignal.timeout(150000)
+    });
+    if (!response.ok)
+      throw new Error((await response.json()).error);
+    accept(await response.json());
+    announce(action.kind === "add" ? `#${action.number} is saved in the queue` : "The queue is saved");
+  } catch (error) {
+    uncertain = true;
+    toast("Queue action needs a refresh", {
+      detail: error instanceof Error ? error.message : String(error),
+      isError: true
+    });
+    try {
+      const response = await fetch("/api/queue", { signal: AbortSignal.timeout(30000) });
+      if (!response.ok)
+        throw new Error("Queue state is unavailable");
+      const view = await response.json();
+      accept(view);
+      uncertain = !view.actions.add && !view.actions.edit && !view.actions.continue && !view.actions.retry;
+    } catch {
+      uncertain = true;
+    }
+    announce("Check the saved queue before another attempt");
+  } finally {
+    busy = false;
+    draw2();
+  }
+};
+var stateOf = () => {
+  const record = submitted?.record;
+  if (!record?.numbers.length)
+    return "empty";
+  if (record.state === "me-gate")
+    return "me-gate";
+  if (record.state === "error" || submitted?.error && !submitted.owner)
+    return "error";
+  const observed = cards().some((card) => card.number === record.numbers[0] && card.sessionId && card.step === record.current?.step && card.state !== null && card.state !== "starts");
+  return record.state === "running" && observed ? "running" : "starting";
+};
+var row = (number, index, numbers) => {
+  const node = el("li", `queue-row${index === 0 ? " queue-current" : ""}`);
+  node.dataset.number = String(number);
+  const copy = el("div", "queue-copy");
+  const next = submitted?.next;
+  const step = next?.kind === "run" ? next.step : submitted?.record?.current?.step;
+  copy.append(el("span", "queue-number", `#${number}`), el("span", "queue-title", find(number)?.title ?? `Issue #${number}`), el("span", "queue-meta", index === 0 ? `${stateOf() === "me-gate" ? "Waiting for approval" : stateOf() === "error" ? "Stopped" : stateOf() === "running" ? "Running" : "Saved · starting"}${step ? ` · ${step}` : ""}` : "Waiting"));
+  node.append(el("span", "queue-rank", String(index + 1)), copy);
+  if (index > 0) {
+    const controls = el("div", "queue-move");
+    for (const direction of ["up", "down"]) {
+      const control = iconButton("chevron", `Move #${number} ${direction}`, () => request({ kind: "move", number, direction, expected: expected() }));
+      control.classList.add(`queue-${direction}`);
+      control.dataset.control = `${direction}-${number}`;
+      control.disabled = busy || !authoritative() || !submitted?.actions.edit || (direction === "up" ? index === 1 : index === numbers.length - 1);
+      controls.append(control);
+    }
+    const remove = iconButton("close", `Remove #${number} from queue`, () => request({ kind: "remove", number, expected: expected() }));
+    remove.dataset.control = `remove-${number}`;
+    remove.disabled = busy || !authoritative() || !submitted?.actions.edit;
+    controls.append(remove);
+    node.append(controls);
+  }
+  return node;
+};
+var hostAvailable = (host) => {
+  const next = host ?? (board?.next?.kind === "start" ? board.next.host : null);
+  return next === null || board?.agents?.[next]?.available === true;
+};
+function draw2() {
+  if (!board)
+    return;
+  const active = section2().contains(document.activeElement) ? document.activeElement.dataset.control : undefined;
+  const record = submitted?.record;
+  const numbers = record?.numbers ?? [];
+  const state = stateOf();
+  section2().dataset.state = state;
+  section2().setAttribute("aria-busy", String(busy));
+  $("queue-open").textContent = `Queue${numbers.length ? ` ${numbers.length}` : ""}`;
+  const head = el("header", "queue-head");
+  const title = el("div", "queue-heading");
+  title.append(el("h2", "", "Issue queue"), el("span", "queue-count", `${numbers.length} remaining`));
+  head.append(title, button("Back to board", "back", options.back));
+  const status = el("div", "queue-status");
+  const headingNode = el("h3", "", busy ? "Saving the queue" : state === "empty" ? "Ready for work" : state === "starting" ? `Starting #${numbers[0]}` : state === "running" ? `Running #${numbers[0]}` : state === "me-gate" ? "Your approval is needed" : "The queue stopped");
+  headingNode.tabIndex = -1;
+  headingNode.dataset.control = "heading";
+  status.append(headingNode, el("p", "", state === "starting" ? "Your issue is saved. Waiting for a verified session." : state === "me-gate" ? "Continue starts the displayed step. Later issues stay queued." : "Add issues at any time. Finished issues leave automatically."));
+  const warning = !authoritative() ? "The queue state is unavailable. Refresh before acting." : submitted?.error ?? board.noRun;
+  if (warning) {
+    const node = el("p", "queue-warning", warning);
+    node.setAttribute("role", "alert");
+    status.append(node);
+  }
+  if (record?.act)
+    status.append(el("p", "queue-recovery", record.act));
+  const current = el("section", "queue-current-section");
+  current.append(el("h4", "", "Current issue"));
+  if (numbers[0]) {
+    const list = el("ol", "queue-list");
+    list.append(row(numbers[0], 0, numbers));
+    current.append(list);
+  } else
+    current.append(el("p", "queue-empty", "No issue is running. Add one below to start work."));
+  status.append(current);
+  const actions = el("div", "queue-actions");
+  const label = el("label", "queue-agent", "Agent ");
+  const select = el("select");
+  select.dataset.control = "agent";
+  select.setAttribute("aria-label", "Queue agent");
+  select.add(new Option("Default order", ""));
+  for (const host of ["claude", "codex"]) {
+    const option = new Option(host === "claude" ? "Claude" : "Codex", host);
+    option.disabled = board.agents?.[host]?.available !== true;
+    select.add(option);
+  }
+  select.value = chosenHost(record) ?? "";
+  select.disabled = numbers.length > 0 || busy || !authoritative();
+  select.addEventListener("change", () => {
+    agent = select.value;
+    draw2();
+  });
+  label.append(select);
+  actions.append(label);
+  const next = submitted?.next;
+  if (submitted?.actions.continue && next?.kind === "run")
+    actions.append(button("Continue queue", "continue", () => request({ kind: "continue", step: next.step, expected: expected() }), busy || !authoritative()));
+  else if (submitted?.actions.retry)
+    actions.append(button("Try again", "retry", () => request({ kind: "retry", step: next?.kind === "run" ? next.step : null, expected: expected() }), busy || !authoritative()));
+  if (uncertain)
+    actions.append(button("Refresh queue", "refresh", () => options.refresh(), busy));
+  const content = el("div", "queue-content");
+  const waiting = el("section", "queue-order");
+  waiting.append(el("h3", "", "Up next"));
+  const list = el("ol", "queue-list");
+  list.setAttribute("aria-label", "Waiting issues");
+  list.start = 2;
+  list.append(...numbers.slice(1).map((number, index) => row(number, index + 1, numbers)));
+  waiting.append(numbers.length > 1 ? list : el("p", "queue-empty", "No issues waiting. Add more at any time."));
+  const picker = el("section", "queue-picker");
+  picker.append(el("h3", "", "Add from the board"), el("p", "", "Add starts an empty queue. Otherwise, the issue joins the end."));
+  for (const card of available()) {
+    const number = card.number;
+    const item = el("div", "queue-pick");
+    const copy = el("div");
+    copy.append(el("span", "queue-number", `#${number}`), el("span", "queue-title", card.title));
+    const selected = numbers.includes(number);
+    const add = button(selected ? "In queue" : "Add", `add-${number}`, () => request({ kind: "add", number, step: card.step, expected: expected() }), selected || busy || !authoritative() || !submitted?.actions.add || !hostAvailable(chosenHost(record)) || Boolean(board.noRun));
+    add.setAttribute("aria-label", `Add #${number} to queue`);
+    item.append(copy, add);
+    picker.append(item);
+  }
+  if (!available().length)
+    picker.append(el("p", "", "No runnable issues are available."));
+  content.append(waiting, picker);
+  section2().replaceChildren(head, status, actions, content);
+  if (open)
+    restore(active);
+}
+function setupQueue(next) {
+  options = next;
+}
+function setQueueOpen(value) {
+  open = value;
+  section2().hidden = !open;
+  document.body.classList.toggle("queue-view-open", open);
+  $("queue-open").setAttribute("aria-pressed", String(open));
+  for (const button of document.querySelectorAll(".views button"))
+    button.setAttribute("aria-pressed", String(!open && button.dataset.view === $("columns").dataset.view));
+  if (open) {
+    draw2();
+    heading()?.focus();
+  }
+}
+function drawQueue(next) {
+  board = next;
+  const before = submitted?.record?.numbers.length;
+  if (board.queue) {
+    accept(board.queue);
+    if (!board.source.error && Object.values(board.queue.actions).some(Boolean))
+      uncertain = false;
+  }
+  draw2();
+  if (before !== undefined && submitted?.record && before > submitted.record.numbers.length)
+    announce(`${submitted.record.numbers.length} issues remain in the queue`);
+}
+
+// engine/board/page/update-dialog.ts
+var session = {
+  get(key) {
+    try {
+      return sessionStorage.getItem(`celetis:update-${key}`);
+    } catch {
+      return null;
+    }
+  },
+  set(key, value) {
+    try {
+      if (value === null)
+        sessionStorage.removeItem(`celetis:update-${key}`);
+      else
+        sessionStorage.setItem(`celetis:update-${key}`, value);
+    } catch {}
+  }
+};
+var readPending = () => {
+  try {
+    const value = JSON.parse(session.get("pending") ?? "null");
+    if (value && (value.kind === "update" || value.kind === "restart") && typeof value.target === "string" && typeof value.instance === "string" && (value.recovery === null || typeof value.recovery === "string") && (value.deadline === null || typeof value.deadline === "number" && Number.isFinite(value.deadline)) && typeof value.reloaded === "boolean")
+      return value;
+  } catch {}
+  return null;
+};
+var isRestartAnswer = (value) => {
+  const answer = value;
+  return typeof answer?.target === "string" && typeof answer.runtime?.revision === "string" && typeof answer.runtime.instance === "string";
+};
+var names = { claude: "Claude Code plugin", codex: "Codex plugin", program: "Celetis program" };
+var reconnecting = false;
+var isReconnecting = () => reconnecting;
+var controls;
+function setupUpdates() {
+  if (controls)
+    return controls;
+  const dialog = $("update-dialog");
+  const opener = $("update-open");
+  const label = opener.querySelector(".label");
+  opener.prepend(icon("refresh"));
+  const title = $("update-title");
+  const description = $("update-description");
+  const revisions = $("update-revisions");
+  const progress = $("update-progress");
+  const live = $("update-status");
+  const note = $("update-note");
+  const diagnostic = $("update-error");
+  const recovery = $("update-recovery");
+  const later = $("update-later");
+  const start = $("update-start");
+  const check = $("update-check");
+  let response = null;
+  let offered = null;
+  let pending = readPending();
+  let deferred = session.get("deferred");
+  let hidden = session.get("hidden");
+  let restartShown = session.get("restart-shown");
+  let returning = null;
+  let refusal = null;
+  let checkFailure = null;
+  let checking = false;
+  let submitting = null;
+  let timedOut = false;
+  let revisionKey = "";
+  let announced = "";
+  let announcing;
+  let timer;
+  let active;
+  let epoch = 0;
+  const contains = (target) => target instanceof Node && dialog.contains(target);
+  const save = () => session.set("pending", pending ? JSON.stringify(pending) : null);
+  const beginReconnect = () => {
+    if (!pending)
+      return;
+    if (pending.deadline === null) {
+      pending.deadline = Date.now() + 60000;
+      save();
+    }
+    reconnecting = true;
+    document.dispatchEvent(new Event("board-reconnect"));
+  };
+  if (pending)
+    beginReconnect();
+  const open = (isAutomatic = false) => {
+    if (isAutomatic) {
+      if (dialog.open)
+        return;
+      returning = opener;
+      dialog.setAttribute("open", "");
+    } else {
+      returning = document.activeElement;
+      if (!dialog.open)
+        dialog.show();
+      title.focus();
+    }
+    opener.setAttribute("aria-expanded", "true");
+  };
+  const close = () => {
+    const focused = contains(document.activeElement);
+    if (response?.update.offer && !pending) {
+      deferred = response.update.offer.id;
+      session.set("deferred", deferred);
+    } else if (pending) {
+      hidden = `${pending.instance}:${pending.target}`;
+      session.set("hidden", hidden);
+    }
+    dialog.close();
+    draw();
+    if (focused)
+      (returning?.isConnected && !returning.hidden ? returning : opener).focus();
+  };
+  const dismiss = () => {
+    if (!dialog.open)
+      return false;
+    close();
+    return true;
+  };
+  controls = { contains, dismiss };
+  const kindOf = () => submitting ?? pending?.kind ?? refusal?.kind ?? "update";
+  const phaseOf = () => timedOut ? "timeout" : refusal ? refusal.kind === "restart" ? "restart-refused" : "update-failed" : submitting === "restart" ? "restarting" : pending ? reconnecting || pending.kind === "restart" ? "restarting" : "updating" : checking ? "checking" : checkFailure ? "check-failed" : response?.update.phase;
+  const announce = (key, status) => {
+    if (key === announced)
+      return;
+    announced = key;
+    clearTimeout(announcing);
+    if (live.textContent !== status)
+      live.textContent = status;
+    else {
+      live.textContent = "";
+      announcing = setTimeout(() => {
+        live.textContent = status;
+      }, 100);
+    }
+  };
+  const draw = () => {
+    const focused = document.activeElement;
+    const update = response?.update;
+    const phase = phaseOf();
+    const kind = kindOf();
+    const busy = phase === "updating" || phase === "restarting";
+    const failed = phase === "update-failed" || phase === "restart-refused" || phase === "check-failed" || phase === "timeout";
+    label.textContent = busy ? kind === "restart" ? "Restarting…" : "Update in progress" : phase === "checking" ? "Checking…" : phase === "check-failed" ? "Update check failed" : failed ? kind === "restart" ? "Restart needs attention" : "Update needs attention" : phase === "restart-needed" ? "Restart needed" : phase === "available" ? "Update available" : phase === "updated" ? "Update completed" : phase === "current" ? "Up to date" : "Check for updates";
+    const name = `Celetis: ${label.textContent}`;
+    opener.setAttribute("aria-label", name);
+    opener.title = name;
+    opener.classList.toggle("is-accent", phase === "available" || phase === "restart-needed");
+    opener.setAttribute("aria-disabled", String(phase === "checking"));
+    opener.setAttribute("aria-expanded", String(dialog.open));
+    const isRestart = kind === "restart" || phase === "restart-needed";
+    const target = pending?.target ?? (isRestart ? null : offered?.target) ?? update?.target ?? null;
+    if (!phase || phase === "current") {
+      if (phase === "current")
+        announce(JSON.stringify([phase, target]), "Up to date");
+      if (dialog.open)
+        close();
+      return;
+    }
+    title.textContent = {
+      available: "A Celetis update is available",
+      "restart-needed": "Restart the daemon",
+      checking: "Checking for updates",
+      updating: "Updating Celetis",
+      restarting: "Restarting the daemon",
+      updated: "Update completed",
+      "update-failed": "The update did not finish",
+      "restart-refused": "The daemon did not restart",
+      "check-failed": "Cannot check for updates",
+      timeout: "The daemon did not return"
+    }[phase];
+    description.textContent = {
+      available: "Update the Celetis program and the installed plugins. The daemon restarts when the update completes.",
+      "restart-needed": "The daemon runs an older Celetis program than the installed one. Restart the daemon to use the installed program.",
+      checking: "Checking the configured target and the installed Celetis parts.",
+      updating: "The update is running. The daemon restarts when all parts are ready.",
+      restarting: "This page reconnects when the new daemon answers.",
+      updated: "The update completed. This daemon runs from a checkout, so it does not restart.",
+      "update-failed": "The daemon has not restarted. Check again before a new attempt.",
+      "restart-refused": "The daemon still runs its program. Check again before a new attempt.",
+      "check-failed": "You can keep using the board. Check again when the source is available.",
+      timeout: `The ${kind} may have completed. This page could not reach the new daemon within 60 seconds.`
+    }[phase];
+    const rows = !target ? [] : isRestart ? [...response ? [["Daemon", response.runtime.revision]] : [], ["Installed", target]] : [
+      ...(offered?.parts ?? []).map((part) => [names[part.part], part.installed]),
+      ["Target", target]
+    ];
+    const key = JSON.stringify(rows);
+    if (key !== revisionKey) {
+      revisionKey = key;
+      revisions.replaceChildren(...rows.flatMap(([name, revision]) => {
+        const code = el("code", "", revision.slice(0, 12));
+        code.title = revision;
+        return [el("span", "", name), code];
+      }));
+    }
+    revisions.hidden = phase === "check-failed" || phase === "checking";
+    let status = "";
+    if (phase === "restarting")
+      status = "Reconnecting to the new daemon…";
+    else if (phase === "restart-needed")
+      status = "The daemon runs an older Celetis program.";
+    else if (phase === "updating") {
+      const stage = update?.stage;
+      status = stage ? `${stage.state === "started" ? "Updating" : "Completed"} ${names[stage.part]}…` : "Preparing the update…";
+    } else if (phase === "checking")
+      status = "Checking for updates…";
+    else if (failed || phase === "updated")
+      status = title.textContent ?? "";
+    else
+      status = "An update is available.";
+    if (progress.textContent !== status)
+      progress.textContent = status;
+    announce(JSON.stringify([phase, kind, target, status]), status);
+    progress.classList.toggle("is-busy", busy || phase === "checking");
+    note.textContent = phase === "update-failed" && update ? [
+      update.completed.length ? `Completed: ${update.completed.map((part) => names[part]).join(", ")}.` : "",
+      update.incomplete.length ? `Incomplete: ${update.incomplete.map((part) => names[part]).join(", ")}.` : ""
+    ].filter(Boolean).join(" ") : "Your agent sessions keep running in their tabs.";
+    note.classList.toggle("update-failure", phase === "update-failed");
+    diagnostic.textContent = failed ? checkFailure ?? refusal?.line ?? update?.error ?? "" : "";
+    diagnostic.hidden = !diagnostic.textContent;
+    recovery.textContent = failed && phase !== "restart-refused" ? pending?.recovery ?? update?.recovery ?? "" : "";
+    recovery.hidden = !recovery.textContent;
+    later.textContent = busy ? "Hide progress" : failed || phase === "updated" ? "Close" : "Later";
+    start.hidden = phase !== "available" && phase !== "restart-needed";
+    start.textContent = phase === "restart-needed" ? "Restart" : "Update and restart";
+    start.disabled = submitting !== null || checking || phase === "available" && !update?.offer;
+    check.hidden = !failed;
+    check.disabled = checking;
+    if (focused === start && start.hidden || focused === check && check.hidden)
+      title.focus();
+    opener.setAttribute("aria-expanded", String(dialog.open));
+  };
+  const expire = () => {
+    if (!pending?.deadline || Date.now() < pending.deadline)
+      return false;
+    timedOut = true;
+    clearTimeout(timer);
+    active?.abort();
+    draw();
+    open(true);
+    return true;
+  };
+  const accept = (next) => {
+    if (expire())
+      return;
+    if (!pending && JSON.stringify(response) === JSON.stringify(next))
+      return;
+    const previousPhase = response?.update.phase;
+    response = next;
+    const update = next.update;
+    if (update.offer)
+      offered = update.offer;
+    if (pending && next.runtime.revision === pending.target && next.runtime.instance !== pending.instance) {
+      if (pending.reloaded) {
+        pending = null;
+        reconnecting = false;
+        save();
+        document.dispatchEvent(new Event("board-connected"));
+      } else {
+        pending.reloaded = true;
+        save();
+        location.reload();
+        return;
+      }
+    }
+    if (update.phase === "updating" || update.phase === "restarting") {
+      refusal = null;
+      if (!pending && update.target) {
+        pending = {
+          kind: update.completed.length || update.incomplete.length ? "update" : "restart",
+          target: update.target,
+          instance: next.runtime.instance,
+          recovery: update.recovery,
+          deadline: null,
+          reloaded: false
+        };
+        save();
+      }
+      if (pending && update.recovery) {
+        pending.recovery = update.recovery;
+        save();
+      }
+    } else if ((update.phase === "update-failed" || update.phase === "updated") && next.runtime.instance === pending?.instance) {
+      if (pending.kind === "restart")
+        refusal = { kind: "restart", line: update.error ?? "" };
+      pending = null;
+      reconnecting = false;
+      save();
+      document.dispatchEvent(new Event("board-connected"));
+    }
+    if (pending) {
+      if (update.phase === "updating" && update.target === pending.target && next.runtime.instance === pending.instance) {
+        if (reconnecting) {
+          pending.deadline = null;
+          reconnecting = false;
+          save();
+          document.dispatchEvent(new Event("board-connected"));
+        }
+      } else
+        beginReconnect();
+    }
+    if (expire())
+      return;
+    draw();
+    if (update.phase === "available" && !pending && !refusal && !checking && update.offer?.id !== deferred)
+      open(true);
+    else if (phaseOf() === "restart-needed" && update.target !== restartShown) {
+      restartShown = update.target;
+      session.set("restart-shown", restartShown);
+      open(true);
+    } else if (pending && hidden !== `${pending.instance}:${pending.target}`)
+      open(true);
+    else if (update.phase === "update-failed" && previousPhase !== "update-failed")
+      open(true);
+    else if (update.phase === "updated" && previousPhase !== undefined && previousPhase !== "updated")
+      open(true);
+  };
+  const schedule = () => {
+    clearTimeout(timer);
+    if (!timedOut)
+      timer = setTimeout(poll, pending ? 1000 : 5000);
+  };
+  const poll = async (forCheck = false) => {
+    if (expire())
+      return;
+    const request = ++epoch;
+    const controller = new AbortController;
+    active = controller;
+    const timeout = setTimeout(() => controller.abort(), Math.min(5000, pending?.deadline ? Math.max(1, pending.deadline - Date.now()) : 5000));
+    try {
+      const result = await fetch("/api/update", { cache: "no-store", signal: controller.signal });
+      if (!result.ok)
+        throw new Error("The board server does not answer.");
+      const next = await result.json();
+      if (!next.runtime || !next.update)
+        throw new Error("The update status could not be read.");
+      if (request === epoch) {
+        if (forCheck)
+          checking = false;
+        accept(next);
+        draw();
+      }
+    } catch {
+      if (request !== epoch)
+        return;
+      if (forCheck || !pending && response?.update.phase === "checking") {
+        checking = false;
+        checkFailure ??= "The update status could not be read. Check again.";
+      }
+      if (pending) {
+        beginReconnect();
+      }
+      draw();
+    } finally {
+      clearTimeout(timeout);
+      if (request === epoch) {
+        expire();
+        schedule();
+      }
+    }
+  };
+  const stopPoll = () => {
+    ++epoch;
+    clearTimeout(timer);
+    active?.abort();
+  };
+  opener.addEventListener("click", () => {
+    const phase = phaseOf();
+    if (phase === "checking")
+      return;
+    if (!phase || phase === "current") {
+      requestCheck();
+      return;
+    }
+    if (pending) {
+      hidden = null;
+      session.set("hidden", null);
+    }
+    open();
+    draw();
+  });
+  later.addEventListener("click", () => close());
+  dialog.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close();
+    }
+  });
+  dialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    if (contains(document.activeElement))
+      close();
+  });
+  const approve = async () => {
+    if (submitting || checking || pending || !response?.update.offer)
+      return;
+    const offer = response.update.offer;
+    stopPoll();
+    pending = {
+      kind: "update",
+      target: offer.target,
+      instance: response.runtime.instance,
+      recovery: response.update.recovery,
+      deadline: null,
+      reloaded: false
+    };
+    hidden = null;
+    refusal = null;
+    submitting = "update";
+    save();
+    draw();
+    const outcome = await post("/api/update/start", { offerId: offer.id }, "Update failed", { timeout: 1e4 });
+    submitting = null;
+    if (outcome.status === "rejected") {
+      pending = null;
+      reconnecting = false;
+      refusal = { kind: "update", line: outcome.error };
+      save();
+      draw();
+    } else
+      beginReconnect();
+    await poll();
+  };
+  const restart = async () => {
+    if (submitting || checking || pending || phaseOf() !== "restart-needed" || !response)
+      return;
+    const shown = response;
+    stopPoll();
+    hidden = null;
+    refusal = null;
+    submitting = "restart";
+    draw();
+    const request = {};
+    const outcome = await post("/api/update/restart", request, "Restart failed", { timeout: 1e4 });
+    submitting = null;
+    if (outcome.status !== "accepted" && outcome.error !== undefined) {
+      refusal = { kind: "restart", line: outcome.error };
+      draw();
+    } else {
+      const answer = outcome.status === "accepted" && isRestartAnswer(outcome.body) ? outcome.body : null;
+      pending = {
+        kind: "restart",
+        target: answer?.target ?? shown.update.target ?? "",
+        instance: answer?.runtime.instance ?? shown.runtime.instance,
+        recovery: shown.update.recovery,
+        deadline: null,
+        reloaded: false
+      };
+      save();
+      beginReconnect();
+    }
+    await poll();
+  };
+  start.addEventListener("click", () => void (phaseOf() === "restart-needed" ? restart() : approve()));
+  const requestCheck = async () => {
+    if (phaseOf() === "checking" || pending && !timedOut)
+      return;
+    if (timedOut) {
+      pending = null;
+      timedOut = false;
+      reconnecting = false;
+      save();
+      document.dispatchEvent(new Event("board-connected"));
+    }
+    checking = true;
+    refusal = null;
+    checkFailure = null;
+    stopPoll();
+    draw();
+    const result = await post("/api/update/check", {}, "Update check failed");
+    if (!result)
+      checkFailure = "The update check could not start. Check again.";
+    await poll(true);
+  };
+  check.addEventListener("click", () => void requestCheck());
+  draw();
+  poll();
+  return controls;
+}
+
+// engine/board/page/board.ts
 var SUMMARY = [
   ["needs", "need you"],
   ["running", "running"],
@@ -434,7 +2174,7 @@ var starting = null;
 var startupWarnings = new Map;
 var byKey = new Map;
 var used = new Set;
-var who = (card) => card.number === null ? card.title ? `human session "${card.title}"` : "a human session" : `#${card.number}`;
+var who2 = (card) => card.number === null ? card.title ? `human session "${card.title}"` : "a human session" : `#${card.number}`;
 var canRunLater = (card) => card.sessionId === null && card.step && (card.state === null || card.state === "no-progress");
 var copyWhat = (card) => card.act ? COPY[card.state] : null;
 var onTracker = () => data.tracker ? ` on ${data.tracker}` : "";
@@ -565,7 +2305,7 @@ var levelEntries = (card) => {
   const reason = data?.noRun || (record?.state === "me-gate" && record.numbers[0] === card.number ? QUEUE_LEVEL : runReason(null, card.number));
   return [
     "rule",
-    ...levels.map((level) => ({
+    ...(data?.flow?.levels ?? []).map((level) => ({
       icon: level === effort.level ? "check" : "run",
       label: `Run at ${level}${level === effort.level ? ` (${effortSource(effort)})` : ""}`,
       title: reason ?? startTitle(card.step, effort, level),
@@ -604,9 +2344,9 @@ var actionsOf = (card) => {
       label: "Go",
       icon: "go",
       busy: "Focusing",
-      name: `Go to the pane of ${who(card)}`,
+      name: `Go to the pane of ${who2(card)}`,
       title: "Focus its pane in herdr (Enter)",
-      run: () => act("/api/go", { sessionId: card.sessionId }, "Go failed", () => toast(`Focused the pane of ${who(card)} in herdr`, { detail: "Switch to your terminal to see it." }))
+      run: () => act("/api/go", { sessionId: card.sessionId }, "Go failed", () => toast(`Focused the pane of ${who2(card)} in herdr`, { detail: "Switch to your terminal to see it." }))
     });
   }
   if (card.state === "quota-wait")

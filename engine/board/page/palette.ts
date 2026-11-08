@@ -1,6 +1,6 @@
-import type { MenuEntry, PaletteItem } from './types.ts';
+import type { MenuEntry, PaletteItem } from '../types.ts';
+import { filterItems } from '../view.ts';
 import { $, el, icon } from './ui.ts';
-import { filterItems } from './view.ts';
 
 let items: PaletteItem[] = [];
 let shown: PaletteItem[] = [];

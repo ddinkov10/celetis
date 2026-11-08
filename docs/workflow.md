@@ -453,8 +453,8 @@ and no landing.
    4403. A file with an error prints the diagnostic of the config reader and exits with its code;
 7. opens the board ("The board"). A nonzero `Number(PORT)` of its environment is an exact port;
    else the board takes the first free port from `board.port` through 65535. It prints
-   `agent-board: repository <main>` and `agent-board: http://127.0.0.1:<port>`. A port that cannot
-   open prints `agent-board: cannot listen on 127.0.0.1:<port>: …` (or the range of an exhausted
+   `board: repository <main>` and `board: http://127.0.0.1:<port>`. A port that cannot
+   open prints `board: cannot listen on 127.0.0.1:<port>: …` (or the range of an exhausted
    search), releases `daemon`, and exits 6, before any takeover;
 8. reads the run records and makes one adoption attempt for each record ("The takeover");
 9. removes a socket file that a killed daemon left;
@@ -594,7 +594,7 @@ landing leaves the list when it ends. `celetis daemon status` prints one line
 **The output.** Each line that the daemon writes to its stdout or stderr starts with
 `<ISO time> <tag> `. The tag is the first 8 characters of the run ID for a line of a run,
 `land-<n>` for a line of the landing of #<n>, else
-`daemon`, also for the `agent-board:` lines of the board. A line of a run starts with `daemon: `, apart from the lines that keep their own prefix. The daemon writes
+`daemon`, also for the `board:` lines of the board. A line of a run starts with `daemon: `, apart from the lines that keep their own prefix. The daemon writes
 nothing else to a file; the process that starts the daemon decides where its stdout and stderr go. A run that ends
 with a nonzero code adds the event `run-exit` to the event record, with its last line as
 `message`. Each write of a landing, also of its suite, also goes to the stream of its request, as
@@ -1607,8 +1607,8 @@ go to the daemon ("Run and Resume"). The start writes two lines to the daemon lo
 `daemon`, the main checkout and the URL:
 
 ```text
-agent-board: repository /Users/me/code/shop
-agent-board: http://127.0.0.1:4403
+board: repository /Users/me/code/shop
+board: http://127.0.0.1:4403
 ```
 
 The listening port is `PORT` of the environment of the daemon, else the first free port from

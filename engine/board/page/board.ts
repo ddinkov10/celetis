@@ -1,9 +1,5 @@
-import type { AgentOrder, Host } from '../lib/config-core.ts';
-import { type Effort, type Level, levels } from '../lib/effort.ts';
-import { createAgentPicker, OrderConflict } from './agent-picker.ts';
-import { openMenu, openPalette, setupMenu, setupPalette } from './palette.ts';
-import { drawPanel } from './panel.ts';
-import { drawQueue, setQueueOpen, setupQueue } from './queue.ts';
+import type { AgentOrder, Host } from '../../lib/config-core.ts';
+import type { Effort, Level } from '../../lib/effort.ts';
 import type {
   Action,
   AgentReplaceConflict,
@@ -19,23 +15,7 @@ import type {
   PaletteItem,
   ParentEpic,
   RunRequest,
-} from './types.ts';
-import {
-  $,
-  actionButton,
-  copy,
-  el,
-  icon,
-  iconButton,
-  link,
-  mark,
-  post,
-  SERVER_DOWN,
-  store,
-  timed,
-  toast,
-} from './ui.ts';
-import { isReconnecting, setupUpdates } from './update-dialog.ts';
+} from '../types.ts';
 import {
   age,
   agentOf,
@@ -60,7 +40,27 @@ import {
   stateLabel,
   tail,
   tone,
-} from './view.ts';
+} from '../view.ts';
+import { createAgentPicker, OrderConflict } from './agent-picker.ts';
+import { openMenu, openPalette, setupMenu, setupPalette } from './palette.ts';
+import { drawPanel } from './panel.ts';
+import { drawQueue, setQueueOpen, setupQueue } from './queue.ts';
+import {
+  $,
+  actionButton,
+  copy,
+  el,
+  icon,
+  iconButton,
+  link,
+  mark,
+  post,
+  SERVER_DOWN,
+  store,
+  timed,
+  toast,
+} from './ui.ts';
+import { isReconnecting, setupUpdates } from './update-dialog.ts';
 
 const SUMMARY: [Column | 'history', string][] = [
   ['needs', 'need you'],
@@ -253,7 +253,7 @@ const levelEntries = (card: Card): (MenuEntry | 'rule')[] => {
     (record?.state === 'me-gate' && record.numbers[0] === card.number ? QUEUE_LEVEL : runReason(null, card.number));
   return [
     'rule',
-    ...levels.map((level) => ({
+    ...(data?.flow?.levels ?? []).map((level) => ({
       icon: level === effort.level ? 'check' : 'run',
       label: `Run at ${level}${level === effort.level ? ` (${effortSource(effort)})` : ''}`,
       title: reason ?? startTitle(card.step, effort, level),

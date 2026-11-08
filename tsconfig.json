@@ -3,7 +3,7 @@
   "references": [
     { "path": "./tsconfig.runtime.json" },
     { "path": "./tsconfig.native.json" },
-    { "path": "./engine/board/tsconfig.json" },
+    { "path": "./engine/board/page/tsconfig.json" },
     { "path": "./scripts/tsconfig.json" }
   ]
 }

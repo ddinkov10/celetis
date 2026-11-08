@@ -1,7 +1,7 @@
-import type { Effort } from '../lib/effort.ts';
-import type { Action, Card, Flow } from './types.ts';
+import type { Effort } from '../../lib/effort.ts';
+import type { Action, Card, Flow } from '../types.ts';
+import { agentOf, diffText, effortSource, gateOf, laneTrack, prFacts, shortPath, stateLabel } from '../view.ts';
 import { $, actionButton, copy, el, icon, iconButton, link, mark, timed } from './ui.ts';
-import { agentOf, diffText, effortSource, gateOf, laneTrack, prFacts, shortPath, stateLabel } from './view.ts';
 
 const TONES: Record<string, string> = {
   waits: 'needs',

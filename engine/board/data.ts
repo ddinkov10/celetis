@@ -2,6 +2,7 @@ import { realpath } from 'node:fs/promises';
 import { readAgentOrder } from '../lib/agent-order.ts';
 import { activeBlock, readUsage, selectAgent } from '../lib/agent-usage.ts';
 import type { AgentDecision, AgentOrder, Host, UsageBlock } from '../lib/config-core.ts';
+import { levels } from '../lib/effort.ts';
 import { commonDir } from '../lib/host.ts';
 import { isRecorded, lockHolder } from '../lib/locks.ts';
 import { createOperation, locateCheckouts } from '../lib/operation.ts';
@@ -67,6 +68,7 @@ async function readDocument(
         },
       ]),
     ),
+    levels: [...levels],
   };
   const issues: Issue[] = [];
   for (const row of data.rows) {

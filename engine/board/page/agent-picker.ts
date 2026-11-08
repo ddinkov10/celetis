@@ -1,5 +1,5 @@
-import type { AgentOrder, Host } from '../lib/config-core.ts';
-import type { AgentPickerView, QuotaWait } from './types.ts';
+import type { AgentOrder, Host } from '../../lib/config-core.ts';
+import type { AgentPickerView, QuotaWait } from '../types.ts';
 import { AGENT_ICONS, el } from './ui.ts';
 
 export class OrderConflict extends Error {

@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { exits } from '../lib/contract.ts';
-import type { DaemonRequest, DaemonStatus } from '../lib/daemon-types.ts';
 import { commonDir, HostError } from '../lib/host.ts';
 import { installedProgram, type Program } from '../lib/program.ts';
 import { readRefreshHints } from '../lib/refresh-hints.ts';
@@ -9,10 +8,6 @@ import { readBoard, readBoardTargets } from './data.ts';
 import { createBoard, run } from './server.ts';
 import { createUpdates, type UpdateController } from './updates.ts';
 
-export type BoardDaemon = Readonly<{
-  send(request: Exclude<DaemonRequest, { kind: 'status' | 'land' }>): Promise<unknown>;
-  status(): Promise<DaemonStatus>;
-}>;
 export type BoardStart = Readonly<{
   env: NodeJS.ProcessEnv;
   revision: string;
@@ -70,7 +65,7 @@ export async function startBoard(
     const refuse = (cause: NodeJS.ErrnoException) => {
       if (state === 'closing') return;
       if (state === 'ready') {
-        console.error(`agent-board: ${cause.message}`);
+        console.error(`board: ${cause.message}`);
         return;
       }
       if (cause.code === 'EADDRINUSE' && !searching && context.successor) {
@@ -87,8 +82,8 @@ export async function startBoard(
       }
       console.error(
         searching && cause.code === 'EADDRINUSE'
-          ? `agent-board: cannot listen on 127.0.0.1:${first}-65535: all ports are in use`
-          : `agent-board: cannot listen on 127.0.0.1:${port}: ${cause.code === 'EADDRINUSE' ? 'the port is in use' : cause.message}`,
+          ? `board: cannot listen on 127.0.0.1:${first}-65535: all ports are in use`
+          : `board: cannot listen on 127.0.0.1:${port}: ${cause.code === 'EADDRINUSE' ? 'the port is in use' : cause.message}`,
       );
       void close().then(() => reject(new HostError('', exits.blocked)));
     };
@@ -111,8 +106,8 @@ export async function startBoard(
           context.restart(await installedProgram(target));
         },
       });
-      console.log(`agent-board: repository ${main}`);
-      console.log(`agent-board: ${url}`);
+      console.log(`board: repository ${main}`);
+      console.log(`board: ${url}`);
       resolve({ port: address.port, url, drainUpdateResponse: server.drainUpdateResponse, close });
     });
     function listen() {

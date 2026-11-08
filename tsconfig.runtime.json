@@ -1,19 +1,6 @@
 {
   "include": ["**/*.ts"],
-  "exclude": [
-    "node_modules",
-    ".claude",
-    ".superpowers",
-    "engine/hooks/**",
-    "engine/board/board.ts",
-    "engine/board/view.ts",
-    "engine/board/ui.ts",
-    "engine/board/panel.ts",
-    "engine/board/palette.ts",
-    "engine/board/queue.ts",
-    "engine/board/update-dialog.ts",
-    "engine/board/agent-picker.ts"
-  ],
+  "exclude": ["node_modules", ".claude", ".superpowers", "engine/hooks/**", "engine/board/page/**"],
   "compilerOptions": {
     "lib": ["ESNext"],
     "target": "ESNext",

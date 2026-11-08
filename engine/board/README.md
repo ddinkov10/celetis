@@ -1,4 +1,4 @@
-# agent-board
+# The board
 
 The agent board is one local web page for one git repository. It shows each live agent session of
 the repository and each issue of its flow, and it starts a step of an issue with one press. No card
@@ -105,8 +105,8 @@ The daemon keeps that `PORT` for its board only, so no run or landing gets it.
 `daemon start` and `daemon status` is authoritative:
 
 ```text
-<time> daemon agent-board: repository /Users/me/code/shop
-<time> daemon agent-board: http://127.0.0.1:4403
+<time> daemon board: repository /Users/me/code/shop
+<time> daemon board: http://127.0.0.1:4403
 ```
 
 **A start that fails** stops the daemon before its takeover: it releases its lock `daemon`, and
@@ -116,9 +116,9 @@ and exits 6. The daemon log has the cause:
 | Case | Line in the daemon log | Exit of the daemon |
 |---|---|---|
 | The main `.celetis.yaml` cannot be read or has an error | the diagnostic of the config reader, with the file and the field | 2 |
-| The exact `PORT` of a start is in use (a successor searches instead) | `agent-board: cannot listen on 127.0.0.1:<port>: the port is in use` | 6 |
-| Every automatic candidate is occupied | `agent-board: cannot listen on 127.0.0.1:<start>-65535: all ports are in use` | 6 |
-| The server cannot listen for another cause, for example `PORT=99999` | `agent-board: cannot listen on 127.0.0.1:<port>: <the message of Bun>` | 6 |
+| The exact `PORT` of a start is in use (a successor searches instead) | `board: cannot listen on 127.0.0.1:<port>: the port is in use` | 6 |
+| Every automatic candidate is occupied | `board: cannot listen on 127.0.0.1:<start>-65535: all ports are in use` | 6 |
+| The server cannot listen for another cause, for example `PORT=99999` | `board: cannot listen on 127.0.0.1:<port>: <the message of Bun>` | 6 |
 
 `docs/workflow.md` of the plugin `celetis`, "The master daemon", gives each other refusal of
 `daemon start` and of the start of the daemon.
@@ -1129,8 +1129,9 @@ the texts are `Open the issue` and `Read the issues again`.
 - **The document has no version.** The board and the engine are one package, and the compiler
   checks the `Document` type between them.
 
-Browser sources are `board.ts`, `view.ts`, `ui.ts`, `panel.ts`, `palette.ts`, `queue.ts`, `agent-picker.ts`, and
-`update-dialog.ts`. The pinned Bun 1.4.4 build program, `<plugin>/scripts/build.ts`, generates their existing `.js` and `.mjs` URLs.
+The browser sources are the files of `page/`. They also import `view.ts` and `types.ts`, which server code shares,
+so those two stay free of the DOM. The pinned Bun 1.4.4 build program, `<plugin>/scripts/build.ts`, bundles `page/board.ts`
+into `board.js`, and refuses a bundle input outside `engine/board/`.
 It compiles every target before it writes any output. Plugin users run no build.
 
 ## Limits

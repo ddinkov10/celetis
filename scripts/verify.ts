@@ -18,18 +18,7 @@ import { bunArgs, childEnv, run } from '../engine/lib/process.ts';
 import { findTools, toolPins } from './install-tools.ts';
 
 const root = dirname(import.meta.dir);
-export const generatedFiles = [
-  'engine/board/board.js',
-  'engine/board/view.mjs',
-  'engine/board/ui.mjs',
-  'engine/board/panel.mjs',
-  'engine/board/palette.mjs',
-  'engine/board/queue.mjs',
-  'engine/board/update-dialog.mjs',
-  'engine/board/agent-picker.mjs',
-  'engine/hooks/entry.js',
-  'celetis',
-];
+export const generatedFiles = ['engine/board/board.js', 'engine/hooks/entry.js', 'celetis'];
 export const fileRoles: Record<string, string> = {
   'engine/lib/vendor/yaml.mjs': 'unchanged vendored parser; checked by its SHA-256 and config type declarations',
   'engine/lib/vendor/yaml.d.mts': 'vendored parser API; checked by strict runtime types',
@@ -459,7 +448,7 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
       job('tsc browser', tools.tsc.file, [
         ...tools.tsc.args,
         '-p',
-        'engine/board/tsconfig.json',
+        'engine/board/page/tsconfig.json',
         '--typeRoots',
         tools.typeRoots,
       ]),
