@@ -32,9 +32,8 @@ earlier entry does not replace them.
    \`child_process\` in a JavaScript tool).
    - **On Claude Code:** read the file with \`Read\`, then apply step 3.
    - **On Codex with a shell:** run the reader CLI of "The contract"
-     (\`BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/engine/lib/config.ts <checkout>\`).
-     Its exit status 2 stops the
-     entry with its diagnostic, which names the path and the field.
+     (\`celetis --agent codex config <checkout> <plugin>\`). Its exit status 2 stops the entry with
+     its diagnostic, which names the path and the field, or the plugin folder.
    - **On Codex with no shell:** read the file with a dedicated reader or a runtime file API, then
      apply step 3. Inspect the active tool catalog, and use its actual schema.
 3. **The rules.** After a read with no reader CLI, each of these conditions stops the entry:
@@ -80,12 +79,12 @@ completion criterion of a skill.
   only. It cannot remove a rule of the skill. After the entry, do not read \`.celetis.yaml\` again for
   custom text.
 - **The reader CLI.** A step that uses another value of \`.celetis.yaml\` gets it at that step from
-  the reader CLI, which validates the whole file and prints it as one JSON object:
-  \`BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/engine/lib/config.ts <checkout>\`.
+  the reader CLI, which validates the whole file, checks each \`custom\` key against the skills of
+  \`<plugin>\`, and prints one JSON object: \`celetis --agent <host> config <checkout> <plugin>\`.
   It exits 2 also when the file is missing, with the diagnostic of a symlink, so find the file
-  first: with no file, the step has no value. Each other diagnostic of exit 2 names the field:
-  report it to the person. With no shell, the step cannot get the value: it stops and names the
-  missing shell for that value.
+  first: with no file, the step has no value. Each other diagnostic of exit 2 names the field or
+  the plugin folder: report it to the person. With no shell, the step cannot get the value: it
+  stops and names the missing shell for that value.
 - **Updates.** For entry maintenance, run \`celetis --agent <host> update check\` only when the person
   explicitly requests update status or update troubleshooting. Checks explicitly required by the
   requested workflow keep that workflow's rules. A new task, skill invocation, nested handoff, child
@@ -6646,6 +6645,7 @@ var commands = [
   entry("issue", true, Object.values(issueActs).map((act) => form(["issue", "<n>", ...act.words], act.flags)), `Makes each workflow write that the engine reads: ${issueActList}. The assistance act records an attributed \`## Human steps done\` report before removing present blocking labels; it adds no label and preserves build state. Lifecycle acts write the comment heading before label changes. Each act refuses unmet prerequisites. \`state\` writes nothing and prints lifecycle facts. \`epic-state\` writes nothing and prints the current declaration, child snapshot, history, and holds. Epic definition writes preserve the complete parent body; guarded completion publishes its accepted record before closing and leaves readiness labels unchanged. \`docs/issue-tracker.md\`, "Conventions", gives each act`),
   entry("next-step", true, [form("next-step <n>"), form("next-step", [required("--open")])], "The resolver: the next step of one issue, or of each open issue"),
   entry("events", true, [form("events", [optional("--after", "<id>")])], `Prints each kept entry of the event record of the user as one JSON line, oldest first; \`--after <id>\` prints only the entries after that entry. \`docs/workflow.md\`, "The event record", gives the record. It exits ${exits.usage} for a relative \`CELETIS_HOME\`, ${exits.prerequisite} when the record lock is busy, and ${exits.blocked} for an unsafe folder or lock file`),
+  entry("config", true, [form("config <checkout> <plugin>")], `The reader of \`.celetis.yaml\` for the agent. It first checks that \`<plugin>\` is a Celetis plugin: a folder whose \`.claude-plugin/plugin.json\` has \`"name": "celetis"\`. It then validates the whole file of \`<checkout>\`, and checks each \`custom\` key against \`<plugin>/skills/<key>/SKILL.md\`, a regular file with no symbolic link. It prints the configuration as one compact JSON line. \`--agent\` selects nothing. It exits ${exits.usage} for another form, a folder that is not a Celetis plugin, or a missing or invalid file; the line names the field or the plugin folder`),
   entry("capscore", true, [
     form("capscore J V B N S X", [
       optional("--json"),
@@ -6762,42 +6762,7 @@ var coreTags = ["map", "seq", "str"].map(coreTag).concat(typedTags);
 var yaml11Int = /^[-+]?(?:0[bB][01]+|0[oO][0-7]+|0[xX][0-9a-fA-F]+|[0-9]+)$/;
 var yaml11Float = /^[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?$/;
 var hosts = ["claude", "codex"];
-var skills = [
-  "accept-epic",
-  "assist",
-  "attack-the-premise",
-  "boundary-discipline",
-  "bug",
-  "capture",
-  "chore",
-  "create-verification",
-  "critic-loop",
-  "doc-drift-sync",
-  "encode-lessons-in-structure",
-  "explain-the-number",
-  "feature",
-  "feedback",
-  "guide",
-  "hotfix",
-  "implement",
-  "intake",
-  "lesson",
-  "lesson-review",
-  "maintain-verification",
-  "make-operations-idempotent",
-  "model-the-domain",
-  "plan",
-  "polishing-code-comments",
-  "prototype",
-  "record-architecture-decisions",
-  "separate-before-serializing-shared-state",
-  "setup",
-  "specify",
-  "test-behavior-not-implementation",
-  "triage",
-  "type-system-discipline",
-  "writing-for-agents"
-];
+var skillName = /^[a-z][a-z0-9-]*$/;
 var sourceData = Symbol("ConfigSource");
 function field(path) {
   return path.join(".") || "<document>";
@@ -7044,7 +7009,10 @@ function checkSchema(value) {
   }
   if (Object.hasOwn(config, "custom")) {
     const custom = object(config.custom, ["custom"]);
-    keysOnly(custom, skills, ["custom"]);
+    const key = Object.keys(custom).find((name) => !skillName.test(name));
+    if (key !== undefined) {
+      throw new ConfigError(["custom", key], "need a skill name: a lowercase letter, then lowercase letters, digits, or -");
+    }
     for (const [skill, instruction] of Object.entries(custom))
       text(instruction, ["custom", skill]);
   }
@@ -7078,27 +7046,40 @@ function validateConfig(source) {
   freeze(value);
   return value;
 }
+async function checkSkills(config, plugin, isFile) {
+  const root = plugin.replace(/[/\\]$/, "");
+  for (const key of Object.keys(config.custom ?? {})) {
+    const path = `${root}/skills/${key}/SKILL.md`;
+    if (!await isFile(path))
+      throw new ConfigError(["custom", key], `the plugin has no skill file ${path}`);
+  }
+}
 
-// engine/hooks/entry.ts
-function heading(title, after) {
-  const index = entry_default.indexOf(`
+// engine/lib/entry-text.ts
+function entryParts(text) {
+  function heading(title, after) {
+    const index = text.indexOf(`
 ${title}
 `, after);
-  if (index < 0)
-    throw new Error(`docs/procedures/entry.md needs the heading ${title} after the one before it`);
-  return index;
-}
-var lineAt = heading("## The entry line", 0);
-var withoutAt = heading("## Entry without the hook", lineAt + 1);
-var contractAt = heading("## The contract", withoutAt + 1);
-var codexAt = heading("### Codex", heading("### Claude Code", contractAt + 1) + 1);
-var entryLine = entry_default.slice(lineAt + `
+    if (index < 0)
+      throw new Error(`docs/procedures/entry.md needs the heading ${title} after the one before it`);
+    return index;
+  }
+  const lineAt = heading("## The entry line", 0);
+  const withoutAt = heading("## Entry without the hook", lineAt + 1);
+  const contractAt = heading("## The contract", withoutAt + 1);
+  const codexAt = heading("### Codex", heading("### Claude Code", contractAt + 1) + 1);
+  const line = text.slice(lineAt + `
 ## The entry line
 `.length, withoutAt).trim();
-var contract = entry_default.slice(contractAt + 1, codexAt).trim();
-if (!entryLine.startsWith("**Celetis entry.** ") || entryLine.includes(`
+  if (!line.startsWith("**Celetis entry.** ") || line.includes(`
 `))
-  throw new Error("docs/procedures/entry.md: the entry line is one line that starts with **Celetis entry.**");
+    throw new Error("docs/procedures/entry.md: the entry line is one line that starts with **Celetis entry.**");
+  return { line, contract: text.slice(contractAt + 1, codexAt).trim() };
+}
+
+// engine/hooks/entry.ts
+var { line: entryLine, contract } = entryParts(entry_default);
 function joined(folder, name) {
   return `${folder.replace(/[\\/]$/, "")}/${name}`;
 }
@@ -7115,8 +7096,8 @@ function target(root, path = "") {
   const file = slashed(path);
   if (!file.startsWith(prefix))
     return;
-  const match = /^([a-z][a-z0-9-]*)\/SKILL\.md$/.exec(file.slice(prefix.length));
-  return match?.[1];
+  const name = /^(.*)\/SKILL\.md$/.exec(file.slice(prefix.length))?.[1];
+  return name && skillName.test(name) ? name : undefined;
 }
 var stopInstruction = `
 Report this entry block only. Do not give goal advice or use another access path.`;
@@ -7212,6 +7193,12 @@ async function load($, name, reader, cache, agentId) {
     } catch (error) {
       throw new Error(`${path} ${error instanceof ConfigError ? error.field : "<document>"}: ${message(error)}`);
     }
+  });
+  await checkSkills(config, $.plugin.root, async (file) => {
+    const skill = await metadata($, file);
+    return skill?.kind === "file" && skill.isLink === false;
+  }).catch((error) => {
+    throw error instanceof ConfigError ? new Error(`${path} ${error.field}: ${error.message}`) : error;
   });
   return { root, custom: config.custom?.[name] ?? "" };
 }

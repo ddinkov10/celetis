@@ -2,6 +2,7 @@ import { chmod, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promis
 import { dirname, join } from 'node:path';
 import { bunFloor } from '../engine/lib/config-core.ts';
 import { commands, type Entry, exitClasses, exits, formText, helpText, issueActs } from '../engine/lib/contract.ts';
+import { entryParts } from '../engine/lib/entry-text.ts';
 import { HostError } from '../engine/lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
 import { codexHome } from '../engine/lib/plugin-metadata.ts';
@@ -97,6 +98,12 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
   if (!check && args.length !== 0) {
     console.error('usage: scripts/build.ts [--check]');
     return 2;
+  }
+  try {
+    entryParts(await readFile(join(root, 'docs/procedures/entry.md'), 'utf8'));
+  } catch (error) {
+    console.error(`build: ${error instanceof Error ? error.message : String(error)}`);
+    return 1;
   }
   const operation = await createOperation(
     await locateCheckouts(process.cwd()),

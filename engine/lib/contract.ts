@@ -95,6 +95,7 @@ export type CommandName =
   | 'agents'
   | 'assist'
   | 'capscore'
+  | 'config'
   | 'daemon'
   | 'dispatch'
   | 'events'
@@ -509,6 +510,12 @@ export const commands: readonly Entry[] = [
     true,
     [form('events', [optional('--after', '<id>')])],
     `Prints each kept entry of the event record of the user as one JSON line, oldest first; \`--after <id>\` prints only the entries after that entry. \`docs/workflow.md\`, "The event record", gives the record. It exits ${exits.usage} for a relative \`CELETIS_HOME\`, ${exits.prerequisite} when the record lock is busy, and ${exits.blocked} for an unsafe folder or lock file`,
+  ),
+  entry(
+    'config',
+    true,
+    [form('config <checkout> <plugin>')],
+    `The reader of \`.celetis.yaml\` for the agent. It first checks that \`<plugin>\` is a Celetis plugin: a folder whose \`.claude-plugin/plugin.json\` has \`"name": "celetis"\`. It then validates the whole file of \`<checkout>\`, and checks each \`custom\` key against \`<plugin>/skills/<key>/SKILL.md\`, a regular file with no symbolic link. It prints the configuration as one compact JSON line. \`--agent\` selects nothing. It exits ${exits.usage} for another form, a folder that is not a Celetis plugin, or a missing or invalid file; the line names the field or the plugin folder`,
   ),
   entry(
     'capscore',

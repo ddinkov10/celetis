@@ -35,42 +35,8 @@ const coreTags = ['map', 'seq', 'str'].map(coreTag).concat(typedTags);
 const yaml11Int = /^[-+]?(?:0[bB][01]+|0[oO][0-7]+|0[xX][0-9a-fA-F]+|[0-9]+)$/;
 const yaml11Float = /^[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?$/;
 const hosts = ['claude', 'codex'] as const;
-const skills = [
-  'accept-epic',
-  'assist',
-  'attack-the-premise',
-  'boundary-discipline',
-  'bug',
-  'capture',
-  'chore',
-  'create-verification',
-  'critic-loop',
-  'doc-drift-sync',
-  'encode-lessons-in-structure',
-  'explain-the-number',
-  'feature',
-  'feedback',
-  'guide',
-  'hotfix',
-  'implement',
-  'intake',
-  'lesson',
-  'lesson-review',
-  'maintain-verification',
-  'make-operations-idempotent',
-  'model-the-domain',
-  'plan',
-  'polishing-code-comments',
-  'prototype',
-  'record-architecture-decisions',
-  'separate-before-serializing-shared-state',
-  'setup',
-  'specify',
-  'test-behavior-not-implementation',
-  'triage',
-  'type-system-discipline',
-  'writing-for-agents',
-] as const;
+
+export const skillName = /^[a-z][a-z0-9-]*$/;
 
 export type Host = (typeof hosts)[number];
 export type AgentChoice = Readonly<{ kind: 'default' } | { kind: 'explicit'; host: Host }>;
@@ -91,7 +57,7 @@ export type Config = Readonly<{
   agents?: Readonly<Partial<Record<Step, Host>>>;
   board?: Readonly<{ port?: number }>;
   worktreeSetup?: string;
-  custom?: Readonly<Partial<Record<(typeof skills)[number], string>>>;
+  custom?: Readonly<Record<string, string>>;
   codexProfiles?: Readonly<
     Record<
       string,
@@ -372,7 +338,13 @@ function checkSchema(value: unknown): asserts value is Config {
   }
   if (Object.hasOwn(config, 'custom')) {
     const custom = object(config.custom, ['custom']);
-    keysOnly(custom, skills, ['custom']);
+    const key = Object.keys(custom).find((name) => !skillName.test(name));
+    if (key !== undefined) {
+      throw new ConfigError(
+        ['custom', key],
+        'need a skill name: a lowercase letter, then lowercase letters, digits, or -',
+      );
+    }
     for (const [skill, instruction] of Object.entries(custom)) text(instruction, ['custom', skill]);
   }
   if (Object.hasOwn(config, 'codexProfiles')) {
@@ -409,6 +381,18 @@ export function validateConfig(source: ConfigSource): Config {
   checkSchema(value);
   freeze(value);
   return value;
+}
+
+export async function checkSkills(
+  config: Config,
+  plugin: string,
+  isFile: (path: string) => Promise<boolean>,
+): Promise<void> {
+  const root = plugin.replace(/[/\\]$/, '');
+  for (const key of Object.keys(config.custom ?? {})) {
+    const path = `${root}/skills/${key}/SKILL.md`;
+    if (!(await isFile(path))) throw new ConfigError(['custom', key], `the plugin has no skill file ${path}`);
+  }
 }
 
 export function formatConfigError(checkout: string, error: ConfigError): string {

@@ -12,8 +12,9 @@ its procedure, under its `Codex` part ("The module index").
   whole `SKILL.md` when it uses the skill.
 - With no hook, the entry line of each skill sends the session to `docs/procedures/entry.md`,
   "Entry without the hook". With a shell, the entry runs the reader CLI, which validates the whole
-  file. With no shell, full schema validation comes at each command that needs the configuration:
-  `createOperation` validates before protected work.
+  file and checks each `custom` key against the skills of the plugin. With no shell, full schema
+  validation comes at each command that needs the configuration: `createOperation` validates
+  before protected work.
 - `guide` and `setup` are explicit-only: `policy.allow_implicit_invocation: false` in
   `skills/guide/agents/openai.yaml` and `skills/setup/agents/openai.yaml`.
 - The prompt that starts a skill is

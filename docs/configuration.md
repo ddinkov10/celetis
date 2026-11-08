@@ -14,7 +14,7 @@ mapping root. Comments are allowed. Put nothing after a `---` marker on its line
 | `board` | Mapping with optional `port`, an integer from 1024 to 65535 | Search starts at 4403 |
 | `worktreeSetup` | A root-relative `.ts` file reference, or exactly `""` | No setup |
 | `suite` | A relative path of a TypeScript file in the checkout; required with `landing: merge`, refused with `landing: pr` | With `merge`, the config is refused |
-| `custom` | Mapping from a Celetis skill stem to an instruction string | No addition for an omitted skill |
+| `custom` | Mapping from a skill name of the plugin to an instruction string | No addition for an omitted skill |
 | `codexProfiles` | Mapping from a runtime identity to its profile | Each Codex child keeps the parent's model |
 
 The allowed gate names are `triage`, `specify`, `bug`, `chore`, `hotfix`, `plan`, and
@@ -25,14 +25,11 @@ preference.
 An empty `board` mapping starts the automatic port search at 4403. An effective `PORT` takes
 precedence and requests one exact port ("Start the board").
 
-The allowed custom keys are `accept-epic`, `assist`, `attack-the-premise`, `boundary-discipline`, `bug`, `capture`, `chore`,
-`create-verification`,
-`critic-loop`, `doc-drift-sync`, `encode-lessons-in-structure`, `explain-the-number`, `feature`, `feedback`,
-`guide`, `hotfix`, `implement`, `intake`, `lesson`, `lesson-review`,
-`maintain-verification`, `make-operations-idempotent`,
-`model-the-domain`, `plan`, `polishing-code-comments`, `prototype`,
-`record-architecture-decisions`, `separate-before-serializing-shared-state`, `setup`, `specify`,
-`test-behavior-not-implementation`, `triage`, `type-system-discipline`, and `writing-for-agents`.
+A `custom` key is a skill name: a lowercase letter, then lowercase letters, digits, or `-`. Each
+command that reads the file refuses a key of another form. The reader CLI and the Claude Code
+entry also refuse a key when `<plugin>/skills/<key>/SKILL.md` is not a regular file with no
+symlink, so a new skill of the plugin needs no program change. The other commands check only the
+form, and a Codex entry with no shell checks no name.
 Exactly `""` as the setup reference runs no setup. An empty instruction string gives no addition.
 An empty `custom` or `codexProfiles` mapping is valid.
 
@@ -191,14 +188,16 @@ no other access follows.
 
 - **On Claude Code,** the native entry hook (`engine/hooks/entry.ts`) makes the read with `Read`.
   It parses and validates the returned text with `parseConfigText` and `validateConfig`, the full
-  validation of the reader below, and puts the custom string into its facts block. The hook
-  parses text, not bytes: the byte checks of the reader, for example strict UTF-8, hold at each
-  command, which validates the file again before protected work.
+  validation of the reader below. Then it checks each `custom` key against the skills of the
+  plugin with `checkSkills`, as the reader CLI does, and puts the custom string into its facts
+  block. The hook parses text, not bytes: the byte checks of the reader, for example strict UTF-8,
+  hold at each command, which validates the file again before protected work.
 - **On Codex, and on Claude Code when the hook did not run,** the session follows "Entry without
   the hook" of `docs/procedures/entry.md`. Codex with a shell runs the reader CLI below. Else the
   session reads the file natively (Claude Code with `Read`, Codex with a dedicated reader or a
-  runtime file API) and applies a short rule list of that part, and the full validation comes with
-  the first command that needs the file.
+  runtime file API) and applies a short rule list of that part. The first command that needs the
+  file validates it in full. A command other than the reader CLI checks only the form of each
+  `custom` key, not its skill file.
 
 After the entry, a step that needs another value of the file reads it at that step through the
 reader CLI (`docs/procedures/entry.md`, "The contract"). `docs/hosts/claude-code.md` and
@@ -206,48 +205,58 @@ reader CLI (`docs/procedures/entry.md`, "The contract"). `docs/hosts/claude-code
 
 ## Validation and reader interface
 
-Unknown fields are errors at every level. Supplied null values, wrong types, invalid enum
-values, duplicate keys, non-string keys, aliases, merge keys, custom tags, and non-JSON YAML
-values are errors. Only the standard map, sequence, string, null, Boolean, integer, and float
-tags can pass the parser check; the field schema then limits each value. Non-finite numbers
-are not accepted. Instruction strings cannot contain NUL. Setup references use the lexical
-rules above.
+Unknown fields are errors at every level. A `custom` key is not a field: it is a skill name of the
+form above. Supplied null values, wrong types, invalid enum values, duplicate keys, non-string keys,
+aliases, merge keys, custom tags, and non-JSON YAML values are errors. Only the standard map,
+sequence, string, null, Boolean, integer, and float tags can pass the parser check; the field schema
+then limits each value. Non-finite numbers are not accepted. Instruction strings cannot contain NUL.
+Setup references use the lexical rules above.
 Plain `yes` and `on` are strings under YAML 1.2.
 
 `engine/lib/config-core.ts` of the plugin owns parsing, validation, types, and diagnostics. It has
-no `node:` import and no `Bun` global, so the native entry hook bundles it.
-`parseConfigText(text)` checks the characters and the source structure of one text.
-`validateHost(value)` defines accepted host inputs. `validateConfig(source)` checks the full schema and returns a deeply frozen
-`Config` without inserted defaults. `ConfigError` names the field, and `formatConfigError` renders
-the selected path, field, and message. A failed read also keeps its filesystem code (`ioCode`),
-so `setup status` reports an absent file as missing and a denied read as blocked.
+no `node:` import and no `Bun` global, so the native entry hook bundles it. `parseConfigText(text)`
+checks the characters and the source structure of one text. `validateHost(value)` defines accepted
+host inputs. `validateConfig(source)` checks the full schema and returns a deeply frozen `Config`
+without inserted defaults. `skillName` is the form of a `custom` key.
+`checkSkills(config, plugin, isFile)` asks `isFile` for `<plugin>/skills/<key>/SKILL.md` of each
+`custom` key, in order, and throws a `ConfigError` of `custom.<key>` at the first missing file. The
+caller gives `isFile`, because the module has no file access. `ConfigError` names the field, and
+`formatConfigError` renders the selected path, field, and message. A failed read also keeps its
+filesystem code (`ioCode`), so `setup status` reports an absent file as missing and a denied read as
+blocked.
 
-`engine/lib/config.ts` of the plugin owns byte access and the reader CLI. Importing it starts no
-installation discovery or setup. `readSnapshot(file)` reads the bytes of one regular file with no
+`engine/lib/config.ts` of the plugin owns byte access. Importing it starts no installation
+discovery or setup. `readSnapshot(file)` reads the bytes of one regular file with no
 symlink. `readConfigSource(CHECKOUT)` checks the Bun floor, reads that checkout's `.celetis.yaml`
 once, decodes it as strict UTF-8, and parses it. `readConfig(CHECKOUT)` combines the source read
 and full validation.
 
-Source reads require safe file access, strict UTF-8, one mapping document, string keys,
-unique keys, supported tags, finite scalars, and no aliases or merge keys. Full validation
-checks allowed fields, required `landing`, instruction literal styles, setup reference syntax,
-and field-specific integer forms and ranges. There is no YAML host projection. Host selection
-reads the local preference only for default mode. A command that needs full configuration
+Source reads require safe file access, strict UTF-8, one mapping document, string keys, unique keys,
+supported tags, finite scalars, and no aliases or merge keys. Full validation checks allowed fields,
+the form of each `custom` key, required `landing`, instruction literal styles, setup reference
+syntax, and field-specific integer forms and ranges. There is no YAML host projection. Host
+selection reads the local preference only for default mode. A command that needs full configuration
 still validates it before protected work, including when a host is explicit.
 
-The reader CLI runs as:
+The reader CLI is the program command `config` (`engine/config.ts`):
 
 ```sh
-BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/engine/lib/config.ts CHECKOUT
+celetis --agent <host> config CHECKOUT PLUGIN
 ```
 
-It prints one compact validated JSON object and LF. Invalid or missing configuration exits 2
+It checks PLUGIN first: `PLUGIN/.claude-plugin/plugin.json` must be a regular file with no
+symlink, with a JSON object whose `name` is `celetis`. Any other path exits 2 with
+`config: PLUGIN is not a celetis plugin`, and no field check runs. Then `readConfig(CHECKOUT)`
+reads and validates the file, and `checkSkills` checks each `custom` key against
+`PLUGIN/skills/<key>/SKILL.md` with `lstat`: a regular file with no symlink. It prints one compact
+validated JSON object and LF. Invalid or missing configuration and a missing skill file exit 2
 with empty stdout. Its diagnostic names the selected path and field; syntax and root errors
-use `<document>`. A below-floor Bun that can execute the entrypoint exits 2. Missing, broken,
-or nonexecutable Bun uses the native env/kernel diagnostic and status. There is no interpreter
-wrapper. The program owns its entry file `celetis` and its engine. Child Celetis programs use
-selected `process.execPath`, isolated environment/config/preload/macro/package controls,
-disabled transpiler cache, and `DO_NOT_TRACK=1`.
+use `<document>`. Another form exits 2 with its usage line. `--agent` selects nothing. The
+program entry checks the Bun floor (`requireBun`) before it starts the command: a below-floor
+Bun exits 3. Missing, broken, or nonexecutable Bun uses the native env/kernel diagnostic and
+status. There is no interpreter wrapper. The program owns its entry file `celetis` and its engine.
+Child Celetis programs use selected `process.execPath`, isolated
+environment/config/preload/macro/package controls, disabled transpiler cache, and `DO_NOT_TRACK=1`.
 
 The reader uses one private parsed source for metadata checks and JSON conversion. It checks
 document, key, node, and style metadata before JSON conversion can remove YAML information.

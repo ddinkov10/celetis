@@ -23,8 +23,10 @@ compares its bytes. The hook runtime has no Node and no DOM: a module that the h
   main loop starts from the session root, and a child agent from its cwd. The hook uses no
   `$.fs.read`, because its permission semantics are not documented. It parses and validates the
   text of the `Read` with `parseConfigText` and `validateConfig` of `engine/lib/config-core.ts`,
-  the full validation of the reader CLI. Then it puts its block in place of the entry line of the
-  skill:
+  the full validation of the reader CLI. After the validation, it stats
+  `<plugin>/skills/<key>/SKILL.md` for each `custom` key with `$.fs.stat`. It stops the entry when
+  that path is not a regular file with no symlink. Then it puts its block in place of the entry
+  line of the skill:
 
   ```text
   Celetis entry: celetis:<name>
@@ -42,17 +44,20 @@ compares its bytes. The hook runtime has no Node and no DOM: a module that the h
   The block holds no host manual and no raw YAML. Custom text comes only after its marker line,
   so it cannot change a facts line. An empty string is `- custom: none`.
 - **The contract** comes from `docs/procedures/entry.md` at build time: `engine/hooks/entry.ts`
-  imports the file as text, so the bundle holds it, and takes "The entry line" and "The contract"
-  up to its `### Codex` part. There is no runtime read of plugin text. The verify gate checks that
-  each `SKILL.md` holds that entry line once (`checkCitations` in `scripts/verify.ts`).
+  imports the file as text, so the bundle holds it. `entryParts` of `engine/lib/entry-text.ts` takes
+  "The entry line" and "The contract" up to its `### Codex` part. The hook, `scripts/build.ts`, and
+  `checkCitations` use that one parser, so a missing or renamed heading fails the build and the verify
+  gate. There is no runtime read of plugin text: the check of the `custom` keys stats each skill
+  file and reads none. The verify gate checks that each `SKILL.md` holds that entry line once
+  (`checkCitations` in `scripts/verify.ts`).
 - **`file_unchanged`.** A `Read` of a file that the session read before returns no content. The
   hook then reuses its own parsed result for that path, keyed by `size` and `mtimeMs` from
   `$.fs.stat`. The cache lives for the session, so a child agent that sees the parent's read
   reuses the parent's result. With no cached result, or with a changed stat, the entry stops. An
   edit that keeps both the size and the millisecond of the modification time is a residual risk.
-- **A stop.** A denied, partial, or invalid read replaces the skill text with
-  `Celetis entry stopped: <path> <field>: <message>`. Then `turn.step` ends each later turn of that
-  agent loop natively, with no model call and no usage. A hook that throws or overruns its budget
+- **A stop.** A denied, partial, or invalid read, or a `custom` key with no skill file, replaces
+  the skill text with `Celetis entry stopped: <path> <field>: <message>`. Then `turn.step` ends each
+  later turn of that agent loop natively, with no model call and no usage. A hook that throws or overruns its budget
   of 10,000 ms gives the same stop through its `.catch` handler.
 - **A hook that makes no entry** leaves the entry line in the skill text. On a release before
   2.1.299, the hook runs but finds no skill name in the event, so it makes no entry. The session

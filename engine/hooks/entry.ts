@@ -1,5 +1,13 @@
 import entryText from '../../docs/procedures/entry.md' with { type: 'text' };
-import { type Config, ConfigError, parseConfigText, validateConfig } from '../lib/config-core.ts';
+import {
+  type Config,
+  ConfigError,
+  checkSkills,
+  parseConfigText,
+  skillName,
+  validateConfig,
+} from '../lib/config-core.ts';
+import { entryParts } from '../lib/entry-text.ts';
 import type {
   Delivery,
   FileResult,
@@ -38,20 +46,7 @@ interface OwnedBlock {
   request: Request;
 }
 
-function heading(title: string, after: number) {
-  const index = entryText.indexOf(`\n${title}\n`, after);
-  if (index < 0) throw new Error(`docs/procedures/entry.md needs the heading ${title} after the one before it`);
-  return index;
-}
-
-const lineAt = heading('## The entry line', 0);
-const withoutAt = heading('## Entry without the hook', lineAt + 1);
-const contractAt = heading('## The contract', withoutAt + 1);
-const codexAt = heading('### Codex', heading('### Claude Code', contractAt + 1) + 1);
-const entryLine = entryText.slice(lineAt + '\n## The entry line\n'.length, withoutAt).trim();
-const contract = entryText.slice(contractAt + 1, codexAt).trim();
-if (!entryLine.startsWith('**Celetis entry.** ') || entryLine.includes('\n'))
-  throw new Error('docs/procedures/entry.md: the entry line is one line that starts with **Celetis entry.**');
+const { line: entryLine, contract } = entryParts(entryText);
 
 function joined(folder: string, name: string) {
   return `${folder.replace(/[\\/]$/, '')}/${name}`;
@@ -73,8 +68,8 @@ function target(root: string, path = '') {
   const prefix = joined(slashed(root), 'skills/');
   const file = slashed(path);
   if (!file.startsWith(prefix)) return;
-  const match = /^([a-z][a-z0-9-]*)\/SKILL\.md$/.exec(file.slice(prefix.length));
-  return match?.[1];
+  const name = /^(.*)\/SKILL\.md$/.exec(file.slice(prefix.length))?.[1];
+  return name && skillName.test(name) ? name : undefined;
 }
 
 const stopInstruction = '\nReport this entry block only. Do not give goal advice or use another access path.';
@@ -181,7 +176,13 @@ async function load($: NativeTools, name: string, reader: Reader, cache: Map<str
       throw new Error(`${path} ${error instanceof ConfigError ? error.field : '<document>'}: ${message(error)}`);
     }
   });
-  return { root, custom: (config.custom as Readonly<Record<string, string>> | undefined)?.[name] ?? '' };
+  await checkSkills(config, $.plugin.root, async (file) => {
+    const skill = await metadata($, file);
+    return skill?.kind === 'file' && skill.isLink === false;
+  }).catch((error: unknown) => {
+    throw error instanceof ConfigError ? new Error(`${path} ${error.field}: ${error.message}`) : error;
+  });
+  return { root, custom: config.custom?.[name] ?? '' };
 }
 
 function facts(name: string, plugin: string, root: string | null, custom: string) {

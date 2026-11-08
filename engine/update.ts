@@ -663,12 +663,7 @@ async function updatePlugin(ownerPid: number, host: Host, target: PluginUpdate):
         if (typeof registered.gitCommitSha === 'string') sha = registered.gitCommitSha;
       }
       const manifest = await jsonFile(join(root, '.claude-plugin/plugin.json'));
-      if (
-        manifest.name !== 'celetis' ||
-        !(await lstat(join(root, 'engine')).catch(() => null))?.isDirectory() ||
-        !(await lstat(join(root, 'engine/hooks/entry.js')).catch(() => null))?.isFile() ||
-        !(await lstat(join(root, 'skills/guide/SKILL.md')).catch(() => null))?.isFile()
-      )
+      if (manifest.name !== 'celetis')
         throw new HostError(`update: enabled target package is incomplete: ${root}`, exits.blocked);
       const installed = await installedRevision(host, root, target.source, sha, execute);
       if (installed !== target.target)
@@ -676,8 +671,6 @@ async function updatePlugin(ownerPid: number, host: Host, target: PluginUpdate):
           `update: enabled revision is ${installed}, expected approved target ${target.target}`,
           exits.blocked,
         );
-      if (!(await lstat(join(root, 'step-prompt.md')).catch(() => null))?.isFile())
-        throw new HostError(`update: target package has no step-prompt.md: ${root}`, exits.blocked);
       const fresh = JSON.parse(
         await lock.run(process.execPath, bunArgs(import.meta.path, ['--inspect', host]), {
           cwd: process.cwd(),

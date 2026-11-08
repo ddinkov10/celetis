@@ -9,6 +9,7 @@ import {
   formText,
   launcherForms,
 } from '../engine/lib/contract.ts';
+import { entryParts } from '../engine/lib/entry-text.ts';
 import { HostError } from '../engine/lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
 import { type Job, printJobs, runJobs } from '../engine/lib/parallel.ts';
@@ -105,12 +106,18 @@ export function checkCitations(files: ReadonlyMap<string, string>): string[] {
     const citers = checked.filter(([file]) => file !== module && cited.get(file)?.has(module)).length;
     if (citers < 2) errors.push(`verify: module: ${module} is cited by ${citers} files; need 2`);
   }
-  const entryLine = /^## The entry line\n\n([^\n]+)/m.exec(files.get('docs/procedures/entry.md') ?? '')?.[1];
-  for (const [file, text] of checked) {
-    if (!/^skills\/[^/]+\/SKILL\.md$/.test(file)) continue;
-    const count = entryLine ? text.split(entryLine).length - 1 : 0;
-    if (count !== 1) errors.push(`verify: entry line: ${file}: need the entry line of docs/procedures/entry.md once`);
+  let entryLine: string | undefined;
+  try {
+    entryLine = entryParts(files.get('docs/procedures/entry.md') ?? '').line;
+  } catch (error) {
+    errors.push(`verify: entry line: ${error instanceof Error ? error.message : String(error)}`);
   }
+  if (entryLine)
+    for (const [file, text] of checked) {
+      if (!/^skills\/[^/]+\/SKILL\.md$/.test(file)) continue;
+      if (text.split(entryLine).length - 1 !== 1)
+        errors.push(`verify: entry line: ${file}: need the entry line of docs/procedures/entry.md once`);
+    }
   return errors;
 }
 
@@ -441,7 +448,7 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
         ...biome,
       ]),
       job('actionlint', tools.actionlint.file, ['-shellcheck=', ...workflows]),
-      job('config', process.execPath, bunArgs(join(root, 'engine/lib/config.ts'), [root])),
+      job('config', process.execPath, bunArgs(join(root, 'engine/config.ts'), [root, root])),
       job('tsc runtime', tools.tsc.file, [
         ...tools.tsc.args,
         '-p',

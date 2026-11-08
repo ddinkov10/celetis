@@ -2071,7 +2071,7 @@ An entry is one JSON object on one line, ended by `\n`, in UTF-8:
 | `time` | ISO 8601 UTC with milliseconds |
 | `kind` | `defect`, `refusal`, or `workflow` |
 | `name` | `exit` for an exit entry; a stable kebab-case name for a workflow or board entry |
-| `command` | The sub-command name, or the role of a process with no sub-command: `launcher`, `config-reader`, `session-start`, `update-worker` |
+| `command` | The sub-command name, or the role of a process with no sub-command: `launcher`, `session-start`, `update-worker` |
 | `argv` | The arguments of the process after the sub-command name |
 | `cwd` | The absolute working directory |
 | `host` | `claude` or `codex` from `--agent`, then `CELETIS_SESSION_AGENT`, then `CELETIS_AGENT`, else `null` |
@@ -2103,12 +2103,12 @@ The three kinds:
   and results such as the exit 4 of `worktree` are refusals.
 - **workflow:** the daemon or the board reports a failure and continues.
 
-These processes record: each sub-command, the launcher before it replaces its process, the config
-reader (`engine/lib/config.ts`), the session-start child of the daemon, and the update worker of
-the board. These do not record: `build`, `verify`, `install-tools`, `events`, a product script
-that a Celetis process runs, the `bun --eval` helper, and the host sessions. A child process
-records its own failure. A parent that passes on the exit code of a child unchanged (`passOn`)
-records nothing. A parent that turns the failure of a child into a new error of its own records
+These processes record: each sub-command, the launcher before it replaces its process, the
+session-start child of the daemon, and the update worker of the board. These do not record:
+`build`, `verify`, `install-tools`, `events`, a product script that a Celetis process runs, the
+`bun --eval` helper, and the host sessions. A child process records its own failure. A parent
+that passes on the exit code of a child unchanged (`passOn`) records nothing. A parent that
+turns the failure of a child into a new error of its own records
 that error. The `land` client passes on the status of the landing of the daemon in the same way:
 the daemon records the landing (`land-exit`, `land-defect`), and the client records only its own
 refusals, for example a missing daemon or a stream with no status, with only its own lines as the

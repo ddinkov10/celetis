@@ -277,7 +277,7 @@ export async function claudeInstallation(
   const root = [...roots][0];
   if (!root) throw new NotInstalled(missing, exits.prerequisite);
   const manifest = await jsonFile(join(root, '.claude-plugin/plugin.json'));
-  if (manifest.name !== 'celetis' || !(await lstat(join(root, 'skills/guide/SKILL.md')).catch(() => null))?.isFile())
+  if (manifest.name !== 'celetis')
     throw new HostError('celetis: Claude reports an invalid celetis package; reinstall the plugin', exits.prerequisite);
   return { root, records };
 }
@@ -486,9 +486,6 @@ export async function codexPlugin(cwd: string, execute: typeof run = run): Promi
   const manifest = await jsonFile(await contained(root, join(root, '.claude-plugin/plugin.json')));
   if (manifest.name !== 'celetis')
     throw new HostError('celetis: Codex reports an invalid celetis package; reinstall the plugin', exits.prerequisite);
-  if (!(await lstat(join(root, 'skills/guide/SKILL.md')).catch(() => null))?.isFile())
-    throw new HostError('celetis: Codex reports a missing installed skill; reinstall the plugin', exits.prerequisite);
-  await contained(root, join(root, 'skills/guide/SKILL.md'));
   const marketplacePlugins = value.installed
     .filter((item) => object(item) && typeof item.pluginId === 'string' && item.pluginId.endsWith('@celetis'))
     .map((item) => item.pluginId as string);

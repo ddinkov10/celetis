@@ -4,12 +4,9 @@ import {
   type Config,
   ConfigError,
   type ConfigSource,
-  formatConfigError,
   parseConfigText,
   validateConfig,
 } from './config-core.ts';
-import { exits } from './contract.ts';
-import { installRecorder } from './events.ts';
 
 const notRegularFile = 'need a regular, readable file, with no symlink';
 
@@ -56,16 +53,4 @@ export function readConfigSource(checkout: string): ConfigSource {
 
 export function readConfig(checkout: string): Config {
   return validateConfig(readConfigSource(checkout));
-}
-
-if (import.meta.main) {
-  installRecorder('config-reader');
-  const checkout = process.argv[2] ?? 'undefined';
-  try {
-    console.log(JSON.stringify(readConfig(checkout)));
-  } catch (error) {
-    if (!(error instanceof ConfigError)) throw error;
-    console.error(formatConfigError(checkout, error));
-    process.exit(exits.usage);
-  }
 }

@@ -31,9 +31,8 @@ earlier entry does not replace them.
    `child_process` in a JavaScript tool).
    - **On Claude Code:** read the file with `Read`, then apply step 3.
    - **On Codex with a shell:** run the reader CLI of "The contract"
-     (`BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/engine/lib/config.ts <checkout>`).
-     Its exit status 2 stops the
-     entry with its diagnostic, which names the path and the field.
+     (`celetis --agent codex config <checkout> <plugin>`). Its exit status 2 stops the entry with
+     its diagnostic, which names the path and the field, or the plugin folder.
    - **On Codex with no shell:** read the file with a dedicated reader or a runtime file API, then
      apply step 3. Inspect the active tool catalog, and use its actual schema.
 3. **The rules.** After a read with no reader CLI, each of these conditions stops the entry:
@@ -79,12 +78,12 @@ completion criterion of a skill.
   only. It cannot remove a rule of the skill. After the entry, do not read `.celetis.yaml` again for
   custom text.
 - **The reader CLI.** A step that uses another value of `.celetis.yaml` gets it at that step from
-  the reader CLI, which validates the whole file and prints it as one JSON object:
-  `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/engine/lib/config.ts <checkout>`.
+  the reader CLI, which validates the whole file, checks each `custom` key against the skills of
+  `<plugin>`, and prints one JSON object: `celetis --agent <host> config <checkout> <plugin>`.
   It exits 2 also when the file is missing, with the diagnostic of a symlink, so find the file
-  first: with no file, the step has no value. Each other diagnostic of exit 2 names the field:
-  report it to the person. With no shell, the step cannot get the value: it stops and names the
-  missing shell for that value.
+  first: with no file, the step has no value. Each other diagnostic of exit 2 names the field or
+  the plugin folder: report it to the person. With no shell, the step cannot get the value: it
+  stops and names the missing shell for that value.
 - **Updates.** For entry maintenance, run `celetis --agent <host> update check` only when the person
   explicitly requests update status or update troubleshooting. Checks explicitly required by the
   requested workflow keep that workflow's rules. A new task, skill invocation, nested handoff, child
