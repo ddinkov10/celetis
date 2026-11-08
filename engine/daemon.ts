@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
 import { closeSync, openSync } from 'node:fs';
-import { mkdir, rename, stat, writeFile } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 import { constants } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
 import { type ExitCode, exits, signalExit, usage } from './lib/contract.ts';
@@ -23,7 +22,7 @@ import { commandInput, locateCheckouts } from './lib/operation.ts';
 import { bunArgs, childEnv } from './lib/process.ts';
 import { daemonScript, processAlive, processStart, processState } from './lib/process-identity.ts';
 import { programRevision } from './lib/program.ts';
-import { stateFolder } from './lib/state-folder.ts';
+import { ensureFolder, repositoryState, startFiles, writeAtomic } from './lib/state.ts';
 import { requireTerminals, TerminalError } from './lib/terminal.ts';
 
 const noDaemon = 'daemon: no daemon runs for this repository';
@@ -74,7 +73,8 @@ async function start(common: string, main: string): Promise<ExitCode> {
   }
   await requireStart();
   const paths = await daemonPaths(common);
-  await mkdir(paths.folder, { recursive: true, mode: 0o700 });
+  ensureFolder(paths.layout.root);
+  ensureFolder(paths.layout.daemon);
   const log = openSync(paths.log, 'a', 0o600);
   const ended: { code: number | null } = { code: null };
   const env = childEnv();
@@ -236,7 +236,7 @@ async function prepareState(argv: string[]): Promise<ExitCode> {
       const holder = await owner.take(name);
       if (holder !== null)
         throw new HostError(
-          `session: ${join(await stateFolder(checkout.common), 'sessions', `${argv[2]}.json`)}: target schema 2: busy ${name} ownership (PID ${holder}); retry after the owner exits`,
+          `session: ${(await repositoryState(checkout.common)).session(Number(argv[2]))}: target schema 2: busy ${name} ownership (PID ${holder}); retry after the owner exits`,
           exits.prerequisite,
         );
       await (await import('./lib/session.ts')).prepareSession(checkout.main, Number(argv[2]), checkout.common, owner);
@@ -265,13 +265,9 @@ async function waitingSession(args: string[]): Promise<ExitCode> {
   const { codexHome } = await import('./lib/plugin-metadata.ts');
   const { sessionEnv } = await import('./lib/session.ts');
   const { spawnConsumer } = await import('./lib/update-lock.ts');
-  const record = async (name: string, value: string) => {
-    const temp = join(dir, `.${name}.${randomUUID()}`);
-    await writeFile(temp, value, { mode: 0o600, flag: 'wx' });
-    await rename(temp, join(dir, name));
-  };
-  await record('pid', `${JSON.stringify({ pid: process.pid, start: await processStart(process.pid) })}\n`);
-  while (!(await stat(join(dir, 'go')).catch(() => null))?.isFile()) {
+  const files = startFiles(dir);
+  await writeAtomic(files.pid, `${JSON.stringify({ pid: process.pid, start: await processStart(process.pid) })}\n`);
+  while (!(await stat(files.go).catch(() => null))?.isFile()) {
     if ((await processAlive(Number(daemon))) === 'gone') return exits.prerequisite;
     await Bun.sleep(50);
   }
@@ -292,7 +288,7 @@ async function waitingSession(args: string[]): Promise<ExitCode> {
     console.error(error.message);
     code = error.code;
   }
-  await record('status', `${code}\n`).catch(() => {});
+  await writeAtomic(files.status, `${code}\n`).catch(() => {});
   return code;
 }
 

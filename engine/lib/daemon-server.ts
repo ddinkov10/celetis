@@ -1,10 +1,9 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
 import { closeSync, openSync, rmSync } from 'node:fs';
-import { realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { realpath, rm } from 'node:fs/promises';
 import { constants } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { format } from 'node:util';
 import { type BoardDaemon, celetisAdapter } from '../board/adapter.ts';
 import { type BoardHandle, startBoard } from '../board/start.ts';
@@ -30,7 +29,6 @@ import { installRecorder, recordEvent } from './events.ts';
 import { HostError } from './host.ts';
 import { createLockOwner, type Identity } from './locks.ts';
 import { createOperation, type HostSelection, locateCheckouts, type Operation } from './operation.ts';
-import { privateFolderSync, privateRoot, sharedFolderSync } from './private-folder.ts';
 import { bunArgs, childEnv } from './process.ts';
 import { daemonScript, processStart, processState } from './process-identity.ts';
 import { type Program, programPaths, programRevision } from './program.ts';
@@ -51,7 +49,7 @@ import {
   requireSetup,
 } from './run-engine.ts';
 import { type RunRecord, readRunRecords, removeRunRecord, writeRunRecord } from './run-record.ts';
-import { stateFolder } from './state-folder.ts';
+import { daemonSockets, ensureFolder, privateState, writeAtomic } from './state.ts';
 
 type Frame = { tag: string; last: string | null; sink: Sink | null };
 type Said = Readonly<{ status: number; answer: DaemonAnswer }>;
@@ -151,16 +149,6 @@ async function bodyText(request: Request): Promise<string | null> {
       chunks.push(chunk);
     }
   return Buffer.concat(chunks).toString('utf8');
-}
-
-async function writeIdentity(file: string, identity: DaemonIdentity): Promise<void> {
-  const temp = join(dirname(file), `.daemon.${randomUUID()}`);
-  try {
-    await writeFile(temp, `${JSON.stringify(identity)}\n`, { mode: 0o600, flag: 'wx' });
-    await rename(temp, file);
-  } finally {
-    await rm(temp, { force: true });
-  }
 }
 
 function handoverOf(argv: readonly string[]): Handover | null {
@@ -272,11 +260,11 @@ async function serve(
   if (checkout.main === null || checkout.common === null)
     throw new HostError('celetis: need a Git checkout', exits.usage);
   const { main, common } = checkout;
-  const place: Place = { main, common, state: await stateFolder(common), root };
   const paths = await daemonPaths(common);
-  const fail = (path: string, reason: string) => new HostError(`daemon: ${path}: ${reason}`, exits.blocked);
-  sharedFolderSync(place.state, fail);
-  for (const folder of [paths.folder, paths.runs, privateRoot, dirname(paths.socket)]) privateFolderSync(folder, fail);
+  const { layout } = paths;
+  const place: Place = { main, common, state: layout, root };
+  ensureFolder(layout.root);
+  for (const folder of [layout.daemon, layout.runs, privateState, daemonSockets]) ensureFolder(folder);
   const start = await processStart(process.pid);
   if (!start)
     throw new HostError(
@@ -361,15 +349,15 @@ async function serve(
     recordEvent({ name: 'run-defect', message, issue: entry.handle.view().issue, error });
   };
   const journal = (record: RunRecord) =>
-    writeRunRecord(paths.runs, record).catch((error: unknown) => {
+    writeRunRecord(layout.runs.path, record).catch((error: unknown) => {
       throw new HostError(
-        `daemon: cannot write the run record ${join(paths.runs, `${record.id}.json`)}: ${described(error)}`,
+        `daemon: cannot write the run record ${layout.runRecord(record.id)}: ${described(error)}`,
         exits.blocked,
       );
     });
   const forget = async (entry: Entry, end: RunEnd | null) => {
     if (end?.kind === 'detached' && (entry.answer === 'none' || entry.answer === 'sent')) return;
-    await removeRunRecord(paths.runs, entry.handle.id).catch((error: unknown) =>
+    await removeRunRecord(layout.runs.path, entry.handle.id).catch((error: unknown) =>
       frames.run(entry.frame, () => console.error(`daemon: cannot remove the run record: ${described(error)}`)),
     );
   };
@@ -630,7 +618,7 @@ async function serve(
       restart,
     });
     opened.resolve(board);
-    for (const read of await readRunRecords(paths.runs, common)) {
+    for (const read of await readRunRecords(layout.runs.path, common)) {
       if ('error' in read) {
         console.error(`daemon: cannot take over ${read.path}: ${read.error}; its session stays in its tab`);
         continue;
@@ -649,7 +637,7 @@ async function serve(
     taking = false;
     rmSync(paths.socket, { force: true });
     const server = Bun.serve({ unix: paths.socket, fetch: respond, error: crashed });
-    await writeIdentity(paths.identity, identity);
+    await writeAtomic(paths.identity, `${JSON.stringify(identity)}\n`);
     console.log(`daemon: PID ${process.pid} serves ${paths.socket}`);
     const poll = setInterval(() => {
       void gone(root).then((missing) => {

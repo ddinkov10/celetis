@@ -1,15 +1,19 @@
-import { randomUUID } from 'node:crypto';
 import { type BigIntStats, closeSync, constants, fstatSync, lstatSync, openSync, readFileSync } from 'node:fs';
-import { rename, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import type { AgentChoice, AgentDecision, Host, UsageBlock } from './config-core.ts';
 import { type ExitCode, exits } from './contract.ts';
 import { HostError } from './host.ts';
-import { privateFolderSync, privateMode, sharedFolderSync, sharedMode } from './private-folder.ts';
-import { stateFolder } from './state-folder.ts';
-import { tryFlock } from './update-lock.ts';
+import {
+  checkFolder,
+  ensureFolder,
+  lockReason,
+  privateMode,
+  type RepositoryLayout,
+  repositoryState,
+  unsafe,
+  withLock,
+  writeAtomic,
+} from './state.ts';
 import { type ObservedUsage, type UsageAttempt, usageAttempt, usageObject, usageUuid } from './usage-types.ts';
-import { openLockFile } from './windows.ts';
 
 export type UsageTicket = { attempt: UsageAttempt; ordinal: number };
 type UsageRecord = Readonly<{
@@ -38,22 +42,12 @@ function statAt(path: string): BigIntStats | null {
   }
 }
 
-function folder(path: string): BigIntStats | null {
-  const stat = statAt(path);
-  if (stat && (!stat.isDirectory() || !privateStat(stat))) throw invalid(path, 'need a private directory');
-  return stat;
-}
-
-function sharedFolder(path: string): BigIntStats | null {
-  const stat = statAt(path);
-  if (stat && (!stat.isDirectory() || !sharedMode({ uid: Number(stat.uid), mode: Number(stat.mode) })))
-    throw invalid(path, 'need a directory owned by the current user with no group or other write access');
-  return stat;
-}
-
-function regular(path: string, stat: BigIntStats): void {
-  if (!stat.isFile() || stat.nlink !== 1n || !privateStat(stat) || stat.size > 16384n)
-    throw invalid(path, 'need a private regular file');
+function regular(
+  path: string,
+  stat: BigIntStats,
+  reason = 'need a private regular file owned by the current user (mode 0600)',
+): void {
+  if (!stat.isFile() || stat.nlink !== 1n || !privateStat(stat) || stat.size > 16384n) throw unsafe(path, reason);
 }
 
 function block(value: unknown): value is UsageBlock {
@@ -67,12 +61,11 @@ function block(value: unknown): value is UsageBlock {
   );
 }
 
-function readHost(state: string, host: Host): UsageRecord | null {
-  if (!sharedFolder(state)) return null;
-  const dir = join(state, 'limits');
-  const directory = folder(dir);
+function readHost(layout: RepositoryLayout, host: Host): UsageRecord | null {
+  if (!checkFolder(layout.root)) return null;
+  const directory = checkFolder(layout.limits);
   if (!directory) return null;
-  const path = join(dir, `${host}.json`);
+  const path = layout.limit(host);
   const before = statAt(path);
   if (!before) return null;
   regular(path, before);
@@ -107,7 +100,7 @@ function readHost(state: string, host: Host): UsageRecord | null {
     )
       throw invalid(path, 'invalid record', exits.usage);
     const current = statAt(path);
-    const after = folder(dir);
+    const after = checkFolder(layout.limits);
     if (!current || !after || !sameFile(opened, current) || !sameFile(directory, after))
       throw invalid(path, 'record changed during read', exits.prerequisite);
     return {
@@ -124,8 +117,8 @@ function readHost(state: string, host: Host): UsageRecord | null {
 }
 
 export async function readUsage(common: string): Promise<UsageState> {
-  const state = await stateFolder(common);
-  return { claude: readHost(state, 'claude'), codex: readHost(state, 'codex') };
+  const layout = await repositoryState(common);
+  return { claude: readHost(layout, 'claude'), codex: readHost(layout, 'codex') };
 }
 
 async function update<T>(
@@ -133,57 +126,55 @@ async function update<T>(
   host: Host,
   work: (previous: UsageRecord) => { next: UsageRecord; result: T },
 ): Promise<T> {
-  const state = await stateFolder(common);
-  sharedFolderSync(state, invalid);
-  const dir = join(state, 'limits');
-  privateFolderSync(dir, invalid);
-  const directory = folder(dir) as BigIntStats;
-  const lock = join(dir, `${host}.lock`);
+  const layout = await repositoryState(common);
+  ensureFolder(layout.root);
+  const directory = ensureFolder(layout.limits);
+  const limitLock = layout.limitLock(host);
+  const lock = limitLock.path;
   const before = statAt(lock);
-  if (before) regular(lock, before);
-  const fd =
-    process.platform === 'win32'
-      ? openLockFile(lock)
-      : openSync(lock, constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW | constants.O_NONBLOCK, 0o600);
-  try {
-    const opened = fstatSync(fd, { bigint: true });
-    regular(lock, opened);
-    if (before && !sameFile(before, opened)) throw invalid(lock, 'lock changed during open', exits.prerequisite);
-    const stable = () => {
-      const current = statAt(lock);
-      const currentDirectory = folder(dir);
-      if (!current || !currentDirectory || !sameFile(opened, current) || !sameFile(directory, currentDirectory))
-        throw invalid(lock, 'directory or lock changed', exits.prerequisite);
-      regular(lock, current);
-    };
-    const deadline = performance.now() + 5000;
-    while (!tryFlock(fd)) {
-      if (performance.now() >= deadline) throw invalid(lock, 'write lock is busy', exits.prerequisite);
-      await Bun.sleep(25);
-    }
-    stable();
-    const previous = readHost(state, host) ?? empty();
-    const { next, result } = work(previous);
-    if (next === previous) return result;
-    const path = join(dir, `${host}.json`);
-    const original = statAt(path);
-    const temp = join(dir, `.${host}.${randomUUID()}`);
-    try {
-      await writeFile(temp, `${JSON.stringify(next)}\n`, { mode: 0o600, flag: 'wx' });
-      stable();
-      const current = statAt(path);
-      if (original ? !current || !sameFile(original, current) : current !== null)
-        throw invalid(path, 'record changed during write', exits.prerequisite);
-      if (JSON.stringify(readHost(state, host) ?? empty()) !== JSON.stringify(previous))
-        throw invalid(path, 'content changed during write', exits.prerequisite);
-      await rename(temp, path);
-    } finally {
-      await rm(temp, { force: true });
-    }
-    return result;
-  } finally {
-    closeSync(fd);
-  }
+  if (before) regular(lock, before, lockReason);
+  let opened: BigIntStats | undefined;
+  const stable = () => {
+    const current = statAt(lock);
+    const currentDirectory = checkFolder(layout.limits);
+    if (
+      !opened ||
+      !current ||
+      !currentDirectory ||
+      !sameFile(opened, current) ||
+      !sameFile(directory, currentDirectory)
+    )
+      throw invalid(lock, 'directory or lock changed', exits.prerequisite);
+    regular(lock, current, lockReason);
+  };
+  const check = (stage: 'opened' | 'locked', file: BigIntStats) => {
+    if (stage === 'locked') return stable();
+    regular(lock, file, lockReason);
+    if (before && !sameFile(before, file)) throw invalid(lock, 'lock changed during open', exits.prerequisite);
+    opened = file;
+  };
+  return withLock(
+    limitLock,
+    async () => {
+      const previous = readHost(layout, host) ?? empty();
+      const { next, result } = work(previous);
+      if (next === previous) return result;
+      const path = layout.limit(host);
+      const original = statAt(path);
+      await writeAtomic(path, `${JSON.stringify(next)}\n`, {
+        check: () => {
+          stable();
+          const current = statAt(path);
+          if (original ? !current || !sameFile(original, current) : current !== null)
+            throw invalid(path, 'record changed during write', exits.prerequisite);
+          if (JSON.stringify(readHost(layout, host) ?? empty()) !== JSON.stringify(previous))
+            throw invalid(path, 'content changed during write', exits.prerequisite);
+        },
+      });
+      return result;
+    },
+    { check },
+  );
 }
 
 export async function beginUsageAttempt(common: string, attempt: UsageAttempt): Promise<UsageTicket> {

@@ -1,5 +1,4 @@
-import { randomUUID } from 'node:crypto';
-import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Config, Host } from './config-core.ts';
@@ -8,7 +7,7 @@ import { clampEffort, isLevel, type Level } from './effort.ts';
 import { recordEvent } from './events.ts';
 import { codexRequest, commonDir, HostError } from './host.ts';
 import type { LockOwner } from './locks.ts';
-import { stateFolder } from './state-folder.ts';
+import { ensureFolder, repositoryState, writeAtomic } from './state.ts';
 import { commitMigration, type LocalRecord, readLocalRecord } from './state-migration.ts';
 import { requestStatePreparation } from './state-preparation.ts';
 import { readScreen } from './terminal.ts';
@@ -79,10 +78,10 @@ function historical(source: LocalRecord, main: string, issue: number): SessionRe
 
 const oldSchema = (source: LocalRecord) => object(source.value) && source.value.schema === 1;
 async function snapshot(common: string, issue: number): Promise<LocalRecord | null> {
-  const folder = await stateFolder(common);
-  const file = join(folder, 'sessions', `${issue}.json`);
+  const layout = await repositoryState(common);
+  const file = layout.session(issue);
   try {
-    return await readLocalRecord(file, [common, folder, join(folder, 'sessions')], 'shared');
+    return await readLocalRecord(file, [common, layout.root.path, layout.sessions.path], 'shared');
   } catch (error) {
     throw new HostError(
       `session: ${file}: target schema 2: cannot read record: ${error instanceof Error ? error.message : String(error)}`,
@@ -211,18 +210,13 @@ export function sessionEnv(host: Host, source: NodeJS.ProcessEnv): NodeJS.Proces
 
 export async function writeSession(main: string, record: SessionRecord, owner?: LockOwner): Promise<void> {
   const common = await commonDir(main);
-  const dir = join(await stateFolder(common), 'sessions');
-  const file = join(dir, `${record.issue}.json`);
+  const layout = await repositoryState(common);
+  const file = layout.session(record.issue);
   validateSession(record, main, record.issue, file);
   if (await snapshot(common, record.issue)) await readSession(main, record.issue, common, owner);
-  await mkdir(dir, { recursive: true });
-  const temp = join(dir, `.${record.issue}.${randomUUID()}`);
-  try {
-    await writeFile(temp, `${serializeSession(record)}\n`, { mode: 0o600, flag: 'wx' });
-    await rename(temp, file);
-  } finally {
-    await rm(temp, { force: true });
-  }
+  ensureFolder(layout.root);
+  ensureFolder(layout.sessions);
+  await writeAtomic(file, `${serializeSession(record)}\n`);
 }
 
 export async function verifySavedSession(record: SessionRecord, startedAt: number): Promise<boolean> {

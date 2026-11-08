@@ -1,15 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { closeSync, constants, fstatSync, mkdirSync, openSync, readSync, renameSync, writeSync } from 'node:fs';
 import { constants as os } from 'node:os';
-import { basename, dirname, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, relative, resolve, sep } from 'node:path';
 import { format } from 'node:util';
 import { type ExitCode, exits, passThrough, signalExit } from './contract.ts';
 import { HostError } from './host.ts';
 import { revision as fullRevision } from './plugin-metadata.ts';
-import { privateFolderSync, privateMode } from './private-folder.ts';
-import { celetisBase } from './program.ts';
-import { tryFlock } from './update-lock.ts';
-import { openLockFile } from './windows.ts';
+import { ensureFolder, eventLayout, privateMode, withLockSync } from './state.ts';
 
 type Cut = 'message' | 'exception.stacktrace' | 'argv';
 type Host = 'claude' | 'codex';
@@ -41,8 +38,6 @@ type Report = { name: string; issue: number | null; code: number | null } & (
   | { kind: 'defect'; error: unknown }
 );
 
-export const eventFile = { current: 'events.jsonl', rotated: 'events.1.jsonl', lock: 'events.lock' } as const;
-
 const lineLimit = 16_384;
 const captureLimit = 16_384;
 const rotateSize = 5_242_880;
@@ -60,32 +55,6 @@ let captured = '';
 let marked: { value: unknown } | undefined;
 let crashed: { value: unknown } | undefined;
 const passed = new Set<number>();
-
-export function eventFolder(): string {
-  return join(celetisBase(), '.local/state/celetis');
-}
-
-export function withEventLock<T>(folder: string, shared: boolean, work: () => T): T {
-  const path = join(folder, eventFile.lock);
-  const fd =
-    process.platform === 'win32'
-      ? openLockFile(path)
-      : openSync(path, constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW, 0o600);
-  try {
-    const stat = fstatSync(fd);
-    if (!stat.isFile() || !privateMode(stat))
-      throw new HostError(`celetis: ${path}: need a private regular lock file`, exits.blocked);
-    const deadline = performance.now() + 2_000;
-    while (!tryFlock(fd, shared)) {
-      if (performance.now() >= deadline)
-        throw new HostError('celetis: the record lock is busy after 2 seconds', exits.prerequisite);
-      Bun.sleepSync(20);
-    }
-    return work();
-  } finally {
-    closeSync(fd);
-  }
-}
 
 function keep(text: () => string): void {
   try {
@@ -286,11 +255,10 @@ function serialize(entry: EventEntry): string {
 }
 
 function append(line: string): void {
-  const folder = eventFolder();
-  mkdirSync(dirname(folder), { recursive: true });
-  privateFolderSync(folder, (path, reason) => new HostError(`${path}: ${reason}`, exits.blocked));
-  withEventLock(folder, false, () => {
-    const current = join(folder, eventFile.current);
+  const { folder, current, rotated, lock } = eventLayout();
+  mkdirSync(dirname(folder.path), { recursive: true });
+  ensureFolder(folder);
+  withLockSync(lock, 'exclusive', () => {
     const fd = openSync(
       current,
       constants.O_RDWR | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW,
@@ -309,6 +277,6 @@ function append(line: string): void {
     } finally {
       closeSync(fd);
     }
-    if (size > rotateSize) renameSync(current, join(folder, eventFile.rotated));
+    if (size > rotateSize) renameSync(current, rotated);
   });
 }

@@ -1,12 +1,8 @@
-import { lstatSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { type ExitCode, exits, usage } from './lib/contract.ts';
-import { eventFile, eventFolder, withEventLock } from './lib/events.ts';
 import { HostError, requireBun } from './lib/host.ts';
 import { commandInput } from './lib/operation.ts';
-import { privateMode } from './lib/private-folder.ts';
-
-const busy = 'celetis: the record lock is busy after 2 seconds';
+import { checkFolder, eventLayout, stateOutcome, withLockSync } from './lib/state.ts';
 
 function parse(argv: string[]): string | null {
   const { args } = commandInput(argv);
@@ -24,10 +20,9 @@ function readFile(path: string): string {
   }
 }
 
-function entries(folder: string): { id: string; line: string }[] {
+function entries({ rotated, current }: { rotated: string; current: string }): { id: string; line: string }[] {
   const kept: { id: string; line: string }[] = [];
-  for (const name of [eventFile.rotated, eventFile.current]) {
-    const path = join(folder, name);
+  for (const path of [rotated, current]) {
     const lines = readFile(path).split('\n');
     lines.pop();
     lines.forEach((text, index) => {
@@ -50,15 +45,9 @@ export async function main(argv: string[]): Promise<ExitCode> {
   try {
     requireBun();
     const after = parse(argv);
-    const folder = eventFolder();
-    const stat = lstatSync(folder, { throwIfNoEntry: false });
-    if (!stat) return exits.done;
-    if (!stat.isDirectory() || stat.isSymbolicLink() || !privateMode(stat))
-      throw new HostError(
-        `events: ${folder}: need a private directory owned by the current user (mode 0700)`,
-        exits.blocked,
-      );
-    let kept = withEventLock(folder, true, () => entries(folder));
+    const layout = eventLayout();
+    if (!checkFolder(layout.folder)) return exits.done;
+    let kept = withLockSync(layout.lock, 'shared', () => entries(layout));
     if (after !== null) {
       const index = kept.findLastIndex((item) => item.id === after);
       if (index >= 0) kept = kept.slice(index + 1);
@@ -69,7 +58,9 @@ export async function main(argv: string[]): Promise<ExitCode> {
   } catch (error) {
     if (!(error instanceof HostError)) throw error;
     const message =
-      error.message === busy ? 'events: the record lock is busy after 2 seconds; try again' : error.message;
+      stateOutcome(error)?.kind === 'busy'
+        ? 'events: the record lock is busy after 2 seconds; try again'
+        : error.message;
     if (message) console.error(message);
     return error.code;
   }

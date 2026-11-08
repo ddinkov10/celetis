@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { constants } from 'node:os';
-import { join } from 'node:path';
 import { readAgentOrder } from './agent-order.ts';
 import { beginUsageAttempt, readUsage, recordUsage, selectAgent } from './agent-usage.ts';
 import type { Host } from './config-core.ts';
@@ -10,10 +9,9 @@ import { HostError } from './host.ts';
 import type { Operation } from './operation.ts';
 import { codexHome, codexSessionPin } from './plugin-metadata.ts';
 import { requireUpdatePolicy } from './plugin-policy.ts';
-import { privateFolder } from './private-folder.ts';
 import { childEnv } from './process.ts';
 import { codexClaim, verifyNativeSession } from './session.ts';
-import { stateFolder } from './state-folder.ts';
+import { ensureFolder, repositoryState } from './state.ts';
 import { withPluginRead } from './update-lock.ts';
 import { prepareClaudeUsage, readClaudeUsage } from './usage-claude.ts';
 import { readCodexUsage } from './usage-codex.ts';
@@ -59,14 +57,14 @@ export async function runInteractive(
   };
   if (host === 'codex') args[args.length - 1] = `${args.at(-1) ?? ''}\nLauncher attempt: ${attempt.id}.`;
   const ticket = await beginUsageAttempt(common, attempt);
-  const captureRoot = join(await stateFolder(common), 'usage-captures');
-  const capture = join(captureRoot, attempt.id);
+  const layout = await repositoryState(common);
+  const capture = layout.usageCapture(attempt.id);
   const extra: string[] = [];
   if (host === 'claude') {
-    const fail = (path: string, reason: string) => new HostError(`usage: ${path}: ${reason}`, exits.blocked);
-    await privateFolder(captureRoot, fail);
-    await privateFolder(capture, fail);
-    extra.push(...(await prepareClaudeUsage(attempt, capture)));
+    ensureFolder(layout.root);
+    ensureFolder(layout.usageCaptures);
+    ensureFolder(capture);
+    extra.push(...(await prepareClaudeUsage(attempt, capture.path)));
   }
   const child = spawn(executable, [...pin, ...extra, ...args], {
     cwd: main,
@@ -103,7 +101,7 @@ export async function runInteractive(
         verified = true;
       }
       const observation =
-        host === 'claude' ? await readClaudeUsage(ticket.attempt, capture) : await readCodexUsage(ticket.attempt);
+        host === 'claude' ? await readClaudeUsage(ticket.attempt, capture.path) : await readCodexUsage(ticket.attempt);
       await recordUsage(common, ticket, observation);
     } catch (error) {
       if (!warning)

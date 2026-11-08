@@ -1,3 +1,4 @@
+import { realpath } from 'node:fs/promises';
 import { AgentOrderConflict, validateAgentOrder } from '../lib/agent-order.ts';
 import type { AgentChoice, AgentOrder, Host } from '../lib/config-core.ts';
 import { exits } from '../lib/contract.ts';
@@ -9,10 +10,12 @@ import {
   type Selection,
 } from '../lib/daemon-types.ts';
 import type { Level } from '../lib/effort.ts';
+import { commonDir } from '../lib/host.ts';
 import { bunArgs, run } from '../lib/process.ts';
 import { type Program, readProgram } from '../lib/program.ts';
 import { parseQueueAction } from '../lib/queue.ts';
 import type { QueueAction, QueueView } from '../lib/queue-types.ts';
+import { fromChild, repositoryLayout } from '../lib/state.ts';
 import { isCommit } from '../lib/visual.ts';
 
 export type BoardDaemon = Readonly<{
@@ -121,10 +124,16 @@ export async function celetisAdapter(
       }
       if (result.code === exits.prerequisite && value !== null && typeof value === 'object' && 'latest' in value)
         throw new AgentOrderConflict(parseOrder(value.latest));
-      if (result.code !== exits.done)
-        throw new Error(
+      if (result.code !== exits.done) {
+        const line = result.stderr.split('\n').find((each) => each.trim() !== '') ?? '';
+        const failure = new Error(
           result.stderr.trim() || 'agents: the order outcome is uncertain; refresh before another change',
         );
+        const common = await commonDir(main)
+          .then((path) => realpath(path))
+          .catch(() => null);
+        throw (common !== null && fromChild(result.code, line, repositoryLayout(common).agentsLock)) || failure;
+      }
       return parseOrder(value);
     },
     retryQuota: async (number, waitId) => {

@@ -8,6 +8,7 @@ import type { Operation } from './operation.ts';
 import { run as runProcess } from './process.ts';
 import type { RecoveryAuthority } from './quota-recovery.ts';
 import type { IssueRow, ParentEpic, Pull } from './resolver-types.ts';
+import { laneFolder } from './state.ts';
 import {
   type Bucket,
   bucket,
@@ -74,7 +75,7 @@ function reader(operation: Operation, signal?: AbortSignal) {
   }
 
   async function lanes(n?: string): Promise<string[]> {
-    const parent = join(checkout, '.claude', 'worktrees');
+    const parent = laneFolder(checkout);
     return (await readdir(parent).catch(() => []))
       .filter((name) => (n === undefined ? /^[0-9].*-/.test(name) : name.startsWith(`${n}-`)))
       .sort()

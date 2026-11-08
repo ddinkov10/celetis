@@ -37,6 +37,7 @@ import {
   trackingProblem,
   wiring,
 } from './lib/setup-wiring.ts';
+import { laneFolder, laneFolderName } from './lib/state.ts';
 import { GitHubError, github } from './lib/tracker.ts';
 import { CST, Parser, type SourceToken } from './lib/vendor/yaml.mjs';
 import { markerOf, removeCheckout, runSetup, setupFile, worktrees } from './lib/worktree.ts';
@@ -354,7 +355,7 @@ class Setup {
     )
       fail(`run setup in the main checkout, not in a linked worktree: ${this.top}`);
     this.cwd = this.top;
-    this.testLane = join(this.top, '.claude/worktrees/setup-try');
+    this.testLane = join(laneFolder(this.top), 'setup-try');
   }
   async checkTrunk(): Promise<void> {
     await this.checkMain();
@@ -1006,7 +1007,7 @@ class Setup {
       await removeCheckout(this.testLane, this.cwd, true);
       await this.git(['worktree', 'prune']);
     } else if (await lstat(this.testLane).catch(() => null))
-      fail('.claude/worktrees/setup-try is no worktree of git; remove it first');
+      fail(`${laneFolderName}/setup-try is no worktree of git; remove it first`);
   }
   async commitWiring(): Promise<void> {
     const paths = await this.changedPaths();
@@ -1040,7 +1041,7 @@ class Setup {
     const result = await run('git', ['-C', input, 'rev-parse', '--show-toplevel'], { cwd: this.cwd });
     const path = result.code === 0 ? resolve(result.stdout.trimEnd()) : '';
     await this.checkMain();
-    const contained = relative(join(this.top, '.claude/worktrees'), path);
+    const contained = relative(laneFolder(this.top), path);
     if (
       !path ||
       !contained ||
@@ -1050,7 +1051,7 @@ class Setup {
       path === this.testLane ||
       !(await worktrees(this.cwd)).some((tree) => tree.path === path)
     )
-      fail(`${input} is no lane worktree in .claude/worktrees/ of this repository`, exits.usage);
+      fail(`${input} is no lane worktree in ${laneFolderName}/ of this repository`, exits.usage);
     const target = await createOperation(await locateCheckouts(path), this.operation.selection, 'active');
     const config = target.mainConfig as Config;
     if (!(config.worktreeSetup ?? '')) fail(`the main ${configFile} has no worktreeSetup to run`);

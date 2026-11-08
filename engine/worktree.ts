@@ -8,6 +8,7 @@ import { commandInput, createOperation, locateCheckouts } from './lib/operation.
 import { codexHome } from './lib/plugin-metadata.ts';
 import { run } from './lib/process.ts';
 import { RecoveryError, validateRecovery } from './lib/quota-recovery.ts';
+import { laneFolder } from './lib/state.ts';
 import { GitHubError, github } from './lib/tracker.ts';
 import { branchGlobs, branchPattern, laneOf, lanes } from './lib/workflow.ts';
 import { checkoutOf, markerOf, removeCheckout, removeLane, runSetup, updateLane } from './lib/worktree.ts';
@@ -90,7 +91,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
       branch = `${lanes[found.lane].prefix}/${n}-${slug || 'issue'}`;
     }
   }
-  let path = join(main, '.claude/worktrees', branch.slice(branch.indexOf('/') + 1));
+  let path = join(laneFolder(main), branch.slice(branch.indexOf('/') + 1));
   const current = await checkoutOf(branch, cwd);
   const hasBranch = (await run('git', ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`], { cwd })).code === 0;
   if (current === main) throw new HostError(`switch the main checkout off ${branch} first`, exits.prerequisite);

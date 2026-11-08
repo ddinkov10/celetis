@@ -1,11 +1,9 @@
-import { randomUUID } from 'node:crypto';
-import { mkdir, open, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { open, readFile, rm } from 'node:fs/promises';
 import type { Host } from './config-core.ts';
 import { commonDir } from './host.ts';
 import type { Next } from './lines.ts';
 import { daemonScript, processRunsScript, processState } from './process-identity.ts';
-import { stateFolder } from './state-folder.ts';
+import { checkFolder, ensureFolder, repositoryState, writeAtomic } from './state.ts';
 import { isSafeId } from './terminal.ts';
 
 export type StepEndState = 'checking' | 'waiting' | 'exiting';
@@ -53,28 +51,25 @@ const valid = (value: unknown): value is StepEndRecord => {
   );
 };
 
-async function pathOf(main: string, issue: number): Promise<string> {
+async function layoutOf(main: string, issue: number) {
   if (!Number.isSafeInteger(issue) || issue <= 0) throw new Error('step-end: invalid issue number');
-  return join(await stateFolder(await commonDir(main)), 'step-end', `${issue}.json`);
+  return repositoryState(await commonDir(main));
 }
 
 export async function writeStepEnd(main: string, issue: number, record: StepEndRecord): Promise<void> {
   if (!valid(record)) throw new Error('step-end: invalid record');
-  const file = await pathOf(main, issue);
-  const dir = join(file, '..');
-  await mkdir(dir, { recursive: true, mode: 0o700 });
-  const temp = join(dir, `.${issue}.${randomUUID()}`);
-  try {
-    await writeFile(temp, `${JSON.stringify(record)}\n`, { mode: 0o600, flag: 'wx' });
-    await rename(temp, file);
-  } finally {
-    await rm(temp, { force: true });
-  }
+  const layout = await layoutOf(main, issue);
+  ensureFolder(layout.root);
+  ensureFolder(layout.stepEnds);
+  await writeAtomic(layout.stepEnd(issue), `${JSON.stringify(record)}\n`);
 }
 
 export async function readStepEnd(main: string, issue: number): Promise<StepEndRecord | null> {
   try {
-    const source = await readFile(await pathOf(main, issue), 'utf8');
+    const layout = await layoutOf(main, issue);
+    checkFolder(layout.root);
+    checkFolder(layout.stepEnds);
+    const source = await readFile(layout.stepEnd(issue), 'utf8');
     let record: unknown;
     try {
       record = JSON.parse(source);
@@ -97,7 +92,7 @@ export async function readStepEnd(main: string, issue: number): Promise<StepEndR
 }
 
 export async function removeStepEnd(main: string, issue: number): Promise<void> {
-  const file = await pathOf(main, issue);
+  const file = (await layoutOf(main, issue)).stepEnd(issue);
   try {
     await rm(file, { force: true });
   } catch {

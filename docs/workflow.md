@@ -334,7 +334,7 @@ recovery record and no active host ("Usage-limit recovery").
 It has no completed rows, history, reset, or tab-local draft.
 
 The stable native `queue-write.lock` serializes short read-modify-write transactions. Acquisition
-waits at most 5 seconds. Remote reads and foreground execution stay outside this lock.
+waits at most 10 seconds. Remote reads and foreground execution stay outside this lock.
 The separate queue and issue execution locks retain the existing process-identity checks.
 Claim consumes a launch token once under ownership. A delayed or duplicate wake starts nothing.
 Waiting edits preserve a pending token and the current stop. The daemon reads committed
@@ -796,7 +796,7 @@ start.
 #### The move of the old names
 
 A repository that an earlier program used holds its state under the old names. The first access to
-the state folder moves it (`stateFolder` of `engine/lib/state-folder.ts` calls `moveState` of
+the state folder moves it (`repositoryState` of `engine/lib/state.ts` calls `moveState` of
 `engine/lib/state-move.ts` once in each process for each Git common folder), so each command and
 the daemon do it with no step of yours:
 

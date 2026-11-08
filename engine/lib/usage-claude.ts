@@ -1,11 +1,10 @@
-import { createHash, randomUUID } from 'node:crypto';
-import { closeSync, constants, fstatSync, openSync, type Stats } from 'node:fs';
-import { lstat, open, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { constants, type Stats } from 'node:fs';
+import { lstat, open, realpath, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { mainCheckout } from './host.ts';
-import { privateMode } from './private-folder.ts';
 import { bunArgs } from './process.ts';
-import { tryFlock } from './update-lock.ts';
+import { captureFiles, privateMode, withLock, writeAtomic } from './state.ts';
 import {
   type ObservedUsage,
   type UsageAttempt,
@@ -15,7 +14,6 @@ import {
   usageObject,
   usageUuid,
 } from './usage-types.ts';
-import { openLockFile } from './windows.ts';
 
 type Entry = { key: string; observation: UsageObservation };
 type State = { schema: 1; attempt: UsageAttempt; events: Entry[] };
@@ -51,7 +49,7 @@ async function read(path: string): Promise<string | null> {
 
 async function binding(path: string): Promise<UsageAttempt> {
   await directory(path);
-  const value: unknown = JSON.parse((await read(join(path, 'attempt.json'))) ?? 'null');
+  const value: unknown = JSON.parse((await read(captureFiles(path).attempt)) ?? 'null');
   if (
     !usageObject(value) ||
     value.schema !== 1 ||
@@ -77,7 +75,7 @@ function observation(value: unknown): value is UsageObservation {
 }
 
 async function state(path: string, attempt: UsageAttempt): Promise<State> {
-  const text = await read(join(path, 'events.json'));
+  const text = await read(captureFiles(path).events);
   if (text === null) return { schema: 1, attempt, events: [] };
   const value: unknown = JSON.parse(text);
   if (
@@ -102,23 +100,7 @@ async function state(path: string, attempt: UsageAttempt): Promise<State> {
 
 async function locked<T>(path: string, work: () => Promise<T>): Promise<T> {
   await directory(path);
-  const file = join(path, 'write.lock');
-  const fd =
-    process.platform === 'win32'
-      ? openLockFile(file)
-      : openSync(file, constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW | constants.O_NONBLOCK, 0o600);
-  try {
-    const stat = fstatSync(fd);
-    if (!stat.isFile() || !privateMode(stat)) throw failure();
-    const deadline = performance.now() + 5000;
-    while (!tryFlock(fd)) {
-      if (performance.now() >= deadline) throw new Error('usage-hook: attempt capture is busy');
-      await Bun.sleep(25);
-    }
-    return await work();
-  } finally {
-    closeSync(fd);
-  }
+  return withLock(captureFiles(path).lock, work);
 }
 
 async function create(path: string, text: string): Promise<void> {
@@ -138,9 +120,10 @@ export async function prepareClaudeUsage(attempt: UsageAttempt, captureDirectory
     (await realpath(attempt.main)) !== attempt.main
   )
     throw failure();
-  const settings = join(captureDirectory, 'settings.json');
+  const files = captureFiles(captureDirectory);
+  const settings = files.settings;
   await locked(captureDirectory, async () => {
-    await create(join(captureDirectory, 'attempt.json'), `${JSON.stringify({ schema: 1, attempt })}\n`);
+    await create(files.attempt, `${JSON.stringify({ schema: 1, attempt })}\n`);
     const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
     const args = bunArgs(join(import.meta.dir, '../usage-hook.ts'), [captureDirectory, attempt.id]);
     const executable = process.platform === 'win32' ? process.execPath.replaceAll('\\', '/') : process.execPath;
@@ -195,13 +178,7 @@ export async function receiveClaudeUsage(captureDirectory: string, attemptId: st
     const previous = await state(captureDirectory, attempt);
     if (previous.events.some((event) => event.key === key)) return;
     const next: State = { schema: 1, attempt, events: [...previous.events, { key, observation: result }] };
-    const temp = join(captureDirectory, `.${randomUUID()}.tmp`);
-    try {
-      await writeFile(temp, `${JSON.stringify(next)}\n`, { flag: 'wx', mode: 0o600 });
-      await rename(temp, join(captureDirectory, 'events.json'));
-    } finally {
-      await rm(temp, { force: true });
-    }
+    await writeAtomic(captureFiles(captureDirectory).events, `${JSON.stringify(next)}\n`);
   });
 }
 

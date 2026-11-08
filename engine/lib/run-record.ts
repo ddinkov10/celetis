@@ -1,5 +1,4 @@
-import { randomUUID } from 'node:crypto';
-import { readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { readdir, readFile, rm } from 'node:fs/promises';
 import { isAbsolute, join, sep } from 'node:path';
 import type { UsageTicket } from './agent-usage.ts';
 import type { AgentChoice, Host } from './config-core.ts';
@@ -8,7 +7,7 @@ import type { Identity } from './locks.ts';
 import type { RecoveryAttempt, RecoveryAuthority } from './quota-recovery.ts';
 import type { RunInput, RunState } from './run-engine.ts';
 import { type SessionRecord, validateSession } from './session.ts';
-import { stateFolder } from './state-folder.ts';
+import { repositoryState, writeAtomic } from './state.ts';
 import { commitMigration, type LocalRecord, readLocalRecord } from './state-migration.ts';
 import { usageAttempt } from './usage-types.ts';
 import { lanes, type Run, type Step, steps } from './workflow.ts';
@@ -287,13 +286,7 @@ const historical = (value: unknown): value is Historical => validFields(value, 1
 export async function writeRunRecord(folder: string, record: RunRecord): Promise<void> {
   const written: unknown = record;
   if (!validRunRecord(written)) throw new Error(`run record ${record.id}: not valid`);
-  const temp = join(folder, `.${record.id}.${randomUUID()}`);
-  try {
-    await writeFile(temp, `${JSON.stringify(record)}\n`, { mode: 0o600, flag: 'wx' });
-    await rename(temp, join(folder, `${record.id}.json`));
-  } finally {
-    await rm(temp, { force: true });
-  }
+  await writeAtomic(join(folder, `${record.id}.json`), `${JSON.stringify(record)}\n`);
 }
 
 export async function removeRunRecord(folder: string, id: string): Promise<void> {
@@ -338,8 +331,9 @@ async function convert(path: string, name: string, folder: string, old: string, 
 
 export async function readRunRecords(folder: string, common: string): Promise<ReadRecord[]> {
   const names = (await readdir(folder)).filter((name) => file.test(name)).sort();
-  const old = join(common, 'celetis-flow');
-  const state = await stateFolder(common);
+  const layout = await repositoryState(common);
+  const old = layout.oldRoot;
+  const state = layout.root.path;
   return Promise.all(
     names.map(async (name): Promise<ReadRecord> => {
       const path = join(folder, name);

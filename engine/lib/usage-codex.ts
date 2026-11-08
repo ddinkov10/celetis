@@ -1,11 +1,7 @@
-import { createHash, randomUUID } from 'node:crypto';
-import { closeSync, constants, fstatSync, openSync } from 'node:fs';
-import { lstat, open, realpath, rename, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { constants } from 'node:fs';
+import { lstat, open, realpath } from 'node:fs/promises';
 import { codexRequest, commonDir, mainCheckout } from './host.ts';
-import { privateFolder, privateMode, sharedFolderSync } from './private-folder.ts';
-import { stateFolder } from './state-folder.ts';
-import { tryFlock } from './update-lock.ts';
+import { privateMode, repositoryState, withLock, writeAtomic } from './state.ts';
 import {
   type ObservedUsage,
   type UsageAttempt,
@@ -14,7 +10,6 @@ import {
   usageAttempt,
   usageObject,
 } from './usage-types.ts';
-import { openLockFile } from './windows.ts';
 
 type NativeUsage = { turnId: string; observation: UsageObservation };
 type SequenceRecord = NativeUsage & { schema: 1; attempt: UsageAttempt; sequence: number };
@@ -94,26 +89,9 @@ async function readSequence(file: string, attempt: UsageAttempt): Promise<Sequen
 
 async function sequenced(attempt: UsageAttempt & { sessionId: string }): Promise<ObservedUsage> {
   if ((await mainCheckout(attempt.main)) !== attempt.main) throw invalid();
-  const state = await stateFolder(await realpath(await commonDir(attempt.main)));
-  sharedFolderSync(state, invalid);
-  const root = join(state, 'usage-sequences');
-  await privateFolder(root, invalid);
-  const directory = join(root, createHash('sha256').update(attempt.id).digest('hex'));
-  await privateFolder(directory, invalid);
-  const lock = join(directory, 'write.lock');
-  const fd =
-    process.platform === 'win32'
-      ? openLockFile(lock)
-      : openSync(lock, constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW | constants.O_NONBLOCK, 0o600);
-  try {
-    const stat = fstatSync(fd);
-    if (!stat.isFile() || !privateMode(stat)) throw invalid();
-    const deadline = performance.now() + 5000;
-    while (!tryFlock(fd)) {
-      if (performance.now() >= deadline) throw new Error('usage: Codex attempt sequence is busy');
-      await Bun.sleep(25);
-    }
-    const file = join(directory, 'state.json');
+  const layout = await repositoryState(await realpath(await commonDir(attempt.main)));
+  return withLock(layout.sequenceLock(attempt.id), async () => {
+    const file = layout.sequenceState(attempt.id);
     const previous = await readSequence(file, attempt);
     const native = await readNativeUsage(attempt);
     if (!native || !isObservation(native.observation)) return unknownUsage(attempt);
@@ -128,18 +106,10 @@ async function sequenced(attempt: UsageAttempt & { sessionId: string }): Promise
     if (!Number.isSafeInteger(sequence)) throw invalid();
     if (!unchanged) {
       const next: SequenceRecord = { schema: 1, attempt, sequence, ...native };
-      const temporary = join(directory, `.${randomUUID()}.tmp`);
-      try {
-        await writeFile(temporary, `${JSON.stringify(next)}\n`, { flag: 'wx', mode: 0o600 });
-        await rename(temporary, file);
-      } finally {
-        await rm(temporary, { force: true });
-      }
+      await writeAtomic(file, `${JSON.stringify(next)}\n`);
     }
     return { attemptId: attempt.id, sessionId: attempt.sessionId, sequence, observation: native.observation };
-  } finally {
-    closeSync(fd);
-  }
+  });
 }
 
 async function resetAt(attempt: UsageAttempt, thread: Record<string, unknown>): Promise<number | null> {

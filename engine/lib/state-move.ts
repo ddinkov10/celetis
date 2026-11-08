@@ -1,6 +1,5 @@
 import type { Stats } from 'node:fs';
 import { lstat, rename } from 'node:fs/promises';
-import { join } from 'node:path';
 import { type ExitCode, exits } from './contract.ts';
 import { HostError } from './host.ts';
 import { childEnv, run } from './process.ts';
@@ -8,8 +7,6 @@ import { processState } from './process-identity.ts';
 
 type Identity = Readonly<{ pid: number; start: string }>;
 type Listed = Readonly<{ oid: string; ref: string }>;
-
-const locks = 'refs/celetis-flow/locks/';
 
 function identity(row: unknown): Identity | null {
   if (row === null || typeof row !== 'object' || Array.isArray(row)) return null;
@@ -32,9 +29,10 @@ function record(source: string): Record<string, unknown> | null {
 
 const described = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-export async function moveState(common: string): Promise<void> {
-  const old = join(common, 'celetis-flow');
-  const next = join(common, 'celetis');
+export async function moveState(
+  common: string,
+  { old, next, oldRefs: locks }: Readonly<{ old: string; next: string; oldRefs: string }>,
+): Promise<void> {
   const refuse = (line: string, code: ExitCode = exits.prerequisite): never => {
     throw new HostError(`state: ${line}`, code);
   };

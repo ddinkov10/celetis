@@ -1,14 +1,20 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { type BigIntStats, closeSync, constants, fstatSync, lstatSync, openSync, readFileSync } from 'node:fs';
-import { rename, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import type { AgentOrder, Host } from './config-core.ts';
 import { type ExitCode, exits } from './contract.ts';
 import { HostError } from './host.ts';
-import { privateMode, sharedFolderSync, sharedMode } from './private-folder.ts';
-import { stateFolder } from './state-folder.ts';
-import { tryFlock } from './update-lock.ts';
-import { openLockFile } from './windows.ts';
+import {
+  checkFolder,
+  ensureFolder,
+  lockReason,
+  privateMode,
+  type RepositoryLayout,
+  repositoryState,
+  StateError,
+  unsafe,
+  withLock,
+  writeAtomic,
+} from './state.ts';
 
 export class AgentOrderConflict extends Error {
   constructor(readonly latest: AgentOrder) {
@@ -18,7 +24,6 @@ export class AgentOrderConflict extends Error {
 
 const invalid = (path: string, reason: string, code: ExitCode = exits.blocked) =>
   new HostError(`agents: ${path}: ${reason}`, code);
-const recordPath = (folder: string) => join(folder, 'agents.json');
 const sameFile = (a: BigIntStats, b: BigIntStats) => a.dev === b.dev && a.ino === b.ino;
 const privateStat = (stat: BigIntStats) => privateMode({ uid: Number(stat.uid), mode: Number(stat.mode) });
 
@@ -31,16 +36,12 @@ function statAt(path: string): BigIntStats | null {
   }
 }
 
-function checkDirectory(folder: string): BigIntStats | null {
-  const stat = statAt(folder);
-  if (stat && (!stat.isDirectory() || !sharedMode({ uid: Number(stat.uid), mode: Number(stat.mode) })))
-    throw invalid(folder, 'need a directory owned by the current user with no group or other write access');
-  return stat;
-}
-
-function regular(path: string, stat: BigIntStats): void {
-  if (!stat.isFile() || stat.nlink !== 1n || !privateStat(stat))
-    throw invalid(path, 'need a private regular file owned by the current user (mode 0600)');
+function regular(
+  path: string,
+  stat: BigIntStats,
+  reason = 'need a private regular file owned by the current user (mode 0600)',
+): void {
+  if (!stat.isFile() || stat.nlink !== 1n || !privateStat(stat)) throw unsafe(path, reason);
 }
 
 export function validateAgentOrder(value: unknown): readonly Host[] {
@@ -69,12 +70,12 @@ function versioned(order: readonly Host[]): AgentOrder {
 }
 
 export async function readAgentOrder(common: string): Promise<AgentOrder> {
-  return readOrder(await stateFolder(common));
+  return readOrder(await repositoryState(common));
 }
 
-function readOrder(dir: string): AgentOrder {
-  const folder = checkDirectory(dir);
-  const path = recordPath(dir);
+function readOrder(layout: RepositoryLayout): AgentOrder {
+  const folder = checkFolder(layout.root);
+  const path = layout.agents;
   const before = folder ? statAt(path) : null;
   if (!before) return versioned(validateAgentOrder(['claude', 'codex']));
   regular(path, before);
@@ -96,12 +97,13 @@ function readOrder(dir: string): AgentOrder {
     )
       throw new HostError('need exactly schema: 1 and order', exits.usage);
     const result = versioned(validateAgentOrder(value.order));
-    const after = checkDirectory(dir);
+    const after = checkFolder(layout.root);
     const current = statAt(path);
     if (!after || !folder || !sameFile(folder, after) || !current || !sameFile(opened, current))
       throw new HostError('the record changed during the read', exits.prerequisite);
     return result;
   } catch (error) {
+    if (error instanceof StateError) throw error;
     throw invalid(
       path,
       error instanceof Error ? error.message : String(error),
@@ -121,61 +123,52 @@ async function updateOrder(
   order: readonly Host[],
   expectedVersion: string | null,
 ): Promise<AgentOrder> {
-  const dir = await stateFolder(common);
-  sharedFolderSync(dir, invalid);
-  const folder = checkDirectory(dir) as BigIntStats;
-  const lock = join(dir, 'agents-write.lock');
+  const layout = await repositoryState(common);
+  const folder = ensureFolder(layout.root);
+  const lock = layout.agentsLock.path;
   const before = statAt(lock);
-  if (before) regular(lock, before);
-  const fd =
-    process.platform === 'win32'
-      ? openLockFile(lock)
-      : openSync(lock, constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW | constants.O_NONBLOCK, 0o600);
-  try {
-    const opened = fstatSync(fd, { bigint: true });
-    regular(lock, opened);
-    if (before && !sameFile(before, opened)) throw invalid(lock, 'the lock changed during open', exits.prerequisite);
-    const stable = () => {
-      const currentFolder = checkDirectory(dir);
-      const currentLock = statAt(lock);
-      if (!currentFolder || !sameFile(folder, currentFolder) || !currentLock || !sameFile(opened, currentLock))
-        throw invalid(lock, 'the directory or lock changed during the write', exits.prerequisite);
-      regular(lock, currentLock);
-    };
-    const deadline = performance.now() + 5_000;
-    while (!tryFlock(fd)) {
-      if (performance.now() >= deadline)
-        throw new HostError('agents: write lock is busy; try again', exits.prerequisite);
-      await Bun.sleep(50);
-    }
-    stable();
-    const path = recordPath(dir);
-    const previous = readOrder(dir);
-    const existed = statAt(path);
-    const next = versioned(order);
-    if (expectedVersion === null && existed) return previous;
-    if (existed && previous.version === next.version) return previous;
-    if (expectedVersion !== null && previous.version !== expectedVersion) {
-      if (previous.version === next.version) return previous;
-      throw new AgentOrderConflict(previous);
-    }
-    const temp = join(dir, `.agents.${randomUUID()}`);
-    try {
-      await writeFile(temp, serialized(order), { mode: 0o600, flag: 'wx' });
-      stable();
-      const current = statAt(path);
-      if (existed ? !current || !sameFile(existed, current) : current !== null)
-        throw invalid(path, 'the record changed during the write', exits.prerequisite);
-      if (readOrder(dir).version !== previous.version)
-        throw invalid(path, 'the content changed during the write', exits.prerequisite);
-      await rename(temp, path);
-    } finally {
-      await rm(temp, { force: true });
-    }
-    return next;
-  } finally {
-    closeSync(fd);
-  }
+  if (before) regular(lock, before, lockReason);
+  let opened: BigIntStats | undefined;
+  const stable = () => {
+    const currentFolder = checkFolder(layout.root);
+    const currentLock = statAt(lock);
+    if (!opened || !currentFolder || !sameFile(folder, currentFolder) || !currentLock || !sameFile(opened, currentLock))
+      throw invalid(lock, 'the directory or lock changed during the write', exits.prerequisite);
+    regular(lock, currentLock, lockReason);
+  };
+  const check = (stage: 'opened' | 'locked', file: BigIntStats) => {
+    if (stage === 'locked') return stable();
+    regular(lock, file, lockReason);
+    if (before && !sameFile(before, file)) throw invalid(lock, 'the lock changed during open', exits.prerequisite);
+    opened = file;
+  };
+  return withLock(
+    layout.agentsLock,
+    async () => {
+      const path = layout.agents;
+      const previous = readOrder(layout);
+      const existed = statAt(path);
+      const next = versioned(order);
+      if (expectedVersion === null && existed) return previous;
+      if (existed && previous.version === next.version) return previous;
+      if (expectedVersion !== null && previous.version !== expectedVersion) {
+        if (previous.version === next.version) return previous;
+        throw new AgentOrderConflict(previous);
+      }
+      await writeAtomic(path, serialized(order), {
+        check: () => {
+          stable();
+          const current = statAt(path);
+          if (existed ? !current || !sameFile(existed, current) : current !== null)
+            throw invalid(path, 'the record changed during the write', exits.prerequisite);
+          if (readOrder(layout).version !== previous.version)
+            throw invalid(path, 'the content changed during the write', exits.prerequisite);
+        },
+      });
+      return next;
+    },
+    { check },
+  );
 }
 
 export async function replaceAgentOrder(common: string, order: unknown, expectedVersion: string): Promise<AgentOrder> {

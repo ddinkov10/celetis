@@ -1,15 +1,13 @@
-import { createHash } from 'node:crypto';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute } from 'node:path';
 import type { Host } from './config-core.ts';
 import { type ExitCode, exitCodeOf, exits, passThrough } from './contract.ts';
 import { isLevel, type Level } from './effort.ts';
 import { HostError } from './host.ts';
-import { privateRoot } from './private-folder.ts';
 import type { ProcessState } from './process-identity.ts';
 import { parseQueueAction, parseQueueView } from './queue.ts';
 import type { QueueAction, QueueView } from './queue-types.ts';
 import type { RunInput, RunState } from './run-engine.ts';
-import { stateFolder } from './state-folder.ts';
+import { daemonSocketPath, type RepositoryLayout, repositoryState } from './state.ts';
 import { type Step, steps } from './workflow.ts';
 
 export type Selection = Readonly<{ explicit?: Host; environment?: string }>;
@@ -127,7 +125,7 @@ export function landingSubject(number: number, subject: string): boolean {
 }
 
 export function daemonSocket(common: string): string {
-  const socket = join(privateRoot, 'daemon', `${createHash('sha256').update(common).digest('hex').slice(0, 16)}.sock`);
+  const socket = daemonSocketPath(common);
   const bytes = Buffer.byteLength(socket);
   if (bytes >= 104)
     throw new HostError(
@@ -138,21 +136,14 @@ export function daemonSocket(common: string): string {
 }
 
 export async function daemonPaths(common: string): Promise<{
-  folder: string;
+  layout: RepositoryLayout;
   identity: string;
   log: string;
-  runs: string;
   socket: string;
 }> {
   const socket = daemonSocket(common);
-  const folder = join(await stateFolder(common), 'daemon');
-  return {
-    folder,
-    identity: join(folder, 'daemon.json'),
-    log: join(folder, 'daemon.log'),
-    runs: join(folder, 'runs'),
-    socket,
-  };
+  const layout = await repositoryState(common);
+  return { layout, identity: layout.daemonIdentity, log: layout.daemonLog, socket };
 }
 
 function selectionOf(value: unknown): Selection | null {

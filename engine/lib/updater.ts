@@ -1,7 +1,6 @@
-import { randomUUID } from 'node:crypto';
-import { lstat, mkdir, mkdtemp, open, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, isAbsolute, join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import type { Host } from './config-core.ts';
 import { type ExitCode, exits, usage } from './contract.ts';
@@ -29,6 +28,7 @@ import {
   programSource,
   readProgram,
 } from './program.ts';
+import { writeAtomic } from './state.ts';
 import { UpdateLock, withPluginRead } from './update-lock.ts';
 import type { UpdateStage } from './update-types.ts';
 
@@ -408,19 +408,7 @@ async function replaceClaudeMarketplace(
   const metadata = await lstat(path);
   if (!metadata.isFile())
     throw new HostError(`update: ${path} needs a regular file with no symbolic link`, exits.blocked);
-  const temporary = join(dirname(path), `.celetis.${randomUUID()}.json`);
-  try {
-    const file = await open(temporary, 'wx', metadata.mode & 0o7777);
-    try {
-      await file.chmod(metadata.mode & 0o7777);
-      await file.writeFile(JSON.stringify({ ...registry, celetis: replacement }));
-    } finally {
-      await file.close();
-    }
-    await rename(temporary, path);
-  } finally {
-    await rm(temporary, { force: true });
-  }
+  await writeAtomic(path, JSON.stringify({ ...registry, celetis: replacement }), { mode: metadata.mode & 0o7777 });
 }
 
 async function updatePlugin(ownerPid: number, host: Host, target: PluginUpdate): Promise<PluginUpdate> {

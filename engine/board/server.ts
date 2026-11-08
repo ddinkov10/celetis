@@ -44,6 +44,7 @@ import {
   requireQueueChoice,
 } from '../lib/queue.ts';
 import type { QueueAction, QueueView } from '../lib/queue-types.ts';
+import { laneFolder, stateOutcome } from '../lib/state.ts';
 import { readStepEnd } from '../lib/step-end.ts';
 import {
   focusTerminal,
@@ -121,8 +122,9 @@ const agentCause = (cause: unknown) => {
   if (/\b(EACCES|EPERM)\b|permission denied/.test(message)) return 'access to local agent state was denied';
   if (/\b(ENOSPC|EDQUOT)\b/.test(message)) return 'local storage is full';
   if (/\bEROFS\b/.test(message)) return 'local agent state is on a read-only filesystem';
-  if (message === 'agents: write lock is busy; try again') return 'the agent order is busy; try again';
-  if (/need a private|need a directory owned by/.test(message))
+  const outcome = stateOutcome(cause);
+  if (outcome?.kind === 'busy' && outcome.lock === 'agents') return 'the agent order is busy; try again';
+  if (outcome?.kind === 'unsafe' && outcome.reason.startsWith('need a '))
     return 'local agent state has unsafe file permissions; check it in a terminal';
   if (
     /^recovery: (#[1-9][0-9]* (has no quota wait|waits with another wait ID; refresh, then use its Retry)|the run of #[1-9][0-9]* no longer runs; start the run again)$/.test(
@@ -338,8 +340,7 @@ export const createBoard = ({
   };
 
   const isInside = (path: unknown): path is string =>
-    typeof path === 'string' &&
-    (resolve(path) === main || resolve(path).startsWith(`${main}${sep}.claude${sep}worktrees${sep}`));
+    typeof path === 'string' && (resolve(path) === main || resolve(path).startsWith(`${laneFolder(main)}${sep}`));
 
   const sessionsIn = (terminals: Terminal[]) => sessionsOf(terminals, isInside, stepsOf(board?.flow));
   const readSessions = async () => sessionsIn(await listTerminals(exec).catch(refused));
@@ -393,7 +394,7 @@ export const createBoard = ({
   };
 
   const laneOf = async (number: number) => {
-    const dir = join(main, '.claude', 'worktrees');
+    const dir = laneFolder(main);
     const name = (await readdir(dir).catch(() => [])).find((entry) => entry.startsWith(`${number}-`));
     return name ? join(dir, name) : null;
   };

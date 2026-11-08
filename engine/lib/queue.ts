@@ -1,7 +1,3 @@
-import { randomUUID } from 'node:crypto';
-import { closeSync, constants, fstatSync, openSync } from 'node:fs';
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import type { AgentChoice, Host } from './config-core.ts';
 import { exits } from './contract.ts';
 import { HostError, selectHost } from './host.ts';
@@ -12,11 +8,9 @@ import { childEnv } from './process.ts';
 import type { QueueAction, QueueReceipt, QueueRecord, QueueView } from './queue-types.ts';
 import { readRecovery, recoveryOwner } from './quota-recovery.ts';
 import { nextIssue } from './resolver.ts';
-import { stateFolder } from './state-folder.ts';
+import { ensureFolder, repositoryState, withLock, writeAtomic } from './state.ts';
 import { commitMigration, type LocalRecord, readLocalRecord } from './state-migration.ts';
 import { requestStatePreparation } from './state-preparation.ts';
-import { tryFlock } from './update-lock.ts';
-import { openLockFile } from './windows.ts';
 import { lanes, type Run, type Step, steps } from './workflow.ts';
 
 export type { QueueAction, QueueRecord, QueueView } from './queue-types.ts';
@@ -330,10 +324,10 @@ function historical(value: unknown, file: string): QueueRecord {
 }
 
 async function snapshot(common: string): Promise<LocalRecord | null> {
-  const folder = await stateFolder(common);
-  const file = join(folder, 'queue.json');
+  const layout = await repositoryState(common);
+  const file = layout.queue;
   try {
-    return await readLocalRecord(file, [common, folder], 'shared');
+    return await readLocalRecord(file, [common, layout.root.path], 'shared');
   } catch (error) {
     throw new HostError(
       `queue: ${file}: target schema 3: cannot read record: ${error instanceof Error ? error.message : String(error)}`,
@@ -454,38 +448,13 @@ export async function readQueue(main: string, common?: string, owner?: LockOwner
 
 async function writeQueue(common: string, record: QueueRecord): Promise<void> {
   validate(record);
-  const dir = await stateFolder(common);
-  const file = join(dir, 'queue.json');
-  await mkdir(dir, { recursive: true, mode: 0o700 });
-  const temp = join(dir, `.queue.${randomUUID()}`);
-  try {
-    await writeFile(temp, `${JSON.stringify(record)}\n`, { mode: 0o600, flag: 'wx' });
-    await rename(temp, file);
-  } finally {
-    await rm(temp, { force: true });
-  }
+  const layout = await repositoryState(common);
+  ensureFolder(layout.root);
+  await writeAtomic(layout.queue, `${JSON.stringify(record)}\n`);
 }
 
 async function withQueueWrite<T>(common: string, change: () => Promise<T>): Promise<T> {
-  const dir = await stateFolder(common);
-  await mkdir(dir, { recursive: true, mode: 0o700 });
-  const path = join(dir, 'queue-write.lock');
-  const fd =
-    process.platform === 'win32'
-      ? openLockFile(path)
-      : openSync(path, constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW | constants.O_NONBLOCK, 0o600);
-  try {
-    if (!fstatSync(fd).isFile()) throw new HostError(`queue: not a regular lock file: ${path}`, exits.blocked);
-    const deadline = performance.now() + 5_000;
-    while (!tryFlock(fd)) {
-      if (performance.now() >= deadline)
-        throw new HostError(`queue: ${path}: write lock is busy; refresh and try again`, exits.prerequisite);
-      await Bun.sleep(50);
-    }
-    return await change();
-  } finally {
-    closeSync(fd);
-  }
+  return withLock((await repositoryState(common)).queueLock, change);
 }
 
 export async function updateQueue(

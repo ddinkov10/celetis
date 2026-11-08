@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { closeSync, constants, fstatSync, openSync } from 'node:fs';
+import { constants, lstatSync } from 'node:fs';
 import { lstat, mkdir, open, readdir, rename, unlink } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import { exits } from './contract.ts';
@@ -32,10 +32,8 @@ import {
   validateStore,
 } from './lesson-record.ts';
 import { type CheckoutIdentity, locateCheckouts } from './operation.ts';
-import { privateFolder, privateMode, privateRoot } from './private-folder.ts';
 import { run } from './process.ts';
-import { tryFlock } from './update-lock.ts';
-import { openLockFile } from './windows.ts';
+import { acquireReason, ensureFolder, lessonLock, stateOutcome, withLock as withStateLock } from './state.ts';
 
 export type LessonStore = { main: string; active: string; files: Map<string, string> };
 type View = Pick<LessonStore, 'main' | 'active'>;
@@ -52,7 +50,6 @@ type LaneCommit = 'committed' | 'absent' | 'moved';
 type Transaction = { schema: 1; id: string; kind: 'capture' | 'review'; changes: Change[]; lane?: Lane };
 const objectId = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const temporary = /^\.celetis-lessons-[0-9a-f-]{36}\.tmp$/;
-const lockFolder = join(privateRoot, 'lessons');
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -196,63 +193,68 @@ async function identity(cwd: string): Promise<CheckoutIdentity & { main: string;
     blocked(cwd, error);
   }
 }
-function lockFailure(path: string, reason: string): LessonError {
-  return new LessonError(exits.blocked, path, reason);
+function lessonFailure(error: unknown): unknown {
+  const state = stateOutcome(error);
+  if (!state || error instanceof LessonError) return error;
+  const reason =
+    state.kind === 'busy'
+      ? 'busy: timed out waiting for the lesson lock'
+      : state.reason === acquireReason
+        ? 'cannot acquire the lesson lock'
+        : state.reason;
+  return new LessonError(state.code, state.path, reason);
 }
-async function lockFolders(): Promise<void> {
-  await privateFolder(privateRoot, lockFailure);
-  await privateFolder(lockFolder, lockFailure);
-}
-function tryLessonLock(fd: number, path: string): boolean {
+function lockStat(path: string) {
   try {
-    return tryFlock(fd);
-  } catch {
-    throw new LessonError(exits.blocked, path, 'cannot acquire the lesson lock');
-  }
-}
-async function withLock<T>(common: string, act: () => Promise<T>, wait = 10_000): Promise<T> {
-  const path = join(lockFolder, `${hash(common)}.lock`);
-  await lockFolders();
-  const previous = await stat(path);
-  if (previous && (!previous.isFile() || previous.isSymbolicLink()))
-    throw new LessonError(exits.blocked, path, 'need a regular lock file without a symlink');
-  let fd: number;
-  try {
-    fd =
-      process.platform === 'win32'
-        ? openLockFile(path)
-        : openSync(path, constants.O_CREAT | constants.O_RDWR | constants.O_NOFOLLOW, 0o600);
+    return lstatSync(path, { bigint: true, throwIfNoEntry: false });
   } catch (error) {
     blocked(path, error);
   }
+}
+async function withLock<T>(
+  common: string,
+  act: () => Promise<T>,
+  operation: 'capture' | 'other' = 'other',
+): Promise<T> {
+  const lock = lessonLock(common, operation);
+  const folders = () => {
+    for (const folder of lock.folders) ensureFolder(folder);
+  };
   try {
-    const opened = fstatSync(fd);
-    if (
-      !opened.isFile() ||
-      (previous && (previous.dev !== opened.dev || previous.ino !== opened.ino)) ||
-      !privateMode(opened)
-    )
-      throw new LessonError(exits.blocked, path, 'need a private regular lock file owned by the current user');
-    const deadline = performance.now() + wait;
-    while (!tryLessonLock(fd, path)) {
-      if (performance.now() >= deadline)
-        throw new LessonError(exits.prerequisite, path, 'busy: timed out waiting for the lesson lock');
-      await Bun.sleep(25);
-    }
-    await lockFolders();
-    const current = await stat(path);
-    if (!current?.isFile() || current.dev !== opened.dev || current.ino !== opened.ino)
-      throw new LessonError(exits.blocked, path, 'lock identity changed');
-    return await act();
-  } finally {
-    closeSync(fd);
+    folders();
+    const previous = lockStat(lock.path);
+    if (previous && (!previous.isFile() || previous.isSymbolicLink()))
+      throw new LessonError(exits.blocked, lock.path, 'need a regular lock file without a symlink');
+    return await withStateLock(lock, act, {
+      check: (stage, opened) => {
+        if (stage === 'opened') {
+          if (previous && (previous.dev !== opened.dev || previous.ino !== opened.ino))
+            throw new LessonError(
+              exits.blocked,
+              lock.path,
+              'need a private regular lock file owned by the current user',
+            );
+          return;
+        }
+        folders();
+        const current = lockStat(lock.path);
+        if (!current?.isFile() || current.dev !== opened.dev || current.ino !== opened.ino)
+          throw new LessonError(exits.blocked, lock.path, 'lock identity changed');
+      },
+    });
+  } catch (error) {
+    throw lessonFailure(error);
   }
 }
 async function requireComplete(root: string): Promise<void> {
   if ((await readLessonFile(root, journalPath)) !== null)
     throw new LessonError(exits.blocked, join(root, journalPath), 'incomplete transaction; run lesson-store recover');
 }
-async function withLessonFiles<T>(cwd: string, act: (store: LessonStore) => Promise<T>, wait?: number): Promise<T> {
+async function withLessonFiles<T>(
+  cwd: string,
+  act: (store: LessonStore) => Promise<T>,
+  operation?: 'capture' | 'other',
+): Promise<T> {
   const checkout = await identity(cwd);
   const view = { main: checkout.main, active: checkout.active };
   return withLock(
@@ -261,13 +263,13 @@ async function withLessonFiles<T>(cwd: string, act: (store: LessonStore) => Prom
       await requireComplete(view.main);
       return act({ ...view, files: await scanStore(view) });
     },
-    wait,
+    operation,
   );
 }
 export async function withLessonStore<T>(
   cwd: string,
   act: (store: LessonStore) => Promise<T>,
-  wait?: number,
+  operation?: 'capture' | 'other',
 ): Promise<T> {
   return withLessonFiles(
     cwd,
@@ -275,7 +277,7 @@ export async function withLessonStore<T>(
       validateStore(store.files);
       return act(store);
     },
-    wait,
+    operation,
   );
 }
 function snapshot(root: string, files: Map<string, string>): LessonSnapshot {
@@ -631,7 +633,7 @@ export async function captureLesson(cwd: string, input: CaptureRequest): Promise
       const paths = await commitLessons(store, after, 'capture');
       return { schema: 1, status: 'saved', root: store.main, paths };
     },
-    120_000,
+    'capture',
   );
 }
 export async function previewLessonReview(cwd: string, input: ReviewRequest): Promise<ReviewSnapshot> {

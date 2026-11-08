@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { lstat, mkdir, readdir, unlink, writeFile } from 'node:fs/promises';
+import { lstat, readdir, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { commonDir } from './host.ts';
-import { stateFolder } from './state-folder.ts';
+import { checkFolder, ensureFolder, repositoryState } from './state.ts';
 
 function issueNumber(name: string): number | null {
   const match = /^([1-9][0-9]*)\.[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.exec(name);
@@ -15,7 +15,10 @@ export async function readRefreshHints(common: string): Promise<ReadonlyMap<stri
   let folder: string;
   let names: string[];
   try {
-    folder = join(await stateFolder(common), 'refresh');
+    const layout = await repositoryState(common);
+    checkFolder(layout.root);
+    checkFolder(layout.refresh);
+    folder = layout.refresh.path;
     names = await readdir(folder);
   } catch (error) {
     return (error as NodeJS.ErrnoException).code === 'ENOENT' ? new Map() : null;
@@ -34,8 +37,10 @@ export async function readRefreshHints(common: string): Promise<ReadonlyMap<stri
 export async function writeRefreshHint(cwd: string, number: number): Promise<void> {
   try {
     if (!Number.isSafeInteger(number) || number < 1) return;
-    const folder = join(await stateFolder(await commonDir(cwd)), 'refresh');
-    await mkdir(folder, { recursive: true, mode: 0o700 });
+    const layout = await repositoryState(await commonDir(cwd));
+    ensureFolder(layout.root);
+    ensureFolder(layout.refresh);
+    const folder = layout.refresh.path;
     await writeFile(join(folder, `${number}.${randomUUID()}`), '', { flag: 'wx', mode: 0o600 });
     const cutoff = Date.now() - 300_000;
     for (const name of await readdir(folder)) {

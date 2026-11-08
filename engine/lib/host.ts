@@ -8,8 +8,9 @@ export class HostError extends Error {
   constructor(
     message: string,
     readonly code: ExitCode,
+    options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
   }
 }
 

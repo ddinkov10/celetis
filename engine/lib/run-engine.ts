@@ -27,7 +27,6 @@ import {
   locateCheckouts,
   type Operation,
 } from './operation.ts';
-import { privateFolder } from './private-folder.ts';
 import { bunArgs, childEnv } from './process.ts';
 import {
   controllingTerminal,
@@ -74,6 +73,7 @@ import {
   startupError,
   writeSession,
 } from './session.ts';
+import { ensureFolder, type RepositoryLayout, startFiles } from './state.ts';
 import {
   removeStepEnd,
   type StepEndRecord,
@@ -99,7 +99,7 @@ import { readCodexUsage } from './usage-codex.ts';
 import type { ObservedUsage, UsageAttempt } from './usage-types.ts';
 import { defaultGate, invocation, type Run, type Step, sameResult, skipped } from './workflow.ts';
 
-export type Place = Readonly<{ main: string; common: string; state: string; root: string }>;
+export type Place = Readonly<{ main: string; common: string; state: RepositoryLayout; root: string }>;
 export type RunInput =
   | Readonly<{ kind: 'number'; number: number; selection: HostSelection; effort: Level | null; quiet: boolean }>
   | Readonly<{ kind: 'auto'; number: number; selection: HostSelection; quiet: boolean }>
@@ -166,10 +166,10 @@ const required = [
   'lib/process.ts',
   'lib/program.ts',
   'lib/queue.ts',
-  'lib/state-folder.ts',
   'lib/state-migration.ts',
   'lib/state-move.ts',
   'lib/state-preparation.ts',
+  'lib/state.ts',
   'lib/queue-types.ts',
   'lib/queue-actions.ts',
   'lib/quota-recovery.ts',
@@ -578,7 +578,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         break;
       }
       if (result === 2) {
-        await writeFile(join(watchDir, 'error'), '');
+        await writeFile(startFiles(watchDir).error, '');
         await startupError(Number(n), record.host, 'no single session identity can be saved', terminal, tab);
         return;
       }
@@ -634,7 +634,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
               }
               return false;
             }
-            const mark = join(watchDir, 'terminated');
+            const mark = startFiles(watchDir).terminated;
             let settled = false;
             let after: ReturnType<typeof setTimeout> | undefined;
             const report = (name: string, line: string) => {
@@ -726,11 +726,11 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
   };
   const sessionExit = async (dir: string, barrier: Identity): Promise<number | null> => {
     while (!halt.signal.aborted && (await processState(barrier.pid, barrier.start)) !== 'gone') await rest(500);
-    const status = await readFile(join(dir, 'status'), 'utf8').catch(() => '');
+    const status = await readFile(startFiles(dir).status, 'utf8').catch(() => '');
     if (!/^\d+\n$/.test(status)) return null;
     const code = Number(status);
     if (code !== signalExit(constants.signals.SIGTERM)) return code;
-    return (await stat(join(dir, 'terminated')).catch(() => null))?.isFile() ? exits.done : code;
+    return (await stat(startFiles(dir).terminated).catch(() => null))?.isFile() ? exits.done : code;
   };
   const startSession = async (
     n: string,
@@ -744,7 +744,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     opened: () => Promise<Partial<Facts>> = async () => ({}),
   ) => {
     if (host === 'codex') args = [...(await (await import('./plugin-metadata.ts')).codexSessionPin(main)), ...args];
-    const dir = await mkdtemp(join(state, 'start.'));
+    const dir = await mkdtemp(state.startPrefix);
     watchDir = dir;
     tab = `#${n} ${step}`;
     shown = { ...shown, issue: Number(n), step, host, tab, barrier: null };
@@ -795,7 +795,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     let barrier: Identity;
     for (;;) {
       stopped();
-      const source = await readFile(join(dir, 'pid'), 'utf8').catch(() => null);
+      const source = await readFile(startFiles(dir).pid, 'utf8').catch(() => null);
       const read = source === null ? 'unknown' : await barrierOf(source);
       if (read !== 'unknown') {
         barrier =
@@ -830,7 +830,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
   };
   const releaseBarrier = async () => {
     stopped();
-    await writeFile(join(watchDir, 'go'), '');
+    await writeFile(startFiles(watchDir).go, '');
     unreleased = '';
     mark('running');
   };
@@ -1016,7 +1016,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     };
     const sessionDone = async (code: number | null, host: Host) => {
       if ((await readSession(main, issue, common, locks)).session_id === null) {
-        if (!(await stat(join(watchDir, 'error')).catch(() => null)))
+        if (!(await stat(startFiles(watchDir).error).catch(() => null)))
           await startupError(
             issue,
             host,
@@ -1158,7 +1158,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
             ? { kind: 'one', id: s.announced }
             : await codexClaim(main, codexPrompt(s.record.step, issue), startedAt);
         if ((await observeSession(s.record, claim, startedAt, locks)) === 2) {
-          await writeFile(join(watchDir, 'error'), '');
+          await writeFile(startFiles(watchDir).error, '');
           await startupError(issue, s.host, 'no single session identity can be saved', terminal, tab);
         }
       }
@@ -1331,13 +1331,12 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
           startedAt: Date.now(),
           sessionId: stepHost === 'claude' ? randomUUID() : null,
         };
-        const capture = join(state, 'usage-captures', attempt.id);
+        const capture = state.usageCapture(attempt.id).path;
         let sessionArgs = args;
         if (stepHost === 'claude') {
-          const failCapture = (path: string, reason: string) =>
-            new HostError(`usage: ${path}: ${reason}`, exits.blocked);
-          await privateFolder(join(state, 'usage-captures'), failCapture);
-          await privateFolder(capture, failCapture);
+          ensureFolder(state.root);
+          ensureFolder(state.usageCaptures);
+          ensureFolder(state.usageCapture(attempt.id));
           sessionArgs = [...(await prepareClaudeUsage(attempt, capture)), ...args];
         }
         const owned = {
@@ -1630,7 +1629,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
   const sessionPhase = async (session: Facts): Promise<'missing' | 'live' | 'ended'> => {
     for (;;) {
       stopped();
-      const go = await stat(join(session.folder, 'go')).then(
+      const go = await stat(startFiles(session.folder).go).then(
         () => true,
         (error: NodeJS.ErrnoException) => (error.code === 'ENOENT' ? false : null),
       );
@@ -1653,7 +1652,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     const claimed = session?.barrier
       ? { pid: session.barrier.pid, start: session.barrier.start }
       : session
-        ? pidOf(await readFile(join(session.folder, 'pid'), 'utf8').catch(() => ''))
+        ? pidOf(await readFile(startFiles(session.folder).pid, 'utf8').catch(() => ''))
         : null;
     const issueLock = record.lock ?? (record.queue && record.issue !== null ? `issue-${record.issue}` : null);
     const names = (record.queue ? ['queue', issueLock] : [issueLock]).filter((name) => name !== null);

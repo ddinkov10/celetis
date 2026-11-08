@@ -1,26 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { closeSync, openSync } from 'node:fs';
-import {
-  lstat,
-  mkdir,
-  readdir,
-  readFile,
-  readlink,
-  realpath,
-  rename,
-  rm,
-  symlink,
-  utimes,
-  writeFile,
-} from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
+import { lstat, mkdir, readdir, readFile, readlink, realpath, rename, rm, symlink, utimes } from 'node:fs/promises';
+import { basename, dirname, join, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { exits } from './contract.ts';
 import { HostError } from './host.ts';
 import { revision as fullRevision, git, installedRevision } from './plugin-metadata.ts';
 import { run } from './process.ts';
-import { tryFlock } from './update-lock.ts';
+import { celetisBase, installLock, withLock, writeAtomic } from './state.ts';
 
 export type ProgramPaths = Readonly<{
   data: string;
@@ -60,13 +46,6 @@ export async function programRevision(root: string): Promise<string> {
   const result = await run('git', ['rev-parse', '--verify', 'HEAD'], { cwd: root });
   if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
   return result.stdout.trimEnd();
-}
-
-export function celetisBase(): string {
-  const selected = process.env.CELETIS_HOME;
-  if (selected && !isAbsolute(selected))
-    throw new HostError(`celetis: CELETIS_HOME must be an absolute path: ${selected}`, exits.usage);
-  return selected || homedir();
 }
 
 export function programPaths(base = celetisBase()): ProgramPaths {
@@ -160,15 +139,7 @@ async function holds(folder: string, wanted: ProgramSource): Promise<boolean> {
   );
 }
 
-async function replace(path: string, text: string): Promise<void> {
-  const temporary = join(dirname(path), `.${basename(path)}.${randomUUID()}`);
-  try {
-    await writeFile(temporary, text, { flag: 'wx' });
-    await rename(temporary, path);
-  } finally {
-    await rm(temporary, { force: true });
-  }
-}
+const replace = (path: string, text: string) => writeAtomic(path, text, { mode: 0o644 });
 
 export async function installProgram(
   from: string,
@@ -180,13 +151,7 @@ export async function installProgram(
     throw new HostError(`celetis: invalid program revision ${wanted.revision}`, exits.internal);
   await readProgram(paths);
   await mkdir(paths.versions, { recursive: true });
-  const lock = openSync(join(paths.data, 'install.lock'), 'a+', 0o600);
-  try {
-    if (!tryFlock(lock))
-      throw new HostError(
-        'celetis: another celetis install or update runs; try again after it ends',
-        exits.prerequisite,
-      );
+  return withLock(installLock(paths.data), async () => {
     const validateExpected = async () => {
       if (!expected) return;
       const installed = await readProgram(paths);
@@ -276,7 +241,5 @@ export async function installProgram(
     const program = await readProgram(paths);
     if (!program) throw new HostError(`celetis: the install did not make ${paths.link}`, exits.blocked);
     return program;
-  } finally {
-    closeSync(lock);
-  }
+  });
 }

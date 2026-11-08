@@ -3,8 +3,8 @@ import { randomBytes } from 'node:crypto';
 import { lstat, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { createConnection } from 'node:net';
 import { constants } from 'node:os';
-import { privateMode } from '../engine/lib/private-folder.ts';
 import { run } from '../engine/lib/process.ts';
+import { privateMode } from '../engine/lib/state.ts';
 
 const usage = 'usage: herdr-lab.ts up | run <id> <command> [<argument>...] | down <id>';
 const timeout = 30_000;

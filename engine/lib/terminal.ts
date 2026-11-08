@@ -1,13 +1,9 @@
-import { closeSync, constants, fstatSync, openSync } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { basename } from 'node:path';
 import type { Host } from './config-core.ts';
 import { type ExitCode, exits } from './contract.ts';
 import { childEnv, run } from './process.ts';
-import { stateFolder } from './state-folder.ts';
+import { repositoryState, StateError, withLock } from './state.ts';
 import type { Terminal, TerminalStatus } from './terminal-types.ts';
-import { tryFlock } from './update-lock.ts';
-import { openLockFile } from './windows.ts';
 
 type Result = { code: number; stdout: string; stderr: string };
 type CallOptions = { signal?: AbortSignal; env?: NodeJS.ProcessEnv };
@@ -37,8 +33,6 @@ export const exitGraceMs = 10_000;
 const SAFE_ID = /^[\w:.][\w:.-]*$/;
 const POLL_MS = 250;
 const POLL_LIMIT_MS = 5_000;
-const LOCK_POLL_MS = 50;
-const LOCK_LIMIT_MS = 60_000;
 const STATUSES: Record<TerminalStatus, true> = { idle: true, working: true, done: true, blocked: true, error: true };
 const HOSTS: Record<Host, { app: string; exit: (id: string) => string[] }> = {
   claude: { app: 'claude-code', exit: (id) => ['send', id, '/exit'] },
@@ -297,27 +291,11 @@ async function startTab(request: OpenTab, exec: Exec): Promise<{ id: string; sho
 }
 
 async function holdingSpaceLock<T>(common: string, work: () => Promise<T>): Promise<T> {
-  const folder = await stateFolder(common);
-  await mkdir(folder, { recursive: true, mode: 0o700 });
-  const lock = join(folder, 'space.lock');
-  const fd =
-    process.platform === 'win32'
-      ? openLockFile(lock)
-      : openSync(lock, constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW | constants.O_NONBLOCK, 0o600);
   try {
-    if (!fstatSync(fd).isFile()) throw new TerminalError(`the space lock ${lock} is not a regular file`);
-    const until = performance.now() + LOCK_LIMIT_MS;
-    while (!tryFlock(fd)) {
-      if (performance.now() >= until)
-        throw new TerminalError(
-          `the space lock ${lock} stays held after ${LOCK_LIMIT_MS / 1000} seconds; start again`,
-          exits.prerequisite,
-        );
-      await Bun.sleep(LOCK_POLL_MS);
-    }
-    return await work();
-  } finally {
-    closeSync(fd);
+    return await withLock((await repositoryState(common)).spaceLock, work);
+  } catch (error) {
+    if (error instanceof StateError) throw new TerminalError(error.message, error.code);
+    throw error;
   }
 }
 

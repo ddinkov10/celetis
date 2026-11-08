@@ -5,13 +5,13 @@ import { exits } from './contract.ts';
 import { HostError } from './host.ts';
 import { run, runBun } from './process.ts';
 import { projectFile } from './setup-wiring.ts';
+import { setupMarker } from './state.ts';
 
 export async function markerOf(checkout: string): Promise<string> {
   const result = await run('git', ['rev-parse', '--path-format=absolute', '--git-dir'], { cwd: checkout });
   if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
   const dir = result.stdout.trimEnd();
-  const marker = join(dir, 'celetis-setup-done');
-  const old = join(dir, 'celetis-flow-setup-done');
+  const { current: marker, old } = setupMarker(dir);
   const present = (path: string) =>
     lstat(path).then(
       () => true,

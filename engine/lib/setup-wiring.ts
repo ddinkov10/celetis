@@ -4,6 +4,7 @@ import { dirname, join, relative, sep } from 'node:path';
 import { exits } from './contract.ts';
 import { HostError } from './host.ts';
 import { run } from './process.ts';
+import { laneIgnore } from './state.ts';
 import { parseAllDocuments } from './vendor/yaml.mjs';
 
 export const wiring = '.claude/celetis/wiring.json';
@@ -14,7 +15,7 @@ export const codexRules = '.codex/rules/celetis.rules';
 export const codexRestriction =
   'prefix_rule(\n    pattern = ["gh", "pr", "merge"],\n    decision = "forbidden",\n    justification = "Use celetis --agent codex land from the main checkout.",\n)\n';
 export const ignores = [
-  '.claude/worktrees/',
+  laneIgnore,
   '.claude/settings.local.json',
   'docs/superpowers/',
   '.superpowers/',

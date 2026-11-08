@@ -2,8 +2,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { type BigIntStats, constants } from 'node:fs';
 import { type FileHandle, link, lstat, open, readdir, rename, unlink } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
-import { privateMode, sharedMode } from './private-folder.ts';
 import { processStart, processState } from './process-identity.ts';
+import { privateMode, sharedMode } from './state.ts';
 
 export interface LocalRecord {
   readonly path: string;

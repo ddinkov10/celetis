@@ -1,13 +1,12 @@
 import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { closeSync, constants, fstatSync, openSync } from 'node:fs';
-import { lstat, mkdir, open, readdir, readFile, readlink, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { lstat, open, readdir, readFile, readlink, realpath, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import type { AgentChoice, Host } from './config-core.ts';
 import { exits } from './contract.ts';
 import { commonDir, HostError } from './host.ts';
 import { type LockOwner, lockHolder } from './locks.ts';
-import { privateFolder, privateMode, sharedFolderSync, sharedMode } from './private-folder.ts';
 import { bunArgs, childEnv, run } from './process.ts';
 import {
   controllingTerminal,
@@ -20,12 +19,21 @@ import {
   terminateChild,
 } from './process-identity.ts';
 import { readSession, serializeSession } from './session.ts';
-import { stateFolder } from './state-folder.ts';
+import {
+  checkFolder,
+  ensureFolder,
+  laneFolder,
+  privateMode,
+  type RepositoryLayout,
+  repositoryState,
+  StateError,
+  unsafe,
+  withLock,
+  writeAtomic,
+} from './state.ts';
 import { commitMigration, type LocalRecord, readLocalRecord } from './state-migration.ts';
 import { exitGraceMs, requestExit } from './terminal.ts';
-import { tryFlock } from './update-lock.ts';
 import type { UsageAttempt } from './usage-types.ts';
-import { openLockFile } from './windows.ts';
 import { type Step, steps } from './workflow.ts';
 
 export type LaneBinding = Readonly<{ path: string; branch: string; tip: string; dirtySnapshotDigest: string }> | null;
@@ -184,31 +192,26 @@ function validFields(value: unknown, issue: number, schema: 1 | 2): boolean {
 
 const validRecord = (value: unknown, issue: number): value is QuotaRecovery => validFields(value, issue, 2);
 
-async function existingFolder(main: string): Promise<string | null> {
-  const state = await stateFolder(await realpath(await commonDir(main)));
-  const absent = (error: NodeJS.ErrnoException) => {
-    if (error.code === 'ENOENT') return null;
-    throw error;
-  };
-  const shared = await lstat(state).catch(absent);
-  if (!shared) return null;
-  if (!shared.isDirectory() || !sharedMode(shared))
-    throw fail(state, 'need a directory owned by the current user with no group or other write access');
-  const dir = join(state, 'recovery');
-  const own = await lstat(dir).catch(absent);
-  if (!own) return null;
-  if (!own.isDirectory() || !privateMode(own))
-    throw fail(dir, 'need a private directory owned by the current user (mode 0700)');
-  return dir;
+async function recovering<T>(work: () => Promise<T>): Promise<T> {
+  try {
+    return await work();
+  } catch (error) {
+    throw error instanceof StateError ? new RecoveryError(error.message, error.code, { cause: error }) : error;
+  }
 }
 
-async function recoveryFolder(main: string): Promise<{ common: string; dir: string }> {
-  const common = await realpath(await commonDir(main));
-  const state = await stateFolder(common);
-  sharedFolderSync(state, fail);
-  const dir = join(state, 'recovery');
-  await privateFolder(dir, fail);
-  return { common, dir };
+const layoutOf = async (main: string) => repositoryState(await realpath(await commonDir(main)));
+
+async function existingFolder(main: string): Promise<RepositoryLayout | null> {
+  const layout = await layoutOf(main);
+  return checkFolder(layout.root) && checkFolder(layout.recovery) ? layout : null;
+}
+
+async function recoveryFolder(main: string): Promise<RepositoryLayout> {
+  const layout = await layoutOf(main);
+  ensureFolder(layout.root);
+  ensureFolder(layout.recovery);
+  return layout;
 }
 
 async function readPrivate(path: string): Promise<string | null> {
@@ -218,7 +221,7 @@ async function readPrivate(path: string): Promise<string | null> {
   });
   if (!before) return null;
   if (!before.isFile() || before.nlink !== 1 || !privateMode(before) || before.size > 65536)
-    throw fail(path, 'need a private regular file');
+    throw unsafe(path, 'need a private regular file owned by the current user (mode 0600)');
   const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const opened = await handle.stat();
@@ -251,34 +254,17 @@ function historical(path: string, source: string, issue: number): boolean {
   return true;
 }
 
-async function locked<T>(dir: string, issue: number, work: () => Promise<T>): Promise<T> {
-  const lock = join(dir, `${issue}.lock`);
-  const fd =
-    process.platform === 'win32'
-      ? openLockFile(lock)
-      : openSync(lock, constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW | constants.O_NONBLOCK, 0o600);
-  try {
-    const stat = fstatSync(fd);
-    if (!stat.isFile() || !privateMode(stat)) throw fail(lock, 'need a private regular lock file');
-    const deadline = performance.now() + 5000;
-    while (!tryFlock(fd)) {
-      if (performance.now() >= deadline)
-        throw new RecoveryError(`recovery: ${lock}: the recovery lock is busy; try again`, exits.prerequisite);
-      await Bun.sleep(25);
-    }
-    return await work();
-  } finally {
-    closeSync(fd);
-  }
+function locked<T>(layout: RepositoryLayout, issue: number, work: () => Promise<T>): Promise<T> {
+  return withLock(layout.recoveryLock(issue), work);
 }
 
-async function convert(dir: string, issue: number): Promise<void> {
-  const path = join(dir, `${issue}.json`);
+async function convert(layout: RepositoryLayout, issue: number): Promise<void> {
+  const path = layout.recoveryRecord(issue);
   const failed = (error: unknown) =>
     fail(path, `schema 1 to 2: ${error instanceof Error ? error.message : String(error)}`);
   let source: LocalRecord | null;
   try {
-    source = await readLocalRecord(path, [dir], 'private');
+    source = await readLocalRecord(path, [layout.recovery.path], 'private');
   } catch (error) {
     throw failed(error);
   }
@@ -297,18 +283,18 @@ async function convert(dir: string, issue: number): Promise<void> {
   }
 }
 
-async function readLocked(dir: string, issue: number): Promise<QuotaRecovery | null> {
-  const path = join(dir, `${issue}.json`);
+async function readLocked(layout: RepositoryLayout, issue: number): Promise<QuotaRecovery | null> {
+  const path = layout.recoveryRecord(issue);
   let source = await readPrivate(path);
   if (source !== null && historical(path, source, issue)) {
-    await convert(dir, issue);
+    await convert(layout, issue);
     source = await readPrivate(path);
   }
   return source === null ? null : parse(path, source, issue);
 }
 
-async function readOne(dir: string, issue: number): Promise<QuotaRecovery | null> {
-  const path = join(dir, `${issue}.json`);
+async function readOne(layout: RepositoryLayout, issue: number): Promise<QuotaRecovery | null> {
+  const path = layout.recoveryRecord(issue);
   try {
     const source = await readPrivate(path);
     if (source === null) return null;
@@ -316,26 +302,30 @@ async function readOne(dir: string, issue: number): Promise<QuotaRecovery | null
   } catch (error) {
     if (!(error instanceof ChangedRecord)) throw error;
   }
-  return locked(dir, issue, () => readLocked(dir, issue));
+  return locked(layout, issue, () => readLocked(layout, issue));
 }
 
 export async function readRecovery(main: string, issue: number): Promise<QuotaRecovery | null> {
   if (!positive(issue)) throw new RecoveryError('recovery: invalid issue number', exits.usage);
-  const dir = await existingFolder(main);
-  return dir === null ? null : readOne(dir, issue);
+  return recovering(async () => {
+    const layout = await existingFolder(main);
+    return layout === null ? null : readOne(layout, issue);
+  });
 }
 
 export async function listRecoveries(main: string): Promise<QuotaRecovery[]> {
-  const dir = await existingFolder(main);
-  if (dir === null) return [];
-  const records: QuotaRecovery[] = [];
-  for (const name of (await readdir(dir)).sort()) {
-    const issue = /^([1-9][0-9]*)\.json$/.exec(name)?.[1];
-    if (!issue) continue;
-    const record = await readOne(dir, Number(issue));
-    if (record !== null) records.push(record);
-  }
-  return records;
+  return recovering(async () => {
+    const layout = await existingFolder(main);
+    if (layout === null) return [];
+    const records: QuotaRecovery[] = [];
+    for (const name of (await readdir(layout.recovery.path)).sort()) {
+      const issue = /^([1-9][0-9]*)\.json$/.exec(name)?.[1];
+      if (!issue) continue;
+      const record = await readOne(layout, Number(issue));
+      if (record !== null) records.push(record);
+    }
+    return records;
+  });
 }
 
 export async function updateRecovery(
@@ -344,27 +334,23 @@ export async function updateRecovery(
   change: (current: QuotaRecovery | null) => Promise<QuotaRecovery | null> | QuotaRecovery | null,
 ): Promise<QuotaRecovery | null> {
   if (!positive(issue)) throw new RecoveryError('recovery: invalid issue number', exits.usage);
-  const { dir } = await recoveryFolder(main);
-  return locked(dir, issue, async () => {
-    const path = join(dir, `${issue}.json`);
-    const current = await readLocked(dir, issue);
-    const next = await change(current);
-    if (next === current) return current;
-    if (next === null) {
-      await rm(path, { force: true });
-      return null;
-    }
-    const record = { ...next, revision: (current?.revision ?? 0) + 1 };
-    if (!validRecord(record, issue))
-      throw new RecoveryError(`recovery: ${path}: refused an invalid recovery record`, exits.internal);
-    const temp = join(dir, `.${issue}.${randomUUID()}`);
-    try {
-      await writeFile(temp, `${JSON.stringify(record)}\n`, { mode: 0o600, flag: 'wx' });
-      await rename(temp, path);
-    } finally {
-      await rm(temp, { force: true });
-    }
-    return record;
+  return recovering(async () => {
+    const layout = await recoveryFolder(main);
+    return locked(layout, issue, async () => {
+      const path = layout.recoveryRecord(issue);
+      const current = await readLocked(layout, issue);
+      const next = await change(current);
+      if (next === current) return current;
+      if (next === null) {
+        await rm(path, { force: true });
+        return null;
+      }
+      const record = { ...next, revision: (current?.revision ?? 0) + 1 };
+      if (!validRecord(record, issue))
+        throw new RecoveryError(`recovery: ${path}: refused an invalid recovery record`, exits.internal);
+      await writeAtomic(path, `${JSON.stringify(record)}\n`);
+      return record;
+    });
   });
 }
 
@@ -449,7 +435,7 @@ async function laneState(path: string): Promise<Omit<NonNullable<LaneBinding>, '
 }
 
 export async function snapshotLane(main: string, issue: number): Promise<LaneBinding> {
-  const parent = join(main, '.claude', 'worktrees');
+  const parent = laneFolder(main);
   const names = (await readdir(parent).catch(() => [] as string[])).filter((name) => name.startsWith(`${issue}-`));
   const dirty: string[] = [];
   for (const name of names) {
@@ -476,7 +462,7 @@ export async function validateRecovery(main: string, issue: number, attemptId: s
   if ((await lockHolder(canonical, record.lock)) !== String(record.daemon.pid))
     refuse('its daemon does not hold the issue lock');
   const lane = record.lane ?? refuse('no dirty lane is bound');
-  if (dirname(lane.path) !== join(canonical, '.claude', 'worktrees') || !basename(lane.path).startsWith(`${issue}-`))
+  if (dirname(lane.path) !== laneFolder(canonical) || !basename(lane.path).startsWith(`${issue}-`))
     refuse('the bound lane is not a lane of this issue');
   if ((await realpath(lane.path).catch(() => null)) !== lane.path) refuse('the bound lane is missing');
   const laneCommon = await git(lane.path, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
@@ -511,18 +497,19 @@ export async function archiveSession(
 ): Promise<NativeIdentity> {
   if (!uuid.test(attemptId)) throw new RecoveryError('recovery: invalid attempt ID', exits.internal);
   const record = await readSession(main, issue, undefined, owner);
-  const state = await stateFolder(await realpath(await commonDir(main)));
-  sharedFolderSync(state, fail);
-  const dir = join(state, 'sessions', String(issue));
-  await mkdir(dirname(dir), { recursive: true, mode: 0o700 });
-  await privateFolder(dir, fail);
-  const path = join(dir, `${attemptId}.json`);
-  const text = `${serializeSession(record)}\n`;
-  const previous = await readPrivate(path);
-  if (previous === null) await writeFile(path, text, { mode: 0o600, flag: 'wx' });
-  else if (previous !== text)
-    throw new RecoveryError(`recovery: ${path}: an archived session differs`, exits.prerequisite);
-  return { attemptId, host: record.host, sessionId: record.session_id };
+  return recovering(async () => {
+    const layout = await layoutOf(main);
+    ensureFolder(layout.root);
+    ensureFolder(layout.sessions);
+    ensureFolder(layout.sessionArchive(issue));
+    const path = layout.archivedSession(issue, attemptId);
+    const text = `${serializeSession(record)}\n`;
+    const previous = await readPrivate(path);
+    if (previous === null) await writeFile(path, text, { mode: 0o600, flag: 'wx' });
+    else if (previous !== text)
+      throw new RecoveryError(`recovery: ${path}: an archived session differs`, exits.prerequisite);
+    return { attemptId, host: record.host, sessionId: record.session_id };
+  });
 }
 
 export type AttemptEnd = { kind: 'quiescent' } | { kind: 'unverified'; reason: string; running: readonly number[] };

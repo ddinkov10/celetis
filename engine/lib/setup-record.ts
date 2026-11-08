@@ -2,6 +2,7 @@ import { validateAgentOrder } from './agent-order.ts';
 import type { Host } from './config-core.ts';
 import { exits } from './contract.ts';
 import { HostError } from './host.ts';
+import { laneIgnore } from './state.ts';
 import { parseAllDocuments } from './vendor/yaml.mjs';
 
 export type SetupAnswers = { tracker?: 'github'; hosts?: readonly Host[] };
@@ -42,13 +43,7 @@ const scopes: Record<string, Scope> = {
     ],
   },
   '.gitignore': {
-    lines: [
-      '.claude/worktrees/',
-      '.claude/settings.local.json',
-      'docs/superpowers/',
-      '.superpowers/',
-      'docs/lessons/_pending/',
-    ],
+    lines: [laneIgnore, '.claude/settings.local.json', 'docs/superpowers/', '.superpowers/', 'docs/lessons/_pending/'],
   },
   '.gitattributes': { lines: ['.celetis.yaml text eol=lf', 'scripts/celetis text eol=lf'] },
   'AGENTS.md': { marker: true, flow: true },

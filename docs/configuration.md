@@ -50,7 +50,7 @@ Resume uses its saved host and session ID. A conflicting explicit host stops res
 without creating a record. `celetis agents replace '<JSON>'` takes exactly `order` and
 `expectedVersion`. A differing stale replacement exits 3 with `{kind:"conflict",latest}`.
 Repeating the current order succeeds even with an older version. A private preference lock
-serializes writers, with a five-second wait limit, and atomic replacement preserves old bytes
+serializes writers, with a ten-second wait limit, and atomic replacement preserves old bytes
 on a failed write. The record and lock must be private regular files, with no symbolic links.
 Their folder `<git common dir>/celetis` is shared daemon state: it must be a real directory
 of the current user with no group or other write access, so an existing 0755 folder is accepted.

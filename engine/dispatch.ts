@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { closeSync, constants, fstatSync, openSync } from 'node:fs';
-import { readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { bindingMode, readBinding, resolvePair, ScoreError } from './lib/capability.ts';
 import type { Host } from './lib/config-core.ts';
 import { type ExitCode, exits, updateHint, usageLine } from './lib/contract.ts';
@@ -24,10 +23,8 @@ import {
 import { installRecorder, markDefect } from './lib/events.ts';
 import { HostError } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
-import { privateFolder, privateMode, privateRoot } from './lib/private-folder.ts';
+import { dispatchRecord, ensureFolder, privateState, stateOutcome, withLock, writeAtomic } from './lib/state.ts';
 import { commitMigration, readLocalRecord } from './lib/state-migration.ts';
-import { tryFlock } from './lib/update-lock.ts';
-import { openLockFile } from './lib/windows.ts';
 
 class UsageError extends Error {}
 class SetupError extends Error {
@@ -106,13 +103,6 @@ function sessionOf(host: Host, session: unknown): string {
     throw new SetupError(`need a valid ${variable}`);
   return session;
 }
-function setupFailure(path: string, reason: string): SetupError {
-  return new SetupError(`${path}: ${reason}`);
-}
-async function folders(root: string, dir: string): Promise<void> {
-  await privateFolder(root, setupFailure);
-  await privateFolder(dir, setupFailure);
-}
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -121,73 +111,53 @@ async function withRecord<T>(
   session: string,
   act: (record: DispatchRecord | null) => Promise<{ value: T; record?: DispatchRecord }>,
 ): Promise<T> {
-  const root = privateRoot;
-  const dir = join(root, 'dispatch');
-  const file = join(dir, `${host}-${session}.json`);
-  const lock = `${file}.lock`;
+  const { folder, file, lock } = dispatchRecord(host, session);
+  const folders = () => {
+    ensureFolder(privateState);
+    ensureFolder(folder);
+  };
   let sourceSchema: unknown;
   const failure = (error: unknown) =>
     new SetupError(
       `${file}: ${sourceSchema === undefined ? 'target schema 2' : `schema ${String(sourceSchema)} to 2`}: ${message(error)}`,
-      error instanceof SetupError ? error.code : exits.blocked,
+      error instanceof SetupError ? error.code : (stateOutcome(error)?.code ?? exits.blocked),
     );
   try {
-    await folders(root, dir);
-  } catch (error) {
-    throw failure(error);
-  }
-  let fd: number;
-  try {
-    fd =
-      process.platform === 'win32'
-        ? openLockFile(lock)
-        : openSync(lock, constants.O_CREAT | constants.O_RDWR | constants.O_NOFOLLOW, 0o600);
-  } catch (error) {
-    throw failure(new Error(`${lock}: ${message(error)}`));
-  }
-  try {
-    const stat = fstatSync(fd);
-    if (!stat.isFile() || !privateMode(stat)) throw new SetupError(`${lock}: need a private regular lock file`);
-    const deadline = performance.now() + 10_000;
-    while (!tryFlock(fd)) {
-      if (performance.now() >= deadline)
-        throw new SetupError(`${lock}: timed out waiting for the dispatch lock`, exits.prerequisite);
-      await Bun.sleep(25);
-    }
-    await folders(root, dir);
-    let record: DispatchRecord | null = null;
-    const source = await readLocalRecord(file, [root, dir], 'private');
-    if (source) {
-      const value = source.value;
-      if (value !== null && typeof value === 'object' && !Array.isArray(value))
-        sourceSchema = (value as Record<string, unknown>).schema;
-      if (sourceSchema === 1) {
-        record = convertDispatchRecord(value, host, session);
-        await commitMigration(source, 1, `${JSON.stringify(record)}\n`);
-      } else {
-        if (sourceSchema !== undefined && sourceSchema !== 2) throw new SetupError('unsupported schema');
-        record = validateRecord(value, host, session);
-      }
-    }
-    const result = await act(record);
-    if (result.record !== undefined) {
-      await folders(root, dir);
-      validateRecord(result.record, host, session);
-      const temp = join(dir, `.${host}-${session}.${randomUUID()}`);
-      try {
-        await writeFile(temp, `${JSON.stringify(result.record)}\n`, { flag: 'wx', mode: 0o600 });
-        await folders(root, dir);
-        await rename(temp, file);
-      } finally {
-        await rm(temp, { force: true });
-      }
-    }
-    return result.value;
+    folders();
+    return await withLock(
+      lock,
+      async () => {
+        let record: DispatchRecord | null = null;
+        const source = await readLocalRecord(file, [privateState.path, folder.path], 'private');
+        if (source) {
+          const value = source.value;
+          if (value !== null && typeof value === 'object' && !Array.isArray(value))
+            sourceSchema = (value as Record<string, unknown>).schema;
+          if (sourceSchema === 1) {
+            record = convertDispatchRecord(value, host, session);
+            await commitMigration(source, 1, `${JSON.stringify(record)}\n`);
+          } else {
+            if (sourceSchema !== undefined && sourceSchema !== 2) throw new SetupError('unsupported schema');
+            record = validateRecord(value, host, session);
+          }
+        }
+        const result = await act(record);
+        if (result.record !== undefined) {
+          folders();
+          validateRecord(result.record, host, session);
+          await writeAtomic(file, `${JSON.stringify(result.record)}\n`, { check: folders });
+        }
+        return result.value;
+      },
+      {
+        check: (stage) => {
+          if (stage === 'locked') folders();
+        },
+      },
+    );
   } catch (error) {
     if (error instanceof ScoreError) throw error;
     throw failure(error);
-  } finally {
-    closeSync(fd);
   }
 }
 const statusClasses = { refused: exits.prerequisite, stop: exits.stop, setup: exits.blocked } as const;

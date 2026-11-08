@@ -1,13 +1,8 @@
-import { closeSync, constants, fstatSync, openSync } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
 import { exits } from './contract.ts';
 import { completionIdentity, parseAcceptedEpic, parseEpicAcceptance } from './epic-acceptance.ts';
 import { HostError } from './host.ts';
-import { stateFolder } from './state-folder.ts';
+import { repositoryState, withLock } from './state.ts';
 import { type GitHub, github } from './tracker.ts';
-import { tryFlock } from './update-lock.ts';
-import { openLockFile } from './windows.ts';
 import {
   type AcceptedEpic,
   type AcceptedEpicResult,
@@ -46,7 +41,7 @@ async function withEpicLock<T>(
 ): Promise<T> {
   if (!/^[1-9][0-9]*$/.test(n) || !Number.isSafeInteger(Number(n)))
     throw new HostError('epic: need a positive safe issue number', exits.usage);
-  const dir = await stateFolder(common);
+  const layout = await repositoryState(common);
   const controller = new AbortController();
   const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
   const interrupt = () => controller.abort(new Error('epic operation interrupted'));
@@ -55,28 +50,14 @@ async function withEpicLock<T>(
     if (signal.aborted) interrupt();
   } else for (const name of signals) process.on(name, interrupt);
   try {
-    await mkdir(dir, { recursive: true, mode: 0o700 });
-    const path = join(dir, `epic-${n}.lock`);
-    const fd =
-      process.platform === 'win32'
-        ? openLockFile(path)
-        : openSync(path, constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW | constants.O_NONBLOCK, 0o600);
-    try {
-      const file = fstatSync(fd);
-      if (!file.isFile() || (process.platform !== 'win32' && (file.mode & 0o077) !== 0))
-        throw new Error(`need a private regular lock file: ${path}`);
-      const deadline = performance.now() + 5_000;
-      while (!tryFlock(fd)) {
+    return await withLock(
+      layout.epicLock(n),
+      async () => {
         controller.signal.throwIfAborted();
-        if (performance.now() >= deadline)
-          throw new HostError(`epic: #${n}: completion lock is busy; refresh and try again`, exits.prerequisite);
-        await Bun.sleep(50);
-      }
-      controller.signal.throwIfAborted();
-      return await change(controller.signal);
-    } finally {
-      closeSync(fd);
-    }
+        return change(controller.signal);
+      },
+      { signal: controller.signal },
+    );
   } catch (error) {
     if (error instanceof HostError && passed.includes(error.code)) throw error;
     throw new HostError(`epic: #${n}: ${message(error)}`, exits.blocked);
