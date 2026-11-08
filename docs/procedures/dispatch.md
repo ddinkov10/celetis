@@ -96,8 +96,11 @@ fix after the final review. The acts and their arguments are:
   evidence: a mismatch or an incomplete identity cannot authorize a substitute child. For a missing
   follow-up operation, report `call: null` with outcome `unsupported` and the exact limitation,
   then stop. Use the host's command approval procedure for a sandbox block.
-- Exit 3: correct the act that the reason names. Exit 4 or 5: stop with the reason and trail. In a
-  step session, use `<plugin>/docs/procedures/stop.md`, "A stop in a step session".
+- Exit 2 of `dispatch <act>`: the arguments or an input file are wrong, and the line names the
+  cause. Correct the arguments or the file, and run the act again. When the line is a diagnostic
+  of `.celetis.yaml`, report the field to the person and stop. Exit 3: correct the act that the
+  reason names. Exit 8 or 6: stop with the reason and trail. In a step session, use
+  `<plugin>/docs/procedures/stop.md`, "A stop in a step session".
 - These acts replace the round count, model choice, and "most capable model" procedure of
   `superpowers:subagent-driven-development`, and the breaker of its fix loop. Keep no attempt or
   round count of your own: the engine owns escalation and stops

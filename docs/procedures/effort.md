@@ -50,15 +50,15 @@ celetis --agent <host> issue <n> effort <step> <level> <reason-file>
 ```
 
 `<step>` is the step that the decision is for, and `<level>` is `low`, `medium`, `high`, `xhigh`, or
-`max`. The command posts a comment whose first line is `Effort: <step> <level>`, then the reason,
+`max`. `issue <n> effort <step> <level> <file>` posts a comment whose first line is `Effort: <step> <level>`, then the reason,
 and changes no label. The newest decision for a step replaces each earlier one.
 
-- **0**: the decision is on the issue.
-- **2** (`usage`): a bad step, level, or reason file, and nothing is posted. Correct the arguments
+- **Exit 0**: the decision is on the issue.
+- **Exit 2** (`usage`): a bad step, level, or reason file, and nothing is posted. Correct the arguments
   or the file, and run the command again.
-- **3** (`prerequisite`): the issue is not open, so no next step starts. Decide nothing, and go on
+- **Exit 3** (`prerequisite`): the issue is not open, so no next step starts. Decide nothing, and go on
   with the skill.
-- **6** (`blocked`): a GitHub read or write failed, and nothing changed. Report the
+- **Exit 6** (`blocked`): a GitHub read or write failed, and nothing changed. Report the
   `issue: blocked:` line to the user, and go on with the skill: the act that moves the line still
   follows, and the next step starts with no new decision.
 

@@ -1,8 +1,7 @@
-import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { commandName } from '../engine/launcher.ts';
 import { bunFloor } from '../engine/lib/config-core.ts';
-import { helpCommands, helpText } from '../engine/lib/help.ts';
+import { commands, type Entry, exitClasses, exits, formText, helpText, issueActs } from '../engine/lib/contract.ts';
 import { HostError } from '../engine/lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
 import { codexHome } from '../engine/lib/plugin-metadata.ts';
@@ -17,9 +16,66 @@ const browserTargets = ['board', 'view', 'ui', 'panel', 'palette', 'queue', 'upd
     mode: 0o644,
   }),
 );
-const helpBegin =
-  '<!-- scripts/build.ts writes this block from engine/lib/help.ts. Edit that file, then run scripts/build.ts. -->';
-const helpEnd = '<!-- The end of the block that scripts/build.ts writes. -->';
+const marks = (name: string) => ({
+  begin: `<!-- scripts/build.ts writes the ${name} from engine/lib/contract.ts. Edit that file, then run scripts/build.ts. -->`,
+  end: `<!-- The end of the ${name} that scripts/build.ts writes. -->`,
+});
+const helpMarks = {
+  begin:
+    '<!-- scripts/build.ts writes this block from engine/lib/contract.ts. Edit that file, then run scripts/build.ts. -->',
+  end: '<!-- The end of the block that scripts/build.ts writes. -->',
+};
+const unlisted = new Set(['launcher.ts', 'usage-hook.ts']);
+
+const cell = (text: string) => text.replaceAll('|', '\\|');
+const codeOf = (name: string) => exitClasses.find((row) => row.name === name)?.code;
+const commandRow = (entry: Entry) => {
+  const forms = entry.forms.map((each) => cell(formText(each))).join(' \\| ');
+  const sources = new Set(entry.forms.flatMap(({ passThrough }) => (passThrough ? [passThrough] : [])));
+  const status = [...entry.exits.map((name) => `${codeOf(name)} ${name}`), ...[...sources].map((each) => `or ${each}`)];
+  const head = entry.agent ? 'celetis --agent <host> ' : 'celetis ';
+  return [`\`${head}${forms}\``, `${cell(entry.description.replace(/\.$/, ''))}. Exit status: ${status.join(', ')}`];
+};
+const table = (header: string[], rows: string[][]) => [
+  `| ${header.join(' | ')} |`,
+  `|${header.map(() => '---').join('|')}|`,
+  ...rows.map((row) => `| ${row.join(' | ')} |`),
+];
+const readmeBlocks = [
+  { ...helpMarks, body: ['```text', ...helpText.split('\n'), '```'] },
+  {
+    ...marks('command table'),
+    body: table(['Command', 'What it does'], commands.filter(({ internal }) => !internal).map(commandRow)),
+  },
+  {
+    ...marks('exit-class table'),
+    body: table(
+      ['Code', 'Class', 'Meaning'],
+      exitClasses.map(({ code, name, meaning }) => [String(code), name, cell(meaning)]),
+    ),
+  },
+];
+const trackerBlocks = [
+  {
+    ...marks('act table'),
+    body: table(
+      ['Act', 'Prerequisite', 'Writes'],
+      Object.values(issueActs).map((act) => [`\`${cell(formText(act))}\``, cell(act.prerequisite), cell(act.writes)]),
+    ),
+  },
+];
+
+function spliceBlocks(text: string, file: string, blocks: { begin: string; end: string; body: string[] }[]): string {
+  const lines = text.split('\n');
+  for (const { begin, end, body } of blocks) {
+    const start = lines.indexOf(begin);
+    const stop = lines.indexOf(end);
+    if (start < 0 || start !== lines.lastIndexOf(begin) || stop !== lines.lastIndexOf(end) || stop < start)
+      throw new HostError(`build: ${file} needs one line ${begin} and, after it, one line ${end}`, exits.internal);
+    lines.splice(start + 1, stop - start - 1, ...body);
+  }
+  return lines.join('\n');
+}
 
 export async function main(argv: string[]): Promise<number> {
   try {
@@ -49,15 +105,16 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
   );
   if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
   process.chdir(root);
-  for (const [form] of helpCommands) {
-    const [program, name = ''] = form.split(' ');
-    if (program === 'celetis' && (name === 'help' || name === '--version')) continue;
-    if (program !== 'celetis' || !commandName.test(name)) {
-      console.error(`build: the help lists ${form}, and the launcher takes no such command`);
+  const declared = new Set(commands.map((each) => each.command));
+  for (const command of declared) {
+    if (!(await stat(join(root, 'engine', `${command}.ts`)).catch(() => null))?.isFile()) {
+      console.error(`build: the contract declares celetis ${command}, and engine/${command}.ts does not exist`);
       return 1;
     }
-    if (!(await stat(join(root, 'engine', `${name}.ts`)).catch(() => null))?.isFile()) {
-      console.error(`build: the help lists celetis ${name}, and engine/${name}.ts does not exist`);
+  }
+  for (const file of await readdir(join(root, 'engine'))) {
+    if (file.endsWith('.ts') && !unlisted.has(file) && !declared.has(file.slice(0, -3) as Entry['command'])) {
+      console.error(`build: engine/${file} is no command that the contract declares`);
       return 1;
     }
   }
@@ -99,13 +156,13 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
     built.push({ output: target.output, mode: target.mode, bytes });
   }
   built.push({ output: 'celetis', mode: 0o755, bytes: Buffer.from(programEntry) });
-  const readme = (await readFile(join(root, 'README.md'), 'utf8')).split('\n');
-  const begin = readme.indexOf(helpBegin);
-  const end = readme.indexOf(helpEnd);
-  if (begin < 0 || begin !== readme.lastIndexOf(helpBegin) || end !== readme.lastIndexOf(helpEnd) || end < begin)
-    throw new HostError(`build: README.md needs one line ${helpBegin} and, after it, one line ${helpEnd}`, 1);
-  readme.splice(begin + 1, end - begin - 1, '```text', ...helpText.split('\n'), '```');
-  built.push({ output: 'README.md', mode: 0o644, bytes: Buffer.from(readme.join('\n')) });
+  for (const [output, blocks] of [
+    ['README.md', readmeBlocks],
+    ['docs/issue-tracker.md', trackerBlocks],
+  ] as const) {
+    const text = spliceBlocks(await readFile(join(root, output), 'utf8'), output, [...blocks]);
+    built.push({ output, mode: 0o644, bytes: Buffer.from(text) });
+  }
   for (const target of built) {
     const bytes = target.bytes;
     const output = join(root, target.output);

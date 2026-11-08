@@ -1,10 +1,23 @@
 import { readFile } from 'node:fs/promises';
 import type { Host } from './lib/config-core.ts';
+import {
+  type ExitClass,
+  type ExitCode,
+  exits,
+  headings,
+  type IssueAct,
+  type IssueStateKey,
+  issueActs,
+  issueStateKeys,
+  type Label,
+  marker,
+  usageText,
+} from './lib/contract.ts';
 import { decidable, effortMarker, isLevel } from './lib/effort.ts';
 import { completeEpic, readEpic, writeEpicDefinition } from './lib/epic.ts';
 import { parseEpicAcceptance, parseEpicSubmission } from './lib/epic-acceptance.ts';
 import { installRecorder, markDefect } from './lib/events.ts';
-import { HostError, updateHint } from './lib/host.ts';
+import { HostError } from './lib/host.ts';
 import { lineOf } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
@@ -15,20 +28,14 @@ import {
   diagnosed,
   type EpicSubmission,
   factsOf,
-  headings,
   type IssueData,
-  type Label,
   type Lane,
   type LaneOf,
   lands,
   laneOf,
   lanes,
-  marker,
   specified,
 } from './lib/workflow.ts';
-
-const usage = `celetis --agent <host> issue <issue number> route feature|bug|chore|hotfix | effort <step> <level> <file> | epic <file> | epic-state | complete-epic [file] | needs-info <file> | wontfix <file> | spec <file> | root-cause <file> | plan <file> | built | before-landing <file> [--during-the-build] | landing-refused <file> | stopped <file> | ready-for-human | assisted <file> | state, e.g. celetis --agent <host> issue 415 state\n${updateHint}`;
-const statuses = { usage: 2, prerequisite: 3, blocked: 6 } as const;
 
 type Context = Readonly<{
   host: Host;
@@ -42,8 +49,8 @@ type Context = Readonly<{
 }>;
 type Writes = Readonly<{ comment?: string; add?: readonly Label[]; remove?: readonly Label[] }> & Edit;
 type Write = Readonly<{ send(): Promise<void>; flags: readonly string[]; close?: boolean }>;
+type EngineAct = Exclude<IssueAct, 'epic' | 'epic-state' | 'complete-epic'>;
 type Act = Readonly<{
-  argument: 'none' | 'lane' | 'effort' | 'file';
   ready(context: Context): boolean;
   writes(context: Context): Writes;
 }>;
@@ -54,9 +61,8 @@ const inLane = (context: Context, ...names: Lane[]) =>
 const landing = ({ decision }: Context) => decision.kind === 'run' && lands(decision.step);
 const headed = (heading: string, text: string) => `${heading}\n\n${text}`;
 
-const acts: Readonly<Record<string, Act>> = {
+const acts: Readonly<Record<EngineAct, Act>> = {
   route: {
-    argument: 'lane',
     ready: (context) => open(context) && context.found.kind !== 'epic',
     writes: ({ argument }) => {
       const label = lanes[argument as Lane].label;
@@ -64,25 +70,21 @@ const acts: Readonly<Record<string, Act>> = {
       return { add: [label], remove: [...others, 'needs-triage'] };
     },
   },
-  effort: { argument: 'effort', ready: open, writes: ({ effort, text }) => ({ comment: headed(effort, text.trim()) }) },
-  'needs-info': { argument: 'file', ready: open, writes: ({ text }) => ({ comment: text, add: ['needs-info'] }) },
+  effort: { ready: open, writes: ({ effort, text }) => ({ comment: headed(effort, text.trim()) }) },
+  'needs-info': { ready: open, writes: ({ text }) => ({ comment: text, add: ['needs-info'] }) },
   wontfix: {
-    argument: 'file',
     ready: open,
     writes: ({ text }) => ({ comment: text, add: ['wontfix'], state: 'closed', state_reason: 'not_planned' }),
   },
   spec: {
-    argument: 'file',
     ready: (context) => inLane(context, 'feature'),
     writes: ({ text }) => ({ body: `Spec: ${today()}\n\n${text}` }),
   },
   'root-cause': {
-    argument: 'file',
     ready: (context) => inLane(context, 'bug', 'hotfix'),
     writes: ({ text }) => ({ comment: headed(headings.rootCause, text) }),
   },
   plan: {
-    argument: 'file',
     ready: (context) =>
       (inLane(context, 'feature') && specified(context.data)) || (inLane(context, 'bug') && diagnosed(context.data)),
     writes: ({ data, text }) => ({
@@ -91,12 +93,10 @@ const acts: Readonly<Record<string, Act>> = {
     }),
   },
   built: {
-    argument: 'none',
     ready: ({ decision }) => decision.kind === 'run' && decision.step === 'implement' && decision.state === 'planned',
     writes: () => ({ comment: headings.built, remove: ['ready-for-agent'] }),
   },
   'before-landing': {
-    argument: 'file',
     ready: landing,
     writes: ({ text, during }) => ({
       comment: `${headings.beforeLanding}\n${marker(during ? 'during-the-build' : 'general')}\n\n${text}`,
@@ -105,12 +105,10 @@ const acts: Readonly<Record<string, Act>> = {
     }),
   },
   'landing-refused': {
-    argument: 'file',
     ready: landing,
     writes: ({ text }) => ({ comment: headed(headings.landingRefused, text) }),
   },
   stopped: {
-    argument: 'file',
     ready: open,
     writes: ({ text }) => ({
       comment: headed(headings.stopped, text),
@@ -119,12 +117,10 @@ const acts: Readonly<Record<string, Act>> = {
     }),
   },
   'ready-for-human': {
-    argument: 'none',
     ready: open,
     writes: () => ({ add: ['ready-for-human'], remove: ['ready-for-agent'] }),
   },
   assisted: {
-    argument: 'file',
     ready: ({ data, found }) =>
       data.state === 'open' &&
       (data.labels.includes('needs-info') ||
@@ -135,13 +131,13 @@ const acts: Readonly<Record<string, Act>> = {
       remove: ['needs-info', 'ready-for-human'],
     }),
   },
-  state: { argument: 'none', ready: () => true, writes: () => ({}) },
+  state: { ready: () => true, writes: () => ({}) },
 };
 
-function die(outcome: keyof typeof statuses, message: string, ...details: string[]): never {
+function die(outcome: ExitClass, message: string, ...details: string[]): never {
   throw new HostError(
     [`issue: ${outcome}: ${message}`, ...details.map((detail) => detail.trimEnd()).filter(Boolean)].join('\n'),
-    statuses[outcome],
+    exits[outcome],
   );
 }
 
@@ -150,15 +146,17 @@ function today(): string {
   return [now.getFullYear(), now.getMonth() + 1, now.getDate()].map((part) => String(part).padStart(2, '0')).join('-');
 }
 
-async function execute(argv: string[], explicit: string | undefined): Promise<number> {
+async function execute(argv: string[], explicit: string | undefined): Promise<ExitCode> {
   const [number = '', name = '', argument = '', flag] = argv;
   const n = number.replace(/^#/, '');
-  const act = Object.hasOwn(acts, name) ? acts[name] : undefined;
+  const known = Object.hasOwn(acts, name) ? (name as EngineAct) : undefined;
+  const act = known && acts[known];
+  const kind = known && issueActs[known].argument;
   const epic = ['epic', 'epic-state', 'complete-epic'].includes(name);
   const during = name === 'before-landing' && flag === '--during-the-build';
   const step = decidable.find((each) => each === argument);
   const effort = step && isLevel(flag) ? effortMarker(step, flag) : '';
-  const file = act?.argument === 'effort' ? (argv[4] ?? '') : argument;
+  const file = kind === 'effort' ? (argv[4] ?? '') : argument;
   if (
     !/^[1-9][0-9]*$/.test(n) ||
     !Number.isSafeInteger(Number(n)) ||
@@ -167,18 +165,13 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
         ? argv.length < 2 || argv.length > 3
         : argv.length !== (name === 'epic' ? 3 : 2)
       : !act ||
-        argv.length !== (act.argument === 'none' ? 2 : act.argument === 'effort' ? 5 : during ? 4 : 3) ||
-        (act.argument === 'lane' && !Object.hasOwn(lanes, argument)) ||
-        (act.argument === 'effort' && !effort))
+        argv.length !== (kind === 'none' ? 2 : kind === 'effort' ? 5 : during ? 4 : 3) ||
+        (kind === 'lane' && !Object.hasOwn(lanes, argument)) ||
+        (kind === 'effort' && !effort))
   )
-    die('usage', usage);
+    die('usage', usageText('issue'));
   let text = '';
-  if (
-    act?.argument === 'file' ||
-    act?.argument === 'effort' ||
-    name === 'epic' ||
-    (name === 'complete-epic' && argv.length === 3)
-  ) {
+  if (kind === 'file' || kind === 'effort' || name === 'epic' || (name === 'complete-epic' && argv.length === 3)) {
     text = await readFile(file, 'utf8').catch((error: Error) => die('usage', `cannot read ${file}: ${error.message}`));
     const first = text.trimStart().split(/\r?\n/)[0] ?? '';
     if (!epic && first.startsWith('## ')) die('usage', `${file} starts with a ## line; give the text with no heading`);
@@ -221,9 +214,9 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
           : `epic: #${n} completed; record ${result.completionId}`,
       );
     }
-    return 0;
+    return exits.done;
   }
-  if (!act) die('usage', usage);
+  if (!act) die('usage', usageText('issue'));
   const gh = github(main);
   const read = await gh.read(n).catch(() => null);
   if (!read) die('blocked', `cannot read #${n} from GitHub`, gh.stderr());
@@ -232,19 +225,18 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
   const decision = decide(data);
   if (name === 'state') {
     const facts = factsOf(data, found.kind === 'lane' ? found.lane : null);
-    const steps = facts.open.map((step) => `open: ${step.kind} ${step.comment} ${step.missing}`);
-    console.log(
-      [
-        `lane: ${found.kind === 'lane' ? found.lane : found.kind}`,
-        `line: ${lineOf(n, decision)}`,
-        `build: ${facts.build}`,
-        `plan: ${facts.plan ?? 'none'}`,
-        ...(steps.length ? steps : ['open: none']),
-        `refusal: ${facts.refusal ? 'current' : 'none'}`,
-      ].join('\n'),
-    );
+    const steps = facts.open.map((step) => `${step.kind} ${step.comment} ${step.missing}`);
+    const values: Record<IssueStateKey, readonly string[]> = {
+      lane: [found.kind === 'lane' ? found.lane : found.kind],
+      line: [lineOf(n, decision)],
+      build: [facts.build],
+      plan: [String(facts.plan ?? 'none')],
+      open: steps.length ? steps : ['none'],
+      refusal: [facts.refusal ? 'current' : 'none'],
+    };
+    console.log(issueStateKeys.flatMap((key) => values[key].map((value) => `${key}: ${value}`)).join('\n'));
     process.stderr.write(gh.stderr());
-    return 0;
+    return exits.done;
   }
   const context: Context = { host: operation.host, data, found, decision, argument, text, during, effort };
   if (!act.ready(context)) die('prerequisite', `#${n} cannot ${name}: ${lineOf(n, decision)}`);
@@ -282,17 +274,17 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     die('blocked', `#${n}: ${what}; complete it by hand: ${byHand}`, ...details);
   }
   process.stderr.write(gh.stderr());
-  return 0;
+  return exits.done;
 }
 
-export async function main(argv: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<ExitCode> {
   try {
     const { args, explicit } = commandInput(argv);
     return await execute(args, explicit);
   } catch (error) {
     markDefect(error);
     console.error(error instanceof Error ? error.message : String(error));
-    return error instanceof HostError ? error.code : 1;
+    return error instanceof HostError ? error.code : exits.internal;
   }
 }
 

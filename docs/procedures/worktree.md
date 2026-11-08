@@ -21,7 +21,7 @@ the dirty lane; ...`, does not bring the branch up to the trunk, and prints the 
 existing changes and the issue before an edit. A later entry with a clean lane brings it up to the
 trunk.
 
-Bind the exact path that it prints, also on exit 4, to every later command, file operation,
+Bind the exact path that `worktree <n>` prints, also on exit 4, to every later command, file operation,
 instruction read, and child task: every later step runs there, and the main checkout never changes
 branch. Reuse the binding when the session is already in that worktree, as it is after a
 same-session handoff. Read the applicable `AGENTS.md` files of that checkout before editing. Keep
@@ -30,7 +30,7 @@ a lane worktree, so a session-end offer to remove it gets no.
 
 ## A conflict with the trunk
 
-On exit 4, the merge of the trunk into the lane branch stopped on a conflict. The script aborted
+On exit 4 of `worktree <n>`, the merge of the trunk into the lane branch stopped on a conflict. The script aborted
 the merge: the branch is at its tip, the tree is clean, and no merge is in progress. Its last line
 names the trunk, the branch, and the checkout. The session resolves the conflict itself: it is
 integration work, not a task of the plan, and no stop. A skill can name another fix rule for a

@@ -30,7 +30,9 @@ earlier entry does not replace them.
    the shell tool, an exec tool, or a runtime tool whose code can start a process (for example
    `child_process` in a JavaScript tool).
    - **On Claude Code:** read the file with `Read`, then apply step 3.
-   - **On Codex with a shell:** run the reader CLI of "The contract". Its exit status 2 stops the
+   - **On Codex with a shell:** run the reader CLI of "The contract"
+     (`BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros <plugin>/engine/lib/config.ts <checkout>`).
+     Its exit status 2 stops the
      entry with its diagnostic, which names the path and the field.
    - **On Codex with no shell:** read the file with a dedicated reader or a runtime file API, then
      apply step 3. Inspect the active tool catalog, and use its actual schema.
@@ -137,7 +139,7 @@ completion criterion of a skill.
 - **The approval procedure for a sandbox block.** Request one approved retry with the same
   command, arguments, and cwd before you report a setup stop. Use the escalation of the tool for
   later calls with the same access needs. A denied file read keeps the stop of the entry. `issue`,
-  `worktree`, and `land` need network. In a sandbox with no network, `issue` exits 6 with
+  `worktree`, and `land` need network. In a sandbox with no network, `issue <n> <act>` exits 6 with
   `issue: blocked: cannot read #<n> from GitHub`: that is a sandbox block, not a GitHub that does
   not answer, so request the approved retry first. The approved retry is the path for `issue`.
 - **Session recovery.** Give the person `codex resume --no-daemon <session-id>` from the main

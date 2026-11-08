@@ -82,7 +82,7 @@ While the change is not on the trunk, each run of this step starts in the lane c
 the return to the main checkout, with the curation of the lesson queue by
 `<plugin>/docs/procedures/lesson-curation.md`, "Curation at a landing". A run after a refusal
 curates again. An empty queue starts no child, and a curation failure goes into the report: the
-step goes on to `land`. A run of `land` again after the change is on the trunk curates nothing:
+step goes on to `land`. A run of `land <n> '<subject>'` again after the change is on the trunk curates nothing:
 after exit 7, after a landing that stopped once a `land:` line said that the change is on the
 trunk, and after the run that follows a 128+n (the 128+n bullet below says why).
 
@@ -92,29 +92,29 @@ the tip that it lands; with the landing `pr`, the CI of the lane PR runs it.
 
 The master daemon of the repository runs the landing, with the environment of the shell that
 started it, except `PORT`, which only its board reads, and `land` prints its output and exits with
-its status. So `land` needs a running daemon of the same program revision: with no daemon, or a
-daemon of another revision, it exits 6 with a line that names `celetis daemon start` or the
-restart of the daemon (step 5).
+its status. So `land <n> '<subject>'` needs a running daemon of the same program revision: with no
+daemon, or a daemon of another revision, it exits 3 with a line that names
+`celetis daemon start` or the restart of the daemon (exit 3 below).
 
 The daemon runs one landing at a time for the repository, in the order of the requests. A landing
 that waits behind another prints `land: #<n> waits for the landing of #<m> in the daemon PID
 <pid>` first and nothing more until its turn. That is no stall: wait for its exit. At its turn it
-starts from the state that the earlier landing left, so it can end with exit 4 (`repair`) at its
-start, as step 4 says.
+starts from the state that the earlier landing left, so `land <n> '<subject>'` can end with exit
+4 (`repair`) at its start, as step 4 says.
 
 Return to the main checkout, keeping the lane, and check that the session is in the main checkout
-(the part of the host below). Run `celetis --agent <host> land <n> '<type>(<area>): <what>'`
+(the part of the host below). Run `celetis --agent <host> land <n> '<subject>'`
 there, as the part of the host below says, and go on when it ends: the checks and one re-run of a
 failed check can take 30 minutes.
 Wait for its real exit; a yield or a timeout is not completion. Never start a second landing of
-the same issue while one runs or waits. The subject is the squash subject of the change, without
+the same issue while one runs or waits. The subject, `<type>(<area>): <what>`, is the squash subject of the change, without
 the issue number: the script adds ` (#<n>)`. When the lane branch holds one commit, pass the
 subject of that commit: the squash commit can take the subject of that commit in place of the
 argument.
 
-The exit status gives the result (`<plugin>/docs/workflow.md`, "A landing", gives each class):
+The exit status of `land <n> '<subject>'` gives the result (`<plugin>/docs/workflow.md`, "A landing", gives each class):
 
-- **0** ends the step: the change is on the trunk, and the worktree and the branch are gone.
+- **Exit 0** ends the step: the change is on the trunk, and the worktree and the branch are gone.
   **An act of the maintainer** (each `land:` line other than `land: #<n> is on <trunk>` and
   `land: <branch> and its worktree are gone`, for example
   `land: the main checkout did not move to origin/<trunk>; run git pull on <trunk> there`) is no
@@ -123,21 +123,28 @@ The exit status gives the result (`<plugin>/docs/workflow.md`, "A landing", give
   `### Your steps` of the plan) is no stop either: quote that list verbatim in the last message of
   the step, after the quoted `land:` lines, run no command for it, and post no comment and add no
   label for it.
-- **2** (`usage`) is **an error that the session caused** (the usage line, a run from inside the
+- **Exit 2** (`usage`) is **an error that the session caused** (the usage line, a run from inside the
   lane worktree, a lane worktree that is dirty). It is no refusal, and step 5 does not count it:
-  correct it, and run the script again. A second 2 with the same line is a cause outside the
+  correct it, and run the script again. A second exit 2 with the same line is a cause outside the
   change (step 5).
-- **3** (`prerequisite`): the issue is not ready to land, and the line quotes the line of the
-  resolver. Run `celetis --agent <host> issue <n> state`. When its `line:` is
-  `run /celetis:implement #<n>` with `build: planned`, step 1 did not complete: go to step 1. Each
-  other `line:` is a stop: show the user the output, and stop. In a step session, hand it to the
-  issue with a `## Stopped` comment by
-  `<plugin>/docs/procedures/stop.md`, "A stop in a step session": the `## Landing refused` comment
-  of step 5 needs a landing step on that line.
-- **4** (`repair`) is a refusal that the change caused: step 4.
-- **5** (`checks`) is a red check or a failed suite. Decide whether the diff caused it: step 4
+- **Exit 3** (`prerequisite`): `land <n> '<subject>'` finds that the state does not permit the
+  landing, and the line starts with `land: prerequisite:`.
+  - `the lock land-<n> has the owner PID …`: another landing of the issue still runs. Wait until
+    it ends, then run the script again. It is no refusal, and step 5 does not count it.
+  - `no daemon runs …` or `the daemon runs the program at …`: the maintainer starts or restarts
+    the daemon (`celetis daemon start`, or `celetis daemon stop` and then `celetis daemon start`).
+    Show the user the line, and stop. In a step session, hand it to the issue with a `## Stopped`
+    comment by `<plugin>/docs/procedures/stop.md`, "A stop in a step session".
+  - `#<n> is not ready to land`: the issue is not ready to land, and the line quotes the line of
+    the resolver. Run `celetis --agent <host> issue <n> state`. When its `line:` is
+    `run /celetis:implement #<n>` with `build: planned`, step 1 did not complete: go to step 1.
+    Each other `line:` is a stop: show the user the output, and stop. In a step session, hand it
+    to the issue with a `## Stopped` comment by `<plugin>/docs/procedures/stop.md`, "A stop in a
+    step session": the `## Landing refused` comment of step 5 needs a landing step on that line.
+- **Exit 4** (`repair`) is a refusal that the change caused: step 4.
+- **Exit 5** (`checks`) is a red check or a failed suite. Decide whether the diff caused it: step 4
   when it did, else step 5.
-- **6** (`blocked`) and **1** are causes outside the change: step 5. Two lines of status 6 from
+- **Exit 6** (`blocked`) and **Exit 1** are causes outside the change: step 5. Two lines of status 6 from
   the lesson check of `land` first get one retry. The retry is no refusal of the change, and
   step 5 does not count it:
   - `incomplete transaction`: a lesson write stopped. Run
@@ -147,20 +154,20 @@ The exit status gives the result (`<plugin>/docs/workflow.md`, "A landing", give
     once.
 
   A second 6 with the same line is a cause outside the change (step 5).
-- **7** (`cleanup`) is **a stop after the landing** (a `land:` line that says
+- **Exit 7** (`cleanup`) is **a stop after the landing** (a `land:` line that says
   `run celetis --agent <host> land again`). It is no refusal, and step 5 does not count it: the
-  change is on the trunk, so do what the line says and run the script again. A second 7 with the
+  change is on the trunk, so do what the line says and run the script again. A second exit 7 with the
   same line is a cause outside the change (step 5).
-- **128+n** is **a signal that stopped `land`**, for example the time limit of a background
+- **Exit 128+n** is **a signal that stopped `land`**, for example the time limit of a background
   `land`, or a stop of the daemon (143). The change can be on the trunk or not: a signal to the
   client after the push prints no cleanup line to the client. It is no refusal, and step 5 does
   not count it: run the script again once, and curate nothing on that run (the first run already
   curated the queue, and a lesson commit of the lane after the push would land again). A second
-  128+n is a cause outside the change (step 5).
+  exit 128+n is a cause outside the change (step 5).
 
 ## Step 4: a refusal that the change caused
 
-Status 4, or a status 5 that the diff caused, before the change is on the trunk: a check or the
+Status 4 of `land <n> '<subject>'`, or a status 5 that the diff caused, before the change is on the trunk: a check or the
 suite that fails on the diff, a conflict with the trunk, a branch that does not contain the trunk
 head, a trunk head or a lane tip that changed during the landing.
 
@@ -172,9 +179,9 @@ renew affected runtime confirmation and scenarios per
 check or a failed suite with `superpowers:systematic-debugging`, and start from the test that
 failed in CI or in the suite. For a stale branch or a moved trunk, the worktree entry brought the
 trunk in: run the verify gate of the project and renew affected runtime evidence as above, then
-go to step 3. On exit 4 of the entry, the merge is the fix: resolve it by the fix rule of the skill
+go to step 3. On exit 4 of `worktree <n>`, the merge is the fix: resolve it by the fix rule of the skill
 and `<plugin>/docs/procedures/worktree.md`, "A conflict with the trunk", then go on as for a moved
-trunk. When the entry refuses with another status, show the user its message and stop.
+trunk. When `worktree <n>` refuses with another status, show the user its message and stop.
 
 A refusal whose line names the lessons of the lane (`the lessons of <branch> do not validate`) is
 fixed by `<plugin>/docs/procedures/lesson-curation.md`, "Lesson conflicts"; a fix task brief
@@ -182,9 +189,9 @@ carries that path.
 
 ## Step 5: the third refusal, or a cause outside the change
 
-The third refusal in one session, or a cause outside the change (status 1, a status 6 that step 3
-does not retry, a status 5 that the diff did not cause, a second 2, 6, or 7 with the same line, a
-failed `recover`, or a second 128+n): a check that fails on an advisory for a dependency that the
+The third refusal in one session, or a cause outside the change (status 1 of `land <n> '<subject>'`, a status 6 that
+step 3 does not retry, a status 5 that the diff did not cause, a second exit 2, 3, 6, or 7 with the
+same line, a failed `recover`, or a second exit 128+n): a check that fails on an advisory for a dependency that the
 change did not touch, no check that ran, checks that did not finish, GitHub that does not answer,
 a main checkout that is dirty, off the trunk, or with commits that the trunk does not have.
 

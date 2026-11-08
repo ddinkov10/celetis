@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { isAbsolute, join } from 'node:path';
 import type { Host } from './config-core.ts';
+import { type ExitCode, exitCodeOf, exits, passThrough } from './contract.ts';
 import { isLevel, type Level } from './effort.ts';
 import { HostError } from './host.ts';
 import { privateRoot } from './private-folder.ts';
@@ -23,11 +24,11 @@ export type DaemonRequest =
   | { kind: 'land'; number: number; subject: string; selection: Selection; from: string }
   | { kind: 'status' }
   | { kind: 'stop' };
-export type LandingRecord = { out: string } | { err: string } | { code: number };
-export type DaemonAnswer = { accepted: true; run: string | null } | { accepted: false; line: string; code: number };
+export type LandingRecord = { out: string } | { err: string } | { code: ExitCode };
+export type DaemonAnswer = { accepted: true; run: string | null } | { accepted: false; line: string; code: ExitCode };
 export type QueueAnswer =
   | { accepted: true; run: string | null; view: QueueView }
-  | { accepted: false; line: string; code: number };
+  | { accepted: false; line: string; code: ExitCode };
 export type DaemonIdentity = {
   schema: 1;
   pid: number;
@@ -49,7 +50,7 @@ export type RunRow = {
   line: string | null;
   changedMs: number;
   session: ProcessState | null;
-  outcome: { kind: 'closed' | 'gate' | 'stopped'; reason: string; code: number } | null;
+  outcome: { kind: 'closed' | 'gate' | 'stopped'; reason: string; code: ExitCode } | null;
 };
 export type LandingRow = { issue: number; state: 'runs' | 'waits'; changedMs: number };
 export type DaemonStatus = {
@@ -129,7 +130,10 @@ export function daemonSocket(common: string): string {
   const socket = join(privateRoot, 'daemon', `${createHash('sha256').update(common).digest('hex').slice(0, 16)}.sock`);
   const bytes = Buffer.byteLength(socket);
   if (bytes >= 104)
-    throw new HostError(`daemon: the socket path ${socket} has ${bytes} bytes; a socket path needs fewer than 104`);
+    throw new HostError(
+      `daemon: the socket path ${socket} has ${bytes} bytes; a socket path needs fewer than 104`,
+      exits.prerequisite,
+    );
   return socket;
 }
 
@@ -218,20 +222,21 @@ export function parseRequest(
 }
 
 function invalid(what: string): never {
-  throw new HostError(`daemon: the daemon sent an invalid ${what}`);
+  throw new HostError(`daemon: the daemon sent an invalid ${what}`, exits.blocked);
 }
 
 export function parseAnswer(value: unknown): DaemonAnswer {
   if (object(value) && value.accepted === true && exact(value, ['accepted', 'run']) && nullable(id)(value.run))
     return { accepted: true, run: value.run };
+  const refusal = object(value) ? exitCodeOf(value.code) : null;
   if (
     object(value) &&
     value.accepted === false &&
     exact(value, ['accepted', 'line', 'code']) &&
     text(value.line) &&
-    code(value.code)
+    refusal !== null
   )
-    return { accepted: false, line: value.line, code: value.code };
+    return { accepted: false, line: value.line, code: refusal };
   return invalid('answer');
 }
 
@@ -258,7 +263,8 @@ export function parseLandingRecord(line: string): LandingRecord | null {
   if (!object(value)) return null;
   if (exact(value, ['out']) && latin1(value.out)) return { out: value.out };
   if (exact(value, ['err']) && latin1(value.err)) return { err: value.err };
-  if (exact(value, ['code']) && code(value.code)) return { code: value.code };
+  const status = exitCodeOf(value.code);
+  if (exact(value, ['code']) && status !== null) return { code: status };
   return null;
 }
 
@@ -299,7 +305,7 @@ function outcomeOf(value: unknown): RunRow['outcome'] {
     member(ends, value.kind) &&
     text(value.reason) &&
     code(value.code)
-    ? { kind: value.kind, reason: value.reason, code: value.code }
+    ? { kind: value.kind, reason: value.reason, code: passThrough(value.code) }
     : invalid('run');
 }
 

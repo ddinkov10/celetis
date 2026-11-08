@@ -4,6 +4,7 @@ import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { nextIssue } from '../next-step.ts';
 import type { AgentChoice, Host } from './config-core.ts';
+import { exits } from './contract.ts';
 import { HostError, selectHost } from './host.ts';
 import { lineOf, type Next } from './lines.ts';
 import { type LockOwner, lockHolder } from './locks.ts';
@@ -48,8 +49,9 @@ export const explicitHost = (value: AgentChoice | null | undefined): Host | null
 
 export function requireQueueChoice(recorded: AgentChoice, requested: AgentChoice): void {
   if (!sameChoice(recorded, requested))
-    throw new Error(
+    throw new HostError(
       `queue: recorded agent choice is ${recorded.kind === 'default' ? 'the default order' : recorded.host}`,
+      exits.prerequisite,
     );
 }
 
@@ -64,7 +66,7 @@ export function queueSelection(
     try {
       requireQueueChoice(queue.choice, { kind: 'explicit', host: selectHost(named) });
     } catch (cause) {
-      throw new HostError((cause as Error).message, 2);
+      throw new HostError((cause as Error).message, exits.usage);
     }
   }
   const host = explicitHost(queue.choice);
@@ -118,7 +120,7 @@ export function parseQueueAction(value: unknown): QueueAction {
         return value as QueueAction;
     }
   }
-  throw new Error('queue: invalid action');
+  throw new HostError('queue: invalid action', exits.usage);
 }
 
 function validate(value: unknown): QueueRecord {
@@ -252,7 +254,10 @@ export function parseQueueReceipt(value: unknown): QueueReceipt {
 
 function historical(value: unknown, file: string): QueueRecord {
   const invalid = (cause: string): never => {
-    throw new Error(`queue: ${file}: schema ${object(value) ? String(value.schema) : 'unknown'} to 3: ${cause}`);
+    throw new HostError(
+      `queue: ${file}: schema ${object(value) ? String(value.schema) : 'unknown'} to 3: ${cause}`,
+      exits.usage,
+    );
   };
   if (!object(value) || (value.schema !== 1 && value.schema !== 2)) invalid('unsupported schema');
   const old = value as Record<string, unknown>;
@@ -330,8 +335,9 @@ async function snapshot(common: string): Promise<LocalRecord | null> {
   try {
     return await readLocalRecord(file, [common, folder], 'shared');
   } catch (error) {
-    throw new Error(
+    throw new HostError(
       `queue: ${file}: target schema 3: cannot read record: ${error instanceof Error ? error.message : String(error)}`,
+      exits.blocked,
     );
   }
 }
@@ -339,13 +345,14 @@ const oldSchema = (source: LocalRecord) =>
   object(source.value) && (source.value.schema === 1 || source.value.schema === 2);
 const currentRecord = (source: LocalRecord): QueueRecord => {
   if (!object(source.value) || source.value.schema !== 3)
-    throw new Error(
+    throw new HostError(
       `queue: ${source.path}: unsupported schema ${object(source.value) ? String(source.value.schema) : 'unknown'}; expected schema 3`,
+      exits.usage,
     );
   try {
     return validate(source.value);
   } catch {
-    throw new Error(`queue: ${source.path}: invalid schema-3 record`);
+    throw new HostError(`queue: ${source.path}: invalid schema-3 record`, exits.usage);
   }
 };
 async function currentQueue(common: string): Promise<QueueRecord | null> {
@@ -355,7 +362,8 @@ async function currentQueue(common: string): Promise<QueueRecord | null> {
 async function commonOf(main: string, common?: string): Promise<string> {
   if (common !== undefined) return common;
   const checkout = await locateCheckouts(main);
-  if (checkout.common === null || checkout.main !== main) throw new Error('queue: need the main Git checkout');
+  if (checkout.common === null || checkout.main !== main)
+    throw new HostError('queue: need the main Git checkout', exits.usage);
   return checkout.common;
 }
 
@@ -378,36 +386,46 @@ export async function prepareQueue(_main: string, common: string, owner: LockOwn
     try {
       holder = await owner.take(name);
     } catch (error) {
-      throw new Error(
+      throw new HostError(
         `${context}: cannot take ${name} ownership: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof HostError ? error.code : exits.internal,
       );
     }
     if (holder !== null)
-      throw new Error(`${context}: busy ${name} ownership (PID ${holder}); retry after the owner exits`);
+      throw new HostError(
+        `${context}: busy ${name} ownership (PID ${holder}); retry after the owner exits`,
+        exits.prerequisite,
+      );
     acquired.push(name);
   };
   try {
     await take('queue');
     const owned = await snapshot(common);
-    if (!owned) throw new Error(`${context}: source disappeared during preparation`);
+    if (!owned) throw new HostError(`${context}: source disappeared during preparation`, exits.prerequisite);
     if (!oldSchema(owned)) {
       currentRecord(owned);
       return;
     }
     const ownedTarget = historical(owned.value, owned.path);
     if (ownedTarget.id !== decided.id || ownedTarget.numbers[0] !== issue)
-      throw new Error(`${context}: identity or current unfinished issue changed during preparation`);
+      throw new HostError(
+        `${context}: identity or current unfinished issue changed during preparation`,
+        exits.prerequisite,
+      );
     if (issue !== undefined) await take(`issue-${issue}`);
     await withQueueWrite(common, async () => {
       const locked = await snapshot(common);
-      if (!locked) throw new Error(`${context}: source disappeared under the write lock`);
+      if (!locked) throw new HostError(`${context}: source disappeared under the write lock`, exits.prerequisite);
       if (!oldSchema(locked)) {
         currentRecord(locked);
         return;
       }
       const target = historical(locked.value, locked.path);
       if (target.id !== decided.id || target.numbers[0] !== issue)
-        throw new Error(`${context}: identity or current unfinished issue changed under the write lock`);
+        throw new HostError(
+          `${context}: identity or current unfinished issue changed under the write lock`,
+          exits.prerequisite,
+        );
       await commitMigration(
         locked,
         Number((locked.value as Record<string, unknown>).schema),
@@ -417,7 +435,7 @@ export async function prepareQueue(_main: string, common: string, owner: LockOwn
   } catch (error) {
     const cause = error instanceof Error ? error.message : String(error);
     if (cause.startsWith(context)) throw error;
-    throw new Error(`${context}: ${cause}`);
+    throw new HostError(`${context}: ${cause}`, error instanceof HostError ? error.code : exits.internal);
   } finally {
     for (const name of acquired.reverse()) await owner.release(name);
   }
@@ -457,10 +475,11 @@ async function withQueueWrite<T>(common: string, change: () => Promise<T>): Prom
       ? openLockFile(path)
       : openSync(path, constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW | constants.O_NONBLOCK, 0o600);
   try {
-    if (!fstatSync(fd).isFile()) throw new Error(`queue: not a regular lock file: ${path}`);
+    if (!fstatSync(fd).isFile()) throw new HostError(`queue: not a regular lock file: ${path}`, exits.blocked);
     const deadline = performance.now() + 5_000;
     while (!tryFlock(fd)) {
-      if (performance.now() >= deadline) throw new Error(`queue: ${path}: write lock is busy; refresh and try again`);
+      if (performance.now() >= deadline)
+        throw new HostError(`queue: ${path}: write lock is busy; refresh and try again`, exits.prerequisite);
       await Bun.sleep(50);
     }
     return await change();

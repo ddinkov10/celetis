@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
+import { exits } from '../lib/contract.ts';
 import { installRecorder, markDefect } from '../lib/events.ts';
 import type { PreparedUpdate, UpdateCheck, UpdateResult, UpdateStage } from '../update.ts';
 
@@ -191,6 +192,6 @@ if (import.meta.main) {
   main().catch((error) => {
     markDefect(error);
     console.error(error instanceof Error ? error.message : String(error));
-    process.exitCode = 1;
+    process.exitCode = exits.internal;
   });
 }

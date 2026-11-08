@@ -1,3 +1,5 @@
+import { constants } from 'node:os';
+import { exits, signalExit } from './contract.ts';
 import type { DaemonRequest, LandingRow } from './daemon-types.ts';
 import { recordEvent } from './events.ts';
 import { HostError } from './host.ts';
@@ -24,9 +26,9 @@ type Running = { place: Place; done: Promise<void> };
 const heartbeat = 5_000;
 const drain = 5_000;
 const encoder = new TextEncoder();
-const aborted = () => new HostError('', 143);
+const aborted = () => new HostError('', signalExit(constants.signals.SIGTERM));
 const stopped = (issue: number) =>
-  new HostError(`the daemon stops; start it again, then run celetis --agent <host> land ${issue} again`, 6);
+  new HostError(`the daemon stops; start it again, then run celetis --agent <host> land ${issue} again`, exits.blocked);
 const aborts = (signal: AbortSignal) =>
   new Promise<void>((resolve) =>
     signal.aborted ? resolve() : signal.addEventListener('abort', () => resolve(), { once: true }),
@@ -52,18 +54,18 @@ export function createLandings(context: Context): Landings {
       const holder = await owner.take(name);
       if (holder !== null) {
         console.error(
-          `land: blocked: the lock ${name} has the owner PID ${holder}; wait until that landing ends, then run celetis --agent <host> land ${number} again`,
+          `land: prerequisite: the lock ${name} has the owner PID ${holder}; wait until that landing ends, then run celetis --agent <host> land ${number} again`,
         );
-        return { status: 6, defect: null };
+        return { status: exits.prerequisite, defect: null };
       }
       return await runLanding({ number, subject, selection, from }, context.main, signal);
     } catch (error) {
       if (!(error instanceof HostError)) {
         console.error(described(error));
-        return { status: 1, defect: { error } };
+        return { status: exits.internal, defect: { error } };
       }
       console.error(`land: blocked: ${error.message}`);
-      return { status: 6, defect: null };
+      return { status: exits.blocked, defect: null };
     } finally {
       const cause = (await owner.release(name)) === null ? null : await owner.release(name);
       if (cause !== null)
@@ -131,7 +133,7 @@ export function createLandings(context: Context): Landings {
           await Promise.race([place.first.promise, aborts(place.abort.signal)]);
           const { reason } = place;
           if (reason) {
-            if (reason.code === 6)
+            if (reason.code === exits.blocked)
               context.enter(request.number, sink, () => console.error(`land: blocked: ${reason.message}`));
             end = { status: reason.code, defect: null };
           } else {
@@ -140,12 +142,12 @@ export function createLandings(context: Context): Landings {
             end = await context.enter(request.number, sink, () => land(request, place.abort.signal));
           }
         } catch (error) {
-          end = { status: 1, defect: { error } };
+          end = { status: exits.internal, defect: { error } };
         }
         leave(place);
         clearInterval(beat);
         push(`${JSON.stringify({ code: end.status })}\n`);
-        if (end.status !== 0)
+        if (end.status !== exits.done)
           recordEvent(
             end.defect
               ? {

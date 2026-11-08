@@ -50,7 +50,7 @@ gives the reasons why its sessions come from herdr-core and its tabs from the He
 - macOS or Linux. The master daemon refuses Windows, so no board runs there (`docs/workflow.md` of
   the plugin `celetis`, "The master daemon").
 - Bun 1.4.4 or later. The entry prints `celetis: need Bun >=1.4.4 on PATH, found <version>` and
-  exits 2 on an older Bun.
+  exits 3 on an older Bun.
 - git 2.31 or later.
 - The installed `celetis` program for New intake, Run, Resume, Assist, Make visual, and queue actions (the README of the plugin, "First install").
 - herdr-core 0.1.16, with `hc` on `PATH` and its server that runs, for the session cards and for
@@ -111,14 +111,14 @@ The daemon keeps that `PORT` for its board only, so no run or landing gets it.
 
 **A start that fails** stops the daemon before its takeover: it releases its lock `daemon`, and
 `daemon start` prints `daemon: the daemon ended with exit <code> before it served; read <log>`
-and exits 1. The daemon log has the cause:
+and exits 6. The daemon log has the cause:
 
 | Case | Line in the daemon log | Exit of the daemon |
 |---|---|---|
 | The main `.celetis.yaml` cannot be read or has an error | the diagnostic of the config reader, with the file and the field | 2 |
-| The exact `PORT` of a start is in use (a successor searches instead) | `agent-board: cannot listen on 127.0.0.1:<port>: the port is in use` | 1 |
-| Every automatic candidate is occupied | `agent-board: cannot listen on 127.0.0.1:<start>-65535: all ports are in use` | 1 |
-| The server cannot listen for another cause, for example `PORT=99999` | `agent-board: cannot listen on 127.0.0.1:<port>: <the message of Bun>` | 1 |
+| The exact `PORT` of a start is in use (a successor searches instead) | `agent-board: cannot listen on 127.0.0.1:<port>: the port is in use` | 6 |
+| Every automatic candidate is occupied | `agent-board: cannot listen on 127.0.0.1:<start>-65535: all ports are in use` | 6 |
+| The server cannot listen for another cause, for example `PORT=99999` | `agent-board: cannot listen on 127.0.0.1:<port>: <the message of Bun>` | 6 |
 
 `docs/workflow.md` of the plugin `celetis`, "The master daemon", gives each other refusal of
 `daemon start` and of the start of the daemon.

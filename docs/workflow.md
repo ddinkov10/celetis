@@ -48,7 +48,7 @@ of the product project, apart from a path that starts with `~/` or `/`.
 ## Requirements
 
 - macOS or Linux, with Bun 1.4.4 or later. Native Windows has no daemon: it does not
-  start there, and each form of `run` and `queue` that sends a request exits 2 with
+  start there, and each form of `run` and `queue` that sends a request exits 3 with
   `run: Windows is not a support target` or `queue: Windows is not a support target`. The data of the board before #102 and the update
   lock passed their checks before the program. The program installs from Git Bash and runs from Git
   Bash, PowerShell, and `cmd`; its Windows checks are open ("Acceptance status").
@@ -92,9 +92,10 @@ of the product project, apart from a path that starts with `~/` or `/`.
   (`herdr-app`), for each start: each session runs in a tab of the Herdr app ("How a step runs").
   The support target is macOS ([ADR-0058](adr/0058-herdr-core-hosts-the-agent-terminals.md),
   [ADR-0062](adr/0062-each-session-runs-in-a-tab-that-the-runner-steers.md)). `celetis daemon start`
-  checks them before it spawns the daemon, and exits 1 with the same line. The daemon checks them
+  checks them before it spawns the daemon, and exits with the same line: 3 for a command that is
+  not on `PATH`, 6 for a server or an app that does not answer. The daemon checks them
   again before each run reads its issue (a number, auto mode, a queue wake, and `run resume`). A failed check there is the refusal of the
-  request, with exit 1 and one of these lines; for a queue wake, the line becomes the queue error:
+  request, with the same code and one of these lines; for a queue wake, the line becomes the queue error:
   - `daemon: hc is not on PATH; install herdr-core 0.1.16, then start again`
   - `daemon: the hc server does not answer: <cause>; start the Herdr app, then start again`
   - `daemon: herdr-app is not on PATH; install the Herdr app 0.1.11, then start again`
@@ -177,18 +178,22 @@ master daemon", "The requests"):
   starts one bounded attempt cycle` and exits 0.
 - A refusal, or an end at the first decision (for example a closed issue, or a `me` gate of a queue
   wake), prints the line of the daemon run for that cause, and exits with its code.
-  A line with code 0 goes to stdout, any other line to stderr.
+  A line with code 0 goes to stdout, any other line to stderr. A busy issue lock answers code 3, and
+  a failed GitHub read of the issue code 6; each other end before the first session answers code 0.
 - With no daemon, the form prints `run: no daemon runs for this repository; start it:
   celetis daemon start`, exits 3, and starts nothing. No form starts the daemon.
 - A daemon of another revision of the program gets no request: the form prints `run: the
   daemon runs the program at <revision> and this program is at <revision>; restart it: celetis
-  daemon stop, then celetis daemon start` and exits 1. After `celetis update`, restart the daemon.
+  daemon stop, then celetis daemon start` and exits 3. After `celetis update`, restart the daemon.
 - A daemon that cannot be read exits 6 with `run: the daemon of this repository does not
   answer: <reason>; read celetis daemon status`. A request with no answer in 120 seconds, or with an
-  answer that cannot be read, exits 6 with `run: the outcome of the request is unknown:
+  answer that cannot be read (also a code that is no exit class), exits 6 with `run: the outcome of the request is unknown:
   <message>; read celetis daemon status`. Read the status before you send the request again: a
   second start can start a second step.
-- On Windows, each of these forms exits 2 with `run: Windows is not a support target`.
+- On Windows, each of these forms exits 3 with `run: Windows is not a support target`.
+- A program version that an update removed prints `run: #<n>: the program version of this command
+  was removed after an update; run the command again` (`run: ` and the same text for `resume` and
+  `retry`) on stderr and exits 3.
 
 A `queue action` with a wake prints the lines of no daemon, another revision, a
 daemon that does not answer, an unknown outcome, and Windows with `queue: ` in place of `run: `.
@@ -385,7 +390,7 @@ for each issue, for the queue, and for auto mode across the daemon and a second 
 
 **The commands.** `celetis daemon start`, `status`, `stop`, and `auto on|off` (`engine/daemon.ts`) find the Git
 common folder of the current folder, so a linked worktree reaches the daemon of its repository.
-They refuse Windows with exit 2. For `start`, `status`, and `stop`, the optional `--agent` selects
+They refuse Windows with exit 3. For `start`, `status`, and `stop`, the optional `--agent` selects
 nothing; for `auto`, it selects the host of auto mode.
 
 - `start` prints the running daemon (`daemon: a daemon of this repository runs: PID <pid> at
@@ -393,14 +398,14 @@ nothing; for `auto`, it selects the host of auto mode.
   and exits 0. For a daemon of its own revision, it then reads the status and prints
   `daemon: board http://127.0.0.1:<port>`; a failed status read prints its line on stderr and
   exits 6. It reads no status of a daemon of another revision. Otherwise it checks `gh`, `hc`, and
-  the Herdr app (a missing one exits 1), then
+  the Herdr app (a missing one exits 3, a server or an app that does not answer 6), then
   spawns `engine/daemon.ts --daemon` in the main checkout. The spawn is detached, with stdin
   closed and stdout and stderr appended to `daemon/daemon.log` (0600). It polls the status for at
   most 30 seconds, prints `daemon: started PID <pid> on <socket>` and
   `daemon: board http://127.0.0.1:<port>`, and exits 0. A daemon that
-  ends or stays silent exits 1, for example when its board port cannot open ("The start"). Another
+  ends or stays silent exits 6, for example when its board port cannot open ("The start"). Another
   daemon that wins a race is printed as above.
-- `status` first compares the revision of the daemon with its own. Another revision exits 1 with
+- `status` first compares the revision of the daemon with its own. Another revision exits 3 with
   `daemon: the daemon runs the program at <revision> and this program is at <revision>; restart it:
   celetis daemon stop, then celetis daemon start`, and no status read. Else it prints the daemon
   line, `daemon: board http://127.0.0.1:<port>`, `daemon: auto mode on|off|stopping`, and one line
@@ -413,7 +418,7 @@ nothing; for `auto`, it selects the host of auto mode.
   refusal prints its line (stdout for code 0, else stderr) and exits with its code. With no daemon
   they print `daemon: no daemon runs for this repository; start it: celetis daemon start` and exit
   3; a daemon that cannot be read exits 6 with `daemon: the daemon of this repository does not
-  answer: <reason>; read celetis daemon status`; a daemon at another revision exits 1 with
+  answer: <reason>; read celetis daemon status`; a daemon at another revision exits 3 with
   `daemon: the daemon runs the program at <revision> and this program is at <revision>; restart it:
   celetis daemon stop, then celetis daemon start`; a request with an unknown outcome exits 6 with
   `daemon: the outcome of the request is unknown: <message>; read celetis daemon status`. Any
@@ -430,25 +435,25 @@ and no landing.
 
 **The start.** In this order, the daemon:
 
-1. refuses Windows with `daemon: Windows is not a support target` and exit 2;
+1. refuses Windows with `daemon: Windows is not a support target` and exit 3;
 2. finds the main checkout and the Git common folder of its working folder;
 3. makes the socket path `/tmp/celetis-<uid>/daemon/<first 16 hex digits of the SHA-256 of the
-   Git common folder>.sock`. A path of 104 bytes or more stops the start with exit 1, before any
+   Git common folder>.sock`. A path of 104 bytes or more stops the start with exit 3, before any
    folder or lock;
 4. makes `<git common dir>/celetis/daemon/` and its `runs/` folder (0700), and the socket
    folder `/tmp/celetis-<uid>/daemon/` (0700);
 5. reads its process start, then takes the lock ref `daemon` with that start. A failed read of the
    start stops the daemon before the lock, with
    `daemon: cannot read the process start of the daemon; allow process access and start the daemon again`
-   and exit 1. When another live process holds `daemon`, the daemon prints
-   `daemon: another daemon of this repository has PID <n>; this one stops` and exits 1;
+   and exit 6. When another live process holds `daemon`, the daemon prints
+   `daemon: another daemon of this repository has PID <n>; this one stops` and exits 3;
 6. reads `board.port` of the main `.celetis.yaml` with the full validation of the config, default
    4403. A file with an error prints the diagnostic of the config reader and exits with its code;
 7. opens the board ("The board"). A nonzero `Number(PORT)` of its environment is an exact port;
    else the board takes the first free port from `board.port` through 65535. It prints
    `agent-board: repository <main>` and `agent-board: http://127.0.0.1:<port>`. A port that cannot
    open prints `agent-board: cannot listen on 127.0.0.1:<port>: …` (or the range of an exhausted
-   search), releases `daemon`, and exits 1, before any takeover;
+   search), releases `daemon`, and exits 6, before any takeover;
 8. reads the run records and makes one adoption attempt for each record ("The takeover");
 9. removes a socket file that a killed daemon left;
 10. serves on the socket;
@@ -464,7 +469,7 @@ step 12, it turns auto mode on when the old daemon carried it.
 From the open of the board to the end of the takeover, the board serves the page and its reads,
 but the daemon refuses each request of the board (Run, Resume, Retry, a queue action, a queue
 reconcile) with 503, `daemon: the daemon takes over its runs; send the request again after its
-start`, and code 1. So no press takes an issue lock before the adoption of its old run.
+start`, and code 3. So no press takes an issue lock before the adoption of its old run.
 
 The socket folder is private to the user, and the daemon uses no token: any process of the same
 user can send a request. Auto mode is off at each start, also after a crash. Only a successor
@@ -524,9 +529,9 @@ code of its cause:
 | 200 | An accepted request, the status object, and the stream of a landing |
 | 400 | A body that is not valid: the usage line, code 2 |
 | 404, 405 | Another path, or another method for a path; code 2 |
-| 409 | A refused admission or an end before the first session, with its line and code: for example `daemon: another run or its session (PID <n>) works on #<n>` with code 0. A refused queue action or reconcile, with the line and code of `queue action`: for example `queue: the ID, revision, or current issue changed; refresh the queue` with code 1 |
+| 409 | A refused admission or an end before the first session, with its line and code: for example `daemon: another run or its session (PID <n>) works on #<n>` with code 3, `daemon: stop cannot read #<n> from GitHub` with code 6, and `daemon: stop #<n> is finished.` with code 0. A refused queue action or reconcile, with the line and code of `queue action`: for example `queue: the ID, revision, or current issue changed; refresh the queue` with code 3 |
 | 413 | A body of more than 16 KiB; code 2 |
-| 503 | A request that arrives during a stop (except `POST /stop` during a restart, "The restart"), and the answer of a run, queue, resume, or auto on request, or of a queue action or reconcile with a wake, that comes after a stop began: `daemon: the daemon stops; start it again, then send the request`, code 1. A status read that began before the stop answers 200. A run, resume, retry, queue action, or reconcile request of the board before the end of the takeover: `daemon: the daemon takes over its runs; send the request again after its start`, code 1 |
+| 503 | A request that arrives during a stop (except `POST /stop` during a restart, "The restart"), and the answer of a run, queue, resume, or auto on request, or of a queue action or reconcile with a wake, that comes after a stop began: `daemon: the daemon stops; start it again, then send the request`, code 3. A status read that began before the stop answers 200. A run, resume, retry, queue action, or reconcile request of the board before the end of the takeover: `daemon: the daemon takes over its runs; send the request again after its start`, code 3 |
 | 500 | An unexpected error of the daemon while it answers: `daemon: <message>`, code 1 |
 
 A run, queue, or resume request answers after every check before the first session of its run:
@@ -534,7 +539,10 @@ the issue lock, the host selection, the setup checks of `gh` (not for a resume),
 Herdr app, a stale launch token, the first decision read for a run and a queue, and the saved
 session for a resume. The answer comes directly before the session tab opens, or at a quota
 wait. An end at the first decision is a refusal with the line and the code of that end, for
-example `daemon: stop #<n> is finished.` with code 0. When a stop begins before the answer,
+example `daemon: stop #<n> is finished.` with code 0. The code of the answer is not the code of the
+run outcome: a busy issue lock (code 3) and a failed GitHub read of the issue (code 6) end the run
+with the outcome code 0, as each other end before a session, so auto mode takes the next issue and
+the daemon writes no `run-exit` event. When a stop begins before the answer,
 the answer is 503. The stop detaches that run: it starts no session and keeps no lock and no run
 record. A queue wake that the run claimed before the stop leaves the queue record `running` with
 no owner, and a deliberate Try again of the queue starts it. Auto on starts the loop of
@@ -697,7 +705,7 @@ issue names a daemon that is gone (a definite read), the daemon writes itself as
 transaction. Retry and the bound lane of the
 recovery then accept the daemon. A `POST /retry` for a record that names this daemon needs a run of
 this daemon for that issue whose state is not `ending` or `finished`; else it gets
-`recovery: the run of #<n> no longer runs; start the run again` with code 2. So a second
+`recovery: the run of #<n> no longer runs; start the run again` with code 3. So a second
 Retry of a wait that woke gets the answer of the first. An unknown read keeps the record and reads
 again each 2 seconds. A quota wait continues with its recorded wait ID, step authority, agent
 choice, and the usage records that it saw. The daemon prints the wait line again and makes no new
@@ -708,14 +716,14 @@ longer has ends with `daemon: #<n>: the quota wait record changed; start the run
 run record (`daemon: cannot write the run record <path>: <cause>`), and an unexpected
 error end only their run. Its outcome is `stopped` with the line and the code. An unexpected error
 also prints its stack and adds a defect event `run-defect`. One failure stops the whole daemon with
-exit 1: a step-end record that can neither be removed nor emptied. The daemon prints its two lines
+exit 6: a step-end record that can neither be removed nor emptied. The daemon prints its two lines
 (`daemon: #<n> cannot remove step-end: …` and `daemon: cannot revoke watcher ownership; …`), because only the end
 of the daemon that the record names revokes it. The sessions stay open in their tabs.
 
 **A removed program version.** The daemon checks its program files each 5 seconds, and its runs
 check them as the daemon does. When a file is gone after an update, the daemon prints
 `daemon: the program version of this daemon was removed after an update; start the daemon again`,
-stops as above, and exits 1. The sessions stay in their tabs, and their run records stay for the
+stops as above, and exits 3. The sessions stay in their tabs, and their run records stay for the
 next start.
 
 **The restart.** An approved update of the board, or **Restart** of the board after a terminal
@@ -736,18 +744,18 @@ a new process of the installed program takes over
    `celetis daemon stop` ends with `daemon: stopped PID <pid>`), SIGINT, SIGTERM, SIGHUP, or a fatal
    stop such as a removed program version. The daemon prints
    `daemon: the stop cancels the restart; no successor starts`, starts no successor, and exits
-   with the code of that stop: 0 for a stop request, 128 plus the number of a signal, 1 for a fatal
-   stop. No daemon runs after it. The page shows the timeout with the recovery line.
+   with the code of that stop: 0 for a stop request, 128 plus the number of a signal, 3 for a
+   removed program version, 6 for the step-end failure ("Per-run failures"). No daemon runs after it. The page shows the timeout with the recovery line.
 3. The spawn. After the release of `daemon`, the daemon starts one detached successor,
    `engine/daemon.ts --daemon --after <pid> <start>` of the installed program, with
    `--auto <JSON>` when auto mode is `on`. It runs in the main checkout, with the environment of the
    daemon, `HC_SCOPE` removed, and `PORT` set to the actual board port, and its stdout and stderr
    append to `daemon/daemon.log`. Then the old daemon exits 0. A failed spawn prints
-   `daemon: cannot start the successor: <message>; run celetis daemon start` and exits 1; the runs
+   `daemon: cannot start the successor: <message>; run celetis daemon start` and exits 6; the runs
    stay detached for the next start.
 4. The wait. The successor reads `{pid, start}` of the old daemon each 250 ms until a definite
    `gone`; a read that is `unknown` waits too. After 60 seconds it prints
-   `daemon: the daemon PID <pid> did not exit within 60 seconds; this successor stops` and exits 1,
+   `daemon: the daemon PID <pid> did not exit within 60 seconds; this successor stops` and exits 3,
    with no lock. Else it starts as "The start" says and takes over the runs.
 5. The port. The board of the successor tries the port of `PORT` first, so the page reconnects at
    its URL. When that port is in use, it searches from `board.port` and prints the new URL to the
@@ -813,7 +821,7 @@ The move runs at most three rounds. Each round:
    return that has refs only; a ref that remains starts the next round. It then renames the folder
    to `celetis`.
 
-A refusal has exit 1 and starts with `state: `. A refusal before step 4 of the first round changes nothing. A later round, and the
+A refusal starts with `state: `. It exits 3, or 6 when a file or a Git read or write failed. A refusal before step 4 of the first round changes nothing. A later round, and the
 `cannot move` line and the `changed during the move` line, can follow a deletion in step 4 of an
 earlier round of the same command: that deletion removed only old lock refs whose owners were
 proven gone, and it stays; the folder did not move. `<subject>` is `#<n>` for the lock `issue-<n>`, else the name of the lock:
@@ -977,7 +985,7 @@ read-only thread and configuration checks do not trigger startup refresh.
 its updater mutex and deadline, and native cache replacement. Sessions may remain open; a fresh
 session loads updated skills and tools. A restart of the daemon alone updates nothing. After
 `celetis update`, restart the daemon (`celetis daemon stop`, then `celetis daemon start`): its runs
-then use the new program, and a `run` or `queue` form of another revision refuses with exit 1 until then.
+then use the new program, and a `run` or `queue` form of another revision refuses with exit 3 until then.
 
 **The session tab.** For each session, also an exact resume, the daemon opens a new hc terminal
 with a tab in the space of the repository in the Herdr app (`openTab` of
@@ -996,7 +1004,7 @@ after the barrier exits. `<folder>` is a private start folder in `<git common di
    record and starts the job of the step end. It then writes `go`: this is the release of the
    barrier.
 3. The barrier waits for `go` while the daemon lives. A failed read of the daemon process does not
-   end this wait; the barrier exits with status 1 before `go` only when the daemon process does
+   end this wait; the barrier exits with status 3 before `go` only when the daemon process does
    not exist. After `go`, the barrier starts the host as its child, waits
    for the host to exit, writes the exit status of the host to `status`, and exits with that
    status.
@@ -1018,7 +1026,7 @@ closes that tab after the next session tab of the same start is open, or when th
 Each other end leaves the tab open with the last screen of the host and a shell under it: a
 nonzero or unknown status, a session with no verified identity, and a session whose daemon
 stopped. A tab whose barrier the daemon did not release closes, and no host starts in it. These
-lines end the run with code 1, apart from the warning. No command prints them: they show as the
+lines end the run with code 6, or 3 for a space lock that stays held, apart from the warning. No command prints them: they show as the
 `line` of the row of `celetis daemon status` and in `daemon/daemon.log`:
 
 - `daemon: #<n> cannot open the session tab: <cause>`.
@@ -1205,7 +1213,7 @@ cycle at the deadline, after Retry, or after a newer accepted observation of an 
 no block. A clock change can move the wake; it cannot make a loop, because each cycle attempts
 each host once and each wait needs a new wake. `run retry <n> <wait id>` writes one wake request
 for the live waiter of the issue. A repeated request with the same ID is one cycle. Another wait
-ID, no wait, or a run that stopped refuses with exit 2; Retry never starts a run. Retry lets
+ID, no wait, or a run that stopped refuses with exit 3; Retry never starts a run. Retry lets
 that cycle attempt blocked hosts once each in the effective order of the step, and keeps their
 records. A stop of the daemon ends the wait loop and its wake. The record stays and authorizes
 nothing until the next daemon takes the wait over ("A quota recovery"). A new start of the issue
@@ -1306,8 +1314,8 @@ trunk curates nothing.
 
 The master daemon of the repository runs the landing ("The master daemon"). `land` is its client:
 it checks `--agent` and the form (exit 2 with the usage line; the issue number is a safe integer),
-refuses Windows with `land: usage: Windows is not a support target` and exit 2, refuses a folder
-with no Git checkout with `land: usage: celetis: need a Git checkout` and exit 2, finds the daemon
+refuses Windows with `land: prerequisite: Windows is not a support target` and exit 3, refuses a
+folder with no Git checkout with `land: usage: celetis: need a Git checkout` and exit 2, finds the daemon
 of the Git common folder of its folder, and sends one `POST /land` with `--agent`, its
 `CELETIS_AGENT`, and the top-level folder of its checkout. It writes each `out` record to its
 stdout and each `err` record to its stderr at once, waits with no time limit, and exits with the
@@ -1339,8 +1347,8 @@ error, while the daemon lives. A failed release is tried once more; a second fai
 stop, then celetis daemon start` on stdout and keeps the status of the landing. A daemon that dies
 during a landing leaves a ref whose daemon is gone, and the next landing takes it. When another
 live process holds `land-<n>`, the landing does nothing:
-`land: blocked: the lock land-<n> has the owner PID <holder>; wait until that landing ends, then
-run celetis --agent <host> land <n> again`, exit 6.
+`land: prerequisite: the lock land-<n> has the owner PID <holder>; wait until that landing ends, then
+run celetis --agent <host> land <n> again`, exit 3.
 
 The client that goes away (a signal, the time limit of a background command, an ended session)
 aborts the landing, as a stop of the daemon does ("The stop"): the landing stops at its next check,
@@ -1399,12 +1407,12 @@ The exit status and the first word after `land: ` give the result:
 | Status | First word | Result | Examples |
 |---|---|---|---|
 | 0 | none | landed | `land: #<n> is on <trunk>`; also with a warning, for example `land: warning: cannot read the parent of #<n>: …` |
-| 1 | none | an internal error of `land` | an unexpected exception; a refusal of the request by the daemon other than 503, with its line (for example the 400 usage line of the requests, or the 413 line of a subject that makes the body more than 16 KiB) |
-| 2 | `usage` | usage | bad arguments (the line starts with `usage: `); Windows; no Git checkout; a run from inside the lane worktree; a dirty lane worktree; no lane branch; nothing to land; an invalid configuration |
-| 3 | `prerequisite` | the issue is not ready to land | the refusals of the paragraph above |
+| 1 | none | an internal error of `land` | an unexpected exception; the 500 answer of the daemon, with its line |
+| 2 | `usage` | usage | bad arguments (the line starts with `usage: `); no Git checkout; a run from inside the lane worktree; a dirty lane worktree; no lane branch; nothing to land; an invalid configuration; a refusal of the request by the daemon with code 2, with its line (for example the 400 usage line of the requests, or the 413 line of a subject that makes the body more than 16 KiB) |
+| 3 | `prerequisite` | the issue is not ready to land | the refusals of the paragraph above; Windows; another live holder of `land-<n>`; no daemon (`land: prerequisite: no daemon runs for this repository; start it: celetis daemon start`); a daemon at another revision (`land: prerequisite: the daemon runs the program at <revision> and this program is at <revision>; restart it: celetis daemon stop, then celetis daemon start`) |
 | 4 | `repair` | the lane needs a repair | a conflict with the trunk; a lane branch that does not contain the head of the trunk; a trunk head, a lane branch, a lane checkout, or a PR that changed during the landing; a missing lane worktree with the landing `merge`; lane lessons that do not validate |
 | 5 | `checks` | a check is not green | a failed CI check, also after its re-run; a failed `suite` with the landing `merge` (`docs/configuration.md`) |
-| 6 | `blocked` | an external block | GitHub does not answer or refuses an act; a fetch or a push fails; the checks did not finish; no check ran; the main checkout is dirty, off the trunk, or with commits that the trunk does not have; the landing mechanism or the default branch changed; two branches or two PRs match; an incomplete lesson transaction (`lesson-store recover`); a lesson lock that stays busy for 10 seconds; another live holder of `land-<n>`; no daemon (`land: blocked: no daemon runs for this repository; start it: celetis daemon start`); a daemon that cannot be read (`land: blocked: the daemon of this repository does not answer: <reason>; read celetis daemon status`); a daemon at another revision (`land: blocked: the daemon runs the program at <revision> and this program is at <revision>; restart it: celetis daemon stop, then celetis daemon start`); a request during a stop of the daemon (`land: blocked: ` and the 503 line); a landing that waits in the line when the daemon stops (`land: blocked: the daemon stops; start it again, then run celetis --agent <host> land <n> again`); a stream with no status (the line above) |
+| 6 | `blocked` | an external block | GitHub does not answer or refuses an act; a fetch or a push fails; the checks did not finish; no check ran; the main checkout is dirty, off the trunk, or with commits that the trunk does not have; the landing mechanism or the default branch changed; two branches or two PRs match; an incomplete lesson transaction (`lesson-store recover`); a lesson lock that stays busy for 10 seconds; a daemon that cannot be read (`land: blocked: the daemon of this repository does not answer: <reason>; read celetis daemon status`); a request during a stop of the daemon (`land: blocked: ` and the 503 line); a landing that waits in the line when the daemon stops (`land: blocked: the daemon stops; start it again, then run celetis --agent <host> land <n> again`); a stream with no status (the line above) |
 | 7 | `cleanup` | landed, the cleanup stopped | the change is on the trunk, and the removal, the pull of the main checkout, or the close of the issue stopped, also by an abort: run `land` again |
 | 128+n | none | a signal | a signal to the client stopped `land`, and the daemon aborted the landing (after the change is on the trunk, a new `land` completes the cleanup); 143 also for a stop of the daemon before the change is on the trunk |
 
@@ -1482,7 +1490,7 @@ inherited. Product `.env`, Bun configuration, preloads, macros, automatic packag
 and transpiler cache stay disabled. Check each external command status and stop on failure.
 After nonempty setup output, the command prints an LF separator and the final absolute lane
 path. `setup try` also prints its path after preparation or execution failure and returns the
-child status. `worktree` and `setup lane` map setup failure to status 1. Signals stop the owned
+child status. `worktree` and `setup lane` map setup failure to exit 6. Signals stop the owned
 child.
 
 The setup skill shows the proposed relative path and complete contents for review. The product
@@ -1496,7 +1504,7 @@ unchanged. A conflict prints `setup: warning: .celetis.yaml: worktreeSetup diffe
 
 A failed setup or invalid new lane config prints `worktree setup failed:` and removes a new
 worktree and a branch created by the command. Configuration validation exits 2 after cleanup;
-ordinary setup and Git failures keep their existing statuses. An existing branch or worktree
+a failed setup script and a Git failure exit 6, and a conflict with the trunk exits 4. An existing branch or worktree
 stays for repair and retry. A refused update of an existing branch prints its own reason, not
 `worktree setup failed:`, and uses the same cleanup. Entry into the target lane creates a fresh
 operation before setup or marker acceptance. Setup validates again after it writes or selects a
@@ -2156,8 +2164,8 @@ name and the line number, `events: <file>:<line>: not a valid entry; the read co
 read continues. With `--after <id>`, it prints the entries after the last entry with that `id`.
 When no kept entry has the `id`, it prints one stderr line and then all entries. With no folder
 or no file, it prints nothing. The exit code is 0 for each of these. A usage error exits 2. A busy
-lock after 2 seconds, or a folder that is not a private directory of the user, exits 1 with one
-line. The command writes nothing to the record, also not its own failures.
+lock after 2 seconds exits 3, and a folder or a lock file that is not private to the user exits 6,
+each with one line. The command writes nothing to the record, also not its own failures.
 
 The record has these gaps:
 
@@ -2966,7 +2974,7 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   10 seconds; the daemon keeps ownership until the process exits ("The step end").
 - The `hc` and `herdr-app` calls of the script use the API of herdr-core 0.1.16 and the commands of
   the Herdr app 0.1.11. Both are previews (version 0.x), so a later 0.x release can break the step
-  end. On Windows, no daemon runs and each request form exits 2 ("Requirements"), so a board Run,
+  end. On Windows, no daemon runs and each request form exits 3 ("Requirements"), so a board Run,
   Resume, Retry, or queue press fails there. The tab of a board press and the card
   of a session are not checked. The board starts the argv with no shell, and a program that
   `hc run` starts with no shell has no foreground in `hc get`, so its session can get no card. Two
@@ -2987,8 +2995,8 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   other versions run three later updates can lose its folder. After that, it stops with the true
   cause ("A removed program version"). A `run` or `queue` form that starts after its own folder went prints
   `run: #<n>: the program version of this command was removed after an update; run the command
-  again` for a start with one number and exits 0, else `run: the program version of this command
-  was removed after an update; run the command again` (`queue: ` for a `queue` form) and exits 1. The cure is to restart the
+  again` for a start with one number, else `run: the program version of this command
+  was removed after an update; run the command again` (`queue: ` for a `queue` form), on stderr, and exits 3. The cure is to restart the
   daemon from the installed program, then to send the request again (ADR-0012). The board stops
   with its daemon. Each press of Open agent or Make visual reads the installed program again, and
   an update needs no restart for these presses; a terminal-started update needs a restart of the
@@ -3015,7 +3023,9 @@ model profiles, and permissions; a missing tool or denied read stops that operat
 Run repository checks in a checkout of `ddinkov10/celetis`. The verify gate is `scripts/verify.ts`.
 It classifies every tracked path, runs Biome and three strict type environments, native
 actionlint, YAML and plugin validation, the citation check of the skills, the procedure modules,
-the principles, and the step text (`checkCitations`), and generated byte comparison, with modes
+the principles, and the step text (`checkCitations`), the check of each `celetis` form and each
+exit code of the same text against `engine/lib/contract.ts` (`checkContract`, ADR-0079), and
+generated byte comparison, with modes
 on macOS and Linux. Only procedure modules need two citers; principles have no minimum citer
 count. Citations and relative links must name tracked files. Skills, procedure modules, and
 principles cannot cite `docs/hosts/`, and each `SKILL.md` needs the entry line exactly once. It

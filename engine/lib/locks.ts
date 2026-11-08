@@ -1,5 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { type ExitCode, exits } from './contract.ts';
 import { HostError } from './host.ts';
 import { childEnv, run } from './process.ts';
 import { daemonScript, type ProcessState, processScript, processStart, processState } from './process-identity.ts';
@@ -21,8 +22,8 @@ export interface LockOwner {
   releaseAll(handOff?: boolean): Promise<void>;
 }
 
-function die(message: string): never {
-  throw new HostError(`daemon: ${message}`);
+function die(message: string, code: ExitCode = exits.blocked): never {
+  throw new HostError(`daemon: ${message}`, code);
 }
 function parsed(source: string): unknown {
   try {
@@ -94,7 +95,7 @@ export function createLockOwner(main: string, ownStart?: string): LockOwner {
   };
   const queueAfterIssue = (name: string) => {
     if (name === 'queue' && [...held].some((lock) => lock.startsWith('issue-')))
-      die('cannot take queue ownership after an issue lock; release the issue lock first');
+      die('cannot take queue ownership after an issue lock; release the issue lock first', exits.internal);
   };
   const begin = async () => {
     if (owner) return;

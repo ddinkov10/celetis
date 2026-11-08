@@ -1,15 +1,14 @@
 import { lstat, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { type Config, validateWorktreeSetup } from './config-core.ts';
+import { exits } from './contract.ts';
 import { HostError } from './host.ts';
 import { run, runBun } from './process.ts';
 import { projectFile } from './setup-wiring.ts';
 
-export const conflictStatus = 4;
-
 export async function markerOf(checkout: string): Promise<string> {
   const result = await run('git', ['rev-parse', '--path-format=absolute', '--git-dir'], { cwd: checkout });
-  if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
+  if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
   const dir = result.stdout.trimEnd();
   const marker = join(dir, 'celetis-setup-done');
   const old = join(dir, 'celetis-flow-setup-done');
@@ -35,29 +34,27 @@ export async function setupFile(checkout: string, reference: string): Promise<st
     target = join(await realpath(checkout), reference);
     return await projectFile(checkout, reference);
   } catch (error) {
-    throw new HostError(`worktreeSetup ${target}: ${error instanceof Error ? error.message : String(error)}`);
+    throw new HostError(
+      `worktreeSetup ${target}: ${error instanceof Error ? error.message : String(error)}`,
+      exits.usage,
+    );
   }
 }
 
 export async function runSetup(checkout: string, config: Config, main: string): Promise<number> {
   const setup = config.worktreeSetup ?? '';
-  if (setup === '') return 0;
-  try {
-    const file = await setupFile(checkout, setup);
-    const code = await runBun(file, [resolve(main)], checkout);
-    if (code === 0) await writeFile(await markerOf(checkout), '', { flag: 'a' });
-    return code;
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error));
-    return 1;
-  }
+  if (setup === '') return exits.done;
+  const file = await setupFile(checkout, setup);
+  const code = await runBun(file, [resolve(main)], checkout);
+  if (code === 0) await writeFile(await markerOf(checkout), '', { flag: 'a' });
+  return code;
 }
 
 export async function worktrees(cwd: string, signal?: AbortSignal): Promise<{ path: string; branch?: string }[]> {
   signal?.throwIfAborted();
   const result = await run('git', ['worktree', 'list', '--porcelain', '-z'], { cwd, signal });
   signal?.throwIfAborted();
-  if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
+  if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
   return result.stdout
     .split('\0\0')
     .filter(Boolean)
@@ -83,7 +80,7 @@ export async function removeCheckout(
   signal?.throwIfAborted();
   const result = await run('git', ['worktree', 'remove', ...(force ? ['--force'] : []), checkout], { cwd, signal });
   signal?.throwIfAborted();
-  if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
+  if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
   process.stderr.write(result.stdout + result.stderr);
 }
 
@@ -92,13 +89,13 @@ export async function updateLane(checkout: string, branch: string, trunk: string
   const upstream = `origin/${trunk}`;
   const contains = async (ancestor: string, descendant: string) => {
     const result = await git(['merge-base', '--is-ancestor', ancestor, descendant]);
-    if (result.code > 1) throw new HostError(result.stderr.trimEnd(), result.code);
+    if (result.code > 1) throw new HostError(result.stderr.trimEnd(), exits.blocked);
     return result.code === 0;
   };
   if (await contains(upstream, 'HEAD')) return;
   const status = await git(['status', '--porcelain']);
-  if (status.code !== 0) throw new HostError(status.stderr.trimEnd(), status.code);
-  if (status.stdout) throw new HostError(`the lane worktree is dirty: ${checkout}; commit first`);
+  if (status.code !== 0) throw new HostError(status.stderr.trimEnd(), exits.blocked);
+  if (status.stdout) throw new HostError(`the lane worktree is dirty: ${checkout}; commit first`, exits.prerequisite);
   const merge = (await contains('HEAD', upstream))
     ? await git(['merge', '-q', '--ff-only', upstream])
     : await git(['merge', '--no-ff', '--no-edit', '-m', `Merge ${upstream} into ${branch} (#${n})`, upstream]);
@@ -116,7 +113,7 @@ export async function updateLane(checkout: string, branch: string, trunk: string
     ]
       .filter(Boolean)
       .join('\n'),
-    conflict ? conflictStatus : 1,
+    conflict ? exits.repair : exits.blocked,
   );
 }
 
@@ -131,7 +128,7 @@ export async function removeLane(
     signal?.throwIfAborted();
     const result = await run('git', args, { cwd, signal });
     signal?.throwIfAborted();
-    if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
+    if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
     if (output) process.stderr.write(result.stdout + result.stderr);
     return result.stdout.trimEnd();
   };

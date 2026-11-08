@@ -1,14 +1,13 @@
 import { constants } from 'node:os';
+import { classOf, type ExitClass, type ExitCode, exits, signalExit, usage } from './lib/contract.ts';
 import { requestSelection, requireDaemon, unanswered } from './lib/daemon-client.ts';
 import { daemonSocket, landingSubject, parseAnswer, parseLandingRecord } from './lib/daemon-types.ts';
-import { installRecorder, markDefect, passOn, writeUnrecorded } from './lib/events.ts';
-import { HostError, updateHint } from './lib/host.ts';
+import { installRecorder, markDefect, recordedElsewhere, writeUnrecorded } from './lib/events.ts';
+import { HostError } from './lib/host.ts';
 import { commandInput, locateCheckouts } from './lib/operation.ts';
 import { run } from './lib/process.ts';
 
-const usage = `usage: celetis --agent <host> land <issue number> '<type>(<area>): <what>', e.g. celetis --agent <host> land 415 'feat(agent-harness): the build step lands the change'\n${updateHint}`;
-
-export async function main(argv: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<ExitCode> {
   try {
     const { args, explicit } = commandInput(argv);
     return await execute(args, explicit);
@@ -19,7 +18,7 @@ export async function main(argv: string[]): Promise<number> {
   }
 }
 
-async function execute(argv: string[], explicit: string | undefined): Promise<number> {
+async function execute(argv: string[], explicit: string | undefined): Promise<ExitCode> {
   const n = argv[0]?.replace(/^#/, '') ?? '';
   const number = Number(n);
   const subject = argv[1] ?? '';
@@ -29,43 +28,45 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     !Number.isSafeInteger(number) ||
     !landingSubject(number, subject)
   ) {
-    console.error(usage);
-    return 2;
+    console.error(usage('land'));
+    return exits.usage;
   }
   if (process.platform === 'win32') {
-    console.error('land: usage: Windows is not a support target');
-    return 2;
+    console.error('land: prerequisite: Windows is not a support target');
+    return exits.prerequisite;
   }
   let common: string;
   let from: string;
   try {
     const checkout = await locateCheckouts(process.cwd());
-    if (checkout.main === null || checkout.common === null) throw new HostError('celetis: need a Git checkout', 2);
+    if (checkout.main === null || checkout.common === null)
+      throw new HostError('celetis: need a Git checkout', exits.usage);
     common = checkout.common;
     const top = await run('git', ['rev-parse', '--show-toplevel'], { cwd: process.cwd() });
-    if (top.code !== 0) throw new HostError(top.stderr.trimEnd(), top.code);
+    if (top.code !== 0) throw new HostError(top.stderr.trimEnd(), exits.blocked);
     from = top.stdout.trimEnd();
   } catch (error) {
     markDefect(error);
     if (!(error instanceof HostError)) {
       console.error(error instanceof Error ? error.message : String(error));
-      return 1;
+      return exits.internal;
     }
-    console.error(`land: ${error.code === 2 ? 'usage' : 'blocked'}: ${error.message}`);
-    return error.code === 2 ? 2 : 6;
+    const outcome: ExitClass = error.code === exits.usage ? 'usage' : 'blocked';
+    console.error(`land: ${outcome}: ${error.message}`);
+    return exits[outcome];
   }
   try {
-    await requireDaemon(common, 'land: blocked');
+    await requireDaemon(common, 'land');
   } catch (error) {
     if (!(error instanceof HostError)) throw error;
-    console.error(error.message);
-    return 6;
+    console.error(`land: ${classOf(error.code)}: ${error.message.replace(/^land: /, '')}`);
+    return error.code;
   }
   const abort = new AbortController();
   for (const signal of ['SIGHUP', 'SIGINT', 'SIGTERM'] as const)
     process.on(signal, () => {
       abort.abort();
-      process.exit(128 + constants.signals[signal]);
+      process.exit(signalExit(constants.signals[signal]));
     });
   let response: Response;
   try {
@@ -78,7 +79,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     });
   } catch (error) {
     console.error(unanswered('land: blocked', error instanceof Error ? error.message : String(error)));
-    return 6;
+    return exits.blocked;
   }
   if (response.status !== 200) {
     const answer = await response
@@ -87,10 +88,10 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
       .catch(() => null);
     if (answer === null || answer.accepted) {
       console.error(`land: blocked: daemon: the daemon sent an invalid answer (status ${response.status})`);
-      return 6;
+      return exits.blocked;
     }
     console.error(response.status === 503 ? `land: blocked: ${answer.line}` : answer.line);
-    return response.status === 503 ? 6 : 1;
+    return response.status === 503 ? exits.blocked : answer.code;
   }
   // Bun's console.log and console.error do not wait behind a queued write, so each write goes through the stream.
   const written = { out: Promise.resolve(), err: Promise.resolve() };
@@ -109,7 +110,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
       ),
     );
     await flushed();
-    return 6;
+    return exits.blocked;
   };
   const decoder = new TextDecoder();
   let rest = '';
@@ -127,7 +128,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
         else if ('err' in record) forward('err', Buffer.from(record.err, 'latin1'));
         else {
           await flushed();
-          return passOn(record.code);
+          return recordedElsewhere(record.code);
         }
       }
       rest = rest.slice(start);

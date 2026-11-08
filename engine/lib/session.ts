@@ -3,6 +3,7 @@ import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promise
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Config, Host } from './config-core.ts';
+import { exits } from './contract.ts';
 import { clampEffort, isLevel, type Level } from './effort.ts';
 import { recordEvent } from './events.ts';
 import { codexRequest, commonDir, HostError } from './host.ts';
@@ -49,7 +50,10 @@ export function validateSession(value: unknown, main: string, issue: number, fil
     !sessionFields(value, main, issue) ||
     !isLevel(value.effort)
   ) {
-    throw new HostError(`session: ${file}: invalid schema-2 fields; preserve the record and repair its data`);
+    throw new HostError(
+      `session: ${file}: invalid schema-2 fields; preserve the record and repair its data`,
+      exits.usage,
+    );
   }
   return value as unknown as SessionRecord;
 }
@@ -68,6 +72,7 @@ function historical(source: LocalRecord, main: string, issue: number): SessionRe
   )
     throw new HostError(
       `session: ${source.path}: schema 1 to 2: invalid historical fields; preserve and repair the record`,
+      exits.usage,
     );
   return validateSession({ ...value, schema: 2, effort: 'high' }, main, issue, source.path);
 }
@@ -81,6 +86,7 @@ async function snapshot(common: string, issue: number): Promise<LocalRecord | nu
   } catch (error) {
     throw new HostError(
       `session: ${file}: target schema 2: cannot read record: ${error instanceof Error ? error.message : String(error)}`,
+      exits.blocked,
     );
   }
 }
@@ -88,12 +94,14 @@ function currentRecord(source: LocalRecord, main: string, issue: number): Sessio
   if (!object(source.value) || source.value.schema !== 2)
     throw new HostError(
       `session: ${source.path}: unsupported schema ${object(source.value) ? String(source.value.schema) : 'unknown'}; expected schema 2`,
+      exits.usage,
     );
   return validateSession(source.value, main, issue, source.path);
 }
 function missing(issue: number): HostError {
   return new HostError(
     `celetis: #${issue} has no current session record; start a new step with celetis --agent <host> run ${issue}`,
+    exits.prerequisite,
   );
 }
 
@@ -112,11 +120,14 @@ export async function prepareSession(main: string, issue: number, common: string
     if (!owner.owns(name)) {
       const holder = await owner.take(name);
       if (holder !== null)
-        throw new HostError(`${context}: busy ${name} ownership (PID ${holder}); retry after the owner exits`);
+        throw new HostError(
+          `${context}: busy ${name} ownership (PID ${holder}); retry after the owner exits`,
+          exits.prerequisite,
+        );
       acquired = true;
     }
     const locked = await snapshot(common, issue);
-    if (!locked) throw new HostError(`${context}: source disappeared during preparation`);
+    if (!locked) throw new HostError(`${context}: source disappeared during preparation`, exits.prerequisite);
     if (!oldSchema(locked)) {
       currentRecord(locked, main, issue);
       return;
@@ -126,7 +137,7 @@ export async function prepareSession(main: string, issue: number, common: string
   } catch (error) {
     const cause = error instanceof Error ? error.message : String(error);
     if (cause.startsWith(context)) throw error;
-    throw new HostError(`${context}: ${cause}`);
+    throw new HostError(`${context}: ${cause}`, error instanceof HostError ? error.code : exits.internal);
   } finally {
     if (acquired) await owner.release(name);
   }
@@ -150,7 +161,7 @@ export async function readSession(
     const context = `session: ${source.path}: schema 1 to 2`;
     const cause = error instanceof Error ? error.message : String(error);
     if (cause.startsWith(context)) throw error;
-    throw new HostError(`${context}: ${cause}`);
+    throw new HostError(`${context}: ${cause}`, error instanceof HostError ? error.code : exits.internal);
   }
   const prepared = await snapshot(common, issue);
   if (!prepared) throw missing(issue);
@@ -172,11 +183,13 @@ export async function selectSavedSession(
   if (explicit !== undefined && explicit !== record.host)
     throw new HostError(
       `celetis: #${issue} recorded host is ${record.host}; resume without --agent or use --agent ${record.host}`,
+      exits.usage,
     );
   const { session_id } = record;
   if (session_id === null)
     throw new HostError(
       `celetis: #${issue} has no saved turn with a verified session identity; exact run resume requires that identity. From the main checkout, run ${manualRecovery(record.host)} and select the saved session, or start a new step if none exists.`,
+      exits.prerequisite,
     );
   return { ...record, session_id };
 }
@@ -357,18 +370,19 @@ export function selectCodexEffort(
   chosen: Level,
 ): { model: string; applied: Level } {
   const configured = config.model;
-  if (!(configured == null || typeof configured === 'string')) throw new HostError(modelsUnreadable);
+  if (!(configured == null || typeof configured === 'string')) throw new HostError(modelsUnreadable, exits.blocked);
   const entry = models
     .filter(object)
     .find((each) => (configured == null ? each.isDefault === true : each.model === configured));
   if (!entry)
-    throw new HostError(
-      configured == null
-        ? modelsUnreadable
-        : `daemon: the Codex model ${configured} is not in model/list; set model in the Codex config to a listed model, then start the run again`,
-    );
+    throw configured == null
+      ? new HostError(modelsUnreadable, exits.blocked)
+      : new HostError(
+          `daemon: the Codex model ${configured} is not in model/list; set model in the Codex config to a listed model, then start the run again`,
+          exits.prerequisite,
+        );
   const { model, supportedReasoningEfforts: options } = entry;
-  if (typeof model !== 'string' || !Array.isArray(options)) throw new HostError(modelsUnreadable);
+  if (typeof model !== 'string' || !Array.isArray(options)) throw new HostError(modelsUnreadable, exits.blocked);
   const applied = clampEffort(
     chosen,
     options
@@ -378,6 +392,7 @@ export function selectCodexEffort(
   if (!applied)
     throw new HostError(
       `daemon: the Codex model ${model} supports no effort level of Celetis; set model in the Codex config to another model, then start the run again`,
+      exits.prerequisite,
     );
   return { model, applied };
 }
@@ -391,7 +406,7 @@ async function codexModels(cwd: string): Promise<unknown[]> {
     const page = object(reply) && object(reply.result) ? reply.result : null;
     const next = page?.nextCursor ?? null;
     if (!page || !Array.isArray(page.data) || !(next === null || (typeof next === 'string' && !seen.has(next))))
-      throw new HostError(modelsUnreadable);
+      throw new HostError(modelsUnreadable, exits.blocked);
     models.push(...page.data);
     cursor = next;
     if (next !== null) seen.add(next);
@@ -431,11 +446,11 @@ export async function hostArguments(
   if (step !== 'specify') {
     const existing = config?.developer_instructions ?? '';
     if (config === null || typeof existing !== 'string')
-      throw new HostError('daemon: cannot read the step instructions; start the run again');
+      throw new HostError('daemon: cannot read the step instructions; start the run again', exits.blocked);
     const text = await stepText();
     args.push('-c', `developer_instructions=${JSON.stringify(existing ? `${existing}\n\n${text}` : text)}`);
   }
-  if (config === null) throw new HostError(modelsUnreadable);
+  if (config === null) throw new HostError(modelsUnreadable, exits.blocked);
   const { model, applied } = selectCodexEffort(config, await codexModels(cwd), effort);
   args.push('-c', `model_reasoning_effort=${JSON.stringify(applied)}`, codexPrompt(step, issue));
   return { args, applied, model };

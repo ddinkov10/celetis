@@ -1,5 +1,7 @@
+import { constants } from 'node:os';
 import { join } from 'node:path';
 import type { Config } from './config-core.ts';
+import { type ExitClass, type ExitCode, exits, signalExit } from './contract.ts';
 import { completeEpic } from './epic.ts';
 import { parseEpicRepository } from './epic-acceptance.ts';
 import { HostError } from './host.ts';
@@ -15,7 +17,7 @@ import { branchGlobs, branchPattern, decide, landable } from './workflow.ts';
 import { checkoutOf, removeLane } from './worktree.ts';
 
 export type Landing = Readonly<{ number: number; subject: string; selection: HostSelection; from: string }>;
-export type LandingEnd = Readonly<{ status: number; defect: Readonly<{ error: unknown }> | null }>;
+export type LandingEnd = Readonly<{ status: ExitCode; defect: Readonly<{ error: unknown }> | null }>;
 
 type Pull = {
   number: number;
@@ -41,8 +43,6 @@ type Request = {
   method?: string;
   fields?: Record<string, string>;
 };
-const statuses = { usage: 2, prerequisite: 3, repair: 4, checks: 5, blocked: 6, cleanup: 7 } as const;
-type Outcome = keyof typeof statuses;
 class Classified extends HostError {}
 const suiteOf = (config: Config | undefined) => (config?.landing === 'merge' ? config.suite : undefined);
 
@@ -52,9 +52,10 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
   let branch = '',
     trunk = '',
     cleanup = '';
-  const stopped = () => (signal.reason instanceof HostError ? signal.reason.code : 143);
-  const die = (outcome: Outcome, message: string): never => {
-    throw new Classified(`land: ${outcome}: ${message}`, statuses[outcome]);
+  const stopped = () =>
+    signal.reason instanceof HostError ? signal.reason.code : signalExit(constants.signals.SIGTERM);
+  const die = (outcome: ExitClass, message: string): never => {
+    throw new Classified(`land: ${outcome}: ${message}`, exits[outcome]);
   };
   const interrupted = () => {
     if (signal.aborted) throw new HostError('', stopped());
@@ -73,14 +74,14 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
       interrupted();
       return run('git', args, { cwd: at, signal });
     };
-    const git = async (args: string[], refusal?: readonly [Outcome, string], at = main) => {
+    const git = async (args: string[], refusal?: readonly [ExitClass, string], at = main) => {
       const result = await gitRaw(args, at);
       if (result.code !== 0) {
         if (refusal) {
           emitError(result.stderr);
           die(...refusal);
         }
-        throw new HostError(result.stderr.trimEnd(), result.code);
+        throw new HostError(result.stderr.trimEnd(), exits.blocked);
       }
       process.stderr.write(result.stderr);
       return result.stdout.trimEnd();
@@ -99,7 +100,7 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
         ],
         { cwd: main, signal },
       );
-      if (result.code !== 0) throw new HostError(`${result.stdout}${result.stderr}`.trimEnd(), result.code);
+      if (result.code !== 0) throw new HostError(`${result.stdout}${result.stderr}`.trimEnd(), exits.blocked);
       if (!options.quiet) process.stderr.write(result.stderr);
       return options.silent ? (undefined as T) : (JSON.parse(result.stdout) as T);
     };
@@ -137,9 +138,9 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
         await readLessons(checkout, 'active');
       } catch (error) {
         if (!(error instanceof LessonError)) throw error;
-        if (error.code === 2)
+        if (error.code === exits.usage)
           die('repair', `the lessons of ${branch} do not validate: ${error.message}; repair them, then land again`);
-        die('blocked', error.message);
+        die(error.code === exits.prerequisite ? 'prerequisite' : 'blocked', error.message);
       }
       if (await git(['status', '--porcelain'], undefined, checkout))
         die('usage', `the lane worktree is dirty: ${checkout}; commit first`);
@@ -209,7 +210,7 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
               'blocked',
               `the main checkout has ${ahead.length} commit(s) that origin/${trunk} does not have, your work: ${main}: ${ahead[0]}; push them, or move them to a branch there, then land again`,
             );
-          } else throw new HostError(ancestry.stderr.trimEnd(), ancestry.code);
+          } else throw new HostError(ancestry.stderr.trimEnd(), exits.blocked);
         }
         const ancestor = await gitRaw(['merge-base', '--is-ancestor', base, tip]);
         process.stderr.write(ancestor.stderr);
@@ -533,7 +534,7 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
       const left = await gitRaw(['ls-remote', '--heads', 'origin', `refs/heads/${branch}`]);
       process.stderr.write(left.stderr);
       if (left.code !== 0 || left.stdout.trimEnd()) {
-        throw new HostError(`${deletion.stdout}${deletion.stderr}`.trimEnd());
+        throw new HostError(`${deletion.stdout}${deletion.stderr}`.trimEnd(), exits.blocked);
       }
     }
     interrupted();
@@ -541,21 +542,21 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
     interrupted();
     console.log(`land: ${branch} and its worktree are gone`);
     await writeRefreshHint(main, Number(n));
-    return { status: 0, defect: null };
+    return { status: exits.done, defect: null };
   } catch (error) {
     const defect = error instanceof HostError || signal.aborted ? null : { error };
     if (cleanup) {
       if (!signal.aborted) emitError(error);
       console.error(`land: cleanup: ${cleanup}`);
-      return { status: statuses.cleanup, defect };
+      return { status: exits.cleanup, defect };
     }
     if (signal.aborted) return { status: stopped(), defect };
     if (error instanceof Classified || !(error instanceof HostError)) {
       emitError(error);
-      return { status: error instanceof HostError ? error.code : 1, defect };
+      return { status: error instanceof HostError ? error.code : exits.internal, defect };
     }
-    const outcome = error.code === 2 ? 'usage' : 'blocked';
+    const outcome: ExitClass = error.code === exits.usage ? 'usage' : 'blocked';
     emitError(`land: ${outcome}: ${error.message}`);
-    return { status: statuses[outcome], defect };
+    return { status: exits[outcome], defect };
   }
 }

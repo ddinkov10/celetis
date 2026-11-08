@@ -1,8 +1,8 @@
 import { stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { type ExitCode, exits, helpText, launcherForms, updateHint } from './lib/contract.ts';
 import { installRecorder, passOn } from './lib/events.ts';
-import { helpText } from './lib/help.ts';
-import { HostError, requireBun, updateHint } from './lib/host.ts';
+import { HostError, requireBun } from './lib/host.ts';
 import { commandInput } from './lib/operation.ts';
 import { bunArgs, childEnv } from './lib/process.ts';
 import { programRevision } from './lib/program.ts';
@@ -10,27 +10,29 @@ import { execConsumer } from './lib/update-lock.ts';
 
 export const commandName = /^[a-z][a-z-]*$/;
 
-export async function main(argv: string[]): Promise<number> {
+const helpWords = launcherForms.flatMap(({ words: [word] }) => (word && word !== '--version' ? [word] : []));
+
+export async function main(argv: string[]): Promise<ExitCode> {
   installRecorder('launcher');
   try {
     requireBun();
     const { args, explicit } = commandInput(argv);
-    if (['help', '--help', '-h'].includes(args[0] ?? '')) {
+    if (helpWords.includes(args[0] ?? '')) {
       console.log(helpText);
-      return 0;
+      return exits.done;
     }
     if (args.length === 1 && args[0] === '--version') {
       console.log(await programRevision(dirname(import.meta.dir)));
-      return 0;
+      return exits.done;
     }
     if (args.length === 0) {
       console.log(helpText);
-      return 2;
+      return exits.usage;
     }
     const name = args.shift() ?? '';
     const missing = new HostError(
       `celetis: the program has no command ${name}\nceletis: celetis help lists the commands\n${updateHint}`,
-      2,
+      exits.usage,
     );
     if (!commandName.test(name)) throw missing;
     const folder = ['build', 'verify', 'install-tools'].includes(name) ? '../scripts' : '.';

@@ -4,6 +4,7 @@ import { closeSync, constants, fstatSync, openSync } from 'node:fs';
 import { lstat, mkdir, open, readdir, readFile, readlink, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import type { AgentChoice, Host } from './config-core.ts';
+import { exits } from './contract.ts';
 import { commonDir, HostError } from './host.ts';
 import { type LockOwner, lockHolder } from './locks.ts';
 import { privateFolder, privateMode, sharedFolderSync, sharedMode } from './private-folder.ts';
@@ -76,8 +77,9 @@ const positive = (value: unknown): value is number => Number.isSafeInteger(value
 const host = (value: unknown): value is Host => value === 'claude' || value === 'codex';
 const text = (value: unknown, limit = 4096): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= limit;
-const fail = (path: string, reason: string) => new RecoveryError(`recovery: ${path}: ${reason}`);
-const refusal = 'invalid or obsolete recovery record; inspect it, then remove it';
+const fail = (path: string, reason: string) => new RecoveryError(`recovery: ${path}: ${reason}`, exits.blocked);
+const refused = (path: string) =>
+  new RecoveryError(`recovery: ${path}: invalid or obsolete recovery record; inspect it, then remove it`, exits.usage);
 const owners = { 1: 'runner', 2: 'daemon' } as const;
 const fields = {
   1: 'attempt,attempted,authority,blocked,choice,common,id,issue,lane,lock,main,nextResetAt,prior,revision,runner,schema,state,waitId,wake',
@@ -220,7 +222,7 @@ async function readPrivate(path: string): Promise<string | null> {
   try {
     const opened = await handle.stat();
     if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino)
-      throw new ChangedRecord(`recovery: ${path}: the record changed during the read`);
+      throw new ChangedRecord(`recovery: ${path}: the record changed during the read`, exits.prerequisite);
     return new TextDecoder('utf-8', { fatal: true }).decode(await handle.readFile());
   } finally {
     await handle.close();
@@ -232,7 +234,7 @@ function parse(path: string, source: string, issue: number): QuotaRecovery {
   try {
     value = JSON.parse(source);
   } catch {}
-  if (!validRecord(value, issue)) throw fail(path, refusal);
+  if (!validRecord(value, issue)) throw refused(path);
   return value;
 }
 
@@ -244,7 +246,7 @@ function historical(path: string, source: string, issue: number): boolean {
     return false;
   }
   if (!object(value) || value.schema !== 1) return false;
-  if (!validFields(value, issue, 1)) throw fail(path, refusal);
+  if (!validFields(value, issue, 1)) throw refused(path);
   return true;
 }
 
@@ -259,7 +261,8 @@ async function locked<T>(dir: string, issue: number, work: () => Promise<T>): Pr
     if (!stat.isFile() || !privateMode(stat)) throw fail(lock, 'need a private regular lock file');
     const deadline = performance.now() + 5000;
     while (!tryFlock(fd)) {
-      if (performance.now() >= deadline) throw fail(lock, 'the recovery lock is busy; try again');
+      if (performance.now() >= deadline)
+        throw new RecoveryError(`recovery: ${lock}: the recovery lock is busy; try again`, exits.prerequisite);
       await Bun.sleep(25);
     }
     return await work();
@@ -279,13 +282,13 @@ async function convert(dir: string, issue: number): Promise<void> {
     throw failed(error);
   }
   if (!source || !object(source.value) || source.value.schema !== 1) return;
-  if (!validFields(source.value, issue, 1)) throw fail(path, refusal);
+  if (!validFields(source.value, issue, 1)) throw refused(path);
   const target = Object.fromEntries(
     Object.entries(source.value).map(([key, value]) =>
       key === 'schema' ? [key, 2] : key === owners[1] ? [owners[2], value] : [key, value],
     ),
   );
-  if (!validRecord(target, issue)) throw fail(path, refusal);
+  if (!validRecord(target, issue)) throw refused(path);
   try {
     await commitMigration(source, 1, `${JSON.stringify(target)}\n`);
   } catch (error) {
@@ -316,7 +319,7 @@ async function readOne(dir: string, issue: number): Promise<QuotaRecovery | null
 }
 
 export async function readRecovery(main: string, issue: number): Promise<QuotaRecovery | null> {
-  if (!positive(issue)) throw new RecoveryError('recovery: invalid issue number', 2);
+  if (!positive(issue)) throw new RecoveryError('recovery: invalid issue number', exits.usage);
   const dir = await existingFolder(main);
   return dir === null ? null : readOne(dir, issue);
 }
@@ -339,7 +342,7 @@ export async function updateRecovery(
   issue: number,
   change: (current: QuotaRecovery | null) => Promise<QuotaRecovery | null> | QuotaRecovery | null,
 ): Promise<QuotaRecovery | null> {
-  if (!positive(issue)) throw new RecoveryError('recovery: invalid issue number', 2);
+  if (!positive(issue)) throw new RecoveryError('recovery: invalid issue number', exits.usage);
   const { dir } = await recoveryFolder(main);
   return locked(dir, issue, async () => {
     const path = join(dir, `${issue}.json`);
@@ -351,7 +354,8 @@ export async function updateRecovery(
       return null;
     }
     const record = { ...next, revision: (current?.revision ?? 0) + 1 };
-    if (!validRecord(record, issue)) throw fail(path, 'refused an invalid recovery record');
+    if (!validRecord(record, issue))
+      throw new RecoveryError(`recovery: ${path}: refused an invalid recovery record`, exits.internal);
     const temp = join(dir, `.${issue}.${randomUUID()}`);
     try {
       await writeFile(temp, `${JSON.stringify(record)}\n`, { mode: 0o600, flag: 'wx' });
@@ -374,20 +378,29 @@ export async function retryQuota(
   expectedWaitId: string,
   waiting: (record: QuotaRecovery) => Promise<boolean>,
 ): Promise<void> {
-  if (!uuid.test(expectedWaitId)) throw new RecoveryError('recovery: invalid wait ID', 2);
+  if (!uuid.test(expectedWaitId)) throw new RecoveryError('recovery: invalid wait ID', exits.usage);
   const seen = await readRecovery(main, issue);
-  if (!seen?.waitId) throw new RecoveryError(`recovery: #${issue} has no quota wait`, 2);
+  if (!seen?.waitId) throw new RecoveryError(`recovery: #${issue} has no quota wait`, exits.prerequisite);
   if (seen.waitId !== expectedWaitId)
-    throw new RecoveryError(`recovery: #${issue} waits with another wait ID; refresh, then use its Retry`, 2);
+    throw new RecoveryError(
+      `recovery: #${issue} waits with another wait ID; refresh, then use its Retry`,
+      exits.prerequisite,
+    );
   await updateRecovery(main, issue, async (current) => {
-    if (!current?.waitId) throw new RecoveryError(`recovery: #${issue} has no quota wait`, 2);
+    if (!current?.waitId) throw new RecoveryError(`recovery: #${issue} has no quota wait`, exits.prerequisite);
     if (current.waitId !== expectedWaitId)
-      throw new RecoveryError(`recovery: #${issue} waits with another wait ID; refresh, then use its Retry`, 2);
+      throw new RecoveryError(
+        `recovery: #${issue} waits with another wait ID; refresh, then use its Retry`,
+        exits.prerequisite,
+      );
     if (!(await waiting(current)))
-      throw new RecoveryError(`recovery: the run of #${issue} no longer runs; start the run again`, 2);
+      throw new RecoveryError(`recovery: the run of #${issue} no longer runs; start the run again`, exits.prerequisite);
     if (current.wake === expectedWaitId) return current;
     if (current.state !== 'waiting')
-      throw new RecoveryError(`recovery: #${issue} waits with another wait ID; refresh, then use its Retry`, 2);
+      throw new RecoveryError(
+        `recovery: #${issue} waits with another wait ID; refresh, then use its Retry`,
+        exits.prerequisite,
+      );
     return { ...current, wake: expectedWaitId };
   });
 }
@@ -451,7 +464,7 @@ export async function snapshotLane(main: string, issue: number): Promise<LaneBin
 
 export async function validateRecovery(main: string, issue: number, attemptId: string): Promise<RecoveryPermit> {
   const refuse = (reason: string): never => {
-    throw new RecoveryError(`recovery: #${issue}: ${reason}`);
+    throw new RecoveryError(`recovery: #${issue}: ${reason}`, exits.prerequisite);
   };
   const canonical = await realpath(main);
   const record = (await readRecovery(canonical, issue)) ?? refuse('no recovery record');
@@ -495,7 +508,7 @@ export async function archiveSession(
   attemptId: string,
   owner?: LockOwner,
 ): Promise<NativeIdentity> {
-  if (!uuid.test(attemptId)) throw new RecoveryError('recovery: invalid attempt ID');
+  if (!uuid.test(attemptId)) throw new RecoveryError('recovery: invalid attempt ID', exits.internal);
   const record = await readSession(main, issue, undefined, owner);
   const state = await stateFolder(await realpath(await commonDir(main)));
   sharedFolderSync(state, fail);
@@ -506,7 +519,8 @@ export async function archiveSession(
   const text = `${serializeSession(record)}\n`;
   const previous = await readPrivate(path);
   if (previous === null) await writeFile(path, text, { mode: 0o600, flag: 'wx' });
-  else if (previous !== text) throw fail(path, 'an archived session differs');
+  else if (previous !== text)
+    throw new RecoveryError(`recovery: ${path}: an archived session differs`, exits.prerequisite);
   return { attemptId, host: record.host, sessionId: record.session_id };
 }
 

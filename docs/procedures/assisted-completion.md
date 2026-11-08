@@ -48,8 +48,8 @@ With evidence for the full scope of the report and both removals:
    by that report and the removals is satisfied. The engine checks shape and state; the helper
    checks evidence truth and scope. Shared GitHub authentication provides no independent
    attestation of the report writer.
-4. After success or failure, re-read the issue, state, and next step. Preserve exit 6 and the
-   required human repair after a partial write: run no part of its printed repair command and
+4. After success or failure, re-read the issue, state, and next step. Preserve exit 6 of
+   `issue <n> assisted <file>` and the required human repair after a partial write: run no part of its printed repair command and
    claim no success. Re-entry reads current state before another attempt; never blindly replay
    a partial write or duplicate its report.
 5. End with the actual remaining block or resolver step. For a cleared epic, report

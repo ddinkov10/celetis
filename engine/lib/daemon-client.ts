@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { type ExitCode, exits } from './contract.ts';
 import {
   type DaemonAnswer,
   type DaemonIdentity,
@@ -54,7 +55,7 @@ async function call(common: string, path: string, init: RequestInit, signal?: Ab
   } catch (error) {
     throw new HostError(
       `daemon: the daemon of this repository does not answer: ${error instanceof Error ? error.message : String(error)}`,
-      6,
+      exits.blocked,
     );
   }
 }
@@ -63,7 +64,7 @@ async function json(response: Response): Promise<unknown> {
   try {
     return await response.json();
   } catch {
-    throw new HostError(`daemon: the daemon sent an invalid answer (status ${response.status})`, 6);
+    throw new HostError(`daemon: the daemon sent an invalid answer (status ${response.status})`, exits.blocked);
   }
 }
 
@@ -86,7 +87,7 @@ export async function readStatus(common: string, signal?: AbortSignal): Promise<
   const response = await call(common, '/status', { method: 'GET' }, signal);
   const value = await json(response);
   if (response.status !== 200)
-    throw new HostError(`daemon: the daemon answered status ${response.status} to the status request`, 6);
+    throw new HostError(`daemon: the daemon answered status ${response.status} to the status request`, exits.blocked);
   return parseStatus(value);
 }
 
@@ -100,21 +101,28 @@ export function requestSelection(explicit: string | undefined): Selection {
   };
 }
 
-type Prefix = 'run' | 'queue' | 'daemon' | 'land: blocked';
+type Prefix = 'run' | 'queue' | 'daemon' | 'land' | 'land: blocked';
 
 export const unanswered = (prefix: Prefix, reason: string) =>
   `${prefix}: the daemon of this repository does not answer: ${reason}; read celetis daemon status`;
 export const unknownOutcome = (prefix: Prefix, cause: string) =>
-  new HostError(`${prefix}: the outcome of the request is unknown: ${cause}; read celetis daemon status`, 6);
+  new HostError(
+    `${prefix}: the outcome of the request is unknown: ${cause}; read celetis daemon status`,
+    exits.blocked,
+  );
 
 export async function requireDaemon(common: string, prefix: Prefix): Promise<DaemonIdentity> {
-  if (process.platform === 'win32') throw new HostError(`${prefix}: Windows is not a support target`, 2);
+  if (process.platform === 'win32')
+    throw new HostError(`${prefix}: Windows is not a support target`, exits.prerequisite);
   const found = await findDaemon(common);
   if (found.kind === 'none')
-    throw new HostError(`${prefix}: no daemon runs for this repository; start it: celetis daemon start`, 3);
-  if (found.kind === 'unknown') throw new HostError(unanswered(prefix, found.reason), 6);
+    throw new HostError(
+      `${prefix}: no daemon runs for this repository; start it: celetis daemon start`,
+      exits.prerequisite,
+    );
+  if (found.kind === 'unknown') throw new HostError(unanswered(prefix, found.reason), exits.blocked);
   const restart = await revisionRefusal(found.identity, prefix);
-  if (restart !== null) throw new HostError(restart, 1);
+  if (restart !== null) throw new HostError(restart, exits.prerequisite);
   return found.identity;
 }
 
@@ -144,15 +152,15 @@ export async function sendRun(
   request: Extract<DaemonRequest, { kind: 'run' | 'resume' | 'queue' }>,
   prefix: 'run' | 'queue',
   subject: string,
-): Promise<number> {
+): Promise<ExitCode> {
   const { identity, answer } = await askDaemon(common, request, prefix);
   if (!answer.accepted) {
-    (answer.code === 0 ? console.log : console.error)(answer.line);
+    (answer.code === exits.done ? console.log : console.error)(answer.line);
     return answer.code;
   }
   if (answer.run === null) throw unknownOutcome(prefix, 'daemon: the daemon sent no run ID');
   console.log(
     `${prefix}: ${subject}: accepted as run ${answer.run.slice(0, 8)} of the daemon PID ${identity.pid}; read its progress: celetis daemon status`,
   );
-  return 0;
+  return exits.done;
 }

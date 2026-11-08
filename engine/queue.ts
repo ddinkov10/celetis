@@ -1,13 +1,12 @@
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { type ExitCode, exits, usage } from './lib/contract.ts';
 import type { QueueAction, QueueRecord } from './lib/queue-types.ts';
 
 type Status = { command: 'status' };
 type QueueShape = Status | { command: 'action'; json: string };
 type QueueForm = Status | { command: 'action'; action: QueueAction };
 
-const usage =
-  "usage: celetis --agent <host> queue action '<QueueAction JSON>' | queue status; an action with a wake sends one request to the master daemon of this repository and returns";
 const removed = 'the program version of this command was removed after an update; run the command again';
 const here = import.meta.dir;
 async function gone(files: string[]) {
@@ -22,7 +21,7 @@ function shapeOf(argv: string[]): QueueShape | null {
   return null;
 }
 
-export async function main(argv: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<ExitCode> {
   const unavailable = await gone([
     'daemon.ts',
     'next-step.ts',
@@ -77,20 +76,20 @@ export async function main(argv: string[]): Promise<number> {
   if (quiet) argv = argv.toSpliced(argv.indexOf('--quiet'), 1);
   const shape = shapeOf(argv);
   if (shape === null) {
-    console.error(usage);
-    return 2;
+    console.error(usage('queue'));
+    return exits.usage;
   }
   if (unavailable) {
     console.error(`queue: ${removed}`);
-    return 1;
+    return exits.prerequisite;
   }
   let form: QueueForm;
   try {
     const { parseQueueAction } = await import('./lib/queue.ts');
     form = 'json' in shape ? { command: shape.command, action: parseQueueAction(JSON.parse(shape.json)) } : shape;
   } catch {
-    console.error(usage);
-    return 2;
+    console.error(usage('queue'));
+    return exits.usage;
   }
   const { markDefect } = await import('./lib/events.ts');
   const { HostError, requireBun } = await import('./lib/host.ts');
@@ -101,7 +100,8 @@ export async function main(argv: string[]): Promise<number> {
   try {
     requireBun();
     const checkout = await locateCheckouts(process.cwd());
-    if (checkout.main === null || checkout.common === null) throw new HostError('celetis: need a Git checkout', 2);
+    if (checkout.main === null || checkout.common === null)
+      throw new HostError('celetis: need a Git checkout', exits.usage);
     const { main, common } = checkout;
     const requested = requestSelection(explicit);
     const queue = await readQueue(main, common);
@@ -115,14 +115,14 @@ export async function main(argv: string[]): Promise<number> {
       record?.numbers[0] === undefined ? 'queue' : `#${record.numbers[0]}`;
     if (form.command === 'status') {
       console.log(JSON.stringify(await readQueueView(operation)));
-      return 0;
+      return exits.done;
     }
     const { action } = form;
     if (action.kind === 'continue' || action.kind === 'retry' || (action.kind === 'add' && !queue?.numbers.length))
       await requireDaemon(common, 'queue');
     const receipt = await admitQueue(operation, action);
     console.log(JSON.stringify(receipt.view));
-    if (!receipt.wake) return 0;
+    if (!receipt.wake) return exits.done;
     return await sendRun(
       common,
       { kind: 'queue', id: receipt.wake.id, token: receipt.wake.token, selection: requested, quiet },
@@ -133,7 +133,7 @@ export async function main(argv: string[]): Promise<number> {
     const reason = error instanceof Error ? error.message : String(error);
     if (reason) console.error(reason);
     markDefect(error);
-    return error instanceof HostError ? error.code : 1;
+    return error instanceof HostError ? error.code : exits.internal;
   }
 }
 

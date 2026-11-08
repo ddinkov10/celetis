@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
+import { type ExitCode, exits } from './contract.ts';
 import { isAlias, isMap, isScalar, isSeq, parseAllDocuments } from './vendor/yaml.mjs';
 
 export class LessonError extends Error {
   constructor(
-    readonly code: 2 | 3 | 6,
+    readonly code: ExitCode,
     path: string,
     message: string,
   ) {
@@ -125,7 +126,7 @@ const diagnoses: readonly Diagnosis[] = [
 ];
 
 function fail(path: string, message: string): never {
-  throw new LessonError(2, path, message);
+  throw new LessonError(exits.usage, path, message);
 }
 export function object(
   value: unknown,
@@ -862,19 +863,20 @@ export function captureChanges(files: ReadonlyMap<string, string>, input: Captur
   for (const item of input.incidents) {
     const stored = saved.get(item.id);
     if (stored && stored.evidence !== stable(item))
-      throw new LessonError(2, path, `incident ${item.id} has unequal evidence in ${stored.path}`);
+      throw new LessonError(exits.usage, path, `incident ${item.id} has unequal evidence in ${stored.path}`);
   }
   const added = input.incidents.filter((item) => !saved.has(item.id));
   if (!added.length) return null;
   const before = files.get(path);
   if ((before === undefined ? null : hash(before)) !== input.expected)
-    throw new LessonError(3, path, 'stale: pending digest changed');
+    throw new LessonError(exits.prerequisite, path, 'stale: pending digest changed');
   const previous = before === undefined ? undefined : parseLesson(before, path);
   if (previous && (input.name !== previous.name || input.source !== previous.source))
-    throw new LessonError(2, path, 'capture must preserve the proposal name and origin');
+    throw new LessonError(exits.usage, path, 'capture must preserve the proposal name and origin');
   for (const item of input.incidents) {
     const old = saved.get(item.id);
-    if (old && old.path !== path) throw new LessonError(2, path, `incident ${item.id} already belongs to ${old.path}`);
+    if (old && old.path !== path)
+      throw new LessonError(exits.usage, path, `incident ${item.id} already belongs to ${old.path}`);
   }
   const incidents = [...(previous?.incidents ?? []), ...added];
   const document = serializeLesson({

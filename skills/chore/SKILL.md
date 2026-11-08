@@ -24,7 +24,7 @@ in `/celetis:bug` or `/celetis:feature`. If you have not completed step N, you c
 ## Flow
 
 **Before step 1.** Check the wiring per `<plugin>/docs/procedures/lane-start.md`, "Before step 1".
-Only its exit 0 starts step 1.
+Only the exit 0 of `setup status` starts step 1.
 
 1. **Confirm the zero-behavior-change claim.** Any behavior delta → redirect: misbehaviour → `/celetis:bug`,
    new behavior → `/celetis:feature`. Proceed only if nothing observable changes. Then start the

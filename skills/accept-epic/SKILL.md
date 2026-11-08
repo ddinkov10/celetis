@@ -86,7 +86,7 @@ with current review identity, targets, results, and published parent comment ref
 `celetis --agent <host> issue <n> complete-epic <file>`. The engine checks shape and freshness;
 this session checks evidence truth, semantic coverage, and current targets.
 
-Exit 0 reports completion or an already closed parent; distinguish them. Exit 2 requires corrected
+Exit 0 of `issue <n> complete-epic <file>` reports completion or an already closed parent; distinguish them. Exit 2 requires corrected
 input. Exit 3 requires current prerequisite or coverage review. Exit 6 requires the entry's
 approval procedure for access failures and the actual partial-write reconciliation of "Epic
 completion and repair" in `<plugin>/docs/issue-tracker.md`. Re-read state before retrying; retain

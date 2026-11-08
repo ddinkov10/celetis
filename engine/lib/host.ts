@@ -1,14 +1,13 @@
 import { realpath } from 'node:fs/promises';
 import { bunFloor, type Host } from './config-core.ts';
+import { type ExitCode, exitCodeOf, exits } from './contract.ts';
 import { claudeInstallation, codexHome, codexPlugin } from './plugin-metadata.ts';
 import { bunArgs, childEnv, run, updateDescriptor } from './process.ts';
-
-export const updateHint = 'celetis: when a skill or a document gave this command, run celetis update';
 
 export class HostError extends Error {
   constructor(
     message: string,
-    readonly code = 1,
+    readonly code: ExitCode,
   ) {
     super(message);
   }
@@ -18,43 +17,43 @@ export class NotInstalled extends HostError {}
 
 export async function commonDir(cwd: string): Promise<string> {
   const result = await run('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd });
-  if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
+  if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
   return result.stdout.replace(/\n$/, '');
 }
 
 export async function mainCheckout(cwd: string): Promise<string> {
   const gitPath = async (args: string[], at = cwd) => {
     const result = await run('git', ['rev-parse', ...args], { cwd: at });
-    if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
+    if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
     return realpath(result.stdout.replace(/\n$/, ''));
   };
   const active = await gitPath(['--show-toplevel']);
   const common = await realpath(await commonDir(cwd));
   if ((await gitPath(['--absolute-git-dir'])) === common) return active;
   const listed = await run('git', ['worktree', 'list', '--porcelain', '-z'], { cwd });
-  if (listed.code !== 0) throw new HostError(listed.stderr.trimEnd(), listed.code);
+  if (listed.code !== 0) throw new HostError(listed.stderr.trimEnd(), exits.blocked);
   const first = listed.stdout.split('\0\0')[0]?.split('\0') ?? [];
   const candidate = first[0]?.startsWith('worktree ') ? first[0].slice(9) : '';
   const message = `celetis: cannot identify the main checkout from Git metadata: ${common}`;
-  if (!candidate || first.includes('bare')) throw new HostError(message, 2);
+  if (!candidate || first.includes('bare')) throw new HostError(message, exits.prerequisite);
   try {
     const main = await gitPath(['--show-toplevel'], candidate);
     if ((await gitPath(['--absolute-git-dir'], main)) === common) return main;
   } catch (error) {
-    throw new HostError(`${message}\n${error instanceof Error ? error.message : String(error)}`, 2);
+    throw new HostError(`${message}\n${error instanceof Error ? error.message : String(error)}`, exits.prerequisite);
   }
-  throw new HostError(message, 2);
+  throw new HostError(message, exits.prerequisite);
 }
 
 export function requireBun(): void {
   if (Bun.semver.order(Bun.version, bunFloor) < 0) {
-    throw new HostError(`celetis: need Bun >=${bunFloor} on PATH, found ${Bun.version}`, 2);
+    throw new HostError(`celetis: need Bun >=${bunFloor} on PATH, found ${Bun.version}`, exits.prerequisite);
   }
 }
 
 export function selectHost(host: string): Host {
   if (host !== 'claude' && host !== 'codex')
-    throw new HostError(`celetis: invalid agent ${host}; use claude or codex`, 2);
+    throw new HostError(`celetis: invalid agent ${host}; use claude or codex`, exits.usage);
   return host;
 }
 
@@ -73,10 +72,11 @@ async function nativeCodexRequest(
   const { fstatSync } = await import('node:fs');
   const { constants } = await import('node:os');
   const { createInterface } = await import('node:readline');
+  const blocked = 6;
   class HostError extends Error {
     constructor(
       message: string,
-      readonly code = 1,
+      readonly code: number,
     ) {
       super(message);
     }
@@ -98,7 +98,7 @@ async function nativeCodexRequest(
     stdio: ['pipe', 'pipe', 'pipe', ...(inheritedFd === undefined ? [] : [inheritedFd])],
   });
   if (!child.stdin || !child.stdout || !child.stderr)
-    throw new HostError('celetis: cannot open Codex app-server streams');
+    throw new HostError('celetis: cannot open Codex app-server streams', blocked);
   const input = child.stdin;
   const output = child.stdout;
   const errors = child.stderr;
@@ -134,31 +134,35 @@ async function nativeCodexRequest(
     const deadline = Date.now() + 10_000;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new HostError(`celetis: Codex ${operation} timed out after 10 seconds`)), 10_000);
+      timer = setTimeout(
+        () => reject(new HostError(`celetis: Codex ${operation} timed out after 10 seconds`, blocked)),
+        10_000,
+      );
     });
     try {
       while (Date.now() < deadline) {
         const next = await Promise.race([iterator.next(), timeout, interrupted]);
-        if (next.done) throw new HostError(`celetis: Codex app-server closed its output during ${operation}`);
+        if (next.done) throw new HostError(`celetis: Codex app-server closed its output during ${operation}`, blocked);
         let value: unknown;
         try {
           value = JSON.parse(next.value);
         } catch {
-          throw new HostError('celetis: invalid Codex app-server response');
+          throw new HostError('celetis: invalid Codex app-server response', blocked);
         }
-        if (!object(value)) throw new HostError('celetis: invalid Codex app-server response');
+        if (!object(value)) throw new HostError('celetis: invalid Codex app-server response', blocked);
         if (Object.hasOwn(value, 'id')) {
           if (value.id !== id) continue;
           if (value.error != null) {
             const message = object(value.error) ? (value.error.message ?? 'unknown error') : 'unknown error';
-            throw new HostError(`celetis: Codex ${operation} failed: ${message}`);
+            throw new HostError(`celetis: Codex ${operation} failed: ${message}`, blocked);
           }
-          if (!object(value.result)) throw new HostError('celetis: invalid Codex app-server response');
+          if (!object(value.result)) throw new HostError('celetis: invalid Codex app-server response', blocked);
           return value;
         }
-        if (typeof value.method !== 'string') throw new HostError('celetis: invalid Codex app-server response');
+        if (typeof value.method !== 'string')
+          throw new HostError('celetis: invalid Codex app-server response', blocked);
       }
-      throw new HostError(`celetis: Codex ${operation} timed out after 10 seconds`);
+      throw new HostError(`celetis: Codex ${operation} timed out after 10 seconds`, blocked);
     } finally {
       clearTimeout(timer);
     }
@@ -201,7 +205,7 @@ async function nativeCodexRequest(
     const detail = error instanceof Error ? error.message : (failure?.message ?? String(error));
     throw new HostError(
       [detail, stderr.trimEnd()].filter(Boolean).join('\n'),
-      error instanceof HostError ? error.code : 1,
+      error instanceof HostError ? error.code : blocked,
     );
   }
   return result;
@@ -216,7 +220,7 @@ export async function codexRequest(
 ): Promise<unknown> {
   const inheritedFd = updateDescriptor();
   const env = childEnv({ ...process.env, CODEX_HOME: await codexHome(nativeHome) });
-  if (!Bun.which('codex', { PATH: env.PATH })) throw new HostError('celetis: codex is not on PATH');
+  if (!Bun.which('codex', { PATH: env.PATH })) throw new HostError('celetis: codex is not on PATH', exits.prerequisite);
   try {
     if (execute === run) return await nativeCodexRequest(cwd, method, params, inheritedFd, env);
     const program = `try{const [cwd,method,params,fd]=JSON.parse(process.argv[1]);console.log(JSON.stringify(await (${nativeCodexRequest.toString()})(cwd,method,params,fd??undefined,process.env)));}catch(error){console.error(error.message);process.exitCode=typeof error.code==='number'?error.code:1;}`;
@@ -226,14 +230,14 @@ export async function codexRequest(
       bunArgs('--eval', [program, JSON.stringify([cwd, method, params, helperFd])]),
       { cwd, env, inheritedFd },
     );
-    if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
+    if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
     const value: unknown = JSON.parse(result.stdout);
-    if (!object(value)) throw new HostError('celetis: invalid Codex app-server response');
+    if (!object(value)) throw new HostError('celetis: invalid Codex app-server response', exits.blocked);
     return value;
   } catch (error) {
     throw new HostError(
       error instanceof Error ? error.message : String(error),
-      object(error) && typeof error.code === 'number' ? error.code : 1,
+      (object(error) ? exitCodeOf(error.code) : null) ?? exits.internal,
     );
   }
 }
@@ -242,7 +246,7 @@ export async function installedRoot(host: Host, cwd: string, execute: typeof run
   if (host === 'claude') {
     const missing =
       'celetis: no enabled Celetis installation; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis';
-    if (!Bun.which('claude', { PATH: childEnv().PATH })) throw new HostError(missing);
+    if (!Bun.which('claude', { PATH: childEnv().PATH })) throw new HostError(missing, exits.prerequisite);
     const result = await execute('claude', ['plugin', 'list', '--json'], { cwd });
     if (result.code !== 0) {
       throw new HostError(
@@ -253,14 +257,15 @@ export async function installedRoot(host: Host, cwd: string, execute: typeof run
         ]
           .filter(Boolean)
           .join('\n'),
-        result.code,
+        exits.blocked,
       );
     }
     let records: unknown;
     try {
       records = JSON.parse(result.stdout);
     } catch {}
-    if (!Array.isArray(records)) throw new HostError(`celetis: invalid plugin list JSON\n${result.stdout.trimEnd()}`);
+    if (!Array.isArray(records))
+      throw new HostError(`celetis: invalid plugin list JSON\n${result.stdout.trimEnd()}`, exits.blocked);
     return (await claudeInstallation(records, cwd)).root;
   }
   return (await codexPlugin(cwd, execute)).root;

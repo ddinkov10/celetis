@@ -1,5 +1,14 @@
 import { readFile, realpath } from 'node:fs/promises';
 import { dirname, join, posix } from 'node:path';
+import {
+  classOf,
+  commands,
+  type DeclaredClass,
+  type Entry,
+  type Form,
+  formText,
+  launcherForms,
+} from '../engine/lib/contract.ts';
 import { HostError } from '../engine/lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
 import { type Job, printJobs, runJobs } from '../engine/lib/parallel.ts';
@@ -56,13 +65,16 @@ export function classify(path: string, source: Buffer): string {
 const pluginCitation = /<plugin>\/([A-Za-z0-9._/-]+)(?![A-Za-z0-9._/<>*{-])/g;
 const relativeLink = /\]\(([^)\s]+)\)/g;
 
-export function checkCitations(files: ReadonlyMap<string, string>): string[] {
-  const checked = [...files].filter(
+const agentText = (files: ReadonlyMap<string, string>) =>
+  [...files].filter(
     ([path]) =>
       /^skills\/.+\.md$/.test(path) ||
       /^docs\/(?:procedures|principles)\/[^/]+\.md$/.test(path) ||
       path === 'step-prompt.md',
   );
+
+export function checkCitations(files: ReadonlyMap<string, string>): string[] {
+  const checked = agentText(files);
   const errors: string[] = [];
   const cited = new Map<string, Set<string>>();
   for (const [file, text] of checked) {
@@ -101,6 +113,252 @@ export function checkCitations(files: ReadonlyMap<string, string>): string[] {
   }
   return errors;
 }
+
+const otherPrograms: ReadonlySet<string> = new Set([
+  'bun',
+  'git',
+  'gh',
+  'claude',
+  'codex',
+  'hc',
+  'herdr-app',
+  'impeccable',
+]);
+
+type Node = { kind: string; children: (string | Node)[] };
+type Text = { prose: string; spans: string[]; lines: string[] };
+type Block = { own: Text; lead?: Text };
+type Mention = { entry: Entry; form: string };
+type Outcome =
+  | { kind: 'bound'; entries: readonly string[] }
+  | { kind: 'undeclared'; entries: readonly string[] }
+  | { kind: 'skip'; program: string }
+  | { kind: 'unbound' };
+export type Binding = Readonly<{ file: string; line: number; reference: string; code: string; outcome: Outcome }>;
+
+const open = '\u{E000}';
+const close = '\u{E001}';
+const gap = '\u{E002}';
+
+function tree(text: string): Node {
+  const mark = (kind: string) => (children: string) => `${open}${kind}${children}${close}`;
+  const rendered = Bun.markdown.render(text, {
+    paragraph: mark('p'),
+    heading: mark('h'),
+    list: mark('l'),
+    listItem: mark('i'),
+    tr: mark('r'),
+    td: mark('c'),
+    th: mark('c'),
+    codespan: mark('s'),
+    code: mark('k'),
+  });
+  const root: Node = { kind: 'root', children: [] };
+  const stack = [root];
+  for (const [token, kind] of rendered.matchAll(/\u{E000}([\s\S])|\u{E001}|[^\u{E000}\u{E001}]+/gu)) {
+    const top = stack.at(-1) as Node;
+    if (kind) {
+      const node: Node = { kind, children: [] };
+      top.children.push(node);
+      stack.push(node);
+    } else if (token === close) stack.pop();
+    else top.children.push(token);
+  }
+  return root;
+}
+
+const flat = (node: Node): string =>
+  node.children.map((child) => (typeof child === 'string' ? child : flat(child))).join('');
+
+function own(node: Node, text: Text = { prose: '', spans: [], lines: [] }): Text {
+  for (const child of node.children) {
+    if (typeof child === 'string') text.prose += child;
+    else if (child.kind === 's') {
+      text.spans.push(flat(child));
+      text.prose += gap;
+    } else if (child.kind === 'k') {
+      text.lines.push(...flat(child).split('\n'));
+      text.prose += gap;
+    } else if (!['l', 'r', 'h'].includes(child.kind)) {
+      text.prose += gap;
+      own(child, text);
+      text.prose += gap;
+    }
+  }
+  return text;
+}
+
+function blocks(container: Node, item?: Text): Block[] {
+  const found: Block[] = [];
+  let stray = '';
+  let previous: Node | undefined;
+  for (const child of container.children) {
+    if (typeof child === 'string') {
+      if (!item) stray += child;
+      continue;
+    }
+    if (stray.trim()) found.push({ own: { prose: stray, spans: [], lines: [] } });
+    stray = '';
+    if (child.kind === 'l') {
+      const lead = item ?? (previous?.kind === 'p' ? own(previous) : undefined);
+      for (const each of child.children) {
+        if (typeof each === 'string') continue;
+        const text = own(each);
+        found.push({ own: text, ...(lead ? { lead } : {}) }, ...blocks(each, text));
+      }
+    } else if (child.kind === 'r' || child.kind === 'h' || (!item && (child.kind === 'p' || child.kind === 'k')))
+      found.push({ own: own(child.kind === 'k' ? { kind: 'block', children: [child] } : child) });
+    previous = child;
+  }
+  if (stray.trim()) found.push({ own: { prose: stray, spans: [], lines: [] } });
+  return found;
+}
+
+const words = (span: string) => span.replaceAll(/[[\]]/g, '').match(/(?:<[^>]*>|'[^']*'|"[^"]*"|\S)+/g) ?? [];
+const placeholder = (word: string) => (word.startsWith('<') && word.includes('>')) || /^[A-Z][A-Z0-9_]*$/.test(word);
+const slot = (word: string) => /^[<'[]/.test(word) || /^[A-Z][A-Z0-9_]*$/.test(word);
+const fits = (word: string, formWord: string) =>
+  slot(formWord) || placeholder(word) || word === formWord || formWord.split('|').includes(word);
+const program = (span: string) => {
+  const all = words(span);
+  const first = all.findIndex((word) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word));
+  return first < 0 ? [] : all.slice(first);
+};
+
+function formMatch(text: readonly string[], { words: formWords, flags }: Form): boolean {
+  let at = 0;
+  for (let index = 0; index < text.length; index++) {
+    const word = text[index] as string;
+    if (word.startsWith('--') && formWords[at] !== word) {
+      const [name, value] = word.split('=');
+      const flag = flags.find((each) => each.name === name);
+      if (!flag) return false;
+      if (flag.value && value === undefined) index++;
+      continue;
+    }
+    const formWord = formWords[at];
+    if (formWord === undefined || !fits(word, formWord)) return false;
+    at++;
+  }
+  return formWords.slice(at).every(slot);
+}
+
+type Read = { mentions: Mention[]; error?: string };
+
+function read(span: string, line: boolean): Read {
+  const all = program(span);
+  if (all[0] !== 'celetis') {
+    const entries = commands.filter(({ command }) => command === all[0]);
+    if (line || all.length < 2 || !entries.length) return { mentions: [] };
+    return {
+      mentions: entries.flatMap((entry) =>
+        entry.forms.filter((each) => formMatch(all, each)).map((each) => ({ entry, form: formText(each) })),
+      ),
+    };
+  }
+  const rest = all[1] === '--agent' ? all.slice(3) : all.slice(1);
+  const [name] = rest;
+  if (name !== undefined && placeholder(name))
+    return { mentions: commands.map((entry) => ({ entry, form: rest.join(' ') })) };
+  if (launcherForms.some((each) => formMatch(rest, each))) return { mentions: [] };
+  const entries = commands.filter(({ command }) => command === name);
+  if (!entries.length) return { mentions: [], error: `\`${span}\` names no command` };
+  const mentions = entries.flatMap((entry) =>
+    entry.forms.filter((each) => formMatch(rest, each)).map((each) => ({ entry, form: formText(each) })),
+  );
+  if (mentions.length) return { mentions };
+  const declared = entries.flatMap(({ forms }) => forms.map(formText)).join(' | ');
+  return { mentions, error: `\`${span}\` matches no form of ${name}: ${declared}` };
+}
+
+const exitReference =
+  /\b(?:[Ee]xits?\s+with|(?:[Ee]xits?|[Ss]tatus)(?:\s+(?:status|codes?))?)\s+(?:128\+n|\d+)(?![\d+])(?:(?:\s*\([^)]*\))?(?:\s*,\s*(?:or\s+|and\s+)?|\s+(?:or|and)\s+)(?:128\+n|\d+)(?![\d+]))*/g;
+
+const literal = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+type Range = { index: number; end: number };
+const destination = '\\]\\([^)]*\\)';
+function locate(source: string, from: number, text: string): Range[] {
+  const parts = text.split(/\s+/).filter(Boolean);
+  if (!parts.length) return [];
+  const word = (part: string) => [...part].map(literal).join(`(?:[*_\`]|${destination})*`);
+  const pattern = new RegExp(parts.map(word).join(`(?:[\\s*_>|\`[\\]]|${destination})+`), 'g');
+  pattern.lastIndex = from;
+  const match = pattern.exec(source);
+  return match ? [{ index: match.index, end: match.index + match[0].length }] : [];
+}
+const lineAt = (source: string, index: number) => source.slice(0, index).split('\n').length;
+const declares = (code: string) => {
+  const name: DeclaredClass | null = code === '128+n' ? 'signal' : classOf(Number(code));
+  return ({ entry }: Mention) => name !== null && entry.exits.includes(name);
+};
+const formsOf = (list: readonly Mention[]) => [...new Set(list.map(({ form }) => form))];
+
+function scan(files: ReadonlyMap<string, string>): { bindings: Binding[]; errors: string[] } {
+  const found: Binding[] = [];
+  const errors: string[] = [];
+  for (const [file, source] of agentText(files)) {
+    let cursor = 0;
+    for (const { own: text, lead } of blocks(tree(source))) {
+      const segments = text.prose.split(gap).filter((each) => each.trim());
+      const head = segments[0]?.trim().split(/\s+/).slice(0, 3).join(' ') ?? '';
+      const anchors = [head, text.spans[0] ?? '', text.lines.find((l) => l.trim()) ?? ''];
+      const located = anchors.flatMap((anchor) => locate(source, cursor, anchor));
+      const start = located.length ? Math.min(...located.map(({ index }) => index)) : cursor;
+      let end = Math.max(start + 1, ...located.map((range) => range.end));
+      const at = (part: string, from = start) => {
+        const [range] = locate(source, from, part);
+        if (!range) return from;
+        end = Math.max(end, range.end);
+        return range.index;
+      };
+      at(segments.at(-1)?.trim().split(/\s+/).slice(-3).join(' ') ?? '');
+      const mentions: Mention[] = [];
+      const reads = [
+        ...text.spans.map((span) => [span, read(span, false)] as const),
+        ...text.lines.map((each) => [each, read(each, true)] as const),
+      ];
+      for (const [span, { mentions: named, error }] of reads) {
+        mentions.push(...named);
+        if (error) errors.push(`verify: contract: ${file}:${lineAt(source, at(span))}: ${error}`);
+      }
+      for (const span of lead?.spans ?? []) mentions.push(...read(span, false).mentions);
+      for (const each of lead?.lines ?? []) mentions.push(...read(each, true).mentions);
+      const programs = [...text.spans, ...(lead?.spans ?? [])].flatMap((span) => {
+        const name = program(span)[0]?.split('/').at(-1);
+        return name && otherPrograms.has(name) ? [name] : [];
+      });
+      let from = start;
+      for (const [match] of text.prose.matchAll(exitReference)) {
+        const reference = match.replaceAll(/\s+/g, ' ');
+        from = at(reference, from);
+        const line = lineAt(source, from);
+        from++;
+        for (const [code] of reference.replaceAll(/\([^)]*\)/g, '').matchAll(/128\+n|\d+/g)) {
+          const outcome: Outcome = mentions.length
+            ? mentions.some(declares(code))
+              ? { kind: 'bound', entries: formsOf(mentions.filter(declares(code))) }
+              : { kind: 'undeclared', entries: formsOf(mentions) }
+            : programs[0]
+              ? { kind: 'skip', program: programs[0] }
+              : { kind: 'unbound' };
+          found.push({ file, line, reference, code, outcome });
+          if (outcome.kind === 'undeclared')
+            errors.push(
+              `verify: contract: ${file}:${line}: "${reference}": ${code} is not declared by ${outcome.entries.join(' | ')}`,
+            );
+          if (outcome.kind === 'unbound')
+            errors.push(`verify: contract: ${file}:${line}: "${reference}": name the command of this exit`);
+        }
+      }
+      cursor = end;
+    }
+  }
+  return { bindings: found, errors };
+}
+
+export const bindings = (files: ReadonlyMap<string, string>): readonly Binding[] => scan(files).bindings;
+
+export const checkContract = (files: ReadonlyMap<string, string>): string[] => scan(files).errors;
 
 export async function main(argv: string[]): Promise<number> {
   try {
@@ -164,9 +422,9 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
         unknown = true;
       }
     }
-    const citations = checkCitations(texts);
-    for (const line of citations) console.error(line);
-    if (unknown || citations.length) return 1;
+    const textErrors = [...checkCitations(texts), ...checkContract(texts)];
+    for (const line of textErrors) console.error(line);
+    if (unknown || textErrors.length) return 1;
     const vendor = await readFile('engine/lib/vendor/yaml.mjs');
     if (
       new Bun.CryptoHasher('sha256').update(vendor).digest('hex') !==

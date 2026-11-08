@@ -1,5 +1,6 @@
 import { validateAgentOrder } from './agent-order.ts';
 import type { Host } from './config-core.ts';
+import { exits } from './contract.ts';
 import { HostError } from './host.ts';
 import { parseAllDocuments } from './vendor/yaml.mjs';
 
@@ -109,7 +110,7 @@ function entry(value: unknown, scope: Scope): SetupEntry | null {
 
 export function parseSetupRecord(source: string, path: string): WiringRecord {
   const invalid = (reason: string): never => {
-    throw new HostError(`setup: ${path}: ${reason}; fix or remove the setup record first`);
+    throw new HostError(`setup: ${path}: ${reason}; fix or remove the setup record first`, exits.usage);
   };
   if (parseAllDocuments(source, { uniqueKeys: true, merge: false }).some((doc) => doc.errors.length))
     invalid('ambiguous JSON; fix duplicate object keys');

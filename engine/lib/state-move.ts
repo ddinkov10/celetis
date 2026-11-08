@@ -1,6 +1,7 @@
 import type { Stats } from 'node:fs';
 import { lstat, rename } from 'node:fs/promises';
 import { join } from 'node:path';
+import { type ExitCode, exits } from './contract.ts';
 import { HostError } from './host.ts';
 import { childEnv, run } from './process.ts';
 import { processState } from './process-identity.ts';
@@ -34,8 +35,8 @@ const described = (error: unknown) => (error instanceof Error ? error.message : 
 export async function moveState(common: string): Promise<void> {
   const old = join(common, 'celetis-flow');
   const next = join(common, 'celetis');
-  const refuse = (line: string): never => {
-    throw new HostError(`state: ${line}`, 1);
+  const refuse = (line: string, code: ExitCode = exits.prerequisite): never => {
+    throw new HostError(`state: ${line}`, code);
   };
   const held = `${old} does not move`;
   const both = `${old} and ${next} both exist; nothing moves; keep one of them by hand, then run the command again`;
@@ -46,7 +47,7 @@ export async function moveState(common: string): Promise<void> {
       return await lstat(path);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
-      return refuse(`cannot read ${path}: ${described(error)}`);
+      return refuse(`cannot read ${path}: ${described(error)}`, exits.blocked);
     }
   };
   const collided = async () => {
@@ -54,7 +55,7 @@ export async function moveState(common: string): Promise<void> {
   };
   const listing = async (): Promise<string> => {
     const result = await git(['for-each-ref', '--format=%(objectname) %(refname)', locks]);
-    if (result.code !== 0) refuse(`cannot read ${locks}: ${result.stderr.trim()}`);
+    if (result.code !== 0) refuse(`cannot read ${locks}: ${result.stderr.trim()}`, exits.blocked);
     return result.stdout;
   };
   for (let round = 0; round < 3; round++) {
@@ -97,7 +98,7 @@ export async function moveState(common: string): Promise<void> {
           );
       }
     }
-    if (lines.length) throw new HostError(lines.join('\n'), 1);
+    if (lines.length) throw new HostError(lines.join('\n'), exits.prerequisite);
     if (folder && (await entry(next))) {
       await collided();
       continue;
@@ -121,7 +122,7 @@ export async function moveState(common: string): Promise<void> {
         await collided();
         continue;
       }
-      refuse(`cannot move ${old} to ${next}: ${described(error)}`);
+      refuse(`cannot move ${old} to ${next}: ${described(error)}`, exits.blocked);
     }
     return;
   }

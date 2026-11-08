@@ -1,5 +1,7 @@
 import { execFile } from 'node:child_process';
 import { join } from 'node:path';
+import { exits } from './contract.ts';
+import { HostError } from './host.ts';
 import { bunArgs, childEnv } from './process.ts';
 import { daemonScript } from './process-identity.ts';
 
@@ -23,8 +25,13 @@ export async function requestStatePreparation(main: string, request: StatePrepar
       },
       (error, stdout, stderr) => {
         if (error)
-          reject(new Error(stderr.trim() || `state preparation: ${request.kind} preparation failed: ${error.message}`));
-        else if (stdout) reject(new Error('state preparation: unexpected preparation output'));
+          reject(
+            new HostError(
+              stderr.trim() || `state preparation: ${request.kind} preparation failed: ${error.message}`,
+              exits.blocked,
+            ),
+          );
+        else if (stdout) reject(new HostError('state preparation: unexpected preparation output', exits.blocked));
         else resolve();
       },
     );

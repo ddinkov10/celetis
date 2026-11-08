@@ -139,7 +139,7 @@ and transpiler cache remain disabled. Pass each external executable and its argu
 array; check its status and stop on failure. Signals stop the owned child. The worktree command
 adds an LF separator after nonempty setup output and prints the final absolute lane path.
 `setup try` prints its path even when preparation or execution fails, and returns the child
-status. `worktree` and `setup lane` report setup failure as status 1.
+status. `worktree` and `setup lane` report setup failure as exit 6.
 
 The setup skill proposes the relative path and complete contents for review. Before a detached
 wiring test, the product owner approves, creates, and commits the entry and required helpers on
@@ -319,7 +319,7 @@ and open the URL of its line `daemon: board http://127.0.0.1:<port>`. At its sta
 the main config's `board.port`, default 4403, with the full validation of the config. With no
 effective `PORT` in its environment, it binds consecutive ports on `127.0.0.1` through 65535,
 keeping the first successful listener. Only `EADDRINUSE` advances the search. Exhaustion stops the
-start of the daemon with exit 1 and names the range in the daemon log.
+start of the daemon with exit 6 and names the range in the daemon log.
 
 A nonzero `Number(PORT)` requests that exact port instead; zero or NaN means no override.
 An occupied exact port stops the start of the daemon with the existing port-in-use error. Invalid

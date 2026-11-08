@@ -1,7 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { closeSync, constants, fstatSync, mkdirSync, openSync, readSync, renameSync, writeSync } from 'node:fs';
+import { constants as os } from 'node:os';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { format } from 'node:util';
+import { type ExitCode, exits, passThrough, signalExit } from './contract.ts';
 import { HostError } from './host.ts';
 import { revision as fullRevision } from './plugin-metadata.ts';
 import { privateFolderSync, privateMode } from './private-folder.ts';
@@ -44,7 +46,10 @@ export const eventFile = { current: 'events.jsonl', rotated: 'events.1.jsonl', l
 const lineLimit = 16_384;
 const captureLimit = 16_384;
 const rotateSize = 5_242_880;
-const signalCodes = new Set([0, 129, 130, 143]);
+const signalCodes = new Set<number>([
+  exits.done,
+  ...(['SIGHUP', 'SIGINT', 'SIGTERM'] as const).map((name) => signalExit(os.signals[name])),
+]);
 const root = resolve(import.meta.dir, '../..');
 const programRevision =
   fullRevision.test(basename(root)) && basename(dirname(root)) === 'versions' ? basename(root) : null;
@@ -68,10 +73,12 @@ export function withEventLock<T>(folder: string, shared: boolean, work: () => T)
       : openSync(path, constants.O_RDWR | constants.O_CREAT | constants.O_NOFOLLOW, 0o600);
   try {
     const stat = fstatSync(fd);
-    if (!stat.isFile() || !privateMode(stat)) throw new HostError(`celetis: ${path}: need a private regular lock file`);
+    if (!stat.isFile() || !privateMode(stat))
+      throw new HostError(`celetis: ${path}: need a private regular lock file`, exits.blocked);
     const deadline = performance.now() + 2_000;
     while (!tryFlock(fd, shared)) {
-      if (performance.now() >= deadline) throw new HostError('celetis: the record lock is busy after 2 seconds');
+      if (performance.now() >= deadline)
+        throw new HostError('celetis: the record lock is busy after 2 seconds', exits.prerequisite);
       Bun.sleepSync(20);
     }
     return work();
@@ -123,7 +130,12 @@ export function markDefect(error: unknown): void {
   if (!(error instanceof HostError)) marked = { value: error };
 }
 
-export function passOn(code: number): number {
+export function passOn(code: number): ExitCode {
+  passed.add(code);
+  return passThrough(code);
+}
+
+export function recordedElsewhere(code: ExitCode): ExitCode {
   passed.add(code);
   return code;
 }
@@ -276,7 +288,7 @@ function serialize(entry: EventEntry): string {
 function append(line: string): void {
   const folder = eventFolder();
   mkdirSync(dirname(folder), { recursive: true });
-  privateFolderSync(folder, (path, reason) => new HostError(`${path}: ${reason}`));
+  privateFolderSync(folder, (path, reason) => new HostError(`${path}: ${reason}`, exits.blocked));
   withEventLock(folder, false, () => {
     const current = join(folder, eventFile.current);
     const fd = openSync(
@@ -287,11 +299,12 @@ function append(line: string): void {
     let size: number;
     try {
       const stat = fstatSync(fd);
-      if (!stat.isFile() || !privateMode(stat)) throw new HostError(`${current}: need a private regular file`);
+      if (!stat.isFile() || !privateMode(stat))
+        throw new HostError(`${current}: need a private regular file`, exits.blocked);
       const last = Buffer.alloc(1);
       const ended = stat.size === 0 || (readSync(fd, last, 0, 1, stat.size - 1) === 1 && last[0] === 0x0a);
       const bytes = Buffer.from(ended ? line : `\n${line}`);
-      if (writeSync(fd, bytes) !== bytes.length) throw new HostError(`${current}: incomplete write`);
+      if (writeSync(fd, bytes) !== bytes.length) throw new HostError(`${current}: incomplete write`, exits.blocked);
       size = fstatSync(fd).size;
     } finally {
       closeSync(fd);

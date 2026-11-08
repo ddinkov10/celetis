@@ -138,7 +138,7 @@ before recording build completion with `## Built` or `## Before landing`.
 Use `gh issue comment <n> --body-file <report>`. Its first line is ordinary text, for example
 `Runtime verification for #<n>`, and does not start with `## `. This report changes no resolver
 state, clears no refusal, and never replaces a completion report. Use the existing
-`celetis --agent <host> issue` acts for workflow writes.
+`celetis --agent <host> issue <n> <act>` acts for workflow writes.
 
 The remaining hold rules apply to lane work. Apply "Usage-limit exception" before creating or
 restoring a new runtime hold, including after

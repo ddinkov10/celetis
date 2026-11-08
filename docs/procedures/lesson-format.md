@@ -45,8 +45,8 @@ explicit correction. The ignore file can remain after interruption and is valida
 
 All mutations hold a private lock from validation through the final check. Each read in each
 checkout takes the same lock, so no read sees a write in progress. A lane apply holds the lock
-through the project's commit hooks. `capture` waits up to 120 seconds for the lock, and each
-other command up to 10 seconds; then it exits 3 with `busy`. Its file is
+through the project's commit hooks. `lesson-store capture FILE` waits up to 120 seconds for the lock, and each
+other `lesson-store` command up to 10 seconds; then it exits 3 with `busy`. Its file is
 `/tmp/celetis-<uid>/lessons/<digest>.lock`, or `celetis\lessons\<digest>.lock` in the temporary
 folder on Windows, where the digest is the SHA-256 of the real path of the common Git directory.
 Independent proposals use separate UUIDs. The command rejects links and non-regular files and
@@ -229,7 +229,7 @@ request digest for the same ID is an error. Apply writes only the reviewed resul
 checkout, and for a decision with no live change (reject), it writes the working tree with no
 commit and preserves the index.
 
-In a linked checkout, an apply that changes a live path needs a clean checkout on a branch;
+In a linked checkout, a `lesson-store apply SNAPSHOT DIGEST` that changes a live path needs a clean checkout on a branch;
 else it exits 2 with no write. It writes the journal and the live files, stages only those
 paths, and commits them on the branch with the project's hooks. The commit subject is
 `docs(lessons): <decision> <lesson names>`, and its body is `Lesson-Transaction: <journal id>`.

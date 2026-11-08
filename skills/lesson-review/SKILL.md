@@ -66,7 +66,7 @@ unrelated edits, report the commit conflict and retain that fact for step 4. Run
 `celetis --agent <host> lesson-store apply SNAPSHOT DIGEST` only with the approved snapshot file
 and displayed digest. The digest checks the version; it does not prove who approved it.
 
-Exit 3 requires a new read, preview, display, and decision after the reported stale or busy
+Exit 3 of `lesson-store apply SNAPSHOT DIGEST` requires a new read, preview, display, and decision after the reported stale or busy
 condition is resolved. Exit 2 requires correction of the named input or of the checkout state.
 Exit 6 is an access, commit, or recovery block; report it without a success claim. For an
 incomplete transaction, use `celetis --agent <host> lesson-store recover` to complete only its

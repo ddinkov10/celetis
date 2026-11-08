@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { readAgentOrder } from './agent-order.ts';
 import { beginUsageAttempt, readUsage, recordUsage, selectAgent } from './agent-usage.ts';
 import type { Host } from './config-core.ts';
+import { exits } from './contract.ts';
 import { HostError } from './host.ts';
 import type { Operation } from './operation.ts';
 import { codexHome, codexSessionPin } from './plugin-metadata.ts';
@@ -23,7 +24,7 @@ export async function runInteractive(
   argsForHost: (host: Host) => Promise<string[]>,
 ): Promise<number> {
   const { main, common, cwd } = operation.checkout;
-  if (main === null || common === null) throw new HostError('celetis: need a Git checkout', 2);
+  if (main === null || common === null) throw new HostError('celetis: need a Git checkout', exits.usage);
   const decision = selectAgent(
     operation.choice,
     (await readAgentOrder(common)).order,
@@ -37,11 +38,11 @@ export async function runInteractive(
       (value) =>
         `${value.host}: ${value.reason} Reset: ${value.resetAt === null ? 'unknown' : new Date(value.resetAt).toISOString()}`,
     );
-    throw new HostError(`celetis: all default agents are blocked.\n${blocked.join('\n')}`);
+    throw new HostError(`celetis: all default agents are blocked.\n${blocked.join('\n')}`, exits.prerequisite);
   }
   const host = decision.host;
   const executable = Bun.which(host, { PATH: childEnv().PATH });
-  if (!executable) throw new HostError(`celetis: ${host} is not on PATH`);
+  if (!executable) throw new HostError(`celetis: ${host} is not on PATH`, exits.prerequisite);
   if (host === 'codex') process.env.CODEX_HOME = await codexHome();
   const pin = await withPluginRead(host, async () => {
     await requireUpdatePolicy(host, cwd);
@@ -62,7 +63,7 @@ export async function runInteractive(
   const capture = join(captureRoot, attempt.id);
   const extra: string[] = [];
   if (host === 'claude') {
-    const fail = (path: string, reason: string) => new HostError(`usage: ${path}: ${reason}`);
+    const fail = (path: string, reason: string) => new HostError(`usage: ${path}: ${reason}`, exits.blocked);
     await privateFolder(captureRoot, fail);
     await privateFolder(capture, fail);
     extra.push(...(await prepareClaudeUsage(attempt, capture)));
@@ -111,7 +112,9 @@ export async function runInteractive(
     }
   };
   const status = new Promise<number>((resolve, reject) => {
-    child.once('error', (error) => reject(new HostError(`celetis: cannot start ${host}: ${error.message}`)));
+    child.once('error', (error) =>
+      reject(new HostError(`celetis: cannot start ${host}: ${error.message}`, exits.blocked)),
+    );
     child.once('exit', (code, signal) => resolve(code ?? (signal ? 128 + constants.signals[signal] : 1)));
   });
   const monitor = (async () => {

@@ -1,6 +1,7 @@
 import { constants, type Stats } from 'node:fs';
 import { access, lstat, realpath, stat } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
+import { exits } from './contract.ts';
 import { HostError } from './host.ts';
 import { run } from './process.ts';
 import { parseAllDocuments } from './vendor/yaml.mjs';
@@ -91,7 +92,7 @@ refreshes the text between these markers.
     if (!/(?:^|\n)[ \t]*\r?\n$/.test(source + separator)) separator += newline;
     return source + separator + block.replaceAll('\n', newline) + newline;
   }
-  if (pair.kind === 'invalid') throw new HostError(`setup: ${path}: ${markerRepair}`);
+  if (pair.kind === 'invalid') throw new HostError(`setup: ${path}: ${markerRepair}`, exits.prerequisite);
   return source.slice(0, pair.from) + block.replaceAll('\n', pair.newline) + source.slice(pair.to);
 }
 
@@ -132,7 +133,7 @@ export async function trackingProblem(checkout: string, path: string): Promise<P
 async function inspect(checkout: string, path: string, read: (path: string) => Promise<Stats> = lstat) {
   return read(join(checkout, path)).catch((error: NodeJS.ErrnoException) => {
     if (error.code === 'ENOENT') return null;
-    throw new HostError(`setup: cannot inspect ${path}: ${error.message}`);
+    throw new HostError(`setup: cannot inspect ${path}: ${error.message}`, exits.blocked);
   });
 }
 

@@ -3,6 +3,8 @@ import { type BigIntStats, closeSync, constants, fstatSync, lstatSync, openSync,
 import { rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AgentOrder, Host } from './config-core.ts';
+import { type ExitCode, exits } from './contract.ts';
+import { HostError } from './host.ts';
 import { privateMode, sharedFolderSync, sharedMode } from './private-folder.ts';
 import { stateFolder } from './state-folder.ts';
 import { tryFlock } from './update-lock.ts';
@@ -14,7 +16,8 @@ export class AgentOrderConflict extends Error {
   }
 }
 
-const invalid = (path: string, reason: string) => new Error(`agents: ${path}: ${reason}`);
+const invalid = (path: string, reason: string, code: ExitCode = exits.blocked) =>
+  new HostError(`agents: ${path}: ${reason}`, code);
 const recordPath = (folder: string) => join(folder, 'agents.json');
 const sameFile = (a: BigIntStats, b: BigIntStats) => a.dev === b.dev && a.ino === b.ino;
 const privateStat = (stat: BigIntStats) => privateMode({ uid: Number(stat.uid), mode: Number(stat.mode) });
@@ -48,7 +51,7 @@ export function validateAgentOrder(value: unknown): readonly Host[] {
     Array.from(value).some((host) => host !== 'claude' && host !== 'codex') ||
     new Set(value).size !== value.length
   )
-    throw new Error('agents: order must be a nonempty, unique list of claude or codex');
+    throw new HostError('agents: order must be a nonempty, unique list of claude or codex', exits.usage);
   return Object.freeze([...value]) as readonly Host[];
 }
 
@@ -79,7 +82,7 @@ function readOrder(dir: string): AgentOrder {
   try {
     const opened = fstatSync(fd, { bigint: true });
     regular(path, opened);
-    if (!sameFile(before, opened)) throw invalid(path, 'the record changed during the read');
+    if (!sameFile(before, opened)) throw invalid(path, 'the record changed during the read', exits.prerequisite);
     const source = new TextDecoder('utf-8', { fatal: true }).decode(readFileSync(fd));
     const value: unknown = JSON.parse(source);
     if (
@@ -91,15 +94,23 @@ function readOrder(dir: string): AgentOrder {
       value.schema !== 1 ||
       !('order' in value)
     )
-      throw new Error('need exactly schema: 1 and order');
+      throw new HostError('need exactly schema: 1 and order', exits.usage);
     const result = versioned(validateAgentOrder(value.order));
     const after = checkDirectory(dir);
     const current = statAt(path);
     if (!after || !folder || !sameFile(folder, after) || !current || !sameFile(opened, current))
-      throw new Error('the record changed during the read');
+      throw new HostError('the record changed during the read', exits.prerequisite);
     return result;
   } catch (error) {
-    throw invalid(path, error instanceof Error ? error.message : String(error));
+    throw invalid(
+      path,
+      error instanceof Error ? error.message : String(error),
+      error instanceof HostError
+        ? error.code
+        : typeof (error as NodeJS.ErrnoException).errno === 'number'
+          ? exits.blocked
+          : exits.usage,
+    );
   } finally {
     closeSync(fd);
   }
@@ -123,17 +134,18 @@ async function updateOrder(
   try {
     const opened = fstatSync(fd, { bigint: true });
     regular(lock, opened);
-    if (before && !sameFile(before, opened)) throw invalid(lock, 'the lock changed during open');
+    if (before && !sameFile(before, opened)) throw invalid(lock, 'the lock changed during open', exits.prerequisite);
     const stable = () => {
       const currentFolder = checkDirectory(dir);
       const currentLock = statAt(lock);
       if (!currentFolder || !sameFile(folder, currentFolder) || !currentLock || !sameFile(opened, currentLock))
-        throw invalid(lock, 'the directory or lock changed during the write');
+        throw invalid(lock, 'the directory or lock changed during the write', exits.prerequisite);
       regular(lock, currentLock);
     };
     const deadline = performance.now() + 5_000;
     while (!tryFlock(fd)) {
-      if (performance.now() >= deadline) throw new Error('agents: write lock is busy; try again');
+      if (performance.now() >= deadline)
+        throw new HostError('agents: write lock is busy; try again', exits.prerequisite);
       await Bun.sleep(50);
     }
     stable();
@@ -153,8 +165,9 @@ async function updateOrder(
       stable();
       const current = statAt(path);
       if (existed ? !current || !sameFile(existed, current) : current !== null)
-        throw invalid(path, 'the record changed during the write');
-      if (readOrder(dir).version !== previous.version) throw invalid(path, 'the content changed during the write');
+        throw invalid(path, 'the record changed during the write', exits.prerequisite);
+      if (readOrder(dir).version !== previous.version)
+        throw invalid(path, 'the content changed during the write', exits.prerequisite);
       await rename(temp, path);
     } finally {
       await rm(temp, { force: true });
@@ -168,7 +181,7 @@ async function updateOrder(
 export async function replaceAgentOrder(common: string, order: unknown, expectedVersion: string): Promise<AgentOrder> {
   const validated = validateAgentOrder(order);
   if (typeof expectedVersion !== 'string' || !/^[a-f0-9]{64}$/.test(expectedVersion))
-    throw new Error('agents: expectedVersion must be an order version');
+    throw new HostError('agents: expectedVersion must be an order version', exits.usage);
   return updateOrder(common, validated, expectedVersion);
 }
 

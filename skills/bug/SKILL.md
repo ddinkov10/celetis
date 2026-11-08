@@ -24,7 +24,7 @@ root cause, no plan without the report. Perceived simplicity waives nothing: a o
 start step N+1.
 
 **Before step 1.** Check the wiring per `<plugin>/docs/procedures/lane-start.md`, "Before step 1".
-Only its exit 0 starts step 1.
+Only the exit 0 of `setup status` starts step 1.
 
 1. **Confirm classification.** Existing behavior misbehaves → continue. New behavior → `/celetis:feature`;
    prod broken + ship-now → `/celetis:hotfix`; zero behavior change → `/celetis:chore`. Then

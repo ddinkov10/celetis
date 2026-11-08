@@ -24,7 +24,7 @@ the spec, no code without the plan. Perceived simplicity waives nothing: a one-s
 the same lane. If you have not completed step N, you cannot start step N+1.
 
 **Before step 1.** Check the wiring per `<plugin>/docs/procedures/lane-start.md`, "Before step 1".
-Only its exit 0 starts step 1.
+Only the exit 0 of `setup status` starts step 1.
 
 1. **Confirm classification.** New behavior → continue. Fixing existing behavior → `/celetis:bug` (or
    `/celetis:hotfix` if prod is on fire). Zero behavior change → `/celetis:chore`. Then start the

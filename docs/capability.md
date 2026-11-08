@@ -319,10 +319,10 @@ the host argument and validated environment; the agent supplies no copy. A non-n
 
 `report` acknowledges a matching start or known failure with `status: "reported"`, `dispatch`,
 and `result`; it issues no child. Mismatches, incomplete results, and unsupported operations save
-their evidence first and return setup exit 5. An issued call with no report stops later task acts
+their evidence first and return setup exit 6. An issued call with no report stops later task acts
 and names `dispatch report <id> <report-file>`. Unknown/replayed IDs refuse with exit 3 without
 changing evidence. A dispatch from another host/session is unknown in the active record and
-returns exit 3 without changes. A missing or invalid host session returns setup exit 5.
+returns exit 3 without changes. A missing or invalid host session returns setup exit 6; an invalid `.celetis.yaml` returns exit 2 with the setup status.
 Malformed reports return usage exit 2 without changes. No report can replace earlier execution
 evidence. Calls outside the task loop need no report and are neither intercepted nor recorded.
 
@@ -338,7 +338,7 @@ pair. A further adverse review is saved and stops all later acts for that task w
 Report failures change neither count. Keep no parallel counters.
 
 Exit 0 returns `ready`, `reported`, or `closed`, or prints `show`. Exit 2 is usage; exit 3 is a
-refused act. Exit 4 is a terminal stop and exit 5 is a setup stop. Both carry a reason and trail
+refused act. Exit 8 is a terminal stop and exit 6 is a setup stop; a busy dispatch lock is exit 3. Both carry a reason and trail
 when available. Use the host approval procedure for sandbox blocks
 ([the entry](procedures/entry.md), "The contract"). In a step session, rule 4 of `step-prompt.md`
 of the plugin `celetis` hands a stop to the issue ([the stop](procedures/stop.md)).

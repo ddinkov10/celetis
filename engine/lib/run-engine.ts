@@ -5,6 +5,7 @@ import { setTimeout as pause } from 'node:timers/promises';
 import { effectiveOrder, readAgentOrder } from './agent-order.ts';
 import { beginUsageAttempt, readUsage, recordUsage, selectAgent, type UsageTicket } from './agent-usage.ts';
 import type { AgentChoice, Config, Host } from './config-core.ts';
+import { type ExitCode, exits } from './contract.ts';
 import { defaultLevel, type Level } from './effort.ts';
 import { markDefect, passOn, recordEvent } from './events.ts';
 import { HostError } from './host.ts';
@@ -110,8 +111,8 @@ export type RunState =
   | 'ending'
   | 'taken-over'
   | 'finished';
-export type Admission = Readonly<{ ok: true }> | Readonly<{ ok: false; line: string; code: number }>;
-export type RunEnd = Readonly<{ kind: 'closed' | 'gate' | 'stopped' | 'detached'; code: number; reason: string }>;
+export type Admission = Readonly<{ ok: true }> | Readonly<{ ok: false; line: string; code: ExitCode }>;
+export type RunEnd = Readonly<{ kind: 'closed' | 'gate' | 'stopped' | 'detached'; code: ExitCode; reason: string }>;
 export type RunHooks = Readonly<{ ready?: () => Promise<void>; removed: () => void; fatal: () => void }>;
 export type RunView = Readonly<{
   issue: number | null;
@@ -139,7 +140,6 @@ const required = [
   'daemon.ts',
   '../celetis',
   'launcher.ts',
-  'lib/help.ts',
   'lib/config-core.ts',
   'lib/config.ts',
   'lib/events.ts',
@@ -154,6 +154,7 @@ const required = [
   'lib/session.ts',
   'lib/step-end.ts',
   'lib/terminal.ts',
+  'lib/contract.ts',
   'lib/workflow.ts',
   'lib/effort.ts',
   'lib/tracker.ts',
@@ -188,17 +189,17 @@ export async function gone(root: string): Promise<boolean> {
 }
 
 const idle: Record<TerminalStatus, boolean> = { idle: true, done: true, error: true, working: false, blocked: false };
-const die = (message: string): never => {
-  throw new HostError(`daemon: ${message}`);
+const die = (message: string, code: ExitCode): never => {
+  throw new HostError(`daemon: ${message}`, code);
 };
 
 export async function requireSetup(gh: boolean): Promise<void> {
-  if (gh && !Bun.which('gh', { PATH: childEnv().PATH })) die('gh is not on PATH');
+  if (gh && !Bun.which('gh', { PATH: childEnv().PATH })) die('gh is not on PATH', exits.prerequisite);
   try {
     await requireTerminals();
   } catch (error) {
     if (!(error instanceof TerminalError)) throw error;
-    die(error.message);
+    die(error.message, error.code);
   }
 }
 
@@ -340,7 +341,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     return true;
   };
   const stopped = () => {
-    if (detach.signal.aborted) throw new HostError('');
+    if (detach.signal.aborted) throw new HostError('', exits.prerequisite);
   };
   // A detach keeps the owner records for the next daemon.
   const handOff = () => !detach.signal.aborted;
@@ -407,7 +408,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
   };
   const saveQueue = async (change: Partial<QueueRecord>) => {
     stopped();
-    if (queue === null) throw new HostError('daemon: queue: no submitted queue', 2);
+    if (queue === null) throw new HostError('daemon: queue: no submitted queue', exits.internal);
     const expected = queue;
     try {
       queue = await updateQueue(
@@ -424,6 +425,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       storageFailed = true;
       throw new HostError(
         `daemon: queue: cannot save recovery state: ${(error as Error).message}; no further session will start. Repair access to the queue record, then use Try again.`,
+        exits.blocked,
       );
     }
   };
@@ -440,7 +442,8 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       await requireUpdatePolicy(host, cwd);
       if (cwd !== main) await requireUpdatePolicy(host, main);
     });
-    if (!Bun.which(host, { PATH: childEnv().PATH })) throw new HostError(`celetis: ${host} is not on PATH`);
+    if (!Bun.which(host, { PATH: childEnv().PATH }))
+      throw new HostError(`celetis: ${host} is not on PATH`, exits.prerequisite);
   };
   const nextOf = async (
     n: string,
@@ -728,7 +731,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       });
     } catch (error) {
       if (!(error instanceof TerminalError)) throw error;
-      die(`#${n} cannot open the session tab: ${error.message}`);
+      die(`#${n} cannot open the session tab: ${error.message}`, error.code);
     }
     unreleased = terminal;
     await unstarted();
@@ -747,7 +750,10 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       if (read !== 'unknown') {
         barrier =
           read ??
-          die(`#${n} ${host} startup: the start barrier record of the tab ${tab} is not valid; start the step again`);
+          die(
+            `#${n} ${host} startup: the start barrier record of the tab ${tab} is not valid; start the step again`,
+            exits.blocked,
+          );
         break;
       }
       const now = performance.now();
@@ -756,6 +762,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         if (!(await terminalLive(terminal)))
           die(
             `#${n} ${host} startup: the tab ${tab} ended before its start barrier reported; check the login files of $SHELL, then start the step again`,
+            exits.blocked,
           );
       }
       if (!warned && now - waited >= 60_000) {
@@ -782,10 +789,10 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     if (!detach.signal.aborted) return code;
     // The released barrier can still be waiting to read go in the start folder.
     watchDir = '';
-    throw new HostError('');
+    throw new HostError('', exits.prerequisite);
   };
   const normalEnd = (code: number | null) => {
-    if (code === 0) tabs.finished = terminal;
+    if (code === exits.done) tabs.finished = terminal;
   };
   type IssueOutcome = {
     kind: 'closed' | 'gate' | 'stopped';
@@ -852,7 +859,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       if (holder !== null) {
         const reason = `another run or its session (PID ${holder}) works on #${n}`;
         say(reason);
-        admit({ ok: false, line: `daemon: ${reason}`, code: 0 });
+        admit({ ok: false, line: `daemon: ${reason}`, code: exits.prerequisite });
         return outcome('stopped', reason, 'Wait for that session to exit, then use Try again.');
       }
       await noteLoop({ issue, lock: `issue-${n}`, request: request ?? null });
@@ -937,7 +944,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         stopped();
         const current = await readRecovery(main, issue);
         if (!current || current.waitId !== waitId)
-          throw new HostError(`daemon: #${n}: the quota wait record changed; start the run again`);
+          throw new HostError(`daemon: #${n}: the quota wait record changed; start the run again`, exits.prerequisite);
         const usage = await readUsage(common);
         const renewed = (await readAgentOrder(common)).order.some((each) => {
           const now = usage[each];
@@ -967,7 +974,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
             terminal,
             tab,
           );
-        throw new HostError('', 1);
+        throw new HostError('', exits.blocked);
       }
       normalEnd(code);
       await noteLoop({ session: null });
@@ -990,7 +997,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       if (detach.signal.aborted) {
         // The next daemon proves this session end again from the start folder and the run record.
         watchDir = '';
-        throw new HostError('');
+        throw new HostError('', exits.prerequisite);
       }
       const sessionId = s.ticket.attempt.sessionId ?? '';
       const resume = `${s.host} ${resumeArguments({ ...s.record, session_id: sessionId }).join(' ')}`;
@@ -1139,7 +1146,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       if (waiting) {
         const bound = recovery as QuotaRecovery | null;
         if (bound?.waitId !== waiting.waitId)
-          throw new HostError(`daemon: #${n}: the quota wait record changed; start the run again`);
+          throw new HostError(`daemon: #${n}: the quota wait record changed; start the run again`, exits.prerequisite);
         const woke = await waitQuota(waiting.authority, waiting.choice, bound.blocked, bound.nextResetAt, waiting);
         attempted = new Set();
         retryBlocked = woke === 'retry';
@@ -1164,13 +1171,16 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         const { next, effort, authority, line } = await nextOf(n, current, halt.signal, permit);
         stopped();
         resolved = next;
+        const unreadable = next.kind === 'observed' && next.reason === 'unreadable';
         if (request && (next.kind === 'run' ? next.step : null) !== request.step) {
           const reason = `#${n}: the displayed decision changed: ${line}; no step was started`;
           say(reason);
+          if (unreadable) admit({ ok: false, line: `daemon: ${reason}`, code: exits.blocked });
           return outcome('stopped', reason, 'Refresh the queue, then use its displayed action.');
         }
         if (next.kind !== 'run' || authority === null) {
           say(line);
+          if (unreadable) admit({ ok: false, line: `daemon: ${line}`, code: exits.blocked });
           if (next.kind === 'stop' && (next.reason === 'finished' || next.reason === 'wontfix')) await endRecovery();
           return outcome(
             next.kind === 'stop' && (next.reason === 'finished' || next.reason === 'wontfix') ? 'closed' : 'stopped',
@@ -1196,9 +1206,10 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
           }
         } else {
           if (last && !request?.retry && sameResult(next, last)) {
-            if (exitCode !== 0)
+            if (exitCode !== exits.done)
               die(
                 `${lastHost} session exited with status ${exitCode ?? 'unknown'} before issue progress; check startup output, then run ${manualRecovery(lastHost)} from the main checkout or start the step again`,
+                exits.blocked,
               );
             const reason = `no progress: ${prompt}`;
             if (say(reason)) recordEvent({ name: 'no-progress', message: `daemon: ${reason}`, issue });
@@ -1273,7 +1284,8 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         const capture = join(state, 'usage-captures', attempt.id);
         let sessionArgs = args;
         if (stepHost === 'claude') {
-          const failCapture = (path: string, reason: string) => new HostError(`usage: ${path}: ${reason}`);
+          const failCapture = (path: string, reason: string) =>
+            new HostError(`usage: ${path}: ${reason}`, exits.blocked);
           await privateFolder(join(state, 'usage-captures'), failCapture);
           await privateFolder(capture, failCapture);
           sessionArgs = [...(await prepareClaudeUsage(attempt, capture)), ...args];
@@ -1346,7 +1358,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
   const resumeRun = async (n: number, from?: Resumed): Promise<RunEnd> => {
     if (!from) {
       const holder = await locks.take(`issue-${n}`);
-      if (holder !== null) die(`another run or its session (PID ${holder}) works on #${n}`);
+      if (holder !== null) die(`another run or its session (PID ${holder}) works on #${n}`, exits.prerequisite);
       await note({ issue: n, lock: `issue-${n}` });
     }
     const session = from?.record.session;
@@ -1386,23 +1398,23 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       code = await sessionEnd(ended);
     }
     normalEnd(code);
-    return { kind: 'stopped', code: code === null ? 1 : passOn(code), reason: '' };
+    return { kind: 'stopped', code: code === null ? exits.blocked : passOn(code), reason: '' };
   };
   const queueRun = async (claim: Readonly<{ id: string; token: string }>): Promise<RunEnd> => {
     operation = await createOperation(checkout, selection, 'main');
     stopped();
     const holder = await locks.take('queue');
-    if (holder !== null) throw new HostError('queue: another run owns this work', 2);
+    if (holder !== null) throw new HostError('queue: another run owns this work', exits.prerequisite);
     queue = await updateQueue(
       main,
       async (current) => {
         stopped();
         if (!current || current.id !== claim.id || current.launch?.token !== claim.token)
-          throw new HostError('queue: stale launch token; no session started', 2);
-        if (!current.choice) throw new HostError('queue: no recorded agent choice', 2);
+          throw new HostError('queue: stale launch token; no session started', exits.prerequisite);
+        if (!current.choice) throw new HostError('queue: no recorded agent choice', exits.prerequisite);
         requireQueueChoice(current.choice, operation.choice);
         if (await lockHolder(main, `issue-${current.numbers[0]}`))
-          throw new HostError('queue: a run or its foreground still owns this work', 2);
+          throw new HostError('queue: a run or its foreground still owns this work', exits.prerequisite);
         return current;
       },
       common,
@@ -1444,7 +1456,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       }),
   };
   const drainQueue = async (first: (n: string) => Promise<IssueOutcome>): Promise<RunEnd> => {
-    if (queue === null) throw new HostError('daemon: queue: no submitted queue', 2);
+    if (queue === null) throw new HostError('daemon: queue: no submitted queue', exits.internal);
     let start = first;
     while (queue.numbers.length) {
       const n = String(queue.numbers[0]);
@@ -1461,22 +1473,23 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
           act: result.act,
         });
         if (result.kind !== 'gate') recordEvent({ name: 'queue-error', message: result.reason, issue: Number(n) });
-        return { kind: result.kind, code: 0, reason: result.reason };
+        return { kind: result.kind, code: exits.done, reason: result.reason };
       }
       for (;;) {
         const snapshot = await readQueue(main, common, locks);
         if (!snapshot || snapshot.id !== queue.id || snapshot.numbers[0] !== Number(n))
-          throw new Error('queue: current issue changed during drain');
+          throw new HostError('queue: current issue changed during drain', exits.prerequisite);
         const { next } = await nextOf(n, await fresh(), halt.signal);
         stopped();
         if (next.kind !== 'stop' || (next.reason !== 'finished' && next.reason !== 'wontfix'))
-          die('queue: cannot advance without a fresh closed resolver result');
+          die('queue: cannot advance without a fresh closed resolver result', exits.prerequisite);
         let drained = false;
         try {
           queue = await updateQueue(
             main,
             async (current) => {
-              if (!current || current.id !== snapshot.id) throw new Error('queue: identity changed during drain');
+              if (!current || current.id !== snapshot.id)
+                throw new HostError('queue: identity changed during drain', exits.prerequisite);
               if (current.revision !== snapshot.revision) return current;
               const numbers = current.numbers.slice(1);
               if (!numbers.length) await locks.release('queue', handOff());
@@ -1518,7 +1531,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     queueWritable = false;
     const reason = 'queue: empty; Add starts the next issue';
     say(reason);
-    return { kind: 'closed', code: 0, reason };
+    return { kind: 'closed', code: exits.done, reason };
   };
   const issueRun = async (n: number, first: 'any' | 'gated', override?: Level) => {
     operation = await createOperation(checkout, selection, 'main');
@@ -1542,7 +1555,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       } catch (failure) {
         told = (failure as Error).message;
         console.error(told);
-        return { kind: 'stopped', code: 1, reason: told };
+        return { kind: 'stopped', code: exits.blocked, reason: told };
       }
       if (reason) {
         told = reason;
@@ -1554,14 +1567,14 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         issue: queue?.numbers[0] ?? null,
         error: error instanceof HostError ? undefined : error,
       });
-      return { kind: 'stopped', code: 0, reason };
+      return { kind: 'stopped', code: exits.done, reason };
     }
     if (reason) {
       told = reason;
       console.error(reason);
     }
     markDefect(error);
-    return { kind: 'stopped', code: error instanceof HostError ? error.code : 1, reason };
+    return { kind: 'stopped', code: error instanceof HostError ? error.code : exits.internal, reason };
   };
   let issueStarted = false;
   const sessionPhase = async (session: Facts): Promise<'missing' | 'live' | 'ended'> => {
@@ -1604,8 +1617,8 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       if (claim.kind === 'held') {
         const reason = `#${n}: another run or its session (PID ${claim.holder}) took #${n} while no daemon ran; this run ends`;
         say(reason);
-        admit({ ok: false, line: `daemon: ${reason}`, code: 0 });
-        return { kind: 'stopped', code: 0, reason };
+        admit({ ok: false, line: `daemon: ${reason}`, code: exits.done });
+        return { kind: 'stopped', code: exits.done, reason };
       }
       admit({ ok: true });
       await rest(2000);
@@ -1618,7 +1631,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       if (!found || found.id !== record.queue.id || found.numbers[0] !== record.issue) {
         const reason = 'queue: the queue changed while no daemon ran; this run ends';
         say(reason);
-        return { kind: 'stopped', code: 0, reason };
+        return { kind: 'stopped', code: exits.done, reason };
       }
       queue = found;
       queueWritable = true;
@@ -1650,7 +1663,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
             reason,
             act: 'Fix the cause, then use Try again for the displayed step.',
           }));
-        return { kind: 'stopped', code: 0, reason };
+        return { kind: 'stopped', code: exits.done, reason };
       }
       phase = read;
     }
@@ -1674,7 +1687,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
           )
         : await runIssue(String(n), 'gated', undefined, undefined, undefined, { record, phase });
     issueStarted = result.started;
-    return { kind: result.kind, code: 0, reason: result.reason };
+    return { kind: result.kind, code: exits.done, reason: result.reason };
   };
   const work = async (): Promise<RunEnd> => {
     try {
@@ -1687,9 +1700,10 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
           ? await issueRun(input.number, 'any', input.effort ?? undefined)
           : await issueRun(input.number, 'gated');
       issueStarted = result.started;
-      return { kind: result.kind, code: 0, reason: result.reason };
+      return { kind: result.kind, code: exits.done, reason: result.reason };
     } catch (error) {
-      if (detach.signal.aborted && error instanceof HostError) return { kind: 'detached', code: 0, reason: '' };
+      if (detach.signal.aborted && error instanceof HostError)
+        return { kind: 'detached', code: exits.done, reason: '' };
       if (input.kind === 'queue') return await queueFailure(error);
       if (error instanceof HostError) {
         if (error.message) {
@@ -1718,7 +1732,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         return { end, started: issueStarted };
       },
       (error: unknown) => {
-        admit({ ok: false, line: error instanceof Error ? error.message : String(error), code: 1 });
+        admit({ ok: false, line: error instanceof Error ? error.message : String(error), code: exits.internal });
         throw error;
       },
     ),
@@ -1748,9 +1762,9 @@ export function autoLoop(
     launch: <T extends Readonly<{ handle: RunHandle }>>(start: () => T) => T;
     leaving?: () => void;
     journal: Journal;
-    adopted?: Promise<number>;
+    adopted?: Promise<ExitCode>;
   },
-): { admitted: Promise<Admission>; done: Promise<number> } {
+): { admitted: Promise<Admission>; done: Promise<ExitCode> } {
   const { main, common, root } = place;
   const { hooks, signal } = options;
   const filter: Filter = { said: '', repeat: true };
@@ -1771,14 +1785,14 @@ export function autoLoop(
   });
   const running = () => !signal.aborted && options.active();
   const tabs: Tabs = { finished: '' };
-  const loop = async (): Promise<number> => {
+  const loop = async (): Promise<ExitCode> => {
     try {
       const checkout = await locateCheckouts(process.cwd());
       const fresh = () => createOperation(checkout, input.selection, 'main');
       let initial: Operation | undefined = await fresh();
       await hooks.ready?.();
       const holder = await locks.take('auto');
-      if (holder !== null) die(`auto mode of another daemon or its session has PID ${holder}`);
+      if (holder !== null) die(`auto mode of another daemon or its session has PID ${holder}`, exits.prerequisite);
       admit({ ok: true });
       if (options.adopted) {
         const code = await Promise.race([options.adopted, aborted]);
@@ -1789,7 +1803,7 @@ export function autoLoop(
         if (await gone(root)) {
           hooks.removed();
           await aborted;
-          return 0;
+          return exits.done;
         }
         const current = initial ?? (await fresh());
         initial = undefined;
@@ -1829,7 +1843,7 @@ export function autoLoop(
               );
             const run = options.launch(start);
             const result = await run.settled;
-            if (result.end.code !== 0) return result.end.code;
+            if (result.end.code !== exits.done) return result.end.code;
             started = result.started;
           } else say('no auto step can start; auto mode asks again each 60 seconds');
         } else if (say('stop cannot read the open issues from GitHub'))
@@ -1839,7 +1853,7 @@ export function autoLoop(
           while (running() && performance.now() < until) await Bun.sleep(50);
         }
       }
-      return 0;
+      return exits.done;
     } catch (error) {
       if (error instanceof HostError) {
         if (error.message) console.error(error.message);
@@ -1862,7 +1876,7 @@ export function autoLoop(
         return code;
       },
       (error: unknown) => {
-        admit({ ok: false, line: error instanceof Error ? error.message : String(error), code: 1 });
+        admit({ ok: false, line: error instanceof Error ? error.message : String(error), code: exits.internal });
         throw error;
       },
     ),

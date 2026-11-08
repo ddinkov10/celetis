@@ -1,14 +1,15 @@
 import { dirname } from 'node:path';
+import { type ExitCode, exits, usage } from './lib/contract.ts';
 import { installRecorder } from './lib/events.ts';
 import { HostError, requireBun } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
 
-export async function main(argv: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<ExitCode> {
   try {
     requireBun();
     const { args, explicit } = commandInput(argv);
-    if (args.length) throw new HostError('celetis: root takes no arguments', 2);
+    if (args.length) throw new HostError(usage('root'), exits.usage);
     const operation = await createOperation(
       await locateCheckouts(process.cwd()),
       { explicit, environment: process.env.CELETIS_AGENT },
@@ -16,7 +17,7 @@ export async function main(argv: string[]): Promise<number> {
     );
     if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
     console.log(dirname(import.meta.dir));
-    return 0;
+    return exits.done;
   } catch (error) {
     if (!(error instanceof HostError)) throw error;
     if (error.message) console.error(error.message);

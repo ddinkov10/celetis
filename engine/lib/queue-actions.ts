@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { nextIssue } from '../next-step.ts';
+import { type ExitCode, exits } from './contract.ts';
+import { HostError } from './host.ts';
 import type { Next } from './lines.ts';
 import { lineOf } from './lines.ts';
 import { lockHolder } from './locks.ts';
@@ -17,6 +19,9 @@ import {
 } from './queue.ts';
 import type { QueueAction, QueueExpected, QueueReceipt, QueueRecord, QueueView, QueueWake } from './queue-types.ts';
 
+function refuse(message: string, code: ExitCode = exits.prerequisite): never {
+  throw new HostError(message, code);
+}
 const terminal = (next: Next | null) =>
   next?.kind === 'stop' && (next.reason === 'finished' || next.reason === 'wontfix');
 const expectedOf = (record: QueueRecord | null): QueueExpected => ({
@@ -27,11 +32,11 @@ const expectedOf = (record: QueueRecord | null): QueueExpected => ({
 const match = (record: QueueRecord | null, expected: QueueExpected) => {
   const actual = expectedOf(record);
   if (actual.id !== expected.id || actual.revision !== expected.revision || actual.current !== expected.current)
-    throw new Error('queue: the ID, revision, or current issue changed; refresh the queue');
+    refuse('queue: the ID, revision, or current issue changed; refresh the queue');
 };
 const checkoutOf = (operation: Operation) => {
   const { main, common } = operation.checkout;
-  if (main === null || common === null) throw new Error('queue: need a Git checkout');
+  if (main === null || common === null) refuse('queue: need a Git checkout', exits.usage);
   return { main, common };
 };
 export const emptyQueue = (record?: QueueRecord | null): QueueRecord => ({
@@ -63,7 +68,7 @@ export async function admitQueue(operation: Operation, input: QueueAction): Prom
   requireQueueChoice(choice, operation.choice);
   const pinned = explicitHost(choice);
   const number = action.kind === 'add' ? action.number : snapshot?.numbers[0];
-  if (!number) throw new Error('queue: that action is not available; refresh the queue');
+  if (!number) refuse('queue: that action is not available; refresh the queue');
   const next = (await nextIssue(String(number), operation)).next;
   if (action.kind === 'add' || action.kind === 'continue' || action.kind === 'retry') {
     if (
@@ -71,9 +76,9 @@ export async function admitQueue(operation: Operation, input: QueueAction): Prom
         ? !terminal(next)
         : next.kind !== 'run' || next.step !== action.step
     )
-      throw new Error(`queue: the displayed decision changed: ${lineOf(String(number), next)}`);
+      refuse(`queue: the displayed decision changed: ${lineOf(String(number), next)}`);
     if (next.kind === 'run' && pinned && !Bun.which(pinned, { PATH: childEnv().PATH }))
-      throw new Error(`queue: ${pinned} is not on PATH`);
+      refuse(`queue: ${pinned} is not on PATH`);
   }
   const currentNext =
     snapshot?.numbers[0] && snapshot.numbers[0] !== number
@@ -88,12 +93,11 @@ export async function admitQueue(operation: Operation, input: QueueAction): Prom
       owner = await queueOwner(main, current);
       if (action.kind === 'add') {
         if (!queueView(current, owner, currentNext).actions.add)
-          throw new Error('queue: cannot read the current issue; refresh before acting');
-        if (current?.numbers.includes(action.number)) throw new Error('queue: that issue is already queued');
-        if (await lockHolder(main, `issue-${action.number}`))
-          throw new Error('queue: that issue already has a live owner');
+          refuse('queue: cannot read the current issue; refresh before acting', exits.blocked);
+        if (current?.numbers.includes(action.number)) refuse('queue: that issue is already queued');
+        if (await lockHolder(main, `issue-${action.number}`)) refuse('queue: that issue already has a live owner');
         if (current?.numbers.length) return { ...current, numbers: [...current.numbers, action.number] };
-        if (owner) throw new Error('queue: a previous run still owns the queue');
+        if (owner) refuse('queue: a previous run still owns the queue');
         wake = true;
         return {
           ...emptyQueue(current),
@@ -104,23 +108,23 @@ export async function admitQueue(operation: Operation, input: QueueAction): Prom
           launch: { token: randomUUID(), authorization: { number: action.number, step: action.step, retry: false } },
         };
       }
-      if (!current?.numbers.length) throw new Error('queue: the queue is empty');
+      if (!current?.numbers.length) refuse('queue: the queue is empty');
       if (action.kind === 'move' || action.kind === 'remove') {
         if (!queueView(current, owner, currentNext).actions.edit)
-          throw new Error('queue: cannot read the current issue; refresh before acting');
+          refuse('queue: cannot read the current issue; refresh before acting', exits.blocked);
         const index = current.numbers.indexOf(action.number);
-        if (index < 1) throw new Error('queue: only waiting issues can be edited');
+        if (index < 1) refuse('queue: only waiting issues can be edited');
         const numbers = [...current.numbers];
         if (action.kind === 'remove') numbers.splice(index, 1);
         else {
           const target = index + (action.direction === 'up' ? -1 : 1);
-          if (target < 1 || target >= numbers.length) throw new Error('queue: that move is not available');
+          if (target < 1 || target >= numbers.length) refuse('queue: that move is not available');
           [numbers[index], numbers[target]] = [numbers[target] as number, action.number];
         }
         return { ...current, numbers };
       }
       const view = queueView(current, owner, next);
-      if (!view.actions[action.kind]) throw new Error('queue: that action is not available; refresh the queue');
+      if (!view.actions[action.kind]) refuse('queue: that action is not available; refresh the queue');
       wake = true;
       return {
         ...current,
@@ -161,7 +165,7 @@ export async function reconcileQueue(operation: Operation, signal?: AbortSignal)
     main,
     async (current) => {
       signal?.throwIfAborted();
-      if (!current) throw new Error('queue: the record disappeared during reconciliation');
+      if (!current) refuse('queue: the record disappeared during reconciliation');
       if (current.id !== snapshot.id || current.revision !== snapshot.revision) return current;
       fresh = true;
       owner = await queueOwner(main, current);
@@ -216,7 +220,7 @@ export async function failQueueLaunch(
   await updateQueue(
     main,
     async (current) => {
-      if (!current) throw new Error('queue: the pending record disappeared');
+      if (!current) refuse('queue: the pending record disappeared');
       if (current.id !== id || current.launch?.token !== token || (await queueOwner(main, current))) return current;
       return {
         ...current,

@@ -8,6 +8,7 @@ import { dirname, join, resolve } from 'node:path';
 import { format } from 'node:util';
 import { celetisAdapter } from '../board/adapter.ts';
 import { type BoardDaemon, type BoardHandle, startBoard } from '../board/start.ts';
+import { type ExitCode, exits, signalExit } from './contract.ts';
 import { shortRevision } from './daemon-client.ts';
 import { createLandings, type Sink } from './daemon-landing.ts';
 import {
@@ -89,17 +90,17 @@ const printable = (text: string) =>
     .map((character) => (character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127 ? ' ' : character))
     .join('');
 const reply = (status: number, value: DaemonAnswer | QueueAnswer | DaemonStatus) => Response.json(value, { status });
-const refused = (status: number, line: string, code: number): Said => ({
+const refused = (status: number, line: string, code: ExitCode): Said => ({
   status,
   answer: { accepted: false, line: clip(line), code },
 });
 const send = ({ status, answer }: Said) => reply(status, answer);
-const refusal = (status: number, line: string, code: number) => send(refused(status, line, code));
-const codeOf = (error: unknown) => (error instanceof HostError ? error.code : 1);
+const refusal = (status: number, line: string, code: ExitCode) => send(refused(status, line, code));
+const codeOf = (error: unknown) => (error instanceof HostError ? error.code : exits.internal);
 const described = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const crashed = (error: unknown) => {
   console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
-  return refusal(500, `daemon: ${described(error)}`, 1);
+  return refusal(500, `daemon: ${described(error)}`, exits.internal);
 };
 
 function routeOutput(frames: AsyncLocalStorage<Frame>): void {
@@ -211,7 +212,7 @@ async function inVersionFolder(revision: string): Promise<boolean> {
   }
 }
 
-async function startSuccessor({ program, auto, port, start, main, log }: Spawn): Promise<number> {
+async function startSuccessor({ program, auto, port, start, main, log }: Spawn): Promise<ExitCode> {
   const env = childEnv({ ...process.env, PORT: String(port) });
   delete env.HC_SCOPE;
   const args = ['--daemon', '--after', String(process.pid), start, ...(auto ? ['--auto', JSON.stringify(auto)] : [])];
@@ -232,17 +233,17 @@ async function startSuccessor({ program, auto, port, start, main, log }: Spawn):
     } finally {
       closeSync(out);
     }
-    return 0;
+    return exits.done;
   } catch (error) {
     console.error(`daemon: cannot start the successor: ${described(error)}; run celetis daemon start`);
-    return 1;
+    return exits.blocked;
   }
 }
 
-export async function runDaemon(argv: readonly string[]): Promise<number> {
+export async function runDaemon(argv: readonly string[]): Promise<ExitCode> {
   if (process.platform === 'win32') {
     console.error('daemon: Windows is not a support target');
-    return 2;
+    return exits.prerequisite;
   }
   installRecorder('daemon');
   const frames = new AsyncLocalStorage<Frame>();
@@ -250,10 +251,10 @@ export async function runDaemon(argv: readonly string[]): Promise<number> {
   const handover = handoverOf(argv);
   if (handover === null) {
     console.error('daemon: invalid internal request');
-    return 2;
+    return exits.usage;
   }
   try {
-    if (handover.after && !(await outlived(handover.after))) return 1;
+    if (handover.after && !(await outlived(handover.after))) return exits.prerequisite;
     const { code, successor } = await serve(frames, handover);
     return successor ? await startSuccessor(successor) : code;
   } catch (error) {
@@ -266,19 +267,21 @@ export async function runDaemon(argv: readonly string[]): Promise<number> {
 async function serve(
   frames: AsyncLocalStorage<Frame>,
   handover: Handover,
-): Promise<{ code: number; successor: Spawn | null }> {
+): Promise<{ code: ExitCode; successor: Spawn | null }> {
   const checkout = await locateCheckouts(process.cwd());
-  if (checkout.main === null || checkout.common === null) throw new HostError('celetis: need a Git checkout', 2);
+  if (checkout.main === null || checkout.common === null)
+    throw new HostError('celetis: need a Git checkout', exits.usage);
   const { main, common } = checkout;
   const place: Place = { main, common, state: await stateFolder(common), root };
   const paths = await daemonPaths(common);
-  const fail = (path: string, reason: string) => new HostError(`daemon: ${path}: ${reason}`);
+  const fail = (path: string, reason: string) => new HostError(`daemon: ${path}: ${reason}`, exits.blocked);
   sharedFolderSync(place.state, fail);
   for (const folder of [paths.folder, paths.runs, privateRoot, dirname(paths.socket)]) privateFolderSync(folder, fail);
   const start = await processStart(process.pid);
   if (!start)
     throw new HostError(
       'daemon: cannot read the process start of the daemon; allow process access and start the daemon again',
+      exits.blocked,
     );
   const identity: DaemonIdentity = {
     schema: 1,
@@ -293,7 +296,7 @@ async function serve(
   const holder = await owner.take('daemon');
   if (holder !== null) {
     console.error(`daemon: another daemon of this repository has PID ${holder}; this one stops`);
-    return { code: 1, successor: null };
+    return { code: exits.prerequisite, successor: null };
   }
 
   const entries = new Map<string, Entry>();
@@ -308,15 +311,15 @@ async function serve(
   let board: BoardHandle | undefined;
   let taking = true;
   let stopping = false;
-  let code = 0;
+  let code: ExitCode = exits.done;
   const claim: { successor: Successor | null } = { successor: null };
   let wake: () => void = () => {};
   const asked = new Promise<void>((done) => {
     wake = done;
   });
-  const stop = (status: number, line?: string) => {
+  const stop = (status: ExitCode, line?: string) => {
     if (stopping && claim.successor === null) {
-      if (status === 1) code = status;
+      if (status === exits.blocked || status === exits.prerequisite) code = status;
       return;
     }
     code = status;
@@ -334,16 +337,16 @@ async function serve(
     frames.exit(() => console.log(`daemon: restarts on the program at ${shortRevision(program.revision)}`));
     const kept = [...loops].find(({ control }) => control.active && !control.leaving);
     claim.successor = { program, auto: kept ? { selection: kept.selection, quiet: kept.quiet } : null };
-    stop(0);
+    stop(exits.done);
   };
-  const fatal = () => stop(1);
-  const removed = () => stop(1, removedLine);
+  const fatal = () => stop(exits.blocked);
+  const removed = () => stop(exits.prerequisite, removedLine);
   const hooksOf = (gh: boolean): RunHooks => ({ ready: () => requireSetup(gh), removed, fatal });
 
   const ended = (entry: Entry, end: RunEnd) => {
     if (end.kind === 'detached') return;
     entry.outcome = { kind: end.kind, reason: clip(end.reason), code: end.code };
-    if (end.code !== 0)
+    if (end.code !== exits.done)
       recordEvent({
         name: 'run-exit',
         message: entry.frame.last ?? end.reason,
@@ -354,13 +357,14 @@ async function serve(
   const failed = (entry: Entry, error: unknown) => {
     const message = described(error);
     frames.run(entry.frame, () => console.error(error instanceof Error ? (error.stack ?? message) : message));
-    entry.outcome = { kind: 'stopped', reason: clip(message), code: 1 };
+    entry.outcome = { kind: 'stopped', reason: clip(message), code: exits.internal };
     recordEvent({ name: 'run-defect', message, issue: entry.handle.view().issue, error });
   };
   const journal = (record: RunRecord) =>
     writeRunRecord(paths.runs, record).catch((error: unknown) => {
       throw new HostError(
         `daemon: cannot write the run record ${join(paths.runs, `${record.id}.json`)}: ${described(error)}`,
+        exits.blocked,
       );
     });
   const forget = async (entry: Entry, end: RunEnd | null) => {
@@ -391,7 +395,7 @@ async function serve(
   };
   const begin = (input: RunInput, gh: boolean) =>
     launch(() => ({ handle: createRun(place, input, { hooks: hooksOf(gh), journal }) }), 'pending').handle;
-  const openLoop = (selection: Selection, quiet: boolean, adopted?: Promise<number>): Loop => {
+  const openLoop = (selection: Selection, quiet: boolean, adopted?: Promise<ExitCode>): Loop => {
     const control = { active: true, leaving: false };
     const abort = new AbortController();
     const started = autoLoop(
@@ -457,7 +461,7 @@ async function serve(
     landings: landings.rows(),
   });
   const verdict = (admission: Admission, run: string | null): Said => {
-    if (stopping) return refused(503, stopLine, 1);
+    if (stopping) return refused(503, stopLine, exits.prerequisite);
     if (admission.ok) return { status: 200, answer: { accepted: true, run } };
     return refused(409, admission.line, admission.code);
   };
@@ -470,14 +474,14 @@ async function serve(
   const answerRun = async (handle: RunHandle) => send(await runVerdict(handle));
   const accepted: Said = { status: 200, answer: { accepted: true, run: null } };
   let autoRequests = 0;
-  const auto = async ({ on, selection, quiet }: AutoRequest, adopted?: Promise<number>): Promise<Said> => {
+  const auto = async ({ on, selection, quiet }: AutoRequest, adopted?: Promise<ExitCode>): Promise<Said> => {
     const request = ++autoRequests;
     if (!on) {
       for (const loop of loops) loop.control.active = false;
       return accepted;
     }
     for (;;) {
-      if (stopping) return refused(503, stopLine, 1);
+      if (stopping) return refused(503, stopLine, exits.prerequisite);
       if (request !== autoRequests) return accepted;
       const kept = [...loops].find((each) => !each.control.leaving);
       if (kept) {
@@ -525,26 +529,27 @@ async function serve(
     return send(said);
   };
   const respond = async (request: Request): Promise<Response> => {
-    if (stopping && claim.successor === null) return refusal(503, stopLine, 1);
+    if (stopping && claim.successor === null) return refusal(503, stopLine, exits.prerequisite);
     let body: unknown = null;
     if (request.method === 'POST') {
       const text = await bodyText(request);
-      if (text === null) return refusal(413, `daemon: a request body has at most ${bodyLimit} bytes`, 2);
+      if (text === null) return refusal(413, `daemon: a request body has at most ${bodyLimit} bytes`, exits.usage);
       try {
         body = JSON.parse(text);
       } catch {
-        return refusal(400, requestUsage, 2);
+        return refusal(400, requestUsage, exits.usage);
       }
     }
     const parsed = parseRequest(request.method, new URL(request.url).pathname, body);
-    if ('status' in parsed) return refusal(parsed.status, parsed.line, 2);
-    if (stopping && (parsed.kind !== 'stop' || claim.successor === null)) return refusal(503, stopLine, 1);
-    if (taking && boardRequests.has(parsed.kind)) return refusal(503, takeoverLine, 1);
+    if ('status' in parsed) return refusal(parsed.status, parsed.line, exits.usage);
+    if (stopping && (parsed.kind !== 'stop' || claim.successor === null))
+      return refusal(503, stopLine, exits.prerequisite);
+    if (taking && boardRequests.has(parsed.kind)) return refusal(503, takeoverLine, exits.prerequisite);
     switch (parsed.kind) {
       case 'status':
         return reply(200, await status());
       case 'stop':
-        stop(0);
+        stop(exits.done);
         return reply(200, { accepted: true, run: null });
       case 'auto':
         return send(await auto(parsed));
@@ -608,7 +613,7 @@ async function serve(
   const handlers = new Map<NodeJS.Signals, () => void>();
   try {
     for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
-      const handler = () => stop(128 + constants.signals[signal]);
+      const handler = () => stop(signalExit(constants.signals[signal]));
       handlers.set(signal, handler);
       process.on(signal, handler);
     }
@@ -658,7 +663,8 @@ async function serve(
     else if (handover.auto) {
       const adopted = [...entries.values()].filter(({ handle }) => handle.input.kind === 'auto');
       const endCode = Promise.all(adopted.map(({ settled }) => settled)).then(
-        () => adopted.map(({ outcome }) => outcome?.code ?? 0).find((code) => code !== 0) ?? 0,
+        () =>
+          adopted.map(({ outcome }) => outcome?.code ?? exits.done).find((code) => code !== exits.done) ?? exits.done,
       );
       const said = await auto(handover.auto, endCode);
       // The loop prints the line of its own refusal; only the stop refusal is not in the log yet.

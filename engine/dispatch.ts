@@ -4,6 +4,7 @@ import { readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { bindingMode, readBinding, resolvePair, ScoreError } from './lib/capability.ts';
 import type { Host } from './lib/config-core.ts';
+import { type ExitCode, exits, updateHint, usageLine } from './lib/contract.ts';
 import {
   type Context,
   closeTask,
@@ -21,21 +22,22 @@ import {
   validateRecord,
 } from './lib/dispatch-record.ts';
 import { installRecorder, markDefect } from './lib/events.ts';
-import { HostError, updateHint } from './lib/host.ts';
+import { HostError } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { privateFolder, privateMode, privateRoot } from './lib/private-folder.ts';
 import { commitMigration, readLocalRecord } from './lib/state-migration.ts';
 import { tryFlock } from './lib/update-lock.ts';
 import { openLockFile } from './lib/windows.ts';
 
-const usage = `celetis --agent <host> dispatch next <n> <task> implementer|reviewer J V B N S X --bias N [--profile FILE] [--runtime-models FILE]
-celetis --agent <host> dispatch gate <n> <task> pass|fail <gate> <report> [--profile FILE] [--runtime-models FILE]
-celetis --agent <host> dispatch review <n> <task> findings|blocked [--profile FILE] [--runtime-models FILE]
-celetis --agent <host> dispatch close <n> <task>
-celetis --agent <host> dispatch show
-celetis --agent <host> dispatch report <dispatch-id> <report-file>`;
 class UsageError extends Error {}
-class SetupError extends Error {}
+class SetupError extends Error {
+  constructor(
+    message: string,
+    readonly code: ExitCode = exits.blocked,
+  ) {
+    super(message);
+  }
+}
 type Input =
   | { act: 'next'; issue: number; task: string; role: Role; digits: number[]; bias: number }
   | { act: 'gate'; issue: number; task: string; result: 'pass' | 'fail'; name: string; report: string }
@@ -95,7 +97,7 @@ function parse(args: string[]): { input: Input; profile?: string; runtimeFile?: 
   } else if (act === 'review' && values.length === 4 && (arg === 'findings' || arg === 'blocked'))
     input = { act, issue, task, result: arg };
   else if (act === 'close' && values.length === 3) input = { act, issue, task };
-  else throw new UsageError(usage);
+  else throw new UsageError(usageLine('dispatch'));
   return { input, profile, runtimeFile };
 }
 function sessionOf(host: Host, session: unknown): string {
@@ -127,6 +129,7 @@ async function withRecord<T>(
   const failure = (error: unknown) =>
     new SetupError(
       `${file}: ${sourceSchema === undefined ? 'target schema 2' : `schema ${String(sourceSchema)} to 2`}: ${message(error)}`,
+      error instanceof SetupError ? error.code : exits.blocked,
     );
   try {
     await folders(root, dir);
@@ -147,7 +150,8 @@ async function withRecord<T>(
     if (!stat.isFile() || !privateMode(stat)) throw new SetupError(`${lock}: need a private regular lock file`);
     const deadline = performance.now() + 10_000;
     while (!tryFlock(fd)) {
-      if (performance.now() >= deadline) throw new SetupError(`${lock}: timed out waiting for the dispatch lock`);
+      if (performance.now() >= deadline)
+        throw new SetupError(`${lock}: timed out waiting for the dispatch lock`, exits.prerequisite);
       await Bun.sleep(25);
     }
     await folders(root, dir);
@@ -186,7 +190,9 @@ async function withRecord<T>(
     closeSync(fd);
   }
 }
-function printResult(result: Result): number {
+const statusClasses = { refused: exits.prerequisite, stop: exits.stop, setup: exits.blocked } as const;
+
+function printResult(result: Result): ExitCode {
   if (result.status === 'ready') {
     const d = result.dispatch;
     console.log(
@@ -206,14 +212,14 @@ function printResult(result: Result): number {
         voided: result.voided,
       }),
     );
-    return 0;
+    return exits.done;
   }
   console.log(JSON.stringify({ schema: 1, ...result }));
-  if (result.status === 'closed' || result.status === 'reported') return 0;
+  if (result.status === 'closed' || result.status === 'reported') return exits.done;
   console.error(`dispatch: ${result.status}: ${result.reason}`);
-  return { refused: 3, stop: 4, setup: 5 }[result.status];
+  return statusClasses[result.status];
 }
-export async function main(argv: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<ExitCode> {
   let input: Input | undefined;
   try {
     const selected = commandInput(argv);
@@ -256,7 +262,7 @@ export async function main(argv: string[]): Promise<number> {
     if (act.act === 'show') {
       const record = await withRecord(host, session, async (record) => ({ value: record }));
       console.log(JSON.stringify(record));
-      return 0;
+      return exits.done;
     }
     const result = await withRecord(host, session, async (saved) => {
       const record = saved ?? emptyRecord(host, session);
@@ -279,7 +285,7 @@ export async function main(argv: string[]): Promise<number> {
   } catch (error) {
     if (error instanceof UsageError || (error instanceof HostError && input === undefined)) {
       console.error(`dispatch: usage: ${message(error)}\n${updateHint}`);
-      return 2;
+      return exits.usage;
     }
     if (error instanceof SetupError || error instanceof ScoreError || error instanceof HostError) {
       console.log(
@@ -293,11 +299,11 @@ export async function main(argv: string[]): Promise<number> {
         }),
       );
       console.error(`dispatch: setup: ${message(error)}`);
-      return 5;
+      return error instanceof SetupError || error instanceof HostError ? error.code : exits.usage;
     }
     markDefect(error);
     console.error(`dispatch: ${message(error)}`);
-    return 1;
+    return exits.internal;
   }
 }
 

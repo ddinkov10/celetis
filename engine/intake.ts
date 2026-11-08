@@ -1,8 +1,9 @@
 import { stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Host } from './lib/config-core.ts';
+import { type ExitCode, exits, usage } from './lib/contract.ts';
 import { installRecorder, markDefect, passOn } from './lib/events.ts';
-import { HostError, requireBun, updateHint } from './lib/host.ts';
+import { HostError, requireBun } from './lib/host.ts';
 import { runInteractive } from './lib/interactive.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { childEnv } from './lib/process.ts';
@@ -19,11 +20,11 @@ export function intakeArguments(host: Host, root: string): string[] {
   return host === 'claude' ? ['--plugin-dir', root, '-n', 'Intake', prompt] : ['--no-daemon', prompt];
 }
 
-export async function main(argv: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<ExitCode> {
   try {
     requireBun();
     const { args, explicit } = commandInput(argv);
-    if (args.length !== 0) throw new HostError(`usage: celetis --agent <host> intake\n${updateHint}`, 2);
+    if (args.length !== 0) throw new HostError(usage('intake'), exits.usage);
     process.env.PATH = childEnv().PATH;
     const operation = await createOperation(
       await locateCheckouts(process.cwd()),
@@ -34,13 +35,13 @@ export async function main(argv: string[]): Promise<number> {
     const root = dirname(import.meta.dir);
     const skill = join(root, 'skills/intake/SKILL.md');
     if (!(await stat(skill).catch(() => null))?.isFile())
-      throw new HostError(`celetis-intake: cannot read the intake skill: ${skill}`);
+      throw new HostError(`celetis-intake: cannot read the intake skill: ${skill}`, exits.prerequisite);
     process.chdir(main);
     return passOn(await runInteractive(operation, async (host) => intakeArguments(host, root)));
   } catch (error) {
     markDefect(error);
     console.error(error instanceof HostError ? error.message : `celetis-intake: ${(error as Error).message}`);
-    return error instanceof HostError ? error.code : 1;
+    return error instanceof HostError ? error.code : exits.internal;
   }
 }
 

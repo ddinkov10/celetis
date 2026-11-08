@@ -9,6 +9,7 @@ import {
   type Host,
   validateConfig,
 } from './config-core.ts';
+import { exits } from './contract.ts';
 import { HostError, mainCheckout, selectHost } from './host.ts';
 import { run } from './process.ts';
 
@@ -36,7 +37,7 @@ type RequiredConfig = 'host' | 'main' | 'active';
 export function commandInput(argv: string[]): { args: string[]; explicit?: string } {
   const args = [...argv];
   if (args[0] !== '--agent') return { args };
-  if (args[1] === undefined) throw new HostError('celetis: --agent needs claude or codex', 2);
+  if (args[1] === undefined) throw new HostError('celetis: --agent needs claude or codex', exits.usage);
   const explicit = args[1];
   selectHost(explicit);
   return { args: args.slice(2), explicit };
@@ -48,10 +49,10 @@ export async function locateCheckouts(cwd: string): Promise<CheckoutIdentity> {
   if (active.code !== 0) {
     if (active.code === 128 && active.stderr.startsWith('fatal: not a git repository'))
       return Object.freeze({ cwd, main: null, active: null, common: null });
-    throw new HostError(active.stderr.trimEnd(), active.code);
+    throw new HostError(active.stderr.trimEnd(), exits.blocked);
   }
   const result = await run('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd });
-  if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
+  if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
   const path = (output: string) => output.replace(/\n$/, '');
   const common = await realpath(path(result.stdout));
   return Object.freeze({
@@ -73,7 +74,7 @@ export async function createOperation(
     try {
       return read();
     } catch (error) {
-      if (error instanceof ConfigError) throw new HostError(formatConfigError(path, error), 2);
+      if (error instanceof ConfigError) throw new HostError(formatConfigError(path, error), exits.usage);
       throw error;
     }
   };
@@ -92,11 +93,11 @@ export async function createOperation(
   let activeConfig: Config | null = null;
   if (mode !== 'host') {
     const main = checkout.main;
-    if (main === null) throw new HostError('celetis: need a Git checkout', 2);
+    if (main === null) throw new HostError('celetis: need a Git checkout', exits.usage);
     mainConfig = configured(main, () => validateConfig(readConfigSource(main)));
     if (mode === 'active') {
       const active = checkout.active;
-      if (active === null) throw new HostError('celetis: need an active Git checkout', 2);
+      if (active === null) throw new HostError('celetis: need an active Git checkout', exits.usage);
       activeConfig = active === main ? mainConfig : configured(active, () => validateConfig(readConfigSource(active)));
     }
   }

@@ -65,7 +65,7 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
   a check or an explicit role in `scripts/verify.ts`.
 - Author each first-party program in TypeScript. Bun 1.4.4 or later runs commands.
   `scripts/build.ts` uses exactly Bun 1.4.4 to generate browser assets, native hook modules,
-  and the help block of `README.md` from `engine/lib/help.ts`. `--check` compares bytes, and modes on macOS and Linux, without
+  and the generated blocks of `README.md` and `docs/issue-tracker.md` from `engine/lib/contract.ts`. `--check` compares bytes, and modes on macOS and Linux, without
   writes. The vendor parser stays unchanged; update it only as `engine/lib/vendor/README.md` says.
 - Strict types have three environments: runtime commands and server modules;
   browser DOM modules; and the native hook API and its actual globals.
@@ -133,6 +133,15 @@ and the step text: each `<plugin>/<path>` citation and each relative link names 
 each procedure module has two or more citers, each `SKILL.md` holds the entry line of
 `docs/procedures/entry.md` once, and no skill, module, or principle cites `docs/hosts/`.
 
+`checkContract` in `scripts/verify.ts` checks the same files against `engine/lib/contract.ts`
+(ADR-0079). Each code span or fenced line that starts with `celetis` must match a declared form.
+Each exit code in prose must be a class of a command that its block names. The block is its
+paragraph, heading, or table row, or its list item with its lead: the paragraph just before the
+list, or the parent item of a nested list. A code span or a fenced line that starts with `celetis`
+names its command, and so does a code span of two or more words that matches a declared form.
+When the block names no command, a code span of another program (`otherPrograms`) in the block
+skips the exit. Every other exit fails.
+
 ## Celetis workflow
 
 The lanes of this repository are the skills of the plugin itself, on the issues of
@@ -194,10 +203,10 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
   daemon only when its process command line contains `daemon.ts`. A rename makes a live owner
   look stale. The daemon can then end a session during a landing, or two daemons can take one
   issue. On Windows, owners match by PID and creation time instead (ADR-0034).
-- **The skills table and the commands table of `README.md` are written by hand.** A new skill, a
-  removed skill, or a new sub-command of `engine/` also changes the README, and no check fails when
-  it does not. `scripts/build.ts` writes only the block of the commands that a person types. A new
-  command that a person types goes into `engine/lib/help.ts`.
+- **The skills table of `README.md` is written by hand.** A new skill or a removed skill also changes
+  the README, and no check fails when it does not. A new command, form, act, or exit class goes into
+  `engine/lib/contract.ts`; `scripts/build.ts` writes from it the help block, the command table, and
+  the exit-class table of `README.md`, and the act table of `docs/issue-tracker.md`.
 - **The skill `writing-for-agents` is vendored** from `mattpocock/skills`
   (ddinkov10/fwrh_calculator#265).
 

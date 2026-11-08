@@ -3,6 +3,8 @@ import { type BigIntStats, closeSync, constants, fstatSync, lstatSync, openSync,
 import { rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AgentChoice, AgentDecision, Host, UsageBlock } from './config-core.ts';
+import { type ExitCode, exits } from './contract.ts';
+import { HostError } from './host.ts';
 import { privateFolderSync, privateMode, sharedFolderSync, sharedMode } from './private-folder.ts';
 import { stateFolder } from './state-folder.ts';
 import { tryFlock } from './update-lock.ts';
@@ -19,7 +21,8 @@ type UsageRecord = Readonly<{
   block: UsageBlock | null;
 }>;
 export type UsageState = Readonly<Record<Host, UsageRecord | null>>;
-const invalid = (path: string, reason: string) => new Error(`usage: ${path}: ${reason}`);
+const invalid = (path: string, reason: string, code: ExitCode = exits.blocked) =>
+  new HostError(`usage: ${path}: ${reason}`, code);
 const sameFile = (a: BigIntStats, b: BigIntStats) => a.dev === b.dev && a.ino === b.ino;
 const privateStat = (stat: BigIntStats) => privateMode({ uid: Number(stat.uid), mode: Number(stat.mode) });
 const natural = (value: unknown): value is number =>
@@ -77,8 +80,14 @@ function readHost(state: string, host: Host): UsageRecord | null {
   try {
     const opened = fstatSync(fd, { bigint: true });
     regular(path, opened);
-    if (!sameFile(before, opened)) throw invalid(path, 'record changed during read');
-    const value: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(readFileSync(fd)));
+    if (!sameFile(before, opened)) throw invalid(path, 'record changed during read', exits.prerequisite);
+    const source = readFileSync(fd);
+    let value: unknown;
+    try {
+      value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(source));
+    } catch (error) {
+      throw invalid(path, error instanceof Error ? error.message : String(error), exits.usage);
+    }
     if (
       !usageObject(value) ||
       Object.keys(value).sort().join(',') !== 'attemptId,block,nextOrdinal,ordinal,schema,sequence' ||
@@ -96,11 +105,11 @@ function readHost(state: string, host: Host): UsageRecord | null {
           value.attemptId.length <= 128 &&
           value.sequence > 0)
     )
-      throw invalid(path, 'invalid record');
+      throw invalid(path, 'invalid record', exits.usage);
     const current = statAt(path);
     const after = folder(dir);
     if (!current || !after || !sameFile(opened, current) || !sameFile(directory, after))
-      throw invalid(path, 'record changed during read');
+      throw invalid(path, 'record changed during read', exits.prerequisite);
     return {
       schema: 1,
       nextOrdinal: value.nextOrdinal,
@@ -139,17 +148,17 @@ async function update<T>(
   try {
     const opened = fstatSync(fd, { bigint: true });
     regular(lock, opened);
-    if (before && !sameFile(before, opened)) throw invalid(lock, 'lock changed during open');
+    if (before && !sameFile(before, opened)) throw invalid(lock, 'lock changed during open', exits.prerequisite);
     const stable = () => {
       const current = statAt(lock);
       const currentDirectory = folder(dir);
       if (!current || !currentDirectory || !sameFile(opened, current) || !sameFile(directory, currentDirectory))
-        throw invalid(lock, 'directory or lock changed');
+        throw invalid(lock, 'directory or lock changed', exits.prerequisite);
       regular(lock, current);
     };
     const deadline = performance.now() + 5000;
     while (!tryFlock(fd)) {
-      if (performance.now() >= deadline) throw invalid(lock, 'write lock is busy');
+      if (performance.now() >= deadline) throw invalid(lock, 'write lock is busy', exits.prerequisite);
       await Bun.sleep(25);
     }
     stable();
@@ -164,9 +173,9 @@ async function update<T>(
       stable();
       const current = statAt(path);
       if (original ? !current || !sameFile(original, current) : current !== null)
-        throw invalid(path, 'record changed during write');
+        throw invalid(path, 'record changed during write', exits.prerequisite);
       if (JSON.stringify(readHost(state, host) ?? empty()) !== JSON.stringify(previous))
-        throw invalid(path, 'content changed during write');
+        throw invalid(path, 'content changed during write', exits.prerequisite);
       await rename(temp, path);
     } finally {
       await rm(temp, { force: true });

@@ -2,7 +2,9 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { closeSync, openSync } from 'node:fs';
 import { mkdir, rename, stat, writeFile } from 'node:fs/promises';
+import { constants } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
+import { type ExitCode, exits, signalExit, usage } from './lib/contract.ts';
 import {
   askDaemon,
   type Found,
@@ -24,12 +26,11 @@ import { programRevision } from './lib/program.ts';
 import { stateFolder } from './lib/state-folder.ts';
 import { requireTerminals, TerminalError } from './lib/terminal.ts';
 
-const usage = 'usage: celetis daemon start | status | stop | auto on|off';
 const noDaemon = 'daemon: no daemon runs for this repository';
 const root = dirname(import.meta.dir);
 
 function answerless(found: Extract<Found, { kind: 'unknown' }>): HostError {
-  return new HostError(`daemon: the daemon of this repository does not answer: ${found.reason}`, 6);
+  return new HostError(`daemon: the daemon of this repository does not answer: ${found.reason}`, exits.blocked);
 }
 
 async function runsLine(identity: DaemonIdentity): Promise<string> {
@@ -47,29 +48,29 @@ async function report(common: string): Promise<DaemonStatus> {
     return await readStatus(common);
   } catch (error) {
     if (!(error instanceof HostError)) throw error;
-    throw new HostError(error.message, 6);
+    throw new HostError(error.message, exits.blocked);
   }
 }
 
 async function requireStart(): Promise<void> {
   try {
     requireBun();
-    if (!Bun.which('gh', { PATH: childEnv().PATH })) throw new HostError('gh is not on PATH');
+    if (!Bun.which('gh', { PATH: childEnv().PATH })) throw new HostError('gh is not on PATH', exits.prerequisite);
     await requireTerminals();
   } catch (error) {
     if (error instanceof TerminalError || error instanceof HostError)
-      throw new HostError(`daemon: ${error.message}`, 1);
+      throw new HostError(`daemon: ${error.message}`, error.code);
     throw error;
   }
 }
 
-async function start(common: string, main: string): Promise<number> {
+async function start(common: string, main: string): Promise<ExitCode> {
   const found = await findDaemon(common);
   if (found.kind === 'unknown') throw answerless(found);
   if (found.kind === 'runs') {
     console.log(await runsLine(found.identity));
     if ((await revisionRefusal(found.identity, 'daemon')) === null) console.log(boardLine(await report(common)));
-    return 0;
+    return exits.done;
   }
   await requireStart();
   const paths = await daemonPaths(common);
@@ -86,10 +87,10 @@ async function start(common: string, main: string): Promise<number> {
   });
   closeSync(log);
   child.once('error', () => {
-    ended.code = 1;
+    ended.code = exits.blocked;
   });
-  child.once('exit', (code) => {
-    ended.code = code ?? 1;
+  child.once('exit', (code, signal) => {
+    ended.code = code ?? (signal ? signalExit(constants.signals[signal]) : exits.blocked);
   });
   child.unref();
   const deadline = Date.now() + 30_000;
@@ -98,7 +99,7 @@ async function start(common: string, main: string): Promise<number> {
     if (now.kind === 'runs') {
       if ((await revisionRefusal(now.identity, 'daemon')) !== null) {
         console.log(await runsLine(now.identity));
-        return 0;
+        return exits.done;
       }
       const status = await readStatus(common).catch(() => null);
       if (status) {
@@ -108,31 +109,31 @@ async function start(common: string, main: string): Promise<number> {
             : await runsLine(now.identity),
         );
         console.log(boardLine(status));
-        return 0;
+        return exits.done;
       }
     } else if (ended.code !== null) {
       console.error(`daemon: the daemon ended with exit ${ended.code} before it served; read ${paths.log}`);
-      return 1;
+      return exits.blocked;
     }
     await Bun.sleep(250);
   }
   console.error(`daemon: the daemon did not answer within 30 seconds; read ${paths.log}`);
-  return 1;
+  return exits.blocked;
 }
 
 const clock = (ms: number) => new Date(ms).toTimeString().slice(0, 8);
 const rowLine = (row: RunRow) =>
   `daemon: run ${row.id.slice(0, 8)} ${row.kind} ${row.issue === null ? '-' : `#${row.issue}`} ${row.step ?? '-'} ${row.host ?? '-'} ${row.state} ${clock(row.changedMs)}: ${row.line ?? '-'}`;
 
-async function status(common: string): Promise<number> {
+async function status(common: string): Promise<ExitCode> {
   const found = await findDaemon(common);
   if (found.kind === 'none') {
     console.error(noDaemon);
-    return 3;
+    return exits.prerequisite;
   }
   if (found.kind === 'unknown') throw answerless(found);
   const refusal = await revisionRefusal(found.identity, 'daemon');
-  if (refusal !== null) throw new HostError(refusal, 1);
+  if (refusal !== null) throw new HostError(refusal, exits.prerequisite);
   const read = await report(common);
   const { daemon } = read;
   console.log(
@@ -143,25 +144,25 @@ async function status(common: string): Promise<number> {
   for (const row of read.runs) console.log(rowLine(row));
   for (const row of read.landings)
     console.log(`daemon: landing #${row.issue} ${row.state} since ${clock(row.changedMs)}`);
-  return 0;
+  return exits.done;
 }
 
-async function auto(common: string, on: boolean, explicit: string | undefined): Promise<number> {
+async function auto(common: string, on: boolean, explicit: string | undefined): Promise<ExitCode> {
   const selection = requestSelection(explicit);
   const { answer } = await askDaemon(common, { kind: 'auto', on, selection, quiet: false }, 'daemon');
   if (!answer.accepted) {
-    (answer.code === 0 ? console.log : console.error)(answer.line);
+    (answer.code === exits.done ? console.log : console.error)(answer.line);
     return answer.code;
   }
   console.log(`daemon: auto mode ${(await report(common)).auto}`);
-  return 0;
+  return exits.done;
 }
 
-async function stop(common: string): Promise<number> {
+async function stop(common: string): Promise<ExitCode> {
   const found = await findDaemon(common);
   if (found.kind === 'none') {
     console.log(noDaemon);
-    return 0;
+    return exits.done;
   }
   if (found.kind === 'unknown') throw answerless(found);
   const { pid, start } = found.identity;
@@ -176,18 +177,19 @@ async function stop(common: string): Promise<number> {
   while ((await processState(pid, start)) !== 'gone') {
     if (Date.now() >= deadline) {
       console.error(`daemon: PID ${pid} did not exit within 60 seconds`);
-      return 6;
+      return exits.blocked;
     }
     await Bun.sleep(250);
   }
   console.log(`daemon: stopped PID ${pid}`);
-  return 0;
+  return exits.done;
 }
 
-export async function main(argv: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<ExitCode> {
   try {
     const { args, explicit } = commandInput(argv);
-    if (process.platform === 'win32') throw new HostError('daemon: Windows is not a support target', 2);
+    if (process.platform === 'win32')
+      throw new HostError('daemon: Windows is not a support target', exits.prerequisite);
     const form = args[0];
     const word = form === 'auto' ? args[1] : undefined;
     const valid =
@@ -195,12 +197,12 @@ export async function main(argv: string[]): Promise<number> {
         ? args.length === 2 && (word === 'on' || word === 'off')
         : args.length === 1 && (form === 'start' || form === 'status' || form === 'stop');
     if (!valid) {
-      console.error(usage);
-      return 2;
+      console.error(usage('daemon'));
+      return exits.usage;
     }
     const checkout = await locateCheckouts(process.cwd());
     if (checkout.common === null || checkout.main === null)
-      throw new HostError('daemon: this folder is no Git checkout', 2);
+      throw new HostError('daemon: this folder is no Git checkout', exits.usage);
     if (form === 'start') return await start(checkout.common, checkout.main);
     if (form === 'status') return await status(checkout.common);
     if (form === 'auto') return await auto(checkout.common, word === 'on', explicit);
@@ -212,7 +214,7 @@ export async function main(argv: string[]): Promise<number> {
   }
 }
 
-async function prepareState(argv: string[]): Promise<number> {
+async function prepareState(argv: string[]): Promise<ExitCode> {
   const session =
     argv[1] === 'session' &&
     argv.length === 3 &&
@@ -220,33 +222,35 @@ async function prepareState(argv: string[]): Promise<number> {
     Number.isSafeInteger(Number(argv[2]));
   if (!(argv.length === 2 && argv[1] === 'queue') && !session) {
     console.error('state preparation: invalid internal request');
-    return 2;
+    return exits.usage;
   }
   let owner: LockOwner | undefined;
   try {
     requireBun();
     const checkout = await locateCheckouts(process.cwd());
-    if (checkout.main === null || checkout.common === null) throw new Error('state preparation: need a Git checkout');
+    if (checkout.main === null || checkout.common === null)
+      throw new HostError('state preparation: need a Git checkout', exits.usage);
     owner = (await import('./lib/locks.ts')).createLockOwner(checkout.main);
     if (session) {
       const name = `issue-${argv[2]}`;
       const holder = await owner.take(name);
       if (holder !== null)
-        throw new Error(
+        throw new HostError(
           `session: ${join(await stateFolder(checkout.common), 'sessions', `${argv[2]}.json`)}: target schema 2: busy ${name} ownership (PID ${holder}); retry after the owner exits`,
+          exits.prerequisite,
         );
       await (await import('./lib/session.ts')).prepareSession(checkout.main, Number(argv[2]), checkout.common, owner);
     } else await (await import('./lib/queue.ts')).prepareQueue(checkout.main, checkout.common, owner);
-    return 0;
+    return exits.done;
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
-    return 1;
+    return error instanceof HostError ? error.code : exits.internal;
   } finally {
     await owner?.releaseAll();
   }
 }
 
-async function waitingSession(args: string[]): Promise<number> {
+async function waitingSession(args: string[]): Promise<ExitCode> {
   installRecorder('session-start');
   const [dir, daemon, host, attempt, recovery, ...hostArgs] = args;
   if (
@@ -257,7 +261,7 @@ async function waitingSession(args: string[]): Promise<number> {
     !(attempt === '-' || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(attempt ?? '')) ||
     !(recovery === '-' || (recovery === 'recovery' && attempt !== '-'))
   )
-    return 2;
+    return exits.usage;
   const { codexHome } = await import('./lib/plugin-metadata.ts');
   const { sessionEnv } = await import('./lib/session.ts');
   const { spawnConsumer } = await import('./lib/update-lock.ts');
@@ -268,10 +272,10 @@ async function waitingSession(args: string[]): Promise<number> {
   };
   await record('pid', `${JSON.stringify({ pid: process.pid, start: await processStart(process.pid) })}\n`);
   while (!(await stat(join(dir, 'go')).catch(() => null))?.isFile()) {
-    if ((await processAlive(Number(daemon))) === 'gone') return 1;
+    if ((await processAlive(Number(daemon))) === 'gone') return exits.prerequisite;
     await Bun.sleep(50);
   }
-  let code = 1;
+  let code: ExitCode;
   try {
     const source: NodeJS.ProcessEnv = { ...process.env, CELETIS_SESSION_AGENT: host };
     delete source.CELETIS_RECOVERY;
@@ -281,11 +285,12 @@ async function waitingSession(args: string[]): Promise<number> {
     const env = childEnv(sessionEnv(host, source));
     if (host === 'codex') env.CODEX_HOME = await codexHome();
     const executable = Bun.which(host, { PATH: env.PATH });
-    if (!executable) throw new HostError(`celetis: ${host} is not on PATH`);
+    if (!executable) throw new HostError(`celetis: ${host} is not on PATH`, exits.prerequisite);
     code = passOn(await spawnConsumer(executable, [executable, ...hostArgs], env));
   } catch (error) {
     if (!(error instanceof HostError)) throw error;
     console.error(error.message);
+    code = error.code;
   }
   await record('status', `${code}\n`).catch(() => {});
   return code;

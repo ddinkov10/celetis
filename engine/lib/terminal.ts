@@ -2,6 +2,7 @@ import { closeSync, constants, fstatSync, openSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import type { Host } from './config-core.ts';
+import { type ExitCode, exits } from './contract.ts';
 import { childEnv, run } from './process.ts';
 import { stateFolder } from './state-folder.ts';
 import type { Terminal, TerminalStatus } from './terminal-types.ts';
@@ -22,7 +23,14 @@ export type OpenTab = {
 };
 type Space = { id: string | null; name: unknown; tabs: { id: string | null; terminals: unknown[] }[] };
 
-export class TerminalError extends Error {}
+export class TerminalError extends Error {
+  constructor(
+    message: string,
+    readonly code: ExitCode = exits.blocked,
+  ) {
+    super(message);
+  }
+}
 
 export const LINK = 'celetis.link';
 const SAFE_ID = /^[\w:.][\w:.-]*$/;
@@ -187,12 +195,15 @@ const reason = (error: unknown) => (error instanceof Error ? error.message : Str
 export async function requireTerminals(exec: Exec = run, env: NodeJS.ProcessEnv = process.env): Promise<void> {
   const PATH = childEnv(env).PATH ?? '';
   if (!Bun.which('hc', { PATH }))
-    throw new TerminalError('hc is not on PATH; install herdr-core 0.1.16, then start again');
+    throw new TerminalError('hc is not on PATH; install herdr-core 0.1.16, then start again', exits.prerequisite);
   await terminalIds(exec).catch((error: unknown) => {
     throw new TerminalError(`the hc server does not answer: ${reason(error)}; start the Herdr app, then start again`);
   });
   if (!Bun.which('herdr-app', { PATH }))
-    throw new TerminalError('herdr-app is not on PATH; install the Herdr app 0.1.11, then start again');
+    throw new TerminalError(
+      'herdr-app is not on PATH; install the Herdr app 0.1.11, then start again',
+      exits.prerequisite,
+    );
   await readSpaces(exec).catch((error: unknown) => {
     throw new TerminalError(
       `the Herdr app does not answer: ${reason(error)}; open the Herdr app window, then start again`,
@@ -297,7 +308,10 @@ async function holdingSpaceLock<T>(common: string, work: () => Promise<T>): Prom
     const until = performance.now() + LOCK_LIMIT_MS;
     while (!tryFlock(fd)) {
       if (performance.now() >= until)
-        throw new TerminalError(`the space lock ${lock} stays held after ${LOCK_LIMIT_MS / 1000} seconds; start again`);
+        throw new TerminalError(
+          `the space lock ${lock} stays held after ${LOCK_LIMIT_MS / 1000} seconds; start again`,
+          exits.prerequisite,
+        );
       await Bun.sleep(LOCK_POLL_MS);
     }
     return await work();

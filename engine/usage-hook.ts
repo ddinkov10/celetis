@@ -1,10 +1,11 @@
+import { type ExitCode, exits } from './lib/contract.ts';
 import { receiveClaudeUsage } from './lib/usage-claude.ts';
 
-async function main(args: string[]): Promise<number> {
+async function main(args: string[]): Promise<ExitCode> {
   const [directory, attemptId] = args;
   if (args.length !== 2 || !directory || !attemptId) {
     console.error('usage: usage-hook <capture-directory> <attempt-id>');
-    return 1;
+    return exits.internal;
   }
   const chunks: Uint8Array[] = [];
   let size = 0;
@@ -15,12 +16,12 @@ async function main(args: string[]): Promise<number> {
   }
   const value: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'));
   await receiveClaudeUsage(directory, attemptId, value);
-  return 0;
+  return exits.done;
 }
 
 try {
   process.exitCode = await main(process.argv.slice(2));
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
+  process.exitCode = exits.internal;
 }

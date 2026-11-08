@@ -16,6 +16,7 @@ import {
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
+import { exits } from './contract.ts';
 import { HostError } from './host.ts';
 import { revision as fullRevision, git, installedRevision } from './plugin-metadata.ts';
 import { run } from './process.ts';
@@ -57,14 +58,14 @@ const slow: typeof run = (file, args, options) =>
 
 export async function programRevision(root: string): Promise<string> {
   const result = await run('git', ['rev-parse', '--verify', 'HEAD'], { cwd: root });
-  if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
+  if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
   return result.stdout.trimEnd();
 }
 
 export function celetisBase(): string {
   const selected = process.env.CELETIS_HOME;
   if (selected && !isAbsolute(selected))
-    throw new HostError(`celetis: CELETIS_HOME must be an absolute path: ${selected}`, 2);
+    throw new HostError(`celetis: CELETIS_HOME must be an absolute path: ${selected}`, exits.usage);
   return selected || homedir();
 }
 
@@ -82,7 +83,10 @@ export function programPaths(base = celetisBase()): ProgramPaths {
 }
 
 const foreign = (path: string) =>
-  new HostError(`celetis: ${path} is not a file of the celetis program; move it away, then run the install again`);
+  new HostError(
+    `celetis: ${path} is not a file of the celetis program; move it away, then run the install again`,
+    exits.prerequisite,
+  );
 
 async function programAt(paths: ProgramPaths, revision: string, command: string): Promise<Program | null> {
   const root = join(paths.versions, revision);
@@ -124,10 +128,13 @@ export async function readProgram(paths = programPaths()): Promise<Program | nul
 export async function installedProgram(target: string): Promise<Program> {
   const program = await readProgram(programPaths());
   if (!fullRevision.test(target) || !program || program.revision !== target)
-    throw new HostError('update: the installed program is not the approved target; check again');
+    throw new HostError('update: the installed program is not the approved target; check again', exits.prerequisite);
   const source = await programSource(program.root);
   if (source.revision !== target || (await installedRevision('program', program.root, source.source)) !== target)
-    throw new HostError('update: the installed program identity differs from the approved target; check again');
+    throw new HostError(
+      'update: the installed program identity differs from the approved target; check again',
+      exits.prerequisite,
+    );
   return program;
 }
 
@@ -138,6 +145,7 @@ export async function programSource(root: string): Promise<ProgramSource> {
   if (await git(['status', '--porcelain', '--untracked-files=normal'], root))
     throw new HostError(
       `celetis: ${root} has changes that are not in a commit; commit or remove them, then run the install again`,
+      exits.prerequisite,
     );
   return { source, branch, revision };
 }
@@ -168,18 +176,25 @@ export async function installProgram(
   paths = programPaths(),
   expected?: Program,
 ): Promise<Program> {
-  if (!fullRevision.test(wanted.revision)) throw new HostError(`celetis: invalid program revision ${wanted.revision}`);
+  if (!fullRevision.test(wanted.revision))
+    throw new HostError(`celetis: invalid program revision ${wanted.revision}`, exits.internal);
   await readProgram(paths);
   await mkdir(paths.versions, { recursive: true });
   const lock = openSync(join(paths.data, 'install.lock'), 'a+', 0o600);
   try {
     if (!tryFlock(lock))
-      throw new HostError('celetis: another celetis install or update runs; try again after it ends');
+      throw new HostError(
+        'celetis: another celetis install or update runs; try again after it ends',
+        exits.prerequisite,
+      );
     const validateExpected = async () => {
       if (!expected) return;
       const installed = await readProgram(paths);
       if (!isDeepStrictEqual(installed, expected))
-        throw new HostError('update: installed program changed; check again and obtain a new direct user response');
+        throw new HostError(
+          'update: installed program changed; check again and obtain a new direct user response',
+          exits.prerequisite,
+        );
       const source = await programSource(expected.root);
       const remote = await git(['ls-remote', '--', wanted.source, `refs/heads/${wanted.branch}`], expected.root);
       if (
@@ -188,7 +203,10 @@ export async function installProgram(
         source.revision !== expected.revision ||
         remote !== `${wanted.revision}\trefs/heads/${wanted.branch}`
       )
-        throw new HostError('update: program source, ref, or target changed; check again and obtain a new decision');
+        throw new HostError(
+          'update: program source, ref, or target changed; check again and obtain a new decision',
+          exits.prerequisite,
+        );
     };
     await validateExpected();
     for (const name of await readdir(paths.versions))
@@ -199,7 +217,11 @@ export async function installProgram(
         if (error instanceof HostError) return false;
         throw error;
       });
-      if (!same) throw new HostError(`celetis: ${root} holds another program; remove it, then run the install again`);
+      if (!same)
+        throw new HostError(
+          `celetis: ${root} holds another program; remove it, then run the install again`,
+          exits.prerequisite,
+        );
     } else {
       const staging = join(paths.versions, `.${wanted.revision}.${randomUUID()}`);
       try {
@@ -213,6 +235,7 @@ export async function installProgram(
         if (!(await holds(staging, wanted)))
           throw new HostError(
             `celetis: the clone of ${from} is not ${wanted.source} ${wanted.branch} at ${wanted.revision}`,
+            exits.blocked,
           );
         await rename(staging, root);
       } finally {
@@ -222,6 +245,7 @@ export async function installProgram(
     if (!(await lstat(join(root, 'celetis')).catch(() => null))?.isFile())
       throw new HostError(
         `celetis: revision ${wanted.revision} has no celetis program file; the program did not change`,
+        exits.prerequisite,
       );
     await validateExpected();
     await mkdir(paths.bin, { recursive: true });
@@ -250,7 +274,7 @@ export async function installProgram(
       if (name !== wanted.revision && join(versions, name) !== running)
         await rm(join(paths.versions, name), { recursive: true, force: true });
     const program = await readProgram(paths);
-    if (!program) throw new HostError(`celetis: the install did not make ${paths.link}`);
+    if (!program) throw new HostError(`celetis: the install did not make ${paths.link}`, exits.blocked);
     return program;
   } finally {
     closeSync(lock);

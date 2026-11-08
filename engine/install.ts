@@ -1,15 +1,16 @@
 import { delimiter, dirname, resolve } from 'node:path';
+import { type ExitCode, exits, usage } from './lib/contract.ts';
 import { installRecorder } from './lib/events.ts';
-import { HostError, requireBun, updateHint } from './lib/host.ts';
+import { HostError, requireBun } from './lib/host.ts';
 import { commandInput } from './lib/operation.ts';
 import { childEnv } from './lib/process.ts';
 import { installProgram, programPaths, programSource } from './lib/program.ts';
 
-export async function main(argv: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<ExitCode> {
   try {
     requireBun();
     const { args } = commandInput(argv);
-    if (args.length) throw new HostError(`usage: celetis install\n${updateHint}`, 2);
+    if (args.length) throw new HostError(usage('install'), exits.usage);
     const paths = programPaths();
     const root = dirname(import.meta.dir);
     const program = await installProgram(root, await programSource(root), paths);
@@ -18,7 +19,7 @@ export async function main(argv: string[]): Promise<number> {
     const items = (childEnv().PATH ?? '').split(delimiter).filter(Boolean);
     if (!items.some((item) => key(resolve(item)) === key(paths.bin)))
       console.log(`install: ${paths.bin} is not on PATH; add it as README.md, "First install", says`);
-    return 0;
+    return exits.done;
   } catch (error) {
     if (!(error instanceof HostError)) throw error;
     if (error.message) console.error(error.message);

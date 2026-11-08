@@ -1,18 +1,18 @@
 import { lstatSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { type ExitCode, exits, usage } from './lib/contract.ts';
 import { eventFile, eventFolder, withEventLock } from './lib/events.ts';
-import { HostError, requireBun, updateHint } from './lib/host.ts';
+import { HostError, requireBun } from './lib/host.ts';
 import { commandInput } from './lib/operation.ts';
 import { privateMode } from './lib/private-folder.ts';
 
-const usage = `usage: celetis --agent <host> events [--after <id>]\n${updateHint}`;
 const busy = 'celetis: the record lock is busy after 2 seconds';
 
 function parse(argv: string[]): string | null {
   const { args } = commandInput(argv);
   if (args.length === 0) return null;
   if (args.length === 2 && args[0] === '--after' && args[1] !== undefined) return args[1];
-  throw new HostError(usage, 2);
+  throw new HostError(usage('events'), exits.usage);
 }
 
 function readFile(path: string): string {
@@ -46,15 +46,18 @@ function entries(folder: string): { id: string; line: string }[] {
   return kept;
 }
 
-export async function main(argv: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<ExitCode> {
   try {
     requireBun();
     const after = parse(argv);
     const folder = eventFolder();
     const stat = lstatSync(folder, { throwIfNoEntry: false });
-    if (!stat) return 0;
+    if (!stat) return exits.done;
     if (!stat.isDirectory() || stat.isSymbolicLink() || !privateMode(stat))
-      throw new HostError(`events: ${folder}: need a private directory owned by the current user (mode 0700)`);
+      throw new HostError(
+        `events: ${folder}: need a private directory owned by the current user (mode 0700)`,
+        exits.blocked,
+      );
     let kept = withEventLock(folder, true, () => entries(folder));
     if (after !== null) {
       const index = kept.findLastIndex((item) => item.id === after);
@@ -62,7 +65,7 @@ export async function main(argv: string[]): Promise<number> {
       else console.error(`events: no kept entry has the id ${after}; the output starts at the oldest kept entry`);
     }
     if (kept.length) console.log(kept.map((item) => item.line).join('\n'));
-    return 0;
+    return exits.done;
   } catch (error) {
     if (!(error instanceof HostError)) throw error;
     const message =

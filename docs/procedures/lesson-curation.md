@@ -68,7 +68,7 @@ In the lane checkout, before the return to the main checkout:
    go on to `land`.
 5. A child that cannot start, a setup stop, a stopped child, or a failed `read main` ends the
    curation with that cause, and the landing runs. When the curation ends with a stopped child, an
-   apply exit 6, or a line that says `incomplete transaction` (for example of a failed
+   exit 6 of `lesson-store apply SNAPSHOT DIGEST`, or a line that says `incomplete transaction` (for example of a failed
    `read main`), run `celetis --agent <host> lesson-store recover` once before the report of
    step 4, so that no journal of an apply stays, and report its result. A nonzero exit of
    `recover` also goes into the report only.
@@ -96,12 +96,13 @@ checkout. Make no commit yourself: `apply` makes the lesson commit on the lane b
 5. **Apply.** Run `celetis --agent <host> lesson-store preview REQUEST` and save its JSON. Then
    run `celetis --agent <host> lesson-store apply SNAPSHOT DIGEST` with the `digest` of that
    snapshot. Complete each decision before you prepare the next one.
-6. **Exits.** A preview exit 2 whose line names a document or a field of your request, or names
+6. **Exits.** An exit 2 of `lesson-store preview FILE` whose line names a document or a field of your request, or names
    `review:`, is an error of your request, for example
    `lesson-store: review: approve needs one pending proposal and one new active lesson`. Correct
    the request once, by the named line, and preview it again. A second exit 2, or an exit 2 that
    names a pending proposal or another store file, skips that proposal with its cause, and the
-   next proposal goes on. Each other nonzero exit (preview 3 or 6; apply 2, 3, or 6) ends the
+   next proposal goes on. Each other nonzero exit (exit 3 or 6 of `lesson-store preview FILE`; exit 2, 3, or 6 of
+   `lesson-store apply SNAPSHOT DIGEST`) ends the
    curation, and the decisions applied before it stay. Exit 3 is `busy`, or `stale` because a
    reviewed input changed, for example by an apply of another lane at the same moment. It gets no
    retry in this landing.
@@ -111,7 +112,7 @@ checkout. Make no commit yourself: `apply` makes the lesson commit on the lane b
 ## Lesson conflicts
 
 A merge of the trunk into a lane can conflict on a lesson file. A clean merge can also give
-lessons that do not validate: `land` then refuses with exit 4 and a line that names the lessons of
+lessons that do not validate: `land <n> '<subject>'` then refuses with exit 4 and a line that names the lessons of
 the lane. Resolve each affected file: keep every incident and every review entry of both sides,
 each ID once; keep one rule text and one status, chosen by "The reviewer rules". Then
 `celetis --agent <host> lesson-store read active` must exit 0 in the lane.

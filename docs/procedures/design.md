@@ -148,7 +148,7 @@ After "The page did not open" or "The overlay did not show", follow "The fallbac
 
 ## The fallback of the pick
 
-When `serve-question --start` exits 2, the CLI reports no browser, or the maintainer answers "The
+When `<impeccable>/scripts/impeccable serve-question --start` exits 2, the CLI reports no browser, or the maintainer answers "The
 page did not open": stop a running page with `serve-question --stop --key <key>`, and ask the
 terminal question alone. Its options are the cards, each by its name and one line, as the
 structured question channel of `<impeccable>/reference/new-work.md`. The chosen card is the pick.

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { readConfig } from './config.ts';
 import { type Config, ConfigError, type Host } from './config-core.ts';
+import { type ExitCode, exits, labels, setupStatusClosing } from './contract.ts';
 import type { Operation } from './operation.ts';
 import { run } from './process.ts';
 import { parseSetupRecord, type WiringRecord } from './setup-record.ts';
@@ -31,7 +32,6 @@ import {
   wiring,
 } from './setup-wiring.ts';
 import { github } from './tracker.ts';
-import { labels } from './workflow.ts';
 
 type Finding = Readonly<{ kind: 'missing' | 'invalid' | 'different' | 'blocked'; subject: string; cause: string }>;
 type Origin = Readonly<{ host: string; repository: string }>;
@@ -344,14 +344,14 @@ class Status {
   }
 }
 
-export async function setupStatus(operation: Operation): Promise<number> {
+export async function setupStatus(operation: Operation): Promise<ExitCode> {
   const { checkout, host } = operation;
   const out = (line: string) => process.stdout.write(`${line}\n`);
   if (checkout.active === null || checkout.main === null) {
     out(`setup: host ${host}`);
     out(`setup: missing: checkout: ${checkout.cwd} is in no Git checkout`);
     out('Enter the main checkout of the project, then run /celetis:setup there');
-    return 3;
+    return exits.prerequisite;
   }
   out(`setup: checkout ${checkout.active}`);
   out(`setup: host ${host}`);
@@ -370,8 +370,8 @@ export async function setupStatus(operation: Operation): Promise<number> {
   for (const { kind, subject, cause } of status.findings) out(`setup: ${kind}: ${subject}: ${cause}`);
   if (!status.findings.length) {
     out('setup: the required wiring is complete');
-    return 0;
+    return exits.done;
   }
-  out(`Run /celetis:setup in the main checkout: ${checkout.main}`);
-  return status.findings.some((finding) => finding.kind === 'blocked') ? 6 : 3;
+  out(setupStatusClosing(checkout.main));
+  return status.findings.some((finding) => finding.kind === 'blocked') ? exits.blocked : exits.prerequisite;
 }

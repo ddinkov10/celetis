@@ -1,6 +1,7 @@
 import { closeSync, constants, fstatSync, openSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { exits } from './contract.ts';
 import { completionIdentity, parseAcceptedEpic, parseEpicAcceptance } from './epic-acceptance.ts';
 import { HostError } from './host.ts';
 import { stateFolder } from './state-folder.ts';
@@ -22,13 +23,14 @@ export type EpicCompletionResult =
   | Readonly<{ kind: 'pending'; reason: string; nextAction: string }>;
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const passed: readonly number[] = [exits.usage, exits.prerequisite, exits.blocked];
 const nextAction = (n: string) => `/celetis:accept-epic #${n}`;
 
 async function snapshot(gh: GitHub, n: string): Promise<EpicSnapshot> {
   try {
     return await gh.epic(n);
   } catch (error) {
-    throw new HostError(`epic: cannot read #${n}: ${message(error)}\n${gh.stderr()}`.trimEnd(), 6);
+    throw new HostError(`epic: cannot read #${n}: ${message(error)}\n${gh.stderr()}`.trimEnd(), exits.blocked);
   }
 }
 
@@ -43,7 +45,7 @@ async function withEpicLock<T>(
   change: (signal: AbortSignal) => Promise<T>,
 ): Promise<T> {
   if (!/^[1-9][0-9]*$/.test(n) || !Number.isSafeInteger(Number(n)))
-    throw new HostError('epic: need a positive safe issue number', 2);
+    throw new HostError('epic: need a positive safe issue number', exits.usage);
   const dir = await stateFolder(common);
   const controller = new AbortController();
   const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
@@ -66,7 +68,8 @@ async function withEpicLock<T>(
       const deadline = performance.now() + 5_000;
       while (!tryFlock(fd)) {
         controller.signal.throwIfAborted();
-        if (performance.now() >= deadline) throw new Error('completion lock is busy; refresh and try again');
+        if (performance.now() >= deadline)
+          throw new HostError(`epic: #${n}: completion lock is busy; refresh and try again`, exits.prerequisite);
         await Bun.sleep(50);
       }
       controller.signal.throwIfAborted();
@@ -75,8 +78,8 @@ async function withEpicLock<T>(
       closeSync(fd);
     }
   } catch (error) {
-    if (error instanceof HostError && [2, 3, 6].includes(error.code)) throw error;
-    throw new HostError(`epic: #${n}: ${message(error)}`, 6);
+    if (error instanceof HostError && passed.includes(error.code)) throw error;
+    throw new HostError(`epic: #${n}: ${message(error)}`, exits.blocked);
   } finally {
     if (signal) signal.removeEventListener('abort', interrupt);
     else for (const name of signals) process.off(name, interrupt);
@@ -85,20 +88,20 @@ async function withEpicLock<T>(
 
 export async function writeEpicDefinition(main: string, common: string, n: string, body: string): Promise<void> {
   const declaration = parseEpicAcceptance(body);
-  if (declaration.kind === 'unresolved') throw new HostError(`epic: ${declaration.reason}`, 2);
+  if (declaration.kind === 'unresolved') throw new HostError(`epic: ${declaration.reason}`, exits.usage);
   await withEpicLock(common, n, undefined, async (signal) => {
     const gh = github(main, signal);
     const current = await snapshot(gh, n);
     const { data, children } = current;
     const lane = laneOf(data.labels);
     if (data.state !== 'open' || (lane.kind !== 'epic' && !(lane.kind === 'lane' && lane.lane === 'feature')))
-      throw new HostError(`epic: #${n}: definition requires an open feature or epic`, 3);
+      throw new HostError(`epic: #${n}: definition requires an open feature or epic`, exits.prerequisite);
     const urls = new Set(children.map((child) => child.url));
     if (
       declaration.acceptance.mode === 'combined' &&
       declaration.acceptance.scenarios.some((scenario) => scenario.children.some((url) => !urls.has(url)))
     )
-      throw new HostError(`epic: #${n}: a scenario references a child outside the current epic`, 3);
+      throw new HostError(`epic: #${n}: a scenario references a child outside the current epic`, exits.prerequisite);
     const done: string[] = [];
     let attempt = '';
     try {
@@ -120,7 +123,7 @@ export async function writeEpicDefinition(main: string, common: string, n: strin
     } catch (error) {
       throw new HostError(
         `epic: #${n}: ${done.length ? done.join('; ') : 'no write acknowledged'}; ${attempt} outcome is unknown. Inspect the parent body and labels, fix the access/write failure, and re-enter ${nextAction(n)} for current checks.\n${message(error)}`,
-        6,
+        exits.blocked,
       );
     }
   });
@@ -239,7 +242,7 @@ export async function completeEpic(
         : `publication of completion record ${completionId} is uncertain; no close was attempted`;
       throw new HostError(
         `epic: #${n}: ${state}. Inspect the record and parent state, fix the access/write failure or changed prerequisite, and re-enter ${nextAction(n)} for current checks.\n${message(error)}`,
-        6,
+        exits.blocked,
       );
     }
   });

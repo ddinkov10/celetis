@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { exits } from '../lib/contract.ts';
 import type { DaemonRequest, DaemonStatus } from '../lib/daemon-types.ts';
 import { commonDir, HostError } from '../lib/host.ts';
 import { installedProgram, type Program } from '../lib/program.ts';
@@ -89,7 +90,7 @@ export async function startBoard(
           ? `agent-board: cannot listen on 127.0.0.1:${first}-65535: all ports are in use`
           : `agent-board: cannot listen on 127.0.0.1:${port}: ${cause.code === 'EADDRINUSE' ? 'the port is in use' : cause.message}`,
       );
-      void close().then(() => reject(new HostError('', 1)));
+      void close().then(() => reject(new HostError('', exits.blocked)));
     };
     server.on('error', refuse);
     server.once('listening', () => {

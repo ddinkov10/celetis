@@ -1,5 +1,6 @@
 import { type Effort, type Pair, pairText, ScoreError, scoreLabel } from './capability.ts';
 import type { Host } from './config-core.ts';
+import type { DispatchStatus } from './contract.ts';
 
 export type Role = 'implementer' | 'reviewer';
 export type Action = 'spawn' | 'resume' | 'replace';
@@ -64,11 +65,12 @@ export interface DispatchRecord {
   tasks: Task[];
   dispatches: Dispatch[];
 }
+type Refusal = Exclude<DispatchStatus, 'ready' | 'reported' | 'closed'>;
 export type Result =
-  | { status: 'reported'; dispatch: string; result: 'started' | 'failed' }
-  | { status: 'ready'; dispatch: Dispatch; voided: string[] }
-  | { status: 'closed'; issue: number; task: string }
-  | { status: 'refused' | 'stop' | 'setup'; issue: number; task: string; reason: string; trail: unknown[] | null };
+  | { status: Extract<DispatchStatus, 'reported'>; dispatch: string; result: 'started' | 'failed' }
+  | { status: Extract<DispatchStatus, 'ready'>; dispatch: Dispatch; voided: string[] }
+  | { status: Extract<DispatchStatus, 'closed'>; issue: number; task: string }
+  | { status: Refusal; issue: number; task: string; reason: string; trail: unknown[] | null };
 export interface Context {
   resolve(score: Score, level: number, reviewer: boolean): Pair | null;
   id(): string;
@@ -456,12 +458,7 @@ function trailOf(record: DispatchRecord, task: Task): unknown[] {
     };
   });
 }
-function refused(
-  record: DispatchRecord,
-  key: Key,
-  reason: string,
-  status: 'refused' | 'setup' | 'stop' = 'refused',
-): Result {
+function refused(record: DispatchRecord, key: Key, reason: string, status: Refusal = 'refused'): Result {
   const task = taskOf(record, key);
   return { status, issue: key.issue, task: key.task, reason, trail: task ? trailOf(record, task) : null };
 }

@@ -1,17 +1,23 @@
 import { AgentOrderConflict, readAgentOrder, replaceAgentOrder } from './lib/agent-order.ts';
+import { type ExitCode, exits, usage } from './lib/contract.ts';
 import { installRecorder } from './lib/events.ts';
 import { HostError } from './lib/host.ts';
 import { commandInput, locateCheckouts } from './lib/operation.ts';
 
-export async function main(argv: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<ExitCode> {
   try {
     const { args } = commandInput(argv);
     const [command, source] = args;
     if (!((command === 'read' && args.length === 1) || (command === 'replace' && args.length === 2)))
-      throw new HostError("usage: celetis agents read | replace '<JSON with order and expectedVersion>'", 2);
+      throw new HostError(usage('agents'), exits.usage);
     let replacement: { order: unknown; expectedVersion: string } | undefined;
     if (command === 'replace') {
-      const value: unknown = JSON.parse(source as string);
+      let value: unknown;
+      try {
+        value = JSON.parse(source as string);
+      } catch (error) {
+        throw new HostError((error as Error).message, exits.usage);
+      }
       if (
         value === null ||
         typeof value !== 'object' ||
@@ -21,11 +27,11 @@ export async function main(argv: string[]): Promise<number> {
         !('expectedVersion' in value) ||
         typeof value.expectedVersion !== 'string'
       )
-        throw new HostError('agents: replacement needs exactly order and expectedVersion', 2);
+        throw new HostError('agents: replacement needs exactly order and expectedVersion', exits.usage);
       replacement = { order: value.order, expectedVersion: value.expectedVersion };
     }
     const { common } = await locateCheckouts(process.cwd());
-    if (common === null) throw new HostError('agents: need a Git checkout', 2);
+    if (common === null) throw new HostError('agents: need a Git checkout', exits.usage);
     console.log(
       JSON.stringify(
         replacement
@@ -33,14 +39,14 @@ export async function main(argv: string[]): Promise<number> {
           : await readAgentOrder(common),
       ),
     );
-    return 0;
+    return exits.done;
   } catch (error) {
     if (error instanceof AgentOrderConflict) {
       console.log(JSON.stringify({ kind: 'conflict', latest: error.latest }));
-      return 3;
+      return exits.prerequisite;
     }
     console.error(error instanceof Error ? error.message : String(error));
-    return error instanceof HostError ? error.code : 1;
+    return error instanceof HostError ? error.code : exits.internal;
   }
 }
 

@@ -8,6 +8,7 @@ import {
   parseConfigText,
   validateConfig,
 } from './config-core.ts';
+import { exits } from './contract.ts';
 import { installRecorder } from './events.ts';
 
 const notRegularFile = 'need a regular, readable file, with no symlink';
@@ -65,6 +66,6 @@ if (import.meta.main) {
   } catch (error) {
     if (!(error instanceof ConfigError)) throw error;
     console.error(formatConfigError(checkout, error));
-    process.exit(2);
+    process.exit(exits.usage);
   }
 }

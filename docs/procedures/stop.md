@@ -53,7 +53,7 @@ Before the step stops, sort each act that the stop would ask of the maintainer i
    an install or a change on the maintainer's machine outside temporary data; an explicit
    deferral by the maintainer; and the `complete it by hand` command of an `issue` act, because a
    label write outside the engine can read as completion evidence. An engine that refuses each
-   later act of the session (a dispatch exit 4 or 5) also leaves no way on.
+   later act of the session (an exit 8 or 6 of `dispatch <act>`) also leaves no way on.
 
 A hold comment names only the acts of class 3. The step records each answer of class 2 and its
 source (the maintainer's message in this session, with the date) on the issue: in the next comment
@@ -92,7 +92,7 @@ change. Clearing the hold resumes that build state without restoring an agent la
 
 The label ends this session.
 
-An `issue` act that exits 6 with `complete it by hand: <command>` stopped partway. That command is
+An `issue <n> <act>` that exits 6 with `complete it by hand: <command>` stopped partway. That command is
 an act of the maintainer: run no part of it, and hand the stop to the issue with the line as the
 message.
 

@@ -2,6 +2,7 @@ import { constants } from 'node:fs';
 import { access, readFile, realpath, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Config, Host } from './config-core.ts';
+import { capPrefix } from './contract.ts';
 import { codexHome } from './plugin-metadata.ts';
 import { childEnv, run } from './process.ts';
 
@@ -193,7 +194,7 @@ async function binding(
 
 export function scoreLabel(values: readonly string[], biasText: string): string {
   const sum = values.reduce((sum, value) => sum + Number(value), 0);
-  return `CAP: J${values[0]} V${values[1]} B${values[2]} N${values[3]} S${values[4]} X${values[5]} = ${sum}${Number(biasText) === 0 ? '' : ` +b${biasText}`}`;
+  return `${capPrefix} J${values[0]} V${values[1]} B${values[2]} N${values[3]} S${values[4]} X${values[5]} = ${sum}${Number(biasText) === 0 ? '' : ` +b${biasText}`}`;
 }
 
 export function bindingMode(host: Host, profile: string | undefined, checkout: string | null): 'main' | 'host' {

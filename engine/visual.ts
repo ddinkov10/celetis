@@ -1,7 +1,8 @@
 import { mkdir, rm } from 'node:fs/promises';
 import type { Host } from './lib/config-core.ts';
+import { type ExitCode, exits, usage } from './lib/contract.ts';
 import { installRecorder, markDefect, passOn } from './lib/events.ts';
-import { HostError, requireBun, updateHint } from './lib/host.ts';
+import { HostError, requireBun } from './lib/host.ts';
 import { runInteractive } from './lib/interactive.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { childEnv, run } from './lib/process.ts';
@@ -34,14 +35,14 @@ function firstLine(text: string): string {
   return text.split('\n')[0] ?? '';
 }
 
-export async function main(argv: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<ExitCode> {
   try {
     requireBun();
     const { args, explicit } = commandInput(argv);
     const [number, sha] = args;
     const issue = Number(number);
     if (args.length !== 2 || !/^[1-9][0-9]*$/.test(number ?? '') || !Number.isSafeInteger(issue) || !isCommit(sha))
-      throw new HostError(`usage: celetis --agent <host> visual <n> <sha>\n${updateHint}`, 2);
+      throw new HostError(usage('visual'), exits.usage);
     process.env.PATH = childEnv().PATH;
     const operation = await createOperation(
       await locateCheckouts(process.cwd()),
@@ -53,27 +54,39 @@ export async function main(argv: string[]): Promise<number> {
     const remote = await run('git', ['ls-remote', '--symref', 'origin', 'HEAD'], { cwd: main });
     const trunk = /^ref: refs\/heads\/(\S+)\tHEAD$/.exec(firstLine(remote.stdout))?.[1];
     if (remote.code !== 0 || !trunk)
-      throw new HostError(`celetis-visual: cannot read the default branch of origin: ${firstLine(remote.stderr)}`);
+      throw new HostError(
+        `celetis-visual: cannot read the default branch of origin: ${firstLine(remote.stderr)}`,
+        exits.blocked,
+      );
     const fetched = await run('git', ['fetch', '-q', 'origin', `+refs/heads/${trunk}:refs/remotes/origin/${trunk}`], {
       cwd: main,
     });
     if (fetched.code !== 0)
-      throw new HostError(`celetis-visual: cannot fetch ${trunk} from origin: ${firstLine(fetched.stderr)}`);
+      throw new HostError(
+        `celetis-visual: cannot fetch ${trunk} from origin: ${firstLine(fetched.stderr)}`,
+        exits.blocked,
+      );
     const ancestor = await run('git', ['merge-base', '--is-ancestor', sha, `refs/remotes/origin/${trunk}`], {
       cwd: main,
     });
-    if (ancestor.code === 1) throw new HostError(`celetis-visual: ${sha} is not on origin/${trunk}`);
+    if (ancestor.code === 1) throw new HostError(`celetis-visual: ${sha} is not on origin/${trunk}`, exits.usage);
     if (ancestor.code !== 0)
-      throw new HostError(`celetis-visual: ${sha} is not on origin/${trunk}: ${firstLine(ancestor.stderr)}`);
+      throw new HostError(
+        `celetis-visual: ${sha} is not on origin/${trunk}: ${firstLine(ancestor.stderr)}`,
+        exits.blocked,
+      );
     if (await hasPage(main, sha))
-      throw new HostError(`celetis-visual: the page exists: ${visualPage(main, sha)}; open it from History`);
+      throw new HostError(
+        `celetis-visual: the page exists: ${visualPage(main, sha)}; open it from History`,
+        exits.prerequisite,
+      );
     await mkdir(visualFolder(main), { recursive: true });
     await rm(partialPage(main, sha), { force: true });
     return passOn(await runInteractive(operation, async (host) => visualArguments(host, issue, sha, main)));
   } catch (error) {
     markDefect(error);
     console.error(error instanceof HostError ? error.message : `celetis-visual: ${(error as Error).message}`);
-    return error instanceof HostError ? error.code : 1;
+    return error instanceof HostError ? error.code : exits.internal;
   }
 }
 

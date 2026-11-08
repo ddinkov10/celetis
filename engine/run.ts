@@ -1,9 +1,8 @@
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { type ExitCode, exits, usage, usageLine } from './lib/contract.ts';
 import type { Level } from './lib/effort.ts';
 
-const usage =
-  'usage: celetis --agent <host> run <issue number> [--effort low|medium|high|xhigh|max] [--quiet] | run resume <issue number> | run retry <issue number> <wait id>; each form sends one request to the master daemon of this repository and returns; --quiet opens each session tab of the start in the background; auto mode: celetis daemon auto on|off';
 const removed = 'the program version of this command was removed after an update; run the command again';
 const here = import.meta.dir;
 async function gone(files: string[]) {
@@ -11,7 +10,7 @@ async function gone(files: string[]) {
   return false;
 }
 
-export async function main(argv: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<ExitCode> {
   const unavailable = await gone([
     'daemon.ts',
     'next-step.ts',
@@ -87,18 +86,13 @@ export async function main(argv: string[]): Promise<number> {
     numbers = argv.map((arg) => arg.replace(/^#/, ''));
   }
   if (numbers.length !== 1 || !/^[1-9][0-9]*$/.test(numbers[0] as string)) {
-    console.error(usage);
-    if (!unavailable) console.error((await import('./lib/host.ts')).updateHint);
-    return 2;
+    console.error(unavailable ? `usage: ${usageLine('run')}` : usage('run'));
+    return exits.usage;
   }
   const number = Number(numbers[0]);
   if (unavailable) {
-    if (mode === 'number') {
-      console.log(`run: #${numbers[0]}: ${removed}`);
-      return 0;
-    }
-    console.error(`run: ${removed}`);
-    return 1;
+    console.error(mode === 'number' ? `run: #${numbers[0]}: ${removed}` : `run: ${removed}`);
+    return exits.prerequisite;
   }
   const { HostError, requireBun } = await import('./lib/host.ts');
   const { askDaemon, requestSelection, sendRun } = await import('./lib/daemon-client.ts');
@@ -106,17 +100,18 @@ export async function main(argv: string[]): Promise<number> {
   try {
     requireBun();
     const checkout = await locateCheckouts(process.cwd());
-    if (checkout.main === null || checkout.common === null) throw new HostError('celetis: need a Git checkout', 2);
+    if (checkout.main === null || checkout.common === null)
+      throw new HostError('celetis: need a Git checkout', exits.usage);
     const { common } = checkout;
     const subject = `#${number}`;
     if (mode === 'retry') {
       const { answer } = await askDaemon(common, { kind: 'retry', number, waitId }, 'run');
       if (!answer.accepted) {
-        (answer.code === 0 ? console.log : console.error)(answer.line);
+        (answer.code === exits.done ? console.log : console.error)(answer.line);
         return answer.code;
       }
       console.log(`run: ${subject}: Retry requested; the waiting run starts one bounded attempt cycle`);
-      return 0;
+      return exits.done;
     }
     const selection = requestSelection(explicit);
     if (mode === 'resume') return await sendRun(common, { kind: 'resume', number, selection }, 'run', subject);

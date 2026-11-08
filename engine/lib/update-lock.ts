@@ -5,6 +5,7 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { constants, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Host } from './config-core.ts';
+import { exits, signalExit } from './contract.ts';
 import { HostError } from './host.ts';
 import { codexHome, configHome } from './plugin-metadata.ts';
 import { childEnv } from './process.ts';
@@ -27,7 +28,7 @@ function binding() {
       });
     } catch {}
   }
-  throw new HostError('update: cannot load the system flock library');
+  throw new HostError('update: cannot load the system flock library', exits.prerequisite);
 }
 
 let native: ReturnType<typeof binding> | undefined;
@@ -38,7 +39,9 @@ export function spawnConsumer(file: string, argv: string[], env: NodeJS.ProcessE
   for (const signal of signals) process.on(signal, hold);
   return new Promise<number>((resolve, reject) => {
     const child = spawn(file, argv.slice(1), { stdio: 'inherit', env });
-    child.once('error', (error) => reject(new HostError(`celetis: cannot start ${file}: ${error.message}`)));
+    child.once('error', (error) =>
+      reject(new HostError(`celetis: cannot start ${file}: ${error.message}`, exits.blocked)),
+    );
     child.once('exit', (code, signal) => resolve(code ?? (signal ? 128 + constants.signals[signal] : 1)));
   }).finally(() => {
     for (const signal of signals) process.off(signal, hold);
@@ -54,7 +57,7 @@ export async function execConsumer(file: string, argv: string[], env: NodeJS.Pro
     .map(([key, value]) => `${key}=${value}`);
   const values = [file, ...argv, ...entries];
   if (values.some((value) => value.includes('\0')))
-    throw new HostError('celetis: process replacement arguments contain NUL');
+    throw new HostError('celetis: process replacement arguments contain NUL', exits.internal);
   const buffers = values.map((value) => Buffer.from(`${value}\0`));
   const args = new BigUint64Array(argv.length + 1);
   const variables = new BigUint64Array(entries.length + 1);
@@ -64,6 +67,7 @@ export async function execConsumer(file: string, argv: string[], env: NodeJS.Pro
   const pointer = api.symbols[errnoName]?.();
   throw new HostError(
     `celetis: process replacement failed for ${file} (errno ${pointer ? read.i32(pointer) : 'unknown'})`,
+    exits.blocked,
   );
 }
 
@@ -73,10 +77,10 @@ export function tryFlock(fd: number, shared = false): boolean {
   const api = native;
   if (api.symbols.flock(fd, (shared ? 1 : 2) | 4) === 0) return true;
   const errorPointer = api.symbols[errnoName]?.();
-  if (!errorPointer) throw new HostError('update: cannot read flock errno');
+  if (!errorPointer) throw new HostError('update: cannot read flock errno', exits.blocked);
   const errno = read.i32(errorPointer);
   if ([constants.errno.EWOULDBLOCK, constants.errno.EAGAIN, constants.errno.EINTR].includes(errno)) return false;
-  throw new HostError(`update: cannot acquire the plugin update lock (errno ${errno})`);
+  throw new HostError(`update: cannot acquire the plugin update lock (errno ${errno})`, exits.blocked);
 }
 
 export async function withPluginRead<T>(host: Host, inspect: () => Promise<T>): Promise<T> {
@@ -87,7 +91,10 @@ export async function withPluginRead<T>(host: Host, inspect: () => Promise<T>): 
   try {
     while (!tryFlock(fd, true)) {
       if (performance.now() >= deadline)
-        throw new HostError('celetis: an update still holds the installation; retry this start after it finishes');
+        throw new HostError(
+          'celetis: an update still holds the installation; retry this start after it finishes',
+          exits.prerequisite,
+        );
       await Bun.sleep(50);
     }
     return await inspect();
@@ -104,7 +111,7 @@ interface Clock {
 let childObserver: ((pid: number, active: boolean) => void) | undefined;
 
 export function observeUpdateChildren(observer: (pid: number, active: boolean) => void): () => void {
-  if (childObserver) throw new HostError('update: another child observer is active');
+  if (childObserver) throw new HostError('update: another child observer is active', exits.internal);
   childObserver = observer;
   return () => {
     if (childObserver === observer) childObserver = undefined;
@@ -114,7 +121,7 @@ export function observeUpdateChildren(observer: (pid: number, active: boolean) =
 export class UpdateLock {
   private child?: ChildProcess;
   private job?: Job | null;
-  private interrupted?: string;
+  private interrupted?: NodeJS.Signals;
   private phase = 'wait for the plugin update lock';
   private readonly handlers = new Map<NodeJS.Signals, () => void>();
   private readonly deadline: number;
@@ -151,6 +158,7 @@ export class UpdateLock {
         if (options.refuseBusy)
           throw new HostError(
             'update: installation discovery or another update holds this installation; try again after it finishes. This attempt is consumed and was not queued',
+            exits.prerequisite,
           );
         lock.check();
         await lock.clock.sleep(50);
@@ -164,15 +172,22 @@ export class UpdateLock {
   }
 
   private check() {
-    if (this.interrupted) throw new HostError(`update: interrupted by ${this.interrupted} during ${this.phase}`);
+    if (this.interrupted)
+      throw new HostError(
+        `update: interrupted by ${this.interrupted} during ${this.phase}`,
+        signalExit(constants.signals[this.interrupted]),
+      );
     try {
       process.kill(this.callerPid, 0);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EPERM')
-        throw new HostError(`update: the calling process exited during ${this.phase}`);
+        throw new HostError(`update: the calling process exited during ${this.phase}`, exits.blocked);
     }
     if (this.clock.now() >= this.deadline)
-      throw new HostError(`update: timed out after ${this.timeoutMs / 1000} seconds during ${this.phase}`);
+      throw new HostError(
+        `update: timed out after ${this.timeoutMs / 1000} seconds during ${this.phase}`,
+        exits.blocked,
+      );
   }
 
   private async stopChild() {
@@ -248,6 +263,7 @@ export class UpdateLock {
           child.kill();
           throw new HostError(
             `update: ${this.phase} failed: ${error instanceof Error ? error.message : String(error)}`,
+            exits.blocked,
           );
         }
       }
@@ -256,7 +272,7 @@ export class UpdateLock {
         await this.clock.sleep(50);
       }
       this.check();
-      if (status !== 0) throw new HostError(`update: ${this.phase} failed (exit ${status})`);
+      if (status !== 0) throw new HostError(`update: ${this.phase} failed (exit ${status})`, exits.blocked);
     } catch (error) {
       failure = error;
     } finally {
@@ -272,6 +288,7 @@ export class UpdateLock {
           [failure instanceof Error ? failure.message : String(failure), diagnostic.trimEnd(), output.trimEnd()]
             .filter(Boolean)
             .join('\n'),
+          failure instanceof HostError ? failure.code : exits.blocked,
         );
       }
       return output;

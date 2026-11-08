@@ -1,5 +1,6 @@
 import { AgentOrderConflict, validateAgentOrder } from '../lib/agent-order.ts';
 import type { AgentChoice, AgentOrder, Host } from '../lib/config-core.ts';
+import { exits } from '../lib/contract.ts';
 import {
   type DaemonRequest,
   type DaemonStatus,
@@ -115,9 +116,9 @@ export async function celetisAdapter(
       } catch {
         value = undefined;
       }
-      if (result.code === 3 && value !== null && typeof value === 'object' && 'latest' in value)
+      if (result.code === exits.prerequisite && value !== null && typeof value === 'object' && 'latest' in value)
         throw new AgentOrderConflict(parseOrder(value.latest));
-      if (result.code !== 0)
+      if (result.code !== exits.done)
         throw new Error(
           result.stderr.trim() || 'agents: the order outcome is uncertain; refresh before another change',
         );

@@ -1,17 +1,4 @@
-export const labels = [
-  'needs-triage',
-  'bug',
-  'enhancement',
-  'hotfix',
-  'chore',
-  'epic',
-  'needs-info',
-  'ready-for-agent',
-  'ready-for-human',
-  'wontfix',
-] as const;
-
-export type Label = (typeof labels)[number];
+import { headings, type Kind, type Label, marker } from './contract.ts';
 
 export const lanes = {
   feature: { label: 'enhancement', prefix: 'feat', steps: ['triage', 'specify', 'plan', 'implement'] },
@@ -76,20 +63,6 @@ export function laneOf(names: readonly string[]): LaneOf {
   if (found.length > 1) return { kind: 'several', labels: found };
   return { kind: 'lane', lane: laneNames.find((lane) => lanes[lane].label === found[0]) as Lane };
 }
-
-export const headings = {
-  plan: '## Plan',
-  built: '## Built',
-  rootCause: '## Root cause',
-  beforeLanding: '## Before landing',
-  landingRefused: '## Landing refused',
-  humanStepsDone: '## Human steps done',
-  stopped: '## Stopped',
-} as const;
-
-export type Kind = 'general' | 'during-the-build';
-
-export const marker = (kind: Kind) => `<!-- celetis-before-landing ${kind} -->`;
 
 export type Entry = Readonly<
   | { kind: 'comment'; id: number; at: string; body: string }

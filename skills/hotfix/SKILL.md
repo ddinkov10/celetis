@@ -21,7 +21,7 @@ root cause, no ship without the verify. If you have not completed step N, you ca
 N+1. Too little time for the lane → the change does not ship tonight.
 
 **Before step 1.** Check the wiring per `<plugin>/docs/procedures/lane-start.md`, "Before step 1".
-Only its exit 0 starts step 1.
+Only the exit 0 of `setup status` starts step 1.
 
 1. **Confirm classification.** Fire needing ship-now → continue. No fire → `/celetis:bug`. New behavior →
    `/celetis:feature`. Zero behavior change → `/celetis:chore`. Then start the issue per

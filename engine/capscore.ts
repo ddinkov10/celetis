@@ -10,23 +10,24 @@ import {
   ScoreError,
   scoreLabel,
 } from './lib/capability.ts';
+import { type ExitCode, exits, updateHint, usage } from './lib/contract.ts';
 import { installRecorder } from './lib/events.ts';
-import { HostError, updateHint } from './lib/host.ts';
+import { HostError } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 
-const usage = `usage: celetis --agent <host> capscore J V B N S X [options]
---bias N                 effort bias (CAP_EFFORT_BIAS; default 0)
---attempt N              gate-fail attempt (default 1; 4 or later stops)
---agent claude|codex      explicit agent (CELETIS_AGENT > local order; no checkout: claude)
---json                   portable score plus the applied dispatch pair
---reviewer               apply the selected host's reviewer minimum
---profile FILE           Codex profile (CAP_MODEL_PROFILE > main config profile > parent model)
---runtime-models FILE    active dispatch allowlist for a Codex profile (CAP_RUNTIME_MODELS)
---current-model ID       opencode current model (CAP_CURRENT_MODEL)
-See docs/capability.md of the plugin celetis for profile and result schemas.
-${updateHint}`;
+const flagLines = [
+  '--bias N                 effort bias (CAP_EFFORT_BIAS; default 0)',
+  '--attempt N              gate-fail attempt (default 1; 4 or later stops)',
+  '--agent claude|codex      explicit agent (CELETIS_AGENT > local order; no checkout: claude)',
+  '--json                   portable score plus the applied dispatch pair',
+  "--reviewer               apply the selected host's reviewer minimum",
+  '--profile FILE           Codex profile (CAP_MODEL_PROFILE > main config profile > parent model)',
+  '--runtime-models FILE    active dispatch allowlist for a Codex profile (CAP_RUNTIME_MODELS)',
+  '--current-model ID       opencode current model (CAP_CURRENT_MODEL)',
+  'See docs/capability.md of the plugin celetis for profile and result schemas.',
+];
 
-export async function main(argv: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<ExitCode> {
   const cwd = process.cwd();
   let checkout: string | null = null;
   try {
@@ -45,8 +46,8 @@ export async function main(argv: string[]): Promise<number> {
     for (let i = 0; i < argv.length; i++) {
       const arg = argv[i] as string;
       if (arg === '-h' || arg === '--help') {
-        console.log(usage);
-        return 0;
+        console.log(usage('capscore', ...flagLines));
+        return exits.done;
       }
       if (arg === '--json') {
         json = true;
@@ -133,11 +134,11 @@ export async function main(argv: string[]): Promise<number> {
         }),
       );
     else console.log(line);
-    return 0;
+    return exits.done;
   } catch (error) {
     if (error instanceof ScoreError) {
       console.error(`capscore: ${error.message}\n${updateHint}`);
-      return 2;
+      return exits.usage;
     }
     if (error instanceof HostError) {
       if (error.message) console.error(error.message);

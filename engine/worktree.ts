@@ -1,24 +1,16 @@
 import { stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { Config } from './lib/config-core.ts';
+import { type ExitCode, exits, usage, worktreePathLine } from './lib/contract.ts';
 import { installRecorder, markDefect } from './lib/events.ts';
-import { HostError, updateHint } from './lib/host.ts';
+import { HostError } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
 import { run } from './lib/process.ts';
 import { RecoveryError, validateRecovery } from './lib/quota-recovery.ts';
 import { branchGlobs, branchPattern, laneOf, lanes } from './lib/workflow.ts';
-import {
-  checkoutOf,
-  conflictStatus,
-  markerOf,
-  removeCheckout,
-  removeLane,
-  runSetup,
-  updateLane,
-} from './lib/worktree.ts';
+import { checkoutOf, markerOf, removeCheckout, removeLane, runSetup, updateLane } from './lib/worktree.ts';
 
-const usage = `usage: celetis --agent <host> worktree [--remove] <issue number>, e.g. 302 or #302\n${updateHint}`;
 type Issue = { title: string; state: string; labels: { name: string }[] };
 type Pull = { head: { ref: string; sha: string }; state: string; merged_at: string | null };
 
@@ -38,11 +30,11 @@ async function recovered(main: string, n: string, path: string): Promise<boolean
   return permit?.lane === path;
 }
 
-async function execute(argv: string[], explicit: string | undefined): Promise<number> {
+async function execute(argv: string[], explicit: string | undefined): Promise<ExitCode> {
   const remove = argv[0] === '--remove';
   const args = remove ? argv.slice(1) : argv;
   const n = args[0]?.replace(/^#/, '');
-  if (args.length !== 1 || !n || !/^[1-9][0-9]*$/.test(n)) throw new HostError(usage, 2);
+  if (args.length !== 1 || !n || !/^[1-9][0-9]*$/.test(n)) throw new HostError(usage('worktree'), exits.usage);
   const cwd = process.cwd();
   const operation = await createOperation(
     await locateCheckouts(cwd),
@@ -53,7 +45,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
   if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
   const git = async (args: string[], output = false) => {
     const result = await run('git', args, { cwd });
-    if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
+    if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
     if (output) process.stderr.write(result.stdout + result.stderr);
     return result.stdout.trimEnd();
   };
@@ -63,16 +55,17 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
       ['api', ...(paginate ? ['--paginate', '--slurp'] : []), `repos/{owner}/{repo}${endpoint}`],
       { cwd },
     );
-    if (result.code !== 0) throw new HostError([result.stderr.trimEnd(), message].filter(Boolean).join('\n'));
+    if (result.code !== 0)
+      throw new HostError([result.stderr.trimEnd(), message].filter(Boolean).join('\n'), exits.blocked);
     return JSON.parse(result.stdout) as T;
   };
   await git(['worktree', 'prune']);
   let branch = await git(['branch', '--list', '--format=%(refname:lstrip=2)', ...branchGlobs(n)]);
   if (branch.includes('\n'))
-    throw new HostError(`several branches match #${n}: ${branch.replaceAll('\n', ' ')}; keep one`);
+    throw new HostError(`several branches match #${n}: ${branch.replaceAll('\n', ' ')}; keep one`, exits.prerequisite);
   let fromPr = false;
   if (!branch) {
-    if (remove) return 0;
+    if (remove) return exits.done;
     const pulls = (
       await api<Pull[][]>('/pulls?state=open&per_page=100', 'cannot list the open PRs on GitHub', true)
     ).flat();
@@ -80,16 +73,18 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
       .map((pull) => pull.head.ref)
       .filter((ref) => branchPattern(n).test(ref))
       .join('\n');
-    if (branch.includes('\n')) throw new HostError(`several open PRs match #${n}: ${branch.replaceAll('\n', ' ')}`);
+    if (branch.includes('\n'))
+      throw new HostError(`several open PRs match #${n}: ${branch.replaceAll('\n', ' ')}`, exits.prerequisite);
     fromPr = branch !== '';
     if (!branch) {
       const issue = await api<Issue>(`/issues/${n}`, `cannot read #${n} on GitHub`);
       const found = laneOf(issue.labels.map(({ name }) => name));
       if (found.kind === 'epic')
-        throw new HostError(`#${n} is an epic: an epic has no branch; run each child's own lane`);
-      if (found.kind === 'none') throw new HostError(`#${n} has no lane label; run /celetis:triage #${n} first`);
+        throw new HostError(`#${n} is an epic: an epic has no branch; run each child's own lane`, exits.prerequisite);
+      if (found.kind === 'none')
+        throw new HostError(`#${n} has no lane label; run /celetis:triage #${n} first`, exits.prerequisite);
       if (found.kind === 'several')
-        throw new HostError(`#${n} has several lane labels (${found.labels.join(' ')}); keep one`);
+        throw new HostError(`#${n} has several lane labels (${found.labels.join(' ')}); keep one`, exits.prerequisite);
       let slug = (issue.title.split('\n')[0] as string)
         .replace(/[A-Z]/g, (letter) => letter.toLowerCase())
         .replace(/[^a-z0-9]+/g, '-')
@@ -104,7 +99,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
   let path = join(main, '.claude/worktrees', branch.slice(branch.indexOf('/') + 1));
   const current = await checkoutOf(branch, cwd);
   const hasBranch = (await run('git', ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`], { cwd })).code === 0;
-  if (current === main) throw new HostError(`switch the main checkout off ${branch} first`);
+  if (current === main) throw new HostError(`switch the main checkout off ${branch} first`, exits.prerequisite);
   if (remove) {
     const pulls = (
       await api<Pull[][]>(
@@ -115,18 +110,20 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     ).flat();
     const tip = await git(['rev-parse', `refs/heads/${branch}`]);
     if (pulls.some((pull) => !pull.merged_at && pull.state === 'open'))
-      throw new HostError(`the PR for ${branch} is OPEN; remove its worktree only after the merge`);
+      throw new HostError(`the PR for ${branch} is OPEN; remove its worktree only after the merge`, exits.prerequisite);
     const merged = pulls.filter((pull) => pull.merged_at).map((pull) => pull.head.sha);
     if (merged.length) {
       if (!merged.includes(tip))
         throw new HostError(
           `local ${branch} is at ${tip}, its merged PR at ${merged.join('\n')}: the local branch has commits the merged PR does not contain`,
+          exits.prerequisite,
         );
     } else {
       const issue = await api<Issue>(`/issues/${n}`, `cannot read #${n} on GitHub`);
       if (issue.state !== 'closed' && laneOf(issue.labels.map(({ name }) => name)).kind !== 'epic')
         throw new HostError(
           `#${n} is open and ${branch} has no merged PR; remove its worktree after the merge, or after the issue closes`,
+          exits.prerequisite,
         );
       if (
         await git([
@@ -141,12 +138,13 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
       )
         throw new HostError(
           `${branch} has commits that no origin branch contains; run git push origin ${branch}, then remove its worktree`,
+          exits.prerequisite,
         );
     }
     if (current && resolve(await git(['rev-parse', '--show-toplevel'])) === current)
-      throw new HostError(`leave ${current} before removing it`);
+      throw new HostError(`leave ${current} before removing it`, exits.prerequisite);
     await removeLane(n, branch, current, cwd);
-    return 0;
+    return exits.done;
   }
   const trunk = (await api<{ default_branch: string }>('', 'cannot read the default branch from GitHub'))
     .default_branch;
@@ -169,7 +167,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     if (await recovered(main, n, path)) console.error(`worktree: #${n}: ${recoveryLine}`);
     else await updateLane(path, branch, trunk, n);
   } catch (error) {
-    if (error instanceof HostError && error.code === conflictStatus) process.stdout.write(`${path}\n`);
+    if (error instanceof HostError && error.code === exits.repair) process.stdout.write(`${worktreePathLine(path)}\n`);
     else await discard();
     throw error;
   }
@@ -184,32 +182,29 @@ async function execute(argv: string[], explicit: string | undefined): Promise<nu
     if (!(await stat(await markerOf(path)).catch(() => null))?.isFile()) {
       setupRan = (config.worktreeSetup ?? '') !== '';
       const status = await runSetup(path, config, main);
-      if (status !== 0) throw new HostError('.celetis.yaml worktreeSetup');
+      if (status !== 0) throw new HostError('.celetis.yaml worktreeSetup', exits.blocked);
     }
   } catch (error) {
     let detail = '.celetis.yaml worktreeSetup';
-    if (error instanceof HostError && error.message !== '.celetis.yaml worktreeSetup') {
+    if (error instanceof Error && error.message !== '.celetis.yaml worktreeSetup') {
       console.error(error.message);
-      if (error.code === 2) detail = '.celetis.yaml';
+      if (validatingConfig && error instanceof HostError && error.code === exits.usage) detail = '.celetis.yaml';
     }
     await discard();
-    throw new HostError(
-      `worktree setup failed: ${detail}`,
-      validatingConfig && error instanceof HostError && error.code === 2 ? 2 : 1,
-    );
+    throw new HostError(`worktree setup failed: ${detail}`, error instanceof HostError ? error.code : exits.internal);
   }
-  process.stdout.write(`${setupRan ? '\n' : ''}${path}\n`);
-  return 0;
+  process.stdout.write(`${setupRan ? '\n' : ''}${worktreePathLine(path)}\n`);
+  return exits.done;
 }
 
-export async function main(argv: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<ExitCode> {
   try {
     const { args, explicit } = commandInput(argv);
     return await execute(args, explicit);
   } catch (error) {
     markDefect(error);
     console.error(error instanceof Error ? error.message : String(error));
-    return error instanceof HostError ? error.code : 1;
+    return error instanceof HostError ? error.code : exits.internal;
   }
 }
 

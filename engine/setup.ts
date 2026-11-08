@@ -1,14 +1,15 @@
 import { spawn } from 'node:child_process';
 import { constants as fsConstants } from 'node:fs';
 import { access, lstat, mkdir, mkdtemp, readFile, rm, rmdir, stat, unlink, writeFile } from 'node:fs/promises';
-import { constants, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { initializeAgentOrder, readAgentOrder, validateAgentOrder } from './lib/agent-order.ts';
 import { readConfig } from './lib/config.ts';
 import { type Config, ConfigError, formatConfigError, type Host, validateWorktreeSetup } from './lib/config-core.ts';
-import { installRecorder, markDefect } from './lib/events.ts';
-import { HostError, updateHint } from './lib/host.ts';
+import { type ExitCode, exits, type Label, labels, usage } from './lib/contract.ts';
+import { installRecorder, markDefect, passOn } from './lib/events.ts';
+import { HostError } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
 import { checkClaudePolicy } from './lib/plugin-policy.ts';
@@ -37,11 +38,9 @@ import {
   wiring,
 } from './lib/setup-wiring.ts';
 import { CST, Parser, type SourceToken } from './lib/vendor/yaml.mjs';
-import { type Label, labels } from './lib/workflow.ts';
 import { markerOf, removeCheckout, runSetup, setupFile, worktrees } from './lib/worktree.ts';
 
 const subject = 'chore(celetis): wire the project for the celetis lanes';
-const usage = `usage: celetis --agent <host> setup check | status | write <options> | try <options> | try --remove | lane <path> | push; <options>: --hosts claude|codex|claude,codex|codex,claude --landing pr|merge [--suite <file>] [--setup-file <file>] [--ignore <line>]... [--baseline-file <file>]\n${updateHint}`;
 const setupPaths = [
   configFile,
   wiring,
@@ -84,8 +83,8 @@ type Command =
 type WiringChange = { kind: 'write'; contents: string | Buffer } | { kind: 'delete' };
 const appendLine = (text: string, line: string) =>
   hasLine(text, line) ? text : `${text}${text && !text.endsWith('\n') ? '\n' : ''}${line}\n`;
-function fail(message: string): never {
-  throw new HostError(`setup: ${message}`);
+function fail(message: string, code: ExitCode = exits.prerequisite): never {
+  throw new HostError(`setup: ${message}`, code);
 }
 function editConfig(source: string, updates: Map<string, string | undefined>): string {
   if (!updates.size) return source;
@@ -160,7 +159,7 @@ function editConfig(source: string, updates: Map<string, string | undefined>): s
   return tokens.map((token) => CST.stringify(token)).join('');
 }
 function badUsage(): never {
-  throw new HostError(usage, 2);
+  throw new HostError(usage('setup'), exits.usage);
 }
 function checkJSONKeys(path: string, source: string): void {
   if (ambiguousJSON(source)) fail(`${path} is ambiguous; fix duplicate object keys first`);
@@ -192,7 +191,7 @@ function options(argv: string[]): Options {
   try {
     validateWorktreeSetup(setup);
   } catch (error) {
-    fail(`--setup-file ${setup}: ${error instanceof Error ? error.message : String(error)}`);
+    fail(`--setup-file ${setup}: ${error instanceof Error ? error.message : String(error)}`, exits.usage);
   }
   const absolute = (value = '') => (!value || isAbsolute(value) || win32.isAbsolute(value) ? value : resolve(value));
   return {
@@ -311,7 +310,7 @@ class Setup {
   }
   async git(args: string[], env?: NodeJS.ProcessEnv): Promise<string> {
     const result = await run('git', args, { cwd: this.cwd, env });
-    if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
+    if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
     process.stderr.write(result.stderr);
     return result.stdout.trimEnd();
   }
@@ -325,18 +324,18 @@ class Setup {
       child.once('error', (error) => {
         console.error(error.message);
       });
-      child.once('close', (code, signal) => resolveCode(code ?? (signal ? 128 + constants.signals[signal] : 1)));
+      child.once('close', (code) => resolveCode(code ?? exits.blocked));
     });
     if (code !== 0) {
-      if (message) fail(message);
-      throw new HostError('', code);
+      if (message) fail(message, exits.blocked);
+      throw new HostError('', exits.blocked);
     }
   }
   async api<T>(args: string[], message: string): Promise<T> {
     const result = await run('gh', ['api', ...args], { cwd: this.cwd });
     if (result.code !== 0) {
       process.stderr.write(result.stderr);
-      fail(message);
+      fail(message, exits.blocked);
     }
     return (result.stdout.trim() ? JSON.parse(result.stdout) : undefined) as T;
   }
@@ -344,7 +343,10 @@ class Setup {
     try {
       this.top = resolve(await this.git(['rev-parse', '--show-toplevel']));
     } catch (error) {
-      throw new HostError(error instanceof Error ? error.message : String(error));
+      throw new HostError(
+        error instanceof Error ? error.message : String(error),
+        error instanceof HostError ? error.code : exits.blocked,
+      );
     }
     if (
       (await this.git(['rev-parse', '--path-format=absolute', '--git-dir'])) !==
@@ -385,7 +387,7 @@ class Setup {
         cwd: this.cwd,
       },
     );
-    if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), result.code);
+    if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
     const rows = result.stdout.split('\0');
     const paths: string[] = [];
     for (let i = 0; i < rows.length; i++) {
@@ -407,7 +409,7 @@ class Setup {
       ['--literal-pathspecs', 'ls-files', '--stage', '--error-unmatch', '-z', '--', reference],
       { cwd: this.cwd },
     );
-    if (tracked.code !== 0) fail(`cannot check ${reference} in the index: ${tracked.stderr.trimEnd()}`);
+    if (tracked.code !== 0) fail(`cannot check ${reference} in the index: ${tracked.stderr.trimEnd()}`, exits.blocked);
     const [entry, path] = tracked.stdout.split('\t');
     if (!/^100(?:644|755) [0-9a-f]+ 0$/.test(entry ?? '') || path !== `${reference}\0`)
       fail(`${reference} is no regular tracked file; commit it on ${this.trunk} first`);
@@ -429,10 +431,10 @@ class Setup {
         fail(
           `${reference} differs in the ${cached ? 'index from local trunk HEAD' : 'working tree from the index'}; commit it first`,
         );
-      if (result.code !== 0) fail(`cannot check ${reference}: ${result.stderr.trimEnd()}`);
+      if (result.code !== 0) fail(`cannot check ${reference}: ${result.stderr.trimEnd()}`, exits.blocked);
     }
     const hash = await run('git', ['hash-object', `--path=${reference}`, '--', reference], { cwd: this.cwd });
-    if (hash.code !== 0) fail(`cannot check ${reference}: ${hash.stderr.trimEnd()}`);
+    if (hash.code !== 0) fail(`cannot check ${reference}: ${hash.stderr.trimEnd()}`, exits.blocked);
     if (hash.stdout.trimEnd() !== entry?.split(' ')[1])
       fail(`${reference} differs in the working tree from the index; commit it first`);
   }
@@ -460,7 +462,7 @@ class Setup {
       return await readFile(join(this.cwd, path), this.byteFile(path) ? 'latin1' : 'utf8');
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return '';
-      fail(`cannot read ${path}: ${error instanceof Error ? error.message : String(error)}`);
+      fail(`cannot read ${path}: ${error instanceof Error ? error.message : String(error)}`, exits.blocked);
     }
   }
   async readRecord(): Promise<WiringRecord> {
@@ -471,13 +473,13 @@ class Setup {
       source = await readFile(join(this.cwd, path));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { schema: 1, files: [], entries: {} };
-      fail(`cannot read ${path}: ${error instanceof Error ? error.message : String(error)}`);
+      fail(`cannot read ${path}: ${error instanceof Error ? error.message : String(error)}`, exits.blocked);
     }
     let text: string;
     try {
       text = new TextDecoder('utf-8', { fatal: true }).decode(source);
     } catch {
-      fail(`${path}: need valid UTF-8`);
+      fail(`${path}: need valid UTF-8`, exits.usage);
     }
     return parseSetupRecord(text, path);
   }
@@ -489,13 +491,13 @@ class Setup {
   }
   private async checkDestination(path: string): Promise<void> {
     const problem = await destinationProblem(this.cwd, path);
-    if (problem) fail(problem.message);
+    if (problem) fail(problem.message, problem.kind === 'blocked' ? exits.blocked : exits.prerequisite);
   }
   async there(path: string): Promise<boolean> {
     return (
       (await lstat(join(this.cwd, path)).catch((error: NodeJS.ErrnoException) => {
         if (error.code === 'ENOENT') return null;
-        fail(`cannot inspect ${path}: ${error.message}`);
+        fail(`cannot inspect ${path}: ${error.message}`, exits.blocked);
       })) !== null
     );
   }
@@ -636,7 +638,7 @@ class Setup {
         original = this.config ??= readConfig(this.cwd);
       } catch (error) {
         this.configError(this.cwd, error);
-        fail(`cannot read ${configFile}; fix the cause above first`);
+        fail(`cannot read ${configFile}; fix the cause above first`, exits.usage);
       }
     }
     const desired = { ...original };
@@ -685,7 +687,7 @@ class Setup {
         actual = readConfig(scratch);
       } catch (error) {
         this.configError(scratch, error);
-        fail(`cannot update ${configFile}; repair its fields by hand first`);
+        fail(`cannot update ${configFile}; repair its fields by hand first`, exits.usage);
       }
       if (!isDeepStrictEqual(actual, desired))
         fail(`cannot preserve unrelated values of ${configFile}; repair its fields by hand first`);
@@ -743,7 +745,7 @@ class Setup {
   async reportCallers(): Promise<void> {
     if (this.files.get('scripts/celetis')?.kind !== 'delete' && (await this.there('scripts/celetis'))) return;
     const tracked = await run('git', ['ls-files', '-z'], { cwd: this.cwd });
-    if (tracked.code !== 0) fail('cannot inspect tracked callers of scripts/celetis');
+    if (tracked.code !== 0) fail('cannot inspect tracked callers of scripts/celetis', exits.blocked);
     for (const path of tracked.stdout.split('\0')) {
       if (!path || path === wiring || path === oldWiring || path === 'scripts/celetis') continue;
       const planned = this.files.get(path);
@@ -801,10 +803,10 @@ class Setup {
   async plan(opts: Options, scratch: string): Promise<void> {
     if (opts.baseline) {
       try {
-        if (!(await stat(opts.baseline)).isFile()) fail(`cannot read ${opts.baseline}`);
+        if (!(await stat(opts.baseline)).isFile()) fail(`cannot read ${opts.baseline}`, exits.usage);
         await access(opts.baseline, fsConstants.R_OK);
       } catch {
-        fail(`cannot read ${opts.baseline}`);
+        fail(`cannot read ${opts.baseline}`, exits.usage);
       }
     }
     this.previous = await this.readRecord();
@@ -939,6 +941,7 @@ class Setup {
       } catch (error) {
         fail(
           `cannot write ${path}: ${error instanceof Error ? error.message : String(error)}; review the partial product diff before retrying`,
+          error instanceof HostError ? error.code : error instanceof ConfigError ? exits.usage : exits.blocked,
         );
       }
     }
@@ -1008,7 +1011,7 @@ class Setup {
         await this.live(['commit', '-q', '-m', subject]);
       } catch {
         await this.git(['--literal-pathspecs', 'reset', '-q', '--', ...paths]);
-        fail('the commit failed; the files stay uncommitted');
+        fail('the commit failed; the files stay uncommitted', exits.blocked);
       }
     }
     await this.live(
@@ -1040,14 +1043,14 @@ class Setup {
       await this.git(['update-ref', 'HEAD', commit]);
     } catch (error) {
       if (error instanceof Error && error.message) console.error(error.message);
-      fail('the commit failed in the test lane');
+      fail('the commit failed in the test lane', exits.blocked);
     }
   }
   read(checkout: string): Config {
     try {
       return readConfig(checkout);
     } catch (error) {
-      if (error instanceof ConfigError) throw new HostError(formatConfigError(checkout, error), 2);
+      if (error instanceof ConfigError) throw new HostError(formatConfigError(checkout, error), exits.usage);
       throw error;
     }
   }
@@ -1065,34 +1068,40 @@ class Setup {
       path === this.testLane ||
       !(await worktrees(this.cwd)).some((tree) => tree.path === path)
     )
-      fail(`${input} is no lane worktree in .claude/worktrees/ of this repository`);
+      fail(`${input} is no lane worktree in .claude/worktrees/ of this repository`, exits.usage);
     const target = await createOperation(await locateCheckouts(path), this.operation.selection, 'active');
     const config = target.mainConfig as Config;
     if (!(config.worktreeSetup ?? '')) fail(`the main ${configFile} has no worktreeSetup to run`);
     await rm(await markerOf(path), { force: true });
-    if ((await runSetup(path, config, this.top)) !== 0) fail(`the worktree setup failed in ${path}`);
+    const code = await runSetup(path, config, this.top).catch((error: unknown) => {
+      if (!(error instanceof HostError)) throw error;
+      console.error(error.message);
+      return fail(`the worktree setup failed in ${path}`, error.code);
+    });
+    if (code !== 0) fail(`the worktree setup failed in ${path}`, exits.blocked);
   }
-  async execute(input: Exclude<Command, { command: 'status' }>): Promise<number> {
+  async execute(input: Exclude<Command, { command: 'status' }>): Promise<ExitCode> {
     const { command } = input;
+    if (this.operation.checkout.common === null) fail('need a Git checkout');
     if (input.command === 'check') {
       this.diagnostic = true;
       await this.check();
       const record = await this.readRecord();
       process.stdout.write(`${JSON.stringify({ answers: record.answers ?? {} })}\n`);
-      return 0;
+      return exits.done;
     }
     if (input.command === 'push') {
       await this.push();
-      return 0;
+      return exits.done;
     }
     if (input.command === 'lane') {
       await this.lane(input.path);
-      return 0;
+      return exits.done;
     }
     if (input.command === 'remove') {
       await this.checkMain();
       await this.removeTestLane();
-      return 0;
+      return exits.done;
     }
     const opts = input.options;
     this.diagnostic = command === 'try';
@@ -1109,7 +1118,6 @@ class Setup {
           : null;
       }
       await this.plan(opts, scratch);
-      if (this.operation.checkout.common === null) fail('need a Git checkout');
       await readAgentOrder(this.operation.checkout.common);
       if (command === 'write') await this.makeLabels();
       await this.writeTree();
@@ -1123,20 +1131,22 @@ class Setup {
           this.output(
             'setup: valid recorded ownership can refresh or remove manual edits within owned keys and dedicated files; unowned product content stays unchanged\n',
           );
-        return 0;
+        return exits.done;
       }
       await this.commitWiring();
       const config = this.config as Config;
-      const code = await runSetup(this.testLane, config, this.top);
-      process.stdout.write(`${config.worktreeSetup ? '\n' : ''}${this.testLane}\n`);
-      return code;
+      try {
+        return passOn(await runSetup(this.testLane, config, this.top));
+      } finally {
+        process.stdout.write(`${config.worktreeSetup ? '\n' : ''}${this.testLane}\n`);
+      }
     } finally {
       await rm(scratch, { recursive: true, force: true });
     }
   }
 }
 
-export async function main(argv: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<ExitCode> {
   try {
     const { args, explicit } = commandInput(argv);
     const input = parseCommand(args);
@@ -1152,7 +1162,7 @@ export async function main(argv: string[]): Promise<number> {
     if (!(error instanceof ConfigError)) markDefect(error);
     const message = error instanceof Error ? error.message : String(error);
     if (message) console.error(message);
-    return error instanceof HostError ? error.code : 1;
+    return error instanceof HostError ? error.code : exits.internal;
   }
 }
 

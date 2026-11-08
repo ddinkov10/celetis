@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
 import { readdir, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
+import { type ExitCode, exits, usage } from './lib/contract.ts';
 import { type Effort, effortOf } from './lib/effort.ts';
 import { installRecorder } from './lib/events.ts';
-import { HostError, updateHint } from './lib/host.ts';
+import { HostError } from './lib/host.ts';
 import { describe, lineOf, type Next, type Observed } from './lib/lines.ts';
 import { lockHolder } from './lib/locks.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
@@ -61,7 +62,6 @@ export type JsonRow = {
   path?: string;
 };
 
-const usage = `usage: celetis --agent <host> next-step <issue number> | --open, e.g. celetis --agent <host> next-step 276\n${updateHint}`;
 const unreadable: Observed = { kind: 'observed', reason: 'unreadable' };
 
 export function jsonRow(row: BoardRow): JsonRow {
@@ -94,13 +94,13 @@ function request(args: string[]): { arg: string; n: string } | null {
   return args.length === 1 && (arg === '--open' || /^\d+$/.test(n)) ? { arg, n } : null;
 }
 
-export async function main(argv: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<ExitCode> {
   try {
     const { args, explicit } = commandInput(argv);
     const input = request(args);
     if (!input) {
-      console.error(usage);
-      return 2;
+      console.error(usage('next-step'));
+      return exits.usage;
     }
     const operation = await createOperation(
       await locateCheckouts(process.cwd()),
@@ -406,16 +406,16 @@ export async function nextBoard(
 async function resolveNext(
   { arg, n }: { arg: string; n: string },
   operation: Operation,
-): Promise<{ code: number; stdout: string; stderr: string }> {
+): Promise<{ code: ExitCode; stdout: string; stderr: string }> {
   if (arg === '--open') {
     const { rows, stderr } = await nextOpen(operation);
-    if (!rows) return { code: 1, stdout: 'stop cannot read the open issues from GitHub\n', stderr };
+    if (!rows) return { code: exits.blocked, stdout: 'stop cannot read the open issues from GitHub\n', stderr };
     const stdout = rows.map((row) => `${row.number}\t${lineOf(String(row.number), row.next)}\n`).join('');
-    return { code: 0, stdout, stderr };
+    return { code: exits.done, stdout, stderr };
   }
   const { next, stderr } = await nextIssue(n, operation);
   const failed = next.kind === 'observed' && next.reason === 'unreadable';
-  return { code: failed ? 1 : 0, stdout: `${lineOf(n, next)}\n`, stderr };
+  return { code: failed ? exits.blocked : exits.done, stdout: `${lineOf(n, next)}\n`, stderr };
 }
 
 if (import.meta.main) {

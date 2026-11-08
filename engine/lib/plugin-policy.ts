@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import type { Host } from './config-core.ts';
+import { exits } from './contract.ts';
 import { HostError, mainCheckout } from './host.ts';
 import { codexHome, configHome, jsonFile, object } from './plugin-metadata.ts';
 import { run } from './process.ts';
@@ -14,16 +15,23 @@ export function checkClaudePolicy(records: PolicyRecord[]): void {
   for (const { path, value } of records) {
     const entries = value.extraKnownMarketplaces;
     if (entries !== undefined && !object(entries))
-      throw new HostError(`update: ${path}: extraKnownMarketplaces is invalid; repair the effective policy`);
+      throw new HostError(
+        `update: ${path}: extraKnownMarketplaces is invalid; repair the effective policy`,
+        exits.prerequisite,
+      );
     const market = object(entries) ? entries.celetis : value.celetis;
     if (market === undefined) continue;
     if (!object(market))
-      throw new HostError(`update: ${path}: Celetis marketplace policy is invalid; repair the effective policy`);
+      throw new HostError(
+        `update: ${path}: Celetis marketplace policy is invalid; repair the effective policy`,
+        exits.prerequisite,
+      );
     if (Object.hasOwn(market, 'autoUpdate')) effective = { path, value: market.autoUpdate };
   }
   if (effective && effective.value !== false)
     throw new HostError(
       `update: ${effective?.path ?? 'native/local/project/user/managed settings'}: Celetis automatic updates are enabled or unknown; set the effective Celetis autoUpdate policy to false`,
+      exits.prerequisite,
     );
 }
 
@@ -45,12 +53,7 @@ export async function claudePolicy(cwd: string): Promise<PolicyRecord[]> {
       join(cwd, '.claude/settings.local.json'),
       join(
         await mainCheckout(cwd).catch((error) => {
-          if (
-            error instanceof HostError &&
-            error.code === 128 &&
-            error.message.startsWith('fatal: not a git repository')
-          )
-            return checkout;
+          if (error instanceof HostError && error.message.startsWith('fatal: not a git repository')) return checkout;
           throw error;
         }),
         '.claude/settings.local.json',
@@ -62,7 +65,7 @@ export async function claudePolicy(cwd: string): Promise<PolicyRecord[]> {
   const { readdir } = await import('node:fs/promises');
   const names = await readdir(fragments).catch((error: NodeJS.ErrnoException) => {
     if (error.code === 'ENOENT') return [];
-    throw new HostError(`update: cannot read ${fragments}; obtain access to all managed policy sources`);
+    throw new HostError(`update: cannot read ${fragments}; obtain access to all managed policy sources`, exits.blocked);
   });
   paths.push(
     ...names
