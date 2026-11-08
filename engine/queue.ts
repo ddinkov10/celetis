@@ -24,7 +24,6 @@ function shapeOf(argv: string[]): QueueShape | null {
 export async function main(argv: string[]): Promise<ExitCode> {
   const unavailable = await gone([
     'daemon.ts',
-    'next-step.ts',
     'lib/agent-order.ts',
     'lib/config-core.ts',
     'lib/config.ts',
@@ -46,6 +45,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
     'lib/queue.ts',
     'lib/quota-recovery.ts',
     'lib/refresh-hints.ts',
+    'lib/resolver.ts',
     'lib/session.ts',
     'lib/state-folder.ts',
     'lib/state-migration.ts',

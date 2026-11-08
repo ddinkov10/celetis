@@ -79,7 +79,7 @@ resume runs `claude --resume <id> --effort <level>` with the level of the sessio
 resume, because Claude Code ranks that variable above `--effort`. A settings `env` value of that
 variable, `maxEffortLevel`, and an organization cap stay with Claude Code
 (`docs/workflow.md`, "Limits"). The plugin root of the header is the `root` of
-`installation('claude', …)` in `engine/update.ts`, which `requireSameRevision` returns
+`installation('claude', …)` in `engine/lib/updater.ts`, which `requireSameRevision` returns
 (`docs/workflow.md`, "How a step runs").
 
 ## Permissions

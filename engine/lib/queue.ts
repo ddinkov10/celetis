@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto';
 import { closeSync, constants, fstatSync, openSync } from 'node:fs';
 import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { nextIssue } from '../next-step.ts';
 import type { AgentChoice, Host } from './config-core.ts';
 import { exits } from './contract.ts';
 import { HostError, selectHost } from './host.ts';
@@ -12,6 +11,7 @@ import { type HostSelection, locateCheckouts, type Operation } from './operation
 import { childEnv } from './process.ts';
 import type { QueueAction, QueueReceipt, QueueRecord, QueueView } from './queue-types.ts';
 import { readRecovery, recoveryOwner } from './quota-recovery.ts';
+import { nextIssue } from './resolver.ts';
 import { stateFolder } from './state-folder.ts';
 import { commitMigration, type LocalRecord, readLocalRecord } from './state-migration.ts';
 import { requestStatePreparation } from './state-preparation.ts';

@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from 'node:util';
 import { exits } from '../lib/contract.ts';
 import { installRecorder, markDefect } from '../lib/events.ts';
-import type { PreparedUpdate, UpdateCheck, UpdateResult, UpdateStage } from '../update.ts';
+import type { PreparedUpdate, UpdateCheck, UpdateResult, UpdateStage } from '../lib/updater.ts';
 
 export const UPDATE_PIPE_LIMIT = 1024 * 1024;
 export type WorkerRecord =
@@ -132,7 +132,7 @@ async function main(): Promise<void> {
     (mode === 'check' ? !keys(request, []) : !keys(request, ['offer']) || !isPreparedUpdate(request.offer))
   )
     throw new Error('update worker: invalid request');
-  const { inspectUpdate, executeUpdate } = await import('../update.ts');
+  const { inspectUpdate, executeUpdate } = await import('../lib/updater.ts');
   const { observeUpdateChildren } = await import('../lib/update-lock.ts');
   const owned = new Set<number>();
   const send = (value: WorkerRecord) => process.stdout.write(`${JSON.stringify(value)}\n`);

@@ -4,17 +4,16 @@ import { activeBlock, readUsage, selectAgent } from '../lib/agent-usage.ts';
 import type { AgentDecision, AgentOrder, Host, UsageBlock } from '../lib/config-core.ts';
 import { levels } from '../lib/effort.ts';
 import { commonDir } from '../lib/host.ts';
-import { isRecorded, lockHolder } from '../lib/locks.ts';
 import { createOperation, locateCheckouts } from '../lib/operation.ts';
 import { childEnv } from '../lib/process.ts';
 import { readQueue, readQueueView } from '../lib/queue.ts';
 import type { QueueView } from '../lib/queue-types.ts';
 import { listRecoveries, recoveryOwner } from '../lib/quota-recovery.ts';
+import { nextBoard } from '../lib/resolver.ts';
 import { github } from '../lib/tracker.ts';
-import { defaultGate, lands, lanes, stageOf, stages, steps } from '../lib/workflow.ts';
-import { jsonRow, nextBoard } from '../next-step.ts';
+import { defaultGate, lands, lanes, stages, steps } from '../lib/workflow.ts';
 import { readHistory } from './history.ts';
-import type { Document, Flow, Issue, QuotaState } from './types.ts';
+import type { Document, Flow, QuotaState } from './types.ts';
 
 type Reconcile = () => Promise<QueueView>;
 
@@ -70,31 +69,7 @@ async function readDocument(
     ),
     levels: [...levels],
   };
-  const issues: Issue[] = [];
-  for (const row of data.rows) {
-    const { line, state, closedAt: _closedAt, ...shown } = jsonRow(row);
-    if (state === 'done') continue;
-    const step = row.next.kind === 'run' ? row.next.step : null;
-    const locked = !!(await lockHolder(main, `issue-${row.number}`));
-    const stuck = await isRecorded(common, String(row.number), line);
-    issues.push({
-      ...shown,
-      state,
-      step,
-      started: step !== null && stageOf(step) > 1,
-      urgent: shown.type === 'hotfix',
-      ...(locked
-        ? { state: 'starting' }
-        : state === 'dirty'
-          ? {}
-          : stuck
-            ? {
-                state: 'stuck',
-                act: `celetis --agent <host> run resume ${row.number}`,
-              }
-            : {}),
-    });
-  }
+  const issues = [...data.rows];
   if (target) {
     const selected = new Set(target.numbers);
     issues.push(...target.previous.issues.filter((issue) => !selected.has(issue.number)));

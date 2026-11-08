@@ -110,6 +110,112 @@ export function checkCitations(files: ReadonlyMap<string, string>): string[] {
   return errors;
 }
 
+type Token = { kind: 'word' | 'punct' | 'string' | 'template' | 'regex'; text: string; line: number };
+
+const wordPattern = /[\w$]+/y;
+const regexAfter = new Set('return typeof case do else in of new delete void throw instanceof yield await'.split(' '));
+
+function tokens(source: string): Token[] {
+  const out: Token[] = [];
+  const braces: ('brace' | 'template')[] = [];
+  let at = 0;
+  let line = 1;
+  const advance = (to: number) => {
+    for (; at < to; at++) if (source[at] === '\n') line++;
+  };
+  const template = (start: number, first: boolean) => {
+    for (let end = at; end < source.length; end++) {
+      if (source[end] === '\\') end++;
+      else if (source[end] === '`') {
+        const text = source.slice(at, end);
+        advance(end + 1);
+        out.push({ kind: first ? 'string' : 'template', text, line: start });
+        return;
+      } else if (source[end] === '$' && source[end + 1] === '{') {
+        advance(end + 2);
+        braces.push('template');
+        return;
+      }
+    }
+    advance(source.length);
+  };
+  while (at < source.length) {
+    const char = source[at] ?? '';
+    const next = source[at + 1];
+    const start = line;
+    const prev = out.at(-1);
+    if (/\s/.test(char)) advance(at + 1);
+    else if (char === '/' && (next === '/' || next === '*')) {
+      const end = source.indexOf(next === '/' ? '\n' : '*/', at + 2);
+      advance(end < 0 ? source.length : next === '/' ? end : end + 2);
+    } else if (char === "'" || char === '"') {
+      let end = at + 1;
+      while (end < source.length && source[end] !== char && source[end] !== '\n') end += source[end] === '\\' ? 2 : 1;
+      out.push({ kind: 'string', text: source.slice(at + 1, end), line: start });
+      advance(end + 1);
+    } else if (char === '`') {
+      advance(at + 1);
+      template(start, true);
+    } else if (
+      char === '/' &&
+      (!prev ||
+        (prev.kind === 'punct' && (!')]}'.includes(prev.text) || (prev.text === '}' && prev.line < start))) ||
+        (prev.kind === 'word' && regexAfter.has(prev.text)))
+    ) {
+      let end = at + 1;
+      for (let inClass = false; end < source.length && source[end] !== '\n'; end++) {
+        if (source[end] === '\\') end++;
+        else if (source[end] === '[') inClass = true;
+        else if (source[end] === ']') inClass = false;
+        else if (source[end] === '/' && !inClass) break;
+      }
+      while (/[a-z]/.test(source[end + 1] ?? '')) end++;
+      out.push({ kind: 'regex', text: source.slice(at, end + 1), line: start });
+      advance(end + 1);
+    } else if (/[\w$]/.test(char)) {
+      wordPattern.lastIndex = at;
+      const [word = char] = wordPattern.exec(source) ?? [];
+      out.push({ kind: 'word', text: word, line: start });
+      advance(at + word.length);
+    } else {
+      if (char === '{') braces.push('brace');
+      if (char === '}' && braces.pop() === 'template') {
+        advance(at + 1);
+        template(start, false);
+        continue;
+      }
+      out.push({ kind: 'punct', text: char, line: start });
+      advance(at + 1);
+    }
+  }
+  return out;
+}
+
+export function checkImports(files: ReadonlyMap<string, string>): string[] {
+  const errors: string[] = [];
+  for (const [file, source] of files) {
+    if (!/^engine\/(?:lib|board)\/.+\.ts$/.test(file)) continue;
+    const list = tokens(source);
+    for (const [index, token] of list.entries()) {
+      if (token.kind !== 'string' || !token.text.startsWith('.')) continue;
+      const [before, call, member] = [list[index - 1], list[index - 2], list[index - 3]];
+      const specifier =
+        (before?.kind === 'word' && ['from', 'import'].includes(before.text)) ||
+        (before?.text === '(' &&
+          call?.kind === 'word' &&
+          ['import', 'require'].includes(call.text) &&
+          member?.text !== '.');
+      if (!specifier) continue;
+      const target = posix.join(posix.dirname(file), token.text);
+      if (posix.dirname(target) === 'engine' && ![...files.keys()].some((path) => path.startsWith(`${target}/`)))
+        errors.push(
+          `${file}:${token.line}: A library or board module imports the library, not a command file of engine/ (ADR-0081).`,
+        );
+    }
+  }
+  return errors;
+}
+
 const otherPrograms: ReadonlySet<string> = new Set([
   'bun',
   'git',
@@ -418,9 +524,12 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
         unknown = true;
       }
     }
-    const textErrors = [...checkCitations(texts), ...checkContract(texts)];
+    const textErrors = [...checkCitations(texts), ...checkContract(texts), ...checkImports(texts)];
     for (const line of textErrors) console.error(line);
-    if (unknown || textErrors.length) return 1;
+    if (unknown || textErrors.length) {
+      console.log('verify: FAIL');
+      return 1;
+    }
     const vendor = await readFile('engine/lib/vendor/yaml.mjs');
     if (
       new Bun.CryptoHasher('sha256').update(vendor).digest('hex') !==

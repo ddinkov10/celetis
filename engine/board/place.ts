@@ -3,7 +3,7 @@ import { bunArgs } from '../lib/process.ts';
 import { daemonScript } from '../lib/process-identity.ts';
 import { LINK } from '../lib/terminal.ts';
 import type { Terminal, TerminalStatus } from '../lib/terminal-types.ts';
-import type { Card, Column, Columns, Document, Flow, Issue, Placement, QuotaState, Session } from './types.ts';
+import type { Card, Column, Columns, Document, Flow, IssueRow, Placement, QuotaState, Session } from './types.ts';
 import { gateOf } from './view.ts';
 
 const LABEL = /^#([1-9][0-9]*)(?: ([a-z]+))?/;
@@ -51,14 +51,14 @@ export const sessionsOf = (terminals: Terminal[], isHere: (path: string) => bool
     ];
   });
 
-export const launchMatches = (issue: Issue | undefined, step: string | null) =>
+export const launchMatches = (issue: IssueRow | undefined, step: string | null) =>
   issue?.step === step &&
   (issue.state === 'ready' ||
     issue.state === 'starting' ||
     issue.state === 'stuck' ||
     (issue.state === 'blocked' && step === null));
 
-const issueCard = (issue: Issue, extra: Partial<Card>): Card => ({
+const issueCard = (issue: IssueRow, extra: Partial<Card>): Card => ({
   sessionId: null,
   number: issue.number,
   title: issue.title,
@@ -81,7 +81,10 @@ const issueCard = (issue: Issue, extra: Partial<Card>): Card => ({
   ...extra,
 });
 
-const PLACERS: Record<Issue['state'], (issue: Issue, context: { flow: Flow; isOpen: boolean }) => [Column, Card]> = {
+const PLACERS: Record<
+  IssueRow['state'],
+  (issue: IssueRow, context: { flow: Flow; isOpen: boolean }) => [Column, Card]
+> = {
   starting: (issue) => ['running', issueCard(issue, { step: issue.step, state: 'starts' })],
   dirty: (issue) => ['needs', issueCard(issue, { step: issue.step, state: 'dirty-tree', act: issue.path })],
   stuck: (issue, { isOpen }) => [
@@ -106,7 +109,7 @@ const STATUSES: Record<TerminalStatus, [Column, string, string | null]> = {
   error: ['needs', 'waits', 'turn'],
 };
 
-const placeSession = (session: Session, issue: Issue | undefined): [Column, Card] => {
+const placeSession = (session: Session, issue: IssueRow | undefined): [Column, Card] => {
   const status = STATUSES[session.status];
   const [column, state, waitFor] =
     status[2] === 'turn' && (session.stepEnd === 'checking' || session.stepEnd === 'exiting')

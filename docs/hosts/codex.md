@@ -52,7 +52,7 @@ session record. A resume runs `codex resume --no-daemon -c model_reasoning_effor
 A model that `model/list` does not list, a model with none of the five levels, or a failed read
 stops the start with a message.
 
-The plugin root of the header is the `root` of `installation('codex', …)` in `engine/update.ts`,
+The plugin root of the header is the `root` of `installation('codex', …)` in `engine/lib/updater.ts`,
 which `requireSameRevision` returns. The lookup uses `skills/list` on a short-lived app-server
 connection, with no thread or model turn.
 

@@ -237,9 +237,10 @@ The board reads its issue data in the process of the daemon (`data.ts`). Each re
 operation of the main checkout with no host selection, so the `CELETIS_AGENT` of the daemon selects
 no host. So each read validates the main `.celetis.yaml` again, and it takes `gates` from it.
 The read then gets the typed rows of the resolver (`nextBoard` of
-`engine/next-step.ts`), and the issue locks and the record of the daemon
-(`engine/lib/locks.ts`, which the daemon also uses). It builds one typed document (`Document` of
-`types.ts`) with `tracker`, `agents`, `flow`, `noRun`, `issues`, `history`, and
+`engine/lib/resolver.ts`). The resolver gives each row its whole state, `starting` and `stuck`
+included, and reads for it the issue locks and the record of the daemon (`engine/lib/locks.ts`,
+which the daemon also uses). It builds one typed document (`Document` of `types.ts`) with the rows
+as `issues` and `noRun` of the resolver, and it adds `tracker`, `agents`, `flow`, `history`, and
 `queue`. Each `GET /api/board` also reads the local agent order, the usage records, and the
 usage-limit recovery records again (`readAgentState` of `data.ts`), and its reply adds `picker`
 (the order, the usage blocks, the hosts of live sessions, the live usage-limit waits, and a read

@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { nextIssue } from '../next-step.ts';
 import { type ExitCode, exits } from './contract.ts';
 import { HostError } from './host.ts';
 import type { Next } from './lines.ts';
@@ -18,6 +17,7 @@ import {
   updateQueue,
 } from './queue.ts';
 import type { QueueAction, QueueExpected, QueueReceipt, QueueRecord, QueueView, QueueWake } from './queue-types.ts';
+import { nextIssue } from './resolver.ts';
 
 function refuse(message: string, code: ExitCode = exits.prerequisite): never {
   throw new HostError(message, code);

@@ -6677,7 +6677,7 @@ var commands = [
   entry("update", false, [
     form("update", [], helped(1, "Updates the program and the plugin of each host; asks once.")),
     form("update check", [], helped(2, "Shows the installed and the available revision of each part."))
-  ], 'Updates the program and the plugin of each host, and asks once in an interactive terminal. `check` is read-only: it prints one JSON array of the parts. `README.md`, "Updates", gives the steps'),
+  ], `Updates the program and the plugin of each host, and asks once in an interactive terminal. \`check\` is read-only: it prints one JSON array of the parts. \`README.md\`, "Updates", gives the steps. Any other form exits ${exits.usage} with the usage line`),
   entry("root", false, [form("root", [], helped(24, "Prints the folder of the program."))], "Prints the folder of the program. It takes no argument and runs in each folder"),
   entry("daemon", false, [form(["daemon", "--daemon"])], "The detached master daemon process of `daemon start`.", [...base, "signal"], true),
   entry("daemon", false, [
@@ -6685,8 +6685,7 @@ var commands = [
       passThrough: sessionCode
     })
   ], "The waiting session of a daemon run.", hosted, true),
-  entry("daemon", false, [form("daemon --prepare-state queue"), form("daemon --prepare-state session <n>")], "The state preparation of the daemon.", base, true),
-  entry("update", false, [form("update --inspect <host>"), form("update --policy <host>")], "The inspection of an installation by the update of the daemon.", base, true)
+  entry("daemon", false, [form("daemon --prepare-state queue"), form("daemon --prepare-state session <n>")], "The state preparation of the daemon.", base, true)
 ];
 var launcherForms = [
   form([]),

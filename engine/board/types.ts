@@ -1,10 +1,11 @@
 import type { AgentDecision, AgentOrder, Host, UsageBlock } from '../lib/config-core.ts';
 import type { Effort, Level } from '../lib/effort.ts';
 import type { QueueView } from '../lib/queue-types.ts';
+import type { IssueRow, ParentEpic, Pull } from '../lib/resolver-types.ts';
 import type { TerminalStatus } from '../lib/terminal-types.ts';
 import type { UpdateStage } from '../lib/update-types.ts';
 
-export type { UpdateStage };
+export type { IssueRow, ParentEpic, Pull, UpdateStage };
 export type BoardOffer = {
   id: string;
   target: string;
@@ -42,31 +43,6 @@ export type Flow = {
   steps: Record<string, { gate: 'me' | 'auto'; hint?: string }>;
   levels: Level[];
 };
-export type Pull = {
-  number: number;
-  url: string;
-  draft: boolean;
-  checks: string | null;
-  review: string | null;
-};
-export type ParentEpic = { number: number; title: string };
-export type Issue = {
-  number: number;
-  title: string;
-  url: string;
-  type: string | null;
-  state: 'ready' | 'starting' | 'stuck' | 'dirty' | 'blocked';
-  step: string | null;
-  started: boolean;
-  urgent: boolean;
-  updatedAt: string;
-  path?: string;
-  reason: string | null;
-  act: string | null;
-  effort: Effort | null;
-  epic: ParentEpic | null;
-  pr: Pull | null;
-};
 export type LandedIssue = {
   number: number;
   title: string;
@@ -89,7 +65,7 @@ export type Document = {
   tracker: string;
   flow: Flow;
   noRun: string | null;
-  issues: Issue[];
+  issues: IssueRow[];
   agents: Record<string, { available: boolean; cause: string | null }>;
   queue: QueueView | null;
 };

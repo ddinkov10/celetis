@@ -9,8 +9,8 @@ import { recordEvent } from '../lib/events.ts';
 import { HostError } from '../lib/host.ts';
 import { bunArgs, childEnv } from '../lib/process.ts';
 import { installedProgram, programSource, readProgram } from '../lib/program.ts';
+import type { PreparedUpdate, UpdateCheck, UpdateResult } from '../lib/updater.ts';
 import { containProcess, type Job } from '../lib/windows.ts';
-import type { PreparedUpdate, UpdateCheck, UpdateResult } from '../update.ts';
 import type { BoardOffer, UpdateStage, UpdateView } from './types.ts';
 import { isUpdateCheck, isUpdateResult, isWorkerRecord, UPDATE_PIPE_LIMIT } from './update-worker.ts';
 

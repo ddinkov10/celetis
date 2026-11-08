@@ -591,7 +591,7 @@ export const commands: readonly Entry[] = [
       form('update', [], helped(1, 'Updates the program and the plugin of each host; asks once.')),
       form('update check', [], helped(2, 'Shows the installed and the available revision of each part.')),
     ],
-    'Updates the program and the plugin of each host, and asks once in an interactive terminal. `check` is read-only: it prints one JSON array of the parts. `README.md`, "Updates", gives the steps',
+    `Updates the program and the plugin of each host, and asks once in an interactive terminal. \`check\` is read-only: it prints one JSON array of the parts. \`README.md\`, "Updates", gives the steps. Any other form exits ${exits.usage} with the usage line`,
   ),
   entry(
     'root',
@@ -628,14 +628,6 @@ export const commands: readonly Entry[] = [
     false,
     [form('daemon --prepare-state queue'), form('daemon --prepare-state session <n>')],
     'The state preparation of the daemon.',
-    base,
-    true,
-  ),
-  entry(
-    'update',
-    false,
-    [form('update --inspect <host>'), form('update --policy <host>')],
-    'The inspection of an installation by the update of the daemon.',
     base,
     true,
   ),

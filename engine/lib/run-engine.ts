@@ -46,6 +46,7 @@ import {
   archiveSession,
   endOwnedAttempt,
   type OwnedSession,
+  permitHolds,
   type QuotaBlock,
   type QuotaRecovery,
   quotaWake,
@@ -138,8 +139,8 @@ export interface RunHandle {
 
 export const removed = 'the program version of this daemon was removed after an update; start the daemon again';
 const required = [
-  'next-step.ts',
-  'update.ts',
+  'lib/resolver.ts',
+  'lib/updater.ts',
   'daemon.ts',
   '../celetis',
   'launcher.ts',
@@ -454,9 +455,11 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     abort?: AbortSignal,
     permit?: Awaited<ReturnType<typeof validateRecovery>>,
   ) => {
-    const { nextIssue } = await import('../next-step.ts');
+    const { nextIssue } = await import('./resolver.ts');
     const { lineOf } = await import('./lines.ts');
-    const { next, effort, authority, stderr } = await nextIssue(n, current, abort, permit);
+    const keeps =
+      permit && (async (lane: string) => lane === permit.lane && permitHolds(current.checkout.main as string, permit));
+    const { next, effort, authority, stderr } = await nextIssue(n, current, abort, keeps);
     process.stderr.write(stderr);
     return { next, effort, authority, line: lineOf(n, next) };
   };
@@ -1295,7 +1298,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         const prepared = await preflight(async () => {
           stopped();
           await requireStart(stepHost, current.checkout.cwd);
-          const pluginRoot = await (await import('../update.ts')).requireSameRevision(stepHost, main, root);
+          const pluginRoot = await (await import('./updater.ts')).requireSameRevision(stepHost, main, root);
           if ((await gone(root)) || !(await stat(join(root, 'step-prompt.md')).catch(() => null))?.isFile())
             return null;
           const chosen =
@@ -1857,7 +1860,7 @@ export function autoLoop(
         const config = current.mainConfig as Config;
         if (current.choice.kind === 'explicit')
           await (await import('./plugin-policy.ts')).requireUpdatePolicy(current.host, main);
-        const { nextOpen } = await import('../next-step.ts');
+        const { nextOpen } = await import('./resolver.ts');
         const { lineOf } = await import('./lines.ts');
         const { rows, stderr } = await nextOpen(current, signal);
         process.stderr.write(stderr);

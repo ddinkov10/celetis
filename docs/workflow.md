@@ -209,7 +209,7 @@ The lines that say `start the run again` mean: send the request again. The lines
 daemon again` mean: start the daemon when it does not run, then send the request again.
 
 **A start with one number** asks the daemon for a run of the issue. The daemon run reads the
-decision of the issue from the in-process resolver (`nextIssue` of `next-step.ts`), a Run of a step or a stop, and starts the step
+decision of the issue from the in-process resolver (`nextIssue` of `engine/lib/resolver.ts`), a Run of a step or a stop, and starts the step
 of a Run, whatever its gate. When the session ends, it reads the decision again and starts each
 next step whose gate is `auto`. It ends the issue at the first of these, in this order: a stop,
 the same step again ("no progress"), a refused skip, or a `me` gate. With the default gates, each
@@ -890,7 +890,7 @@ Celetis step session
 ```
 
 The plugin root is the host-installed plugin folder that holds the loaded skills, not the version
-folder of the program: `requireSameRevision` of `engine/update.ts` returns the `root` of
+folder of the program: `requireSameRevision` of `engine/lib/updater.ts` returns the `root` of
 `installation()`. The step text compares it with the `<plugin>` of the skill entry, and a
 difference after the resolution of both paths stops the step for setup. The landing comes from the
 validated main config. The header holds no custom text: the entry of the skill reads
@@ -969,7 +969,7 @@ for the resolver, entry, and step text of each run. Numbered starts, auto-mode s
 The form `run resume` keeps its no-update behavior and saved identity.
 Before a step starts, the daemon checks that its required files and step text still exist.
 Before each new step session, it also compares the installed revision of the plugin of the
-session's host with its own revision (`requireSameRevision` of `engine/update.ts`). On a
+session's host with its own revision (`requireSameRevision` of `engine/lib/updater.ts`). On a
 difference it starts no session, writes no session record, and ends with
 `celetis: the <host> plugin is at <12> and this program is at <12>; run celetis update, then start the daemon again`.
 For the daemon, that means: run `celetis update`, restart the daemon, then send the request again.
@@ -1066,7 +1066,7 @@ a job in the background that ends the session:
    status `app` names the host of the step, and the status changed at or after the start of the
    step (`status_ms`). The job verifies the current host and a current `idle`, `done`, or
    `error` status, then reads the decision of the issue from the in-process resolver of
-   `next-step.ts`. A decision with a result
+   `engine/lib/resolver.ts`. A decision with a result
    other than the result that started the session permits an exit check: a Run of another step,
    or a stop of the issue. A stop from an observation (the dirty tree, a landing that runs, or a
    failed read) permits none. The job reads the resolver again, and that read must give the same
@@ -1618,8 +1618,8 @@ repository uses 4404. `engine/board/README.md` gives each refusal of the start.
 **The data.** Each refresh reads the data in the daemon process (`engine/board/data.ts`). It creates
 a fresh main operation with no host selection, so the `CELETIS_AGENT` of the daemon selects no
 host. It reads the typed rows of the
-in-process resolver (`nextBoard` of `next-step.ts`), and the issue locks and the record through
-`engine/lib/locks.ts`, the module of the daemon. Resolution and displayed gates
+in-process resolver (`nextBoard` of `engine/lib/resolver.ts`), which also reads the issue locks and
+the record through `engine/lib/locks.ts`, the module of the daemon. Resolution and displayed gates
 share that refresh's operation, and a change of `gates` in the main YAML shows at the next refresh.
 Each board response separately reads the current local agent order and usage blocks, and it reads
 the status object of the daemon once, in its process.
@@ -1632,11 +1632,11 @@ card warning area.
 
 A full collection makes these `gh api` calls: 2 paginated lists (open issues and open PRs),
 one paginated call for the timeline of each open issue that has a comment, and 3 calls for each
-open PR whose branch holds `/<number>-`. It gives each row the state that it knows from GitHub and
-from the working trees: `blocked` with `reason` and `act`, `ready`, or `dirty` with `path`.
-It also gives the `noRun` text for a dirty main checkout. The board adds what the daemon knows:
-`starting` for a lock that a live script holds, `stuck` with its `act` for a row of the record, the
-`step`, `started`, and `urgent` of each row, `tracker`, and `flow` with the gate of each step.
+open PR whose branch holds `/<number>-`. The resolver gives each row its whole state: `blocked`
+with `reason` and `act`, `ready`, `dirty` with `path`, `starting` for a lock that a live script
+holds, or `stuck` with its `act` for a row of the record, and the `step`, `started`, and `urgent`
+of each row. It also gives the `noRun` text for a dirty main checkout. The board adds `tracker`,
+`flow` with the gate of each step, `agents`, `history`, and `queue`.
 A full collection then sends the queue reconcile request `POST /queue/reconcile` to the master
 daemon through the fixed adapter. The daemon reconciles the queue and starts a queue run that is
 due. The request has a limit of 30 seconds inside the 60 seconds of the read. With a refusal, for
@@ -2148,7 +2148,7 @@ fingerprint:
 
 - The board checks for an update when it starts and 10 minutes after each check ends. An update
   that a person starts stops this timer. Each check starts the update worker, and the worker
-  starts one `engine/update.ts --inspect <host>` child for each host that it inspects. Each of
+  starts one `engine/lib/updater.ts --inspect <host>` child for each host that it inspects. Each of
   these processes records its own failed exit. A child that fails, for example because the update
   source cannot be reached, gives one refusal entry (`command` `update`) at each check. The worker
   exits 0 when it reports a failed check, so it records nothing then. A failure that the worker
@@ -3047,8 +3047,9 @@ Run repository checks in a checkout of `ddinkov10/celetis`. The verify gate is `
 It classifies every tracked path, runs Biome and three strict type environments, native
 actionlint, YAML and plugin validation, the citation check of the skills, the procedure modules,
 the principles, and the step text (`checkCitations`), the check of each `celetis` form and each
-exit code of the same text against `engine/lib/contract.ts` (`checkContract`, ADR-0079), and
-generated byte comparison, with modes
+exit code of the same text against `engine/lib/contract.ts` (`checkContract`, ADR-0079), the
+refusal of an import of a file directly in `engine/` from a module of `engine/lib/` or
+`engine/board/` (`checkImports`, ADR-0081), and generated byte comparison, with modes
 on macOS and Linux. Only procedure modules need two citers; principles have no minimum citer
 count. Citations and relative links must name tracked files. Skills, procedure modules, and
 principles cannot cite `docs/hosts/`, and each `SKILL.md` needs the entry line exactly once. It
