@@ -167,8 +167,12 @@ The `suite` file is the full check of a `merge` landing. `land` runs it in the l
 no argument, at the tip that it lands, after the last check of the lane and before the commit on
 the trunk. Exit status 0 is a pass; any other status stops the landing with `land: checks:`. A suite
 that changes the lane or the trunk stops the landing with a repair or usage line, and the trunk
-stays as it was. `land` runs the suite again on each run. A `pr` landing runs no suite: its checks
-are the checks of the PR.
+stays as it was. `land` runs the suite again on each run. The suite is a child process of the
+master daemon, which runs the landing (`docs/workflow.md`, "A landing"): it has no stdin, its
+stdout and stderr are pipes, not a terminal, and their bytes reach the stdout and stderr of the
+`land` client unchanged. It has the environment of the daemon, not of the shell that runs `land`.
+An abort of the landing sends SIGTERM to the suite, and SIGKILL when the suite still runs 10
+seconds later. A `pr` landing runs no suite: its checks are the checks of the PR.
 
 Use the main checkout for `landing`, `suite`, `gates`, `agents`, `board`, and `codexProfiles`.
 Use the new lane checkout for setup. At each skill entry, use `custom.<skill>` from the active
@@ -260,8 +264,8 @@ or `0b101`, is an error too. Quote such a value to keep it as a string.
 The program entry imports its own engine and replaces its process with the named command before
 configuration reads. On Windows, it spawns the command with the same stdio and environment,
 waits, and exits with its status. The command consumes the forwarded `--agent`, validates its
-arguments, and creates its operation. `land.ts` and `daemon.ts` retain their process
-identities for lock-owner checks.
+arguments, and creates its operation. `daemon.ts` retains its process identity for lock-owner
+checks.
 
 `locateCheckouts(cwd)` in `engine/lib/operation.ts` resolves canonical active, main, and common
 Git paths. A subfolder has its checkout's identity. When the Git directory equals the common

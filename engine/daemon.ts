@@ -141,6 +141,8 @@ async function status(common: string): Promise<number> {
   console.log(boardLine(read));
   console.log(`daemon: auto mode ${read.auto}`);
   for (const row of read.runs) console.log(rowLine(row));
+  for (const row of read.landings)
+    console.log(`daemon: landing #${row.issue} ${row.state} since ${clock(row.changedMs)}`);
   return 0;
 }
 

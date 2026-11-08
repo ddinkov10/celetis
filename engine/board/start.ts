@@ -9,7 +9,7 @@ import { createBoard, run } from './server.ts';
 import { createUpdates, type UpdateController } from './updates.ts';
 
 export type BoardDaemon = Readonly<{
-  send(request: Exclude<DaemonRequest, { kind: 'status' }>): Promise<unknown>;
+  send(request: Exclude<DaemonRequest, { kind: 'status' | 'land' }>): Promise<unknown>;
   status(): Promise<DaemonStatus>;
 }>;
 export type BoardStart = Readonly<{

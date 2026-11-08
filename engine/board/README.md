@@ -98,6 +98,8 @@ existing failure. Use an exact port when the origin must stay fixed:
 PORT=4404 celetis daemon start
 ```
 
+The daemon keeps that `PORT` for its board only, so no run or landing gets it.
+
 **The start writes** the main checkout and the actual URL once to the daemon log, with the tag
 `daemon`, after a successful bind. Failed candidates write no success lines. The URL of
 `daemon start` and `daemon status` is authoritative:

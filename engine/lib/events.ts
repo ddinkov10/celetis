@@ -115,6 +115,10 @@ export function installRecorder(name: string): void {
   });
 }
 
+export function writeUnrecorded(chunk: Uint8Array, done: () => void): void {
+  Reflect.apply(installed?.write ?? process.stderr.write, process.stderr, [chunk, done]);
+}
+
 export function markDefect(error: unknown): void {
   if (!(error instanceof HostError)) marked = { value: error };
 }

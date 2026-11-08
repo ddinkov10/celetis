@@ -137,6 +137,67 @@ export function bunArgs(entry: string, args: string[]): string[] {
   return ['--no-env-file', '--no-install', `--config=${devNull}`, '--no-macros', entry, ...args];
 }
 
+export function streamBun(file: string, args: string[], cwd: string, signal: AbortSignal): Promise<number> {
+  if (signal.aborted) return Promise.resolve(143);
+  return new Promise<number>((resolveCode) => {
+    const child = spawn(process.execPath, bunArgs(file, args), {
+      cwd,
+      env: childEnv(),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let kill: ReturnType<typeof setTimeout> | undefined;
+    // A suite that handles SIGTERM must not hold the stop of the daemon past its 60 seconds.
+    const stop = () => {
+      child.kill('SIGTERM');
+      kill = setTimeout(() => child.kill('SIGKILL'), 10_000);
+    };
+    signal.addEventListener('abort', stop, { once: true });
+    let failed = false;
+    let done = false;
+    let ended = false;
+    let pending = 0;
+    let status: number | null = null;
+    let name: NodeJS.Signals | null = null;
+    let drain: ReturnType<typeof setTimeout> | undefined;
+    const settle = () => {
+      if (ended || !done || pending) return;
+      ended = true;
+      clearTimeout(drain);
+      clearTimeout(kill);
+      signal.removeEventListener('abort', stop);
+      child.stdout.destroy();
+      child.stderr.destroy();
+      resolveCode(signal.aborted ? 143 : failed ? 1 : (status ?? (name ? 128 + constants.signals[name] : 1)));
+    };
+    // On Bun, console.log and console.error do not wait behind a queued write, so the end waits for each callback.
+    const forward = (target: NodeJS.WriteStream) => (chunk: Buffer) => {
+      pending++;
+      target.write(chunk, () => {
+        pending--;
+        settle();
+      });
+    };
+    child.stdout.on('data', forward(process.stdout));
+    child.stderr.on('data', forward(process.stderr));
+    child.once('error', (error) => {
+      failed = true;
+      console.error(error.message);
+    });
+    const finish = (code: number | null, signalName: NodeJS.Signals | null) => {
+      status = code;
+      name = signalName;
+      done = true;
+      settle();
+    };
+    // A descendant of the suite can hold a pipe open after the suite exits, and close waits for that descendant.
+    child.once('exit', (code, signalName) => {
+      clearTimeout(kill);
+      drain = setTimeout(() => finish(code, signalName), 1_000);
+    });
+    child.once('close', finish);
+  });
+}
+
 export function runBun(file: string, args: string[], cwd: string): Promise<number> {
   return new Promise<number>((resolveCode) => {
     const child = spawn(process.execPath, bunArgs(file, args), { cwd, env: childEnv(), stdio: 'inherit' });

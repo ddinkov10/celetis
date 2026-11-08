@@ -58,6 +58,9 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
 
   `scripts/install-tools.ts` owns the pins. On Windows, omit `--claude`: the installer refuses it. The installer checks the official native actionlint hash.
   The gate resolves package and type paths from executable filesystem metadata. Checks install nothing.
+  The `merge` landing runs the gate as its suite in the master daemon, with the environment of
+  the shell of `celetis daemon start`, so start the daemon from a shell with that `bin` folder on
+  `PATH`.
 - The gate reads `git ls-files -z`. Stage a new file before the gate. Give each new file type
   a check or an explicit role in `scripts/verify.ts`.
 - Author each first-party program in TypeScript. Bun 1.4.4 or later runs commands.
@@ -187,12 +190,10 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
   installed program separately.
 - **A script file keeps its name.** `engine/<name>.ts` keeps the same sub-command basename.
   Skills, product instructions, board commands, and personal landing rules refer to that command.
-  On macOS and Linux, two basenames also identify lock owners. Through `processRunsScript`,
-  `engine/next-step.ts` accepts a live landing only when its process command line contains
-  `land.ts`, and `engine/lib/locks.ts` accepts a daemon only when it contains `daemon.ts`.
-  A rename makes a live owner look stale. The daemon can then end a session during landing, or
-  two daemons can take one issue. On Windows, owners match by PID and creation time instead
-  (ADR-0034).
+  On macOS and Linux, one basename also identifies a lock owner: `engine/lib/locks.ts` accepts a
+  daemon only when its process command line contains `daemon.ts`. A rename makes a live owner
+  look stale. The daemon can then end a session during a landing, or two daemons can take one
+  issue. On Windows, owners match by PID and creation time instead (ADR-0034).
 - **The skills table and the commands table of `README.md` are written by hand.** A new skill, a
   removed skill, or a new sub-command of `engine/` also changes the README, and no check fails when
   it does not. `scripts/build.ts` writes only the block of the commands that a person types. A new

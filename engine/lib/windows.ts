@@ -131,7 +131,7 @@ export function containProcess(pid: number): Job | null {
   }
 }
 
-export function windowsProcess(pid: number): { start: string; createdMs: number } | null {
+export function windowsProcess(pid: number): { start: string } | null {
   kernel ??= kernelBinding();
   const api = kernel;
   const handle = api.symbols.OpenProcess(0x1000 | 0x00100000, 0, pid);
@@ -143,8 +143,7 @@ export function windowsProcess(pid: number): { start: string; createdMs: number 
       throw new HostError(
         `celetis: cannot read the start time of process ${pid} (Windows error ${api.symbols.GetLastError()})`,
       );
-    const created = times[0] as bigint;
-    return { start: String(created), createdMs: Number(created / 10000n) - 11644473600000 };
+    return { start: String(times[0] as bigint) };
   } finally {
     api.symbols.CloseHandle(handle);
   }

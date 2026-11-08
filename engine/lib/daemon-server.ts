@@ -9,6 +9,7 @@ import { format } from 'node:util';
 import { celetisAdapter } from '../board/adapter.ts';
 import { type BoardDaemon, type BoardHandle, startBoard } from '../board/start.ts';
 import { shortRevision } from './daemon-client.ts';
+import { createLandings, type Sink } from './daemon-landing.ts';
 import {
   type DaemonAnswer,
   type DaemonIdentity,
@@ -51,7 +52,7 @@ import {
 import { type RunRecord, readRunRecords, removeRunRecord, writeRunRecord } from './run-record.ts';
 import { stateFolder } from './state-folder.ts';
 
-type Frame = { id: string; last: string | null };
+type Frame = { tag: string; last: string | null; sink: Sink | null };
 type Said = Readonly<{ status: number; answer: DaemonAnswer }>;
 type Wake = Omit<Extract<DaemonRequest, { kind: 'queue' }>, 'kind'>;
 type Answer = 'none' | 'pending' | 'sent' | 'refused';
@@ -105,24 +106,37 @@ function routeOutput(frames: AsyncLocalStorage<Frame>): void {
   const decoder = new TextDecoder();
   const tagged = (text: string) => {
     const frame = frames.getStore();
-    const tag = `${new Date().toISOString()} ${frame ? frame.id.slice(0, 8) : 'daemon'}`;
+    const tag = `${new Date().toISOString()} ${frame ? frame.tag : 'daemon'}`;
     const lines = (text.endsWith('\n') ? text.slice(0, -1) : text).split('\n');
     for (const line of lines) if (frame && line.startsWith('daemon: ')) frame.last = line;
     return lines.map((line) => `${tag} ${line}`).join('\n');
   };
+  const sink = (stream: 'out' | 'err', bytes: string | Uint8Array) => {
+    if (bytes.length)
+      frames.getStore()?.sink?.(stream, Buffer.from(bytes).toString('latin1'), typeof bytes === 'string');
+  };
   const log = console.log;
   const error = console.error;
-  console.log = (...args: unknown[]) => Reflect.apply(log, console, [tagged(format(...args))]);
-  console.error = (...args: unknown[]) => Reflect.apply(error, console, [tagged(format(...args))]);
-  const wrap = (stream: NodeJS.WriteStream) => {
+  console.log = (...args: unknown[]) => {
+    const text = format(...args);
+    sink('out', `${text}\n`);
+    return Reflect.apply(log, console, [tagged(text)]);
+  };
+  console.error = (...args: unknown[]) => {
+    const text = format(...args);
+    sink('err', `${text}\n`);
+    return Reflect.apply(error, console, [tagged(text)]);
+  };
+  const wrap = (stream: NodeJS.WriteStream, name: 'out' | 'err') => {
     const write = stream.write;
     stream.write = function (this: unknown, chunk: unknown, ...rest: unknown[]): boolean {
       const text = typeof chunk === 'string' ? chunk : chunk instanceof Uint8Array ? decoder.decode(chunk) : '';
+      if (typeof chunk === 'string' || chunk instanceof Uint8Array) sink(name, chunk);
       return Reflect.apply(write, this, [text ? `${tagged(text)}\n` : chunk, ...rest]);
     };
   };
-  wrap(process.stdout);
-  wrap(process.stderr);
+  wrap(process.stdout, 'out');
+  wrap(process.stderr, 'err');
 }
 
 async function bodyText(request: Request): Promise<string | null> {
@@ -284,6 +298,12 @@ async function serve(
 
   const entries = new Map<string, Entry>();
   const loops = new Set<Loop>();
+  const landings = createLandings({
+    main,
+    start,
+    pid: process.pid,
+    enter: (issue, sink, work) => frames.run({ tag: `land-${issue}`, last: null, sink }, work),
+  });
   const opened = Promise.withResolvers<BoardHandle>();
   let board: BoardHandle | undefined;
   let taking = true;
@@ -350,10 +370,10 @@ async function serve(
     );
   };
   const launch = <T extends Readonly<{ handle: RunHandle }>>(start: () => T, answer: Answer = 'none'): T => {
-    const frame: Frame = { id: '', last: null };
+    const frame: Frame = { tag: '', last: null, sink: null };
     const run = frames.run(frame, start);
     const { handle } = run;
-    frame.id = handle.id;
+    frame.tag = handle.id.slice(0, 8);
     const entry: Entry = { handle, frame, outcome: null, settled: Promise.resolve(), answer };
     entry.settled = handle.done.then(
       async (end) => {
@@ -434,6 +454,7 @@ async function serve(
     board: (await opened.promise).url,
     auto: [...loops].some(({ control }) => control.active && !control.leaving) ? 'on' : loops.size ? 'stopping' : 'off',
     runs: await Promise.all([...entries.values()].map(row)),
+    landings: landings.rows(),
   });
   const verdict = (admission: Admission, run: string | null): Said => {
     if (stopping) return refused(503, stopLine, 1);
@@ -537,6 +558,8 @@ async function serve(
       }
       case 'queue-reconcile':
         return changeQueue('read', {}, true, (operation) => reconcileQueue(operation));
+      case 'land':
+        return landings.answer(parsed, request.signal);
       case 'run': {
         const { number, selection, effort, quiet } = parsed;
         return answerRun(begin({ kind: 'number', number, selection, effort, quiet }, true));
@@ -590,8 +613,11 @@ async function serve(
       process.on(signal, handler);
     }
     const port = (await createOperation(checkout, {}, 'main')).mainConfig?.board?.port ?? 4403;
+    const env = { ...process.env };
+    // PORT is the port of the board only, so runs and landings never get it.
+    delete process.env.PORT;
     board = await startBoard(main, port, await celetisAdapter(main, dispatcher), {
-      env: process.env,
+      env,
       revision: identity.revision,
       successor: handover.after !== null,
       versioned: await inVersionFolder(identity.revision),
@@ -645,6 +671,7 @@ async function serve(
       loop.control.active = false;
       loop.abort.abort();
     }
+    const landed = landings.stop();
     const settle = async () => {
       let waited = -1;
       while (waited < entries.size || loops.size) {
@@ -658,6 +685,7 @@ async function serve(
     await settle();
     await Promise.race([Promise.all(answering), Bun.sleep(5000)]);
     await settle();
+    await landed;
     await board.close();
     const closed = await Promise.race([server.stop().then(() => true), Bun.sleep(5000).then(() => false)]);
     if (!closed) await server.stop(true);

@@ -110,11 +110,8 @@ export async function processScript(pid: number, script: string): Promise<Proces
   return command.includes(script) ? 'runs' : 'gone';
 }
 
-export async function processRunsScript(pid: number, script: string, since?: number): Promise<boolean> {
-  if (process.platform === 'win32') {
-    const found = windowsProcess(pid);
-    // kernel32 cannot read another process's command line; a PID reused after `since` has a later creation time.
-    return found !== null && (since === undefined || found.createdMs <= since);
-  }
+export async function processRunsScript(pid: number, script: string): Promise<boolean> {
+  // kernel32 cannot read another process's command line.
+  if (process.platform === 'win32') return windowsProcess(pid) !== null;
   return ((await field(pid, 'command=')) ?? '').includes(script);
 }

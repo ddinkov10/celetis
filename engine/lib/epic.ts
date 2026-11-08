@@ -36,14 +36,22 @@ export async function readEpic(main: string, n: string): Promise<EpicSnapshot> {
   return snapshot(github(main), n);
 }
 
-async function withEpicLock<T>(common: string, n: string, change: (signal: AbortSignal) => Promise<T>): Promise<T> {
+async function withEpicLock<T>(
+  common: string,
+  n: string,
+  signal: AbortSignal | undefined,
+  change: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
   if (!/^[1-9][0-9]*$/.test(n) || !Number.isSafeInteger(Number(n)))
     throw new HostError('epic: need a positive safe issue number', 2);
   const dir = await stateFolder(common);
   const controller = new AbortController();
   const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
   const interrupt = () => controller.abort(new Error('epic operation interrupted'));
-  for (const signal of signals) process.on(signal, interrupt);
+  if (signal) {
+    signal.addEventListener('abort', interrupt, { once: true });
+    if (signal.aborted) interrupt();
+  } else for (const name of signals) process.on(name, interrupt);
   try {
     await mkdir(dir, { recursive: true, mode: 0o700 });
     const path = join(dir, `epic-${n}.lock`);
@@ -70,14 +78,15 @@ async function withEpicLock<T>(common: string, n: string, change: (signal: Abort
     if (error instanceof HostError && [2, 3, 6].includes(error.code)) throw error;
     throw new HostError(`epic: #${n}: ${message(error)}`, 6);
   } finally {
-    for (const signal of signals) process.off(signal, interrupt);
+    if (signal) signal.removeEventListener('abort', interrupt);
+    else for (const name of signals) process.off(name, interrupt);
   }
 }
 
 export async function writeEpicDefinition(main: string, common: string, n: string, body: string): Promise<void> {
   const declaration = parseEpicAcceptance(body);
   if (declaration.kind === 'unresolved') throw new HostError(`epic: ${declaration.reason}`, 2);
-  await withEpicLock(common, n, async (signal) => {
+  await withEpicLock(common, n, undefined, async (signal) => {
     const gh = github(main, signal);
     const current = await snapshot(gh, n);
     const { data, children } = current;
@@ -177,10 +186,11 @@ export async function completeEpic(
   common: string,
   n: string,
   submission?: EpicSubmission,
+  signal?: AbortSignal,
 ): Promise<EpicCompletionResult> {
   const evidence = submission === undefined ? null : structuredClone(submission);
-  return withEpicLock(common, n, async (signal) => {
-    const gh = github(main, signal);
+  return withEpicLock(common, n, signal, async (locked) => {
+    const gh = github(main, locked);
     const initial = await snapshot(gh, n);
     const decision = decideEpicCompletion({ snapshot: initial, submission: evidence });
     if (decision.kind === 'closed') return decision;

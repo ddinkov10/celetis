@@ -17,7 +17,7 @@ export interface LockOwner {
   take(name: string): Promise<string | null>;
   adopt(name: string, session: Identity | null): Promise<LockClaim>;
   registerSession(pid: number | undefined): Promise<void>;
-  release(name: string, handOff?: boolean): Promise<void>;
+  release(name: string, handOff?: boolean): Promise<string | null>;
   releaseAll(handOff?: boolean): Promise<void>;
 }
 
@@ -107,13 +107,18 @@ export function createLockOwner(main: string, ownStart?: string): LockOwner {
     return blob({ ...(current as Record<string, unknown>), session: next });
   };
   const moved = (next: string) => [...held].map((name) => `update ${ref(name)} ${next} ${owner}\n`).join('');
-  const release = async (name: string, handOff = false) => {
-    if (!held.has(name)) return;
+  const release = async (name: string, handOff = false): Promise<string | null> => {
+    if (!held.has(name)) return null;
     const sessionGone = session === null || (await processState(session.pid, session.start)) === 'gone';
-    if (owner && sessionGone) await git(main, ['update-ref', '--no-deref', '-d', ref(name), owner]);
-    else if (owner && handOff)
-      await git(main, ['update-ref', '--no-deref', ref(name), await blob({ daemon: null, session }), owner]);
+    const result =
+      owner && sessionGone
+        ? await git(main, ['update-ref', '--no-deref', '-d', ref(name), owner])
+        : owner && handOff
+          ? await git(main, ['update-ref', '--no-deref', ref(name), await blob({ daemon: null, session }), owner])
+          : null;
+    if (result && result.code !== 0) return result.stderr.trimEnd();
     held.delete(name);
+    return null;
   };
   return {
     owns: (name) => held.has(name),

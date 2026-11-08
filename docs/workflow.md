@@ -194,7 +194,7 @@ A `queue action` with a wake prints the lines of no daemon, another revision, a
 daemon that does not answer, an unknown outcome, and Windows with `queue: ` in place of `run: `.
 
 After the answer, the run lives in the daemon. `celetis daemon status` shows one line for each run,
-with its state and its last line, and `<git common dir>/celetis/daemon/daemon.log` has each
+with its state and its last line, then one line for each landing ("A landing"), and `<git common dir>/celetis/daemon/daemon.log` has each
 line of the runs. Ctrl+C, a signal, or a closed terminal of the command stops no run.
 `celetis daemon stop` stops the daemon and detaches every run; no command stops one run.
 
@@ -281,8 +281,8 @@ lives leaves the lock to that session.
 A new start for the issue cannot begin until the session exits. Claims and releases use Git
 compare-and-set, and foreground registration updates all held locks in one transaction. Both
 hosts and manual resume share the issue lock.
-`celetis --agent <host> land` keeps its separate `land-<n>.lock` in `<git common dir>/celetis/`.
-The `no-progress` file there has one row for each step that ended with no progress, and one row for
+A landing in the master daemon holds the lock ref `land-<n>`, with the daemon as its owner and no
+session ("How a step runs", **A landing**). The `no-progress` file in `<git common dir>/celetis/` has one row for each step that ended with no progress, and one row for
 each step that the script refused as a skip. Auto mode and the board read it. An
 explicit issue start can start that step. `engine/lib/locks.ts` of the plugin owns the lock refs,
 the owner records, the liveness check of an owner, and the record; the daemon and the board use it.
@@ -374,11 +374,12 @@ installation adoption remain outside this runtime-state exception (ADR-0070).
 
 The master daemon is one long-lived process for one repository, the Git common folder of its
 working folder. It runs many issue runs at the same time, with the run engine
-(`engine/lib/run-engine.ts`), and serves requests over HTTP on a Unix socket
+(`engine/lib/run-engine.ts`), runs each landing of `celetis --agent <host> land` in the daemon
+process, one at a time ("How a step runs", **A landing**), and serves requests over HTTP on a Unix socket
 ([ADR-0072](adr/0072-one-master-daemon-runs-every-issue-run.md)). Its process is
 `engine/daemon.ts --daemon` (a successor adds `--after <pid> <start>`, "The restart"), so the
 lock, step-end, and recovery checks accept it as the daemon. Nothing starts a daemon by itself. The daemon also serves the board on a loopback port
-("The board"). The `run` and `queue` commands send their requests to it, and the board presses
+("The board"). The `run`, `queue`, and `land` commands send their requests to it, and the board presses
 go to it in its process ("Start the script", "The answer"). The shared locks keep one owner
 for each issue, for the queue, and for auto mode across the daemon and a second daemon.
 
@@ -421,10 +422,11 @@ nothing; for `auto`, it selects the host of auto mode.
   that holds `daemon.ts`. A failed read of the process table is neither: each form exits 6
   and `start` spawns nothing.
 
-The daemon gets the environment of the shell of `daemon start`, except `HC_SCOPE`: `hc kill` ends
-each process that carries the scope of its terminal, so a daemon with that variable would end with
-the terminal that started it. A later change of the shell environment does not reach a running
-daemon, and so no run.
+The daemon gets the environment of the shell of `daemon start`, except `HC_SCOPE` and `PORT`.
+`hc kill` ends each process that carries the scope of its terminal, so a daemon with `HC_SCOPE`
+would end with the terminal that started it. `PORT` is the port of the board, so only the board
+reads it. A later change of the shell environment does not reach a running daemon, and so no run
+and no landing.
 
 **The start.** In this order, the daemon:
 
@@ -483,15 +485,27 @@ dispatcher throws is the 500 answer below. A body is JSON of at most 16 KiB, wit
 | `POST /stop` | `{}` | The stop of the daemon |
 | `POST /queue/action` | `{action, selection, quiet}` | A queue action, as `queue action '<QueueAction JSON>'`; `action` is that JSON |
 | `POST /queue/reconcile` | `{}` | The queue reconcile of a board read |
+| `POST /land` | `{number, subject, selection, from}` | A landing, as `celetis --agent <host> land <number> '<subject>'` from the folder `from`; the answer is a stream (below) |
 
 `selection` is `{explicit?, environment?}`: an explicit host (`claude` or `codex`), the
-`CELETIS_AGENT` value of the client, or neither. Each run selects its host from its own request,
+`CELETIS_AGENT` value of the client, or neither. Each run and each landing selects its host from its own request,
 as `celetis --agent <host> run` does from its prefix and its environment. The
 `CELETIS_AGENT` of the daemon never selects a host. A queue wake keeps the recorded agent choice of
 the queue. A queue action uses the choice rules of `queue action`: an Add
 uses the request selection; each other action of a queue with a recorded choice refuses another
 named host with `queue: recorded agent choice is <choice>` and code 2, and uses the recorded
 choice. A reconcile uses the recorded choice.
+
+A `/land` body has a positive safe integer `number`, a `subject` that `land` accepts (a
+Conventional Commit subject with no newline and no ` (#<number>)` at its end), and an absolute
+`from`, the top-level folder of the checkout of the client. The landing uses
+`from` only for the refusal of a run from inside the lane worktree. The daemon answers an accepted
+`/land` at once with 200 and a stream of NDJSON lines (`application/x-ndjson`): `{"out": <text>}`
+for a write of the landing to stdout and `{"err": <text>}` for a write to stderr, in the order of
+the writes, an empty line each 5 seconds, and one last line `{"code": <status>}`. A landing behind another
+writes one `out` record first ("How a step runs", **A landing**). Each character of
+`<text>` is one byte of the write (U+0000 to U+00FF), so the client writes the bytes of the landing
+unchanged. A refused `/land` gets the refusal answers below, with no stream.
 
 An answer is `{accepted: true, run}` or `{accepted: false, line, code}`. `run` is the run ID, or
 `null` for `/auto`, `/retry`, and `/stop`. A queue action and a reconcile answer
@@ -507,7 +521,7 @@ code of its cause:
 
 | Status | When |
 | --- | --- |
-| 200 | An accepted request, and the status object |
+| 200 | An accepted request, the status object, and the stream of a landing |
 | 400 | A body that is not valid: the usage line, code 2 |
 | 404, 405 | Another path, or another method for a path; code 2 |
 | 409 | A refused admission or an end before the first session, with its line and code: for example `daemon: another run or its session (PID <n>) works on #<n>` with code 0. A refused queue action or reconcile, with the line and code of `queue action`: for example `queue: the ID, revision, or current issue changed; refresh the queue` with code 1 |
@@ -542,7 +556,7 @@ session alone: the owner record then names no daemon and that session. So a late
 daemon, the board, and auto mode find the lock free when the session ends, as after the
 exit of a daemon. A detached run keeps its owner records ("The stop").
 
-**The status object.** `{schema: 1, daemon, board, auto, runs}`. `daemon` is the identity file.
+**The status object.** `{schema: 1, daemon, board, auto, runs, landings}`. `daemon` is the identity file.
 `board` is the URL of the board, `http://127.0.0.1:<port>`. `auto` is `on`, `off`, or
 `stopping`. Each run has one row, in start order:
 
@@ -561,17 +575,30 @@ exit of a daemon. A detached run keeps its owner records ("The stop").
 A finished run stays in the status, with its outcome, until the daemon stops. A refused run
 request is a finished run too. A text field has at most 4096 characters.
 
+`landings` has one row `{issue, state, changedMs}` for each landing in the line, in the order of
+the requests: `state` is `runs` for the landing at the head and `waits` for each other one, and
+`changedMs` is the time that the landing entered its state, in milliseconds since 1970 UTC. A
+landing leaves the list when it ends. `celetis daemon status` prints one line
+`daemon: landing #<n> runs|waits since <HH:MM:SS>` for each row, after the run lines.
+
 **The output.** Each line that the daemon writes to its stdout or stderr starts with
-`<ISO time> <tag> `. The tag is the first 8 characters of the run ID for a line of a run, else
+`<ISO time> <tag> `. The tag is the first 8 characters of the run ID for a line of a run,
+`land-<n>` for a line of the landing of #<n>, else
 `daemon`, also for the `agent-board:` lines of the board. A line of a run starts with `daemon: `, apart from the lines that keep their own prefix. The daemon writes
 nothing else to a file; the process that starts the daemon decides where its stdout and stderr go. A run that ends
 with a nonzero code adds the event `run-exit` to the event record, with its last line as
-`message`. The event record keeps its other entries ("The event record").
+`message`. Each write of a landing, also of its suite, also goes to the stream of its request, as
+the landing wrote it, with no time and no tag; when the client is gone, it goes only to the log. A
+landing that ends with a nonzero status adds the event `land-exit`, or `land-defect` for an
+unexpected error. The event record keeps its other entries ("The event record").
 
 **The stop.** A stop request, SIGINT, SIGTERM, or SIGHUP stops the daemon. The daemon answers the
 stop request first and gives each later request 503, except a stop request during a restart ("The
 restart"). It detaches each run and the loop, keeps the
-run record of each detached run, and waits until each run ends. Then it waits at most 5 seconds
+run record of each detached run, aborts each landing as a lost client does ("How a step runs",
+**A landing**; a suite that still runs 10 seconds after its SIGTERM gets SIGKILL), and waits until
+each run ends and each landing released its lock, wrote its last
+record, and lost its client (at most 5 seconds after that record). Then it waits at most 5 seconds
 for the requests of the board in flight, as the socket waits for its requests: such a request gets
 the answer of the daemon, for example the stop line for a wake that the stop refuses, and the
 daemon then waits for each run that it started. Then it closes the board: it stops
@@ -724,7 +751,9 @@ a new process of the installed program takes over
    with no lock. Else it starts as "The start" says and takes over the runs.
 5. The port. The board of the successor tries the port of `PORT` first, so the page reconnects at
    its URL. When that port is in use, it searches from `board.port` and prints the new URL to the
-   log; `celetis daemon status` prints it.
+   log; `celetis daemon status` prints it. Only the board gets that `PORT`: each daemon removes
+   it from its own environment before it takes over the runs, so no run or landing suite gets the
+   board port.
 6. Auto mode. When auto mode is `on` at the claim, `--auto` carries
    `{"selection":<selection>,"quiet":<boolean>}` of the loop, and the successor makes that
    `POST /auto` with `on: true` after its identity file. A refusal, for example
@@ -1274,9 +1303,66 @@ the lane (`docs/procedures/lesson-curation.md`, "Curation at a landing"): a fres
 decides at most the five oldest pending proposals, its lesson commits land with the change, and a
 curation failure does not stop the landing. A run of `land` again after the change is on the
 trunk curates nothing.
+
+The master daemon of the repository runs the landing ("The master daemon"). `land` is its client:
+it checks `--agent` and the form (exit 2 with the usage line; the issue number is a safe integer),
+refuses Windows with `land: usage: Windows is not a support target` and exit 2, refuses a folder
+with no Git checkout with `land: usage: celetis: need a Git checkout` and exit 2, finds the daemon
+of the Git common folder of its folder, and sends one `POST /land` with `--agent`, its
+`CELETIS_AGENT`, and the top-level folder of its checkout. It writes each `out` record to its
+stdout and each `err` record to its stderr at once, waits with no time limit, and exits with the
+last `code`. It runs no Git or GitHub act of the landing (it runs `git rev-parse` to find its checkout), no suite, and no lock, and it never sends the request
+again by itself. Each act of the landing, the suite, and each `git` and `gh` call is a part or a
+child of the daemon process, and they get the environment of the daemon ("The master daemon"),
+not of the shell of the client: for example the `PATH` to the tools of the suite comes from the
+shell of `celetis daemon start`, and a `GH_TOKEN` of the shell of the client does not reach the
+landing. `PORT` of that shell is the exception: only the board reads it, so no landing gets it. For
+the host `codex`, the landing sets `CODEX_HOME` of the daemon as a `codex` run does.
+
+The daemon keeps one line of landings and runs the landing at its head only. A request that comes
+while another landing runs, or waits, goes to the end of the line and writes
+`land: #<n> waits for the landing of #<m> in the daemon PID <pid>` first (`<m>` is the landing at
+the head of the line, the one that runs), then only the heartbeat until its turn. A waiting landing holds no lock and does no Git
+or GitHub act, so the resolver does not see it (below). A request for an issue whose
+landing runs or waits waits behind it too, and then runs as a new `land` would run after it: it
+finds the change on the trunk and completes the cleanup, or refuses as `land` refuses. So the
+second landing of a repository reads the trunk after the first moved it, and a branch that does not
+contain the new head ends at its start with `land: repair: …`, exit 4, not after its suite. A
+waiting landing whose client goes away leaves the line, with the status 143 for the client. At a
+stop of the daemon, each waiting landing ends at once with `land: blocked: the daemon stops; start
+it again, then run celetis --agent <host> land <n> again` on stderr and the status 6.
+
+The landing takes the lock ref `land-<n>` with an owner of its own, whose record names the daemon
+and no session, and it releases the lock at its end with each status, also after an abort or an
+error, while the daemon lives. A failed release is tried once more; a second failure prints
+`land: warning: cannot release the lock land-<n>: <cause>; restart the daemon: celetis daemon
+stop, then celetis daemon start` on stdout and keeps the status of the landing. A daemon that dies
+during a landing leaves a ref whose daemon is gone, and the next landing takes it. When another
+live process holds `land-<n>`, the landing does nothing:
+`land: blocked: the lock land-<n> has the owner PID <holder>; wait until that landing ends, then
+run celetis --agent <host> land <n> again`, exit 6.
+
+The client that goes away (a signal, the time limit of a background command, an ended session)
+aborts the landing, as a stop of the daemon does ("The stop"): the landing stops at its next check,
+as `land` stopped on a signal before. A running suite gets SIGTERM, and SIGKILL when it still runs
+10 seconds later. Before the push it ends with no change on the trunk and the
+status 143; after the push it ends with 7 and its cleanup line. Its last lines go only to the
+daemon log, and the client exits 128 plus the number of its signal. At a stop of the daemon, the
+client prints the last lines of the landing and exits 143, or 7 with the cleanup line. A client
+that gets a signal after the push prints nothing more and exits 128 plus the number of its signal;
+the cleanup line goes only to the daemon log, so a 128+n can come before or after the change is on
+the trunk, and a new `land` completes it. Known limit: a client that stops reading its stream for
+about 10 seconds while output is unread (for example a suspended client) makes the socket server
+time out its request, which aborts the landing as a lost client does; a new `land` completes it. A stream
+that ends with no `code` line (a killed daemon, a lost socket) has an unknown outcome: the client
+prints `land: blocked: the daemon ended the landing of #<n> with no status: <cause>; read celetis
+daemon status, then run celetis --agent <host> land <n> again` and exits 6. A new `land` finds the
+change on the trunk, or lands it.
+
 `celetis --agent <host> land` moves the line of the issue when it merges, and it then closes
 the child and checks parent acceptance before it removes the worktree. While it runs, `celetis --agent <host> next-step <n>` prints
-`stop the landing of #<n> runs; wait until celetis --agent <host> land ends`. That line is the stop of an
+`stop the landing of #<n> runs; wait until celetis --agent <host> land ends`: the resolver reads
+the holder of `land-<n>`, and a process read that fails keeps the landing. That line is the stop of an
 observation, not a stop of the issue, so the job does not end the session. An agent that waits
 for a background command can end its turn and report `done` or `idle`. So while the script
 runs, for up to 30 minutes, the board can show the session in Needs you as `turn ended`: do not
@@ -1313,14 +1399,14 @@ The exit status and the first word after `land: ` give the result:
 | Status | First word | Result | Examples |
 |---|---|---|---|
 | 0 | none | landed | `land: #<n> is on <trunk>`; also with a warning, for example `land: warning: cannot read the parent of #<n>: …` |
-| 1 | none | an internal error of `land` | an unexpected exception |
-| 2 | `usage` | usage | bad arguments (the line starts with `usage: `); a run from inside the lane worktree; a dirty lane worktree; no lane branch; nothing to land; an invalid configuration |
+| 1 | none | an internal error of `land` | an unexpected exception; a refusal of the request by the daemon other than 503, with its line (for example the 400 usage line of the requests, or the 413 line of a subject that makes the body more than 16 KiB) |
+| 2 | `usage` | usage | bad arguments (the line starts with `usage: `); Windows; no Git checkout; a run from inside the lane worktree; a dirty lane worktree; no lane branch; nothing to land; an invalid configuration |
 | 3 | `prerequisite` | the issue is not ready to land | the refusals of the paragraph above |
 | 4 | `repair` | the lane needs a repair | a conflict with the trunk; a lane branch that does not contain the head of the trunk; a trunk head, a lane branch, a lane checkout, or a PR that changed during the landing; a missing lane worktree with the landing `merge`; lane lessons that do not validate |
 | 5 | `checks` | a check is not green | a failed CI check, also after its re-run; a failed `suite` with the landing `merge` (`docs/configuration.md`) |
-| 6 | `blocked` | an external block | GitHub does not answer or refuses an act; a fetch or a push fails; the checks did not finish; no check ran; the main checkout is dirty, off the trunk, or with commits that the trunk does not have; the landing mechanism or the default branch changed; two branches or two PRs match; an incomplete lesson transaction (`lesson-store recover`); a lesson lock that stays busy for 10 seconds |
-| 7 | `cleanup` | landed, the cleanup stopped | the change is on the trunk, and the removal, the pull of the main checkout, or the close of the issue stopped: run `land` again |
-| 128+n | none | a signal | a signal stopped `land` before it put the change on the trunk or found it there; a later signal gives 7 |
+| 6 | `blocked` | an external block | GitHub does not answer or refuses an act; a fetch or a push fails; the checks did not finish; no check ran; the main checkout is dirty, off the trunk, or with commits that the trunk does not have; the landing mechanism or the default branch changed; two branches or two PRs match; an incomplete lesson transaction (`lesson-store recover`); a lesson lock that stays busy for 10 seconds; another live holder of `land-<n>`; no daemon (`land: blocked: no daemon runs for this repository; start it: celetis daemon start`); a daemon that cannot be read (`land: blocked: the daemon of this repository does not answer: <reason>; read celetis daemon status`); a daemon at another revision (`land: blocked: the daemon runs the program at <revision> and this program is at <revision>; restart it: celetis daemon stop, then celetis daemon start`); a request during a stop of the daemon (`land: blocked: ` and the 503 line); a landing that waits in the line when the daemon stops (`land: blocked: the daemon stops; start it again, then run celetis --agent <host> land <n> again`); a stream with no status (the line above) |
+| 7 | `cleanup` | landed, the cleanup stopped | the change is on the trunk, and the removal, the pull of the main checkout, or the close of the issue stopped, also by an abort: run `land` again |
+| 128+n | none | a signal | a signal to the client stopped `land`, and the daemon aborted the landing (after the change is on the trunk, a new `land` completes the cleanup); 143 also for a stop of the daemon before the change is on the trunk |
 
 ## Gates
 
@@ -1963,7 +2049,7 @@ An entry is one JSON object on one line, ended by `\n`, in UTF-8:
 | `pid` | The process ID |
 | `issue` | The issue number when the site knows it, else `null` |
 | `code` | The exit code of an exit entry, the HTTP status of a board entry, else `null` |
-| `message` | For a defect, the message of the error. For a refusal, the text that the process itself wrote to stderr. For a workflow entry, the line that the site printed or returned |
+| `message` | For a defect, the message of the error. For a refusal, the text that the process itself wrote to stderr. For a workflow entry, the line that the site printed or returned; for `land-exit`, the last line that starts with `land: ` among the writes of the landing itself (not of its suite), or an empty text when it printed none |
 | `exception.type` | The class name of the error. A defect only |
 | `exception.stacktrace` | `Error.stack`. A defect only |
 | `fingerprint` | 16 hex digits. The same failure gives the same fingerprint |
@@ -1993,7 +2079,10 @@ the board. These do not record: `build`, `verify`, `install-tools`, `events`, a 
 that a Celetis process runs, the `bun --eval` helper, and the host sessions. A child process
 records its own failure. A parent that passes on the exit code of a child unchanged (`passOn`)
 records nothing. A parent that turns the failure of a child into a new error of its own records
-that error.
+that error. The `land` client passes on the status of the landing of the daemon in the same way:
+the daemon records the landing (`land-exit`, `land-defect`), and the client records only its own
+refusals, for example a missing daemon or a stream with no status, with only its own lines as the
+message, not the output of the landing that it prints.
 
 A process that ends with 0, 129, 130, or 143 writes no exit entry. A successful `execve`
 replacement of the launcher ends no process, so the new process records its own exit. A workflow
@@ -2013,6 +2102,8 @@ The workflow and board entries, by `name`:
 | `queue-error` | The queue of the daemon saves the state `error`, or ends with an error |
 | `run-exit` | A run of the master daemon ends with a nonzero code. `issue` and `code` are set |
 | `run-defect` | A run or auto mode of the master daemon ends with an unexpected error. A defect with its stack |
+| `land-exit` | A landing of the master daemon ends with a nonzero status, also 143, and no unexpected error. `issue` and `code` are set |
+| `land-defect` | A landing of the master daemon ends with an unexpected error. A defect with its stack. `issue` and `code` are set |
 | `board-request` | A board request ends with status 500. A defect with the stack of the cause. `code` is 500 |
 | `board-terminal` | A board request ends with status 502 because the terminal core failed. `code` is 502 |
 | `board-update` | The board cannot replace the program in an update, or it cannot restart after a completed installation |

@@ -1,16 +1,15 @@
 import { createHash } from 'node:crypto';
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { type Effort, effortOf } from './lib/effort.ts';
 import { installRecorder } from './lib/events.ts';
 import { HostError, updateHint } from './lib/host.ts';
 import { describe, lineOf, type Next, type Observed } from './lib/lines.ts';
+import { lockHolder } from './lib/locks.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
 import { codexHome } from './lib/plugin-metadata.ts';
 import { run as runProcess } from './lib/process.ts';
-import { processRunsScript } from './lib/process-identity.ts';
 import { permitHolds, type RecoveryAuthority, type RecoveryPermit } from './lib/quota-recovery.ts';
-import { stateFolder } from './lib/state-folder.ts';
 import { type GitHub, GitHubReadError, github, type Issue, issueData, parseIssue } from './lib/tracker.ts';
 import { type Decision, decide, factsOf, type IssueData, type Lane, laneOf, specified } from './lib/workflow.ts';
 
@@ -124,7 +123,6 @@ export async function main(argv: string[]): Promise<number> {
 
 function reader(operation: Operation, signal?: AbortSignal) {
   const checkout = operation.checkout.main as string;
-  const common = operation.checkout.common as string;
   const gh = github(checkout, signal);
 
   async function issues(endpoint: string): Promise<Issue[]> {
@@ -189,12 +187,7 @@ function reader(operation: Operation, signal?: AbortSignal) {
   }
 
   async function landing(n: string): Promise<boolean> {
-    const lockPath = join(await stateFolder(common), `land-${n}.lock`);
-    const pid = (await readFile(lockPath, 'utf8').catch(() => '')).trimEnd();
-    if (!/^\d+$/.test(pid)) return false;
-    const written = await stat(lockPath).catch(() => null);
-    if (!written) return false;
-    return processRunsScript(Number(pid), 'land.ts', written.mtimeMs);
+    return (await lockHolder(checkout, `land-${n}`)) !== '';
   }
 
   async function lanes(n?: string): Promise<string[]> {

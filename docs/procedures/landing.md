@@ -83,21 +83,34 @@ the return to the main checkout, with the curation of the lesson queue by
 `<plugin>/docs/procedures/lesson-curation.md`, "Curation at a landing". A run after a refusal
 curates again. An empty queue starts no child, and a curation failure goes into the report: the
 step goes on to `land`. A run of `land` again after the change is on the trunk curates nothing:
-after exit 7, or after a landing that stopped once a `land:` line said that the change is on the
-trunk.
+after exit 7, after a landing that stopped once a `land:` line said that the change is on the
+trunk, and after the run that follows a 128+n (the 128+n bullet below says why).
 
 The full suite runs once, on the tree that lands, so the session runs no full suite before
 `land`: with the landing `merge`, `land` runs the `suite` file of `.celetis.yaml` in the lane, at
 the tip that it lands; with the landing `pr`, the CI of the lane PR runs it.
 
+The master daemon of the repository runs the landing, with the environment of the shell that
+started it, except `PORT`, which only its board reads, and `land` prints its output and exits with
+its status. So `land` needs a running daemon of the same program revision: with no daemon, or a
+daemon of another revision, it exits 6 with a line that names `celetis daemon start` or the
+restart of the daemon (step 5).
+
+The daemon runs one landing at a time for the repository, in the order of the requests. A landing
+that waits behind another prints `land: #<n> waits for the landing of #<m> in the daemon PID
+<pid>` first and nothing more until its turn. That is no stall: wait for its exit. At its turn it
+starts from the state that the earlier landing left, so it can end with exit 4 (`repair`) at its
+start, as step 4 says.
+
 Return to the main checkout, keeping the lane, and check that the session is in the main checkout
 (the part of the host below). Run `celetis --agent <host> land <n> '<type>(<area>): <what>'`
 there, as the part of the host below says, and go on when it ends: the checks and one re-run of a
 failed check can take 30 minutes.
-Wait for its real exit; a yield or a timeout is not completion. Never start a second landing while
-one runs. The subject is the squash subject of the change, without the issue number: the script
-adds ` (#<n>)`. When the lane branch holds one commit, pass the subject of that commit: the squash
-commit can take the subject of that commit in place of the argument.
+Wait for its real exit; a yield or a timeout is not completion. Never start a second landing of
+the same issue while one runs or waits. The subject is the squash subject of the change, without
+the issue number: the script adds ` (#<n>)`. When the lane branch holds one commit, pass the
+subject of that commit: the squash commit can take the subject of that commit in place of the
+argument.
 
 The exit status gives the result (`<plugin>/docs/workflow.md`, "A landing", gives each class):
 
@@ -138,9 +151,12 @@ The exit status gives the result (`<plugin>/docs/workflow.md`, "A landing", give
   `run celetis --agent <host> land again`). It is no refusal, and step 5 does not count it: the
   change is on the trunk, so do what the line says and run the script again. A second 7 with the
   same line is a cause outside the change (step 5).
-- **128+n** is **a signal that stopped `land`** before it put the change on the trunk, for
-  example the time limit of a background `land`. It is no refusal, and step 5 does not count it:
-  run the script again once. A second 128+n is a cause outside the change (step 5).
+- **128+n** is **a signal that stopped `land`**, for example the time limit of a background
+  `land`, or a stop of the daemon (143). The change can be on the trunk or not: a signal to the
+  client after the push prints no cleanup line to the client. It is no refusal, and step 5 does
+  not count it: run the script again once, and curate nothing on that run (the first run already
+  curated the queue, and a lesson commit of the lane after the push would land again). A second
+  128+n is a cause outside the change (step 5).
 
 ## Step 4: a refusal that the change caused
 

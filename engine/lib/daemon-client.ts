@@ -69,7 +69,7 @@ async function json(response: Response): Promise<unknown> {
 
 export async function sendRequest(
   common: string,
-  request: Exclude<DaemonRequest, { kind: 'status' | 'queue-action' | 'queue-reconcile' }>,
+  request: Exclude<DaemonRequest, { kind: 'status' | 'queue-action' | 'queue-reconcile' | 'land' }>,
   signal?: AbortSignal,
 ): Promise<DaemonAnswer> {
   const { kind, ...fields } = request;
@@ -100,9 +100,9 @@ export function requestSelection(explicit: string | undefined): Selection {
   };
 }
 
-type Prefix = 'run' | 'queue' | 'daemon';
+type Prefix = 'run' | 'queue' | 'daemon' | 'land: blocked';
 
-const unanswered = (prefix: Prefix, reason: string) =>
+export const unanswered = (prefix: Prefix, reason: string) =>
   `${prefix}: the daemon of this repository does not answer: ${reason}; read celetis daemon status`;
 export const unknownOutcome = (prefix: Prefix, cause: string) =>
   new HostError(`${prefix}: the outcome of the request is unknown: ${cause}; read celetis daemon status`, 6);
@@ -127,7 +127,7 @@ export async function revisionRefusal(identity: DaemonIdentity, prefix: Prefix):
 
 export async function askDaemon(
   common: string,
-  request: Exclude<DaemonRequest, { kind: 'status' | 'stop' | 'queue-action' | 'queue-reconcile' }>,
+  request: Exclude<DaemonRequest, { kind: 'status' | 'stop' | 'queue-action' | 'queue-reconcile' | 'land' }>,
   prefix: Prefix,
 ): Promise<Readonly<{ identity: DaemonIdentity; answer: DaemonAnswer }>> {
   const identity = await requireDaemon(common, prefix);
