@@ -19,9 +19,10 @@ clean.
    it in a fresh session.
 2. Ask the human only for a decision that the issue does not hold, for example a type that
    /celetis:triage cannot tell, a state that the spec does not define, the list of states and the
-   platform row of a look decision, whether a bug fix needs a new look, a pick between prototype
-   variants, authorization for a destructive act that the plan did not authorize, a consent that
-   the plan foresees, the approval of a command that a guard refused
+   platform row of a look decision, the references of a component research, whether a bug fix
+   needs a new look, a pick between prototype variants, a sign-in of the maintainer in the
+   session's own browser, authorization for a destructive act that the plan did not authorize, a
+   consent that the plan foresees, the approval of a command that a guard refused
    (`<plugin>/docs/procedures/stop.md`, "A Verify scenario that cannot run"), or a pick at a repair
    limit that lets this session go on. A browser pick is a question in the terminal by
    `<plugin>/docs/procedures/design.md`, "The pick". Ask, and wait for the answer: an upstream

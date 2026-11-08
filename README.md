@@ -94,7 +94,9 @@ controls and applies only that skill's custom text.
   (a whole web or mobile screen, or a smaller web change) also needs the `impeccable` skill and a
   `PRODUCT.md` of the product. The session checks for both. It never installs `impeccable`, which
   is no plugin dependency, and you run `/impeccable init` once for the product
-  (`docs/procedures/design.md`, "The check").
+  (`docs/procedures/design.md`, "The check"). A look decision on the `generate` path also needs
+  the Playwright MCP server with `--isolated` and no `--headless`, and the host reviews its
+  `browser_run_code_unsafe` call (`docs/procedures/design.md`, "The page CSP").
 - For the research of a UI component, optional tools that you install: a code-search tool (for
   example the grep.app MCP server), a web fetch or scrape tool, and a browser tool that the session
   opens for itself (for example the Playwright MCP server with `--isolated`). The session uses each

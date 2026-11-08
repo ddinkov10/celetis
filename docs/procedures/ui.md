@@ -16,7 +16,8 @@ If the question is about logic or a state model, this is the wrong branch. Use `
 - **The platform rows:** the live use, the switches, the sizes, and the capture of each kind.
 - **Where the variants live:** the prototype checkout, and the two sub-shapes.
 - **The procedure:** the ten steps, from the list of states to the cleanup.
-- **Captures:** the tools check, the file, the look before the post, and the post.
+- **Captures:** the tools check, the hide of the bar, the file, the look before the post, and the
+  post.
 - **A direct run:** a run of `/celetis:prototype` with no issue.
 - **Anti-patterns:** the results that fail a prototype.
 
@@ -121,14 +122,19 @@ Do the steps in this order. The build of the variants starts after step 2.
    second search of a component that the section already covers. On the hand-built path, each
    variant follows a pattern that the research found, and keeps each line of
    `### Required behavior`. When the research found none, the variant says so and names the source
-   of its idea.
-3. **The variants.** Use the component library and the styles of the project, and keep the data
-   reads above the variants, so only the rendering changes.
+   of its idea. Step 2 is complete when its findings are in `## Prior art`: when a child agent does
+   the research, wait until it returns. Then show the maintainer the models and the lines of
+   `### Required behavior` in one short message, with no question.
+3. **The variants.** Start only when step 2 is complete: no variant, no baseline element, and no
+   `generate` round comes before it. Use the component library and the styles of the project, and
+   keep the data reads above the variants, so only the rendering changes.
    - **A whole screen on the `impeccable` path.** Run the structure round and its pick by
      `<plugin>/docs/procedures/design.md`, "The pick". The locked card is the one variant, `A`.
      Build its structure on the real screen, in each state of the list.
-   - **A smaller web change.** The prototype shows the real screen. Run `generate` on the element
-     and its pick by "The pick" of the same file. The accepted variant is the one variant, `A`.
+   - **A smaller web change.** The prototype shows the real screen. When the change adds an
+     element, its first rendering is the target of `generate`: it follows the strongest found model
+     and keeps each line of `### Required behavior`. Run `generate` on the element and its pick by
+     "The pick" of the same file. The accepted variant is the one variant, `A`.
      The overlay is the only review channel before the accept: make no capture before it.
    - **The hand-built path.** Build 3 variants by default, and 5 at most. More stop being
      different and become noise. Each variant is different in structure: its layout, its
@@ -162,7 +168,8 @@ Do the steps in this order. The build of the variants starts after step 2.
    the URL too. For a terminal program, give the command with its switch values.
 7. **The captures.** Make one capture of each variant in each state at each size of the row, and
    post them on the issue as "Captures" says. Hide the bar or the overlay of step 4 for each
-   capture: the alt text names the variant, and the record of step 9 describes it.
+   capture, on the web as "Captures" says: the alt text names the variant, and the record of step 9
+   describes it.
 8. **The hand-over.** Give the live opening and the link of each capture comment.
    - On the `impeccable` path, the lock or the accept of step 3 is the pick. Give the locked card
      or the accepted variant, and ask for no second pick.
@@ -208,6 +215,11 @@ A failed check stops the step before the build. The stop names the update of `gh
 the tool. There is no fallback: the captures go only on the issue. In a step session, hand the
 stop to the issue by `<plugin>/docs/procedures/stop.md`, "A stop in a step session".
 
+**The hide.** On the web, a capture hides the bar or the overlay of step 4 through the `style`
+property of its element, for example `element.style.display = 'none'`, with no added style sheet:
+the CSP of the page blocks an added style sheet, not the `style` property. The capture tab is a new
+tab with no call of `<plugin>/docs/procedures/design.md`, "The page CSP".
+
 **The file.** Name a capture `<variant>-<state>-<size>.png`, or `.gif`, for example
 `B-empty-375x812.png`. Put it in `docs/superpowers/captures/` of the checkout that took it. Its
 alt text is `<variant key> <variant name>, <state>, <size>`, for example
@@ -245,6 +257,7 @@ structure round or `generate`, and the pick as a terminal question follow
 
 - The tools check checks only the capture tool.
 - The research of step 2 follows `<plugin>/docs/procedures/prior-art.md`. Its findings go in the hand-over.
+  They take the place of `## Prior art` in steps 2 and 3, and in the prompt of `generate`.
 - The prototype checkout is `<main>/.claude/worktrees/prototype-<slug>` on the branch
   `prototype/<slug>`. `<main>` is the main checkout.
 - Commit the variants on `prototype/<slug>` before the hand-over.
@@ -261,6 +274,7 @@ structure round or `generate`, and the pick as a terminal question follow
 - **Promoting the prototype directly to production.** The variant code was written under prototype constraints (no tests, minimal error handling). Rewrite it properly when you fold it in.
 - **A text or ASCII list of options as the hand-over, on the hand-built path.** The hand-over is the live variants and their captures. The terminal question of `<plugin>/docs/procedures/design.md`, "The fallback of the pick", is no such list: it is the question channel of `impeccable`.
 - **Variants before the list of states or before the research.** Step 1 and step 2 come first.
+- **A direction question before the first variants.** The first `generate` round takes its direction from the research (`<plugin>/docs/procedures/design.md`, "The pick").
 - **A question for the pick before the user could use the variants, on the hand-built path.** The pick comes after the live opening and the captures.
 - **A second pick after an `impeccable` lock or accept.** The lock or the accept is the pick.
 - **A look that the session chose.** The maintainer picks each look. THE ROLL, a recommended variant, and an answer that the host gives by its own timeout are no pick.

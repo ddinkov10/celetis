@@ -2,15 +2,39 @@
 {
   "schema": 1,
   "name": "check-every-message-class-of-a-prose-request-gate",
-  "description": "Three fix rounds of the start gate of the capture skill each fixed one finding and left or opened a gap for another class of message",
+  "description": "Prose gates missed message classes: three fix rounds of the start gate of the capture skill, and a reference question with no class for free-text answers or mixed replies",
   "tags": [
     "process",
-    "refix"
+    "refix",
+    "recurring"
   ],
-  "date": "2026-11-06",
+  "date": "2026-11-08",
   "status": "active",
-  "source": "Fix task verify-1 of ddinkov10/celetis#274 (the Verify FAIL of V5), its task review and scoped re-reviews 1-3",
+  "source": "Final review of ddinkov10/celetis#277 (final-reviewer-277, opus/xhigh, 2026-11-08), reproduced by the build\n\nFix task verify-1 of ddinkov10/celetis#274 (the Verify FAIL of V5), its task review and scoped re-reviews 1-3",
   "incidents": [
+    {
+      "id": "dd0dab48-fd6a-4501-a19c-350c3659489a",
+      "date": "2026-11-08",
+      "action": "Task 1 of #277 wrote the reply table of \"The reference question\" in docs/procedures/component-research.md with eight classes; no class covered free text with the meaning of \"Go with these\" (\"no\", \"skip\", \"you pick\"), and none covered a reference and another request in one reply.",
+      "expected": "Each reply class of the question has one act, also the free-text forms of each option and a reply that mixes an answer with another request.",
+      "observed": "Reading check x3 (claude -p, component-research.md b60725ad at e82ee2e) left \"skip\", \"you pick\", and the other request of a mixed reply \"not settled by the text\"; the rerun of the build also left \"No, I have nothing to add.\" unsettled.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "x3: \"(b) skip … This is not settled by the text … The safest row is :61, which asks again\"; \"(c) you pick … This is not settled by the text\"; \"(d) … The README part is not settled by the text\"",
+        "reference": "Runtime report on ddinkov10/celetis#277; docs/superpowers/verification/277-final-red/x3 of the main checkout"
+      },
+      "inference": "The table listed the classes that the plan and the spec named, and treated each option as one literal reply. It did not list the free-text forms of an option or the combined replies. Alternative: the lesson names unrelated requests as a class, but not a reply that answers and also asks for something else.",
+      "diagnosis": [
+        "not-followed"
+      ],
+      "revision": "e82ee2e57fc46513098201b3c744962386cde3e4",
+      "brief": "Task 1 lesson rules: check-every-message-class-of-a-prose-request-gate sha256:b644b928…; plan Task 1 step 2: the table of seven answer classes",
+      "lesson": {
+        "name": "check-every-message-class-of-a-prose-request-gate",
+        "revision": "97e7e3b698cfb2f38bf56569d257457ca7bcd06f",
+        "digest": "b644b928462ea1d23473c2b909f6ef268ba245bc07afc0c00ecef42f8426eb13"
+      }
+    },
     {
       "id": "0d26cc74-68e7-4fae-8108-e516d40c9447",
       "date": "2026-11-06",
@@ -29,7 +53,7 @@
       "revision": "769d24f"
     }
   ],
-  "recurrences": 0,
+  "recurrences": 1,
   "reviews": [
     {
       "id": "aeba9824-cfd0-4025-a086-60b678e0099f",
@@ -44,6 +68,21 @@
         "state": "not-needed",
         "detail": "The gate is agent text and its oracle is a reading check that needs judgment, so the rule stays text. This decision requires no structural follow-up."
       }
+    },
+    {
+      "id": "1df82027-ac0d-4569-ab03-3cda284800f0",
+      "requestDigest": "253d68407a69fc3708615f16982de87b9d12ff4f26399eb59f5fd9e46122b483",
+      "date": "2026-11-08",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #277; claude child opus/high\n\nMerge under the reviewer rules: the active lesson check-every-message-class-of-a-prose-request-gate states the same rule, and the proposal names it as the lesson that its incident did not follow; the Task 1 brief carried it at its current digest b644b928. The final review of #277 cites this lesson for the same finding. The incident is observed: the reading check x3 of the final review leaves \"skip\", \"you pick\", and the other request of a mixed reply not settled by the text, the rerun of the build also leaves \"No, I have nothing to add.\" unsettled, and lane commit ad306ab adds the two rows to docs/procedures/component-research.md. Attributed correction: the quoted x3 excerpt of the incident is in 277-final-review/checks/x3 and its report.md; 277-final-red/x3, which the reference names, holds the rerun of the build, with the same results for \"skip\", \"you pick\", and the mixed reply in other words. The reply table of a question is a gate that sorts a person's messages into classes with different acts. So the survivor keeps the active name, both incidents, and the earlier review, and adds the classes that a question needs: the free-text forms of each answer, and a reply that answers and also asks for something else, with an act for each part. The body keeps the facts apart from the inferred causes; for \"skip\", x3 took the safest row, which asks again. The rule adds checks, weakens none, widens no permission, adds no network or credential act, and agrees with \"The reference question\" of docs/procedures/component-research.md, the question parts of docs/procedures/design.md, and keep-child-verification-prompts-independent, because the reading check stays neutral. By the principle encode-lessons-in-structure, the rule stays text: the meaning of free text is a judgment.",
+      "related": [
+        "map-free-text-and-mixed-replies-of-a-question-gate",
+        "check-every-message-class-of-a-prose-request-gate"
+      ],
+      "followUp": {
+        "state": "not-needed",
+        "detail": "The rule stays text: the classes of a gate and the meaning of free text need judgment, and the oracle is a reading check. This decision requires no structural follow-up."
+      }
     }
   ]
 }
@@ -54,14 +93,20 @@
 
 A Verify scenario of ddinkov10/celetis#274 showed that agents who read `skills/capture/SKILL.md` started the capture with no request that named it. The fix task verify-1 added a start gate in prose. Its task review and three scoped re-reviews each found one more class of message that the current wording got wrong: a question that names the skill, an unrelated request after a read of the file, a handoff or a memory that the person asks for, a record on a named issue, and a record in a named comment. Each round fixed the cases of its finding and ran only those reading checks.
 
+In #277, Task 1 wrote the reply table of "The reference question" in `docs/procedures/component-research.md` with eight rows, among them a row for each answer, a row for free text that adds, drops, or swaps a model, and a row for a reply that does not answer the question. No row covered free text with the meaning of "Go with these" ("no", "skip", "you pick"), and no row covered a reference and another request in one reply. The reading check x3 of the final review left "skip", "you pick", and the other request of a mixed reply "not settled by the text", and for "skip" it took the safest row, which asks the reference question again. The rerun of the build also left "No, I have nothing to add." unsettled. The Task 1 brief carried this lesson.
+
 ## Root cause
 
 Inferred: no round held the whole table of message classes, so each rewording moved the boundary for a class that its checks did not cover. Uncertain: the classes can also be hard to state exactly in prose.
+
+In #277, inferred: the table took its classes from the plan and the spec, and it treated each answer as one literal reply. The person can answer the host question in free text in place of an answer, as the row for free text that changes the models shows, so each answer also has free-text forms. Alternative: the rule of this lesson named the person's unrelated requests as a class, but not a reply that answers and also asks for something else.
 
 ## Fix
 
 Proposed prevention, as text: before the first wording of such a gate, write the table of message classes with the act of each, including the person's other requests, and make each row a case of one neutral reading check. Each round runs the whole table. Not enforced: the gate is agent text, and the oracle is a reading check that needs judgment, so the rule stays text.
 
+The fix of #277 added two rows: free text with the meaning of "Go with these", and a reference with another request. Proposed prevention, not proven: the reading check of a question gate gets one case for a free-text form of each answer and one for a mixed reply. The meaning of free text is a judgment, so this part stays text too.
+
 ## Rule
 
-Applies when agent text adds a gate that sorts a person's messages into classes with different acts (start, reply, do the other request as usual). Action: write the table of message classes and the act of each before the first wording, include the person's unrelated requests and each named place, and turn each row into a case of one neutral reading check; run the whole table on each rewording. Check: each fix round reports the result of every row of the table, not only the rows of its finding.
+Applies when agent text adds a gate that sorts a person's messages into classes with different acts (start, reply, do the other request as usual), also the reply table of a question with fixed answers that the person can answer in free text too. Action: write the table of message classes and the act of each before the first wording, include the person's unrelated requests and each named place, and turn each row into a case of one neutral reading check. For a question, add for each answer the class of free text with its meaning, and the class of a reply that answers and also asks for something else, with an act for each part. Run the whole table on each rewording. Check: each fix round reports the result of every row of the table, not only the rows of its finding, and the reading check of a question has a case for a free-text form of each answer and for a mixed reply, each settled with one act.
