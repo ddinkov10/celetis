@@ -65,7 +65,8 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
   a check or an explicit role in `scripts/verify.ts`.
 - Author each first-party program in TypeScript. Bun 1.4.4 or later runs commands.
   `scripts/build.ts` uses exactly Bun 1.4.4 to generate browser assets, native hook modules,
-  and the generated blocks of `README.md` and `docs/issue-tracker.md` from `engine/lib/contract.ts`. `--check` compares bytes, and modes on macOS and Linux, without
+  the generated blocks of `README.md` and `docs/issue-tracker.md` from `engine/lib/contract.ts`,
+  and `docs/adr/index.md` from the records of `docs/adr/`. `--check` compares bytes, and modes on macOS and Linux, without
   writes. The vendor parser stays unchanged; update it only as `engine/lib/vendor/README.md` says.
 - Strict types have three environments: runtime commands and server modules;
   browser DOM modules; and the native hook API and its actual globals.
@@ -178,6 +179,15 @@ A look decision of the board uses these two facts:
   the item `Daemon` shows `auto off` and the queue shows its read view. The server reads its page files from its own folder
   (`HERE` in `engine/board/server.ts`), so the variants show with the live issues and sessions.
   After an edit of a page module, `scripts/build.ts` writes `engine/board/board.js` in that checkout.
+
+## Decision records
+
+`docs/adr/index.md` names, for each record of `docs/adr/`, the later records that replace parts of
+it. A record after ADR-0080 names in its `## Supersedes` section only the records that it replaces in
+part, each by a Markdown link to its file, for example
+`[The board is a part of the engine](0035-the-board-is-a-part-of-the-engine.md)`. A mention for
+context goes to `## Context` or `## Related`. `scripts/build.ts` writes the index, and refuses a repeated record number and a `## Supersedes`
+section that it cannot resolve.
 
 ## External facts
 

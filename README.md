@@ -1558,7 +1558,9 @@ Run the checks in a checkout of this repository. No check needs model credential
   changed bytes, or on changed modes on macOS and Linux, and writes nothing. Both modes fail when a
   declared command has no file `engine/<name>.ts`, and when a file `engine/<name>.ts` other than
   `launcher.ts` and `usage-hook.ts` is no declared command. Both modes refuse an `entry.md` with a
-  missing or renamed heading. Users run no build
+  missing or renamed heading. `scripts/build.ts` also generates `docs/adr/index.md` from the
+  `## Supersedes` sections of `docs/adr/`. Both modes refuse a repeated record number and a
+  `## Supersedes` section that the build cannot resolve. Users run no build
   and install no package dependency; each machine installs the program one time ("First install").
 - **The workflow** has one job, `test`, on Linux with Bun 1.4.4. It installs the pinned tools,
   then runs the verify gate.

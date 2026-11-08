@@ -18,7 +18,7 @@ import { bunArgs, childEnv, run } from '../engine/lib/process.ts';
 import { findTools, toolPins } from './install-tools.ts';
 
 const root = dirname(import.meta.dir);
-export const generatedFiles = ['engine/board/board.js', 'engine/hooks/entry.js', 'celetis'];
+export const generatedFiles = ['engine/board/board.js', 'engine/hooks/entry.js', 'celetis', 'docs/adr/index.md'];
 export const fileRoles: Record<string, string> = {
   'engine/lib/vendor/yaml.mjs': 'unchanged vendored parser; checked by its SHA-256 and config type declarations',
   'engine/lib/vendor/yaml.d.mts': 'vendored parser API; checked by strict runtime types',
