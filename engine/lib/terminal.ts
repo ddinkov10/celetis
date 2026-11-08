@@ -33,6 +33,7 @@ export class TerminalError extends Error {
 }
 
 export const LINK = 'celetis.link';
+export const exitGraceMs = 10_000;
 const SAFE_ID = /^[\w:.][\w:.-]*$/;
 const POLL_MS = 250;
 const POLL_LIMIT_MS = 5_000;

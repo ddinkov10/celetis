@@ -52,6 +52,23 @@ export async function processTable(): Promise<ProcessRow[] | null> {
   });
 }
 
+export async function terminateChild(
+  parent: Readonly<{ pid: number; start: string }>,
+  signal?: AbortSignal,
+): Promise<number | null> {
+  const rows = await processTable();
+  if (!rows?.some((row) => row.pid === parent.pid && row.start === parent.start)) return null;
+  const [child, ...others] = rows.filter((row) => row.ppid === parent.pid);
+  if (!child || others.length || (await processState(child.pid, child.start)) !== 'runs' || signal?.aborted)
+    return null;
+  try {
+    process.kill(child.pid, 'SIGTERM');
+    return child.pid;
+  } catch {
+    return null;
+  }
+}
+
 export function controllingTerminal(name: string): boolean {
   const trimmed = name.trim();
   return trimmed !== '' && trimmed !== '?' && trimmed !== '??';

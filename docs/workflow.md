@@ -676,7 +676,7 @@ issue whose record still reads unknown gets the lock refusal.
 | --- | --- |
 | A session whose start folder has no `go` file | Closes its tab, when the record knows it, and ends the run with `daemon: #<n>: the daemon stopped before the step <step> started; no step was started` |
 | A live session: the barrier runs with its start, and its command holds `daemon.ts` | Writes the step-end record `checking` under its own identity and runs the step-end watch and the usage watch. After the session end, the run continues with the gates of a continuing run, with no effort override |
-| An ended session: the barrier is gone | Verifies the saved session identity once, records one usage observation of the attempt, and applies the normal end with the status of the `status` file. No valid status is an unknown status. Then the next steps follow |
+| An ended session: the barrier is gone | Verifies the saved session identity once, records one usage observation of the attempt, and applies the normal end with the status of the `status` file; 143 with the file `terminated` of the step end is the status 0. No valid status is an unknown status. Then the next steps follow |
 | A barrier read that is unknown | Keeps the record, the lock, and the start folder, and reads again each 2 seconds |
 | Between two steps | Reads the resolver again and continues with the gates of a continuing run |
 | Before the first step | Starts the accepted request with its gate rule, its effort, and its queue request |
@@ -1023,11 +1023,12 @@ starts from its shell tool opens tabs of its own and does not touch the terminal
 
 The tab of a start and of a resume comes to the front (`herdr-app do pane.focus`); with
 `--quiet`, a tab stays in the background. The daemon closes a tab (`hc kill`, then `hc rm`) only
-after a normal end: the status is 0 and, for a step, a saved turn has a verified identity. It
+after a normal end: the status is 0, or 143 with the file `terminated` of the step end ("How a
+step runs"), and, for a step, a saved turn has a verified identity. It
 closes that tab after the next session tab of the same start is open, or when the run ends.
-Each other end leaves the tab open with the last screen of the host and a shell under it: a
-nonzero or unknown status, a session with no verified identity, and a session whose daemon
-stopped. A tab whose barrier the daemon did not release closes, and no host starts in it. These
+Each other end leaves the tab open with the last screen of the host and a shell under it:
+another nonzero or unknown status, a session with no verified identity, and a session whose
+daemon stopped. A tab whose barrier the daemon did not release closes, and no host starts in it. These
 lines end the run with code 6, or 3 for a space lock that stays held, apart from the warning. No command prints them: they show as the
 `line` of the row of `celetis daemon status` and in `daemon/daemon.log`:
 
@@ -1074,7 +1075,8 @@ a job in the background that ends the session:
    For Codex, it requests exit with `hc keys <terminal> ctrl+c ctrl+c`, which clears
    unsent composer text and requests native quit without submitting a chat message. Completion
    can discard a draft. For Claude, it sends `hc send <terminal> /exit`; hc refuses to send to a
-   blocked program. A failed request leaves the session open and prints a recovery action.
+   blocked program. Claude Code can answer `/exit` with a dialog and keep running (below). A
+   failed request leaves the session open and prints a recovery action.
 4. Otherwise it pauses five seconds and checks again. `hc wait` returns at once while the host
    does not work, so this pause permits a new resolver check while the session remains idle.
 
@@ -1087,11 +1089,26 @@ line, but they are two results. When the variant changes between the two reads o
 job sends no exit input at that check, and it checks again at the next idle moment.
 
 The daemon waits for the foreground process to exit before it releases a lock or starts the
-next step. Successful input delivery alone is not completion. After a successful request, the
-job waits for the owned host process to exit. If it stays alive for 10 seconds, the job prints
-one recovery message and keeps waiting. Process exit cancels that diagnostic timer. The job
-does not repeat the request or force-kill the host. If a UI state consumes the keys without
-exiting, exit the session in its tab when ready.
+next step. Successful input delivery alone is not completion: when the session has running
+background work (a shell, a monitor, a subagent) or an active worktree session, Claude Code
+answers `/exit` with a dialog and keeps running. After a successful request, the job waits for
+the owned host process to exit. If a Claude host still runs 10 seconds after the job sent the
+request, the job sends SIGTERM once to the host process, records `exit-signal`, and keeps
+waiting. The 10 seconds count from the start of the request, because `hc send` can return some
+seconds after the delivery, while it waits for a turn to start. The host process is
+the one child of the start barrier, read with its PID and process start; the barrier handles only
+SIGINT and SIGBREAK, so it is not the target. Claude Code ends on SIGTERM with status 143 and stops
+its background work. Before the signal, the job writes the file `terminated` in the start folder,
+and the status 143 with that file is the requested exit: the step ends as after `/exit`, and the
+finished tab closes. The job sends no SIGKILL, no second request, and no key to a dialog (ADR-0080).
+
+The job sends no signal for Codex, which keeps `ctrl+c ctrl+c`, and on Windows, where a signal is
+a hard kill. It sends none either when the process read fails, when the barrier is gone or has
+another process start, when the barrier has no child or more than one, when the child is gone or
+has another process start, when the job cannot write `terminated`, or when the job ends first. Then it prints one
+recovery message and keeps waiting. A host that still runs 10 seconds after the SIGTERM gets one
+recovery message too, and the job keeps waiting. Process exit cancels both timers, and so does the
+end of the job. If the session stays open, exit it in its tab when ready.
 
 The daemon publishes its completion disposition before it releases the start barrier. The
 private file is `<git common dir>/celetis/step-end/<issue>.json`.
@@ -1151,11 +1168,14 @@ agent starts. After a confirmed refusal of the default host, the daemon:
    gives the host `CELETIS_ATTEMPT=<attempt id>`, and each child inherits it. For Claude, the
    daemon records three groups: the process tree under the barrier, each process with that entry
    in its environment (not in its arguments), and each process on the tab's controlling terminal
-   outside the tab shell's own tree. It sends `/exit` and reads the groups again until the barrier
-   and every recorded process are gone, for at most 20 seconds. So a writer that left the tree, as
-   with `cmd &` or `nohup`, still counts. A session with no controlling terminal (`ps` shows none, `?`, or `??`), a missing
-   marker, a failed process read, a native dialog, or a process that still runs at the deadline is
-   `unverified`, and the line names the running PIDs. Codex, and each host on Windows, have no
+   outside the tab shell's own tree. It sends `/exit`. When the barrier still runs 10 seconds after
+   the start of that request, it sends SIGTERM once to the host process, the one child of the
+   barrier (as at the step end), so a native dialog of the host does not keep it alive. It reads
+   the groups again until the barrier and every recorded process are gone, for at most 20 seconds.
+   So a writer that left the tree, as with `cmd &` or `nohup`, still counts. A session with no
+   controlling terminal (`ps` shows none, `?`, or `??`), a missing marker, a failed process read,
+   or a process that still runs at the deadline is `unverified`, and the line names the running
+   PIDs. Codex, and each host on Windows, have no
    proved termination path, so their result is always `unverified`. The check cannot see a
    process that leaves the tree and the terminal (a new session) and whose environment `ps`
    cannot show: one that clears the entry, or a macOS platform binary such as `/bin/sh`. The check
@@ -2107,7 +2127,8 @@ The workflow and board entries, by `name`:
 | `startup-error` | A session does not start (`startupError` in `engine/lib/session.ts`). `issue` is set |
 | `step-end-write` | The daemon cannot write a step-end record and continues. `issue` is set |
 | `exit-request` | The daemon cannot ask a session to exit. `issue` is set |
-| `exit-timeout` | A session does not exit within 10 seconds. `issue` is set |
+| `exit-signal` | The daemon sends SIGTERM to a Claude host that does not exit within 10 seconds of its exit request. `issue` is set |
+| `exit-timeout` | A session does not exit within 10 seconds of its exit request and gets no signal, or within 10 seconds of the SIGTERM. `issue` is set |
 | `issues-read` | Auto mode cannot read the open issues from GitHub |
 | `queue-error` | The queue of the daemon saves the state `error`, or ends with an error |
 | `run-exit` | A run of the master daemon ends with a nonzero code. `issue` and `code` are set |

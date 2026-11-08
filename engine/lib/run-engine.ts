@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { constants } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { effectiveOrder, readAgentOrder } from './agent-order.ts';
 import { beginUsageAttempt, readUsage, recordUsage, selectAgent, type UsageTicket } from './agent-usage.ts';
 import type { AgentChoice, Config, Host } from './config-core.ts';
-import { type ExitCode, exits } from './contract.ts';
+import { type ExitCode, exits, signalExit } from './contract.ts';
 import { defaultLevel, type Level } from './effort.ts';
 import { markDefect, passOn, recordEvent } from './events.ts';
 import { HostError } from './host.ts';
@@ -35,6 +36,7 @@ import {
   processStart,
   processState,
   processTable,
+  terminateChild,
 } from './process-identity.ts';
 import { explicitHost, readQueue, requireQueueChoice, updateQueue } from './queue.ts';
 import { emptyQueue } from './queue-actions.ts';
@@ -81,6 +83,7 @@ import {
 } from './step-end.ts';
 import {
   closeTerminal,
+  exitGraceMs,
   openTab,
   readTerminal,
   requestExit,
@@ -554,6 +557,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     announced: string,
     startedMs: number,
     ended: Promise<number | null>,
+    barrier: Identity,
     abort: AbortSignal,
   ) => {
     const startedAt = Math.floor(startedMs / 1000);
@@ -616,6 +620,8 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
           const verdict = verdictOf(first, changed);
           if (verdict === 'exiting') {
             if (!(await publish(record.host, 'exiting', turn))) return false;
+            // hc send can return seconds after the delivery, while it waits for a turn to start.
+            const requested = performance.now();
             if (!(await requestExit(terminal, record.host, abort))) {
               if (!abort.aborted) {
                 await publish(record.host, 'waiting', turn);
@@ -625,16 +631,54 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
               }
               return false;
             }
-            const timer = setTimeout(() => {
-              if (abort.aborted) return;
-              const line = `daemon: #${n} ${record.host} did not exit within 10 seconds; the session stays open. Exit it in the tab ${tab} when ready.`;
+            const mark = join(watchDir, 'terminated');
+            let settled = false;
+            let after: ReturnType<typeof setTimeout> | undefined;
+            const report = (name: string, line: string) => {
               console.error(line);
-              recordEvent({ name: 'exit-timeout', message: line, issue: Number(n) });
-            }, 10_000);
+              recordEvent({ name, message: line, issue: Number(n) });
+            };
+            const signalHost = async () => {
+              try {
+                await writeFile(mark, '');
+              } catch {
+                return null;
+              }
+              const pid = await terminateChild(barrier, abort);
+              if (pid === null) await rm(mark, { force: true }).catch(() => {});
+              return pid;
+            };
+            const escalate = async () => {
+              if (settled || abort.aborted) return;
+              const pid = record.host === 'claude' ? await signalHost() : null;
+              if (pid === null) {
+                if (!settled && !abort.aborted)
+                  report(
+                    'exit-timeout',
+                    `daemon: #${n} ${record.host} did not exit within 10 seconds; the session stays open. Exit it in the tab ${tab} when ready.`,
+                  );
+                return;
+              }
+              report(
+                'exit-signal',
+                `daemon: #${n} claude did not exit within 10 seconds; the daemon sent SIGTERM to its host process (PID ${pid}).`,
+              );
+              if (settled || abort.aborted) return;
+              after = setTimeout(() => {
+                if (abort.aborted) return;
+                report(
+                  'exit-timeout',
+                  `daemon: #${n} claude did not exit within 10 seconds after SIGTERM; the session stays open. Exit it in the tab ${tab} when ready.`,
+                );
+              }, exitGraceMs);
+            };
+            const timer = setTimeout(() => void escalate(), requested + exitGraceMs - performance.now());
             try {
               await Promise.race([ended, halted]);
             } finally {
+              settled = true;
               clearTimeout(timer);
+              clearTimeout(after);
             }
             return true;
           }
@@ -680,7 +724,10 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
   const sessionExit = async (dir: string, barrier: Identity): Promise<number | null> => {
     while (!halt.signal.aborted && (await processState(barrier.pid, barrier.start)) !== 'gone') await rest(500);
     const status = await readFile(join(dir, 'status'), 'utf8').catch(() => '');
-    return /^\d+\n$/.test(status) ? Number(status) : null;
+    if (!/^\d+\n$/.test(status)) return null;
+    const code = Number(status);
+    if (code !== signalExit(constants.signals.SIGTERM)) return code;
+    return (await stat(join(dir, 'terminated')).catch(() => null))?.isFile() ? exits.done : code;
   };
   const startSession = async (
     n: string,
@@ -1031,7 +1078,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     const follow = async (s: Live, fresh: boolean): Promise<IssueOutcome | null> => {
       let watchError: unknown;
       watcher = new AbortController();
-      watching = endWhenDone(n, s.next, s.record, s.announced, s.startedMs, s.ended, watcher.signal)
+      watching = endWhenDone(n, s.next, s.record, s.announced, s.startedMs, s.ended, s.barrier, watcher.signal)
         .then(async (exiting) => {
           if (!exiting) await clearStepEnd();
         })

@@ -17,11 +17,12 @@ import {
   processRunsScript,
   processState,
   processTable,
+  terminateChild,
 } from './process-identity.ts';
 import { readSession, serializeSession } from './session.ts';
 import { stateFolder } from './state-folder.ts';
 import { commitMigration, type LocalRecord, readLocalRecord } from './state-migration.ts';
-import { requestExit } from './terminal.ts';
+import { exitGraceMs, requestExit } from './terminal.ts';
 import { tryFlock } from './update-lock.ts';
 import type { UsageAttempt } from './usage-types.ts';
 import { openLockFile } from './windows.ts';
@@ -618,10 +619,16 @@ export async function endOwnedAttempt(
   const marked = await collect(true);
   if (marked === null) return unverified('the process table could not be read');
   if (marked === 0) return unverified('no process carries the attempt marker');
+  const requested = performance.now();
   if (!(await requestExit(owned.terminal, attempt.host))) return unverified('the exit request failed');
   const deadline = performance.now() + limitMs;
+  let signalled = false;
   for (;;) {
     const barrier = await processState(owned.pid, owned.start);
+    if (barrier === 'runs' && !signalled && performance.now() - requested >= exitGraceMs) {
+      signalled = true;
+      await terminateChild(owned);
+    }
     if ((await collect(barrier === 'runs')) === null) return unverified('the process table could not be read');
     const running: number[] = [];
     for (const [pid, start] of seen) if ((await processState(pid, start)) !== 'gone') running.push(pid);
