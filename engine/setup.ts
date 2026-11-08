@@ -8,10 +8,10 @@ import { initializeAgentOrder, readAgentOrder, validateAgentOrder } from './lib/
 import { readConfig } from './lib/config.ts';
 import { type Config, ConfigError, formatConfigError, type Host, validateWorktreeSetup } from './lib/config-core.ts';
 import { type ExitCode, exits, type Label, labels, usage } from './lib/contract.ts';
+import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect, passOn } from './lib/events.ts';
-import { HostError } from './lib/host.ts';
+import { codexHome } from './lib/homes.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
-import { codexHome } from './lib/plugin-metadata.ts';
 import { checkClaudePolicy } from './lib/plugin-policy.ts';
 import { childEnv, run } from './lib/process.ts';
 import { parseSetupRecord, type SetupEntry, type WiringRecord } from './lib/setup-record.ts';

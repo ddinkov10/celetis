@@ -1,8 +1,10 @@
 import { join } from 'node:path';
 import type { Host } from './config-core.ts';
 import { exits } from './contract.ts';
-import { HostError, mainCheckout } from './host.ts';
-import { codexHome, configHome, jsonFile, object } from './plugin-metadata.ts';
+import { HostError } from './errors.ts';
+import { mainCheckout } from './git.ts';
+import { codexHome, configHome } from './homes.ts';
+import { jsonFile, object } from './plugin-metadata.ts';
 import { run } from './process.ts';
 
 export interface PolicyRecord {

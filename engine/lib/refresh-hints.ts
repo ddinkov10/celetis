@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { lstat, readdir, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { commonDir } from './host.ts';
+import { commonDir } from './git.ts';
 import { checkFolder, ensureFolder, repositoryState } from './state.ts';
 
 function issueNumber(name: string): number | null {

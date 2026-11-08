@@ -10,10 +10,10 @@ import {
   launcherForms,
 } from '../engine/lib/contract.ts';
 import { entryParts } from '../engine/lib/entry-text.ts';
-import { HostError } from '../engine/lib/host.ts';
+import { HostError } from '../engine/lib/errors.ts';
+import { codexHome } from '../engine/lib/homes.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
 import { type Job, printJobs, runJobs } from '../engine/lib/parallel.ts';
-import { codexHome } from '../engine/lib/plugin-metadata.ts';
 import { bunArgs, childEnv, run } from '../engine/lib/process.ts';
 import { findTools, toolPins } from './install-tools.ts';
 

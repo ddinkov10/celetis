@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { type ExitCode, exits, usage } from './lib/contract.ts';
-import { HostError, requireBun } from './lib/host.ts';
+import { HostError } from './lib/errors.ts';
+import { requireBun } from './lib/host.ts';
 import { commandInput } from './lib/operation.ts';
 import { checkFolder, eventLayout, stateOutcome, withLockSync } from './lib/state.ts';
 

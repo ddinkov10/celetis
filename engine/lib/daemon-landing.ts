@@ -1,8 +1,8 @@
 import { constants } from 'node:os';
 import { exits, signalExit } from './contract.ts';
 import type { DaemonRequest, LandingRow } from './daemon-types.ts';
+import { HostError } from './errors.ts';
 import { recordEvent } from './events.ts';
-import { HostError } from './host.ts';
 import { type LandingEnd, runLanding } from './landing.ts';
 import { createLockOwner } from './locks.ts';
 

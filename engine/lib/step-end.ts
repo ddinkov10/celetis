@@ -1,6 +1,6 @@
 import { open, readFile, rm } from 'node:fs/promises';
 import type { Host } from './config-core.ts';
-import { commonDir } from './host.ts';
+import { commonDir } from './git.ts';
 import type { Next } from './lines.ts';
 import { daemonScript, processRunsScript, processState } from './process-identity.ts';
 import { checkFolder, ensureFolder, repositoryState, writeAtomic } from './state.ts';

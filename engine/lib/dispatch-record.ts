@@ -1,6 +1,7 @@
-import { type Effort, type Pair, pairText, ScoreError, scoreLabel } from './capability.ts';
+import { type Pair, pairText, ScoreError, scoreLabel } from './capability.ts';
 import type { Host } from './config-core.ts';
 import type { DispatchStatus } from './contract.ts';
+import { isLevel, type Level } from './effort.ts';
 
 export type Role = 'implementer' | 'reviewer';
 export type Action = 'spawn' | 'resume' | 'replace';
@@ -17,7 +18,7 @@ export interface NativeCall {
 export interface ExecutionReport {
   call: NativeCall | null;
   outcome:
-    | { result: 'started'; child: string | null; model: string | null; effort: Effort | null }
+    | { result: 'started'; child: string | null; model: string | null; effort: Level | null }
     | { result: 'failed'; noWorkerStarted: true; error: string }
     | { result: 'incomplete' | 'unsupported'; error: string };
 }
@@ -117,7 +118,7 @@ function pairValue(value: unknown, path: string): void {
   const pair = shape(value, ['rank', 'model', 'effort', 'runtime', 'reviewer'], path);
   need(integer(pair.rank, 0, 3), `${path}.rank`);
   need(nullableText(pair.model), `${path}.model`);
-  need(['low', 'medium', 'high', 'xhigh', 'max'].includes(pair.effort as Effort), `${path}.effort`);
+  need(isLevel(pair.effort), `${path}.effort`);
   need(nullableText(pair.runtime), `${path}.runtime`);
   need(typeof pair.reviewer === 'boolean', `${path}.reviewer`);
 }
@@ -183,10 +184,7 @@ function executionReportValue(value: unknown, historical: boolean): ExecutionRep
     shape(outcome, ['result', 'child', 'model', 'effort'], 'report.outcome');
     need(nullableString(outcome.child), 'report.outcome.child');
     need(nullableText(outcome.model), 'report.outcome.model');
-    need(
-      outcome.effort === null || ['low', 'medium', 'high', 'xhigh', 'max'].includes(outcome.effort as string),
-      'report.outcome.effort',
-    );
+    need(outcome.effort === null || isLevel(outcome.effort), 'report.outcome.effort');
   } else if (outcome.result === 'failed') {
     shape(outcome, ['result', 'noWorkerStarted', 'error'], 'report.outcome');
     need(outcome.noWorkerStarted === true, 'report.outcome.noWorkerStarted');

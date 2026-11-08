@@ -1,3 +1,4 @@
+import { type ReviewerLevel, reviewerLevels } from './effort.ts';
 import { type Document, isAlias, isMap, isScalar, isSeq, parseAllDocuments } from './vendor/yaml.mjs';
 import { type Step, steps } from './workflow.ts';
 
@@ -63,7 +64,7 @@ export type Config = Readonly<{
       string,
       Readonly<{
         slots: readonly [string, string, string, string];
-        reviewer: Readonly<{ rank: 0 | 1 | 2 | 3; effort: 'low' | 'medium' | 'high' | 'xhigh' }>;
+        reviewer: Readonly<{ rank: 0 | 1 | 2 | 3; effort: ReviewerLevel }>;
       }>
     >
   >;
@@ -297,7 +298,7 @@ function profile(value: unknown, path: Path): void {
   required(reviewer, 'rank', reviewerPath);
   required(reviewer, 'effort', reviewerPath);
   integer(reviewer.rank, 0, 3, [...reviewerPath, 'rank']);
-  oneOf(reviewer.effort, ['low', 'medium', 'high', 'xhigh'], [...reviewerPath, 'effort']);
+  oneOf(reviewer.effort, reviewerLevels, [...reviewerPath, 'effort']);
 }
 
 function checkSchema(value: unknown): asserts value is Config {

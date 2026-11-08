@@ -2,8 +2,8 @@ import { constants } from 'node:os';
 import { classOf, type ExitClass, type ExitCode, exits, signalExit, usage } from './lib/contract.ts';
 import { requestSelection, requireDaemon, unanswered } from './lib/daemon-client.ts';
 import { daemonSocket, landingSubject, parseAnswer, parseLandingRecord } from './lib/daemon-types.ts';
+import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect, recordedElsewhere, writeUnrecorded } from './lib/events.ts';
-import { HostError } from './lib/host.ts';
 import { commandInput, locateCheckouts } from './lib/operation.ts';
 import { run } from './lib/process.ts';
 

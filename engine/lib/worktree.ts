@@ -2,7 +2,7 @@ import { lstat, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { type Config, validateWorktreeSetup } from './config-core.ts';
 import { exits } from './contract.ts';
-import { HostError } from './host.ts';
+import { HostError } from './errors.ts';
 import { run, runBun } from './process.ts';
 import { projectFile } from './setup-wiring.ts';
 import { setupMarker } from './state.ts';

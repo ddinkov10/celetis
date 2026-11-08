@@ -2,7 +2,7 @@ import { isAbsolute } from 'node:path';
 import type { Host } from './config-core.ts';
 import { type ExitCode, exitCodeOf, exits, passThrough } from './contract.ts';
 import { isLevel, type Level } from './effort.ts';
-import { HostError } from './host.ts';
+import { HostError } from './errors.ts';
 import type { ProcessState } from './process-identity.ts';
 import { parseQueueAction, parseQueueView } from './queue.ts';
 import type { QueueAction, QueueView } from './queue-types.ts';

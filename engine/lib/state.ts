@@ -1,11 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { type BigIntStats, closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync } from 'node:fs';
 import { open, rename, rm } from 'node:fs/promises';
-import { homedir, tmpdir } from 'node:os';
-import { basename, dirname, isAbsolute, join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { basename, dirname, join } from 'node:path';
 import type { Host } from './config-core.ts';
 import { exits } from './contract.ts';
-import { HostError } from './host.ts';
+import { HostError } from './errors.ts';
+import { celetisBase } from './homes.ts';
 import { moveState } from './state-move.ts';
 import { tryFlock } from './update-lock.ts';
 import { openLockFile } from './windows.ts';
@@ -88,13 +89,6 @@ export function fromChild(code: number, line: string, lock: Lock): StateError | 
   if (code === exits.prerequisite && line === policies[lock.name].line(lock.path)) return busy(lock);
   const [, path, reason] = (code === exits.blocked && /^state: (.+): (need a .+)$/.exec(line)) || [];
   return path && reason ? unsafe(path, reason) : null;
-}
-
-export function celetisBase(): string {
-  const selected = process.env.CELETIS_HOME;
-  if (selected && !isAbsolute(selected))
-    throw new HostError(`celetis: CELETIS_HOME must be an absolute path: ${selected}`, exits.usage);
-  return selected || homedir();
 }
 
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');

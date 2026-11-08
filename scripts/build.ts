@@ -3,9 +3,9 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { bunFloor } from '../engine/lib/config-core.ts';
 import { commands, type Entry, exitClasses, exits, formText, helpText, issueActs } from '../engine/lib/contract.ts';
 import { entryParts } from '../engine/lib/entry-text.ts';
-import { HostError } from '../engine/lib/host.ts';
+import { HostError } from '../engine/lib/errors.ts';
+import { codexHome } from '../engine/lib/homes.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
-import { codexHome } from '../engine/lib/plugin-metadata.ts';
 import { programEntry } from '../engine/lib/process.ts';
 
 const root = dirname(import.meta.dir);

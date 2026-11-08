@@ -1,7 +1,7 @@
 import type { Stats } from 'node:fs';
 import { lstat, rename } from 'node:fs/promises';
 import { type ExitCode, exits } from './contract.ts';
-import { HostError } from './host.ts';
+import { HostError } from './errors.ts';
 import { childEnv, run } from './process.ts';
 import { processState } from './process-identity.ts';
 

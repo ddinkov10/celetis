@@ -1,11 +1,13 @@
 import { execFile } from 'node:child_process';
-import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { exits } from './contract.ts';
-import { HostError } from './host.ts';
-import { bunArgs, childEnv } from './process.ts';
-import { daemonScript } from './process-identity.ts';
+import { daemonArgv } from './daemon-start.ts';
+import { HostError } from './errors.ts';
+import { childEnv } from './process.ts';
 
 export type StatePreparation = { kind: 'queue' } | { kind: 'session'; issue: number };
+
+const root = resolve(import.meta.dir, '../..');
 
 export async function requestStatePreparation(main: string, request: StatePreparation): Promise<void> {
   if (
@@ -13,17 +15,22 @@ export async function requestStatePreparation(main: string, request: StatePrepar
     (request.kind !== 'session' || !Number.isSafeInteger(request.issue) || request.issue < 1)
   )
     throw new Error('state preparation: invalid request');
-  const args = request.kind === 'queue' ? ['queue'] : ['session', String(request.issue)];
+  const [file, ...args] = daemonArgv(
+    root,
+    request.kind === 'queue' ? ['--prepare-state', 'queue'] : ['--prepare-state', 'session', String(request.issue)],
+  );
   await new Promise<void>((resolve, reject) => {
-    execFile(
-      process.execPath,
-      bunArgs(join(import.meta.dir, '..', daemonScript), ['--prepare-state', ...args]),
+    let drain: ReturnType<typeof setTimeout> | undefined;
+    const child = execFile(
+      file,
+      args,
       {
         cwd: main,
         env: childEnv(),
         timeout: 30_000,
       },
       (error, stdout, stderr) => {
+        clearTimeout(drain);
         if (error)
           reject(
             new HostError(
@@ -35,5 +42,13 @@ export async function requestStatePreparation(main: string, request: StatePrepar
         else resolve();
       },
     );
+    // A descendant that inherits the pipes holds the close after the exit; the drain keeps the last stderr text.
+    child.once('exit', (code, signal) => {
+      if (code === 0 && !signal) return;
+      drain = setTimeout(() => {
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+      }, 250);
+    });
   });
 }

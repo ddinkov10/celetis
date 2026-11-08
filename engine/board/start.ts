@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { exits } from '../lib/contract.ts';
-import { commonDir, HostError } from '../lib/host.ts';
+import { HostError } from '../lib/errors.ts';
+import { commonDir } from '../lib/git.ts';
 import { installedProgram, type Program } from '../lib/program.ts';
 import { readRefreshHints } from '../lib/refresh-hints.ts';
 import type { Adapter } from './adapter.ts';

@@ -10,7 +10,9 @@ import {
   validateConfig,
 } from './config-core.ts';
 import { exits } from './contract.ts';
-import { HostError, mainCheckout, selectHost } from './host.ts';
+import { HostError } from './errors.ts';
+import { commonDir, mainCheckout } from './git.ts';
+import { selectHost } from './host.ts';
 import { run } from './process.ts';
 
 export type CheckoutIdentity = Readonly<{
@@ -51,14 +53,11 @@ export async function locateCheckouts(cwd: string): Promise<CheckoutIdentity> {
       return Object.freeze({ cwd, main: null, active: null, common: null });
     throw new HostError(active.stderr.trimEnd(), exits.blocked);
   }
-  const result = await run('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd });
-  if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
-  const path = (output: string) => output.replace(/\n$/, '');
-  const common = await realpath(path(result.stdout));
+  const common = await realpath(await commonDir(cwd));
   return Object.freeze({
     cwd,
     main: await mainCheckout(cwd),
-    active: await realpath(path(active.stdout)),
+    active: await realpath(active.stdout.replace(/\n$/, '')),
     common,
   });
 }

@@ -1,9 +1,9 @@
 import { type ExitCode, exits, usage } from './lib/contract.ts';
+import { HostError } from './lib/errors.ts';
 import { installRecorder } from './lib/events.ts';
-import { HostError } from './lib/host.ts';
+import { codexHome } from './lib/homes.ts';
 import { lineOf } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
-import { codexHome } from './lib/plugin-metadata.ts';
 import { nextIssue, nextOpen } from './lib/resolver.ts';
 
 function request(args: string[]): { arg: string; n: string } | null {

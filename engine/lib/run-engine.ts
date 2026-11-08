@@ -7,9 +7,10 @@ import { effectiveOrder, readAgentOrder } from './agent-order.ts';
 import { beginUsageAttempt, readUsage, recordUsage, selectAgent, type UsageTicket } from './agent-usage.ts';
 import type { AgentChoice, Config, Host } from './config-core.ts';
 import { type ExitCode, exits, signalExit } from './contract.ts';
+import { daemonArgv } from './daemon-start.ts';
 import { defaultLevel, type Level } from './effort.ts';
+import { HostError } from './errors.ts';
 import { markDefect, passOn, recordEvent } from './events.ts';
-import { HostError } from './host.ts';
 import { describe, type Next } from './lines.ts';
 import {
   addRecord,
@@ -27,7 +28,7 @@ import {
   locateCheckouts,
   type Operation,
 } from './operation.ts';
-import { bunArgs, childEnv } from './process.ts';
+import { childEnv } from './process.ts';
 import {
   controllingTerminal,
   daemonScript,
@@ -144,9 +145,13 @@ const required = [
   'daemon.ts',
   '../celetis',
   'launcher.ts',
+  'lib/codex-app-server.ts',
   'lib/config-core.ts',
   'lib/config.ts',
+  'lib/errors.ts',
   'lib/events.ts',
+  'lib/git.ts',
+  'lib/homes.ts',
   'lib/host.ts',
   'lib/locks.ts',
   'lib/operation.ts',
@@ -183,6 +188,7 @@ const required = [
   'lib/daemon-types.ts',
   'lib/daemon-server.ts',
   'lib/daemon-client.ts',
+  'lib/daemon-start.ts',
   'usage-hook.ts',
   'lib/vendor/yaml.mjs',
 ];
@@ -440,7 +446,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     return current;
   };
   const requireStart = async (host: Host, cwd: string) => {
-    if (host === 'codex') process.env.CODEX_HOME = await (await import('./plugin-metadata.ts')).codexHome();
+    if (host === 'codex') process.env.CODEX_HOME = await (await import('./homes.ts')).codexHome();
     const { requireUpdatePolicy } = await import('./plugin-policy.ts');
     await (await import('./update-lock.ts')).withPluginRead(host, async () => {
       await requireUpdatePolicy(host, cwd);
@@ -765,8 +771,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         argv: [
           // hc gives the tab the environment of its server, not of this daemon.
           ...(process.platform === 'win32' ? [] : ['env', 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0', 'DO_NOT_TRACK=1']),
-          process.execPath,
-          ...bunArgs(join(root, 'engine', daemonScript), [
+          ...daemonArgv(root, [
             '--session-start',
             dir,
             String(process.pid),

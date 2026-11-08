@@ -1,4 +1,4 @@
-import { HostError } from './host.ts';
+import { HostError } from './errors.ts';
 import type { LandingContext, Mechanism } from './landing.ts';
 import { writeRefreshHint } from './refresh-hints.ts';
 import { bucket, type CheckRun, type Pull, type WorkflowRun } from './tracker.ts';

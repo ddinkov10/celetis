@@ -10,7 +10,7 @@ import {
   type Selection,
 } from '../lib/daemon-types.ts';
 import type { Level } from '../lib/effort.ts';
-import { commonDir } from '../lib/host.ts';
+import { commonDir } from '../lib/git.ts';
 import { bunArgs, run } from '../lib/process.ts';
 import { type Program, readProgram } from '../lib/program.ts';
 import { parseQueueAction } from '../lib/queue.ts';

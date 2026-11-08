@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { type ExitCode, exits } from './contract.ts';
-import { HostError } from './host.ts';
+import { HostError } from './errors.ts';
 import type { Next } from './lines.ts';
 import { lineOf } from './lines.ts';
 import { lockHolder } from './locks.ts';

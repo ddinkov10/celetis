@@ -12,15 +12,22 @@ async function gone(files: string[]) {
 
 export async function main(argv: string[]): Promise<ExitCode> {
   const unavailable = await gone([
+    '../celetis',
     'daemon.ts',
+    'launcher.ts',
     'lib/agent-order.ts',
+    'lib/codex-app-server.ts',
     'lib/config-core.ts',
     'lib/config.ts',
     'lib/daemon-client.ts',
+    'lib/daemon-start.ts',
     'lib/daemon-types.ts',
     'lib/effort.ts',
     'lib/epic-acceptance.ts',
+    'lib/errors.ts',
     'lib/events.ts',
+    'lib/git.ts',
+    'lib/homes.ts',
     'lib/host.ts',
     'lib/lines.ts',
     'lib/locks.ts',
@@ -53,7 +60,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
       argv = input.args;
       explicit = input.explicit;
     } catch (error) {
-      const { HostError } = await import('./lib/host.ts');
+      const { HostError } = await import('./lib/errors.ts');
       if (!(error instanceof HostError)) throw error;
       if (error.message) console.error(error.message);
       return error.code;
@@ -93,7 +100,8 @@ export async function main(argv: string[]): Promise<ExitCode> {
     console.error(mode === 'number' ? `run: #${numbers[0]}: ${removed}` : `run: ${removed}`);
     return exits.prerequisite;
   }
-  const { HostError, requireBun } = await import('./lib/host.ts');
+  const { HostError } = await import('./lib/errors.ts');
+  const { requireBun } = await import('./lib/host.ts');
   const { askDaemon, requestSelection, sendRun } = await import('./lib/daemon-client.ts');
   const { locateCheckouts } = await import('./lib/operation.ts');
   try {

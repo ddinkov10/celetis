@@ -2,32 +2,28 @@ import { lstat, mkdir, mkdtemp, realpath, rm, stat, writeFile } from 'node:fs/pr
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
+import { codexRequest } from './codex-app-server.ts';
 import type { Host } from './config-core.ts';
 import { type ExitCode, exits, usage } from './contract.ts';
+import { HostError, NotInstalled } from './errors.ts';
 import { installRecorder, markDefect } from './events.ts';
-import { codexRequest, HostError, installedRoot, NotInstalled, requireBun } from './host.ts';
+import { git, programRevision } from './git.ts';
+import { configHome } from './homes.ts';
+import { requireBun } from './host.ts';
 import { commandInput } from './operation.ts';
 import {
   bindUpdateHome,
   claudeInstallation,
   codexPlugin,
-  configHome,
-  git,
   installedRevision,
+  installedRoot,
   jsonFile,
   nativeJson,
   object,
 } from './plugin-metadata.ts';
 import { checkClaudePolicy, claudePolicy, requireUpdatePolicy } from './plugin-policy.ts';
 import { bunArgs, childEnv, run } from './process.ts';
-import {
-  installProgram,
-  type Program,
-  type ProgramSource,
-  programRevision,
-  programSource,
-  readProgram,
-} from './program.ts';
+import { installProgram, type Program, type ProgramSource, programSource, readProgram } from './program.ts';
 import { writeAtomic } from './state.ts';
 import { UpdateLock, withPluginRead } from './update-lock.ts';
 import type { UpdateStage } from './update-types.ts';

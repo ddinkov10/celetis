@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import { readConfig } from './lib/config.ts';
 import { ConfigError, checkSkills, formatConfigError } from './lib/config-core.ts';
 import { type ExitCode, exits, usage } from './lib/contract.ts';
+import { HostError } from './lib/errors.ts';
 import { installRecorder } from './lib/events.ts';
-import { HostError } from './lib/host.ts';
 import { commandInput } from './lib/operation.ts';
 import { jsonFile } from './lib/plugin-metadata.ts';
 

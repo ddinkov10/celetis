@@ -362,8 +362,11 @@ A valid current record or absent record causes no conversion or archive.
 
 Preparation takes queue execution ownership, then ownership of the current unfinished issue,
 then the write lock, and rereads under those locks. A run with those locks prepares directly.
-Other callers use a finite internal path in the same revision's `daemon.ts`; it starts no
-terminal, host, GitHub read, or workflow action. Live owners and busy locks refuse without
+Other callers start the internal form `daemon --prepare-state queue` or
+`daemon --prepare-state session <n>` through the program entry `celetis` of the same revision.
+On macOS and Linux the entry replaces its process with `daemon.ts`; on Windows the launcher
+starts `daemon.ts` as a child and stays its parent. The preparation starts no terminal, host,
+GitHub read, or workflow action. Live owners and busy locks refuse without
 stealing ownership. Retry through the ordinary operation after the owner exits.
 
 Before atomic replacement, a private sibling
@@ -748,9 +751,11 @@ a new process of the installed program takes over
    `daemon: the stop cancels the restart; no successor starts`, starts no successor, and exits
    with the code of that stop: 0 for a stop request, 128 plus the number of a signal, 3 for a
    removed program version, 6 for the step-end failure ("Per-run failures"). No daemon runs after it. The page shows the timeout with the recovery line.
-3. The spawn. After the release of `daemon`, the daemon starts one detached successor,
-   `engine/daemon.ts --daemon --after <pid> <start>` of the installed program, with
-   `--auto <JSON>` when auto mode is `on`. It runs in the main checkout, with the environment of the
+3. The spawn. After the release of `daemon`, the daemon starts one detached successor, the
+   internal form `daemon --daemon --after <pid> <start>` through the program entry `celetis` of
+   the installed program, with `--auto <JSON>` when auto mode is `on`. The entry replaces its
+   process with `engine/daemon.ts --daemon --after <pid> <start>`, so the successor keeps its
+   PID. It runs in the main checkout, with the environment of the
    daemon, `HC_SCOPE` removed, and `PORT` set to the actual board port, and its stdout and stderr
    append to `daemon/daemon.log`. Then the old daemon exits 0. A failed spawn prints
    `daemon: cannot start the successor: <message>; run celetis daemon start` and exits 6; the runs
@@ -996,9 +1001,14 @@ labels `herdr.space=<id>` and `celetis.link=#<n> <step>`, and the tab name `#<n>
 (`herdr-app do tab.rename`). The space has the name of the folder of the main checkout. When that
 space is missing, the daemon makes it with `herdr-app do space.new`, and the app shows it. The file
 lock `<git common dir>/celetis/space.lock` lets one process at a time find or make the space.
-The tab runs the start barrier, `daemon.ts --session-start <folder> <daemon PID> <host> <attempt ID or -> <recovery or ->
-<arguments>`, through a login shell of `$SHELL` (`"$@"; exec "$0" -li`), so the tab keeps a shell
-after the barrier exits. `<folder>` is a private start folder in `<git common dir>/celetis/`:
+The tab runs the start barrier, the internal form
+`daemon --session-start <folder> <daemon PID> <host> <attempt ID or -> <recovery or ->
+<arguments>` through the program entry `celetis` of the program of the daemon, through a login
+shell of `$SHELL` (`"$@"; exec "$0" -li`), so the tab keeps a shell after the barrier exits. The
+entry replaces its process with `daemon.ts --session-start …` under the same PID, and the barrier
+record and the board read that process after the replace: with the job control of the login
+shell, the barrier leads the foreground process group of the tab. `<folder>` is a private start
+folder in `<git common dir>/celetis/`:
 
 1. The barrier writes `pid` there: its PID and its process start. The daemon accepts that record
    only when that process runs, has that start, and runs `daemon.ts`.

@@ -1,7 +1,7 @@
 import { dlopen, FFIType, ptr } from 'bun:ffi';
 import { toNamespacedPath } from 'node:path';
 import { exits } from './contract.ts';
-import { HostError } from './host.ts';
+import { HostError } from './errors.ts';
 
 function kernelBinding() {
   try {

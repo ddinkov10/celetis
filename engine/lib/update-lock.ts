@@ -6,8 +6,8 @@ import { constants, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Host } from './config-core.ts';
 import { exits, signalExit } from './contract.ts';
-import { HostError } from './host.ts';
-import { codexHome, configHome } from './plugin-metadata.ts';
+import { HostError } from './errors.ts';
+import { codexHome, configHome } from './homes.ts';
 import { childEnv } from './process.ts';
 import { containProcess, type Job, lockFile } from './windows.ts';
 

@@ -3,6 +3,11 @@ import { type Decision, type IssueData, lanes, type Step, steps } from './workfl
 export const levels = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 export type Level = (typeof levels)[number];
 
+export type ReviewerLevel = Exclude<Level, 'max'>;
+export const reviewerLevels: readonly ReviewerLevel[] = levels.filter(
+  (level): level is ReviewerLevel => level !== 'max',
+);
+
 export function isLevel(value: unknown): value is Level {
   return levels.some((level) => level === value);
 }

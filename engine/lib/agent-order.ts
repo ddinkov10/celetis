@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { type BigIntStats, closeSync, constants, fstatSync, lstatSync, openSync, readFileSync } from 'node:fs';
 import type { AgentOrder, Host } from './config-core.ts';
 import { type ExitCode, exits } from './contract.ts';
-import { HostError } from './host.ts';
+import { HostError } from './errors.ts';
 import {
   checkFolder,
   ensureFolder,

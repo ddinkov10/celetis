@@ -3,7 +3,7 @@ import { readAgentOrder } from '../lib/agent-order.ts';
 import { activeBlock, readUsage, selectAgent } from '../lib/agent-usage.ts';
 import type { AgentDecision, AgentOrder, Host, UsageBlock } from '../lib/config-core.ts';
 import { levels } from '../lib/effort.ts';
-import { commonDir } from '../lib/host.ts';
+import { commonDir } from '../lib/git.ts';
 import { createOperation, locateCheckouts } from '../lib/operation.ts';
 import { childEnv } from '../lib/process.ts';
 import { readQueue, readQueueView } from '../lib/queue.ts';

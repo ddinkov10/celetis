@@ -2,8 +2,8 @@ import { lstat, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { readConfig } from './lib/config.ts';
 import { type ExitCode, exits, usage } from './lib/contract.ts';
+import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect } from './lib/events.ts';
-import { HostError } from './lib/host.ts';
 import {
   LessonError,
   type LessonSnapshot,

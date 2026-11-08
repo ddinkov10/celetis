@@ -16,11 +16,11 @@ import {
 import { decidable, effortMarker, isLevel } from './lib/effort.ts';
 import { completeEpic, readEpic, writeEpicDefinition } from './lib/epic.ts';
 import { parseEpicAcceptance, parseEpicSubmission } from './lib/epic-acceptance.ts';
+import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect } from './lib/events.ts';
-import { HostError } from './lib/host.ts';
+import { codexHome } from './lib/homes.ts';
 import { lineOf } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
-import { codexHome } from './lib/plugin-metadata.ts';
 import { type Edit, github } from './lib/tracker.ts';
 import {
   type Decision,

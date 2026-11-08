@@ -1,6 +1,6 @@
 import { exits } from './contract.ts';
 import { completionIdentity, parseAcceptedEpic, parseEpicAcceptance } from './epic-acceptance.ts';
-import { HostError } from './host.ts';
+import { HostError } from './errors.ts';
 import { repositoryState, withLock } from './state.ts';
 import { type GitHub, github } from './tracker.ts';
 import {

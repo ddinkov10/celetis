@@ -1,8 +1,9 @@
 import { mkdir, rm } from 'node:fs/promises';
 import type { Host } from './lib/config-core.ts';
 import { type ExitCode, exits, usage } from './lib/contract.ts';
+import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect, passOn } from './lib/events.ts';
-import { HostError, requireBun } from './lib/host.ts';
+import { requireBun } from './lib/host.ts';
 import { runInteractive } from './lib/interactive.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { childEnv, run } from './lib/process.ts';

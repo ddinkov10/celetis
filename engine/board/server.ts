@@ -32,7 +32,7 @@ import { AgentOrderConflict } from '../lib/agent-order.ts';
 import type { DaemonStatus } from '../lib/daemon-types.ts';
 import { isLevel, type Level, levels } from '../lib/effort.ts';
 import { recordEvent } from '../lib/events.ts';
-import { commonDir } from '../lib/host.ts';
+import { commonDir } from '../lib/git.ts';
 import { createOperation, locateCheckouts } from '../lib/operation.ts';
 import { childEnv } from '../lib/process.ts';
 import {

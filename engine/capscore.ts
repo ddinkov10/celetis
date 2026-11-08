@@ -1,18 +1,18 @@
 import { resolve } from 'node:path';
 import {
   bindingMode,
-  efforts,
   type Pair,
   pairText,
-  readBinding,
   resolvePair,
   resolveScore,
   ScoreError,
   scoreLabel,
 } from './lib/capability.ts';
+import { readBinding } from './lib/capability-binding.ts';
 import { type ExitCode, exits, updateHint, usage } from './lib/contract.ts';
+import { levels } from './lib/effort.ts';
+import { HostError } from './lib/errors.ts';
 import { installRecorder } from './lib/events.ts';
-import { HostError } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 
 const flagLines = [
@@ -128,7 +128,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
           status: score ? 'ready' : 'stop',
           host,
           rank: score?.rank ?? null,
-          effort: score ? efforts[score.effort] : null,
+          effort: score ? levels[score.effort] : null,
           dispatch,
           line,
         }),

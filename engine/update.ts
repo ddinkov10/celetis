@@ -1,6 +1,7 @@
 import { type ExitCode, exits, usage } from './lib/contract.ts';
+import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect } from './lib/events.ts';
-import { HostError, requireBun } from './lib/host.ts';
+import { requireBun } from './lib/host.ts';
 import { commandInput } from './lib/operation.ts';
 import { executeUpdate, inspectUpdate, line, parts, short, type UpdateCheck } from './lib/updater.ts';
 

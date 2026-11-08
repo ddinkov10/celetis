@@ -15,13 +15,14 @@ import {
   shortRevision,
 } from './lib/daemon-client.ts';
 import { type DaemonIdentity, type DaemonStatus, daemonPaths, type RunRow } from './lib/daemon-types.ts';
+import { HostError } from './lib/errors.ts';
 import { installRecorder, passOn } from './lib/events.ts';
-import { HostError, requireBun } from './lib/host.ts';
+import { programRevision } from './lib/git.ts';
+import { requireBun } from './lib/host.ts';
 import type { LockOwner } from './lib/locks.ts';
 import { commandInput, locateCheckouts } from './lib/operation.ts';
 import { bunArgs, childEnv } from './lib/process.ts';
 import { daemonScript, processAlive, processStart, processState } from './lib/process-identity.ts';
-import { programRevision } from './lib/program.ts';
 import { ensureFolder, repositoryState, startFiles, writeAtomic } from './lib/state.ts';
 import { requireTerminals, TerminalError } from './lib/terminal.ts';
 
@@ -262,7 +263,7 @@ async function waitingSession(args: string[]): Promise<ExitCode> {
     !(recovery === '-' || (recovery === 'recovery' && attempt !== '-'))
   )
     return exits.usage;
-  const { codexHome } = await import('./lib/plugin-metadata.ts');
+  const { codexHome } = await import('./lib/homes.ts');
   const { sessionEnv } = await import('./lib/session.ts');
   const { spawnConsumer } = await import('./lib/update-lock.ts');
   const files = startFiles(dir);

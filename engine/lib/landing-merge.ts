@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { exits } from './contract.ts';
-import { HostError } from './host.ts';
+import { HostError } from './errors.ts';
 import type { LandingContext, Mechanism } from './landing.ts';
 import { streamBun } from './process.ts';
 import { github } from './tracker.ts';

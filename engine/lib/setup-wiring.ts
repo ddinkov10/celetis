@@ -2,7 +2,7 @@ import { constants, type Stats } from 'node:fs';
 import { access, lstat, realpath, stat } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
 import { exits } from './contract.ts';
-import { HostError } from './host.ts';
+import { HostError } from './errors.ts';
 import { run } from './process.ts';
 import { laneIgnore } from './state.ts';
 import { parseAllDocuments } from './vendor/yaml.mjs';

@@ -3,10 +3,12 @@ import { lstat, mkdir, readdir, readFile, readlink, realpath, rename, rm, symlin
 import { basename, dirname, join, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { exits } from './contract.ts';
-import { HostError } from './host.ts';
-import { revision as fullRevision, git, installedRevision } from './plugin-metadata.ts';
+import { HostError } from './errors.ts';
+import { revision as fullRevision, git } from './git.ts';
+import { celetisBase } from './homes.ts';
+import { installedRevision } from './plugin-metadata.ts';
 import { run } from './process.ts';
-import { celetisBase, installLock, withLock, writeAtomic } from './state.ts';
+import { installLock, withLock, writeAtomic } from './state.ts';
 
 export type ProgramPaths = Readonly<{
   data: string;
@@ -41,12 +43,6 @@ const cmdShim = [
 
 const slow: typeof run = (file, args, options) =>
   run(file, args, { ...options, timeout: 120_000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } });
-
-export async function programRevision(root: string): Promise<string> {
-  const result = await run('git', ['rev-parse', '--verify', 'HEAD'], { cwd: root });
-  if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
-  return result.stdout.trimEnd();
-}
 
 export function programPaths(base = celetisBase()): ProgramPaths {
   const data = join(base, '.local/share/celetis');

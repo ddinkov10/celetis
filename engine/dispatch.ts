@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { bindingMode, readBinding, resolvePair, ScoreError } from './lib/capability.ts';
+import { bindingMode, resolvePair, ScoreError } from './lib/capability.ts';
+import { readBinding } from './lib/capability-binding.ts';
 import type { Host } from './lib/config-core.ts';
 import { type ExitCode, exits, updateHint, usageLine } from './lib/contract.ts';
 import {
@@ -20,8 +21,8 @@ import {
   validateExecutionReport,
   validateRecord,
 } from './lib/dispatch-record.ts';
+import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect } from './lib/events.ts';
-import { HostError } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { dispatchRecord, ensureFolder, privateState, stateOutcome, withLock, writeAtomic } from './lib/state.ts';
 import { commitMigration, readLocalRecord } from './lib/state-migration.ts';

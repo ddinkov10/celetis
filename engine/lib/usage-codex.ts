@@ -1,6 +1,7 @@
 import { constants } from 'node:fs';
 import { lstat, open, realpath } from 'node:fs/promises';
-import { codexRequest, commonDir, mainCheckout } from './host.ts';
+import { codexRequest } from './codex-app-server.ts';
+import { commonDir, mainCheckout } from './git.ts';
 import { privateMode, repositoryState, withLock, writeAtomic } from './state.ts';
 import {
   type ObservedUsage,

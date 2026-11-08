@@ -1,6 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { type ExitCode, exits } from './contract.ts';
-import { HostError } from './host.ts';
+import { HostError } from './errors.ts';
 import { childEnv, run } from './process.ts';
 import { daemonScript, type ProcessState, processScript, processStart, processState } from './process-identity.ts';
 import { repositoryState } from './state.ts';

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { constants, type Stats } from 'node:fs';
 import { lstat, open, realpath, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
-import { mainCheckout } from './host.ts';
+import { mainCheckout } from './git.ts';
 import { bunArgs } from './process.ts';
 import { captureFiles, privateMode, withLock, writeAtomic } from './state.ts';
 import {

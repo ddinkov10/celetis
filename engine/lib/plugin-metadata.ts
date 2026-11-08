@@ -1,33 +1,17 @@
 import type { Stats } from 'node:fs';
 import { lstat, readdir, readFile, realpath } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
+import { codexRequest } from './codex-app-server.ts';
 import type { Host } from './config-core.ts';
 import { exits } from './contract.ts';
-import { codexRequest, HostError, mainCheckout, NotInstalled } from './host.ts';
+import { HostError, NotInstalled } from './errors.ts';
+import { git, mainCheckout, revision } from './git.ts';
+import { codexHome, configHome } from './homes.ts';
 import { childEnv, run, updateDescriptor } from './process.ts';
-
-export const revision = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 
 export const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
-
-export async function git(args: string[], cwd: string, execute: typeof run = run): Promise<string> {
-  const result = await execute(
-    'git',
-    ['--no-optional-locks', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', ...args],
-    { cwd, timeout: 10_000 },
-  );
-  if (result.code !== 0)
-    throw new HostError(
-      [`update: git ${args[0]} failed (exit ${result.code})`, result.stderr.trimEnd(), result.stdout.trimEnd()]
-        .filter(Boolean)
-        .join('\n'),
-      exits.blocked,
-    );
-  return result.stdout.trimEnd();
-}
 
 export async function installedRevision(
   host: Host | 'program',
@@ -113,24 +97,6 @@ export async function installedRevision(
       exits.prerequisite,
     );
   return installed;
-}
-
-export function configHome(host: Host): string {
-  return host === 'claude'
-    ? process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude')
-    : (process.env.CODEX_HOME ?? join(homedir(), '.codex'));
-}
-
-export async function codexHome(selected = configHome('codex')): Promise<string> {
-  if (!isAbsolute(selected))
-    throw new HostError(`celetis: CODEX_HOME must be an existing absolute directory: ${selected}`, exits.usage);
-  const home = await realpath(selected).catch(() => null);
-  if (!home || !(await lstat(home)).isDirectory())
-    throw new HostError(
-      `celetis: cannot resolve CODEX_HOME directory: ${selected}; repair the selected native home`,
-      exits.usage,
-    );
-  return home;
 }
 
 export async function bindUpdateHome(host: Host, selected = configHome(host)): Promise<string> {
@@ -578,4 +544,33 @@ export async function codexSessionPin(cwd: string): Promise<string[]> {
       );
   }
   return args;
+}
+
+export async function installedRoot(host: Host, cwd: string, execute: typeof run = run): Promise<string> {
+  if (host === 'claude') {
+    const missing =
+      'celetis: no enabled Celetis installation; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis';
+    if (!Bun.which('claude', { PATH: childEnv().PATH })) throw new HostError(missing, exits.prerequisite);
+    const result = await execute('claude', ['plugin', 'list', '--json'], { cwd });
+    if (result.code !== 0) {
+      throw new HostError(
+        [
+          result.stderr.trimEnd(),
+          `celetis: claude plugin list --json failed (exit ${result.code})`,
+          result.stdout.trimEnd(),
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        exits.blocked,
+      );
+    }
+    let records: unknown;
+    try {
+      records = JSON.parse(result.stdout);
+    } catch {}
+    if (!Array.isArray(records))
+      throw new HostError(`celetis: invalid plugin list JSON\n${result.stdout.trimEnd()}`, exits.blocked);
+    return (await claudeInstallation(records, cwd)).root;
+  }
+  return (await codexPlugin(cwd, execute)).root;
 }

@@ -1,9 +1,10 @@
 import { dirname } from 'node:path';
 import { type ExitCode, exits, usage } from './lib/contract.ts';
+import { HostError } from './lib/errors.ts';
 import { installRecorder } from './lib/events.ts';
-import { HostError, requireBun } from './lib/host.ts';
+import { codexHome } from './lib/homes.ts';
+import { requireBun } from './lib/host.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
-import { codexHome } from './lib/plugin-metadata.ts';
 
 export async function main(argv: string[]): Promise<ExitCode> {
   try {

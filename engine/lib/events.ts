@@ -4,8 +4,8 @@ import { constants as os } from 'node:os';
 import { basename, dirname, relative, resolve, sep } from 'node:path';
 import { format } from 'node:util';
 import { type ExitCode, exits, passThrough, signalExit } from './contract.ts';
-import { HostError } from './host.ts';
-import { revision as fullRevision } from './plugin-metadata.ts';
+import { HostError } from './errors.ts';
+import { revision as fullRevision } from './git.ts';
 import { ensureFolder, eventLayout, privateMode, withLockSync } from './state.ts';
 
 type Cut = 'message' | 'exception.stacktrace' | 'argv';

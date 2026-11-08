@@ -5,7 +5,8 @@ import { lstat, open, readdir, readFile, readlink, realpath, rm, writeFile } fro
 import { basename, dirname, join } from 'node:path';
 import type { AgentChoice, Host } from './config-core.ts';
 import { exits } from './contract.ts';
-import { commonDir, HostError } from './host.ts';
+import { HostError } from './errors.ts';
+import { commonDir } from './git.ts';
 import { type LockOwner, lockHolder } from './locks.ts';
 import { bunArgs, childEnv, run } from './process.ts';
 import {

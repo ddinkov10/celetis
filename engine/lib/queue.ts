@@ -1,6 +1,7 @@
 import type { AgentChoice, Host } from './config-core.ts';
 import { exits } from './contract.ts';
-import { HostError, selectHost } from './host.ts';
+import { HostError } from './errors.ts';
+import { selectHost } from './host.ts';
 import { lineOf, type Next } from './lines.ts';
 import { type LockOwner, lockHolder } from './locks.ts';
 import { type HostSelection, locateCheckouts, type Operation } from './operation.ts';

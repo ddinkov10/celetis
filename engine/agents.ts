@@ -1,7 +1,7 @@
 import { AgentOrderConflict, readAgentOrder, replaceAgentOrder } from './lib/agent-order.ts';
 import { type ExitCode, exits, usage } from './lib/contract.ts';
+import { HostError } from './lib/errors.ts';
 import { installRecorder } from './lib/events.ts';
-import { HostError } from './lib/host.ts';
 import { commandInput, locateCheckouts } from './lib/operation.ts';
 
 export async function main(argv: string[]): Promise<ExitCode> {

@@ -14,9 +14,10 @@ import {
   requestPaths,
   type Selection,
 } from './daemon-types.ts';
-import { HostError, selectHost } from './host.ts';
+import { HostError } from './errors.ts';
+import { programRevision } from './git.ts';
+import { selectHost } from './host.ts';
 import { daemonScript, processScript, processState } from './process-identity.ts';
-import { programRevision } from './program.ts';
 
 export type Found =
   | Readonly<{ kind: 'none' }>

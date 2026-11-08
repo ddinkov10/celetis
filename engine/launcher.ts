@@ -1,11 +1,12 @@
 import { stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { type ExitCode, exits, helpText, launcherForms, updateHint } from './lib/contract.ts';
+import { HostError } from './lib/errors.ts';
 import { installRecorder, passOn } from './lib/events.ts';
-import { HostError, requireBun } from './lib/host.ts';
+import { programRevision } from './lib/git.ts';
+import { requireBun } from './lib/host.ts';
 import { commandInput } from './lib/operation.ts';
 import { bunArgs, childEnv } from './lib/process.ts';
-import { programRevision } from './lib/program.ts';
 import { execConsumer } from './lib/update-lock.ts';
 
 export const commandName = /^[a-z][a-z-]*$/;

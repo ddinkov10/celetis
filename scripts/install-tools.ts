@@ -14,9 +14,9 @@ import {
 } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { bunFloor } from '../engine/lib/config-core.ts';
-import { HostError } from '../engine/lib/host.ts';
+import { HostError } from '../engine/lib/errors.ts';
+import { codexHome } from '../engine/lib/homes.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
-import { codexHome } from '../engine/lib/plugin-metadata.ts';
 import { bunArgs, run } from '../engine/lib/process.ts';
 
 const actionlintVersion = '1.7.12';

@@ -1,7 +1,7 @@
 import { validateAgentOrder } from './agent-order.ts';
 import type { Host } from './config-core.ts';
 import { exits } from './contract.ts';
-import { HostError } from './host.ts';
+import { HostError } from './errors.ts';
 import { laneIgnore } from './state.ts';
 import { parseAllDocuments } from './vendor/yaml.mjs';
 

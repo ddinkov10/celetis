@@ -10,6 +10,7 @@ import { type BoardHandle, startBoard } from '../board/start.ts';
 import { type ExitCode, exits, signalExit } from './contract.ts';
 import { shortRevision } from './daemon-client.ts';
 import { createLandings, type Sink } from './daemon-landing.ts';
+import { daemonArgv } from './daemon-start.ts';
 import {
   type DaemonAnswer,
   type DaemonIdentity,
@@ -25,13 +26,14 @@ import {
   stopLine,
   textLimit,
 } from './daemon-types.ts';
+import { HostError } from './errors.ts';
 import { installRecorder, recordEvent } from './events.ts';
-import { HostError } from './host.ts';
+import { programRevision } from './git.ts';
 import { createLockOwner, type Identity } from './locks.ts';
 import { createOperation, type HostSelection, locateCheckouts, type Operation } from './operation.ts';
-import { bunArgs, childEnv } from './process.ts';
-import { daemonScript, processStart, processState } from './process-identity.ts';
-import { type Program, programPaths, programRevision } from './program.ts';
+import { childEnv } from './process.ts';
+import { processStart, processState } from './process-identity.ts';
+import { type Program, programPaths } from './program.ts';
 import { queueSelection, readQueue } from './queue.ts';
 import { admitQueue, failQueueLaunch, reconcileQueue } from './queue-actions.ts';
 import type { QueueReceipt } from './queue-types.ts';
@@ -203,11 +205,17 @@ async function inVersionFolder(revision: string): Promise<boolean> {
 async function startSuccessor({ program, auto, port, start, main, log }: Spawn): Promise<ExitCode> {
   const env = childEnv({ ...process.env, PORT: String(port) });
   delete env.HC_SCOPE;
-  const args = ['--daemon', '--after', String(process.pid), start, ...(auto ? ['--auto', JSON.stringify(auto)] : [])];
+  const [file, ...args] = daemonArgv(program.root, [
+    '--daemon',
+    '--after',
+    String(process.pid),
+    start,
+    ...(auto ? ['--auto', JSON.stringify(auto)] : []),
+  ]);
   try {
     const out = openSync(log, 'a', 0o600);
     try {
-      const child = spawn(process.execPath, bunArgs(join(program.root, 'engine', daemonScript), args), {
+      const child = spawn(file, args, {
         detached: true,
         stdio: ['ignore', out, out],
         env,

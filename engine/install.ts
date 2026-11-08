@@ -1,7 +1,8 @@
 import { delimiter, dirname, resolve } from 'node:path';
 import { type ExitCode, exits, usage } from './lib/contract.ts';
+import { HostError } from './lib/errors.ts';
 import { installRecorder } from './lib/events.ts';
-import { HostError, requireBun } from './lib/host.ts';
+import { requireBun } from './lib/host.ts';
 import { commandInput } from './lib/operation.ts';
 import { childEnv } from './lib/process.ts';
 import { installProgram, programPaths, programSource } from './lib/program.ts';

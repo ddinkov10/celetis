@@ -1,11 +1,13 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { codexRequest } from './codex-app-server.ts';
 import type { Config, Host } from './config-core.ts';
 import { exits } from './contract.ts';
 import { clampEffort, isLevel, type Level } from './effort.ts';
+import { HostError } from './errors.ts';
 import { recordEvent } from './events.ts';
-import { codexRequest, commonDir, HostError } from './host.ts';
+import { commonDir } from './git.ts';
 import type { LockOwner } from './locks.ts';
 import { ensureFolder, repositoryState, writeAtomic } from './state.ts';
 import { commitMigration, type LocalRecord, readLocalRecord } from './state-migration.ts';
