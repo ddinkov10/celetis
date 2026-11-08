@@ -100,3 +100,4 @@ gate refused a repeated number, and they keep their files.
 | [0080](0080-a-look-decision-bypasses-the-page-csp-on-its-own-browser-tab.md) | A look decision bypasses the page CSP on its own browser tab |  |  |
 | [0080](0080-the-daemon-ends-a-claude-host-with-sigterm-after-a-grace.md) | The daemon ends a Claude host with SIGTERM after a grace |  |  |
 | [0081](0081-the-resolver-and-the-updater-are-libraries-and-no-library-imports-a-command.md) | The resolver and the updater are libraries, and no library imports a command | [0033](0033-one-workflow-definition-and-the-skip-rule.md), [0035](0035-the-board-is-a-part-of-the-engine.md), [0036](0036-the-engine-enforces-the-lifecycle-and-the-landing.md) |  |
+| [0082](0082-every-github-call-goes-through-the-tracker-port.md) | Every GitHub call of the engine goes through the tracker port |  |  |

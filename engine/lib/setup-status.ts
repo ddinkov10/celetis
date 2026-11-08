@@ -31,7 +31,7 @@ import {
   trackingProblem,
   wiring,
 } from './setup-wiring.ts';
-import { github } from './tracker.ts';
+import { github, loggedIn } from './tracker.ts';
 
 type Finding = Readonly<{ kind: 'missing' | 'invalid' | 'different' | 'blocked'; subject: string; cause: string }>;
 type Origin = Readonly<{ host: string; repository: string }>;
@@ -126,7 +126,7 @@ class Status {
       const config = await run('ssh', ['-G', host], { cwd: this.root });
       host = (config.code === 0 && /^hostname (\S+)$/m.exec(config.stdout)?.[1]) || host;
     }
-    if (host !== 'github.com' && (await run('gh', ['auth', 'status', '--hostname', host], { cwd: this.root })).code) {
+    if (host !== 'github.com' && !(await loggedIn(host, this.root))) {
       this.add(
         'invalid',
         'origin',
@@ -319,17 +319,14 @@ class Status {
   async tracker({ host, repository: name }: Origin): Promise<void> {
     const tracker = github(this.root, undefined, { ...process.env, GH_HOST: host, GH_REPO: name });
     try {
-      if (!object(await tracker.api(''))) throw new Error('malformed');
+      await tracker.repository();
     } catch {
       this.add('blocked', name, 'cannot read the GitHub repository of origin with gh');
       return;
     }
-    let found: string[];
+    let found: readonly string[];
     try {
-      found = (await tracker.list('labels?per_page=100')).map((label) => {
-        if (!object(label) || typeof label.name !== 'string') throw new Error('malformed');
-        return label.name;
-      });
+      found = await tracker.labels();
     } catch {
       this.add('blocked', `${name} labels`, 'cannot read the labels of the GitHub repository with gh');
       return;

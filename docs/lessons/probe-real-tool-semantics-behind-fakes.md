@@ -2,16 +2,41 @@
 {
   "schema": 1,
   "name": "probe-real-tool-semantics-behind-fakes",
-  "description": "A status check pinned gh with the host of GH_REPO, which gh api ignores, and a fake gh hid the error",
+  "description": "Fakes of gh hid how the real tool chooses a target: the GH_REPO host, which gh api ignores, and {owner}/{repo} placeholders, which gh resolves from GH_REPO",
   "tags": [
     "test",
     "false-positive",
-    "api"
+    "false-negative",
+    "api",
+    "recurring"
   ],
-  "date": "2026-11-05",
+  "date": "2026-11-08",
   "status": "active",
-  "source": "Final review of ddinkov10/celetis#44 (implement step, Claude Code)",
+  "source": "Task 1 review of ddinkov10/celetis#256 (the check harness of the tracker port)\n\nFinal review of ddinkov10/celetis#44 (implement step, Claude Code)",
   "incidents": [
+    {
+      "id": "a44a3490-0eb9-4a59-abc2-f2f574c6c470",
+      "date": "2026-11-08",
+      "action": "Task 1 of #256 built a fake gh for base-against-lane pairs. Its key strips repos/<x>/<y>/ and keeps {owner} and {repo} literally (fake-gh.ts:57); it logs GH_HOST and GH_REPO but picks no answer by them. The task report did not list placeholder resolution or the GH_REPO target choice as unverified.",
+      "expected": "Before the fake encodes how gh treats an input that changes the target (GH_REPO, the {owner}/{repo} placeholders), probe the real tool once read-only and make the fake treat it the same way, or name the behavior as unverified and do not count the fake as proof of it.",
+      "observed": "The task reviewer's probe: the endpoint repos/o/r/pulls?head=acme:b got 'fake gh: no answer'; the literal {owner} endpoint was answered; the same call with GH_REPO=acme/widgets was answered and the log kept {owner}. The real probe of fix round 1: GH_REPO=cli/cli gh api 'repos/{owner}/{repo}' --jq .full_name printed cli/cli (exit 0), so real gh resolves the placeholders from GH_REPO.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "Important 1: fake-gh.ts keeps {owner} and {repo} literally in the key and the log, and it ignores GH_REPO and GH_HOST when it picks an answer ... The report neither probes this nor lists it as unverified. Real probe: GH_REPO=cli/cli gh api 'repos/{owner}/{repo}' --jq .full_name -> cli/cli",
+        "reference": "https://github.com/ddinkov10/celetis/issues/256"
+      },
+      "inference": "Inferred: the implementer applied the rule only to the inputs that the retained #276 fake already modelled (the failure shape, the slurp pages), and did not list the other target inputs of the endpoint text. Alternative: the rule's examples (an environment value or a flag) did not make the placeholders look like a target input. The fix of round 1 added a compare part with (method, endpoint, GH_HOST, GH_REPO) of each call, which made a target change visible.",
+      "diagnosis": [
+        "not-followed"
+      ],
+      "revision": "adfa9bb59d55682dca331c02134b386111bff99f",
+      "brief": "The Task 1 brief of #256 carried docs/lessons/probe-real-tool-semantics-behind-fakes.md sha256:c10b9faa14f92e289ecb09fc39a8ba08777497218d07469631920d4d34e2660e with its full Rule.",
+      "lesson": {
+        "name": "probe-real-tool-semantics-behind-fakes",
+        "revision": "adfa9bb59d55682dca331c02134b386111bff99f",
+        "digest": "c10b9faa14f92e289ecb09fc39a8ba08777497218d07469631920d4d34e2660e"
+      }
+    },
     {
       "id": "5d0e6b2a-6f0c-4c39-9a51-3a8a0e8f4c21",
       "date": "2026-11-05",
@@ -30,7 +55,7 @@
       "revision": "96d98ddafccd1f27e05d601af6c0e141272024f1"
     }
   ],
-  "recurrences": 0,
+  "recurrences": 1,
   "reviews": [
     {
       "id": "2d455fbb-28aa-4c23-ab54-5705ac57afb8",
@@ -45,11 +70,26 @@
         "state": "not-needed",
         "detail": "No structural follow-up is required by this decision."
       }
+    },
+    {
+      "id": "41e78a0f-a719-4e8b-b97a-ed3deeac6d85",
+      "requestDigest": "efc14afe6c23253aaf635bf54eeb1c00267496515b719f942836879dd2beed37",
+      "date": "2026-11-08",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #256; claude child opus/high\n\nMerge under the reviewer rules: the active lesson probe-real-tool-semantics-behind-fakes states the same rule (probe the real tool for each input that chooses a target before a fake encodes it), and the #256 incident records that its brief carried that rule (not-followed). The proposal adds no incompatible rule; the survivor names placeholders in the call text, the working directory, and the compare of each target input of each call. The proposal rule asked for a real probe with no permission limit; the survivor keeps the active limit that makes no network or credential act that the task does not already permit, so the rule widens no permission. Both incidents stay; the root causes stay labeled as inference.",
+      "related": [
+        "compare-the-target-inputs-of-each-fake-tool-call",
+        "probe-real-tool-semantics-behind-fakes"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "A fake tool of a check logs each target input of each call, and its pair runner compares those inputs by default. This needs separate authorization."
+      }
     }
   ]
 }
 ---
-# Probe the real tool for each external behavior that a fake reproduces
+# Probe the real tool for each input that chooses the target of a faked call
 
 ## What happened
 
@@ -63,37 +103,62 @@ GitLab and a Bitbucket origin. With `GH_HOST=gitlab.com` the same call went to g
 (HTTP 410). The fix (61030d2) resolves the host, checks it with `gh auth status --hostname`, and
 sends `GH_HOST`.
 
+Task 1 of ddinkov10/celetis#256 built a fake `gh` for base-against-lane pairs. The fake keyed each
+answer on the endpoint text with `{owner}` and `{repo}` unresolved, and chose no answer by
+`GH_REPO` or `GH_HOST`; it only logged them. The pair runner compared the writes and the exit,
+stdout, and stderr, not the target of each call. The task brief carried this lesson with its full
+Rule. The task review showed that a target change could fail as "no answer" or pass unseen. A
+read-only real probe (`GH_REPO=cli/cli gh api 'repos/{owner}/{repo}' --jq .full_name` gave
+`cli/cli`) showed that real `gh` resolves the placeholders from `GH_REPO`.
+
 ## Root cause
 
-Inferred: the ruling took the external behavior from the documented `[HOST/]OWNER/REPO` form of
-`GH_REPO` and did not probe the real tool. The fake encoded the assumed behavior, so no driver
+#44, inferred: the ruling took the external behavior from the documented `[HOST/]OWNER/REPO` form
+of `GH_REPO` and did not probe the real tool. The fake encoded the assumed behavior, so no driver
 check could find the wrong assumption. Uncertain: whether `gh` documents that `gh api` ignores
 the host part for its placeholders.
 
+#256, inferred, not proven: the implementer applied this rule only to the behaviors that the reused
+fake already modelled, and did not list every input of a call that chooses its target. The endpoint
+placeholders did not read as an "environment value or flag" input. Alternative: the reused fake set
+the scope of the probe.
+
 ## Fix
 
-Proposed prevention, not proven enforcement: before a fake encodes how an external tool treats an
-input that the code sets to select a target, run the real tool once with a read-only call that
-changes only that input, within the acts that the task already permits; otherwise record the
-behavior as unverified. This remains a text rule: which inputs select a target is a
+Proposed prevention, not proven enforcement: list each input that chooses the target of a faked
+call, including placeholders in the call text. Before a fake encodes how the real tool treats such
+an input, run the real tool once with a read-only call that changes only that input, within the
+acts that the task already permits; otherwise record the behavior as unverified. Compare each
+target input of each call between the two sides of the check.
+
+The repair of Task 1 of #256 added a compare part with the ordered tuples (method, endpoint,
+`GH_HOST`, `GH_REPO`) of each call of a non-daemon scenario, and a control that showed a
+difference for a changed `GH_REPO`. Proposed structural follow-up, which needs separate
+authorization: a fake tool of a check logs each target input of each call, and its pair runner
+compares them by default. This remains partly a text rule: which inputs choose a target is a
 judgment about each tool.
 
 ## Detection signature
 
 A fake that records or ignores an environment value or flag that the code under test sets to
-control the real tool, with no real-tool probe of that value in the evidence.
+control the real tool, or that keys its answers on call text with unresolved placeholders, with no
+real-tool probe of that input in the evidence.
 
 ## Rule
 
 Applies when a check replaces an external tool with a fake, and the code under test depends on how
-the real tool treats an input such as an environment value or a flag. Action: before the fake encodes
-that behavior, run the real tool once with a read-only call where only that input changes the
-target, and make the fake treat the input the same way. When that call needs a network or
-credential act that the task does not already permit, do not make it: record the behavior as an
-unverified assumption, and do not count the fake check as proof of it. Check: the real-tool probe
-shows the changed target and the fake gives the same result for the same input, or the evidence
-names the behavior as unverified.
+the real tool chooses the target of a call. Action: list every input that chooses the target of a
+call: environment values, placeholders in the call text, the working directory, and flags. Before
+the fake encodes the behavior of such an input, run the real tool once with a read-only call where
+only that input changes the target, and make the fake treat the input the same way. When that call
+needs a network or credential act that the task does not already permit, do not make it: record
+the behavior as an unverified assumption, and do not count the fake check as proof of it. Compare
+each listed input of each call between the two sides of the check. Check: the check report lists
+each target input with its probe result or the label unverified, the fake gives the same result as
+the real tool for each probed input, and a control with one changed target input shows a
+difference.
 
 ## Related lessons
 
 [[derive-fixture-state-from-real-producers]]
+[[list-every-producer-of-an-oracle-record]]

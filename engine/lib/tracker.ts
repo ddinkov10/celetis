@@ -27,12 +27,57 @@ export type Edit = Readonly<{
   state_reason?: 'completed' | 'not_planned';
 }>;
 
+export type Ref = Readonly<{ ref: string; sha: string }>;
+export type Repository = Readonly<{ fullName: string; defaultBranch: string; url: string }>;
+export type Pull = Readonly<{
+  number: number;
+  url: string;
+  head: Ref;
+  base: Ref;
+  state: 'open' | 'closed';
+  mergedAt: string | null;
+  draft: boolean;
+  requestedReviewers: number;
+}>;
+export type CheckRun = Readonly<{
+  name: string;
+  status: string;
+  conclusion: string | null;
+  app: string | null;
+  suite: number | null;
+  url: string | null;
+}>;
+export type CommitStatus = Readonly<{ state: string }>;
+export type WorkflowRun = Readonly<{ id: number; suite: number; attempt: number; status: string | null }>;
+export type Review = Readonly<{ user: string | null; state: string }>;
+export type Parent = Readonly<{ number: number; url: string }>;
+export type Bucket = 'pass' | 'skipping' | 'fail' | 'cancel' | 'pending';
+export type PullFilter = Readonly<{ state: 'open' }> | Readonly<{ head: string; state: 'closed' | 'all' }>;
+export type NewPull = Readonly<{ base: string; head: string; title: string; body: string }>;
+export type NewLabel = Readonly<{ name: string; description: string; color: string }>;
+
 export type GitHub = Readonly<{
-  api<T = unknown>(endpoint: string): Promise<T>;
+  api(endpoint: string): Promise<unknown>;
   list(endpoint: string): Promise<unknown[]>;
   history(issue: Issue): Promise<readonly Entry[]>;
   read(n: string): Promise<Readonly<{ issue: Issue; data: IssueData }>>;
   epic(n: string): Promise<EpicSnapshot>;
+  issue(n: string): Promise<Issue>;
+  openIssues(): Promise<readonly Issue[]>;
+  repository(): Promise<Repository>;
+  pulls(filter: PullFilter): Promise<readonly Pull[]>;
+  pull(n: number): Promise<Pull>;
+  createPull(fields: NewPull): Promise<string>;
+  mergePull(n: number, sha: string): Promise<void>;
+  checkRuns(sha: string): Promise<readonly CheckRun[]>;
+  statuses(sha: string): Promise<readonly CommitStatus[]>;
+  workflowRuns(sha: string): Promise<readonly WorkflowRun[]>;
+  workflowRun(id: number): Promise<WorkflowRun>;
+  rerunFailedJobs(id: number): Promise<void>;
+  reviews(n: number): Promise<readonly Review[]>;
+  parent(n: string): Promise<Parent>;
+  labels(): Promise<readonly string[]>;
+  createLabel(fields: NewLabel): Promise<void>;
   comment(n: string, text: string): Promise<void>;
   addLabels(n: string, names: readonly string[]): Promise<void>;
   removeLabel(n: string, name: string): Promise<void>;
@@ -40,17 +85,24 @@ export type GitHub = Readonly<{
   stderr(): string;
 }>;
 
-export class GitHubReadError extends Error {
+export class GitHubError extends Error {
+  readonly notFound: boolean;
+
   constructor(
     readonly endpoint: string,
-    readonly notFound: boolean,
+    readonly text: string,
+    readonly stderr: string | null,
+    message: string,
   ) {
-    super('GitHub read failed');
+    super(message);
+    this.notFound = stderr !== null && /\bHTTP 404\b/.test(stderr);
   }
 }
 
+class Refusal extends Error {}
+
 function malformed(): Error {
-  return new Error('malformed GitHub data');
+  return new Refusal('malformed GitHub data');
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -61,6 +113,122 @@ function record(value: unknown): Record<string, unknown> {
 function text(value: unknown): string {
   if (typeof value !== 'string') throw malformed();
   return value;
+}
+
+function integer(value: unknown): number {
+  if (!Number.isSafeInteger(value)) throw malformed();
+  return value as number;
+}
+
+function orNull<T>(value: unknown, parse: (value: unknown) => T): T | null {
+  return value === null ? null : parse(value);
+}
+
+function count(value: unknown): number {
+  if (value === undefined || value === null) return 0;
+  if (!Array.isArray(value)) throw malformed();
+  return value.length;
+}
+
+function ref(value: unknown): Ref {
+  const { ref, sha } = record(value);
+  return { ref: text(ref), sha: text(sha) };
+}
+
+function parseRepository(raw: unknown): Repository {
+  const repository = record(raw);
+  const defaultBranch = text(repository.default_branch);
+  if (!defaultBranch) throw malformed();
+  return { fullName: text(repository.full_name), defaultBranch, url: text(repository.html_url) };
+}
+
+function parsePull(raw: unknown): Pull {
+  const pull = record(raw);
+  const { state, draft } = pull;
+  if ((state !== 'open' && state !== 'closed') || (draft !== undefined && typeof draft !== 'boolean'))
+    throw malformed();
+  return {
+    number: integer(pull.number),
+    url: text(pull.html_url),
+    head: ref(pull.head),
+    base: ref(pull.base),
+    state,
+    mergedAt: orNull(pull.merged_at, text),
+    draft: draft ?? false,
+    requestedReviewers: count(pull.requested_reviewers) + count(pull.requested_teams),
+  };
+}
+
+function parseCheckRun(raw: unknown): CheckRun {
+  const run = record(raw);
+  return {
+    name: text(run.name),
+    status: text(run.status),
+    conclusion: orNull(run.conclusion, text),
+    app: orNull(run.app, (app) => text(record(app).slug)),
+    suite: orNull(run.check_suite, (suite) => integer(record(suite).id)),
+    url: orNull(run.details_url, text),
+  };
+}
+
+function parseCommitStatus(raw: unknown): CommitStatus {
+  return { state: text(record(raw).state) };
+}
+
+function parseWorkflowRun(raw: unknown): WorkflowRun {
+  const run = record(raw);
+  return {
+    id: integer(run.id),
+    suite: integer(run.check_suite_id),
+    attempt: integer(run.run_attempt),
+    status: orNull(run.status, text),
+  };
+}
+
+function parseReview(raw: unknown): Review {
+  const review = record(raw);
+  return { user: orNull(review.user, (user) => text(record(user).login)), state: text(review.state) };
+}
+
+function parseParent(raw: unknown): Parent {
+  const parent = typeof raw === 'object' && raw !== null && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const { number, html_url: url } = parent;
+  if (!Number.isSafeInteger(number) || (number as number) < 1)
+    throw new Refusal('the parent response has no valid issue number');
+  if (typeof url !== 'string' || !url.endsWith(`/issues/${number}`))
+    throw new Refusal('the parent response has no canonical issue URL that matches its number');
+  return { number: number as number, url };
+}
+
+function parseLabelName(raw: unknown): string {
+  return text(record(raw).name);
+}
+
+export function bucket(check: CheckRun | CommitStatus): Bucket {
+  if ('state' in check) {
+    if (check.state === 'success') return 'pass';
+    return check.state === 'failure' || check.state === 'error' ? 'fail' : 'pending';
+  }
+  if (check.status !== 'completed') return 'pending';
+  switch (check.conclusion) {
+    case 'success':
+      return 'pass';
+    case 'neutral':
+    case 'skipped':
+      return 'skipping';
+    case 'failure':
+    case 'timed_out':
+    case 'action_required':
+      return 'fail';
+    case 'cancelled':
+      return 'cancel';
+    default:
+      return 'pending';
+  }
+}
+
+export async function loggedIn(host: string, cwd: string): Promise<boolean> {
+  return (await run('gh', ['auth', 'status', '--hostname', host], { cwd })).code === 0;
 }
 
 export function parseIssue(raw: unknown): Issue {
@@ -124,6 +292,23 @@ export function issueData(issue: Issue, history: readonly Entry[]): IssueData {
 export function github(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEnv): GitHub {
   let stderr = '';
 
+  function parsed<T>(endpoint: string, parse: () => T): T {
+    try {
+      return parse();
+    } catch (error) {
+      if (!(error instanceof Refusal)) throw error;
+      throw new GitHubError(endpoint, error.message, null, error.message);
+    }
+  }
+
+  function json(value: string): unknown {
+    try {
+      return JSON.parse(value);
+    } catch {
+      throw malformed();
+    }
+  }
+
   async function call(endpoint: string, paginate: boolean): Promise<unknown> {
     signal?.throwIfAborted();
     const result = await run(
@@ -133,89 +318,147 @@ export function github(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
     );
     signal?.throwIfAborted();
     stderr += result.stderr;
-    if (result.code !== 0) throw new GitHubReadError(endpoint, /\bHTTP 404\b/.test(result.stderr));
-    return JSON.parse(result.stdout);
+    if (result.code !== 0)
+      throw new GitHubError(
+        endpoint,
+        `${result.stdout}${result.stderr}`.trimEnd(),
+        result.stderr,
+        'GitHub read failed',
+      );
+    return parsed(endpoint, () => json(result.stdout));
   }
 
-  async function list(endpoint: string): Promise<unknown[]> {
-    const pages = await call(endpoint, true);
-    if (!Array.isArray(pages) || !pages.every(Array.isArray)) throw malformed();
-    return pages.flat();
+  async function get<T>(endpoint: string, parse: (raw: unknown) => T): Promise<T> {
+    const raw = await call(endpoint, false);
+    return parsed(endpoint, () => parse(raw));
   }
 
-  async function send(method: 'POST' | 'PATCH' | 'DELETE', endpoint: string, fields?: object): Promise<void> {
+  async function pages(endpoint: string, key?: string): Promise<unknown[]> {
+    const raw = await call(endpoint, true);
+    return parsed(endpoint, () => {
+      if (!Array.isArray(raw)) throw malformed();
+      return raw.flatMap((page: unknown): unknown[] => {
+        const items = key === undefined ? page : record(page)[key];
+        if (!Array.isArray(items)) throw malformed();
+        return items;
+      });
+    });
+  }
+
+  async function getAll<T>(endpoint: string, parse: (raw: unknown) => T, key?: string): Promise<T[]> {
+    const items = await pages(endpoint, key);
+    return parsed(endpoint, () => items.map(parse));
+  }
+
+  async function send(
+    method: 'POST' | 'PATCH' | 'PUT' | 'DELETE',
+    endpoint: string,
+    options: { fields?: object; silent?: boolean } = {},
+  ): Promise<string> {
     signal?.throwIfAborted();
-    const folder = fields === undefined ? null : await mkdtemp(join(tmpdir(), 'celetis-gh.'));
+    const folder = options.fields === undefined ? null : await mkdtemp(join(tmpdir(), 'celetis-gh.'));
     try {
       const input = folder === null ? [] : ['--input', join(folder, 'input.json')];
-      if (folder !== null) await writeFile(join(folder, 'input.json'), JSON.stringify(fields), { mode: 0o600 });
-      const result = await run('gh', ['api', '-X', method, `repos/{owner}/{repo}/${endpoint}`, '--silent', ...input], {
-        cwd,
-        signal,
-        env,
-      });
+      if (folder !== null) await writeFile(join(folder, 'input.json'), JSON.stringify(options.fields), { mode: 0o600 });
+      const result = await run(
+        'gh',
+        [
+          'api',
+          '-X',
+          method,
+          `repos/{owner}/{repo}/${endpoint}`,
+          ...(options.silent === false ? [] : ['--silent']),
+          ...input,
+        ],
+        { cwd, signal, env },
+      );
       const issue = /^issues\/([1-9][0-9]*)(?:\/|$)/.exec(endpoint);
       if (result.code === 0 && issue) await writeRefreshHint(cwd, Number(issue[1]));
       signal?.throwIfAborted();
-      if (result.code !== 0) throw new Error(`${result.stdout}${result.stderr}`.trimEnd());
+      if (result.code !== 0) {
+        const failure = `${result.stdout}${result.stderr}`.trimEnd();
+        throw new GitHubError(endpoint, failure, result.stderr, failure);
+      }
       stderr += result.stderr;
+      return result.stdout;
     } finally {
       if (folder !== null) await rm(folder, { recursive: true, force: true });
     }
   }
 
   async function history(issue: Issue): Promise<readonly Entry[]> {
-    return issue.comments === 0 ? [] : parseTimeline(await list(`issues/${issue.number}/timeline?per_page=100`));
+    if (issue.comments === 0) return [];
+    const endpoint = `issues/${issue.number}/timeline?per_page=100`;
+    const entries = await pages(endpoint);
+    return parsed(endpoint, () => parseTimeline(entries));
   }
 
   return {
-    api: async <T = unknown>(endpoint: string) => (await call(endpoint, false)) as T,
-    list,
+    api: (endpoint: string) => call(endpoint, false),
+    list: (endpoint: string) => pages(endpoint),
     history,
     async read(n: string) {
-      const issue = parseIssue(await call(`issues/${n}`, false));
+      const issue = await get(`issues/${n}`, parseIssue);
       return { issue, data: issueData(issue, await history(issue)) };
     },
     async epic(n: string) {
-      if (!/^[1-9][0-9]*$/.test(n) || !Number.isSafeInteger(Number(n))) throw malformed();
-      const rawRepository = record(await call('', false));
-      const repository = parseEpicRepository(rawRepository.html_url);
-      if (
-        !Number.isSafeInteger(rawRepository.id) ||
-        Number(rawRepository.id) <= 0 ||
-        rawRepository.full_name !== new URL(repository).pathname.slice(1)
-      )
-        throw malformed();
-      const rawParent = record(await call(`issues/${n}`, false));
-      const issue = parseIssue(rawParent);
-      if (
-        Object.hasOwn(rawParent, 'pull_request') ||
-        issue.number !== Number(n) ||
-        issue.url !== `${repository}/issues/${n}` ||
-        !Number.isSafeInteger(issue.comments) ||
-        issue.comments < 0
-      )
-        throw malformed();
-      const entries = parseTimeline(await list(`issues/${n}/timeline?per_page=100`));
-      const ids = new Set<number>();
-      for (const entry of entries) {
-        if (entry.kind !== 'comment') continue;
-        if (!Number.isSafeInteger(entry.id) || entry.id <= 0 || ids.has(entry.id)) throw malformed();
-        ids.add(entry.id);
-      }
+      const target = `issues/${n}`;
+      parsed(target, () => {
+        if (!/^[1-9][0-9]*$/.test(n) || !Number.isSafeInteger(Number(n))) throw malformed();
+      });
+      const rawRepository = await get('', record);
+      const repository = parsed('', () => {
+        const url = parseEpicRepository(rawRepository.html_url);
+        if (
+          !Number.isSafeInteger(rawRepository.id) ||
+          Number(rawRepository.id) <= 0 ||
+          rawRepository.full_name !== new URL(url).pathname.slice(1)
+        )
+          throw malformed();
+        return url;
+      });
+      const rawParent = await get(target, record);
+      const issue = parsed(target, () => {
+        const parent = parseIssue(rawParent);
+        if (
+          Object.hasOwn(rawParent, 'pull_request') ||
+          parent.number !== Number(n) ||
+          parent.url !== `${repository}/issues/${n}` ||
+          !Number.isSafeInteger(parent.comments) ||
+          parent.comments < 0
+        )
+          throw malformed();
+        return parent;
+      });
+      const timeline = `${target}/timeline?per_page=100`;
+      const rawEntries = await pages(timeline);
+      const entries = parsed(timeline, () => {
+        const result = parseTimeline(rawEntries);
+        const ids = new Set<number>();
+        for (const entry of result) {
+          if (entry.kind !== 'comment') continue;
+          if (!Number.isSafeInteger(entry.id) || entry.id <= 0 || ids.has(entry.id)) throw malformed();
+          ids.add(entry.id);
+        }
+        return result;
+      });
+      const sub = `${target}/sub_issues?per_page=100`;
+      const rawChildren = await pages(sub);
       const children = parseEpicChildren(
-        (await list(`issues/${n}/sub_issues?per_page=100`)).map((raw) => {
-          const child = record(raw);
-          if (Object.hasOwn(child, 'pull_request')) throw malformed();
-          return {
-            url: child.html_url,
-            id: child.id,
-            number: child.number,
-            state: child.state,
-            stateReason: child.state_reason,
-            closedAt: child.closed_at,
-          };
-        }),
+        parsed(sub, () =>
+          rawChildren.map((raw) => {
+            const child = record(raw);
+            if (Object.hasOwn(child, 'pull_request')) throw malformed();
+            return {
+              url: child.html_url,
+              id: child.id,
+              number: child.number,
+              state: child.state,
+              stateReason: child.state_reason,
+              closedAt: child.closed_at,
+            };
+          }),
+        ),
       );
       return {
         repository,
@@ -225,13 +468,52 @@ export function github(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
         children,
       };
     },
-    comment: (n: string, text: string) => send('POST', `issues/${n}/comments`, { body: text }),
-    addLabels: (n: string, names: readonly string[]) => send('POST', `issues/${n}/labels`, { labels: names }),
-    removeLabel: (n: string, name: string) =>
-      send('DELETE', `issues/${n}/labels/${encodeURIComponent(name)}`).catch((error: Error) => {
-        if (!error.message.includes('HTTP 404')) throw error;
-      }),
-    edit: (n: string, fields: Edit) => send('PATCH', `issues/${n}`, fields),
+    issue: (n: string) => get(`issues/${n}`, parseIssue),
+    openIssues: () => getAll('issues?state=open&per_page=100', parseIssue),
+    repository: () => get('', parseRepository),
+    pulls: (filter: PullFilter) =>
+      getAll(
+        'head' in filter
+          ? `pulls?head={owner}:${encodeURIComponent(filter.head)}&state=${filter.state}&per_page=100`
+          : 'pulls?state=open&per_page=100',
+        parsePull,
+      ),
+    pull: (n: number) => get(`pulls/${n}`, parsePull),
+    async createPull(fields: NewPull) {
+      const raw = await send('POST', 'pulls', { fields, silent: false });
+      return parsed('pulls', () => text(record(json(raw)).html_url));
+    },
+    async mergePull(n: number, sha: string) {
+      await send('PUT', `pulls/${n}/merge`, { fields: { merge_method: 'squash', sha } });
+    },
+    checkRuns: (sha: string) => getAll(`commits/${sha}/check-runs?per_page=100`, parseCheckRun, 'check_runs'),
+    statuses: (sha: string) => getAll(`commits/${sha}/status?per_page=100`, parseCommitStatus, 'statuses'),
+    workflowRuns: (sha: string) =>
+      getAll(`actions/runs?head_sha=${sha}&per_page=100`, parseWorkflowRun, 'workflow_runs'),
+    workflowRun: (id: number) => get(`actions/runs/${id}`, parseWorkflowRun),
+    async rerunFailedJobs(id: number) {
+      await send('POST', `actions/runs/${id}/rerun-failed-jobs`);
+    },
+    reviews: (n: number) => getAll(`pulls/${n}/reviews?per_page=100`, parseReview),
+    parent: (n: string) => get(`issues/${n}/parent`, parseParent),
+    labels: () => getAll('labels?per_page=100', parseLabelName),
+    async createLabel(fields: NewLabel) {
+      await send('POST', 'labels', { fields });
+    },
+    async comment(n: string, text: string) {
+      await send('POST', `issues/${n}/comments`, { fields: { body: text } });
+    },
+    async addLabels(n: string, names: readonly string[]) {
+      await send('POST', `issues/${n}/labels`, { fields: { labels: names } });
+    },
+    async removeLabel(n: string, name: string) {
+      await send('DELETE', `issues/${n}/labels/${encodeURIComponent(name)}`).catch((error: unknown) => {
+        if (!(error instanceof GitHubError && error.notFound)) throw error;
+      });
+    },
+    async edit(n: string, fields: Edit) {
+      await send('PATCH', `issues/${n}`, { fields });
+    },
     stderr: () => stderr,
   };
 }

@@ -13,20 +13,13 @@ import { createOperation, type HostSelection, locateCheckouts } from './operatio
 import { codexHome } from './plugin-metadata.ts';
 import { run } from './process.ts';
 import { writeRefreshHint } from './refresh-hints.ts';
-import { github } from './tracker.ts';
+import { type GitHub, GitHubError, github } from './tracker.ts';
 import { branchGlobs, decide, landable } from './workflow.ts';
 import { checkoutOf, removeLane } from './worktree.ts';
 
 export type Landing = Readonly<{ number: number; subject: string; selection: HostSelection; from: string }>;
 export type LandingEnd = Readonly<{ status: ExitCode; defect: Readonly<{ error: unknown }> | null }>;
 
-export type Request = {
-  paginate?: boolean;
-  silent?: boolean;
-  quiet?: boolean;
-  method?: string;
-  fields?: Record<string, string>;
-};
 export type Mechanism = Readonly<{ check(): Promise<void>; land(): Promise<void>; after(): Promise<void> }>;
 export type LandingContext = Readonly<{
   n: string;
@@ -41,8 +34,8 @@ export type LandingContext = Readonly<{
   signal: AbortSignal;
   git(args: string[], refusal?: readonly [ExitClass, string], at?: string): Promise<string>;
   gitRaw(args: string[], at?: string): Promise<{ code: number; stdout: string; stderr: string }>;
-  api<T>(endpoint: string, options?: Request): Promise<T>;
-  checkedApi<T>(endpoint: string, message: string, options?: Request): Promise<T>;
+  tracked<T>(call: (gh: GitHub) => Promise<T>, quiet?: boolean): Promise<T>;
+  checked<T>(call: (gh: GitHub) => Promise<T>, message: string): Promise<T>;
   die(outcome: ExitClass, message: string): never;
   interrupted(): void;
   stopped(): ExitCode;
@@ -106,39 +99,32 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
       process.stderr.write(result.stderr);
       return result.stdout.trimEnd();
     };
-    const api = async <T>(endpoint: string, options: Request = {}): Promise<T> => {
+    const tracked = async <T>(call: (gh: GitHub) => Promise<T>, quiet = false): Promise<T> => {
       interrupted();
-      const result = await run(
-        'gh',
-        [
-          'api',
-          ...(options.paginate ? ['--paginate', '--slurp'] : []),
-          ...(options.silent ? ['--silent'] : []),
-          ...(options.method ? ['-X', options.method] : []),
-          `repos/{owner}/{repo}${endpoint}`,
-          ...Object.entries(options.fields ?? {}).flatMap(([name, value]) => ['-f', `${name}=${value}`]),
-        ],
-        { cwd: main, signal },
-      );
-      if (result.code !== 0) throw new HostError(`${result.stdout}${result.stderr}`.trimEnd(), exits.blocked);
-      if (!options.quiet) process.stderr.write(result.stderr);
-      return options.silent ? (undefined as T) : (JSON.parse(result.stdout) as T);
-    };
-    const checkedApi = async <T>(endpoint: string, message: string, options?: Request): Promise<T> => {
+      const gh = github(main, signal);
+      let result: T;
       try {
-        return await api<T>(endpoint, options);
+        result = await call(gh);
       } catch (error) {
+        interrupted();
+        if (!(error instanceof GitHubError)) throw error;
+        if (!quiet && error.stderr === null) process.stderr.write(gh.stderr());
+        throw new HostError(error.text, exits.blocked);
+      }
+      if (!quiet) process.stderr.write(gh.stderr());
+      return result;
+    };
+    const checked = async <T>(call: (gh: GitHub) => Promise<T>, message: string): Promise<T> => {
+      try {
+        return await tracked(call);
+      } catch (error) {
+        interrupted();
         emitError(error);
         return die('blocked', message);
       }
     };
-    const repo = await checkedApi<{ default_branch: string; html_url: unknown }>(
-      '',
-      'cannot read the default branch from GitHub',
-    );
-    if (typeof repo.default_branch !== 'string' || !repo.default_branch)
-      die('blocked', 'cannot read the default branch from GitHub');
-    trunk = repo.default_branch;
+    const repo = await checked((gh) => gh.repository(), 'cannot read the default branch from GitHub');
+    trunk = repo.defaultBranch;
     branch = await git(['branch', '--list', '--format=%(refname:lstrip=2)', ...branchGlobs(n)]);
     if (!branch) die('usage', `no lane branch matches #${n}; nothing to land`);
     if (branch.includes('\n'))
@@ -178,8 +164,7 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
       const decision = read ? decide(read.data) : die('blocked', `cannot read #${n} from GitHub`);
       if (!landable(decision)) die('prerequisite', `#${n} is not ready to land: ${lineOf(n, decision)}`);
       if (
-        (await checkedApi<{ default_branch: string }>('', 'cannot read the default branch from GitHub'))
-          .default_branch !== trunk
+        (await checked((gh) => gh.repository(), 'cannot read the default branch from GitHub')).defaultBranch !== trunk
       )
         die('blocked', `the default branch changed from ${trunk}; invoke landing again`);
       await git(['fetch', '-q', 'origin', trunk], ['blocked', `cannot fetch ${trunk} from origin`]);
@@ -209,8 +194,8 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
       signal,
       git,
       gitRaw,
-      api,
-      checkedApi,
+      tracked,
+      checked,
       die,
       interrupted,
       stopped,
@@ -224,23 +209,21 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
     const completeParent = async () => {
       let parent: number;
       try {
-        const result = await api<{ number: number; html_url: unknown } | null>(`/issues/${n}/parent`, { quiet: true });
-        if (!result || !Number.isSafeInteger(result.number) || result.number < 1)
-          throw new Error('the parent response has no valid issue number');
-        parent = result.number;
-        const suffix = `/issues/${parent}`;
-        if (typeof result.html_url !== 'string' || !result.html_url.endsWith(suffix))
-          throw new Error('the parent response has no canonical issue URL that matches its number');
-        const repository = parseEpicRepository(result.html_url.slice(0, -suffix.length));
-        if (repository !== parseEpicRepository(repo.html_url)) {
+        interrupted();
+        const found = await github(main, signal).parent(n);
+        parent = found.number;
+        const repository = parseEpicRepository(found.url.slice(0, -`/issues/${parent}`.length));
+        if (repository !== parseEpicRepository(repo.url)) {
           console.log(
-            `land: parent ${result.html_url} is in another repository; run /celetis:accept-epic #${parent} in that repository's main checkout`,
+            `land: parent ${found.url} is in another repository; run /celetis:accept-epic #${parent} in that repository's main checkout`,
           );
           return;
         }
       } catch (error) {
-        if (!errorText(error).includes('HTTP 404'))
-          console.log(`land: warning: cannot read the parent of #${n}: ${errorText(error)}`);
+        if (!(error instanceof GitHubError && error.notFound))
+          console.log(
+            `land: warning: cannot read the parent of #${n}: ${error instanceof GitHubError ? error.text : errorText(error)}`,
+          );
         return;
       }
       try {

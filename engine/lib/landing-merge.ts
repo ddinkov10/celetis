@@ -7,7 +7,7 @@ import { github } from './tracker.ts';
 
 export function mergeMechanism(context: LandingContext, suite: string): Mechanism {
   const { n, subject, main, trunk, branch, tip, base, checkout, stale, signal } = context;
-  const { git, gitRaw, api, die, interrupted, preflight, setCleanup } = context;
+  const { git, gitRaw, tracked, die, interrupted, preflight, setCleanup } = context;
   const closeIssue = async (issue: string, body: string) => {
     const gh = github(main, signal);
     await gh.comment(issue, body);
@@ -78,7 +78,7 @@ export function mergeMechanism(context: LandingContext, suite: string): Mechanis
         await git(['merge', '-q', '--ff-only', commit], undefined, main);
         setCleanup(open);
       }
-      const issue = await api<{ state: string }>(`/issues/${n}`);
+      const issue = await tracked((gh) => gh.issue(n));
       if (issue.state !== 'closed') await closeIssue(n, `Landed on ${trunk}${commit ? ` in ${commit}` : ''}.`);
     },
     async after() {},

@@ -8,19 +8,26 @@ import type { Operation } from './operation.ts';
 import { run as runProcess } from './process.ts';
 import type { RecoveryAuthority } from './quota-recovery.ts';
 import type { IssueRow, ParentEpic, Pull } from './resolver-types.ts';
-import { type GitHub, GitHubReadError, github, type Issue, issueData, parseIssue } from './tracker.ts';
+import {
+  type Bucket,
+  bucket,
+  type GitHub,
+  GitHubError,
+  github,
+  type Issue,
+  issueData,
+  type Pull as TrackerPull,
+} from './tracker.ts';
 import { type Decision, decide, factsOf, type IssueData, laneOf, specified, stageOf } from './workflow.ts';
 
 type Fetched = Readonly<{ issue: Issue; data: IssueData }>;
-type ApiPull = {
-  number: number;
-  html_url: string;
-  head: { ref: string; sha: string };
-  draft: boolean;
-  requested_reviewers: unknown[];
-  requested_teams: unknown[];
-};
 type BranchPull = Readonly<{ branch: string; pull: Pull }>;
+
+function checkResult(buckets: readonly Bucket[]): Pull['checks'] {
+  if (buckets.length === 0) return null;
+  if (buckets.some((b) => b === 'fail' || b === 'cancel')) return 'fail';
+  return buckets.includes('pending') ? 'pending' : 'pass';
+}
 
 const unreadable: Observed = { kind: 'observed', reason: 'unreadable' };
 
@@ -28,57 +35,30 @@ function reader(operation: Operation, signal?: AbortSignal) {
   const checkout = operation.checkout.main as string;
   const gh = github(checkout, signal);
 
-  async function issues(endpoint: string): Promise<Issue[]> {
-    return (await gh.list(endpoint)).map(parseIssue).filter((issue) => !issue.pull);
-  }
-
   async function openIssues(): Promise<Fetched[]> {
     const result: Fetched[] = [];
-    for (const issue of await issues('issues?state=open&per_page=100'))
+    for (const issue of (await gh.openIssues()).filter((issue) => !issue.pull))
       result.push({ issue, data: issueData(issue, await gh.history(issue)) });
     return result;
   }
 
-  async function pullState(pr: ApiPull): Promise<BranchPull> {
-    const runs = (
-      (await gh.list(`commits/${pr.head.sha}/check-runs?per_page=100`)) as {
-        check_runs: { status: string; conclusion: string | null }[];
-      }[]
-    ).flatMap((page) => page.check_runs);
-    const statuses = (
-      (await gh.list(`commits/${pr.head.sha}/status?per_page=100`)) as { statuses: { state: string }[] }[]
-    )
-      .flatMap((page) => page.statuses)
-      .map((status) => status.state);
-    const reviews = (await gh.list(`pulls/${pr.number}/reviews?per_page=100`)) as {
-      user: { login: string };
-      state: string;
-    }[];
-    const latest = new Map<string, string>();
-    for (const review of reviews)
-      if (['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'].includes(review.state))
-        latest.set(review.user.login, review.state);
+  async function pullState(pr: TrackerPull): Promise<BranchPull> {
+    const checks = [...(await gh.checkRuns(pr.head.sha)), ...(await gh.statuses(pr.head.sha))].map(bucket);
+    const latest = new Map<string | null, string>();
+    for (const review of await gh.reviews(pr.number))
+      if (['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'].includes(review.state)) latest.set(review.user, review.state);
     const states = [...latest.values()];
-    const checks =
-      runs.length + statuses.length === 0
-        ? null
-        : runs.some((run) =>
-              ['failure', 'timed_out', 'cancelled', 'action_required', 'startup_failure'].includes(
-                run.conclusion ?? '',
-              ),
-            ) || statuses.some((status) => ['failure', 'error'].includes(status))
-          ? 'fail'
-          : runs.some((run) => run.status !== 'completed') || statuses.includes('pending')
-            ? 'pending'
-            : 'pass';
     const review = states.includes('CHANGES_REQUESTED')
       ? 'changes'
       : states.includes('APPROVED')
         ? 'approved'
-        : pr.requested_reviewers.length + pr.requested_teams.length > 0
+        : pr.requestedReviewers > 0
           ? 'required'
           : null;
-    return { branch: pr.head.ref, pull: { number: pr.number, url: pr.html_url, draft: pr.draft, checks, review } };
+    return {
+      branch: pr.head.ref,
+      pull: { number: pr.number, url: pr.url, draft: pr.draft, checks: checkResult(checks), review },
+    };
   }
 
   async function dirty(path: string): Promise<boolean> {
@@ -124,7 +104,7 @@ function reader(operation: Operation, signal?: AbortSignal) {
     }
   }
 
-  return { checkout, gh, issues, openIssues, pullState, dirty, lanes, observe, settle };
+  return { checkout, gh, openIssues, pullState, dirty, lanes, observe, settle };
 }
 
 type Keeps = (lane: string) => Promise<boolean>;
@@ -207,9 +187,9 @@ async function parentEpics(gh: GitHub, open: readonly Fetched[]): Promise<Readon
     read.add(n);
     let parent: Issue;
     try {
-      parent = parseIssue(await gh.api(`issues/${n}`));
+      parent = await gh.issue(n);
     } catch (error) {
-      if (error instanceof GitHubReadError && error.notFound) continue;
+      if (error instanceof GitHubError && error.notFound) continue;
       throw error;
     }
     if (!parent.pull && parent.state === 'open' && parent.labels.includes('epic') && parent.apiUrl === issue.parentUrl)
@@ -285,7 +265,7 @@ export async function nextBoard(
           try {
             fetched = await read.gh.read(String(number));
           } catch (error) {
-            if (error instanceof GitHubReadError && error.endpoint === `issues/${number}` && error.notFound) continue;
+            if (error instanceof GitHubError && error.endpoint === `issues/${number}` && error.notFound) continue;
             throw error;
           }
           if (fetched.issue.pull) continue;
@@ -293,7 +273,7 @@ export async function nextBoard(
           else open.push(fetched);
         }
       }
-      const pulls = ((await read.gh.list('pulls?state=open&per_page=100')) as ApiPull[]).filter((pr) =>
+      const pulls = (await read.gh.pulls({ state: 'open' })).filter((pr) =>
         selected === null
           ? /\/[0-9]+-/.test(pr.head.ref)
           : [...selected].some((number) => pr.head.ref.includes(`/${number}-`)),

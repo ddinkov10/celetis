@@ -1798,7 +1798,10 @@ Each row also has `number`, `title`, `url`, `updatedAt` and these fields:
   URL of an open issue of the same repository with the label `epic`, else `null`.
 - `pr`: the open pull request whose branch name holds `/<n>-`, with its number, URL, draft state, CI
   result (`pass`, `fail`, `pending`, or `null`), and review state (`approved`, `changes`,
-  `required`, or `null`); else `null`. For the review state, the last review of each reviewer that
+  `required`, or `null`); else `null`. The CI result comes from the buckets of `gh pr checks`: `null`
+  when the commit has no check run and no status, else `fail` for a `fail` or `cancel` bucket, else
+  `pending` for a `pending` bucket, else `pass`. So a `stale` check and a check with an unknown value
+  are `pending`. For the review state, the last review of each reviewer that
   approves, requests changes, or is dismissed counts. The review state is `changes` when one of
   those reviews requests changes, else `approved` when one approves, else `required` when a
   requested reviewer or team has not answered, else `null`.

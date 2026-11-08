@@ -37,6 +37,7 @@ import {
   trackingProblem,
   wiring,
 } from './lib/setup-wiring.ts';
+import { GitHubError, github } from './lib/tracker.ts';
 import { CST, Parser, type SourceToken } from './lib/vendor/yaml.mjs';
 import { markerOf, removeCheckout, runSetup, setupFile, worktrees } from './lib/worktree.ts';
 
@@ -85,6 +86,13 @@ const appendLine = (text: string, line: string) =>
   hasLine(text, line) ? text : `${text}${text && !text.endsWith('\n') ? '\n' : ''}${line}\n`;
 function fail(message: string, code: ExitCode = exits.prerequisite): never {
   throw new HostError(`setup: ${message}`, code);
+}
+async function fromGitHub<T>(call: Promise<T>, message: string): Promise<T> {
+  return call.catch((error: unknown) => {
+    if (!(error instanceof GitHubError)) throw error;
+    process.stderr.write(error.stderr ?? `${error.text}\n`);
+    return fail(message, exits.blocked);
+  });
 }
 function editConfig(source: string, updates: Map<string, string | undefined>): string {
   if (!updates.size) return source;
@@ -331,14 +339,6 @@ class Setup {
       throw new HostError('', exits.blocked);
     }
   }
-  async api<T>(args: string[], message: string): Promise<T> {
-    const result = await run('gh', ['api', ...args], { cwd: this.cwd });
-    if (result.code !== 0) {
-      process.stderr.write(result.stderr);
-      fail(message, exits.blocked);
-    }
-    return (result.stdout.trim() ? JSON.parse(result.stdout) : undefined) as T;
-  }
   async checkMain(): Promise<void> {
     try {
       this.top = resolve(await this.git(['rev-parse', '--show-toplevel']));
@@ -358,11 +358,8 @@ class Setup {
   }
   async checkTrunk(): Promise<void> {
     await this.checkMain();
-    const repo = await this.api<{ full_name: string; default_branch: string }>(
-      ['repos/{owner}/{repo}'],
-      'origin is not a GitHub repository that gh can read',
-    );
-    this.trunk = repo.default_branch;
+    const repo = await fromGitHub(github(this.cwd).repository(), 'origin is not a GitHub repository that gh can read');
+    this.trunk = repo.defaultBranch;
     const branch = await this.git(['branch', '--show-current']);
     if (branch !== this.trunk)
       fail(
@@ -951,30 +948,15 @@ class Setup {
     return readFile(join(this.cwd, path));
   }
   async makeLabels(): Promise<void> {
-    const pages = await this.api<{ name: string }[][]>(
-      ['--paginate', '--slurp', 'repos/{owner}/{repo}/labels?per_page=100'],
-      'cannot list the labels',
-    );
-    const names = pages.flat().map((label) => label.name);
+    const tracker = github(this.cwd);
+    const names = await fromGitHub(tracker.labels(), 'cannot list the labels');
     for (const name of labels) {
       const [description, color] = labelStyles[name];
       const found = names.find((existing) => existing.toLowerCase() === name.toLowerCase());
       if (found !== undefined) {
         if (found !== name) this.warn(`the label ${found} differs in case from ${name}; setup leaves it`);
       } else {
-        await this.api(
-          [
-            '--silent',
-            'repos/{owner}/{repo}/labels',
-            '-f',
-            `name=${name}`,
-            '-f',
-            `description=${description}`,
-            '-f',
-            `color=${color}`,
-          ],
-          `cannot make the label ${name}`,
-        );
+        await fromGitHub(tracker.createLabel({ name, description, color }), `cannot make the label ${name}`);
         this.output(`setup: made the label ${name}\n`);
       }
     }
