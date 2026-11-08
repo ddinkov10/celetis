@@ -1,50 +1,70 @@
 import { constants } from 'node:os';
-import { join } from 'node:path';
 import type { Config } from './config-core.ts';
 import { type ExitClass, type ExitCode, exits, signalExit } from './contract.ts';
 import { completeEpic } from './epic.ts';
 import { parseEpicRepository } from './epic-acceptance.ts';
 import { HostError } from './host.ts';
+import { mergeMechanism } from './landing-merge.ts';
+import { prMechanism } from './landing-pr.ts';
 import { LessonError } from './lesson-record.ts';
 import { readLessons } from './lesson-store.ts';
 import { lineOf } from './lines.ts';
-import { createOperation, type HostSelection, locateCheckouts, type Operation } from './operation.ts';
+import { createOperation, type HostSelection, locateCheckouts } from './operation.ts';
 import { codexHome } from './plugin-metadata.ts';
-import { run, streamBun } from './process.ts';
+import { run } from './process.ts';
 import { writeRefreshHint } from './refresh-hints.ts';
 import { github } from './tracker.ts';
-import { branchGlobs, branchPattern, decide, landable } from './workflow.ts';
+import { branchGlobs, decide, landable } from './workflow.ts';
 import { checkoutOf, removeLane } from './worktree.ts';
 
 export type Landing = Readonly<{ number: number; subject: string; selection: HostSelection; from: string }>;
 export type LandingEnd = Readonly<{ status: ExitCode; defect: Readonly<{ error: unknown }> | null }>;
 
-type Pull = {
-  number: number;
-  html_url: string;
-  head: { ref: string; sha: string };
-  base: { ref: string; sha: string };
-  merged_at: string | null;
-};
-type Check = {
-  status: string;
-  conclusion: string | null;
-  app: { slug: string };
-  check_suite: { id: number };
-  name: string;
-  details_url: string;
-};
-type Status = { state: string };
-type Workflow = { id: number; check_suite_id: number; run_attempt: number; status: string };
-type Request = {
+export type Request = {
   paginate?: boolean;
   silent?: boolean;
   quiet?: boolean;
   method?: string;
   fields?: Record<string, string>;
 };
+export type Mechanism = Readonly<{ check(): Promise<void>; land(): Promise<void>; after(): Promise<void> }>;
+export type LandingContext = Readonly<{
+  n: string;
+  subject: string;
+  main: string;
+  trunk: string;
+  branch: string;
+  tip: string;
+  base: string;
+  checkout: string;
+  stale: string;
+  signal: AbortSignal;
+  git(args: string[], refusal?: readonly [ExitClass, string], at?: string): Promise<string>;
+  gitRaw(args: string[], at?: string): Promise<{ code: number; stdout: string; stderr: string }>;
+  api<T>(endpoint: string, options?: Request): Promise<T>;
+  checkedApi<T>(endpoint: string, message: string, options?: Request): Promise<T>;
+  die(outcome: ExitClass, message: string): never;
+  interrupted(): void;
+  stopped(): ExitCode;
+  emitError(error: unknown): void;
+  preflight(): Promise<void>;
+  setCleanup(text: string): void;
+}>;
 class Classified extends HostError {}
 const suiteOf = (config: Config | undefined) => (config?.landing === 'merge' ? config.suite : undefined);
+
+function select(config: Config, context: LandingContext): Mechanism {
+  switch (config.landing) {
+    case 'merge':
+      return mergeMechanism(context, config.suite);
+    case 'pr':
+      return prMechanism(context);
+    default: {
+      const unknown: never = config;
+      return unknown;
+    }
+  }
+}
 
 export async function runLanding(landing: Landing, main: string, signal: AbortSignal): Promise<LandingEnd> {
   const n = String(landing.number);
@@ -112,12 +132,6 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
         return die('blocked', message);
       }
     };
-    const closeIssue = async (issue: string, body: string) => {
-      const gh = github(main, signal);
-      await gh.comment(issue, body);
-      await gh.edit(issue, { state: 'closed', state_reason: 'completed' });
-      process.stderr.write(gh.stderr());
-    };
     const repo = await checkedApi<{ default_branch: string; html_url: unknown }>(
       '',
       'cannot read the default branch from GitHub',
@@ -151,8 +165,7 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
     if (!(await git(['rev-list', '-n', '1', `origin/${trunk}..${branch}`])))
       die('usage', `${branch} has no commit that ${trunk} lacks; nothing to land`);
     const stale = `merge origin/${trunk} into ${branch}, run the verify gate of the project again, then land again`;
-    let checkPull: (() => Promise<void>) | undefined;
-    const preflight = async (): Promise<Operation> => {
+    const preflight = async () => {
       const fresh = await createOperation(await locateCheckouts(main), operation.selection, 'main');
       if (fresh.mainConfig?.landing !== config.landing || suiteOf(fresh.mainConfig) !== suiteOf(config))
         die('blocked', 'the landing mechanism changed; invoke landing again');
@@ -164,7 +177,6 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
       interrupted();
       const decision = read ? decide(read.data) : die('blocked', `cannot read #${n} from GitHub`);
       if (!landable(decision)) die('prerequisite', `#${n} is not ready to land: ${lineOf(n, decision)}`);
-      await checkPull?.();
       if (
         (await checkedApi<{ default_branch: string }>('', 'cannot read the default branch from GitHub'))
           .default_branch !== trunk
@@ -179,317 +191,36 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
       if ((await checkoutOf(branch, main, signal)) !== checkout) die('repair', `the lane checkout changed; ${stale}`);
       if (checkout && (await git(['status', '--porcelain'], undefined, checkout)))
         die('usage', `the lane worktree is dirty: ${checkout}; commit first`);
-      if (fresh.mainConfig?.landing === 'merge') {
-        const [firstChange, ...otherChanges] = (await git(['status', '--porcelain'], undefined, main))
-          .split('\n')
-          .filter(Boolean);
-        if (firstChange !== undefined)
-          die(
-            'blocked',
-            `the main checkout has uncommitted changes, your work: ${main}: ${firstChange.slice(3)}${otherChanges.length ? ` and ${otherChanges.length} more` : ''}; commit or stash them there, then land again`,
-          );
-        const current = await git(['branch', '--show-current'], undefined, main);
-        if (current !== trunk)
-          die(
-            'blocked',
-            `the main checkout is on ${current || 'a detached HEAD'}, not on ${trunk}: ${main}; switch it to ${trunk} there, then land again`,
-          );
-        const head = await git(['rev-parse', 'HEAD'], undefined, main);
-        if (head !== base) {
-          const ancestry = await gitRaw(['merge-base', '--is-ancestor', 'HEAD', base], main);
-          process.stderr.write(ancestry.stderr);
-          if (ancestry.code === 0)
-            await git(
-              ['merge', '-q', '--ff-only', base],
-              ['blocked', `cannot fast-forward the main checkout to origin/${trunk}: ${main}`],
-              main,
-            );
-          else if (ancestry.code === 1) {
-            const ahead = (await git(['log', '--format=%h %s', `${base}..HEAD`], undefined, main)).split('\n');
-            die(
-              'blocked',
-              `the main checkout has ${ahead.length} commit(s) that origin/${trunk} does not have, your work: ${main}: ${ahead[0]}; push them, or move them to a branch there, then land again`,
-            );
-          } else throw new HostError(ancestry.stderr.trimEnd(), exits.blocked);
-        }
-        const ancestor = await gitRaw(['merge-base', '--is-ancestor', base, tip]);
-        process.stderr.write(ancestor.stderr);
-        if (ancestor.code !== 0) die('repair', `${branch} does not contain the head of ${trunk}; ${stale}`);
-      }
+      await mechanism.check();
       const currentPolicy = await createOperation(fresh.checkout, operation.selection, 'main');
       if (currentPolicy.mainConfig?.landing !== config.landing || suiteOf(currentPolicy.mainConfig) !== suiteOf(config))
         die('blocked', 'the landing mechanism changed; invoke landing again');
-      return currentPolicy;
     };
-
-    const landMerge = async (suite: string) => {
-      const merge = await gitRaw(['merge-tree', '--write-tree', base, tip]);
-      const tree = merge.code === 0 ? merge.stdout.trimEnd() : '';
-      const open = `the change is on ${trunk}, but #${n} is open; run celetis --agent <host> land again`;
-      let commit: string;
-      if (tree === (await git(['rev-parse', `${base}^{tree}`]))) {
-        cleanup = open;
-        commit = await git(['log', '-n', '1', '--format=%H', '--fixed-strings', `--grep=(#${n})`, `origin/${trunk}`]);
-      } else {
-        await preflight();
-        if (!checkout) die('repair', `the lane worktree of ${branch} is missing`);
-        const status = await streamBun(join(checkout, suite), [], checkout, signal);
-        interrupted();
-        if (status !== 0) die('checks', `the suite ${suite} failed with status ${status} at ${tip}`);
-        commit = await git(['commit-tree', `${tip}^{tree}`, '-p', base, '-m', `${subject} (#${n})`]);
-        await preflight();
-        await git(
-          ['push', '-q', 'origin', `${commit}:refs/heads/${trunk}`],
-          ['blocked', `cannot push ${trunk} to origin; ${trunk} is as it was`],
-        );
-        cleanup = `the change is on origin/${trunk}, but the main checkout did not move; run git pull there, then run celetis --agent <host> land again`;
-        await git(['merge', '-q', '--ff-only', commit], undefined, main);
-        cleanup = open;
-      }
-      const issue = await api<{ state: string }>(`/issues/${n}`);
-      if (issue.state !== 'closed') await closeIssue(n, `Landed on ${trunk}${commit ? ` in ${commit}` : ''}.`);
+    const context: LandingContext = {
+      n,
+      subject,
+      main,
+      trunk,
+      branch,
+      tip,
+      base,
+      checkout,
+      stale,
+      signal,
+      git,
+      gitRaw,
+      api,
+      checkedApi,
+      die,
+      interrupted,
+      stopped,
+      emitError,
+      preflight,
+      setCleanup: (text) => {
+        cleanup = text;
+      },
     };
-
-    const landPr = async () => {
-      const merged = (
-        await checkedApi<Pull[][]>(
-          `/pulls?head={owner}:${encodeURIComponent(branch)}&state=closed&per_page=100`,
-          `cannot list the PRs of ${branch} on GitHub`,
-          { paginate: true },
-        )
-      ).flat();
-      if (merged.some((pull) => pull.merged_at && pull.base.ref === trunk && pull.head.sha === tip)) return;
-      if ((await gitRaw(['merge-tree', '--write-tree', base, tip])).code !== 0)
-        die('repair', `${branch} conflicts with ${trunk}; ${stale}`);
-      const open = (
-        await checkedApi<Pull[][]>('/pulls?state=open&per_page=100', 'cannot list the open PRs on GitHub', {
-          paginate: true,
-        })
-      ).flat();
-      const lane = open.filter((pull) => branchPattern(n).test(pull.head.ref));
-      for (const pull of lane) {
-        if (pull.base.ref !== trunk)
-          die(
-            'blocked',
-            `PR #${pull.number} of #${n} has the base ${pull.base.ref}, not ${trunk}; change its base, or close it: ${pull.html_url}`,
-          );
-      }
-      if (lane.length > 1)
-        die('blocked', `several open PRs match #${n}: ${lane.map((pull) => pull.head.ref).join(' ')}; keep one`);
-      let pull = lane[0];
-      if (pull && pull.head.ref !== branch)
-        die(
-          'blocked',
-          `PR #${pull.number} of #${n} is on ${pull.head.ref}, not on ${branch}; keep one branch: ${pull.html_url}`,
-        );
-      await preflight();
-      await git(
-        ['push', '-q', 'origin', `${tip}:refs/heads/${branch}`],
-        ['blocked', `cannot push ${branch} to origin`],
-      );
-      if (!pull) {
-        await preflight();
-        const created = await checkedApi<{ html_url: string }>('/pulls', `cannot open the PR of ${branch}`, {
-          fields: { base: trunk, head: branch, title: `${subject} (#${n})`, body: `Closes #${n}` },
-        });
-        await writeRefreshHint(main, Number(n));
-        const number = created.html_url.split('/').at(-1) ?? '';
-        if (!/^[0-9]+$/.test(number)) die('blocked', `cannot read the number of the new PR: ${created.html_url}`);
-        pull = {
-          number: Number(number),
-          html_url: created.html_url,
-          head: { ref: branch, sha: tip },
-          base: { ref: trunk, sha: base },
-          merged_at: null,
-        };
-      }
-      const pr = pull.number;
-      const url = pull.html_url;
-      const matches = (pull: Pull | null) =>
-        pull?.head.sha === tip &&
-        pull.head.ref === branch &&
-        pull.base.ref === trunk &&
-        pull.base.sha === base &&
-        !pull.merged_at;
-      let buckets = '';
-      let reruns: number[] = [];
-      let flaky: Check[] = [];
-      const checks = async (quiet = false) =>
-        (
-          await api<{ check_runs: Check[] }[]>(`/commits/${tip}/check-runs?per_page=100`, { paginate: true, quiet })
-        ).flatMap((page) => page.check_runs);
-      const statuses = async (quiet = false) =>
-        (await api<{ statuses: Status[] }[]>(`/commits/${tip}/status?per_page=100`, { paginate: true, quiet })).flatMap(
-          (page) => page.statuses,
-        );
-      const workflows = async (quiet = false): Promise<Workflow[]> =>
-        (
-          await api<{ workflow_runs: Workflow[] }[]>(`/actions/runs?head_sha=${tip}&per_page=100`, {
-            paginate: true,
-            quiet,
-          })
-        ).flatMap((page) => page.workflow_runs);
-      const notGreen = () => die('checks', `PR #${pr} has a check that is not green (${buckets}): ${url}`);
-      const rerunPick = async (): Promise<boolean> => {
-        let red: Check[], status: Status[], runs: Workflow[];
-        try {
-          red = (await checks()).filter(
-            (check) =>
-              check.status === 'completed' &&
-              ['failure', 'timed_out', 'action_required', 'cancelled'].includes(check.conclusion ?? ''),
-          );
-          status = (await statuses()).filter((item) => ['error', 'failure'].includes(item.state));
-          runs = await workflows();
-        } catch (error) {
-          emitError(error);
-          return notGreen();
-        }
-        if (!red.length || status.length) return notGreen();
-        const ids = new Set<number>();
-        let busy = false;
-        for (const check of red) {
-          if (check.app.slug !== 'github-actions' || !['failure', 'timed_out'].includes(check.conclusion ?? ''))
-            return notGreen();
-          const run = runs.find((run) => run.check_suite_id === check.check_suite.id && run.run_attempt === 1);
-          if (!run) return notGreen();
-          if (run.status !== 'completed') busy = true;
-          ids.add(run.id);
-        }
-        if (busy) {
-          buckets = 'the workflow run of a failed check is not done';
-          return false;
-        }
-        reruns = [...ids];
-        flaky = red;
-        return true;
-      };
-      const green = async (): Promise<0 | 1 | 2> => {
-        const head = await api<Pull>(`/pulls/${pr}`, { quiet: true }).catch(() => null);
-        if (!matches(head)) {
-          buckets = `the PR head or base does not match ${branch} at ${tip} on ${trunk}`;
-          return 1;
-        }
-        for (const id of reruns) {
-          const run = await api<Workflow>(`/actions/runs/${id}`, { quiet: true }).catch(() => null);
-          if (!run || run.run_attempt < 2 || run.status !== 'completed') {
-            buckets = 'the re-run is not done';
-            return 1;
-          }
-        }
-        const runs = await workflows(true).catch(() => null);
-        let checkRuns: Check[] = [];
-        try {
-          checkRuns = await checks(true);
-          const values = checkRuns.map((check) =>
-            check.status !== 'completed'
-              ? 'pending'
-              : check.conclusion === 'success'
-                ? 'pass'
-                : ['skipped', 'neutral'].includes(check.conclusion ?? '')
-                  ? 'skipping'
-                  : check.conclusion === 'cancelled'
-                    ? 'cancel'
-                    : ['failure', 'timed_out', 'action_required'].includes(check.conclusion ?? '')
-                      ? 'fail'
-                      : 'pending',
-          );
-          values.push(
-            ...(await statuses(true)).map((status) =>
-              status.state === 'success' ? 'pass' : ['error', 'failure'].includes(status.state) ? 'fail' : 'pending',
-            ),
-          );
-          buckets = [...new Set(values)].sort().join(' ');
-        } catch {
-          buckets = '';
-        }
-        if (buckets === 'pass' || buckets === 'pass skipping') {
-          if (!runs) buckets = 'cannot read the workflow runs';
-          else if (
-            checkRuns.some(
-              (check) =>
-                check.app.slug === 'github-actions' && !runs.some((run) => run.check_suite_id === check.check_suite.id),
-            )
-          )
-            buckets = 'the workflow run of a check is not listed';
-          else if (runs.some((run) => run.status !== 'completed')) buckets = 'the workflow runs are not done';
-          else return 0;
-          return 1;
-        }
-        if (!buckets || buckets.includes('pending')) return 1;
-        if (buckets === 'skipping') die('blocked', `no check ran on PR #${pr}: each check was skipped: ${url}`);
-        if (reruns.length)
-          die('checks', `PR #${pr} has a check that is not green after the re-run (${buckets}): ${url}`);
-        return (await rerunPick()) ? 2 : 1;
-      };
-      const waitGreen = async () => {
-        for (let i = 0; i < 60; i++) {
-          interrupted();
-          const status = await green();
-          if (status !== 1) return status;
-          await new Promise<void>((resolve, reject) => {
-            const done = () => {
-              signal.removeEventListener('abort', stop);
-              resolve();
-            };
-            const timer = setTimeout(done, 15_000);
-            const stop = () => {
-              clearTimeout(timer);
-              reject(new HostError('', stopped()));
-            };
-            signal.addEventListener('abort', stop, { once: true });
-            if (signal.aborted) stop();
-          });
-        }
-        return 1;
-      };
-      console.log(`Waiting up to 15 minutes for the checks of PR #${pr} at ${tip}`);
-      let status = await waitGreen();
-      if (status === 2) {
-        for (const id of reruns) {
-          await preflight();
-          await checkedApi(
-            `/actions/runs/${id}/rerun-failed-jobs`,
-            `GitHub refused the re-run of the failed checks of PR #${pr}: ${url}`,
-            { silent: true, method: 'POST' },
-          );
-        }
-        console.log(`Waiting up to 15 more minutes for the re-run of the failed checks of PR #${pr} at ${tip}`);
-        status = await waitGreen();
-      }
-      if (status !== 0)
-        die(
-          'blocked',
-          `the checks of PR #${pr} did not finish in 15 minutes${reruns.length ? ' after the re-run' : ''} (${buckets || 'no check runs'}): ${url}`,
-        );
-      await preflight();
-      if ((await green()) !== 0) notGreen();
-      checkPull = async () => {
-        if (!matches(await api<Pull>(`/pulls/${pr}`))) die('repair', `the head or base of PR #${pr} changed; ${stale}`);
-      };
-      await preflight();
-      await checkedApi(`/pulls/${pr}/merge`, `cannot merge PR #${pr} at ${tip}; the PR stays open: ${url}`, {
-        silent: true,
-        method: 'PUT',
-        fields: { merge_method: 'squash', sha: tip },
-      });
-      await writeRefreshHint(main, Number(n));
-      for (const check of flaky)
-        console.log(
-          `land: the check ${check.name} of PR #${pr} failed, then passed on its re-run; look for a flaky test: ${check.details_url}`,
-        );
-    };
-
-    const pullMain = async () => {
-      const fetch = await gitRaw(['fetch', '-q', 'origin', trunk]);
-      const current = fetch.code === 0 ? await gitRaw(['branch', '--show-current'], main) : null;
-      if (current) process.stderr.write(current.stderr);
-      const merge =
-        current?.code === 0 && current.stdout.trimEnd() === trunk
-          ? await gitRaw(['merge', '-q', '--ff-only', `origin/${trunk}`], main)
-          : null;
-      if (merge?.code !== 0)
-        console.log(`land: the main checkout did not move to origin/${trunk}; run git pull on ${trunk} there`);
-    };
+    const mechanism = select(config, context);
     const completeParent = async () => {
       let parent: number;
       try {
@@ -522,11 +253,10 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
         );
       }
     };
-    if (config.landing === 'merge') await landMerge(config.suite);
-    else await landPr();
+    await mechanism.land();
     cleanup = `the change is on ${trunk}, but the removal of ${branch} stopped; run celetis --agent <host> land again`;
     console.log(`land: #${n} is on ${trunk}`);
-    if (config.landing === 'pr') await pullMain();
+    await mechanism.after();
     await completeParent();
     interrupted();
     const deletion = await gitRaw(['push', '-q', 'origin', '--delete', branch]);
