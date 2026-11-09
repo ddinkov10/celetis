@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Config, Host } from './config-core.ts';
-import { exits } from './contract.ts';
+import { exits, stepHeader } from './contract.ts';
 import { isLevel, type Level } from './effort.ts';
 import { HostError } from './errors.ts';
 import { recordEvent } from './events.ts';
@@ -226,20 +226,6 @@ export async function observeSession(
     return 2;
   }
   return 0;
-}
-
-export function stepHeader(facts: StepFacts): string {
-  return [
-    'Celetis step session',
-    '- step session: yes',
-    `- issue: #${facts.issue}`,
-    `- step: ${facts.step}`,
-    `- host: ${facts.host}`,
-    `- main checkout: ${facts.main}`,
-    `- plugin root: ${facts.pluginRoot}`,
-    `- landing: ${facts.landing}`,
-    ...(facts.recovery ? ['- recovery: yes'] : []),
-  ].join('\n');
 }
 
 export async function stepText(facts: StepFacts): Promise<string> {

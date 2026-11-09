@@ -1,14 +1,22 @@
-import { lstat, mkdir, mkdtemp, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { codexRequest } from './codex-app-server.ts';
 import type { Host } from './config-core.ts';
-import { type ExitCode, exits, usage } from './contract.ts';
+import {
+  type ExitCode,
+  exits,
+  pluginContract,
+  pluginContractFile,
+  servedContracts,
+  servedContractsFile,
+  usage,
+} from './contract.ts';
 import { HostError, NotInstalled } from './errors.ts';
 import { installRecorder, markDefect } from './events.ts';
 import { revision } from './fields.ts';
-import { git, programRevision } from './git.ts';
+import { git } from './git.ts';
 import { configHome } from './homes.ts';
 import { requireBun } from './host.ts';
 import { isHost } from './host-names.ts';
@@ -124,7 +132,7 @@ async function claudeRegistrations(records: unknown, scope: unknown, version: un
   return matches;
 }
 
-export async function installation(host: Host, cwd: string): Promise<Installation> {
+async function installation(host: Host, cwd: string): Promise<Installation> {
   const home = await bindUpdateHome(host);
   let siblings: string[] = [];
   let scope: string | undefined;
@@ -325,63 +333,135 @@ function pluginPart({ host, home, root, source, resolvedRef, installed, target }
   return { part: host, home, root, source, ref: resolvedRef, installed, target };
 }
 
+const slow: typeof run = (file, args, options) =>
+  run(file, args, { ...options, timeout: 120_000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } });
+const absent = new Set(['ENOENT', 'ENOTDIR', 'EISDIR']);
+type Scratch = { folder: string | null; fetched: Set<string> };
+
+async function fileOnDisk(path: string): Promise<string | null> {
+  try {
+    return await readFile(path, 'utf8');
+  } catch (error) {
+    if (absent.has((error as NodeJS.ErrnoException).code ?? '')) return null;
+    throw new HostError(`update: cannot read ${path}: ${(error as Error).message}`, exits.blocked);
+  }
+}
+
+async function fileAt(scratch: Scratch, source: string, revision: string, path: string): Promise<string | null> {
+  try {
+    if (!scratch.folder) scratch.folder = await mkdtemp(join(tmpdir(), 'celetis-contract.'));
+    const folder = scratch.folder;
+    const fetched = JSON.stringify([source, revision]);
+    if (!scratch.fetched.has(fetched)) {
+      if (!scratch.fetched.size) await git(['init', '-q'], folder, slow);
+      await git(['fetch', '-q', '--depth', '1', '--no-tags', '--', source, revision], folder, slow);
+      scratch.fetched.add(fetched);
+    }
+    if (!/^100(644|755) blob /.test(await git(['ls-tree', revision, '--', path], folder, slow))) return null;
+    return await git(['cat-file', 'blob', `${revision}:${path}`], folder, slow);
+  } catch (error) {
+    const [first, reason] = (error as Error).message.split('\n');
+    throw new HostError(
+      `update: cannot read ${path} of ${source} at ${short(revision)}: ${reason || first}`,
+      exits.blocked,
+    );
+  }
+}
+
+function pairLines(
+  serves: ReadonlyMap<number, string> | null,
+  target: string,
+  plugins: PluginUpdate[],
+  needs: Map<Host, number | null>,
+  changed: boolean,
+): string[] {
+  const action = `${changed ? '' : 'nothing changed; '}set one compatible source and ref for the parts (plugins/celetis/README.md, "Updates")`;
+  if (!serves) return [`update: the program at ${short(target)} declares no served contract versions; ${action}`];
+  const list = [...serves.keys()].sort((a, b) => a - b).join(', ');
+  return plugins.flatMap(({ host, target: at }) => {
+    const needed = needs.get(host) ?? null;
+    if (needed === null)
+      return [`update: the ${host} plugin at ${short(at)} declares no valid contract version; ${action}`];
+    return serves.has(needed)
+      ? []
+      : [
+          `update: the ${host} plugin at ${short(at)} needs contract ${needed} and the program at ${short(target)} serves ${list}; ${action}`,
+        ];
+  });
+}
+
 async function discoverUpdate(
   cwd: string,
   ownerPid?: number,
+  changed = false,
 ): Promise<{ parts: Part[]; prepared: PreparedUpdate | null; error: string | null }> {
   let program: PreparedUpdate['program'] | null = null;
+  let serves: ReadonlyMap<number, string> | null = null;
   const plugins: PluginUpdate[] = [];
-  const found = [
-    await settle('program', async () => {
-      const installed = await readProgram();
-      if (!installed) return { part: 'program', skipped: 'the celetis program is not installed' };
-      const source = await programSource(installed.root);
-      if (installed.revision !== source.revision)
-        throw new HostError(
-          'update: installed program link and Git revision disagree; repair the program',
-          exits.prerequisite,
-        );
-      const resolved = await remoteTarget(source.source, `refs/heads/${source.branch}`, cwd);
-      program = { installed, source };
-      return {
-        part: 'program',
-        root: installed.root,
-        source: source.source,
-        ref: resolved.ref,
-        installed: source.revision,
-        target: resolved.target,
-      };
-    }),
-  ];
-  for (const host of ['claude', 'codex'] as const)
-    found.push(
-      await settle(host, async () => {
-        const inspected = await inspectPlugin(host, cwd, ownerPid);
-        if (typeof inspected === 'string') return { part: host, skipped: inspected };
-        plugins.push(inspected);
-        return pluginPart(inspected);
+  const needs = new Map<Host, number | null>();
+  const scratch: Scratch = { folder: null, fetched: new Set() };
+  try {
+    const found = [
+      await settle('program', async () => {
+        const installed = await readProgram();
+        if (!installed) return { part: 'program', skipped: 'the celetis program is not installed' };
+        const source = await programSource(installed.root);
+        if (installed.revision !== source.revision)
+          throw new HostError(
+            'update: installed program link and Git revision disagree; repair the program',
+            exits.prerequisite,
+          );
+        const resolved = await remoteTarget(source.source, `refs/heads/${source.branch}`, cwd);
+        const text =
+          source.revision === resolved.target
+            ? await fileOnDisk(join(installed.root, servedContractsFile))
+            : await fileAt(scratch, source.source, resolved.target, servedContractsFile);
+        serves = text === null ? null : servedContracts(text);
+        program = { installed, source };
+        return {
+          part: 'program',
+          root: installed.root,
+          source: source.source,
+          ref: resolved.ref,
+          installed: source.revision,
+          target: resolved.target,
+        };
       }),
-    );
-  const ready = found.filter((part) => 'installed' in part);
-  let error: string | null = null;
-  if (found.some((part) => 'error' in part)) error = 'update: fix the errors above; nothing changed';
-  else if (!program)
-    error =
-      'update: the celetis program is not installed; run the first install of plugins/celetis/README.md, "First install"';
-  else if (!plugins.length)
-    error =
-      'update: no host has Celetis installed; install the plugin as plugins/celetis/README.md, "Wire a product project", says';
-  else if (new Set(ready.map(({ source, ref, target }) => JSON.stringify([source, ref, target]))).size > 1)
-    error = [
-      'update: the parts do not name one source, ref, and revision; nothing changed',
-      ...ready.map((part) => `update: ${part.part} uses ${part.source} ${part.ref} at ${short(part.target)}`),
-    ].join('\n');
-  const target = ready[0]?.target;
-  return {
-    parts: found,
-    prepared: !error && program && target ? { parts: found, program, plugins, target } : null,
-    error,
-  };
+    ];
+    for (const host of ['claude', 'codex'] as const)
+      found.push(
+        await settle(host, async () => {
+          const inspected = await inspectPlugin(host, cwd, ownerPid);
+          if (typeof inspected === 'string') return { part: host, skipped: inspected };
+          const text =
+            inspected.installed === inspected.target
+              ? await fileOnDisk(join(inspected.root, pluginContractFile))
+              : await fileAt(scratch, inspected.source, inspected.target, `plugins/celetis/${pluginContractFile}`);
+          needs.set(host, text === null ? null : pluginContract(text));
+          plugins.push(inspected);
+          return pluginPart(inspected);
+        }),
+      );
+    const first = found[0];
+    const target = first && 'target' in first ? first.target : undefined;
+    let error: string | null = null;
+    if (found.some((part) => 'error' in part))
+      error = `update: fix the errors above${changed ? '' : '; nothing changed'}`;
+    else if (!program || !target)
+      error =
+        'update: the celetis program is not installed; run the first install of plugins/celetis/README.md, "First install"';
+    else if (!plugins.length)
+      error =
+        'update: no host has Celetis installed; install the plugin as plugins/celetis/README.md, "Wire a product project", says';
+    else error = pairLines(serves, target, plugins, needs, changed).join('\n') || null;
+    return {
+      parts: found,
+      prepared: !error && program && target ? { parts: found, program, plugins, target } : null,
+      error,
+    };
+  } finally {
+    if (scratch.folder) await rm(scratch.folder, { recursive: true, force: true });
+  }
 }
 
 export async function inspectUpdate(cwd: string): Promise<UpdateCheck> {
@@ -391,10 +471,6 @@ export async function inspectUpdate(cwd: string): Promise<UpdateCheck> {
     offer: prepared?.parts.some((part) => 'installed' in part && part.installed !== part.target) ? prepared : null,
     error,
   };
-}
-
-export async function parts(cwd: string): Promise<Part[]> {
-  return (await inspectUpdate(cwd)).parts;
 }
 
 async function replaceClaudeMarketplace(
@@ -709,29 +785,9 @@ export const short = (revision: string) => revision.slice(0, 12);
 export function line(part: Part): string {
   if ('error' in part) return `  ${part.part}  error: ${part.error.split('\n')[0]}`;
   if ('skipped' in part) return `  ${part.part}  skipped: ${part.skipped}`;
-  if (part.installed === part.target) return `  ${part.part}  up to date  ${short(part.installed)}`;
-  return `  ${part.part}  ${short(part.installed)} -> ${short(part.target)}`;
-}
-
-export async function requireSameRevision(host: Host, cwd: string, root: string): Promise<string> {
-  const name = host === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'CODEX_HOME';
-  const selected = process.env[name];
-  let installed: string;
-  let plugin: string;
-  try {
-    ({ installed, root: plugin } = await withPluginRead(host, () => installation(host, cwd)));
-  } finally {
-    // bindUpdateHome sets this variable, and a set CLAUDE_CONFIG_DIR makes a step session read another login.
-    if (selected === undefined) delete process.env[name];
-    else process.env[name] = selected;
-  }
-  const program = await programRevision(root);
-  if (installed !== program)
-    throw new HostError(
-      `celetis: the ${host} plugin is at ${short(installed)} and this program is at ${short(program)}; run celetis update, then start the daemon again`,
-      exits.prerequisite,
-    );
-  return plugin;
+  const from = `${part.source} ${part.ref}`;
+  if (part.installed === part.target) return `  ${part.part}  up to date  ${short(part.installed)}  ${from}`;
+  return `  ${part.part}  ${short(part.installed)} -> ${short(part.target)}  ${from}`;
 }
 
 export async function executeUpdate(
@@ -740,7 +796,7 @@ export async function executeUpdate(
   ownerPid: number,
 ): Promise<UpdateResult> {
   const pending: ('program' | Host)[] = offer.plugins
-    .filter((plugin) => plugin.installed !== offer.target)
+    .filter((plugin) => plugin.installed !== plugin.target)
     .map((plugin) => plugin.host);
   if (offer.program.source.revision !== offer.target) pending.push('program');
   const completed: ('program' | Host)[] = [];
@@ -796,13 +852,16 @@ export async function executeUpdate(
       completed.push(part);
       stage({ part, state: 'completed' });
     }
-    const final = await discoverUpdate(process.cwd(), ownerPid);
+    const final = await discoverUpdate(process.cwd(), ownerPid, true);
     if (final.error || !isDeepStrictEqual(final.prepared, expected))
       throw new HostError(
         [
           'update: final installation validation found a changed identity, inventory, or target; check again',
           ...final.parts.map((part) => ('error' in part ? part.error : line(part))),
-        ].join('\n'),
+          final.error,
+        ]
+          .filter(Boolean)
+          .join('\n'),
         exits.blocked,
       );
     return { ok: true, target: offer.target, completed, incomplete: [], error: null };

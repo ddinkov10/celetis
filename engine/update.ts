@@ -3,19 +3,13 @@ import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect } from './lib/events.ts';
 import { requireBun } from './lib/host.ts';
 import { commandInput } from './lib/operation.ts';
-import { executeUpdate, inspectUpdate, line, parts, short, type UpdateCheck } from './lib/updater.ts';
+import { executeUpdate, inspectUpdate, line, short, type UpdateCheck } from './lib/updater.ts';
 
 async function check(cwd: string): Promise<ExitCode> {
-  const found = await parts(cwd);
-  console.log(JSON.stringify(found, null, 2));
-  const [program, ...hosts] = found;
-  if (program && 'installed' in program)
-    for (const host of hosts)
-      if ('installed' in host && host.installed !== program.installed)
-        console.error(
-          `update: the program is at ${program.installed.slice(0, 12)} and the ${host.part} plugin is at ${host.installed.slice(0, 12)}; run celetis update in a terminal`,
-        );
-  return found.some((part) => 'error' in part) ? exits.blocked : exits.done;
+  const checked = await inspectUpdate(cwd);
+  console.log(JSON.stringify(checked.parts, null, 2));
+  if (checked.error !== null) console.error(checked.error);
+  return checked.parts.some((part) => 'error' in part) ? exits.blocked : exits.done;
 }
 
 export async function update(checked: UpdateCheck): Promise<ExitCode> {
@@ -35,7 +29,7 @@ export async function update(checked: UpdateCheck): Promise<ExitCode> {
     console.log(`${summary}\nupdate: Celetis is up to date at ${short(program.target)}`);
     return exits.done;
   }
-  console.log(`Celetis update from ${program.source} ${program.ref}\n${summary}`);
+  console.log(`Celetis update\n${summary}`);
   if (!process.stdin.isTTY || !process.stdout.isTTY)
     throw new HostError(
       'update: run celetis update in an interactive terminal to review and confirm the update',
@@ -49,7 +43,8 @@ export async function update(checked: UpdateCheck): Promise<ExitCode> {
   const result = await executeUpdate(
     offer,
     ({ part, state }) => {
-      if (state === 'completed') console.log(`  ${part}  updated  ${short(offer.target)}`);
+      const done = offer.parts.find((value) => value.part === part);
+      if (state === 'completed' && done && 'target' in done) console.log(`  ${part}  updated  ${short(done.target)}`);
     },
     process.pid,
   );

@@ -668,9 +668,11 @@ The daemon uses the version folder of the program that started it
 for the resolver and entry of each run. Numbered starts, auto-mode starts, and later steps make no update call.
 The form `run resume` keeps its no-update behavior and saved identity.
 Before a step starts, the daemon checks that its required files still exist.
-[Updates](../plugins/celetis/README.md#updates) gives the check of the plugin revision before each
-new step session (`requireSameRevision` of `engine/lib/updater.ts`). On a difference the daemon also
-writes no session record. So the skills, the step text, and the engine of a step session have one revision.
+[Updates](../plugins/celetis/README.md#updates) gives the contract check of the plugin before each
+new step session (`requireContract` of `engine/lib/contract-check.ts`): the program must serve the
+contract version that the plugin of the session's host needs. When it does not, the daemon also
+writes no session record. So the skills, the step text, and the engine of a step session share one
+contract version.
 Known concrete policy conflicts are diagnosed. Running consumers do not reserve the update mutex. Run and exact Resume bind their Codex session to the active
 installed root through a command-only Local marketplace. Native catalog, manifest, and cache
 version checks prove the refresh no-op for Git and local installations. A Git SHA ref alone can
@@ -756,7 +758,7 @@ for the step and the local order includes it, that agent comes first, then the o
 local order in their order; otherwise the effective order is the local order. It passes that order
 to `selectAgent` of `engine/lib/agent-usage.ts`. The default choice takes the first included host
 with no active block; an explicit choice keeps its host and ignores the preference. The preflight
-and the plugin revision check of the selected host run after this selection. A missing executable
+and the contract check of the selected host run after this selection. A missing executable
 or another setup error of a preferred agent stops the start, and no next agent is tried; the
 remedy is a local exclusion of that agent, which then wins. Each step session gets a
 usage attempt. A Claude step gets attempt-local `Stop` and `StopFailure` callbacks through

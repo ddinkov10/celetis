@@ -95,7 +95,7 @@ completion criterion of a skill.
   requested work without update discovery, update reports, update-only approval requests, or
   manual-check advice. For a requested check, follow the host's existing approval procedure and
   report each part (the program, `claude`, `codex`), its `target`, and each
-  difference line, with no claim that the remote query proves a newer revision; the reason of a
+  stop line that follows the JSON on stderr, with no claim that the remote query proves a newer revision; the reason of a
   `skipped` part; and the cause of an `error` part, for example a policy conflict and its required
   action, then continue with no claim that an error or skipped part is current. When the person wants an update,
   give `celetis update` for a normal terminal. Never run it, type its confirmation, or pipe an

@@ -1,6 +1,7 @@
 import { stat } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { type ExitCode, exits, usage } from './lib/contract.ts';
+import { requireContract } from './lib/contract-check.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect, passOn } from './lib/events.ts';
 import { requireBun } from './lib/host.ts';
@@ -8,7 +9,6 @@ import type { Host } from './lib/host-names.ts';
 import { runInteractive } from './lib/interactive.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { childEnv } from './lib/process.ts';
-import { requireSameRevision } from './lib/updater.ts';
 
 const promptFor: Record<Host, (issue: number, plugin: string) => string> = {
   claude: (issue) => `/celetis:assist #${issue}`,
@@ -31,11 +31,10 @@ export async function main(argv: string[]): Promise<ExitCode> {
       'main',
     );
     const main = operation.checkout.main as string;
-    const root = dirname(import.meta.dir);
     process.chdir(main);
     return passOn(
       await runInteractive(operation, async (host) => {
-        const plugin = await requireSameRevision(host, main, root);
+        const plugin = await requireContract(host, main);
         const skill = join(plugin, 'skills/assist/SKILL.md');
         if (!(await stat(skill).catch(() => null))?.isFile())
           throw new HostError(`celetis-assist: cannot read the assistance skill: ${skill}`, exits.prerequisite);

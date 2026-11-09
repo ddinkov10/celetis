@@ -1,3 +1,5 @@
+export { default as contractVersions } from './contract-versions.json' with { type: 'json' };
+
 declare const exitBrand: unique symbol;
 
 export type ExitCode = number & { readonly [exitBrand]: true };
@@ -445,7 +447,7 @@ export const commands: readonly Entry[] = [
         passThrough: sessionCode,
       }),
     ],
-    `Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters \`celetis:intake\` with that request. It creates no issue before the answer and does not start a run. Before the start, it checks that the plugin of the selected host is at the revision of the program, and it exits ${exits.prerequisite} with the line of that check when it is not`,
+    `Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters \`celetis:intake\` with that request. It creates no issue before the answer and does not start a run. Before the start, it checks that this program serves the contract version that the plugin of the selected host needs, and it exits ${exits.prerequisite} with the line of that check when it does not`,
     hosted,
   ),
   entry(
@@ -457,7 +459,7 @@ export const commands: readonly Entry[] = [
         passThrough: sessionCode,
       }),
     ],
-    `Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses \`issue <n> assisted <file>\` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume a run or land. Before the start, it checks that the plugin of the selected host is at the revision of the program, and it exits ${exits.prerequisite} with the line of that check when it is not`,
+    `Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses \`issue <n> assisted <file>\` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume a run or land. Before the start, it checks that this program serves the contract version that the plugin of the selected host needs, and it exits ${exits.prerequisite} with the line of that check when it does not`,
     hosted,
   ),
   entry(
@@ -691,3 +693,67 @@ export const usageText = (command: CommandName, ...detail: string[]): string =>
   [usageLine(command), ...detail, ...(hinted.has(command) ? [updateHint] : [])].join('\n');
 
 export const usage = (command: CommandName, ...detail: string[]): string => `usage: ${usageText(command, ...detail)}`;
+
+export const pluginContractFile = 'contract.json';
+export const servedContractsFile = 'engine/lib/contract-versions.json';
+
+const positiveInteger = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) > 0;
+
+function exactObject(value: unknown, keys: readonly string[]): Record<string, unknown> | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const own = Object.keys(value);
+  return own.length === keys.length && keys.every((key) => own.includes(key))
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function parsed(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+export function pluginContract(text: string): number | null {
+  const record = exactObject(parsed(text), ['contract']);
+  return record && positiveInteger(record.contract) ? record.contract : null;
+}
+
+export function servedContracts(text: string): ReadonlyMap<number, string> | null {
+  const record = exactObject(parsed(text), ['serves']);
+  const entries = record?.serves;
+  if (!Array.isArray(entries) || entries.length === 0) return null;
+  const served = new Map<number, string>();
+  for (const entry of entries) {
+    const each = exactObject(entry, ['contract', 'digest']);
+    if (!each || !positiveInteger(each.contract) || typeof each.digest !== 'string') return null;
+    if (!/^[0-9a-f]{64}$/.test(each.digest) || served.has(each.contract)) return null;
+    served.set(each.contract, each.digest);
+  }
+  return served;
+}
+
+export type StepHeader = Readonly<{
+  issue: number;
+  step: string;
+  host: string;
+  main: string;
+  pluginRoot: string;
+  landing: string;
+  recovery?: boolean;
+}>;
+
+export function stepHeader(facts: StepHeader): string {
+  return [
+    'Celetis step session',
+    '- step session: yes',
+    `- issue: #${facts.issue}`,
+    `- step: ${facts.step}`,
+    `- host: ${facts.host}`,
+    `- main checkout: ${facts.main}`,
+    `- plugin root: ${facts.pluginRoot}`,
+    `- landing: ${facts.landing}`,
+    ...(facts.recovery ? ['- recovery: yes'] : []),
+  ].join('\n');
+}

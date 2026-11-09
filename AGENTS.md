@@ -77,6 +77,15 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
 - Strict types have three environments: runtime commands and server modules;
   browser DOM modules; and the native hook API and its actual globals.
 
+The gate refuses a tree whose plugin (`plugins/celetis/contract.json`) needs a contract version that the
+program does not serve (`engine/lib/contract-versions.json`). It also refuses a change of the declarations
+of `engine/lib/contract.ts` that keeps the digest of the newest served version. The fix is a new version:
+add the printed digest to `engine/lib/contract-versions.json`. At each raise, the maintainer chooses
+whether the old version stays served (the old plugin text still runs with the new program) or goes (it
+cannot). Raise `plugins/celetis/contract.json` too when the plugin text needs the new version. The
+digest covers no prose field (`description`, `help`, `meaning`, `prerequisite`, `writes`).
+[ADR-0090](docs/adr/0090-a-contract-version-replaces-the-same-revision-rule.md) records the rule and the known gaps of the digest.
+
 ## General text
 
 A session reads a skill, the step text, and each line that a script prints inside a product

@@ -7,6 +7,7 @@ import { effectiveOrder, readAgentOrder } from './agent-order.ts';
 import { beginUsageAttempt, readUsage, recordUsage, selectAgent, type UsageTicket } from './agent-usage.ts';
 import type { AgentChoice, Config, Host } from './config-core.ts';
 import { type ExitCode, exits, signalExit } from './contract.ts';
+import { requireContract } from './contract-check.ts';
 import { daemonArgv } from './daemon-start.ts';
 import { defaultLevel, type Level } from './effort.ts';
 import { HostError } from './errors.ts';
@@ -1296,7 +1297,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         const prepared = await preflight(async () => {
           stopped();
           await requireStart(stepHost, current.checkout.cwd);
-          const pluginRoot = await (await import('./updater.ts')).requireSameRevision(stepHost, main, root);
+          const pluginRoot = await requireContract(stepHost, main);
           if (await gone(root)) return null;
           const chosen =
             override === undefined

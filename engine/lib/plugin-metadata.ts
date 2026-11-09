@@ -517,10 +517,6 @@ export async function codexRevision(
 
 export async function codexSessionPin(cwd: string): Promise<string[]> {
   const metadata = await codexPlugin(cwd);
-  const source = metadata.record.marketplaceSource;
-  if (!object(source) || typeof source.source !== 'string')
-    throw new HostError('celetis: native source is missing', exits.prerequisite);
-  await codexRevision(metadata, source.source);
   const args = [
     '-c',
     'marketplaces.celetis.source_type="local"',

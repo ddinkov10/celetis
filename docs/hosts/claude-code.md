@@ -79,8 +79,9 @@ resume runs `claude --resume <id> --effort <level>` with the level of the sessio
 `stepEnv` of `engine/lib/host-claude.ts` removes `CLAUDE_CODE_EFFORT_LEVEL` from the environment
 of the session and of a resume, because Claude Code ranks that variable above `--effort`. A
 settings `env` value of that variable, `maxEffortLevel`, and an organization cap stay with Claude
-Code ([Limits](../../engine/README.md#limits)). The plugin root of the header is the `root` of
-`installation('claude', …)` in `engine/lib/updater.ts`, which `requireSameRevision` returns
+Code ([Limits](../../engine/README.md#limits)). The plugin root of the header is the result of
+`installedRoot('claude', …)` in `engine/lib/plugin-metadata.ts`, resolved with `realpath`, which
+`requireContract` of `engine/lib/contract-check.ts` returns
 (`plugins/celetis/docs/workflow.md`, "How a step runs").
 
 ## Permissions

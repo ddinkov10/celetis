@@ -23,6 +23,8 @@ const parts = (value: unknown) => Array.isArray(value) && value.every(part) && n
 
 export function isPreparedUpdate(value: unknown): value is PreparedUpdate {
   if (!object(value) || !sha(value.target) || !isParts(value.parts) || !object(value.program)) return false;
+  const target = (value.parts as Record<string, unknown>[]).find((entry) => entry.part === 'program')?.target;
+  if (target !== value.target) return false;
   const { installed, source } = value.program;
   if (
     !object(installed) ||
@@ -43,7 +45,7 @@ export function isPreparedUpdate(value: unknown): value is PreparedUpdate {
         isHost(plugin.host) &&
         ['home', 'root', 'source', 'ref', 'resolvedRef'].every((key) => text(plugin[key])) &&
         sha(plugin.installed) &&
-        plugin.target === value.target &&
+        sha(plugin.target) &&
         (plugin.scope === undefined || text(plugin.scope)) &&
         strings(plugin.siblings),
     ) && new Set(value.plugins.map((plugin) => plugin.host)).size === value.plugins.length

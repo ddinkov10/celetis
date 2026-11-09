@@ -96,7 +96,7 @@ completion criterion of a skill.
   requested work without update discovery, update reports, update-only approval requests, or
   manual-check advice. For a requested check, follow the host's existing approval procedure and
   report each part (the program, \`claude\`, \`codex\`), its \`target\`, and each
-  difference line, with no claim that the remote query proves a newer revision; the reason of a
+  stop line that follows the JSON on stderr, with no claim that the remote query proves a newer revision; the reason of a
   \`skipped\` part; and the cause of an \`error\` part, for example a policy conflict and its required
   action, then continue with no claim that an error or skipped part is current. When the person wants an update,
   give \`celetis update\` for a normal terminal. Never run it, type its confirmation, or pipe an
@@ -149,7 +149,6 @@ completion criterion of a skill.
 - **Session recovery.** Give the person \`codex resume --no-daemon <session-id>\` from the main
   checkout, or reopen that exact chat in the app. An unknown session ID is a setup gap.
 `;
-
 // engine/lib/contract.ts
 var exitClasses = [
   { code: 0, name: "done", meaning: "The act completed, or it had no change to make." },
@@ -371,13 +370,13 @@ var commands = [
       ...helped(6, "Starts a fresh session that asks for your request before intake."),
       passThrough: sessionCode
     })
-  ], `Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters \`celetis:intake\` with that request. It creates no issue before the answer and does not start a run. Before the start, it checks that the plugin of the selected host is at the revision of the program, and it exits ${exits.prerequisite} with the line of that check when it is not`, hosted),
+  ], `Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters \`celetis:intake\` with that request. It creates no issue before the answer and does not start a run. Before the start, it checks that this program serves the contract version that the plugin of the selected host needs, and it exits ${exits.prerequisite} with the line of that check when it does not`, hosted),
   entry("assist", true, [
     form("assist <n>", [], {
       ...helped(7, "Starts fresh interactive assistance for an issue in the main checkout."),
       passThrough: sessionCode
     })
-  ], `Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses \`issue <n> assisted <file>\` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume a run or land. Before the start, it checks that the plugin of the selected host is at the revision of the program, and it exits ${exits.prerequisite} with the line of that check when it is not`, hosted),
+  ], `Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses \`issue <n> assisted <file>\` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume a run or land. Before the start, it checks that this program serves the contract version that the plugin of the selected host needs, and it exits ${exits.prerequisite} with the line of that check when it does not`, hosted),
   entry("visual", true, [
     form("visual <n> <sha>", [], {
       ...helped(8, "Starts a fresh session that makes the visual of a landed commit."),

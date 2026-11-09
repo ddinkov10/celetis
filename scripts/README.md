@@ -20,6 +20,9 @@ rules of the gate, the build, and the pin installer for a change.
 - `checkContract`: each `celetis` form and each exit code of the agent text against
   `engine/lib/contract.ts` (ADR-0079 and ADR-0084).
 - `checkImports`: the import rules of `engine/` (ADR-0081 and ADR-0087).
+- `checkContractVersion`: the contract version of the plugin against the served versions, and
+  the digest of the declarations of `engine/lib/contract.ts`
+  ([`AGENTS.md`](../AGENTS.md#verify-gate) gives the rule, ADR-0090).
 - The tracked-test check (ADR-0029).
 - The generated files of the build.
 

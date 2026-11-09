@@ -1,14 +1,32 @@
 import { readFile, realpath } from 'node:fs/promises';
 import { dirname, join, posix } from 'node:path';
 import {
+  type CommandName,
+  capPrefix,
   classOf,
   commands,
   type DeclaredClass,
+  dispatchStatuses,
   type Entry,
+  exitClasses,
+  type Flag,
   type Form,
   formText,
+  issueActs,
+  headings as issueHeadings,
+  issueStateKeys,
   labels,
   launcherForms,
+  marker,
+  pluginContract,
+  pluginContractFile,
+  servedContracts,
+  servedContractsFile,
+  setupStatusClosing,
+  stepHeader,
+  updateHint,
+  usageText,
+  worktreePathLine,
 } from '../engine/lib/contract.ts';
 import { entryParts } from '../engine/lib/entry-text.ts';
 import { HostError } from '../engine/lib/errors.ts';
@@ -612,6 +630,80 @@ export const bindings = (files: ReadonlyMap<string, string>): readonly Binding[]
 
 export const checkContract = (files: ReadonlyMap<string, string>): string[] => scan(files).errors;
 
+const flagShape = ({ name, value, optional }: Flag) => ({ name, value: value ?? null, optional });
+const formShape = ({ words, flags, passThrough }: Form) => ({
+  words,
+  flags: flags.map(flagShape),
+  passThrough: passThrough !== undefined,
+});
+
+export function contractDigest(): string {
+  const header = {
+    issue: 1,
+    step: '<step>',
+    host: '<host>',
+    main: '<main>',
+    pluginRoot: '<plugin>',
+    landing: '<landing>',
+  };
+  const canonical = {
+    exits: exitClasses.map(({ code, name }) => [code, name]),
+    labels,
+    headings: issueHeadings,
+    markers: [marker('general'), marker('during-the-build')],
+    keys: issueStateKeys,
+    statuses: dispatchStatuses,
+    lines: [
+      capPrefix,
+      updateHint,
+      setupStatusClosing('<main>'),
+      worktreePathLine('<path>'),
+      stepHeader(header),
+      stepHeader({ ...header, recovery: true }),
+    ],
+    commands: commands
+      .map(({ command, agent, internal, exits, forms }) => ({
+        command,
+        agent,
+        internal: internal ?? false,
+        exits,
+        forms: forms.map(formShape),
+      }))
+      .map((entry) => JSON.stringify(entry))
+      .sort(),
+    launcher: launcherForms.map(formShape),
+    acts: Object.entries(issueActs)
+      .map(([name, { words, flags, argument }]) => ({ name, words, flags: flags.map(flagShape), argument }))
+      .sort((a, b) => (a.name < b.name ? -1 : 1)),
+    usage: [...new Set<CommandName>(commands.map(({ command }) => command))]
+      .sort()
+      .map((command) => usageText(command)),
+  };
+  return new Bun.CryptoHasher('sha256').update(JSON.stringify(canonical)).digest('hex');
+}
+
+export function checkContractVersion(files: ReadonlyMap<string, string>): string[] {
+  const pluginFile = `${plugin}${pluginContractFile}`;
+  const needs = pluginContract(files.get(pluginFile) ?? '');
+  if (needs === null)
+    return [`verify: contract version: ${pluginFile} declares no valid contract version; write { "contract": <n> }`];
+  const served = servedContracts(files.get(servedContractsFile) ?? '');
+  if (served === null) return [`verify: contract version: ${servedContractsFile} declares no valid served versions`];
+  const versions = [...served.keys()].sort((a, b) => a - b);
+  const newest = versions[versions.length - 1] as number;
+  const errors: string[] = [];
+  if (!served.has(needs))
+    errors.push(
+      `verify: contract version: the plugin needs contract ${needs} and the program serves ${versions.join(', ')}; serve ${needs} in ${servedContractsFile}, or set ${pluginFile} to a served version`,
+    );
+  const digest = contractDigest();
+  if (served.get(newest) !== digest)
+    errors.push(
+      `verify: contract version: the declarations of engine/lib/contract.ts changed, and contract ${newest} records another digest; raise the contract version: add { "contract": ${newest + 1}, "digest": "${digest}" } to ${servedContractsFile}, and set ${pluginFile} to ${newest + 1} when the plugin text needs it`,
+    );
+  return errors;
+}
+
 export async function main(argv: string[]): Promise<number> {
   try {
     const { args, explicit } = commandInput(argv);
@@ -674,7 +766,12 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
         unknown = true;
       }
     }
-    const textErrors = [...checkCitations(texts), ...checkContract(texts), ...checkImports(texts)];
+    const textErrors = [
+      ...checkCitations(texts),
+      ...checkContract(texts),
+      ...checkImports(texts),
+      ...checkContractVersion(texts),
+    ];
     for (const line of textErrors) console.error(line);
     if (unknown || textErrors.length) {
       console.log('verify: FAIL');

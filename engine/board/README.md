@@ -127,7 +127,7 @@ starts the daemon in the main checkout from each checkout of the repository, and
 **Open work during updates.** The status bar keeps one update control after the agent order.
 **Check for updates** starts discovery in one press. **Checking…** retains focus and ignores
 another press. **Up to date** reports that the installed program and registered plugins match
-the configured target; it does not mean that an open agent session has reloaded new code.
+the configured target of each part; it does not mean that an open agent session has reloaded new code.
 **Restart needed** (below) shows a daemon that runs another program than the installed one. Press
 **Up to date** for a fresh check. Progress and results use the polite status region,
 without a success toast or current-result dialog. A check does not refresh issues or approve
@@ -140,7 +140,7 @@ the offer ID; the controller keeps its complete identity. A stale offer, conflic
 a new check and decision. The native update locks and validation also apply to this path.
 
 The nonmodal update dialog sits at the bottom right and keeps the board usable. It shows each
-installed revision and the common target. **Later** or Escape defers that exact offer in this
+installed revision and the target of the program. **Later** or Escape defers that exact offer in this
 tab; **Update available** opens it again. A different offer opens a new dialog.
 **Hide progress** hides the dialog without cancelling the update. **Update in progress** opens
 it again. These choices survive a page reload in tab storage when the browser permits storage.

@@ -135,8 +135,8 @@ Celetis step session
 ```
 
 The plugin root is the host-installed plugin folder that holds the loaded skills, not the version
-folder of the program: `requireSameRevision` of `engine/lib/updater.ts` returns the `root` of
-`installation()`. The step text compares it with the `<plugin>` of the skill entry, and a
+folder of the program: `requireContract` of `engine/lib/contract-check.ts` returns the resolved
+`installedRoot` of the host. The step text compares it with the `<plugin>` of the skill entry, and a
 difference after the resolution of both paths stops the step for setup. The header holds no custom
 text (ADR-0032).
 
