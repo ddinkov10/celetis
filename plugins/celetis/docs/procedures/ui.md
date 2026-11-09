@@ -85,6 +85,11 @@ branch (`<plugin>/docs/issue-tracker.md`, "Branches, PRs, merge"). The prototype
 where the product can give it, as its `AGENTS.md` says. A state that the live data does not show
 gets a fixture in the prototype.
 
+From the lane worktree, `git worktree add -b prototype/<n>-<slug>
+<main>/.claude/worktrees/prototype-<n>-<slug>` checks out the prototype (`<main>` is the main
+checkout). Install there what the dev server of the project needs. A capture script is committed
+with the variants; install a tool that such a script needs with no change to a tracked file.
+
 - **Sub-shape A: an existing screen hosts the variants (preferred).** The variants render on the
   route, window, screen, or command that already exists. Its data, its parameters, and its auth
   stay; only the rendering changes. A new section, card, or step inside an existing screen is
@@ -189,8 +194,9 @@ Do the steps in this order. The build of the variants starts after step 2.
    - the link of each capture comment, and each capture with example data;
    - the verdict and its reason. On the `impeccable` path, the verdict is the lock or the accept of
      the maintainer.
-10. **The cleanup.** Stop the prototype, commit the variants and any capture script, push the
-    branch, and remove the checkout (`<plugin>/docs/issue-tracker.md`, "Branches, PRs, merge").
+10. **The cleanup.** Stop the prototype, commit the variants and any capture script with a
+    message that references `#<n>`, push the branch, and remove the checkout with
+    `git worktree remove` (`<plugin>/docs/issue-tracker.md`, "Branches, PRs, merge").
     Commit no file that the look decision wrote under `.impeccable/`. Before the removal of the
     checkout, remove each such untracked file, so that `git status --porcelain` shows none of
     them. The build of the lane folds the chosen variant into the real code. It writes the variant

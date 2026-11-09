@@ -104,3 +104,4 @@ gate refused a repeated number, and they keep their files.
 | [0083](0083-a-library-starts-a-celetis-process-through-the-program-entry.md) | A library starts a Celetis process through the program entry | [0062](0062-each-session-runs-in-a-tab-that-the-runner-steers.md), [0077](0077-the-master-daemon-hosts-the-board-and-restarts-as-a-successor.md) |  |
 | [0084](0084-the-agent-text-names-engine-outcomes.md) | The agent text names engine outcomes | [0047](0047-skills-load-shared-procedures-on-demand.md), [0050](0050-standalone-engineering-principles-have-canonical-rules.md) |  |
 | [0085](0085-the-plugin-lives-in-plugins-celetis.md) | The plugin lives in plugins/celetis | [0012](0012-the-harness-is-the-plugin-celetis.md) |  |
+| [0086](0086-the-gate-checks-cited-sections-and-link-fragments.md) | The gate checks cited sections and link fragments |  |  |

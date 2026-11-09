@@ -10,13 +10,14 @@ the resolved folders differ: run no step of the skill, and hand the stop to the 
 and the setup action: let the host load the plugin `celetis` only from the plugin root of the
 header, then start the step again.
 
-The issue is the state store (`<plugin>/docs/issue-tracker.md`): every result goes to the issue.
+The issue is the state store (`<plugin>/docs/issue-tracker.md`, "What lives on the issue"): every result goes to the issue.
 This session ends by itself when the issue shows that the step is done and the working tree is
 clean.
 
 1. Follow the skill of the step, including any hand-off the skill names (/celetis:bug hands on to
    plan). When a skill says to run a step in a fresh context, do not start it: the daemon starts
-   it in a fresh session.
+   it in a fresh session. Order the acts of the turn by `<plugin>/docs/procedures/stop.md`, "The
+   act that moves the line".
 2. Ask the human only for a decision that the issue does not hold, for example a type that
    /celetis:triage cannot tell, a state that the spec does not define, the list of states and the
    platform row of a look decision, the references of a component research, whether a bug fix

@@ -1,16 +1,18 @@
 # Issue tracker: GitHub
 
-Issues are the state store for every lane. The issue number `#<n>` is the handle that carries work between commands and sessions; state lives in the issue and the repo, never in chat history. Use the `gh` CLI for each operation apart from the workflow writes of "Conventions" — it infers the repo from the clone, and `{owner}/{repo}` in an API path fills itself in.
+Issues are the state store for every lane. The issue number `#<n>` is the handle that carries work between commands and sessions; state lives in the issue and the repo, never in chat history. The `gh` CLI infers the repo from the clone, and `{owner}/{repo}` in an API path fills itself in.
 
 The state, headings, paths, and branches are shared by both hosts. `/celetis:<skill>` names the
-shared skill; use the selected host's invocation. Skills run each `celetis` command with the
-explicit `--agent claude` or `--agent codex` ([the entry](procedures/entry.md), "The
-contract"). Human terminal and board commands can use the project default. Changing hosts between steps retains
-the same issue and lane checkout; resume always uses the host in the current session record.
+shared skill. Skills run each `celetis` command with the explicit `--agent claude` or `--agent
+codex` ([the entry](procedures/entry.md), "The contract"). Human terminal and board commands can use
+the project default. Changing hosts between steps retains the same issue and lane checkout; resume
+always uses the host in the current session record.
 
 In this document, these names are files of the repository `celetis`, also when a session reads the document inside a product project that has a `docs/` folder and an ADR store of its own: the five documents (`docs/workflow.md`, `docs/issue-tracker.md`, `docs/capability.md`, `docs/procedures/docs-lookup.md`, `docs/procedures/prior-art.md`) and `step-prompt.md` of the plugin folder; a runtime `<name>.ts` of `engine/` or a program of `scripts/` that the text names by its file, which is a file of the program; and each ADR number, which is a record of `docs/adr/` of the repository and not of the product project. Each other path is a path of the product project, apart from a path that starts with `~/` or `/`.
 
 ## Conventions
+
+The skills use these `gh` forms:
 
 - **Create an issue**: `gh issue create --title "..." --body-file <file>` (or `--body "..."` with a heredoc).
 - **Read an issue**: `gh issue view <n> --comments`; for structured output `--json number,title,body,labels,comments`.
@@ -20,10 +22,9 @@ In this document, these names are files of the repository `celetis`, also when a
 - **Labels**: `gh issue edit <n> --add-label "..."` / `--remove-label "..."`.
 - **Close**: `gh issue close <n> --comment "..."`.
 
-Use the `gh` forms above only for the writes that the engine does not read, for example the
-`## Intent` and `## External facts` comments. Each workflow write that the engine reads goes
-through `celetis --agent <host> issue <n> <act>`.
-In this document, `issue <n> <act>` stands for that command. The command reads the issue once,
+The forms above serve the reads and the writes that no act makes; each write that an act makes
+goes through the act ([the entry](procedures/entry.md#the-contract), **GitHub.**).
+In this document, `issue <n> <act>` stands for `celetis --agent <host> issue <n> <act>`. The command reads the issue once,
 checks the prerequisite of the act with the rules of the resolver, and then writes. Epic acts
 also use the protected current-state reads in "Epic completion and repair":
 
@@ -65,8 +66,7 @@ also use the protected current-state reads in "Epic completion and repair":
   from the readiness pair. A partial failure can leave both labels; exit 6 names the repair and
   never reports success. The maintainer or verified assistance clears `ready-for-human`.
   `assisted` preserves unrelated labels, including a pre-existing `ready-for-agent`, and build
-  state. A repeated act with no applicable block refuses with exit 3 before writing. After a
-  partial write, read current state and keep the required human repair; do not blindly replay.
+  state. A repeated act with no applicable block refuses with exit 3 before writing.
 - `state` prints the facts that the engine reads, one per line: `lane:`, `line:` (the resolver
   line), `build:` (`none`, `planned`, `built`), `plan:` (the id of
   the current `## Plan` comment, or `none`), `open:` (the kind, the comment id, and the missing
@@ -107,15 +107,14 @@ record their change; later approvals update existing current project documentati
 [Current behavior documentation](procedures/behavior-documentation.md), without rewriting those
 historical records. Local `docs/superpowers/` files remain scratch.
 
-- **Runtime evidence** — an ordinary comment whose first line does not start with `## ` holds
-  the tested source, actual target, both confirmation links, and scenario outcomes/oracles, or
-  links a durable report. [Runtime verification](procedures/runtime-verification.md) defines
-  the evidence and its lifetime. Publish it before `## Built` or `## Before landing`. It changes
-  no resolver state, clears no refusal, and does not replace `## Human steps done`. Apply its
-  [Usage-limit exception](procedures/runtime-verification.md#usage-limit-exception) before creating
-  a new quota-only hold; its report keeps each incomplete host check BLOCKED. When the plan has an
-  acceptance mapping, the report includes each criterion's outcome, separate check results, evidence,
-  and mapping corrections under [Acceptance coverage](procedures/acceptance-coverage.md#reporting).
+- **Runtime evidence** — an ordinary comment whose first line does not start with `## ` holds the
+  tested source, actual target, both confirmation links, and scenario outcomes/oracles, or links a
+  durable report. [Runtime verification](procedures/runtime-verification.md) defines the evidence
+  and its lifetime. It changes no resolver state, clears no refusal, and does not replace `## Human
+  steps done`. The [Usage-limit exception](procedures/runtime-verification.md#usage-limit-exception)
+  is the rule of a quota hold. When the plan has an acceptance mapping, the report includes each
+  criterion's outcome, separate check results, evidence, and mapping corrections under [Acceptance
+  coverage](procedures/acceptance-coverage.md#reporting).
 - **Intent** — `/celetis:intake` writes the intent template as the body of a new issue, or as a comment headed `## Intent` on an existing one. A reporter's body is never rewritten by intake.
 - **Captured** — `/celetis:capture` posts the work that a chat decided as a comment headed `## Captured`, with the parts `### Decided`, `### Plan`, and `### Open` ([The capture record](procedures/capture.md)). It is a source, like an intent, and it changes no resolver state. It is posted only while the issue decides a Run of `triage`, `specify`, `bug`, or `plan` and `issue <n> state` prints `refusal: none`, so it never ends a current `## Landing refused`. `specify`, `bug`, and `plan` read the newest one as the person's answers and still run each of their checks; a published spec, root cause, or plan binds over it.
 - **Effort** — the step before records the effort level of the next step with `issue <n> effort <step> <level> <file>`: a comment whose first line is exactly `Effort: <step> <level>`, then an empty line, then the reason from the file. `<level>` is `low`, `medium`, `high`, `xhigh`, or `max`. `triage` decides the first lane step (`specify`, `bug`, `chore`, or `hotfix`), `specify` and `bug` decide `plan` (a `bug` session normally writes the plan in the same turn, so the decision of `bug` applies only to a `plan` step that starts in a new session), and `plan` decides `implement`. Nothing decides `triage`: the act refuses it, and the read ignores a `triage` comment. The act needs no lane label, because `triage` decides before it routes the issue. For a `run` line, the resolver reads the newest comment whose first line has this form for the step of that line; its decider is the step before in the current lane, so a `plan` decision keeps its level after a change between `bug` and `feature`. A first line with another form (a trailing space, more text, another letter case, or a level that is not one of the five) is not a decision, and a comment for another step has no effect. With no decision, the level is `high`. The first line is not a `## ` heading, so the heading reads of the resolver ignore the comment.
@@ -140,11 +139,10 @@ The main checkout's `.celetis.yaml` owns repository setup (ADR-0015).
 Trunk-based. Every issue is its own work item: one lane branch off the trunk, landed by `celetis --agent <host> land` with the `landing` field of the main checkout's `.celetis.yaml`: `pr` is one PR back to the trunk; `merge` is one squash commit on the trunk, with no PR. The trunk is the default branch of the repository on GitHub.
 
 - Branch: `feat/<n>-<slug>` (feature), `fix/<n>-<slug>` (bug), `hotfix/<n>-<slug>`, `chore/<n>-<slug>`.
-- Worktree: every command that works on the issue's branch (the four lanes, `specify`, `plan`, `implement`) runs `celetis --agent <host> worktree <n>` (`<n>` or `#<n>`) and binds the exact path it prints, by the host part of [the lane worktree](procedures/worktree.md). Every file, command, instruction read, and child brief then uses that lane path. The script re-enters the issue's local branch; else it checks out the head branch of the issue's open PR (`feat|fix|hotfix|chore/<n>-…`), tracking `origin`; else it creates `<prefix>/<n>-<slug>` off the freshly fetched trunk of `origin`, the prefix from the lane label and the slug from the title (lowercased, each run of other characters than `a-z0-9` turned into one `-`, trimmed of `-` at both ends, at most 30 characters cut at a `-` or hard-cut at 30 when the first word alone is longer, `issue` when empty). On each entry, it reads the name of the trunk from GitHub and fetches the trunk from `origin`; a read or a fetch that fails refuses the entry. Before the setup, it brings an existing branch up to that trunk: a fast-forward when the branch has no commit of its own, else a merge of the trunk with the subject `Merge origin/<trunk> into <branch> (#<n>)`. A branch that contains the trunk does not change. When the branch needs an update and its worktree has uncommitted changes, the script refuses and leaves the branch at its tip: commit the changes first. When the merge stops on a conflict, the script aborts the merge, keeps the lane checkout (also one that this run created), prints its path, and exits 4, with the branch at its tip, a clean tree, and no merge in progress: merge the trunk there with the same subject, commit, and run the script again ([A conflict with the trunk](procedures/worktree.md#a-conflict-with-the-trunk)). When the merge fails for another cause, the script refuses with exit 6 and removes a checkout and a branch that this run created: merge the trunk into the branch by hand, then run the step again. It checks the branch out in `.claude/worktrees/<n>-<slug>` and runs the worktree setup of the project (`docs/workflow.md`, "The config and the custom parts"). It refuses an epic, an issue with no lane label (run `/celetis:triage #<n>`), an issue with more than one lane label, and an issue that two branches or two open PRs match. Every later step runs there, so the main checkout never changes branch and flows run side by side. `celetis --agent <host> land` removes the worktree, the lane branch, and the prototype branches after the landing. `celetis --agent <host> worktree --remove <n>` removes them in the two cases with no landing by the script. After a merge by hand: a PR of the branch is merged and the local tip is that PR's head. Without a merge: no PR of the branch is open or merged, the issue is closed or carries `epic`, and every local commit is on an `origin` remote-tracking branch other than the issue's prototype branches (push the branch when the script names it); `specify` runs it after it rejects a design or makes the issue an epic. The script refuses an open issue without `epic` whose branch has no merged PR. If a session-end prompt offers to remove the worktree, keep it; only `celetis --agent <host> land` and `celetis --agent <host> worktree --remove` remove a lane worktree.
-- Prototype: a look decision's prototype lives on `prototype/<n>-<slug>`, never on the lane branch. It is not a lane branch: `celetis --agent <host> worktree` does not take it, it is never merged, and it never gets a PR. From the lane worktree, `git worktree add -b prototype/<n>-<slug> <main>/.claude/worktrees/prototype-<n>-<slug>` checks it out (`<main>` is the main checkout). Install there what the dev server of the project needs. A capture script is committed with the variants; install a tool that such a script needs with no change to a tracked file. The captures stay in `docs/superpowers/captures/` of that checkout, which Git ignores, so the branch holds no capture ([ui.md](procedures/ui.md), "Captures"). After the pick, stop its dev server, commit the variants, push the branch, and remove the checkout with `git worktree remove`. The branch stays until the lane is removed: `celetis --agent <host> land`, or `celetis --agent <host> worktree --remove <n>` (`specify` after a rejection or an epic), deletes it with any leftover checkout, locally and on `origin`.
-- Every commit message references `#<n>`.
-- Landing prerequisites: before each push, PR, re-run of a check, and merge, `celetis --agent <host> land` resolves the issue by "Resolving an issue's state" and refuses it unless the result is a `chore` or `hotfix` step, a **built** change, or **land by hand**. So it refuses a closed issue, an epic, no lane label or two, `needs-info` or `ready-for-human` on the issue, an open human step, and a `feature` or `bug` change that is not built. A change that is already on the trunk skips this check, so a second run completes its cleanup. The exit status names the result, and so does the first word after `land: `: 0 landed (also with a warning), 1 an internal error, 2 `usage`, 3 `prerequisite`, 4 `repair`, 5 `checks`, 6 `blocked`, 7 `cleanup` (the change is on the trunk and the cleanup stopped: run the script again), 128+n a signal. `docs/workflow.md`, "A landing", gives the examples of each class.
-- The PR body carries `Closes #<n>`. Merges are squash-only (`gh pr merge --squash`). The PR title is the squash subject of a PR with two or more commits, so it is a Conventional Commit `<type>(<area>): <what> (#<n>)`: `celetis --agent <host> land` refuses a subject that is no Conventional Commit subject, and it gives the subject, with `(#<n>)` after it, to the commit on the trunk (`merge`) and to the title of the PR that it opens (`pr`). A product project with the landing `pr` keeps the repository setting `squash_merge_commit_title` at `COMMIT_OR_PR_TITLE`: with that value, for a PR with one commit, GitHub takes the subject of that commit and adds the PR number, so that commit carries the Conventional Commit subject of the change. An agent lands a change only with `celetis --agent <host> land <n> '<subject>'`, which its build step runs (`/celetis:implement`, `/celetis:chore`). With `pr` it pushes the branch, opens the PR when none is open (title `<subject> (#<n>)`, body `Closes #<n>`), and squash-merges it at the commit that the checks ran on, only when every check passed or was skipped and at least one check passed (ADR-0001, ADR-0008). Each invocation waits for workflow completion before it accepts green checks, including when a dependent job has no check row yet. When each red check is a check of GitHub Actions that failed or timed out, it first re-runs the failed jobs of their workflow runs, once for each commit, and waits up to 15 more minutes (ADR-0023). The README gives the Claude and Codex permission rules for the permitted landing forms and direct-merge restriction. Their scope does not replace the script checks; the maintainer can still merge by hand.
+- Worktree: every command that works on the issue's branch (the four lanes, `specify`, `plan`, `implement`) runs `celetis --agent <host> worktree <n>` (`<n>` or `#<n>`) and binds the exact path it prints, by the host part of [the lane worktree](procedures/worktree.md). The script re-enters the issue's local branch; else it checks out the head branch of the issue's open PR (`feat|fix|hotfix|chore/<n>-…`), tracking `origin`; else it creates `<prefix>/<n>-<slug>` off the freshly fetched trunk of `origin`, the prefix from the lane label and the slug from the title (lowercased, each run of other characters than `a-z0-9` turned into one `-`, trimmed of `-` at both ends, at most 30 characters cut at a `-` or hard-cut at 30 when the first word alone is longer, `issue` when empty). On each entry, it reads the name of the trunk from GitHub and fetches the trunk from `origin`; a read or a fetch that fails refuses the entry. Before the setup, it brings an existing branch up to that trunk: a fast-forward when the branch has no commit of its own, else a merge of the trunk with the subject `Merge origin/<trunk> into <branch> (#<n>)`. A branch that contains the trunk does not change. When the branch needs an update and its worktree has uncommitted changes, the script refuses and leaves the branch at its tip: commit the changes first. When the merge stops on a conflict, the script aborts the merge, keeps the lane checkout (also one that this run created), prints its path, and exits 4, with the branch at its tip, a clean tree, and no merge in progress ([A conflict with the trunk](procedures/worktree.md#a-conflict-with-the-trunk)). When the merge fails for another cause, the script refuses with exit 6 and removes a checkout and a branch that this run created: merge the trunk into the branch by hand, then run the step again. It checks the branch out in `.claude/worktrees/<n>-<slug>` and runs the worktree setup of the project (`docs/workflow.md`, "The config and the custom parts"). It refuses an epic, an issue with no lane label (run `/celetis:triage #<n>`), an issue with more than one lane label, and an issue that two branches or two open PRs match. Every later step runs there, so the main checkout never changes branch and flows run side by side. `celetis --agent <host> land` removes the worktree, the lane branch, and the prototype branches after the landing. `celetis --agent <host> worktree --remove <n>` removes them in the two cases with no landing by the script. After a merge by hand: a PR of the branch is merged and the local tip is that PR's head. Without a merge: no PR of the branch is open or merged, the issue is closed or carries `epic`, and every local commit is on an `origin` remote-tracking branch other than the issue's prototype branches (push the branch when the script names it); `specify` runs it after it rejects a design or makes the issue an epic. The script refuses an open issue without `epic` whose branch has no merged PR. Only `celetis --agent <host> land` and `celetis --agent <host> worktree --remove` remove a lane worktree.
+- Prototype: a look decision's prototype lives on `prototype/<n>-<slug>`, never on the lane branch. It is not a lane branch: `celetis --agent <host> worktree` does not take it, it is never merged, and it never gets a PR. Its checkout and variants: [ui.md](procedures/ui.md), "Where the variants live". The captures stay in `docs/superpowers/captures/` of that checkout, which Git ignores, so the branch holds no capture ([ui.md](procedures/ui.md), "Captures"). The branch stays until the lane is removed: `celetis --agent <host> land`, or `celetis --agent <host> worktree --remove <n>` (`specify` after a rejection or an epic), deletes it with any leftover checkout, locally and on `origin`.
+- Landing prerequisites: before each push, PR, re-run of a check, and merge, `celetis --agent <host> land` resolves the issue by "Resolving an issue's state" and refuses it unless the result is a `chore` or `hotfix` step, a **built** change, or **land by hand**. So it refuses a closed issue, an epic, no lane label or two, `needs-info` or `ready-for-human` on the issue, an open human step, and a `feature` or `bug` change that is not built. A change that is already on the trunk skips this check, so a second run completes its cleanup. The exit status names the result, and so does the first word after `land: `: 0 landed (also with a warning), 1 an internal error, 2 `usage`, 3 `prerequisite`, 4 `repair`, 5 `checks`, 6 `blocked`, 7 `cleanup`, 128+n a signal. `docs/workflow.md`, "A landing", gives the examples of each class.
+- The PR body carries `Closes #<n>`. Merges are squash-only (`gh pr merge --squash`). The PR title is the squash subject of a PR with two or more commits, so it is a Conventional Commit `<type>(<area>): <what> (#<n>)`: `celetis --agent <host> land` refuses a subject that is no Conventional Commit subject, and it gives the subject, with `(#<n>)` after it, to the commit on the trunk (`merge`) and to the title of the PR that it opens (`pr`). A product project with the landing `pr` keeps the repository setting `squash_merge_commit_title` at `COMMIT_OR_PR_TITLE`: with that value, for a PR with one commit, GitHub takes the subject of that commit and adds the PR number, so that commit carries the Conventional Commit subject of the change. The build step (`/celetis:implement`, `/celetis:chore`) lands a change with `celetis --agent <host> land <n> '<subject>'`. With `pr` it pushes the branch, opens the PR when none is open (title `<subject> (#<n>)`, body `Closes #<n>`), and squash-merges it at the commit that the checks ran on, only when every check passed or was skipped and at least one check passed (ADR-0001, ADR-0008). Each invocation waits for workflow completion before it accepts green checks, including when a dependent job has no check row yet. When each red check is a check of GitHub Actions that failed or timed out, it first re-runs the failed jobs of their workflow runs, once for each commit, and waits up to 15 more minutes (ADR-0023). The README gives the Claude and Codex permission rules for the permitted landing forms and direct-merge restriction. Their scope does not replace the script checks; the maintainer can still merge by hand.
 
 ## Epics
 
@@ -160,22 +158,9 @@ A combined or unresolved parent stays open; the next action is `/celetis:accept-
 The maintainer also uses that explicit skill after a last child closes by hand. Pending children
 alone create no human hold. Parent acceptance cannot undo child landing or block its cleanup.
 
-Agree scope through [The epic](procedures/epic.md). Inspect existing children before creating
-or linking missing ones. The sub-issues API takes the child's database ID, not its issue number:
-
-```bash
-url=$(gh issue create --label enhancement --title "..." --body "...")
-cid=$(gh api "repos/{owner}/{repo}/issues/${url##*/}" --jq .id)
-gh api --method POST "repos/{owner}/{repo}/issues/<epic>/sub_issues" -F sub_issue_id="$cid"
-```
-
-- **List all children**: `gh api --paginate repos/{owner}/{repo}/issues/<epic>/sub_issues --jq '.[] | "\(.html_url) \(.state) \(.title)"'`.
-- **Find a child's parent**: `gh api repos/{owner}/{repo}/issues/<n>/parent --jq .number` (404 when standalone). Read the parent's body before designing a child — its decisions bind.
-
-Publish the complete preserved parent body with `issue <n> epic <file>` after the actual child
-URLs are known. A later change to acceptance meaning requires a recorded maintainer decision.
-Repair issues keep the failed parent criterion and evidence in their brief. Read and reuse an
-existing linked repair issue on retries. Acceptance itself changes no retained product code.
+The sub-issues API takes the child's database ID, not its issue number.
+[The epic](procedures/epic.md#the-children) holds the recipe that creates and links a child, and
+the forms that list the children and find a child's parent.
 
 ## Epic acceptance declaration
 
@@ -215,8 +200,8 @@ These complete sections are valid examples:
 ```
 ````
 
-These are exact shapes, with no extension fields. Every string is nonblank and NUL-free. Use
-`None.` for absent setup or human preparation. Combined scenarios and each contributing-child
+These are exact shapes, with no extension fields. Every string is nonblank and NUL-free. An absent
+setup or human preparation is `None.` Combined scenarios and each contributing-child
 list are nonempty. Names are unique descriptive names. `criterion` quotes or locates the approved
 parent outcome; separate observations need separate scenarios. Child references are canonical
 full issue URLs from the current child list. Unrelated independent children need no scenario.
@@ -279,11 +264,10 @@ one strict JSON file with exactly these fields:
 }
 ```
 
-The example identities are illustrative; copy the current repository, parent, hash, and exact
-child snapshot from `epic-state`. `review` records this session's nonblank identity and current
-ISO timestamp; it attests nothing. Target names are unique. `source.commit` is the full commit;
-`dirty: true` additionally requires `snapshot`, a durable reference to the retained diff and
-input manifest. `dirty: false` has no snapshot field. `runtime` identifies the actual target,
+The example identities are illustrative. `review` records this session's nonblank identity and
+current ISO timestamp; it attests nothing. Target names are unique. `source.commit` is the full
+commit; `dirty: true` additionally requires `snapshot`, a durable reference to the retained diff
+and input manifest. `dirty: false` has no snapshot field. `runtime` identifies the actual target,
 and the two loading fields reference durable evidence.
 
 Results cover every declared scenario exactly once, with no extras. A PASS has exactly
@@ -294,12 +278,8 @@ Diagnostic results have exactly `scenario`, `result` (`FAIL`, `BLOCKED`, `unrun`
 `reason`, and nonempty `reports`. None permits completion. Unknown fields and duplicate keys
 are refused throughout. Referenced comments must exist in current parent history.
 
-The session checks semantic coverage, evidence truth, actual loaded targets, and evidence
-lifetime under [Runtime verification](procedures/runtime-verification.md). The engine checks
-shape, coverage, references, and current issue inputs; shared credentials attest neither
-authorship nor runtime truth. Publish the ordinary runtime report before submitting. Keep each
-criterion part and each mixed result. A child closed as `not_planned` cannot remove a required
-result. The usage-limit exception may permit child landing, but never incomplete parent closure.
+The engine checks shape, coverage, references, and current issue inputs; shared credentials
+attest neither authorship nor runtime truth.
 
 ## Epic completion and repair
 
@@ -325,12 +305,8 @@ and scenario order and reference IDs are normalized. A matching parsed historica
 prevents a duplicate publication; a matching text marker does not.
 
 Exit 2 names invalid input; exit 3 names unmet prerequisites or a busy completion lock; exit 6 names
-an access or write failure. For a partial definition write, inspect the actual body and labels. For an
-uncertain report or close, inspect current history and state before retrying. A published record
-with an open parent is partial completion. Repair the specific access or write failure, retain
-valid evidence, and re-enter explicit acceptance for fresh checks. Never bypass the guard with
-a direct close, blindly repeat an uncertain comment, or claim that an unacknowledged write
-failed to reach GitHub. Existing human-repair requirements remain binding.
+an access or write failure. A published record with an open parent is partial completion.
+[The epic](procedures/epic.md#a-partial-write) holds the repair steps.
 
 Acceptance preserves holds and writes `stopped` for a decision, access need, or repair it cannot
 resolve. It writes no `Built` or `Before landing`. Verified assistance can clear the block under
@@ -342,9 +318,9 @@ resolve. It writes no `Built` or `Before landing`. Verified assistance can clear
 A `## Before landing` comment belongs to the build it names. Before re-entry can land that
 build, require a trusted completion report that its required acts and scenarios completed, or a
 removal of `ready-for-human` after that comment; a comment of "During the build", and
-a comment with no marker, need both (below). Check the current build and
-comment; an older clearance does not clear a newer precondition. Label absence alone is not
-completion evidence: a label write can fail.
+a comment with no marker, need both (below). The engine counts only a report or a removal after the
+comment of the current build (below). Label absence alone is not completion evidence: a label write
+can fail.
 
 The engine checks this evidence from the timeline of the issue,
 `gh api --paginate 'repos/{owner}/{repo}/issues/<n>/timeline?per_page=100'` (`factsOf` in
@@ -362,36 +338,20 @@ build". A comment with no marker gets the strict rule of "During the build": a r
 The `unlabeled` event of the timeline identifies `actor`, `created_at`, and `label.name`
 ([GitHub event types](https://docs.github.com/en/rest/using-the-rest-api/issue-event-types)).
 For a general precondition, a later removal of `ready-for-human` is the workflow's
-completion signal, as a trusted completion report is. Assistance supplies completion writes only
-after [Assisted completion](procedures/assisted-completion.md). Without the evidence that the kind of
-the comment needs, keep the change built, restore the human label (`issue <n> ready-for-human`)
-using the existing comment as its reason, and stop. No new approval is needed. Each
-required scenario still needs PASS unless [Usage-limit exception](procedures/runtime-verification.md#usage-limit-exception)
-permits its incomplete coverage. An unrun scenario has no PASS. The exception clears no existing hold
-and changes none of its completion requirements.
+completion signal, as a trusted completion report is.
 
-Workflow clearance is separate from runtime proof. Before skipping a deferred runtime scenario,
-apply [Runtime verification](procedures/runtime-verification.md), "Reports and deferred checks"
-and "Evidence lifetime", even when the resolver reports `open: none`. Label removal supplies no
-build identity or runtime PASS. A completion report must carry or reference the same proof
-as an agent check. Missing or invalidated proof keeps the change built and restores its hold;
-valid, unchanged proof can complete the scenario without repeating it. These are agent
-obligations, not new engine parsing or clearance rules.
+Workflow clearance is separate from runtime proof: label removal supplies no build identity or
+runtime PASS. The agent duties are in [Runtime verification](procedures/runtime-verification.md),
+"Reports and deferred checks", [Assisted completion](procedures/assisted-completion.md), and
+[the landing step](procedures/landing.md), "Step 2: the human precondition".
 
 When a `## Before landing` comment of this build names an act of "During the build", the evidence
 for that act is both: a `## Human steps done` comment after that comment that reports the act, and
 a removal of `ready-for-human` after that comment. One or more such reports can
 cover the acts that the comment names. The next run of `implement` then runs the scenarios that
 waited for the acts, and lands when the runtime procedure permits continuation. For a precondition of the landing, no scenario runs. With
-the reports and the removal, the next run lands. An act of "During the build" with no report that
-no `## Before landing` comment of this build names stops the landing with a new such comment, also
-after an earlier stop of this build. When a strict removal event is missing and the label is
-absent, assistance restores the label before `assisted`; missing only the report needs no
-restoration. Each `gh` call uses shared authentication, so authorship supplies no independent
-attestation. The engine checks shape and timeline state; assistance checks report truth and
-scope. A mixed block retains its holds until all affected requests have evidence. Ordinary lane
-sessions cannot manufacture human contributions. Completion changes no build mark and permits
-no assistance lane continuation or landing.
+the reports and the removal, the next run lands. Each `gh` call uses shared authentication, so
+authorship supplies no independent attestation. The engine checks shape and timeline state.
 
 ## Resolving an issue's state
 

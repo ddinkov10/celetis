@@ -11,8 +11,31 @@
   ],
   "date": "2026-11-09",
   "status": "active",
-  "source": "Final fix wave of ddinkov10/celetis#263\n\nFinal review of ddinkov10/celetis#250, implement step session (coordinator incident)\n\nTask 3 review of #182 (ddinkov10/celetis), controller-confirmed reproduction",
+  "source": "Task 4 of ddinkov10/celetis#269 (implement step, subagent flow), controller Ruling 6 and its correction Ruling 7\n\nFinal fix wave of ddinkov10/celetis#263\n\nFinal review of ddinkov10/celetis#250, implement step session (coordinator incident)\n\nTask 3 review of #182 (ddinkov10/celetis), controller-confirmed reproduction",
   "incidents": [
+    {
+      "id": "9e4a15f4-71c6-45c5-ab17-6f5a62d266ce",
+      "date": "2026-11-09",
+      "action": "The task review of Task 4 showed that the new read-side import check of scripts/verify.ts refused a type query typeof import('../lib/git.ts'). The controller ruled (Ruling 6) that an import( whose previous token is typeof passes, and sent that ruling to the fixer.",
+      "expected": "The approved spec keeps type-only imports allowed and, by maintainer decision Q2, refuses each value import of the nine engine-state modules. A ruling that changes what the check passes covers only the type-position form, or records a maintainer decision for each other form that it passes.",
+      "observed": "The round-1 fix (b45ab7f) followed the ruling. Its scoped re-review reported that const t = typeof import('../lib/git.ts'); also passes, and that this expression loads the module at run time. The ruling had excluded that value form from Q2 with no maintainer decision. The controller corrected it (Ruling 7), and round 2 (2b98533) refuses the expression forms, decided by what Bun.Transpiler scanImports keeps.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "Re-review of fix round 1: The input `const t = typeof import('../lib/git.ts');` gives `[]`. ... The expression `typeof import('x')` loads the module at run time, but the check passes it. Q2 refuses each value import.",
+        "reference": "https://github.com/ddinkov10/celetis/issues/269"
+      },
+      "inference": "Inferred: the ruling was written from the failing input (a type query) and named the token pattern of that input, not each mode that the pattern matches; the same token pattern occurs in an expression position. The carried lesson rule asks for a probe case of each mode that the change can exclude, and the ruling listed none for the expression form. Uncertain: the ruling was written under time pressure inside a review loop; an alternative cause is that the expression form looked absurd enough to ignore.",
+      "diagnosis": [
+        "not-followed"
+      ],
+      "revision": "b45ab7f",
+      "brief": "The round-1 fix brief (task-4-findings.md of the lane workspace) carried the rule plan-condition-must-not-narrow-a-spec-rule and stated the limit 'an expression typeof import(...) (which loads the module at runtime) also passes' as accepted, with no maintainer decision.",
+      "lesson": {
+        "name": "plan-condition-must-not-narrow-a-spec-rule",
+        "revision": "3915b5e",
+        "digest": "32f8889f787aa09d910ce438014c6beb26c96e7d345a26a6f2277e15303bd898"
+      }
+    },
     {
       "id": "26847cec-9749-4680-8b28-da22097f7a17",
       "date": "2026-11-09",
@@ -94,7 +117,7 @@
       "revision": "44d1e65"
     }
   ],
-  "recurrences": 3,
+  "recurrences": 4,
   "reviews": [
     {
       "id": "8385ab4c-cffb-479f-9c23-69fddfe2c2e9",
@@ -139,6 +162,21 @@
         "state": "proposed",
         "detail": "The earlier proposed follow-up stays open and now covers fix briefs too: the existing reviews compare each rule of a plan, a task brief, a repair ruling, or a fix brief that restates the spec with its source text. It needs separate authorization; this review changes no skill or procedure."
       }
+    },
+    {
+      "id": "d563972a-cbc0-4d4e-9f23-2a202672ba15",
+      "requestDigest": "4b1a396e4ad5a2b4a3e81fecb02d1857a0cdc7c35311d1e6f40b3dca2cbbe81b",
+      "date": "2026-11-09",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #264; claude child opus/high\n\nMerge: the proposal states the same rule as the active lesson plan-condition-must-not-narrow-a-spec-rule (a fix brief or a ruling that changes what a check passes quotes the spec rule and gives each mode a probe case with its spec result; a refused form needs a maintainer decision). Its incident was not-followed with that lesson in the brief, so it is a recurrence. The survivor keeps every incident and review of both inputs, and its text adds the #269 incident and the mode list of a new pass condition.",
+      "related": [
+        "a-repair-ruling-that-widens-a-pass-lists-each-mode-it-passes",
+        "plan-condition-must-not-narrow-a-spec-rule"
+      ],
+      "followUp": {
+        "state": "not-needed",
+        "detail": "This merge adds no structural follow-up. The proposed follow-up in the Fix of the survivor stays proposed and needs separate authorization."
+      }
     }
   ]
 }
@@ -147,7 +185,7 @@
 
 ## What happened
 
-Four incidents. In #182, the plan added a link-label condition to the spec's session rule for a
+Five incidents. In #182, the plan added a link-label condition to the spec's session rule for a
 runner foreground. The build followed the plan. A hand-run `celetis-flow --resume <n>` sets no
 link label, so its terminal got no board card. The Task 3 review reproduced it at the
 `sessionsOf` boundary (`hand-run resume, no link label: []`), and fix 6506cd7 also accepts a
@@ -178,6 +216,16 @@ rule of the check, and the fixer reported that the change narrows the spec rule.
 restored the lookbehind and stated the false refusal as an observed limit. The controller's
 final lesson set held this lesson.
 
+In #269, a task review of Task 4 showed that the new read-side import check of
+`scripts/verify.ts` refused a type query `typeof import('../lib/git.ts')`, which the spec allows.
+The controller ruled (Ruling 6) that an `import(` whose previous token is `typeof` passes, and the
+round-1 fix (b45ab7f) followed it. The fix brief carried this lesson and recorded "an expression
+typeof import(...) (which loads the module at runtime) also passes" as an accepted limit, with no
+maintainer decision. The scoped re-review reported that `const t = typeof import('../lib/git.ts');`
+passes and loads the module at run time, while maintainer decision Q2 refuses each value import.
+The controller corrected the ruling (Ruling 7), and round 2 (2b98533) refuses the expression forms
+by what `Bun.Transpiler` `scanImports` keeps.
+
 ## Root cause
 
 Inferred, not established: in #182 the condition was added to hold out a stale status between two
@@ -199,6 +247,11 @@ passes. The lesson was in the controller's lesson set, so this is a further recu
 that was not followed. Alternative: the controller read a path segment as outside a lane branch
 form; the spec text does not support that reading.
 
+In #269, inferred: the ruling named the token pattern of the failing input, not each mode that the
+pattern matches; the same tokens also occur in an expression position. The brief carried this
+lesson, so this is a further recurrence of a rule that was not followed. Uncertain: the expression
+form looked too rare to matter, and the ruling was written inside a review loop.
+
 ## Fix
 
 Proposed prevention (text, not enforced): when a plan states a rule that the spec states, quote
@@ -216,7 +269,10 @@ lose a probe case or a maintainer decision.
 A fix brief that changes what a check refuses or passes, also to remove a false result that a
 reviewer showed, quotes the spec rule of that check next to the finding and names each case that
 the fix moves from refused to passed, or the reverse. A false result that the spec rule itself
-produces becomes a stated limit, or goes to the maintainer for a decision.
+produces becomes a stated limit, or goes to the maintainer for a decision. When the fix makes the
+check pass a pattern, the brief lists each mode that the pattern matches (for example each
+syntactic position of the same tokens), not only the mode of the failing input. A form that the
+spec refuses is never an accepted limit of the fix without a recorded maintainer decision.
 
 This depends on judgment about which modes and rules exist and which wording is a change, so it
 stays a text rule; a structural check would need a machine-readable spec rule, which the project
@@ -231,7 +287,8 @@ probe or a Verify scenario that covers fewer modes than the spec rule names. A r
 how an element opens, takes the focus, or stops, and restates another rule of that element with a
 new condition ("with the focus inside the dialog"). A fix brief that widens a pattern of a check
 ("add `/` to the lookbehind so that a path segment passes") with no quote of the spec rule of
-that check.
+that check. A ruling or a fix brief that states a new pass condition and records a form that the
+spec refuses as an accepted limit.
 
 ## Rule
 
@@ -240,8 +297,10 @@ that the approved spec states (an added condition, a removed case, a narrower sc
 what a check refuses or passes), or changes a mode of an element or an operation that other spec
 rules of that element cover (for example how a dialog opens, or when a process stops). Action: quote each affected spec rule, including each
 other rule of the same element that the changed mode can reach; name every mode, caller, or entry
-point that it covers; and add a probe case for each mode that the change can exclude. Check: each
+point that it covers, and each mode that a new pass condition matches; and add a probe case for
+each mode that the change can exclude or newly pass. Check: each
 excluded mode is one that the spec excludes too, or the plan or the ruling records a maintainer
 decision for it; a repair brief names each sibling rule with its case, and the repair's probe runs
 each case; each probe case that a fix moves from refused to passed, or the reverse, gets the same
-result from the quoted spec rule.
+result from the quoted spec rule; no form that the spec refuses passes as an accepted limit
+without a recorded maintainer decision.

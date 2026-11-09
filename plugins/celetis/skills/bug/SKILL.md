@@ -111,7 +111,7 @@ Only the exit 0 of `setup status` starts step 1.
    - **Yes:** the fix makes a look decision (`<plugin>/docs/procedures/ui.md`, "The look
      decision"). Invoke `celetis:prototype`, and follow "The procedure" of that file through its
      cleanup (step 10). The record of step 9 is the report's `## Prototype` section
-     (`<plugin>/docs/issue-tracker.md`).
+     (`<plugin>/docs/issue-tracker.md`, "What lives on the issue").
    - **No:** the fix restores the defined look, a regression too, and builds no variants. The
      capture repro of step 4 is its evidence.
 

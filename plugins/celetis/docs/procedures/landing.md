@@ -70,7 +70,8 @@ absent label is not completion evidence. The engine reads that a `## Human steps
 exists, not which acts it reports. So with an `open:` line, or with a `## Before landing` comment
 of this build that names an act of "During the build" that no later `## Human steps done` comment
 reports, keep the change built, run `celetis --agent <host> issue <n> ready-for-human` as the
-last act of the turn, using the existing comment as the reason, and stop. For deferred runtime checks or evidence affected by changes since the previous run, apply
+last act of the turn, using the existing comment as the reason, and stop. That act needs no new
+approval. For deferred runtime checks or evidence affected by changes since the previous run, apply
 `<plugin>/docs/procedures/runtime-verification.md`, "Reports and deferred checks", "Evidence
 lifetime", and "Usage-limit exception", before continuing. With that procedure satisfied,
 `open: none`, and a report of each such act, continue to step 3.

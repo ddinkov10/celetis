@@ -1,7 +1,8 @@
 # Assisted completion
 
 Use this procedure only in an assistance session that resolves an issue's current block.
-Ordinary lane sessions keep their own completion and continuation rules.
+Assistance supplies completion writes only by this procedure. Ordinary lane sessions keep their
+own completion and continuation rules.
 
 ## Resolve and work
 
@@ -56,5 +57,5 @@ With evidence for the full scope of the report and both removals:
    `/celetis:accept-epic #<n>` for the maintainer's explicit re-entry. Assistance clearance does
    not prove a parent scenario; acceptance must review current coverage and evidence lifetime.
    An epic has no run continuation. Other lanes leave continuation to the normal run.
-   Start or resume no run, invoke no next lane, and perform no landing. A cleared hotfix
-   still requires `land` by the maintainer in their own shell.
+   Completion changes no build mark. Start or resume no run, invoke no next lane, and perform no
+   landing. A cleared hotfix still requires `land` by the maintainer in their own shell.

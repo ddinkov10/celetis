@@ -1074,8 +1074,9 @@ A general engineering principle has one canonical file in `docs/principles/`, re
 caller count. Each file has `Applies when`, `Rule`, and `Check` sections. Skills and workflow
 steps cite the file when the task meets its trigger, rather than copy the rule. A principle
 stands alone, holds no workflow or host procedure, and has no minimum citer count. Entry loads
-no principle catalog. `docs/capability.md`, the rubric of the capability score, and the other
-maintainer references keep their existing role. The `AGENTS.md` of this repository, "Where
+no principle catalog. `docs/capability.md` and the other
+maintainer references keep their existing role. The rubric of the capability score is the
+procedure module `docs/procedures/capability-score.md`. The `AGENTS.md` of this repository, "Where
 agent text lives", gives the placement rule (ADR-0047 and ADR-0050).
 
 Each principle is also a native skill. An ordinary engineering task can select it or invoke it
@@ -1559,6 +1560,9 @@ Run the checks in a checkout of this repository. No check needs model credential
   a tracked test file and a tracked TypeScript file in `plugins/celetis/`. A `<plugin>/<path>`
   citation passes only when it names the tracked file `plugins/celetis/<path>`, and a relative link
   of a Markdown file in `plugins/celetis/` passes only when it names a tracked file in that folder.
+  A quoted section name after a `<plugin>/<path>.md` span must equal exactly one heading of that
+  file, a citation of `<plugin>/docs/<name>.md` needs such a name, and the fragment of a relative
+  link must be a heading slug of its target.
   Generated JavaScript, unchanged vendor sources, and other file exemptions have exact paths and
   roles. A new unexplained path fails. Checks use bounded workers and install nothing. The last line
   is `verify: PASS`.

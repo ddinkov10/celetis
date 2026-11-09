@@ -57,9 +57,10 @@ Examples of evidence appropriate to each runtime:
 
 A version label, timestamp, installation folder name, changed behavior, or files on disk are
 insufficient alone when they do not identify the tested content. Keep checkout commands, loaded
-plugin resources, and installed checks distinct. Editing source does not reload a process or
-session. Confirmation permits no real installation update or other operation without its
-existing authorization.
+plugin resources, and installed checks distinct. Record a result with temporary installation data
+apart from a real installation and from a terminal-approved update. Editing source does not reload
+a process or session. Confirmation permits no real installation update or other operation without
+its existing authorization.
 
 A confirmed stale target has no PASS. Correct it only through an already authorized operation,
 reconfirm it, and repeat affected scenarios. An unknown target stays UNVERIFIED with the specific
@@ -151,7 +152,7 @@ commands, expected result, and limitation. A scenario waiting for an act of "Dur
 retains that act's report form instead of commands that cannot yet run.
 
 On re-entry, check each deferred scenario against the current build and "Evidence lifetime",
-even with `open: none`. A trusted completion report can carry or reference the same
+even with `open: none`. A trusted completion report must carry or reference the same
 runtime proof that an agent check must supply. Valid, unchanged evidence completes that scenario
 without repeating it. Label removal can clear the workflow hold but supplies no runtime proof.
 An act of "During the build" still needs its existing completion report and label clearance, then

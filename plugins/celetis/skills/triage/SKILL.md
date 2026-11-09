@@ -25,7 +25,7 @@ back here. Read `gh issue view <n> --comments` and classify from the intent's `P
 `Done when` plus the reporter's text. Run `celetis --agent <host> issue <n> state` and read its
 `lane:` line. A lane name or `epic` means that the issue is routed: name its lane and stop. `none`
 or `several` goes on to the classification. When the `state` read fails, show its output and stop.
-Labels and states: `<plugin>/docs/issue-tracker.md`.
+Labels and states: `<plugin>/docs/issue-tracker.md`, "Labels" and "Resolving an issue's state".
 
 ## Classification contract — the ordered decision tree
 

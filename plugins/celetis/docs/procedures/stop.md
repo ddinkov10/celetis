@@ -5,7 +5,8 @@ cite it.
 
 ## Contents
 
-- **The two modes:** a stop in an interactive session, and a stop in a step session.
+- **The two modes:** a stop in an interactive session, a stop in a step session, and a partial
+  write after an `issue` act.
 - **The check before a stop:** agent work, a live question, or a hold.
 - **A stop in a step session:** the reason on the issue, and the act that ends the session.
 - **A Verify scenario that cannot run:** a guard refusal, the `## Before landing` hold, and its
@@ -33,6 +34,10 @@ outside the session (its class 3).
 The message of a block (a denied path, a missing tool, or an unsupported operation) names the
 exact block and the setup action. The block stops only the work that depends on it: continue each
 independent check.
+
+In either mode, after an exit 6 of an `issue <n> <act>`, a partial write can remain. Read
+`celetis --agent <host> issue <n> state`, keep the repair that the line of exit 6 names for the
+maintainer, and do not run the act again blindly.
 
 ## The check before a stop
 
@@ -104,6 +109,8 @@ An `issue <n> <act>` that exits 6 with `complete it by hand: <command>` stopped 
 an act of the maintainer: run no part of it, and hand the stop to the issue with the line as the
 message.
 
+After an exit 6 of an `issue <n> <act>`, apply "The two modes" for a partial write.
+
 When GitHub does not answer, or the issue is closed, show the message in this session and stop. A
 command that the host sandbox keeps from the network is no such case: first follow the approval
 procedure for a sandbox block of the host part of `<plugin>/docs/procedures/entry.md`, "The
@@ -155,8 +162,8 @@ published spec, and a closed issue. A session that the daemon started ends at it
 after such an act (`<plugin>/docs/workflow.md`, "The step end"). So, in each session:
 
 - Get each answer from the user before the act.
-- Do each other act of the skill in the same turn, before the act: the act is the last act of the
-  turn.
+- Do each other act of the skill, and each act that the custom text of the entry adds, in the same
+  turn, before the act: the act is the last act of the turn.
 - The exception is an act that the skill names after the act, for example the removal of a lane
   worktree, which needs a closed issue or an epic, or the report of the result. It comes after the
   act, in the same turn.

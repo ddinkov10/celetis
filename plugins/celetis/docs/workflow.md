@@ -31,11 +31,9 @@ the default gate `me`; the decision of an issue; and the skip rule. The resolver
 board data, the config reader, the session record, `worktree`, `land`, and `setup` take these facts
 from it. A product project cannot change it.
 
-Two rules of the harness hold in each session, also in a session by hand:
-
-- A lane never skips a step.
-- The maintainer starts the daemon and turns auto mode on; an agent starts a run only when its task
-  says so, with a number, and in a terminal.
+Each lane skill follows its steps in order ([lane-start.md](procedures/lane-start.md), "The Iron
+Law"). Each act of `issue <n> <act>` checks the prerequisite of its step, `land` refuses a change
+that is not built, and a run refuses a skip between two steps ("A refused skip").
 
 In this document, these names are files of the repository `celetis`, also when a session reads the
 document inside a product project that has a `docs/` folder and an ADR store of its own: the five
@@ -64,15 +62,13 @@ of the product project, apart from a path that starts with `~/` or `/`.
 - For a look decision and a visual bug: `gh` 2.99.0 or later on github.com, and the capture tool of
   the platform row ([ui.md](procedures/ui.md), "Captures"). A look decision on the `impeccable` path
   (a whole web or mobile screen, or a smaller web change) also needs the `impeccable` skill and a
-  `PRODUCT.md` of the product. The session checks for both. It never installs `impeccable`, which
-  is no plugin dependency, and you run `/impeccable init` once for the product
+  `PRODUCT.md` of the product. You run `/impeccable init` once for the product
   ([design.md](procedures/design.md), "The check"). A look decision on the `generate` path also
   needs the Playwright MCP server with `--isolated` and no `--headless`, and the host reviews its
   `browser_run_code_unsafe` call ([design.md](procedures/design.md), "The page CSP").
 - For the research of a UI component, optional tools that you install: a code-search tool (for
   example the grep.app MCP server), a web fetch or scrape tool, and a browser tool that the session
-  opens for itself (for example the Playwright MCP server with `--isolated`). The session uses each
-  one that it has and records a limit for each missing one
+  opens for itself (for example the Playwright MCP server with `--isolated`)
   ([component-research.md](procedures/component-research.md)).
 - The program `celetis` on `PATH` (`README.md`, "First install"), and the plugin `celetis@celetis`
   of the selected host at the revision of the program. The scripts come from the
@@ -109,12 +105,13 @@ of the product project, apart from a path that starts with `~/` or `/`.
   and Codex 0.166.0. Complete the normal folder trust of the host before a run. The daemon never
   answers that prompt.
 - Superpowers installed and enabled on the selected host. The README holds its setup for each
-  host. A missing required `superpowers:*` skill stops the lane.
+  host.
 - For Codex children with model tiers, the profile and current runtime allowlist from
   `docs/capability.md`. With no profile, each Codex child keeps the parent's model.
   The actual dispatch surface must support the resolved model and effort on isolated starts
-  and same-pair follow-up. The task loop replaces a child when its effective pair changes
-  ([Dispatch records](capability.md#dispatch-records)). CLI and desktop capabilities can differ.
+  and same-pair follow-up. In the task loop, `dispatch` returns the action `replace` when the
+  effective pair of a child changes ([Dispatch records](capability.md#dispatch-records)). CLI and
+  desktop capabilities can differ.
 - The board has more requirements: "The board" names them.
 
 ## Start the script
@@ -132,7 +129,7 @@ celetis daemon status                          # the runs of the daemon, with th
 
 These human commands use an explicit `CELETIS_AGENT`, then the local ordered preference.
 The absent preference is Claude, then Codex. Put `--agent claude` or `--agent codex` before `run` or `queue` to override that choice.
-Every skill call supplies that prefix. Invalid host values stop; PATH order never chooses a host.
+Invalid host values stop; PATH order never chooses a host.
 An explicit host stays fixed. A default step selects its host again at each session start, from
 the effective order of the step ("The agent of each start"), so a usage-limit recovery can
 continue the step on another host ("How a step runs"). Resume instead
@@ -291,7 +288,7 @@ A new start for the issue cannot begin until the session exits. Claims and relea
 compare-and-set, and foreground registration updates all held locks in one transaction. Both
 hosts and manual resume share the issue lock.
 A landing in the master daemon holds the lock ref `land-<n>`, with the daemon as its owner and no
-session ("How a step runs", **A landing**). The `no-progress` file in `<git common dir>/celetis/` has one row for each step that ended with no progress, and one row for
+session ("A landing"). The `no-progress` file in `<git common dir>/celetis/` has one row for each step that ended with no progress, and one row for
 each step that the script refused as a skip. Auto mode and the board read it. An
 explicit issue start can start that step. `engine/lib/locks.ts` of the program owns the lock refs,
 the owner records, the liveness check of an owner, and the record; the daemon and the board use it.
@@ -387,7 +384,7 @@ installation adoption remain outside this runtime-state exception (ADR-0070).
 The master daemon is one long-lived process for one repository, the Git common folder of its
 working folder. It runs many issue runs at the same time, with the run engine
 (`engine/lib/run-engine.ts`), runs each landing of `celetis --agent <host> land` in the daemon
-process, one at a time ("How a step runs", **A landing**), and serves requests over HTTP on a Unix socket
+process, one at a time ("A landing"), and serves requests over HTTP on a Unix socket
 ([ADR-0072](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0072-one-master-daemon-runs-every-issue-run.md)). Its process is
 `engine/daemon.ts --daemon` (a successor adds `--after <pid> <start>`, "The restart"), so the
 lock, step-end, and recovery checks accept it as the daemon. Nothing starts a daemon by itself. The daemon also serves the board on a loopback port
@@ -515,7 +512,7 @@ Conventional Commit subject with no newline and no ` (#<number>)` at its end), a
 `/land` at once with 200 and a stream of NDJSON lines (`application/x-ndjson`): `{"out": <text>}`
 for a write of the landing to stdout and `{"err": <text>}` for a write to stderr, in the order of
 the writes, an empty line each 5 seconds, and one last line `{"code": <status>}`. A landing behind another
-writes one `out` record first ("How a step runs", **A landing**). Each character of
+writes one `out` record first ("A landing"). Each character of
 `<text>` is one byte of the write (U+0000 to U+00FF), so the client writes the bytes of the landing
 unchanged. A refused `/land` gets the refusal answers below, with no stream.
 
@@ -610,8 +607,7 @@ unexpected error. The event record keeps its other entries ("The event record").
 **The stop.** A stop request, SIGINT, SIGTERM, or SIGHUP stops the daemon. The daemon answers the
 stop request first and gives each later request 503, except a stop request during a restart ("The
 restart"). It detaches each run and the loop, keeps the
-run record of each detached run, aborts each landing as a lost client does ("How a step runs",
-**A landing**; a suite that still runs 10 seconds after its SIGTERM gets SIGKILL), and waits until
+run record of each detached run, aborts each landing as a lost client does ("A landing"; a suite that still runs 10 seconds after its SIGTERM gets SIGKILL), and waits until
 each run ends and each landing released its lock, wrote its last
 record, and lost its client (at most 5 seconds after that record). Then it waits at most 5 seconds
 for the requests of the board in flight, as the socket waits for its requests: such a request gets
@@ -900,9 +896,7 @@ The plugin root is the host-installed plugin folder that holds the loaded skills
 folder of the program: `requireSameRevision` of `engine/lib/updater.ts` returns the `root` of
 `installation()`. The step text compares it with the `<plugin>` of the skill entry, and a
 difference after the resolution of both paths stops the step for setup. The landing comes from the
-validated main config. The header holds no custom text: the entry of the skill reads
-`custom.<skill>` of its active checkout through its own permission-checked read (ADR-0032), and a
-skill entered in a lane reads the lane's file, which the daemon cannot know.
+validated main config. The header holds no custom text (ADR-0032).
 
 Claude starts the step as:
 
@@ -944,18 +938,8 @@ After it builds the arguments, the daemon prints the level and its source:
 or `override`. When Codex applies another level, the line names both:
 `daemon: start: /celetis:plan #402 at max (override); codex applies xhigh for <model>`.
 
-The lane uses the exact path returned by `celetis --agent <host> worktree`. Each skill that works
-on the branch follows [the lane worktree](procedures/worktree.md): it binds its commands, files,
-instructions, and children to that checkout, and [the landing](procedures/landing.md) returns to
-the main checkout. Claude keeps its native worktree tools. Codex's app worktree does not replace
-the lane checkout.
-
-`step-prompt.md` holds only what differs in a step session: the check of `<plugin>` against the
-plugin root of the header; follow the skill, and start no step that a skill sends to a fresh
-context; ask only for a decision that the issue does not hold, and never for a go-ahead or a
-review; land only with `celetis --agent <host> land`, and only when the skill says so; and the stop
-rules, which cite `docs/procedures/stop.md` for a stop and for a Verify scenario that the session
-cannot run, after applying [Usage-limit exception](procedures/runtime-verification.md#usage-limit-exception); and, with `- recovery: yes` in the header, the continuation from the existing lane changes and the issue with no replay, reset, stash, or clean. It overrides no instruction of a skill: a skill says what it does "In a step session".
+`step-prompt.md` holds the rules of a step session. It overrides no instruction of a skill: a skill
+says what it does "In a step session".
 A step session is a session that the daemon starts with the step text. The exit status of the
 host decides nothing: the resolver decides.
 
@@ -971,7 +955,9 @@ the spec only after you approve the design, and nothing checks the design again 
 So that session asks and waits as a session that you start by hand does (ADR-0007).
 Codex also omits the step text for specify. Its configured developer instructions remain.
 
-**The program and the plugin.** The daemon uses the version folder of the program that started it
+### The program and the plugin
+
+The daemon uses the version folder of the program that started it
 for the resolver and entry of each run. Numbered starts, auto-mode starts, and later steps make no update call.
 The form `run resume` keeps its no-update behavior and saved identity.
 Before a step starts, the daemon checks that its required files still exist.
@@ -996,7 +982,9 @@ session loads updated skills and tools. A restart of the daemon alone updates no
 `celetis update`, restart the daemon (`celetis daemon stop`, then `celetis daemon start`): its runs
 then use the new program, and a `run` or `queue` form of another revision refuses with exit 3 until then.
 
-**The session tab.** For each session, also an exact resume, the daemon opens a new hc terminal
+### The session tab
+
+For each session, also an exact resume, the daemon opens a new hc terminal
 with a tab in the space of the repository in the Herdr app (`openTab` of
 `engine/lib/terminal.ts`): `hc run --bg --no-parent --no-notify` in the main checkout, with the
 labels `herdr.space=<id>` and `celetis.link=#<n> <step>`, and the tab name `#<n> <step>`
@@ -1051,7 +1039,9 @@ lines end the run with code 6, or 3 for a space lock that stays held, apart from
 - `daemon: #<n> <host> startup: the tab #<n> <step> ended before its start barrier reported; check the login files of $SHELL, then start the step again`.
 - `daemon: #<n> <host> startup: the start barrier record of the tab #<n> <step> is not valid; start the step again`.
 
-**A stop of a run.** A `run` or `queue` form has nothing to stop. Ctrl+C, a signal, or a closed terminal
+### A stop of a run
+
+A `run` or `queue` form has nothing to stop. Ctrl+C, a signal, or a closed terminal
 of the command stops no run, because the command returned at the answer ("The answer"), and the
 run lives in the daemon. No command stops one run. `celetis daemon stop` stops the daemon and
 detaches every run ("The master daemon", "The stop"): each run stops its job of the step end and
@@ -1059,7 +1049,9 @@ removes its step-end record. A session whose barrier the run released stays open
 keeps the issue lock until it exits, so leave it with `/exit`. Before the release, the run closes
 the tab. A stopped queue run does not write the queue record.
 
-**The step end.** The script ends each step session by itself, from outside its tab
+### The step end
+
+The script ends each step session by itself, from outside its tab
 ([ADR-0058](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0058-herdr-core-hosts-the-agent-terminals.md),
 [ADR-0062](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0062-each-session-runs-in-a-tab-that-the-runner-steers.md)). Each `hc` call of the
 step end names the session terminal, the hc terminal of the tab. Its label `celetis.link`,
@@ -1155,7 +1147,9 @@ job, and it reads no terminal status after the exit. When a session does not end
 waits for nothing, leave it with `/exit` in its tab: the script then asks the resolver again, and
 it prints the reason or starts the next step.
 
-**The agent of each start.** At each start, the daemon reads the local order, the main config, and
+### The agent of each start
+
+At each start, the daemon reads the local order, the main config, and
 the per-host usage records again. It computes the effective order of the step
 (`effectiveOrder` of `engine/lib/agent-order.ts`): when the `agents` field names a preferred agent
 for the step and the local order includes it, that agent comes first, then the other agents of the
@@ -1170,7 +1164,9 @@ usage attempt. A Claude step gets attempt-local `Stop` and `StopFailure` callbac
 `thread/turns/list` after the daemon saves its verified ID. The daemon acts only on the
 observation of its own attempt, also when the shared record keeps a newer attempt.
 
-**Usage-limit recovery.** Only a daemon-owned step with the default choice continues on another
+### Usage-limit recovery
+
+Only a daemon-owned step with the default choice continues on another
 agent. A confirmed refusal of an explicit host is recorded; that session stays open, and no other
 agent starts. After a confirmed refusal of the default host, the daemon:
 
@@ -1216,7 +1212,9 @@ record. The next step computes its own effective order, so a recovered preferred
 next step.
 A preference change or a recovered block does not stop a session that works.
 
-**A session that ended while no daemon ran.** The master daemon ("The takeover") applies the same
+### A session that ended while no daemon ran
+
+The master daemon ("The takeover") applies the same
 steps to a usage block that it reads after the session ended, with another proof in step 2. The
 barrier is gone, so the daemon sends no exit request, and the process tree under the barrier is
 gone with it. The run record keeps the PID of the tab shell and the terminal name of the barrier.
@@ -1234,7 +1232,9 @@ daemon uses the same proof, and its first failed read of the process table reads
 way. The daemon records no tab shell, so its result there, and after a failed first read, stays
 `unverified`.
 
-**Exhaustion.** In one cycle, the daemon attempts each included host at most once. When no host can
+### Exhaustion
+
+In one cycle, the daemon attempts each included host at most once. When no host can
 start, it keeps the issue lock, writes the state `waiting` with a new wait ID, and prints:
 
 ```text
@@ -1253,28 +1253,14 @@ records. A stop of the daemon ends the wait loop and its wake. The record stays 
 nothing until the next daemon takes the wait over ("A quota recovery"). A new start of the issue
 that is no takeover removes the record and evaluates the issue again.
 
-**A stop.** Before a stop, the session sorts each act that the stop would ask of the maintainer
-([The check before a stop](procedures/stop.md#the-check-before-a-stop)): it does the agent work,
-asks a live question for an answer in words, and makes a hold only for an act outside the session.
+### A stop
+
 A live question waits in the tab of the session; the board shows it in Needs you, and the
-maintainer answers in the tab or with Go. A step session hands a stop that is not a question to
-the issue (rule 4 of the step text), through the write command
-`celetis --agent <host> issue`
-(`docs/issue-tracker.md`, "Conventions"). The reason is a comment: the comment that its skill
-posts for the stop (`## Landing refused`, `## Before landing`), else a comment with `## Stopped` as
-its first line. When the skill adds no label for the stop, the session then adds `ready-for-human`
-as its last act. Both `stopped` and `ready-for-human` remove `ready-for-agent` when present;
-`stopped` posts its reason first. A successful hold leaves only the human readiness label, so the
-line becomes `stop #<n> is ready-for-human. …` and the job ends the session. A stop for which
-the skill adds a label, such as the `needs-info` stop of `/celetis:triage`, stays as the skill says.
-A question is not a stop: where a skill says to ask, rule 2 holds, and a session that asks for a
-decision waits in its tab. The `detect` scenario of a web UI change is the exception of rule 5:
-when `impeccable` is missing, the session prints the one line of
-[design.md](procedures/design.md#missing), and the scenario is no stop. Before a Verify scenario
-that cannot run becomes a `## Before landing` stop (rule 5), the session applies
-[Usage-limit exception](procedures/runtime-verification.md#usage-limit-exception).
-An eligible decision retains BLOCKED results and permits the normal landing path without a new quota hold.
-Otherwise the session does not land the change. The act `before-landing` posts the comment,
+maintainer answers in the tab or with Go. The acts `stopped` and `ready-for-human` of
+`celetis --agent <host> issue` remove `ready-for-agent` when present; `stopped` posts its reason
+first. A successful hold leaves only the human readiness label, so the line becomes
+`stop #<n> is ready-for-human. …` and the job ends the session.
+The act `before-landing` posts the comment,
 then adds `ready-for-human`, then removes `ready-for-agent`. The comment records the change as
 built. A failed human-label addition, or an interruption before that addition, can leave the
 comment with no `ready-for-human`. The line then becomes `stop #<n> has an open human step. …`
@@ -1282,23 +1268,19 @@ comment with no `ready-for-human`. The line then becomes `stop #<n> has an open 
 the act that the line names. The precondition comment preserves build completion even if a
 label write fails. A plain stop records no completion: after its clearance, an unfinished plan
 resumes the build without requiring the agent label. A `specify` session and a session that you
-start by hand have no step text: at such a stop they show the message and stay open (ADR-0011).
+start by hand have no step text (ADR-0011).
 
 After a stop with `ready-for-human`, complete its current requests and evidence, then start the
 normal step again. Assistance can perform permitted work and clear a verified hold through
-`issue <n> assisted <file>` by [Assisted completion](procedures/assisted-completion.md). It asks
-only for missing human contributions and returns the actual resolver step without starting it.
+`issue <n> assisted <file>` by [Assisted completion](procedures/assisted-completion.md).
 A `## Stopped` or `## Before landing` comment names the act. For a refused landing of
 `/celetis:implement` or `/celetis:chore`, fix a cause outside the change (for example, run the
-failed job again, or land a chore that removes the advisory of a dependency): the next run of the
-step fixes a cause that the change made, lands the change, and does not build it again. For a Verify
+failed job again, or land a chore that removes the advisory of a dependency). For a Verify
 scenario, the act is a run of the scenario with the source and running-target proof defined in
 [Runtime verification](procedures/runtime-verification.md), "Reports and deferred checks".
-The next `/celetis:implement` run checks that evidence and its lifetime before it can land the
-built change. Label removal clears a workflow hold; it supplies no runtime proof. Missing or
-invalidated proof preserves the built change and restores the existing hold.
-The usage-limit exception preserves existing completion requirements, including with `open: none`. A comment that names an act of "During the build",
-or a comment with no marker of its kind, also needs a `## Human steps done` report of the act.
+Label removal clears a workflow hold; it supplies no runtime proof. A comment that names an act of
+"During the build", or a comment with no marker of its kind, also needs a `## Human steps done`
+report of the act.
 After a FAIL, keep the label: put the result on the issue, run
 `/celetis:plan #<n>` in a session of your own, and remove the label when the new plan is on the
 issue. Re-entry requires completion evidence for the current build: a later
@@ -1314,22 +1296,24 @@ After the removal, and until the landing, the line is
 starts. A `## Before landing` comment with no marker also needs its `## Human steps done` report:
 until then, the line is the `human-step` stop.
 
-**The human acts of a plan.** The plan names them in its first section, `### Your steps`, in three
-lists: "Answers before the build", "During the build", and "After the landing". Before it publishes
-the plan, the plan step asks you each consent that a Verify scenario or the landing needs: an act
-that disturbs your live tools, changes an account or a shared resource, or sends data to a service
-beyond the normal use of the session. An act on temporary data in the lane or in a scratch folder
-needs no consent.
+### The human acts of a plan
+
+The plan names them in its first section, `### Your steps`, in three lists: "Answers before the
+build", "During the build", and "After the landing". Before it publishes the plan, the plan step
+asks you each consent that a Verify scenario or the landing needs: an act that disturbs your live
+tools, changes an account or a shared resource, or sends data to a service beyond the normal use
+of the session. An act on temporary data in the lane or in a scratch folder needs no consent.
 "Answers before the build" records each answer and its source (your message in the plan session,
 with its date). The build uses that answer and does not ask again. "During the build" holds only
 acts outside the session, never a consent. Do each act of "During the build" while the build runs,
-and report the acts in one `## Human steps done` comment. Assistance can record verified work and sourced human answers with that same heading;
-the heading denotes completed steps, not human authorship. A build that needs an act with no report runs each other scenario. Then it stops with one
-`## Before landing` comment that names each such act, its report form, and the scenarios that wait
-for it. The act `before-landing` gives that comment the marker of "During the build", so the engine
-needs both the report and the removal. Post the report, then remove `ready-for-human`: the next
-run of `/celetis:implement` runs those scenarios and lands when the runtime procedure permits continuation. A check of "After the landing" is no stop. The last message of
-`/celetis:implement` quotes it after the landing.
+and report the acts in one `## Human steps done` comment. Assistance can record verified work and
+sourced human answers with that same heading; the heading denotes completed steps, not human
+authorship. The act `before-landing` with `--during-the-build` gives its `## Before landing`
+comment the marker of "During the build", so the engine needs both the report and the removal.
+Post the report, then remove `ready-for-human`. A check of "After the landing" is no stop. The
+last message of `/celetis:implement` quotes it after the landing.
+
+### The lines of a specify session
 
 A `specify` session starts with the line `run /celetis:feature #<n>`. The paths of `specify` give
 three lines that end it: `run /celetis:plan #<n>` (the spec is on the issue),
@@ -1340,11 +1324,10 @@ the line stays the same, and the session stays open. A session that ends while t
 `/celetis:feature` moves the line too, for example to `run /celetis:bug #<n>`: the session ends at
 its next idle moment, and a Run press starts that lane.
 
-**A landing.** Before `land` puts the change on the trunk, the step curates the lesson queue in
-the lane (`docs/procedures/lesson-curation.md`, "Curation at a landing"): a fresh reviewer child
-decides at most the five oldest pending proposals, its lesson commits land with the change, and a
-curation failure does not stop the landing. A run of `land` again after the change is on the
-trunk curates nothing.
+### A landing
+
+Before `land` puts the change on the trunk, the landing curates the lesson queue in
+the lane (`docs/procedures/lesson-curation.md`, "Curation at a landing").
 
 The master daemon of the repository runs the landing ("The master daemon"). `land` is its client:
 it checks `--agent` and the form (exit 2 with the usage line; the issue number is a safe integer),
@@ -1513,28 +1496,27 @@ Immediately before a run, the target must be a readable regular file inside the 
 target checkout. Final or ancestor symlinks below that root, directories, special files,
 outside targets, nested repositories, submodules, and other worktrees start no setup child.
 A canonical alias of the root is accepted. A config read checks only reference syntax and
-performs no script access. Entry never reads or executes that file. Normal sibling imports
-work; transitive imports have no added restrictions. The trusted-checkout boundary is not a
-file-swap transaction.
+performs no script access. The entry hook (`engine/hooks/entry.ts`) and the config reader
+(`engine/config.ts`) neither read nor execute the setup file. Normal sibling imports work;
+transitive imports have no added restrictions. The trusted-checkout boundary is not a file-swap
+transaction.
 
 The selected Bun runs the file directly, with its source identity intact and cwd at the lane
 root, also after a subfolder invocation. It needs no executable bit or exported-function API.
 `process.argv[2]` is one absolute main-checkout argument. Stdin, stdout, and stderr stay
 inherited. Product `.env`, Bun configuration, preloads, macros, automatic package installation,
-and transpiler cache stay disabled. Check each external command status and stop on failure.
+and transpiler cache stay disabled.
 After nonempty setup output, the command prints an LF separator and the final absolute lane
 path. `setup try` also prints its path after preparation or execution failure and returns the
 child status. `worktree` and `setup lane` map setup failure to exit 6. Signals stop the owned
 child.
 
-The setup skill shows the proposed relative path and complete contents for review. The product
-owner approves, creates, and commits the entry and required helpers on the local trunk in a
-separate product change before the detached wiring test. `try` and `write --setup-file <path>`
+The product owner approves, creates, and commits the entry and required helpers on the local trunk
+in a separate product change before the detached wiring test. `try` and `write --setup-file <path>`
 require that entry in local trunk HEAD, with an unchanged index and working file. The option
-resolves from the main root. Setup writes only the reference; it creates, copies, stages, owns,
-commits, and pushes no application source to make its test possible. A changed failed proposal
-needs another owner source commit before retry. An existing reference, including `""`, stays
-unchanged. A conflict prints `setup: warning: .celetis.yaml: worktreeSetup differs from the requested setup reference; setup leaves it`.
+resolves from the main root. `write --setup-file` writes only the reference. A changed failed
+proposal needs another owner source commit before retry. An existing reference, including `""`,
+stays unchanged. A conflict prints `setup: warning: .celetis.yaml: worktreeSetup differs from the requested setup reference; setup leaves it`.
 
 A failed setup or invalid new lane config prints `worktree setup failed:` and removes a new
 worktree and a branch created by the command. Configuration validation exits 2 after cleanup;
@@ -1557,12 +1539,9 @@ setup, and the active checkout supplies only the selected `custom.<skill>` at en
 ([ADR-0032](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0032-shared-configuration-operation-snapshots.md)).
 
 **A custom part.** `custom.<skill>` in the active checkout's `.celetis.yaml` holds an
-addition to that skill's procedure, for example a check on a real device after the build. It
-reaches only the invocation of that skill: `chore` does not apply `custom.implement`, and
-`lesson-review` does not apply `custom.lesson`. A product fact that two or more skills need goes
-into the `AGENTS.md` of the product. The text cannot remove a general rule. An added act comes
-before the skill moves the line of the issue, because the daemon ends the session when the issue
-shows that the step is done. Domain knowledge stays in the `AGENTS.md` files (ADR-0006).
+addition to that skill's procedure, for example a check on a real device after the build. A
+product fact that two or more skills need goes into the `AGENTS.md` of the product. Domain
+knowledge stays in the `AGENTS.md` files (ADR-0006).
 
 **The entry.** Each `SKILL.md` holds one entry line: bind `<plugin>` from the path of the loaded
 skill, and read `<plugin>/docs/procedures/entry.md` before any step or answer. On Claude Code,
@@ -1571,25 +1550,14 @@ model sees the skill. It makes its own permission-checked `Read` of the Git boun
 whole config, parses and validates the text with the configuration code of the engine
 (`engine/lib/config-core.ts`), and gives the host, the plugin root, the checkout, the contract
 of `docs/procedures/entry.md`, and the custom text of the skill. It gives no host manual and no
-raw YAML. On Codex, and on Claude Code when the hook did not run, the session follows "Entry
-without the hook" of `docs/procedures/entry.md`: Codex with a shell runs the config reader; else
-the session reads the file natively and applies a short rule list. Each command that needs the
-config validates the whole file before protected work. Entry executes no setup and consumes no
-runtime snapshot (ADR-0013, ADR-0032, ADR-0047). `docs/configuration.md`, "Skill entry", and the
-host references in `docs/hosts/` give the details.
+raw YAML. Each command that needs the config validates the whole file before protected work. The
+entry hook executes no setup and consumes no runtime snapshot (ADR-0013, ADR-0032, ADR-0047).
+`docs/configuration.md`, "Skill entry", and the host references in `docs/hosts/` give the details.
 
 - **Which checkout.** The nearest folder at or above the active binding with a `.git` folder or
   file, so a linked checkout counts. A step that the daemon starts runs in the main checkout. A later skill
-  entered in a lane uses that lane's config. Read no parent config and combine no files.
-- **With no checkout or config,** continue with the common skill. Omitted or empty custom
-  values also give no addition. An existing invalid, ambiguous, unreadable, or symlink config
-  stops entry with the file and field.
-- **When file access needs approval,** request it through the normal controls. A denied read
-  stops; no other tool, shell, parser subprocess, or cached copy follows.
-- **Each invocation is a new entry,** also a same-session handoff and an invocation in a child
-  agent, with its own checkout and its own custom text. No skill reads another skill's
-  `SKILL.md`. After the entry, a step that needs another value of the config reads it at that
-  step through the config reader.
+  entered in a lane uses that lane's config.
+- **Skills.** No skill reads another skill's `SKILL.md`.
 
 ## The board
 
@@ -1958,7 +1926,7 @@ of the page.
 
 | The script prints | The maintainer's act | Then |
 |---|---|---|
-| `stop … needs info` or `stop … ready-for-human` | do what the line says; for `ready-for-human`, the latest `## Stopped` or `## Before landing` comment names the act, and "How a step runs", **A stop**, gives the act after a refused landing. The card of an issue with a current landing refusal reads `landing refused`: its `## Landing refused` comment names the cause | the next step starts with a Run press or with `celetis --agent <host> run <n>`; auto mode starts it only when its gate is `auto` |
+| `stop … needs info` or `stop … ready-for-human` | do what the line says; for `ready-for-human`, the latest `## Stopped` or `## Before landing` comment names the act, and "A stop", gives the act after a refused landing. The card of an issue with a current landing refusal reads `landing refused`: its `## Landing refused` comment names the cause | the next step starts with a Run press or with `celetis --agent <host> run <n>`; auto mode starts it only when its gate is `auto` |
 | `stop … has several lane labels …` | keep one lane label and remove the others | as the first row |
 | `stop … has an open human step. …` | do what the line says: the latest `## Before landing` comment names the act. The line names the evidence that is missing: a `## Human steps done` report and the removal of `ready-for-human` after the comment, the report, or the removal (`docs/issue-tracker.md`, "Completing a human precondition") | as the first row |
 | `stop … waits for a landing by hand. …` | run `land` in your own shell, from the main checkout, as the line says | none: the landing finishes the issue |
@@ -1989,8 +1957,8 @@ uses `.claude/settings.json`; Codex uses a trusted `.codex/rules/` configuration
 current bare and explicit-host landing forms and restrict direct `gh pr merge`. The plugin does
 not grant permissions. Retain each product project's own restricted acts.
 
-The landing script is the required agent path. Before a push, a PR, a re-run, or a merge, it
-refuses each unmet lifecycle prerequisite of the issue ("How a step runs", **A landing**). The
+Before a push, a PR, a re-run, or a merge, the landing script
+refuses each unmet lifecycle prerequisite of the issue ("A landing"). The
 script holds this guard for each caller: a session, the maintainer in a shell, and the hotfix
 checklist. With `pr`, it merges only the issue's lane PR on
 the trunk, at the checked commit, with every check passed or skipped and at least one PASS.
@@ -2000,12 +1968,7 @@ When each red check is a check of GitHub Actions that failed or timed out, it re
 jobs of their workflow runs once for each commit before it refuses (ADR-0023).
 The main and lane checkout guards apply on both hosts. Host rules do not inspect the commands
 inside an allowed script or enforce every alternate command spelling. Codex prefix rules govern
-requests outside its sandbox; they do not create a stronger sandbox. A host refusal that the
-maintainer cannot lift in the session remains a stop
-([A Verify scenario that cannot run](procedures/stop.md#a-verify-scenario-that-cannot-run)).
-The deterministic script checks and final Verify results remain required (ADR-0008),
-subject only to [Usage-limit exception](procedures/runtime-verification.md#usage-limit-exception)
-for incomplete host checks. The exception changes no engine guard or existing human hold.
+requests outside its sandbox; they do not create a stronger sandbox.
 
 ## Sessions
 
@@ -2462,8 +2425,8 @@ The pre-change host probe reproduced the deferred-check gap: after reading the o
 implement, stop, and landing resources, it chose `land` with no runtime source or target proof.
 The candidate probe and one compact-output retry each reached the 180-second deadline without
 final decisions. Both observed complete reads of all seven candidate resources. V1 remains
-UNVERIFIED; reading the resources alone does not pass its behavioral oracle. The issue must keep
-its `Before landing` hold until that check completes with the required evidence.
+UNVERIFIED; reading the resources alone does not pass its behavioral oracle. The issue kept
+its `Before landing` hold until that check completed.
 
 The checks used Bun 1.4.4 and the existing codex-cli 0.166.0 installation and authentication.
 The baseline is one observed decision; the two candidate attempts establish no passing decisions
@@ -2561,7 +2524,7 @@ results as of 2026-10-20, not a certified minimum-version range:
 | Component | Evidence and limit |
 |---|---|
 | Codex CLI 0.162.1 | Private Git marketplace install and refresh, shared manifest discovery, effective configuration, and saved-turn API checks passed. A fresh 21-case step run passed with product instructions and the clarified startup text. These do not prove a full live workflow or native desktop selection |
-| Claude Code 2.1.302 | The single-config Task 4 checks recorded 24 quoted cases and 24 native cases. The native result used 22 provider cases and two module-owned zero-usage stops, with strict event checks. Managed plugin setup and complete child bootstrap remain UNRUN. Changed inputs require fresh live results |
+| Claude Code 2.1.302 | The single-config Task 4 checks recorded 24 quoted cases and 24 native cases. The native result used 22 provider cases and two module-owned zero-usage stops, with strict event checks. Managed plugin setup and complete child bootstrap remain UNRUN |
 | Superpowers 7.0.0 | Installation on the isolated Codex Git configuration passed. Each active surface must still expose the dispatch and follow-up controls its procedures require |
 | agent-board 2.0.0, tag commit `e36283b` (earlier storage) | Contract 1 and the current config path passed. Released-browser Open shell and partial Claude Run/Go passed. The earlier Codex Run stopped on a local-marketplace setup error; Claude later stopped on quota. Later reviewed-source Codex Run, Resume, and Go passed with the correct issue and pane. Full acceptance remains open |
 | `board/` at source commit `95144d3` (ADR-0020; now `engine/board/`) | The board code of `95144d3` is the code of the release commit `2014361f365e03e18169ed75d602b729e25e03bb`. That release records a 322-test gate and read-only default-agent controls. The adapter and fixture Run/Resume checks of that release have separate evidence. Real browser/Herdr Run and Resume remain open |
@@ -2789,8 +2752,7 @@ with sessions left open (ADR-0028). Celetis no longer scans native processes or 
 admission for their lifetime. Updater serialization, exact-target application, source restoration,
 fresh validation and child cleanup remain. Native replacement may remove old cache resources;
 Celetis makes no immutable-resource promise for running sessions. Newly installed Codex skills
-and tools load in a new session. Historical ADR-0014 and ADR-0027 evidence remains. Real native
-installation and terminal-approval acceptance must be recorded separately from fixture results.
+and tools load in a new session. Historical ADR-0014 and ADR-0027 evidence remains.
 
 **The celetis program.** [Issue #126](https://github.com/ddinkov10/celetis/issues/126) runs each
 command through one installed program, `celetis` (ADR-0042). The Verify phase of the plan of #126
@@ -2954,8 +2916,7 @@ the installed program with the real `gh`, the focus outside the Herdr app, and t
 
 Desktop probes have their own PASS, FAIL, BLOCKED, or UNRUN records. BLOCKED and UNRUN remain
 incomplete without blocking otherwise complete required CLI checks. A CLI probe does not
-establish a desktop result. Manual desktop operations still use the active surface's tools,
-model profiles, and permissions; a missing tool or denied read stops that operation.
+establish a desktop result.
 
 | Component | Evidence and limit |
 |---|---|
@@ -3067,11 +3028,13 @@ refuses a restated label effect and a lane branch form, ADR-0084), the refusal o
 directly in `engine/` from a module of `engine/lib/` or `engine/board/` (`checkImports`,
 ADR-0081), and generated byte comparison, with modes on macOS and Linux. Only procedure modules
 need two citers, and only the skills and the step text count as citers; principles have no
-minimum citer count. Citations and relative links must name tracked files in `plugins/celetis/`,
-and the gate refuses a TypeScript file in that folder. Skills, procedure
-modules, and principles cannot cite `docs/hosts/`, and each `SKILL.md` needs the entry line
-exactly once. It installs nothing and refuses a tracked test file. Exact file roles distinguish
-generated delivery, unchanged vendor code and file exemptions.
+minimum citer count. The gate refuses a citation or a relative link that names no tracked file in
+`plugins/celetis/`, a quoted section name after a citation that matches no heading or two headings
+of the cited file, a citation of a document in `docs/` with no quoted name, a link fragment that is
+no heading slug of its target, a TypeScript file in that folder, a citation of `docs/hosts/` in a
+skill, a procedure module, or a principle, and a `SKILL.md` without the entry line exactly once.
+It installs nothing and refuses a tracked test file. Exact file roles distinguish generated
+delivery, unchanged vendor code and file exemptions.
 
 The workflow has one job, `test`, on Linux with Bun 1.4.4. It installs the pinned tools, then runs
 the verify gate. The private TypeScript installer checks the official actionlint hash

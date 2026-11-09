@@ -1,4 +1,4 @@
-# The diagnosis
+# The explore and the diagnosis
 
 The explore and the diagnosis of `bug` and `hotfix`. Each lane applies "The explore" at step 3,
 after it reads the project context, and "The diagnosis" at step 4.

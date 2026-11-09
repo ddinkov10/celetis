@@ -33,7 +33,10 @@ export async function main(argv: string[]): Promise<ExitCode> {
   try {
     const input = commandInput(argv);
     argv = input.args;
-    if (!argv.length) throw new ScoreError('need six digits J V B N S X; see docs/capability.md of the plugin celetis');
+    if (!argv.length)
+      throw new ScoreError(
+        'need six digits J V B N S X; see docs/procedures/capability-score.md of the plugin celetis',
+      );
     let biasText: string | undefined;
     let attemptText = '1';
     let agent = input.explicit;

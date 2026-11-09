@@ -64,9 +64,10 @@ Preserve existing holds. Direct their verified completion to assistance through
 its own completion. The maintainer then re-enters this skill; no run starts for the parent.
 
 For a repair, read existing linked repair issues first. Reuse the issue that covers the failed
-criterion. If none exists, create and link a repair issue through the "Epics" recipe, with a
-brief naming the failed parent criterion and its evidence. Keep repairs in existing child lanes.
-A retry reuses this work and does not alter a completed child build.
+criterion. If none exists, create and link a repair issue by the recipe of
+`<plugin>/docs/procedures/epic.md`, "The children", with a brief naming the failed parent criterion
+and its evidence. Keep repairs in existing child lanes. A retry reuses this work and does not alter
+a completed child build.
 
 When this session cannot resolve a required decision, access need, or repair, publish a
 heading-free file naming that exact block and required contribution, then run
@@ -81,13 +82,14 @@ coverage against the current definition and child snapshot, then review evidence
 immediately before submission. Renew only affected results. With a remaining hold or pending
 child, retain the report and end with the actual wait.
 
-Prepare the exact envelope of "Epic acceptance submission" in `<plugin>/docs/issue-tracker.md`,
-with current review identity, targets, results, and published parent comment references. Run
+Prepare the exact envelope of `<plugin>/docs/issue-tracker.md`, "Epic acceptance submission",
+and copy the current repository, parent, hash, and exact child snapshot from `epic-state`. Add the
+current review identity, targets, results, and published parent comment references. Run
 `celetis --agent <host> issue <n> complete-epic <file>`. The engine checks shape and freshness;
 this session checks evidence truth, semantic coverage, and current targets.
 
 Exit 0 of `issue <n> complete-epic <file>` reports completion or an already closed parent; distinguish them. Exit 2 requires corrected
 input. Exit 3 requires current prerequisite or coverage review. Exit 6 requires the entry's
-approval procedure for access failures and the actual partial-write reconciliation of "Epic
-completion and repair" in `<plugin>/docs/issue-tracker.md`. Re-read state before retrying; retain
+approval procedure for access failures and the partial-write repair of
+`<plugin>/docs/procedures/epic.md`, "A partial write". Re-read state before retrying; retain
 valid evidence and never replay an uncertain write blindly. Report the confirmed outcome and end.

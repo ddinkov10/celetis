@@ -143,6 +143,19 @@ does not count), each `SKILL.md` holds the entry line of `plugins/celetis/docs/p
 once, and no skill, module, or principle cites `docs/hosts/`. The gate refuses a TypeScript file
 in `plugins/celetis/`: the program source stays in `engine/` and `scripts/`.
 
+The same check reads three more rules. First, when a code span `<plugin>/<path>.md` is followed by
+`, "Name"` (more names follow as `, "Name"`, `and "Name"`, or `, and "Name"`), each name must equal
+exactly one heading of that file; a name that matches no heading, or two headings, is an error. A
+white-space run in a name or a heading counts as one space; inline code in a heading keeps its
+backticks. A setext heading counts, and a heading inside a fence does not (P14, R3). A quoted phrase
+that does not follow `, ` right after the span is not read (P15). Second, a citation of
+`<plugin>/docs/<name>.md` (a maintainer document) with no quoted name after the span is an error.
+Rules one and two cover only the agent text, not a document such as `workflow.md` (P16). Third, the
+fragment of each relative link, also a link that starts with `#`, must be a GitHub heading slug of a
+tracked Markdown file in `plugins/celetis/`; a repeated heading gets `-1`, `-2`, and an HTML `id` is
+no target (R10). The labels in parentheses name cases of the probe in the plan of #264
+(https://github.com/ddinkov10/celetis/issues/264#issuecomment-6737386356).
+
 `checkContract` in `scripts/verify.ts` checks the same files against `engine/lib/contract.ts`
 (ADR-0079). Each code span or fenced line that starts with `celetis` must match a declared form.
 Each exit code in prose must be a class of a command that its block names. The block is its

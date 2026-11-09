@@ -42,11 +42,11 @@ earlier entry does not replace them.
    - \`custom\` is not a mapping.
    - The selected value is not a string, or it contains NUL.
 4. **The custom text.** Take \`custom.<skill>\`, with \`<skill>\` the name of the entered skill,
-   exactly as parsed. An empty string is no custom text. The other fields stay data: the entry runs
-   no setup.
+   exactly as parsed. A missing key or an empty string is no custom text. The other fields stay
+   data: the entry runs no setup.
 
-**The stops.** A symlink at the path, an invalid or ambiguous file, and a value that is not a
-string stop the entry with the absolute path and the field; a syntax or root error uses
+**The stops.** A symlink at the path, an invalid, ambiguous, or unreadable file, and a value that
+is not a string stop the entry with the absolute path and the field; a syntax or root error uses
 \`<document>\`. A denied read stops the entry with the exact block, and no other access follows: no
 other tool, no shell command, no parser subprocess, and no cached content. A result with no
 content, for example an unchanged-file result, counts only when the whole content of an earlier
@@ -68,6 +68,10 @@ completion criterion of a skill.
   \`celetis\` runs the command; \`<plugin>\` locates only the documents that the skills cite. When
   \`celetis\` is not on \`PATH\`, stop before the workflow command, and tell the person to install the
   program (\`<plugin>/README.md\`, "First install") and to start a fresh session.
+- **GitHub.** Run each write that an act of \`celetis --agent <host> issue <n> <act>\` makes through
+  that act: the engine reads these writes. Use \`gh\` for reads and for each other write, for example
+  the \`## Intent\` and \`## External facts\` comments and the sub-issue link of an epic child
+  (\`<plugin>/docs/issue-tracker.md\`, "Conventions", lists the acts and the \`gh\` forms).
 - **Skills.** Invoke a skill as the part of the host says. Each invocation is a new entry, with its
   own checkout and its own custom text: a same-session handoff and an invocation in a child agent
   too. Keep the invocation input across a handoff. A missing required Superpowers skill stops the

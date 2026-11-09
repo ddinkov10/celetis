@@ -58,7 +58,7 @@ Only the exit 0 of `setup status` starts step 1.
      - `<plugin>/docs/principles/separate-before-serializing-shared-state.md`
      - `<plugin>/docs/principles/type-system-discipline.md`
      - `<plugin>/docs/principles/test-behavior-not-implementation.md`
-   - Apply `<plugin>/docs/capability.md`, "The rubric — six dimensions, each 0–2" and "Scorecard format — MANDATORY", to the task's digits and evidence reason. Emit its CAP line via `celetis --agent <host> capscore J V B N S X` — never hand-computed. It is a recommendation for the session, because `implement` builds a micro-plan inline.
+   - Apply `<plugin>/docs/procedures/capability-score.md`, "The rubric — six dimensions, each 0–2" and "Scorecard format — MANDATORY", to the task's digits and evidence reason. Emit its CAP line via `celetis --agent <host> capscore J V B N S X` — never hand-computed. It is a recommendation for the session, because `implement` builds a micro-plan inline.
    - Verify phase: the red repro re-run post-fix, plus one error branch of any newly-enabled
      path (widened allow-list / enum / dispatch literal / flag). Read
      `<plugin>/docs/procedures/runtime-verification.md` and apply "Planning" to its runtime

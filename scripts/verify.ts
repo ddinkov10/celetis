@@ -61,6 +61,38 @@ export function classify(path: string, source: Buffer): string {
 
 const pluginCitation = /<plugin>\/([A-Za-z0-9._/-]+)(?![A-Za-z0-9._/<>*{-])/g;
 const relativeLink = /\]\(([^)\s]+)\)/g;
+const quotedNames = /^,\s+"([^"]+)"((?:(?:,\s+and|,|\s+and)\s+"[^"]+")*)/;
+
+const collapse = (text: string) => text.replace(/\s+/g, ' ').trim();
+
+function headings(text: string): string[] {
+  const found: string[] = [];
+  Bun.markdown.render(text, {
+    codespan: (code) => `\`${code}\``,
+    heading: (children) => {
+      found.push(collapse(children));
+      return '';
+    },
+  });
+  return found;
+}
+
+function slugs(text: string): Set<string> {
+  const seen = new Map<string, number>();
+  const found = new Set<string>();
+  for (const heading of headings(text)) {
+    const slug = encodeURIComponent(
+      heading
+        .toLowerCase()
+        .replace(/[^\p{L}\p{M}\p{N}\p{Pc}\- ]/gu, '')
+        .replace(/ /g, '-'),
+    );
+    const count = seen.get(slug) ?? 0;
+    seen.set(slug, count + 1);
+    found.add(count === 0 ? slug : `${slug}-${count}`);
+  }
+  return found;
+}
 
 const agentText = (files: ReadonlyMap<string, string>) =>
   [...files].filter(
@@ -75,23 +107,59 @@ export function checkCitations(files: ReadonlyMap<string, string>): string[] {
   const errors: string[] = [];
   const cited = new Map<string, Set<string>>();
   const agentFiles = new Set(checked.map(([file]) => file));
+  const headingCache = new Map<string, string[]>();
+  const headingsOf = (path: string) => {
+    const known = headingCache.get(path);
+    if (known) return known;
+    const found = headings(files.get(path) ?? '');
+    headingCache.set(path, found);
+    return found;
+  };
   for (const [file, text] of files) {
     if (!file.startsWith(plugin) || !/\.md$/.test(file)) continue;
     const targets = new Set<string>();
     if (agentFiles.has(file))
-      for (const [, path = ''] of text.matchAll(pluginCitation)) {
-        const target = path.replace(/\.$/, '');
-        targets.add(`${plugin}${target}`);
-        if (!files.has(`${plugin}${target}`))
+      for (const match of text.matchAll(pluginCitation)) {
+        const target = (match[1] ?? '').replace(/\.$/, '');
+        const cited = `${plugin}${target}`;
+        targets.add(cited);
+        if (!files.has(cited)) {
           errors.push(`verify: citation: ${file}: <plugin>/${target} is not a tracked file in ${plugin}`);
+          continue;
+        }
+        const end = match.index + match[0].length;
+        const quoted =
+          text[match.index - 1] === '`' && text[end] === '`' ? quotedNames.exec(text.slice(end + 1)) : null;
+        const names = quoted
+          ? [quoted[1] ?? '', ...(quoted[2] ?? '').matchAll(/"([^"]+)"/g).map((name) => name[1] ?? '')]
+          : [];
+        const where = `${file}: line ${text.slice(0, match.index).split('\n').length}: <plugin>/${target}`;
+        if (names.length === 0 && /^docs\/[^/]+\.md$/.test(target))
+          errors.push(`verify: citation: ${where} needs a quoted section name after the span`);
+        if (!cited.endsWith('.md')) continue;
+        for (const name of names.map(collapse)) {
+          const count = headingsOf(cited).filter((heading) => heading === name).length;
+          if (count !== 1)
+            errors.push(
+              `verify: citation: ${where}, "${name}" ${count === 0 ? 'is not a heading' : `matches ${count} headings`}`,
+            );
+        }
       }
     for (const [, link = ''] of text.matchAll(relativeLink)) {
-      if (link.startsWith('#') || /^[a-z][a-z0-9+.-]*:/i.test(link) || /[<{*]/.test(link)) continue;
-      const [target = ''] = link.split('#');
-      const resolved = posix.join(posix.dirname(file), target);
-      targets.add(resolved);
+      if (/^[a-z][a-z0-9+.-]*:/i.test(link) || /[<{*]/.test(link)) continue;
+      const hash = link.indexOf('#');
+      const target = hash < 0 ? link : link.slice(0, hash);
+      const fragment = hash < 0 ? undefined : link.slice(hash + 1);
+      const resolved = target === '' ? file : posix.join(posix.dirname(file), target);
+      if (target !== '') targets.add(resolved);
       if (!resolved.startsWith(plugin) || !files.has(resolved))
         errors.push(`verify: citation: ${file}: ${target} is not a tracked file in ${plugin}`);
+      else if (fragment !== undefined) {
+        if (!resolved.endsWith('.md'))
+          errors.push(`verify: citation: ${file}: ${link} has a fragment on a file that is not Markdown`);
+        else if (!slugs(files.get(resolved) ?? '').has(fragment))
+          errors.push(`verify: citation: ${file}: ${link} is not a heading anchor of ${resolved}`);
+      }
     }
     cited.set(file, targets);
   }

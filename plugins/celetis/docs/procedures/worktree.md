@@ -26,7 +26,8 @@ instruction read, and child task: every later step runs there, and the main chec
 branch. Reuse the binding when the session is already in that worktree, as it is after a
 same-session handoff. Read the applicable `AGENTS.md` files of that checkout before editing. Keep
 the script's branch and worktree: only `celetis --agent <host> land` and the removal below remove
-a lane worktree, so a session-end offer to remove it gets no.
+a lane worktree, so a session-end offer to remove it gets no. Each commit on the lane branch
+references `#<n>` in its message.
 
 ## A conflict with the trunk
 

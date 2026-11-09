@@ -44,9 +44,11 @@ category and record per `<plugin>/docs/procedures/review-evidence.md`.
 ## 3. Dispatch the critic
 
 Dispatch a fresh reviewer per `<plugin>/docs/procedures/dispatch.md`, "One child", scored as a
-review with `celetis --agent <host> capscore J V B N S X --reviewer --json`. Its brief also holds
-the diff file, the rubric above, and the Contracts-lens rule. Deliver the exact applicable
-principle paths with the diff to the critic and each fixer, with instructions to read them.
+review with `celetis --agent <host> capscore J V B N S X --reviewer --json`, per
+`<plugin>/docs/procedures/capability-score.md`, "The rubric — six dimensions, each 0–2" and
+"Scorecard format — MANDATORY". Its brief also holds the diff file, the review rubric of step 2,
+and the Contracts-lens rule. Deliver the exact applicable principle paths with the diff to the
+critic and each fixer, with instructions to read them.
 Include `<plugin>/docs/procedures/review-evidence.md` and
 `<plugin>/docs/principles/demonstrate-behavioral-defects.md` in those resolved references. Read the
 module and apply "Reviewer" to the critic's brief, including each scoped re-review.
@@ -67,11 +69,13 @@ disposition", before accepting PASS or dispatching a fixer, and after each scope
 Use its stop for unresolved material risks, including a risk-only report with a high score.
 
 - Accepted PASS → report the score and finding dispositions, then stop.
-- First FAIL with accepted Critical or Important findings → dispatch a fresh **fixer** subagent per `<plugin>/docs/procedures/dispatch.md`, "One child",
-  scored for the fix with `celetis --agent <host> capscore J V B N S X --json`. Its brief also holds
-  the accepted Critical and Important findings and evidence, the unresolved context outside the
-  fix list, the diff path, and the exact applicable principle and review-evidence module paths
-  for the fix. The fixer fixes, re-runs the
+- First FAIL with accepted Critical or Important findings → dispatch a fresh **fixer** subagent
+  per `<plugin>/docs/procedures/dispatch.md`, "One child", scored for the fix with
+  `celetis --agent <host> capscore J V B N S X --json`, per
+  `<plugin>/docs/procedures/capability-score.md`, "The rubric — six dimensions, each 0–2" and
+  "Scorecard format — MANDATORY". Its brief also holds the accepted Critical and Important
+  findings and evidence, the unresolved context outside the fix list, the diff path, and the exact
+  applicable principle and review-evidence module paths for the fix. The fixer fixes, re-runs the
   covering tests, and commits.
 - Resume the same critic for a scoped re-review: verdict each finding ADDRESSED or NOT ADDRESSED, re-score the five
   perspectives, flag new breakage. Newly accepted Critical or Important findings join the open list.

@@ -12,44 +12,11 @@ records all seven change-or-retain decisions. The maintainer delegated research-
 the agent chose the rules, and the maintainer approved the written design. Historical score
 frequencies do not establish model quality, optimal bands, or savings.
 
-## The rubric — six dimensions, each 0–2
-
-Score the actual delegated task after reading its scope and acceptance criteria. Separate work
-already decided in the approved spec from decisions the worker still has to make. Score each
-dimension once; do not increase a digit to force a desired tier.
-
-| Dimension | 0 | 1 | 2 |
-|---|---|---|---|
-| **J** judgment | Exact transformation or prescribed action; no material choice remains. | Bounded implementation or editorial choices within an agreed design. | Material unresolved trade-offs, conflicting requirements, or architecture/policy decisions. |
-| **V** verification gap | Executable checks cover the decisive acceptance outcomes. | Executable checks cover only part of the acceptance; substantive review is also needed. | The decisive outcome has no reliable executable oracle and depends on judgment. |
-| **B** consequence of a defect | No product behavior, authority, or retained-data effect; for example a mechanically checked non-normative text correction. | A bounded, reversible effect in one behavior or component. | A shared behavioral rule, cross-workflow effect, data loss/corruption risk, or authority boundary with substantial consequences. |
-| **N** novelty | Use an existing solution or exact pattern without a new mechanism. | Adapt an existing pattern to a materially different case. | Introduce a mechanism or design with no suitable project precedent. |
-| **S** coupled scope | One local behavior/invariant, or an identical mechanical transformation at many locations. | Several interacting behaviors inside one established contract/subsystem. | Coordinated changes across contracts/subsystems, or a state model with several interacting invariants that must change together. |
-| **X** security | No security-relevant semantics; ordinary content hashing alone belongs here. | Work beside an existing security boundary while preserving its established decisions. | Change authentication, authorization, secret handling, cryptographic security, or a trust/permission decision. |
-
-B2 needs a named affected behavior and failure consequence. A shipped file, skill, or public
-document is not enough. A skill changing permission or workflow policy can still be B2. J2 needs
-the unresolved decision. N2 needs the missing precedent. S2 needs the coupled contracts or
-invariants. X2 needs the security decision that changes.
-
-V0 requires relevant behavioral checks. A static verify gate alone does not establish V0 for
-agent behavior. A small diff does not establish low S, and a large mechanical diff does not
-establish high S. Use no file-count or changed-line thresholds.
-
-These contrasts apply regardless of the file type:
-
-- An exact wording correction can be J0; unresolved policy design can be J2.
-- A digest used only to detect stale content is X0; a signature or digest whose acceptance grants
-  authority is not automatically X0.
-- Eleven identical mechanical edits can be S0; one state machine with interacting invariants
-  that must change together can be S2.
-- Static checks can validate file structure; only checks of decisive behavioral outcomes support
-  V0 for behavior changes.
-
-Read the relevant source when scope evidence is missing. If it remains unavailable, state the
-uncertainty and use the highest digit supported by a plausible, explicitly described in-scope
-consequence. Do not invent a security concern, label unknown code harmless, or treat missing
-tests as adequate verification. Normal task blocks stay separate from the arithmetic.
+The procedure module `docs/procedures/capability-score.md` holds
+[the rubric](procedures/capability-score.md#the-rubric--six-dimensions-each-02),
+[the scorecard](procedures/capability-score.md#scorecard-format--mandatory),
+[the consumption rule](procedures/capability-score.md#who-must-score-when--the-consumption-rule), and
+[the worked examples](procedures/capability-score.md#worked-examples-explicit-bias-0-attempt-1).
 
 ## Bands (sum 0–12)
 
@@ -72,7 +39,7 @@ percentage for cheaper models.
 
 `--bias N` (script flag) / `CAP_EFFORT_BIAS` (env fallback) raises **effort** by N tiers. **Model is
 never biased.** **Default 0**. An empty environment value also uses 0. A newly selected nonzero
-bias needs a task reason under "Scorecard format — MANDATORY".
+bias needs a task reason ([Scorecard format — MANDATORY](procedures/capability-score.md#scorecard-format--mandatory)).
 
 `--bias` and `CAP_EFFORT_BIAS` accept safe integers from 0 through 9007199254740991.
 The CLI bias takes precedence over the environment. `--attempt` accepts safe integers from 1
@@ -89,126 +56,12 @@ an opus result to max.
 
 - attempt 2 → effort **+1 tier**
 - attempt 3 → model **+1 tier**, effort **≥ high**
-- attempt 4 → **STOP**, escalate to the user with the failure trail
+- attempt 4 → **STOP**
 
 In the task loop of `implement`, `dispatch` owns the attempt count and applies this escalation.
 The count is session-scoped; a new session starts at attempt 1. Other consumers pass their attempt
 to `capscore`. The clamp still applies to escalation output: escalation never mints `fable/max`
 below Σ=12.
-
-## Scorecard format — MANDATORY
-
-Every dispatch prompt **and** every plan task header carries the emitted CAP line, immediately
-followed by an authored `CAP reason:`:
-
-```
-CAP: J1 V1 B1 N1 S1 X0 = 5 → sonnet/medium
-CAP reason: J1 covers a bounded option implementation. V1 reflects partial behavioral checks. B1 limits a defect to one reversible command behavior. N1 adapts the command's existing option pattern. S1 covers its interacting local options.
-```
-
-The reason names evidence for every nonzero digit, grouping related evidence where clear. Explain
-a potentially misleading zero, such as X0 for a content digest that grants no authority. Include
-the task reason for a newly selected nonzero bias; the emitted line shows it as `+bN` before the
-arrow. The reason is prose, not a CLI argument, JSON property, dispatch-record field, or parser
-input. It changes no byte of the emitted CAP line.
-
-Published digits and explicit bias remain execution inputs. Reuse a supported existing reason,
-or explain those unchanged inputs from available task evidence. Mark missing historical evidence
-instead of inventing it. Re-score only changed scope; a new rubric or host does not reinterpret
-old tasks. An absent `+bN` in a published line means bias 0.
-
-For plan headers and children outside the task loop of `implement`, generate the line with
-`capscore` (do not hand-compute the tier). The task loop takes its line from `dispatch`
-([Dispatch records](#dispatch-records)).
-
-```bash
-celetis --agent <host> capscore J V B N S X [--attempt N] [--bias N]
-```
-
-## Who must score, when — the consumption rule
-
-Score **before every dispatch of work to a model**, and put the resulting CAP line where that model
-will read it:
-
-- **Lane skills** (`bug|hotfix|chore|feature`) — score before any subagent dispatch; the CAP
-  line goes in the dispatch prompt.
-- **`implement`** task loop — reuse the task's digits and bias with `dispatch next`; send each
-  returned dispatch's CAP line first. `dispatch` owns gate repairs, review fixes, and task closure
-  on the subagent flow and for fixes after the final review ([Dispatch records](#dispatch-records)).
-  On the inline flow, the session builds each task, so the plan's CAP lines are recommendations
-  (**Plan headers**); its final reviewer uses `capscore --json`.
-- **Other child spawns**, including `critic-loop` and the builder check of `specify` — resolve
-  the host binding with `capscore --json` and include its CAP line in the prompt; the actual
-  spawn applies the effort, and the model when `dispatch.model` is not null, through the actual
-  spawn controls of the host ([the child dispatch](procedures/dispatch.md), "One child").
-- **Plan headers** — print the CAP rec on session-executed tasks. Note: the **session model is the
-  user's picker**; the rubric can only *recommend* there (max is auto-assignable for a spawn, a rec
-  for the session). The user may override any rec. A run or board start of a step session gets
-  the effort level that the step before decided on the issue, else `high`, not a rubric band
-  (`docs/workflow.md`, "Start the script", "The effort level"); the rubric still only
-  recommends the session model.
-
-## Worked examples (explicit bias 0, attempt 1)
-
-These specified task shapes illustrate the anchors, not model success. Each pair uses the
-scorer with `--agent claude --bias 0`; each reason states the assumptions behind its digits.
-
-**Exact text correction.** Apply a prescribed non-normative correction at eleven README locations.
-
-```text
-CAP: J0 V0 B0 N0 S0 X0 = 0 → haiku/low
-CAP reason: The transformation is exact, checks cover every correction, and no behavior or retained data changes. Eleven identical edits are S0; publication adds no consequence by itself.
-```
-
-**Tiny helper.** Adapt a content-change digest helper within a fixed local contract.
-
-```text
-CAP: J1 V0 B1 N0 S0 X0 = 2 → haiku/low
-CAP reason: J1 covers bounded implementation choices. B1 covers reversible content-change detection errors in one helper. Complete behavior checks support V0; an exact established pattern supports N0 and one contract supports S0. X0 applies because the digest grants no authority and handles no secret.
-```
-
-**Bounded command option.** Extend one established command with several interacting options.
-
-```text
-CAP: J1 V1 B1 N1 S1 X0 = 5 → sonnet/medium
-CAP reason: J1 covers bounded implementation choices. V1 reflects partial behavioral checks. B1 limits a defect to a reversible command behavior. N1 adapts an existing option pattern to a different case. S1 covers interactions inside the command contract.
-```
-
-**Approved capture policy.** Apply a decided policy across workflow contracts, as in the
-specified implementation shape of #189 Task 3, without rescoring its historical task.
-
-```text
-CAP: J1 V1 B2 N1 S2 X0 = 7 → opus/high
-CAP reason: J1 covers bounded choices inside the approved policy. V1 reflects partial executable coverage. B2 covers missed capture across workflows. N1 adapts an existing capture pattern. S2 couples task and repair contracts. X0 preserves stop and authority decisions.
-```
-
-**Storage and recovery design.** Coordinate a new storage state model and recovery behavior.
-
-```text
-CAP: J2 V0 B2 N2 S2 X0 = 8 → opus/high
-CAP reason: J2 covers unresolved storage/recovery trade-offs. B2 covers retained-data loss or corruption. N2 assumes no suitable project mechanism. S2 couples storage and recovery invariants. Complete executable outcome checks support V0; no authentication or trust decision changes, so X0.
-```
-
-**Permission decision.** Implement one prescribed permission rule within one local contract.
-
-```text
-CAP: J1 V0 B2 N0 S0 X2 = 5 → opus/high
-CAP reason: J1 covers a bounded implementation choice. B2 covers an incorrect authority grant. X2 changes the permission decision. Complete checks support V0 and an existing mechanism supports N0. The local scope is S0, which does not remove the security floor.
-```
-
-**Judgment-based editorial choice.** Make a bounded editorial choice with a reversible effect.
-
-```text
-CAP: J1 V2 B1 N0 S0 X0 = 4 → sonnet/high
-CAP reason: J1 covers bounded editorial choices. V2 applies because decisive acceptance depends on judgment without a reliable executable oracle. B1 limits a defect to one reversible behavior. The task uses an existing pattern and one local contract with no security semantics.
-```
-
-**Novel authority design.** Resolve coupled authority rules without a reliable executable oracle.
-
-```text
-CAP: J2 V2 B2 N2 S2 X2 = 12 → fable/max
-CAP reason: J2 covers unresolved authority-policy trade-offs. V2 lacks a reliable oracle for the decisive outcome. B2 covers incorrect grants across workflows. N2 assumes no suitable project precedent. S2 couples permission and recovery contracts. X2 changes trust decisions.
-```
 
 ## Outcome evidence procedure
 
@@ -258,8 +111,8 @@ exact source archive before replacement. Invalid, unsupported, unmappable, unsaf
 refuse intact; a busy lock or failed persistence also refuses. See
 [ADR-0070](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0070-automatic-runtime-state-migration.md). The CLI result envelope remains schema 1.
 
-Run each act as `celetis --agent <host> dispatch <act>`, with the running host
-([the child dispatch](procedures/dispatch.md), "The task loop"):
+The acts of `dispatch` and the result of each ([the child dispatch](procedures/dispatch.md#the-task-loop)
+says when to use each act):
 
 | Act and arguments | Result |
 | --- | --- |
@@ -272,27 +125,17 @@ Run each act as `celetis --agent <host> dispatch <act>`, with the running host
 
 The task ID is its plan number, `final`, `verify-<k>`, or `land-<k>`. A deliberate new task needs
 a new ID. Repeating the same task cannot reset its count. `next` takes published digits and
-bias (`+bN`; absent means `--bias 0`); re-score only a changed scope. The reviewer uses the same
+bias (`+bN`; absent means `--bias 0`). The reviewer uses the same
 score with the engine's reviewer floors. Only `next`, `gate`, and `review` accept scoring flags
-and resolve fresh bindings. In Codex profile mode, pass fresh active-surface evidence through
-`--runtime-models`. `report`, `show`, and `close` validate configuration and saved records but
+and resolve fresh bindings. `report`, `show`, and `close` validate configuration and saved records but
 need no fresh runtime allowlist.
 
 On `status: "ready"`, schema-1 JSON includes `line`, `pair`, `action`, `child`, and `dispatch`.
-Send the CAP line first and unchanged. Apply the actual model and effort controls on an isolated
-spawn; omit `model` when null. Follow `spawn`, same-child `resume`, or engine-authorized `replace`.
-Keep the parent settings. A same-pair follow-up uses the recorded child. On Claude, its `to` is
-the child's agent ID, or the `Agent` spawn name that the recorded report binds to that ID when no
-other recorded `Agent` call used that name; the reported child stays the agent ID. A changed model, effort, or runtime issues `replace`,
+A changed model, effort, or runtime issues `replace`,
 because the observed follow-up tools cannot change the pair.
 Replacement preserves the task, counters, saved work, and earlier execution and failure evidence.
-Give the fresh child that saved context through [the child dispatch](procedures/dispatch.md).
-After a saved gate failure that issued no repair, request `next` with the saved task digits and
-bias. Do not replay the gate failure or reset the record.
 
-After each native call, save its exact tool name, arguments, and complete result. Submit
-`report <dispatch-id> <report-file>` before the next task act. The
-[Claude Code](procedures/dispatch.md#claude-code) and [Codex](procedures/dispatch.md#codex)
+The [Claude Code](procedures/dispatch.md#claude-code) and [Codex](procedures/dispatch.md#codex)
 examples show the report shape. Every saved execution has `provenance: "agent-reported"`. The
 engine binds the report to the active host/session record and checks its settings, CAP line,
 action, and worker identity against the issued action. It does not intercept the call or
@@ -305,17 +148,13 @@ the host argument and validated environment; the agent supplies no copy. A non-n
 `tool`, `arguments` (a JSON object), and `result` (any JSON value). Its outcome is one of:
 
 - `{"result":"started","child":"worker-id","model":null,"effort":null}`. Both hosts require
-  a nonempty usable child; the actual stable task name is valid. Keep native settings separate
-  from requested arguments. Preserve a returned model ID verbatim; leave unavailable settings
-  null. Requested effort is not proof of applied effort.
-- `{"result":"failed","noWorkerStarted":true,"error":"<exact failure>"}`. Use this only when
-  the tool failure establishes that no worker started. A matching accepted failure alone permits
+  a nonempty usable child; the actual stable task name is valid.
+- `{"result":"failed","noWorkerStarted":true,"error":"<exact failure>"}`. A matching accepted failure alone permits
   `next` to retry the issued action. The fresh dispatch names the voided ID and keeps its action,
   attempt, round, and resume child. Earlier evidence stays intact.
-- `{"result":"incomplete","error":"<uncertain result>"}`. An uncertain error or successful
-  response without usable identity stops dependent work. It cannot later become a retryable failure.
-- `{"result":"unsupported","error":"<actual missing operation>"}` with `call: null`. Report
-  an unavailable follow-up this way, then stop. Keep the recorded child.
+- `{"result":"incomplete","error":"<uncertain result>"}`. An incomplete result cannot later
+  become a retryable failure.
+- `{"result":"unsupported","error":"<actual missing operation>"}` with `call: null`.
 
 `report` acknowledges a matching start or known failure with `status: "reported"`, `dispatch`,
 and `result`; it issues no child. Mismatches, incomplete results, and unsupported operations save
@@ -326,22 +165,18 @@ returns exit 3 without changes. A missing or invalid host session returns setup 
 Malformed reports return usage exit 2 without changes. No report can replace earlier execution
 evidence. Calls outside the task loop need no report and are neither intercepted nor recorded.
 
-Wait for real child completion before its gate or review result. The gate pass already issues
-the reviewer. Report findings or `BLOCKED` through `review`; close after a clean current review.
-A later implementer call or adverse gate/review result makes earlier evidence stale. Failed,
+The gate pass already issues the reviewer. A later implementer call or adverse gate/review result makes earlier evidence stale. Failed,
 pending, mismatched, incomplete, or unsupported calls cannot close a normal or `final` task.
 
 The engine owns attempts and fix rounds. Gate failures advance attempts; attempt 4 stops.
 Rounds 1–3 retain the implementer when the effective pair is unchanged. A changed pair issues a
 replacement. Rounds 4–5 and `BLOCKED` permit an engine-issued fresh implementer at the attempt-3
 pair. A further adverse review is saved and stops all later acts for that task without round 6.
-Report failures change neither count. Keep no parallel counters.
+Report failures change neither count.
 
 Exit 0 returns `ready`, `reported`, or `closed`, or prints `show`. Exit 2 is usage; exit 3 is a
 refused act. Exit 8 is a terminal stop and exit 6 is a setup stop; a busy dispatch lock is exit 3. Both carry a reason and trail
-when available. Use the host approval procedure for sandbox blocks
-([the entry](procedures/entry.md), "The contract"). In a step session, rule 4 of `step-prompt.md`
-of the plugin `celetis` hands a stop to the issue ([the stop](procedures/stop.md)).
+when available.
 
 ## Portable scores and host binding
 
@@ -392,8 +227,7 @@ pair.
 
 Attempt 4 or later returns `status: "stop"`, with `rank`, `effort`, `host`, and `dispatch` null.
 It keeps the digits, bias, sum, attempt, and original STOP line. STOP is resolved before host
-lookup, current-model detection, or profile validation. The caller must hand off the failure
-trail without dispatching. JSON output requires `jq`; the human STOP line does not.
+lookup, current-model detection, or profile validation. JSON output requires `jq`; the human STOP line does not.
 
 ## Codex model profiles
 
@@ -426,9 +260,7 @@ ascending capability order and a reviewer minimum. Repeated model IDs are allowe
 surface offers fewer distinct capability families; the four portable ranks remain distinct.
 Store the profile under `codexProfiles` in the main checkout's `.celetis.yaml`, keyed by the
 active dispatch runtime identity. The scorer selects that identity and validates availability;
-the profile owns the capability ordering. Refresh the runtime allowlist from the tool that will
-create or resume the child before each dispatch, then supply its file path to the scorer.
-Keep the current parent model; this setup controls children only.
+the profile owns the capability ordering. This setup controls children only.
 
 Native cache replacement and same-child retry still need their separate CLI evidence.
 Open sessions have no immutable-resource guarantee (ADR-0028). Desktop binding has separate optional acceptance under
@@ -443,9 +275,8 @@ can stay at its maximum. The parent-model mode is one model, so this same-model 
 each retry. Different model IDs keep the ordered ranks and portable effort selection, with the
 same reviewer rules. In the profile mode, the final applied pair must be supported by the runtime.
 
-In the profile mode, pass `--runtime-models FILE` (or `CAP_RUNTIME_MODELS`) for the active
-dispatch surface. Its JSON object has `schema: 1` and a nonempty `runtime` identity. Use a surface
-and version or capability revision that identifies the actual dispatch environment. A repository
+The runtime allowlist file of `--runtime-models` (or `CAP_RUNTIME_MODELS`) is a JSON object with
+`schema: 1` and a nonempty `runtime` identity. A repository
 profile with placeholder IDs is:
 
 ```yaml
@@ -477,8 +308,7 @@ and explicit-profile scoring use the host projection only; explicit host selecti
 YAML read for selection. If YAML selects the host, that source passes the shared structural
 checks. A later invocation obtains fresh values; concurrent invocations share no profile state.
 
-The runtime allowlist has this shape; its IDs and efforts must come from the active dispatch
-controller's supported tools or model-list API:
+The runtime allowlist has this shape:
 
 ```json
 {
@@ -492,10 +322,7 @@ controller's supported tools or model-list API:
 }
 ```
 
-These placeholders are not usable defaults. Refresh the allowlist at dispatch from the same
-surface that will create the child. CLI and desktop can expose different models and efforts;
-a CLI catalog, a bundled catalog, or another surface's saved snapshot does not establish desktop
-tool availability. The caller supplies this evidence explicitly; the scorer neither reads
+These placeholders are not usable defaults. The caller supplies this evidence explicitly; the scorer neither reads
 undocumented caches nor silently substitutes a model. Claude names such as `sonnet` and `opus`
 in a published CAP line are not Codex model IDs.
 
@@ -527,24 +354,9 @@ celetis --agent codex capscore 1 0 2 1 1 0 --json \
   --profile /path/to/profile.json --runtime-models /path/to/active-models.json
 ```
 
-Existing plan CAP lines remain historical records. At dispatch, reuse their six digits and
-written bias (`+bN`; an absent token means 0), plus the current task's attempt count. Do not
-rescore the task because the host or rubric changed, and do not replace a written bias with a
-current default or environment override. Record the new human line and `dispatch` pair in the
-execution record. Apply "Scorecard format — MANDATORY" to the prompt's reason.
+Existing plan CAP lines remain historical records
+([the child dispatch](procedures/dispatch.md#one-child) says how to reuse them). The scorer
+returns the binding; the dispatch controller owns creation, identity, and execution records.
 
-For a Codex child scored with `capscore`, apply `dispatch.model` and `dispatch.effort` explicitly
-using the actual available spawn tool on an isolated child. With `dispatch.model: null`, send
-no `model` field and set the effort. A tool that permits overrides only without inherited
-history requires that isolated mode. If the tool cannot apply the pair, stop with a setup error.
-For these other consumers, use the available follow-up tool for the same child to repair or
-re-review: retain its identity and resolve the required pair again, including any gate-failure
-escalation. If that tool cannot apply a changed pair to the same identity, stop for setup with
-the failure trail. An unchanged pair may resume normally. Do not assume that another host's
-`Agent` or message API exists, or spawn a replacement just to change effort when the actual
-follow-up tool has no override. The scorer returns the binding; the dispatch controller owns
-creation, identity, and execution records.
-
-For the task loop of `implement`, use `dispatch` and its `pair` and `action` fields. Its agent-reported
-child identity, pair-change replacement, and execution reports are defined in
-[Dispatch records](#dispatch-records).
+The agent-reported child identity, pair-change replacement, and execution reports of `dispatch`
+are defined in [Dispatch records](#dispatch-records).

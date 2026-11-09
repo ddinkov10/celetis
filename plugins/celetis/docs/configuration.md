@@ -1,8 +1,9 @@
 # Repository configuration
 
-Store Celetis setup in one regular, readable `.celetis.yaml` at the checkout root. A symlink is
-not allowed. Do not search parent folders or combine files. Use one YAML 1.2 document with a
-mapping root. Comments are allowed. Put nothing after a `---` marker on its line.
+Store Celetis setup in one regular, readable `.celetis.yaml` at the checkout root. A symlink is not
+allowed. Each reader reads only `<checkout>/.celetis.yaml`; no reader searches a parent folder for
+it or combines files. Use one YAML 1.2 document with a mapping root. Comments are allowed. Put
+nothing after a `---` marker on its line.
 
 ## Fields and defaults
 
@@ -66,15 +67,12 @@ preferences stay unchanged; `setup check` and `setup try` create no preference. 
 writes leave the independent usage observations and attempt sequence intact. Explicit host-selection
 changes do not replace a valid local preference.
 
-The setup skill first gets validated saved tracker and ordered hosts from `setup check`'s
-`{"answers":{...}}` output. It asks only for absent answers or explicitly requested changes;
-invalid present answers refuse. Landing and merge suite come from one current validated config
-read. `try` and `write` take the same resolved explicit options. Setup refreshes recorded owned
-landing and suite values and removes an obsolete owned suite, while preserving unrelated YAML
-bytes and values. Differing unowned values stay with exact warnings; an unowned suite blocking
-`pr` refuses before writes. `worktreeSetup`, including exactly `""`, stays product-owned.
-The schema-1 wiring record keeps resolved tracker and hosts and resulting owned scopes; it drops
-retired claims. See `README.md`, "Review old wiring", for scope and remaining-caller limits.
+Setup refreshes recorded owned landing and suite values and removes an obsolete owned suite, while
+preserving unrelated YAML bytes and values. Differing unowned values stay with exact warnings; an
+unowned suite blocking `pr` refuses before writes. `worktreeSetup`, including exactly `""`, stays
+product-owned. The schema-1 wiring record keeps resolved tracker and hosts and resulting owned
+scopes; it drops retired claims. See `README.md`, "Review old wiring", for scope and
+remaining-caller limits.
 
 Each `codexProfiles` key must be a nonempty string that identifies the dispatch runtime.
 Each profile has exactly two required fields:
@@ -100,13 +98,13 @@ case-sensitive `.ts` suffix. The value is root-relative, also when a command sta
 subfolder. Celetis preserves accepted characters exactly: it does not trim, expand variables or
 `~`, split arguments, or interpret the value as code. A literal `$` or `~` stays literal.
 
-Reject absolute, rooted, drive, and UNC paths; backslashes; colons; empty, `.`, `..`, and `.git`
-components; U+0000–U+001F; and U+007F. Omission or exactly `""` means no setup. Null,
-whitespace-only text, inline code, and wrong types are errors. Configuration validation checks
-the reference only; a valid reference to a missing file can be read. Skill entry neither reads
-nor executes the setup file. `setup status` checks that a configured `suite` and a nonempty
-`worktreeSetup` name readable regular files in the active checkout, by the target rules below,
-and runs neither file.
+Validation rejects absolute, rooted, drive, and UNC paths; backslashes; colons; empty, `.`, `..`,
+and `.git` components; U+0000–U+001F; and U+007F. Omission or exactly `""` means no setup. Null,
+whitespace-only text, inline code, and wrong types are errors. Configuration validation checks the
+reference only; a valid reference to a missing file can be read. Skill entry neither reads nor
+executes the setup file. `setup status` checks that a configured `suite` and a nonempty
+`worktreeSetup` name readable regular files in the active checkout, by the target rules below, and
+runs neither file.
 
 Use a literal block, `|` or `|-`, for multiline `custom` instructions. `|` keeps one final
 newline; `|-` removes it; `|+` keeps all trailing newlines. A short instruction can be a normal
@@ -132,20 +130,21 @@ The selected Bun executes the lane file directly, with cwd at the lane root. The
 source path and ordinary sibling imports. It needs no executable bit or exported-function API.
 `process.argv[2]` is one absolute main-checkout argument. Stdin, stdout, and stderr stay
 inherited. Product `.env`, Bun configuration, preloads, macros, automatic package installation,
-and transpiler cache remain disabled. Pass each external executable and its arguments as an
-array; check its status and stop on failure. Signals stop the owned child. The worktree command
-adds an LF separator after nonempty setup output and prints the final absolute lane path.
+and transpiler cache remain disabled. A setup file passes each external executable and its
+arguments as an array, checks each status, and stops on failure. Signals stop the owned child. The
+worktree command adds an LF separator after nonempty setup output and prints the final absolute
+lane path.
 `setup try` prints its path even when preparation or execution fails, and returns the child
 status. `worktree` and `setup lane` report setup failure as exit 6.
 
-The setup skill proposes the relative path and complete contents for review. Before a detached
-wiring test, the product owner approves, creates, and commits the entry and required helpers on
-the local trunk in a separate product change. `setup try` and `setup write --setup-file <path>`
-require the entry in local trunk HEAD with an unchanged index and working file. They resolve the
-option from the main root and add only the reference. They create, copy, stage, own, commit, and
-push no application source to make testing possible. A changed proposal requires another owner
-source commit before retry. Existing references, including `""`, stay unchanged; a conflict
-prints `setup: warning: .celetis.yaml: worktreeSetup differs from the requested setup reference; setup leaves it`.
+Before a detached wiring test, the product owner approves, creates, and commits the entry and
+required helpers on the local trunk in a separate product change. `setup try` and
+`setup write --setup-file <path>` require the entry in local trunk HEAD with an unchanged index and
+working file. They resolve the option from the main root and add only the reference. They create,
+copy, stage, own, commit, and push no application source to make testing possible. A changed
+proposal requires another owner source commit before retry. Existing references, including `""`,
+stay unchanged; a conflict prints
+`setup: warning: .celetis.yaml: worktreeSetup differs from the requested setup reference; setup leaves it`.
 
 The main config is checked before Git prune, branch or worktree changes, runtime state creation,
 host sessions, and landing pushes. The daemon checks it again before each new
@@ -156,8 +155,9 @@ the lane stays unmarked. Source edits do not clear a marker. Explicit `setup lan
 the main reference and target lane source, and clears an old marker before file validation or
 execution. It writes the marker again only on success. An older lane with missing source needs
 the owner to bring that committed source into the lane; there is no copy or merge fallback.
-A setup failure or invalid new lane config uses the existing cleanup: remove the new worktree
-and a branch created by the command; keep an existing branch or worktree for repair and retry.
+After a setup failure or an invalid new lane config, the worktree command removes the new
+worktree and a branch that it created, and keeps an existing branch or worktree for repair and
+retry.
 Old Git defaults have no effect.
 
 The `suite` file is the full check of a `merge` landing. `land` runs it in the lane checkout, with
@@ -171,37 +171,28 @@ stdout and stderr are pipes, not a terminal, and their bytes reach the stdout an
 An abort of the landing sends SIGTERM to the suite, and SIGKILL when the suite still runs 10
 seconds later. A `pr` landing runs no suite: its checks are the checks of the PR.
 
-Use the main checkout for `landing`, `suite`, `gates`, `agents`, `board`, and `codexProfiles`.
-Use the new lane checkout for setup. At each skill entry, use `custom.<skill>` from the active
-checkout ("Skill entry"). Commands that need repository setup require a valid file.
+The program reads `landing`, `suite`, `gates`, `agents`, `board`, and `codexProfiles` from the
+main checkout. The worktree command reads `worktreeSetup` from the new lane checkout. Commands
+that need repository setup require a valid file.
 
 ## Skill entry
 
 Each skill invocation is an entry of its own, also a same-session handoff and an invocation in a
-child agent. The entry reads the whole file of the active checkout once, through a
-permission-checked native read, and applies only `custom.<skill>`, with its parsed string intact.
-The string reaches only that invocation. Other custom strings and `worktreeSetup` remain data, and
-entry executes no setup. A runtime operation value never replaces the read (ADR-0032). With no
-checkout or no file, the entry has no custom addition. An existing invalid, ambiguous, unreadable,
-or symlink file stops the entry with the path and the field. A denied read stops the entry, and
-no other access follows.
+child agent. On Claude Code, the native entry hook (`engine/hooks/entry.ts`) makes one native `Read`
+of the whole file of the active checkout at each invocation, when the file exists and is no symlink.
+It parses and validates the returned text with `parseConfigText` and `validateConfig`, the full
+validation of the reader below, and checks each `custom` key against the skills of the plugin with
+`checkSkills`, as the reader CLI does. It puts only `custom.<skill>`, with its parsed string intact,
+into the facts block of that invocation. Other custom strings and `worktreeSetup` stay data, the
+hook runs no setup, and a runtime operation value never replaces the read (ADR-0032). With no
+checkout or no file, the block has no custom text. A symlink, an invalid or ambiguous file, and a
+failed or denied read stop the entry with the path and the field, and the stop block allows no other
+access path. The hook parses text, not bytes: the byte checks of the reader, for example strict
+UTF-8, hold at each command, which validates the file again before protected work.
 
-- **On Claude Code,** the native entry hook (`engine/hooks/entry.ts`) makes the read with `Read`.
-  It parses and validates the returned text with `parseConfigText` and `validateConfig`, the full
-  validation of the reader below. Then it checks each `custom` key against the skills of the
-  plugin with `checkSkills`, as the reader CLI does, and puts the custom string into its facts
-  block. The hook parses text, not bytes: the byte checks of the reader, for example strict UTF-8,
-  hold at each command, which validates the file again before protected work.
-- **On Codex, and on Claude Code when the hook did not run,** the session follows "Entry without
-  the hook" of `docs/procedures/entry.md`. Codex with a shell runs the reader CLI below. Else the
-  session reads the file natively (Claude Code with `Read`, Codex with a dedicated reader or a
-  runtime file API) and applies a short rule list of that part. The first command that needs the
-  file validates it in full. A command other than the reader CLI checks only the form of each
-  `custom` key, not its skill file.
-
-After the entry, a step that needs another value of the file reads it at that step through the
-reader CLI (`docs/procedures/entry.md`, "The contract"). `docs/hosts/claude-code.md` and
-`docs/hosts/codex.md` hold the integration facts of each host (ADR-0047).
+`docs/procedures/entry.md`, "Entry without the hook", holds the entry with no hook.
+`docs/hosts/claude-code.md` and `docs/hosts/codex.md` hold the integration facts of each host
+(ADR-0047).
 
 ## Validation and reader interface
 
@@ -220,10 +211,11 @@ host inputs. `validateConfig(source)` checks the full schema and returns a deepl
 without inserted defaults. `skillName` is the form of a `custom` key.
 `checkSkills(config, plugin, isFile)` asks `isFile` for `<plugin>/skills/<key>/SKILL.md` of each
 `custom` key, in order, and throws a `ConfigError` of `custom.<key>` at the first missing file. The
-caller gives `isFile`, because the module has no file access. `ConfigError` names the field, and
-`formatConfigError` renders the selected path, field, and message. A failed read also keeps its
-filesystem code (`ioCode`), so `setup status` reports an absent file as missing and a denied read as
-blocked.
+caller gives `isFile`, because the module has no file access. Only the reader CLI and the entry hook
+check the skill file of a `custom` key; each other command checks only its form. `ConfigError` names
+the field, and `formatConfigError` renders the selected path, field, and message. A failed read also
+keeps its filesystem code (`ioCode`), so `setup status` reports an absent file as missing and a
+denied read as blocked.
 
 `engine/lib/config.ts` of the program owns byte access. Importing it starts no installation
 discovery or setup. `readSnapshot(file)` reads the bytes of one regular file with no

@@ -17,22 +17,30 @@ Each child that a step starts, in the task loop or outside it:
 
 1. **The score.** Outside the task loop, score the child with
    `celetis --agent <host> capscore J V B N S X --json`, with the digits, the bias, and the attempt
-   that the skill names. For new scores, apply `<plugin>/docs/capability.md`, "The rubric — six
+   that the skill names. For new scores, apply `<plugin>/docs/procedures/capability-score.md`, "The rubric — six
    dimensions, each 0–2". Add `--reviewer` for a
    review. Its `line` is the CAP line, and `dispatch.model` and `dispatch.effort` are the pair.
    The task loop takes the line and the pair from `dispatch` in place of a score
    ("The task loop"). Dispatch only on `status: "ready"`. A `stop` status dispatches no child:
    hand off the failure trail.
+   An existing plan CAP line is a historical record, in the task loop and outside it. Reuse its
+   six digits and its written bias (`+bN`; an absent token means `--bias 0`), with the attempt
+   count of the current task. Do not rescore the task because the host or the rubric changed. Do
+   not replace a written bias with a current default or an environment override.
 2. **The pair.** Inspect the active tool schema before each call. Apply the model and the effort
    of the pair through the host's actual spawn controls (the part of the host below). Omit the
    model when it is null. A CAP line alone does not set them. Keep the parent model and effort.
-3. **The scorecard.** Apply `<plugin>/docs/capability.md`, "Scorecard format — MANDATORY", to
+   When the spawn tool cannot apply the pair, stop with a setup error.
+3. **The scorecard.** Apply `<plugin>/docs/procedures/capability-score.md`, "Scorecard format — MANDATORY", to
    new scores and reused published inputs. The emitted CAP line goes first in the child prompt,
    unchanged, immediately followed by its evidence reason. This includes reviews and repairs.
-4. **The identity.** Record the applied arguments and the child identity that the host returns.
-   A repair or a scoped re-review keeps the same child, unless `dispatch` returns `replace` or the
-   skill names a fresh child. Resume a kept child with the host's follow-up tool, which keeps the
-   recorded pair. In the task loop, only a returned `replace` starts a fresh child in place of it.
+4. **The identity.** Record the CAP line, the applied arguments, and the child identity that the
+   host returns. A repair or a scoped re-review keeps the same child, unless `dispatch` returns
+   `replace` or the skill names a fresh child. Outside the task loop, resolve the required pair
+   again with `capscore` and the attempt count, including any gate-failure escalation. Resume a
+   kept child with the host's follow-up tool, which keeps the recorded pair. An unchanged pair
+   resumes the same child. In the task loop, only a returned `replace` starts a fresh child in
+   place of it. Outside the task loop, do not start a fresh child only to change the effort.
    When the tool cannot apply the required pair to that identity, stop for setup with both pairs,
    the identity, the tool limitation, and the failure trail.
 5. **The brief.** Give the isolated child the exact checkout, the relevant project instructions,
@@ -64,7 +72,7 @@ fix after the final review. The acts and their arguments are:
 | `review <n> <task> blocked` | After an implementer reports `BLOCKED`. |
 | `close <n> <task>` | When the task review is clean. |
 
-- For `next`, reuse the published six digits and bias (`+bN`; absent means `--bias 0`). Published
+- For `next`, use the published six digits and bias as step 1 of "One child" says. Published
   model labels are history. Re-score only when the task scope changed. The task reviewer takes
   the digits and bias of its task; the engine applies the reviewer rules. Score each new task.
 - Use the plan task number as `<task>`. Use `final` for the whole-branch review and its fix wave,
@@ -84,7 +92,8 @@ fix after the final review. The acts and their arguments are:
 - Send each returned `ready` dispatch once. Save the exact tool name, arguments, and native result
   of the real call in an execution report, then run `report <dispatch-id> <report-file>` before
   the next engine act. Report only `call` and `outcome`; the engine binds the report to the active
-  host/session record. Follow the report shapes of the host below. Each execution is
+  host/session record. Keep the settings that the host reports in `outcome`, apart from the
+  requested arguments in `call`. Follow the report shapes of the host below. Each execution is
   agent-reported; the engine validates the report, not the native call. It cannot prevent an
   incorrect call or prove an internally consistent report true.
 - An acknowledgment with `status: "reported"` issues no child. Wait for the child's real
@@ -154,7 +163,8 @@ call of the session also used that name, send to the agent ID: the engine refuse
 
 These are report shapes, not fabricated execution evidence. Replace each value with the actual
 call and result. If the active surface lacks the required follow-up, submit `call: null` with
-`outcome: {"result":"unsupported","error":"<exact limitation>"}` and stop.
+`outcome: {"result":"unsupported","error":"<exact limitation>"}` and stop. Keep the recorded
+child.
 
 ## Codex
 
@@ -164,13 +174,20 @@ null. Keep the parent settings. For `resume`, use the actual `collaboration.foll
 `target` equal to the recorded child and the CAP line first in `message`. That follow-up has no
 model or effort controls. In the task loop, the engine returns a replacement for a changed pair;
 an unchanged pair can use the same child. Outside that loop, keep the setup stop of "One child".
+Do not assume that another host's `Agent` or message API exists.
 A returned stable task name, such as `/root/worker`, is a usable identity.
 
 With a nonempty `codexProfiles` mapping or an explicit profile, pass fresh model and effort
-evidence from the active dispatch tools through `--runtime-models` to each `capscore` call and
-each `dispatch` act that issues a dispatch. A refused pair is a setup stop; do not lower it or
-substitute another pair. If the sandbox blocks `dispatch`, request one approved retry with the
-same command, arguments, and cwd before reporting a setup stop.
+evidence from the active dispatch tools through `--runtime-models` (or `CAP_RUNTIME_MODELS`) to
+each `capscore` call and each `dispatch` act that issues a dispatch. Take the IDs and the efforts
+from the supported tools or the model-list API of the dispatch controller that will create or
+resume the child. Refresh them before each dispatch. Name the actual dispatch environment in
+`runtime`, by a surface and a version or capability revision. A CLI catalog, a bundled catalog,
+or the saved snapshot of another surface is not evidence: CLI and desktop can expose different
+models and efforts, so these sources do not establish desktop tool availability. A refused
+pair is a setup stop; do not lower it or substitute another pair. If the sandbox blocks
+`dispatch`, request one approved retry with the same command, arguments, and cwd before reporting
+a setup stop.
 
 In the task loop, after each call, run
 `celetis --agent codex dispatch report <dispatch-id> <report-file>`. The evidence is

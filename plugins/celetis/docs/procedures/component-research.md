@@ -46,9 +46,9 @@ question. The question has these parts, in this order:
 3. The question "Do you have a product, a design, or a tool that I must use or add?", with the
    answers "Go with these" and "Add a reference".
 
-Ask it as the host part of `<plugin>/docs/procedures/design.md`, "The question", says. The planned
-models are the candidates before the search: the ladder can add or drop a model, and the record
-names each change and its reason. Act on each reply by this table:
+Ask it as the item "The question" of `<plugin>/docs/procedures/design.md`, "Claude Code" and
+"Codex", says. The planned models are the candidates before the search: the ladder can add or
+drop a model, and the record names each change and its reason. Act on each reply by this table:
 
 | The reply | The act |
 | --- | --- |
