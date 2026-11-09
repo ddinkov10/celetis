@@ -1,6 +1,7 @@
 import { basename } from 'node:path';
-import type { Host } from './config-core.ts';
 import { type ExitCode, exits } from './contract.ts';
+import { type Host, hosts } from './host-names.ts';
+import { hostAdapter } from './hosts.ts';
 import { childEnv, run } from './process.ts';
 import { repositoryState, StateError, withLock } from './state.ts';
 import type { Terminal, TerminalStatus } from './terminal-types.ts';
@@ -34,10 +35,6 @@ const SAFE_ID = /^[\w:.][\w:.-]*$/;
 const POLL_MS = 250;
 const POLL_LIMIT_MS = 5_000;
 const STATUSES: Record<TerminalStatus, true> = { idle: true, working: true, done: true, blocked: true, error: true };
-const HOSTS: Record<Host, { app: string; exit: (id: string) => string[] }> = {
-  claude: { app: 'claude-code', exit: (id) => ['send', id, '/exit'] },
-  codex: { app: 'codex', exit: (id) => ['keys', id, 'ctrl+c', 'ctrl+c'] },
-};
 
 export const isSafeId = (value: unknown): value is string => typeof value === 'string' && SAFE_ID.test(value);
 const isText = (value: unknown): value is string => typeof value === 'string';
@@ -45,8 +42,7 @@ const isCount = (value: unknown): value is number => Number.isSafeInteger(value)
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 const isStatus = (value: unknown): value is TerminalStatus => isText(value) && Object.hasOwn(STATUSES, value);
-const hostOf = (app: unknown): Host | null =>
-  (Object.keys(HOSTS) as Host[]).find((host) => HOSTS[host].app === app) ?? null;
+const hostOf = (app: unknown): Host | null => hosts.find((host) => hostAdapter(host).app === app) ?? null;
 const records = (value: unknown) => (Array.isArray(value) ? value.filter(isRecord) : []);
 const firstLine = (text: string) =>
   text
@@ -149,7 +145,7 @@ export async function requestExit(id: string, host: Host, signal?: AbortSignal, 
   if (!isSafeId(id)) return false;
   const env = { ...process.env };
   delete env.HC_TERMINAL_ID;
-  return (await call(exec, 'hc', [...HOSTS[host].exit(id), '--json'], { signal, env })).code === 0;
+  return (await call(exec, 'hc', [...hostAdapter(host).exitKeys(id), '--json'], { signal, env })).code === 0;
 }
 
 export async function closeTerminal(id: string, exec: Exec = run): Promise<void> {

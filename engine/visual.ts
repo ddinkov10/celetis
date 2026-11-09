@@ -1,10 +1,10 @@
 import { mkdir, rm } from 'node:fs/promises';
-import type { Host } from './lib/config-core.ts';
 import { type ExitCode, exits, usage } from './lib/contract.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect, passOn } from './lib/events.ts';
 import { isCommit, isIssueNumber } from './lib/fields.ts';
 import { requireBun } from './lib/host.ts';
+import type { Host } from './lib/host-names.ts';
 import { runInteractive } from './lib/interactive.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { childEnv, run } from './lib/process.ts';
@@ -15,22 +15,26 @@ const claudeInstall =
 const codexInstall =
   'copy the skill to ~/.codex/skills/visual-explainer from https://github.com/nicobailon/visual-explainer';
 
-export function visualArguments(host: Host, issue: number, sha: string, main: string): string[] {
+const skillSentence: Record<Host, (sha: string) => string> = {
+  claude: (sha) => `Invoke the Skill tool with visual-explainer:diff-review and the argument ${sha}. `,
+  codex: (sha) => `Use the visual-explainer skill and make its diff review of the commit ${sha}. `,
+};
+const installPath: Record<Host, string> = { claude: claudeInstall, codex: codexInstall };
+
+function visualText(host: Host, issue: number, sha: string, main: string): { title: string; prompt: string } {
   const partial = JSON.stringify(partialPage(main, sha));
   const page = JSON.stringify(visualPage(main, sha));
   const prompt =
     `These launcher instructions are the whole request: make the visual-explainer diff review of the commit ${sha}, the landed change of issue #${issue}, in this checkout. ` +
-    (host === 'claude'
-      ? `Invoke the Skill tool with visual-explainer:diff-review and the argument ${sha}. `
-      : `Use the visual-explainer skill and make its diff review of the commit ${sha}. `) +
+    skillSentence[host](sha) +
     'Use the skill only when this session lists it as an available skill. Do not read a copy of it from the folders of another host. ' +
     `Write the page to ${partial} and to no other path. When the page is complete, rename that file to ${page}. ` +
     `Then open ${page} in the default browser of the OS, as the delivery of the skill does. ` +
     'Change no other file, make no commit, and push nothing. ' +
     'When this session has no visual-explainer skill, say exactly "visual-explainer is not available in this session.", ' +
-    `then the install path of this host: ${host === 'claude' ? claudeInstall : codexInstall}. ` +
+    `then the install path of this host: ${installPath[host]}. ` +
     'Write no file, make no page of your own, and end the turn.';
-  return host === 'claude' ? ['-n', visualLink(issue), prompt] : ['--no-daemon', prompt];
+  return { title: visualLink(issue), prompt };
 }
 
 function firstLine(text: string): string {
@@ -84,7 +88,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
       );
     await mkdir(visualFolder(main), { recursive: true });
     await rm(partialPage(main, sha), { force: true });
-    return passOn(await runInteractive(operation, async (host) => visualArguments(host, issue, sha, main)));
+    return passOn(await runInteractive(operation, async (host) => visualText(host, issue, sha, main)));
   } catch (error) {
     markDefect(error);
     console.error(error instanceof HostError ? error.message : `celetis-visual: ${(error as Error).message}`);

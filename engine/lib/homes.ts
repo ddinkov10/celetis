@@ -5,10 +5,13 @@ import type { Host } from './config-core.ts';
 import { exits } from './contract.ts';
 import { HostError } from './errors.ts';
 
+const configHomes: Record<Host, () => string> = {
+  claude: () => process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'),
+  codex: () => process.env.CODEX_HOME ?? join(homedir(), '.codex'),
+};
+
 export function configHome(host: Host): string {
-  return host === 'claude'
-    ? process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude')
-    : (process.env.CODEX_HOME ?? join(homedir(), '.codex'));
+  return configHomes[host]();
 }
 
 export async function codexHome(selected = configHome('codex')): Promise<string> {

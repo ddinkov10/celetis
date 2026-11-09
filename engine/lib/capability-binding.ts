@@ -1,36 +1,12 @@
 import { constants } from 'node:fs';
-import { access, readFile, realpath, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { access, readFile, stat } from 'node:fs/promises';
 import { type Binding, type Runtime, ScoreError } from './capability.ts';
 import type { Config, Host } from './config-core.ts';
 import { levels, type ReviewerLevel, reviewerLevels } from './effort.ts';
-import { codexHome } from './homes.ts';
-import { childEnv, run } from './process.ts';
+import { hostAdapter } from './hosts.ts';
 
 const models = ['haiku', 'sonnet', 'opus', 'fable'];
 type Profile = { schema: number; runtime: string; slots: string[]; reviewer: { rank: number; effort: ReviewerLevel } };
-
-async function currentModel(): Promise<string | undefined> {
-  if (!Bun.which('sqlite3', { PATH: childEnv().PATH })) return;
-  const db = join(
-    process.env.OPENCODE_DATA_DIR || join(process.env.HOME ?? '', '.local/share/opencode'),
-    'opencode.db',
-  );
-  if (!(await stat(db).catch(() => null))?.isFile()) return;
-  const cwd = (await realpath(process.cwd())).replaceAll("'", "''");
-  const prefix =
-    "SELECT json_extract(data,'$.providerID') || '/' || json_extract(data,'$.modelID') FROM message WHERE json_extract(data,'$.modelID') IS NOT NULL";
-  let result = await run('sqlite3', [
-    db,
-    `${prefix} AND json_extract(data,'$.path.cwd') = '${cwd}' ORDER BY time_created DESC LIMIT 1;`,
-  ]);
-  let model = result.stdout.trimEnd();
-  if (!model || model === '/') {
-    result = await run('sqlite3', [db, `${prefix} ORDER BY time_created DESC LIMIT 1;`]);
-    model = result.stdout.trimEnd();
-  }
-  if (result.code === 0 && model && model !== '/') return model;
-}
 
 async function readable(file: string): Promise<boolean> {
   try {
@@ -153,12 +129,12 @@ async function binding(
 
 export async function readBinding(
   host: Host,
-  input: { profile?: string; runtimeFile: string; current?: string; opencode: boolean },
+  input: { profile?: string; runtimeFile: string },
   checkout: string | null,
   config: Config | null,
 ): Promise<Binding> {
   if (host === 'codex') {
-    process.env.CODEX_HOME = await codexHome();
+    await hostAdapter(host).checkHome();
     const selected = await binding(input.profile, input.runtimeFile, checkout, config);
     return {
       host,
@@ -167,10 +143,6 @@ export async function readBinding(
       reviewerEffort: selected ? levels.indexOf(selected.profile.reviewer.effort) : 1,
       runtime: selected?.runtime ?? null,
     };
-  }
-  if (input.opencode) {
-    const model = input.current || (await currentModel());
-    return { host: 'opencode', slots: model ? [model] : models, reviewerRank: 1, reviewerEffort: 1, runtime: null };
   }
   return { host, slots: models, reviewerRank: 1, reviewerEffort: 1, runtime: null };
 }

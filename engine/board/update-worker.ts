@@ -1,7 +1,8 @@
 import { isDeepStrictEqual } from 'node:util';
 import { exits } from '../lib/contract.ts';
 import { installRecorder, markDefect } from '../lib/events.ts';
-import { isHost, revision } from '../lib/fields.ts';
+import { revision } from '../lib/fields.ts';
+import { isHost } from '../lib/host-names.ts';
 import type { PreparedUpdate, UpdateCheck, UpdateResult, UpdateStage } from '../lib/updater.ts';
 
 export const UPDATE_PIPE_LIMIT = 1024 * 1024;
@@ -10,7 +11,7 @@ export type WorkerRecord =
   | { type: 'owned'; pid: number; active: boolean }
   | { type: 'result'; value: UpdateCheck | UpdateResult };
 
-const part = (value: unknown) => value === 'program' || value === 'claude' || value === 'codex';
+const part = (value: unknown) => value === 'program' || isHost(value);
 const text = (value: unknown): value is string => typeof value === 'string' && !value.includes('\0');
 const sha = (value: unknown): value is string => text(value) && revision.test(value);
 const object = (value: unknown): value is Record<string, unknown> =>

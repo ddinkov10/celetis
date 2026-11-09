@@ -1,7 +1,7 @@
 import { type ExitCode, exits, usage } from './lib/contract.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder } from './lib/events.ts';
-import { codexHome } from './lib/homes.ts';
+import { hostAdapter } from './lib/hosts.ts';
 import { lineOf } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
 import { nextIssue, nextOpen } from './lib/resolver.ts';
@@ -25,7 +25,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
       { explicit, environment: process.env.CELETIS_AGENT },
       'main',
     );
-    if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
+    await hostAdapter(operation.host).checkHome();
     const result = await resolveNext(input, operation);
     process.stdout.write(result.stdout);
     process.stderr.write(result.stderr);

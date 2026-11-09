@@ -63,7 +63,6 @@ export const runTitle = (step: string | null, flow: Partial<Flow> | null | undef
 
 export const AGENTS: Record<string, string> = {
   claude: 'Claude Code',
-  opencode: 'OpenCode',
   codex: 'Codex',
 };
 

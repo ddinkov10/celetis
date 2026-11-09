@@ -1,5 +1,6 @@
 import type { Host } from './config-core.ts';
-import { isHost, uuid } from './fields.ts';
+import { uuid } from './fields.ts';
+import { isHost } from './host-names.ts';
 
 export type UsageAttempt = {
   id: string;

@@ -17,9 +17,10 @@ import {
 import { type DaemonIdentity, type DaemonStatus, daemonPaths, type RunRow } from './lib/daemon-types.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder, passOn } from './lib/events.ts';
-import { isHost, isIssueNumber } from './lib/fields.ts';
+import { isIssueNumber } from './lib/fields.ts';
 import { programRevision } from './lib/git.ts';
 import { requireBun } from './lib/host.ts';
+import { isHost } from './lib/host-names.ts';
 import type { LockOwner } from './lib/locks.ts';
 import { commandInput, locateCheckouts } from './lib/operation.ts';
 import { bunArgs, childEnv } from './lib/process.ts';
@@ -260,8 +261,7 @@ async function waitingSession(args: string[]): Promise<ExitCode> {
     !(recovery === '-' || (recovery === 'recovery' && attempt !== '-'))
   )
     return exits.usage;
-  const { codexHome } = await import('./lib/homes.ts');
-  const { sessionEnv } = await import('./lib/session.ts');
+  const adapter = (await import('./lib/hosts.ts')).hostAdapter(host);
   const { spawnConsumer } = await import('./lib/update-lock.ts');
   const files = startFiles(dir);
   await writeAtomic(files.pid, `${JSON.stringify({ pid: process.pid, start: await processStart(process.pid) })}\n`);
@@ -276,8 +276,7 @@ async function waitingSession(args: string[]): Promise<ExitCode> {
     delete source.CELETIS_ATTEMPT;
     if (attempt !== '-') source.CELETIS_ATTEMPT = attempt;
     if (recovery === 'recovery') source.CELETIS_RECOVERY = attempt;
-    const env = childEnv(sessionEnv(host, source));
-    if (host === 'codex') env.CODEX_HOME = await codexHome();
+    const env = { ...childEnv(adapter.stepEnv(source)), ...(await adapter.homeEnv()) };
     const executable = Bun.which(host, { PATH: env.PATH });
     if (!executable) throw new HostError(`celetis: ${host} is not on PATH`, exits.prerequisite);
     code = passOn(await spawnConsumer(executable, [executable, ...hostArgs], env));

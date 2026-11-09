@@ -2,7 +2,7 @@ import { type Pair, pairText, ScoreError, scoreLabel } from './capability.ts';
 import type { Host } from './config-core.ts';
 import type { DispatchStatus } from './contract.ts';
 import { isLevel, type Level } from './effort.ts';
-import { isHost } from './fields.ts';
+import { isHost } from './host-names.ts';
 
 export type Role = 'implementer' | 'reviewer';
 export type Action = 'spawn' | 'resume' | 'replace';

@@ -5,11 +5,11 @@ import { basename, dirname, relative, resolve, sep } from 'node:path';
 import { format } from 'node:util';
 import { type ExitCode, exits, passThrough, signalExit } from './contract.ts';
 import { HostError } from './errors.ts';
-import { revision as fullRevision, isHost } from './fields.ts';
+import { revision as fullRevision } from './fields.ts';
+import { type Host, isHost } from './host-names.ts';
 import { ensureFolder, eventLayout, privateMode, withLockSync } from './state.ts';
 
 type Cut = 'message' | 'exception.stacktrace' | 'argv';
-type Host = 'claude' | 'codex';
 
 type Common = {
   schema: 1;

@@ -63,11 +63,12 @@ agent that waits.
 - The trust files of the board are trust boundaries: `engine/board/perimeter.ts`,
   `engine/board/requests.ts`, `engine/board/presses.ts`, the fixed adapter `engine/board/adapter.ts`,
   `engine/board/update-worker.ts`, `engine/board/start.ts`, the page modules of `engine/board/page/`,
-  `engine/lib/board-read.ts`, `engine/lib/visual.ts`, `engine/lib/fields.ts`, `engine/lib/terminal.ts`,
-  `engine/lib/effort.ts`, `engine/lib/process.ts`, `engine/lib/updater.ts`, `engine/lib/program.ts`,
-  `engine/lib/queue.ts`, and `engine/lib/daemon-types.ts`. `engine/board/README.md`, "The trust
-  boundary", maps each file to its rules. UI work must not widen them, including the
-  Content-Security-Policy of the board page. ADR-0065 records the one sandboxed route.
+  `engine/lib/board-read.ts`, `engine/lib/visual.ts`, `engine/lib/fields.ts`, `engine/lib/host-names.ts`,
+  `engine/lib/terminal.ts`, `engine/lib/effort.ts`, `engine/lib/process.ts`, `engine/lib/updater.ts`,
+  `engine/lib/program.ts`, `engine/lib/queue.ts`, and `engine/lib/daemon-types.ts`.
+  `engine/board/README.md`, "The trust boundary", maps each file to its rules. UI work must not
+  widen them, including the Content-Security-Policy of the board page. ADR-0065 records the one
+  sandboxed route.
 - Browser sources are TypeScript. `scripts/build.ts` generates the browser bundle `board.js`.
   Product repositories run no build.
 - `scripts/verify.ts` is the only check of this repository. The repository adds no test file.

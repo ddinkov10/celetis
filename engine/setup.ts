@@ -10,7 +10,7 @@ import { type Config, ConfigError, formatConfigError, type Host, validateWorktre
 import { type ExitCode, exits, type Label, labels, usage } from './lib/contract.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect, passOn } from './lib/events.ts';
-import { codexHome } from './lib/homes.ts';
+import { hostAdapter } from './lib/hosts.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
 import { checkClaudePolicy } from './lib/plugin-policy.ts';
 import { childEnv, run } from './lib/process.ts';
@@ -1139,7 +1139,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
     const config = checkout.main !== null && (await hasConfig(checkout.main));
     const full = ['check', 'write', 'lane', 'try'].includes(input.command);
     const operation = await createOperation(checkout, selection, full && config ? 'main' : 'host');
-    if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
+    await hostAdapter(operation.host).checkHome();
     return await new Setup(operation).execute(input);
   } catch (error) {
     if (!(error instanceof ConfigError)) markDefect(error);

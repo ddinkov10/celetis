@@ -926,7 +926,7 @@ These files enforce the rules. They are the trust files of the board:
 | 12 (text as text, the Content-Security-Policies, the visual page) | `engine/board/perimeter.ts`, `engine/lib/fields.ts` (`isCommit`), `engine/lib/board-read.ts` (`readVisualPage`), `engine/lib/visual.ts` (`hasPage`), the page modules |
 | Start rule 1 (the program read) | `engine/board/adapter.ts`, `engine/lib/program.ts` (`readProgram`) |
 | Start rule 2 (fixed argvs and requests) | `engine/board/adapter.ts`, `engine/lib/terminal.ts` (`openTab`) |
-| Start rule 3 (only validated values) | `engine/board/requests.ts`, `engine/lib/fields.ts`, `engine/board/adapter.ts`, `engine/lib/queue.ts` (`parseQueueAction`) |
+| Start rule 3 (only validated values) | `engine/board/requests.ts`, `engine/lib/fields.ts`, `engine/lib/host-names.ts` (`isHost`), `engine/board/adapter.ts`, `engine/lib/queue.ts` (`parseQueueAction`) |
 | Start rule 4 (the data comes from the engine) | `engine/lib/board-read.ts`, `engine/board/adapter.ts`, `engine/lib/daemon-types.ts` (`parseAnswer`, `parseQueueAnswer`) |
 | Start rule 5 (a clean `PATH`) | `engine/lib/process.ts` (`childEnv`) |
 

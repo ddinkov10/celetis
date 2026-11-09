@@ -192,11 +192,8 @@ ordered preference. Its missing-record order is `claude`, `codex`; outside a Git
 control selection uses Claude. The scripts of the verify gate (`scripts/verify.ts`,
 `scripts/build.ts`, and `scripts/install-tools.ts`) take `--agent`, else `CELETIS_AGENT`, else
 Claude, and read no order. Scoring consults no usage-limit record. Explicit selection
-needs no preference read; required YAML validation still applies. Without a new flag, Claude's existing human
-CAP output is unchanged. When the selected host is Claude and `OPENCODE=1`, the existing opencode
-mode still uses its current model: `--current-model provider/id` > `CAP_CURRENT_MODEL` > the
-current-model database lookup. If none is found, its existing Claude-label fallback remains.
-Codex uses its configured slots, or the parent model with no profile, even when `OPENCODE=1`.
+needs no preference read; required YAML validation still applies. Claude's existing human CAP output is
+unchanged.
 
 `--json` returns one schema-1 object instead of the human line. It includes `digits` (`J`, `V`,
 `B`, `N`, `S`, `X`), original `bias`, `attempt`, `sum`, portable `rank` and `effort`, `host`,
@@ -219,7 +216,7 @@ Codex uses its configured slots, or the parent model with no profile, even when 
 ```
 
 `dispatch` records the applied model and effort; its rank can rise for a reviewer. With
-`--reviewer`, Claude and opencode have a rank-1/medium minimum, and Codex uses its profile's
+`--reviewer`, Claude has a rank-1/medium minimum, and Codex uses its profile's
 minimum, or rank-1/medium with no profile. This raises the resolved rank and effort after
 portable scoring, then reapplies the rank-3 clamp. Codex applies its retry floor after this step.
 Portable `rank` and `effort` still describe the original score. The human line uses the applied
@@ -227,7 +224,7 @@ pair.
 
 Attempt 4 or later returns `status: "stop"`, with `rank`, `effort`, `host`, and `dispatch` null.
 It keeps the digits, bias, sum, attempt, and original STOP line. STOP is resolved before host
-lookup, current-model detection, or profile validation. JSON output requires `jq`; the human STOP line does not.
+lookup or profile validation. JSON output requires `jq`; the human STOP line does not.
 
 ## Codex model profiles
 

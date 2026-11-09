@@ -2,8 +2,8 @@ import { dirname } from 'node:path';
 import { type ExitCode, exits, usage } from './lib/contract.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder } from './lib/events.ts';
-import { codexHome } from './lib/homes.ts';
 import { requireBun } from './lib/host.ts';
+import { hostAdapter } from './lib/hosts.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 
 export async function main(argv: string[]): Promise<ExitCode> {
@@ -16,7 +16,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
       { explicit, environment: process.env.CELETIS_AGENT },
       'host',
     );
-    if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
+    await hostAdapter(operation.host).checkHome();
     console.log(dirname(import.meta.dir));
     return exits.done;
   } catch (error) {

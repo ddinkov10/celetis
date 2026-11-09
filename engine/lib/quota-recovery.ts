@@ -6,8 +6,10 @@ import { basename, dirname, join } from 'node:path';
 import type { AgentChoice, Host } from './config-core.ts';
 import { exits } from './contract.ts';
 import { HostError } from './errors.ts';
-import { isHost, revision, uuid } from './fields.ts';
+import { revision, uuid } from './fields.ts';
 import { commonDir } from './git.ts';
+import { isHost } from './host-names.ts';
+import { hostAdapter } from './hosts.ts';
 import { type LockOwner, lockHolder } from './locks.ts';
 import { bunArgs, childEnv, run } from './process.ts';
 import {
@@ -573,7 +575,7 @@ export async function endOwnedAttempt(
   owned: OwnedSession,
   limitMs = 20_000,
 ): Promise<AttemptEnd> {
-  if (process.platform === 'win32' || attempt.host !== 'claude')
+  if (process.platform === 'win32' || !hostAdapter(attempt.host).terminatesAfterGrace)
     return unverified(`no proved termination path for ${attempt.host} on ${process.platform}`);
   const readUntil = performance.now() + limitMs;
   const recorded = owned.shell !== null && owned.tty !== null;

@@ -7,7 +7,7 @@ export type Runtime = { schema: number; runtime: string; models: { id: string; e
 export class ScoreError extends Error {}
 
 export interface Binding {
-  host: 'claude' | 'codex' | 'opencode';
+  host: Host;
   slots: (string | null)[];
   reviewerRank: number;
   reviewerEffort: number;

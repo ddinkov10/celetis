@@ -7,10 +7,11 @@ import type { Host } from './config-core.ts';
 import { type ExitCode, exits, usage } from './contract.ts';
 import { HostError, NotInstalled } from './errors.ts';
 import { installRecorder, markDefect } from './events.ts';
-import { isHost, revision } from './fields.ts';
+import { revision } from './fields.ts';
 import { git, programRevision } from './git.ts';
 import { configHome } from './homes.ts';
 import { requireBun } from './host.ts';
+import { isHost } from './host-names.ts';
 import { commandInput } from './operation.ts';
 import {
   bindUpdateHome,

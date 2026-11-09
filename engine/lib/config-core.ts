@@ -1,4 +1,5 @@
 import { type ReviewerLevel, reviewerLevels } from './effort.ts';
+import { type Host, hosts } from './host-names.ts';
 import { type Document, isAlias, isMap, isScalar, isSeq, parseAllDocuments } from './vendor/yaml.mjs';
 import { type Step, steps } from './workflow.ts';
 
@@ -35,11 +36,10 @@ const typedTags = ['null', 'bool', 'int', 'float'].map(coreTag);
 const coreTags = ['map', 'seq', 'str'].map(coreTag).concat(typedTags);
 const yaml11Int = /^[-+]?(?:0[bB][01]+|0[oO][0-7]+|0[xX][0-9a-fA-F]+|[0-9]+)$/;
 const yaml11Float = /^[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?$/;
-const hosts = ['claude', 'codex'] as const;
 
 export const skillName = /^[a-z][a-z0-9-]*$/;
 
-export type Host = (typeof hosts)[number];
+export type { Host };
 export type AgentChoice = Readonly<{ kind: 'default' } | { kind: 'explicit'; host: Host }>;
 export type AgentOrder = Readonly<{ schema: 1; order: readonly Host[]; version: string }>;
 export type UsageBlock = Readonly<{ reason: string; resetAt: number | null }>;

@@ -48,7 +48,6 @@ var runTitle = (step, flow, effort) => {
 };
 var AGENTS = {
   claude: "Claude Code",
-  opencode: "OpenCode",
   codex: "Codex"
 };
 var cleanCause = (cause) => {

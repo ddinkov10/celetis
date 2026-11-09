@@ -27,7 +27,7 @@ its procedure, under its `Codex` part ("The module index").
 
 ## The daemon and `developer_instructions`
 
-`hostArguments` of `engine/lib/session.ts` reads the effective `developer_instructions` with
+`stepArguments` of `engine/lib/host-codex.ts` reads the effective `developer_instructions` with
 `config/read`, keeps that text, and appends the step text: the facts header (`stepHeader`) and
 `step-prompt.md` at the plugin root of the header. It passes the result as one quoted
 `developer_instructions=<JSON string>` value after `-c`, then the prompt above. `specify` gets no
@@ -43,11 +43,12 @@ exact prompt above (`plugins/celetis/docs/workflow.md`, "Sessions", and ADR-0058
 terminal for more than 45 seconds. So the daemon reads only a status that changed at or after the
 start of the step.
 
-For each step, `specify` too, `hostArguments` also reads the session model: `model` of
+For each step, `specify` too, `stepArguments` also reads the session model: `model` of
 `config/read`, else the `isDefault` model of `model/list`. It reads every page of `model/list` with
-`includeHidden: true`, because a configured model can be hidden. `selectCodexEffort` takes the
-supported levels of that model (`supportedReasoningEfforts[].reasoningEffort`), keeps the five
-levels of Celetis, and applies the highest one at or below the chosen level, else the lowest one.
+`includeHidden: true`, because a configured model can be hidden. `selectCodexEffort` of
+`engine/lib/host-codex.ts` takes the supported levels of that model
+(`supportedReasoningEfforts[].reasoningEffort`), keeps the five levels of Celetis, and applies the
+highest one at or below the chosen level, else the lowest one.
 The daemon passes it as `-c model_reasoning_effort="<level>"` before the prompt and saves it in the
 session record. A resume runs `codex resume --no-daemon -c model_reasoning_effort="<level>" <id>`.
 A model that `model/list` does not list, a model with none of the five levels, or a failed read

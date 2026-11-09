@@ -23,6 +23,7 @@ import {
 } from './lib/dispatch-record.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect } from './lib/events.ts';
+import { hostAdapter } from './lib/hosts.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { dispatchRecord, ensureFolder, privateState, stateOutcome, withLock, writeAtomic } from './lib/state.ts';
 import { commitMigration, readLocalRecord } from './lib/state-migration.ts';
@@ -99,7 +100,7 @@ function parse(args: string[]): { input: Input; profile?: string; runtimeFile?: 
   return { input, profile, runtimeFile };
 }
 function sessionOf(host: Host, session: unknown): string {
-  const variable = host === 'claude' ? 'CLAUDE_CODE_SESSION_ID' : 'CODEX_SESSION_ID';
+  const variable = hostAdapter(host).sessionVariable;
   if (typeof session !== 'string' || !/^[A-Za-z0-9-]{1,128}$/.test(session) || session.endsWith('\n'))
     throw new SetupError(`need a valid ${variable}`);
   return session;
@@ -219,9 +220,9 @@ export async function main(argv: string[]): Promise<ExitCode> {
       (host) => (scoring ? bindingMode(host, profile, checkout.main) : 'main'),
     );
     const host = operation.host;
-    const session = sessionOf(host, process.env[host === 'claude' ? 'CLAUDE_CODE_SESSION_ID' : 'CODEX_SESSION_ID']);
+    const session = sessionOf(host, process.env[hostAdapter(host).sessionVariable]);
     const binding = scoring
-      ? await readBinding(host, { profile, runtimeFile, opencode: false }, checkout.main, operation.mainConfig)
+      ? await readBinding(host, { profile, runtimeFile }, checkout.main, operation.mainConfig)
       : null;
     const context: Context = {
       id: randomUUID,

@@ -12,7 +12,7 @@ import {
 } from '../engine/lib/contract.ts';
 import { entryParts } from '../engine/lib/entry-text.ts';
 import { HostError } from '../engine/lib/errors.ts';
-import { codexHome } from '../engine/lib/homes.ts';
+import { hostAdapter } from '../engine/lib/hosts.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
 import { type Job, printJobs, runJobs } from '../engine/lib/parallel.ts';
 import { bunArgs, childEnv, run } from '../engine/lib/process.ts';
@@ -633,7 +633,7 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
     { explicit: explicit ?? process.env.CELETIS_AGENT ?? 'claude' },
     'host',
   );
-  if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
+  await hostAdapter(operation.host).checkHome();
   process.chdir(root);
   process.env.PATH = childEnv().PATH;
   try {

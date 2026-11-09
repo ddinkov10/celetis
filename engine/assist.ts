@@ -1,24 +1,21 @@
 import { stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { Host } from './lib/config-core.ts';
 import { type ExitCode, exits, usage } from './lib/contract.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect, passOn } from './lib/events.ts';
 import { requireBun } from './lib/host.ts';
+import type { Host } from './lib/host-names.ts';
 import { runInteractive } from './lib/interactive.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { childEnv } from './lib/process.ts';
 import { requireSameRevision } from './lib/updater.ts';
 
-export function assistArguments(host: Host, issue: number, plugin: string): string[] {
-  return host === 'claude'
-    ? ['-n', `#${issue} assist`, `/celetis:assist #${issue}`]
-    : [
-        '--no-daemon',
-        `Use the celetis:assist skill for #${issue}. Complete its Celetis entry before any response, including commentary.\n` +
-          `Read the skill from ${JSON.stringify(join(plugin, 'skills/assist/SKILL.md'))}.`,
-      ];
-}
+const promptFor: Record<Host, (issue: number, plugin: string) => string> = {
+  claude: (issue) => `/celetis:assist #${issue}`,
+  codex: (issue, plugin) =>
+    `Use the celetis:assist skill for #${issue}. Complete its Celetis entry before any response, including commentary.\n` +
+    `Read the skill from ${JSON.stringify(join(plugin, 'skills/assist/SKILL.md'))}.`,
+};
 
 export async function main(argv: string[]): Promise<ExitCode> {
   try {
@@ -42,7 +39,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
         const skill = join(plugin, 'skills/assist/SKILL.md');
         if (!(await stat(skill).catch(() => null))?.isFile())
           throw new HostError(`celetis-assist: cannot read the assistance skill: ${skill}`, exits.prerequisite);
-        return assistArguments(host, issue, plugin);
+        return { title: `#${issue} assist`, prompt: promptFor[host](issue, plugin) };
       }),
     );
   } catch (error) {

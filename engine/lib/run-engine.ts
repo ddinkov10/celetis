@@ -11,6 +11,7 @@ import { daemonArgv } from './daemon-start.ts';
 import { defaultLevel, type Level } from './effort.ts';
 import { HostError } from './errors.ts';
 import { markDefect, passOn, recordEvent } from './events.ts';
+import { hostAdapter } from './hosts.ts';
 import { describe, type Next } from './lines.ts';
 import {
   addRecord,
@@ -60,21 +61,16 @@ import {
 } from './quota-recovery.ts';
 import type { RunRecord } from './run-record.ts';
 import {
-  type Claim,
-  codexClaim,
-  codexPrompt,
-  hostArguments,
-  manualRecovery,
   observeSession,
   readSession,
-  resumeArguments,
   type SessionRecord,
   selectSavedSession,
   startLine,
   startupError,
+  stepText,
   writeSession,
 } from './session.ts';
-import { ensureFolder, type RepositoryLayout, startFiles } from './state.ts';
+import { type RepositoryLayout, startFiles } from './state.ts';
 import {
   removeStepEnd,
   type StepEndRecord,
@@ -95,8 +91,6 @@ import {
   waitTerminal,
 } from './terminal.ts';
 import type { TerminalStatus } from './terminal-types.ts';
-import { prepareClaudeUsage, readClaudeUsage } from './usage-claude.ts';
-import { readCodexUsage } from './usage-codex.ts';
 import type { ObservedUsage, UsageAttempt } from './usage-types.ts';
 import { defaultGate, invocation, type Run, type Step, sameResult, skipped } from './workflow.ts';
 
@@ -152,7 +146,11 @@ const required = [
   'lib/events.ts',
   'lib/git.ts',
   'lib/homes.ts',
+  'lib/host-claude.ts',
+  'lib/host-codex.ts',
+  'lib/host-names.ts',
   'lib/host.ts',
+  'lib/hosts.ts',
   'lib/locks.ts',
   'lib/operation.ts',
   'lib/plugin-metadata.ts',
@@ -446,7 +444,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     return current;
   };
   const requireStart = async (host: Host, cwd: string) => {
-    if (host === 'codex') process.env.CODEX_HOME = await (await import('./homes.ts')).codexHome();
+    await hostAdapter(host).checkHome();
     const { requireUpdatePolicy } = await import('./plugin-policy.ts');
     await (await import('./update-lock.ts')).withPluginRead(host, async () => {
       await requireUpdatePolicy(host, cwd);
@@ -495,10 +493,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     );
     if (saved === null || (ticket.attempt.sessionId !== null && ticket.attempt.sessionId !== saved)) return null;
     ticket.attempt.sessionId = saved;
-    const observed =
-      ticket.attempt.host === 'claude'
-        ? await readClaudeUsage(ticket.attempt, capture)
-        : await readCodexUsage(ticket.attempt);
+    const observed = await hostAdapter(ticket.attempt.host).readUsage(ticket.attempt, capture);
     await recordUsage(common, ticket, observed).catch(warn);
     return observed;
   };
@@ -571,13 +566,11 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
   ) => {
     const startedAt = Math.floor(startedMs / 1000);
     const deadline = performance.now() + 60_000;
+    const adapter = hostAdapter(record.host);
     let saved = false;
     let warned = false;
     while (!abort.aborted) {
-      const claim: Claim =
-        record.host === 'claude'
-          ? { kind: 'one', id: announced }
-          : await codexClaim(main, codexPrompt(record.step, Number(n)), startedAt);
+      const claim = await adapter.claim(main, adapter.stepPrompt(record.step, Number(n)), announced, startedAt);
       const result = await observeSession(record, claim, startedAt, locks);
       if (result === 0) {
         saved = true;
@@ -659,7 +652,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
             };
             const escalate = async () => {
               if (settled || abort.aborted) return;
-              const pid = record.host === 'claude' ? await signalHost() : null;
+              const pid = adapter.terminatesAfterGrace ? await signalHost() : null;
               if (pid === null) {
                 if (!settled && !abort.aborted)
                   report(
@@ -749,7 +742,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     recovery = false,
     opened: () => Promise<Partial<Facts>> = async () => ({}),
   ) => {
-    if (host === 'codex') args = [...(await (await import('./plugin-metadata.ts')).codexSessionPin(main)), ...args];
+    args = [...(await hostAdapter(host).pin(main)), ...args];
     const dir = await mkdtemp(state.startPrefix);
     watchDir = dir;
     tab = `#${n} ${step}`;
@@ -1055,7 +1048,8 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         throw new HostError('', exits.prerequisite);
       }
       const sessionId = s.ticket.attempt.sessionId ?? '';
-      const resume = `${s.host} ${resumeArguments({ ...s.record, session_id: sessionId }).join(' ')}`;
+      const args = hostAdapter(s.record.host).resumeArguments({ ...s.record, session_id: sessionId });
+      const resume = `${s.host} ${args.join(' ')}`;
       if (ownership.kind === 'unverified') {
         const running = ownership.running.length ? ` (running PIDs: ${ownership.running.join(', ')})` : '';
         const line = `#${n}: ${reason} The daemon cannot prove that the ${s.host} session and its delegated work stopped: ${ownership.reason}${running}. No other agent starts. The session stays in the tab ${tab}; its native resume from the main checkout: ${resume}`;
@@ -1158,10 +1152,8 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       exitCode = await sessionExit(session.folder, s.barrier);
       const startedAt = Math.floor(s.startedMs / 1000);
       if ((await readSession(main, issue, common, locks)).session_id === null) {
-        const claim: Claim =
-          s.host === 'claude'
-            ? { kind: 'one', id: s.announced }
-            : await codexClaim(main, codexPrompt(s.record.step, issue), startedAt);
+        const adapter = hostAdapter(s.host);
+        const claim = await adapter.claim(main, adapter.stepPrompt(s.record.step, issue), s.announced, startedAt);
         if ((await observeSession(s.record, claim, startedAt, locks)) === 2) {
           await writeFile(startFiles(watchDir).error, '');
           await startupError(issue, s.host, 'no single session identity can be saved', terminal, tab);
@@ -1263,7 +1255,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
           if (last && !request?.retry && sameResult(next, last)) {
             if (exitCode !== exits.done)
               die(
-                `${lastHost} session exited with status ${exitCode ?? 'unknown'} before issue progress; check startup output, then run ${manualRecovery(lastHost)} from the main checkout or start the step again`,
+                `${lastHost} session exited with status ${exitCode ?? 'unknown'} before issue progress; check startup output, then run ${hostAdapter(lastHost).recovery} from the main checkout or start the step again`,
                 exits.blocked,
               );
             const reason = `no progress: ${prompt}`;
@@ -1300,6 +1292,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
           continue;
         }
         const stepHost = decision.host;
+        const adapter = hostAdapter(stepHost);
         const prepared = await preflight(async () => {
           stopped();
           await requireStart(stepHost, current.checkout.cwd);
@@ -1309,14 +1302,14 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
             override === undefined
               ? (effort ?? { level: defaultLevel, source: 'default' as const })
               : { level: override, source: 'override' as const };
-          const { args, applied, model } = await hostArguments(
-            stepHost,
+          const { args, applied, model } = await adapter.stepArguments({
             issue,
             step,
-            main,
-            { pluginRoot, landing: config.landing, recovery: retrying },
-            chosen.level,
-          );
+            cwd: main,
+            effort: chosen.level,
+            stepText: () =>
+              stepText({ issue, step, host: stepHost, main, pluginRoot, landing: config.landing, recovery: retrying }),
+          });
           return { args, applied, model, ...chosen };
         });
         stopped();
@@ -1332,16 +1325,10 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
           host: stepHost,
           main,
           startedAt: Date.now(),
-          sessionId: stepHost === 'claude' ? randomUUID() : null,
+          sessionId: adapter.startId(),
         };
         const capture = state.usageCapture(attempt.id).path;
-        let sessionArgs = args;
-        if (stepHost === 'claude') {
-          ensureFolder(state.root);
-          ensureFolder(state.usageCaptures);
-          ensureFolder(state.usageCapture(attempt.id));
-          sessionArgs = [...(await prepareClaudeUsage(attempt, capture)), ...args];
-        }
+        const sessionArgs = [...(await adapter.prepareUsage(attempt, state)), ...args];
         const owned = {
           id: attempt.id,
           host: stepHost,
@@ -1433,7 +1420,8 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       stopped();
       if (!from) await hooks.ready?.();
       admit({ ok: true });
-      const { ended, barrier } = await startSession(String(n), saved.step, host, resumeArguments(saved), true, {
+      const args = hostAdapter(saved.host).resumeArguments(saved);
+      const { ended, barrier } = await startSession(String(n), saved.step, host, args, true, {
         step: saved.step,
         host,
         next: null,

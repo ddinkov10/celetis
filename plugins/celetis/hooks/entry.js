@@ -398,8 +398,7 @@ var commands = [
       optional("--attempt", "N"),
       optional("--reviewer"),
       optional("--profile", "FILE"),
-      optional("--runtime-models", "FILE"),
-      optional("--current-model", "ID")
+      optional("--runtime-models", "FILE")
     ])
   ], "Resolves the six digits. `--json` gives portable scores and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null"),
   entry("dispatch", true, dispatchForms, `Acts: ${dispatchForms.map(({ words }) => `\`${words[1]}\``).join(", ")}. The task loop applies each returned pair and reports exact native arguments/results. Evidence is agent-reported, not independently checked. Records: \`/tmp/celetis-<uid>/dispatch/<host>-<session>.json\` on macOS and Linux; \`<os.tmpdir()>/celetis/dispatch/<host>-<session>.json\` on Windows. It exits ${exits.done} for a ready, reported, or closed result (also \`show\`), ${exits.usage} for bad usage or an invalid \`.celetis.yaml\`, ${exits.prerequisite} for a refusal or a busy dispatch lock, ${exits.blocked} for a setup failure, and ${exits.stop} when the engine stops the task`, ["done", "internal", "usage", "prerequisite", "blocked", "stop"]),
@@ -494,6 +493,9 @@ var stages = stageNames.map((name, position) => ({
 var levels = ["low", "medium", "high", "xhigh", "max"];
 var reviewerLevels = levels.filter((level) => level !== "max");
 var decidable = steps.filter((step) => step !== "triage");
+
+// engine/lib/host-names.ts
+var hosts = ["claude", "codex"];
 
 // engine/lib/vendor/yaml.mjs
 var __defProp = Object.defineProperty;
@@ -6769,7 +6771,6 @@ var typedTags = ["null", "bool", "int", "float"].map(coreTag);
 var coreTags = ["map", "seq", "str"].map(coreTag).concat(typedTags);
 var yaml11Int = /^[-+]?(?:0[bB][01]+|0[oO][0-7]+|0[xX][0-9a-fA-F]+|[0-9]+)$/;
 var yaml11Float = /^[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?$/;
-var hosts = ["claude", "codex"];
 var skillName = /^[a-z][a-z0-9-]*$/;
 var sourceData = Symbol("ConfigSource");
 function field(path) {

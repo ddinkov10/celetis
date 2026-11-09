@@ -23,7 +23,6 @@ const flagLines = [
   "--reviewer               apply the selected host's reviewer minimum",
   '--profile FILE           Codex profile (CAP_MODEL_PROFILE > main config profile > parent model)',
   '--runtime-models FILE    active dispatch allowlist for a Codex profile (CAP_RUNTIME_MODELS)',
-  '--current-model ID       opencode current model (CAP_CURRENT_MODEL)',
   'See docs/capability.md of the plugin celetis for profile and result schemas.',
 ];
 
@@ -42,7 +41,6 @@ export async function main(argv: string[]): Promise<ExitCode> {
     let agent = input.explicit;
     let profile: string | undefined;
     let runtimeFile: string | undefined;
-    let current: string | undefined;
     let json = false;
     let reviewer = false;
     const values: string[] = [];
@@ -60,7 +58,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
         reviewer = true;
         continue;
       }
-      if (['--bias', '--attempt', '--agent', '--profile', '--runtime-models', '--current-model'].includes(arg)) {
+      if (['--bias', '--attempt', '--agent', '--profile', '--runtime-models'].includes(arg)) {
         const value = argv[++i];
         if (!value) throw new ScoreError(`${arg} needs a value`);
         if (arg === '--bias') {
@@ -73,8 +71,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
           attemptText = value;
         } else if (arg === '--agent') agent = value;
         else if (arg === '--profile') profile = value;
-        else if (arg === '--runtime-models') runtimeFile = value;
-        else current = value;
+        else runtimeFile = value;
       } else if (arg.startsWith('-')) throw new ScoreError(`unknown flag: ${arg}`);
       else values.push(arg);
     }
@@ -82,8 +79,6 @@ export async function main(argv: string[]): Promise<ExitCode> {
     runtimeFile ??= process.env.CAP_RUNTIME_MODELS || '';
     if (profile) profile = resolve(cwd, profile);
     if (runtimeFile) runtimeFile = resolve(cwd, runtimeFile);
-    current ||= process.env.CAP_CURRENT_MODEL;
-    const opencode = process.env.OPENCODE === '1';
     const environment = process.env.CELETIS_AGENT;
     if (biasText === undefined) {
       biasText = process.env.CAP_EFFORT_BIAS || '0';
@@ -110,12 +105,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
       const operation = await createOperation(identity, { explicit: agent, environment }, (selected) =>
         bindingMode(selected, profile, checkout),
       );
-      const binding = await readBinding(
-        operation.host,
-        { profile, runtimeFile, current, opencode },
-        checkout,
-        operation.mainConfig,
-      );
+      const binding = await readBinding(operation.host, { profile, runtimeFile }, checkout, operation.mainConfig);
       host = binding.host;
       dispatch = resolvePair(digits, bias, attempt, reviewer, binding) as Pair;
       line = `${label} → ${pairText(dispatch)}${attempt > 1 ? ` [attempt ${attemptText}]` : ''}`;

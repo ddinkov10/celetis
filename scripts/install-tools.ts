@@ -15,7 +15,7 @@ import {
 import { dirname, join, resolve } from 'node:path';
 import { bunFloor } from '../engine/lib/config-core.ts';
 import { HostError } from '../engine/lib/errors.ts';
-import { codexHome } from '../engine/lib/homes.ts';
+import { hostAdapter } from '../engine/lib/hosts.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
 import { bunArgs, run } from '../engine/lib/process.ts';
 
@@ -197,7 +197,7 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
     { explicit: explicit ?? process.env.CELETIS_AGENT ?? 'claude' },
     'host',
   );
-  if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
+  await hostAdapter(operation.host).checkHome();
   try {
     await installTools(args[0], { claude: args[1] === '--claude' });
     const bin = join(resolve(args[0]), 'bin');

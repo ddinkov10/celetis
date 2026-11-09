@@ -4,7 +4,7 @@ import { type ExitClass, type ExitCode, exits, signalExit } from './contract.ts'
 import { completeEpic } from './epic.ts';
 import { parseEpicRepository } from './epic-acceptance.ts';
 import { HostError } from './errors.ts';
-import { codexHome } from './homes.ts';
+import { hostAdapter } from './hosts.ts';
 import { mergeMechanism } from './landing-merge.ts';
 import { prMechanism } from './landing-pr.ts';
 import { LessonError } from './lesson-record.ts';
@@ -82,7 +82,7 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
     const operation = await createOperation(await locateCheckouts(main), landing.selection, 'main');
     const common = operation.checkout.common as string;
     const config = operation.mainConfig as Config;
-    if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
+    await hostAdapter(operation.host).checkHome();
     const gitRaw = async (args: string[], at = main) => {
       interrupted();
       return run('git', args, { cwd: at, signal });

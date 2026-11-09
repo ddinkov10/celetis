@@ -4,7 +4,7 @@ import { commonDir, isInside, readAgentState } from '../lib/board-read.ts';
 import type { AgentChoice, AgentOrder, Host } from '../lib/config-core.ts';
 import type { DaemonStatus } from '../lib/daemon-types.ts';
 import type { Level } from '../lib/effort.ts';
-import { isHost } from '../lib/fields.ts';
+import { isHost } from '../lib/host-names.ts';
 import { childEnv } from '../lib/process.ts';
 import { requireQueueChoice } from '../lib/queue.ts';
 import type { QueueAction, QueueView } from '../lib/queue-types.ts';

@@ -3,7 +3,8 @@ import { type BigIntStats, closeSync, constants, fstatSync, lstatSync, openSync,
 import type { AgentOrder, Host } from './config-core.ts';
 import { type ExitCode, exits } from './contract.ts';
 import { HostError } from './errors.ts';
-import { isHost, orderVersion } from './fields.ts';
+import { orderVersion } from './fields.ts';
+import { isHost } from './host-names.ts';
 import {
   checkFolder,
   ensureFolder,

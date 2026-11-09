@@ -877,9 +877,10 @@ exists. A later `chore` issue removes the move.
 ## How a step runs
 
 A session is one selected host process in the foreground of a new tab of its own ("The session
-tab"), in the main checkout. `hostArguments` of `engine/lib/session.ts` builds its arguments. The
-step text is a facts header (`stepHeader`), an empty line, and `step-prompt.md` of the plugin
-root of the header. For `run /celetis:plan #402`, the header is:
+tab"), in the main checkout. `stepArguments` of the adapter of its host (`engine/lib/host-claude.ts`
+or `engine/lib/host-codex.ts`) builds its arguments. The step text is a facts header
+(`stepHeader`), an empty line, and `step-prompt.md` of the plugin root of the header. For
+`run /celetis:plan #402`, the header is:
 
 ```text
 Celetis step session
@@ -1342,7 +1343,8 @@ child of the daemon process, and they get the environment of the daemon ("The ma
 not of the shell of the client: for example the `PATH` to the tools of the suite comes from the
 shell of `celetis daemon start`, and a `GH_TOKEN` of the shell of the client does not reach the
 landing. `PORT` of that shell is the exception: only the board reads it, so no landing gets it. For
-the host `codex`, the landing sets `CODEX_HOME` of the daemon as a `codex` run does.
+the host `codex`, the landing checks the Codex home (`CODEX_HOME`, else `~/.codex`) as a `codex` run
+does, and it changes no variable of the daemon.
 
 The daemon keeps one line of landings and runs the landing at its head only. A request that comes
 while another landing runs, or waits, goes to the end of the line and writes

@@ -10,8 +10,9 @@ import {
   type Selection,
 } from '../lib/daemon-types.ts';
 import type { Level } from '../lib/effort.ts';
-import { isCommit, isHost, orderVersion } from '../lib/fields.ts';
+import { isCommit, orderVersion } from '../lib/fields.ts';
 import { commonDir } from '../lib/git.ts';
+import { isHost } from '../lib/host-names.ts';
 import { bunArgs, run } from '../lib/process.ts';
 import { type Program, readProgram } from '../lib/program.ts';
 import type { QueueAction, QueueView } from '../lib/queue-types.ts';

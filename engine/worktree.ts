@@ -4,7 +4,7 @@ import type { Config } from './lib/config-core.ts';
 import { type ExitCode, exits, usage, worktreePathLine } from './lib/contract.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect } from './lib/events.ts';
-import { codexHome } from './lib/homes.ts';
+import { hostAdapter } from './lib/hosts.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { run } from './lib/process.ts';
 import { RecoveryError, validateRecovery } from './lib/quota-recovery.ts';
@@ -48,7 +48,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
     'main',
   );
   const main = operation.checkout.main as string;
-  if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
+  await hostAdapter(operation.host).checkHome();
   const git = async (args: string[], output = false) => {
     const result = await run('git', args, { cwd });
     if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);

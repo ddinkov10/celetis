@@ -528,7 +528,6 @@ export const commands: readonly Entry[] = [
         optional('--reviewer'),
         optional('--profile', 'FILE'),
         optional('--runtime-models', 'FILE'),
-        optional('--current-model', 'ID'),
       ]),
     ],
     'Resolves the six digits. `--json` gives portable scores and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null',

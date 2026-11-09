@@ -19,7 +19,7 @@ import { parseEpicAcceptance, parseEpicSubmission } from './lib/epic-acceptance.
 import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect } from './lib/events.ts';
 import { isIssueNumber } from './lib/fields.ts';
-import { codexHome } from './lib/homes.ts';
+import { hostAdapter } from './lib/hosts.ts';
 import { lineOf } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { type Edit, github } from './lib/tracker.ts';
@@ -197,7 +197,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
     'host',
   );
   const main = operation.checkout.main ?? die('usage', 'run the command inside a Git checkout');
-  if (operation.host === 'codex') process.env.CODEX_HOME = await codexHome();
+  await hostAdapter(operation.host).checkHome();
   if (epic) {
     const common = operation.checkout.common ?? die('usage', 'run the command inside a Git checkout');
     if (name === 'epic-state') {

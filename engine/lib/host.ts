@@ -1,7 +1,7 @@
 import { bunFloor, type Host } from './config-core.ts';
 import { exits } from './contract.ts';
 import { HostError } from './errors.ts';
-import { isHost } from './fields.ts';
+import { isHost } from './host-names.ts';
 
 export function requireBun(): void {
   if (Bun.semver.order(Bun.version, bunFloor) < 0) {

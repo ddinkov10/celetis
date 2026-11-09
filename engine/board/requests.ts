@@ -1,5 +1,6 @@
 import { isLevel, levels } from '../lib/effort.ts';
-import { isHost, isIssueField, orderVersion, uuid } from '../lib/fields.ts';
+import { isIssueField, orderVersion, uuid } from '../lib/fields.ts';
+import { isHost } from '../lib/host-names.ts';
 import { parseQueueAction } from '../lib/queue.ts';
 import type { QueueAction } from '../lib/queue-types.ts';
 import { TerminalError } from '../lib/terminal.ts';

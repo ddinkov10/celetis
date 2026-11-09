@@ -67,7 +67,7 @@ compares its bytes. The hook runtime has no Node and no DOM: a module that the h
 
 ## The daemon
 
-`hostArguments` of `engine/lib/session.ts` starts a step as
+`stepArguments` of `engine/lib/host-claude.ts` starts a step as
 `claude --permission-mode auto --effort <level> -n '#<n> <step>' --append-system-prompt <step text> '/celetis:<command> #<n>'`.
 The step text is the facts header (`stepHeader`) and `step-prompt.md` at the plugin root of the
 header. `specify` gets no step text. For each step, the daemon puts `--session-id <uuid>` first.
@@ -75,10 +75,10 @@ That ID is the identity of the step. The session runs in a tab of its own, and t
 the step with `hc send <terminal> /exit` from its own terminal, with no `HC_TERMINAL_ID` in the
 environment of that call (ADR-0058, ADR-0062). `<level>` is the chosen level of the step, and a
 resume runs `claude --resume <id> --effort <level>` with the level of the session record.
-`sessionEnv` removes `CLAUDE_CODE_EFFORT_LEVEL` from the environment of the session and of a
-resume, because Claude Code ranks that variable above `--effort`. A settings `env` value of that
-variable, `maxEffortLevel`, and an organization cap stay with Claude Code
-(`plugins/celetis/docs/workflow.md`, "Limits"). The plugin root of the header is the `root` of
+`stepEnv` of `engine/lib/host-claude.ts` removes `CLAUDE_CODE_EFFORT_LEVEL` from the environment
+of the session and of a resume, because Claude Code ranks that variable above `--effort`. A
+settings `env` value of that variable, `maxEffortLevel`, and an organization cap stay with Claude
+Code (`plugins/celetis/docs/workflow.md`, "Limits"). The plugin root of the header is the `root` of
 `installation('claude', …)` in `engine/lib/updater.ts`, which `requireSameRevision` returns
 (`plugins/celetis/docs/workflow.md`, "How a step runs").
 

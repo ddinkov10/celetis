@@ -1,25 +1,29 @@
 import { stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { Host } from './lib/config-core.ts';
 import { type ExitCode, exits, usage } from './lib/contract.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect, passOn } from './lib/events.ts';
 import { requireBun } from './lib/host.ts';
+import type { Host } from './lib/host-names.ts';
 import { runInteractive } from './lib/interactive.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { childEnv } from './lib/process.ts';
 import { requireSameRevision } from './lib/updater.ts';
 
-export function intakeArguments(host: Host, plugin: string): string[] {
+const skillSentence: Record<Host, (plugin: string) => string> = {
+  claude: () => 'Invoke the Skill tool with celetis:intake and the user request as its arguments.',
+  codex: (plugin) =>
+    `Read and follow the intake skill from ${JSON.stringify(join(plugin, 'skills/intake/SKILL.md'))} with the user request.`,
+};
+
+function intakeText(host: Host, plugin: string): { title: string; prompt: string } {
   const prompt =
     'Say exactly "What would you like to work on?", then end your turn and wait for the user. ' +
     'These launcher instructions are not a work request. Do not invoke intake, create an issue, or start a run yet. ' +
     'Only after the user supplies a nonempty request, use that answer as the input to celetis:intake. ' +
     'Complete its normal Celetis entry before any next response, including commentary. ' +
-    (host === 'claude'
-      ? 'Invoke the Skill tool with celetis:intake and the user request as its arguments.'
-      : `Read and follow the intake skill from ${JSON.stringify(join(plugin, 'skills/intake/SKILL.md'))} with the user request.`);
-  return host === 'claude' ? ['-n', 'Intake', prompt] : ['--no-daemon', prompt];
+    skillSentence[host](plugin);
+  return { title: 'Intake', prompt };
 }
 
 export async function main(argv: string[]): Promise<ExitCode> {
@@ -42,7 +46,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
         const skill = join(plugin, 'skills/intake/SKILL.md');
         if (!(await stat(skill).catch(() => null))?.isFile())
           throw new HostError(`celetis-intake: cannot read the intake skill: ${skill}`, exits.prerequisite);
-        return intakeArguments(host, plugin);
+        return intakeText(host, plugin);
       }),
     );
   } catch (error) {
