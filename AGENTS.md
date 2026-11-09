@@ -7,9 +7,12 @@ operations, and the program that runs it. The plugin is the folder `plugins/cele
 (`plugins/celetis/docs/`). The program is the entry `celetis` with its runtime (`engine/`). The
 repository also holds maintenance (`scripts/`), the host references (`docs/hosts/`), and the
 records (`docs/adr/`, `docs/lessons/`). It is also a product project of its own plugin.
-`plugins/celetis/README.md` holds the wiring of a product project, the commands, and the update
-rule. `plugins/celetis/docs/workflow.md` holds the daemon and the runs, and
-`plugins/celetis/docs/issue-tracker.md` holds the labels, the state of an issue, and the branches.
+`plugins/celetis/README.md` holds the install, the full loop, the skills, the commands, and the
+update rule. `plugins/celetis/docs/setup.md` holds what setup writes.
+`plugins/celetis/docs/workflow.md` holds the steps of a run as a session and a person meet them.
+`engine/README.md` holds the daemon and the runs, `engine/board/README.md` holds the board, and
+`scripts/README.md` holds the checks. `plugins/celetis/docs/issue-tracker.md` holds the labels, the
+state of an issue, and the branches.
 
 ## Plugin development
 
@@ -124,10 +127,12 @@ exception in [ADR-0050](docs/adr/0050-standalone-engineering-principles-have-can
    only its invocation. A product fact that two or more skills need goes into the `AGENTS.md` of
    the product.
 7. **Maintainer reference.** `plugins/celetis/docs/workflow.md`,
-   `plugins/celetis/docs/configuration.md`, `plugins/celetis/docs/capability.md`,
-   `plugins/celetis/docs/issue-tracker.md`, `docs/hosts/`, and the ADRs are never read at entry. A skill or a
-   module cites a named section of one when a step needs a definition. Skills, modules, and
-   principles never cite `docs/hosts/`.
+   `plugins/celetis/docs/setup.md`, `plugins/celetis/docs/configuration.md`,
+   `plugins/celetis/docs/capability.md`, `plugins/celetis/docs/issue-tracker.md`, `docs/hosts/`, and the
+   ADRs are never read at entry. A skill or a module cites a named section of one when a step needs a
+   definition. Skills, modules, and principles never cite `docs/hosts/`. `engine/README.md`,
+   `engine/board/README.md`, and `scripts/README.md` are maintainer reference of the program that no
+   agent text cites, because the installed plugin has no `engine/` and no `scripts/`.
 
 A module is self-contained: it cites another module only for a branch that some runs take. No
 skill reads another skill's `SKILL.md`. A module stays short enough to read whole in one native
@@ -165,8 +170,8 @@ names its command, and so does a code span of two or more words that matches a d
 When the block names no command, a code span of another program (`otherPrograms`) in the block
 skips the exit. Every other exit fails.
 
-The same pass refuses a restated policy (ADR-0084), with the message `verify: restated policy: <path>:<line>:
-name the act and the outcome that the agent acts on`. It has two forms. The first is a sentence with
+The same pass refuses a restated policy (ADR-0084), with a message that names the file and the line,
+and tells the author to name the act and the outcome that the agent acts on. It has two forms. The first is a sentence with
 one of the verbs `adds`, `added`, `removes`, `removed`, `keeps`, `kept`, `retains`, `retained`,
 `restores`, `restored`, `clears`, or `cleared`, followed in the same sentence by a code span that
 is a label of `labels` in `engine/lib/contract.ts`. A cell, a paragraph of an item, and a code

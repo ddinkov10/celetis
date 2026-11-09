@@ -8,7 +8,7 @@
     "regression"
   ],
   "date": "2026-11-09",
-  "status": "active",
+  "status": "superseded",
   "source": "Final review of ddinkov10/celetis#268",
   "incidents": [
     {
@@ -50,8 +50,25 @@
         "state": "not-needed",
         "detail": "Whether a finding breaks a spec anti-goal needs judgment, so no structural check is known; the ledger line that names the compared anti-goals stays the check of the rule."
       }
+    },
+    {
+      "id": "3e7a92d0-5c14-4b6f-a8d3-e1f06b9c2475",
+      "requestDigest": "c4bdd411a25f48ca8b024bcba8c28910123eab322cbd22b125e996df5ed04d23",
+      "date": "2026-11-09",
+      "decision": "supersede",
+      "source": "agent review: lesson curation in the landing of #265; claude child opus/high\n\nSupersede under the reviewer rule for an active lesson whose rule new evidence shows is wrong or incomplete. Incident e7ef32cf of proposal c65e8fe2 has the diagnosis wrong-or-incomplete-rule for grade-an-anti-goal-break-by-the-spec-not-by-reach: the reviewer followed its action, which names only anti-goals and goals, and a narrowed design rule of the spec passed as Minor. The proposal itself asks to extend or merge that lesson. Two active rules for one grade decision would overlap, so one replacement holds both: it keeps the anti-goal and goal comparison, the controller ledger check, and the uncertain-risk branch of the old rule, and adds every spec rule of the same input, the implementer's own concerns, and the maintainer-decision exception. The replacement keeps all three incidents, the earlier review, and both source strings. plan-condition-must-not-narrow-a-spec-rule stays active and separate: it covers a plan, a brief, or a ruling that changes a spec rule.",
+      "related": [
+        "compare-each-known-limit-with-the-spec-rule-that-it-narrows",
+        "grade-an-anti-goal-break-by-the-spec-not-by-reach"
+      ],
+      "followUp": {
+        "state": "not-needed",
+        "detail": "Both rules state that the comparison needs judgment; no structural check is proposed."
+      }
     }
-  ]
+  ],
+  "replacement": "compare-each-known-limit-with-the-spec-rule-that-it-narrows",
+  "reason": "Replaced by compare-each-known-limit-with-the-spec-rule-that-it-narrows: the #262 incident e7ef32cf shows that a comparison with anti-goals and goals only misses a narrowed design rule of the spec. The replacement keeps this rule and its incident, and extends the comparison to every spec rule of the same input."
 }
 ---
 # Grade an anti-goal break by the spec, not by its reach

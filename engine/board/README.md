@@ -47,36 +47,33 @@ gives the reasons why its sessions come from herdr-core and its tabs from the He
 
 **Requirements.**
 
-- macOS or Linux. The master daemon refuses Windows, so no board runs there (`docs/workflow.md` of
-  the plugin `celetis`, "The master daemon").
-- Bun 1.4.4 or later. The entry prints `celetis: need Bun >=1.4.4 on PATH, found <version>` and
-  exits 3 on an older Bun.
+- macOS or Linux. The master daemon refuses Windows, so no board runs there
+  ([The master daemon](../README.md#the-master-daemon)).
+- Bun 1.4.4 or later. The entry exits 3 on an older Bun.
 - git 2.31 or later.
 - The installed `celetis` program for New intake, Run, Resume, Assist, Make visual, and queue actions (the README of the plugin, "First install").
 - herdr-core 0.1.16, with `hc` on `PATH` and its server that runs, for the session cards and for
   each button.
 - The Herdr app 0.1.11, with `herdr-app` on `PATH` and its window open, for New intake, Run,
   Resume, Assist, Make visual, Open shell, and Go.
-- `gh` on `PATH`, logged in, for the issue data.
+- `gh` on `PATH`, logged in, for the issue data. The board needs no GitHub credentials of its own.
+  The read also needs `ps` on macOS and Linux.
 - The lane worktree of the issue `<n>` at `<main>/.claude/worktrees/<n>-<slug>`, where `<main>` is
   the main checkout. This layout has no setting: an agent in a worktree at another place has no
   card.
 - A Chromium browser. The page is checked in Chromium browsers only.
 
 The master daemon serves the board, so the requirements of the daemon apply to it
-(`docs/workflow.md` of the plugin `celetis`, "Requirements", "The master daemon").
+([Requirements](../README.md#requirements), [The master daemon](../README.md#the-master-daemon)).
 
 ## Start
 
 Run `celetis daemon start` in a checkout of the repository, and open the URL of its line
 `daemon: board http://127.0.0.1:<port>`. `celetis daemon status` prints that line again. With no
-daemon, nothing serves the board. The README of the plugin, "The agent board", gives this start.
+daemon, nothing serves the board.
 
-The daemon validates the main `.celetis.yaml` at its start, takes its lock `daemon`, and then
-opens the board, before it takes over its runs (`docs/workflow.md` of the plugin `celetis`, "The
-master daemon", "The start"). Until the takeover ends, the board serves the page and its reads,
-and the daemon refuses each Run, Resume, Retry, queue action, and queue reconcile of the board with
-`daemon: the daemon takes over its runs; send the request again after its start`. The board start
+[The master daemon](../README.md#the-master-daemon), "The start", gives the order of the start
+and the refusal of the requests of the board before the takeover. The board start
 checks no update policy: each run checks the policy of its own host before it starts a session.
 The board records the program revision of the daemon and starts an independent update check after
 it listens. At each New intake, Assist, or Make visual, the fixed adapter (`adapter.ts`) reads the
@@ -85,14 +82,16 @@ installed `celetis` program and gives its argv ("The argv of a press").
 **The port** starts at `board.port` of the main `.celetis.yaml`, or 4403. With no effective
 `PORT` in the environment of the daemon, the board binds consecutive ports on `127.0.0.1` through
 65535 and keeps the first successful listener. Only `EADDRINUSE` advances the search. A free lower
-port is not considered. Concurrent starts claim their ports with the actual listeners; there is no
-separate probe or reservation. The stop of the daemon closes the listener. A successor after a
+port is not considered. Exhaustion stops the start of the daemon with exit 6 and names the range in
+the daemon log. Concurrent starts claim their ports with the actual listeners; there is no
+separate probe or reservation. The stop of the daemon closes the listener, and the port stays fixed until then. A successor after a
 restart ("Open work during updates") gets the actual port of the old daemon in `PORT`: it tries
 that port first, and when it is in use, it searches from `board.port` as above.
 
 A nonzero `Number(PORT)` requests that exact port and disables the search. Zero or NaN,
-including an empty or nonnumeric string, means no override. Invalid effective values keep Bun's
-existing failure. Use an exact port when the origin must stay fixed:
+including an empty or nonnumeric string, means no override. An occupied exact port stops the start
+of the daemon with the existing port-in-use error. Invalid effective values keep Bun's existing
+failure, and other bind errors stop the start. Use an exact port when the origin must stay fixed:
 
 ```bash
 PORT=4404 celetis daemon start
@@ -102,25 +101,20 @@ The daemon keeps that `PORT` for its board only, so no run or landing gets it.
 
 **The start writes** the main checkout and the actual URL once to the daemon log, with the tag
 `daemon`, after a successful bind. Failed candidates write no success lines. The URL of
-`daemon start` and `daemon status` is authoritative:
-
-```text
-<time> daemon board: repository /Users/me/code/shop
-<time> daemon board: http://127.0.0.1:4403
-```
+`daemon start` and `daemon status` is authoritative.
 
 **A start that fails** stops the daemon before its takeover: it releases its lock `daemon`, and
-`daemon start` prints `daemon: the daemon ended with exit <code> before it served; read <log>`
-and exits 6. The daemon log has the cause:
+`daemon start` prints a line with the exit code of the daemon and the path of its log, and exits 6.
+The daemon log has the cause:
 
-| Case | Line in the daemon log | Exit of the daemon |
+| Case | Cause in the daemon log | Exit of the daemon |
 |---|---|---|
 | The main `.celetis.yaml` cannot be read or has an error | the diagnostic of the config reader, with the file and the field | 2 |
-| The exact `PORT` of a start is in use (a successor searches instead) | `board: cannot listen on 127.0.0.1:<port>: the port is in use` | 6 |
-| Every automatic candidate is occupied | `board: cannot listen on 127.0.0.1:<start>-65535: all ports are in use` | 6 |
-| The server cannot listen for another cause, for example `PORT=99999` | `board: cannot listen on 127.0.0.1:<port>: <the message of Bun>` | 6 |
+| The exact `PORT` of a start is in use (a successor searches instead) | a line that says the board cannot listen on that port because it is in use | 6 |
+| Every automatic candidate is occupied | a line that says the board cannot listen on the range from the start port through 65535 because all its ports are in use | 6 |
+| The server cannot listen for another cause, for example `PORT=99999` | a line that says the board cannot listen on that port, with the message of Bun | 6 |
 
-`docs/workflow.md` of the plugin `celetis`, "The master daemon", gives each other refusal of
+[The master daemon](../README.md#the-master-daemon) gives each other refusal of
 `daemon start` and of the start of the daemon.
 
 **The board runs in the main checkout only.** A `node_modules/.bin` folder of the start folder or
@@ -168,7 +162,8 @@ Other pending states, a restart, or the first disconnect after a start stop othe
 allow 60 seconds to reconnect. Queue actions persist independently of a full-board read; accepted order survives reload. The page reloads once only after the target revision
 and a different runtime instance answer at the same URL. Existing view, notification, and
 shortcut choices remain in local storage. A timeout keeps the old page with the server-supplied
-recovery line `From <main>, run celetis daemon status; when no daemon runs, run celetis daemon start`. **Check again** clears the pending
+recovery line: it tells the person to run `celetis daemon status` from the main checkout, and
+`celetis daemon start` when no daemon runs. **Check again** clears the pending
 start and requests a fresh check and decision. The update may have completed; the page makes no
 installation retry.
 
@@ -176,25 +171,24 @@ After a successful board-approved update, the daemon that serves the board resta
 approved installed program. It drains the start response, then validates the installed target:
 the link of the installed program names the target, and the revision, source, and clean state of
 its folder are those of the target. A failed validation leaves the daemon running, and the dialog
-shows the failed update with the line of the validation. Else the daemon prints
-`daemon: restarts on the program at <12>`, stops as `celetis daemon stop` does, and starts one
-successor process of the installed program, which takes over the runs (`docs/workflow.md` of the
-plugin `celetis`, "The master daemon", "The restart"). The sessions stay in their tabs, and the
-page reconnects at the same URL. A stop of the daemon during the restart cancels the successor, and
-the page then shows the timeout. A daemon that runs from a checkout does not restart: the update
+shows the failed update with the line of the validation. Else the daemon prints a line with the
+first 12 characters of the target revision, stops as `celetis daemon stop` does, and starts one
+successor process of the installed program, which takes over the runs
+([The master daemon](../README.md#the-master-daemon), "The restart"). The sessions stay in their tabs, and the
+page reconnects at the same URL. A stop of the daemon (`celetis daemon stop` or a signal) during
+the restart cancels the successor, so no daemon runs, and the page then shows the timeout. A daemon that runs from a checkout does not restart: the update
 completes, and the dialog shows **Update completed**. A failed start of the successor prints its
 line to the daemon log, and the page then shows the timeout with the recovery line. It makes no
 retry.
 
 Follow [Updates](../../plugins/celetis/README.md#updates) for a terminal-started update and its affirmative
-terminal response. A terminal-started update keeps the daemon running on its program; it does not
-restart the daemon. Discovery releases its short read lock before foreground execution.
+terminal response. Discovery releases its short read lock before foreground execution.
 Only updaters serialize on the update mutex; sessions and daemons may stay open.
 
 **Restart needed.** A daemon that runs from a version folder of the installed program reads the
 installed program at most once each 5 seconds. When the installed revision differs from the
 revision of the daemon, and the last check result is **Up to date** or a failed check, the control
-shows **Restart needed**. A failed read keeps the last state. An update offer takes precedence,
+shows **Restart needed** within 10 seconds. A failed read keeps the last state. An update offer takes precedence,
 because its update restarts the daemon too. A failed update keeps its state until **Check again**.
 The dialog opens by itself one time for each installed revision in the tab, with no focus move. It
 shows the revision of the daemon and the installed revision. **Later** or Escape closes the dialog
@@ -203,9 +197,9 @@ and keeps **Restart needed** on the control; nothing restarts the daemon before 
 installed program as for an approved update. It answers with the revision that the new daemon
 runs, then it restarts as above. The page waits for that revision of the answer, not for the
 revision that it showed. It reloads once when that revision answers from a new runtime instance
-at the same URL. After 60 seconds it shows **Restart needs attention**, `The daemon did not
-return`, and the recovery line. A refused restart shows **Restart needs attention**, `The daemon
-did not restart`, and the line of the refusal; the daemon keeps running, and **Check again** comes
+at the same URL. After 60 seconds it shows **Restart needs attention**, a line that says the
+daemon did not return, and the recovery line. A refused restart shows **Restart needs attention**, a
+line that says the daemon did not restart, and the line of the refusal; the daemon keeps running, and **Check again** comes
 before a new attempt. The page never sends a restart again by itself. A daemon that runs from a
 checkout never shows **Restart needed**, and it refuses the restart request: a click never
 replaces a checkout daemon with the installed program. The terminal restart (`celetis daemon
@@ -217,9 +211,7 @@ needs, so a person may reload or restart affected work. Each Assist, Make visual
 press reads the installed program again. After `celetis update`, the next such
 press starts the command of the new program with no restart. A Run, Resume, Retry, or queue
 action goes to the daemon, which runs the program of the board too, so a press never meets a
-daemon of another revision. After a terminal-started update, restart the daemon (**Restart** in
-the board, or `celetis daemon stop`, then `celetis daemon start`) for the new program of the runs
-and the board. A fresh
+daemon of another revision. A fresh
 session loads changed skills; an open session does not reload them automatically. A change of
 `board.port` also needs a restart of the daemon. A change of `gates` in the main `.celetis.yaml`
 shows at the next read ("The data").
@@ -248,8 +240,7 @@ live sessions, the live usage-limit waits, and a read error) and `next` (the dec
 default start). Each placement also reads the status object of the daemon once through the adapter,
 in the process, and the reply adds `daemon`: `{pid, auto}`, with the PID of the daemon and its auto
 mode (`on`, `off`, or `stopping`). These reads do not wait for GitHub.
-`docs/workflow.md` of the plugin `celetis`, "The board", gives the value of each field and the
-rule that gives each row its state.
+The tables below give the value of each field and the rule that gives each row its state.
 
 A full read collects all open issues and their timelines, and the open PRs and their check and
 review results. A selected-issue read fetches each selected issue once and lists open PRs once.
@@ -276,9 +267,9 @@ The stop of the board also stops a read that runs. In each case, the `gh` proces
 | Cause | Line |
 |---|---|
 | The main `.celetis.yaml` has an error | The first line of the diagnostic of the config reader |
-| The resolver cannot read GitHub | The first line of the stderr of the resolver, else `cannot read the issues from GitHub` |
-| The read does not end in 60 seconds | `the issue read did not end in 60 seconds` |
-| Another failure | The first line of its message, else `the issue read failed` |
+| The resolver cannot read GitHub | The first line of the stderr of the resolver, else a line that says the issues cannot be read from GitHub |
+| The read does not end in 60 seconds | A line that says the read did not end in 60 seconds |
+| Another failure | The first line of its message, else a line that says the read failed |
 
 A selected-read error takes display priority over a full-read error. A good selected read clears
 only its own error; a good full read clears both. Selected reads do not change the last-full-read
@@ -304,6 +295,65 @@ Each placement reads local storage and ownership, requests the existing refresh 
 and disables recovery until the current decision is fresh. A failed full read disables queue
 actions until a full read succeeds. A selected-read error alone does not disable them; all
 queue-specific restrictions still apply. Failed reads preserve the last good list.
+
+The board puts these values in the fields of its document (`Document` of
+`engine/lib/board-read-types.ts`):
+
+| Field | Value |
+|---|---|
+| `tracker` | `GitHub` |
+| `flow.lanes` | The four lanes: `feature` (triage, specify, plan, implement), `bug` (triage, bug, plan, implement), `chore` (triage, chore), and `hotfix` (triage, hotfix). |
+| `flow.stages` | Triage, Define (specify, bug, chore, hotfix), Plan, and Implement. |
+| `flow.steps.<step>.gate` | The gate of each of the seven steps, by the rule of "Gates". |
+| `flow.steps.<step>.hint` | A hint that says the step lands the change when the build is done, for `implement`, `chore`, and `hotfix`. No other step has a hint. |
+| `noRun` | A text that names the dirty path and tells to commit or stash first, while the main checkout is dirty, else `null`. |
+| `daemon` | Read at each response, not in the refresh: `{pid, auto}` of the status object of the daemon that serves the board, with `auto` `on`, `off`, or `stopping`. |
+| `agents` | Entries `claude` and `codex`. Each has `available: true` and `cause: null` when its executable is on the `PATH` of the board, else `available: false` and a `cause` that says the agent is not on `PATH`. This checks only executable presence: sign-in, trust, and plugin discovery need their own checks. |
+| `history` | The remote trunk name, history URL, captured full head SHA, and up to 20 distinct landed issues. Each entry holds the issue number/title/URL and commit SHA/URL/committer time. |
+| `queue` | A `QueueView` with the schema-3 record, live owner, resolver result, error, and Add/Edit/Continue/Retry permissions. A null record means no saved queue yet. |
+| `issues` | One row for each open issue. An issue whose line of the resolver is the epic line or the `wontfix` line has no row. |
+
+A row gets its `state` by the first rule that matches:
+
+| # | The issue | `state` | Fields of that state |
+|---|---|---|---|
+| 2 | has a lock that a live script holds | `starting` | |
+| 3 | has a dirty lane worktree | `dirty` | `path`: the lane worktree |
+| 4 | has a row in the record for its `run` line: no progress, or a refused skip | `stuck` | `act`: `celetis --agent <host> run resume <n>` |
+| 5 | has `needs-info` or `ready-for-human`, two or more lane labels, an open human step, or a hotfix to land by hand | `blocked` | `reason`, from the first match in the order of the resolver (`docs/issue-tracker.md`, "Resolving an issue's state"): `needs info` for `needs-info`; for `ready-for-human`, `landing refused` while a landing refusal is current, else `ready for your step`; `several lane labels` for two or more lane labels; `human step open` for a `## Before landing` comment with no completion evidence; `land by hand` for a hotfix whose stop is cleared. `act`: the act that the `stop` line of the issue names |
+| 6 | has a `run` line | `ready` | |
+
+`picker` holds the version of the local order beside `order`. Its `usage` is the confirmed usage
+block of each host with its reason and reset time, and it is `null` once the reset time has
+passed. Its `waits` holds `{number, waitId, nextResetAt}` for each issue whose live run waits
+because every included agent is limited. `next` is `start` with its host, or `wait` with the blocks
+and the earliest future reset, from the local order and with no step preference.
+
+Each row also has `number`, `title`, `url`, `updatedAt` and these fields:
+
+- `type`: the lane of the one lane label of the issue: `feature` (the label `enhancement`), `bug`,
+  `chore`, or `hotfix`. It is `null` for an issue with no lane label, with two or more lane labels,
+  or with `epic`, also in the row of an issue that stops.
+- `step`: the step of the Run decision of the issue, the step of its `run` line ("Gates"), else
+  `null`.
+- `effort`: the effort level of that step, from the read of the resolver (`docs/issue-tracker.md`,
+  "What lives on the issue", "Effort"): `level`, and `source` `decided` with `by` (the step before
+  in the lane) and `reason`, or `source` `default` with the level `high`. It is `null` for a row
+  whose line is not `run`.
+- `started`: `true` when the step comes after the define step of its lane (`plan` or `implement`),
+  because an earlier step of the lane ran.
+- `urgent`: `true` for the type `hotfix`.
+- `epic`: `{ number, title }` of the parent issue when the `parent_issue_url` of the issue is the API
+  URL of an open issue of the same repository with the label `epic`, else `null`.
+- `pr`: the open pull request whose branch name holds `/<n>-`, with its number, URL, draft state, CI
+  result (`pass`, `fail`, `pending`, or `null`), and review state (`approved`, `changes`,
+  `required`, or `null`); else `null`. The CI result comes from the buckets of `gh pr checks`: `null`
+  when the commit has no check run and no status, else `fail` for a `fail` or `cancel` bucket, else
+  `pending` for a `pending` bucket, else `pass`. So a `stale` check and a check with an unknown value
+  are `pending`. For the review state, the last review of each reviewer that
+  approves, requests changes, or is dismissed counts. The review state is `changes` when one of
+  those reviews requests changes, else `approved` when one approves, else `required` when a
+  requested reviewer or team has not answered, else `null`.
 
 ## Landed history
 
@@ -368,8 +418,7 @@ a landed-history panel.
   `engine/visual.ts` entry, or a process with an item of the file name `daemon.ts` while
   the terminal has a link label. In
   a session tab of a run, that process is the start barrier, the leader of the foreground
-  process group (`docs/workflow.md` of the plugin `celetis`, "How a step runs", "The session
-  tab"). A shell whose host exited has no card, also when Codex left a `done` status in it.
+  process group ([The session tab](../README.md#the-session-tab)). A shell whose host exited has no card, also when Codex left a `done` status in it.
 
 The link label of the terminal, `celetis.link`, links a session to an issue: `#<n> <step>` gives
 the issue `<n>` and the step, `#<n>` alone gives the issue only, and another label gives no issue.
@@ -429,7 +478,7 @@ to the card of its row, and Run starts the step again.
   `next <step>` and before `auto`. The chip is solid for a decision on the issue and dashed for the
   default. Its title and accessible name are `effort <level>, decided by <by>` or
   `effort <level>, default`, where `<by>` is the step before the started step in the lane of the
-  issue (`docs/workflow.md` of the plugin `celetis`, "The board").
+  issue ("The data").
 - On a `ready` card, the accessible name of Run is `Run <step> at <level> (decided by <by>), #<n>` or
   `Run <step> at <level> (default), #<n>`. The title of Run is
   `Start the <step> step at <level>, decided by <by>` or `Start the <step> step at <level>, the default`,
@@ -465,9 +514,9 @@ first case that applies gives the card:
 | Case | Card | Reservation |
 |---|---|---|
 | The hc list has a session of the issue | The session card | Ends |
-| The status of the daemon has no row with the run ID | `failed`: `The daemon PID <pid> has no run <first 8 characters of the run ID> of this press.` | Ends |
+| The status of the daemon has no row with the run ID | `failed`: a line that names the daemon PID and the first 8 characters of the run ID, and says that the daemon has no such run | Ends |
 | The row has a session (`session` is not null) | The feedback clears | Ends |
-| The row has an `outcome` | `failed`: its reason, else the last `line` of the run, else `The run <first 8 characters> ended with code <code> before a session.` Each outcome counts, also `closed` or `gate` with code 0. | Ends |
+| The row has an `outcome` | `failed`: its reason, else the last `line` of the run, else a line that names the first 8 characters of the run ID and the exit code of a run that ended before a session. Each outcome counts, also `closed` or `gate` with code 0. | Ends |
 | Else | `Starting`, with no warning | Stays |
 
 Each `failed` feedback also selects a read of the issue, so a card whose last read showed the lock
@@ -484,8 +533,7 @@ A session or a changed issue decision clears visible feedback, but the reservati
 end. A newer explicit press cannot receive an older press's feedback. No automatic launch retry occurs.
 
 Assist keeps its 30-second detection period. When it ends, the next nonlocal request reads the
-issues again. Without a session, Assist shows
-`Session not detected. Check the terminal before starting again.` A blocked row matches Assist
+issues again. Without a session, Assist shows a line that tells you to check the terminal before starting again. A blocked row matches Assist
 feedback only with a null step. A session wins at each time: its card shows its state and Go.
 The page uses no read that started before the request ended, and an older read never replaces a newer one.
 A press that fails ends the `Starting` card at once, and the next read gives the card its buttons.
@@ -508,7 +556,7 @@ A press that fails ends the `Starting` card at once, and the next read gives the
 **The requests of Run and Resume.** The fixed adapter gives each press as one request to the
 dispatcher of the master daemon that serves the board, in the same process, with only these fixed
 fields. The dispatcher runs the parser and the answers of a socket request
-(`docs/workflow.md` of the plugin `celetis`, "The requests"), and the adapter parses the answer
+([The master daemon](../README.md#the-master-daemon), "The requests"), and the adapter parses the answer
 (`parseAnswer`):
 
 ```text
@@ -520,11 +568,10 @@ The selection is `{"explicit":"<host>"}` for an explicit agent choice of Run, el
 board sends no `environment`, so the `CELETIS_AGENT` of the daemon selects no host. A `Run at
 <level>` entry sends the level as `effort`. `quiet` opens each session tab in the background. The
 daemon selects the saved session of Resume itself, and it checks `hc` and the Herdr app before
-its answer. A refusal of the daemon gives 409 with its line, for example
-`daemon: the daemon takes over its runs; send the request again after its start` before the end of
-the takeover of its start. The page sends Run and Resume with no timeout, and the board server
+its answer. A refusal of the daemon gives 409 with its line, also before the end of the takeover
+of its start. The page sends Run and Resume with no timeout, and the board server
 keeps the request open until the answer. An accepted answer gives the run ID; an accepted answer
-with no run ID gives 409 with `daemon: the daemon sent no run ID`. The board starts no `celetis`
+with no run ID gives 409 with a line that says the daemon sent no run ID. The board starts no `celetis`
 command and no terminal for Run and Resume.
 
 **The argv of a press.** At each press of New intake, Assist, or Make visual, and at each queue
@@ -582,17 +629,18 @@ opens the list.
 To use another available agent for one independent Run, use the card's agent choices. An independent
 Run without a choice sends no agent, and the daemon run selects from the effective order of each step:
 the preferred agent of the step in `agents` when the local order includes it, then the local
-order. Run on the current issue of a queue paused at a `me` gate uses Continue with the saved queue choice. An
+order ([Agent selection and model setup](../../plugins/celetis/docs/configuration.md#agent-selection-and-model-setup)). Run on the current issue of a queue paused at a `me` gate uses Continue with the saved queue choice. An
 absent or null choice keeps that choice. An explicit host is refused when the saved choice is
 default or names another host.
-A choice for one Run does not change the order. Resume sends only the issue number, and the daemon run
-selects the saved session. Assist also sends only the issue number and offers no agent choice.
+A choice for one Run does not change the order. An explicit choice pins that start, also when
+the agent is limited. Resume sends only the issue number, and the daemon run selects the host and
+the exact ID of the saved record, also after the local order changes. Assist also sends only the issue number and offers no agent choice.
 
 To start one step of a `ready` card at another effort level, use a `Run at <level>` entry of its
 run menu ("The layout, the keys, and the errors"). An entry sends no agent, as Run does, and sends
 the level. The request then has the level as `effort`, so the
-daemon run starts that step at that level once (`docs/workflow.md` of the plugin `celetis`, "Start
-the script", "The effort level"). The entry writes no decision on the issue, and a later step uses
+daemon run starts that step at that level once
+([The start of a step](../README.md#the-start-of-a-step), "The effort level"). The entry writes no decision on the issue, and a later step uses
 its own decision. The current issue of a queue paused at a `me` gate takes no level: the queue
 starts its step at the decided level.
 
@@ -613,8 +661,7 @@ The run of a press lives in the daemon: `celetis daemon status` shows it. With t
 gates, the run of a Run press ends with its one session. The board has no control that stops a
 run, and no command stops one.
 `celetis daemon stop` stops the daemon and detaches every run, and a session whose start barrier
-the daemon released stays open (`docs/workflow.md` of the plugin `celetis`, "How a step
-runs", "A stop of a run").
+the daemon released stays open ([A stop of a run](../README.md#a-stop-of-a-run)).
 
 The terminal calls of New intake, Assist, Make visual, and Open shell, when the Herdr app has a
 space with the name of the repository:
@@ -708,16 +755,16 @@ field. A Retry of a usage-limit wait sends exactly `{"number": <n>, "waitId": "<
 `/api/run`; the server checks only its shape, and the daemon refuses a stale or
 finished wait or a run that no longer runs, which the server returns as 409 with the line of the daemon. Before any
 read, the server refuses an `effort` that is not `low`, `medium`, `high`, `xhigh`, or `max` with 400
-and `the effort is not one of low, medium, high, xhigh, max`. The server refuses a press with 409,
+and a line that lists the five levels. The server refuses a press with 409,
 sends no request, and starts no terminal, unless each condition holds:
 
-| Press | Conditions | Line of the refusal |
+| Press | Conditions | Cause of the refusal |
 |---|---|---|
-| `POST /api/run` | A fresh issue and queue read succeeds. The issue has a card of its own, with no session. Its row is `ready` or `stuck`. `noRun` is `null`. No press on that issue is active. A current paused queue issue has no `effort` in the body and also meets the Continue conditions below. | The read or queue cause; `The queue starts this step at the decided level` for an `effort` on a current paused queue issue; otherwise `#<n> has no step to start now`. |
-| `POST /api/resume` | The issue has a card of its own, with no session. Its row is `stuck`. `noRun` is `null`. No press on that issue is active. | `#<n> has no session to resume now` |
-| `POST /api/assist` | A fresh issue read succeeds. The issue has a card of its own, with no session. Its row is `blocked`, with `assist` true and `noRun` null. A current `hc` terminal list succeeds. A fresh read of the local order and the usage records gives a first eligible agent, and it is on `PATH`. No Run, Resume, or Assist press on that issue is active. | The current read, `noRun`, agent, session, or state cause; otherwise `#<n> has no blocked issue to assist now`. |
-| `POST /api/visual` | The issue has a History row in the last good read. The page of its commit does not exist. No live terminal with the link label `#<n> visual` is in the main checkout or a lane worktree. No Make visual press of that number is in flight. A fresh read of the local order and the usage records gives a first eligible agent, and it is on `PATH`. | `#<n> has no row in History`; `#<n> already has a visual; use Open visual`; `the tab #<n> visual is still open`; `a Make visual press of #<n> is in flight`; otherwise the agent cause. |
-| `POST /api/shell` | The issue has a card of its own, with no session. Its row is `dirty`. Its `path` is a lane worktree of the main checkout. | `#<n> has no dirty worktree` |
+| `POST /api/run` | A fresh issue and queue read succeeds. The issue has a card of its own, with no session. Its row is `ready` or `stuck`. `noRun` is `null`. No press on that issue is active. A current paused queue issue has no `effort` in the body and also meets the Continue conditions below. | The read or queue cause; for an `effort` on a current paused queue issue, that the queue starts this step at the decided level; otherwise that the issue has no step to start now. |
+| `POST /api/resume` | The issue has a card of its own, with no session. Its row is `stuck`. `noRun` is `null`. No press on that issue is active. | The issue has no session to resume now. |
+| `POST /api/assist` | A fresh issue read succeeds. The issue has a card of its own, with no session. Its row is `blocked`, with `assist` true and `noRun` null. A current `hc` terminal list succeeds. A fresh read of the local order and the usage records gives a first eligible agent, and it is on `PATH`. No Run, Resume, or Assist press on that issue is active. | The current read, `noRun`, agent, session, or state cause; otherwise that the issue has no blocked state to assist now. |
+| `POST /api/visual` | The issue has a History row in the last good read. The page of its commit does not exist. No live terminal with the link label `#<n> visual` is in the main checkout or a lane worktree. No Make visual press of that number is in flight. A fresh read of the local order and the usage records gives a first eligible agent, and it is on `PATH`. | The issue has no row in History; its visual exists already (use Open visual); its `visual` tab is still open; a Make visual press of the issue is in flight; otherwise the agent cause. |
+| `POST /api/shell` | The issue has a card of its own, with no session. Its row is `dirty`. Its `path` is a lane worktree of the main checkout. | The issue has no dirty worktree. |
 
 `POST /api/queue` accepts exactly `{"action": <QueueAction>}`, or for Add with one host
 `{"action": <QueueAction>, "agent": "claude" | "codex"}`. An Add with no agent records the default
@@ -753,7 +800,7 @@ It opens assistance for the human action; it starts no workflow step. A 200 resp
 tab opened, not that the host resolved the block. A later CLI refusal can remain in that tab.
 
 A Make visual body must be an object with exactly one field, `number`. An extra field, including
-`sha` or `agent`, gives 400 with `making a visual takes only the issue number`. The number follows
+`sha` or `agent`, gives 400 with a line that says that making a visual takes only the issue number. The number follows
 the rule of Assist. The server takes the full commit hash only from the History row of that number
 in the last good read. It makes no fresh read and checks no `noRun`. It checks in this order: the
 press in flight, the row, the terminal list, the page, the tab, the agent, and the program. A
@@ -766,19 +813,18 @@ of the command, for example a commit that is not on the remote trunk, stays in t
 These checks of Run, Resume, Assist, and Make visual also refuse with 409. Read-only `hc` calls
 can precede the failure:
 
-- **The program** of Assist and Make visual, before any terminal starts. No installed program gives
-  `the celetis program is not installed; run the first install of plugins/celetis/README.md, "First install"`. A
-  read that fails gives the first line of its error, for example
-  `celetis: <path> is not a file of the celetis program; move it away, then run the install again`
-  or `celetis: CELETIS_HOME must be an absolute path: <value>`. A command path with a control
-  character gives `the celetis program path has a control character`.
+- **The program** of Assist and Make visual, before any terminal starts. No installed program gives a line
+  that points to [First install](../../plugins/celetis/README.md#first-install). A read that fails
+  gives the first line of its error, for example for an entry that is not a file of the `celetis`
+  program, or for a `CELETIS_HOME` that is not an absolute path. A command path with a control
+  character gives a line that names it.
 - **The saved session of Resume.** The daemon refuses a Resume with a missing or invalid saved
   record, or a record with no verified session ID, with the first line of its error.
 - **The agent of Run, Assist, or Make visual.** An explicit Run choice must be `claude` or `codex`;
-  another choice gives `#<n> has no agent "<name>"`. A queue continuation uses its saved choice and
+  another choice gives a line that names the issue and the unknown agent. A queue continuation uses its saved choice and
   refuses an explicit conflicting host. With no choice, the server reads the local order and the
   usage records again at the press; it never uses a host that the page showed. An agent that is not
-  on `PATH` gives `celetis: <agent> is not on PATH`, and no other host is tried. When every included
+  on `PATH` gives a line that names it, and no other host is tried. When every included
   agent is limited, Assist and Make visual refuse with the blocks; a default Run is accepted,
   and its run waits.
 
@@ -800,11 +846,11 @@ The answer to a press that the server did is 200 with `{"ok": true}`. Each other
 | 403 | The `Host`, the `Origin`, or the content type is not good, or the `Origin` is `null` ("The trust boundary"). |
 | 404 | The path is not a path of the board, a `/visual/` path names no page, or Go names an id that is no session of the repository. |
 | 409 | A condition of the table does not hold, the queue request is stale or unavailable, the read of the program fails, the fresh issue read of Assist fails, the daemon refuses Run or Resume (for example a Resume with no valid saved session), the agent of Run, Assist, or Make visual is not good, the commit of Make visual is not 40 lowercase hex digits, the order replacement is stale or fails, a Retry names no live wait, or a restart request finds no restart to do or an installed program that fails its validation. |
-| 503 | A restart request arrives during a stop or a restart of the daemon: `daemon: the daemon stops; start it again, then send the request`. |
-| 502 | An `hc` or `herdr-app` call failed, also the terminal list of Make visual: the first line of its error. `hc gave no list of terminals`, `herdr gave no list of spaces`, `hc gave no terminal id`, and `herdr gave no terminal for the new space` are the lines for an answer with no list or with no safe id. |
-| 500 | The server failed for another cause: the first line of the error, or `the server failed`. |
+| 503 | A restart request arrives during a stop or a restart of the daemon, with a line that tells the sender to start the daemon again, then send the request. |
+| 502 | An `hc` or `herdr-app` call failed, also the terminal list of Make visual: the first line of its error. An answer with no list of terminals, no list of spaces, or no safe terminal id also gives 502. |
+| 500 | The server failed for another cause: the first line of the error, or a line that says the server failed. |
 
-Each 500 answer, each 502 answer, a failed queue launch, and a failed update or restart also add an entry to the event record of the user ([The event record](../../plugins/celetis/docs/workflow.md)).
+Each 500 answer, each 502 answer, a failed queue launch, and a failed update or restart also add an entry to the event record of the user ([The event record](../README.md#the-event-record)).
 
 The update API is independent of issue and terminal reads. Each success apart from the restart
 returns `{runtime: {revision, instance}, update: <snapshot>}`. `revision` is the full revision of
@@ -820,11 +866,15 @@ the program that started this board. `instance` is a random ID for this startup.
 The POST routes use the same Host, Origin, JSON content-type, body limit, CSP, and JSON response
 paths as other board actions. A non-object or unexpected field gives 400. An unavailable or
 consumed offer gives 409. The restart reads the installed program again before it answers. It
-gives 409 with `update: no restart is needed; check again` in another phase, also for a daemon that
+gives 409 with a line that tells the sender to check again in another phase, also for a daemon that
 runs from a checkout, and 409 with the line of the validation when the installed program fails
 it; the daemon then keeps running. It gives 503 with the stop line during a stop or a restart, so
 two restart requests start one restart. The start and the restart responses finish before this
 board closes for activation.
+
+**Retry of a usage-limit wait.** The daemon wakes the live run that owns that wait for one bounded
+attempt cycle and starts no run. The board never sends a Retry again, and a repeated Retry of a
+pending wake changes nothing.
 
 ## The trust boundary
 
@@ -952,9 +1002,9 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   or older data permits a fresh endpoint check. Polls and the clock update this state even when
   cards do not change. Reconnect prevents launches until the board connects again.
 - A successful intake request announces `Intake tab opened`. A rejected request shows
-  `New intake failed` with the server cause. A server failure or lost response also states:
-  `The launch outcome is unknown. Check Human sessions or herdr before pressing New intake again.`
-  No launch retries automatically. The button becomes available for deliberate recovery, and
+  `New intake failed` with the server cause. A server failure or lost response also states that the
+  launch outcome is unknown, and tells the person to check Human sessions or herdr before a new
+  press of New intake. No launch retries automatically. The button becomes available for deliberate recovery, and
   completion never takes focus back from another control.
 - The footer holds the agent order after the item `Daemon`. Its pill stacks the icons of the
   included agents in priority order with a chevron; hover or focus spreads them. A press opens the
@@ -1043,7 +1093,7 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   level has a check mark and the suffix `(decided by <by>)` or `(default)`; the title of another level is
   `Start the <step> step at <level>, this start only`. With a `noRun` text, each level entry is
   disabled with that text; on the current issue of a queue paused at a `me` gate, with
-  `The queue starts this step at the decided level`; else with the cause that disables Run. The `m`
+  a text that says the queue starts this step at the decided level; else with the cause that disables Run. The `m`
   menu of the card lists the same entries after its actions. Search and the actions of the details
   have no level entries.
 - The lane track at the right of a card shows where the issue is in its lane. The current step has
@@ -1086,8 +1136,8 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   step. A strip at the top, Not in a step, holds the issues whose step is in no stage. The Idle
   cards of a stage group in the same way: the row has the chevron, the number, the title, and the
   count, a press shows or hides the children, and a group starts closed.
-- When a request of the page fails, the cards of the last good read stay, dimmed, under the message
-  `The board read failed. The cards and history show the last good read.`
+- When a request of the page fails, the cards of the last good read stay, dimmed, under a message
+  that says the board read failed and that the cards and history show the last good read.
 - A card that changes its column moves to its new place. The page shows no motion when the OS asks
   for reduced motion.
 - Below 1100 px Needs you takes the left half and Running and Idle share the right half, and the
@@ -1131,9 +1181,9 @@ the texts are `Open the issue` and `Read the issues again`.
   The board then shows no session card, and the issue cards stay.
 - The status bar shows `cannot read:` with one line when the last read of the issues failed ("The
   data"). The cards of the last good read stay.
-- The status bar shows `The board server does not answer` when a request of the page failed. A
-  press at that time gives a toast with that text and
-  `Start the daemon again in a terminal: celetis daemon start.`
+- The status bar says that the board server does not answer when a request of the page failed. A
+  press at that time gives a toast with that text and a line that tells the person to start the
+  daemon again in a terminal with `celetis daemon start`.
 - Queue disables execution controls during a request or an unavailable authoritative read. A failed
   press retains the accepted queue and shows the server reason. Recovery controls
   follow the current engine action flags, including an interrupted run.
@@ -1163,8 +1213,7 @@ Of the distribution:
   check, or in the tab of the next New intake or Assist. A startup stop of the run of a Run or
   Resume shows in the existing card warning area, from the outcome of that run in the status of
   the daemon.
-- The board follows the run of a Run or Resume only at a placement, so only while a page asks. Its
-  reservation lives in the daemon process, and a stop of the daemon ends it.
+- The board follows the run of a Run or Resume only at a placement, so only while a page asks.
 
 Of the sessions, herdr-core, and the Herdr app:
 
@@ -1198,16 +1247,20 @@ Of the sessions, herdr-core, and the Herdr app:
 - Run/Resume ownership and warnings live only in the daemon process. A restart of the daemon does
   not recover them; the next daemon takes over the run. A queue action keeps its persisted
   queue-state authority.
-- Between the stop of the old daemon and the takeover of its successor, no daemon steers the
-  sessions, and the board does not answer. A successor that finds the old port in use serves
-  another port: the page cannot reconnect at its URL and shows the timeout, and
-  `celetis daemon status` prints the new URL.
+- The board does not answer between the stop of the old daemon and the takeover of its successor
+  ([The master daemon](../README.md#the-master-daemon), "The restart", gives the gap with no
+  daemon). A successor that finds the old port in use serves another port: the page cannot
+  reconnect at its URL and shows the timeout, and `celetis daemon status` prints the new URL.
 - On macOS and Linux, a New intake, Assist, or Make visual program that exits 0 closes its tab
   (`hc run --rm`).
   The first press that makes the space of the repository starts its argv through the start form
   of the Herdr app, `"$@"; exec "$0" -li`, so that one tab keeps a shell after its program ends.
 - On Windows, `hc run` gets the argv with no shell, and the first item is `celetis.cmd`. Such a
-  start, its tab, and the card of its session are not checked.
+  start, its tab, and the card of its session are not checked. A program that `hc run` starts with
+  no shell has no foreground in `hc get`, so its session can get no card.
+- Two shapes of the REST reads of the board data (`nextBoard`) for each open PR are not checked
+  against a live GitHub: a commit status list that is not empty, and a review list that is not
+  empty.
 - A `#<n> visual` tab whose command fails keeps its message and a shell, and its History row shows
   **Making…** until you close the tab.
 - A `#<n> visual` session of an issue that is still open takes the place of the card of that issue
@@ -1227,3 +1280,5 @@ Of the cards and the page:
 - A visual page at `/visual/<sha>` has no `localStorage` under its sandbox: an access throws
   `SecurityError`, so a page script that needs storage can break.
 - The lane icons are the one place where the page knows four names of a flow. They change no rule.
+- With a gate that is `auto` in the main YAML, the run of a Run press goes on with that step in a
+  new tab. Between two sessions the card is in Running with `Starting`.

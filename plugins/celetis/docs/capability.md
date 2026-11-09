@@ -187,12 +187,8 @@ rank 3 below Σ=12 caps at xhigh. A host binding can raise the applied effort wi
 the portable score. On Codex with no profile, the binding names no model: each child keeps the
 parent's model ("Codex model profiles").
 
-Agent selection is `--agent claude|codex` > explicit `CELETIS_AGENT` > the first host in the local
-ordered preference. Its missing-record order is `claude`, `codex`; outside a Git checkout,
-control selection uses Claude. The scripts of the verify gate (`scripts/verify.ts`,
-`scripts/build.ts`, and `scripts/install-tools.ts`) take `--agent`, else `CELETIS_AGENT`, else
-Claude, and read no order. Scoring consults no usage-limit record. Explicit selection
-needs no preference read; required YAML validation still applies. Claude's existing human CAP output is
+[Agent selection and model setup](configuration.md#agent-selection-and-model-setup) gives the agent
+selection. Scoring consults no usage-limit record. Claude's existing human CAP output is
 unchanged.
 
 `--json` returns one schema-1 object instead of the human line. It includes `digits` (`J`, `V`,
@@ -224,7 +220,7 @@ pair.
 
 Attempt 4 or later returns `status: "stop"`, with `rank`, `effort`, `host`, and `dispatch` null.
 It keeps the digits, bias, sum, attempt, and original STOP line. STOP is resolved before host
-lookup or profile validation. JSON output requires `jq`; the human STOP line does not.
+lookup or profile validation.
 
 ## Codex model profiles
 

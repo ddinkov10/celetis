@@ -86,11 +86,15 @@ agent that waits.
 
 ## Evidence on Hand
 
-- `plugins/celetis/README.md`: the product, the requirements, the commands, and the update rule.
-- `engine/board/README.md`: the full board specification, including the layout, keys, errors, and
-  trust boundary.
-- `plugins/celetis/docs/workflow.md`: the daemon, the runs, the board requirements, and the acceptance status of each
-  host.
+- `plugins/celetis/README.md`: the product, the requirements, the install, the full loop, the skills,
+  the commands, and the update rule.
+- `plugins/celetis/docs/setup.md`: what setup writes.
+- `engine/board/README.md`: the full board specification, including the requirements, layout, keys,
+  errors, and trust boundary.
+- `engine/README.md`: the daemon and the runs.
+- `plugins/celetis/docs/workflow.md`: the steps of a run as a session and a person meet them, and the
+  acceptance status of each host.
+- `scripts/README.md`: the checks.
 - `docs/adr/`: the architecture decisions, for example ADR-0020, ADR-0035, and ADR-0058 for the
   board.
 - `engine/board/fonts/`: Geist and Geist Mono with `OFL.txt`.

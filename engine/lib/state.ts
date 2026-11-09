@@ -74,7 +74,7 @@ const policies: Readonly<Record<LockName, Readonly<{ wait: number; line: (path: 
   space: { wait: 60_000, line: (path) => `terminal: ${path}: the space lock is busy after 60 seconds; try again` },
   // The capture waits for a lesson apply, which holds the lock for a whole Git transaction.
   lessonCapture: { wait: 120_000, line: (path) => `${path}: busy: timed out waiting for the lesson lock` },
-  // The wait blocks the whole process, and docs/workflow.md states 2 s.
+  // The wait blocks the whole process, and engine/README.md states 2 s.
   event: { wait: 2_000, line: () => 'celetis: the record lock is busy after 2 seconds' },
   // A second install must refuse at once.
   install: {

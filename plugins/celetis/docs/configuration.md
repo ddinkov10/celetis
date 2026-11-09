@@ -9,14 +9,29 @@ nothing after a `---` marker on its line.
 
 | Field | Accepted value | Default when omitted |
 | --- | --- | --- |
-| `landing` | Required: `pr` or `merge` | None |
-| `gates` | Mapping from a step name to `me` or `auto` | `me` for each omitted step |
-| `agents` | Mapping from a step name to `claude` or `codex` | Each step uses the local order |
-| `board` | Mapping with optional `port`, an integer from 1024 to 65535 | Search starts at 4403 |
-| `worktreeSetup` | A root-relative `.ts` file reference, or exactly `""` | No setup |
-| `suite` | A relative path of a TypeScript file in the checkout; required with `landing: merge`, refused with `landing: pr` | With `merge`, the config is refused |
-| `custom` | Mapping from a skill name of the plugin to an instruction string | No addition for an omitted skill |
-| `codexProfiles` | Mapping from a runtime identity to its profile | Each Codex child keeps the parent's model |
+| `landing` | Required: `pr` or `merge`. `pr` squash-merges a PR when each check is green. `merge` creates one squash commit on the trunk, with no PR; a project with no PR check uses `merge` (`docs/issue-tracker.md`, "Branches, PRs, merge") | None: the config is refused |
+| `gates` | Mapping from a step name to `me` or `auto` (`docs/workflow.md`, "Gates") | `me` for each omitted step |
+| `agents` | Mapping from a step name to `claude` or `codex`: the preferred agent of that step ([Agent selection and model setup](#agent-selection-and-model-setup)) | Each step uses the local order |
+| `board` | Mapping with optional `port`, an integer from 1024 to 65535: the first port to try for the board ("Start the board") | Search starts at 4403 |
+| `worktreeSetup` | A root-relative `.ts` file reference, for example `"scripts/worktree-setup.ts"`, or exactly `""` ("Setup file and instruction text") | No setup |
+| `suite` | A relative path of a TypeScript file in the checkout: the full check of a `merge` landing ("Setup file and instruction text"); required with `landing: merge`, refused with `landing: pr` | With `merge`, the config is refused |
+| `custom` | Mapping from a skill name of the plugin to an instruction string: an addition to the procedure of that skill | No addition for an omitted skill |
+| `codexProfiles` | Mapping from a runtime identity to its profile: four ordered model slots and the reviewer minimum for that dispatch surface | Each Codex child keeps the parent's model |
+
+The program reads `landing`, `suite`, `gates`, `agents`, `board`, and `codexProfiles` from the
+main checkout, also when a command starts in a lane or a subfolder. The worktree command reads
+`worktreeSetup` from the lane checkout. At a skill entry, the active checkout supplies only the
+selected `custom.<skill>`
+([ADR-0032](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0032-shared-configuration-operation-snapshots.md)).
+Commands that need repository setup require a valid file: a missing or invalid required config
+stops before a Git prune, branch or worktree changes, locks, runtime state, host sessions, or
+landing pushes. The daemon checks the main config again before each new session ("Operation
+values and freshness"). Installation discovery with an explicit host and standalone capability
+scoring with explicit inputs work outside a repository and need no project config. For the record
+of setup, see `docs/setup.md`, "`setup write`".
+
+For the repository setting of the squash title with the landing `pr`, see
+`docs/issue-tracker.md`, "Branches, PRs, merge".
 
 The allowed gate names are `triage`, `specify`, `bug`, `chore`, `hotfix`, `plan`, and
 `implement`. No other step is accepted. An empty `gates` mapping uses `me` for all seven.
@@ -34,45 +49,14 @@ form, and a Codex entry with no shell checks no name.
 Exactly `""` as the setup reference runs no setup. An empty instruction string gives no addition.
 An empty `custom` or `codexProfiles` mapping is valid.
 
-Agent selection is `--agent`, then an explicit `CELETIS_AGENT`, then, for a step that a run
-starts, the `agents` preference of that step in the main config, then the local ordered
-preference. A step preference puts its agent first and keeps the other agents in the local order.
-A preferred agent that the local order excludes has no effect: the local exclusion wins. Intake,
-Assist, Make visual, and control operations use the local order only. The scripts of the verify
-gate (`scripts/verify.ts`, `scripts/build.ts`, and `scripts/install-tools.ts`) take `--agent`, else
-`CELETIS_AGENT`, else Claude, and read no order. The record is
-`<Git common directory>/celetis/agents.json`, shared by the main checkout and linked
-worktrees on this machine. Its schema is exactly
-`{"schema":1,"order":["claude","codex"]}`. That is also the missing-record order.
-The list is unique and nonempty; either host can be excluded. YAML `host` is an unknown field.
-Resume uses its saved host and session ID. A conflicting explicit host stops resume.
-
-`celetis agents read` returns the validated order and its canonical-content digest as `version`
-without creating a record. `celetis agents replace '<JSON>'` takes exactly `order` and
-`expectedVersion`. A differing stale replacement exits 3 with `{kind:"conflict",latest}`.
-Repeating the current order succeeds even with an older version. A private preference lock
-serializes writers, with a ten-second wait limit, and atomic replacement preserves old bytes
-on a failed write. The record and lock must be private regular files, with no symbolic links.
-Their folder `<git common dir>/celetis` is shared daemon state: it must be a real directory
-of the current user with no group or other write access, so an existing 0755 folder is accepted.
-A store that creates it uses mode 0700. The record subfolders (`limits/`, `usage-captures/`,
-`usage-sequences/`, `recovery/`, and `sessions/<n>/`) must be private (0700).
-Malformed or unsafe records require repair of the reported cause before replacement.
-The `agents` command and explicit control selection bypass implicit preference reads.
-No quota record gates a control operation. With no Git checkout, control selection uses Claude.
-
-Setup accepts `--hosts claude`, `codex`, `claude,codex`, or `codex,claude`; it rejects `--default`.
-Only `setup write` initializes an absent preference after setup validation. Existing valid
-preferences stay unchanged; `setup check` and `setup try` create no preference. Preference
-writes leave the independent usage observations and attempt sequence intact. Explicit host-selection
-changes do not replace a valid local preference.
-
-Setup refreshes recorded owned landing and suite values and removes an obsolete owned suite, while
-preserving unrelated YAML bytes and values. Differing unowned values stay with exact warnings; an
-unowned suite blocking `pr` refuses before writes. `worktreeSetup`, including exactly `""`, stays
-product-owned. The schema-1 wiring record keeps resolved tracker and hosts and resulting owned
-scopes; it drops retired claims. See `README.md`, "Review old wiring", for scope and
-remaining-caller limits.
+A `custom.<skill>` string reaches only the invocation of its own skill, for example a check on a
+real device after the build: `chore` does not apply `custom.implement`, and `lesson-review` does
+not apply `custom.lesson`. The text is an addition: it cannot remove a rule of the general skill
+(ADR-0006). `custom.hotfix` holds the ship acts of the project. A product fact that two or more
+skills need, for example a landing rule that both `implement` and `chore` follow, or the lesson
+tags of the project, goes into the `AGENTS.md` of the project, with the domain knowledge
+(`docs/setup.md`, "`AGENTS.md`"). Each invocation reads the whole config once and applies only its
+own string ("Skill entry").
 
 Each `codexProfiles` key must be a nonempty string that identifies the dispatch runtime.
 Each profile has exactly two required fields:
@@ -101,8 +85,8 @@ subfolder. Celetis preserves accepted characters exactly: it does not trim, expa
 Validation rejects absolute, rooted, drive, and UNC paths; backslashes; colons; empty, `.`, `..`,
 and `.git` components; U+0000–U+001F; and U+007F. Omission or exactly `""` means no setup. Null,
 whitespace-only text, inline code, and wrong types are errors. Configuration validation checks the
-reference only; a valid reference to a missing file can be read. Skill entry neither reads nor
-executes the setup file. `setup status` checks that a configured `suite` and a nonempty
+reference only; a valid reference to a missing file can be read. A configuration read, a skill
+entry, and the reader CLI neither read nor execute the setup file. `setup status` checks that a configured `suite` and a nonempty
 `worktreeSetup` name readable regular files in the active checkout, by the target rules below, and
 runs neither file.
 
@@ -126,8 +110,8 @@ worktrees. An invalid target starts no setup child. A canonical alias of the che
 accepted. The trusted-checkout boundary is not a file-swap transaction and adds no restrictions
 to transitive imports.
 
-The selected Bun executes the lane file directly, with cwd at the lane root. The file keeps its
-source path and ordinary sibling imports. It needs no executable bit or exported-function API.
+The selected Bun executes the lane file directly, with cwd at the lane root, also after a
+subfolder invocation. The file keeps its source path and ordinary sibling imports. It needs no executable bit or exported-function API.
 `process.argv[2]` is one absolute main-checkout argument. Stdin, stdout, and stderr stay
 inherited. Product `.env`, Bun configuration, preloads, macros, automatic package installation,
 and transpiler cache remain disabled. A setup file passes each external executable and its
@@ -135,34 +119,28 @@ arguments as an array, checks each status, and stops on failure. Signals stop th
 worktree command adds an LF separator after nonempty setup output and prints the final absolute
 lane path.
 `setup try` prints its path even when preparation or execution fails, and returns the child
-status. `worktree` and `setup lane` report setup failure as exit 6.
+status. For the life of its test lane, see `docs/setup.md`, "`setup try`". `worktree` and `setup lane` report setup failure as
+exit 6.
 
-Before a detached wiring test, the product owner approves, creates, and commits the entry and
-required helpers on the local trunk in a separate product change. `setup try` and
-`setup write --setup-file <path>` require the entry in local trunk HEAD with an unchanged index and
-working file. They resolve the option from the main root and add only the reference. They create,
-copy, stage, own, commit, and push no application source to make testing possible. A changed
-proposal requires another owner source commit before retry. Existing references, including `""`,
-stay unchanged; a conflict prints
-`setup: warning: .celetis.yaml: worktreeSetup differs from the requested setup reference; setup leaves it`.
-
-The main config is checked before Git prune, branch or worktree changes, runtime state creation,
-host sessions, and landing pushes. The daemon checks it again before each new
-session. The worktree command also checks the lane config on every entry, including a lane with
-its setup marker. An unmarked lane runs setup once and receives the marker only after a nonempty
-reference succeeded, including a zero-byte file. With exactly `""` or missing `worktreeSetup`,
-the lane stays unmarked. Source edits do not clear a marker. Explicit `setup lane <path>` uses
+The worktree command checks the lane config on every entry, including a lane with its setup
+marker `<git dir of the worktree>/celetis-setup-done`. An unmarked lane runs setup once and
+receives the marker only after a nonempty reference succeeded, including a zero-byte file. With
+exactly `""` or missing `worktreeSetup`, the lane stays unmarked. Each entry runs setup again in
+an unmarked lane, so a reference that a merge of the trunk brings runs at the next entry. Source
+edits do not clear a marker. Explicit `setup lane <path>` uses
 the main reference and target lane source, and clears an old marker before file validation or
 execution. It writes the marker again only on success. An older lane with missing source needs
 the owner to bring that committed source into the lane; there is no copy or merge fallback.
 After a setup failure or an invalid new lane config, the worktree command removes the new
 worktree and a branch that it created, and keeps an existing branch or worktree for repair and
-retry.
-Old Git defaults have no effect.
+retry. An invalid lane config exits 2 after that cleanup, and a failed setup script or a Git
+failure exits 6. A refused update of an existing branch names its own reason and uses the same
+cleanup.
 
 The `suite` file is the full check of a `merge` landing. `land` runs it in the lane checkout, with
 no argument, at the tip that it lands, after the last check of the lane and before the commit on
-the trunk. Exit status 0 is a pass; any other status stops the landing with `land: checks:`. A suite
+the trunk. Exit status 0 is a pass; any other status stops the landing with the checks failure of
+`land`. A suite
 that changes the lane or the trunk stops the landing with a repair or usage line, and the trunk
 stays as it was. `land` runs the suite again on each run. The suite is a child process of the
 master daemon, which runs the landing (`docs/workflow.md`, "A landing"): it has no stdin, its
@@ -170,10 +148,6 @@ stdout and stderr are pipes, not a terminal, and their bytes reach the stdout an
 `land` client unchanged. It has the environment of the daemon, not of the shell that runs `land`.
 An abort of the landing sends SIGTERM to the suite, and SIGKILL when the suite still runs 10
 seconds later. A `pr` landing runs no suite: its checks are the checks of the PR.
-
-The program reads `landing`, `suite`, `gates`, `agents`, `board`, and `codexProfiles` from the
-main checkout. The worktree command reads `worktreeSetup` from the new lane checkout. Commands
-that need repository setup require a valid file.
 
 ## Skill entry
 
@@ -189,6 +163,16 @@ checkout or no file, the block has no custom text. A symlink, an invalid or ambi
 failed or denied read stop the entry with the path and the field, and the stop block allows no other
 access path. The hook parses text, not bytes: the byte checks of the reader, for example strict
 UTF-8, hold at each command, which validates the file again before protected work.
+
+Each `SKILL.md` holds one entry line: bind `<plugin>` from the path of the loaded skill, and read
+`<plugin>/docs/procedures/entry.md` before any step or answer. On Claude Code, the hook puts its
+facts block in place of that line before the model sees the skill. The block gives the host, the
+plugin root, the checkout, the contract of `docs/procedures/entry.md`, and the custom text of the
+skill, with no host manual and no raw YAML. The hook also makes its own permission-checked `Read`
+of the Git boundary, and it consumes no runtime snapshot (ADR-0013, ADR-0047).
+
+A step that the daemon starts runs in the main checkout; a later skill entered in a lane reads the
+config of that lane. No skill reads another skill's `SKILL.md`.
 
 `docs/procedures/entry.md`, "Entry without the hook", holds the entry with no hook.
 `docs/hosts/claude-code.md` and `docs/hosts/codex.md` hold the integration facts of each host
@@ -237,8 +221,8 @@ celetis --agent <host> config CHECKOUT PLUGIN
 ```
 
 It checks PLUGIN first: `PLUGIN/.claude-plugin/plugin.json` must be a regular file with no
-symlink, with a JSON object whose `name` is `celetis`. Any other path exits 2 with
-`config: PLUGIN is not a celetis plugin`, and no field check runs. Then `readConfig(CHECKOUT)`
+symlink, with a JSON object whose `name` is `celetis`. Any other path exits 2 with a line that
+names PLUGIN as no celetis plugin, and no field check runs. Then `readConfig(CHECKOUT)`
 reads and validates the file, and `checkSkills` checks each `custom` key against
 `PLUGIN/skills/<key>/SKILL.md` with `lstat`: a regular file with no symlink. It prints one compact
 validated JSON object and LF. Invalid or missing configuration and a missing skill file exit 2
@@ -315,18 +299,12 @@ not a filesystem transaction across checkouts or a transaction with GitHub.
 
 ## Start the board
 
-The master daemon serves the board: run `celetis daemon start` in a checkout of the repository,
-and open the URL of its line `daemon: board http://127.0.0.1:<port>`. At its start the daemon reads
-the main config's `board.port`, default 4403, with the full validation of the config. With no
-effective `PORT` in its environment, it binds consecutive ports on `127.0.0.1` through 65535,
-keeping the first successful listener. Only `EADDRINUSE` advances the search. Exhaustion stops the
-start of the daemon with exit 6 and names the range in the daemon log.
-
-A nonzero `Number(PORT)` requests that exact port instead; zero or NaN means no override.
-An occupied exact port stops the start of the daemon with the existing port-in-use error. Invalid
-effective values retain Bun's error, and other bind errors stop the start. Use the actual URL that
-`celetis daemon start` or `celetis daemon status` prints. Concurrent starts claim ports by binding;
-no port is reserved by an earlier availability check.
+The master daemon serves the board
+([Start](https://github.com/ddinkov10/celetis/blob/main/engine/board/README.md#start)). At its start the daemon reads
+the main config's `board.port`, default 4403, with the full validation of the config. **The port**
+in [Start](https://github.com/ddinkov10/celetis/blob/main/engine/board/README.md#start) gives the
+port search and the exact `PORT`. Use the actual URL that `celetis daemon start` or
+`celetis daemon status` prints.
 
 Each data refresh creates a fresh
 main operation, so a change of `gates` shows at the next refresh ("Operation values and
@@ -334,14 +312,12 @@ freshness"). Each read of `/api/board` reads the local order, the usage records,
 usage-limit waits again. At each press of Open agent or Make visual, the fixed adapter reads the
 installed program and builds a fixed argv with its command and no `--agent`. A Run or a queue
 action with no agent choice gives the selection `{}` to the daemon, an explicit Run choice gives
-`{"explicit":"<agent>"}`, and Resume has no agent and uses the saved host. The `CELETIS_AGENT` of the daemon selects no host for the board reads and
-does not pin a default start. No board config file is made. The board start checks no
-replacement policy; the daemon run of each Run and Resume checks it. The board can remain open
-during a manual update. After `celetis update`, a restart of the daemon loads the new program for
-the runs and the board. The agent order of the footer reads and replaces the local
+`{"explicit":"<agent>"}`, and Resume has no agent and uses the saved host. No board config file is
+made. The board start checks no replacement policy; the daemon run of each Run and Resume checks
+it. The board can remain open during a manual update. The agent order of the footer reads and replaces the local
 order through the `agents` command, with the version that it read; a stale version returns the
 current order and writes nothing. A board Run choice applies only to that start; Resume
-uses its saved host. See [The board](workflow.md#the-board) for the exact lines.
+uses its saved host. See [the board reference](https://github.com/ddinkov10/celetis/blob/main/engine/board/README.md#the-commands-of-the-board) for the refusal of each press.
 
 A deterministic gate check does not replace live board acceptance. Stable installed resources,
 changed-pair child controls on required CLI surfaces, managed Claude setup, and complete child
@@ -394,3 +370,82 @@ or `brew upgrade bun` after a Homebrew install.
 
 The [Bun installation page](https://github.com/oven-sh/bun/blob/main/docs/installation.mdx)
 gives each method. [YAML 1.2.2](https://yaml.org/spec/1.2.2/) defines literal block behavior.
+
+## Agent selection and model setup
+
+The local agent preference is an ordered list of `claude` and `codex`. The list is unique and
+nonempty; either host can be excluded. It lives at `<Git common directory>/celetis/agents.json`,
+shared by the main checkout and all linked worktrees on this machine, and it changes no tracked
+file. Its schema is exactly `{"schema":1,"order":["claude","codex"]}`. That is also the order with
+no record. For the record that setup writes, see `docs/setup.md`, "`setup write`".
+YAML `host` is an unknown field; there is no migration. Check
+selection with an explicit host:
+
+```bash
+celetis --agent codex root
+```
+
+Selection is an explicit `--agent claude|codex`, then an explicit `CELETIS_AGENT`, then, for a
+step that a run starts, the preferred agent of that step, then the local order. An invalid host
+value stops; the order of `PATH` never chooses a host. Control
+operations use the first host of the local order without a quota check; outside a Git checkout
+they use Claude. The scripts of the verify gate (`scripts/verify.ts`, `scripts/build.ts`, and
+`scripts/install-tools.ts`) take `--agent`, else `CELETIS_AGENT`, else Claude, and read no order.
+Explicit control commands and `agents` work without reading the preference for
+selection. Commands that require YAML still validate the whole file. Skills pass their actual
+host explicitly, including landing. Exact Resume keeps its saved host and session ID, and a
+conflicting explicit host stops resume.
+
+The `agents` field of the main `.celetis.yaml` names a preferred agent for each step that a run starts, for
+example `implement: codex`. It is tracked repository policy: it applies on each machine and
+changes through a commit, at the next new step. A default start of that step tries the preferred
+agent first, then the other agents of the local order. A blocked preferred agent gives the next
+agent with no wait. A step with no entry uses the local order. A local exclusion wins: a preferred
+agent that the local order excludes has no effect. When this machine cannot start the preferred
+agent (not installed or not signed in), the start stops at its preflight and tries no other
+agent; exclude that agent from the local order to continue with the others.
+
+New Intake, Assist, and Make visual sessions use the first included host without an active
+confirmed usage block. An explicit host remains pinned despite exclusion or a block.
+`CELETIS_SESSION_AGENT` identifies the current native session; it does not select the next
+host. A real incoming `CELETIS_AGENT` remains an explicit choice. The selected host still
+runs its preflight; a missing executable or another setup error does not try a second host.
+
+Usage records live separately at `<Git common directory>/celetis/limits/<host>.json`.
+A passed provider reset permits a new attempt. It does not clear the recorded block.
+An unknown observation keeps an existing block; a newer verified availability result can
+clear it. If every included host is blocked, these independent launchers report the hosts
+and known reset times without opening a session. A launched session keeps its native error
+and recovery controls. Intake, Assist, and Make visual never transfer their conversation or
+automatically start another host after exhaustion.
+
+`celetis agents read` prints `{schema:1,order,version}`, with the digest of the canonical content
+as `version`, and creates no record. To change the order, pass exactly `order` and that
+`expectedVersion` to `celetis agents replace '<JSON>'`. A stale different edit exits 3 with
+`{kind:"conflict",latest}`; an edit to the current order succeeds, also with an older version.
+The version is not permission to write. A private preference lock serializes writers, with a
+ten-second wait limit, and an atomic replacement keeps the old bytes on a failed write. Preference
+writes leave the independent usage observations and attempt sequence intact. The record and the
+lock must be private regular files, with no symbolic links. Their folder
+`<Git common directory>/celetis` is shared daemon state: it must be a real directory of the
+current user with no group or other write access, so an existing 0755 folder is accepted. A store
+that creates it uses mode 0700. The record subfolders (`limits/`, `usage-captures/`,
+`usage-sequences/`, `recovery/`, and `sessions/<n>/`) must be private (0700). Invalid or unsafe
+records fail without replacement: preserve the file and correct its reported cause before
+retrying. Both installed hosts retain separate installations and configuration.
+
+`root` prints the folder of the program: the version folder that runs the command.
+`celetis update check` reports the enabled plugin of each host. Its Codex discovery uses a
+short-lived app-server connection and `skills/list`, with no thread or model turn. A missing or
+disabled installation is a `skipped` part; malformed or ambiguous installation data is an `error`
+part.
+
+A Codex profile is optional ("Fields and defaults"). For model tiers, supply the four-slot profile
+and reviewer minimum in `docs/capability.md`, "Codex model profiles". Obtain the model IDs and
+efforts from the active dispatch surface. Store its profile under `codexProfiles` in the main
+config and pass the current runtime allowlist to each `capscore` call and each `dispatch` act that
+issues a dispatch. A CLI catalog does not establish desktop dispatch support.
+A missing pair or a tool that cannot apply the required pair stops the dependent work.
+
+Complete the host's normal trust flow before a run. The daemon reports startup dialogs and leaves
+them for the human.

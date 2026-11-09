@@ -21,9 +21,9 @@ its procedure, under its `Codex` part ("The module index").
 - The prompt that starts a skill is
   `Use the celetis:<command> skill for #<n>. Complete its Celetis entry before any response, including commentary.`
   The prompt came from a wording test: its second sentence, the startup sentence, changed
-  first-response compliance from 0 of 5 to 5 of 5. The first sentence stays byte for byte. The
-  current second sentence names the entry of `plugins/celetis/docs/procedures/entry.md` and needs a fresh
-  compliance check. `plugins/celetis/docs/workflow.md`, "Acceptance status", records each check.
+  first-response compliance from 0 of 5 to 5 of 5. The V8 check of #105 records the 5 of 5 result
+  (https://github.com/ddinkov10/celetis/issues/105#issuecomment-6481779510). The first sentence
+  stays byte for byte. The second sentence names the entry of `plugins/celetis/docs/procedures/entry.md`.
 
 ## The daemon and `developer_instructions`
 
@@ -38,7 +38,7 @@ pane. The daemon keeps the configured sandbox, approval, and model settings.
 Codex has no option that sets the thread ID before the start (`codex --help`). The daemon finds
 the thread of a step with the app-server `thread/list`: the one thread of the
 main checkout whose `createdAt` is at or after the start of the step and whose `preview` is the
-exact prompt above (`plugins/celetis/docs/workflow.md`, "Sessions", and ADR-0058). It ends the step with
+exact prompt above ([Sessions](../../engine/README.md#sessions), and ADR-0058). It ends the step with
 `hc keys <terminal> ctrl+c ctrl+c`. After its exit, Codex 0.166.0 kept the status `done` on a live
 terminal for more than 45 seconds. So the daemon reads only a status that changed at or after the
 start of the step.
@@ -62,8 +62,8 @@ connection, with no thread or model turn.
 
 - The `workspace-write` sandbox has no network by default and permits no write outside the
   workspace. `issue`, `worktree`, and `land` reach GitHub; `issue` reads the issue before any write.
-  In a sandbox with no network, `issue` exits 6 with
-  `issue: blocked: cannot read #<n> from GitHub`, and each part of `update check` can fail.
+  In a sandbox with no network, `issue` exits 6
+  with a line that says it cannot read the issue from GitHub, and each part of `update check` can fail.
 - Codex runs a command that an `allow` rule matches outside the sandbox. A rule compares argument
   lists, and splits a shell script into commands only when each word is plain or quoted
   (`plugins/celetis/README.md`, "Personal landing permission"). The rule of `issue` is optional; with it, a session

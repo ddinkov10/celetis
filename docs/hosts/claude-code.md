@@ -56,7 +56,8 @@ compares its bytes. The hook runtime has no Node and no DOM: a module that the h
   reuses the parent's result. With no cached result, or with a changed stat, the entry stops. An
   edit that keeps both the size and the millisecond of the modification time is a residual risk.
 - **A stop.** A denied, partial, or invalid read, or a `custom` key with no skill file, replaces
-  the skill text with `Celetis entry stopped: <path> <field>: <message>`. Then `turn.step` ends each
+  the skill text with a line that says the Celetis entry stopped, with the path, the field, and the
+  message. Then `turn.step` ends each
   later turn of that agent loop natively, with no model call and no usage. A hook that throws or overruns its budget
   of 10,000 ms gives the same stop through its `.catch` handler.
 - **A hook that makes no entry** leaves the entry line in the skill text. On a release before
@@ -78,7 +79,7 @@ resume runs `claude --resume <id> --effort <level>` with the level of the sessio
 `stepEnv` of `engine/lib/host-claude.ts` removes `CLAUDE_CODE_EFFORT_LEVEL` from the environment
 of the session and of a resume, because Claude Code ranks that variable above `--effort`. A
 settings `env` value of that variable, `maxEffortLevel`, and an organization cap stay with Claude
-Code (`plugins/celetis/docs/workflow.md`, "Limits"). The plugin root of the header is the `root` of
+Code ([Limits](../../engine/README.md#limits)). The plugin root of the header is the `root` of
 `installation('claude', …)` in `engine/lib/updater.ts`, which `requireSameRevision` returns
 (`plugins/celetis/docs/workflow.md`, "How a step runs").
 
