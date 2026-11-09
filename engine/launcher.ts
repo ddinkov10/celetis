@@ -1,6 +1,5 @@
-import { stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { type ExitCode, exits, helpText, launcherForms, updateHint } from './lib/contract.ts';
+import { commands, type ExitCode, exits, helpText, launcherForms, updateHint } from './lib/contract.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder, passOn } from './lib/events.ts';
 import { programRevision } from './lib/git.ts';
@@ -8,8 +7,6 @@ import { requireBun } from './lib/host.ts';
 import { commandInput } from './lib/operation.ts';
 import { bunArgs, childEnv } from './lib/process.ts';
 import { execConsumer } from './lib/update-lock.ts';
-
-export const commandName = /^[a-z][a-z-]*$/;
 
 const helpWords = launcherForms.flatMap(({ words: [word] }) => (word && word !== '--version' ? [word] : []));
 
@@ -35,10 +32,8 @@ export async function main(argv: string[]): Promise<ExitCode> {
       `celetis: the program has no command ${name}\nceletis: celetis help lists the commands\n${updateHint}`,
       exits.usage,
     );
-    if (!commandName.test(name)) throw missing;
-    const folder = ['build', 'verify', 'install-tools'].includes(name) ? '../scripts' : '.';
-    const entry = join(import.meta.dir, folder, `${name}.ts`);
-    if (!(await stat(entry).catch(() => null))?.isFile()) throw missing;
+    if (!commands.some(({ command }) => command === name)) throw missing;
+    const entry = join(import.meta.dir, `${name}.ts`);
     const forwarded = explicit === undefined ? args : ['--agent', explicit, ...args];
     return passOn(await execConsumer(process.execPath, [process.execPath, ...bunArgs(entry, forwarded)], childEnv()));
   } catch (error) {

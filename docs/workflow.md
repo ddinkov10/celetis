@@ -76,7 +76,7 @@ of the product project, apart from a path that starts with `~/` or `/`.
 - The program `celetis` on `PATH` (`README.md`, "First install"), and the plugin `celetis@celetis`
   of the selected host at the revision of the program. The scripts and the step text come from
   the version folder of the program: `celetis --agent <host> <name> <arguments>` runs
-  `engine/<name>.ts` of that folder with those arguments. Before each new step session, the
+  the declared command `<name>`, the file `engine/<name>.ts` of that folder, with those arguments. Before each new step session, the
   daemon reads the enabled installation of the session's host ("How a step runs"). Missing,
   disabled, malformed, or ambiguous metadata stops that read. Codex lookup uses `skills/list` on a
   short-lived local app-server connection; it starts no model turn. The README holds the separate

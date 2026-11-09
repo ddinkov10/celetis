@@ -1210,7 +1210,11 @@ These programs are not commands of the program `celetis`. Each gives its own exi
   described in `docs/configuration.md`. A missing tool or invalid installation
   stops with a setup action. Codex commands require no Claude binary. The current metadata must
   explicitly mark the installation enabled; missing fields are not an old-format fallback.
-- An unknown command prints `celetis: the program has no command <name>`, then
+- An unknown command is each name that `engine/lib/contract.ts` does not declare, also the name
+  of a file of `engine/` or `scripts/` that no declared command names (for example `launcher`,
+  `usage-hook`, `build`, `verify`, `install-tools`). The development scripts run only with `bun`
+  (`AGENTS.md`, "Verify gate"). An unknown command prints
+  `celetis: the program has no command <name>`, then
   `celetis: celetis help lists the commands`. A usage line and an unknown command end with
   `celetis: when a skill or a document gave this command, run celetis update`: a skill of another
   revision can give a command or an argument that the program does not have. A bare `celetis`

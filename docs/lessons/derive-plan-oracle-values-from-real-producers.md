@@ -2,17 +2,40 @@
 {
   "schema": 1,
   "name": "derive-plan-oracle-values-from-real-producers",
-  "description": "Plan oracles gave hand-derived values, also gate results with a probe in place, that the real producers, including guards and unchanged gate jobs, do not produce",
+  "description": "Plan oracles gave hand-derived values, also gate results and probe inputs, that the real producers, including guards and unchanged gate jobs, do not produce",
   "tags": [
     "test",
     "process",
     "recurring",
     "build"
   ],
-  "date": "2026-11-08",
+  "date": "2026-11-09",
   "status": "active",
-  "source": "Task 4 of ddinkov10/celetis#255\n\nTask 1 implementer report of ddinkov10/celetis#249 (subagent-driven build, commit 0fd8ed3)\n\nImplementation of ddinkov10/celetis#270, Task 2 and Verify corrections",
+  "source": "Implement step session of ddinkov10/celetis#260, Task 1 Step 1 (red probe)\n\nTask 4 of ddinkov10/celetis#255\n\nTask 1 implementer report of ddinkov10/celetis#249 (subagent-driven build, commit 0fd8ed3)\n\nImplementation of ddinkov10/celetis#270, Task 2 and Verify corrections",
   "incidents": [
+    {
+      "id": "861fdb93-8d76-4692-81a4-40e21e6813f1",
+      "date": "2026-11-09",
+      "action": "The plan of #260 named the red probe engine/probe-260.ts, run as `celetis probe-260 <marker>`, and expected exit 0 and the marker from the trunk launcher.",
+      "expected": "The probe name passes each guard on the trunk call path before the behavior under test (the file lookup), so the trunk runs the undeclared file and the red result shows.",
+      "observed": "The trunk launcher refused probe-260 at its regular expression /^[a-z][a-z-]*$/ (digits), with exit 2 and the unknown-command lines; no marker. The session renamed the probe to probe-lane, and the trunk then gave exit=0 and the marker.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "celetis probe-260 <marker>: 'celetis: the program has no command probe-260' exit=2 (no marker). celetis probe-lane <marker>: exit=0, marker present.",
+        "reference": "ddinkov10/celetis#260 implement ledger Task 1 Ruling; engine/launcher.ts at d480bc1 line 12 (commandName)"
+      },
+      "inference": "Inferred: the plan derived the red expectation from the file check alone and did not compute the earlier name guard of the same producer. The active lesson derive-plan-oracle-values-from-real-producers covers this guard case; the plan's Task 1 lesson list did not carry it, but the plan session context is not available, so retrieval failure is not established.",
+      "diagnosis": [
+        "unknown"
+      ],
+      "revision": "d480bc111398fa11dbae8bc8eb575581d5df7863",
+      "brief": "Plan #260 Task 1 Step 1 and its Lesson rules list (four lessons, not derive-plan-oracle-values-from-real-producers)",
+      "lesson": {
+        "name": "derive-plan-oracle-values-from-real-producers",
+        "revision": "d480bc111398fa11dbae8bc8eb575581d5df7863",
+        "digest": "aed30333df387d13df8bda9d6047a6d5e628b64ce88ccb3785ffe9a936e5e51c"
+      }
+    },
     {
       "id": "d21bb6c7-2bcd-4515-bbdd-3f0f844b7873",
       "date": "2026-11-08",
@@ -105,7 +128,7 @@
       }
     }
   ],
-  "recurrences": 3,
+  "recurrences": 4,
   "reviews": [
     {
       "id": "6b752a90-9785-461b-ae6b-5bab3892695f",
@@ -150,6 +173,21 @@
         "state": "proposed",
         "detail": "A plan review check that flags a derived oracle value with no producer or requirement reference, an oracle of a record write that names no guard that can refuse it, and a planned gate result with a probe in place that names no job; it needs separate authorization."
       }
+    },
+    {
+      "id": "1fd7c8e5-6791-46c6-a836-29fd7ce2f5b6",
+      "requestDigest": "3858737a9c1a6ad844dc8aa08845af2778668eac5a1c9a310093258b61a39c2d",
+      "date": "2026-11-09",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #260; claude child opus/high\n\nMerge under the reviewer rules. The incident is observed: engine/launcher.ts at d480bc1 holds commandName /^[a-z][a-z-]*$/, which refuses a name with digits before the file lookup, and this agrees with the retained excerpt (exit 2 for probe-260, exit 0 and the marker for probe-lane). No live or historical lesson holds the incident. The proposal states the same rule as the active lesson derive-plan-oracle-values-from-real-producers: compute the part of an oracle that an existing, unaltered producer gives from that producer, including each guard on its call path. The name guard of the trunk launcher is such a producer, so the rules are compatible with each other and with the test-behavior-not-implementation principle of the plugin celetis. The proposal itself names this merge. The survivor keeps the active name and tags, widens the applicability to the exit and output of a command on a probe input that must reach one check, adds the guard-passing action, check, and detection signature from the proposal, and adds the #260 case to the observed facts and the inferred cause. Incident evidence stays unchanged.",
+      "related": [
+        "name-a-red-probe-input-that-passes-the-guards-it-must-reach",
+        "derive-plan-oracle-values-from-real-producers"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "A plan review check that flags a derived oracle value with no producer or requirement reference, an oracle of a record write that names no guard that can refuse it, a planned gate result with a probe in place that names no job, and a red probe input that names no earlier guard of its producer; it needs separate authorization."
+      }
     }
   ]
 }
@@ -158,19 +196,23 @@
 
 ## What happened
 
-Three plans gave hand-derived oracle values that the existing producers do not give. The #270 plan gave an Idle list and count that omitted fixture #30, so the real count was 25, not 24, and a changed-dot probe that used a title change, which the board signature ignores. The plan carried the related lesson and claimed to trace each state. The #249 plan, Task 1, expected a refused queue wake with a live foreground holder of the current issue to write `error` to the queue record, and a reconcile wake to reach `running` with a session. The implementer observed (tool output) that a `createLockOwner` holder in a process other than `daemon.ts` is not live (`holderFrom`), that a holder with `registerSession` is a live queue owner, so the guard of `failQueueLaunch` keeps the record unchanged, and that a reconcile wake with `authorization: null` ends at the default `me` gate (`defaultGate`). The spec of #249 states that guard. The #255 plan, Task 4 step 2, expected `verify: PASS` with two probe re-exports of command files in place, as the red result of a new Biome rule. The gate gave `verify: FAIL` (tool output): the unchanged job `tsc browser` failed with 196 TS2591 errors, because the board probe pulled `node:` modules into the browser project, and `biome check` passed in that run. In each case, the implementers or the controller caught the error at execution and asserted the real behavior.
+Four plans gave hand-derived oracle values that the existing producers do not give. The #270 plan gave an Idle list and count that omitted fixture #30, so the real count was 25, not 24, and a changed-dot probe that used a title change, which the board signature ignores. The plan carried the related lesson and claimed to trace each state. The #249 plan, Task 1, expected a refused queue wake with a live foreground holder of the current issue to write `error` to the queue record, and a reconcile wake to reach `running` with a session. The implementer observed (tool output) that a `createLockOwner` holder in a process other than `daemon.ts` is not live (`holderFrom`), that a holder with `registerSession` is a live queue owner, so the guard of `failQueueLaunch` keeps the record unchanged, and that a reconcile wake with `authorization: null` ends at the default `me` gate (`defaultGate`). The spec of #249 states that guard. The #255 plan, Task 4 step 2, expected `verify: PASS` with two probe re-exports of command files in place, as the red result of a new Biome rule. The gate gave `verify: FAIL` (tool output): the unchanged job `tsc browser` failed with 196 TS2591 errors, because the board probe pulled `node:` modules into the browser project, and `biome check` passed in that run. The #260 plan, Task 1 Step 1, named the red probe `engine/probe-260.ts` and expected the trunk launcher to run it (`celetis probe-260 <marker>`, exit 0, marker present). The trunk launcher refused the name at its unchanged name guard `/^[a-z][a-z-]*$/` (`commandName` in `engine/launcher.ts`), because the name has digits: exit 2 with `celetis: the program has no command probe-260` and no marker (tool output). With the name `probe-lane`, the trunk gave exit 0 and the marker. In each case, the implementers or the controller caught the error at execution and asserted the real behavior.
 
 ## Root cause
 
-Inferred: the plans computed the values by hand, from their own data lists, from spec sentences, or from the change alone, and did not run the existing producers on the planned inputs. For #249, the unchanged producers were guards: a lock-holder liveness rule, an owner check, and a gate default. For #255, the unchanged producer was another job of the gate that the probe input also reached. Uncertain: whether this lesson reached the #249 and #255 plan sessions; neither plan carries it in the affected task (the #255 plan carries it in its Verify section only), and the earlier rule named lists, counts, triggers, record writes, and liveness results, not a gate result. Alternative: independent slips.
+Inferred: the plans computed the values by hand, from their own data lists, from spec sentences, or from the change alone, and did not run the existing producers on the planned inputs. For #249, the unchanged producers were guards: a lock-holder liveness rule, an owner check, and a gate default. For #255, the unchanged producer was another job of the gate that the probe input also reached. For #260, the unchanged producer was the name guard of the launcher, before the file lookup under test. Uncertain: whether this lesson reached the #249, #255, and #260 plan sessions; none of these plans carries it in the affected task (the #255 plan carries it in its Verify section only), and the earlier rule named lists, counts, triggers, record writes, liveness results, and gate results, not the result of a command on a probe input. Alternative: independent slips.
 
 ## Fix
 
-Proposed prevention, not proven enforcement: when a plan writes an expected list, count, trigger, record write, liveness result, or gate result for a derived state, it computes the part that an existing producer gives, and that the change does not alter, from that producer (for example a probe that runs the placer, the signature, the guards of the call path, or the unchanged jobs of the gate on the planned data, fixture, or probe input), and records how. A guard, a gate default, a lock-holder rule, and a job of the gate of unchanged code are such producers; the plan names how its fixture makes a live owner, and a planned gate result with a temporary probe names the job that gives it, or expects only the lines of the job under test. The part that the change adds comes from the requirement, as the test-behavior-not-implementation principle of the plugin celetis says: an oracle computed from the code under change cannot fail when that code is wrong. A structural follow-up needs separate authorization: a plan review check that flags a derived oracle value with no producer or requirement reference, an oracle of a record write that names no guard that can refuse it, and a planned gate result with a probe in place that names no job. Judgment decides which values are derived, which guards apply, and which jobs a probe reaches, so the rule stays text.
+Proposed prevention, not proven enforcement: when a plan writes an expected list, count, trigger, record write, liveness result, gate result, or command result on a probe input for a derived state, it computes the part that an existing producer gives, and that the change does not alter, from that producer (for example a probe that runs the placer, the signature, the guards of the call path, or the unchanged jobs of the gate on the planned data, fixture, or probe input), and records how. A guard, a gate default, a lock-holder rule, and a job of the gate of unchanged code are such producers; the plan names how its fixture makes a live owner, a planned gate result with a temporary probe names the job that gives it, or expects only the lines of the job under test, and a probe input that must reach one check passes each earlier guard of that producer on the base. The part that the change adds comes from the requirement, as the test-behavior-not-implementation principle of the plugin celetis says: an oracle computed from the code under change cannot fail when that code is wrong. A structural follow-up needs separate authorization: a plan review check that flags a derived oracle value with no producer or requirement reference, an oracle of a record write that names no guard that can refuse it, and a planned gate result with a probe in place that names no job. Judgment decides which values are derived, which guards apply, and which jobs a probe reaches, so the rule stays text.
+
+## Detection signature
+
+A red probe step whose base run prints a refusal from an earlier guard in place of the planned red behavior.
 
 ## Rule
 
-Applies when a plan or a brief states an expected value of a derived state (a list, an order, a count, a trigger, a record write, a liveness result, or the result of a gate or a multi-job check on a probe input) for a check, and an existing producer that the change does not alter gives part of that value, including each guard, gate default, or lock-holder rule on its call path and each unchanged job of the gate that the probe input reaches. Action: compute that part from the existing producer on the planned inputs and cite the producer; for a record write or a state, list each such guard from the call path and name how the fixture makes a live owner; for a gate result, run or read each unchanged job on the probe input and state the result of each job that the probe reaches, or expect only the lines of the job under test; derive the part that the change adds from the requirement. Check: each such oracle value names its producer or its requirement, a planned gate result names its jobs, and a run of the existing producer, with its guards, on the planned data gives the part that it covers.
+Applies when a plan or a brief states an expected value of a derived state (a list, an order, a count, a trigger, a record write, a liveness result, the result of a gate or a multi-job check on a probe input, or the exit and output of a command on a probe input that must reach one check) for a check, and an existing producer that the change does not alter gives part of that value, including each guard, gate default, or lock-holder rule on its call path and each unchanged job of the gate that the probe input reaches. Action: compute that part from the existing producer on the planned inputs and cite the producer; for a record write or a state, list each such guard from the call path and name how the fixture makes a live owner; for a gate result, run or read each unchanged job on the probe input and state the result of each job that the probe reaches, or expect only the lines of the job under test; for a probe input that must reach one check, list each guard of that producer before the check and choose an input that passes each one on the base; derive the part that the change adds from the requirement. Check: each such oracle value names its producer or its requirement, a planned gate result names its jobs, and a run of the existing producer, with its guards, on the planned data or probe input reaches the check under test and gives the part that it covers.
 
 ## Related lessons
 
