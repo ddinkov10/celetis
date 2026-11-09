@@ -7,6 +7,7 @@ import {
   type Entry,
   type Form,
   formText,
+  labels,
   launcherForms,
 } from '../engine/lib/contract.ts';
 import { entryParts } from '../engine/lib/entry-text.ts';
@@ -15,6 +16,7 @@ import { codexHome } from '../engine/lib/homes.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
 import { type Job, printJobs, runJobs } from '../engine/lib/parallel.ts';
 import { bunArgs, childEnv, run } from '../engine/lib/process.ts';
+import { lanes } from '../engine/lib/workflow.ts';
 import { findTools, toolPins } from './install-tools.ts';
 
 const root = dirname(import.meta.dir);
@@ -92,8 +94,10 @@ export function checkCitations(files: ReadonlyMap<string, string>): string[] {
   }
   for (const [module] of checked) {
     if (!/^docs\/procedures\/[^/]+\.md$/.test(module)) continue;
-    const citers = checked.filter(([file]) => file !== module && cited.get(file)?.has(module)).length;
-    if (citers < 2) errors.push(`verify: module: ${module} is cited by ${citers} files; need 2`);
+    const citers = checked.filter(
+      ([file]) => (/^skills\/.+\.md$/.test(file) || file === 'step-prompt.md') && cited.get(file)?.has(module),
+    ).length;
+    if (citers < 2) errors.push(`verify: module: ${module} is cited by ${citers} skills or the step text; need 2`);
   }
   let entryLine: string | undefined;
   try {
@@ -228,7 +232,7 @@ const otherPrograms: ReadonlySet<string> = new Set([
 ]);
 
 type Node = { kind: string; children: (string | Node)[] };
-type Text = { prose: string; spans: string[]; lines: string[] };
+type Text = { prose: string; flow: string; spans: string[]; lines: string[] };
 type Block = { own: Text; lead?: Text };
 type Mention = { entry: Entry; form: string };
 type Outcome =
@@ -241,6 +245,8 @@ export type Binding = Readonly<{ file: string; line: number; reference: string; 
 const open = '\u{E000}';
 const close = '\u{E001}';
 const gap = '\u{E002}';
+const spanOpen = '\u{E003}';
+const spanClose = '\u{E004}';
 
 function tree(text: string): Node {
   const mark = (kind: string) => (children: string) => `${open}${kind}${children}${close}`;
@@ -272,19 +278,24 @@ function tree(text: string): Node {
 const flat = (node: Node): string =>
   node.children.map((child) => (typeof child === 'string' ? child : flat(child))).join('');
 
-function own(node: Node, text: Text = { prose: '', spans: [], lines: [] }): Text {
+function own(node: Node, text: Text = { prose: '', flow: '', spans: [], lines: [] }): Text {
   for (const child of node.children) {
-    if (typeof child === 'string') text.prose += child;
-    else if (child.kind === 's') {
-      text.spans.push(flat(child));
+    if (typeof child === 'string') {
+      text.prose += child;
+      text.flow += child;
+    } else if (child.kind === 's') {
+      text.flow += `${spanOpen}${text.spans.push(flat(child)) - 1}${spanClose}`;
       text.prose += gap;
     } else if (child.kind === 'k') {
       text.lines.push(...flat(child).split('\n'));
       text.prose += gap;
+      text.flow += gap;
     } else if (!['l', 'r', 'h'].includes(child.kind)) {
       text.prose += gap;
+      text.flow += gap;
       own(child, text);
       text.prose += gap;
+      text.flow += gap;
     }
   }
   return text;
@@ -299,7 +310,7 @@ function blocks(container: Node, item?: Text): Block[] {
       if (!item) stray += child;
       continue;
     }
-    if (stray.trim()) found.push({ own: { prose: stray, spans: [], lines: [] } });
+    if (stray.trim()) found.push({ own: { prose: stray, flow: stray, spans: [], lines: [] } });
     stray = '';
     if (child.kind === 'l') {
       const lead = item ?? (previous?.kind === 'p' ? own(previous) : undefined);
@@ -312,7 +323,7 @@ function blocks(container: Node, item?: Text): Block[] {
       found.push({ own: own(child.kind === 'k' ? { kind: 'block', children: [child] } : child) });
     previous = child;
   }
-  if (stray.trim()) found.push({ own: { prose: stray, spans: [], lines: [] } });
+  if (stray.trim()) found.push({ own: { prose: stray, flow: stray, spans: [], lines: [] } });
   return found;
 }
 
@@ -373,6 +384,12 @@ function read(span: string, line: boolean): Read {
   return { mentions, error: `\`${span}\` matches no form of ${name}: ${declared}` };
 }
 
+const labelNames: ReadonlySet<string> = new Set(labels);
+const labelEffect = /\b(?:adds|added|removes|removed|keeps|kept|retains|retained|restores|restored|clears|cleared)\b/gi;
+const spanMark = new RegExp(`${spanOpen}(\\d+)${spanClose}`, 'gu');
+const prefixes = [...new Set(Object.values(lanes).map(({ prefix }) => prefix))].join('|');
+const branchForm = new RegExp(`(?<![\\w-])(?:${prefixes})(?:\\|(?:${prefixes}))*\\/(?:<|\\d)`, 'g');
+
 const exitReference =
   /\b(?:[Ee]xits?\s+with|(?:[Ee]xits?|[Ss]tatus)(?:\s+(?:status|codes?))?)\s+(?:128\+n|\d+)(?![\d+])(?:(?:\s*\([^)]*\))?(?:\s*,\s*(?:or\s+|and\s+)?|\s+(?:or|and)\s+)(?:128\+n|\d+)(?![\d+]))*/g;
 
@@ -394,6 +411,8 @@ const declares = (code: string) => {
   return ({ entry }: Mention) => name !== null && entry.exits.includes(name);
 };
 const formsOf = (list: readonly Mention[]) => [...new Set(list.map(({ form }) => form))];
+
+const restated = 'name the act and the outcome that the agent acts on';
 
 function scan(files: ReadonlyMap<string, string>): { bindings: Binding[]; errors: string[] } {
   const found: Binding[] = [];
@@ -451,6 +470,29 @@ function scan(files: ReadonlyMap<string, string>): { bindings: Binding[]; errors
           if (outcome.kind === 'unbound')
             errors.push(`verify: contract: ${file}:${line}: "${reference}": name the command of this exit`);
         }
+      }
+      from = start;
+      for (const sentence of text.flow.split(new RegExp(`${gap}|[.!?](?=\\s)`, 'u'))) {
+        for (const effect of sentence.matchAll(labelEffect)) {
+          const tail = sentence.slice((effect.index ?? 0) + effect[0].length);
+          const [hit] = [...tail.matchAll(spanMark)].flatMap((mark) => {
+            const name = text.spans[Number(mark[1])];
+            return name !== undefined && labelNames.has(name) ? [{ mark, name }] : [];
+          });
+          if (!hit) continue;
+          const { mark, name } = hit;
+          const middle = tail.slice(0, mark.index).replaceAll(spanMark, (_, index) => text.spans[Number(index)] ?? '');
+          from = at(`${effect[0]} ${middle} ${name}`, from);
+          errors.push(`verify: restated policy: ${file}:${lineAt(source, from)}: ${restated}`);
+          from++;
+          break;
+        }
+      }
+      const branches = [...text.spans, ...segments].flatMap((part) => part.match(branchForm) ?? []);
+      for (const form of branches) {
+        from = at(form, from);
+        errors.push(`verify: restated policy: ${file}:${lineAt(source, from)}: ${restated}`);
+        from++;
       }
       cursor = end;
     }

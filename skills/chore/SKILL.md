@@ -12,14 +12,15 @@ comment fix, code move.
 
 ## The Iron Law
 
+Apply `<plugin>/docs/procedures/lane-start.md`, "The Iron Law".
+
 ```
-NO STEP SKIPPED. NO STEP REORDERED. A BEHAVIOR DELTA VOIDS THE LANE.
+A BEHAVIOR DELTA VOIDS THE LANE.
 ```
 
-Each step is the next one's precondition — no change without the branch, no commit without the
-gates, no landing without the commit. Step 1's claim is what buys this lane its speed and its
-commit-without-asking: the moment anything observable changes, mid-lane or not, the work belongs
-in `/celetis:bug` or `/celetis:feature`. If you have not completed step N, you cannot start step N+1.
+No change without the branch, no commit without the gates, no landing without the commit. Step 1's
+claim is what buys this lane its speed and its commit-without-asking: the moment anything
+observable changes, mid-lane or not, the work belongs in `/celetis:bug` or `/celetis:feature`.
 
 ## Flow
 
@@ -28,10 +29,8 @@ Only the exit 0 of `setup status` starts step 1.
 
 1. **Confirm the zero-behavior-change claim.** Any behavior delta → redirect: misbehaviour → `/celetis:bug`,
    new behavior → `/celetis:feature`. Proceed only if nothing observable changes. Then start the
-   issue per `<plugin>/docs/procedures/lane-start.md`, "Start the issue", with `chore` as
-   `<lane>` and `chore` as `<label>`.
-2. **Worktree.** Enter the issue's worktree per `<plugin>/docs/procedures/worktree.md`; a new
-   branch is `chore/<n>-<slug>`.
+   issue per `<plugin>/docs/procedures/lane-start.md`, "Start the issue", with `chore` as `<lane>`.
+2. **Worktree.** Enter the issue's worktree per `<plugin>/docs/procedures/worktree.md`.
    **Re-entry.** When the branch already holds the commit of the chore and the tree is clean, an
    earlier run built the change: run `celetis --agent <host> issue <n> state`.
    Apply `<plugin>/docs/procedures/behavior-documentation.md`, "Repairs and re-entry".
@@ -42,9 +41,9 @@ Only the exit 0 of `setup status` starts step 1.
 3. **Do the change.** Read the project context per `<plugin>/docs/procedures/project-context.md`.
    Read `<plugin>/docs/procedures/behavior-documentation.md` and apply "Assessment" and "Change
    work". Complete its session check and report before step 4 and the commit.
-   When choosing or checking an edit of types or signatures, read
-   `<plugin>/docs/principles/type-system-discipline.md`. For changed behavioral verification
-   checks, read `<plugin>/docs/principles/test-behavior-not-implementation.md`.
+   Read each principle below. Apply each one whose `Applies when` holds for the edit and its
+   checks, with its `Check`: `<plugin>/docs/principles/type-system-discipline.md` and
+   `<plugin>/docs/principles/test-behavior-not-implementation.md`.
    A dependency bump: read the changelog or release notes between the old and the new version per
    `<plugin>/docs/procedures/docs-lookup.md`, and post an issue comment whose first line is `## External facts`
    (`gh issue comment <n> --body-file <file>`) that names each breaking change that touches an

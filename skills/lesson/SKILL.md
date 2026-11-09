@@ -11,5 +11,6 @@ Use the invocation input and current task evidence. Read
 `<plugin>/docs/procedures/lesson-capture.md` and complete its one bounded pass, including the
 recurrence diagnosis when applicable. Automatic capture and an explicit save request both write
 pending data only. Return its short saved, deferred, or blocked result and continue the authorized
-task. An agent reviewer curates the queue at each landing; `lesson-review` is the optional human
+task. The proposal has the form of `<plugin>/docs/procedures/lesson-format.md`, "The capture
+input". An agent reviewer curates the queue at each landing; `lesson-review` is the optional human
 review.

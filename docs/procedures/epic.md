@@ -20,7 +20,7 @@ Record the maintainer's decision and source before publishing or changing accept
 1. Read the current parent body and complete child list. On re-entry, inspect and reuse existing
    children and links before creating anything.
 2. Create and link the agreed missing children with the recipe in `<plugin>/docs/issue-tracker.md`,
-   "Epics" (label `enhancement`, a one-line intent each). Use their actual full URLs in combined
+   "Epics" (a one-line intent each). Use their actual full URLs in combined
    scenarios. Each child continues to read the current parent body during design.
 3. Prepare the complete parent body in a file. Preserve text outside the acceptance section and
    use the agreed declaration. Record the decision and child links before the final act.

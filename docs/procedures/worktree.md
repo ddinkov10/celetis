@@ -8,9 +8,9 @@ by the script.
 ## The entry
 
 Run `celetis --agent <host> worktree <n>` with a 10-minute timeout, and wait for it to exit: a
-new worktree runs the worktree setup of the project. The script re-enters the issue's branch and
-brings it up to the trunk, or creates `<prefix>/<n>-<slug>` from the title when the issue has
-none, with the prefix of the lane label (`feat`, `fix`, `hotfix`, `chore`). Exit 4 is a conflict
+new worktree runs the worktree setup of the project. The script re-enters the lane branch of the issue and
+brings it up to the trunk, or creates the branch from the lane and the title when the issue has
+none. Exit 4 is a conflict
 with the trunk: follow "A conflict with the trunk" below. When it refuses with another status, show
 the user its message and stop (`<plugin>/docs/issue-tracker.md`, "Branches, PRs, merge", gives
 each refusal).

@@ -12,35 +12,28 @@ Production is broken; the fix ships now. Type declared at entry; if undeclared, 
 
 ## The Iron Law
 
+Apply `<plugin>/docs/procedures/lane-start.md`, "The Iron Law".
+
 ```
-NO STEP SKIPPED. NO STEP REORDERED. THE FIRE IS NOT A WAIVER.
+THE FIRE IS NOT A WAIVER.
 ```
 
-Each step is the next one's precondition — no debugging without exploring, no fix without the
-root cause, no ship without the verify. If you have not completed step N, you cannot start step
-N+1. Too little time for the lane → the change does not ship tonight.
+No debugging without exploring, no fix without the root cause, no ship without the verify. Too
+little time for the lane → the change does not ship tonight.
 
 **Before step 1.** Check the wiring per `<plugin>/docs/procedures/lane-start.md`, "Before step 1".
 Only the exit 0 of `setup status` starts step 1.
 
 1. **Confirm classification.** Fire needing ship-now → continue. No fire → `/celetis:bug`. New behavior →
    `/celetis:feature`. Zero behavior change → `/celetis:chore`. Then start the issue per
-   `<plugin>/docs/procedures/lane-start.md`, "Start the issue", with `hotfix` as `<lane>` and
-   `hotfix` as `<label>`.
-2. **Worktree.** Enter the issue's worktree per `<plugin>/docs/procedures/worktree.md`; a new
-   branch is `hotfix/<n>-<slug>`.
-3. **Explore project context.** Explore files, docs, recent commits, and read the project context
-   per `<plugin>/docs/procedures/project-context.md`. Its traps are the constraints on the fix.
+   `<plugin>/docs/procedures/lane-start.md`, "Start the issue", with `hotfix` as `<lane>`.
+2. **Worktree.** Enter the issue's worktree per `<plugin>/docs/procedures/worktree.md`.
+3. **Explore project context.** Read the project context per
+   `<plugin>/docs/procedures/project-context.md`, then explore per
+   `<plugin>/docs/procedures/diagnosis.md`, "The explore".
 4. **Invoke `superpowers:systematic-debugging`** — MANDATORY. The red repro is the micro-plan's
-   Verify probe. During diagnosis, after a substantive correction, after two failed fixes of the
-   same problem, and before an existing repair limit stops work, apply
-   `<plugin>/docs/procedures/lesson-capture.md`. Reuse a checkpoint already handled in the turn.
-   After two failed fixes that share a premise, read
-   `<plugin>/docs/principles/attack-the-premise.md` before another already-permitted attempt;
-   every existing attempt limit and stop still applies. When a hypothesis relies on a measured
-   performance or quality result, read `<plugin>/docs/principles/explain-the-number.md`.
-   A hypothesis that rests on library, platform, or vendor behavior is checked per
-   `<plugin>/docs/procedures/docs-lookup.md` before the report names it the root cause. Post the report, with
+   Verify probe. Apply
+   `<plugin>/docs/procedures/diagnosis.md`, "The diagnosis". Post the report, with
    its `## External facts` section, with `celetis --agent <host> issue <n> root-cause <report>`:
    it posts the report with `## Root cause` as its first line, so the report file has no heading.
 5. **Author a one-task micro-plan in `docs/superpowers/plans/<n>.md`** (gitignored scratch; the
@@ -55,16 +48,16 @@ Only the exit 0 of `setup status` starts step 1.
      "Assessment" and "Change work", and include the affected sections in that task.
    - Each library call the fix adds is checked per `<plugin>/docs/procedures/docs-lookup.md`; the facts go
      in the micro-plan's `## External facts` section.
-   - Put the exact applicable principle paths in the task text, alongside its external facts.
-     Resolve `<plugin>` to the absolute path bound by the entry. Read only the files whose
-     conditions hold: for external input or validation changes,
-     `<plugin>/docs/principles/boundary-discipline.md`; for unclear state combinations, growing
-     branches, or repeated shape rules, `<plugin>/docs/principles/model-the-domain.md`; for
-     persistent or retryable operations, `<plugin>/docs/principles/make-operations-idempotent.md`;
-     for concurrent writers, `<plugin>/docs/principles/separate-before-serializing-shared-state.md`;
-     for types or signatures in a statically typed language,
-     `<plugin>/docs/principles/type-system-discipline.md`; for behavioral verification checks,
-     `<plugin>/docs/principles/test-behavior-not-implementation.md`.
+   - Read each principle below. Apply each one whose `Applies when` holds for the task, with its
+     `Check`. Put the exact path of each principle that applies in the task text, alongside its
+     external facts. Resolve `<plugin>` to the absolute path bound by the entry. An empty applicable
+     set needs no path:
+     - `<plugin>/docs/principles/boundary-discipline.md`
+     - `<plugin>/docs/principles/model-the-domain.md`
+     - `<plugin>/docs/principles/make-operations-idempotent.md`
+     - `<plugin>/docs/principles/separate-before-serializing-shared-state.md`
+     - `<plugin>/docs/principles/type-system-discipline.md`
+     - `<plugin>/docs/principles/test-behavior-not-implementation.md`
    - Apply `<plugin>/docs/capability.md`, "The rubric — six dimensions, each 0–2" and "Scorecard format — MANDATORY", to the task's digits and evidence reason. Emit its CAP line via `celetis --agent <host> capscore J V B N S X` — never hand-computed. It is a recommendation for the session, because `implement` builds a micro-plan inline.
    - Verify phase: the red repro re-run post-fix, plus one error branch of any newly-enabled
      path (widened allow-list / enum / dispatch literal / flag). Read
@@ -85,7 +78,7 @@ Only the exit 0 of `setup status` starts step 1.
      - [ ] Remove `ready-for-human`.
      - [ ] Run `celetis --agent <host> land <n> '<subject>'` in your own shell.
      - [ ] Do the ship acts of the project.
-   - The landing stopped with a `## Before landing` comment, and `implement` added `ready-for-human`: print the checklist, and stop.
+   - The landing stopped with a `## Before landing` comment: print the checklist, and stop.
      - [ ] Do the act that the `## Before landing` comment names.
      - [ ] Remove `ready-for-human`.
      - [ ] Run `celetis --agent <host> land <n> '<subject>'` in your own shell.

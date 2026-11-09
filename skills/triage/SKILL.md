@@ -22,9 +22,10 @@ Triage resolves TYPE only. The lane it hands to owns requirements (`specify`), b
 
 `#<n>` — an issue. Free text with no issue → run `/celetis:intake` first; it creates the issue and hands
 back here. Read `gh issue view <n> --comments` and classify from the intent's `Problem` and
-`Done when` plus the reporter's text. An issue that already carries a lane label (`bug`,
-`enhancement`, `hotfix`, `chore`, `epic`) is routed: name its lane and stop. Labels and states:
-`<plugin>/docs/issue-tracker.md`.
+`Done when` plus the reporter's text. Run `celetis --agent <host> issue <n> state` and read its
+`lane:` line. A lane name or `epic` means that the issue is routed: name its lane and stop. `none`
+or `several` goes on to the classification. When the `state` read fails, show its output and stop.
+Labels and states: `<plugin>/docs/issue-tracker.md`.
 
 ## Classification contract — the ordered decision tree
 
@@ -89,24 +90,23 @@ Ambiguous — ask the one splitter that resolves it:
      feature) → sort the questions by `<plugin>/docs/procedures/stop.md`, "The check before a
      stop". Ask the maintainer each question that an answer in words settles, and go on with the
      answer. Write only the questions that the maintainer cannot answer in the session to a file,
-     run `celetis --agent <host> issue <n> needs-info <file>` (it posts the questions, then adds
-     `needs-info`), stop.
+     run `celetis --agent <host> issue <n> needs-info <file>` as the last act of the turn, and
+     stop.
    - **No-fit idea** → write why to a file, run `celetis --agent <host> issue <n> wontfix <file>`
-     (it posts the reason, adds `wontfix`, and closes the issue), stop.
+     as the last act of the turn, and stop.
 4. **Clean one-liner** — normalize the idea into the single-sentence description the lane consumes.
-5. **Decide the effort, label, announce, ask to continue** — record the effort level of the
-   lane's first step per `<plugin>/docs/procedures/effort.md`. Then apply the lane label and clear
-   the triage one (`celetis --agent <host> issue <n> route <lane>`
-   with the lane `feature`, `bug`, `chore`, or `hotfix`; the feature lane's label is
-   `enhancement`), then state the pick and the one-liner (`→ /celetis:bug #<n>: <one-liner>`). Ask the
+5. **Decide the effort, route, announce, ask to continue** — record the effort level of the
+   lane's first step per `<plugin>/docs/procedures/effort.md`. Then route the issue
+   (`celetis --agent <host> issue <n> route <lane>`
+   with the lane `feature`, `bug`, `chore`, or `hotfix`), then state the pick and the one-liner (`→ /celetis:bug #<n>: <one-liner>`). Ask the
    human whether to proceed. On yes, invoke that lane with `#<n>` and follow it; the lane's step-1
-   confirm is the redirect gate. On no, stop — the label already carries the verdict.
-   In a step session, ask nothing here: stop after the label and the announcement, and leave the
+   confirm is the redirect gate. On no, stop — the route already carries the verdict.
+   In a step session, ask nothing here: stop after the route and the announcement, and leave the
    lane to the daemon, which starts it in a fresh session.
 
 ## Eval — self-check (read and judge, do not run)
 
-Ten sample ideas → expected lane. Read each, apply the ordered tree above, confirm it lands where
+Twelve sample ideas → expected lane. Read each, apply the ordered tree above, confirm it lands where
 expected. This exists so a change to the criteria can be sanity-checked against known-correct
 classifications. These ideas are DISTINCT from the few-shot examples on purpose — they test the
 criteria, not recall.

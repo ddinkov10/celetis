@@ -62,7 +62,7 @@ brief excerpt or durable reference. Record only the supported labels:
 | `unknown` | The evidence does not distinguish the causes; use alone |
 
 A missing transcript alone yields `unknown`. Recurrence does not establish failed enforcement.
-For a repeated mistake, read `<plugin>/docs/principles/encode-lessons-in-structure.md`. In the
+Read `<plugin>/docs/principles/encode-lessons-in-structure.md`. Apply it when its `Applies when` holds for the proposal, with its `Check`. In the
 proposal's Fix, record a proposed structural follow-up that needs separate authorization, its owner or
 issue when known, and a check that would reject the recorded mistake. Mark enforcement proven
 only with its actual evidence. When judgment makes a structural check unsuitable, state why the

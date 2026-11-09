@@ -1,9 +1,18 @@
 # The lane start
 
-The start of a lane. `bug`, `chore`, `feature`, and `hotfix` apply "Before step 1" after the
-Celetis entry and before their step 1, and "Start the issue" at the end of their classification
-step, with their `<lane>` (`bug`, `chore`, `feature`, `hotfix`) and their `<label>` (`bug`,
-`chore`, `enhancement`, `hotfix`). The input of the lane is free text or `#<n>`.
+The start of a lane. `bug`, `chore`, `feature`, and `hotfix` apply "The Iron Law" and "Before
+step 1" after the Celetis entry and before their step 1, and "Start the issue" at the end of their classification
+step, with their `<lane>` (`bug`, `chore`, `feature`, `hotfix`). The input of the lane is free
+text or `#<n>`.
+
+## The Iron Law
+
+```
+NO STEP SKIPPED. NO STEP REORDERED.
+```
+
+Each step is the next one's precondition. Perceived simplicity waives nothing: a small change runs
+the same lane. If you have not completed step N, you cannot start step N+1.
 
 ## Before step 1
 
@@ -31,7 +40,8 @@ comes first; after an entry stop, this check does not run.
 
 Create the issue first, and continue with its number: fill the template of
 `<plugin>/docs/procedures/intent.md` into a file, then run
-`gh issue create --label <label> --title "<one line>" --body-file <intent>`.
+`gh issue create --label needs-triage --title "<one line>" --body-file <intent>`. Then continue
+as "Any other issue" with the new number.
 
 ### An epic
 
@@ -40,7 +50,4 @@ own lane.
 
 ### Any other issue
 
-Make `<label>` its only lane label with `celetis --agent <host> issue <n> route <lane>`. It adds
-`<label>` when the issue lacks it, and removes `needs-triage` and each other lane label (`bug`,
-`enhancement`, `hotfix`, `chore`) that the issue carries, because `celetis --agent <host> worktree`
-names the branch from the lane label.
+Run `celetis --agent <host> issue <n> route <lane>`.

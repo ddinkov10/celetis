@@ -15,38 +15,27 @@ Hands off to the fix chain:
 
 ## The Iron Law
 
-```
-NO STEP SKIPPED. NO STEP REORDERED.
-```
+Apply `<plugin>/docs/procedures/lane-start.md`, "The Iron Law".
 
-Each step is the next one's precondition — no debugging without exploring, no fix without the
-root cause, no plan without the report. Perceived simplicity waives nothing: a one-character diff runs the same lane. If you have not completed step N, you cannot
-start step N+1.
+No debugging without exploring, no fix without the root cause, no plan without the report. A
+one-character diff runs the same lane.
 
 **Before step 1.** Check the wiring per `<plugin>/docs/procedures/lane-start.md`, "Before step 1".
 Only the exit 0 of `setup status` starts step 1.
 
 1. **Confirm classification.** Existing behavior misbehaves → continue. New behavior → `/celetis:feature`;
    prod broken + ship-now → `/celetis:hotfix`; zero behavior change → `/celetis:chore`. Then
-   start the issue per `<plugin>/docs/procedures/lane-start.md`, "Start the issue", with `bug` as
-   `<lane>` and `bug` as `<label>`.
-2. **Worktree.** Enter the issue's worktree per `<plugin>/docs/procedures/worktree.md`; a new
-   branch is `fix/<n>-<slug>`.
-3. **Explore project context.** Explore files, docs, recent commits, and read the project context
-   per `<plugin>/docs/procedures/project-context.md`. Its traps are the constraints on the fix.
+   start the issue per `<plugin>/docs/procedures/lane-start.md`, "Start the issue", with `bug` as `<lane>`.
+2. **Worktree.** Enter the issue's worktree per `<plugin>/docs/procedures/worktree.md`.
+3. **Explore project context.** Read the project context per
+   `<plugin>/docs/procedures/project-context.md`, then explore per
+   `<plugin>/docs/procedures/diagnosis.md`, "The explore".
    Read the issue per `<plugin>/docs/procedures/capture.md`, "A step with a record": the newest
    `## Captured` comment holds the person's answers.
 4. **Invoke `superpowers:systematic-debugging`** — MANDATORY, no self-granted exemptions; the red
    repro is the spec's repro. A captured root cause (step 3) is the first hypothesis, and the red
-   repro and the causal chain decide it, as the module of step 3 says. During diagnosis, after a substantive correction, after two failed
-   fixes of the same problem, and before an existing repair limit stops work, apply
-   `<plugin>/docs/procedures/lesson-capture.md`. Reuse a checkpoint already handled in the turn.
-   After two failed fixes that share a premise, read
-   `<plugin>/docs/principles/attack-the-premise.md` before another already-permitted attempt;
-   every existing attempt limit and stop still applies. When a hypothesis relies on a measured
-   performance or quality result, read `<plugin>/docs/principles/explain-the-number.md`.
-   A hypothesis that rests on library, platform, or vendor behavior is
-   checked per `<plugin>/docs/procedures/docs-lookup.md` before the report names it the root cause. A bug that
+   repro and the causal chain decide it, as the module of step 3 says. Apply
+   `<plugin>/docs/procedures/diagnosis.md`, "The diagnosis". A bug that
    shows on screen gets a capture repro at the failing state and size, posted on the issue per
    `<plugin>/docs/procedures/ui.md`, "Captures", before the report.
 5. **Write the report evidence.** Keep these checks together before the decision in step 6.
@@ -96,7 +85,9 @@ Only the exit 0 of `setup status` starts step 1.
    check before fixing. Judge from this evidence whether the fix chooses new behavior: it adds a
    mechanism (for example a retry, a timer, a cache, a lock, or a queue), or it chooses behavior that the spec does not
    define. When it does, research the prior art per `<plugin>/docs/procedures/prior-art.md` before the
-   decision below. When its `## Prior art` section has a `### Required behavior` list, the report
+   decision below. A fix that adds or changes a UI component runs
+   `<plugin>/docs/procedures/component-research.md` in that research pass, with its reference
+   question. When its `## Prior art` section has a `### Required behavior` list, the report
    lists each of its behaviors as a requirement of the fix, in its intended behavior. This trigger is wider than the escalation: a fix that adds a mechanism does the
    research also when the spec defines each state. A fix that restores behavior that the spec or
    the code already defines skips it. An escalation presents the found patterns among its options;

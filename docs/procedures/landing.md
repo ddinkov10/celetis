@@ -35,7 +35,7 @@ and deferred checks", and "Usage-limit exception" before going to step 2.
 
 Run `celetis --agent <host> issue <n> state`. With `build: planned`, run
 `celetis --agent <host> issue <n> built`: it posts `## Built` as explicit completion after the
-latest `## Plan` comment, then removes `ready-for-agent` when present. A `## Before landing`
+latest `## Plan` comment. A `## Before landing`
 comment after that plan also records a built change. With another `build:` (`none` in a hotfix,
 or `built` when the change has its mark), go on to step 2.
 
@@ -57,8 +57,8 @@ holds the act, and either the issue has no `## Before landing` comment for this 
 is an act of "During the build" that no such comment names: write a file with no heading that
 names each such act, with the report form of each act of "During the build", run
 `celetis --agent <host> issue <n> before-landing <file>`, with `--during-the-build` after the file
-when it names an act of "During the build", and stop. The command posts the file with
-`## Before landing` as its first line, then adds `ready-for-human`. The maintainer supplies the
+when it names an act of "During the build", as the last act of the turn, and stop. The command
+posts the file with `## Before landing` as its first line. The maintainer supplies the
 required contribution. Assistance can record verified completion
 and clear the hold by `<plugin>/docs/procedures/assisted-completion.md`; lane sessions keep this
 precondition and its evidence requirements.
@@ -69,9 +69,8 @@ the issue timeline (`<plugin>/docs/issue-tracker.md`, "Completing a human precon
 absent label is not completion evidence. The engine reads that a `## Human steps done` comment
 exists, not which acts it reports. So with an `open:` line, or with a `## Before landing` comment
 of this build that names an act of "During the build" that no later `## Human steps done` comment
-reports, keep the change built, restore the label with
-`celetis --agent <host> issue <n> ready-for-human`, using the existing comment as the reason, and
-stop. For deferred runtime checks or evidence affected by changes since the previous run, apply
+reports, keep the change built, run `celetis --agent <host> issue <n> ready-for-human` as the
+last act of the turn, using the existing comment as the reason, and stop. For deferred runtime checks or evidence affected by changes since the previous run, apply
 `<plugin>/docs/procedures/runtime-verification.md`, "Reports and deferred checks", "Evidence
 lifetime", and "Usage-limit exception", before continuing. With that procedure satisfied,
 `open: none`, and a report of each such act, continue to step 3.

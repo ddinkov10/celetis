@@ -33,7 +33,7 @@ zero accepted Important**, subject to the evidence and material-risk disposition
 | Security | secrets, auth/crypto/permission semantics, plaintext leaks |
 | Tests | real behavior (not mocks), edge cases covered, pristine output |
 | Structure | YAGNI, DRY, one clear responsibility, no over-engineering |
-| Contracts | the touched subsystem's invariants — lifecycle, JS-to-native wire, persistence round-trip, i18n |
+| Contracts | the invariants of the touched subsystem, as its `AGENTS.md` states them |
 
 For the Contracts lens, read the root `AGENTS.md` and the `AGENTS.md` of each subsystem the diff
 touches, and name the files you read.
@@ -51,10 +51,11 @@ Include `<plugin>/docs/procedures/review-evidence.md` and
 `<plugin>/docs/principles/demonstrate-behavioral-defects.md` in those resolved references. Read the
 module and apply "Reviewer" to the critic's brief, including each scoped re-review.
 Resolve `<plugin>` to the absolute path bound by the entry. Take paths supplied with the affected
-tasks; derive missing paths from the reviewed changes and revise them for the fix scope. When assessing
-behavioral verification checks, read `<plugin>/docs/principles/test-behavior-not-implementation.md`.
-When a finding relies on measured performance or quality evidence, read
-`<plugin>/docs/principles/explain-the-number.md`. The rubric score alone does not trigger this read.
+tasks; derive missing paths from the reviewed changes and revise them for the fix scope. Read
+`<plugin>/docs/principles/test-behavior-not-implementation.md` and
+`<plugin>/docs/principles/explain-the-number.md`. Apply each one whose `Applies when` holds for
+the review and each finding, with its `Check`. The rubric score alone does not make
+`explain-the-number.md` apply.
 The critic returns the per-perspective scores, total, findings with severity, category and
 evidence, and a verdict under the threshold and evidence contract. The critic never spawns
 subagents and never fixes anything.

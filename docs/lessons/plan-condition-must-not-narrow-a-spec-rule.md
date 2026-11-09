@@ -2,16 +2,40 @@
 {
   "schema": 1,
   "name": "plan-condition-must-not-narrow-a-spec-rule",
-  "description": "A plan or a repair ruling changed a spec rule or its condition with no maintainer decision, and the build dropped a required case",
+  "description": "A plan, a repair ruling, or a fix brief changed a spec rule or its scope with no maintainer decision, and the build dropped a required case",
   "tags": [
     "process",
     "ui",
-    "recurring"
+    "recurring",
+    "false-negative"
   ],
-  "date": "2026-11-07",
+  "date": "2026-11-09",
   "status": "active",
-  "source": "Final review of ddinkov10/celetis#250, implement step session (coordinator incident)\n\nTask 3 review of #182 (ddinkov10/celetis), controller-confirmed reproduction",
+  "source": "Final fix wave of ddinkov10/celetis#263\n\nFinal review of ddinkov10/celetis#250, implement step session (coordinator incident)\n\nTask 3 review of #182 (ddinkov10/celetis), controller-confirmed reproduction",
   "incidents": [
+    {
+      "id": "26847cec-9749-4680-8b28-da22097f7a17",
+      "date": "2026-11-09",
+      "action": "The #263 build controller accepted a Minor final-review finding (the `branchForm` lookbehind of scripts/verify.ts refuses `docs/feat/12-x.md`) and wrote in the fix brief: 'add `/` to the lookbehind (so a path segment passes)'. The fixer did it in commit c8b7669.",
+      "expected": "A repair ruling that changes a spec rule keeps the rule (spec Design 6: 'a prefix of `lanes`, or a `|`-list of them, followed by `/<` or `/` and a digit'; only `prototype/<n>-*` passes), or records a maintainer decision; the observed false refusal becomes a stated limit.",
+      "observed": "The fixer's probe gate-probe-final.ts showed that `refs/heads/feat/12-x` (case B2) and `origin/feat/12-x` (case B6) pass after c8b7669; the fixer reported that the change narrows the spec rule and needs a maintainer decision.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "Concern: the `/` lookbehind that the brief asked for (F4) narrows the spec rule. A full ref or a remote ref of a lane branch now passes: refs/heads/feat/12-x (B2) and origin/feat/12-x (B6).",
+        "reference": "ddinkov10/celetis#263, final fix wave, commit c8b7669"
+      },
+      "inference": "The controller weighed the finding by the false refusal that the reviewer showed, and did not quote the spec rule in the brief before it changed the rule's scope. The lesson was in the final lesson set that the controller built (final-lessons.md). Alternative: the controller read 'path segment' as outside 'a lane branch form'; the spec text does not support that reading.",
+      "diagnosis": [
+        "not-followed"
+      ],
+      "revision": "c8b7669",
+      "brief": ".superpowers/sdd/263/final-fix-brief.md, F4 (workspace of the #263 build)",
+      "lesson": {
+        "name": "plan-condition-must-not-narrow-a-spec-rule",
+        "revision": "d480bc1",
+        "digest": "72422c20316c2a88ffee6b2046abbd80be920c5fffbe94effc5892ff7b03e201"
+      }
+    },
     {
       "id": "eb9f3f71-4777-471e-affb-ba3a6017407c",
       "date": "2026-11-07",
@@ -70,7 +94,7 @@
       "revision": "44d1e65"
     }
   ],
-  "recurrences": 2,
+  "recurrences": 3,
   "reviews": [
     {
       "id": "8385ab4c-cffb-479f-9c23-69fddfe2c2e9",
@@ -100,15 +124,30 @@
         "state": "proposed",
         "detail": "The earlier proposed follow-up stays open and now covers repair rulings too: the existing reviews compare each rule of a plan, a task brief, or a repair ruling that restates the spec with its source text, and with the other spec rules of the same element. It needs separate authorization; this review changes no skill or procedure."
       }
+    },
+    {
+      "id": "42131cf2-9c63-43ac-82d9-f2ffda474ed3",
+      "requestDigest": "9159881c3df144db6ec78ecc729796dcd6d40952aa8a459bb432d84de986a954",
+      "date": "2026-11-09",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #263; claude child opus/high\n\nMerge under the reviewer rules: the active lesson plan-condition-must-not-narrow-a-spec-rule states the same rule, and the proposal names it as the lesson that its incident did not follow. The incident is observed: commit c8b7669 of the lane adds `/` to the `branchForm` lookbehind with the message that `refs/heads/feat/12-x` now passes, and commit ccf66cd restores the lookbehind \"as the spec rule of the restatement check of `checkContract` says\". A fix brief that changes what a check passes is a repair brief that narrows the scope of a spec rule, so the active rule applies. The survivor keeps the active name and every incident and review, adds the incident, names a fix brief and a change of what a check refuses or passes in the applicability, and adds the probe-case check of the proposal. The cause stays labeled as inference. The rule adds a check, weakens none, and agrees with the acceptance coverage procedure of the plugin celetis: a repair brief cannot silently weaken an approved outcome.",
+      "related": [
+        "check-a-review-fix-against-the-spec-rule-before-the-brief",
+        "plan-condition-must-not-narrow-a-spec-rule"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "The earlier proposed follow-up stays open and now covers fix briefs too: the existing reviews compare each rule of a plan, a task brief, a repair ruling, or a fix brief that restates the spec with its source text. It needs separate authorization; this review changes no skill or procedure."
+      }
     }
   ]
 }
 ---
-# A plan or a repair ruling must not change a spec rule or its condition without a maintainer decision
+# A plan, a repair ruling, or a fix brief must not change a spec rule or its scope without a maintainer decision
 
 ## What happened
 
-Three incidents. In #182, the plan added a link-label condition to the spec's session rule for a
+Four incidents. In #182, the plan added a link-label condition to the spec's session rule for a
 runner foreground. The build followed the plan. A hand-run `celetis-flow --resume <n>` sets no
 link label, so its terminal got no board card. The Task 3 review reproduced it at the
 `sessionsOf` boundary (`hand-run resume, no link label: []`), and fix 6506cd7 also accepts a
@@ -131,6 +170,14 @@ outside it. The spec says "The dialog is nonmodal, Escape closes it, and focus r
 control", and no maintainer decision narrowed that rule. The task briefs and the repair message
 carried this lesson. The final fix wave (007e845) closes the dialog on Escape from anywhere.
 
+In #263, the controller accepted a Minor final-review finding that the new `branchForm` check of
+`scripts/verify.ts` refuses a path such as `docs/feat/12-x.md`. The fix brief told the fixer to
+add `/` to the lookbehind so that a path segment passes, and commit c8b7669 did it. The fixer's
+probe then showed that `refs/heads/feat/12-x` and `origin/feat/12-x` pass too, against the spec
+rule of the check, and the fixer reported that the change narrows the spec rule. Commit ccf66cd
+restored the lookbehind and stated the false refusal as an observed limit. The controller's
+final lesson set held this lesson.
+
 ## Root cause
 
 Inferred, not established: in #182 the condition was added to hold out a stale status between two
@@ -146,6 +193,12 @@ open mode; its wording narrowed the Escape rule. The lesson was in context, so t
 recurrence of a rule that was not followed. Uncertain: whether a listing step would have been done
 under time pressure.
 
+In #263, inferred: the controller weighed the fix by the false refusal that the reviewer showed,
+and did not quote the spec rule of the check in the brief before the fix changed what the check
+passes. The lesson was in the controller's lesson set, so this is a further recurrence of a rule
+that was not followed. Alternative: the controller read a path segment as outside a lane branch
+form; the spec text does not support that reading.
+
 ## Fix
 
 Proposed prevention (text, not enforced): when a plan states a rule that the spec states, quote
@@ -160,6 +213,11 @@ each spec rule of that element (for the dialog: no focus move, Escape closes it,
 the control), state how the new mode keeps each one, and give each rule that the new mode can
 lose a probe case or a maintainer decision.
 
+A fix brief that changes what a check refuses or passes, also to remove a false result that a
+reviewer showed, quotes the spec rule of that check next to the finding and names each case that
+the fix moves from refused to passed, or the reverse. A false result that the spec rule itself
+produces becomes a stated limit, or goes to the maintainer for a decision.
+
 This depends on judgment about which modes and rules exist and which wording is a change, so it
 stays a text rule; a structural check would need a machine-readable spec rule, which the project
 does not have. A proposed follow-up, which needs separate authorization: the acceptance coverage
@@ -171,16 +229,19 @@ A plan sentence that adds `while`, `only when`, or `and` to a rule quoted from t
 replaces a scope word of the spec ("the runner", "the same start") with a narrower one, with a
 probe or a Verify scenario that covers fewer modes than the spec rule names. A ruling that changes
 how an element opens, takes the focus, or stops, and restates another rule of that element with a
-new condition ("with the focus inside the dialog").
+new condition ("with the focus inside the dialog"). A fix brief that widens a pattern of a check
+("add `/` to the lookbehind so that a path segment passes") with no quote of the spec rule of
+that check.
 
 ## Rule
 
-Applies when a plan, a task brief, a repair brief, or a review ruling changes a rule that the
-approved spec states (an added condition, a removed case, or a narrower scope), or changes a mode
-of an element or an operation that other spec rules of that element cover (for example how a
-dialog opens, or when a process stops). Action: quote each affected spec rule, including each
+Applies when a plan, a task brief, a repair brief, a fix brief, or a review ruling changes a rule
+that the approved spec states (an added condition, a removed case, a narrower scope, or a change of
+what a check refuses or passes), or changes a mode of an element or an operation that other spec
+rules of that element cover (for example how a dialog opens, or when a process stops). Action: quote each affected spec rule, including each
 other rule of the same element that the changed mode can reach; name every mode, caller, or entry
 point that it covers; and add a probe case for each mode that the change can exclude. Check: each
 excluded mode is one that the spec excludes too, or the plan or the ruling records a maintainer
 decision for it; a repair brief names each sibling rule with its case, and the repair's probe runs
-each case.
+each case; each probe case that a fix moves from refused to passed, or the reverse, gets the same
+result from the quoted spec rule.

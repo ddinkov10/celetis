@@ -99,14 +99,15 @@ Agent text has four layers:
 | Entry | The facts block of the Claude Code hook, or `docs/procedures/entry.md` | At each skill invocation |
 | Skill | `skills/<name>/SKILL.md` | When the skill is invoked |
 | Procedure module | `docs/procedures/<name>.md` | When a step of a skill names it |
-| Principle | `docs/principles/<name>.md` | When the task meets its applicability trigger |
+| Principle | `docs/principles/<name>.md` | When a step cites it, or when its wrapper skill is invoked |
 
 One placement rule decides the home of each piece of agent text (ADR-0047, with the principle
 exception in [ADR-0050](docs/adr/0050-standalone-engineering-principles-have-canonical-rules.md)):
 
 1. **General principle.** A general engineering rule has one canonical file in `docs/principles/`,
-   regardless of caller count. It has `Applies when`, `Rule`, and `Check` sections. Skills and
-   workflow steps cite the file when its trigger applies; they keep the rule body there.
+   regardless of caller count. It has `Applies when`, `Rule`, and `Check` sections. A skill or a
+   workflow step cites the file at the step where it can apply. The agent applies it when its
+   `Applies when` holds, and the caller restates no trigger. The rule body stays in the file.
 2. **Shared procedure.** Text that two or more skills, or a skill and the step text, need is a
    module. The skills cite it at the step that uses it.
 3. **Own procedure.** Text that one skill needs stays in that skill.
@@ -131,7 +132,8 @@ procedure, and entry does not load a principle catalog.
 
 `checkCitations` in `scripts/verify.ts` checks the skills, the procedure modules, the principles,
 and the step text: each `<plugin>/<path>` citation and each relative link names a tracked file,
-each procedure module has two or more citers, each `SKILL.md` holds the entry line of
+each procedure module has two or more citers among the skills and the step text (a citing module
+does not count), each `SKILL.md` holds the entry line of
 `docs/procedures/entry.md` once, and no skill, module, or principle cites `docs/hosts/`.
 
 `checkContract` in `scripts/verify.ts` checks the same files against `engine/lib/contract.ts`
@@ -142,6 +144,22 @@ list, or the parent item of a nested list. A code span or a fenced line that sta
 names its command, and so does a code span of two or more words that matches a declared form.
 When the block names no command, a code span of another program (`otherPrograms`) in the block
 skips the exit. Every other exit fails.
+
+The same pass refuses a restated policy (ADR-0084), with the message `verify: restated policy: <path>:<line>:
+name the act and the outcome that the agent acts on`. It has two forms. The first is a sentence with
+one of the verbs `adds`, `added`, `removes`, `removed`, `keeps`, `kept`, `retains`, `retained`,
+`restores`, `restored`, `clears`, or `cleared`, followed in the same sentence by a code span that
+is a label of `labels` in `engine/lib/contract.ts`. A cell, a paragraph of an item, and a code
+block each end a sentence. The second is a code span or prose with a lane branch prefix of `lanes`
+in `engine/lib/workflow.ts` (or a `|`-list of them) followed by `/<` or by `/` and a digit. Fenced
+code lines are not checked. The probe of #263 observed the limits below, and ADR-0084 lists each
+limit with its case. Other words pass: `It sets the label` with a label span gives no error (L1).
+A true sentence in a third-person form is refused: `The maintainer removes` with a label span
+gives an error (L2). A label outside a code span passes: `It then adds ready-for-human.` gives no
+error (L3). A lane or a state name in a code span counts as a label, because `labels` holds `bug`,
+`chore`, `hotfix`, `epic`, and `wontfix`: ``It removes the lane worktree, as `hotfix` does.``
+gives an error (L6). A path segment or a ref that holds a lane prefix followed by `/` and
+a digit or `/<` is refused: `docs/feat/12-x.md` and `origin/feat/12-x` give an error (B1, B6).
 
 ## Celetis workflow
 

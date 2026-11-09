@@ -25,8 +25,9 @@ lesson. With neither a candidate nor a selected active lesson, report the empty 
 For each selected record, read its full evidence, inference, diagnosis, and rule. Read related
 active guidance from the same result when it can duplicate or contradict the proposal. Report
 an encountered contradiction. Ask the reviewer to select the resulting rule, or to reject or
-skip the proposal; incompatible rules never stay active together. For a repeated mistake, read
-`<plugin>/docs/principles/encode-lessons-in-structure.md`. Keep a structural follow-up proposed
+skip the proposal; incompatible rules never stay active together. Read
+`<plugin>/docs/principles/encode-lessons-in-structure.md`. Apply it when its `Applies when` holds
+for the selected record, with its `Check`. Keep a structural follow-up proposed
 until it has separate authorization and proof; explain why judgment-dependent guidance stays
 as text.
 

@@ -50,8 +50,8 @@ celetis --agent <host> issue <n> effort <step> <level> <reason-file>
 ```
 
 `<step>` is the step that the decision is for, and `<level>` is `low`, `medium`, `high`, `xhigh`, or
-`max`. `issue <n> effort <step> <level> <file>` posts a comment whose first line is `Effort: <step> <level>`, then the reason,
-and changes no label. The newest decision for a step replaces each earlier one.
+`max`. `issue <n> effort <step> <level> <file>` posts a comment whose first line is `Effort: <step> <level>`, then the reason.
+The newest decision for a step replaces each earlier one.
 
 - **Exit 0**: the decision is on the issue.
 - **Exit 2** (`usage`): a bad step, level, or reason file, and nothing is posted. Correct the arguments

@@ -41,8 +41,8 @@ With evidence for the full scope of the report and both removals:
    runtime check.
 2. A strict open precondition (`during-the-build` or `unmarked`) needs both a report and a removal
    after its request. If its required removal is missing and `ready-for-human` is absent, run
-   `celetis --agent <host> issue <n> ready-for-human` before completion. This supplies the label
-   for the removal event; it supplies no completion evidence itself. A precondition missing
+   `celetis --agent <host> issue <n> ready-for-human` before completion. This act supplies no
+   completion evidence itself. A precondition missing
    only its report needs no restoration. Preserve the existing general completion rule.
 3. Run `celetis --agent <host> issue <n> assisted <file>` only when every current request affected
    by that report and the removals is satisfied. The engine checks shape and state; the helper

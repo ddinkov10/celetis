@@ -7,7 +7,7 @@ cite it.
 
 - **The two modes:** a stop in an interactive session, and a stop in a step session.
 - **The check before a stop:** agent work, a live question, or a hold.
-- **A stop in a step session:** the reason on the issue, and the label that ends the session.
+- **A stop in a step session:** the reason on the issue, and the act that ends the session.
 - **A Verify scenario that cannot run:** a guard refusal, the `## Before landing` hold, and its
   re-entry.
 - **The act that moves the line:** the last act of the turn.
@@ -77,20 +77,28 @@ for: ask, and wait for the answer. When the step cannot go on and no such decisi
 the stop to the issue:
 
 - **The issue holds the reason:** a comment that the skill posts for this stop
-  (`## Landing refused`, `## Before landing`) is the reason. Then, when the skill adds no label for
-  this stop, run `celetis --agent <host> issue <n> ready-for-human` as the last act of the turn,
-  after each other act that the skill names for the stop.
+  (`## Landing refused`, `## Before landing`) is the reason. Three cases decide the next act:
+  - The skill names the `issue` act of this stop as the last act of the turn. That act ends the
+    turn, and `ready-for-human` does not run.
+  - The skill names it as the act that moves the line (see "The act that moves the line"). No
+    `ready-for-human` follows it: only the acts that the skill names after it follow it.
+  - The skill names the act with neither form of words (`landing-refused` in
+    `<plugin>/docs/procedures/landing.md` is such an act). The act does not end the turn. Run it,
+    and each other act or message that the skill names for the stop. Then run
+    `celetis --agent <host> issue <n> ready-for-human` as the last act of the turn.
 - **Else** write the step, the exact message or the failure trail, and each act outside the
   session that lets the step go on to a file, with no heading. Run
   `celetis --agent <host> issue <n> stopped <file>` as the last act of the turn, after each other
-  act that the skill names for the stop. It posts the file with `## Stopped` as its first line,
-  then adds `ready-for-human` and removes `ready-for-agent` when present.
+  act that the skill names for the stop. It posts the file with `## Stopped` as its first line.
+  No `ready-for-human` follows it.
 
-A successful human hold leaves only `ready-for-human` from the readiness pair. It preserves build
-completion: only a `## Built` or `## Before landing` comment after the latest plan records a built
-change. Clearing the hold resumes that build state without restoring an agent label.
+A later run reads the `build:` and `open:` lines of `celetis --agent <host> issue <n> state`.
+Only a `## Built` or `## Before landing` comment after the latest plan records a built change, so
+`build:` gives the build state after a hold and after the hold is cleared.
 
-The label ends this session.
+One of these ends this session: the `ready-for-human` act, the `stopped` act, the act that the
+skill names as the last act, or the act that moves the line with the acts that the skill names
+after it.
 
 An `issue <n> <act>` that exits 6 with `complete it by hand: <command>` stopped partway. That command is
 an act of the maintainer: run no part of it, and hand the stop to the issue with the line as the
@@ -122,8 +130,7 @@ for this build to a file, with no heading: the scenario, its commands, the expec
 refusal. For missing runtime proof, read `<plugin>/docs/procedures/runtime-verification.md` and
 apply "Reports and deferred checks" to the report and precondition. Then run
 `celetis --agent <host> issue <n> before-landing <file>` as the last act of the
-turn. It posts the comment, then adds `ready-for-human` and removes `ready-for-agent`. The comment
-records the change as built; the removal of `ready-for-agent` changes readiness only.
+turn. The comment records the change as built.
 
 On a later run, keep the built change and follow the skill's re-entry rule. Require a trusted
 completion report or a label-removal event after the `## Before landing` comment for
