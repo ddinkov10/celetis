@@ -1,3 +1,4 @@
+import { revision } from './fields.ts';
 import { parseAllDocuments } from './vendor/yaml.mjs';
 import type {
   AcceptedEpic,
@@ -248,7 +249,7 @@ function target(value: unknown, index: number): EpicTarget {
   );
   const checkout = string(source.checkout, `${path}.source.checkout`);
   const commit = string(source.commit, `${path}.source.commit`);
-  if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(commit)) throw new Error(`${path}.source.commit: need a full commit`);
+  if (!revision.test(commit)) throw new Error(`${path}.source.commit: need a full commit`);
   const parsed: EpicSource = dirty
     ? { checkout, commit, dirty, snapshot: string(source.snapshot, `${path}.source.snapshot`) }
     : { checkout, commit, dirty };

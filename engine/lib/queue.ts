@@ -1,6 +1,7 @@
 import type { AgentChoice, Host } from './config-core.ts';
 import { exits } from './contract.ts';
 import { HostError } from './errors.ts';
+import { isHost, uuid } from './fields.ts';
 import { selectHost } from './host.ts';
 import { lineOf, type Next } from './lines.ts';
 import { type LockOwner, lockHolder } from './locks.ts';
@@ -16,7 +17,6 @@ import { lanes, type Run, type Step, steps } from './workflow.ts';
 
 export type { QueueAction, QueueRecord, QueueView } from './queue-types.ts';
 
-const uuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 const keys = (value: Record<string, unknown>, names: string) => Object.keys(value).sort().join(',') === names;
@@ -32,7 +32,7 @@ export function choice(value: unknown): value is AgentChoice {
   return (
     object(value) &&
     ((value.kind === 'default' && keys(value, 'kind')) ||
-      (value.kind === 'explicit' && keys(value, 'host,kind') && (value.host === 'claude' || value.host === 'codex')))
+      (value.kind === 'explicit' && keys(value, 'host,kind') && isHost(value.host)))
   );
 }
 
@@ -151,7 +151,7 @@ function validate(value: unknown): QueueRecord {
     if (
       !value.numbers.length ||
       !choice(value.choice) ||
-      !(value.activeHost === null || value.activeHost === 'claude' || value.activeHost === 'codex') ||
+      !(value.activeHost === null || isHost(value.activeHost)) ||
       !['starting', 'running', 'quota-wait', 'me-gate', 'error'].includes(String(value.state))
     )
       throw invalid();
@@ -274,7 +274,7 @@ function historical(value: unknown, file: string): QueueRecord {
   const originalNumbers = old.numbers as number[];
   if (old.schema === 1) {
     if (
-      (old.host !== 'claude' && old.host !== 'codex') ||
+      !isHost(old.host) ||
       !originalNumbers.length ||
       !Number.isSafeInteger(old.position) ||
       Number(old.position) < 0 ||
@@ -294,7 +294,7 @@ function historical(value: unknown, file: string): QueueRecord {
     )
       invalid('invalid schema-2 empty state');
   } else if (
-    (old.host !== 'claude' && old.host !== 'codex') ||
+    !isHost(old.host) ||
     !originalNumbers.length ||
     !['starting', 'running', 'me-gate', 'error'].includes(String(old.state))
   )

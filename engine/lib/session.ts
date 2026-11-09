@@ -7,6 +7,7 @@ import { exits } from './contract.ts';
 import { clampEffort, isLevel, type Level } from './effort.ts';
 import { HostError } from './errors.ts';
 import { recordEvent } from './events.ts';
+import { isHost, uuid } from './fields.ts';
 import { commonDir } from './git.ts';
 import type { LockOwner } from './locks.ts';
 import { ensureFolder, repositoryState, writeAtomic } from './state.ts';
@@ -26,7 +27,6 @@ export interface SessionRecord {
 }
 export type SavedSession = SessionRecord & { session_id: string };
 export type Claim = { kind: 'none' } | { kind: 'one'; id: string } | { kind: 'many' };
-const uuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const modelsUnreadable = 'daemon: cannot read the Codex models; start the run again';
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -36,7 +36,7 @@ function sessionFields(value: Record<string, unknown>, main: string, issue: numb
   return (
     value.issue === issue &&
     value.checkout === main &&
-    (value.host === 'claude' || value.host === 'codex') &&
+    isHost(value.host) &&
     typeof value.step === 'string' &&
     steps.includes(value.step as Step) &&
     (value.session_id === null || (typeof value.session_id === 'string' && uuid.test(value.session_id)))

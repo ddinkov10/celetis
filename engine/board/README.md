@@ -233,21 +233,21 @@ shows at the next read ("The data").
 
 ## The data
 
-The board reads its issue data in the process of the daemon (`data.ts`). Each read creates a fresh
-operation of the main checkout with no host selection, so the `CELETIS_AGENT` of the daemon selects
-no host. So each read validates the main `.celetis.yaml` again, and it takes `gates` from it.
-The read then gets the typed rows of the resolver (`nextBoard` of
+The board reads its issue data in the process of the daemon (`engine/lib/board-read.ts`). Each read
+creates a fresh operation of the main checkout with no host selection, so the `CELETIS_AGENT` of the
+daemon selects no host. So each read validates the main `.celetis.yaml` again, and it takes `gates`
+from it. The read then gets the typed rows of the resolver (`nextBoard` of
 `engine/lib/resolver.ts`). The resolver gives each row its whole state, `starting` and `stuck`
 included, and reads for it the issue locks and the record of the daemon (`engine/lib/locks.ts`,
-which the daemon also uses). It builds one typed document (`Document` of `types.ts`) with the rows
-as `issues` and `noRun` of the resolver, and it adds `tracker`, `agents`, `flow`, `history`, and
-`queue`. Each `GET /api/board` also reads the local agent order, the usage records, and the
-usage-limit recovery records again (`readAgentState` of `data.ts`), and its reply adds `picker`
-(the order, the usage blocks, the hosts of live sessions, the live usage-limit waits, and a read
-error) and `next` (the decision of a new default start). Each placement also reads the status
-object of the daemon once through the adapter, in the process, and the reply adds `daemon`:
-`{pid, auto}`, with the PID of the daemon and its auto mode (`on`, `off`, or `stopping`). These
-reads do not wait for GitHub.
+which the daemon also uses). It builds one typed document (`Document` of
+`engine/lib/board-read-types.ts`) with the rows as `issues` and `noRun` of the resolver, and it adds
+`tracker`, `agents`, `flow`, `history`, and `queue`. Each `GET /api/board` also reads the local
+agent order, the usage records, and the usage-limit recovery records again (`readAgentState` of
+`engine/lib/board-read.ts`), and its reply adds `picker` (the order, the usage blocks, the hosts of
+live sessions, the live usage-limit waits, and a read error) and `next` (the decision of a new
+default start). Each placement also reads the status object of the daemon once through the adapter,
+in the process, and the reply adds `daemon`: `{pid, auto}`, with the PID of the daemon and its auto
+mode (`on`, `off`, or `stopping`). These reads do not wait for GitHub.
 `docs/workflow.md` of the plugin `celetis`, "The board", gives the value of each field and the
 rule that gives each row its state.
 
@@ -314,9 +314,9 @@ landed count and the `d` shortcut open the same panel. Search finds landed issue
 History stays visible on a phone. Below 1100 px width or 701 px height the panel is a drawer;
 below 720 px width it fills the viewport. Closing it restores the board width.
 
-A full read, or a selected read that finds at least one closed issue, calls `history.ts` once.
-Other selected reads retain History. `history.ts` reads the remote repository metadata and
-captures the default branch head. It walks
+A full read, or a selected read that finds at least one closed issue, calls `readHistory` of
+`engine/lib/board-read.ts` once. Other selected reads retain History. `readHistory` reads the remote
+repository metadata and captures the default branch head. It walks
 100-commit pages pinned to that SHA until it finds 20 distinct issues or exhausts history. It
 keeps traversal order and each issue's newest occurrence, with no closure-time cutoff. A direct
 Celetis Conventional Commit has an issue suffix. For a PR landing, the commit must match a merged
@@ -909,6 +909,26 @@ Five rules hold for the start, the argvs, and the data:
    daemon in the main checkout from each checkout of the repository, and it removes each
    `node_modules/.bin` item from the `PATH` of the daemon, so a planted `git`, `gh`, `hc`, or
    `herdr-app` in such a folder does not run. "Start" gives the reason.
+
+These files enforce the rules. They are the trust files of the board:
+
+| Rule | Files that enforce it |
+| --- | --- |
+| 1 (listen on `127.0.0.1`) | `engine/board/start.ts` |
+| 2, 3, 4 (the `Host`, the POST `Origin` and content type, `Origin: null` first) | `engine/board/perimeter.ts` |
+| 5 (digits, a session of the repository, five levels) | `engine/board/requests.ts`, `engine/lib/fields.ts`, `engine/board/presses.ts` (Go), `engine/lib/effort.ts` (`isLevel`) |
+| 6 (what the page sends) | `engine/board/requests.ts`, the page modules of `engine/board/page/` |
+| 7 (`isSafeId`) | `engine/lib/terminal.ts` |
+| 8 (no shell) | `engine/board/perimeter.ts` (`run`), `engine/lib/process.ts` (`run` of the issue and status reads) |
+| 9 (`git` only in the repository, `--no-optional-locks`; update workers validate the installations) | `engine/lib/board-read.ts` (`isInside`, `readDiff`), `engine/board/update-worker.ts`, `engine/lib/updater.ts` |
+| 10 (Open shell under `.claude/worktrees/`) | `engine/board/presses.ts`, `engine/lib/board-read.ts` (`isInside`) |
+| 11 (no write in a product working tree) | No one file: each module of the board; the read model only reads |
+| 12 (text as text, the Content-Security-Policies, the visual page) | `engine/board/perimeter.ts`, `engine/lib/fields.ts` (`isCommit`), `engine/lib/board-read.ts` (`readVisualPage`), `engine/lib/visual.ts` (`hasPage`), the page modules |
+| Start rule 1 (the program read) | `engine/board/adapter.ts`, `engine/lib/program.ts` (`readProgram`) |
+| Start rule 2 (fixed argvs and requests) | `engine/board/adapter.ts`, `engine/lib/terminal.ts` (`openTab`) |
+| Start rule 3 (only validated values) | `engine/board/requests.ts`, `engine/lib/fields.ts`, `engine/board/adapter.ts`, `engine/lib/queue.ts` (`parseQueueAction`) |
+| Start rule 4 (the data comes from the engine) | `engine/lib/board-read.ts`, `engine/board/adapter.ts`, `engine/lib/daemon-types.ts` (`parseAnswer`, `parseQueueAnswer`) |
+| Start rule 5 (a clean `PATH`) | `engine/lib/process.ts` (`childEnv`) |
 
 A Run press types a run form in the repository of the board, and the daemon run follows the
 `.celetis.yaml` of its main checkout. Do not start the daemon in a repository that you do not trust.

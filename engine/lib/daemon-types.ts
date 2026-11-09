@@ -3,6 +3,7 @@ import type { Host } from './config-core.ts';
 import { type ExitCode, exitCodeOf, exits, passThrough } from './contract.ts';
 import { isLevel, type Level } from './effort.ts';
 import { HostError } from './errors.ts';
+import { commit, isHost, uuid } from './fields.ts';
 import type { ProcessState } from './process-identity.ts';
 import { parseQueueAction, parseQueueView } from './queue.ts';
 import type { QueueAction, QueueView } from './queue-types.ts';
@@ -95,7 +96,6 @@ const states: Record<RunState, true> = {
 const reads: Record<ProcessState, true> = { runs: true, gone: true, unknown: true };
 const ends: Record<NonNullable<RunRow['outcome']>['kind'], true> = { closed: true, gate: true, stopped: true };
 const autos: Record<DaemonStatus['auto'], true> = { on: true, off: true, stopping: true };
-const uuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const boardUrl = /^http:\/\/127\.0\.0\.1:[0-9]{1,5}$/;
 
 const object = (value: unknown): value is Record<string, unknown> =>
@@ -108,7 +108,6 @@ const filled = (value: unknown): value is string => text(value) && value.length 
 const count = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) > 0;
 const code = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
 const id = (value: unknown): value is string => typeof value === 'string' && uuid.test(value);
-const isHost = (value: unknown): value is Host => value === 'claude' || value === 'codex';
 const member = <T extends string>(table: Record<T, true>, value: unknown): value is T =>
   typeof value === 'string' && Object.hasOwn(table, value);
 const nullable =
@@ -267,7 +266,7 @@ export function parseIdentity(value: unknown): DaemonIdentity {
     count(value.pid) &&
     filled(value.start) &&
     typeof value.revision === 'string' &&
-    /^[0-9a-f]{40}$/.test(value.revision) &&
+    commit.test(value.revision) &&
     path(value.main) &&
     path(value.common) &&
     path(value.socket)

@@ -202,7 +202,13 @@ For installation changes, follow `plugins/celetis/README.md`, "Updates".
 
 `engine/board/` is the board of the program (ADR-0020). For a change there, follow these two rules:
 
-- Keep the trust boundaries of `engine/board/server.ts` and the fixed adapter `engine/board/adapter.ts`.
+- Keep the trust boundaries of the trust files: `engine/board/perimeter.ts`,
+  `engine/board/requests.ts`, `engine/board/presses.ts`, the fixed adapter `engine/board/adapter.ts`,
+  `engine/board/update-worker.ts`, `engine/board/start.ts`, the page modules of `engine/board/page/`,
+  `engine/lib/board-read.ts`, `engine/lib/visual.ts`, `engine/lib/fields.ts`, `engine/lib/terminal.ts`,
+  `engine/lib/effort.ts`, `engine/lib/process.ts`, `engine/lib/updater.ts`, `engine/lib/program.ts`,
+  `engine/lib/queue.ts`, and `engine/lib/daemon-types.ts`. `engine/board/README.md`, "The trust
+  boundary", maps each file to its rules.
 - Check a UI change in Chromium at desktop width and at 375×812.
 
 A look decision of the board uses these two facts:
@@ -215,7 +221,7 @@ A look decision of the board uses these two facts:
   restarting: () => false, restart: () => {} }`, and keeps its process alive. The
   adapter rejects each method except `status`, which answers a fixed status with auto mode off, so
   the item `Daemon` shows `auto off` and the queue shows its read view. The server reads its page files from its own folder
-  (`HERE` in `engine/board/server.ts`), so the variants show with the live issues and sessions.
+  (`HERE` in `engine/board/perimeter.ts`), so the variants show with the live issues and sessions.
   After an edit of a page module, `scripts/build.ts` writes `engine/board/board.js` in that checkout.
 
 ## Decision records

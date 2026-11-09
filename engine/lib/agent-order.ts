@@ -3,6 +3,7 @@ import { type BigIntStats, closeSync, constants, fstatSync, lstatSync, openSync,
 import type { AgentOrder, Host } from './config-core.ts';
 import { type ExitCode, exits } from './contract.ts';
 import { HostError } from './errors.ts';
+import { isHost, orderVersion } from './fields.ts';
 import {
   checkFolder,
   ensureFolder,
@@ -49,7 +50,7 @@ export function validateAgentOrder(value: unknown): readonly Host[] {
     !Array.isArray(value) ||
     value.length === 0 ||
     value.length > 2 ||
-    Array.from(value).some((host) => host !== 'claude' && host !== 'codex') ||
+    Array.from(value).some((host) => !isHost(host)) ||
     new Set(value).size !== value.length
   )
     throw new HostError('agents: order must be a nonempty, unique list of claude or codex', exits.usage);
@@ -173,7 +174,7 @@ async function updateOrder(
 
 export async function replaceAgentOrder(common: string, order: unknown, expectedVersion: string): Promise<AgentOrder> {
   const validated = validateAgentOrder(order);
-  if (typeof expectedVersion !== 'string' || !/^[a-f0-9]{64}$/.test(expectedVersion))
+  if (typeof expectedVersion !== 'string' || !orderVersion.test(expectedVersion))
     throw new HostError('agents: expectedVersion must be an order version', exits.usage);
   return updateOrder(common, validated, expectedVersion);
 }

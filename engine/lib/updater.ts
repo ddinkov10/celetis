@@ -7,6 +7,7 @@ import type { Host } from './config-core.ts';
 import { type ExitCode, exits, usage } from './contract.ts';
 import { HostError, NotInstalled } from './errors.ts';
 import { installRecorder, markDefect } from './events.ts';
+import { isHost, revision } from './fields.ts';
 import { git, programRevision } from './git.ts';
 import { configHome } from './homes.ts';
 import { requireBun } from './host.ts';
@@ -64,7 +65,6 @@ export type UpdateResult = {
   error: string | null;
 };
 type PluginUpdate = PreparedUpdate['plugins'][number];
-const revision = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 
 function gitSource(value: unknown): { source: string; ref: string } {
   if (!object(value))
@@ -820,9 +820,9 @@ async function child(argv: string[]): Promise<ExitCode> {
   try {
     requireBun();
     const { args } = commandInput(argv);
-    if (args[0] === '--policy' && args.length === 2 && (args[1] === 'claude' || args[1] === 'codex'))
+    if (args[0] === '--policy' && args.length === 2 && isHost(args[1]))
       await requireUpdatePolicy(args[1], process.cwd());
-    else if (args[0] === '--inspect' && args.length === 2 && (args[1] === 'claude' || args[1] === 'codex')) {
+    else if (args[0] === '--inspect' && args.length === 2 && isHost(args[1])) {
       try {
         console.log(JSON.stringify(await inspect(args[1], process.cwd())));
       } catch (error) {

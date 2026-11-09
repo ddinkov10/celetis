@@ -17,6 +17,7 @@ import {
 import { type DaemonIdentity, type DaemonStatus, daemonPaths, type RunRow } from './lib/daemon-types.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder, passOn } from './lib/events.ts';
+import { isHost, isIssueNumber } from './lib/fields.ts';
 import { programRevision } from './lib/git.ts';
 import { requireBun } from './lib/host.ts';
 import type { LockOwner } from './lib/locks.ts';
@@ -216,11 +217,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
 }
 
 async function prepareState(argv: string[]): Promise<ExitCode> {
-  const session =
-    argv[1] === 'session' &&
-    argv.length === 3 &&
-    /^[1-9][0-9]*$/.test(argv[2] ?? '') &&
-    Number.isSafeInteger(Number(argv[2]));
+  const session = argv[1] === 'session' && argv.length === 3 && isIssueNumber(argv[2] ?? '');
   if (!(argv.length === 2 && argv[1] === 'queue') && !session) {
     console.error('state preparation: invalid internal request');
     return exits.usage;
@@ -258,7 +255,7 @@ async function waitingSession(args: string[]): Promise<ExitCode> {
     !dir ||
     !isAbsolute(dir) ||
     !/^[1-9][0-9]*$/.test(daemon ?? '') ||
-    (host !== 'claude' && host !== 'codex') ||
+    !isHost(host) ||
     !(attempt === '-' || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(attempt ?? '')) ||
     !(recovery === '-' || (recovery === 'recovery' && attempt !== '-'))
   )

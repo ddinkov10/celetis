@@ -1,5 +1,6 @@
 import { open, readFile, rm } from 'node:fs/promises';
 import type { Host } from './config-core.ts';
+import { isHost, uuid } from './fields.ts';
 import { commonDir } from './git.ts';
 import type { Next } from './lines.ts';
 import { daemonScript, processRunsScript, processState } from './process-identity.ts';
@@ -21,7 +22,6 @@ export function verdictOf(first: Next, changed: boolean): StepEndState {
   return first.kind === 'observed' && first.reason === 'landing' ? 'checking' : 'waiting';
 }
 
-const uuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 const keys = (value: Record<string, unknown>, names: string) => Object.keys(value).sort().join(',') === names;
@@ -37,7 +37,7 @@ const valid = (value: unknown): value is StepEndRecord => {
     typeof daemon.start === 'string' &&
     daemon.start.length > 0 &&
     isSafeId(value.terminal) &&
-    (value.host === 'claude' || value.host === 'codex') &&
+    isHost(value.host) &&
     (value.state === 'checking' || value.state === 'waiting' || value.state === 'exiting') &&
     ((turn === null && value.state === 'checking') ||
       (object(turn) &&

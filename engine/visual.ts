@@ -3,11 +3,12 @@ import type { Host } from './lib/config-core.ts';
 import { type ExitCode, exits, usage } from './lib/contract.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect, passOn } from './lib/events.ts';
+import { isCommit, isIssueNumber } from './lib/fields.ts';
 import { requireBun } from './lib/host.ts';
 import { runInteractive } from './lib/interactive.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { childEnv, run } from './lib/process.ts';
-import { hasPage, isCommit, partialPage, visualFolder, visualLink, visualPage } from './lib/visual.ts';
+import { hasPage, partialPage, visualFolder, visualLink, visualPage } from './lib/visual.ts';
 
 const claudeInstall =
   '/plugin marketplace add nicobailon/visual-explainer, then /plugin install visual-explainer@visual-explainer-marketplace';
@@ -42,7 +43,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
     const { args, explicit } = commandInput(argv);
     const [number, sha] = args;
     const issue = Number(number);
-    if (args.length !== 2 || !/^[1-9][0-9]*$/.test(number ?? '') || !Number.isSafeInteger(issue) || !isCommit(sha))
+    if (args.length !== 2 || !isIssueNumber(number ?? '') || !isCommit(sha))
       throw new HostError(usage('visual'), exits.usage);
     process.env.PATH = childEnv().PATH;
     const operation = await createOperation(

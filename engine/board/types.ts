@@ -1,11 +1,24 @@
-import type { AgentDecision, AgentOrder, Host, UsageBlock } from '../lib/config-core.ts';
+import type { Diff, Document, Flow, History, LandedIssue, QuotaState, QuotaWait } from '../lib/board-read-types.ts';
+import type { AgentChoice, AgentDecision, AgentOrder, Host, UsageBlock } from '../lib/config-core.ts';
 import type { Effort, Level } from '../lib/effort.ts';
-import type { QueueView } from '../lib/queue-types.ts';
+import type { QueueAction, QueueView } from '../lib/queue-types.ts';
 import type { IssueRow, ParentEpic, Pull } from '../lib/resolver-types.ts';
 import type { TerminalStatus } from '../lib/terminal-types.ts';
 import type { UpdateStage } from '../lib/update-types.ts';
 
-export type { IssueRow, ParentEpic, Pull, UpdateStage };
+export type {
+  Diff,
+  Document,
+  Flow,
+  History,
+  IssueRow,
+  LandedIssue,
+  ParentEpic,
+  Pull,
+  QuotaState,
+  QuotaWait,
+  UpdateStage,
+};
 export type BoardOffer = {
   id: string;
   target: string;
@@ -37,41 +50,10 @@ export type UpdateStartRequest = { offerId: string };
 export type UpdateRestartRequest = Record<string, never>;
 export type UpdateRestartResponse = { runtime: BoardRuntime; target: string };
 
-export type Flow = {
-  lanes: Record<string, string[]>;
-  stages: { name: string; steps: string[] }[];
-  steps: Record<string, { gate: 'me' | 'auto'; hint?: string }>;
-  levels: Level[];
-};
-export type LandedIssue = {
-  number: number;
-  title: string;
-  url: string;
-  sha: string;
-  commitUrl: string;
-  committedAt: string;
-};
-export type History = {
-  trunk: string;
-  url: string;
-  head: string;
-  entries: LandedIssue[];
-};
 export type VisualState = 'none' | 'starting' | 'making' | 'ready';
 export type HistoryRow = LandedIssue & { visual: VisualState };
 export type BoardHistory = Omit<History, 'entries'> & { entries: HistoryRow[] };
-export type Document = {
-  history: History;
-  tracker: string;
-  flow: Flow;
-  noRun: string | null;
-  issues: IssueRow[];
-  agents: Record<string, { available: boolean; cause: string | null }>;
-  queue: QueueView | null;
-};
 export type DaemonView = { pid: number; auto: 'on' | 'off' | 'stopping' };
-export type QuotaWait = { number: number; waitId: string; nextResetAt: number | null };
-export type QuotaState = { kind: 'waiting'; wait: QuotaWait } | { kind: 'orphaned' };
 export type AgentPickerView = {
   order: AgentOrder;
   usage: Record<Host, UsageBlock | null>;
@@ -82,6 +64,18 @@ export type AgentPickerView = {
 export type AgentReplaceRequest = { order: readonly Host[]; expectedVersion: string };
 export type AgentReplaceConflict = { error: string; latest: AgentOrder };
 export type RunRequest = { number: number; agent?: Host; effort?: Level } | { number: number; waitId: string };
+export type BoardRequest =
+  | { path: '/api/intake' }
+  | { path: '/api/assist' | '/api/visual' | '/api/resume' | '/api/shell'; number: number }
+  | { path: '/api/run'; number: number; agent?: Host; effort?: Level }
+  | { path: '/api/run'; number: number; waitId: string }
+  | { path: '/api/queue'; action: QueueAction; choice: AgentChoice }
+  | { path: '/api/go'; sessionId: string }
+  | { path: '/api/agent'; order: Host[]; expectedVersion: string }
+  | { path: '/api/refresh' }
+  | { path: '/api/update/check' }
+  | { path: '/api/update/start'; offerId: string }
+  | { path: '/api/update/restart' };
 export type Session = {
   sessionId: string;
   agent: Host;
@@ -95,7 +89,6 @@ export type Session = {
   since?: string;
   screen?: string[];
 };
-export type Diff = { files: number; added: number; removed: number };
 export type Card = {
   sessionId: string | null;
   number: number | null;

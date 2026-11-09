@@ -7,8 +7,8 @@
   "linter": { "rules": { "suspicious": { "noImportCycles": "error" } } },
   "overrides": [
     {
-      // The board removes control characters from agent and terminal text; each such regex matches them on purpose (#84).
-      "includes": ["engine/board/**"],
+      // The board and its read model remove or refuse control characters in agent, terminal, and link text; each such regex matches them on purpose (#84).
+      "includes": ["engine/board/**", "engine/lib/board-read.ts"],
       "linter": { "rules": { "suspicious": { "noControlCharactersInRegex": "off" } } }
     },
     {

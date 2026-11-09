@@ -1,10 +1,6 @@
 import { lstat } from 'node:fs/promises';
 import { join } from 'node:path';
 
-export function isCommit(value: unknown): value is string {
-  return typeof value === 'string' && /^[0-9a-f]{40}$/.test(value);
-}
-
 export function visualFolder(main: string): string {
   return join(main, 'docs/superpowers/visuals');
 }

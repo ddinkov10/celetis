@@ -4,6 +4,7 @@ import { requestSelection, requireDaemon, unanswered } from './lib/daemon-client
 import { daemonSocket, landingSubject, parseAnswer, parseLandingRecord } from './lib/daemon-types.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect, recordedElsewhere, writeUnrecorded } from './lib/events.ts';
+import { isIssueNumber } from './lib/fields.ts';
 import { commandInput, locateCheckouts } from './lib/operation.ts';
 import { run } from './lib/process.ts';
 
@@ -22,12 +23,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
   const n = argv[0]?.replace(/^#/, '') ?? '';
   const number = Number(n);
   const subject = argv[1] ?? '';
-  if (
-    argv.length !== 2 ||
-    !/^[1-9][0-9]*$/.test(n) ||
-    !Number.isSafeInteger(number) ||
-    !landingSubject(number, subject)
-  ) {
+  if (argv.length !== 2 || !isIssueNumber(n) || !landingSubject(number, subject)) {
     console.error(usage('land'));
     return exits.usage;
   }

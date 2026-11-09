@@ -26,6 +26,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
     'lib/epic-acceptance.ts',
     'lib/errors.ts',
     'lib/events.ts',
+    'lib/fields.ts',
     'lib/git.ts',
     'lib/homes.ts',
     'lib/host.ts',

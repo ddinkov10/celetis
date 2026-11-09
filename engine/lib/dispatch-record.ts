@@ -2,6 +2,7 @@ import { type Pair, pairText, ScoreError, scoreLabel } from './capability.ts';
 import type { Host } from './config-core.ts';
 import type { DispatchStatus } from './contract.ts';
 import { isLevel, type Level } from './effort.ts';
+import { isHost } from './fields.ts';
 
 export type Role = 'implementer' | 'reviewer';
 export type Action = 'spawn' | 'resume' | 'replace';
@@ -175,7 +176,7 @@ function executionReportValue(value: unknown, historical: boolean): ExecutionRep
   jsonValue(value, 'report');
   const report = shape(value, historical ? ['host', 'session', 'call', 'outcome'] : ['call', 'outcome'], 'report');
   if (historical) {
-    need(report.host === 'claude' || report.host === 'codex', 'report.host');
+    need(isHost(report.host), 'report.host');
     need(isText(report.session), 'report.session');
   }
   const outcome = report.outcome as Record<string, unknown> | null;
@@ -268,14 +269,14 @@ function dispatchValue(value: unknown, path: string, historical: boolean): void 
 }
 
 export function emptyRecord(host: Host, session: string): DispatchRecord {
-  need(host === 'claude' || host === 'codex', 'host');
+  need(isHost(host), 'host');
   need(isText(session), 'session');
   return { schema: 2, host, session, tasks: [], dispatches: [] };
 }
 function recordValue(value: unknown, host: Host, session: string, historical: boolean): DispatchRecord {
   const record = shape(value, ['schema', 'host', 'session', 'tasks', 'dispatches'], '');
   need(record.schema === (historical ? 1 : 2), 'schema');
-  need((record.host === 'claude' || record.host === 'codex') && record.host === host, 'host');
+  need(isHost(record.host) && record.host === host, 'host');
   need(isText(record.session) && record.session === session, 'session');
   const keys = new Set<string>();
   list(record.tasks, 'tasks', (value, path) => {

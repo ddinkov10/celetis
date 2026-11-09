@@ -18,6 +18,7 @@ import { completeEpic, readEpic, writeEpicDefinition } from './lib/epic.ts';
 import { parseEpicAcceptance, parseEpicSubmission } from './lib/epic-acceptance.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect } from './lib/events.ts';
+import { isIssueNumber } from './lib/fields.ts';
 import { codexHome } from './lib/homes.ts';
 import { lineOf } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
@@ -158,8 +159,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
   const effort = step && isLevel(flag) ? effortMarker(step, flag) : '';
   const file = kind === 'effort' ? (argv[4] ?? '') : argument;
   if (
-    !/^[1-9][0-9]*$/.test(n) ||
-    !Number.isSafeInteger(Number(n)) ||
+    !isIssueNumber(n) ||
     (epic
       ? name === 'complete-epic'
         ? argv.length < 2 || argv.length > 3

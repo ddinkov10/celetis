@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseEpicAcceptance, parseEpicChildren, parseEpicRepository } from './epic-acceptance.ts';
+import { isIssueNumber } from './fields.ts';
 import { run } from './process.ts';
 import { writeRefreshHint } from './refresh-hints.ts';
 import type { Entry, EpicSnapshot, IssueData } from './workflow.ts';
@@ -404,7 +405,7 @@ export function github(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
     async epic(n: string) {
       const target = `issues/${n}`;
       parsed(target, () => {
-        if (!/^[1-9][0-9]*$/.test(n) || !Number.isSafeInteger(Number(n))) throw malformed();
+        if (!isIssueNumber(n)) throw malformed();
       });
       const rawRepository = await get('', record);
       const repository = parsed('', () => {

@@ -3,6 +3,7 @@ import { isAbsolute, join, sep } from 'node:path';
 import type { UsageTicket } from './agent-usage.ts';
 import type { AgentChoice, Host } from './config-core.ts';
 import { isLevel } from './effort.ts';
+import { isHost, uuid } from './fields.ts';
 import type { Identity } from './locks.ts';
 import type { RecoveryAttempt, RecoveryAuthority } from './quota-recovery.ts';
 import type { RunInput, RunState } from './run-engine.ts';
@@ -61,7 +62,6 @@ export type RunRecord = {
 type Historical = Omit<RunRecord, 'schema'> & { schema: 1 };
 export type ReadRecord = { path: string; record: RunRecord } | { path: string; error: string };
 
-const uuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const file = /^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\.json$/;
 const runStates: Record<RunState, true> = {
   starting: true,
@@ -84,7 +84,6 @@ const positive = (value: unknown): value is number => Number.isSafeInteger(value
 const natural = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;
 const filled = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
 const id = (value: unknown): value is string => typeof value === 'string' && uuid.test(value);
-const host = (value: unknown): value is Host => value === 'claude' || value === 'codex';
 const step = (value: unknown): value is Step => (steps as readonly unknown[]).includes(value);
 const flag = (value: unknown): value is boolean => typeof value === 'boolean';
 const nullable =
@@ -113,7 +112,7 @@ function selection(value: unknown): boolean {
     Object.keys(value).every((name) => ['explicit', 'environment', 'saved'].includes(name)) &&
     (value.explicit === undefined || typeof value.explicit === 'string') &&
     (value.environment === undefined || typeof value.environment === 'string') &&
-    (value.saved === undefined || host(value.saved))
+    (value.saved === undefined || isHost(value.saved))
   );
 }
 
@@ -151,7 +150,7 @@ function choice(value: unknown): value is AgentChoice {
   return (
     object(value) &&
     ((value.kind === 'default' && keys(value, 'kind')) ||
-      (value.kind === 'explicit' && keys(value, 'host,kind') && host(value.host)))
+      (value.kind === 'explicit' && keys(value, 'host,kind') && isHost(value.host)))
   );
 }
 
@@ -159,7 +158,7 @@ function attempt(value: unknown): value is RecoveryAttempt {
   return (
     keys(value, 'host,id,sessionId,startedAt') &&
     id(value.id) &&
-    host(value.host) &&
+    isHost(value.host) &&
     positive(value.startedAt) &&
     (value.sessionId === null || id(value.sessionId))
   );
@@ -174,11 +173,11 @@ function loop(value: unknown): value is RunRecord['loop'] {
     keys(value, 'attempted,exitCode,finished,first,last,lastHost,retryBlocked,retrying,started') &&
     (value.first === 'any' || value.first === 'gated') &&
     nullable(run)(value.last) &&
-    host(value.lastHost) &&
+    isHost(value.lastHost) &&
     nullable(natural)(value.exitCode) &&
     flag(value.started) &&
     Array.isArray(value.attempted) &&
-    value.attempted.every(host) &&
+    value.attempted.every(isHost) &&
     flag(value.retrying) &&
     flag(value.retryBlocked) &&
     nullable(filled)(value.finished)
@@ -222,7 +221,7 @@ function session(value: unknown, issue: number | null, resume: boolean): value i
     ) ||
     issue === null ||
     !step(value.step) ||
-    !host(value.host) ||
+    !isHost(value.host) ||
     typeof value.announced !== 'string' ||
     !filled(value.folder) ||
     !isAbsolute(value.folder) ||

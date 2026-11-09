@@ -6,7 +6,8 @@ import { codexRequest } from './codex-app-server.ts';
 import type { Host } from './config-core.ts';
 import { exits } from './contract.ts';
 import { HostError, NotInstalled } from './errors.ts';
-import { git, mainCheckout, revision } from './git.ts';
+import { revision } from './fields.ts';
+import { git, mainCheckout } from './git.ts';
 import { codexHome, configHome } from './homes.ts';
 import { childEnv, run, updateDescriptor } from './process.ts';
 

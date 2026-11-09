@@ -1,6 +1,7 @@
 import { bunFloor, type Host } from './config-core.ts';
 import { exits } from './contract.ts';
 import { HostError } from './errors.ts';
+import { isHost } from './fields.ts';
 
 export function requireBun(): void {
   if (Bun.semver.order(Bun.version, bunFloor) < 0) {
@@ -9,7 +10,6 @@ export function requireBun(): void {
 }
 
 export function selectHost(host: string): Host {
-  if (host !== 'claude' && host !== 'codex')
-    throw new HostError(`celetis: invalid agent ${host}; use claude or codex`, exits.usage);
+  if (!isHost(host)) throw new HostError(`celetis: invalid agent ${host}; use claude or codex`, exits.usage);
   return host;
 }

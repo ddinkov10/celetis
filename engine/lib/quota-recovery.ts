@@ -6,6 +6,7 @@ import { basename, dirname, join } from 'node:path';
 import type { AgentChoice, Host } from './config-core.ts';
 import { exits } from './contract.ts';
 import { HostError } from './errors.ts';
+import { isHost, revision, uuid } from './fields.ts';
 import { commonDir } from './git.ts';
 import { type LockOwner, lockHolder } from './locks.ts';
 import { bunArgs, childEnv, run } from './process.ts';
@@ -79,12 +80,10 @@ export class RecoveryError extends HostError {}
 class ChangedRecord extends RecoveryError {}
 
 const issued = new WeakSet<object>();
-const uuid = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 const keys = (value: Record<string, unknown>, names: string) => Object.keys(value).sort().join(',') === names;
 const positive = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) > 0;
-const host = (value: unknown): value is Host => value === 'claude' || value === 'codex';
 const text = (value: unknown, limit = 4096): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= limit;
 const fail = (path: string, reason: string) => new RecoveryError(`recovery: ${path}: ${reason}`, exits.blocked);
@@ -100,7 +99,7 @@ function validChoice(value: unknown): value is AgentChoice {
   return (
     object(value) &&
     ((value.kind === 'default' && keys(value, 'kind')) ||
-      (value.kind === 'explicit' && keys(value, 'host,kind') && host(value.host)))
+      (value.kind === 'explicit' && keys(value, 'host,kind') && isHost(value.host)))
   );
 }
 
@@ -112,7 +111,7 @@ function validLane(value: unknown): value is LaneBinding {
       text(value.path) &&
       text(value.branch, 255) &&
       typeof value.tip === 'string' &&
-      /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/.test(value.tip) &&
+      revision.test(value.tip) &&
       typeof value.dirtySnapshotDigest === 'string' &&
       /^[0-9a-f]{64}$/.test(value.dirtySnapshotDigest))
   );
@@ -124,7 +123,7 @@ function validAttempt(value: unknown): value is RecoveryAttempt {
     keys(value, 'host,id,sessionId,startedAt') &&
     typeof value.id === 'string' &&
     uuid.test(value.id) &&
-    host(value.host) &&
+    isHost(value.host) &&
     positive(value.startedAt) &&
     (value.sessionId === null || (typeof value.sessionId === 'string' && uuid.test(value.sessionId)))
   );
@@ -170,18 +169,18 @@ function validFields(value: unknown, issue: number, schema: 1 | 2): boolean {
         keys(item, 'attemptId,host,sessionId') &&
         typeof item.attemptId === 'string' &&
         uuid.test(item.attemptId) &&
-        host(item.host) &&
+        isHost(item.host) &&
         (item.sessionId === null || (typeof item.sessionId === 'string' && uuid.test(item.sessionId))),
     ) &&
     Array.isArray(attempted) &&
-    attempted.every(host) &&
+    attempted.every(isHost) &&
     new Set(attempted).size === attempted.length &&
     Array.isArray(blocked) &&
     blocked.every(
       (item: unknown) =>
         object(item) &&
         keys(item, 'host,reason,resetAt') &&
-        host(item.host) &&
+        isHost(item.host) &&
         text(item.reason) &&
         (item.resetAt === null || positive(item.resetAt)),
     ) &&

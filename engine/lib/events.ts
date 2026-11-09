@@ -5,7 +5,7 @@ import { basename, dirname, relative, resolve, sep } from 'node:path';
 import { format } from 'node:util';
 import { type ExitCode, exits, passThrough, signalExit } from './contract.ts';
 import { HostError } from './errors.ts';
-import { revision as fullRevision } from './git.ts';
+import { revision as fullRevision, isHost } from './fields.ts';
 import { ensureFolder, eventLayout, privateMode, withLockSync } from './state.ts';
 
 type Cut = 'message' | 'exception.stacktrace' | 'argv';
@@ -172,10 +172,6 @@ function entry(command: string, report: Report): EventEntry {
       ? ['refusal', command, String(report.code), firstLine(report.message)]
       : ['workflow', command, report.name];
   return { ...head, kind: report.kind, ...site, message: report.message, fingerprint: fingerprint(key) };
-}
-
-function isHost(value: unknown): value is Host {
-  return value === 'claude' || value === 'codex';
 }
 
 function host(argv: string[]): Host | null {

@@ -3,6 +3,7 @@ import { constants, lstatSync } from 'node:fs';
 import { lstat, mkdir, open, readdir, rename, unlink } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import { exits } from './contract.ts';
+import { revision } from './fields.ts';
 import {
   type CaptureRequest,
   captureChanges,
@@ -48,7 +49,6 @@ type Change = {
 type Lane = { root: string; head: string };
 type LaneCommit = 'committed' | 'absent' | 'moved';
 type Transaction = { schema: 1; id: string; kind: 'capture' | 'review'; changes: Change[]; lane?: Lane };
-const objectId = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const temporary = /^\.celetis-lessons-[0-9a-f-]{36}\.tmp$/;
 
 function message(error: unknown): string {
@@ -393,7 +393,7 @@ function transaction(value: unknown, path: string): Transaction {
     !isAbsolute(lane.root) ||
     resolve(lane.root) !== lane.root ||
     typeof lane.head !== 'string' ||
-    !objectId.test(lane.head) ||
+    !revision.test(lane.head) ||
     !changes.some((change) => !pending(change.path))
   )
     throw new LessonError(exits.blocked, path, 'invalid transaction lane');

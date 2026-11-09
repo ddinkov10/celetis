@@ -3,8 +3,6 @@ import { exits } from './contract.ts';
 import { HostError } from './errors.ts';
 import { run } from './process.ts';
 
-export const revision = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
-
 export async function git(args: string[], cwd: string, execute: typeof run = run): Promise<string> {
   const result = await execute(
     'git',

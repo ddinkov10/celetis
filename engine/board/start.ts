@@ -1,12 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import { commonDir, readBoard, readBoardTargets, readRefreshHints } from '../lib/board-read.ts';
 import { exits } from '../lib/contract.ts';
 import { HostError } from '../lib/errors.ts';
-import { commonDir } from '../lib/git.ts';
 import { installedProgram, type Program } from '../lib/program.ts';
-import { readRefreshHints } from '../lib/refresh-hints.ts';
 import type { Adapter } from './adapter.ts';
-import { readBoard, readBoardTargets } from './data.ts';
-import { createBoard, run } from './server.ts';
+import { createBoard, run } from './perimeter.ts';
 import { createUpdates, type UpdateController } from './updates.ts';
 
 export type BoardStart = Readonly<{

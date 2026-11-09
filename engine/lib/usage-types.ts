@@ -1,4 +1,5 @@
 import type { Host } from './config-core.ts';
+import { isHost, uuid } from './fields.ts';
 
 export type UsageAttempt = {
   id: string;
@@ -28,8 +29,7 @@ export const unknownUsage = (attempt: UsageAttempt): ObservedUsage => ({
 export const usageObject = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 
-export const usageUuid = (value: unknown): value is string =>
-  typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+export const usageUuid = (value: unknown): value is string => typeof value === 'string' && uuid.test(value);
 
 export function usageAttempt(value: unknown): value is UsageAttempt {
   return (
@@ -37,7 +37,7 @@ export function usageAttempt(value: unknown): value is UsageAttempt {
     typeof value.id === 'string' &&
     value.id.length > 0 &&
     value.id.length <= 128 &&
-    (value.host === 'claude' || value.host === 'codex') &&
+    isHost(value.host) &&
     typeof value.main === 'string' &&
     value.main.length > 0 &&
     typeof value.startedAt === 'number' &&

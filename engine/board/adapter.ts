@@ -10,13 +10,12 @@ import {
   type Selection,
 } from '../lib/daemon-types.ts';
 import type { Level } from '../lib/effort.ts';
+import { isCommit, isHost, orderVersion } from '../lib/fields.ts';
 import { commonDir } from '../lib/git.ts';
 import { bunArgs, run } from '../lib/process.ts';
 import { type Program, readProgram } from '../lib/program.ts';
-import { parseQueueAction } from '../lib/queue.ts';
 import type { QueueAction, QueueView } from '../lib/queue-types.ts';
 import { fromChild, repositoryLayout } from '../lib/state.ts';
-import { isCommit } from '../lib/visual.ts';
 
 export type BoardDaemon = Readonly<{
   send(request: Exclude<DaemonRequest, { kind: 'status' | 'land' }>): Promise<unknown>;
@@ -36,17 +35,16 @@ export type Adapter = Readonly<{
 }>;
 
 const CONTROL = /[\u0000-\u001f\u007f]/;
-const VERSION = /^[a-f0-9]{64}$/;
 
 const agentFlag = (choice: AgentChoice) => {
   if (choice.kind === 'default') return [];
-  if (choice.host !== 'claude' && choice.host !== 'codex') throw new Error('invalid host');
+  if (!isHost(choice.host)) throw new Error('invalid host');
   return ['--agent', choice.host];
 };
 
 const selectionOf = (choice: AgentChoice): Selection => {
   if (choice.kind === 'default') return {};
-  if (choice.host !== 'claude' && choice.host !== 'codex') throw new Error('invalid host');
+  if (!isHost(choice.host)) throw new Error('invalid host');
   return { explicit: choice.host };
 };
 
@@ -60,7 +58,7 @@ const parseOrder = (value: unknown): AgentOrder => {
     value.schema !== 1 ||
     !('version' in value) ||
     typeof value.version !== 'string' ||
-    !VERSION.test(value.version) ||
+    !orderVersion.test(value.version) ||
     !('order' in value)
   )
     throw new Error('agents: the order outcome is uncertain; refresh before another change');
@@ -110,13 +108,13 @@ export async function celetisAdapter(
     queue: (input, choice) =>
       changeQueue({
         kind: 'queue-action',
-        action: parseQueueAction(input),
+        action: input,
         selection: selectionOf(choice),
         quiet: true,
       }),
     replaceAgentOrder: async (order, expectedVersion) => {
       const replacement = { order: validateAgentOrder(order), expectedVersion };
-      if (!VERSION.test(expectedVersion)) throw new Error('agents: expectedVersion must be an order version');
+      if (!orderVersion.test(expectedVersion)) throw new Error('agents: expectedVersion must be an order version');
       const result = await control(['agents', 'replace', JSON.stringify(replacement)]);
       let value: unknown;
       try {

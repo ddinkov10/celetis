@@ -279,6 +279,13 @@ function tokens(source: string): Token[] {
   return out;
 }
 
+const readSide: ReadonlySet<string> = new Set(
+  ['perimeter', 'requests', 'reads', 'place', 'presses', 'view', 'start'].map((name) => `engine/board/${name}.ts`),
+);
+const engineState: ReadonlySet<string> = new Set(
+  'resolver tracker operation quota-recovery agent-usage step-end refresh-hints git workflow'.split(' '),
+);
+
 export function checkImports(files: ReadonlyMap<string, string>): string[] {
   const errors: string[] = [];
   for (const [file, source] of files) {
@@ -299,6 +306,23 @@ export function checkImports(files: ReadonlyMap<string, string>): string[] {
         errors.push(
           `${file}:${token.line}: A library or board module imports the library, not a command file of engine/ (ADR-0081).`,
         );
+      const state = /^engine\/lib\/(.+?)(?:\.ts)?$/.exec(target)?.[1];
+      if (!state || !readSide.has(file) || !engineState.has(state)) continue;
+      if (
+        before?.text === '(' &&
+        call?.text === 'import' &&
+        !new Bun.Transpiler({ loader: 'ts' })
+          .scanImports(source)
+          .some((use) => use.kind === 'dynamic-import' && use.path === token.text)
+      )
+        continue;
+      let start = index;
+      while (start > 0 && !(list[start]?.kind === 'word' && ['import', 'export'].includes(list[start]?.text ?? '')))
+        start--;
+      if (before?.text !== '(' && list[start + 1]?.text === 'type' && list[start + 2]?.text !== 'from') continue;
+      errors.push(
+        `${file}:${token.line}: A read-side board module reads engine state through engine/lib/board-read.ts, not engine/lib/${state}.ts (ADR-0087).`,
+      );
     }
   }
   return errors;
