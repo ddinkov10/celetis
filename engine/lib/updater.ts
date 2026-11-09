@@ -15,6 +15,7 @@ import {
   bindUpdateHome,
   claudeInstallation,
   codexPlugin,
+  codexRevision,
   installedRevision,
   installedRoot,
   jsonFile,
@@ -73,7 +74,13 @@ function gitSource(value: unknown): { source: string; ref: string } {
   else if (value.source === 'settings' && value.name === 'celetis' && Array.isArray(value.plugins)) {
     const plugins = value.plugins.filter((plugin) => object(plugin) && plugin.name === 'celetis');
     const plugin = plugins[0];
-    if (plugins.length !== 1 || !object(plugin) || !object(plugin.source) || plugin.source.source !== 'url')
+    if (
+      plugins.length !== 1 ||
+      !object(plugin) ||
+      !object(plugin.source) ||
+      plugin.source.source !== 'git-subdir' ||
+      plugin.source.path !== 'plugins/celetis'
+    )
       throw new HostError('update: invalid native inline marketplace source', exits.prerequisite);
     return gitSource({ source: 'git', url: plugin.source.url, ref: plugin.source.ref });
   } else if (value.source === 'github' && typeof value.repo === 'string' && /^[\w.-]+\/[\w.-]+$/.test(value.repo))
@@ -124,6 +131,7 @@ export async function installation(host: Host, cwd: string): Promise<Installatio
   let root: string;
   let nativeRevision: string | undefined;
   let configured: { source: string; ref: string };
+  let installed: string;
   if (host === 'claude') {
     const list = await nativeJson(host, ['plugin', 'list', '--json'], cwd);
     const installation = await claudeInstallation(list, cwd);
@@ -186,6 +194,7 @@ export async function installation(host: Host, cwd: string): Promise<Installatio
         }
       }
     }
+    installed = await installedRevision(host, root, configured.source, nativeRevision);
   } else {
     const metadata = await codexPlugin(cwd);
     root = metadata.root;
@@ -218,8 +227,8 @@ export async function installation(host: Host, cwd: string): Promise<Installatio
     siblings = [...new Set([...metadata.marketplacePlugins, ...Object.keys(config?.plugins ?? {})])]
       .filter((id) => id.endsWith('@celetis') && id !== 'celetis@celetis')
       .sort();
+    installed = await codexRevision(metadata, configured.source);
   }
-  const installed = await installedRevision(host, root, configured.source, nativeRevision);
   return {
     host,
     home,
@@ -356,9 +365,11 @@ async function discoverUpdate(
   let error: string | null = null;
   if (found.some((part) => 'error' in part)) error = 'update: fix the errors above; nothing changed';
   else if (!program)
-    error = 'update: the celetis program is not installed; run the first install of README.md, "First install"';
+    error =
+      'update: the celetis program is not installed; run the first install of plugins/celetis/README.md, "First install"';
   else if (!plugins.length)
-    error = 'update: no host has Celetis installed; install the plugin as README.md, "Wire a product project", says';
+    error =
+      'update: no host has Celetis installed; install the plugin as plugins/celetis/README.md, "Wire a product project", says';
   else if (new Set(ready.map(({ source, ref, target }) => JSON.stringify([source, ref, target]))).size > 1)
     error = [
       'update: the parts do not name one source, ref, and revision; nothing changed',
@@ -517,8 +528,9 @@ async function updatePlugin(ownerPid: number, host: Host, target: PluginUpdate):
             {
               name: 'celetis',
               source: {
-                source: 'url',
+                source: 'git-subdir',
                 url: target.source,
+                path: 'plugins/celetis',
                 ...(details.ref === 'HEAD' ? {} : { ref: details.ref }),
                 sha: target.target,
               },
@@ -613,7 +625,8 @@ async function updatePlugin(ownerPid: number, host: Host, target: PluginUpdate):
         completed.push(operation);
       }
       operation = 'fresh enabled installation validation';
-      const root = await installedRoot(host, process.cwd(), execute);
+      const metadata = host === 'codex' ? await codexPlugin(process.cwd(), execute) : null;
+      const root = metadata ? metadata.root : await installedRoot(host, process.cwd(), execute);
       let sha: string | undefined;
       if (host === 'claude') {
         const list = await nativeJson('claude', ['plugin', 'list', '--json'], process.cwd(), env, execute);
@@ -636,7 +649,9 @@ async function updatePlugin(ownerPid: number, host: Host, target: PluginUpdate):
       const manifest = await jsonFile(join(root, '.claude-plugin/plugin.json'));
       if (manifest.name !== 'celetis')
         throw new HostError(`update: enabled target package is incomplete: ${root}`, exits.blocked);
-      const installed = await installedRevision(host, root, target.source, sha, execute);
+      const installed = metadata
+        ? await codexRevision(metadata, target.source, execute)
+        : await installedRevision(host, root, target.source, sha, execute);
       if (installed !== target.target)
         throw new HostError(
           `update: enabled revision is ${installed}, expected approved target ${target.target}`,

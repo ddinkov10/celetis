@@ -7,7 +7,7 @@
 ## Related
 
 - [Issue #164](https://github.com/ddinkov10/celetis/issues/164)
-- [Updates](../../README.md#updates)
+- [Updates](../../plugins/celetis/README.md#updates)
 - [Terminal-confirmed native plugin updates](0028-terminal-confirmed-native-plugin-updates.md)
 
 ## Supersedes

@@ -118,7 +118,7 @@ completion criterion of a skill.
 
 ### Claude Code
 
-- **The entry.** The native hook (`<plugin>/engine/hooks/entry.js`) makes the entry with its own
+- **The entry.** The native hook (`<plugin>/hooks/entry.js`) makes the entry with its own
   permission-checked reads. Its block holds the facts, this contract, and then the custom text.
   Apply the block before any response, and do not repeat its reads.
 - **`.celetis.yaml` after the entry.** The hook read the file, so a later `Read` of it gives an

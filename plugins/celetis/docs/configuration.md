@@ -213,7 +213,7 @@ then limits each value. Non-finite numbers are not accepted. Instruction strings
 Setup references use the lexical rules above.
 Plain `yes` and `on` are strings under YAML 1.2.
 
-`engine/lib/config-core.ts` of the plugin owns parsing, validation, types, and diagnostics. It has
+`engine/lib/config-core.ts` of the program owns parsing, validation, types, and diagnostics. It has
 no `node:` import and no `Bun` global, so the native entry hook bundles it. `parseConfigText(text)`
 checks the characters and the source structure of one text. `validateHost(value)` defines accepted
 host inputs. `validateConfig(source)` checks the full schema and returns a deeply frozen `Config`
@@ -225,7 +225,7 @@ caller gives `isFile`, because the module has no file access. `ConfigError` name
 filesystem code (`ioCode`), so `setup status` reports an absent file as missing and a denied read as
 blocked.
 
-`engine/lib/config.ts` of the plugin owns byte access. Importing it starts no installation
+`engine/lib/config.ts` of the program owns byte access. Importing it starts no installation
 discovery or setup. `readSnapshot(file)` reads the bytes of one regular file with no
 symlink. `readConfigSource(CHECKOUT)` checks the Bun floor, reads that checkout's `.celetis.yaml`
 once, decodes it as strict UTF-8, and parses it. `readConfig(CHECKOUT)` combines the source read
@@ -362,7 +362,7 @@ apply to each requested operation.
 
 Celetis commands need Bun 1.4.4 or later on `PATH`: the entry of the program finds `bun` there.
 Celetis installs no package dependency. CI pins Bun 1.4.4. The YAML parser of the reader, the
-`yaml` package 2.9.1, comes with the plugin in `engine/lib/vendor/`, so a read installs no package.
+`yaml` package 2.9.1, comes with the program in `engine/lib/vendor/`, so a read installs no package.
 
 Install Bun with Homebrew:
 

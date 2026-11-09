@@ -414,13 +414,21 @@ export async function hostArguments(
   host: Host,
   issue: number,
   step: Step,
-  root: string,
   cwd: string,
   facts: { pluginRoot: string; landing: Config['landing']; recovery?: boolean },
   effort: Level,
 ): Promise<{ args: string[]; applied: Level; model: string | null }> {
-  const stepText = async () =>
-    `${stepHeader({ issue, step, host, main: cwd, ...facts })}\n\n${await readFile(join(root, 'step-prompt.md'), 'utf8')}`;
+  const stepText = async () => {
+    const file = join(facts.pluginRoot, 'step-prompt.md');
+    const text = await readFile(file, 'utf8').catch((error) => {
+      throw new HostError(
+        `daemon: cannot read the step text ${file}; repair the ${host} plugin installation`,
+        exits.prerequisite,
+        { cause: error },
+      );
+    });
+    return `${stepHeader({ issue, step, host, main: cwd, ...facts })}\n\n${text}`;
+  };
   if (host === 'claude')
     return {
       args: [

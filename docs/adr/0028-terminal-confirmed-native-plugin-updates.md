@@ -6,7 +6,7 @@
 
 ## Related
 
-- [Updates](../../README.md#updates)
+- [Updates](../../plugins/celetis/README.md#updates)
 - [Prior update policy](0027-celetis-updates-require-one-chat-approval.md)
 
 ## Supersedes

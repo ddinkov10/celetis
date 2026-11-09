@@ -10,8 +10,8 @@ starts the next step when its gate is `auto`. The GitHub issue stays the state s
 (`docs/issue-tracker.md`): every result of a step goes to the issue. The master daemon also serves
 the board, a local web page that shows each agent session and the next step of each issue. Its
 Run button gives the request for one issue to the daemon, and the daemon opens the session tab. The board is
-`engine/board/` of the plugin: a product project, a repository that uses the plugin `celetis`,
-holds its config, and the plugin holds the board, which reads its data in the daemon process. ADR-0002 holds the reasons for the script,
+`engine/board/` of the program: a product project, a repository that uses the plugin `celetis`,
+holds its config, and the program holds the board, which reads its data in the daemon process. ADR-0002 holds the reasons for the script,
 ADR-0003 holds the reasons for the board, ADR-0005 holds the reasons why the terminal program, not a
 mod, gives the session state and ends a step, ADR-0058 holds the reasons why herdr-core and the
 Herdr app are that program, ADR-0062 holds the reasons why each session runs in a tab of its own
@@ -22,10 +22,10 @@ engine and starts fixed commands. ADR-0011 holds the reasons why a step session 
 issue, ADR-0033 holds the reasons for the one definition of the workflow and for the skip rule, and
 ADR-0038 holds the reasons why a `bug` session hands on to `plan` in that rule.
 ADR-0072 holds the reasons for the one master daemon of a repository, and
-[ADR-0073](adr/0073-the-runner-commands-are-clients-of-the-master-daemon.md) holds the reasons why
+[ADR-0073](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0073-the-runner-commands-are-clients-of-the-master-daemon.md) holds the reasons why
 each `run` and `queue` command sends one request to it and returns.
 
-`engine/lib/workflow.ts` of the plugin is the one definition of the workflow: the lanes, with the
+`engine/lib/workflow.ts` of the program is the one definition of the workflow: the lanes, with the
 label, the branch prefix, and the steps in order of each lane; the stages; the command of each step;
 the default gate `me`; the decision of an issue; and the skip rule. The resolver, the daemon, the
 board data, the config reader, the session record, `worktree`, `land`, and `setup` take these facts
@@ -37,12 +37,13 @@ Two rules of the harness hold in each session, also in a session by hand:
 - The maintainer starts the daemon and turns auto mode on; an agent starts a run only when its task
   says so, with a number, and in a terminal.
 
-In this document, these names are files of the plugin `celetis`, also when a session reads the
+In this document, these names are files of the repository `celetis`, also when a session reads the
 document inside a product project that has a `docs/` folder and an ADR store of its own: the five
 documents (`docs/workflow.md`, `docs/issue-tracker.md`, `docs/capability.md`,
-`docs/procedures/docs-lookup.md`, `docs/procedures/prior-art.md`), `step-prompt.md`, a runtime of `engine/` or a program
-of `scripts/` that the text names by its file, and each ADR number, which is a record of
-`docs/adr/` in the folder of the plugin and not of the product project. Each other path is a path
+`docs/procedures/docs-lookup.md`, `docs/procedures/prior-art.md`) and `step-prompt.md` of the plugin
+folder; a runtime of `engine/` or a program of `scripts/` that the text names by its file, which is
+a file of the program; and each ADR number, which is a record of `docs/adr/` of the repository and
+not of the product project. Each other path is a path
 of the product project, apart from a path that starts with `~/` or `/`.
 
 ## Requirements
@@ -74,9 +75,10 @@ of the product project, apart from a path that starts with `~/` or `/`.
   one that it has and records a limit for each missing one
   ([component-research.md](procedures/component-research.md)).
 - The program `celetis` on `PATH` (`README.md`, "First install"), and the plugin `celetis@celetis`
-  of the selected host at the revision of the program. The scripts and the step text come from
-  the version folder of the program: `celetis --agent <host> <name> <arguments>` runs
-  the declared command `<name>`, the file `engine/<name>.ts` of that folder, with those arguments. Before each new step session, the
+  of the selected host at the revision of the program. The scripts come from the
+  version folder of the program: `celetis --agent <host> <name> <arguments>` runs the declared
+  command `<name>`, the file `engine/<name>.ts` of that folder, with those arguments. The step
+  text and the skills come from the plugin root. Before each new step session, the
   daemon reads the enabled installation of the session's host ("How a step runs"). Missing,
   disabled, malformed, or ambiguous metadata stops that read. Codex lookup uses `skills/list` on a
   short-lived local app-server connection; it starts no model turn. The README holds the separate
@@ -92,8 +94,8 @@ of the product project, apart from a path that starts with `~/` or `/`.
   the main checkout.
 - herdr-core 0.1.16 (`hc`) with its running server, and the open window of the Herdr app 0.1.11
   (`herdr-app`), for each start: each session runs in a tab of the Herdr app ("How a step runs").
-  The support target is macOS ([ADR-0058](adr/0058-herdr-core-hosts-the-agent-terminals.md),
-  [ADR-0062](adr/0062-each-session-runs-in-a-tab-that-the-runner-steers.md)). `celetis daemon start`
+  The support target is macOS ([ADR-0058](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0058-herdr-core-hosts-the-agent-terminals.md),
+  [ADR-0062](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0062-each-session-runs-in-a-tab-that-the-runner-steers.md)). `celetis daemon start`
   checks them before it spawns the daemon, and exits with the same line: 3 for a command that is
   not on `PATH`, 6 for a server or an app that does not answer. The daemon checks them
   again before each run reads its issue (a number, auto mode, a queue wake, and `run resume`). A failed check there is the refusal of the
@@ -291,7 +293,7 @@ hosts and manual resume share the issue lock.
 A landing in the master daemon holds the lock ref `land-<n>`, with the daemon as its owner and no
 session ("How a step runs", **A landing**). The `no-progress` file in `<git common dir>/celetis/` has one row for each step that ended with no progress, and one row for
 each step that the script refused as a skip. Auto mode and the board read it. An
-explicit issue start can start that step. `engine/lib/locks.ts` of the plugin owns the lock refs,
+explicit issue start can start that step. `engine/lib/locks.ts` of the program owns the lock refs,
 the owner records, the liveness check of an owner, and the record; the daemon and the board use it.
 
 ### The continuous queue
@@ -386,7 +388,7 @@ The master daemon is one long-lived process for one repository, the Git common f
 working folder. It runs many issue runs at the same time, with the run engine
 (`engine/lib/run-engine.ts`), runs each landing of `celetis --agent <host> land` in the daemon
 process, one at a time ("How a step runs", **A landing**), and serves requests over HTTP on a Unix socket
-([ADR-0072](adr/0072-one-master-daemon-runs-every-issue-run.md)). Its process is
+([ADR-0072](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0072-one-master-daemon-runs-every-issue-run.md)). Its process is
 `engine/daemon.ts --daemon` (a successor adds `--after <pid> <start>`, "The restart"), so the
 lock, step-end, and recovery checks accept it as the daemon. Nothing starts a daemon by itself. The daemon also serves the board on a loopback port
 ("The board"). The `run`, `queue`, and `land` commands send their requests to it, and the board presses
@@ -736,7 +738,7 @@ update ("The board"), restarts a daemon whose program folder is the version fold
 (the real paths, read once at the start; a failed read counts as a checkout). A daemon of a checkout
 never restarts: its update completes, and the update view says `updated`. The old daemon stops, and
 a new process of the installed program takes over
-([ADR-0077](adr/0077-the-master-daemon-hosts-the-board-and-restarts-as-a-successor.md)):
+([ADR-0077](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0077-the-master-daemon-hosts-the-board-and-restarts-as-a-successor.md)):
 
 1. The claim. After the answer of the approval or of the restart request is sent, the daemon
    validates the installed program: the link names the target, and the source, revision, and clean
@@ -880,8 +882,8 @@ exists. A later `chore` issue removes the move.
 
 A session is one selected host process in the foreground of a new tab of its own ("The session
 tab"), in the main checkout. `hostArguments` of `engine/lib/session.ts` builds its arguments. The
-step text is a facts header (`stepHeader`), an empty line, and `step-prompt.md` of the version
-folder of the program that runs the daemon. For `run /celetis:plan #402`, the header is:
+step text is a facts header (`stepHeader`), an empty line, and `step-prompt.md` of the plugin
+root of the header. For `run /celetis:plan #402`, the header is:
 
 ```text
 Celetis step session
@@ -970,9 +972,9 @@ So that session asks and waits as a session that you start by hand does (ADR-000
 Codex also omits the step text for specify. Its configured developer instructions remain.
 
 **The program and the plugin.** The daemon uses the version folder of the program that started it
-for the resolver, entry, and step text of each run. Numbered starts, auto-mode starts, and later steps make no update call.
+for the resolver and entry of each run. Numbered starts, auto-mode starts, and later steps make no update call.
 The form `run resume` keeps its no-update behavior and saved identity.
-Before a step starts, the daemon checks that its required files and step text still exist.
+Before a step starts, the daemon checks that its required files still exist.
 Before each new step session, it also compares the installed revision of the plugin of the
 session's host with its own revision (`requireSameRevision` of `engine/lib/updater.ts`). On a
 difference it starts no session, writes no session record, and ends with
@@ -1058,8 +1060,8 @@ keeps the issue lock until it exits, so leave it with `/exit`. Before the releas
 the tab. A stopped queue run does not write the queue record.
 
 **The step end.** The script ends each step session by itself, from outside its tab
-([ADR-0058](adr/0058-herdr-core-hosts-the-agent-terminals.md),
-[ADR-0062](adr/0062-each-session-runs-in-a-tab-that-the-runner-steers.md)). Each `hc` call of the
+([ADR-0058](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0058-herdr-core-hosts-the-agent-terminals.md),
+[ADR-0062](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0062-each-session-runs-in-a-tab-that-the-runner-steers.md)). Each `hc` call of the
 step end names the session terminal, the hc terminal of the tab. Its label `celetis.link`,
 `#<n> <step>`, links the session to the issue on the board. Before the release, the script starts
 a job in the background that ends the session:
@@ -1069,7 +1071,7 @@ a job in the background that ends the session:
    `thread/list` ("Sessions"). The job then waits for that identity and a saved turn in the correct
    checkout. For both hosts, it warns once after 60 seconds and continues verification while the
    foreground runs. It saves the verified ID in the current session record
-   ([ADR-0046](adr/0046-pending-startup-keeps-the-completion-watcher.md)).
+   ([ADR-0046](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0046-pending-startup-keeps-the-completion-watcher.md)).
 2. It waits until the host does not work: `hc wait <terminal> --timeout 60`. A timeout is only a
    check-in, because hc counts a terminal with no status as working.
 3. It reads the current turn of the terminal with `hc get <terminal>`. A turn is current when the
@@ -1428,7 +1430,7 @@ Before each push, PR, re-run of a check, and merge, `land` reads the issue again
 Git state again. It refuses an issue that is not ready to land: the issue is closed; it has no lane
 label, two lane labels, or `epic`; it has `needs-info` or `ready-for-human`; it has an open human
 step; or the change of a `feature` or a `bug` is not built. These are the rules of the resolver
-(`landable` in `engine/lib/workflow.ts` of the plugin), and the refusal quotes the resolver line of
+(`landable` in `engine/lib/workflow.ts` of the program), and the refusal quotes the resolver line of
 the issue, for example
 `land: prerequisite: #<n> is not ready to land: stop #<n> is ready-for-human. …`. A change that is
 already on the trunk (its merge tree is the tree of the trunk, or a merged PR into the trunk has
@@ -1552,7 +1554,7 @@ the entry or a required helper needs the owner to bring that committed source in
 There is no source copy, automatic merge, or loader fallback. Reading config in another command
 never executes setup. Main supplies operational policy, the target lane supplies executable
 setup, and the active checkout supplies only the selected `custom.<skill>` at entry
-([ADR-0032](adr/0032-shared-configuration-operation-snapshots.md)).
+([ADR-0032](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0032-shared-configuration-operation-snapshots.md)).
 
 **A custom part.** `custom.<skill>` in the active checkout's `.celetis.yaml` holds an
 addition to that skill's procedure, for example a check on a real device after the build. It
@@ -1591,7 +1593,7 @@ host references in `docs/hosts/` give the details.
 
 ## The board
 
-The board is `engine/board/` of the plugin, a part of its engine. The master daemon serves it in
+The board is `engine/board/` of the program, a part of its engine. The master daemon serves it in
 its own process, and the board reads the data of the issues there with the typed functions of the
 engine. Run, Resume, Retry, and each queue action are one request of that daemon; and New intake,
 Assist, and Open shell open a new tab of the Herdr app with
@@ -1947,7 +1949,7 @@ daemon. A full-read error disables queue actions until a full read
 succeeds. A selected-read error alone does not disable them; queue-specific restrictions remain.
 The hint timer reads local files, with no second remote poller.
 
-**The page.** [`engine/board/README.md`](../engine/board/README.md) of the plugin holds the page: the
+**The page.** [`engine/board/README.md`](https://github.com/ddinkov10/celetis/blob/main/engine/board/README.md) of the repository `celetis` holds the page: the
 columns and the card of each state, the layout, the keys, the buttons Run, Resume,
 Open shell, and Go, the errors, the start refusals, the HTTP API, the trust boundary, and the limits
 of the page.
@@ -1975,7 +1977,7 @@ CLI prints a line of this table only when the run ends at its first decision or 
 line is the `line` of the row of `celetis daemon status` and a line of
 `<git common dir>/celetis/daemon/daemon.log`. Read the state on the issue card; a startup stop
 appears in its existing warning area after the board reads the outcome of the run in the status of the daemon. "The board" gives
-the state of each issue, and `engine/board/README.md` of the plugin gives the card of each state.
+the state of each issue, and `engine/board/README.md` of the repository `celetis` gives the card of each state.
 
 `stop … is finished` means that the issue is closed with no `wontfix` label. After a landing, the
 change is on the trunk.
@@ -2033,7 +2035,7 @@ Before a usage-limit recovery replaces this record, the daemon copies it unchang
 `<git common dir>/celetis/sessions/<n>/<attempt id>.json`. That archive keeps the exact native
 session of each interrupted attempt; Resume reads only the current record.
 The daemon supplies the identity, not the terminal; a label or a tab name is never an identity
-([ADR-0058](adr/0058-herdr-core-hosts-the-agent-terminals.md)).
+([ADR-0058](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0058-herdr-core-hosts-the-agent-terminals.md)).
 For a Claude step, the daemon chooses the ID and passes it with `--session-id`. Codex has no option
 that sets the thread ID before the start. So for a Codex step, the daemon asks the app-server
 `thread/list` of the main checkout, and it takes the one thread whose `cwd` is the main checkout,
@@ -2060,7 +2062,7 @@ null ID cannot be used for exact run resume.
 
 Each Celetis process that detects a failure appends one entry to the event record of the user. A
 later session reads the record with `celetis --agent <host> events [--after <id>]`. The record is
-local. It has no network part. [ADR-0066](adr/0066-one-shared-event-record-with-a-lock.md) holds
+local. It has no network part. [ADR-0066](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0066-one-shared-event-record-with-a-lock.md) holds
 the reasons why all processes write one shared file under a lock.
 
 The record folder is `<base>/.local/state/celetis/`. `<base>` is `CELETIS_HOME` when it is set,
@@ -2651,7 +2653,7 @@ The installed-package checks of the old plan do not prove the revised report flo
 same-child repair remains unsupported by the observed follow-up controls. The real POSIX lock
 checks and controlled Windows-helper FFI fixture passed; no live Windows DLL, filesystem,
 reparse-point, descriptor-conversion, or `LockFileEx` check ran. The fixture is not live Windows
-acceptance. [ADR-0041](adr/0041-the-engine-owns-the-attempts-and-checks-each-dispatch.md) retains the history.
+acceptance. [ADR-0041](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0041-the-engine-owns-the-attempts-and-checks-each-dispatch.md) retains the history.
 
 **Revised #104 report-flow acceptance.**
 
@@ -3025,8 +3027,8 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   the build step stops with `## Landing refused`. Until then, the board also shows `pass` for the PR.
 - The card warnings and the reservations of a Run or Resume do not survive a stop of the daemon;
   the next daemon takes over the run. A queue action uses the persisted queue state.
-- The daemon keeps the version folder of the program that started it for the resolver, entry, and
-  step text of its runs. An install or an update keeps the three newest version folders, the
+- The daemon keeps the version folder of the program that started it for the resolver and entry
+  of its runs. An install or an update keeps the three newest version folders, the
   current one, and the installed version that runs that install. A daemon that stays open while
   other versions run three later updates can lose its folder. After that, it stops with the true
   cause ("A removed program version"). A `run` or `queue` form that starts after its own folder went prints
@@ -3052,7 +3054,7 @@ model profiles, and permissions; a missing tool or denied read stops that operat
   below it. The start line names the chosen level, and the applied level only when Codex applies
   another level.
 
-`engine/board/README.md` of the plugin holds the limits of the page.
+`engine/board/README.md` of the repository `celetis` holds the limits of the page.
 
 ## Check the harness
 
@@ -3065,7 +3067,8 @@ refuses a restated label effect and a lane branch form, ADR-0084), the refusal o
 directly in `engine/` from a module of `engine/lib/` or `engine/board/` (`checkImports`,
 ADR-0081), and generated byte comparison, with modes on macOS and Linux. Only procedure modules
 need two citers, and only the skills and the step text count as citers; principles have no
-minimum citer count. Citations and relative links must name tracked files. Skills, procedure
+minimum citer count. Citations and relative links must name tracked files in `plugins/celetis/`,
+and the gate refuses a TypeScript file in that folder. Skills, procedure
 modules, and principles cannot cite `docs/hosts/`, and each `SKILL.md` needs the entry line
 exactly once. It installs nothing and refuses a tracked test file. Exact file roles distinguish
 generated delivery, unchanged vendor code and file exemptions.

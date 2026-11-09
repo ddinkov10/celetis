@@ -445,7 +445,7 @@ export const commands: readonly Entry[] = [
         passThrough: sessionCode,
       }),
     ],
-    'Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters `celetis:intake` with that request. It creates no issue before the answer and does not start a run',
+    `Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters \`celetis:intake\` with that request. It creates no issue before the answer and does not start a run. Before the start, it checks that the plugin of the selected host is at the revision of the program, and it exits ${exits.prerequisite} with the line of that check when it is not`,
     hosted,
   ),
   entry(
@@ -457,7 +457,7 @@ export const commands: readonly Entry[] = [
         passThrough: sessionCode,
       }),
     ],
-    'Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses `issue <n> assisted <file>` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume a run or land',
+    `Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses \`issue <n> assisted <file>\` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume a run or land. Before the start, it checks that the plugin of the selected host is at the revision of the program, and it exits ${exits.prerequisite} with the line of that check when it is not`,
     hosted,
   ),
   entry(
@@ -591,7 +591,7 @@ export const commands: readonly Entry[] = [
       form('update', [], helped(1, 'Updates the program and the plugin of each host; asks once.')),
       form('update check', [], helped(2, 'Shows the installed and the available revision of each part.')),
     ],
-    `Updates the program and the plugin of each host, and asks once in an interactive terminal. \`check\` is read-only: it prints one JSON array of the parts. \`README.md\`, "Updates", gives the steps. Any other form exits ${exits.usage} with the usage line`,
+    `Updates the program and the plugin of each host, and asks once in an interactive terminal. \`check\` is read-only: it prints one JSON array of the parts. \`plugins/celetis/README.md\`, "Updates", gives the steps. Any other form exits ${exits.usage} with the usage line`,
   ),
   entry(
     'root',
@@ -663,7 +663,7 @@ export const helpText = [
   '',
   'In a terminal, --agent claude|codex is optional. CELETIS_AGENT is an explicit choice too.',
   'With neither, the local agent order applies; its initial order is claude, codex.',
-  'The skills run the other commands. README.md, "The commands", in the folder that celetis root',
+  'The skills run the other commands. plugins/celetis/README.md, "The commands", in the folder that celetis root',
   'prints, lists all of them.',
 ].join('\n');
 

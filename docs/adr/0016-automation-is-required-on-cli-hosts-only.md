@@ -10,7 +10,7 @@
   [corrected Intent](https://github.com/ddinkov10/celetis/issues/53#issuecomment-6290267498).
 - [ADR-0014](0014-one-workflow-uses-explicit-host-operations.md): shared workflow and host operations.
 - [ADR-0015](0015-one-repository-yaml-config.md): shared YAML configuration and native entry.
-- [Acceptance status](../workflow.md#acceptance-status),
+- [Acceptance status](../../plugins/celetis/docs/workflow.md#acceptance-status),
   [live acceptance](../../tests/manual/live-acceptance.md), and
   [Codex native config entry](../../tests/manual/config-entry-codex.md).
 

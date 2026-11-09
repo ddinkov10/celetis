@@ -314,7 +314,7 @@ class Setup {
   }
   review(path: string, evidence: string): void {
     this.warn(
-      `${path}: ${evidence}; the owner must review this old wiring; setup preserves the content; follow https://github.com/ddinkov10/celetis#review-old-wiring (README, "Review old wiring")`,
+      `${path}: ${evidence}; the owner must review this old wiring; setup preserves the content; follow https://github.com/ddinkov10/celetis/blob/main/plugins/celetis/README.md#review-old-wiring (plugins/celetis/README.md, "Review old wiring")`,
     );
   }
   async git(args: string[], env?: NodeJS.ProcessEnv): Promise<string> {
@@ -849,7 +849,7 @@ class Setup {
       } else if ((await this.get(path)) === contents) this.owned.files.push(path);
       else
         this.warn(
-          `${path} differs from the required form; setup preserves it; the owner must review the direct-merge restriction and obsolete allows; follow https://github.com/ddinkov10/celetis#review-old-wiring (README, "Review old wiring")`,
+          `${path} differs from the required form; setup preserves it; the owner must review the direct-merge restriction and obsolete allows; follow https://github.com/ddinkov10/celetis/blob/main/plugins/celetis/README.md#review-old-wiring (plugins/celetis/README.md, "Review old wiring")`,
         );
     }
     if (

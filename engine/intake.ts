@@ -8,8 +8,9 @@ import { requireBun } from './lib/host.ts';
 import { runInteractive } from './lib/interactive.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { childEnv } from './lib/process.ts';
+import { requireSameRevision } from './lib/updater.ts';
 
-export function intakeArguments(host: Host, root: string): string[] {
+export function intakeArguments(host: Host, plugin: string): string[] {
   const prompt =
     'Say exactly "What would you like to work on?", then end your turn and wait for the user. ' +
     'These launcher instructions are not a work request. Do not invoke intake, create an issue, or start a run yet. ' +
@@ -17,8 +18,8 @@ export function intakeArguments(host: Host, root: string): string[] {
     'Complete its normal Celetis entry before any next response, including commentary. ' +
     (host === 'claude'
       ? 'Invoke the Skill tool with celetis:intake and the user request as its arguments.'
-      : `Read and follow the intake skill from ${JSON.stringify(join(root, 'skills/intake/SKILL.md'))} with the user request.`);
-  return host === 'claude' ? ['--plugin-dir', root, '-n', 'Intake', prompt] : ['--no-daemon', prompt];
+      : `Read and follow the intake skill from ${JSON.stringify(join(plugin, 'skills/intake/SKILL.md'))} with the user request.`);
+  return host === 'claude' ? ['-n', 'Intake', prompt] : ['--no-daemon', prompt];
 }
 
 export async function main(argv: string[]): Promise<ExitCode> {
@@ -34,11 +35,16 @@ export async function main(argv: string[]): Promise<ExitCode> {
     );
     const main = operation.checkout.main as string;
     const root = dirname(import.meta.dir);
-    const skill = join(root, 'skills/intake/SKILL.md');
-    if (!(await stat(skill).catch(() => null))?.isFile())
-      throw new HostError(`celetis-intake: cannot read the intake skill: ${skill}`, exits.prerequisite);
     process.chdir(main);
-    return passOn(await runInteractive(operation, async (host) => intakeArguments(host, root)));
+    return passOn(
+      await runInteractive(operation, async (host) => {
+        const plugin = await requireSameRevision(host, main, root);
+        const skill = join(plugin, 'skills/intake/SKILL.md');
+        if (!(await stat(skill).catch(() => null))?.isFile())
+          throw new HostError(`celetis-intake: cannot read the intake skill: ${skill}`, exits.prerequisite);
+        return intakeArguments(host, plugin);
+      }),
+    );
   } catch (error) {
     markDefect(error);
     console.error(error instanceof HostError ? error.message : `celetis-intake: ${(error as Error).message}`);

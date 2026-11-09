@@ -20,7 +20,8 @@ import { lanes } from '../engine/lib/workflow.ts';
 import { findTools, toolPins } from './install-tools.ts';
 
 const root = dirname(import.meta.dir);
-export const generatedFiles = ['engine/board/board.js', 'engine/hooks/entry.js', 'celetis', 'docs/adr/index.md'];
+const plugin = 'plugins/celetis/';
+export const generatedFiles = ['engine/board/board.js', `${plugin}hooks/entry.js`, 'celetis', 'docs/adr/index.md'];
 export const fileRoles: Record<string, string> = {
   'engine/lib/vendor/yaml.mjs': 'unchanged vendored parser; checked by its SHA-256 and config type declarations',
   'engine/lib/vendor/yaml.d.mts': 'vendored parser API; checked by strict runtime types',
@@ -43,6 +44,10 @@ export function classify(path: string, source: Buffer): string {
     throw new Error(`verify: prohibited program: ${path}`);
   if (/[._](?:test|spec)\.(?:[cm]?[jt]s|[jt]sx)$/.test(path))
     throw new Error(`verify: test file: ${path}: this repository keeps no tests (AGENTS.md, "Verify gate")`);
+  if (path.startsWith(plugin) && /\.ts$/.test(path))
+    throw new Error(
+      `verify: TypeScript in the plugin folder: ${path}: the plugin ships no program source; keep it in engine/ or scripts/`,
+    );
   if (generatedFiles.includes(path)) return 'generated';
   if (fileRoles[path]) return /\.json$/.test(path) ? 'biome' : 'role';
   if (/\.ts$/.test(path)) return 'typescript';
@@ -50,7 +55,7 @@ export function classify(path: string, source: Buffer): string {
   if (/^\.github\/workflows\/[^/]+\.yml$/.test(path)) return 'workflow';
   if (path === '.celetis.yaml') return 'config';
   if (/\.md$/.test(path)) return 'text';
-  if (/^skills\/[^/]+\/agents\/openai\.yaml$/.test(path)) return 'text';
+  if (/^plugins\/celetis\/skills\/[^/]+\/agents\/openai\.yaml$/.test(path)) return 'text';
   throw new Error(`verify: no check for ${path}: add a row or an exemption in scripts/verify.ts`);
 }
 
@@ -60,56 +65,67 @@ const relativeLink = /\]\(([^)\s]+)\)/g;
 const agentText = (files: ReadonlyMap<string, string>) =>
   [...files].filter(
     ([path]) =>
-      /^skills\/.+\.md$/.test(path) ||
-      /^docs\/(?:procedures|principles)\/[^/]+\.md$/.test(path) ||
-      path === 'step-prompt.md',
+      /^plugins\/celetis\/skills\/.+\.md$/.test(path) ||
+      /^plugins\/celetis\/docs\/(?:procedures|principles)\/[^/]+\.md$/.test(path) ||
+      path === `${plugin}step-prompt.md`,
   );
 
 export function checkCitations(files: ReadonlyMap<string, string>): string[] {
   const checked = agentText(files);
   const errors: string[] = [];
   const cited = new Map<string, Set<string>>();
-  for (const [file, text] of checked) {
+  const agentFiles = new Set(checked.map(([file]) => file));
+  for (const [file, text] of files) {
+    if (!file.startsWith(plugin) || !/\.md$/.test(file)) continue;
     const targets = new Set<string>();
-    for (const [, path = ''] of text.matchAll(pluginCitation)) {
-      const target = path.replace(/\.$/, '');
-      targets.add(target);
-      if (!files.has(target)) errors.push(`verify: citation: ${file}: <plugin>/${target} is not a tracked file`);
-    }
+    if (agentFiles.has(file))
+      for (const [, path = ''] of text.matchAll(pluginCitation)) {
+        const target = path.replace(/\.$/, '');
+        targets.add(`${plugin}${target}`);
+        if (!files.has(`${plugin}${target}`))
+          errors.push(`verify: citation: ${file}: <plugin>/${target} is not a tracked file in ${plugin}`);
+      }
     for (const [, link = ''] of text.matchAll(relativeLink)) {
       if (link.startsWith('#') || /^[a-z][a-z0-9+.-]*:/i.test(link) || /[<{*]/.test(link)) continue;
       const [target = ''] = link.split('#');
       const resolved = posix.join(posix.dirname(file), target);
       targets.add(resolved);
-      if (!files.has(resolved)) errors.push(`verify: citation: ${file}: ${target} is not a tracked file`);
+      if (!resolved.startsWith(plugin) || !files.has(resolved))
+        errors.push(`verify: citation: ${file}: ${target} is not a tracked file in ${plugin}`);
     }
     cited.set(file, targets);
   }
   for (const [file, text] of files) {
     const principleHostReference =
-      /^docs\/principles\/[^/]+\.md$/.test(file) &&
-      (text.includes('docs/hosts/') || [...(cited.get(file) ?? [])].some((target) => target.startsWith('docs/hosts/')));
-    if ((/^(?:skills|docs\/procedures)\//.test(file) && text.includes('docs/hosts/')) || principleHostReference)
+      /^plugins\/celetis\/docs\/principles\/[^/]+\.md$/.test(file) &&
+      (text.includes('docs/hosts/') ||
+        [...(cited.get(file) ?? [])].some((target) => target.startsWith(`${plugin}docs/hosts/`)));
+    if (
+      (/^plugins\/celetis\/(?:skills|docs\/procedures)\//.test(file) && text.includes('docs/hosts/')) ||
+      principleHostReference
+    )
       errors.push(`verify: host reference: ${file} cites docs/hosts/`);
   }
   for (const [module] of checked) {
-    if (!/^docs\/procedures\/[^/]+\.md$/.test(module)) continue;
+    if (!/^plugins\/celetis\/docs\/procedures\/[^/]+\.md$/.test(module)) continue;
     const citers = checked.filter(
-      ([file]) => (/^skills\/.+\.md$/.test(file) || file === 'step-prompt.md') && cited.get(file)?.has(module),
+      ([file]) =>
+        (/^plugins\/celetis\/skills\/.+\.md$/.test(file) || file === `${plugin}step-prompt.md`) &&
+        cited.get(file)?.has(module),
     ).length;
     if (citers < 2) errors.push(`verify: module: ${module} is cited by ${citers} skills or the step text; need 2`);
   }
   let entryLine: string | undefined;
   try {
-    entryLine = entryParts(files.get('docs/procedures/entry.md') ?? '').line;
+    entryLine = entryParts(files.get(`${plugin}docs/procedures/entry.md`) ?? '').line;
   } catch (error) {
     errors.push(`verify: entry line: ${error instanceof Error ? error.message : String(error)}`);
   }
   if (entryLine)
     for (const [file, text] of checked) {
-      if (!/^skills\/[^/]+\/SKILL\.md$/.test(file)) continue;
+      if (!/^plugins\/celetis\/skills\/[^/]+\/SKILL\.md$/.test(file)) continue;
       if (text.split(entryLine).length - 1 !== 1)
-        errors.push(`verify: entry line: ${file}: need the entry line of docs/procedures/entry.md once`);
+        errors.push(`verify: entry line: ${file}: need the entry line of ${plugin}docs/procedures/entry.md once`);
     }
   return errors;
 }
@@ -530,7 +546,7 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
   process.env.PATH = childEnv().PATH;
   try {
     for (const name of ['git', 'claude'])
-      if (!Bun.which(name)) throw new Error(`verify: ${name} is missing (README.md, "Requirements")`);
+      if (!Bun.which(name)) throw new Error(`verify: ${name} is missing (plugins/celetis/README.md, "Requirements")`);
     const tools = await findTools();
     const claude = await realpath(Bun.which('claude') as string);
     const actionVersion = await run(tools.actionlint.file, ['--version']);
@@ -579,6 +595,10 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
     )
       throw new Error('verify: the vendored parser differs from its recorded source');
     const job = (label: string, file: string, args: string[]): Job => ({ label, file, args, cwd: root });
+    const validate = (label: string, folder: string) =>
+      /\.(?:c?js|mjs)$/.test(claude)
+        ? job(label, process.execPath, bunArgs(claude, ['plugin', 'validate', folder]))
+        : job(label, claude, ['plugin', 'validate', folder]);
     const jobs: Job[] = [
       job('biome', tools.biome.file, [
         ...tools.biome.args,
@@ -588,7 +608,7 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
         ...biome,
       ]),
       job('actionlint', tools.actionlint.file, ['-shellcheck=', ...workflows]),
-      job('config', process.execPath, bunArgs(join(root, 'engine/config.ts'), [root, root])),
+      job('config', process.execPath, bunArgs(join(root, 'engine/config.ts'), [root, join(root, 'plugins/celetis')])),
       job('tsc runtime', tools.tsc.file, [
         ...tools.tsc.args,
         '-p',
@@ -605,9 +625,8 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
       ]),
       job('tsc native', tools.tsc.file, [...tools.tsc.args, '-p', 'tsconfig.native.json']),
       job('build', process.execPath, bunArgs(join(root, 'scripts/build.ts'), ['--check'])),
-      /\.(?:c?js|mjs)$/.test(claude)
-        ? job('plugin', process.execPath, bunArgs(claude, ['plugin', 'validate', '.']))
-        : job('plugin', claude, ['plugin', 'validate', '.']),
+      validate('plugin', 'plugins/celetis'),
+      validate('catalog', '.'),
     ];
     console.log('== tsc');
     const results = await runJobs(jobs);

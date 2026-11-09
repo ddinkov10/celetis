@@ -256,7 +256,7 @@ at the record root. An ordinary open converts a supported schema-1 record under 
 checks each report against the record and active host/session, and retains all history and an
 exact source archive before replacement. Invalid, unsupported, unmappable, unsafe, or unreadable records
 refuse intact; a busy lock or failed persistence also refuses. See
-[ADR-0070](adr/0070-automatic-runtime-state-migration.md). The CLI result envelope remains schema 1.
+[ADR-0070](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0070-automatic-runtime-state-migration.md). The CLI result envelope remains schema 1.
 
 Run each act as `celetis --agent <host> dispatch <act>`, with the running host
 ([the child dispatch](procedures/dispatch.md), "The task loop"):

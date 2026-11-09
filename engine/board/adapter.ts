@@ -75,7 +75,9 @@ export async function celetisAdapter(
   const program = async () => {
     const found = await read();
     if (!found)
-      throw new Error('the celetis program is not installed; run the first install of README.md, "First install"');
+      throw new Error(
+        'the celetis program is not installed; run the first install of plugins/celetis/README.md, "First install"',
+      );
     if (CONTROL.test(found.command)) throw new Error('the celetis program path has a control character');
     return found;
   };

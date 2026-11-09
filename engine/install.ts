@@ -19,7 +19,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
     const key = (path: string) => (process.platform === 'win32' ? path.toLowerCase() : path);
     const items = (childEnv().PATH ?? '').split(delimiter).filter(Boolean);
     if (!items.some((item) => key(resolve(item)) === key(paths.bin)))
-      console.log(`install: ${paths.bin} is not on PATH; add it as README.md, "First install", says`);
+      console.log(`install: ${paths.bin} is not on PATH; add it as plugins/celetis/README.md, "First install", says`);
     return exits.done;
   } catch (error) {
     if (!(error instanceof HostError)) throw error;

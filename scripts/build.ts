@@ -9,7 +9,7 @@ import { commandInput, createOperation, locateCheckouts } from '../engine/lib/op
 import { programEntry } from '../engine/lib/process.ts';
 
 const root = dirname(import.meta.dir);
-const nativeTargets = [{ entry: 'engine/hooks/entry.ts', output: 'engine/hooks/entry.js', mode: 0o644 }];
+const nativeTargets = [{ entry: 'engine/hooks/entry.ts', output: 'plugins/celetis/hooks/entry.js', mode: 0o644 }];
 const browserTargets = [{ entry: 'engine/board/page/board.ts', output: 'engine/board/board.js', mode: 0o644 }];
 const marks = (name: string) => ({
   begin: `<!-- scripts/build.ts writes the ${name} from engine/lib/contract.ts. Edit that file, then run scripts/build.ts. -->`,
@@ -237,7 +237,7 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
     return 2;
   }
   try {
-    entryParts(await readFile(join(root, 'docs/procedures/entry.md'), 'utf8'));
+    entryParts(await readFile(join(root, 'plugins/celetis/docs/procedures/entry.md'), 'utf8'));
   } catch (error) {
     console.error(`build: ${error instanceof Error ? error.message : String(error)}`);
     return 1;
@@ -304,8 +304,8 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
   }
   built.push({ output: 'celetis', mode: 0o755, bytes: Buffer.from(programEntry) });
   for (const [output, blocks] of [
-    ['README.md', readmeBlocks],
-    ['docs/issue-tracker.md', trackerBlocks],
+    ['plugins/celetis/README.md', readmeBlocks],
+    ['plugins/celetis/docs/issue-tracker.md', trackerBlocks],
   ] as const) {
     const text = spliceBlocks(await readFile(join(root, output), 'utf8'), output, [...blocks]);
     built.push({ output, mode: 0o644, bytes: Buffer.from(text) });

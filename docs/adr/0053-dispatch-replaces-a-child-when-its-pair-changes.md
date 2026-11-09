@@ -8,7 +8,7 @@
 
 - [Issue #181](https://github.com/ddinkov10/celetis/issues/181).
 - [The blocked repair of #107](https://github.com/ddinkov10/celetis/issues/107).
-- `engine/lib/dispatch-record.ts` and [Dispatch records](../capability.md#dispatch-records).
+- `engine/lib/dispatch-record.ts` and [Dispatch records](../../plugins/celetis/docs/capability.md#dispatch-records).
 
 ## Supersedes
 

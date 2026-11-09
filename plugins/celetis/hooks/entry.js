@@ -1,4 +1,4 @@
-// docs/procedures/entry.md
+// plugins/celetis/docs/procedures/entry.md
 var entry_default = `# The entry
 
 The entry of each skill of the plugin \`celetis\`, and the contract of the whole invocation.
@@ -119,7 +119,7 @@ completion criterion of a skill.
 
 ### Claude Code
 
-- **The entry.** The native hook (\`<plugin>/engine/hooks/entry.js\`) makes the entry with its own
+- **The entry.** The native hook (\`<plugin>/hooks/entry.js\`) makes the entry with its own
   permission-checked reads. Its block holds the facts, this contract, and then the custom text.
   Apply the block before any response, and do not repeat its reads.
 - **\`.celetis.yaml\` after the entry.** The hook read the file, so a later \`Read\` of it gives an
@@ -367,13 +367,13 @@ var commands = [
       ...helped(6, "Starts a fresh session that asks for your request before intake."),
       passThrough: sessionCode
     })
-  ], "Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters `celetis:intake` with that request. It creates no issue before the answer and does not start a run", hosted),
+  ], `Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters \`celetis:intake\` with that request. It creates no issue before the answer and does not start a run. Before the start, it checks that the plugin of the selected host is at the revision of the program, and it exits ${exits.prerequisite} with the line of that check when it is not`, hosted),
   entry("assist", true, [
     form("assist <n>", [], {
       ...helped(7, "Starts fresh interactive assistance for an issue in the main checkout."),
       passThrough: sessionCode
     })
-  ], "Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses `issue <n> assisted <file>` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume a run or land", hosted),
+  ], `Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses \`issue <n> assisted <file>\` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume a run or land. Before the start, it checks that the plugin of the selected host is at the revision of the program, and it exits ${exits.prerequisite} with the line of that check when it is not`, hosted),
   entry("visual", true, [
     form("visual <n> <sha>", [], {
       ...helped(8, "Starts a fresh session that makes the visual of a landed commit."),
@@ -418,7 +418,7 @@ var commands = [
   entry("update", false, [
     form("update", [], helped(1, "Updates the program and the plugin of each host; asks once.")),
     form("update check", [], helped(2, "Shows the installed and the available revision of each part."))
-  ], `Updates the program and the plugin of each host, and asks once in an interactive terminal. \`check\` is read-only: it prints one JSON array of the parts. \`README.md\`, "Updates", gives the steps. Any other form exits ${exits.usage} with the usage line`),
+  ], `Updates the program and the plugin of each host, and asks once in an interactive terminal. \`check\` is read-only: it prints one JSON array of the parts. \`plugins/celetis/README.md\`, "Updates", gives the steps. Any other form exits ${exits.usage} with the usage line`),
   entry("root", false, [form("root", [], helped(24, "Prints the folder of the program."))], "Prints the folder of the program. It takes no argument and runs in each folder"),
   entry("daemon", false, [form(["daemon", "--daemon"])], "The detached master daemon process of `daemon start`.", [...base, "signal"], true),
   entry("daemon", false, [
@@ -450,7 +450,7 @@ var helpText = [
   "",
   "In a terminal, --agent claude|codex is optional. CELETIS_AGENT is an explicit choice too.",
   "With neither, the local agent order applies; its initial order is claude, codex.",
-  'The skills run the other commands. README.md, "The commands", in the folder that celetis root',
+  'The skills run the other commands. plugins/celetis/README.md, "The commands", in the folder that celetis root',
   "prints, lists all of them."
 ].join(`
 `);
@@ -7066,7 +7066,7 @@ function entryParts(text) {
 ${title}
 `, after);
     if (index < 0)
-      throw new Error(`docs/procedures/entry.md needs the heading ${title} after the one before it`);
+      throw new Error(`plugins/celetis/docs/procedures/entry.md needs the heading ${title} after the one before it`);
     return index;
   }
   const lineAt = heading("## The entry line", 0);
@@ -7078,7 +7078,7 @@ ${title}
 `.length, withoutAt).trim();
   if (!line.startsWith("**Celetis entry.** ") || line.includes(`
 `))
-    throw new Error("docs/procedures/entry.md: the entry line is one line that starts with **Celetis entry.**");
+    throw new Error("plugins/celetis/docs/procedures/entry.md: the entry line is one line that starts with **Celetis entry.**");
   return { line, contract: text.slice(contractAt + 1, codexAt).trim() };
 }
 

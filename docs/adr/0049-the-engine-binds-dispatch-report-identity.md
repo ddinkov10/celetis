@@ -8,7 +8,7 @@
 
 - [Issue #171](https://github.com/ddinkov10/celetis/issues/171).
 - [The observed stop on #166](https://github.com/ddinkov10/celetis/issues/166#issuecomment-6501883048).
-- `engine/dispatch.ts`, `engine/lib/dispatch-record.ts`, and [Dispatch records](../capability.md#dispatch-records).
+- `engine/dispatch.ts`, `engine/lib/dispatch-record.ts`, and [Dispatch records](../../plugins/celetis/docs/capability.md#dispatch-records).
 
 ## Supersedes
 

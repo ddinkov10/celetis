@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "celetis",
-      "source": "./",
+      "source": "./plugins/celetis",
       "description": "An issue-driven agent harness: lane skills, a daemon that runs steps, a landing script, and worktree setup."
     }
   ]

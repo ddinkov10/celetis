@@ -1,0 +1,14 @@
+{
+  "name": "celetis",
+  "description": "An issue-driven agent harness: skills, a daemon that runs steps, and a landing script.",
+  "owner": {
+    "name": "ddinkov10"
+  },
+  "plugins": [
+    {
+      "name": "celetis",
+      "source": "./",
+      "description": "An issue-driven agent harness: lane skills, a daemon that runs steps, a landing script, and worktree setup."
+    }
+  ]
+}

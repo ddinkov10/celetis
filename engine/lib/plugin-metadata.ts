@@ -181,6 +181,7 @@ export interface PluginMetadata {
   host: Host;
   home: string;
   root: string;
+  marketplaceRoot: string;
   record: Record<string, unknown>;
   marketplacePlugins: string[];
 }
@@ -433,7 +434,7 @@ export async function codexPlugin(cwd: string, execute: typeof run = run): Promi
     );
   const marketplaceRoot = await realpath(market.root).catch(() => null);
   const sourceRoot = await realpath(record.source.path).catch(() => null);
-  if (!marketplaceRoot || sourceRoot !== marketplaceRoot)
+  if (!marketplaceRoot || sourceRoot !== join(marketplaceRoot, 'plugins/celetis'))
     throw new HostError(
       'celetis: Codex plugin source does not match its native marketplace root; repair the native source chain',
       exits.prerequisite,
@@ -444,7 +445,7 @@ export async function codexPlugin(cwd: string, execute: typeof run = run): Promi
   const plugins = Array.isArray(marketplaceCatalog.plugins)
     ? marketplaceCatalog.plugins.filter((item) => object(item) && item.name === 'celetis')
     : [];
-  if (marketplaceCatalog.name !== 'celetis' || plugins.length !== 1 || !['.', './'].includes(plugins[0]?.source))
+  if (marketplaceCatalog.name !== 'celetis' || plugins.length !== 1 || plugins[0]?.source !== './plugins/celetis')
     throw new HostError(
       'celetis: unsupported or ambiguous Codex Celetis root source; repair the native marketplace catalog',
       exits.prerequisite,
@@ -455,7 +456,62 @@ export async function codexPlugin(cwd: string, execute: typeof run = run): Promi
   const marketplacePlugins = value.installed
     .filter((item) => object(item) && typeof item.pluginId === 'string' && item.pluginId.endsWith('@celetis'))
     .map((item) => item.pluginId as string);
-  return { host: 'codex', home, root, record, marketplacePlugins };
+  return { host: 'codex', home, root, marketplaceRoot, record, marketplacePlugins };
+}
+
+export async function codexRevision(
+  metadata: PluginMetadata,
+  source: string,
+  execute: typeof run = run,
+): Promise<string> {
+  const market = metadata.record.marketplaceSource;
+  if (!object(market) || market.sourceType !== 'git')
+    throw new HostError(
+      'update: selected Codex marketplace is not a Git source; no remote update check is available',
+      exits.prerequisite,
+    );
+  const clone = metadata.marketplaceRoot;
+  const installed = await installedRevision('codex', clone, source, undefined, execute);
+  const gitDir = `--git-dir=${join(clone, '.git')}`;
+  const prefix = 'plugins/celetis/';
+  const tree = new Map<string, string | null>();
+  const listed = await git(
+    [gitDir, 'ls-tree', '-r', '-z', '--full-tree', installed, '--', 'plugins/celetis'],
+    clone,
+    execute,
+  );
+  for (const entry of listed.split('\0')) {
+    if (!entry) continue;
+    const tab = entry.indexOf('\t');
+    const [mode, , id] = entry.slice(0, tab).split(' ');
+    tree.set(entry.slice(tab + 1 + prefix.length), (mode === '100644' || mode === '100755') && id ? id : null);
+  }
+  const cache = new Map<string, boolean>();
+  const walk = async (folder: string, base: string): Promise<void> => {
+    for (const name of await readdir(folder)) {
+      const path = join(folder, name);
+      const stats = await lstat(path);
+      if (stats.isDirectory()) await walk(path, `${base}${name}/`);
+      else cache.set(`${base}${name}`, stats.isFile());
+    }
+  };
+  await walk(metadata.root, '');
+  const refuse = (problem: string) =>
+    new HostError(
+      `celetis: the Codex plugin cache ${metadata.root} does not match plugins/celetis at ${installed.slice(0, 12)}: ${problem}; run codex plugin marketplace upgrade celetis, or reinstall the plugin`,
+      exits.prerequisite,
+    );
+  const paths = [...new Set([...tree.keys(), ...cache.keys()])].sort();
+  for (const path of paths) {
+    if (!cache.has(path)) throw refuse(`${path} is missing`);
+    if (!tree.has(path)) throw refuse(`${path} is extra`);
+    if (!cache.get(path) || !tree.get(path)) throw refuse(`${path} is not a regular file`);
+  }
+  const hashed = await git([gitDir, 'hash-object', '--no-filters', '--', ...paths], metadata.root, execute);
+  const objects = hashed.split('\n');
+  const changed = paths.find((path, at) => objects[at] !== tree.get(path));
+  if (changed !== undefined) throw refuse(`${changed} is changed`);
+  return installed;
 }
 
 export async function codexSessionPin(cwd: string): Promise<string[]> {
@@ -463,7 +519,7 @@ export async function codexSessionPin(cwd: string): Promise<string[]> {
   const source = metadata.record.marketplaceSource;
   if (!object(source) || typeof source.source !== 'string')
     throw new HostError('celetis: native source is missing', exits.prerequisite);
-  if (source.sourceType === 'git') await installedRevision('codex', metadata.root, source.source);
+  await codexRevision(metadata, source.source);
   const args = [
     '-c',
     'marketplaces.celetis.source_type="local"',
@@ -490,8 +546,7 @@ export async function codexSessionPin(cwd: string): Promise<string[]> {
       exits.prerequisite,
     );
   const catalog = await nativeCatalog(metadata.root);
-  const originalRoot = await realpath(String((metadata.record.source as Record<string, unknown>).path));
-  const original = await nativeCatalog(originalRoot);
+  const original = await nativeCatalog(metadata.marketplaceRoot);
   if (
     catalog?.name !== 'celetis' ||
     !Array.isArray(catalog.plugins) ||

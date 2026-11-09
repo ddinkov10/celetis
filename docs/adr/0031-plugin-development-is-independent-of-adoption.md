@@ -8,9 +8,9 @@
 
 - Issue #120: keep Celetis independent of product projects.
 - [Repository instructions](../../AGENTS.md#plugin-development).
-- [Current product wiring](../../README.md#wire-a-product-project),
-  [source repair](../../README.md#explicit-source-repair), and
-  [updates](../../README.md#updates).
+- [Current product wiring](../../plugins/celetis/README.md#wire-a-product-project),
+  [source repair](../../plugins/celetis/README.md#explicit-source-repair), and
+  [updates](../../plugins/celetis/README.md#updates).
 - ADR-0015, ADR-0017, ADR-0025, ADR-0028, ADR-0029, and ADR-0030.
 
 ## Supersedes

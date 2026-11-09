@@ -8,14 +8,15 @@ import { requireBun } from './lib/host.ts';
 import { runInteractive } from './lib/interactive.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { childEnv } from './lib/process.ts';
+import { requireSameRevision } from './lib/updater.ts';
 
-export function assistArguments(host: Host, issue: number, root: string): string[] {
+export function assistArguments(host: Host, issue: number, plugin: string): string[] {
   return host === 'claude'
-    ? ['--plugin-dir', root, '-n', `#${issue} assist`, `/celetis:assist #${issue}`]
+    ? ['-n', `#${issue} assist`, `/celetis:assist #${issue}`]
     : [
         '--no-daemon',
         `Use the celetis:assist skill for #${issue}. Complete its Celetis entry before any response, including commentary.\n` +
-          `Read the skill from ${JSON.stringify(join(root, 'skills/assist/SKILL.md'))}.`,
+          `Read the skill from ${JSON.stringify(join(plugin, 'skills/assist/SKILL.md'))}.`,
       ];
 }
 
@@ -34,11 +35,16 @@ export async function main(argv: string[]): Promise<ExitCode> {
     );
     const main = operation.checkout.main as string;
     const root = dirname(import.meta.dir);
-    const skill = join(root, 'skills/assist/SKILL.md');
-    if (!(await stat(skill).catch(() => null))?.isFile())
-      throw new HostError(`celetis-assist: cannot read the assistance skill: ${skill}`, exits.prerequisite);
     process.chdir(main);
-    return passOn(await runInteractive(operation, async (host) => assistArguments(host, issue, root)));
+    return passOn(
+      await runInteractive(operation, async (host) => {
+        const plugin = await requireSameRevision(host, main, root);
+        const skill = join(plugin, 'skills/assist/SKILL.md');
+        if (!(await stat(skill).catch(() => null))?.isFile())
+          throw new HostError(`celetis-assist: cannot read the assistance skill: ${skill}`, exits.prerequisite);
+        return assistArguments(host, issue, plugin);
+      }),
+    );
   } catch (error) {
     markDefect(error);
     console.error(error instanceof HostError ? error.message : `celetis-assist: ${(error as Error).message}`);

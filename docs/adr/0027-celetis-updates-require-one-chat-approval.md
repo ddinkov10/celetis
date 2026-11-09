@@ -7,7 +7,7 @@
 ## Related
 
 - [Issue #98](https://github.com/ddinkov10/celetis/issues/98)
-- [Updates](../../README.md#updates)
+- [Updates](../../plugins/celetis/README.md#updates)
 - [ADR-0014](0014-one-workflow-uses-explicit-host-operations.md)
 
 ## Supersedes

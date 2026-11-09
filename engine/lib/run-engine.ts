@@ -1304,8 +1304,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
           stopped();
           await requireStart(stepHost, current.checkout.cwd);
           const pluginRoot = await (await import('./updater.ts')).requireSameRevision(stepHost, main, root);
-          if ((await gone(root)) || !(await stat(join(root, 'step-prompt.md')).catch(() => null))?.isFile())
-            return null;
+          if (await gone(root)) return null;
           const chosen =
             override === undefined
               ? (effort ?? { level: defaultLevel, source: 'default' as const })
@@ -1314,7 +1313,6 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
             stepHost,
             issue,
             step,
-            root,
             main,
             { pluginRoot, landing: config.landing, recovery: retrying },
             chosen.level,

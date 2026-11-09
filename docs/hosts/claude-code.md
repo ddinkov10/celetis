@@ -10,7 +10,7 @@ read a file in its folder (ADR-0047).
 
 ## The native entry hook
 
-`hooks/hooks.json` names one hooks module, `engine/hooks/entry.js`. `scripts/build.ts` builds it
+`plugins/celetis/hooks/hooks.json` names one hooks module, `./entry.js`. `scripts/build.ts` builds it
 from `engine/hooks/entry.ts` with exactly Bun 1.4.4, and `build --check` in the verify gate
 compares its bytes. The hook runtime has no Node and no DOM: a module that the hook imports has no
 `node:` import and no `Bun` global, and `tsconfig.native.json` types it against
@@ -35,7 +35,7 @@ compares its bytes. The hook runtime has no Node and no DOM: a module that the h
   - checkout: <absolute checkout> | none
   - custom: none | after the contract
 
-  <"The contract" of docs/procedures/entry.md, with its Claude Code part>
+  <"The contract" of plugins/celetis/docs/procedures/entry.md, with its Claude Code part>
 
   Custom text of celetis:<name>:
   <custom.<name>, when present>
@@ -43,7 +43,7 @@ compares its bytes. The hook runtime has no Node and no DOM: a module that the h
 
   The block holds no host manual and no raw YAML. Custom text comes only after its marker line,
   so it cannot change a facts line. An empty string is `- custom: none`.
-- **The contract** comes from `docs/procedures/entry.md` at build time: `engine/hooks/entry.ts`
+- **The contract** comes from `plugins/celetis/docs/procedures/entry.md` at build time: `engine/hooks/entry.ts`
   imports the file as text, so the bundle holds it. `entryParts` of `engine/lib/entry-text.ts` takes
   "The entry line" and "The contract" up to its `### Codex` part. The hook, `scripts/build.ts`, and
   `checkCitations` use that one parser, so a missing or renamed heading fails the build and the verify
@@ -61,7 +61,7 @@ compares its bytes. The hook runtime has no Node and no DOM: a module that the h
   of 10,000 ms gives the same stop through its `.catch` handler.
 - **A hook that makes no entry** leaves the entry line in the skill text. On a release before
   2.1.299, the hook runs but finds no skill name in the event, so it makes no entry. The session
-  then makes the entry itself, by "Entry without the hook" of `docs/procedures/entry.md`.
+  then makes the entry itself, by "Entry without the hook" of `plugins/celetis/docs/procedures/entry.md`.
 - **After the entry.** A later `Read` of `.celetis.yaml` in the same session returns
   `file_unchanged` with no content.
 
@@ -69,8 +69,8 @@ compares its bytes. The hook runtime has no Node and no DOM: a module that the h
 
 `hostArguments` of `engine/lib/session.ts` starts a step as
 `claude --permission-mode auto --effort <level> -n '#<n> <step>' --append-system-prompt <step text> '/celetis:<command> #<n>'`.
-The step text is the facts header (`stepHeader`) and `step-prompt.md` of the version folder of the
-program. `specify` gets no step text. For each step, the daemon puts `--session-id <uuid>` first.
+The step text is the facts header (`stepHeader`) and `step-prompt.md` at the plugin root of the
+header. `specify` gets no step text. For each step, the daemon puts `--session-id <uuid>` first.
 That ID is the identity of the step. The session runs in a tab of its own, and the daemon ends
 the step with `hc send <terminal> /exit` from its own terminal, with no `HC_TERMINAL_ID` in the
 environment of that call (ADR-0058, ADR-0062). `<level>` is the chosen level of the step, and a
@@ -78,16 +78,16 @@ resume runs `claude --resume <id> --effort <level>` with the level of the sessio
 `sessionEnv` removes `CLAUDE_CODE_EFFORT_LEVEL` from the environment of the session and of a
 resume, because Claude Code ranks that variable above `--effort`. A settings `env` value of that
 variable, `maxEffortLevel`, and an organization cap stay with Claude Code
-(`docs/workflow.md`, "Limits"). The plugin root of the header is the `root` of
+(`plugins/celetis/docs/workflow.md`, "Limits"). The plugin root of the header is the `root` of
 `installation('claude', …)` in `engine/lib/updater.ts`, which `requireSameRevision` returns
-(`docs/workflow.md`, "How a step runs").
+(`plugins/celetis/docs/workflow.md`, "How a step runs").
 
 ## Permissions
 
 - The daemon starts each step with `--permission-mode auto`. In the checks of #103, auto mode ran
   `celetis --agent claude issue` with no allow rule.
 - The personal rule of `land`, `Bash(celetis --agent claude land *)`, and the optional rule of
-  `issue` are in `README.md`, "Personal landing permission". A Claude rule matches the whole
+  `issue` are in `plugins/celetis/README.md`, "Personal landing permission". A Claude rule matches the whole
   command text.
 
 ## Dispatch
@@ -101,16 +101,16 @@ checks of #104, native results exposed no applied effort to the calling agent.
 ## Versions
 
 - 2.1.299 is the floor: the hook reads the `skill.prompt` fields `source`, `pluginName`, and
-  `path`, which came in that release (`README.md`, "Requirements").
+  `path`, which came in that release (`plugins/celetis/README.md`, "Requirements").
 - 2.1.312 is the release on which the facts entry was built (#105).
-- `docs/workflow.md`, "Acceptance status", separates observed versions from open checks.
+- `plugins/celetis/docs/workflow.md`, "Acceptance status", separates observed versions from open checks.
 
 ## The module index
 
 | Host operation | Module and section |
 | --- | --- |
-| Skill entry with no hook: the `Read` of `.celetis.yaml` | [entry.md](../procedures/entry.md), "Entry without the hook" |
-| The hook block, skill invocation with the Skill tool, `.celetis.yaml` after the entry, the sandbox approval procedure, and session recovery | [entry.md](../procedures/entry.md), "The contract", "Claude Code" |
-| Lane worktree entry and return: `EnterWorktree`, `ExitWorktree` with keep | [worktree.md](../procedures/worktree.md), "Claude Code" |
-| The return before `land`, and the run of `land` in background Bash | [landing.md](../procedures/landing.md), "Claude Code" |
-| Child spawn and resume (`Agent`, `SendMessage`), and the report shapes | [dispatch.md](../procedures/dispatch.md), "Claude Code" |
+| Skill entry with no hook: the `Read` of `.celetis.yaml` | [entry.md](../../plugins/celetis/docs/procedures/entry.md), "Entry without the hook" |
+| The hook block, skill invocation with the Skill tool, `.celetis.yaml` after the entry, the sandbox approval procedure, and session recovery | [entry.md](../../plugins/celetis/docs/procedures/entry.md), "The contract", "Claude Code" |
+| Lane worktree entry and return: `EnterWorktree`, `ExitWorktree` with keep | [worktree.md](../../plugins/celetis/docs/procedures/worktree.md), "Claude Code" |
+| The return before `land`, and the run of `land` in background Bash | [landing.md](../../plugins/celetis/docs/procedures/landing.md), "Claude Code" |
+| Child spawn and resume (`Agent`, `SendMessage`), and the report shapes | [dispatch.md](../../plugins/celetis/docs/procedures/dispatch.md), "Claude Code" |

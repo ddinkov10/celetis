@@ -80,10 +80,10 @@ agent that waits.
 
 ## Evidence on Hand
 
-- `README.md`: the product, the requirements, the commands, and the update rule.
+- `plugins/celetis/README.md`: the product, the requirements, the commands, and the update rule.
 - `engine/board/README.md`: the full board specification, including the layout, keys, errors, and
   trust boundary.
-- `docs/workflow.md`: the daemon, the runs, the board requirements, and the acceptance status of each
+- `plugins/celetis/docs/workflow.md`: the daemon, the runs, the board requirements, and the acceptance status of each
   host.
 - `docs/adr/`: the architecture decisions, for example ADR-0020, ADR-0035, and ADR-0058 for the
   board.

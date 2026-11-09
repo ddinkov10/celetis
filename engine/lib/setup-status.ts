@@ -271,7 +271,7 @@ class Status {
         codexRules,
         this.saved?.files.includes(codexRules)
           ? 'differs from the required form; setup refreshes the recorded owned file'
-          : 'differs from the required form; setup preserves it; the owner must review the direct-merge restriction and obsolete allows (README, "Review old wiring")',
+          : 'differs from the required form; setup preserves it; the owner must review the direct-merge restriction and obsolete allows (plugins/celetis/README.md, "Review old wiring")',
       );
   }
 

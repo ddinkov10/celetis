@@ -7,7 +7,7 @@
 ## Related
 
 - [Issue #172](https://github.com/ddinkov10/celetis/issues/172)
-- [Runtime verification](../procedures/runtime-verification.md#usage-limit-exception)
+- [Runtime verification](../../plugins/celetis/docs/procedures/runtime-verification.md#usage-limit-exception)
 - [ADR-0011](0011-a-step-session-hands-a-stop-to-the-issue.md)
 - [ADR-0036](0036-the-engine-enforces-the-lifecycle-and-the-landing.md)
 

@@ -8,7 +8,7 @@
 
 - [Issue #239](https://github.com/ddinkov10/celetis/issues/239): the approved specification,
   "Approaches" and "Lock and rotation".
-- [The principle `separate-before-serializing-shared-state`](../principles/separate-before-serializing-shared-state.md).
+- [The principle `separate-before-serializing-shared-state`](../../plugins/celetis/docs/principles/separate-before-serializing-shared-state.md).
 - `engine/lib/events.ts` (`withEventLock`, the writer and the rotation) and `tryFlock` of
   `engine/lib/update-lock.ts`.
 

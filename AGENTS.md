@@ -1,12 +1,15 @@
 # AGENTS.md
 
-This repository is the plugin `celetis`, a general agent harness with Claude and Codex host
-operations: skills (`skills/`), procedure modules (`docs/procedures/`), principles
-(`docs/principles/`), runtime (`engine/`), maintenance (`scripts/`), step text (`step-prompt.md`),
-and documents (`docs/`). It is also a
-product project of its own plugin. `README.md` holds the wiring of a product project, the commands,
-and the update rule. `docs/workflow.md` holds the daemon and the runs, and `docs/issue-tracker.md` holds the
-labels, the state of an issue, and the branches.
+This repository holds the plugin `celetis`, a general agent harness with Claude and Codex host
+operations, and the program that runs it. The plugin is the folder `plugins/celetis/`: skills
+(`plugins/celetis/skills/`), procedure modules (`plugins/celetis/docs/procedures/`), principles
+(`plugins/celetis/docs/principles/`), step text (`plugins/celetis/step-prompt.md`), and documents
+(`plugins/celetis/docs/`). The program is the entry `celetis` with its runtime (`engine/`). The
+repository also holds maintenance (`scripts/`), the host references (`docs/hosts/`), and the
+records (`docs/adr/`, `docs/lessons/`). It is also a product project of its own plugin.
+`plugins/celetis/README.md` holds the wiring of a product project, the commands, and the update
+rule. `plugins/celetis/docs/workflow.md` holds the daemon and the runs, and
+`plugins/celetis/docs/issue-tracker.md` holds the labels, the state of an issue, and the branches.
 
 ## Plugin development
 
@@ -65,7 +68,7 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
   a check or an explicit role in `scripts/verify.ts`.
 - Author each first-party program in TypeScript. Bun 1.4.4 or later runs commands.
   `scripts/build.ts` uses exactly Bun 1.4.4 to generate browser assets, native hook modules,
-  the generated blocks of `README.md` and `docs/issue-tracker.md` from `engine/lib/contract.ts`,
+  the generated blocks of `plugins/celetis/README.md` and `plugins/celetis/docs/issue-tracker.md` from `engine/lib/contract.ts`,
   and `docs/adr/index.md` from the records of `docs/adr/`. `--check` compares bytes, and modes on macOS and Linux, without
   writes. The vendor parser stays unchanged; update it only as `engine/lib/vendor/README.md` says.
 - Strict types have three environments: runtime commands and server modules;
@@ -86,7 +89,7 @@ project, not here. So the text of this repository is general:
   `<plugin>` from the path of the loaded `SKILL.md`; on Claude Code, the `- plugin:` line of the
   entry block gives it. The step text takes `<plugin>` from the entry and compares it with the
   plugin root of its header. A relative Markdown link in a plugin file resolves relative to its
-  containing file.
+  containing file. In this repository, `<plugin>/<path>` is the file `plugins/celetis/<path>`.
 - **In a skill, a module, a principle, and the step text, an ADR number says its store:**
   "ADR-0008 of the plugin `celetis`". A product project has an ADR store of its own.
 
@@ -96,18 +99,19 @@ Agent text has four layers:
 
 | Layer | Home | Loads |
 | --- | --- | --- |
-| Entry | The facts block of the Claude Code hook, or `docs/procedures/entry.md` | At each skill invocation |
-| Skill | `skills/<name>/SKILL.md` | When the skill is invoked |
-| Procedure module | `docs/procedures/<name>.md` | When a step of a skill names it |
-| Principle | `docs/principles/<name>.md` | When a step cites it, or when its wrapper skill is invoked |
+| Entry | The facts block of the Claude Code hook, or `plugins/celetis/docs/procedures/entry.md` | At each skill invocation |
+| Skill | `plugins/celetis/skills/<name>/SKILL.md` | When the skill is invoked |
+| Procedure module | `plugins/celetis/docs/procedures/<name>.md` | When a step of a skill names it |
+| Principle | `plugins/celetis/docs/principles/<name>.md` | When a step cites it, or when its wrapper skill is invoked |
 
 One placement rule decides the home of each piece of agent text (ADR-0047, with the principle
 exception in [ADR-0050](docs/adr/0050-standalone-engineering-principles-have-canonical-rules.md)):
 
-1. **General principle.** A general engineering rule has one canonical file in `docs/principles/`,
-   regardless of caller count. It has `Applies when`, `Rule`, and `Check` sections. A skill or a
-   workflow step cites the file at the step where it can apply. The agent applies it when its
-   `Applies when` holds, and the caller restates no trigger. The rule body stays in the file.
+1. **General principle.** A general engineering rule has one canonical file in
+   `plugins/celetis/docs/principles/`, regardless of caller count. It has `Applies when`, `Rule`,
+   and `Check` sections. A skill or a workflow step cites the file at the step where it can apply.
+   The agent applies it when its `Applies when` holds, and the caller restates no trigger. The
+   rule body stays in the file.
 2. **Shared procedure.** Text that two or more skills, or a skill and the step text, need is a
    module. The skills cite it at the step that uses it.
 3. **Own procedure.** Text that one skill needs stays in that skill.
@@ -119,8 +123,9 @@ exception in [ADR-0050](docs/adr/0050-standalone-engineering-principles-have-can
 6. **Product text** has two homes. `custom.<skill>` is an addition to that one skill and reaches
    only its invocation. A product fact that two or more skills need goes into the `AGENTS.md` of
    the product.
-7. **Maintainer reference.** `docs/workflow.md`, `docs/configuration.md`, `docs/capability.md`,
-   `docs/issue-tracker.md`, `docs/hosts/`, and the ADRs are never read at entry. A skill or a
+7. **Maintainer reference.** `plugins/celetis/docs/workflow.md`,
+   `plugins/celetis/docs/configuration.md`, `plugins/celetis/docs/capability.md`,
+   `plugins/celetis/docs/issue-tracker.md`, `docs/hosts/`, and the ADRs are never read at entry. A skill or a
    module cites a named section of one when a step needs a definition. Skills, modules, and
    principles never cite `docs/hosts/`.
 
@@ -131,10 +136,12 @@ sections. A principle stands alone and has no minimum citer count. It holds no w
 procedure, and entry does not load a principle catalog.
 
 `checkCitations` in `scripts/verify.ts` checks the skills, the procedure modules, the principles,
-and the step text: each `<plugin>/<path>` citation and each relative link names a tracked file,
+and the step text: each `<plugin>/<path>` citation names the tracked file `plugins/celetis/<path>`,
+each relative link of a Markdown file in `plugins/celetis/` names a tracked file in that folder,
 each procedure module has two or more citers among the skills and the step text (a citing module
-does not count), each `SKILL.md` holds the entry line of
-`docs/procedures/entry.md` once, and no skill, module, or principle cites `docs/hosts/`.
+does not count), each `SKILL.md` holds the entry line of `plugins/celetis/docs/procedures/entry.md`
+once, and no skill, module, or principle cites `docs/hosts/`. The gate refuses a TypeScript file
+in `plugins/celetis/`: the program source stays in `engine/` and `scripts/`.
 
 `checkContract` in `scripts/verify.ts` checks the same files against `engine/lib/contract.ts`
 (ADR-0079). Each code span or fenced line that starts with `celetis` must match a declared form.
@@ -164,30 +171,30 @@ a digit or `/<` is refused: `docs/feat/12-x.md` and `origin/feat/12-x` give an e
 ## Celetis workflow
 
 The lanes of this repository are the skills of the plugin itself, on the issues of
-`ddinkov10/celetis` (`README.md`, "The full loop"). The landing is `merge`
+`ddinkov10/celetis` (`plugins/celetis/README.md`, "The full loop"). The landing is `merge`
 (`landing` in `.celetis.yaml`): a build step runs the verify gate locally, then ends
 with `celetis --agent <host> land <n> '<subject>'`, which runs `suite` (`scripts/verify.ts`) on the commit that it lands and puts one squash commit on `main` without a PR.
 The landing is the last act of a change: this repository has no deployment.
-For installation changes, follow `README.md`, "Updates".
+For installation changes, follow `plugins/celetis/README.md`, "Updates".
 
 - A lane never skips a step.
 - The maintainer starts the daemon and turns auto mode on; an agent starts a run only when its task
   says so, with a number, and in a terminal.
-- A change of `skills/`, `step-prompt.md`, the program entry `celetis`, `engine/`, or `scripts/` changes the behavior of each product
+- A change of `plugins/celetis/skills/`, `plugins/celetis/step-prompt.md`, the program entry `celetis`, `engine/`, or `scripts/` changes the behavior of each product
   project, so its lane is `bug` or `feature`, not `chore`.
 - The lanes are the skills of the plugin `celetis`, on the issues of `ddinkov10/celetis`.
 - `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `celetis --agent <host> land`.
 
 ## The board
 
-`engine/board/` is the board of the plugin (ADR-0020). For a change there, follow these two rules:
+`engine/board/` is the board of the program (ADR-0020). For a change there, follow these two rules:
 
 - Keep the trust boundaries of `engine/board/server.ts` and the fixed adapter `engine/board/adapter.ts`.
 - Check a UI change in Chromium at desktop width and at 375×812.
 
 A look decision of the board uses these two facts:
 
-- The kind is web, with the default row of `prototype` (`docs/procedures/ui.md`, "The platform
+- The kind is web, with the default row of `prototype` (`plugins/celetis/docs/procedures/ui.md`, "The platform
   rows").
 - A prototype board with live data starts in the prototype checkout. A throwaway script there calls
   `startBoard` of `engine/board/start.ts` with the main checkout, a port other than 4404, an
@@ -209,10 +216,10 @@ section that it cannot resolve.
 
 ## External facts
 
-For the lookup of `docs/procedures/docs-lookup.md`, read `claude --version` or `codex --version` for the
+For the lookup of `plugins/celetis/docs/procedures/docs-lookup.md`, read `claude --version` or `codex --version` for the
 selected host. Claude's documents are `https://code.claude.com/docs/en/<page>`; Codex's are
 `https://learn.chatgpt.com/docs/`. Check the current CLI help and active tool schema before
-using a host operation. `docs/workflow.md`, "Acceptance status", separates observed versions
+using a host operation. `plugins/celetis/docs/workflow.md`, "Acceptance status", separates observed versions
 from open runtime checks (ADR-0014).
 
 ## Traps
@@ -221,7 +228,7 @@ Facts that no one file states. A line is here only when the code and the other d
 do not state its fact, and a line goes when its fact stops being true (ADR-0006).
 
 - **A normal session here reads the installed plugin and runs the installed program.** Editing
-  the checkout replaces neither. A `--plugin-dir .` session reads the checkout's skills with the
+  the checkout replaces neither. A `--plugin-dir plugins/celetis` session reads the checkout's skills with the
   installed program, so a check of a changed command runs the checkout's entry by its path:
   `"$PWD/celetis" --agent claude <command>`. Record checks of the checkout and checks of the
   installed program separately.
@@ -231,10 +238,11 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
   daemon only when its process command line contains `daemon.ts`. A rename makes a live owner
   look stale. The daemon can then end a session during a landing, or two daemons can take one
   issue. On Windows, owners match by PID and creation time instead (ADR-0034).
-- **The skills table of `README.md` is written by hand.** A new skill or a removed skill also changes
+- **The skills table of `plugins/celetis/README.md` is written by hand.** A new skill or a removed skill also changes
   the README, and no check fails when it does not. A new command, form, act, or exit class goes into
   `engine/lib/contract.ts`; `scripts/build.ts` writes from it the help block, the command table, and
-  the exit-class table of `README.md`, and the act table of `docs/issue-tracker.md`.
+  the exit-class table of `plugins/celetis/README.md`, and the act table of
+  `plugins/celetis/docs/issue-tracker.md`.
 - **The skill `writing-for-agents` is vendored** from `mattpocock/skills`
   (ddinkov10/fwrh_calculator#265).
 

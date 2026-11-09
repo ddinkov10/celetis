@@ -14,7 +14,7 @@ moves by hand.
   holds steps of the lanes.
 - **Gate:** the rule of a step that says who starts it. `me` is your press of Run, and `auto` is auto
   mode of the daemon. The board shows `auto` on such a step, and it starts no step by itself.
-- **Daemon:** `engine/daemon.ts` of the plugin. Its runs start the sessions of the steps and know how
+- **Daemon:** `engine/daemon.ts` of the program. Its runs start the sessions of the steps and know how
   each one ended. Auto mode of the daemon starts each step with the gate `auto` by itself. The states
   `starting` and `stuck` come from the locks and the record of the daemon. The daemon serves the
   board in its own process, and the field `daemon` comes from its status (the item `Daemon`).
@@ -31,10 +31,10 @@ The board has two inputs:
   the lanes, the steps, the stages, the reasons, and the tracker name from that document, and they
   hold none of their own.
 
-The board is the folder `engine/board/` of the plugin `celetis`, a part of its engine, and the
+The board is the folder `engine/board/` of the program `celetis`, a part of its engine, and the
 master daemon of the repository serves it in its own process (`celetis daemon start`). It is Bun
 code with no dependency of its own. The
-plugin carries generated browser JavaScript. A product repository needs no build or install step.
+program carries generated browser JavaScript. A product repository needs no build or install step.
 It runs from the installed `celetis` program, so the repository that it shows needs no file of the
 board.
 
@@ -186,7 +186,7 @@ completes, and the dialog shows **Update completed**. A failed start of the succ
 line to the daemon log, and the page then shows the timeout with the recovery line. It makes no
 retry.
 
-Follow [Updates](../../README.md#updates) for a terminal-started update and its affirmative
+Follow [Updates](../../plugins/celetis/README.md#updates) for a terminal-started update and its affirmative
 terminal response. A terminal-started update keeps the daemon running on its program; it does not
 restart the daemon. Discovery releases its short read lock before foreground execution.
 Only updaters serialize on the update mutex; sessions and daemons may stay open.
@@ -767,7 +767,7 @@ These checks of Run, Resume, Assist, and Make visual also refuse with 409. Read-
 can precede the failure:
 
 - **The program** of Assist and Make visual, before any terminal starts. No installed program gives
-  `the celetis program is not installed; run the first install of README.md, "First install"`. A
+  `the celetis program is not installed; run the first install of plugins/celetis/README.md, "First install"`. A
   read that fails gives the first line of its error, for example
   `celetis: <path> is not a file of the celetis program; move it away, then run the install again`
   or `celetis: CELETIS_HOME must be an absolute path: <value>`. A command path with a control
@@ -804,7 +804,7 @@ The answer to a press that the server did is 200 with `{"ok": true}`. Each other
 | 502 | An `hc` or `herdr-app` call failed, also the terminal list of Make visual: the first line of its error. `hc gave no list of terminals`, `herdr gave no list of spaces`, `hc gave no terminal id`, and `herdr gave no terminal for the new space` are the lines for an answer with no list or with no safe id. |
 | 500 | The server failed for another cause: the first line of the error, or `the server failed`. |
 
-Each 500 answer, each 502 answer, a failed queue launch, and a failed update or restart also add an entry to the event record of the user ([The event record](../../docs/workflow.md)).
+Each 500 answer, each 502 answer, a failed queue launch, and a failed update or restart also add an entry to the event record of the user ([The event record](../../plugins/celetis/docs/workflow.md)).
 
 The update API is independent of issue and terminal reads. Each success apart from the restart
 returns `{runtime: {revision, instance}, update: <snapshot>}`. `revision` is the full revision of
@@ -917,7 +917,7 @@ A Run press types a run form in the repository of the board, and the daemon run 
 
 **The layout.** The page holds nothing of one repository: it uses neutral colours, follows the light
 or dark theme of the OS, and shows the folder name of the main checkout in the header. It carries
-its two fonts, Geist and Geist Mono, in `<plugin>/engine/board/fonts/` with their licence (`OFL.txt`, the
+its two fonts, Geist and Geist Mono, in `engine/board/fonts/` with their licence (`OFL.txt`, the
 SIL Open Font License 1.1), so it loads nothing from the network.
 
 - The header holds the folder name, the switch between Now and Pipeline, the count of each column
@@ -1131,7 +1131,7 @@ the texts are `Open the issue` and `Read the issues again`.
   checks the `Document` type between them.
 
 The browser sources are the files of `page/`. They also import `view.ts` and `types.ts`, which server code shares,
-so those two stay free of the DOM. The pinned Bun 1.4.4 build program, `<plugin>/scripts/build.ts`, bundles `page/board.ts`
+so those two stay free of the DOM. The pinned Bun 1.4.4 build program, `scripts/build.ts`, bundles `page/board.ts`
 into `board.js`, and refuses a bundle input outside `engine/board/`.
 It compiles every target before it writes any output. Plugin users run no build.
 
