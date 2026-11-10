@@ -2,7 +2,7 @@ import { headings, type Kind, type Label, marker } from './contract.ts';
 
 export const lanes = {
   feature: { label: 'enhancement', prefix: 'feat', steps: ['triage', 'specify', 'plan', 'implement'] },
-  bug: { label: 'bug', prefix: 'fix', steps: ['triage', 'bug', 'plan', 'implement'] },
+  bug: { label: 'bug', prefix: 'bugfix', steps: ['triage', 'bug', 'plan', 'implement'] },
   chore: { label: 'chore', prefix: 'chore', steps: ['triage', 'chore'] },
   hotfix: { label: 'hotfix', prefix: 'hotfix', steps: ['triage', 'hotfix'] },
 } as const;

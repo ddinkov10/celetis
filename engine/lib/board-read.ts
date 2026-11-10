@@ -153,6 +153,12 @@ function link(value: unknown): string {
   return url.href;
 }
 
+const laneHead = new RegExp(
+  `^(?:${Object.values(lanes)
+    .map(({ prefix }) => prefix)
+    .join('|')})/([1-9][0-9]*)-[a-z0-9][a-z0-9-]*$`,
+);
+
 async function readHistory(gh: Pick<GitHub, 'api' | 'list'>): Promise<History> {
   const repo = record(await gh.api(''));
   const trunk = text(repo.default_branch);
@@ -203,7 +209,7 @@ async function readHistory(gh: Pick<GitHub, 'api' | 'list'>): Promise<History> {
           const body = pull.body === null ? '' : text(pull.body);
           const merged = pull.merged_at === null ? null : date(pull.merged_at);
           const mergeSha = pull.merge_commit_sha === null ? null : identity(pull.merge_commit_sha);
-          const lane = /^(?:feat|fix|hotfix|chore)\/([1-9][0-9]*)-[a-z0-9][a-z0-9-]*$/.exec(headRef);
+          const lane = laneHead.exec(headRef);
           const closes = [...body.matchAll(/\bCloses\s+#([1-9][0-9]*)\b/gi)].map((match) => Number(match[1]));
           if (
             merged &&
