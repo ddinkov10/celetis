@@ -13,8 +13,8 @@ import type { Level } from '../lib/effort.ts';
 import { isCommit, orderVersion } from '../lib/fields.ts';
 import { commonDir } from '../lib/git.ts';
 import { isHost } from '../lib/host-names.ts';
+import { type Engine, readEngine } from '../lib/installation.ts';
 import { bunArgs, run } from '../lib/process.ts';
-import { type Program, readProgram } from '../lib/program.ts';
 import type { QueueAction, QueueView } from '../lib/queue-types.ts';
 import { fromChild, repositoryLayout } from '../lib/state.ts';
 
@@ -69,15 +69,15 @@ const parseOrder = (value: unknown): AgentOrder => {
 export async function celetisAdapter(
   main: string,
   daemon: BoardDaemon,
-  read: () => Promise<Program | null> = readProgram,
+  read: () => Promise<Engine | null> = readEngine,
 ): Promise<Adapter> {
-  const program = async () => {
+  const engine = async () => {
     const found = await read();
     if (!found)
       throw new Error(
-        'the celetis program is not installed; run the first install of plugins/celetis/README.md, "First install"',
+        'the celetis engine is not installed; run the first install of plugins/celetis/README.md, "First install"',
       );
-    if (CONTROL.test(found.command)) throw new Error('the celetis program path has a control character');
+    if (CONTROL.test(found.command)) throw new Error('the celetis engine path has a control character');
     return found;
   };
   const start = async (request: Extract<DaemonRequest, { kind: 'run' | 'resume' }>) => {
@@ -91,10 +91,10 @@ export async function celetisAdapter(
     if (!answer.accepted) throw new Error(answer.line);
     return answer.view;
   };
-  const argv = async (args: (string | number)[]) => [(await program()).command, ...args.map(String)];
+  const argv = async (args: (string | number)[]) => [(await engine()).command, ...args.map(String)];
   const control = async (args: string[]) => {
     const { CELETIS_AGENT: _agent, CELETIS_SESSION_AGENT: _session, ...env } = process.env;
-    return run(process.execPath, bunArgs((await program()).entry, args), { cwd: main, timeout: 30_000, env });
+    return run(process.execPath, bunArgs((await engine()).entry, args), { cwd: main, timeout: 30_000, env });
   };
   return {
     intake: (choice) => argv([...agentFlag(choice), 'intake']),

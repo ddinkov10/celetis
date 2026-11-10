@@ -28,12 +28,12 @@ import {
 } from './daemon-types.ts';
 import { HostError } from './errors.ts';
 import { installRecorder, recordEvent } from './events.ts';
-import { programRevision } from './git.ts';
+import { engineRevision } from './git.ts';
+import { type Engine, enginePaths } from './installation.ts';
 import { createLockOwner, type Identity } from './locks.ts';
 import { createOperation, type HostSelection, locateCheckouts, type Operation } from './operation.ts';
 import { childEnv } from './process.ts';
 import { processStart, processState } from './process-identity.ts';
-import { type Program, programPaths } from './program.ts';
 import { queueSelection, readQueue } from './queue.ts';
 import { admitQueue, failQueueLaunch, reconcileQueue } from './queue-actions.ts';
 import type { QueueReceipt } from './queue-types.ts';
@@ -67,13 +67,13 @@ type Loop = {
   quiet: boolean;
 };
 type AutoRequest = Extract<DaemonRequest, { kind: 'auto' }>;
-type Successor = Readonly<{ program: Program; auto: Readonly<{ selection: Selection; quiet: boolean }> | null }>;
+type Successor = Readonly<{ engine: Engine; auto: Readonly<{ selection: Selection; quiet: boolean }> | null }>;
 type Spawn = Successor & Readonly<{ port: number; start: string; main: string; log: string }>;
 type Carried = AutoRequest | Readonly<{ refused: string }>;
 type Handover = Readonly<{ after: Identity | null; auto: Carried | null }>;
 
 const takeoverLine = 'daemon: the daemon takes over its runs; send the request again after its start';
-const removedLine = 'daemon: the program version of this daemon was removed after an update; start the daemon again';
+const removedLine = 'daemon: the engine version of this daemon was removed after an update; start the daemon again';
 const boardRequests: ReadonlySet<DaemonRequest['kind']> = new Set([
   'run',
   'resume',
@@ -196,16 +196,16 @@ async function outlived({ pid, start }: Identity): Promise<boolean> {
 
 async function inVersionFolder(revision: string): Promise<boolean> {
   try {
-    return (await realpath(root)) === (await realpath(join(programPaths().versions, revision)));
+    return (await realpath(root)) === (await realpath(join(enginePaths().versions, revision)));
   } catch {
     return false;
   }
 }
 
-async function startSuccessor({ program, auto, port, start, main, log }: Spawn): Promise<ExitCode> {
+async function startSuccessor({ engine, auto, port, start, main, log }: Spawn): Promise<ExitCode> {
   const env = childEnv({ ...process.env, PORT: String(port) });
   delete env.HC_SCOPE;
-  const [file, ...args] = daemonArgv(program.root, [
+  const [file, ...args] = daemonArgv(engine.root, [
     '--daemon',
     '--after',
     String(process.pid),
@@ -283,7 +283,7 @@ async function serve(
     schema: 1,
     pid: process.pid,
     start,
-    revision: await programRevision(root),
+    revision: await engineRevision(root),
     main,
     common,
     socket: paths.socket,
@@ -328,11 +328,11 @@ async function serve(
     stopping = true;
     wake();
   };
-  const restart = (program: Program) => {
+  const restart = (engine: Engine) => {
     if (stopping) return;
-    frames.exit(() => console.log(`daemon: restarts on the program at ${shortRevision(program.revision)}`));
+    frames.exit(() => console.log(`daemon: restarts on the engine at ${shortRevision(engine.revision)}`));
     const kept = [...loops].find(({ control }) => control.active && !control.leaving);
-    claim.successor = { program, auto: kept ? { selection: kept.selection, quiet: kept.quiet } : null };
+    claim.successor = { engine, auto: kept ? { selection: kept.selection, quiet: kept.quiet } : null };
     stop(exits.done);
   };
   const fatal = () => stop(exits.blocked);
@@ -654,7 +654,7 @@ async function serve(
     }, 5000);
     if (handover.auto && 'refused' in handover.auto)
       console.error(
-        `daemon: this program refuses the carried auto mode ${clip(printable(handover.auto.refused))}; auto mode stays off`,
+        `daemon: this engine refuses the carried auto mode ${clip(printable(handover.auto.refused))}; auto mode stays off`,
       );
     else if (handover.auto) {
       const adopted = [...entries.values()].filter(({ handle }) => handle.input.kind === 'auto');

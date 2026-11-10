@@ -22,7 +22,7 @@ export type {
 export type BoardOffer = {
   id: string;
   target: string;
-  parts: { part: 'program' | Host; installed: string; target: string }[];
+  parts: { part: 'engine' | Host; installed: string; target: string }[];
 };
 export type UpdateView = {
   phase:
@@ -38,8 +38,8 @@ export type UpdateView = {
   offer: BoardOffer | null;
   target: string | null;
   stage: UpdateStage | null;
-  completed: ('program' | Host)[];
-  incomplete: ('program' | Host)[];
+  completed: ('engine' | Host)[];
+  incomplete: ('engine' | Host)[];
   error: string | null;
   recovery: string | null;
 };

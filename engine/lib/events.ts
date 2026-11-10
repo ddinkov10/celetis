@@ -46,7 +46,7 @@ const signalCodes = new Set<number>([
   ...(['SIGHUP', 'SIGINT', 'SIGTERM'] as const).map((name) => signalExit(os.signals[name])),
 ]);
 const root = resolve(import.meta.dir, '../..');
-const programRevision =
+const engineRevision =
   fullRevision.test(basename(root)) && basename(dirname(root)) === 'versions' ? basename(root) : null;
 const decoder = new TextDecoder();
 
@@ -150,7 +150,7 @@ function entry(command: string, report: Report): EventEntry {
     argv,
     cwd: process.cwd(),
     host: host(argv),
-    revision: programRevision,
+    revision: engineRevision,
     pid: process.pid,
     issue: report.issue,
     code: report.code,
@@ -204,7 +204,7 @@ function frame(stack: string): string {
 }
 
 function firstLine(message: string): string {
-  return (message.split('\n', 1)[0] ?? '').replaceAll(root, '<program>').replace(/\d+/g, '0');
+  return (message.split('\n', 1)[0] ?? '').replaceAll(root, '<engine>').replace(/\d+/g, '0');
 }
 
 function fingerprint(key: string[]): string {

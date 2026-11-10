@@ -34,7 +34,7 @@ known report use **Corrections and recovery** without requiring another invocati
    `Not now`, and `Source`. Put safe steps and expected versus actual results in `Repro`; a pure
    feature has `Repro: n/a`. State missing reproduction, impact, or outcome in the relevant field.
    Put relevant verified host/version facts in `Source`, with unavailable facts as `unknown`.
-   `celetis --agent <host> --version` identifies the installed program only. A loaded skill's
+   `celetis --agent <host> --version` identifies the installed engine only. A loaded skill's
    revision needs verified package-owned identity or the Git checkout that actually contains
    that loaded file. Record an unavailable identity as `unknown`; neither a cache name nor an
    unrelated parent checkout proves it. Run no update discovery.

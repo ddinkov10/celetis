@@ -1,14 +1,14 @@
 # The engine
 
-`engine/` is the runtime of the program `celetis`: the master daemon of a repository, its runs,
+`engine/` is the Celetis engine: the master daemon of a repository, its runs,
 the session tabs that the runs open and end, and the records that they keep. This reference holds
-the rules of that runner. [The workflow](../plugins/celetis/docs/workflow.md) holds what a person
+the rules of the engine. [The workflow](../plugins/celetis/docs/workflow.md) holds what a person
 does and what a session sees, and [the board reference](board/README.md) holds the board.
 
 ## Requirements
 
 [Requirements](../plugins/celetis/README.md#requirements) of the plugin names the platforms, the
-tools, and their versions. The runner adds these rules:
+tools, and their versions. The engine adds these rules:
 
 - `celetis daemon start` checks `hc`, its server, `herdr-app`, and the window of the Herdr app
   before it spawns the daemon; the row of `daemon` in
@@ -47,7 +47,7 @@ current folder, so a linked worktree reaches the daemon of its main checkout. It
 seconds for the answer, prints it, and exits; it never sends the request again. The daemon answers
 after the checks before the first session of the run and after its first decision read
 ([The master daemon](#the-master-daemon), "The requests"). A quota wait at the first session is
-accepted. A daemon of another revision of the program gets no request. An answer that cannot be
+accepted. A daemon of another revision of the engine gets no request. An answer that cannot be
 read, also a code that is no exit class, is an unknown outcome. The rows of `run` and `queue` in
 [The commands](../plugins/celetis/README.md#the-commands) give the lines and the exit codes of the
 answer.
@@ -108,7 +108,7 @@ Issue locks and the lock `auto` of auto mode use shared Git refs under
 `refs/celetis/locks/`. Their owner records are `{ daemon, session }`: the daemon and foreground
 PIDs and process start times. Either live process keeps the lock, including after
 a killed daemon; an exited
-process does not. A process that the program cannot read, for example after a failed `ps` call,
+process does not. A process that the engine cannot read, for example after a failed `ps` call,
 also keeps the lock. Only a definite read frees it: the process does not exist, it has another
 start, or the daemon PID does not run `daemon.ts`. A daemon that stops while its session
 lives leaves the lock to that session.
@@ -118,7 +118,7 @@ hosts and manual resume share the issue lock.
 A landing in the master daemon holds the lock ref `land-<n>`, with the daemon as its owner and no
 session ([A landing](../plugins/celetis/docs/workflow.md#a-landing)). The `no-progress` file in `<git common dir>/celetis/` has one row for each step that ended with no progress, and one row for
 each step that the script refused as a skip. Auto mode and the board read it. An
-explicit issue start can start that step. `engine/lib/locks.ts` of the program owns the lock refs,
+explicit issue start can start that step. `engine/lib/locks.ts` of the engine owns the lock refs,
 the owner records, the liveness check of an owner, and the record; the daemon and the board use it.
 
 **The arguments of a session.** `stepArguments` of the adapter of each host builds the arguments
@@ -197,7 +197,7 @@ A valid current record or absent record causes no conversion or archive.
 Preparation takes queue execution ownership, then ownership of the current unfinished issue,
 then the write lock, and rereads under those locks. A run with those locks prepares directly.
 Other callers start the internal form `daemon --prepare-state queue` or
-`daemon --prepare-state session <n>` through the program entry `celetis` of the same revision.
+`daemon --prepare-state session <n>` through the engine entry `engine/celetis` of the same revision.
 On macOS and Linux the entry replaces its process with `daemon.ts`; on Windows the launcher
 starts `daemon.ts` as a child and stays its parent. The preparation starts no terminal, host,
 GitHub read, or workflow action. Live owners and busy locks refuse without
@@ -276,7 +276,7 @@ value.
 10. serves on the socket;
 11. writes the identity file `daemon/daemon.json` (0600, a temporary file and a rename):
     `{schema: 1, pid, start, revision, main, common, socket}`, where `start` is the process start
-    time and `revision` is the Git revision of the program;
+    time and `revision` is the Git revision of the engine;
 12. prints its PID and its socket.
 
 A successor ("The restart") first waits for the old daemon to end, then starts in this order. Its
@@ -531,33 +531,33 @@ also prints its stack and adds a defect event `run-defect`. One failure stops th
 exit 6: a step-end record that can neither be removed nor emptied. The daemon stops, because only
 the end of the daemon that the record names revokes it. The sessions stay open in their tabs.
 
-**A removed program version.** The daemon checks its program files each 5 seconds, and its runs
+**A removed engine version.** The daemon checks its engine files each 5 seconds, and its runs
 check them as the daemon does. When a file is gone after an update, the daemon stops as above and
 exits 3 ([Updates](../plugins/celetis/README.md#updates)). The sessions stay in their tabs, and their run records stay for the
 next start.
 
 **The restart.** An approved update of the board, or **Restart** of the board after a terminal
-update ([Open work during updates](board/README.md#start)), restarts a daemon whose program folder is the version folder of its revision, `<base>/.local/share/celetis/versions/<revision>`
+update ([Open work during updates](board/README.md#start)), restarts a daemon that runs from the version folder of its revision, `<base>/.local/share/celetis/versions/<revision>`
 (the real paths, read once at the start; a failed read counts as a checkout). A daemon of a checkout
 never restarts: its update completes, and the update view says `updated`. The old daemon stops, and
-a new process of the installed program takes over
+a new process of the installed engine takes over
 ([ADR-0077](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0077-the-master-daemon-hosts-the-board-and-restarts-as-a-successor.md)):
 
 1. The claim. After the answer of the approval or of the restart request is sent, the daemon
-   validates the installed program: the link names the target, and the source, revision, and clean
+   validates the installed engine: the link names the target, and the source, revision, and clean
    state of its folder are the target. A restart request validates it once before its answer too. A failed validation keeps the daemon running, and the update view is
-   `update-failed` with the validation line. Else it prints the revision of the installed program
-   and stops. A claim after a stop began (`daemon stop`, a signal, a removed program version)
+   `update-failed` with the validation line. Else it prints the revision of the installed engine
+   and stops. A claim after a stop began (`daemon stop`, a signal, a removed engine version)
    changes nothing and starts no successor, so one restart runs at a time.
 2. The stop, as "The stop" says. A stop that reaches the daemon after the claim and before its exit
    cancels the successor: a `POST /stop` (it gets the accepted answer, not 503, so
    `celetis daemon stop` ends normally), SIGINT, SIGTERM, SIGHUP, or a fatal stop such as a
-   removed program version. The daemon starts no successor and exits
+   removed engine version. The daemon starts no successor and exits
    with the code of that stop: 0 for a stop request, 128 plus the number of a signal, 3 for a
-   removed program version, 6 for the step-end failure ("Per-run failures"). No daemon runs after it. The page shows the timeout with the recovery line.
+   removed engine version, 6 for the step-end failure ("Per-run failures"). No daemon runs after it. The page shows the timeout with the recovery line.
 3. The spawn. After the release of `daemon`, the daemon starts one detached successor, the
-   internal form `daemon --daemon --after <pid> <start>` through the program entry `celetis` of
-   the installed program, with `--auto <JSON>` when auto mode is `on`. The entry replaces its
+   internal form `daemon --daemon --after <pid> <start>` through the engine entry `engine/celetis` of
+   the installed engine, with `--auto <JSON>` when auto mode is `on`. The entry replaces its
    process with `engine/daemon.ts --daemon --after <pid> <start>`, so the successor keeps its
    PID. It runs in the main checkout, with the environment of the
    daemon, `HC_SCOPE` removed, and `PORT` set to the actual board port, and its stdout and stderr
@@ -582,11 +582,11 @@ a new process of the installed program takes over
    starts nothing. Only the carried auto mode waits: an auto on after a normal start starts its
    loop as "The requests" says.
 
-The old program writes the successor argument list, and the installed program reads it, so the list
-is a contract between two program versions. The successor refuses a list of another shape
+The old engine writes the successor argument list, and the installed engine reads it, so the list
+is a contract between two engine versions. The successor refuses a list of another shape
 (`--after` with no PID and start, another option, an extra item) with exit 2, before its wait, because it cannot wait safely. A `--auto`
-value that the new program refuses (no JSON, no object, or no valid `POST /auto` body of this
-program) does not stop the successor: it waits, starts, and serves with auto mode off, and after its
+value that the new engine refuses (no JSON, no object, or no valid `POST /auto` body of this
+engine) does not stop the successor: it waits, starts, and serves with auto mode off, and after its
 identity file it prints the refused value.
 
 Between the stop and the takeover, no daemon steers the sessions: a session that ends its step in
@@ -597,7 +597,7 @@ still starts; stop it after its start.
 
 ### The move of the old names
 
-A repository that an earlier program used holds its state under the old names. The first access to
+A repository that an earlier engine used holds its state under the old names. The first access to
 the state folder moves it (`repositoryState` of `engine/lib/state.ts` calls `moveState` of
 `engine/lib/state-move.ts` once in each process for each Git common folder), so each command and
 the daemon do it with no step of yours:
@@ -653,7 +653,7 @@ empty:
 - The queue record and the session record keep their schemas
   ([The continuous queue](#the-continuous-queue), "Automatic storage preparation", and
   [Sessions](#sessions)).
-- A hook settings file `usage-captures/<id>/settings.json` that an old program wrote keeps its old
+- A hook settings file `usage-captures/<id>/settings.json` that an old engine wrote keeps its old
   absolute hook path. Claude Code reads it only when its session starts, and a new session gets a
   new folder.
 
@@ -662,14 +662,14 @@ records present, setup refuses and asks you to remove the one that is not curren
 `celetis-flow-setup-done` to `celetis-setup-done`, or removes the old marker when the new one
 exists. A later `chore` issue removes the move.
 
-## The program and the plugin
+## The engine and the plugin
 
-The daemon uses the version folder of the program that started it
+The daemon uses the version folder of the engine that started it
 for the resolver and entry of each run. Numbered starts, auto-mode starts, and later steps make no update call.
 The form `run resume` keeps its no-update behavior and saved identity.
 Before a step starts, the daemon checks that its required files still exist.
 [Updates](../plugins/celetis/README.md#updates) gives the contract check of the plugin before each
-new step session (`requireContract` of `engine/lib/contract-check.ts`): the program must serve the
+new step session (`requireContract` of `engine/lib/contract-check.ts`): the engine must serve the
 contract version that the plugin of the session's host needs. When it does not, the daemon also
 writes no session record. So the skills, the step text, and the engine of a step session share one
 contract version.
@@ -682,7 +682,7 @@ read-only thread and configuration checks do not trigger startup refresh.
 
 [Updates](../plugins/celetis/README.md#updates) owns the read-only check, terminal-confirmed one-command update,
 its updater mutex and deadline, and native cache replacement. A restart of the daemon alone updates nothing. After
-`celetis update`, the runs of the restarted daemon use the new program.
+`celetis update`, the runs of the restarted daemon use the new engine.
 
 ## The session tab
 
@@ -695,7 +695,7 @@ space is missing, the daemon makes it with `herdr-app do space.new`, and the app
 lock `<git common dir>/celetis/space.lock` lets one process at a time find or make the space.
 The tab runs the start barrier, the internal form
 `daemon --session-start <folder> <daemon PID> <host> <attempt ID or -> <recovery or ->
-<arguments>` through the program entry `celetis` of the program of the daemon, through a login
+<arguments>` through the engine entry `engine/celetis` of the engine of the daemon, through a login
 shell of `$SHELL` (`"$@"; exec "$0" -li`), so the tab keeps a shell after the barrier exits. The
 entry replaces its process with `daemon.ts --session-start …` under the same PID, and the barrier
 record and the board read that process after the replace: with the job control of the login
@@ -954,7 +954,7 @@ An entry is one JSON object on one line, ended by `\n`, in UTF-8:
 | `argv` | The arguments of the process after the sub-command name |
 | `cwd` | The absolute working directory |
 | `host` | `claude` or `codex` from `--agent`, then `CELETIS_SESSION_AGENT`, then `CELETIS_AGENT`, else `null` |
-| `revision` | The full revision of the running program, or `null` when it is not known |
+| `revision` | The full revision of the running engine, or `null` when it is not known |
 | `pid` | The process ID |
 | `issue` | The issue number when the site knows it, else `null` |
 | `code` | The exit code of an exit entry, the HTTP status of a board entry, else `null` |
@@ -1016,7 +1016,7 @@ The workflow and board entries, by `name`:
 | `land-defect` | A landing of the master daemon ends with an unexpected error. A defect with its stack. `issue` and `code` are set |
 | `board-request` | A board request ends with status 500. A defect with the stack of the cause. `code` is 500 |
 | `board-terminal` | A board request ends with status 502 because the terminal core failed. `code` is 502 |
-| `board-update` | The board cannot replace the program in an update, or it cannot restart after a completed installation |
+| `board-update` | The board cannot replace the engine in an update, or it cannot restart after a completed installation |
 
 The daemon records a line once for each printed line. A no-progress stop in the queue gives both
 `no-progress` and `queue-error`. A board request with status 4xx is a result, not a failure, and
@@ -1031,7 +1031,7 @@ fingerprint:
   these processes records its own failed exit. A child that fails, for example because the update
   source cannot be reached, gives one refusal entry (`command` `update`) at each check. The worker
   exits 0 when it reports a failed check, so it records nothing then. A failure that the worker
-  finds itself, such as a source of the program that cannot be reached, gives no entry.
+  finds itself, such as a source of the engine that cannot be reached, gives no entry.
 - Each board answer with status 500 is one entry. The page reads the board state again 5 seconds
   after each read, or 15 seconds after it when the page is hidden. A read that fails each time
   gives one entry for each read.
@@ -1041,8 +1041,8 @@ The fingerprint is the first 16 hex digits of SHA-256 over a key. The key parts 
 
 | Kind | Key |
 | --- | --- |
-| `defect` | `defect`, `command`, `exception.type`, and the first stack frame inside the program folder: its path relative to the program folder and its function name, with no line or column |
-| `refusal` | `refusal`, `command`, `code`, and the first line of `message`, with each run of digits replaced by `0` and the program folder replaced by `<program>` |
+| `defect` | `defect`, `command`, `exception.type`, and the first stack frame inside the folder that holds `engine/`: its path relative to that folder and its function name, with no line or column |
+| `refusal` | `refusal`, `command`, `code`, and the first line of `message`, with each run of digits replaced by `0` and the folder that holds `engine/` replaced by `<engine>` |
 | `workflow` | `workflow`, `command`, and `name` |
 
 Each write opens `events.lock` and takes an exclusive `flock` (`LockFileEx` on Windows). It
@@ -1128,11 +1128,11 @@ The record has these gaps:
   parts of the step end are not checked: the end of a session after its
   `celetis --agent <host> land` run ends (ADR-0008), and the end of a session after it adds
   `ready-for-human` at a stop (ADR-0011).
-- The daemon keeps the version folder of the program that started it for the resolver and entry
+- The daemon keeps the version folder of the engine that started it for the resolver and entry
   of its runs, and a later update can remove that folder
   ([Updates](../plugins/celetis/README.md#updates)). The daemon then stops with the true cause
-  ("A removed program version" of [The master daemon](#the-master-daemon)). The cure is to restart
-  the daemon from the installed program, then to send the request again (ADR-0012). The board stops
+  ("A removed engine version" of [The master daemon](#the-master-daemon)). The cure is to restart
+  the daemon from the installed engine, then to send the request again (ADR-0012). The board stops
   with its daemon.
 - The output of the master daemon grows with each run. The daemon does not rotate or trim it.
 - A host can run a session at another level than the daemon chose, and the daemon does not see

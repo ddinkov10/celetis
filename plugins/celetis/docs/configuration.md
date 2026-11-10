@@ -18,7 +18,7 @@ nothing after a `---` marker on its line.
 | `custom` | Mapping from a skill name of the plugin to an instruction string: an addition to the procedure of that skill | No addition for an omitted skill |
 | `codexProfiles` | Mapping from a runtime identity to its profile: four ordered model slots and the reviewer minimum for that dispatch surface | Each Codex child keeps the parent's model |
 
-The program reads `landing`, `suite`, `gates`, `agents`, `board`, and `codexProfiles` from the
+The engine reads `landing`, `suite`, `gates`, `agents`, `board`, and `codexProfiles` from the
 main checkout, also when a command starts in a lane or a subfolder. The worktree command reads
 `worktreeSetup` from the lane checkout. At a skill entry, the active checkout supplies only the
 selected `custom.<skill>`
@@ -44,7 +44,7 @@ precedence and requests one exact port ("Start the board").
 A `custom` key is a skill name: a lowercase letter, then lowercase letters, digits, or `-`. Each
 command that reads the file refuses a key of another form. The reader CLI and the Claude Code
 entry also refuse a key when `<plugin>/skills/<key>/SKILL.md` is not a regular file with no
-symlink, so a new skill of the plugin needs no program change. The other commands check only the
+symlink, so a new skill of the plugin needs no engine change. The other commands check only the
 form, and a Codex entry with no shell checks no name.
 Exactly `""` as the setup reference runs no setup. An empty instruction string gives no addition.
 An empty `custom` or `codexProfiles` mapping is valid.
@@ -188,7 +188,7 @@ then limits each value. Non-finite numbers are not accepted. Instruction strings
 Setup references use the lexical rules above.
 Plain `yes` and `on` are strings under YAML 1.2.
 
-`engine/lib/config-core.ts` of the program owns parsing, validation, types, and diagnostics. It has
+`engine/lib/config-core.ts` of the engine owns parsing, validation, types, and diagnostics. It has
 no `node:` import and no `Bun` global, so the native entry hook bundles it. `parseConfigText(text)`
 checks the characters and the source structure of one text. `validateHost(value)` defines accepted
 host inputs. `validateConfig(source)` checks the full schema and returns a deeply frozen `Config`
@@ -201,7 +201,7 @@ the field, and `formatConfigError` renders the selected path, field, and message
 keeps its filesystem code (`ioCode`), so `setup status` reports an absent file as missing and a
 denied read as blocked.
 
-`engine/lib/config.ts` of the program owns byte access. Importing it starts no installation
+`engine/lib/config.ts` of the engine owns byte access. Importing it starts no installation
 discovery or setup. `readSnapshot(file)` reads the bytes of one regular file with no
 symlink. `readConfigSource(CHECKOUT)` checks the Bun floor, reads that checkout's `.celetis.yaml`
 once, decodes it as strict UTF-8, and parses it. `readConfig(CHECKOUT)` combines the source read
@@ -214,7 +214,7 @@ syntax, and field-specific integer forms and ranges. There is no YAML host proje
 selection reads the local preference only for default mode. A command that needs full configuration
 still validates it before protected work, including when a host is explicit.
 
-The reader CLI is the program command `config` (`engine/config.ts`):
+The reader CLI is the engine command `config` (`engine/config.ts`):
 
 ```sh
 celetis --agent <host> config CHECKOUT PLUGIN
@@ -228,10 +228,10 @@ reads and validates the file, and `checkSkills` checks each `custom` key against
 validated JSON object and LF. Invalid or missing configuration and a missing skill file exit 2
 with empty stdout. Its diagnostic names the selected path and field; syntax and root errors
 use `<document>`. Another form exits 2 with its usage line. `--agent` selects nothing. The
-program entry checks the Bun floor (`requireBun`) before it starts the command: a below-floor
+engine entry checks the Bun floor (`requireBun`) before it starts the command: a below-floor
 Bun exits 3. Missing, broken, or nonexecutable Bun uses the native env/kernel diagnostic and
-status. There is no interpreter wrapper. The program owns its entry file `celetis` and its engine.
-Child Celetis programs use selected `process.execPath`, isolated
+status. There is no interpreter wrapper. The engine owns its entry file `engine/celetis`.
+Child Celetis processes use selected `process.execPath`, isolated
 environment/config/preload/macro/package controls, disabled transpiler cache, and `DO_NOT_TRACK=1`.
 
 The reader uses one private parsed source for metadata checks and JSON conversion. It checks
@@ -246,7 +246,7 @@ or `0b101`, is an error too. Quote such a value to keep it as a string.
 
 ### Operation values and freshness
 
-The program entry imports its own engine and replaces its process with the named command before
+The engine entry imports its own modules and replaces its process with the named command before
 configuration reads. On Windows, it spawns the command with the same stdio and environment,
 waits, and exits with its status. The command consumes the forwarded `--agent`, validates its
 arguments, and creates its operation. `daemon.ts` retains its process identity for lock-owner
@@ -310,7 +310,7 @@ Each data refresh creates a fresh
 main operation, so a change of `gates` shows at the next refresh ("Operation values and
 freshness"). Each read of `/api/board` reads the local order, the usage records, and the
 usage-limit waits again. At each press of Open agent or Make visual, the fixed adapter reads the
-installed program and builds a fixed argv with its command and no `--agent`. A Run or a queue
+installed engine and builds a fixed argv with its command and no `--agent`. A Run or a queue
 action with no agent choice gives the selection `{}` to the daemon, an explicit Run choice gives
 `{"explicit":"<agent>"}`, and Resume has no agent and uses the saved host. No board config file is
 made. The board start checks no replacement policy; the daemon run of each Run and Resume checks
@@ -328,9 +328,9 @@ apply to each requested operation.
 
 ## Install Bun
 
-Celetis commands need Bun 1.4.4 or later on `PATH`: the entry of the program finds `bun` there.
+Celetis commands need Bun 1.4.4 or later on `PATH`: the entry of the engine finds `bun` there.
 Celetis installs no package dependency. CI pins Bun 1.4.4. The YAML parser of the reader, the
-`yaml` package 2.9.1, comes with the program in `engine/lib/vendor/`, so a read installs no package.
+`yaml` package 2.9.1, comes with the engine in `engine/lib/vendor/`, so a read installs no package.
 
 Install Bun with Homebrew:
 
@@ -351,7 +351,7 @@ curl -fsSL https://bun.com/install | bash -s "bun-v1.4.4"
 ```
 
 The official Windows installer runs in PowerShell. Then the first install of `README.md` installs
-the program from Git Bash, and the program runs from Git Bash, PowerShell, and `cmd`.
+the engine from Git Bash, and the engine runs from Git Bash, PowerShell, and `cmd`.
 [Acceptance status](workflow.md#acceptance-status) gives the Windows checks and the open ones.
 
 ```powershell
@@ -434,7 +434,7 @@ that creates it uses mode 0700. The record subfolders (`limits/`, `usage-capture
 records fail without replacement: preserve the file and correct its reported cause before
 retrying. Both installed hosts retain separate installations and configuration.
 
-`root` prints the folder of the program: the version folder that runs the command.
+`root` prints the version folder that holds the running engine.
 `celetis update check` reports the enabled plugin of each host. Its Codex discovery uses a
 short-lived app-server connection and `skills/list`, with no thread or model turn. A missing or
 disabled installation is a `skipped` part; malformed or ambiguous installation data is an `error`

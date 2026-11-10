@@ -29,7 +29,7 @@ export function requireContract(host: Host, cwd: string): Promise<string> {
     const served = contractVersions.serves.map((entry) => entry.contract).sort((a, b) => a - b);
     if (!served.includes(needed))
       throw new HostError(
-        `celetis: the ${host} plugin needs contract ${needed} and this program serves ${served.join(', ')}; ${retry}`,
+        `celetis: the ${host} plugin needs contract ${needed} and this engine serves ${served.join(', ')}; ${retry}`,
         exits.prerequisite,
       );
     return root;

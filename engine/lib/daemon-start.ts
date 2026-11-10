@@ -8,5 +8,5 @@ export type DaemonForm =
   | readonly ['--session-start', ...string[]];
 
 export function daemonArgv(root: string, form: DaemonForm): [string, ...string[]] {
-  return [process.execPath, ...bunArgs(join(root, 'celetis'), ['daemon', ...form])];
+  return [process.execPath, ...bunArgs(join(root, 'engine', 'celetis'), ['daemon', ...form])];
 }

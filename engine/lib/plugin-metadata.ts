@@ -15,7 +15,7 @@ export const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 
 export async function installedRevision(
-  host: Host | 'program',
+  host: Host | 'engine',
   root: string,
   source: string,
   nativeRevision?: string,

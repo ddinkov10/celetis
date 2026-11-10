@@ -39,7 +39,12 @@ import { findTools, toolPins } from './install-tools.ts';
 
 const root = dirname(import.meta.dir);
 const plugin = 'plugins/celetis/';
-export const generatedFiles = ['engine/board/board.js', `${plugin}hooks/entry.js`, 'celetis', 'docs/adr/index.md'];
+export const generatedFiles = [
+  'engine/board/board.js',
+  `${plugin}hooks/entry.js`,
+  'engine/celetis',
+  'docs/adr/index.md',
+];
 export const fileRoles: Record<string, string> = {
   'engine/lib/vendor/yaml.mjs': 'unchanged vendored parser; checked by its SHA-256 and config type declarations',
   'engine/lib/vendor/yaml.d.mts': 'vendored parser API; checked by strict runtime types',
@@ -64,7 +69,7 @@ export function classify(path: string, source: Buffer): string {
     throw new Error(`verify: test file: ${path}: this repository keeps no tests (AGENTS.md, "Verify gate")`);
   if (path.startsWith(plugin) && /\.ts$/.test(path))
     throw new Error(
-      `verify: TypeScript in the plugin folder: ${path}: the plugin ships no program source; keep it in engine/ or scripts/`,
+      `verify: TypeScript in the plugin folder: ${path}: the plugin ships no TypeScript; keep it in engine/ or scripts/`,
     );
   if (generatedFiles.includes(path)) return 'generated';
   if (fileRoles[path]) return /\.json$/.test(path) ? 'biome' : 'role';
@@ -694,7 +699,7 @@ export function checkContractVersion(files: ReadonlyMap<string, string>): string
   const errors: string[] = [];
   if (!served.has(needs))
     errors.push(
-      `verify: contract version: the plugin needs contract ${needs} and the program serves ${versions.join(', ')}; serve ${needs} in ${servedContractsFile}, or set ${pluginFile} to a served version`,
+      `verify: contract version: the plugin needs contract ${needs} and the engine serves ${versions.join(', ')}; serve ${needs} in ${servedContractsFile}, or set ${pluginFile} to a served version`,
     );
   const digest = contractDigest();
   if (served.get(newest) !== digest)
@@ -812,7 +817,7 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
         '--typeRoots',
         tools.typeRoots,
       ]),
-      job('tsc native', tools.tsc.file, [...tools.tsc.args, '-p', 'tsconfig.native.json']),
+      job('tsc native', tools.tsc.file, [...tools.tsc.args, '-p', 'engine/hooks/tsconfig.json']),
       job('build', process.execPath, bunArgs(join(root, 'scripts/build.ts'), ['--check'])),
       validate('plugin', 'plugins/celetis'),
       validate('catalog', '.'),

@@ -50,7 +50,7 @@ const isRestartAnswer = (value: unknown): value is UpdateRestartResponse => {
     typeof answer.runtime.instance === 'string'
   );
 };
-const names = { claude: 'Claude Code plugin', codex: 'Codex plugin', program: 'Celetis program' };
+const names = { claude: 'Claude Code plugin', codex: 'Codex plugin', engine: 'Celetis engine' };
 let reconnecting = false;
 export const isReconnecting = () => reconnecting;
 type Controls = { contains(target: EventTarget | null): boolean; dismiss(): boolean };
@@ -221,15 +221,15 @@ export function setupUpdates(): Controls {
       timeout: 'The daemon did not return',
     }[phase];
     description.textContent = {
-      available: 'Update the Celetis program and the installed plugins. The daemon restarts when the update completes.',
+      available: 'Update the Celetis engine and the installed plugins. The daemon restarts when the update completes.',
       'restart-needed':
-        'The daemon runs an older Celetis program than the installed one. Restart the daemon to use the installed program.',
+        'The daemon runs an older Celetis engine than the installed one. Restart the daemon to use the installed engine.',
       checking: 'Checking the configured target and the installed Celetis parts.',
       updating: 'The update is running. The daemon restarts when all parts are ready.',
       restarting: 'This page reconnects when the new daemon answers.',
       updated: 'The update completed. This daemon runs from a checkout, so it does not restart.',
       'update-failed': 'The daemon has not restarted. Check again before a new attempt.',
-      'restart-refused': 'The daemon still runs its program. Check again before a new attempt.',
+      'restart-refused': 'The daemon still runs its engine. Check again before a new attempt.',
       'check-failed': 'You can keep using the board. Check again when the source is available.',
       timeout: `The ${kind} may have completed. This page could not reach the new daemon within 60 seconds.`,
     }[phase];
@@ -255,7 +255,7 @@ export function setupUpdates(): Controls {
     revisions.hidden = phase === 'check-failed' || phase === 'checking';
     let status = '';
     if (phase === 'restarting') status = 'Reconnecting to the new daemon…';
-    else if (phase === 'restart-needed') status = 'The daemon runs an older Celetis program.';
+    else if (phase === 'restart-needed') status = 'The daemon runs an older Celetis engine.';
     else if (phase === 'updating') {
       const stage = update?.stage;
       status = stage

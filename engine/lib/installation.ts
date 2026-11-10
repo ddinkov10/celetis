@@ -11,7 +11,7 @@ import { installedRevision } from './plugin-metadata.ts';
 import { run } from './process.ts';
 import { installLock, withLock, writeAtomic } from './state.ts';
 
-export type ProgramPaths = Readonly<{
+export type EnginePaths = Readonly<{
   data: string;
   versions: string;
   bin: string;
@@ -19,14 +19,14 @@ export type ProgramPaths = Readonly<{
   cmd: string;
   current: string;
 }>;
-export type Program = Readonly<{ root: string; entry: string; revision: string; command: string }>;
-export type ProgramSource = Readonly<{ source: string; branch: string; revision: string }>;
+export type Engine = Readonly<{ root: string; entry: string; revision: string; command: string }>;
+export type EngineSource = Readonly<{ source: string; branch: string; revision: string }>;
 
 const shShim = [
   '#!/bin/sh',
   `base="\${CELETIS_HOME:-$USERPROFILE}"`,
   'read -r revision < "$base/.local/share/celetis/current" || exit 1',
-  String.raw`exec env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install '--config=\\.\nul' --no-macros "$base/.local/share/celetis/versions/$revision/celetis" "$@"`,
+  String.raw`exec env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install '--config=\\.\nul' --no-macros "$base/.local/share/celetis/versions/$revision/engine/celetis" "$@"`,
   '',
 ].join('\n');
 
@@ -37,7 +37,7 @@ const cmdShim = [
   String.raw`set /p revision=<"%CELETIS_HOME%\.local\share\celetis\current"`,
   'set BUN_RUNTIME_TRANSPILER_CACHE_PATH=0',
   'set DO_NOT_TRACK=1',
-  String.raw`bun --no-env-file --no-install --config=\\.\nul --no-macros "%CELETIS_HOME%\.local\share\celetis\versions\%revision%\celetis" %*`,
+  String.raw`bun --no-env-file --no-install --config=\\.\nul --no-macros "%CELETIS_HOME%\.local\share\celetis\versions\%revision%\engine\celetis" %*`,
   'exit /b %errorlevel%',
   '',
 ].join('\r\n');
@@ -45,7 +45,7 @@ const cmdShim = [
 const slow: typeof run = (file, args, options) =>
   run(file, args, { ...options, timeout: 120_000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } });
 
-export function programPaths(base = celetisBase()): ProgramPaths {
+export function enginePaths(base = celetisBase()): EnginePaths {
   const data = join(base, '.local/share/celetis');
   const bin = join(base, '.local/bin');
   return {
@@ -60,13 +60,13 @@ export function programPaths(base = celetisBase()): ProgramPaths {
 
 const foreign = (path: string) =>
   new HostError(
-    `celetis: ${path} is not a file of the celetis program; move it away, then run the install again`,
+    `celetis: ${path} is not a file of the celetis engine; move it away, then run the install again`,
     exits.prerequisite,
   );
 
-async function programAt(paths: ProgramPaths, revision: string, command: string): Promise<Program | null> {
+async function engineAt(paths: EnginePaths, revision: string, command: string): Promise<Engine | null> {
   const root = join(paths.versions, revision);
-  const entry = join(root, 'celetis');
+  const entry = join(root, 'engine', 'celetis');
   if (
     !fullRevision.test(revision) ||
     !(await lstat(root).catch(() => null))?.isDirectory() ||
@@ -83,38 +83,38 @@ async function content(path: string): Promise<string | null> {
   return readFile(path, 'utf8');
 }
 
-export async function readProgram(paths = programPaths()): Promise<Program | null> {
+export async function readEngine(paths = enginePaths()): Promise<Engine | null> {
   if (process.platform === 'win32') {
     const [sh, cmd, current] = await Promise.all([content(paths.link), content(paths.cmd), content(paths.current)]);
     if (sh !== null && sh !== shShim) throw foreign(paths.link);
     if (cmd !== null && cmd !== cmdShim) throw foreign(paths.cmd);
     if (current === null) return null;
-    const program = current.endsWith('\n') ? await programAt(paths, current.slice(0, -1), paths.cmd) : null;
-    if (!program) throw foreign(paths.current);
-    return sh === null || cmd === null ? null : program;
+    const engine = current.endsWith('\n') ? await engineAt(paths, current.slice(0, -1), paths.cmd) : null;
+    if (!engine) throw foreign(paths.current);
+    return sh === null || cmd === null ? null : engine;
   }
   const link = await lstat(paths.link).catch(() => null);
   if (!link) return null;
   const target = link.isSymbolicLink() ? resolve(paths.bin, await readlink(paths.link)) : '';
-  const program = await programAt(paths, basename(dirname(target)), paths.link);
-  if (!program || program.entry !== target) throw foreign(paths.link);
-  return program;
+  const engine = await engineAt(paths, basename(dirname(dirname(target))), paths.link);
+  if (!engine || engine.entry !== target) throw foreign(paths.link);
+  return engine;
 }
 
-export async function installedProgram(target: string): Promise<Program> {
-  const program = await readProgram(programPaths());
-  if (!fullRevision.test(target) || !program || program.revision !== target)
-    throw new HostError('update: the installed program is not the approved target; check again', exits.prerequisite);
-  const source = await programSource(program.root);
-  if (source.revision !== target || (await installedRevision('program', program.root, source.source)) !== target)
+export async function installedEngine(target: string): Promise<Engine> {
+  const engine = await readEngine(enginePaths());
+  if (!fullRevision.test(target) || !engine || engine.revision !== target)
+    throw new HostError('update: the installed engine is not the approved target; check again', exits.prerequisite);
+  const source = await engineSource(engine.root);
+  if (source.revision !== target || (await installedRevision('engine', engine.root, source.source)) !== target)
     throw new HostError(
-      'update: the installed program identity differs from the approved target; check again',
+      'update: the installed engine identity differs from the approved target; check again',
       exits.prerequisite,
     );
-  return program;
+  return engine;
 }
 
-export async function programSource(root: string): Promise<ProgramSource> {
+export async function engineSource(root: string): Promise<EngineSource> {
   const source = await git(['config', '--get', 'remote.origin.url'], root);
   const branch = await git(['symbolic-ref', '--short', 'HEAD'], root);
   const revision = await git(['rev-parse', '--verify', 'HEAD'], root);
@@ -126,38 +126,38 @@ export async function programSource(root: string): Promise<ProgramSource> {
   return { source, branch, revision };
 }
 
-async function holds(folder: string, wanted: ProgramSource): Promise<boolean> {
-  const found = await programSource(folder);
+async function holds(folder: string, wanted: EngineSource): Promise<boolean> {
+  const found = await engineSource(folder);
   return (
     found.source === wanted.source &&
     found.branch === wanted.branch &&
     found.revision === wanted.revision &&
-    (await installedRevision('program', folder, wanted.source)) === wanted.revision
+    (await installedRevision('engine', folder, wanted.source)) === wanted.revision
   );
 }
 
 const replace = (path: string, text: string) => writeAtomic(path, text, { mode: 0o644 });
 
-export async function installProgram(
+export async function installEngine(
   from: string,
-  wanted: ProgramSource,
-  paths = programPaths(),
-  expected?: Program,
-): Promise<Program> {
+  wanted: EngineSource,
+  paths = enginePaths(),
+  expected?: Engine,
+): Promise<Engine> {
   if (!fullRevision.test(wanted.revision))
-    throw new HostError(`celetis: invalid program revision ${wanted.revision}`, exits.internal);
-  await readProgram(paths);
+    throw new HostError(`celetis: invalid engine revision ${wanted.revision}`, exits.internal);
+  await readEngine(paths);
   await mkdir(paths.versions, { recursive: true });
   return withLock(installLock(paths.data), async () => {
     const validateExpected = async () => {
       if (!expected) return;
-      const installed = await readProgram(paths);
+      const installed = await readEngine(paths);
       if (!isDeepStrictEqual(installed, expected))
         throw new HostError(
-          'update: installed program changed; check again and obtain a new direct user response',
+          'update: installed engine changed; check again and obtain a new direct user response',
           exits.prerequisite,
         );
-      const source = await programSource(expected.root);
+      const source = await engineSource(expected.root);
       const remote = await git(['ls-remote', '--', wanted.source, `refs/heads/${wanted.branch}`], expected.root);
       if (
         source.source !== wanted.source ||
@@ -166,7 +166,7 @@ export async function installProgram(
         remote !== `${wanted.revision}\trefs/heads/${wanted.branch}`
       )
         throw new HostError(
-          'update: program source, ref, or target changed; check again and obtain a new decision',
+          'update: engine source, ref, or target changed; check again and obtain a new decision',
           exits.prerequisite,
         );
     };
@@ -181,7 +181,7 @@ export async function installProgram(
       });
       if (!same)
         throw new HostError(
-          `celetis: ${root} holds another program; remove it, then run the install again`,
+          `celetis: ${root} holds another engine; remove it, then run the install again`,
           exits.prerequisite,
         );
     } else {
@@ -204,9 +204,9 @@ export async function installProgram(
         await rm(staging, { recursive: true, force: true });
       }
     }
-    if (!(await lstat(join(root, 'celetis')).catch(() => null))?.isFile())
+    if (!(await lstat(join(root, 'engine', 'celetis')).catch(() => null))?.isFile())
       throw new HostError(
-        `celetis: revision ${wanted.revision} has no celetis program file; the program did not change`,
+        `celetis: revision ${wanted.revision} has no engine/celetis file; the engine did not change`,
         exits.prerequisite,
       );
     await validateExpected();
@@ -218,7 +218,7 @@ export async function installProgram(
     } else {
       const temporary = join(paths.bin, `.celetis.${randomUUID()}`);
       try {
-        await symlink(join(root, 'celetis'), temporary);
+        await symlink(join(root, 'engine', 'celetis'), temporary);
         await rename(temporary, paths.link);
       } finally {
         await rm(temporary, { force: true });
@@ -235,8 +235,8 @@ export async function installProgram(
     for (const { name } of folders.slice(3))
       if (name !== wanted.revision && join(versions, name) !== running)
         await rm(join(paths.versions, name), { recursive: true, force: true });
-    const program = await readProgram(paths);
-    if (!program) throw new HostError(`celetis: the install did not make ${paths.link}`, exits.blocked);
-    return program;
+    const engine = await readEngine(paths);
+    if (!engine) throw new HostError(`celetis: the install did not make ${paths.link}`, exits.blocked);
+    return engine;
   });
 }

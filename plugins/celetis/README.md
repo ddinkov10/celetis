@@ -11,24 +11,24 @@ Codex remains opt-in while required CLI workflow acceptance is incomplete. Chang
 no immutable-resource or automatic skill-reload guarantee (ADR-0028). Desktop automation is optional and has separate evidence in
 [Acceptance status](docs/workflow.md#acceptance-status).
 
-The repository holds the plugin in `plugins/celetis/` and the program beside it, and it reaches a
+The repository holds the plugin in `plugins/celetis/` and the engine beside it, and it reaches a
 machine in two forms:
 
 - The plugin of each host gives its sessions the 34 skills ("The skills"), the procedure modules,
   the principles, the entry hook, and the documents. The step text of a run is `step-prompt.md`.
-- The program is the entry `celetis` and its runtime `engine/`, at the root of the repository
-  ("The commands"). It runs each command, also the daemon and the board, and the daemon gives each
-  step session a facts header and the step text. The maintenance scripts are in `scripts/`.
+- The engine is the folder `engine/`, with its entry `engine/celetis` ("The commands"). It runs
+  each command, also the daemon and the board, and the daemon gives each step session a facts
+  header and the step text. The maintenance scripts are in `scripts/`.
 
-The plugin declares the contract version that it needs, and the program declares the contract
-versions that it serves; a step session starts when the program serves that version.
+The plugin declares the contract version that it needs, and the engine declares the contract
+versions that it serves; a step session starts when the engine serves that version.
 
 There are two kinds of repository:
 
 - The **plugin repository** is this one, `ddinkov10/celetis`. It is private, and it is also the
   marketplace `celetis` with one plugin, so the id of the plugin is `celetis@celetis`.
 - A **product project** is any repository that uses the plugin. This repository also runs its
-  own lanes on its own installed plugin and program.
+  own lanes on its own installed plugin and engine.
 
 A product project holds no Celetis launcher, runtime source, skill, or document of the harness. It holds only what is its own:
 
@@ -51,7 +51,7 @@ merges. Personal host rules allow landing. Native skill entry still reads its wh
 through the host's permission controls and applies only that skill's custom text.
 
 Each skill starts with one entry line. `docs/procedures/entry.md` gives the entry on each host
-(ADR-0047, ADR-0050). ADR-0042 owns the program, its install, and its update.
+(ADR-0047, ADR-0050). ADR-0042 owns the engine, its install, and its update.
 
 The references:
 
@@ -69,8 +69,8 @@ The references:
 ## Requirements
 
 - macOS or Linux for the daemon. Native Windows has no daemon: it does not start there, and
-  each form of `run` and `queue` that sends a request exits 3. The program installs from Git Bash and
-  runs from Git Bash, PowerShell, and `cmd`, and its Windows checks are open. Before the program,
+  each form of `run` and `queue` that sends a request exits 3. The engine installs from Git Bash and
+  runs from Git Bash, PowerShell, and `cmd`, and its Windows checks are open. Before the engine,
   the data of the board before #102 and the update lock passed their checks
   ([Acceptance status](docs/workflow.md#acceptance-status)).
 - The selected host CLI: Claude Code 2.1.299 or later, or Codex CLI 0.162.1 or later. The Claude
@@ -80,8 +80,8 @@ The references:
   on which the install, the refresh, and the lookup of the plugin were checked; an older release
   is not supported. These versions are a floor, not proof of the full workflow
   ([Acceptance status](docs/workflow.md#acceptance-status)).
-- `gh` (logged in), Bun 1.4.4 or later, `git` 2.31 or later, and the program `celetis`
-  ("First install") on `PATH`. No jq or Perl runtime is needed. On macOS and Linux, the program starts Bun through `env -S`. The
+- `gh` (logged in), Bun 1.4.4 or later, `git` 2.31 or later, and the engine `celetis`
+  ("First install") on `PATH`. No jq or Perl runtime is needed. On macOS and Linux, the engine starts Bun through `env -S`. The
   `env` of macOS and of GNU coreutils 8.30 or later has `-S`; the `env` of busybox does not.
 - Git credentials for GitHub that need no prompt for an https URL: a credential helper, or a
   `url.<ssh>.insteadOf` rule and an ssh key. The plugin repository is private, and the first
@@ -125,7 +125,7 @@ The references:
 - For the board: a Chromium browser.
 
 [The engine reference](https://github.com/ddinkov10/celetis/blob/main/engine/README.md#requirements)
-gives the requirements of the runner, and
+gives the requirements of the engine, and
 [the board reference](https://github.com/ddinkov10/celetis/blob/main/engine/board/README.md)
 gives the requirements of the board.
 The [configuration reference](docs/configuration.md) gives the repository schema and the
@@ -135,45 +135,45 @@ commands that install Bun.
 
 ### First install
 
-Install the program `celetis` one time on each machine. Run this command in a normal terminal, or
+Install the engine `celetis` one time on each machine. Run this command in a normal terminal, or
 in Git Bash on Windows:
 
 ```sh
 celetis_tmp="$(mktemp -d)" &&
   git clone --quiet https://github.com/ddinkov10/celetis.git "$celetis_tmp/celetis" &&
-  BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros "$celetis_tmp/celetis/celetis" install &&
+  BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros "$celetis_tmp/celetis/engine/celetis" install &&
   rm -rf "$celetis_tmp"
 ```
 
 `celetis install` installs the revision of the clean checkout that it runs from, here the trunk of
 `ddinkov10/celetis`. The checkout must be on a branch, with no uncommitted changes; a linked
-worktree is also a checkout. The URL of the clone is the source of the program, and the branch of
-the checkout is its ref: `celetis update` moves the program to the head of that branch of that
+worktree is also a checkout. The URL of the clone is the source of the engine, and the branch of
+the checkout is its ref: `celetis update` moves the engine to the head of that branch of that
 source. `<base>` is `CELETIS_HOME` when that variable is not empty, else the
-home folder; set it for each process that runs `celetis`. The program refuses a `CELETIS_HOME` that
+home folder; set it for each process that runs `celetis`. The engine refuses a `CELETIS_HOME` that
 is not an absolute path, and the install then exits 2. The install makes these entries:
 
 - `<base>/.local/share/celetis/versions/<revision>/` is a Git clone of the source of the checkout,
   on its branch, at that full revision. The install refuses a version folder that holds another
-  program.
-- On macOS and Linux, `<base>/.local/bin/celetis` is a symbolic link to the file `celetis` of the
-  current version folder. An install replaces the link in one atomic step, so the daemon or a board
+  engine.
+- On macOS and Linux, `<base>/.local/bin/celetis` is a symbolic link to the file `engine/celetis`
+  of the current version folder. An install replaces the link in one atomic step, so the daemon or a board
   that runs keeps its own version folder.
 - On Windows, `<base>/.local/bin/` holds two shims of fixed text: `celetis` for Git Bash, and
   `celetis.cmd` for PowerShell and `cmd`. Both read the current revision from
   `<base>/.local/share/celetis/current`. An install writes only `current`, so a shim that runs
-  never reads changed text. A partial set of these three entries reads as no program, and the
+  never reads changed text. A partial set of these three entries reads as no engine, and the
   next install writes the absent entries.
 
 An install keeps the three newest version folders, the current one, and the installed version
 that runs that install. It removes the other version folders. It changes no file outside
 `<base>/.local/share/celetis/` and its own entries in
 `<base>/.local/bin/`. When `<base>/.local/bin/celetis`, or `celetis.cmd` on Windows, is there and
-is not an entry of the program, the install refuses and changes nothing. Move that entry away, then run the install again.
+is not an entry of the engine, the install refuses and changes nothing. Move that entry away, then run the install again.
 An install that stopped partway leaves a staging folder in `versions/`, and the next install
 removes it.
 
-`celetis --version` prints the full revision of the program.
+`celetis --version` prints the full revision of the engine.
 
 `~/.local/bin` (`<base>/.local/bin`) must be on `PATH` in a terminal, in the Bash tool of Claude
 Code, and in Codex. When it is not, the install says so and names the folder. An app that starts
@@ -208,7 +208,7 @@ or the board's update control ("Updates").
    makes discovery refuse, with an error that says the Claude installation is ambiguous. Setup writes no project
    enable of the plugin.
 
-   The program finds the enabled plugin through native metadata (`celetis update check` and the
+   The engine finds the enabled plugin through native metadata (`celetis update check` and the
    check of the daemon), so the two commands are necessary on each machine. It is not shown that
    the block of the project file ([Claude permissions](docs/setup.md#claude-permissions-claudesettingsjson)) loads the plugin with no install. In the probe, a
    headless turn in a new repository whose project
@@ -238,10 +238,10 @@ codex plugin marketplace add ddinkov10/celetis --ref main
 codex plugin add celetis@celetis --json
 ```
 
-The program finds the enabled installation through `skills/list`; it does not calculate a cache
+The engine finds the enabled installation through `skills/list`; it does not calculate a cache
 path. A local-path marketplace is unsuitable for `celetis update`: it reads the contract file of the
 plugin from a Git source, and `plugin marketplace upgrade celetis` requires a Git source. The check
-of a new step reads no Git source, so a step can start with a local source ("Updates"). `--ref main` selects the landed source, the branch of the program. For an unlanded check, use supported checkout loading with the existing host and authentication. These commands and result fields were checked
+of a new step reads no Git source, so a step can start with a local source ("Updates"). `--ref main` selects the landed source, the branch of the engine. For an unlanded check, use supported checkout loading with the existing host and authentication. These commands and result fields were checked
 on Codex 0.162.1. See the [Codex CLI reference](https://learn.chatgpt.com/docs/cli/reference).
 
 Install Superpowers from its Git marketplace:
@@ -273,7 +273,7 @@ does not provide the Codex installation.
 ### Personal landing permission
 
 A build step ends with `celetis --agent <host> land <n> '<subject>'`. On each machine that lands,
-give each host one personal allow rule for `land`. The rule names the program, the host, and the
+give each host one personal allow rule for `land`. The rule names the engine, the host, and the
 sub-command, so one rule serves each issue and each subject:
 
 - Claude Code: add `Bash(celetis --agent claude land *)` to `permissions.allow` of the untracked
@@ -282,8 +282,8 @@ sub-command, so one rule serves each issue and each subject:
 - Codex: put `prefix_rule(pattern=["celetis", "--agent", "codex", "land"], decision="allow")` in
   `~/.codex/rules/celetis-land.rules`. Keep the other rules.
 
-No rule changes after an update: an update changes the version folder behind the program, not
-its name. The rules pin no Bun: the entry of the program finds `bun` on `PATH`, as `land` finds
+No rule changes after an update: an update changes the version folder behind the engine, not
+its name. The rules pin no Bun: the entry of the engine finds `bun` on `PATH`, as `land` finds
 `git` and `gh`. The shared rules of the product keep the direct-merge restriction.
 
 The rule of `issue` is optional. The path for `issue` is the review of the host: in the checks of
@@ -409,7 +409,7 @@ daemon:
 
 1. asks the resolver for the next step: `celetis --agent <host> next-step <n>` prints a `run` line with
    the command of the step, for example `run /celetis:plan #<n>`, or a `stop` line with the reason;
-2. checks that the version folder of its program still has its files, and that the program serves
+2. checks that the version folder of its engine still has its files, and that the engine serves
    the contract version that the plugin of the session's host needs ("Updates");
 3. starts the selected interactive CLI in the main checkout with the host's skill prompt, a
    facts header (the issue, the step, the host, the main checkout, the plugin folder, and the
@@ -552,14 +552,14 @@ for reconciliation instead of blindly creating another issue.
 
 ## The commands
 
-A product project runs each command through the installed program `celetis` ("First install").
+A product project runs each command through the installed engine `celetis` ("First install").
 `celetis help` prints the commands that a person types:
 
 <!-- scripts/build.ts writes this block from engine/lib/contract.ts. Edit that file, then run scripts/build.ts. -->
 ```text
 usage: celetis [--agent <host>] <command> [<argument>...]
 
-  celetis update                              Updates the program and the plugin of each host; asks once.
+  celetis update                              Updates the engine and the plugin of each host; asks once.
   celetis update check                        Shows the installed and the available revision of each part.
   celetis setup status                        Reports each part of the required wiring that this checkout lacks; writes nothing.
   celetis agents read                         Reads the local ordered agent preference and its version.
@@ -582,8 +582,8 @@ usage: celetis [--agent <host>] <command> [<argument>...]
   celetis lesson-store preview FILE           Prepares an exact lesson review; requires explicit --agent.
   celetis lesson-store apply SNAPSHOT DIGEST  Applies a reviewed snapshot and commits it in a linked checkout; requires explicit --agent.
   celetis lesson-store recover                Completes or rolls back an interrupted lesson write; requires explicit --agent.
-  celetis root                                Prints the folder of the program.
-  celetis --version                           Prints the revision of the program.
+  celetis root                                Prints the version folder that holds the running engine.
+  celetis --version                           Prints the revision of the engine.
   celetis help                                Prints this list.
 
 In a terminal, --agent claude|codex is optional. CELETIS_AGENT is an explicit choice too.
@@ -605,12 +605,12 @@ setup"):
 | `celetis --agent <host> lesson-store preview FILE` | Reads a review request and returns its exact before/after contents of the store of `read main`, watched digests, and snapshot digest without lesson writes. Select pending UUIDs and complete resulting documents as defined in [the lesson format](docs/procedures/lesson-format.md). Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis --agent <host> lesson-store apply SNAPSHOT DIGEST` | Recomputes the review and applies exactly the approved snapshot under the lock. Changed input or snapshot bytes are stale. Replaying the same review is unchanged; conflicting reuse of its ID is invalid. The digest identifies a version, not its reviewer. In a linked checkout, a live change needs a clean checkout on a branch and becomes one local commit `docs(lessons): <decision> <names>` with a `Lesson-Transaction` trailer, made with the project's hooks; the proposals leave the queue only after that commit. When Git fails but the lesson commit exists, the apply completes. When the lane is still at its old HEAD, the apply restores the before bytes of the live paths, also a hook rewrite, and their index entries, and exits 6. When HEAD moved without the commit, the journal stays (exit 6), and the line names the repair: `git -C <lane> reset --soft <recorded HEAD>`, then `recover`. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis --agent <host> lesson-store recover` | Completes or rolls back the one journal under the lesson lock, from any checkout of the repository. A lane journal completes when its lesson commit exists and rolls back when the lane is still at the recorded HEAD; a lane HEAD that moved without the commit blocks it until `git -C <lane> reset --soft <recorded HEAD>`. These commands require Git and an explicit host, but no issue, run, or configuration file. Only a lane apply and its recovery change the Git index. It exits 2 for invalid input or store, 3 when the input is stale or a lock is busy, and 6 for an access, I/O, or recovery block. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
-| `celetis --agent <host> run <n> [--quiet] \| run resume <n> \| run retry <n> <wait-id>` | Each form sends one request to the master daemon of the repository of the current folder and returns at its answer. `run <n>` starts the next step of the issue, `run resume <n>` opens the saved session of a step with no progress again, and `run retry <n> <wait-id>` wakes the quota waiter of the issue for one attempt cycle. `--quiet` opens each session tab of the start in the background; `run resume` ignores it. An accepted start prints `run: #<n>: accepted as run <run id> of the daemon PID <pid>; read its progress: celetis daemon status`, and an accepted Retry prints `run: #<n>: Retry requested; the waiting run starts one bounded attempt cycle`; both exit 0. A refusal prints the line of the daemon, on stdout for code 0 and on stderr otherwise, and exits with its code: 3 for a busy issue lock, 6 for a failed GitHub read of the issue, 0 for each other end before the first session. With no daemon, it exits 3 and starts nothing. It exits 3 when the daemon runs another revision of the program or an update removed this program version, and 6 when the daemon does not answer or the outcome is unknown. On Windows it exits 3 with `run: Windows is not a support target`. Any other form exits 2 with the usage line. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
+| `celetis --agent <host> run <n> [--quiet] \| run resume <n> \| run retry <n> <wait-id>` | Each form sends one request to the master daemon of the repository of the current folder and returns at its answer. `run <n>` starts the next step of the issue, `run resume <n>` opens the saved session of a step with no progress again, and `run retry <n> <wait-id>` wakes the quota waiter of the issue for one attempt cycle. `--quiet` opens each session tab of the start in the background; `run resume` ignores it. An accepted start prints `run: #<n>: accepted as run <run id> of the daemon PID <pid>; read its progress: celetis daemon status`, and an accepted Retry prints `run: #<n>: Retry requested; the waiting run starts one bounded attempt cycle`; both exit 0. A refusal prints the line of the daemon, on stdout for code 0 and on stderr otherwise, and exits with its code: 3 for a busy issue lock, 6 for a failed GitHub read of the issue, 0 for each other end before the first session. With no daemon, it exits 3 and starts nothing. It exits 3 when the daemon runs another revision of the engine or an update removed this engine version, and 6 when the daemon does not answer or the outcome is unknown. On Windows it exits 3 with `run: Windows is not a support target`. Any other form exits 2 with the usage line. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis --agent <host> run <n> --effort <level> [--quiet]` | Asks the daemon to start the next step of the issue at `low`, `medium`, `high`, `xhigh`, or `max` instead of its decided or default level; the request carries the level, for the first session of this start only. Each later step uses its own decision, and the flag writes no decision. It needs exactly one issue number; any other form exits 2 with the usage line. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis --agent <host> queue action '<QueueAction JSON>' [--quiet] \| queue status` | `status` prints the view of the queue as JSON. `action` saves one validated action and prints the view; when the action gives a wake, it then sends that wake to the master daemon and prints the answer as `run` does, with the prefix `queue:`. An Add to an empty queue, a Continue, and a Retry exit 3 with no daemon and save nothing. `--quiet` opens each session tab of the wake in the background. It exits 2 for another form, an agent that differs from the agent choice of the queue, or a queue record that is not valid, 3 for a refused action (for example a stale `expected`), and 6 when GitHub or the queue record cannot be read. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
-| `celetis --agent <host> daemon start \| daemon status \| daemon stop \| daemon auto on\|off` | Starts, reads, and stops the master daemon of the repository of the current folder (`engine/README.md`, "The master daemon"); `auto on\|off` turns auto mode of the daemon on or off and prints `daemon: auto mode <state>`. For `start`, `status`, and `stop` the optional `--agent` selects nothing; for `auto` it selects the host of the auto steps. `start` spawns the daemon detached, which serves the board (`engine/board/README.md`), and exits 0 when it answers, or when a daemon already runs; it then prints `daemon: board http://127.0.0.1:<port>`, except for a daemon of another revision. It exits 3 when `gh`, `hc`, or the Herdr app is missing, and 6 when the hc server or the Herdr app does not answer, or when the daemon ends or stays silent for 30 seconds, for example when its board port cannot open. `status` prints the daemon, the board URL, its auto mode, and one line per run; it exits 3 when no daemon runs or the daemon runs another revision of the program. `stop` exits 0 when the process ended or no daemon runs. `auto` exits 0 with the state, 3 when no daemon runs or the daemon runs another revision of the program, the code of a refusal, or 6 when the outcome is unknown. Each form exits 6 when a daemon is known but its process or socket does not answer; `stop` exits 6 too when the process stays for 60 seconds. Windows exits 3, and any other form exits 2. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
-| `celetis --agent <host> intake` | Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters `celetis:intake` with that request. It creates no issue before the answer and does not start a run. Before the start, it checks that this program serves the contract version that the plugin of the selected host needs, and it exits 3 with the line of that check when it does not. Exit status: 1 internal, 2 usage, 3 prerequisite, 6 blocked, or the exit code of the host session |
-| `celetis --agent <host> assist <n>` | Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses `issue <n> assisted <file>` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume a run or land. Before the start, it checks that this program serves the contract version that the plugin of the selected host needs, and it exits 3 with the line of that check when it does not. Exit status: 1 internal, 2 usage, 3 prerequisite, 6 blocked, or the exit code of the host session |
+| `celetis --agent <host> daemon start \| daemon status \| daemon stop \| daemon auto on\|off` | Starts, reads, and stops the master daemon of the repository of the current folder (`engine/README.md`, "The master daemon"); `auto on\|off` turns auto mode of the daemon on or off and prints `daemon: auto mode <state>`. For `start`, `status`, and `stop` the optional `--agent` selects nothing; for `auto` it selects the host of the auto steps. `start` spawns the daemon detached, which serves the board (`engine/board/README.md`), and exits 0 when it answers, or when a daemon already runs; it then prints `daemon: board http://127.0.0.1:<port>`, except for a daemon of another revision. It exits 3 when `gh`, `hc`, or the Herdr app is missing, and 6 when the hc server or the Herdr app does not answer, or when the daemon ends or stays silent for 30 seconds, for example when its board port cannot open. `status` prints the daemon, the board URL, its auto mode, and one line per run; it exits 3 when no daemon runs or the daemon runs another revision of the engine. `stop` exits 0 when the process ended or no daemon runs. `auto` exits 0 with the state, 3 when no daemon runs or the daemon runs another revision of the engine, the code of a refusal, or 6 when the outcome is unknown. Each form exits 6 when a daemon is known but its process or socket does not answer; `stop` exits 6 too when the process stays for 60 seconds. Windows exits 3, and any other form exits 2. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
+| `celetis --agent <host> intake` | Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters `celetis:intake` with that request. It creates no issue before the answer and does not start a run. Before the start, it checks that this engine serves the contract version that the plugin of the selected host needs, and it exits 3 with the line of that check when it does not. Exit status: 1 internal, 2 usage, 3 prerequisite, 6 blocked, or the exit code of the host session |
+| `celetis --agent <host> assist <n>` | Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses `issue <n> assisted <file>` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume a run or land. Before the start, it checks that this engine serves the contract version that the plugin of the selected host needs, and it exits 3 with the line of that check when it does not. Exit status: 1 internal, 2 usage, 3 prerequisite, 6 blocked, or the exit code of the host session |
 | `celetis --agent <host> visual <n> <sha>` | Starts a fresh interactive session in the main checkout that makes the `visual-explainer` diff review of the landed commit `<sha>` of the issue `<n>`. It fetches the trunk from `origin` and refuses a commit that is not on it, and a commit whose page exists. The host writes `docs/superpowers/visuals/<sha>.html` and opens it, changes no other file, and makes no commit. A host with no `visual-explainer` skill says so in the tab and writes no file. The board's Make visual starts this command. Exit status: 1 internal, 2 usage, 3 prerequisite, 6 blocked, or the exit code of the host session |
 | `celetis --agent <host> worktree <n>` | Makes the lane worktree and the branch of the issue, or enters the one that is there and brings it up to the trunk, and prints its path. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 4 repair, 6 blocked |
 | `celetis --agent <host> worktree --remove <n>` | Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 4 repair, 6 blocked |
@@ -621,12 +621,12 @@ setup"):
 | `celetis --agent <host> config <checkout> <plugin>` | The reader of `.celetis.yaml` for the agent. It first checks that `<plugin>` is a Celetis plugin: a folder whose `.claude-plugin/plugin.json` has `"name": "celetis"`. It then validates the whole file of `<checkout>`, and checks each `custom` key against `<plugin>/skills/<key>/SKILL.md`, a regular file with no symbolic link. It prints the configuration as one compact JSON line. `--agent` selects nothing. It exits 2 for another form, a folder that is not a Celetis plugin, or a missing or invalid file; the line names the field or the plugin folder. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis --agent <host> capscore J V B N S X [--json] [--bias N] [--attempt N] [--reviewer] [--profile FILE] [--runtime-models FILE]` | Resolves the six digits. `--json` gives portable scores and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis --agent <host> dispatch next <n> <task> implementer\|reviewer J V B N S X --bias N [--profile FILE] [--runtime-models FILE] \| dispatch report <dispatch-id> <report-file> \| dispatch gate <n> <task> pass\|fail <gate> <report> [--profile FILE] [--runtime-models FILE] \| dispatch review <n> <task> findings\|blocked [--profile FILE] [--runtime-models FILE] \| dispatch close <n> <task> \| dispatch show` | Acts: `next`, `report`, `gate`, `review`, `close`, `show`. The task loop applies each returned pair and reports exact native arguments/results. Evidence is agent-reported, not independently checked. Records: `/tmp/celetis-<uid>/dispatch/<host>-<session>.json` on macOS and Linux; `<os.tmpdir()>/celetis/dispatch/<host>-<session>.json` on Windows. It exits 0 for a ready, reported, or closed result (also `show`), 2 for bad usage or an invalid `.celetis.yaml`, 3 for a refusal or a busy dispatch lock, 6 for a setup failure, and 8 when the engine stops the task. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked, 8 stop |
-| `celetis install` | Installs the revision of the clean checkout that it runs from as the program ("First install"); takes no arguments. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
-| `celetis --agent <host> setup check \| setup write --hosts claude\|codex\|claude,codex\|codex,claude --landing pr\|merge [--suite <file>] [--setup-file <file>] [--ignore <line>] [--baseline-file <file>] \| setup try --hosts claude\|codex\|claude,codex\|codex,claude --landing pr\|merge [--suite <file>] [--setup-file <file>] [--ignore <line>] [--baseline-file <file>] \| setup try --remove \| setup lane <path> \| setup push` | The deterministic part of `/celetis:setup`: validated saved answers from `check`, bounded owned refresh and removal in `write`, the test lane (`try` makes it and runs the worktree setup there, and `try --remove` removes it), the run of the worktree setup in a lane that exists (`lane`), and the commit of planned paths, including deletions, with the push. Every setup run calls the program; no product launcher is written. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked, or the exit code of the worktree setup script |
+| `celetis install` | Installs the revision of the clean checkout that it runs from as the engine ("First install"); takes no arguments. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
+| `celetis --agent <host> setup check \| setup write --hosts claude\|codex\|claude,codex\|codex,claude --landing pr\|merge [--suite <file>] [--setup-file <file>] [--ignore <line>] [--baseline-file <file>] \| setup try --hosts claude\|codex\|claude,codex\|codex,claude --landing pr\|merge [--suite <file>] [--setup-file <file>] [--ignore <line>] [--baseline-file <file>] \| setup try --remove \| setup lane <path> \| setup push` | The deterministic part of `/celetis:setup`: validated saved answers from `check`, bounded owned refresh and removal in `write`, the test lane (`try` makes it and runs the worktree setup there, and `try --remove` removes it), the run of the worktree setup in a lane that exists (`lane`), and the commit of planned paths, including deletions, with the push. Every setup run calls the engine; no product launcher is written. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked, or the exit code of the worktree setup script |
 | `celetis --agent <host> setup status` | Reports the required wiring of the active checkout for the selected host, also from a subfolder or a lane worktree: `origin`, `.celetis.yaml` and its configured files, the Celetis block, the Claude imports and settings or the Codex restriction, the ignore and attribute lines, the record of setup, and the workflow labels. It writes nothing, runs no product file, and fetches nothing. An incomplete report ends with `Run /celetis:setup in the main checkout: <path>`. It exits 0 when the wiring is complete, 3 when it is missing, invalid, or different, and 6 when an observation is blocked. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis agents read \| agents replace '<JSON>'` | Reads the local ordered preference, or replaces it with exactly `order` and `expectedVersion`. It shares the Git common directory across worktrees and requires no YAML. It exits 2 for a replacement that is not JSON or not a valid order, and for an `agents.json` that does not validate. It exits 3 for a stale-edit conflict, and returns the latest order; a busy write lock also exits 3, with no JSON. It exits 6 for an unsafe or unreadable record. Repeating the current order succeeds. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
-| `celetis update \| update check` | Updates the program and the plugin of each host, and asks once in an interactive terminal. `check` is read-only: it prints one JSON array of the parts. `plugins/celetis/README.md`, "Updates", gives the steps. Any other form exits 2 with the usage line. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
-| `celetis root` | Prints the folder of the program. It takes no argument and runs in each folder. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
+| `celetis update \| update check` | Updates the engine and the plugin of each host, and asks once in an interactive terminal. `check` is read-only: it prints one JSON array of the parts. `plugins/celetis/README.md`, "Updates", gives the steps. Any other form exits 2 with the usage line. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
+| `celetis root` | Prints the version folder that holds the running engine. It takes no argument and runs in each folder. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 <!-- The end of the command table that scripts/build.ts writes. -->
 
 Each command gives the exit code of its class. The `Exit status:` list of a row names the classes that the command declares; the table of the classes follows:
@@ -646,7 +646,7 @@ Each command gives the exit code of its class. The `Exit status:` list of a row 
 | 128+n | signal | The signal n ended the command. |
 <!-- The end of the exit-class table that scripts/build.ts writes. -->
 
-These programs are not commands of the program `celetis`. Each gives its own exit codes:
+These programs are not commands of the engine. Each gives its own exit codes:
 
 | Program | What it does |
 |---|---|
@@ -657,10 +657,10 @@ These programs are not commands of the program `celetis`. Each gives its own exi
 | `bun --no-env-file --no-install --config=/dev/null --no-macros scripts/herdr-lab.ts up \| run <id> <command>... \| down <id>` | macOS only. `up` makes a lab, a private hc core and a second Herdr app window on temporary data under `/tmp/<id>`, and prints the id, then one JSON line. It opens that window behind the app in front, and passes it only the lab keys, `PATH`, and the telemetry opt-out of the shell. `run` runs one command in the lab environment. `down` stops only the processes of that lab, checks that the real core and window hold no lab text, and deletes the lab. Exit status of `up` and `down`: 0 done, 1 failed (`down` keeps the root and names the cause), 2 refused. `run` gives the status of its command, 128+n after signal n, 127 when the command cannot start, and 2 for a refused or missing lab |
 
 - Each sub-command gives the output and the exit code of its script.
-- Run a command in a checkout of the product project: the program holds the scripts, so only the
+- Run a command in a checkout of the product project: the engine holds the scripts, so only the
   current folder names the project. `capscore` and `root` run in each folder.
-- The program needs `bun` on `PATH`: its entry starts Bun with the isolation flags. Host
-  operations need the selected host CLI. After the program starts it, the named command creates
+- The engine needs `bun` on `PATH`: its entry starts Bun with the isolation flags. Host
+  operations need the selected host CLI. After the engine starts it, the named command creates
   one operation. Default control selection uses the first host in the local ordered preference,
   or Claude outside a Git checkout. An explicit `--agent` or `CELETIS_AGENT` needs no preference
   or YAML read for selection. Project commands require full valid configuration before protected work, as
@@ -672,7 +672,7 @@ These programs are not commands of the program `celetis`. Each gives its own exi
   `usage-hook`, `build`, `verify`, `install-tools`). The development scripts run only with `bun`
   (`AGENTS.md`, "Verify gate"). An unknown command prints a line that names it and a line that points to `celetis help`. A usage line and an unknown command end with
   `celetis: when a skill or a document gave this command, run celetis update`: a skill of another
-  revision can give a command or an argument that the program does not have. A bare `celetis`
+  revision can give a command or an argument that the engine does not have. A bare `celetis`
   prints the help text on stdout and exits 2, with no update hint.
 
 ## Updates
@@ -683,8 +683,8 @@ Run one command in a normal terminal:
 celetis update
 ```
 
-It reads three parts: the program, the Celetis plugin of Claude Code, and the Celetis plugin of
-Codex. Each part goes to the target of its own source and ref: the program to the head of the
+It reads three parts: the engine, the Celetis plugin of Claude Code, and the Celetis plugin of
+Codex. Each part goes to the target of its own source and ref: the engine to the head of the
 branch of its version folder, and each plugin to the native marketplace source and ref of its
 host. It prints one line for each part: the installed and the target revision or `up to date`,
 then the source and the ref of the part; or a skipped part with its reason, or the first line of
@@ -692,19 +692,19 @@ an error. A host with no CLI on `PATH`, or with no Celetis, is skipped.
 
 Before it asks anything, it checks the contract pair of the targets. It reads
 `plugins/celetis/contract.json` at the target of each plugin and
-`engine/lib/contract-versions.json` at the target of the program. It reads them from the Git
+`engine/lib/contract-versions.json` at the target of the engine. It reads them from the Git
 source of the part, with one shallow fetch of each source and revision into a temporary folder,
 and it runs no code of a target. A part that is at its target uses the file of its installed
 folder. Then it stops with no change at the first of these:
 
 1. A part has an error. A failed fetch or read of a contract file is an error of its part, and
    its line names the path, the source, the target, and the reason.
-2. The program is not installed: run "First install".
+2. The engine is not installed: run "First install".
 3. No host has Celetis: install the plugin as "Wire a product project" says.
-4. The pair of the targets does not match. When the program target has no valid file of served
+4. The pair of the targets does not match. When the engine target has no valid file of served
    versions, it prints one line that says so. Else it prints one line for each plugin target
-   whose version the program target does not serve: the line says that the plugin at its target
-   needs contract `<n>`, and names the versions that the program at its target serves. A plugin
+   whose version the engine target does not serve: the line says that the plugin at its target
+   needs contract `<n>`, and names the versions that the engine at its target serves. A plugin
    target that declares no valid version gets one line that says so. Each line says that nothing
    changed, and tells you to set one compatible source and ref for the parts, as this section
    says below.
@@ -721,16 +721,16 @@ then add the marketplace with the new ref and install the plugin again. For Code
 `codex plugin marketplace remove celetis`, which keeps the installed plugin, then
 `codex plugin marketplace add <source> --ref <ref>`. A check with codex-cli 0.167.0 observed that the add
 with another ref fails while the marketplace `celetis` exists, and that the remove keeps the plugin
-enabled. The ref of the program is
+enabled. The ref of the engine is
 the branch of its version folder, which is the branch of the checkout that ran `celetis install`.
 One source and one ref for all parts is the usual setup. For example, two forms of one GitHub
 address are one source: `ddinkov10/celetis` of Claude Code, and
-`https://github.com/ddinkov10/celetis.git` of Codex and of the program. Each ref resolves to its
-full name, so the `HEAD` of Claude Code and the `main` of Codex and of the program are one ref,
+`https://github.com/ddinkov10/celetis.git` of Codex and of the engine. Each ref resolves to its
+full name, so the `HEAD` of Claude Code and the `main` of Codex and of the engine are one ref,
 `refs/heads/main`.
 
 When each part is at its target, the command prints that Celetis is up to date at the target of
-the program, and asks nothing.
+the engine, and asks nothing.
 
 Else it prints a header line and the part lines, and asks `Update Celetis now? [Y/n]` one time in an
 interactive terminal. Press Enter or enter `y` or `yes` to permit that exact attempt. EOF or any
@@ -738,7 +738,7 @@ other answer leaves each part unchanged. With no interactive terminal, it stops 
 exits 3. No cache path, commit hash, or flag confirms an update.
 
 After confirmation, it updates each part that is not at its own target, in this order: Claude Code, Codex, and
-then the program. It prints one line for each part that it updates, with the target of that part.
+then the engine. It prints one line for each part that it updates, with the target of that part.
 Then it checks the installed parts again, with the contract pair of the installed folders. The
 first failure stops the update: it prints the message and the lists of the completed and the incomplete parts, and exits 6. There is no retry:
 a new attempt is a new command and a new answer. At the end it tells you to open a fresh session to use the updated skills.
@@ -766,7 +766,7 @@ to require input in that terminal. [ADR-0048](https://github.com/ddinkov10/celet
 records this exception to the terminal-only confirmation of ADR-0028.
 
 The board offers the update in its update dialog. A successful update approved in the board
-restarts the daemon that serves that board on the installed program; an update approved in a
+restarts the daemon that serves that board on the installed engine; an update approved in a
 terminal does not restart the daemon. [Start](https://github.com/ddinkov10/celetis/blob/main/engine/board/README.md#start)
 of the board reference gives the dialog, the reconnect, the restart, and **Restart needed**. This
 user-selected policy supersedes the consumer-exit rule of ADR-0027; see ADR-0028 and
@@ -779,23 +779,23 @@ available to running work. Restart a session or the daemon if it still needs a r
 host replaced.
 
 An install or an update keeps the three newest version folders, the current one, and the folder
-of the program that runs that install. A daemon that stays open through three later updates can
-lose its version folder; it then prints a line that says the program version was removed after an update, and exits 3. Before each new step
+of the engine that runs that install. A daemon that stays open through three later updates can
+lose its version folder; it then prints a line that says the engine version was removed after an update, and exits 3. Before each new step
 session, the daemon reads the contract version in `contract.json` of the plugin folder of the
 session's host and compares it with the versions that it serves. When it does not serve that
 version, it starts no session and prints a line that says that the plugin needs contract `<n>` and
-names the versions that the program serves. When the file is missing or holds no valid version,
+names the versions that the engine serves. When the file is missing or holds no valid version,
 the line says that the plugin declares no valid contract version in that file. Run `celetis update`,
 restart the daemon, then send the request again.
 `intake` and `assist` make the same check before they start. `--resume` has no such check. So a
-host that updates its plugin by itself to a contract version that the program does not serve stops
+host that updates its plugin by itself to a contract version that the engine does not serve stops
 each new step until `celetis update` and a restart of the daemon. The check reads no Git source: only the host
 lookup that finds the plugin folder, and the folder. The lookup keeps its refusals, such as a plugin that is
 not installed, is disabled, or is ambiguous. So an installation whose marketplace source is not Git, such as a local
 Codex marketplace, can start a new step. After `celetis update`, restart the daemon with **Restart** in the board,
 or with `celetis daemon stop`, then `celetis daemon start`; a `run` or `queue` form of another
 revision refuses with exit 3 until then. The daemon serves the board, so that restart also gives the board the new
-program.
+engine.
 
 **The move of #141.** The update that names the workflow, the daemon, and a run moves the state of
 each repository from the old names to the new ones
@@ -813,9 +813,9 @@ worktree. A refusal names the old owner (its PID and the issue or the lock) or b
 the owner, or keep one folder by hand, then run the command again. `/celetis:setup` moves the setup record
 `.claude/celetis-flow/wiring.json` to `.claude/celetis/wiring.json`.
 
-The program runs the updater of its own version folder. When the program is broken or missing,
+The engine runs the updater of its own version folder. When the engine is broken or missing,
 run "First install" again. The install refuses a link or `current` file whose version folder is
-gone, and a version folder that holds another program, such as a damaged folder of the same
+gone, and a version folder that holds another engine, such as a damaged folder of the same
 revision. Move the entry that the refusal names away, then run the install again. An update
 rewrites no product file, and there is no automatic fallback to another updater.
 
@@ -825,10 +825,10 @@ refuses the attempt; running sessions do not reserve this mutex. The existing 12
 deadline and descendant cleanup apply. Revalidation under that lock must match the offered home,
 root, source, configured and resolved refs, installed revision, target, scope, registration, and
 sibling set. A changed identity or target refuses this attempt.
-Failures preserve native diagnostics and observed partial state. The update of the program holds
+Failures preserve native diagnostics and observed partial state. The update of the engine holds
 `<base>/.local/share/celetis/install.lock`, so a second install or update refuses while it runs. It
 clones the target into a staging folder within 120 seconds, checks the source, the branch, and the
-revision of the clone, and then switches the program as "First install" says.
+revision of the clone, and then switches the engine as "First install" says.
 
 Claude keeps its native installation scope. It writes a private catalog that names `plugins/celetis`
 of the approved source with a `git-subdir` entry and the exact target SHA, then temporarily
@@ -850,9 +850,20 @@ wiring continues to disable Celetis background updates. A successful update star
 entry form of the installed plugin. On each machine:
 
 1. Run "First install".
-2. Run `celetis update` in a terminal, and answer `y`. It moves the program and each host plugin to
+2. Run `celetis update` in a terminal, and answer `y`. It moves the engine and each host plugin to
    its target. Do not run the update command of the old release.
 3. In each product where you land, replace the old personal `land` rule, and an `issue` rule, with
    the rules of "Personal landing permission". Then start a fresh session.
 
-Until the program is installed, the skills of the new release stop with the install message.
+Until the engine is installed, the skills of the new release stop with the install message.
+
+**The cutover to `engine/celetis` (#283).** The release of #283 moves the entry into the folder
+`engine/`. An engine installed before #283 cannot install a later revision: its `celetis update`
+updates the plugins, then refuses the engine part. On each machine:
+
+1. Stop the daemon with `celetis daemon stop`, and let each session end.
+2. Move `<base>/.local/bin/celetis` away. On Windows, also move `<base>/.local/bin/celetis.cmd` and
+   `<base>/.local/share/celetis/current` away.
+3. Run "First install".
+4. Run `celetis update` in a terminal, and answer `y`.
+5. Start the daemon with `celetis daemon start`.

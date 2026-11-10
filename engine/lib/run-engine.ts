@@ -133,12 +133,12 @@ export interface RunHandle {
   detach(): void;
 }
 
-export const removed = 'the program version of this daemon was removed after an update; start the daemon again';
+export const removed = 'the engine version of this daemon was removed after an update; start the daemon again';
 const required = [
   'lib/resolver.ts',
   'lib/updater.ts',
   'daemon.ts',
-  '../celetis',
+  'celetis',
   'launcher.ts',
   'lib/codex-app-server.ts',
   'lib/config-core.ts',
@@ -168,7 +168,7 @@ const required = [
   'lib/tracker.ts',
   'lib/lines.ts',
   'lib/process.ts',
-  'lib/program.ts',
+  'lib/installation.ts',
   'lib/queue.ts',
   'lib/state-migration.ts',
   'lib/state-move.ts',

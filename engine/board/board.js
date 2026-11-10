@@ -1676,7 +1676,7 @@ var isRestartAnswer = (value) => {
   const answer = value;
   return typeof answer?.target === "string" && typeof answer.runtime?.revision === "string" && typeof answer.runtime.instance === "string";
 };
-var names = { claude: "Claude Code plugin", codex: "Codex plugin", program: "Celetis program" };
+var names = { claude: "Claude Code plugin", codex: "Codex plugin", engine: "Celetis engine" };
 var reconnecting = false;
 var isReconnecting = () => reconnecting;
 var controls;
@@ -1817,14 +1817,14 @@ function setupUpdates() {
       timeout: "The daemon did not return"
     }[phase];
     description.textContent = {
-      available: "Update the Celetis program and the installed plugins. The daemon restarts when the update completes.",
-      "restart-needed": "The daemon runs an older Celetis program than the installed one. Restart the daemon to use the installed program.",
+      available: "Update the Celetis engine and the installed plugins. The daemon restarts when the update completes.",
+      "restart-needed": "The daemon runs an older Celetis engine than the installed one. Restart the daemon to use the installed engine.",
       checking: "Checking the configured target and the installed Celetis parts.",
       updating: "The update is running. The daemon restarts when all parts are ready.",
       restarting: "This page reconnects when the new daemon answers.",
       updated: "The update completed. This daemon runs from a checkout, so it does not restart.",
       "update-failed": "The daemon has not restarted. Check again before a new attempt.",
-      "restart-refused": "The daemon still runs its program. Check again before a new attempt.",
+      "restart-refused": "The daemon still runs its engine. Check again before a new attempt.",
       "check-failed": "You can keep using the board. Check again when the source is available.",
       timeout: `The ${kind} may have completed. This page could not reach the new daemon within 60 seconds.`
     }[phase];
@@ -1846,7 +1846,7 @@ function setupUpdates() {
     if (phase === "restarting")
       status = "Reconnecting to the new daemon…";
     else if (phase === "restart-needed")
-      status = "The daemon runs an older Celetis program.";
+      status = "The daemon runs an older Celetis engine.";
     else if (phase === "updating") {
       const stage = update?.stage;
       status = stage ? `${stage.state === "started" ? "Updating" : "Completed"} ${names[stage.part]}…` : "Preparing the update…";

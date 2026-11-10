@@ -15,7 +15,7 @@ import {
   type Selection,
 } from './daemon-types.ts';
 import { HostError } from './errors.ts';
-import { programRevision } from './git.ts';
+import { engineRevision } from './git.ts';
 import { selectHost } from './host.ts';
 import { daemonScript, processScript, processState } from './process-identity.ts';
 
@@ -128,10 +128,10 @@ export async function requireDaemon(common: string, prefix: Prefix): Promise<Dae
 }
 
 export async function revisionRefusal(identity: DaemonIdentity, prefix: Prefix): Promise<string | null> {
-  const own = await programRevision(resolve(import.meta.dir, '../..'));
+  const own = await engineRevision(resolve(import.meta.dir, '../..'));
   return own === identity.revision
     ? null
-    : `${prefix}: the daemon runs the program at ${shortRevision(identity.revision)} and this program is at ${shortRevision(own)}; restart it: celetis daemon stop, then celetis daemon start`;
+    : `${prefix}: the daemon runs the engine at ${shortRevision(identity.revision)} and this engine is at ${shortRevision(own)}; restart it: celetis daemon stop, then celetis daemon start`;
 }
 
 export async function askDaemon(

@@ -14,7 +14,7 @@ moves by hand.
   holds steps of the lanes.
 - **Gate:** the rule of a step that says who starts it. `me` is your press of Run, and `auto` is auto
   mode of the daemon. The board shows `auto` on such a step, and it starts no step by itself.
-- **Daemon:** `engine/daemon.ts` of the program. Its runs start the sessions of the steps and know how
+- **Daemon:** `engine/daemon.ts` of the engine. Its runs start the sessions of the steps and know how
   each one ended. Auto mode of the daemon starts each step with the gate `auto` by itself. The states
   `starting` and `stuck` come from the locks and the record of the daemon. The daemon serves the
   board in its own process, and the field `daemon` comes from its status (the item `Daemon`).
@@ -31,11 +31,11 @@ The board has two inputs:
   the lanes, the steps, the stages, the reasons, and the tracker name from that document, and they
   hold none of their own.
 
-The board is the folder `engine/board/` of the program `celetis`, a part of its engine, and the
+The board is the folder `engine/board/` of the engine, and the
 master daemon of the repository serves it in its own process (`celetis daemon start`). It is Bun
-code with no dependency of its own. The
-program carries generated browser JavaScript. A product repository needs no build or install step.
-It runs from the installed `celetis` program, so the repository that it shows needs no file of the
+code with no dependency of its own.
+The engine carries generated browser JavaScript. A product repository needs no build or install step.
+It runs from the installed `celetis` engine, so the repository that it shows needs no file of the
 board.
 
 The board came from commit `95144d3` of its old repository
@@ -51,7 +51,7 @@ gives the reasons why its sessions come from herdr-core and its tabs from the He
   ([The master daemon](../README.md#the-master-daemon)).
 - Bun 1.4.4 or later. The entry exits 3 on an older Bun.
 - git 2.31 or later.
-- The installed `celetis` program for New intake, Run, Resume, Assist, Make visual, and queue actions (the README of the plugin, "First install").
+- The installed `celetis` engine for New intake, Run, Resume, Assist, Make visual, and queue actions (the README of the plugin, "First install").
 - herdr-core 0.1.16, with `hc` on `PATH` and its server that runs, for the session cards and for
   each button.
 - The Herdr app 0.1.11, with `herdr-app` on `PATH` and its window open, for New intake, Run,
@@ -75,9 +75,9 @@ daemon, nothing serves the board.
 [The master daemon](../README.md#the-master-daemon), "The start", gives the order of the start
 and the refusal of the requests of the board before the takeover. The board start
 checks no update policy: each run checks the policy of its own host before it starts a session.
-The board records the program revision of the daemon and starts an independent update check after
+The board records the engine revision of the daemon and starts an independent update check after
 it listens. At each New intake, Assist, or Make visual, the fixed adapter (`adapter.ts`) reads the
-installed `celetis` program and gives its argv ("The argv of a press").
+installed `celetis` engine and gives its argv ("The argv of a press").
 
 **The port** starts at `board.port` of the main `.celetis.yaml`, or 4403. With no effective
 `PORT` in the environment of the daemon, the board binds consecutive ports on `127.0.0.1` through
@@ -126,9 +126,9 @@ starts the daemon in the main checkout from each checkout of the repository, and
 
 **Open work during updates.** The status bar keeps one update control after the agent order.
 **Check for updates** starts discovery in one press. **Checking…** retains focus and ignores
-another press. **Up to date** reports that the installed program and registered plugins match
+another press. **Up to date** reports that the installed engine and registered plugins match
 the configured target of each part; it does not mean that an open agent session has reloaded new code.
-**Restart needed** (below) shows a daemon that runs another program than the installed one. Press
+**Restart needed** (below) shows a daemon that runs another engine than the installed one. Press
 **Up to date** for a fresh check. Progress and results use the polite status region,
 without a success toast or current-result dialog. A check does not refresh issues or approve
 installation. Only the separate **Update and restart** decision approves an offer.
@@ -140,7 +140,7 @@ the offer ID; the controller keeps its complete identity. A stale offer, conflic
 a new check and decision. The native update locks and validation also apply to this path.
 
 The nonmodal update dialog sits at the bottom right and keeps the board usable. It shows each
-installed revision and the target of the program. **Later** or Escape defers that exact offer in this
+installed revision and the target of the engine. **Later** or Escape defers that exact offer in this
 tab; **Update available** opens it again. A different offer opens a new dialog.
 **Hide progress** hides the dialog without cancelling the update. **Update in progress** opens
 it again. These choices survive a page reload in tab storage when the browser permits storage.
@@ -168,12 +168,12 @@ start and requests a fresh check and decision. The update may have completed; th
 installation retry.
 
 After a successful board-approved update, the daemon that serves the board restarts on the
-approved installed program. It drains the start response, then validates the installed target:
-the link of the installed program names the target, and the revision, source, and clean state of
+approved installed engine. It drains the start response, then validates the installed target:
+the link of the installed engine names the target, and the revision, source, and clean state of
 its folder are those of the target. A failed validation leaves the daemon running, and the dialog
 shows the failed update with the line of the validation. Else the daemon prints a line with the
 first 12 characters of the target revision, stops as `celetis daemon stop` does, and starts one
-successor process of the installed program, which takes over the runs
+successor process of the installed engine, which takes over the runs
 ([The master daemon](../README.md#the-master-daemon), "The restart"). The sessions stay in their tabs, and the
 page reconnects at the same URL. A stop of the daemon (`celetis daemon stop` or a signal) during
 the restart cancels the successor, so no daemon runs, and the page then shows the timeout. A daemon that runs from a checkout does not restart: the update
@@ -185,8 +185,8 @@ Follow [Updates](../../plugins/celetis/README.md#updates) for a terminal-started
 terminal response. Discovery releases its short read lock before foreground execution.
 Only updaters serialize on the update mutex; sessions and daemons may stay open.
 
-**Restart needed.** A daemon that runs from a version folder of the installed program reads the
-installed program at most once each 5 seconds. When the installed revision differs from the
+**Restart needed.** A daemon that runs from a version folder of the installed engine reads the
+installed engine at most once each 5 seconds. When the installed revision differs from the
 revision of the daemon, and the last check result is **Up to date** or a failed check, the control
 shows **Restart needed** within 10 seconds. A failed read keeps the last state. An update offer takes precedence,
 because its update restarts the daemon too. A failed update keeps its state until **Check again**.
@@ -194,7 +194,7 @@ The dialog opens by itself one time for each installed revision in the tab, with
 shows the revision of the daemon and the installed revision. **Later** or Escape closes the dialog
 and keeps **Restart needed** on the control; nothing restarts the daemon before a click. A click on
 **Restart** shows **Restarting…** at once and sends one restart request. The daemon validates the
-installed program as for an approved update. It answers with the revision that the new daemon
+installed engine as for an approved update. It answers with the revision that the new daemon
 runs, then it restarts as above. The page waits for that revision of the answer, not for the
 revision that it showed. It reloads once when that revision answers from a new runtime instance
 at the same URL. After 60 seconds it shows **Restart needs attention**, a line that says the
@@ -202,15 +202,15 @@ daemon did not return, and the recovery line. A refused restart shows **Restart 
 line that says the daemon did not restart, and the line of the refusal; the daemon keeps running, and **Check again** comes
 before a new attempt. The page never sends a restart again by itself. A daemon that runs from a
 checkout never shows **Restart needed**, and it refuses the restart request: a click never
-replaces a checkout daemon with the installed program. The terminal restart (`celetis daemon
+replaces a checkout daemon with the installed engine. The terminal restart (`celetis daemon
 stop`, then `celetis daemon start`) stays available.
 
 The server reads page files on later requests. It runs the server code and the code of the issue
 read that it loaded at its start. Native replacement can remove resources that open work still
 needs, so a person may reload or restart affected work. Each Assist, Make visual, and New intake
-press reads the installed program again. After `celetis update`, the next such
-press starts the command of the new program with no restart. A Run, Resume, Retry, or queue
-action goes to the daemon, which runs the program of the board too, so a press never meets a
+press reads the installed engine again. After `celetis update`, the next such
+press starts the command of the new engine with no restart. A Run, Resume, Retry, or queue
+action goes to the daemon, which runs the engine of the board too, so a press never meets a
 daemon of another revision. A fresh
 session loads changed skills; an open session does not reload them automatically. A change of
 `board.port` also needs a restart of the daemon. A change of `gates` in the main `.celetis.yaml`
@@ -414,7 +414,7 @@ a landed-history panel.
 - Its host reports a status (OSC 7501), and the `app` of that status names `claude` or `codex`.
   A terminal with no status has no card.
 - Its foreground process is that host (the file name of its first item, with no `.exe`), Bun
-  with the program's launch arguments and its exact `engine/intake.ts`, `engine/assist.ts`, or
+  with the engine's launch arguments and its exact `engine/intake.ts`, `engine/assist.ts`, or
   `engine/visual.ts` entry, or a process with an item of the file name `daemon.ts` while
   the terminal has a link label. In
   a session tab of a run, that process is the start barrier, the leader of the foreground
@@ -450,7 +450,7 @@ A later turn starts with no retained verdict, even when the board misses its wor
 Missing, invalid, unreadable, or stale evidence keeps the ordinary wait. A dialog always wins.
 A resume session has no completion watcher. The daemon keeps an exiting verdict
 until the foreground exits, then removes it. This local read adds no GitHub request.
-A board-approved update restarts the daemon on the new program by itself. After a
+A board-approved update restarts the daemon on the new engine by itself. After a
 terminal-started update, restart the daemon to load updated server code.
 
 The state of a session wins over the state of its issue, and an issue with a session has no card of
@@ -575,18 +575,18 @@ with no run ID gives 409 with a line that says the daemon sent no run ID. The bo
 command and no terminal for Run and Resume.
 
 **The argv of a press.** At each press of New intake, Assist, or Make visual, and at each queue
-wake, the adapter reads the installed `celetis` program
-(`readProgram` of `engine/lib/program.ts`). Its command is `<base>/.local/bin/celetis`, or
+wake, the adapter reads the installed `celetis` engine
+(`readEngine` of `engine/lib/installation.ts`). Its command is `<base>/.local/bin/celetis`, or
 `<base>\.local\bin\celetis.cmd` on Windows, where `<base>` is `CELETIS_HOME` or the home folder.
-The read refuses an entry that is not a file of the `celetis` program, so the command always
-starts the program in its version folder. The command path has no control character. The adapter
-keeps no program path between presses, so after `celetis update` the next press starts the new
-program.
+The read refuses an entry that is not the file `engine/celetis` of a version folder, so the
+command always starts the engine in its version folder. The command path has no control
+character. The adapter keeps no engine path between presses, so after `celetis update` the next
+press starts the new engine.
 
-The adapter makes each argv from fixed items: the command of the program, then, for Assist,
+The adapter makes each argv from fixed items: the command of the engine, then, for Assist,
 `assist`; for Make visual, `visual`, the number, and the full commit hash of the History row of
 that number; or for New intake, `intake`, with no issue number. These commands select from the
-local order. The program supplies Bun and its isolation flags. The number is its digits. Each
+local order. The engine supplies Bun and its isolation flags. The number is its digits. Each
 item is one argument: no shell reads the argv as a line, so an item cannot add a second command.
 For the issue 12:
 
@@ -596,7 +596,7 @@ For the issue 12:
 <base>/.local/bin/celetis intake
 ```
 
-The adapter also runs one fixed control command with the program entry, Bun and its isolation
+The adapter also runs one fixed control command with the engine entry, Bun and its isolation
 flags, and a 30-second limit, with no `CELETIS_AGENT` in their environment:
 `agents replace '<{"order", "expectedVersion"}>'` for the agent order. It parses its output as
 external input.
@@ -646,7 +646,7 @@ starts its step at the decided level.
 
 **New intake is independent of issue reads.** `POST /api/intake` accepts exactly `{}`. A non-object
 or an extra field returns 400 before any terminal starts. Each press reads the local order and the
-usage records. It checks the executable of the first eligible host and the current program before
+usage records. It checks the executable of the first eligible host and the current engine before
 opening a focused `Intake` tab, and its argv has no `--agent`. When every included host is limited,
 it returns 409 with the blocks. A preflight failure returns 409; a failed
 `hc` or `herdr-app` call returns 502. It neither waits for nor starts an issue read and does not use queue or issue
@@ -803,7 +803,7 @@ A Make visual body must be an object with exactly one field, `number`. An extra 
 `sha` or `agent`, gives 400 with a line that says that making a visual takes only the issue number. The number follows
 the rule of Assist. The server takes the full commit hash only from the History row of that number
 in the last good read. It makes no fresh read and checks no `noRun`. It checks in this order: the
-press in flight, the row, the terminal list, the page, the tab, the agent, and the program. A
+press in flight, the row, the terminal list, the page, the tab, the agent, and the engine. A
 failed `hc ls` gives 502. Each Make visual press marks its number in the board process until it
 ends, so a second press of that number gets 409. This mark is separate from the Run, Resume, and
 Assist reservation. The tab check needs no state of the board, so it also holds after a start of
@@ -813,10 +813,10 @@ of the command, for example a commit that is not on the remote trunk, stays in t
 These checks of Run, Resume, Assist, and Make visual also refuse with 409. Read-only `hc` calls
 can precede the failure:
 
-- **The program** of Assist and Make visual, before any terminal starts. No installed program gives a line
+- **The engine** of Assist and Make visual, before any terminal starts. No installed engine gives a line
   that points to [First install](../../plugins/celetis/README.md#first-install). A read that fails
   gives the first line of its error, for example for an entry that is not a file of the `celetis`
-  program, or for a `CELETIS_HOME` that is not an absolute path. A command path with a control
+  engine, or for a `CELETIS_HOME` that is not an absolute path. A command path with a control
   character gives a line that names it.
 - **The saved session of Resume.** The daemon refuses a Resume with a missing or invalid saved
   record, or a record with no verified session ID, with the first line of its error.
@@ -845,7 +845,7 @@ The answer to a press that the server did is 200 with `{"ok": true}`. Each other
 | 400 | The body is not JSON, the body has more than 1024 bytes, the issue number is not a positive safe integer in digits, the `effort` of Run is not one of the five levels, a Run or Retry body has another field, the queue request is invalid, the order request has another shape, or the body of Assist or Make visual is not an object or has an unexpected field. |
 | 403 | The `Host`, the `Origin`, or the content type is not good, or the `Origin` is `null` ("The trust boundary"). |
 | 404 | The path is not a path of the board, a `/visual/` path names no page, or Go names an id that is no session of the repository. |
-| 409 | A condition of the table does not hold, the queue request is stale or unavailable, the read of the program fails, the fresh issue read of Assist fails, the daemon refuses Run or Resume (for example a Resume with no valid saved session), the agent of Run, Assist, or Make visual is not good, the commit of Make visual is not 40 lowercase hex digits, the order replacement is stale or fails, a Retry names no live wait, or a restart request finds no restart to do or an installed program that fails its validation. |
+| 409 | A condition of the table does not hold, the queue request is stale or unavailable, the read of the engine fails, the fresh issue read of Assist fails, the daemon refuses Run or Resume (for example a Resume with no valid saved session), the agent of Run, Assist, or Make visual is not good, the commit of Make visual is not 40 lowercase hex digits, the order replacement is stale or fails, a Retry names no live wait, or a restart request finds no restart to do or an installed engine that fails its validation. |
 | 503 | A restart request arrives during a stop or a restart of the daemon, with a line that tells the sender to start the daemon again, then send the request. |
 | 502 | An `hc` or `herdr-app` call failed, also the terminal list of Make visual: the first line of its error. An answer with no list of terminals, no list of spaces, or no safe terminal id also gives 502. |
 | 500 | The server failed for another cause: the first line of the error, or a line that says the server failed. |
@@ -854,20 +854,20 @@ Each 500 answer, each 502 answer, a failed queue launch, and a failed update or 
 
 The update API is independent of issue and terminal reads. Each success apart from the restart
 returns `{runtime: {revision, instance}, update: <snapshot>}`. `revision` is the full revision of
-the program that started this board. `instance` is a random ID for this startup.
+the engine that started this board. `instance` is a random ID for this startup.
 
 | Request | Body | Result |
 |---|---|---|
 | `GET /api/update` | none | The current update snapshot and runtime. |
 | `POST /api/update/check` | An empty object, `{}`. | Starts or joins a check and returns the current snapshot immediately. |
 | `POST /api/update/start` | Exactly `{"offerId": "<opaque ID>"}`. | Consumes an available offer before mutation and returns 202 with the current snapshot. |
-| `POST /api/update/restart` | Exactly `{}`. | When the snapshot says `restart-needed`, validates the installed program and returns 202 with `{runtime, target}`; `target` is the full revision that the new daemon runs. Then the daemon restarts. |
+| `POST /api/update/restart` | Exactly `{}`. | When the snapshot says `restart-needed`, validates the installed engine and returns 202 with `{runtime, target}`; `target` is the full revision that the new daemon runs. Then the daemon restarts. |
 
 The POST routes use the same Host, Origin, JSON content-type, body limit, CSP, and JSON response
 paths as other board actions. A non-object or unexpected field gives 400. An unavailable or
-consumed offer gives 409. The restart reads the installed program again before it answers. It
+consumed offer gives 409. The restart reads the installed engine again before it answers. It
 gives 409 with a line that tells the sender to check again in another phase, also for a daemon that
-runs from a checkout, and 409 with the line of the validation when the installed program fails
+runs from a checkout, and 409 with the line of the validation when the installed engine fails
 it; the daemon then keeps running. It gives 503 with the stop line during a stop or a restart, so
 two restart requests start one restart. The start and the restart responses finish before this
 board closes for activation.
@@ -894,7 +894,7 @@ process. Twelve rules hold for the server and the page:
 6. The page sends an issue number, a session id, a selected Run agent, a selected Run effort level, a strict queue action, an
    agent order with the version that it read, a usage-limit wait ID, or an opaque update offer
    ID, never a command, an installation path, or a usage observation.
-   New intake and **Restart** send only an empty object; the daemon reads the installed program
+   New intake and **Restart** send only an empty object; the daemon reads the installed engine
    itself. Resume, Assist, and Make visual take only the issue number.
 7. An id of an answer of `hc` or `herdr-app` (a terminal, a space, a tab) goes into a command only
    when it has letters, digits, `_`, `:`, `.`, and `-`, and does not start with `-` (`isSafeId` of
@@ -904,10 +904,10 @@ process. Twelve rules hold for the server and the page:
    no shell.
 9. For issue and session data, it runs `git` only in the main checkout or in a lane worktree.
    The `git diff` of a session runs with `--no-optional-locks`, so it writes nothing. Update
-   workers also validate the native plugin and program installations.
+   workers also validate the native plugin and engine installations.
 10. Open shell refuses a path that is not under `.claude/worktrees/` of the main checkout.
 11. The server writes nothing in a product working tree. An approved update changes only the
-    validated native plugin and program installations.
+    validated native plugin and engine installations.
 12. The page writes each text of the data, of a terminal screen, and of an error as text, never as HTML. Its
     Content-Security-Policy allows its own files (the page, its eight scripts, its stylesheet, and
     its two fonts) and `data:` images (the tab icon) only. A visual page at `/visual/<sha>` is
@@ -925,16 +925,16 @@ process. Twelve rules hold for the server and the page:
 
 Five rules hold for the start, the argvs, and the data:
 
-1. **Each press that starts a command reads the program.** Each press of New intake, Assist, or
-   Make visual reads the installed `celetis` program. The read
-   accepts only the own entry of the program in `<base>/.local/bin/`, which starts the program in
+1. **Each press that starts a command reads the engine.** Each press of New intake, Assist, or
+   Make visual reads the installed `celetis` engine. The read
+   accepts only the own entry of the engine in `<base>/.local/bin/`, which starts the engine in
    its version folder, and the command path holds no control character. The page, the data, and a
    lane cannot supply a command path.
 2. **A press starts a fixed argv or sends a fixed request.** Run and Resume send the fixed fields
    of "The requests of Run and Resume", Retry sends `{number, waitId}`, and a queue action sends
    `{action, selection, quiet}`. New intake, Assist, and Make visual start their interactive commands ("The
    argv of a press"). On macOS and Linux, the login shell of the new terminal gets the argv as
-   `"$@"`, so it reads no item as shell text. That program starts the first `bun` on the `PATH` of
+   `"$@"`, so it reads no item as shell text. That engine starts the first `bun` on the `PATH` of
    that login shell, through its `env -S` shebang, or through its shim on Windows. New intake,
    Assist, and Make visual start the selected native host. The server starts `hc`, `herdr-app`,
    and `git`, and the issue read starts `gh`, `git`, and, on macOS and Linux, `ps`. Update workers have the separate fixed update
@@ -974,7 +974,7 @@ These files enforce the rules. They are the trust files of the board:
 | 10 (Open shell under `.claude/worktrees/`) | `engine/board/presses.ts`, `engine/lib/board-read.ts` (`isInside`) |
 | 11 (no write in a product working tree) | No one file: each module of the board; the read model only reads |
 | 12 (text as text, the Content-Security-Policies, the visual page) | `engine/board/perimeter.ts`, `engine/lib/fields.ts` (`isCommit`), `engine/lib/board-read.ts` (`readVisualPage`), `engine/lib/visual.ts` (`hasPage`), the page modules |
-| Start rule 1 (the program read) | `engine/board/adapter.ts`, `engine/lib/program.ts` (`readProgram`) |
+| Start rule 1 (the engine read) | `engine/board/adapter.ts`, `engine/lib/installation.ts` (`readEngine`) |
 | Start rule 2 (fixed argvs and requests) | `engine/board/adapter.ts`, `engine/lib/terminal.ts` (`openTab`) |
 | Start rule 3 (only validated values) | `engine/board/requests.ts`, `engine/lib/fields.ts`, `engine/lib/host-names.ts` (`isHost`), `engine/board/adapter.ts`, `engine/lib/queue.ts` (`parseQueueAction`) |
 | Start rule 4 (the data comes from the engine) | `engine/lib/board-read.ts`, `engine/board/adapter.ts`, `engine/lib/daemon-types.ts` (`parseAnswer`, `parseQueueAnswer`) |
@@ -1194,7 +1194,7 @@ the texts are `Open the issue` and `Read the issues again`.
 
 ## Versions
 
-- **The board shares the program revision of its daemon.** A board-approved update restarts the
+- **The board shares the engine revision of its daemon.** A board-approved update restarts the
   daemon on that installed revision. A terminal-started `celetis update` needs a restart of the
   daemon ("Start"). Each start has a distinct runtime instance.
 - **The document has no version.** The board and the engine are one package, and the compiler

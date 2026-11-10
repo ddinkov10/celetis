@@ -63,10 +63,10 @@ completion criterion of a skill.
   plugin, and a relative link in a plugin file starts in the folder of that file. A path with no
   prefix is a path of the product project.
 - **Commands.** Run each plugin command as `celetis --agent <host> <command> [<argument>...]`, with
-  `<host>` the running host: `claude` on Claude Code, `codex` on Codex. The installed program
+  `<host>` the running host: `claude` on Claude Code, `codex` on Codex. The installed engine
   `celetis` runs the command; `<plugin>` locates only the documents that the skills cite. When
   `celetis` is not on `PATH`, stop before the workflow command, and tell the person to install the
-  program (`<plugin>/README.md`, "First install") and to start a fresh session.
+  engine (`<plugin>/README.md`, "First install") and to start a fresh session.
 - **GitHub.** Run each write that an act of `celetis --agent <host> issue <n> <act>` makes through
   that act: the engine reads these writes. Use `gh` for reads and for each other write, for example
   the `## Intent` and `## External facts` comments and the sub-issue link of an epic child
@@ -94,7 +94,7 @@ completion criterion of a skill.
   agent, or automatic workflow step does not itself request a check. Otherwise, continue the
   requested work without update discovery, update reports, update-only approval requests, or
   manual-check advice. For a requested check, follow the host's existing approval procedure and
-  report each part (the program, `claude`, `codex`), its `target`, and each
+  report each part (the engine, `claude`, `codex`), its `target`, and each
   stop line that follows the JSON on stderr, with no claim that the remote query proves a newer revision; the reason of a
   `skipped` part; and the cause of an `error` part, for example a policy conflict and its required
   action, then continue with no claim that an error or skipped part is current. When the person wants an update,

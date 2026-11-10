@@ -390,7 +390,7 @@ export const commands: readonly Entry[] = [
         helped(12, 'Asks the daemon to wake the quota waiter of an issue for one attempt cycle.'),
       ),
     ],
-    `Each form sends one request to the master daemon of the repository of the current folder and returns at its answer. \`run <n>\` starts the next step of the issue, \`run resume <n>\` opens the saved session of a step with no progress again, and \`run retry <n> <wait-id>\` wakes the quota waiter of the issue for one attempt cycle. \`--quiet\` opens each session tab of the start in the background; \`run resume\` ignores it. An accepted start prints \`run: #<n>: accepted as run <run id> of the daemon PID <pid>; read its progress: celetis daemon status\`, and an accepted Retry prints \`run: #<n>: Retry requested; the waiting run starts one bounded attempt cycle\`; both exit ${exits.done}. A refusal prints the line of the daemon, on stdout for code ${exits.done} and on stderr otherwise, and exits with its code: ${exits.prerequisite} for a busy issue lock, ${exits.blocked} for a failed GitHub read of the issue, ${exits.done} for each other end before the first session. With no daemon, it exits ${exits.prerequisite} and starts nothing. It exits ${exits.prerequisite} when the daemon runs another revision of the program or an update removed this program version, and ${exits.blocked} when the daemon does not answer or the outcome is unknown. On Windows it exits ${exits.prerequisite} with \`run: Windows is not a support target\`. Any other form exits ${exits.usage} with the usage line`,
+    `Each form sends one request to the master daemon of the repository of the current folder and returns at its answer. \`run <n>\` starts the next step of the issue, \`run resume <n>\` opens the saved session of a step with no progress again, and \`run retry <n> <wait-id>\` wakes the quota waiter of the issue for one attempt cycle. \`--quiet\` opens each session tab of the start in the background; \`run resume\` ignores it. An accepted start prints \`run: #<n>: accepted as run <run id> of the daemon PID <pid>; read its progress: celetis daemon status\`, and an accepted Retry prints \`run: #<n>: Retry requested; the waiting run starts one bounded attempt cycle\`; both exit ${exits.done}. A refusal prints the line of the daemon, on stdout for code ${exits.done} and on stderr otherwise, and exits with its code: ${exits.prerequisite} for a busy issue lock, ${exits.blocked} for a failed GitHub read of the issue, ${exits.done} for each other end before the first session. With no daemon, it exits ${exits.prerequisite} and starts nothing. It exits ${exits.prerequisite} when the daemon runs another revision of the engine or an update removed this engine version, and ${exits.blocked} when the daemon does not answer or the outcome is unknown. On Windows it exits ${exits.prerequisite} with \`run: Windows is not a support target\`. Any other form exits ${exits.usage} with the usage line`,
   ),
   entry(
     'run',
@@ -436,7 +436,7 @@ export const commands: readonly Entry[] = [
       form('daemon stop', [], helped(17, 'Stops the daemon and waits until its process ends.')),
       form('daemon auto on|off', [], helped(18, 'Turns auto mode of the daemon on or off, and prints its state.')),
     ],
-    `Starts, reads, and stops the master daemon of the repository of the current folder (\`engine/README.md\`, "The master daemon"); \`auto on|off\` turns auto mode of the daemon on or off and prints \`daemon: auto mode <state>\`. For \`start\`, \`status\`, and \`stop\` the optional \`--agent\` selects nothing; for \`auto\` it selects the host of the auto steps. \`start\` spawns the daemon detached, which serves the board (\`engine/board/README.md\`), and exits ${exits.done} when it answers, or when a daemon already runs; it then prints \`daemon: board http://127.0.0.1:<port>\`, except for a daemon of another revision. It exits ${exits.prerequisite} when \`gh\`, \`hc\`, or the Herdr app is missing, and ${exits.blocked} when the hc server or the Herdr app does not answer, or when the daemon ends or stays silent for 30 seconds, for example when its board port cannot open. \`status\` prints the daemon, the board URL, its auto mode, and one line per run; it exits ${exits.prerequisite} when no daemon runs or the daemon runs another revision of the program. \`stop\` exits ${exits.done} when the process ended or no daemon runs. \`auto\` exits ${exits.done} with the state, ${exits.prerequisite} when no daemon runs or the daemon runs another revision of the program, the code of a refusal, or ${exits.blocked} when the outcome is unknown. Each form exits ${exits.blocked} when a daemon is known but its process or socket does not answer; \`stop\` exits ${exits.blocked} too when the process stays for 60 seconds. Windows exits ${exits.prerequisite}, and any other form exits ${exits.usage}`,
+    `Starts, reads, and stops the master daemon of the repository of the current folder (\`engine/README.md\`, "The master daemon"); \`auto on|off\` turns auto mode of the daemon on or off and prints \`daemon: auto mode <state>\`. For \`start\`, \`status\`, and \`stop\` the optional \`--agent\` selects nothing; for \`auto\` it selects the host of the auto steps. \`start\` spawns the daemon detached, which serves the board (\`engine/board/README.md\`), and exits ${exits.done} when it answers, or when a daemon already runs; it then prints \`daemon: board http://127.0.0.1:<port>\`, except for a daemon of another revision. It exits ${exits.prerequisite} when \`gh\`, \`hc\`, or the Herdr app is missing, and ${exits.blocked} when the hc server or the Herdr app does not answer, or when the daemon ends or stays silent for 30 seconds, for example when its board port cannot open. \`status\` prints the daemon, the board URL, its auto mode, and one line per run; it exits ${exits.prerequisite} when no daemon runs or the daemon runs another revision of the engine. \`stop\` exits ${exits.done} when the process ended or no daemon runs. \`auto\` exits ${exits.done} with the state, ${exits.prerequisite} when no daemon runs or the daemon runs another revision of the engine, the code of a refusal, or ${exits.blocked} when the outcome is unknown. Each form exits ${exits.blocked} when a daemon is known but its process or socket does not answer; \`stop\` exits ${exits.blocked} too when the process stays for 60 seconds. Windows exits ${exits.prerequisite}, and any other form exits ${exits.usage}`,
   ),
   entry(
     'intake',
@@ -447,7 +447,7 @@ export const commands: readonly Entry[] = [
         passThrough: sessionCode,
       }),
     ],
-    `Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters \`celetis:intake\` with that request. It creates no issue before the answer and does not start a run. Before the start, it checks that this program serves the contract version that the plugin of the selected host needs, and it exits ${exits.prerequisite} with the line of that check when it does not`,
+    `Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters \`celetis:intake\` with that request. It creates no issue before the answer and does not start a run. Before the start, it checks that this engine serves the contract version that the plugin of the selected host needs, and it exits ${exits.prerequisite} with the line of that check when it does not`,
     hosted,
   ),
   entry(
@@ -459,7 +459,7 @@ export const commands: readonly Entry[] = [
         passThrough: sessionCode,
       }),
     ],
-    `Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses \`issue <n> assisted <file>\` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume a run or land. Before the start, it checks that this program serves the contract version that the plugin of the selected host needs, and it exits ${exits.prerequisite} with the line of that check when it does not`,
+    `Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses \`issue <n> assisted <file>\` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume a run or land. Before the start, it checks that this engine serves the contract version that the plugin of the selected host needs, and it exits ${exits.prerequisite} with the line of that check when it does not`,
     hosted,
   ),
   entry(
@@ -545,7 +545,7 @@ export const commands: readonly Entry[] = [
     'install',
     false,
     [form('install')],
-    'Installs the revision of the clean checkout that it runs from as the program ("First install"); takes no arguments',
+    'Installs the revision of the clean checkout that it runs from as the engine ("First install"); takes no arguments',
   ),
   entry(
     'setup',
@@ -558,7 +558,7 @@ export const commands: readonly Entry[] = [
       form('setup lane <path>'),
       form('setup push'),
     ],
-    'The deterministic part of `/celetis:setup`: validated saved answers from `check`, bounded owned refresh and removal in `write`, the test lane (`try` makes it and runs the worktree setup there, and `try --remove` removes it), the run of the worktree setup in a lane that exists (`lane`), and the commit of planned paths, including deletions, with the push. Every setup run calls the program; no product launcher is written',
+    'The deterministic part of `/celetis:setup`: validated saved answers from `check`, bounded owned refresh and removal in `write`, the test lane (`try` makes it and runs the worktree setup there, and `try --remove` removes it), the run of the worktree setup in a lane that exists (`lane`), and the commit of planned paths, including deletions, with the push. Every setup run calls the engine; no product launcher is written',
   ),
   entry(
     'setup',
@@ -589,16 +589,16 @@ export const commands: readonly Entry[] = [
     'update',
     false,
     [
-      form('update', [], helped(1, 'Updates the program and the plugin of each host; asks once.')),
+      form('update', [], helped(1, 'Updates the engine and the plugin of each host; asks once.')),
       form('update check', [], helped(2, 'Shows the installed and the available revision of each part.')),
     ],
-    `Updates the program and the plugin of each host, and asks once in an interactive terminal. \`check\` is read-only: it prints one JSON array of the parts. \`plugins/celetis/README.md\`, "Updates", gives the steps. Any other form exits ${exits.usage} with the usage line`,
+    `Updates the engine and the plugin of each host, and asks once in an interactive terminal. \`check\` is read-only: it prints one JSON array of the parts. \`plugins/celetis/README.md\`, "Updates", gives the steps. Any other form exits ${exits.usage} with the usage line`,
   ),
   entry(
     'root',
     false,
-    [form('root', [], helped(24, 'Prints the folder of the program.'))],
-    'Prints the folder of the program. It takes no argument and runs in each folder',
+    [form('root', [], helped(24, 'Prints the version folder that holds the running engine.'))],
+    'Prints the version folder that holds the running engine. It takes no argument and runs in each folder',
   ),
   entry(
     'daemon',
@@ -639,7 +639,7 @@ export const launcherForms: readonly Form[] = [
   form('help', [], helped(26, 'Prints this list.')),
   form('--help'),
   form('-h'),
-  form('--version', [], helped(25, 'Prints the revision of the program.')),
+  form('--version', [], helped(25, 'Prints the revision of the engine.')),
 ];
 
 const helpRows = [...commands.filter(({ internal }) => !internal).flatMap(({ forms }) => forms), ...launcherForms]

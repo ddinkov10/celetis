@@ -261,7 +261,7 @@ export const agentCause = (cause: unknown) => {
     )
   )
     return message;
-  if (message.includes('the celetis program is not installed')) return 'the celetis program is not installed';
+  if (message.includes('the celetis engine is not installed')) return 'the celetis engine is not installed';
   return 'local agent state could not be read or changed; check it in a terminal';
 };
 const screenOf = (text: string) =>

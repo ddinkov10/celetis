@@ -21,12 +21,12 @@ export async function update(checked: UpdateCheck): Promise<ExitCode> {
       checked.parts.some((part) => 'error' in part) ? exits.blocked : exits.prerequisite,
     );
   }
-  const program = checked.parts.find((part) => part.part === 'program');
-  if (!program || !('installed' in program))
-    throw new HostError('update: no installed program was inspected', exits.blocked);
+  const engine = checked.parts.find((part) => part.part === 'engine');
+  if (!engine || !('installed' in engine))
+    throw new HostError('update: no installed engine was inspected', exits.blocked);
   const offer = checked.offer;
   if (!offer) {
-    console.log(`${summary}\nupdate: Celetis is up to date at ${short(program.target)}`);
+    console.log(`${summary}\nupdate: Celetis is up to date at ${short(engine.target)}`);
     return exits.done;
   }
   console.log(`Celetis update\n${summary}`);

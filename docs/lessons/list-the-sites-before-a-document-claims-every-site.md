@@ -2,17 +2,41 @@
 {
   "schema": 1,
   "name": "list-the-sites-before-a-document-claims-every-site",
-  "description": "Universal claims went past their evidence: ADR-0081 claimed one exception where the code has two, and a #263 ruling scoped a two-file diff claim wider than its command",
+  "description": "Universal claims went past their evidence: ADR-0081 claimed one exception where the code has two, a #263 ruling scoped a two-file diff claim wider than its command, and an ADR-0091 summary line dropped an exception of its own Decision",
   "tags": [
     "process",
     "refix",
     "git",
-    "false-negative"
+    "false-negative",
+    "recurring"
   ],
-  "date": "2026-11-09",
+  "date": "2026-11-10",
   "status": "active",
-  "source": "Task 6 review of ddinkov10/celetis#263\n\nFinal review of ddinkov10/celetis#256 and its scoped re-review",
+  "source": "Task 4 review of ddinkov10/celetis#283 (commit 45fa8c9)\n\nTask 6 review of ddinkov10/celetis#263\n\nFinal review of ddinkov10/celetis#256 and its scoped re-review",
   "incidents": [
+    {
+      "id": "4bff6d49-f7f9-4b7c-8783-ff6c58d9d1d8",
+      "date": "2026-11-10",
+      "action": "Task 4 of #283 wrote in the Consequences of ADR-0091: \"One name names one thing in current text, and the whole engine is in `engine/`.\"",
+      "expected": "A claim of \"whole\" holds for each site or names each exception, as the active lesson list-the-sites-before-a-document-claims-every-site requires; spec \"Done when\" 2 keeps DESIGN.md, PRODUCT.md, and .impeccable/ at the root.",
+      "observed": "The task review found the claim broader than the record's own Decision 2 (line 58), which keeps DESIGN.md, PRODUCT.md, and more at the root; the fix commit dce0477 names those files.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "Consequences, first bullet: \"the whole engine is in `engine/`\". Decision 2 says `DESIGN.md`, `PRODUCT.md`, `.impeccable/` (the board design files) and `scripts/` stay at the root, and spec \"Done when\" 2 allows those exceptions. The claim is slightly broader than the record's own Decision 2.",
+        "reference": "https://github.com/ddinkov10/celetis/issues/283"
+      },
+      "inference": "Inferred: a summary sentence restated the goal (one folder) and dropped the exception that the decision keeps. The brief carried the lesson, so the rule was retrieved and not followed. Uncertain whether a summary line in Consequences reads to an author as a claim that the rule covers.",
+      "diagnosis": [
+        "not-followed"
+      ],
+      "revision": "45fa8c9",
+      "brief": "Task 4 brief of the #283 plan, \"Lesson rules\": list-the-sites-before-a-document-claims-every-site",
+      "lesson": {
+        "name": "list-the-sites-before-a-document-claims-every-site",
+        "revision": "5cfd9da95d79b6c17ee35f3ece555b9281bd7c8b",
+        "digest": "2d270c011dee83d3ccef3868a3cd82b00a7e7aef71e1488cb099ab5b8287f2e0"
+      }
+    },
     {
       "id": "82163bbd-dc02-4c81-8450-41f5c377f7fb",
       "date": "2026-11-09",
@@ -54,7 +78,7 @@
       "revision": "d4c8ad1138dd47a82254de94f728647ce9de3cc5"
     }
   ],
-  "recurrences": 1,
+  "recurrences": 2,
   "reviews": [
     {
       "id": "2a530405-b476-4943-bcc6-863be4f41ee1",
@@ -84,6 +108,21 @@
         "state": "not-needed",
         "detail": "The rule stays text: the scope of a claim needs judgment of its later use, and no gate reads rulings or briefs."
       }
+    },
+    {
+      "id": "c41f9e72-3a68-4b05-8d1e-7f2a6b0c93d4",
+      "requestDigest": "541160c23f209fbeb52e387e22856451ff026103df1d5c02751981b5cfbae9ef",
+      "date": "2026-11-10",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #283; claude child opus/high\n\nMerge under the reviewer rules: the active lesson list-the-sites-before-a-document-claims-every-site states the same rule, a claim that covers every part written from a list of each part and its exceptions, and the proposal names it as the lesson that its incident did not follow and proposes this merge in its Fix. The incident is observed: at 45fa8c9, line 91 of ADR-0091 (the first Consequences bullet) said \"the whole engine is in `engine/`\", while Decision 2 at line 58 keeps `DESIGN.md` and `PRODUCT.md` at the root; in the lane, line 95 names `DESIGN.md`, `PRODUCT.md`, and `.impeccable/` as files that stay at the root. A claim that a component is whole in one folder is a claim that each part is there, so the active rule applies. The survivor keeps the active name and every incident and review, adds the incident, the tag recurring, and the #283 paragraphs, and names a summary line and a claim of a whole component in the fix and the rule. The cause stays labeled as inference with its uncertainty. The rule adds a check, weakens none, and contradicts no skill, principle, or instruction file. The proposal's own rule is not kept as a second active lesson, because it states a part of the survivor's rule.",
+      "related": [
+        "name-the-exceptions-of-a-whole-claim-in-a-decision-record",
+        "list-the-sites-before-a-document-claims-every-site"
+      ],
+      "followUp": {
+        "state": "not-needed",
+        "detail": "The rule stays text: which exceptions a summary claim must name depends on the meaning of the decision, and no gate reads it."
+      }
     }
   ]
 }
@@ -96,16 +135,20 @@ ADR-0081 of #256 first said that a malformed response ends as `blocked`, exit 6,
 
 During the #263 build, the controller compared the plan base 2a9e010 with the build base d480bc1 by a `git diff --stat` that named six paths. It saw two changed files and wrote that the commits differ "only in" those two files. The ruling went into the ledger, the shared task context, and the Task 6 brief, and the implementer copied it into ADR-0084. The task reviewer ran `git diff --name-only 2a9e010 d480bc1` and found 81 files; the agent-text paths had none.
 
+In #283, the first Consequences bullet of ADR-0091 said "the whole engine is in `engine/`". Decision 2 of the same record keeps `DESIGN.md`, `PRODUCT.md`, and `.impeccable/`, the board design files, at the root. The task review found the summary claim broader than the Decision, and dce0477 named those files. The Task 4 brief carried this lesson.
+
 ## Root cause
 
 Inferred, not proven: each writer generalized from the sites in view and did not list every call site or error path from the code before writing a universal claim. Alternative: the plan text framed the first claim.
 
 In #263, inferred: the controller read a path-limited diff as a whole-tree diff. The claim was used only to say that line numbers of agent text are leads, which stays true, so no result was wrong; the sentence was wider than its evidence. The incident names this lesson as not followed.
 
+In #283, inferred: a summary sentence restated the goal (one folder) and dropped the exception that the Decision keeps. The rule reached the author and was not followed. Uncertain whether an author reads a summary line in Consequences as a claim that this rule covers.
+
 ## Fix
 
-Proposed, needs no structural change: before a document states a property of every site, or names the only exception, list the sites from the code (for example a grep of the callers or of each method's error path) and the recorded results, and write the claim from that list. For a claim about the files that two commits differ in, run `git diff --name-only` with no path filter, or write the claim with the path scope of the command. This stays text: which sites a claim covers needs judgment that no gate can check.
+Proposed, needs no structural change: before a document states a property of every site, or names the only exception, list the sites from the code (for example a grep of the callers or of each method's error path) and the recorded results, and write the claim from that list. For a claim about the files that two commits differ in, run `git diff --name-only` with no path filter, or write the claim with the path scope of the command. A summary line (a Consequences bullet, a status line) that says a component is whole, complete, or in one place is such a claim too: compare it with each exception that the same text or its source keeps. This stays text: which sites a claim covers needs judgment that no gate can check.
 
 ## Rule
 
-Applies when a document, an ADR, a ruling, a brief, or a report states that every site, call, path, or file has a property, names the one exception, or states which files two commits differ in. Action: list each site from the code and the recorded results before writing the sentence, and write the claim so that it holds for each listed site, or name each exception; for a diff, take the file list from a diff with no path filter, or write the claim with the same path scope as the command (for example "no agent-text file differs"). Check: a reader can map each site of the list to the sentence, and a grep of the sites, or the command of the claim rerun with the scope that the sentence states, finds none that the sentence does not cover.
+Applies when a document, an ADR, a ruling, a brief, or a report states that every site, call, path, or file has a property, that a component is whole, complete, or in one place, names the one exception, or states which files two commits differ in; a summary line such as a Consequences bullet counts. Action: list each site from the code and the recorded results before writing the sentence, and write the claim so that it holds for each listed site, or name each exception; for a summary line, compare the claim with each exception that the same text or its source keeps; for a diff, take the file list from a diff with no path filter, or write the claim with the same path scope as the command (for example "no agent-text file differs"). Check: a reader can map each site of the list to the sentence, no exception of the same text or its source contradicts the sentence, and a grep of the sites, or the command of the claim rerun with the scope that the sentence states, finds none that the sentence does not cover.

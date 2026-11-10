@@ -11,7 +11,7 @@ export type WorkerRecord =
   | { type: 'owned'; pid: number; active: boolean }
   | { type: 'result'; value: UpdateCheck | UpdateResult };
 
-const part = (value: unknown) => value === 'program' || isHost(value);
+const part = (value: unknown) => value === 'engine' || isHost(value);
 const text = (value: unknown): value is string => typeof value === 'string' && !value.includes('\0');
 const sha = (value: unknown): value is string => text(value) && revision.test(value);
 const object = (value: unknown): value is Record<string, unknown> =>
@@ -22,10 +22,10 @@ const strings = (value: unknown): value is string[] => Array.isArray(value) && v
 const parts = (value: unknown) => Array.isArray(value) && value.every(part) && new Set(value).size === value.length;
 
 export function isPreparedUpdate(value: unknown): value is PreparedUpdate {
-  if (!object(value) || !sha(value.target) || !isParts(value.parts) || !object(value.program)) return false;
-  const target = (value.parts as Record<string, unknown>[]).find((entry) => entry.part === 'program')?.target;
+  if (!object(value) || !sha(value.target) || !isParts(value.parts) || !object(value.engine)) return false;
+  const target = (value.parts as Record<string, unknown>[]).find((entry) => entry.part === 'engine')?.target;
   if (target !== value.target) return false;
-  const { installed, source } = value.program;
+  const { installed, source } = value.engine;
   if (
     !object(installed) ||
     !['root', 'entry', 'command'].every((key) => text(installed[key])) ||
@@ -65,7 +65,7 @@ function isParts(value: unknown): boolean {
           (['root', 'source', 'ref'].every((key) => text(entry[key])) &&
             sha(entry.installed) &&
             sha(entry.target) &&
-            (entry.part === 'program' || text(entry.home)))),
+            (entry.part === 'engine' || text(entry.home)))),
     ) &&
     new Set(value.map((entry) => entry.part)).size === value.length
   );

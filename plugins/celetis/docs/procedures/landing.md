@@ -92,7 +92,7 @@ the tip that it lands; with the landing `pr`, the CI of the lane PR runs it.
 
 The master daemon of the repository runs the landing, with the environment of the shell that
 started it, except `PORT`, which only its board reads, and `land` prints its output and exits with
-its status. So `land <n> '<subject>'` needs a running daemon of the same program revision: with no
+its status. So `land <n> '<subject>'` needs a running daemon of the same engine revision: with no
 daemon, or a daemon of another revision, it exits 3 with a line that names
 `celetis daemon start` or the restart of the daemon (exit 3 below).
 
@@ -131,7 +131,7 @@ The exit status of `land <n> '<subject>'` gives the result (`<plugin>/docs/workf
   landing, and the line starts with `land: prerequisite:`.
   - `the lock land-<n> has the owner PID …`: another landing of the issue still runs. Wait until
     it ends, then run the script again. It is no refusal, and step 5 does not count it.
-  - `no daemon runs …` or `the daemon runs the program at …`: the maintainer starts or restarts
+  - `no daemon runs …` or `the daemon runs the engine at …`: the maintainer starts or restarts
     the daemon (`celetis daemon start`, or `celetis daemon stop` and then `celetis daemon start`).
     Show the user the line, and stop. In a step session, hand it to the issue with a `## Stopped`
     comment by `<plugin>/docs/procedures/stop.md`, "A stop in a step session".

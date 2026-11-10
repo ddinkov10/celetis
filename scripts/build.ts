@@ -6,7 +6,7 @@ import { entryParts } from '../engine/lib/entry-text.ts';
 import { HostError } from '../engine/lib/errors.ts';
 import { hostAdapter } from '../engine/lib/hosts.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
-import { programEntry } from '../engine/lib/process.ts';
+import { engineEntry } from '../engine/lib/process.ts';
 
 const root = dirname(import.meta.dir);
 const nativeTargets = [{ entry: 'engine/hooks/entry.ts', output: 'plugins/celetis/hooks/entry.js', mode: 0o644 }];
@@ -302,7 +302,7 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
     const bytes = Buffer.from(await artifact.arrayBuffer());
     built.push({ output: target.output, mode: target.mode, bytes });
   }
-  built.push({ output: 'celetis', mode: 0o755, bytes: Buffer.from(programEntry) });
+  built.push({ output: 'engine/celetis', mode: 0o755, bytes: Buffer.from(engineEntry) });
   for (const [output, blocks] of [
     ['plugins/celetis/README.md', readmeBlocks],
     ['plugins/celetis/docs/issue-tracker.md', trackerBlocks],

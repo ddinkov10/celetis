@@ -3,19 +3,19 @@ import { type ExitCode, exits, usage } from './lib/contract.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder } from './lib/events.ts';
 import { requireBun } from './lib/host.ts';
+import { enginePaths, engineSource, installEngine } from './lib/installation.ts';
 import { commandInput } from './lib/operation.ts';
 import { childEnv } from './lib/process.ts';
-import { installProgram, programPaths, programSource } from './lib/program.ts';
 
 export async function main(argv: string[]): Promise<ExitCode> {
   try {
     requireBun();
     const { args } = commandInput(argv);
     if (args.length) throw new HostError(usage('install'), exits.usage);
-    const paths = programPaths();
+    const paths = enginePaths();
     const root = dirname(import.meta.dir);
-    const program = await installProgram(root, await programSource(root), paths);
-    console.log(`install: ${program.command} -> ${program.entry}`);
+    const engine = await installEngine(root, await engineSource(root), paths);
+    console.log(`install: ${engine.command} -> ${engine.entry}`);
     const key = (path: string) => (process.platform === 'win32' ? path.toLowerCase() : path);
     const items = (childEnv().PATH ?? '').split(delimiter).filter(Boolean);
     if (!items.some((item) => key(resolve(item)) === key(paths.bin)))

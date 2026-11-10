@@ -10,8 +10,8 @@ session when the step is done, and starts the next step when its gate is `auto`.
 stays the state store (`docs/issue-tracker.md`): every result of a step goes to the issue. The
 master daemon also serves the board, a local web page that shows each agent session and the next
 step of each issue. Its Run button gives the request for one issue to the daemon. The board is
-`engine/board/` of the program: a product project, a repository that uses the plugin `celetis`,
-holds its config, and the program holds the board, which reads its data in the daemon process.
+`engine/board/` of the engine: a product project, a repository that uses the plugin `celetis`,
+holds its config, and the engine holds the board, which reads its data in the daemon process.
 
 These records hold the reasons:
 
@@ -28,7 +28,7 @@ These records hold the reasons:
   [ADR-0073](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0073-the-runner-commands-are-clients-of-the-master-daemon.md):
   each `run` and `queue` command sends one request to it and returns.
 
-`engine/lib/workflow.ts` of the program is the one definition of the workflow: the lanes, with the
+`engine/lib/workflow.ts` of the engine is the one definition of the workflow: the lanes, with the
 label, the branch prefix, and the steps in order of each lane; the stages; the command of each step;
 the default gate `me`; the decision of an issue; and the skip rule. A product project cannot change
 it.
@@ -42,7 +42,7 @@ document inside a product project that has a `docs/` folder and an ADR store of 
 documents (`docs/workflow.md`, `docs/issue-tracker.md`, `docs/capability.md`,
 `docs/procedures/docs-lookup.md`, `docs/procedures/prior-art.md`) and `step-prompt.md` of the plugin
 folder; a runtime of `engine/` or a program of `scripts/` that the text names by its file, which is
-a file of the program; and each ADR number, which is a record of `docs/adr/` of the repository and
+a file of the repository `celetis`; and each ADR number, which is a record of `docs/adr/` of the repository and
 not of the product project. Each other path is a path
 of the product project, apart from a path that starts with `~/` or `/`.
 
@@ -135,7 +135,7 @@ Celetis step session
 ```
 
 The plugin root is the host-installed plugin folder that holds the loaded skills, not the version
-folder of the program: `requireContract` of `engine/lib/contract-check.ts` returns the resolved
+folder of the engine: `requireContract` of `engine/lib/contract-check.ts` returns the resolved
 `installedRoot` of the host. The step text compares it with the `<plugin>` of the skill entry, and a
 difference after the resolution of both paths stops the step for setup. The header holds no custom
 text (ADR-0032).
@@ -379,7 +379,7 @@ not close the epic.
 
 Before each push, PR, re-run of a check, and merge, `land` reads the issue again, as it reads the
 Git state again, and the refusal gives the resolver line of the issue
-(`landable` in `engine/lib/workflow.ts` of the program). A change that is already on the trunk (its
+(`landable` in `engine/lib/workflow.ts` of the engine). A change that is already on the trunk (its
 merge tree is the tree of the trunk, or a merged PR into the trunk has the lane tip as its head)
 skips this check, so a second run after a stopped cleanup completes the cleanup on the closed
 issue.

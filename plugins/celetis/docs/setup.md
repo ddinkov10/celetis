@@ -166,7 +166,7 @@ prefix_rule(
 ```
 
 This shared rule forbids direct merge. The personal rule of `land`, and the optional rule of
-`issue`, name the program, the host, and their sub-command
+`issue`, name the engine, the host, and their sub-command
 ([Personal landing permission](../README.md#personal-landing-permission)).
 Codex matches literal prefixes. A policy-file check does not prove that an active session loaded
 the rule. Keep the host sandbox and approval settings.
@@ -329,7 +329,7 @@ entry pointer retains its bounded marker authority, even without a record.
 
    - Copied `scripts/celetis` launchers and every caller in scripts, CI, instructions, permissions,
      and board configuration. Move each approved remaining caller to the installed `celetis`
-     program. A valid whole-file claim permits setup to remove the launcher; unrecorded launchers
+     engine. A valid whole-file claim permits setup to remove the launcher; unrecorded launchers
      need owner review. Keep product additions until their owner has reviewed them.
    - Old `permissions.allow` entries for `scripts/celetis`, `./scripts/celetis`, or broad `celetis`
      calls in `.claude/settings.json`, and obsolete entrypoint allows in

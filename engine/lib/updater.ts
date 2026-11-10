@@ -20,6 +20,7 @@ import { git } from './git.ts';
 import { configHome } from './homes.ts';
 import { requireBun } from './host.ts';
 import { isHost } from './host-names.ts';
+import { type Engine, type EngineSource, engineSource, installEngine, readEngine } from './installation.ts';
 import { commandInput } from './operation.ts';
 import {
   bindUpdateHome,
@@ -34,7 +35,6 @@ import {
 } from './plugin-metadata.ts';
 import { checkClaudePolicy, claudePolicy, requireUpdatePolicy } from './plugin-policy.ts';
 import { bunArgs, childEnv, run } from './process.ts';
-import { installProgram, type Program, type ProgramSource, programSource, readProgram } from './program.ts';
 import { writeAtomic } from './state.ts';
 import { UpdateLock, withPluginRead } from './update-lock.ts';
 import type { UpdateStage } from './update-types.ts';
@@ -55,13 +55,13 @@ export type Installation = {
 };
 type Offer = Omit<UpdateTarget, 'home'> & { ref: string };
 export type Part =
-  | { part: 'program' | Host; skipped: string }
-  | { part: 'program' | Host; error: string }
-  | ({ part: 'program' } & Offer)
+  | { part: 'engine' | Host; skipped: string }
+  | { part: 'engine' | Host; error: string }
+  | ({ part: 'engine' } & Offer)
   | ({ part: Host } & UpdateTarget & { ref: string });
 export type PreparedUpdate = {
   parts: Part[];
-  program: { installed: Program; source: ProgramSource };
+  engine: { installed: Engine; source: EngineSource };
   plugins: (Installation & { target: string; resolvedRef: string })[];
   target: string;
 };
@@ -69,8 +69,8 @@ export type UpdateCheck = { parts: Part[]; offer: PreparedUpdate | null; error: 
 export type UpdateResult = {
   ok: boolean;
   target: string;
-  completed: ('program' | Host)[];
-  incomplete: ('program' | Host)[];
+  completed: ('engine' | Host)[];
+  incomplete: ('engine' | Host)[];
   error: string | null;
 };
 type PluginUpdate = PreparedUpdate['plugins'][number];
@@ -285,7 +285,7 @@ async function inspect(host: Host, cwd: string): Promise<Installation & { target
   return { ...found, target, resolvedRef: ref };
 }
 
-async function settle(part: 'program' | Host, read: () => Promise<Part>): Promise<Part> {
+async function settle(part: 'engine' | Host, read: () => Promise<Part>): Promise<Part> {
   try {
     return await read();
   } catch (error) {
@@ -376,7 +376,7 @@ function pairLines(
   changed: boolean,
 ): string[] {
   const action = `${changed ? '' : 'nothing changed; '}set one compatible source and ref for the parts (plugins/celetis/README.md, "Updates")`;
-  if (!serves) return [`update: the program at ${short(target)} declares no served contract versions; ${action}`];
+  if (!serves) return [`update: the engine at ${short(target)} declares no served contract versions; ${action}`];
   const list = [...serves.keys()].sort((a, b) => a - b).join(', ');
   return plugins.flatMap(({ host, target: at }) => {
     const needed = needs.get(host) ?? null;
@@ -385,7 +385,7 @@ function pairLines(
     return serves.has(needed)
       ? []
       : [
-          `update: the ${host} plugin at ${short(at)} needs contract ${needed} and the program at ${short(target)} serves ${list}; ${action}`,
+          `update: the ${host} plugin at ${short(at)} needs contract ${needed} and the engine at ${short(target)} serves ${list}; ${action}`,
         ];
   });
 }
@@ -395,20 +395,20 @@ async function discoverUpdate(
   ownerPid?: number,
   changed = false,
 ): Promise<{ parts: Part[]; prepared: PreparedUpdate | null; error: string | null }> {
-  let program: PreparedUpdate['program'] | null = null;
+  let engine: PreparedUpdate['engine'] | null = null;
   let serves: ReadonlyMap<number, string> | null = null;
   const plugins: PluginUpdate[] = [];
   const needs = new Map<Host, number | null>();
   const scratch: Scratch = { folder: null, fetched: new Set() };
   try {
     const found = [
-      await settle('program', async () => {
-        const installed = await readProgram();
-        if (!installed) return { part: 'program', skipped: 'the celetis program is not installed' };
-        const source = await programSource(installed.root);
+      await settle('engine', async () => {
+        const installed = await readEngine();
+        if (!installed) return { part: 'engine', skipped: 'the celetis engine is not installed' };
+        const source = await engineSource(installed.root);
         if (installed.revision !== source.revision)
           throw new HostError(
-            'update: installed program link and Git revision disagree; repair the program',
+            'update: installed engine link and Git revision disagree; repair the engine',
             exits.prerequisite,
           );
         const resolved = await remoteTarget(source.source, `refs/heads/${source.branch}`, cwd);
@@ -417,9 +417,9 @@ async function discoverUpdate(
             ? await fileOnDisk(join(installed.root, servedContractsFile))
             : await fileAt(scratch, source.source, resolved.target, servedContractsFile);
         serves = text === null ? null : servedContracts(text);
-        program = { installed, source };
+        engine = { installed, source };
         return {
-          part: 'program',
+          part: 'engine',
           root: installed.root,
           source: source.source,
           ref: resolved.ref,
@@ -447,16 +447,16 @@ async function discoverUpdate(
     let error: string | null = null;
     if (found.some((part) => 'error' in part))
       error = `update: fix the errors above${changed ? '' : '; nothing changed'}`;
-    else if (!program || !target)
+    else if (!engine || !target)
       error =
-        'update: the celetis program is not installed; run the first install of plugins/celetis/README.md, "First install"';
+        'update: the celetis engine is not installed; run the first install of plugins/celetis/README.md, "First install"';
     else if (!plugins.length)
       error =
         'update: no host has Celetis installed; install the plugin as plugins/celetis/README.md, "Wire a product project", says';
     else error = pairLines(serves, target, plugins, needs, changed).join('\n') || null;
     return {
       parts: found,
-      prepared: !error && program && target ? { parts: found, program, plugins, target } : null,
+      prepared: !error && engine && target ? { parts: found, engine, plugins, target } : null,
       error,
     };
   } finally {
@@ -795,11 +795,11 @@ export async function executeUpdate(
   stage: (value: UpdateStage) => void,
   ownerPid: number,
 ): Promise<UpdateResult> {
-  const pending: ('program' | Host)[] = offer.plugins
+  const pending: ('engine' | Host)[] = offer.plugins
     .filter((plugin) => plugin.installed !== plugin.target)
     .map((plugin) => plugin.host);
-  if (offer.program.source.revision !== offer.target) pending.push('program');
-  const completed: ('program' | Host)[] = [];
+  if (offer.engine.source.revision !== offer.target) pending.push('engine');
+  const completed: ('engine' | Host)[] = [];
   const expected = structuredClone(offer);
   try {
     const before = await discoverUpdate(process.cwd(), ownerPid);
@@ -818,25 +818,22 @@ export async function executeUpdate(
       throw new HostError('update: the offer has no differing part; check again', exits.prerequisite);
     for (const part of pending) {
       stage({ part, state: 'started' });
-      if (part === 'program') {
-        const installed = await installProgram(
-          offer.program.source.source,
-          { ...offer.program.source, revision: offer.target },
+      if (part === 'engine') {
+        const installed = await installEngine(
+          offer.engine.source.source,
+          { ...offer.engine.source, revision: offer.target },
           undefined,
-          offer.program.installed,
+          offer.engine.installed,
         );
-        const source = await programSource(installed.root);
+        const source = await engineSource(installed.root);
         if (
-          source.source !== offer.program.source.source ||
-          source.branch !== offer.program.source.branch ||
+          source.source !== offer.engine.source.source ||
+          source.branch !== offer.engine.source.branch ||
           source.revision !== offer.target ||
-          (await installedRevision('program', installed.root, source.source)) !== offer.target
+          (await installedRevision('engine', installed.root, source.source)) !== offer.target
         )
-          throw new HostError(
-            'update: fresh program does not match the approved source, ref, or target',
-            exits.blocked,
-          );
-        expected.program = { installed, source };
+          throw new HostError('update: fresh engine does not match the approved source, ref, or target', exits.blocked);
+        expected.engine = { installed, source };
         expected.parts = expected.parts.map((value) =>
           value.part === part && 'installed' in value
             ? { ...value, root: installed.root, installed: offer.target }

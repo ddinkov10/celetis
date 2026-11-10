@@ -7,8 +7,8 @@ import type { Host } from '../lib/config-core.ts';
 import { stopLine } from '../lib/daemon-types.ts';
 import { HostError } from '../lib/errors.ts';
 import { recordEvent } from '../lib/events.ts';
+import { engineSource, installedEngine, readEngine } from '../lib/installation.ts';
 import { bunArgs, childEnv } from '../lib/process.ts';
-import { installedProgram, programSource, readProgram } from '../lib/program.ts';
 import type { PreparedUpdate, UpdateCheck, UpdateResult } from '../lib/updater.ts';
 import { containProcess, type Job } from '../lib/windows.ts';
 import type { BoardOffer, UpdateStage, UpdateView } from './types.ts';
@@ -32,10 +32,10 @@ class WorkerFailure extends Error {
 }
 
 type Worker = { done: Promise<UpdateCheck | UpdateResult>; stop(reason: string): void };
-type Component = 'program' | Host;
+type Component = 'engine' | Host;
 const pendingParts = (offer: PreparedUpdate): Component[] => [
   ...offer.plugins.filter((plugin) => plugin.installed !== plugin.target).map((plugin) => plugin.host),
-  ...(offer.program.source.revision !== offer.target ? (['program'] as const) : []),
+  ...(offer.engine.source.revision !== offer.target ? (['engine'] as const) : []),
 ];
 
 function worker(
@@ -308,12 +308,12 @@ export function createUpdates({
   const readInstalled = async () => {
     const read = ++reads;
     try {
-      const program = await readProgram();
-      if (program && program.revision !== revision && (await programSource(program.root)).revision !== program.revision)
+      const engine = await readEngine();
+      if (engine && engine.revision !== revision && (await engineSource(engine.root)).revision !== engine.revision)
         return;
       if (read > applied) {
         applied = read;
-        installed = program?.revision ?? null;
+        installed = engine?.revision ?? null;
       }
     } catch {}
   };
@@ -496,7 +496,7 @@ export function createUpdates({
       throw refusal(409, 'update: no restart is needed; check again');
     const target = needed.target;
     try {
-      await installedProgram(target);
+      await installedEngine(target);
     } catch (error) {
       throw refusal(409, error instanceof Error ? error.message : String(error));
     }

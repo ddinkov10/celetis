@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { commonDir, readBoard, readBoardTargets, readRefreshHints } from '../lib/board-read.ts';
 import { exits } from '../lib/contract.ts';
 import { HostError } from '../lib/errors.ts';
-import { installedProgram, type Program } from '../lib/program.ts';
+import { type Engine, installedEngine } from '../lib/installation.ts';
 import type { Adapter } from './adapter.ts';
 import { createBoard, run } from './perimeter.ts';
 import { createUpdates, type UpdateController } from './updates.ts';
@@ -13,7 +13,7 @@ export type BoardStart = Readonly<{
   successor: boolean;
   versioned: boolean;
   restarting(): boolean;
-  restart(program: Program): void;
+  restart(engine: Engine): void;
 }>;
 export type BoardHandle = Readonly<{
   port: number;
@@ -102,7 +102,7 @@ export async function startBoard(
         busy: () => context.restarting(),
         relaunch: async (target) => {
           await server.drainUpdateResponse();
-          context.restart(await installedProgram(target));
+          context.restart(await installedEngine(target));
         },
       });
       console.log(`board: repository ${main}`);

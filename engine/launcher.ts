@@ -2,7 +2,7 @@ import { dirname, join } from 'node:path';
 import { commands, type ExitCode, exits, helpText, launcherForms, updateHint } from './lib/contract.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder, passOn } from './lib/events.ts';
-import { programRevision } from './lib/git.ts';
+import { engineRevision } from './lib/git.ts';
 import { requireBun } from './lib/host.ts';
 import { commandInput } from './lib/operation.ts';
 import { bunArgs, childEnv } from './lib/process.ts';
@@ -20,7 +20,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
       return exits.done;
     }
     if (args.length === 1 && args[0] === '--version') {
-      console.log(await programRevision(dirname(import.meta.dir)));
+      console.log(await engineRevision(dirname(import.meta.dir)));
       return exits.done;
     }
     if (args.length === 0) {
@@ -29,7 +29,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
     }
     const name = args.shift() ?? '';
     const missing = new HostError(
-      `celetis: the program has no command ${name}\nceletis: celetis help lists the commands\n${updateHint}`,
+      `celetis: the engine has no command ${name}\nceletis: celetis help lists the commands\n${updateHint}`,
       exits.usage,
     );
     if (!commands.some(({ command }) => command === name)) throw missing;

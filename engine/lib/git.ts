@@ -53,7 +53,7 @@ export async function mainCheckout(cwd: string): Promise<string> {
   throw new HostError(message, exits.prerequisite);
 }
 
-export async function programRevision(root: string): Promise<string> {
+export async function engineRevision(root: string): Promise<string> {
   const result = await run('git', ['rev-parse', '--verify', 'HEAD'], { cwd: root });
   if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
   return result.stdout.trimEnd();

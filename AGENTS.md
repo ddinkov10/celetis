@@ -4,14 +4,14 @@ Celetis is a software factory harness: the process and the runtime around coding
 each change of a product through its lifecycle. The goal is intent to release. Today a change goes
 from intent to the trunk, and each product project does its own release. Celetis has two modules.
 The plugin `celetis` holds skills and instructions for inline use with any agent; today the hosts
-are Claude Code and Codex. The application shell is the program `celetis`: its daemon runs the
+are Claude Code and Codex. The engine has the command `celetis` and a daemon, which runs the
 phases of the SDLC as autonomous workflows. The plugin names roles, and each product project names
 its own parts, so Celetis fits different types of product.
 
 This repository holds both modules. The plugin is the folder `plugins/celetis/`: skills
 (`plugins/celetis/skills/`), procedure modules (`plugins/celetis/docs/procedures/`), principles
 (`plugins/celetis/docs/principles/`), step text (`plugins/celetis/step-prompt.md`), and documents
-(`plugins/celetis/docs/`). The program is the entry `celetis` with its runtime (`engine/`). The
+(`plugins/celetis/docs/`). The engine is the folder `engine/`, with its entry `engine/celetis`. The
 repository also holds maintenance (`scripts/`), the host references (`docs/hosts/`), and the
 records (`docs/adr/`, `docs/lessons/`). It is also a product project of its own plugin.
 `plugins/celetis/README.md` holds the install, the full loop, the skills, the commands, and the
@@ -85,10 +85,10 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
   browser DOM modules; and the native hook API and its actual globals.
 
 The gate refuses a tree whose plugin (`plugins/celetis/contract.json`) needs a contract version that the
-program does not serve (`engine/lib/contract-versions.json`). It also refuses a change of the declarations
+engine does not serve (`engine/lib/contract-versions.json`). It also refuses a change of the declarations
 of `engine/lib/contract.ts` that keeps the digest of the newest served version. The fix is a new version:
 add the printed digest to `engine/lib/contract-versions.json`. At each raise, the maintainer chooses
-whether the old version stays served (the old plugin text still runs with the new program) or goes (it
+whether the old version stays served (the old plugin text still runs with the new engine) or goes (it
 cannot). Raise `plugins/celetis/contract.json` too when the plugin text needs the new version. The
 digest covers no prose field (`description`, `help`, `meaning`, `prerequisite`, `writes`).
 [ADR-0090](docs/adr/0090-a-contract-version-replaces-the-same-revision-rule.md) records the rule and the known gaps of the digest.
@@ -147,7 +147,7 @@ exception in [ADR-0050](docs/adr/0050-standalone-engineering-principles-have-can
    `plugins/celetis/docs/capability.md`, `plugins/celetis/docs/issue-tracker.md`, `docs/hosts/`, and the
    ADRs are never read at entry. A skill or a module cites a named section of one when a step needs a
    definition. Skills, modules, and principles never cite `docs/hosts/`. `engine/README.md`,
-   `engine/board/README.md`, and `scripts/README.md` are maintainer reference of the program that no
+   `engine/board/README.md`, and `scripts/README.md` are maintainer reference of the engine that no
    agent text cites, because the installed plugin has no `engine/` and no `scripts/`.
 
 A module is self-contained: it cites another module only for a branch that some runs take. No
@@ -162,7 +162,7 @@ each relative link of a Markdown file in `plugins/celetis/` names a tracked file
 each procedure module has two or more citers among the skills and the step text (a citing module
 does not count), each `SKILL.md` holds the entry line of `plugins/celetis/docs/procedures/entry.md`
 once, and no skill, module, or principle cites `docs/hosts/`. The gate refuses a TypeScript file
-in `plugins/celetis/`: the program source stays in `engine/` and `scripts/`.
+in `plugins/celetis/`: the TypeScript source stays in `engine/` and `scripts/`.
 
 The same check reads three more rules. First, when a code span `<plugin>/<path>.md` is followed by
 `, "Name"` (more names follow as `, "Name"`, `and "Name"`, or `, and "Name"`), each name must equal
@@ -214,21 +214,21 @@ For installation changes, follow `plugins/celetis/README.md`, "Updates".
 - A lane never skips a step.
 - The maintainer starts the daemon and turns auto mode on; an agent starts a run only when its task
   says so, with a number, and in a terminal.
-- A change of `plugins/celetis/skills/`, `plugins/celetis/step-prompt.md`, the program entry `celetis`, `engine/`, or `scripts/` changes the behavior of each product
+- A change of `plugins/celetis/skills/`, `plugins/celetis/step-prompt.md`, `engine/`, or `scripts/` changes the behavior of each product
   project, so its lane is `bug` or `feature`, not `chore`.
 - The lanes are the skills of the plugin `celetis`, on the issues of `ddinkov10/celetis`.
 - `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `celetis --agent <host> land`.
 
 ## The board
 
-`engine/board/` is the board of the program (ADR-0020). For a change there, follow these two rules:
+`engine/board/` is the board of the engine (ADR-0020). For a change there, follow these two rules:
 
 - Keep the trust boundaries of the trust files: `engine/board/perimeter.ts`,
   `engine/board/requests.ts`, `engine/board/presses.ts`, the fixed adapter `engine/board/adapter.ts`,
   `engine/board/update-worker.ts`, `engine/board/start.ts`, the page modules of `engine/board/page/`,
   `engine/lib/board-read.ts`, `engine/lib/visual.ts`, `engine/lib/fields.ts`, `engine/lib/host-names.ts`,
   `engine/lib/terminal.ts`, `engine/lib/effort.ts`, `engine/lib/process.ts`, `engine/lib/updater.ts`,
-  `engine/lib/program.ts`, `engine/lib/queue.ts`, and `engine/lib/daemon-types.ts`.
+  `engine/lib/installation.ts`, `engine/lib/queue.ts`, and `engine/lib/daemon-types.ts`.
   `engine/board/README.md`, "The trust boundary", maps each file to its rules.
 - Check a UI change in Chromium at desktop width and at 375×812.
 
@@ -267,11 +267,11 @@ from open runtime checks (ADR-0014).
 Facts that no one file states. A line is here only when the code and the other documents
 do not state its fact, and a line goes when its fact stops being true (ADR-0006).
 
-- **A normal session here reads the installed plugin and runs the installed program.** Editing
+- **A normal session here reads the installed plugin and runs the installed engine.** Editing
   the checkout replaces neither. A `--plugin-dir plugins/celetis` session reads the checkout's skills with the
-  installed program, so a check of a changed command runs the checkout's entry by its path:
-  `"$PWD/celetis" --agent claude <command>`. Record checks of the checkout and checks of the
-  installed program separately.
+  installed engine, so a check of a changed command runs the checkout's entry by its path:
+  `"$PWD/engine/celetis" --agent claude <command>`. Record checks of the checkout and checks of the
+  installed engine separately.
 - **A script file keeps its name.** `engine/<name>.ts` keeps the same sub-command basename.
   Skills, product instructions, board commands, and personal landing rules refer to that command.
   On macOS and Linux, one basename also identifies a lock owner: `engine/lib/locks.ts` accepts a

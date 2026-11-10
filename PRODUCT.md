@@ -65,7 +65,7 @@ agent that waits.
   `engine/board/update-worker.ts`, `engine/board/start.ts`, the page modules of `engine/board/page/`,
   `engine/lib/board-read.ts`, `engine/lib/visual.ts`, `engine/lib/fields.ts`, `engine/lib/host-names.ts`,
   `engine/lib/terminal.ts`, `engine/lib/effort.ts`, `engine/lib/process.ts`, `engine/lib/updater.ts`,
-  `engine/lib/program.ts`, `engine/lib/queue.ts`, and `engine/lib/daemon-types.ts`.
+  `engine/lib/installation.ts`, `engine/lib/queue.ts`, and `engine/lib/daemon-types.ts`.
   `engine/board/README.md`, "The trust boundary", maps each file to its rules. UI work must not
   widen them, including the Content-Security-Policy of the board page. ADR-0065 records the one
   sandboxed route.

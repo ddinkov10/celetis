@@ -13,7 +13,7 @@ read a file in its folder (ADR-0047).
 `plugins/celetis/hooks/hooks.json` names one hooks module, `./entry.js`. `scripts/build.ts` builds it
 from `engine/hooks/entry.ts` with exactly Bun 1.4.4, and `build --check` in the verify gate
 compares its bytes. The hook runtime has no Node and no DOM: a module that the hook imports has no
-`node:` import and no `Bun` global, and `tsconfig.native.json` types it against
+`node:` import and no `Bun` global, and `engine/hooks/tsconfig.json` types it against
 `engine/hooks/native-host.d.ts`.
 
 - **`skill.prompt`.** For a skill `celetis:<name>` of this plugin (`source`, `pluginName`, and

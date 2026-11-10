@@ -2,7 +2,7 @@
 
 This folder holds the verify gate, the build, the pin installer, and the Herdr lab. Run each one in a
 checkout of this repository. No check needs model credentials or tokens. A product project runs no
-build and installs no package dependency: each machine installs the program one time
+build and installs no package dependency: each machine installs the engine one time
 (`plugins/celetis/README.md`, "First install"). [`AGENTS.md`](../AGENTS.md#verify-gate) gives the
 rules of the gate, the build, and the pin installer for a change.
 
@@ -32,7 +32,7 @@ The jobs run in bounded workers. A passing run prints the success line of
 ## The build
 
 `scripts/build.ts` writes the files that come from other files. Besides the files that
-[`AGENTS.md`](../AGENTS.md#verify-gate) names, it writes the program entry `celetis` and
+[`AGENTS.md`](../AGENTS.md#verify-gate) names, it writes the engine entry `engine/celetis` and
 `plugins/celetis/hooks/entry.js`, which embeds `plugins/celetis/docs/procedures/entry.md`. An edit of
 that file needs a run of the build. The build installs nothing. Add the file `engine/<name>.ts` with each new declared command.
 

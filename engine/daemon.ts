@@ -18,7 +18,7 @@ import { type DaemonIdentity, type DaemonStatus, daemonPaths, type RunRow } from
 import { HostError } from './lib/errors.ts';
 import { installRecorder, passOn } from './lib/events.ts';
 import { isIssueNumber } from './lib/fields.ts';
-import { programRevision } from './lib/git.ts';
+import { engineRevision } from './lib/git.ts';
 import { requireBun } from './lib/host.ts';
 import { isHost } from './lib/host-names.ts';
 import type { LockOwner } from './lib/locks.ts';
@@ -36,11 +36,11 @@ function answerless(found: Extract<Found, { kind: 'unknown' }>): HostError {
 }
 
 async function runsLine(identity: DaemonIdentity): Promise<string> {
-  const revision = await programRevision(root);
+  const revision = await engineRevision(root);
   const line = `daemon: a daemon of this repository runs: PID ${identity.pid} at ${shortRevision(identity.revision)}`;
   return revision === identity.revision
     ? line
-    : `${line}; this program is at ${shortRevision(revision)}; it was not replaced`;
+    : `${line}; this engine is at ${shortRevision(revision)}; it was not replaced`;
 }
 
 const boardLine = (status: DaemonStatus) => `daemon: board ${status.board}`;

@@ -7,7 +7,7 @@ type Status = { command: 'status' };
 type QueueShape = Status | { command: 'action'; json: string };
 type QueueForm = Status | { command: 'action'; action: QueueAction };
 
-const removed = 'the program version of this command was removed after an update; run the command again';
+const removed = 'the engine version of this command was removed after an update; run the command again';
 const here = import.meta.dir;
 async function gone(files: string[]) {
   for (const file of files) if (!(await stat(join(here, file)).catch(() => null))?.isFile()) return true;
@@ -23,7 +23,7 @@ function shapeOf(argv: string[]): QueueShape | null {
 
 export async function main(argv: string[]): Promise<ExitCode> {
   const unavailable = await gone([
-    '../celetis',
+    'celetis',
     'daemon.ts',
     'launcher.ts',
     'lib/agent-order.ts',
@@ -45,13 +45,13 @@ export async function main(argv: string[]): Promise<ExitCode> {
     'lib/host-names.ts',
     'lib/host.ts',
     'lib/hosts.ts',
+    'lib/installation.ts',
     'lib/lines.ts',
     'lib/locks.ts',
     'lib/operation.ts',
     'lib/plugin-metadata.ts',
     'lib/process-identity.ts',
     'lib/process.ts',
-    'lib/program.ts',
     'lib/queue-actions.ts',
     'lib/queue.ts',
     'lib/quota-recovery.ts',
