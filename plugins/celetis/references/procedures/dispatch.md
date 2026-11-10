@@ -17,7 +17,7 @@ Each child that a step starts, in the task loop or outside it:
 
 1. **The score.** Outside the task loop, score the child with
    `celetis --agent <host> capscore J V B N S X --json`, with the digits, the bias, and the attempt
-   that the skill names. For new scores, apply `<plugin>/docs/procedures/capability-score.md`, "The rubric — six
+   that the skill names. For new scores, apply `<plugin>/references/procedures/capability-score.md`, "The rubric — six
    dimensions, each 0–2". Add `--reviewer` for a
    review. Its `line` is the CAP line, and `dispatch.model` and `dispatch.effort` are the pair.
    The task loop takes the line and the pair from `dispatch` in place of a score
@@ -31,7 +31,7 @@ Each child that a step starts, in the task loop or outside it:
    of the pair through the host's actual spawn controls (the part of the host below). Omit the
    model when it is null. A CAP line alone does not set them. Keep the parent model and effort.
    When the spawn tool cannot apply the pair, stop with a setup error.
-3. **The scorecard.** Apply `<plugin>/docs/procedures/capability-score.md`, "Scorecard format — MANDATORY", to
+3. **The scorecard.** Apply `<plugin>/references/procedures/capability-score.md`, "Scorecard format — MANDATORY", to
    new scores and reused published inputs. The emitted CAP line goes first in the child prompt,
    unchanged, immediately followed by its evidence reason. This includes reviews and repairs.
 4. **The identity.** Record the CAP line, the applied arguments, and the child identity that the
@@ -47,7 +47,7 @@ Each child that a step starts, in the task loop or outside it:
    its task and constraints, the required skills and custom text, the gate, and the return
    contract.
    For a correction, two failed fixes of the same problem, or a pre-stop incident, give the child
-   the exact resolved path of `<plugin>/docs/procedures/lesson-capture.md` and require its read.
+   the exact resolved path of `<plugin>/references/procedures/lesson-capture.md` and require its read.
    The child returns the stable incident ID, action, expected/observed behavior, evidence and
    source, uncertain cause, and candidate suggestion. It writes no lesson. The coordinator
    applies that procedure once with the same ID and evidence, including a replayed report.
@@ -109,7 +109,7 @@ fix after the final review. The acts and their arguments are:
   cause. Correct the arguments or the file, and run the act again. When the line is a diagnostic
   of `.celetis.yaml`, report the field to the person and stop. Exit 3: correct the act that the
   reason names. Exit 8 or 6: stop with the reason and trail. In a step session, use
-  `<plugin>/docs/procedures/stop.md`, "A stop in a step session".
+  `<plugin>/references/procedures/stop.md`, "A stop in a step session".
 - These acts replace the round count, model choice, and "most capable model" procedure of
   `superpowers:subagent-driven-development`, and the breaker of its fix loop. Keep no attempt or
   round count of your own: the engine owns escalation and stops

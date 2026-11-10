@@ -166,16 +166,16 @@ access path. The hook parses text, not bytes: the byte checks of the reader, for
 UTF-8, hold at each command, which validates the file again before protected work.
 
 Each `SKILL.md` holds one entry line: bind `<plugin>` from the path of the loaded skill, and read
-`<plugin>/docs/procedures/entry.md` before any step or answer. On Claude Code, the hook puts its
+`<plugin>/references/procedures/entry.md` before any step or answer. On Claude Code, the hook puts its
 facts block in place of that line before the model sees the skill. The block gives the host, the
-plugin root, the checkout, the contract of `docs/procedures/entry.md`, and the custom text of the
+plugin root, the checkout, the contract of `references/procedures/entry.md`, and the custom text of the
 skill, with no host manual and no raw YAML. The hook also makes its own permission-checked `Read`
 of the Git boundary, and it consumes no runtime snapshot (ADR-0013, ADR-0047).
 
 A step that the daemon starts runs in the main checkout; a later skill entered in a lane reads the
 config of that lane. No skill reads another skill's `SKILL.md`.
 
-`docs/procedures/entry.md`, "Entry without the hook", holds the entry with no hook.
+`references/procedures/entry.md`, "Entry without the hook", holds the entry with no hook.
 `docs/hosts/claude-code.md` and `docs/hosts/codex.md` hold the integration facts of each host
 (ADR-0047).
 
@@ -318,7 +318,7 @@ made. The board start checks no replacement policy; the daemon run of each Run a
 it. The board can remain open during a manual update. The agent order of the footer reads and replaces the local
 order through the `agents` command, with the version that it read; a stale version returns the
 current order and writes nothing. A board Run choice applies only to that start; Resume
-uses its saved host. See [the board reference](https://github.com/ddinkov10/celetis/blob/main/engine/board/README.md#the-commands-of-the-board) for the refusal of each press.
+uses its saved host. See [the board document](https://github.com/ddinkov10/celetis/blob/main/engine/board/README.md#the-commands-of-the-board) for the refusal of each press.
 
 A deterministic gate check does not replace live board acceptance. Stable installed resources,
 changed-pair child controls on required CLI surfaces, managed Claude setup, and complete child

@@ -65,7 +65,7 @@ its existing authorization.
 A confirmed stale target has no PASS. Correct it only through an already authorized operation,
 reconfirm it, and repeat affected scenarios. An unknown target stays UNVERIFIED with the specific
 missing evidence. Run independent checks, then use the existing stop of the calling skill
-(`<plugin>/docs/procedures/stop.md`, "A Verify scenario that cannot run", in a step session).
+(`<plugin>/references/procedures/stop.md`, "A Verify scenario that cannot run", in a step session).
 
 ## Evidence lifetime
 
@@ -123,7 +123,7 @@ unchanged valid evidence needs no repeat.
 Keep each source identity, target, both links, scenario result, and independent oracle together
 in the runtime report, with loaded resources, cleanup, and unresolved gaps.
 
-When the plan has an acceptance mapping, read `<plugin>/docs/procedures/acceptance-coverage.md`
+When the plan has an acceptance mapping, read `<plugin>/references/procedures/acceptance-coverage.md`
 and apply "Reporting" to report publication and evidence renewal, including re-entry.
 
 For standalone operations, use the project's existing evidence location. With none, choose a
@@ -165,6 +165,6 @@ If proof remains missing, restore `ready-for-human` with
 comment as its reason. If that comment does not name the new missing proof, publish an updated
 `## Before landing` record by the calling skill's stop procedure instead. When assistance can
 supply the missing proof, record verified completion by
-`<plugin>/docs/procedures/assisted-completion.md`. A lane session never manufactures a human
+`<plugin>/references/procedures/assisted-completion.md`. A lane session never manufactures a human
 contribution or its report. Workflow clearance alone does not permit skipping an unverified
 scenario or landing.

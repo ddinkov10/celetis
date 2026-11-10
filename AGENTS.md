@@ -9,10 +9,10 @@ phases of the SDLC as autonomous workflows. The plugin names roles, and each pro
 its own parts, so Celetis fits different types of product.
 
 This repository holds both modules. The plugin is the folder `plugins/celetis/`: skills
-(`plugins/celetis/skills/`), procedure modules (`plugins/celetis/docs/procedures/`), principles
-(`plugins/celetis/docs/principles/`), step text (`plugins/celetis/step-prompt.md`), and documents
+(`plugins/celetis/skills/`), procedure modules (`plugins/celetis/references/procedures/`), principles
+(`plugins/celetis/references/principles/`), step text (`plugins/celetis/step-prompt.md`), and documents
 (`plugins/celetis/docs/`). The engine is the folder `engine/`, with its entry `engine/celetis`. The
-repository also holds maintenance (`scripts/`), the host references (`docs/hosts/`), and the
+repository also holds maintenance (`scripts/`), the host documents (`docs/hosts/`), and the
 records (`docs/adr/`, `docs/lessons/`). It is also a product project of its own plugin.
 `plugins/celetis/README.md` holds the install, the full loop, the skills, the commands, and the
 update rule. `plugins/celetis/docs/setup.md` holds what setup writes.
@@ -118,22 +118,29 @@ Agent text has four layers:
 
 | Layer | Home | Loads |
 | --- | --- | --- |
-| Entry | The facts block of the Claude Code hook, or `plugins/celetis/docs/procedures/entry.md` | At each skill invocation |
+| Entry | The facts block of the Claude Code hook, or `plugins/celetis/references/procedures/entry.md` | At each skill invocation |
 | Skill | `plugins/celetis/skills/<name>/SKILL.md` | When the skill is invoked |
-| Procedure module | `plugins/celetis/docs/procedures/<name>.md` | When a step of a skill names it |
-| Principle | `plugins/celetis/docs/principles/<name>.md` | When a step cites it, or when its wrapper skill is invoked |
+| Procedure module | `plugins/celetis/references/procedures/<name>.md` | When a step of a skill names it |
+| Principle | `plugins/celetis/references/principles/<name>.md` | When a step cites it, or when its wrapper skill is invoked |
+
+The folders of `plugins/celetis/` follow one layout rule (ADR-0095). `references/` holds the agent
+text that more than one caller can load: the procedure modules and the principles. A file that only
+one skill reads lives in the folder of that skill, for example the ADR guide and the ADR template
+in `plugins/celetis/skills/record-architecture-decisions/`. `docs/` holds only documents that
+people read.
 
 One placement rule decides the home of each piece of agent text (ADR-0047, with the principle
 exception in [ADR-0050](docs/adr/0050-standalone-engineering-principles-have-canonical-rules.md)):
 
 1. **General principle.** A general engineering rule has one canonical file in
-   `plugins/celetis/docs/principles/`, regardless of caller count. It has `Applies when`, `Rule`,
+   `plugins/celetis/references/principles/`, regardless of caller count. It has `Applies when`, `Rule`,
    and `Check` sections. A skill or a workflow step cites the file at the step where it can apply.
    The agent applies it when its `Applies when` holds, and the caller restates no trigger. The
    rule body stays in the file.
 2. **Shared procedure.** Text that two or more skills, or a skill and the step text, need is a
    module. The skills cite it at the step that uses it.
-3. **Own procedure.** Text that one skill needs stays in that skill.
+3. **Own procedure.** Text that one skill needs stays in that skill: in its `SKILL.md`, or in a
+   file of its folder that only that skill reads.
 4. **Host-specific text** lives only in modules, under a `Claude Code` and a `Codex` part. Skills
    and principles never name a host tool. The exception is the entry block of the hook, which
    carries the Claude Code part of the contract.
@@ -142,12 +149,12 @@ exception in [ADR-0050](docs/adr/0050-standalone-engineering-principles-have-can
 6. **Product text** has two homes. `custom.<skill>` is an addition to that one skill and reaches
    only its invocation. A product fact that two or more skills need goes into the `AGENTS.md` of
    the product.
-7. **Maintainer reference.** `plugins/celetis/docs/workflow.md`,
+7. **Maintainer document.** `plugins/celetis/docs/workflow.md`,
    `plugins/celetis/docs/setup.md`, `plugins/celetis/docs/configuration.md`,
    `plugins/celetis/docs/capability.md`, `plugins/celetis/docs/issue-tracker.md`, `docs/hosts/`, and the
    ADRs are never read at entry. A skill or a module cites a named section of one when a step needs a
    definition. Skills, modules, and principles never cite `docs/hosts/`. `engine/README.md`,
-   `engine/board/README.md`, and `scripts/README.md` are maintainer reference of the engine that no
+   `engine/board/README.md`, and `scripts/README.md` are maintainer documents of the engine that no
    agent text cites, because the installed plugin has no `engine/` and no `scripts/`.
 
 A module is self-contained: it cites another module only for a branch that some runs take. No
@@ -160,7 +167,7 @@ procedure, and entry does not load a principle catalog.
 and the step text: each `<plugin>/<path>` citation names the tracked file `plugins/celetis/<path>`,
 each relative link of a Markdown file in `plugins/celetis/` names a tracked file in that folder,
 each procedure module has two or more citers among the skills and the step text (a citing module
-does not count), each `SKILL.md` holds the entry line of `plugins/celetis/docs/procedures/entry.md`
+does not count), each `SKILL.md` holds the entry line of `plugins/celetis/references/procedures/entry.md`
 once, and no skill, module, or principle cites `docs/hosts/`. The gate refuses a TypeScript file
 in `plugins/celetis/`: the TypeScript source stays in `engine/` and `scripts/`.
 
@@ -234,7 +241,7 @@ For installation changes, follow `plugins/celetis/README.md`, "Updates".
 
 A look decision of the board uses these two facts:
 
-- The kind is web, with the default row of `prototype` (`plugins/celetis/docs/procedures/ui.md`, "The platform
+- The kind is web, with the default row of `prototype` (`plugins/celetis/references/procedures/ui.md`, "The platform
   rows").
 - A prototype board with live data starts in the prototype checkout. A throwaway script there calls
   `startBoard` of `engine/board/start.ts` with the main checkout, a port other than 4404, an
@@ -256,7 +263,7 @@ section that it cannot resolve.
 
 ## External facts
 
-For the lookup of `plugins/celetis/docs/procedures/docs-lookup.md`, read `claude --version` or `codex --version` for the
+For the lookup of `plugins/celetis/references/procedures/docs-lookup.md`, read `claude --version` or `codex --version` for the
 selected host. Claude's documents are `https://code.claude.com/docs/en/<page>`; Codex's are
 `https://learn.chatgpt.com/docs/`. Check the current CLI help and active tool schema before
 using a host operation. `plugins/celetis/docs/workflow.md`, "Acceptance status", separates observed versions

@@ -44,9 +44,9 @@ the same file.
 | Desktop | Hand-built | Hand-built |
 | Terminal | Hand-built | Hand-built |
 
-- `<plugin>/docs/procedures/design.md`, "A whole screen or a smaller change", puts a change in one
+- `<plugin>/references/procedures/design.md`, "A whole screen or a smaller change", puts a change in one
   of the two columns.
-- **The `impeccable` path** follows `<plugin>/docs/procedures/design.md`: its check in step 1, and
+- **The `impeccable` path** follows `<plugin>/references/procedures/design.md`: its check in step 1, and
   its pick in step 3. It has one variant, `A`: the locked card or the accepted variant. The
   maintainer picks it before the switches, the check, and the captures.
 - **The hand-built path** builds 3 to 5 variants by hand in step 3. The user uses them, and picks
@@ -107,7 +107,7 @@ folder, so no branch holds a capture.
 Do the steps in this order. The build of the variants starts after step 2.
 
 1. **The states and the row.** Take the kind and its row from `AGENTS.md` or the code, and the path
-   from "The two paths". Then run the checks of `<plugin>/docs/procedures/design.md`: "The check"
+   from "The two paths". Then run the checks of `<plugin>/references/procedures/design.md`: "The check"
    and "Can the session ask" on the `impeccable` path, and "Can the session ask" on the hand-built
    path. A failed check is the stop that the file names. On the `impeccable` path, run `shape`
    only for its discovery questions and its brief. Skip its Phase 2, the direction or the concept
@@ -120,10 +120,10 @@ Do the steps in this order. The build of the variants starts after step 2.
    a decision, ask about that point and wait for the answer. Otherwise, continue without a
    follow-up question.
 2. **The research.** In `specify` or `bug`, add the guidelines of the platform to the
-   `## Prior art` section that the step wrote (`<plugin>/docs/procedures/prior-art.md`, "What to find"), with
+   `## Prior art` section that the step wrote (`<plugin>/references/procedures/prior-art.md`, "What to find"), with
    no second search for the same problem. For a look decision of a new problem, add its findings to the same
    section. For a look decision that adds or changes a UI component, follow
-   `<plugin>/docs/procedures/component-research.md`: its findings go to the same section, with no
+   `<plugin>/references/procedures/component-research.md`: its findings go to the same section, with no
    second search of a component that the section already covers. On the hand-built path, each
    variant follows a pattern that the research found, and keeps each line of
    `### Required behavior`. When the research found none, the variant says so and names the source
@@ -134,7 +134,7 @@ Do the steps in this order. The build of the variants starts after step 2.
    `generate` round comes before it. Use the component library and the styles of the project, and
    keep the data reads above the variants, so only the rendering changes.
    - **A whole screen on the `impeccable` path.** Run the structure round and its pick by
-     `<plugin>/docs/procedures/design.md`, "The pick". The locked card is the one variant, `A`.
+     `<plugin>/references/procedures/design.md`, "The pick". The locked card is the one variant, `A`.
      Build its structure on the real screen, in each state of the list.
    - **A smaller web change.** The prototype shows the real screen. When the change adds an
      element, its first rendering is the target of `generate`: it follows the strongest found model
@@ -219,12 +219,12 @@ no variants.
 
 A failed check stops the step before the build. The stop names the update of `gh` or the setup of
 the tool. There is no fallback: the captures go only on the issue. In a step session, hand the
-stop to the issue by `<plugin>/docs/procedures/stop.md`, "A stop in a step session".
+stop to the issue by `<plugin>/references/procedures/stop.md`, "A stop in a step session".
 
 **The hide.** On the web, a capture hides the bar or the overlay of step 4 through the `style`
 property of its element, for example `element.style.display = 'none'`, with no added style sheet:
 the CSP of the page blocks an added style sheet, not the `style` property. The capture tab is a new
-tab with no call of `<plugin>/docs/procedures/design.md`, "The page CSP".
+tab with no call of `<plugin>/references/procedures/design.md`, "The page CSP".
 
 **The file.** Name a capture `<variant>-<state>-<size>.png`, or `.gif`, for example
 `B-empty-375x812.png`. Put it in `docs/superpowers/captures/` of the checkout that took it. Its
@@ -259,10 +259,10 @@ comments. `gh` prints the URL of each comment. Keep it for the hand-over and the
 A run of `/celetis:prototype` with no issue does steps 1 to 6, the captures of step 7, and step 8.
 It takes the same two paths and the same stops. On the `impeccable` path, the check, `shape`, the
 structure round or `generate`, and the pick as a terminal question follow
-`<plugin>/docs/procedures/design.md`.
+`<plugin>/references/procedures/design.md`.
 
 - The tools check checks only the capture tool.
-- The research of step 2 follows `<plugin>/docs/procedures/prior-art.md`. Its findings go in the hand-over.
+- The research of step 2 follows `<plugin>/references/procedures/prior-art.md`. Its findings go in the hand-over.
   They take the place of `## Prior art` in steps 2 and 3, and in the prompt of `generate`.
 - The prototype checkout is `<main>/.claude/worktrees/prototype-<slug>` on the branch
   `prototype/<slug>`. `<main>` is the main checkout.
@@ -278,9 +278,9 @@ structure round or `generate`, and the pick as a terminal question follow
 - **Sharing too much code between variants.** A shared `<Header>` is fine; a shared `<Layout>` defeats the point. Each variant should be free to throw out the layout.
 - **Wiring variants to real mutations.** Read-only prototypes are fine. If a variant needs to mutate, point it at a stub: the question is "what should this look like", not "does the backend work".
 - **Promoting the prototype directly to production.** The variant code was written under prototype constraints (no tests, minimal error handling). Rewrite it properly when you fold it in.
-- **A text or ASCII list of options as the hand-over, on the hand-built path.** The hand-over is the live variants and their captures. The terminal question of `<plugin>/docs/procedures/design.md`, "The fallback of the pick", is no such list: it is the question channel of `impeccable`.
+- **A text or ASCII list of options as the hand-over, on the hand-built path.** The hand-over is the live variants and their captures. The terminal question of `<plugin>/references/procedures/design.md`, "The fallback of the pick", is no such list: it is the question channel of `impeccable`.
 - **Variants before the list of states or before the research.** Step 1 and step 2 come first.
-- **A direction question before the first variants.** The first `generate` round takes its direction from the research (`<plugin>/docs/procedures/design.md`, "The pick").
+- **A direction question before the first variants.** The first `generate` round takes its direction from the research (`<plugin>/references/procedures/design.md`, "The pick").
 - **A question for the pick before the user could use the variants, on the hand-built path.** The pick comes after the live opening and the captures.
 - **A second pick after an `impeccable` lock or accept.** The lock or the accept is the pick.
 - **A look that the session chose.** The maintainer picks each look. THE ROLL, a recommended variant, and an answer that the host gives by its own timeout are no pick.

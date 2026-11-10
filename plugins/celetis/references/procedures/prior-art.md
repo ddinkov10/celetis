@@ -2,7 +2,7 @@
 
 Prior art is the existing solutions, standards, and papers for the same problem. `specify` and
 `bug` cite this procedure to find the prior art of a design before the step decides it. This
-document finds the solutions of other products; `<plugin>/docs/procedures/docs-lookup.md` finds the
+document finds the solutions of other products; `<plugin>/references/procedures/docs-lookup.md` finds the
 documentation of what the project uses.
 
 ## Contents
@@ -37,13 +37,13 @@ For the industry standard, start from the most widely used products whose users 
 problem. They can be a different kind of product than the project, for example a desktop app, an
 editor, or a command-line tool. Read how each one solves the problem.
 
-The research of a look decision (`<plugin>/docs/procedures/ui.md`, "The procedure") also reads
+The research of a look decision (`<plugin>/references/procedures/ui.md`, "The procedure") also reads
 the guidelines of the platform: the Apple Human Interface Guidelines or Material Design for mobile,
 the Apple Human Interface Guidelines or the guidelines of the toolkit for a desktop app, clig.dev
 for a terminal program, and WCAG for the web.
 
 When the design or the fix adds or changes a UI component, also follow
-`<plugin>/docs/procedures/component-research.md` for each such component. Research of a mechanism
+`<plugin>/references/procedures/component-research.md` for each such component. Research of a mechanism
 with no UI component, for example a retry or a lock, uses only this document.
 
 ## Sources
@@ -86,7 +86,7 @@ Before the step writes the section, compare each line with its form. On a findin
 three parts: the label in parentheses; the version, branch, or date before the label; and the bare
 URL or path at the end of the line. A `(measured)` line and a line of the `### Required behavior`
 list of the component research each have their own form
-(`<plugin>/docs/procedures/component-research.md`, "The record"): compare them with that form.
+(`<plugin>/references/procedures/component-research.md`, "The record"): compare them with that form.
 Correct each line that does not match its form.
 
 ## The recommendation
@@ -113,4 +113,4 @@ A search that serves cached results is a limit too, for example the default web 
 A cached result can be older than a new state of the art. A sentence after the finding lines names
 the cached search. `specify` names each limit under "Flag unverified premises as risks", and `bug`
 names each limit in the report. This is the same rule as "Unsettled facts" of
-`<plugin>/docs/procedures/docs-lookup.md`.
+`<plugin>/references/procedures/docs-lookup.md`.

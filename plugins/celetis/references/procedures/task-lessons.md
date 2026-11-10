@@ -44,11 +44,11 @@ The result is the complete rule set of the boundary. A running implementer or re
 brief until its next boundary.
 
 A nonzero exit of the read, or a referenced path in neither list, is a context problem. Before
-that task or repair starts, stop by `<plugin>/docs/procedures/stop.md` with the path and cause.
+that task or repair starts, stop by `<plugin>/references/procedures/stop.md` with the path and cause.
 
 When a carried rule requires work outside the approved task or repair scope, or contradicts it,
 keep the approved scope. Before that task or repair starts, stop by
-`<plugin>/docs/procedures/stop.md` with a resolution request that names the lesson path, its
+`<plugin>/references/procedures/stop.md` with a resolution request that names the lesson path, its
 digest, and the conflicting part of the scope.
 
 ## Delivery

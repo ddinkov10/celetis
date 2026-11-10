@@ -215,12 +215,12 @@ The plugin names a role, and the `AGENTS.md` of the project names the thing. It 
 | What `AGENTS.md` names | Who reads it |
 |---|---|
 | **The verify gate:** the one fast deterministic check of a change (lint, format, syntax, and config checks, with no test run), and how to read its result | `plan`, `implement`, `chore`, `hotfix`, and `guide` say "the verify gate of the project", and `celetis --agent <host> land` names it in a refusal |
-| **Optional verification instructions:** a short pointer to a project document's feature-map section or an existing index of documented user flows | `plan` and `implement` read the index and only relevant recipes (`docs/procedures/verification-recipes.md`) |
-| **The full suite** is no line of `AGENTS.md`: with the landing `merge`, `suite` in `.celetis.yaml` names the file that runs each test, and `land` runs it at the tip that it lands. With the landing `pr`, the CI of the lane PR runs it | `land`, which `implement`, `chore`, and `hotfix` run (`docs/procedures/landing.md`, "Step 3: the landing") |
+| **Optional verification instructions:** a short pointer to a project document's feature-map section or an existing index of documented user flows | `plan` and `implement` read the index and only relevant recipes (`references/procedures/verification-recipes.md`) |
+| **The full suite** is no line of `AGENTS.md`: with the landing `merge`, `suite` in `.celetis.yaml` names the file that runs each test, and `land` runs it at the tip that it lands. With the landing `pr`, the CI of the lane PR runs it | `land`, which `implement`, `chore`, and `hotfix` run (`references/procedures/landing.md`, "Step 3: the landing") |
 | **The architecture and the traps:** the shape of the project in the root file, and the traps of each subsystem in the `AGENTS.md` of its folder. They are the domain knowledge: the plugin has no domain skill (ADR-0006) | `specify`, `bug`, `hotfix`, `plan`, `chore`, and `critic-loop` |
-| **The design document and the look decision,** in a project with a UI: the kind of the product and each difference from its default row in `docs/procedures/ui.md`, and how a session starts the product with live data for the variants. The design document is `DESIGN.md` at the root of the product, which `impeccable` and `prototype` share, so `AGENTS.md` does not name it. A look decision is each change to what a person sees on screen or to how the screen behaves | `prototype` (`docs/procedures/ui.md`), which `specify` and `bug` follow; the two items "Prototype" of `docs/issue-tracker.md`, in "What lives on the issue" and in "Branches, PRs, merge" |
-| **The installed version of a dependency:** how a session reads it, and the documents that an installed package ships | `docs/procedures/docs-lookup.md`, which `specify`, `plan`, `bug`, `hotfix`, and `chore` cite |
-| **The lesson tags:** the tags of the project, for example the names of its subsystems and technologies, that a lesson can carry beside the controlled list of the plugin. A new tag goes here in the same change as its lesson | `lesson` and `lesson-review` (`docs/procedures/lesson-format.md`, "The Tag Vocabulary") |
+| **The design document and the look decision,** in a project with a UI: the kind of the product and each difference from its default row in `references/procedures/ui.md`, and how a session starts the product with live data for the variants. The design document is `DESIGN.md` at the root of the product, which `impeccable` and `prototype` share, so `AGENTS.md` does not name it. A look decision is each change to what a person sees on screen or to how the screen behaves | `prototype` (`references/procedures/ui.md`), which `specify` and `bug` follow; the two items "Prototype" of `docs/issue-tracker.md`, in "What lives on the issue" and in "Branches, PRs, merge" |
+| **The installed version of a dependency:** how a session reads it, and the documents that an installed package ships | `references/procedures/docs-lookup.md`, which `specify`, `plan`, `bug`, `hotfix`, and `chore` cite |
+| **The lesson tags:** the tags of the project, for example the names of its subsystems and technologies, that a lesson can carry beside the controlled list of the plugin. A new tag goes here in the same change as its lesson | `lesson` and `lesson-review` (`references/procedures/lesson-format.md`, "The Tag Vocabulary") |
 | **The product flow:** project-specific landing rules, deployment facts, and acts that only the maintainer does, when more than one step needs them | Each session, also a step session |
 
 Setup creates a missing or empty `AGENTS.md` with one marked `## Celetis` block. It appends the
@@ -314,10 +314,10 @@ paths that their first record needs:
   separates missing retrieval, a violated rule, incomplete guidance, failed enforcement, and
   unknown cause. Conflicts remain proposals for review. Structural follow-ups need separate
   authorization and proof; judgment-dependent rules state why they remain text.
-- `docs/procedures/lesson-format.md` gives the lesson files, the pending folder and its ignore
+- `references/procedures/lesson-format.md` gives the lesson files, the pending folder and its ignore
   file, the lock of `lesson-store`, and its recovery.
 - Each agent landing curates the queue first, in the lane: one fresh reviewer child decides at
-  most the five oldest proposals by the reviewer rules of `docs/procedures/lesson-curation.md`,
+  most the five oldest proposals by the reviewer rules of `references/procedures/lesson-curation.md`,
   and its lesson commits land with the lane. No human approves these decisions. A curation
   failure keeps the decisions applied before it, leaves the other proposals pending, and the
   landing runs. `lesson-review` is your optional review: it can promote, edit, merge, supersede,

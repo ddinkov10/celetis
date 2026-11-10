@@ -1,6 +1,6 @@
 # Claude Code
 
-A maintainer reference: how the plugin `celetis` integrates with Claude Code. No session reads it
+A maintainer document: how the plugin `celetis` integrates with Claude Code. No session reads it
 at entry, and no skill or module cites it. Each agent rule of a host operation lives in the module
 of its procedure, under its `Claude Code` part ("The module index").
 
@@ -35,7 +35,7 @@ compares its bytes. The hook runtime has no Node and no DOM: a module that the h
   - checkout: <absolute checkout> | none
   - custom: none | after the contract
 
-  <"The contract" of plugins/celetis/docs/procedures/entry.md, with its Claude Code part>
+  <"The contract" of plugins/celetis/references/procedures/entry.md, with its Claude Code part>
 
   Custom text of celetis:<name>:
   <custom.<name>, when present>
@@ -43,7 +43,7 @@ compares its bytes. The hook runtime has no Node and no DOM: a module that the h
 
   The block holds no host manual and no raw YAML. Custom text comes only after its marker line,
   so it cannot change a facts line. An empty string is `- custom: none`.
-- **The contract** comes from `plugins/celetis/docs/procedures/entry.md` at build time: `engine/hooks/entry.ts`
+- **The contract** comes from `plugins/celetis/references/procedures/entry.md` at build time: `engine/hooks/entry.ts`
   imports the file as text, so the bundle holds it. `entryParts` of `engine/lib/entry-text.ts` takes
   "The entry line" and "The contract" up to its `### Codex` part. The hook, `scripts/build.ts`, and
   `checkCitations` use that one parser, so a missing or renamed heading fails the build and the verify
@@ -62,7 +62,7 @@ compares its bytes. The hook runtime has no Node and no DOM: a module that the h
   of 10,000 ms gives the same stop through its `.catch` handler.
 - **A hook that makes no entry** leaves the entry line in the skill text. On a release before
   2.1.299, the hook runs but finds no skill name in the event, so it makes no entry. The session
-  then makes the entry itself, by "Entry without the hook" of `plugins/celetis/docs/procedures/entry.md`.
+  then makes the entry itself, by "Entry without the hook" of `plugins/celetis/references/procedures/entry.md`.
 - **After the entry.** A later `Read` of `.celetis.yaml` in the same session returns
   `file_unchanged` with no content.
 
@@ -111,8 +111,8 @@ checks of #104, native results exposed no applied effort to the calling agent.
 
 | Host operation | Module and section |
 | --- | --- |
-| Skill entry with no hook: the `Read` of `.celetis.yaml` | [entry.md](../../plugins/celetis/docs/procedures/entry.md), "Entry without the hook" |
-| The hook block, skill invocation with the Skill tool, `.celetis.yaml` after the entry, the sandbox approval procedure, and session recovery | [entry.md](../../plugins/celetis/docs/procedures/entry.md), "The contract", "Claude Code" |
-| Lane worktree entry and return: `EnterWorktree`, `ExitWorktree` with keep | [worktree.md](../../plugins/celetis/docs/procedures/worktree.md), "Claude Code" |
-| The return before `land`, and the run of `land` in background Bash | [landing.md](../../plugins/celetis/docs/procedures/landing.md), "Claude Code" |
-| Child spawn and resume (`Agent`, `SendMessage`), and the report shapes | [dispatch.md](../../plugins/celetis/docs/procedures/dispatch.md), "Claude Code" |
+| Skill entry with no hook: the `Read` of `.celetis.yaml` | [entry.md](../../plugins/celetis/references/procedures/entry.md), "Entry without the hook" |
+| The hook block, skill invocation with the Skill tool, `.celetis.yaml` after the entry, the sandbox approval procedure, and session recovery | [entry.md](../../plugins/celetis/references/procedures/entry.md), "The contract", "Claude Code" |
+| Lane worktree entry and return: `EnterWorktree`, `ExitWorktree` with keep | [worktree.md](../../plugins/celetis/references/procedures/worktree.md), "Claude Code" |
+| The return before `land`, and the run of `land` in background Bash | [landing.md](../../plugins/celetis/references/procedures/landing.md), "Claude Code" |
+| Child spawn and resume (`Agent`, `SendMessage`), and the report shapes | [dispatch.md](../../plugins/celetis/references/procedures/dispatch.md), "Claude Code" |

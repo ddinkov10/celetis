@@ -1,6 +1,6 @@
 # Codex
 
-A maintainer reference: how the plugin `celetis` integrates with Codex CLI. No session reads it at
+A maintainer document: how the plugin `celetis` integrates with Codex CLI. No session reads it at
 entry, and no skill or module cites it. Each agent rule of a host operation lives in the module of
 its procedure, under its `Codex` part ("The module index").
 
@@ -10,7 +10,7 @@ its procedure, under its `Codex` part ("The module index").
   This explicit empty override excludes the shared Claude native hooks file, `plugins/celetis/hooks/hooks.json`.
   The initial skills list holds each skill's name, description, and path, and Codex reads the
   whole `SKILL.md` when it uses the skill.
-- With no hook, the entry line of each skill sends the session to `plugins/celetis/docs/procedures/entry.md`,
+- With no hook, the entry line of each skill sends the session to `plugins/celetis/references/procedures/entry.md`,
   "Entry without the hook". With a shell, the entry runs the reader CLI, which validates the whole
   file and checks each `custom` key against the skills of the plugin. With no shell, full schema
   validation comes at each command that needs the configuration: `createOperation` validates
@@ -23,7 +23,7 @@ its procedure, under its `Codex` part ("The module index").
   The prompt came from a wording test: its second sentence, the startup sentence, changed
   first-response compliance from 0 of 5 to 5 of 5. The V8 check of #105 records the 5 of 5 result
   (https://github.com/ddinkov10/celetis/issues/105#issuecomment-6481779510). The first sentence
-  stays byte for byte. The second sentence names the entry of `plugins/celetis/docs/procedures/entry.md`.
+  stays byte for byte. The second sentence names the entry of `plugins/celetis/references/procedures/entry.md`.
 
 ## The daemon and `developer_instructions`
 
@@ -95,8 +95,8 @@ profiles").
 
 | Host operation | Module and section |
 | --- | --- |
-| Skill entry: the read of `.celetis.yaml` | [entry.md](../../plugins/celetis/docs/procedures/entry.md), "Entry without the hook" |
-| Skill invocation and its prompt, the approval procedure for a sandbox block, `issue` with no network, `update check` in `workspace-write`, and session recovery | [entry.md](../../plugins/celetis/docs/procedures/entry.md), "The contract", "Codex" |
-| Lane worktree binding of the command cwd and the file paths, the app worktree, and the network of `worktree` | [worktree.md](../../plugins/celetis/docs/procedures/worktree.md), "Codex" |
-| The return before `land`, the wait for its exit, and its network | [landing.md](../../plugins/celetis/docs/procedures/landing.md), "Codex" |
-| Child spawn and resume (`collaboration.spawn_agent`, `collaboration.followup_task`), `--runtime-models`, and the report shapes | [dispatch.md](../../plugins/celetis/docs/procedures/dispatch.md), "Codex" |
+| Skill entry: the read of `.celetis.yaml` | [entry.md](../../plugins/celetis/references/procedures/entry.md), "Entry without the hook" |
+| Skill invocation and its prompt, the approval procedure for a sandbox block, `issue` with no network, `update check` in `workspace-write`, and session recovery | [entry.md](../../plugins/celetis/references/procedures/entry.md), "The contract", "Codex" |
+| Lane worktree binding of the command cwd and the file paths, the app worktree, and the network of `worktree` | [worktree.md](../../plugins/celetis/references/procedures/worktree.md), "Codex" |
+| The return before `land`, the wait for its exit, and its network | [landing.md](../../plugins/celetis/references/procedures/landing.md), "Codex" |
+| Child spawn and resume (`collaboration.spawn_agent`, `collaboration.followup_task`), `--runtime-models`, and the report shapes | [dispatch.md](../../plugins/celetis/references/procedures/dispatch.md), "Codex" |

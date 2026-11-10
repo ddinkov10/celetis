@@ -24,7 +24,7 @@ request uses the same procedure. Use only the current task and its directly name
    stored incident is already handled, including in rejected or historical records: report it
    unchanged. Read only relevant rule bodies from this result. A denied read is a block, not an
    empty store. An unavailable main checkout stays blocked; use no other queue.
-5. **Prepare the proposal.** Read `<plugin>/docs/procedures/lesson-format.md`. Retain the actual
+5. **Prepare the proposal.** Read `<plugin>/references/procedures/lesson-format.md`. Retain the actual
    action, expected/observed behavior, date, relevant revision, and a concise safe evidence excerpt
    that survives its source log. Label user reports, tool output, and inferred causes separately.
    Keep uncertainty and alternatives. Exclude credentials, unrelated conversation, and whole
@@ -62,7 +62,7 @@ brief excerpt or durable reference. Record only the supported labels:
 | `unknown` | The evidence does not distinguish the causes; use alone |
 
 A missing transcript alone yields `unknown`. Recurrence does not establish failed enforcement.
-Read `<plugin>/docs/principles/encode-lessons-in-structure.md`. Apply it when its `Applies when` holds for the proposal, with its `Check`. In the
+Read `<plugin>/references/principles/encode-lessons-in-structure.md`. Apply it when its `Applies when` holds for the proposal, with its `Check`. In the
 proposal's Fix, record a proposed structural follow-up that needs separate authorization, its owner or
 issue when known, and a check that would reject the recorded mistake. Mark enforcement proven
 only with its actual evidence. When judgment makes a structural check unsuitable, state why the

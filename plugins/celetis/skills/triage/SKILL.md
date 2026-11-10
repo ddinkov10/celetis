@@ -3,7 +3,7 @@ name: triage
 description: Type-axis front door for a cold, unclassified idea whose TYPE (/celetis:bug · /celetis:hotfix · /celetis:feature · /celetis:chore) is not yet known. Use when the human runs /celetis:triage, or when a request's type is unclear and must be resolved before a lane starts. Resolves type only; the lane it hands to owns requirements, branching and gates. If the type is already known, invoke the lane directly (/celetis:bug …) and skip triage.
 ---
 
-**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/references/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 # /celetis:triage — type-axis front door
 
@@ -87,7 +87,7 @@ Ambiguous — ask the one splitter that resolves it:
    - **Multi-type idea** ("fix the export crash *and* add CSV export") → this issue keeps the
      load-bearing type; `/celetis:intake` opens one issue per remaining type; triage each.
    - **Unclear** — the report lacks what its lane needs (a repro for a bug, an outcome for a
-     feature) → sort the questions by `<plugin>/docs/procedures/stop.md`, "The check before a
+     feature) → sort the questions by `<plugin>/references/procedures/stop.md`, "The check before a
      stop". Ask the maintainer each question that an answer in words settles, and go on with the
      answer. Write only the questions that the maintainer cannot answer in the session to a file,
      run `celetis --agent <host> issue <n> needs-info <file>` as the last act of the turn, and
@@ -96,7 +96,7 @@ Ambiguous — ask the one splitter that resolves it:
      as the last act of the turn, and stop.
 4. **Clean one-liner** — normalize the idea into the single-sentence description the lane consumes.
 5. **Decide the effort, route, announce, ask to continue** — record the effort level of the
-   lane's first step per `<plugin>/docs/procedures/effort.md`. Then route the issue
+   lane's first step per `<plugin>/references/procedures/effort.md`. Then route the issue
    (`celetis --agent <host> issue <n> route <lane>`
    with the lane `feature`, `bug`, `chore`, or `hotfix`), then state the pick and the one-liner (`→ /celetis:bug #<n>: <one-liner>`). Ask the
    human whether to proceed. On yes, invoke that lane with `#<n>` and follow it; the lane's step-1

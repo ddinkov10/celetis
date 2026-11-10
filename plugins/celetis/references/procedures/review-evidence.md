@@ -47,7 +47,7 @@ Recheck a structural repair against its constraint. Renew evidence invalidated b
 requirements. Use the existing scoped re-review where present. The inline final fix pass makes
 its own focused check and gains no second reviewer. Preserve evidence before probe cleanup.
 
-An unresolved material risk goes through `<plugin>/docs/procedures/stop.md`, "The two modes",
+An unresolved material risk goes through `<plugin>/references/procedures/stop.md`, "The two modes",
 for a maintainer decision before a clean close or unqualified PASS. Apply this also to parked,
 deferred-minor, and out-of-scope findings; these dispositions do not settle material risk or expand
 re-review scope. Retain any explicit maintainer disposition and its source with the unverified

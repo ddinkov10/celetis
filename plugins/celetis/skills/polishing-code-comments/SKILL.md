@@ -3,7 +3,7 @@ name: polishing-code-comments
 description: Use when polishing, tightening, or pruning existing code comments and inline docs — a comment-cleanup pass over a diff or file, or before finishing a branch. Not for adding missing comments or documentation coverage.
 ---
 
-**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/references/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 # Polishing Code Comments
 

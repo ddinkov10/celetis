@@ -28,7 +28,7 @@ Record the maintainer's decision and source before publishing or changing accept
    "A partial write" for a partial write.
 5. Report the children and acceptance mode, and stop. Each child runs its own feature lane.
 
-The definition publication moves the line (`<plugin>/docs/procedures/stop.md`, "The act that
+The definition publication moves the line (`<plugin>/references/procedures/stop.md`, "The act that
 moves the line"). Only each later act that the citing skill names, and the report, follow it in
 the same turn. This procedure also resolves scope for an existing unresolved epic; it does not
 start a parent run or replace explicit acceptance.

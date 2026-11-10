@@ -3,12 +3,12 @@ name: doc-drift-sync
 description: Use when asked to sync, refresh, or audit current project documents against intended behavior and source, or when the daily doc-drift maintenance pass runs.
 ---
 
-**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/references/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 # Doc-Drift Sync
 
 Keep current docs aligned with approved intent. Read
-`<plugin>/docs/procedures/behavior-documentation.md` and apply "Assessment" and "Standalone
+`<plugin>/references/procedures/behavior-documentation.md` and apply "Assessment" and "Standalone
 drift" to this pass. Fix supported drift and report unresolved discrepancies.
 
 ## Rules

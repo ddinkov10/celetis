@@ -237,7 +237,7 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
     return 2;
   }
   try {
-    entryParts(await readFile(join(root, 'plugins/celetis/docs/procedures/entry.md'), 'utf8'));
+    entryParts(await readFile(join(root, 'plugins/celetis/references/procedures/entry.md'), 'utf8'));
   } catch (error) {
     console.error(`build: ${error instanceof Error ? error.message : String(error)}`);
     return 1;

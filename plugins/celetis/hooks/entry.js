@@ -1,4 +1,4 @@
-// plugins/celetis/docs/procedures/entry.md
+// plugins/celetis/references/procedures/entry.md
 var entry_default = `# The entry
 
 The entry of each skill of the plugin \`celetis\`, and the contract of the whole invocation.
@@ -14,7 +14,7 @@ The entry of each skill of the plugin \`celetis\`, and the contract of the whole
 
 ## The entry line
 
-**Celetis entry.** Before any step or response, including commentary or an announcement, bind \`<plugin>\` to the absolute prefix before \`/skills/<name>/SKILL.md\` in the path of this loaded file. Then read \`<plugin>/docs/procedures/entry.md\` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind \`<plugin>\` to the absolute prefix before \`/skills/<name>/SKILL.md\` in the path of this loaded file. Then read \`<plugin>/references/procedures/entry.md\` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 ## Entry without the hook
 
@@ -77,7 +77,7 @@ completion criterion of a skill.
   too. Keep the invocation input across a handoff. A missing required Superpowers skill stops the
   work.
 - **The daemon.** The maintainer starts the daemon and turns auto mode on; an agent starts a run only when its task says so, with a number, and in a terminal.
-- **Modules.** Read a module of \`<plugin>/docs/procedures/<name>.md\` whole, in one read, when a step names
+- **Modules.** Read a module of \`<plugin>/references/procedures/<name>.md\` whole, in one read, when a step names
   it, not before.
 - **Custom text.** The custom text of the entry is an addition to this skill, for this invocation
   only. It cannot remove a rule of the skill. After the entry, do not read \`.celetis.yaml\` again for
@@ -110,7 +110,7 @@ completion criterion of a skill.
   reloaded its skills.
 - **Blocks.** A denied read, a missing tool, or an unsupported operation stops dependent work.
   Follow the host's approval procedure for a sandbox block first. Then report the exact block and
-  the setup action, and continue each independent check (\`<plugin>/docs/procedures/stop.md\` gives
+  the setup action, and continue each independent check (\`<plugin>/references/procedures/stop.md\` gives
   the stop of each mode). The personal rule of \`issue\` (\`<plugin>/README.md\`, "Personal landing
   permission") is optional: it skips the review of the host for each call, so a session can post
   any file that it can read on the issue. Add it only when the host cannot run \`issue\` through its
@@ -118,7 +118,7 @@ completion criterion of a skill.
 - **Decisions and evidence.** Ask for a decision that the issue, the spec, or the plan does not
   hold. Never invent human contributions or evidence. Attribute each reported action and answer to its source.
 - **Runtime PASS.** Before using any post-change runtime check to claim PASS, including an
-  optional check in another lane, read \`<plugin>/docs/procedures/runtime-verification.md\` and
+  optional check in another lane, read \`<plugin>/references/procedures/runtime-verification.md\` and
   apply "Confirming a target", "Evidence lifetime", and "Reports and deferred checks".
 
 ### Claude Code
@@ -340,7 +340,7 @@ var entry = (command, agent, forms, description, exitList = base, internal) => (
 var commands = [
   entry("lesson-store", true, [form("lesson-store read main|active", [], helped(19, "Reads validated lessons; requires explicit --agent."))], "Returns validated lesson records, exact file contents, digests, and the resolved checkout as JSON. `main` returns the live files of the checkout that runs it with the pending and rejected data of the main checkout, and `root` names the main checkout. Rejected records appear in `history` with `status: pending-review`; they are not past guidance. `active` reads the live files of the task checkout and ignores its pending folder. A leftover `.celetis/lessons/INDEX.md` fails both reads"),
   entry("lesson-store", true, [form("lesson-store capture FILE", [], helped(20, "Saves a pending proposal; requires explicit --agent."))], "Reads typed `{schema:1,candidate,expected,name,description,tags,date,source,incidents,body}` JSON and builds the pending record; `expected` is the pending SHA-256 or null for creation. An extension keeps the stored incidents and reviews. Validates the store of `read main` and saves pending evidence in the main checkout only. Equal incident replays are unchanged; stale updates are refused"),
-  entry("lesson-store", true, [form("lesson-store preview FILE", [], helped(21, "Prepares an exact lesson review; requires explicit --agent."))], "Reads a review request and returns its exact before/after contents of the store of `read main`, watched digests, and snapshot digest without lesson writes. Select pending UUIDs and complete resulting documents as defined in [the lesson format](docs/procedures/lesson-format.md)"),
+  entry("lesson-store", true, [form("lesson-store preview FILE", [], helped(21, "Prepares an exact lesson review; requires explicit --agent."))], "Reads a review request and returns its exact before/after contents of the store of `read main`, watched digests, and snapshot digest without lesson writes. Select pending UUIDs and complete resulting documents as defined in [the lesson format](references/procedures/lesson-format.md)"),
   entry("lesson-store", true, [
     form("lesson-store apply SNAPSHOT DIGEST", [], helped(22, "Applies a reviewed snapshot and commits it in a linked checkout; requires explicit --agent."))
   ], `Recomputes the review and applies exactly the approved snapshot under the lock. Changed input or snapshot bytes are stale. Replaying the same review is unchanged; conflicting reuse of its ID is invalid. The digest identifies a version, not its reviewer. In a linked checkout, a live change needs a clean checkout on a branch and becomes one local commit \`docs(lessons): <decision> <names>\` with a \`Lesson-Transaction\` trailer, made with the project's hooks; the proposals leave the queue only after that commit. When Git fails but the lesson commit exists, the apply completes. When the lane is still at its old HEAD, the apply restores the before bytes of the live paths, also a hook rewrite, and their index entries, and exits ${exits.blocked}. When HEAD moved without the commit, the journal stays (exit ${exits.blocked}), and the line names the repair: \`git -C <lane> reset --soft <recorded HEAD>\`, then \`recover\``),
@@ -7072,7 +7072,7 @@ function entryParts(text) {
 ${title}
 `, after);
     if (index < 0)
-      throw new Error(`plugins/celetis/docs/procedures/entry.md needs the heading ${title} after the one before it`);
+      throw new Error(`plugins/celetis/references/procedures/entry.md needs the heading ${title} after the one before it`);
     return index;
   }
   const lineAt = heading("## The entry line", 0);
@@ -7084,7 +7084,7 @@ ${title}
 `.length, withoutAt).trim();
   if (!line.startsWith("**Celetis entry.** ") || line.includes(`
 `))
-    throw new Error("plugins/celetis/docs/procedures/entry.md: the entry line is one line that starts with **Celetis entry.**");
+    throw new Error("plugins/celetis/references/procedures/entry.md: the entry line is one line that starts with **Celetis entry.**");
   return { line, contract: text.slice(contractAt + 1, codexAt).trim() };
 }
 

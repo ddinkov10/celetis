@@ -68,4 +68,4 @@ Run the command in the same turn as the act that moves the line of the citing sk
 act: `triage` before `issue <n> route`, `specify` before `issue <n> spec`, `bug` before
 `issue <n> root-cause`, and `plan` before `issue <n> plan`. In a step session, the completion
 watcher can end the session at its first idle moment after that act, so a decision after it can be
-lost (`<plugin>/docs/procedures/stop.md`, "The act that moves the line").
+lost (`<plugin>/references/procedures/stop.md`, "The act that moves the line").

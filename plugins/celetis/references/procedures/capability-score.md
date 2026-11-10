@@ -3,7 +3,7 @@
 How a step scores a task for the model and the effort of the child that runs it: the rubric of the
 six digits, the scorecard, who scores and when, and the worked examples. `plan`, `hotfix`,
 `specify`, `critic-loop`, `implement`, and `dispatch.md` cite it. The bands, the floors, the bias,
-the escalation, and the schemas stay in [capability.md](../capability.md).
+the escalation, and the schemas stay in [capability.md](../../docs/capability.md).
 
 ## Contents
 
@@ -76,7 +76,7 @@ old tasks. An absent `+bN` in a published line means bias 0.
 
 For plan headers and children outside the task loop of `implement`, generate the line with
 `capscore` (do not hand-compute the tier). The task loop takes its line from `dispatch`
-(`<plugin>/docs/procedures/dispatch.md`, "The task loop").
+(`<plugin>/references/procedures/dispatch.md`, "The task loop").
 
 ```bash
 celetis --agent <host> capscore J V B N S X [--attempt N] [--bias N]
@@ -91,18 +91,18 @@ will read it:
   line goes in the dispatch prompt.
 - **`implement`** task loop — reuse the task's digits and bias with `dispatch next`; send each
   returned dispatch's CAP line first. `dispatch` owns gate repairs, review fixes, and task closure
-  on the subagent flow and for fixes after the final review (`<plugin>/docs/procedures/dispatch.md`, "The task loop").
+  on the subagent flow and for fixes after the final review (`<plugin>/references/procedures/dispatch.md`, "The task loop").
   On the inline flow, the session builds each task, so the plan's CAP lines are recommendations
   (**Plan headers**); its final reviewer uses `capscore --json`.
 - **Other child spawns**, including `critic-loop` and the builder check of `specify` — resolve
   the host binding with `capscore --json` and include its CAP line in the prompt; the actual
   spawn applies the effort, and the model when `dispatch.model` is not null, through the actual
-  spawn controls of the host (`<plugin>/docs/procedures/dispatch.md`, "One child").
+  spawn controls of the host (`<plugin>/references/procedures/dispatch.md`, "One child").
 - **Plan headers** — print the CAP rec on session-executed tasks. Note: the **session model is the
   user's picker**; the rubric can only *recommend* there (max is auto-assignable for a spawn, a rec
   for the session). The user may override any rec. A run or board start of a step session gets
   the effort level that the step before decided on the issue, else `high`, not a rubric band
-  (`<plugin>/docs/procedures/effort.md`); the rubric still only
+  (`<plugin>/references/procedures/effort.md`); the rubric still only
   recommends the session model.
 
 ## Worked examples (explicit bias 0, attempt 1)

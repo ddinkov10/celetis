@@ -3,12 +3,12 @@ name: lesson-review
 description: Use when the human requests review of pending lessons or maintenance of a selected active lesson, including promotion, merge, supersession, or retirement.
 ---
 
-**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/references/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 # Review lessons
 
 This is the optional human review. Agent curation at each landing reviews the pending queue
-(`<plugin>/docs/procedures/lesson-curation.md`, "Curation at a landing"); here a person audits,
+(`<plugin>/references/procedures/lesson-curation.md`, "Curation at a landing"); here a person audits,
 edits, supersedes, or retires a lesson, or decides a pending proposal. An approval is the
 decision of the reviewer, human or agent; in this skill, it is the person's approval of the exact
 snapshot below. Review grants no permission to change skills, principles, or project
@@ -16,7 +16,7 @@ instructions, push, or start a run.
 
 ## 1. Select the records
 
-Read `<plugin>/docs/procedures/lesson-format.md`, then run
+Read `<plugin>/references/procedures/lesson-format.md`, then run
 `celetis --agent <host> lesson-store read main`. Use its resolved main checkout and exact
 contents. List pending candidates by ID, name, origin, date, and summary. Select the requested
 candidate or active lesson. An empty queue does not block maintenance of a selected active
@@ -26,12 +26,12 @@ For each selected record, read its full evidence, inference, diagnosis, and rule
 active guidance from the same result when it can duplicate or contradict the proposal. Report
 an encountered contradiction. Ask the reviewer to select the resulting rule, or to reject or
 skip the proposal; incompatible rules never stay active together. Read
-`<plugin>/docs/principles/encode-lessons-in-structure.md`. Apply it when its `Applies when` holds
+`<plugin>/references/principles/encode-lessons-in-structure.md`. Apply it when its `Applies when` holds
 for the selected record, with its `Check`. Keep a structural follow-up proposed
 until it has separate authorization and proof; explain why judgment-dependent guidance stays
 as text.
 
-Offer the applicable decisions by `<plugin>/docs/procedures/lesson-curation.md`, "The reviewer
+Offer the applicable decisions by `<plugin>/references/procedures/lesson-curation.md`, "The reviewer
 rules": **approve**, **edit then approve**, **merge**, **supersede**, **retire**, **reject**, or
 **skip**. Use the reviewer's requested decision when already stated;
 otherwise ask and wait. Skip changes nothing and calls no mutation command.

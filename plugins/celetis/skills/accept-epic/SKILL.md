@@ -5,7 +5,7 @@ argument-hint: "#<issue number>"
 disable-model-invocation: true
 ---
 
-**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/references/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 # /celetis:accept-epic — check the parent outcome
 
@@ -25,7 +25,7 @@ scope or evidence affects acceptance. Repeat these reads on each attempt; old re
 not current proof.
 
 - **Closed:** report the observed state and end, with no new acceptance PASS.
-- **Unresolved declaration:** read `<plugin>/docs/procedures/epic.md` and obtain a sourced scope
+- **Unresolved declaration:** read `<plugin>/references/procedures/epic.md` and obtain a sourced scope
   decision. A question opt-out supplies no independent classification. Preserve the parent body
   and publish the agreed definition through `issue <n> epic <file>`, then read its current state.
 - **Independent:** run `celetis --agent <host> issue <n> complete-epic` without runtime work. Report
@@ -35,14 +35,14 @@ not current proof.
 
 ## 2. Prove the combined outcome
 
-Read `<plugin>/docs/procedures/acceptance-coverage.md`, "Mapping", "Review", and "Reporting".
+Read `<plugin>/references/procedures/acceptance-coverage.md`, "Mapping", "Review", and "Reporting".
 Use the approved parent criteria and current declaration as the source. Keep their coverage in
 the ordinary runtime report; the parent needs no implementation plan. Retain every criterion
 part, including obligations of a child closed as `not_planned`. Ask for a recorded maintainer
 decision before changing acceptance meaning or declaring a criterion inapplicable.
 
-Read `<plugin>/docs/procedures/verification-recipes.md` and the project's relevant existing
-recipes. Read `<plugin>/docs/procedures/runtime-verification.md` and apply target confirmation,
+Read `<plugin>/references/procedures/verification-recipes.md` and the project's relevant existing
+recipes. Read `<plugin>/references/procedures/runtime-verification.md` and apply target confirmation,
 evidence lifetime, and reporting. Identify a safe current target. A dirty checkout needs its
 retained source snapshot; do not switch its branch or install a plugin to obtain proof. Unknown
 loaded source stays UNVERIFIED with the exact missing link.
@@ -60,12 +60,12 @@ evidence references, cleanup, and remaining gaps together. Retain sourced inappl
 ## 3. Resolve remaining work
 
 Preserve existing holds. Direct their verified completion to assistance through
-`<plugin>/docs/procedures/assisted-completion.md`; acceptance clears none. Assistance ends after
+`<plugin>/references/procedures/assisted-completion.md`; acceptance clears none. Assistance ends after
 its own completion. The maintainer then re-enters this skill; no run starts for the parent.
 
 For a repair, read existing linked repair issues first. Reuse the issue that covers the failed
 criterion. If none exists, create and link a repair issue by the recipe of
-`<plugin>/docs/procedures/epic.md`, "The children", with a brief naming the failed parent criterion
+`<plugin>/references/procedures/epic.md`, "The children", with a brief naming the failed parent criterion
 and its evidence. Keep repairs in existing child lanes. A retry reuses this work and does not alter
 a completed child build.
 
@@ -91,5 +91,5 @@ this session checks evidence truth, semantic coverage, and current targets.
 Exit 0 of `issue <n> complete-epic <file>` reports completion or an already closed parent; distinguish them. Exit 2 requires corrected
 input. Exit 3 requires current prerequisite or coverage review. Exit 6 requires the entry's
 approval procedure for access failures and the partial-write repair of
-`<plugin>/docs/procedures/epic.md`, "A partial write". Re-read state before retrying; retain
+`<plugin>/references/procedures/epic.md`, "A partial write". Re-read state before retrying; retain
 valid evidence and never replay an uncertain write blindly. Report the confirmed outcome and end.

@@ -56,7 +56,7 @@ installs or updates it, never makes it a dependency of the plugin `celetis`, and
 ## Missing
 
 For a look decision on the `impeccable` path, a failed check is a stop
-(`<plugin>/docs/procedures/stop.md`, "The two modes"), before any page, prototype checkout, or
+(`<plugin>/references/procedures/stop.md`, "The two modes"), before any page, prototype checkout, or
 `shape` question. Its message names the exact cause and one setup action, which ends with "then
 start the step again":
 
@@ -103,7 +103,7 @@ constraints. A measured value is never a target, and the pick stays the maintain
 The structure round runs for a whole page, screen, or flow whose composition is open: a new
 screen, or an existing screen that is redone as a whole. A section, card, step, or element inside
 an existing screen is a smaller change, and `generate` gives its options. A change of several
-screens is one look decision for each screen. Step 1 of `<plugin>/docs/procedures/ui.md` shows
+screens is one look decision for each screen. Step 1 of `<plugin>/references/procedures/ui.md` shows
 the chosen path with the list of states. A smaller change on mobile takes the hand-built path of
 that procedure: `generate` is web only.
 
@@ -111,7 +111,7 @@ that procedure: `generate` is web only.
 
 The session can ask when its host part says so. A session that cannot ask opens no page and takes
 no card or variant. It stops with the last setup action of "Missing", by
-`<plugin>/docs/procedures/stop.md`, "The two modes": a step session hands the stop to the issue
+`<plugin>/references/procedures/stop.md`, "The two modes": a step session hands the stop to the issue
 ("A stop in a step session"), and an interactive session shows it.
 
 ## The pick
@@ -131,7 +131,7 @@ timeout is no answer.
    payload as its PRESENTATION block says.
 2. Run `<impeccable>/scripts/impeccable serve-question --start --payload <file>`. It prints
    `QUESTION URL:` and `QUESTION KEY:`. Open the URL as the web row of
-   `<plugin>/docs/procedures/ui.md`, "The platform rows", says, also for a mobile screen.
+   `<plugin>/references/procedures/ui.md`, "The platform rows", says, also for a mobile screen.
 3. Ask in the terminal, with the URL: lock one card on the page, or ask for a re-roll there, then
    answer. The options are "I locked a card or asked for a re-roll" and "The page did not open".
 4. After each answer other than "The page did not open", run
@@ -187,7 +187,7 @@ terminal question alone. Its options are the cards, each by its name and one lin
 structured question channel of `<impeccable>/reference/new-work.md`. The chosen card is the pick.
 
 `generate` has no such channel. When `generate` cannot start, or the overlay did not show, run
-`live-server stop`, and stop the look decision (`<plugin>/docs/procedures/stop.md`, "The two
+`live-server stop`, and stop the look decision (`<plugin>/references/procedures/stop.md`, "The two
 modes"). Its message names the exact failure and one setup action, which ends with "then start the
 step again": the act that lets the overlay show on the page, for example a start of the dev server
 of the product, or a browser that the session can open, such as a Playwright MCP server with no
@@ -200,7 +200,7 @@ overlay of `generate` ("The pick"), and the in-page scan of Assessment B of `cri
 review"). The session takes this one way into such a page, also when the page has no CSP:
 
 - **The tool.** The Playwright MCP server with `--isolated`, which opens a browser of its own
-  (`<plugin>/docs/procedures/component-research.md`, "A missing, busy, or failed tool"). It is the
+  (`<plugin>/references/procedures/component-research.md`, "A missing, busy, or failed tool"). It is the
   one browser tool whose call this section names. Another browser tool, for example the browser
   pane of the host, has no such call and does not count. Its tools act on its current tab, and a
   sub-agent can share the server of its session: so one agent at a time uses the server for the
@@ -233,7 +233,7 @@ review"). The session takes this one way into such a page, also when the page ha
   no hand-built variants because of the CSP. When `impeccable live` reports `config_missing`, write
   the whole `.impeccable/live/config.json` as "Write the config" of
   `<impeccable>/reference/live-setup.md` says, with `cspChecked: true`, and skip only its "CSP
-  detection". Step 10 of `<plugin>/docs/procedures/ui.md` removes that untracked file. The script
+  detection". Step 10 of `<plugin>/references/procedures/ui.md` removes that untracked file. The script
   tag of the injection goes away with `live-server stop`, before the commit of step 10. For its
   tab, this way replaces the advice of `<impeccable>/reference/live.md` against a change of browser
   security: it changes no CSP of the product, and it stays on loopback pages of the checkout.
@@ -258,7 +258,7 @@ The review refines the chosen look on the rendered screen and keeps its directio
      and its tab list counts the tabs of the review session and of its assessments as the
      session's.
    - The brief of Assessment A names no call: A reads the page as the product serves it.
-   - The brief of Assessment B cites "The page CSP" of `<plugin>/docs/procedures/design.md`, and B
+   - The brief of Assessment B cites "The page CSP" of `<plugin>/references/procedures/design.md`, and B
      follows it: B opens a new tab of that server and runs the call before its navigation. On another
      origin, or on a page that asks for a sign-in, B closes the tab, runs no preflight and no
      injection, and returns the URL. B removes the `.playwright-mcp/` files that its tool results

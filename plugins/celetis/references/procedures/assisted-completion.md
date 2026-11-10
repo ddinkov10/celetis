@@ -38,7 +38,7 @@ With evidence for the full scope of the report and both removals:
    Build a heading-free report naming current request comment IDs or plan references, completed
    work, observed results, and human answers with their sources. For runtime work, first obtain
    and preserve the source, target, loaded-resource, oracle, and lifetime evidence required by
-   `<plugin>/docs/procedures/runtime-verification.md`. Preparation does not complete a dependent
+   `<plugin>/references/procedures/runtime-verification.md`. Preparation does not complete a dependent
    runtime check.
 2. A strict open precondition (`during-the-build` or `unmarked`) needs both a report and a removal
    after its request. If its required removal is missing and `ready-for-human` is absent, run

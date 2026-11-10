@@ -1,4 +1,4 @@
-import entryText from '../../plugins/celetis/docs/procedures/entry.md' with { type: 'text' };
+import entryText from '../../plugins/celetis/references/procedures/entry.md' with { type: 'text' };
 import {
   type Config,
   ConfigError,

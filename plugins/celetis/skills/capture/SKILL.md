@@ -5,7 +5,7 @@ argument-hint: "[#<n> or the request]"
 disable-model-invocation: true
 ---
 
-**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/references/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 # capture
 
@@ -40,7 +40,7 @@ change. Input: `#<n>`, or the request in free text.
    `## Landing refused` would end that refusal. Free text has no issue yet; it gets one at step 4,
    on the `run /celetis:triage` row.
 2. **Find the decided work.** Read this conversation and sort what it holds into the three parts
-   of the record, per `<plugin>/docs/procedures/capture.md`, "The record". For `#<n>`, read the
+   of the record, per `<plugin>/references/procedures/capture.md`, "The record". For `#<n>`, read the
    issue with `gh issue view <n> --json body,comments`, and carry into the new record each line
    of the newest earlier `## Captured` comment that this chat did not change, so that the newest
    record is always complete. With no decided work, stop and write nothing: name
@@ -50,7 +50,7 @@ change. Input: `#<n>`, or the request in free text.
    This yes is about the faithfulness of the record only; the approval of a written spec still
    comes in its own step.
 4. **Get the issue.**
-   - Free text: do the intake job. Fill `<plugin>/docs/procedures/intent.md` from the request in
+   - Free text: do the intake job. Fill `<plugin>/references/procedures/intent.md` from the request in
      the person's words, save it as `docs/superpowers/intents/YYYY-MM-DD-<slug>-intent.md`, and
      create the issue with `gh issue create --label needs-triage --title "<Intent title>"
      --body-file <intent>`. Tell the person the issue number at once: a retry after an

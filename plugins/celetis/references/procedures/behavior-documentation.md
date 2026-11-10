@@ -2,7 +2,7 @@
 
 ## Assessment
 
-Read and apply `<plugin>/docs/principles/preserve-intended-behavior.md`. Locate the smallest
+Read and apply `<plugin>/references/principles/preserve-intended-behavior.md`. Locate the smallest
 affected sections in existing current project documents. Use the active change's approved spec
 or accepted lane intent and applicable decisions. For historical drift, follow relevant document
 references and scoped Git history to the associated issues and decisions, including explicit

@@ -121,7 +121,7 @@ const agentText = (files: ReadonlyMap<string, string>) =>
   [...files].filter(
     ([path]) =>
       /^plugins\/celetis\/skills\/.+\.md$/.test(path) ||
-      /^plugins\/celetis\/docs\/(?:procedures|principles)\/[^/]+\.md$/.test(path) ||
+      /^plugins\/celetis\/references\/(?:procedures|principles)\/[^/]+\.md$/.test(path) ||
       path === `${plugin}step-prompt.md`,
   );
 
@@ -188,17 +188,17 @@ export function checkCitations(files: ReadonlyMap<string, string>): string[] {
   }
   for (const [file, text] of files) {
     const principleHostReference =
-      /^plugins\/celetis\/docs\/principles\/[^/]+\.md$/.test(file) &&
+      /^plugins\/celetis\/references\/principles\/[^/]+\.md$/.test(file) &&
       (text.includes('docs/hosts/') ||
         [...(cited.get(file) ?? [])].some((target) => target.startsWith(`${plugin}docs/hosts/`)));
     if (
-      (/^plugins\/celetis\/(?:skills|docs\/procedures)\//.test(file) && text.includes('docs/hosts/')) ||
+      (/^plugins\/celetis\/(?:skills|references\/procedures)\//.test(file) && text.includes('docs/hosts/')) ||
       principleHostReference
     )
       errors.push(`verify: host reference: ${file} cites docs/hosts/`);
   }
   for (const [module] of checked) {
-    if (!/^plugins\/celetis\/docs\/procedures\/[^/]+\.md$/.test(module)) continue;
+    if (!/^plugins\/celetis\/references\/procedures\/[^/]+\.md$/.test(module)) continue;
     const citers = checked.filter(
       ([file]) =>
         (/^plugins\/celetis\/skills\/.+\.md$/.test(file) || file === `${plugin}step-prompt.md`) &&
@@ -208,7 +208,7 @@ export function checkCitations(files: ReadonlyMap<string, string>): string[] {
   }
   let entryLine: string | undefined;
   try {
-    entryLine = entryParts(files.get(`${plugin}docs/procedures/entry.md`) ?? '').line;
+    entryLine = entryParts(files.get(`${plugin}references/procedures/entry.md`) ?? '').line;
   } catch (error) {
     errors.push(`verify: entry line: ${error instanceof Error ? error.message : String(error)}`);
   }
@@ -216,7 +216,7 @@ export function checkCitations(files: ReadonlyMap<string, string>): string[] {
     for (const [file, text] of checked) {
       if (!/^plugins\/celetis\/skills\/[^/]+\/SKILL\.md$/.test(file)) continue;
       if (text.split(entryLine).length - 1 !== 1)
-        errors.push(`verify: entry line: ${file}: need the entry line of ${plugin}docs/procedures/entry.md once`);
+        errors.push(`verify: entry line: ${file}: need the entry line of ${plugin}references/procedures/entry.md once`);
     }
   return errors;
 }

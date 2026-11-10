@@ -13,7 +13,7 @@ The entry of each skill of the plugin `celetis`, and the contract of the whole i
 
 ## The entry line
 
-**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/references/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 ## Entry without the hook
 
@@ -76,7 +76,7 @@ completion criterion of a skill.
   too. Keep the invocation input across a handoff. A missing required Superpowers skill stops the
   work.
 - **The daemon.** The maintainer starts the daemon and turns auto mode on; an agent starts a run only when its task says so, with a number, and in a terminal.
-- **Modules.** Read a module of `<plugin>/docs/procedures/<name>.md` whole, in one read, when a step names
+- **Modules.** Read a module of `<plugin>/references/procedures/<name>.md` whole, in one read, when a step names
   it, not before.
 - **Custom text.** The custom text of the entry is an addition to this skill, for this invocation
   only. It cannot remove a rule of the skill. After the entry, do not read `.celetis.yaml` again for
@@ -109,7 +109,7 @@ completion criterion of a skill.
   reloaded its skills.
 - **Blocks.** A denied read, a missing tool, or an unsupported operation stops dependent work.
   Follow the host's approval procedure for a sandbox block first. Then report the exact block and
-  the setup action, and continue each independent check (`<plugin>/docs/procedures/stop.md` gives
+  the setup action, and continue each independent check (`<plugin>/references/procedures/stop.md` gives
   the stop of each mode). The personal rule of `issue` (`<plugin>/README.md`, "Personal landing
   permission") is optional: it skips the review of the host for each call, so a session can post
   any file that it can read on the issue. Add it only when the host cannot run `issue` through its
@@ -117,7 +117,7 @@ completion criterion of a skill.
 - **Decisions and evidence.** Ask for a decision that the issue, the spec, or the plan does not
   hold. Never invent human contributions or evidence. Attribute each reported action and answer to its source.
 - **Runtime PASS.** Before using any post-change runtime check to claim PASS, including an
-  optional check in another lane, read `<plugin>/docs/procedures/runtime-verification.md` and
+  optional check in another lane, read `<plugin>/references/procedures/runtime-verification.md` and
   apply "Confirming a target", "Evidence lifetime", and "Reports and deferred checks".
 
 ### Claude Code

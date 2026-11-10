@@ -33,7 +33,7 @@ The jobs run in bounded workers. A passing run prints the success line of
 
 `scripts/build.ts` writes the files that come from other files. Besides the files that
 [`AGENTS.md`](../AGENTS.md#verify-gate) names, it writes the engine entry `engine/celetis` and
-`plugins/celetis/hooks/entry.js`, which embeds `plugins/celetis/docs/procedures/entry.md`. An edit of
+`plugins/celetis/hooks/entry.js`, which embeds `plugins/celetis/references/procedures/entry.md`. An edit of
 that file needs a run of the build. The build installs nothing. Add the file `engine/<name>.ts` with each new declared command.
 
 ```sh

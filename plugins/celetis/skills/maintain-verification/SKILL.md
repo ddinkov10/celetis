@@ -4,12 +4,12 @@ description: Check every mapped verification flow against source and live behavi
 disable-model-invocation: true
 ---
 
-**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/references/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 # Maintain verification recipes
 
 1. **Resolve the map.** Read the project's instructions and
-   `<plugin>/docs/procedures/verification-recipes.md`. Apply "Recipe content" and "Explicit
+   `<plugin>/references/procedures/verification-recipes.md`. Apply "Recipe content" and "Explicit
    operations" to the existing pointer and document home. With no map, report the missing
    target and recommend explicit `/celetis:create-verification`; create no map. Declare the
    entries present at the start as this run's coverage boundary.
@@ -19,7 +19,7 @@ disable-model-invocation: true
    A failing or unreachable flow is not obsolete. Report unmapped surfaces as coverage gaps
    for a later explicit creation request; keep them outside this live pass.
 3. **Exercise the whole remaining map.** Read
-   `<plugin>/docs/procedures/runtime-verification.md` and apply "Confirming a target",
+   `<plugin>/references/procedures/runtime-verification.md` and apply "Confirming a target",
    "Evidence lifetime", and "Reports and deferred checks". Record the absolute report
    destination before execution. One coordinator executes every remaining mapped flow,
    including entries with no source drift. Reuse a confirmed target only while its identity

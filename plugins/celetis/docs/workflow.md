@@ -33,15 +33,16 @@ label, the branch prefix, and the steps in order of each lane; the stages; the c
 the default gate `manual`; the decision of an issue; and the skip rule. A product project cannot change
 it.
 
-Each lane skill follows its steps in order ([lane-start.md](procedures/lane-start.md), "The Iron
+Each lane skill follows its steps in order ([lane-start.md](../references/procedures/lane-start.md), "The Iron
 Law"), and a run refuses a skip between two steps
 ([The start of a step](https://github.com/ddinkov10/celetis/blob/main/engine/README.md#the-start-of-a-step), "A refused skip").
 
 In this document, these names are files of the repository `celetis`, also when a session reads the
-document inside a product project that has a `docs/` folder and an ADR store of its own: the five
-documents (`docs/workflow.md`, `docs/issue-tracker.md`, `docs/capability.md`,
-`docs/procedures/docs-lookup.md`, `docs/procedures/prior-art.md`) and `step-prompt.md` of the plugin
-folder; a runtime of `engine/` or a program of `scripts/` that the text names by its file, which is
+document inside a product project that has a `docs/` folder and an ADR store of its own: the three
+documents `docs/workflow.md`, `docs/issue-tracker.md`, and `docs/capability.md`, the two procedure
+modules `references/procedures/docs-lookup.md` and `references/procedures/prior-art.md`, and
+`step-prompt.md` of the plugin folder; a runtime of `engine/` or a program of `scripts/` that the
+text names by its file, which is
 a file of the repository `celetis`; and each ADR number, which is a record of `docs/adr/` of the repository and
 not of the product project. Each other path is a path
 of the product project, apart from a path that starts with `~/` or `/`.
@@ -255,12 +256,12 @@ session and a session that you start by hand have no step text (ADR-0011).
 
 After a stop with `ready-for-human`, complete its current requests and evidence, then start the
 normal step again. Assistance can perform permitted work and clear a verified hold through
-`issue <n> assisted <file>` by [Assisted completion](procedures/assisted-completion.md).
+`issue <n> assisted <file>` by [Assisted completion](../references/procedures/assisted-completion.md).
 A `## Stopped` or `## Before landing` comment names the act. For a refused landing of
 `/celetis:implement` or `/celetis:chore`, fix a cause outside the change (for example, run the
 failed job again, or land a chore that removes the advisory of a dependency). For a Verify
 scenario, the act is a run of the scenario with the source and running-target proof defined in
-[Runtime verification](procedures/runtime-verification.md), "Reports and deferred checks".
+[Runtime verification](../references/procedures/runtime-verification.md), "Reports and deferred checks".
 Label removal clears a workflow hold; it supplies no runtime proof. A comment that names an act of
 "During the build", or a comment with no marker of its kind, also needs a `## Human steps done`
 report of the act. Label absence alone does not clear the precondition: the resolver stops an
@@ -306,7 +307,7 @@ ends at its next idle moment, and a Run press starts that lane.
 ### A landing
 
 Before `land` puts the change on the trunk, the landing curates the lesson queue in
-the lane (`docs/procedures/lesson-curation.md`, "Curation at a landing").
+the lane (`references/procedures/lesson-curation.md`, "Curation at a landing").
 
 The master daemon of the repository runs the landing
 ([The master daemon](https://github.com/ddinkov10/celetis/blob/main/engine/README.md#the-master-daemon)).
@@ -427,7 +428,7 @@ The board has no config of its own. `board.port` of the main `.celetis.yaml` set
 that the daemon tries, and the default is 4403. `PORT` in the environment of the daemon requests an
 exact port. A person presses Run or Resume on the card of an issue to start its next step, Open
 agent on a blocked issue, and Go on a session.
-[The board reference](https://github.com/ddinkov10/celetis/blob/main/engine/board/README.md#start)
+[The board document](https://github.com/ddinkov10/celetis/blob/main/engine/board/README.md#start)
 gives the start, the port rules, the cards, the keys, and the errors.
 
 ## What the script prints, and your act

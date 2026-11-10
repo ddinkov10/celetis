@@ -3,7 +3,7 @@ name: record-architecture-decisions
 description: Use when a decision is significant enough that a future maintainer must know why it was made — hard to reverse, surprising without context, and chosen among real alternatives. Not for routine work, obvious choices, lane-type verdicts, or a harness learning-loop.
 ---
 
-**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/references/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 # Record Architecture Decisions
 
@@ -16,8 +16,8 @@ auto-promotes facts from runs.
 
 ## Guidance and store
 
-Before a read or write, read `<plugin>/docs/adr/README.md` and
-`<plugin>/docs/adr/template.md`. Honor product ADR policy in `AGENTS.md` or the document it names.
+Before a read or write, read `<plugin>/skills/record-architecture-decisions/README.md` and
+`<plugin>/skills/record-architecture-decisions/template.md`. Honor product ADR policy in `AGENTS.md` or the document it names.
 Preserve existing product `docs/adr/README.md` and `docs/adr/template.md` without rewriting or
 deleting them.
 

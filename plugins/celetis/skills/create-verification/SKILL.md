@@ -5,13 +5,13 @@ argument-hint: [creation scope]
 disable-model-invocation: true
 ---
 
-**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/references/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 # Create verification recipes
 
 1. **Choose the scope and home.** Read the project's instructions, existing verification
    documentation, relevant source, and available execution tools. Read
-   `<plugin>/docs/procedures/verification-recipes.md` and apply "Recipe content" and
+   `<plugin>/references/procedures/verification-recipes.md` and apply "Recipe content" and
    "Explicit operations". Resolve one document home before editing. Select up to three core
    user flows from the documented product purpose and supported public entry points, or use
    the user's explicit creation scope. State the selected flows before execution. A diagnostic
@@ -21,7 +21,7 @@ disable-model-invocation: true
    entry needs concrete supported actions and an expected outcome; a placeholder is not
    coverage. Preserve unrelated recipes and execution references. The default scope limit
    bounds selection, not the size of an existing map.
-3. **Exercise the recipes.** Read `<plugin>/docs/procedures/runtime-verification.md` and apply
+3. **Exercise the recipes.** Read `<plugin>/references/procedures/runtime-verification.md` and apply
    "Confirming a target", "Evidence lifetime", and "Reports and deferred checks". Record the
    absolute report destination before execution. Execute the retained instructions for at
    least one selected real user flow end to end. Compare each final executable recipe with

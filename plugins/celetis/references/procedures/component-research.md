@@ -2,7 +2,7 @@
 
 The research of one UI component: find its strongest models, read their source, measure the live
 best one, and sort each finding into a required behavior or a look reference.
-`<plugin>/docs/procedures/prior-art.md` and `<plugin>/docs/procedures/ui.md` cite this procedure.
+`<plugin>/references/procedures/prior-art.md` and `<plugin>/references/procedures/ui.md` cite this procedure.
 
 ## Contents
 
@@ -29,7 +29,7 @@ drag and drop".
 ## The sizes
 
 Before the research, take the kind of the product and the sizes of its platform row
-(`<plugin>/docs/procedures/ui.md`, "The platform rows") from `AGENTS.md` or the code. A component
+(`<plugin>/references/procedures/ui.md`, "The platform rows") from `AGENTS.md` or the code. A component
 with no live model that the session can open, for example a terminal or desktop element whose
 models are apps, records its behavior from the docs and the source, and a limit for its look values.
 
@@ -46,7 +46,7 @@ question. The question has these parts, in this order:
 3. The question "Do you have a product, a design, or a tool that I must use or add?", with the
    answers "Go with these" and "Add a reference".
 
-Ask it as the item "The question" of `<plugin>/docs/procedures/design.md`, "Claude Code" and
+Ask it as the item "The question" of `<plugin>/references/procedures/design.md`, "Claude Code" and
 "Codex", says. The planned models are the candidates before the search: the ladder can add or
 drop a model, and the record names each change and its reason. Act on each reply by this table:
 
@@ -56,8 +56,8 @@ drop a model, and the record names each change and its reason. Act on each reply
 | Free text with the meaning of "Go with these", for example "no", "nothing to add", "skip", or "you pick" | Start the ladder with the planned models. |
 | "Add a reference" with a product, a URL, a file, an image, a design system, or a tool | The reference is one more model of rung 1, or one more source. The ladder reads it like the others. |
 | "Add a reference" with no reference in it | Ask for the reference, and act on that reply by this table. |
-| A reference of a tool that the session does not have | Write a limit sentence of `<plugin>/docs/procedures/prior-art.md`, "No tool or no access". The ladder goes on. |
-| A design that the maintainer says the result must use | It is a binding decision of the person (`<plugin>/docs/procedures/prior-art.md`, "The recommendation"), not a model. The ladder goes on. |
+| A reference of a tool that the session does not have | Write a limit sentence of `<plugin>/references/procedures/prior-art.md`, "No tool or no access". The ladder goes on. |
+| A design that the maintainer says the result must use | It is a binding decision of the person (`<plugin>/references/procedures/prior-art.md`, "The recommendation"), not a model. The ladder goes on. |
 | Free text that adds, drops, or swaps a model | Change the models. The record names each change, with the reason "the maintainer". |
 | A reference and another request in one reply | Act on the reference by its row. Handle the other request by the rules of the skill of the step. |
 | A reply that does not answer the question, for example another request | Ask the reference question again before the ladder. Handle the other request by the rules of the skill of the step. |
@@ -65,7 +65,7 @@ drop a model, and the record names each change and its reason. Act on each reply
 
 A reference changes no container or placement that the maintainer stated.
 
-A session that cannot ask, by the host part of `<plugin>/docs/procedures/design.md`, "Can the
+A session that cannot ask, by the host part of `<plugin>/references/procedures/design.md`, "Can the
 session ask", asks no reference question. The ladder reads the planned models, and the record has
 the limit sentence "The session could not ask for references". The research goes on.
 
@@ -136,7 +136,7 @@ holds it answers `Browser is already in use for <profile>, use --isolated to run
 instances of the same browser`. With `--isolated`, it keeps its profile in memory. With
 `--extension` or `--cdp-endpoint`, it connects to a running browser, and with
 `--shared-browser-context`, it shares its pages with other clients. Neither is the session's. A
-measurement tab never gets the call of `<plugin>/docs/procedures/design.md`, "The page CSP": the
+measurement tab never gets the call of `<plugin>/references/procedures/design.md`, "The page CSP": the
 research measures each page as its product serves it.
 
 ## Claude Code

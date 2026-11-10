@@ -3,7 +3,7 @@ name: intake
 description: Use when a raw request arrives with no intent written — a pasted ticket, a one-line ask, a crash link, or any request that has not been intent-ified. Also use when the user says "just fix it" or "don't write a document" — these are signals the request has not passed through intake. Not when the issue already carries an intent or a lane label, or the user runs a typed lane directly (/celetis:bug, /celetis:hotfix, /celetis:feature, /celetis:chore).
 ---
 
-**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/references/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 # /celetis:intake — intent front door
 
@@ -27,7 +27,7 @@ Never:   classify type, gate, write a spec, write code
 
 ## Step 1 — intent-ify
 
-Fill the template of `<plugin>/docs/procedures/intent.md` from the source, with its per-type
+Fill the template of `<plugin>/references/procedures/intent.md` from the source, with its per-type
 rules.
 
 ## Step 2 — handoff question

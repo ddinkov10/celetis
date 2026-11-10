@@ -34,13 +34,13 @@ A product project holds no Celetis launcher, runtime source, skill, or document 
 
 | Part | Place in the product project |
 |---|---|
-| The host wiring | Claude: `.claude/settings.json`. Codex: the installed plugins and trusted `.codex/config.toml` and `.codex/rules/` ([setup reference](docs/setup.md)) |
+| The host wiring | Claude: `.claude/settings.json`. Codex: the installed plugins and trusted `.codex/config.toml` and `.codex/rules/` ([setup document](docs/setup.md)) |
 | The config | `.celetis.yaml` |
 | The record of setup | `.claude/celetis/wiring.json` |
 | The worktree setup | `worktreeSetup` in `.celetis.yaml` |
 | The custom parts | `custom.<skill>` in `.celetis.yaml`, one string for each skill that needs one |
 | The product facts and Celetis entry pointer | `AGENTS.md` |
-| The stores | `docs/adr/`, the decision records that the product owns, and `.celetis/lessons/`, the lesson store that the engine manages ([setup reference](docs/setup.md#the-stores)) |
+| The stores | `docs/adr/`, the decision records that the product owns, and `.celetis/lessons/`, the lesson store that the engine manages ([setup document](docs/setup.md#the-stores)) |
 
 No file of the plugin names a part of a product, apart from the records of `docs/adr/`. The plugin
 names a role, for example "the verify gate of the project", and the product project names the
@@ -50,20 +50,20 @@ project. The plugin has no `version` or declared dependency. Shared permissions 
 merges. Personal host rules allow landing. Native skill entry still reads its whole active file
 through the host's permission controls and applies only that skill's custom text.
 
-Each skill starts with one entry line. `docs/procedures/entry.md` gives the entry on each host
+Each skill starts with one entry line. `references/procedures/entry.md` gives the entry on each host
 (ADR-0047, ADR-0050). ADR-0042 owns the engine, its install, and its update.
 
-The references:
+The documents:
 
-- [Setup reference](docs/setup.md): what `/celetis:setup` writes, owns, preserves, and reports.
-- [Workflow reference](docs/workflow.md): what a person and a session meet in a run.
-- [Configuration reference](docs/configuration.md): `.celetis.yaml`, the agent order, and the
+- [Setup document](docs/setup.md): what `/celetis:setup` writes, owns, preserves, and reports.
+- [Workflow document](docs/workflow.md): what a person and a session meet in a run.
+- [Configuration document](docs/configuration.md): `.celetis.yaml`, the agent order, and the
   operation values.
-- [Engine reference](https://github.com/ddinkov10/celetis/blob/main/engine/README.md): the daemon,
+- [Engine document](https://github.com/ddinkov10/celetis/blob/main/engine/README.md): the daemon,
   the runs, the queue, and the event record.
-- [Board reference](https://github.com/ddinkov10/celetis/blob/main/engine/board/README.md): the
+- [Board document](https://github.com/ddinkov10/celetis/blob/main/engine/board/README.md): the
   agent board.
-- [Scripts reference](https://github.com/ddinkov10/celetis/blob/main/scripts/README.md): the verify
+- [Scripts document](https://github.com/ddinkov10/celetis/blob/main/scripts/README.md): the verify
   gate and the maintenance scripts.
 
 ## Requirements
@@ -76,7 +76,7 @@ The references:
 - The selected host CLI: Claude Code 2.1.299 or later, or Codex CLI 0.162.1 or later. The Claude
   entry hook reads the `skill.prompt` fields `source`, `pluginName`, and `path`, which came in
   2.1.299. On an older release, the hook makes no entry, and the session takes "Entry without the
-  hook" of `docs/procedures/entry.md`, as on Codex. Codex 0.162.1 is the lowest release
+  hook" of `references/procedures/entry.md`, as on Codex. Codex 0.162.1 is the lowest release
   on which the install, the refresh, and the lookup of the plugin were checked; an older release
   is not supported. These versions are a floor, not proof of the full workflow
   ([Acceptance status](docs/workflow.md#acceptance-status)).
@@ -105,18 +105,18 @@ The references:
   effective pair of a child changes ([Dispatch records](docs/capability.md#dispatch-records)). CLI and
   desktop capabilities can differ.
 - For a look decision and a visual bug: `gh` 2.99.0 or later on github.com, and the capture tool of
-  the platform row (`docs/procedures/ui.md`, "Captures"). A look decision on the `impeccable` path
+  the platform row (`references/procedures/ui.md`, "Captures"). A look decision on the `impeccable` path
   (a whole web or mobile screen, or a smaller web change) also needs the `impeccable` skill and a
   `PRODUCT.md` of the product. The session checks for both. It never installs `impeccable`, which
   is no plugin dependency, and you run `/impeccable init` once for the product
-  (`docs/procedures/design.md`, "The check"). A look decision on the `generate` path also needs
+  (`references/procedures/design.md`, "The check"). A look decision on the `generate` path also needs
   the Playwright MCP server with `--isolated` and no `--headless`, and the host reviews its
-  `browser_run_code_unsafe` call (`docs/procedures/design.md`, "The page CSP").
+  `browser_run_code_unsafe` call (`references/procedures/design.md`, "The page CSP").
 - For the research of a UI component, optional tools that you install: a code-search tool (for
   example the grep.app MCP server), a web fetch or scrape tool, and a browser tool that the session
   opens for itself (for example the Playwright MCP server with `--isolated`). The session uses each
   one that it has and records a limit for each missing one
-  (`docs/procedures/component-research.md`).
+  (`references/procedures/component-research.md`).
 - On macOS, herdr-core 0.1.16 (`hc`) with its running server, and the open window of the Herdr app
   0.1.11 (`herdr-app`), for each run and for the board: each session runs in a tab
   of the Herdr app (ADR-0058, ADR-0062). The host reports its status to herdr-core with OSC 7501
@@ -124,11 +124,11 @@ The references:
   reports no status gets no step end and no session card.
 - For the board: a Chromium browser.
 
-[The engine reference](https://github.com/ddinkov10/celetis/blob/main/engine/README.md#requirements)
+[The engine document](https://github.com/ddinkov10/celetis/blob/main/engine/README.md#requirements)
 gives the requirements of the engine, and
-[the board reference](https://github.com/ddinkov10/celetis/blob/main/engine/board/README.md)
+[the board document](https://github.com/ddinkov10/celetis/blob/main/engine/board/README.md)
 gives the requirements of the board.
-The [configuration reference](docs/configuration.md) gives the repository schema and the
+The [configuration document](docs/configuration.md) gives the repository schema and the
 commands that install Bun.
 
 ## Wire a product project
@@ -290,7 +290,7 @@ its name. The rules pin no Bun: the entry of the engine finds `bun` on `PATH`, a
 
 The rule of `issue` is optional. The path for `issue` is the review of the host: in the checks of
 #103, Claude in auto mode ran it with no rule, and a Codex sandbox block of `issue` goes through
-the approval procedure of `docs/procedures/entry.md`, "The contract", "Codex". The risk of the
+the approval procedure of `references/procedures/entry.md`, "The contract", "Codex". The risk of the
 rule: an allow rule skips the review of the host for each `issue` call, and each act with a file
 posts the text of a path that the session names, so a session can post any file that it can read
 (for example a token file) on the issue. Text from an issue can steer a session. Add the rule only when the host cannot run
@@ -323,9 +323,9 @@ codex execpolicy check --rules ~/.codex/rules/celetis-land.rules celetis --agent
 ### Wire the project
 
 The parts above stay by hand on each machine. Then run `/celetis:setup` in the main checkout of
-the product project. The [setup reference](docs/setup.md) gives what setup writes, owns,
+the product project. The [setup document](docs/setup.md) gives what setup writes, owns,
 preserves, and reports, and the review of old wiring. The
-[configuration reference](docs/configuration.md) gives the fields of `.celetis.yaml`.
+[configuration document](docs/configuration.md) gives the fields of `.celetis.yaml`.
 
 ## The full loop
 
@@ -348,13 +348,13 @@ host's skill selector. Native desktop selector acceptance is optional under
 | `/celetis:implement #<n>`, in a new session | builds the tasks in the flow that the `Execution:` line of the plan names (`inline`: the session builds each task and runs the verify gate of the project, then one review of the branch; `subagent`: an implementer, the verify gate of the project, and a review for each task), runs the Verify phase, and lands the change with `celetis --agent <host> land` | the change on the trunk, and a closed issue |
 
 - Change work includes affected current documentation in its existing tasks and reviews before
-  completion. [Current behavior documentation](docs/procedures/behavior-documentation.md) also
+  completion. [Current behavior documentation](references/procedures/behavior-documentation.md) also
   covers repairs and drift maintenance, while preserving historical change records on GitHub.
-- The plan and runtime checks use [Runtime verification](docs/procedures/runtime-verification.md)
+- The plan and runtime checks use [Runtime verification](references/procedures/runtime-verification.md)
   to identify the tested source and confirm the actual running target before a runtime PASS.
-  Its [Usage-limit exception](docs/procedures/runtime-verification.md#usage-limit-exception) can
+  Its [Usage-limit exception](references/procedures/runtime-verification.md#usage-limit-exception) can
   permit landing with one host verified; the other host's quota-blocked coverage stays incomplete.
-- Projects can reuse [verification recipes](docs/procedures/verification-recipes.md) through an
+- Projects can reuse [verification recipes](references/procedures/verification-recipes.md) through an
   optional `AGENTS.md` pointer. A small feature map links documented flows and their existing
   tools; it does not promise complete coverage. Prefer an existing document, or
   `docs/verification.md` when the project chooses and permits a new one. Without a pointer or
@@ -393,7 +393,7 @@ host's skill selector. Native desktop selector acceptance is optional under
   removes the worktree and the branch. With `merge`, it runs the `suite` file in the lane and puts
   the tip on the trunk as one squash commit, with no PR. The daemon runs one landing at a time, and
   a second `land` waits for its turn. `docs/issue-tracker.md`, "Branches, PRs, merge", and
-  `docs/procedures/landing.md` give the steps.
+  `references/procedures/landing.md` give the steps.
 - The other lanes are shorter. `/celetis:bug` finds the root cause, posts it as a `## Root cause`
   comment, and hands on to `plan`. `/celetis:chore` makes a change with no change of behavior: it
   verifies, commits, and lands in one session. `/celetis:hotfix` fixes broken production in one
@@ -418,9 +418,9 @@ daemon:
    landing mechanism), the step text, and the effort level of the step
    ([The start of a step](https://github.com/ddinkov10/celetis/blob/main/engine/README.md#the-start-of-a-step), "The effort level").
    [The daemon](https://github.com/ddinkov10/celetis/blob/main/docs/hosts/claude-code.md#the-daemon)
-   of the Claude Code reference and
+   of the Claude Code document and
    [The daemon and `developer_instructions`](https://github.com/ddinkov10/celetis/blob/main/docs/hosts/codex.md#the-daemon-and-developer_instructions)
-   of the Codex reference give the arguments of each host;
+   of the Codex document give the arguments of each host;
 4. opens each session in a new tab of the Herdr app, and ends it when the issue shows that the
    step is done;
 5. with the default choice, selects the first eligible host of the effective order of the step at
@@ -473,7 +473,7 @@ A step session follows the step text: it asks only for a decision that the issue
 at a stop it puts the reason on the issue and adds `ready-for-human`. The `specify` session has no
 step text: it waits for your approval of the design, as a session by hand does.
 
-[The engine reference](https://github.com/ddinkov10/celetis/blob/main/engine/README.md) holds the
+[The engine document](https://github.com/ddinkov10/celetis/blob/main/engine/README.md) holds the
 daemon and the runs in full. `docs/issue-tracker.md` holds the labels, what
 lives on the issue, the branches, and the order of the resolver.
 
@@ -520,19 +520,19 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | | [`/celetis:setup`](skills/setup/SKILL.md) | Proposes and tests the worktree setup of a product project, writes the wiring in its main checkout, and commits and pushes the wiring after your yes. Only you can start it |
 
 A skill holds only its own steps and judgment. A shared procedure is a module in
-`docs/procedures/`, for example the entry (`entry.md`), the
+`references/procedures/`, for example the entry (`entry.md`), the
 lane worktree (`worktree.md`), the child dispatch (`dispatch.md`), the landing (`landing.md`), and
-the lookup of the external facts (`docs-lookup.md`). A module is a plain document, not a skill: a
+the lookup of the external facts (`docs-lookup.md`). A module is a plain Markdown file, not a skill: a
 step of a skill names it, and the session reads it whole when the step comes. The Claude Code and
 Codex lines of an operation are in its module.
 
-A general engineering principle has one canonical file in `docs/principles/`, regardless of
+A general engineering principle has one canonical file in `references/principles/`, regardless of
 caller count. Each file has `Applies when`, `Rule`, and `Check` sections. Skills and workflow
 steps cite the file when the task meets its trigger, rather than copy the rule. A principle
 stands alone, holds no workflow or host procedure, and has no minimum citer count. Entry loads
 no principle catalog. `docs/capability.md` and the other
-maintainer references keep their existing role. The rubric of the capability score is the
-procedure module `docs/procedures/capability-score.md`. The `AGENTS.md` of this repository, "Where
+maintainer documents keep their existing role. The rubric of the capability score is the
+procedure module `references/procedures/capability-score.md`. The `AGENTS.md` of this repository, "Where
 agent text lives", gives the placement rule (ADR-0047 and ADR-0050).
 
 Each principle is also a native skill. An ordinary engineering task can select it or invoke it
@@ -604,7 +604,7 @@ setup"):
 |---|---|
 | `celetis --agent <host> lesson-store read main\|active` | Returns validated lesson records, exact file contents, digests, and the resolved checkout as JSON. `main` returns the live files of the checkout that runs it with the pending and rejected data of the main checkout, and `root` names the main checkout. Rejected records appear in `history` with `status: pending-review`; they are not past guidance. `active` reads the live files of the task checkout and ignores its pending folder. A leftover `.celetis/lessons/INDEX.md` fails both reads. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis --agent <host> lesson-store capture FILE` | Reads typed `{schema:1,candidate,expected,name,description,tags,date,source,incidents,body}` JSON and builds the pending record; `expected` is the pending SHA-256 or null for creation. An extension keeps the stored incidents and reviews. Validates the store of `read main` and saves pending evidence in the main checkout only. Equal incident replays are unchanged; stale updates are refused. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
-| `celetis --agent <host> lesson-store preview FILE` | Reads a review request and returns its exact before/after contents of the store of `read main`, watched digests, and snapshot digest without lesson writes. Select pending UUIDs and complete resulting documents as defined in [the lesson format](docs/procedures/lesson-format.md). Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
+| `celetis --agent <host> lesson-store preview FILE` | Reads a review request and returns its exact before/after contents of the store of `read main`, watched digests, and snapshot digest without lesson writes. Select pending UUIDs and complete resulting documents as defined in [the lesson format](references/procedures/lesson-format.md). Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis --agent <host> lesson-store apply SNAPSHOT DIGEST` | Recomputes the review and applies exactly the approved snapshot under the lock. Changed input or snapshot bytes are stale. Replaying the same review is unchanged; conflicting reuse of its ID is invalid. The digest identifies a version, not its reviewer. In a linked checkout, a live change needs a clean checkout on a branch and becomes one local commit `docs(lessons): <decision> <names>` with a `Lesson-Transaction` trailer, made with the project's hooks; the proposals leave the queue only after that commit. When Git fails but the lesson commit exists, the apply completes. When the lane is still at its old HEAD, the apply restores the before bytes of the live paths, also a hook rewrite, and their index entries, and exits 6. When HEAD moved without the commit, the journal stays (exit 6), and the line names the repair: `git -C <lane> reset --soft <recorded HEAD>`, then `recover`. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis --agent <host> lesson-store recover` | Completes or rolls back the one journal under the lesson lock, from any checkout of the repository. A lane journal completes when its lesson commit exists and rolls back when the lane is still at the recorded HEAD; a lane HEAD that moved without the commit blocks it until `git -C <lane> reset --soft <recorded HEAD>`. These commands require Git and an explicit host, but no issue, run, or configuration file. Only a lane apply and its recovery change the Git index. It exits 2 for invalid input or store, 3 when the input is stale or a lock is busy, and 6 for an access, I/O, or recovery block. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis --agent <host> run <n> [--quiet] \| run resume <n> \| run retry <n> <wait-id>` | Each form sends one request to the master daemon of the repository of the current folder and returns at its answer. `run <n>` starts the next step of the issue, `run resume <n>` opens the saved session of a step with no progress again, and `run retry <n> <wait-id>` wakes the quota waiter of the issue for one attempt cycle. `--quiet` opens each session tab of the start in the background; `run resume` ignores it. An accepted start prints `run: #<n>: accepted as run <run id> of the daemon PID <pid>; read its progress: celetis daemon status`, and an accepted Retry prints `run: #<n>: Retry requested; the waiting run starts one bounded attempt cycle`; both exit 0. A refusal prints the line of the daemon, on stdout for code 0 and on stderr otherwise, and exits with its code: 3 for a busy issue lock, 6 for a failed GitHub read of the issue, 0 for each other end before the first session. With no daemon, it exits 3 and starts nothing. It exits 3 when the daemon runs another revision of the engine or an update removed this engine version, and 6 when the daemon does not answer or the outcome is unknown. On Windows it exits 3 with `run: Windows is not a support target`. Any other form exits 2 with the usage line. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
@@ -770,7 +770,7 @@ records this exception to the terminal-only confirmation of ADR-0028.
 The board offers the update in its update dialog. A successful update approved in the board
 restarts the daemon that serves that board on the installed engine; an update approved in a
 terminal does not restart the daemon. [Start](https://github.com/ddinkov10/celetis/blob/main/engine/board/README.md#start)
-of the board reference gives the dialog, the reconnect, the restart, and **Restart needed**. This
+of the board document gives the dialog, the reconnect, the restart, and **Restart needed**. This
 user-selected policy supersedes the consumer-exit rule of ADR-0027; see ADR-0028 and
 [ADR-0077](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0077-the-master-daemon-hosts-the-board-and-restarts-as-a-successor.md).
 

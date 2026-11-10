@@ -49,11 +49,11 @@ change. Only the lines inside its three parts are answers.
   builder check, the debugging and the red repro, the plan form, the effort decision, and the
   approval of the written text. The record removes questions, not checks.
 - A `### Decided` approach is the person's pick: a binding decision stays above the research
-  (`<plugin>/docs/procedures/prior-art.md`, "The recommendation"). The research still runs, and
+  (`<plugin>/references/procedures/prior-art.md`, "The recommendation"). The research still runs, and
   the step lays out no approaches for a pick. The Approaches part names each found pattern, the
   decided one, and the reason: the person's decision.
 - A `### Decided` list of states or platform row is that answer of the look decision
-  (`<plugin>/docs/procedures/ui.md`, "The look decision"). The prototype and the pick among its
+  (`<plugin>/references/procedures/ui.md`, "The look decision"). The prototype and the pick among its
   variants still come, because no variant existed in the chat.
 - A finding of a check that contradicts a `### Decided` line goes into the written text as a
   risk and into the list of the hand-over, for example a found pattern that the research

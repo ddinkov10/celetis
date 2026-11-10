@@ -28,7 +28,7 @@ When a skill finds on re-entry that an earlier run built the change, read the la
   head.
 
 For deferred runtime checks or evidence affected by the repair or trunk changes, read
-`<plugin>/docs/procedures/runtime-verification.md` and apply "Evidence lifetime", "Reports
+`<plugin>/references/procedures/runtime-verification.md` and apply "Evidence lifetime", "Reports
 and deferred checks", and "Usage-limit exception" before going to step 2.
 
 ## Step 1: the build mark
@@ -45,10 +45,10 @@ An act of "During the build" in `### Your steps` of the plan is done when a `## 
 comment after the latest `## Plan` comment reports it. A consent of "Answers before the build" is
 no human act of the landing: use the recorded answer.
 
-Before creating a new runtime hold, apply `<plugin>/docs/procedures/runtime-verification.md`,
+Before creating a new runtime hold, apply `<plugin>/references/procedures/runtime-verification.md`,
 "Usage-limit exception". It preserves existing human holds and all other prerequisites.
 
-Before the file below is written, sort each act by `<plugin>/docs/procedures/stop.md`, "The check
+Before the file below is written, sort each act by `<plugin>/references/procedures/stop.md`, "The check
 before a stop": do the agent work, and ask each answer in words in the session. The file names only
 acts outside the session.
 
@@ -60,7 +60,7 @@ names each such act, with the report form of each act of "During the build", run
 when it names an act of "During the build", as the last act of the turn, and stop. The command
 posts the file with `## Before landing` as its first line. The maintainer supplies the
 required contribution. Assistance can record verified completion
-and clear the hold by `<plugin>/docs/procedures/assisted-completion.md`; lane sessions keep this
+and clear the hold by `<plugin>/references/procedures/assisted-completion.md`; lane sessions keep this
 precondition and its evidence requirements.
 
 Before landing on re-entry, read the `open:` lines of `celetis --agent <host> issue <n> state`:
@@ -72,7 +72,7 @@ of this build that names an act of "During the build" that no later `## Human st
 reports, keep the change built, run `celetis --agent <host> issue <n> ready-for-human` as the
 last act of the turn, using the existing comment as the reason, and stop. That act needs no new
 approval. For deferred runtime checks or evidence affected by changes since the previous run, apply
-`<plugin>/docs/procedures/runtime-verification.md`, "Reports and deferred checks", "Evidence
+`<plugin>/references/procedures/runtime-verification.md`, "Reports and deferred checks", "Evidence
 lifetime", and "Usage-limit exception", before continuing. With that procedure satisfied,
 `open: none`, and a report of each such act, continue to step 3.
 
@@ -80,7 +80,7 @@ lifetime", and "Usage-limit exception", before continuing. With that procedure s
 
 While the change is not on the trunk, each run of this step starts in the lane checkout, before
 the return to the main checkout, with the curation of the lesson queue by
-`<plugin>/docs/procedures/lesson-curation.md`, "Curation at a landing". A run after a refusal
+`<plugin>/references/procedures/lesson-curation.md`, "Curation at a landing". A run after a refusal
 curates again. An empty queue starts no child, and a curation failure goes into the report: the
 step goes on to `land`. A run of `land <n> '<subject>'` again after the change is on the trunk curates nothing:
 after exit 7, after a landing that stopped once a `land:` line said that the change is on the
@@ -134,12 +134,12 @@ The exit status of `land <n> '<subject>'` gives the result (`<plugin>/docs/workf
   - `no daemon runs …` or `the daemon runs the engine at …`: the maintainer starts or restarts
     the daemon (`celetis daemon start`, or `celetis daemon stop` and then `celetis daemon start`).
     Show the user the line, and stop. In a step session, hand it to the issue with a `## Stopped`
-    comment by `<plugin>/docs/procedures/stop.md`, "A stop in a step session".
+    comment by `<plugin>/references/procedures/stop.md`, "A stop in a step session".
   - `#<n> is not ready to land`: the issue is not ready to land, and the line quotes the line of
     the resolver. Run `celetis --agent <host> issue <n> state`. When its `line:` is
     `run /celetis:implement #<n>` with `build: planned`, step 1 did not complete: go to step 1.
     Each other `line:` is a stop: show the user the output, and stop. In a step session, hand it
-    to the issue with a `## Stopped` comment by `<plugin>/docs/procedures/stop.md`, "A stop in a
+    to the issue with a `## Stopped` comment by `<plugin>/references/procedures/stop.md`, "A stop in a
     step session": the `## Landing refused` comment of step 5 needs a landing step on that line.
 - **Exit 4** (`repair`) is a refusal that the change caused: step 4.
 - **Exit 5** (`checks`) is a red check or a failed suite. Decide whether the diff caused it: step 4
@@ -171,20 +171,20 @@ Status 4 of `land <n> '<subject>'`, or a status 5 that the diff caused, before t
 suite that fails on the diff, a conflict with the trunk, a branch that does not contain the trunk
 head, a trunk head or a lane tip that changed during the landing.
 
-Enter the issue's worktree again (`<plugin>/docs/procedures/worktree.md`, "The entry"). Fix the
+Enter the issue's worktree again (`<plugin>/references/procedures/worktree.md`, "The entry"). Fix the
 cause by the fix rule of the skill that runs the landing and commit. Before going to step 3,
 renew affected runtime confirmation and scenarios per
-`<plugin>/docs/procedures/runtime-verification.md`, "Evidence lifetime", then apply its
+`<plugin>/references/procedures/runtime-verification.md`, "Evidence lifetime", then apply its
 "Usage-limit exception" before a new runtime hold or continuation. Debug a red
 check or a failed suite with `superpowers:systematic-debugging`, and start from the test that
 failed in CI or in the suite. For a stale branch or a moved trunk, the worktree entry brought the
 trunk in: run the verify gate of the project and renew affected runtime evidence as above, then
 go to step 3. On exit 4 of `worktree <n>`, the merge is the fix: resolve it by the fix rule of the skill
-and `<plugin>/docs/procedures/worktree.md`, "A conflict with the trunk", then go on as for a moved
+and `<plugin>/references/procedures/worktree.md`, "A conflict with the trunk", then go on as for a moved
 trunk. When `worktree <n>` refuses with another status, show the user its message and stop.
 
 A refusal whose line names the lessons of the lane (`the lessons of <branch> do not validate`) is
-fixed by `<plugin>/docs/procedures/lesson-curation.md`, "Lesson conflicts"; a fix task brief
+fixed by `<plugin>/references/procedures/lesson-curation.md`, "Lesson conflicts"; a fix task brief
 carries that path.
 
 ## Step 5: the third refusal, or a cause outside the change
@@ -195,7 +195,7 @@ same line, a failed `recover`, or a second exit 128+n): a check that fails on an
 change did not touch, no check that ran, checks that did not finish, GitHub that does not answer,
 a main checkout that is dirty, off the trunk, or with commits that the trunk does not have.
 
-Before the stop, apply `<plugin>/docs/procedures/stop.md`, "The check before a stop". At the third
+Before the stop, apply `<plugin>/references/procedures/stop.md`, "The check before a stop". At the third
 refusal, a pick between repair options that lets this session go on is a live question with the
 options and the `land:` lines, and the count of refusals stays. Post the `## Landing refused`
 comment only for a stop of class 3; the comment is the verbatim output.

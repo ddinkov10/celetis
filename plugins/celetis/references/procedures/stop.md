@@ -19,7 +19,7 @@ cite it.
 A skill stops when it says to stop, to show the user a message, or to escalate to the user.
 
 Before the terminal message or issue act, when useful task incident evidence exists, apply
-`<plugin>/docs/procedures/lesson-capture.md`. Reuse a checkpoint already handled in the turn.
+`<plugin>/references/procedures/lesson-capture.md`. Reuse a checkpoint already handled in the turn.
 This adds no repair attempt. An entry read denial or another access stop takes precedence:
 perform no capture access that the stop prohibits. A capture block leaves the original terminal
 act and its order unchanged.
@@ -88,7 +88,7 @@ the stop to the issue:
   - The skill names it as the act that moves the line (see "The act that moves the line"). No
     `ready-for-human` follows it: only the acts that the skill names after it follow it.
   - The skill names the act with neither form of words (`landing-refused` in
-    `<plugin>/docs/procedures/landing.md` is such an act). The act does not end the turn. Run it,
+    `<plugin>/references/procedures/landing.md` is such an act). The act does not end the turn. Run it,
     and each other act or message that the skill names for the stop. Then run
     `celetis --agent <host> issue <n> ready-for-human` as the last act of the turn.
 - **Else** write the step, the exact message or the failure trail, and each act outside the
@@ -113,15 +113,15 @@ After an exit 6 of an `issue <n> <act>`, apply "The two modes" for a partial wri
 
 When GitHub does not answer, or the issue is closed, show the message in this session and stop. A
 command that the host sandbox keeps from the network is no such case: first follow the approval
-procedure for a sandbox block of the host part of `<plugin>/docs/procedures/entry.md`, "The
+procedure for a sandbox block of the host part of `<plugin>/references/procedures/entry.md`, "The
 contract".
 
 ## A Verify scenario that cannot run
 
 In a step session, a Verify scenario that the session cannot run has no PASS. The `detect`
-scenario of `<plugin>/docs/procedures/design.md` is the exception: when `impeccable` is missing by
+scenario of `<plugin>/references/procedures/design.md` is the exception: when `impeccable` is missing by
 its "Missing", print its one line, and go on with no hold. Before creating a hold, apply
-`<plugin>/docs/procedures/runtime-verification.md`, "Usage-limit exception".
+`<plugin>/references/procedures/runtime-verification.md`, "Usage-limit exception".
 When it permits continuation, publish its report and continue the normal landing path.
 Otherwise the change does not land without the scenario. A guard that refuses its command
 (the host's approval review, the auto-mode classifier, the worktree guard, a `deny` rule) is a
@@ -134,22 +134,22 @@ safer form) makes the hold of this section.
 
 Then the scenario is a human precondition of the landing. Write a new `## Before landing` comment
 for this build to a file, with no heading: the scenario, its commands, the expected result, and the
-refusal. For missing runtime proof, read `<plugin>/docs/procedures/runtime-verification.md` and
+refusal. For missing runtime proof, read `<plugin>/references/procedures/runtime-verification.md` and
 apply "Reports and deferred checks" to the report and precondition. Then run
 `celetis --agent <host> issue <n> before-landing <file>` as the last act of the
 turn. The comment records the change as built.
 
 On a later run, keep the built change and follow the skill's re-entry rule. Require a trusted
 completion report or a label-removal event after the `## Before landing` comment for
-this build. Assistance completion follows `<plugin>/docs/procedures/assisted-completion.md`.
+this build. Assistance completion follows `<plugin>/references/procedures/assisted-completion.md`.
 An absent `ready-for-human` label is not completion evidence.
 
 - Without evidence, restore that label with `celetis --agent <host> issue <n> ready-for-human` as
   the last act, using the existing comment as the reason, and stop.
-- With workflow completion evidence, apply `<plugin>/docs/procedures/runtime-verification.md`,
+- With workflow completion evidence, apply `<plugin>/references/procedures/runtime-verification.md`,
   "Reports and deferred checks", before skipping deferred runtime scenarios. Continue to the
   human precondition of the landing only when that procedure permits it
-  (`<plugin>/docs/procedures/landing.md`, "Step 2: the human precondition").
+  (`<plugin>/references/procedures/landing.md`, "Step 2: the human precondition").
 - A `## Before landing` comment that names an act of "During the build" of the plan is the
   exception: follow the re-entry rule of the skill, which runs the scenarios that waited for that
   act.
@@ -185,5 +185,5 @@ says only that the permission has been denied, and the maintainer cannot lift it
 
 With the approval policy `on-request`, Codex asks the maintainer for the approval itself: its
 prompt is the live question, and a refusal there is a "no". With `never`, no prompt can come, so a
-sandbox refusal stays a setup stop (`<plugin>/docs/procedures/entry.md`, "The contract"), and a
+sandbox refusal stays a setup stop (`<plugin>/references/procedures/entry.md`, "The contract"), and a
 guard refusal is a hold.

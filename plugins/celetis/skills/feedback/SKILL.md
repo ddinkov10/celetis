@@ -5,7 +5,7 @@ argument-hint: [Celetis concern or reference to this conversation]
 disable-model-invocation: true
 ---
 
-**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/references/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 # Feedback
 
@@ -18,7 +18,7 @@ known report use **Corrections and recovery** without requiring another invocati
 1. Identify the Celetis concern from the invocation and current conversation. If none is
    identifiable, or several concerns make the request ambiguous, ask one focused question and
    wait without writing. Otherwise, use the known facts and state each missing fact as a gap.
-2. Select relevant evidence before reading or filling `<plugin>/docs/procedures/intent.md`.
+2. Select relevant evidence before reading or filling `<plugin>/references/procedures/intent.md`.
    Its input is only this safe selection, never the raw conversation. Exclude all secrets,
    including supplied credentials. Describe private product context in general terms. Include
    a product repository identity, commit, private URL, identifying path, or code excerpt only

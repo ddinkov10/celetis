@@ -7,10 +7,33 @@
     "process",
     "recurring"
   ],
-  "date": "2026-11-07",
+  "date": "2026-11-10",
   "status": "active",
-  "source": "Plan step session of ddinkov10/celetis#250 on 2026-11-07.\n\nPlan step session of ddinkov10/celetis#141 on 2026-11-05.",
+  "source": "Plan step session of ddinkov10/celetis#288 on 2026-11-10.\n\nPlan step session of ddinkov10/celetis#250 on 2026-11-07.\n\nPlan step session of ddinkov10/celetis#141 on 2026-11-05.",
   "incidents": [
+    {
+      "id": "ce3075c1-f25d-48b0-af0a-93b31687aea5",
+      "date": "2026-11-10",
+      "action": "The specify session of #288 published a spec whose call 15 says \"The plan and the build of this issue start after #252 lands\" and whose constraints name the lesson hold-an-issue-whose-spec-waits-for-another-issue, and left #288 with no hold, so a plan step session of #288 started while #252 was open.",
+      "expected": "An issue whose approved spec defers its plan behind an open issue does not resolve to a plan step until that issue lands.",
+      "observed": "The plan step session of #288 started on 2026-11-10. #252 was open with enhancement and ready-for-agent, its state was build: planned, and its commits af1b5ce, 9cae923, b04b548, ef715e8, e3210f6, and f8f0cae were only on feat/252-coordinator-agent-that-steers. #288 had only the label enhancement. The trunk 0a876ba had no commit of #252 and no file under engine/ with the word coordinator.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "Spec of #288, call 15: \"The plan and the build of this issue start after #252 lands.\" Constraints and traps: \"The plan of this issue reads the landed code of #252, not that plan (call 15; lesson `hold-an-issue-whose-spec-waits-for-another-issue`).\" gh issue view 252: OPEN, enhancement,ready-for-agent. celetis issue 252 state: line: run /celetis:implement #252; build: planned. celetis issue 288 state: line: run /celetis:plan #288; build: none. gh issue view 288 labels: enhancement. git merge-base --is-ancestor f8f0cae origin/main: NOT_ON_MAIN. git rev-list --count origin/main..feat/252-coordinator-agent-that-steers: 6. grep -rIl -i coordinator engine: 0 files.",
+        "reference": "ddinkov10/celetis#288"
+      },
+      "inference": "Inferred, not confirmed: the specify session of #288 followed the active rule (it named the lesson in the spec and added no act after the publish of the spec), and the resolver, which reads labels and headings only, chose the plan step. The rule acts only in the session that finds the deferral, so it cannot prevent that session. Alternative: the resolver is correct and the cost of one held session is accepted. Unknown: whether auto mode, a numbered run, or a board press began this session; the step header says only that it is a step session.",
+      "diagnosis": [
+        "wrong-or-incomplete-rule"
+      ],
+      "revision": "0a876bab0c35eaaf039d07c7698bc7c6add41a35",
+      "brief": "Spec of ddinkov10/celetis#288, call 15 and \"Constraints and traps\".",
+      "lesson": {
+        "name": "hold-an-issue-whose-spec-waits-for-another-issue",
+        "revision": "b1c4a621bcd19a32f8badacd3515a039e560d318",
+        "digest": "e7ec4dd45181929304da6d3cd193f1b1fa2e7ed456456fd89fcde87be77e41b3"
+      }
+    },
     {
       "id": "7133de53-3479-42b6-9872-104a3033db9b",
       "date": "2026-11-07",
@@ -52,7 +75,7 @@
       "revision": "92b9133"
     }
   ],
-  "recurrences": 1,
+  "recurrences": 2,
   "reviews": [
     {
       "id": "d05e4f59-8e22-404a-8974-7ac6e2b8ff37",
@@ -82,6 +105,21 @@
         "state": "proposed",
         "detail": "A structural change needs separate authorization: either the specify skill ends a spec that defers its next step behind an open issue with a hold in place of the publish, or the resolver reads a dependency line of the spec and prints a stop line while the named issue is open. Its API facts, implementation, and checks remain unverified."
       }
+    },
+    {
+      "id": "935e863a-0b33-4da6-a10f-cb1a2007f51a",
+      "requestDigest": "7eb12f3550b5e7720b61e09852397aed54e05ab13b4c029181a0fa0ae256b92c",
+      "date": "2026-11-11",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #286; claude child opus/high\n\nMerge under the reviewer rules: the proposal states the same rule as the active lesson hold-an-issue-whose-spec-waits-for-another-issue, and every incident stays. The incident is observed: the retained excerpt gives call 15 of the spec of #288 (\"The plan and the build of this issue start after #252 lands\"), #252 open with ready-for-agent and build: planned, its commits not on the trunk, #288 with only the label enhancement, and a plan step session of #288. No live or historical lesson holds the incident. The Rule section of the proposal equals the active rule, and the proposal itself names this merge, so no incompatible rules combine. The rule still follows the specify skill and the stop procedure of the plugin celetis (the publish of the spec moves the line, and a session that finds an explicit deferral makes a hold). The survivor keeps the active name, the tags, and the rule text, records the third case in the observed facts, records in the inferred cause that the specify session of #288 followed the rule and the rule could not prevent the plan session, and keeps the two structural follow-ups as proposed. Incident evidence stays unchanged.",
+      "related": [
+        "start-no-plan-step-for-a-spec-that-waits-for-an-open-issue",
+        "hold-an-issue-whose-spec-waits-for-another-issue"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "A structural change needs separate authorization: either the specify skill ends a spec that defers its next step behind an open issue with a hold in place of the publish, or the resolver reads a dependency line of the spec and prints a stop line while the named issue is open. Three recurrences show that the text rule cannot prevent the first plan session. Its API facts, implementation, and checks remain unverified."
+      }
     }
   ]
 }
@@ -90,15 +128,15 @@
 
 ## What happened
 
-Two plan step sessions started while the approved spec of their issue deferred the plan behind an open issue. On 2026-11-05, a plan session of #141 started while the spec said that its plan and build start after #248 lands; #248 was open and #141 had no hold. On 2026-11-07, a plan session of #250 started while its spec said "Build after #249 lands"; #249 was open with `ready-for-agent`, its commits were only on its lane branch, and #250 had only the label `enhancement`. The specify session of #250 named this lesson in the spec and added no hold. Each plan session found the deferral before it wrote a plan. The retained evidence does not identify which start path began either session.
+Three plan step sessions started while the approved spec of their issue deferred the plan behind an open issue. On 2026-11-05, a plan session of #141 started while the spec said that its plan and build start after #248 lands; #248 was open and #141 had no hold. On 2026-11-07, a plan session of #250 started while its spec said "Build after #249 lands"; #249 was open with `ready-for-agent`, its commits were only on its lane branch, and #250 had only the label `enhancement`. On 2026-11-10, a plan session of #288 started while call 15 of its spec said "The plan and the build of this issue start after #252 lands"; #252 was open with `ready-for-agent` and `build: planned`, its six commits were only on its lane branch, and #288 had only the label `enhancement`. The specify sessions of #250 and #288 named this lesson in the spec and added no hold. Each plan session found the deferral before it wrote a plan. The retained evidence does not identify which start path began any of the sessions.
 
 ## Root cause
 
-Inference, not confirmed: the absence of a hold let the ordinary resolver select the plan step, because its state does not model dependencies between issues. This rule acts only in the session that finds the deferral, and the specify skill ends at the publish of the spec, so each spec that waits for another issue can cost one plan session that only makes the hold. Alternative: the resolver is correct and the cost of one held session is accepted. Unknown: which start path began each session.
+Inference, not confirmed: the absence of a hold let the ordinary resolver select the plan step, because its state does not model dependencies between issues. This rule acts only in the session that finds the deferral, and the specify skill ends at the publish of the spec, so each spec that waits for another issue can cost one plan session that only makes the hold. The #288 case recurs after the review of 2026-11-07 kept that limit: its specify session followed the rule, and the rule could not prevent the plan session. Alternative: the resolver is correct and the cost of one held session is accepted. Unknown: which start path began each session.
 
 ## Fix
 
-Proposed prevention: when a session finds an approved spec that explicitly defers its next step until another issue lands, preserve that decision through the existing stop procedure and write no deferred plan or build. This rule does not add a publication act after the specify skill publishes its spec and does not change its terminal order: the publish of the spec moves the line, and only the Terminal message follows it. Two structural follow-ups are proposed, not authorized and not implemented: (1) the specify skill ends a spec that defers its next step behind an open issue with a hold in place of the publish that makes the issue ready; (2) the resolver reads a dependency line of the spec and prints a stop line while the named issue is open. A check that rejects the recorded mistake: with #249 open, the resolver prints a stop line for #250 and starts no plan session. The rule stays text because the approved dependency and its clearance need judgment.
+Proposed prevention: when a session finds an approved spec that explicitly defers its next step until another issue lands, preserve that decision through the existing stop procedure and write no deferred plan or build. This rule does not add a publication act after the specify skill publishes its spec and does not change its terminal order: the publish of the spec moves the line, and only the Terminal message follows it. Two structural follow-ups are proposed, not authorized and not implemented: (1) the specify skill ends a spec that defers its next step behind an open issue with a hold in place of the publish that makes the issue ready; (2) the resolver reads a dependency line of the spec and prints a stop line while the named issue is open. Only one of them can prevent the first plan session; this text rule cannot. A check that rejects the recorded mistake: with #249 open, the resolver prints a stop line for #250, and with #252 open, it prints a stop line for #288, and it starts no plan session. The rule stays text because the approved dependency and its clearance need judgment.
 
 ## Rule
 

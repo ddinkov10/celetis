@@ -1,9 +1,9 @@
 # The engine
 
 `engine/` is the Celetis engine: the master daemon of a repository, its runs,
-the session tabs that the runs open and end, and the records that they keep. This reference holds
+the session tabs that the runs open and end, and the records that they keep. This document holds
 the rules of the engine. [The workflow](../plugins/celetis/docs/workflow.md) holds what a person
-does and what a session sees, and [the board reference](board/README.md) holds the board.
+does and what a session sees, and [the board document](board/README.md) holds the board.
 
 ## Requirements
 
@@ -267,7 +267,7 @@ value.
    the daemon names its PID and exits 3;
 6. reads `board.port` of the main `.celetis.yaml` with the full validation of the config, default
    4403. A file with an error prints the diagnostic of the config reader and exits with its code;
-7. opens the board ([Start](board/README.md#start) of the board reference gives its lines). A
+7. opens the board ([Start](board/README.md#start) of the board document gives its lines). A
    nonzero `Number(PORT)` of its environment is an exact port; else the board takes the first free
    port from `board.port` through 65535. A port that cannot open releases `daemon` and exits 6,
    before any takeover;
@@ -811,7 +811,7 @@ agent starts. After a confirmed refusal of the default host, the daemon:
 The retry session gets `CELETIS_RECOVERY`, the attempt ID, in its environment, and `- recovery: yes`
 in its header. A `specify` session has no step text, so its retry gets no header line. That value
 is only a lookup key: `worktree` validates the recovery record again
-([the lane worktree](../plugins/celetis/docs/procedures/worktree.md)). A normal end of a session removes the recovery
+([the lane worktree](../plugins/celetis/references/procedures/worktree.md)). A normal end of a session removes the recovery
 record. The next step computes its own effective order, so a recovered preferred host takes the
 next step.
 A preference change or a recovered block does not stop a session that works.
@@ -861,7 +861,7 @@ that is no takeover removes the record and evaluates the issue again.
 plugin README, and
 [Claude permissions: `.claude/settings.json`](../plugins/celetis/docs/setup.md#claude-permissions-claudesettingsjson)
 and [Codex permissions: `.codex/rules/celetis.rules`](../plugins/celetis/docs/setup.md#codex-permissions-codexrulesceletisrules)
-of the setup reference, are the source for the rules and their checks. Claude
+of the setup document, are the source for the rules and their checks. Claude
 uses `.claude/settings.json`; Codex uses a trusted `.codex/rules/` configuration. Both cover the
 current bare and explicit-host landing forms and restrict direct `gh pr merge`. The plugin does
 not grant permissions. Retain each product project's own restricted acts.

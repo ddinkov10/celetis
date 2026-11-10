@@ -4,7 +4,7 @@ description: Help the maintainer complete an issue's current block. Use when the
 argument-hint: "#<issue number>"
 ---
 
-**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/references/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 # /celetis:assist — complete the current block
 
@@ -22,7 +22,7 @@ explain what is missing and wait; this helper does not create or enter a lane au
 
 ## 2. Resolve and complete the block
 
-Read and follow `<plugin>/docs/procedures/assisted-completion.md` for the current block: resolve
+Read and follow `<plugin>/references/procedures/assisted-completion.md` for the current block: resolve
 its requests, complete permitted machine work, ask for missing human contributions, and record
 verified completion. Keep the entry's permission checks and approval procedure. When access
 fails, report the exact block and setup action after the approved retry; continue independent

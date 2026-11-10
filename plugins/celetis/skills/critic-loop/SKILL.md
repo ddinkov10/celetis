@@ -3,7 +3,7 @@ name: critic-loop
 description: Standalone scored quality review of the current result — auto-detects a branch diff (vs merge-base) or the uncommitted working diff, scores it 0-10 across five perspectives, and iterates (fix + re-score) until the threshold. Use when the user runs /celetis:critic-loop or asks to score or critique the current work.
 ---
 
-**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/docs/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
+**Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/references/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.
 
 # /celetis:critic-loop — scored iterative critic loop
 
@@ -39,23 +39,23 @@ For the Contracts lens, read the root `AGENTS.md` and the `AGENTS.md` of each su
 touches, and name the files you read.
 
 Every finding carries a severity and a `file:line`, names its perspective, and carries its evidence
-category and record per `<plugin>/docs/procedures/review-evidence.md`.
+category and record per `<plugin>/references/procedures/review-evidence.md`.
 
 ## 3. Dispatch the critic
 
-Dispatch a fresh reviewer per `<plugin>/docs/procedures/dispatch.md`, "One child", scored as a
+Dispatch a fresh reviewer per `<plugin>/references/procedures/dispatch.md`, "One child", scored as a
 review with `celetis --agent <host> capscore J V B N S X --reviewer --json`, per
-`<plugin>/docs/procedures/capability-score.md`, "The rubric — six dimensions, each 0–2" and
+`<plugin>/references/procedures/capability-score.md`, "The rubric — six dimensions, each 0–2" and
 "Scorecard format — MANDATORY". Its brief also holds the diff file, the review rubric of step 2,
 and the Contracts-lens rule. Deliver the exact applicable principle paths with the diff to the
 critic and each fixer, with instructions to read them.
-Include `<plugin>/docs/procedures/review-evidence.md` and
-`<plugin>/docs/principles/demonstrate-behavioral-defects.md` in those resolved references. Read the
+Include `<plugin>/references/procedures/review-evidence.md` and
+`<plugin>/references/principles/demonstrate-behavioral-defects.md` in those resolved references. Read the
 module and apply "Reviewer" to the critic's brief, including each scoped re-review.
 Resolve `<plugin>` to the absolute path bound by the entry. Take paths supplied with the affected
 tasks; derive missing paths from the reviewed changes and revise them for the fix scope. Read
-`<plugin>/docs/principles/test-behavior-not-implementation.md` and
-`<plugin>/docs/principles/explain-the-number.md`. Apply each one whose `Applies when` holds for
+`<plugin>/references/principles/test-behavior-not-implementation.md` and
+`<plugin>/references/principles/explain-the-number.md`. Apply each one whose `Applies when` holds for
 the review and each finding, with its `Check`. The rubric score alone does not make
 `explain-the-number.md` apply.
 The critic returns the per-perspective scores, total, findings with severity, category and
@@ -64,15 +64,15 @@ subagents and never fixes anything.
 
 ## 4. Iterate until threshold
 
-Apply `<plugin>/docs/procedures/review-evidence.md`, "Receiving session" and "Repairs and
+Apply `<plugin>/references/procedures/review-evidence.md`, "Receiving session" and "Repairs and
 disposition", before accepting PASS or dispatching a fixer, and after each scoped re-review.
 Use its stop for unresolved material risks, including a risk-only report with a high score.
 
 - Accepted PASS → report the score and finding dispositions, then stop.
 - First FAIL with accepted Critical or Important findings → dispatch a fresh **fixer** subagent
-  per `<plugin>/docs/procedures/dispatch.md`, "One child", scored for the fix with
+  per `<plugin>/references/procedures/dispatch.md`, "One child", scored for the fix with
   `celetis --agent <host> capscore J V B N S X --json`, per
-  `<plugin>/docs/procedures/capability-score.md`, "The rubric — six dimensions, each 0–2" and
+  `<plugin>/references/procedures/capability-score.md`, "The rubric — six dimensions, each 0–2" and
   "Scorecard format — MANDATORY". Its brief also holds the accepted Critical and Important
   findings and evidence, the unresolved context outside the fix list, the diff path, and the exact
   applicable principle and review-evidence module paths for the fix. The fixer fixes, re-runs the
@@ -84,7 +84,7 @@ Use its stop for unresolved material risks, including a risk-only report with a 
 
 Never fix findings yourself in this session.
 When the score fails without accepted Critical or Important findings, report the remaining gap and stop by
-`<plugin>/docs/procedures/stop.md`, "The two modes"; invent no defect to start a fix round.
+`<plugin>/references/procedures/stop.md`, "The two modes"; invent no defect to start a fix round.
 
 ## Terminal
 

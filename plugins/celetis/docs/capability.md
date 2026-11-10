@@ -12,11 +12,11 @@ records all seven change-or-retain decisions. The maintainer delegated research-
 the agent chose the rules, and the maintainer approved the written design. Historical score
 frequencies do not establish model quality, optimal bands, or savings.
 
-The procedure module `docs/procedures/capability-score.md` holds
-[the rubric](procedures/capability-score.md#the-rubric--six-dimensions-each-02),
-[the scorecard](procedures/capability-score.md#scorecard-format--mandatory),
-[the consumption rule](procedures/capability-score.md#who-must-score-when--the-consumption-rule), and
-[the worked examples](procedures/capability-score.md#worked-examples-explicit-bias-0-attempt-1).
+The procedure module `references/procedures/capability-score.md` holds
+[the rubric](../references/procedures/capability-score.md#the-rubric--six-dimensions-each-02),
+[the scorecard](../references/procedures/capability-score.md#scorecard-format--mandatory),
+[the consumption rule](../references/procedures/capability-score.md#who-must-score-when--the-consumption-rule), and
+[the worked examples](../references/procedures/capability-score.md#worked-examples-explicit-bias-0-attempt-1).
 
 ## Bands (sum 0–12)
 
@@ -39,7 +39,7 @@ percentage for cheaper models.
 
 `--bias N` (script flag) / `CAP_EFFORT_BIAS` (env fallback) raises **effort** by N tiers. **Model is
 never biased.** **Default 0**. An empty environment value also uses 0. A newly selected nonzero
-bias needs a task reason ([Scorecard format — MANDATORY](procedures/capability-score.md#scorecard-format--mandatory)).
+bias needs a task reason ([Scorecard format — MANDATORY](../references/procedures/capability-score.md#scorecard-format--mandatory)).
 
 `--bias` and `CAP_EFFORT_BIAS` accept safe integers from 0 through 9007199254740991.
 The CLI bias takes precedence over the environment. `--attempt` accepts safe integers from 1
@@ -111,7 +111,7 @@ exact source archive before replacement. Invalid, unsupported, unmappable, unsaf
 refuse intact; a busy lock or failed persistence also refuses. See
 [ADR-0070](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0070-automatic-runtime-state-migration.md). The CLI result envelope remains schema 1.
 
-The acts of `dispatch` and the result of each ([the child dispatch](procedures/dispatch.md#the-task-loop)
+The acts of `dispatch` and the result of each ([the child dispatch](../references/procedures/dispatch.md#the-task-loop)
 says when to use each act):
 
 | Act and arguments | Result |
@@ -135,7 +135,7 @@ A changed model, effort, or runtime issues `replace`,
 because the observed follow-up tools cannot change the pair.
 Replacement preserves the task, counters, saved work, and earlier execution and failure evidence.
 
-The [Claude Code](procedures/dispatch.md#claude-code) and [Codex](procedures/dispatch.md#codex)
+The [Claude Code](../references/procedures/dispatch.md#claude-code) and [Codex](../references/procedures/dispatch.md#codex)
 examples show the report shape. Every saved execution has `provenance: "agent-reported"`. The
 engine binds the report to the active host/session record and checks its settings, CAP line,
 action, and worker identity against the issued action. It does not intercept the call or
@@ -235,7 +235,7 @@ The scorer selects one of two modes for Codex. The choice is deterministic:
   or an invalid config exits 2.
 
 In the parent-model mode, each child keeps the parent's model, or the model that the Codex config
-sets in `[agents].default_subagent_model` ([Codex dispatch](procedures/dispatch.md#codex)), and
+sets in `[agents].default_subagent_model` ([Codex dispatch](../references/procedures/dispatch.md#codex)), and
 gets the effort of its rank. The scorer names no model ID and reads no runtime file, not even a supplied
 one. The applied effort follows the rules of a profile with four identical slots and a
 rank-1/medium reviewer minimum. `dispatch.model` and `dispatch.runtime` are null, and the human
@@ -348,7 +348,7 @@ celetis --agent codex capscore 1 0 2 1 1 0 --json \
 ```
 
 Existing plan CAP lines remain historical records
-([the child dispatch](procedures/dispatch.md#one-child) says how to reuse them). The scorer
+([the child dispatch](../references/procedures/dispatch.md#one-child) says how to reuse them). The scorer
 returns the binding; the dispatch controller owns creation, identity, and execution records.
 
 The agent-reported child identity, pair-change replacement, and execution reports of `dispatch`

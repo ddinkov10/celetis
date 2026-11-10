@@ -25,7 +25,7 @@ comes first; after an entry stop, this check does not run.
 - **Exit 0:** the project is wired. Go on to step 1.
 - **Exit 6 in a sandbox:** a blocked observation, for example a tracker read with no network.
   Run the same command again once, with the same cwd, by the approval procedure for a sandbox
-  block of the host (`<plugin>/docs/procedures/entry.md`, "The contract"). Use the exit of that
+  block of the host (`<plugin>/references/procedures/entry.md`, "The contract"). Use the exit of that
   run.
 - **Each other exit:** show the person each line that the command printed. Its report ends with
   the setup action, the line that starts with `Run /celetis:setup` or `Enter the main checkout`;
@@ -39,7 +39,7 @@ comes first; after an entry stop, this check does not run.
 ### Free text
 
 Create the issue first, and continue with its number: fill the template of
-`<plugin>/docs/procedures/intent.md` into a file, then run
+`<plugin>/references/procedures/intent.md` into a file, then run
 `gh issue create --label needs-triage --title "<one line>" --body-file <intent>`. Then continue
 as "Any other issue" with the new number.
 

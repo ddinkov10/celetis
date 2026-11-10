@@ -348,7 +348,7 @@ export const commands: readonly Entry[] = [
     'lesson-store',
     true,
     [form('lesson-store preview FILE', [], helped(21, 'Prepares an exact lesson review; requires explicit --agent.'))],
-    'Reads a review request and returns its exact before/after contents of the store of `read main`, watched digests, and snapshot digest without lesson writes. Select pending UUIDs and complete resulting documents as defined in [the lesson format](docs/procedures/lesson-format.md)',
+    'Reads a review request and returns its exact before/after contents of the store of `read main`, watched digests, and snapshot digest without lesson writes. Select pending UUIDs and complete resulting documents as defined in [the lesson format](references/procedures/lesson-format.md)',
   ),
   entry(
     'lesson-store',
