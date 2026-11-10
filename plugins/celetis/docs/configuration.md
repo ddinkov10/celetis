@@ -10,7 +10,7 @@ nothing after a `---` marker on its line.
 | Field | Accepted value | Default when omitted |
 | --- | --- | --- |
 | `landing` | Required: `pr` or `merge`. `pr` squash-merges a PR when each check is green. `merge` creates one squash commit on the trunk, with no PR; a project with no PR check uses `merge` (`docs/issue-tracker.md`, "Branches, PRs, merge") | None: the config is refused |
-| `gates` | Mapping from a step name to `me` or `auto` (`docs/workflow.md`, "Gates") | `me` for each omitted step |
+| `gates` | Mapping from a step name to `manual` or `auto` (`docs/workflow.md`, "Gates") | `manual` for each omitted step |
 | `agents` | Mapping from a step name to `claude` or `codex`: the preferred agent of that step ([Agent selection and model setup](#agent-selection-and-model-setup)) | Each step uses the local order |
 | `board` | Mapping with optional `port`, an integer from 1024 to 65535: the first port to try for the board ("Start the board") | Search starts at 4403 |
 | `worktreeSetup` | A root-relative `.ts` file reference, for example `"scripts/worktree-setup.ts"`, or exactly `""` ("Setup file and instruction text") | No setup |
@@ -34,7 +34,8 @@ For the repository setting of the squash title with the landing `pr`, see
 `docs/issue-tracker.md`, "Branches, PRs, merge".
 
 The allowed gate names are `triage`, `specify`, `bug`, `chore`, `hotfix`, `plan`, and
-`implement`. No other step is accepted. An empty `gates` mapping uses `me` for all seven.
+`implement`. No other step is accepted. An empty `gates` mapping uses `manual` for all seven.
+The former value `me` is invalid; there is no automatic conversion.
 The `agents` keys are the same seven step names, and the allowed values are `claude` and
 `codex`. A step with no entry, an omitted `agents` field, and an empty `agents` mapping give no
 preference.

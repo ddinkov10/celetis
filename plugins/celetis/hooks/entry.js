@@ -6987,8 +6987,10 @@ function checkSchema(value) {
   if (Object.hasOwn(config, "gates")) {
     const gates = object(config.gates, ["gates"]);
     keysOnly(gates, steps, ["gates"]);
-    for (const [step, gate] of Object.entries(gates))
-      oneOf(gate, ["me", "auto"], ["gates", step]);
+    for (const [step, gate] of Object.entries(gates)) {
+      if (gate !== "manual" && gate !== "auto")
+        throw new ConfigError(["gates", step], "need manual or auto");
+    }
   }
   if (Object.hasOwn(config, "agents")) {
     const agents = object(config.agents, ["agents"]);

@@ -384,7 +384,7 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
   `hot` variant, used while something needs you, tints its fill and border with Beacon Orange.
 - **Tag:** a 22px chip with a Veil fill for PR, checks, and review state. Check and review tags take
   an 8% tint and a 28–30% border of their state color.
-- **Gate:** an 18px label. `auto` is Go Green on a 13% green tint; `me` is Ink Muted on Veil Strong.
+- **Gate:** an 18px label. `auto` is Go Green on a 13% green tint; `manual` shows no gate label.
 - **Effort chip:** an 18px Geist Mono capsule with a currentColor border; dashed and Ink Faint for a
   default level.
 

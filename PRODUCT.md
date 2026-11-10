@@ -11,7 +11,7 @@ web
 The primary user is one maintainer who runs Celetis on a repository. They keep the agent board open
 all day on a desktop, beside the Herdr app tabs where the agent sessions run. They watch several
 sessions at once and act when a card needs them: they answer a waiting agent, start a step at a
-`me` gate, recover a stuck step, or open a new intake.
+`manual` gate, recover a stuck step, or open a new intake.
 
 The board is for one person and one repository at a time. Each product maintainer who adopts the
 plugin runs their own board on their own repository.
@@ -46,7 +46,7 @@ agent that waits.
 - Sessions come from herdr-core (`hc`). The Herdr app shows the agent terminals as tabs. Issues come
   from `gh`.
 - The work is a set of lanes (`bug`, `feature`, `chore`, `hotfix`) with ordered steps. A gate says
-  who starts a step: `me` (a press of Run) or `auto` (auto mode of the daemon).
+  who starts a step: `manual` (a press of Run) or `auto` (auto mode of the daemon).
 - The maintainer works mostly on macOS. The board is checked in Chromium browsers only.
 - Each board UI change is checked at desktop width and at 375×812.
 

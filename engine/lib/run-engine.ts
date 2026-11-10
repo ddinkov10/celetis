@@ -1210,7 +1210,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
             return outcome('stopped', reason, 'Fix the issue, or use Try again for this displayed step.');
           }
           if (first !== 'any' && (config.gates?.[step] ?? defaultGate) !== 'auto') {
-            const reason = `the gate of ${step} is me: celetis --agent <host> run ${n} starts ${prompt}`;
+            const reason = `the gate of ${step} is manual: celetis --agent <host> run ${n} starts ${prompt}`;
             say(reason);
             return outcome('gate', reason, 'Use Continue queue to start this displayed step.');
           }

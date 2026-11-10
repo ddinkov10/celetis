@@ -5,7 +5,7 @@ import type { IssueRow } from './resolver-types.ts';
 export type Flow = {
   lanes: Record<string, string[]>;
   stages: { name: string; steps: string[] }[];
-  steps: Record<string, { gate: 'me' | 'auto'; hint?: string }>;
+  steps: Record<string, { gate: 'manual' | 'auto'; hint?: string }>;
   levels: Level[];
 };
 export type LandedIssue = {

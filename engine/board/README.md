@@ -12,7 +12,7 @@ moves by hand.
 - **Step:** one part of the work on an issue, which one agent session does, for example `plan`.
 - **Stage:** one column of Pipeline, the view of the page that shows each issue at its step. A stage
   holds steps of the lanes.
-- **Gate:** the rule of a step that says who starts it. `me` is your press of Run, and `auto` is auto
+- **Gate:** the rule of a step that says who starts it. `manual` is your press of Run, and `auto` is auto
   mode of the daemon. The board shows `auto` on such a step, and it starts no step by itself.
 - **Daemon:** `engine/daemon.ts` of the engine. Its runs start the sessions of the steps and know how
   each one ended. Auto mode of the daemon starts each step with the gate `auto` by itself. The states
@@ -543,7 +543,7 @@ A press that fails ends the `Starting` card at once, and the next read gives the
 | Press or read | What the server does |
 |---|---|
 | The data of the issues | The read of "The data", in the process of the daemon, with a limit of 60 seconds. |
-| Run | One request `POST /run` of the master daemon ("The requests of Run and Resume"). The daemon opens a quiet session tab `#<n> <step>`. A `Run at <level>` entry sends the level. For the current issue of a queue paused at a `me` gate, use the queue Continue action below. |
+| Run | One request `POST /run` of the master daemon ("The requests of Run and Resume"). The daemon opens a quiet session tab `#<n> <step>`. A `Run at <level>` entry sends the level. For the current issue of a queue paused at a `manual` gate, use the queue Continue action below. |
 | Resume | One request `POST /resume` of the master daemon. The daemon checks the saved session and opens the session tab `#<n> <step>` with the focus. |
 | A queue action | One request `POST /queue/action` of the master daemon ("The presses"), for every action. The answer is the persisted QueueView. For a new wake, the daemon starts the queue run in the same request; for each step it opens a quiet session tab `#<n> <step>` with that link label, so the session cards and Go stay. |
 | Retry | One request `POST /retry` of the master daemon, with the issue number and the wait ID. It starts no run. |
@@ -629,7 +629,7 @@ opens the list.
 To use another available agent for one independent Run, use the card's agent choices. An independent
 Run without a choice sends no agent, and the daemon run selects from the effective order of each step:
 the preferred agent of the step in `agents` when the local order includes it, then the local
-order ([Agent selection and model setup](../../plugins/celetis/docs/configuration.md#agent-selection-and-model-setup)). Run on the current issue of a queue paused at a `me` gate uses Continue with the saved queue choice. An
+order ([Agent selection and model setup](../../plugins/celetis/docs/configuration.md#agent-selection-and-model-setup)). Run on the current issue of a queue paused at a `manual` gate uses Continue with the saved queue choice. An
 absent or null choice keeps that choice. An explicit host is refused when the saved choice is
 default or names another host.
 A choice for one Run does not change the order. An explicit choice pins that start, also when
@@ -641,7 +641,7 @@ run menu ("The layout, the keys, and the errors"). An entry sends no agent, as R
 the level. The request then has the level as `effort`, so the
 daemon run starts that step at that level once
 ([The start of a step](../README.md#the-start-of-a-step), "The effort level"). The entry writes no decision on the issue, and a later step uses
-its own decision. The current issue of a queue paused at a `me` gate takes no level: the queue
+its own decision. The current issue of a queue paused at a `manual` gate takes no level: the queue
 starts its step at the decided level.
 
 **New intake is independent of issue reads.** `POST /api/intake` accepts exactly `{}`. A non-object
@@ -657,7 +657,7 @@ Success confirms that the terminal started with the argv, not readiness of the n
 errors remain in that tab. The existing Human sessions strip observes the session without an
 issue number or a new session store.
 
-The run of a press lives in the daemon: `celetis daemon status` shows it. With the default `me`
+The run of a press lives in the daemon: `celetis daemon status` shows it. With the default `manual`
 gates, the run of a Run press ends with its one session. The board has no control that stops a
 run, and no command stops one.
 `celetis daemon stop` stops the daemon and detaches every run, and a session whose start barrier
@@ -1092,7 +1092,7 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   `Run at low`, `Run at medium`, `Run at high`, `Run at xhigh`, and `Run at max` follow. The current
   level has a check mark and the suffix `(decided by <by>)` or `(default)`; the title of another level is
   `Start the <step> step at <level>, this start only`. With a `noRun` text, each level entry is
-  disabled with that text; on the current issue of a queue paused at a `me` gate, with
+  disabled with that text; on the current issue of a queue paused at a `manual` gate, with
   a text that says the queue starts this step at the decided level; else with the cause that disables Run. The `m`
   menu of the card lists the same entries after its actions. Search and the actions of the details
   have no level entries.

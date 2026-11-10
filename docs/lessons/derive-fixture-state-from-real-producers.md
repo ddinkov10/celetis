@@ -2,17 +2,41 @@
 {
   "schema": 1,
   "name": "derive-fixture-state-from-real-producers",
-  "description": "Fixtures did not produce the state that a check required: a raw label left a card in Idle, a shared helper stored an explicit agent, and a block held a run press after the daemon had answered it",
+  "description": "Runtime fixtures expected derived state without using or confirming the real state producer",
   "tags": [
-    "test",
-    "process",
     "e2e",
+    "config",
+    "process",
+    "test",
     "recurring"
   ],
   "date": "2026-11-07",
   "status": "active",
-  "source": "Task 2 of ddinkov10/celetis#250, implement step session (child report to the coordinator)\n\nTask 3 of ddinkov10/celetis#141 (implement session, child t3-impl); recorded by the coordinator\n\nImplementation of ddinkov10/celetis#245, temporary verification correction",
+  "source": "Implementation verification of ddinkov10/celetis#287\n\nTask 2 of ddinkov10/celetis#250, implement step session (child report to the coordinator)\n\nTask 3 of ddinkov10/celetis#141 (implement session, child t3-impl); recorded by the coordinator\n\nImplementation of ddinkov10/celetis#245, temporary verification correction",
   "incidents": [
+    {
+      "id": "1b47ed80-9522-46b0-b863-21e64039221e",
+      "date": "2026-11-10",
+      "action": "The V3 probe changed fixture gates and immediately read /api/board. After the cached manual value failed the auto assertion, its first repair polled that GET for 40 seconds without requesting refresh.",
+      "expected": "Each configuration case checks a board snapshot produced from that case, through the supported refresh operation.",
+      "observed": "The initial baseline and changed runs reported manual/me instead of auto. The repaired runs failed with AssertionError: fresh board configuration auto. engine/board/reads.ts uses BACKGROUND_MS = 300_000; beforeBoard serves its current snapshot, while POST /api/refresh awaits reads.refresh().",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "Initial board-manual.log: 'manual' !== 'auto'. Repaired board-manual-fresh.log: AssertionError: fresh board configuration auto. Source reads.ts: BACKGROUND_MS = 300_000; perimeter.ts /api/refresh: await reads.refresh().",
+        "reference": "https://github.com/ddinkov10/celetis/issues/287"
+      },
+      "inference": "Inferred: the probe treated a successful read as a new production of configuration state. The retry changed only the wait duration, retaining that premise. No product defect was established.",
+      "diagnosis": [
+        "not-followed"
+      ],
+      "revision": "d202da5567890379c7e2e663b367d04f430b688d",
+      "brief": "Task 1 carried derive-fixture-state-from-real-producers; V3 changes fixture gate configuration and checks actual board output.",
+      "lesson": {
+        "name": "derive-fixture-state-from-real-producers",
+        "revision": "d202da5567890379c7e2e663b367d04f430b688d",
+        "digest": "64f614a98cec93390990e94c5d0f26d7a9dd0180bc74c672483b790c9d8fa27f"
+      }
+    },
     {
       "id": "94d13517-e442-49d2-8cd4-ab39af3120ab",
       "date": "2026-11-07",
@@ -77,7 +101,7 @@
       "revision": "40a31cb92ecce73591fc4c75321489240c5392fa plus the Idle scroll fix"
     }
   ],
-  "recurrences": 2,
+  "recurrences": 3,
   "reviews": [
     {
       "id": "6b06a4d9-8913-44c4-9181-015b1c981f26",
@@ -122,6 +146,21 @@
         "state": "not-needed",
         "detail": "The rule stays text, because the answer point and the block depend on each request path. This decision requires no structural follow-up."
       }
+    },
+    {
+      "id": "b64a2625-1adf-42d1-9bf9-1ef38dfc8974",
+      "requestDigest": "1a2fecd85c89bb990aef441506d0b2fc1bf8bd67c66945268514bbf4c04c977d",
+      "date": "2026-11-10",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #287; codex child host default/high\n\nMerge under the reviewer rule for the same active rule: trace the derived fixture state to its real producer and reach that state before accepting the check. The proposal applies this rule to a cached model and a missing refresh completion. Retain the observed failed assertions and source excerpt, every incident, original source, and prior review. Keep the claimed successful-read assumption and exact timing uncertainty separate from observations. Add the specific cached-model action and independent freshness check to the survivor. check-refresh-causes-before-first-document concerns scheduler retry causes, so its rule remains separate and compatible. The merged rule agrees with AGENTS.md, runtime-verification, and test-behavior-not-implementation; it grants no new act or tracked test and weakens no gate. Any helper stays proposed.",
+      "related": [
+        "refresh-the-board-before-checking-new-fixture-config",
+        "derive-fixture-state-from-real-producers"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "A reusable temporary board fixture helper could change configuration, await the supported refresh operation, and compare the new model. Such structural work needs separate authorization and adds no tracked test in this review."
+      }
     }
   ]
 }
@@ -136,6 +175,8 @@ In Task 3 of #141 on 2026-11-06, the records probe started a quota-wait run of i
 
 In Task 2 of #250 on 2026-11-07, probe case (h) needed a board Run press that still waits for its answer when the daemon restarts. The plan named the block: a fixture `hc` that blocks `hc run` while a flag file exists, and the implementer used it. Two runs failed on the case. In green-1, the run refused before `hc run` because of the session plugin check. In green-2, the daemon answered the press with `200 {"ok":true}` before the restart, because the daemon answers a run request before the tab opens; the setup guard `the run of the press waits in hc run: PASS` read a promise flag between process-table samples and passed. The third attempt held the first decision read of the run (a slow fake GitHub read) instead, and the press got the stop line. The task brief carried this lesson and derive-plan-oracle-values-from-real-producers.
 
+In #287, a V3 board probe changed fixture gate configuration and read `/api/board`. Its auto case saw the previous manual snapshot. A repair polled the same GET for 40 seconds and failed again. The retained source excerpt shows a 300-second background interval and a supported `POST /api/refresh` operation that awaits the read refresh. No product defect was established.
+
 ## Root cause
 
 The source and retained output establish the #245 mismatch. Inferred: the fixture author assumed a boundary without reading its actual producer. No wider product defect is established.
@@ -143,6 +184,8 @@ The source and retained output establish the #245 mismatch. Inferred: the fixtur
 In #141, reported by the implementer and inferred: a shared command helper added an input (`--agent claude`) that the derived state depends on, and the case did not read the stored input of the producer before the wait. Uncertain: whether the helper or the case setup should own the choice.
 
 In #250, observed: the run request of the daemon answers at admission, before `hc run` of its tab, so a block in `hc run` does not hold the answer. Reported by the child: the brief named the fixture concretely, and the child treated it as already derived. Inferred by the coordinator: the plan derived the wait from the spec's open-risk text, not from the answer point in the producer. Uncertain: whether the plan session read the answer point.
+
+For #287, inferred: the probe treated a successful cached GET as a new production of the model. The second attempt kept that premise and changed only the wait. The exact timing of the first read is uncertain.
 
 ## Fix
 
@@ -152,9 +195,11 @@ Proposed in #141, not enforced: before a case waits for a derived state, read th
 
 Proposed in #250, not enforced: before a case or a plan needs a request in flight, read the answer point of that request in its producer and choose a block that comes before it. Observe "unanswered" directly at the moment of the event (the connection state, or a fixture log line written before the answer), not by a promise flag read between other samples. The choice of the block depends on the request path, so the rule stays text.
 
+Proposed in #287, not enforced: after changing inputs behind a cached read model, use the supported refresh producer and its completion boundary before the assertion. Retain the old snapshot, the completion, and the new independently expected values. A reusable fixture helper remains proposed work that needs separate authorization.
+
 ## Rule
 
-Applies when a runtime fixture must produce a derived state for a check, including a request that must still be unanswered at a later event (a stop, a restart, a timeout). Action: trace that state to its real input producer, and choose inputs that satisfy the existing derivation. When a shared helper starts the producer, read the input that the producer stored (for example the selection of a run record) before the case waits, and stop the case when it differs from the input that the derivation needs. For a request in flight, find the point where its producer answers, put the block before that point, and observe the unanswered request directly when the event begins. Check: the case output shows the stored input next to the expected input before the wait, and shows a request in flight still unanswered when the event begins; a control with the block after the answer point fails that observation; and the fixture reaches the required state before the check accepts the scenario result.
+Applies when a runtime fixture must produce a derived state for a check, including a cached read model after its inputs change and a request that must still be unanswered at a later event (a stop, a restart, a timeout). Action: trace that state to its real input producer, and choose inputs that satisfy the existing derivation. For a cached model, trace and use the supported refresh producer and its completion boundary before asserting the new model; a successful cached read alone is no evidence of refresh. When a shared helper starts the producer, read the input that the producer stored (for example the selection of a run record) before the case waits, and stop the case when it differs from the input that the derivation needs. For a request in flight, find the point where its producer answers, put the block before that point, and observe the unanswered request directly when the event begins. Check: for a cached model, retain the old snapshot, refresh completion, and new independently expected values, and do not accept a no-refresh control as fresh evidence. The case output shows the stored input next to the expected input before the wait, and shows a request in flight still unanswered when the event begins; a control with the block after the answer point fails that observation; and the fixture reaches the required state before the check accepts the scenario result.
 
 ## Related lessons
 

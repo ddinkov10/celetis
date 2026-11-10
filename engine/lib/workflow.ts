@@ -24,7 +24,7 @@ export const stages: readonly { name: (typeof stageNames)[number]; steps: readon
   }),
 );
 
-export const defaultGate = 'me';
+export const defaultGate = 'manual';
 
 export function command(step: Step): string {
   return step === 'specify' ? 'feature' : step;

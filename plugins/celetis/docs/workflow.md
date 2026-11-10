@@ -30,7 +30,7 @@ These records hold the reasons:
 
 `engine/lib/workflow.ts` of the engine is the one definition of the workflow: the lanes, with the
 label, the branch prefix, and the steps in order of each lane; the stages; the command of each step;
-the default gate `me`; the decision of an issue; and the skip rule. A product project cannot change
+the default gate `manual`; the decision of an issue; and the skip rule. A product project cannot change
 it.
 
 Each lane skill follows its steps in order ([lane-start.md](procedures/lane-start.md), "The Iron
@@ -399,13 +399,13 @@ The exit status and the first word of the `land` line give the result:
 
 ## Gates
 
-Each step has a gate. An `auto` step starts by itself. A `me` step starts with an explicit
+Each step has a gate. An `auto` step starts by itself. A `manual` step starts with an explicit
 single-issue start, an Add to an empty queue, or Continue for its displayed queue step. The step is
 the command of the `run` line with no prefix: `triage`, `bug`, `chore`, `hotfix`, `plan`, or
 `implement`. One command has another step name: `run /celetis:feature #<n>`, the line of an
 `enhancement` with no spec, is the step `specify`.
 
-`gates` in the main checkout's `.celetis.yaml` holds the project gates; each omitted step is `me`
+`gates` in the main checkout's `.celetis.yaml` holds the project gates; each omitted step is `manual`
 (`docs/configuration.md`, "Fields and defaults"). The default gates start one step for each number
 or Run press. With `specify` as `auto`, the daemon starts a design session and waits for your first
 answer.
@@ -443,7 +443,7 @@ gives the start, the port rules, the cards, the keys, and the errors.
 | The working tree is dirty | commit or stash | as the first row |
 | A landing of the issue runs | none: a session lands the issue | start the script again when the landing ended |
 | The script cannot read the issue from GitHub | check `gh auth status`, the network, and the REST rate limit (`gh api rate_limit`) | auto mode tries again by itself; press Refresh on the board |
-| The next step has a `me` gate | a Run press on the card, or `celetis --agent <host> run <n>` | — |
+| The next step has a `manual` gate | a Run press on the card, or `celetis --agent <host> run <n>` | — |
 | The session ended with no spec on the issue | open the session again, or read the comment of a spike | a Run press, or `celetis --agent <host> run <n>` |
 | The session ended with no progress, and the next command is not `/celetis:feature` | open the session again, or read the issue | a Run press, or `celetis --agent <host> run <n>` |
 | The next step skips a step of its lane (a refused skip) | read the issue ([The start of a step](https://github.com/ddinkov10/celetis/blob/main/engine/README.md#the-start-of-a-step), "A refused skip"). When a label or a heading is wrong, fix the issue. When the skip is correct, start the refused step by hand | a Run press, or `celetis --agent <host> run <n>`, starts the next step; auto mode does not start a refused step |

@@ -56,8 +56,8 @@ answer.
 decision of the issue from the in-process resolver (`nextIssue` of `engine/lib/resolver.ts`), a Run of a step or a stop, and starts the step
 of a Run, whatever its gate. When the session ends, it reads the decision again and starts each
 next step whose gate is `auto`. It ends the issue at the first of these, in this order: a stop,
-the same step again ("no progress"), a refused skip, or a `me` gate. With the default gates, each
-next step is a `me` step.
+the same step again ("no progress"), a refused skip, or a `manual` gate. With the default gates, each
+next step is a `manual` step.
 
 **The effort level.** Each session that the daemon starts gets an effort level. The level is the
 decision of the step before on the issue, the newest `Effort: <step> <level>` comment for the step
@@ -79,19 +79,19 @@ the first or the second step of the lane. `triage` can always start. So `specify
 At a refusal the run prints the skip line, which names T, the skipped steps, and S
 ([What the script prints, and your act](../plugins/celetis/docs/workflow.md#what-the-script-prints-and-your-act)).
 It adds the row `<n>\t<run line of T>` to the record and ends the issue. The skip check comes before the gate check, so a refused step with a
-`me` gate also gets a row. The first step of a start with one number, and the first step that
+`manual` gate also gets a row. The first step of a start with one number, and the first step that
 auto mode takes, have no skip check. So your start with the number is the override: it
 starts T.
 
 **Auto mode** of the daemon reads the decision of each open issue from the same resolver (`nextOpen`)
 and takes the lowest open issue whose decision is a Run,
 whose step has the gate `auto`, whose step has no row in the record, and
-whose lock is free. It does the same work on that issue, but it starts no `me` step, and then it
+whose lock is free. It does the same work on that issue, but it starts no `manual` step, and then it
 asks again. It does not take a step that the script refused as a skip, because that step has a row
 in the record. When no issue can start, when the issue started no session, or when the resolver cannot
 read GitHub, it waits 60 seconds. It prints one line for the whole wait. While it waits,
 `celetis --agent <host> next-step --open` shows the line of each open issue: a `stop` line gives the
-cause, and a `run` line that does not start has a `me` gate, a row in the record, or the lock of
+cause, and a `run` line that does not start has a `manual` gate, a row in the record, or the lock of
 another run. It reads open issues only. [The master daemon](#the-master-daemon), "The requests",
 gives auto off.
 

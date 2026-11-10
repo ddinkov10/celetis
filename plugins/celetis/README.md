@@ -445,7 +445,7 @@ celetis --agent <host> run 12    # plan
 celetis --agent <host> run 12    # implement: it builds, verifies, and lands
 ```
 
-With each gate `me`, one start runs one step. Each command returns at the answer of the daemon, so
+With each gate `manual`, one start runs one step. Each command returns at the answer of the daemon, so
 read `celetis daemon status` before the next start. With a gate `auto`, a start goes on through
 that step by itself, and `celetis --agent <host> daemon auto on` turns on auto mode of the
 daemon: it runs each `auto` step of each open issue. A Run press on the agent board sends the

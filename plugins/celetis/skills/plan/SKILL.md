@@ -56,7 +56,7 @@ Put the exact path of each principle that applies to a task in that task's text,
 - `subagent` when the plan has many tasks and at least one task is not simple.
 - `inline` for each other plan. A plan with one task is always `inline`: its task review and its final review would read the same diff.
 
-Judge "many" and "not simple" from the number of tasks, the CAP line of each task, and how much a task depends on the interfaces of an earlier task. The rule sets no number. Ask no person to choose the flow. The line replaces the question of the execution method of `superpowers:writing-plans`. In a project where the gate of `implement` is `me`, the maintainer reads the line in the plan review and can correct it before the build starts.
+Judge "many" and "not simple" from the number of tasks, the CAP line of each task, and how much a task depends on the interfaces of an earlier task. The rule sets no number. Ask no person to choose the flow. The line replaces the question of the execution method of `superpowers:writing-plans`. In a project where the gate of `implement` is `manual`, the maintainer reads the line in the plan review and can correct it before the build starts.
 
 **Per task:**
 - **Capability score.** Apply `<plugin>/docs/procedures/capability-score.md`, "The rubric — six dimensions, each 0–2" and "Scorecard format — MANDATORY", to the task's digits and evidence reason. Emit the CAP line with the script — never hand-compute the tier:

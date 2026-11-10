@@ -2138,7 +2138,6 @@ var COPY = { "no-progress": "command", "dirty-tree": "path" };
 var ON_ISSUE = new Set(["blocked"]);
 var LIVE = new Set(["works", "waits"]);
 var GATES = {
-  me: "This step starts only when you press Run",
   auto: "Auto mode of the daemon starts this step by itself"
 };
 var AUTO = {

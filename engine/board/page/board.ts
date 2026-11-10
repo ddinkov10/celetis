@@ -72,7 +72,6 @@ const COPY: Record<string, string> = { 'no-progress': 'command', 'dirty-tree': '
 const ON_ISSUE = new Set(['blocked']);
 const LIVE = new Set(['works', 'waits']);
 const GATES: Record<string, string> = {
-  me: 'This step starts only when you press Run',
   auto: 'Auto mode of the daemon starts this step by itself',
 };
 const AUTO: Record<DaemonView['auto'], { tone: string; title: string }> = {
