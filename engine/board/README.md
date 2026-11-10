@@ -15,7 +15,9 @@ moves by hand.
 - **Gate:** the rule of a step that says who starts it. `manual` is your press of Run, and `auto` is auto
   mode of the daemon. The board shows `auto` on such a step, and it starts no step by itself.
 - **Daemon:** `engine/daemon.ts` of the engine. Its runs start the sessions of the steps and know how
-  each one ended. Auto mode of the daemon starts each step with the gate `auto` by itself. The states
+  each one ended. Auto mode of the daemon starts each step with the gate `auto` by itself, in the
+  lanes that `autoLanes` of the main `.celetis.yaml` names, where `triage` stands for an issue with
+  no lane (with no `autoLanes`: each lane and each issue with no lane). The states
   `starting` and `stuck` come from the locks and the record of the daemon. The daemon serves the
   board in its own process, and the field `daemon` comes from its status (the item `Daemon`).
 - **Trunk:** the default branch of the repository. The count of the changed lines of a session is

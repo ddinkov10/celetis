@@ -82,7 +82,8 @@ issue. When the outcome of the request is unknown, read
 gives the answer, the effort level, a refused skip, auto mode, the resume, the option `--quiet`,
 and the locks.
 
-Auto mode of the daemon starts the steps whose gate is `auto` ([Gates](#gates)). Turn it on with
+Auto mode of the daemon starts the steps whose gate is `auto`, in the lanes that `autoLanes` names,
+where `triage` stands for an issue with no lane ([Gates](#gates)). Turn it on with
 `celetis --agent <host> daemon auto on` and off with `celetis daemon auto off`, at any time. With
 the default gates no step is `auto`, so auto mode starts nothing.
 
@@ -417,6 +418,28 @@ gates:
   implement: auto
 ```
 
+`autoLanes` in the same file names the lanes that auto mode takes: a sequence with one or more of
+`triage`, `feature`, `bug`, `chore`, and `hotfix`. The four last names are the lane names, not the
+label names. `triage` stands for each issue with no lane, whose next step is `triage`. With a list,
+auto mode starts a step only for an issue whose lane is in the list, and it starts a `triage` step
+only when the list names `triage`. A run of auto mode continues only into a lane of the list: when
+a triage routes its issue to another lane, the run ends before the next step, and a Run press or
+`celetis --agent <host> run <n>` starts that step. With no `autoLanes`, auto mode takes each lane
+and each issue with no lane. The gates stay in force inside a listed lane. The list changes only
+auto mode: a start with a number, a Run press, a queue run, `run resume`, and `run retry` work in
+each lane. An edit of the list applies at the next read of auto mode and before the next step of
+its run, with no restart of the daemon.
+
+```yaml
+landing: pr
+gates:
+  triage: auto
+  bug: auto
+  plan: auto
+  implement: auto
+autoLanes: [triage, bug]
+```
+
 ## The board
 
 The board is a local web page that shows each agent session of the repository and the next step of
@@ -435,7 +458,7 @@ gives the start, the port rules, the cards, the keys, and the errors.
 
 | The case that the script prints | The maintainer's act | Then |
 |---|---|---|
-| The issue needs info, or the issue is `ready-for-human` | do what the printed line says; for `ready-for-human`, the latest `## Stopped` or `## Before landing` comment names the act, and "A stop", gives the act after a refused landing. The card of an issue with a current landing refusal reads `landing refused`: its `## Landing refused` comment names the cause | the next step starts with a Run press or with `celetis --agent <host> run <n>`; auto mode starts it only when its gate is `auto` |
+| The issue needs info, or the issue is `ready-for-human` | do what the printed line says; for `ready-for-human`, the latest `## Stopped` or `## Before landing` comment names the act, and "A stop", gives the act after a refused landing. The card of an issue with a current landing refusal reads `landing refused`: its `## Landing refused` comment names the cause | the next step starts with a Run press or with `celetis --agent <host> run <n>`; auto mode starts it only when its gate is `auto` and `autoLanes` permits its lane |
 | The issue has several lane labels | keep one lane label and remove the others | as the first row |
 | The issue has an open human step | do what the printed line says: the latest `## Before landing` comment names the act. The line names the evidence that is missing: a `## Human steps done` report and the removal of `ready-for-human` after the comment, the report, or the removal (`docs/issue-tracker.md`, "Completing a human precondition") | as the first row |
 | The issue waits for a landing by hand | run `land` in your own shell, from the main checkout, as the line says | none: the landing finishes the issue |
@@ -445,6 +468,7 @@ gives the start, the port rules, the cards, the keys, and the errors.
 | A landing of the issue runs | none: a session lands the issue | start the script again when the landing ended |
 | The script cannot read the issue from GitHub | check `gh auth status`, the network, and the REST rate limit (`gh api rate_limit`) | auto mode tries again by itself; press Refresh on the board |
 | The next step has a `manual` gate | a Run press on the card, or `celetis --agent <host> run <n>` | — |
+| A run of auto mode ends before a step whose lane `autoLanes` does not name (`autoLanes does not name <name>`, where `triage` is the name of an issue with no lane) | a Run press on the card, or `celetis --agent <host> run <n>`, starts the step; to let auto mode take the lane, add its name to `autoLanes` ("Gates") | — |
 | The session ended with no spec on the issue | open the session again, or read the comment of a spike | a Run press, or `celetis --agent <host> run <n>` |
 | The session ended with no progress, and the next command is not `/celetis:feature` | open the session again, or read the issue | a Run press, or `celetis --agent <host> run <n>` |
 | The next step skips a step of its lane (a refused skip) | read the issue ([The start of a step](https://github.com/ddinkov10/celetis/blob/main/engine/README.md#the-start-of-a-step), "A refused skip"). When a label or a heading is wrong, fix the issue. When the skip is correct, start the refused step by hand | a Run press, or `celetis --agent <host> run <n>`, starts the next step; auto mode does not start a refused step |

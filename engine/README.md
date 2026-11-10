@@ -85,15 +85,35 @@ starts T.
 
 **Auto mode** of the daemon reads the decision of each open issue from the same resolver (`nextOpen`)
 and takes the lowest open issue whose decision is a Run,
-whose step has the gate `auto`, whose step has no row in the record, and
-whose lock is free. It does the same work on that issue, but it starts no `manual` step, and then it
+whose step has the gate `auto`, whose lane is in `autoLanes` of the main `.celetis.yaml`,
+whose step has no row in the record, and
+whose lock is free. A Run with no lane, the `triage` step of an issue with no lane label, counts as
+the name `triage` of the list. With no `autoLanes`, each lane and each issue with no lane passes
+this lane test. It does the same work on that issue, but it starts no `manual` step, and then it
 asks again. It does not take a step that the script refused as a skip, because that step has a row
 in the record. When no issue can start, when the issue started no session, or when the resolver cannot
 read GitHub, it waits 60 seconds. It prints one line for the whole wait. While it waits,
 `celetis --agent <host> next-step --open` shows the line of each open issue: a `stop` line gives the
-cause, and a `run` line that does not start has a `manual` gate, a row in the record, or the lock of
-another run. It reads open issues only. [The master daemon](#the-master-daemon), "The requests",
-gives auto off.
+cause, and a `run` line that does not start has a `manual` gate, a lane outside `autoLanes`, a row
+in the record, or the lock of another run. It reads open issues only.
+[The master daemon](#the-master-daemon), "The requests", gives auto off.
+
+**The lanes of auto mode.** A run that auto mode started tests the lane again before each step that
+it starts, the first step too: a session can route the issue to another lane, or change its lane
+label. Before a step whose lane is outside `autoLanes`, the run prints
+`#<n>: autoLanes does not name <name>: celetis --agent <host> run <n> starts <command>`, where
+`<name>` is the lane of the decision, or `triage` for an issue with no lane. It starts no session
+and ends the issue as at a `manual` gate, with the end kind `gate` and the code 0, so auto mode
+takes the next issue. The lane test comes before the check for no progress and the skip check, and
+the end adds no row to the record: the lane test of the pick keeps the issue out. The quota
+recovery of a step that already started has no lane test, as it has no gate test; the test applies
+again before the next step. A run of auto mode that a successor daemon takes over keeps the test.
+No other run has a lane test: a start with a number, a Run press, a queue run, and `run resume`
+work in each lane, and `run retry` only wakes the quota wait of a run. The engine reads `autoLanes`
+from the main checkout at each pick of auto mode and before each step of its run. So an edit of the
+list applies with no restart of the daemon and no new auto on, and a session that runs keeps
+running. An invalid list is an invalid configuration: it refuses the next operation of auto mode,
+and that refusal ends auto mode, as each other invalid field does.
 
 **The form `run resume <n>`** asks the daemon to reopen the exact session of the record
 `<git common dir>/celetis/sessions/<n>.json`, with its saved host and checkout, in a new tab that
@@ -494,7 +514,9 @@ issue whose record still reads unknown gets the lock refusal.
 
 A resume run has the same phases with no step-end watch. The finished tab of a record closes by the
 normal rule: when the next session tab opens, or at the end of the run. A run of the loop
-continues as a run after a takeover. Auto mode stays off, except for a successor that carries it:
+continues as a run after a takeover, and it keeps the lane test of auto mode
+([The start of a step](#the-start-of-a-step), "The lanes of auto mode"). Auto mode stays off, except
+for a successor that carries it:
 after its identity file, a new loop starts, and it takes its first issue only after each taken-over
 run of auto mode ends; when one of them ends with a nonzero code, the loop ends ("The restart"). A
 usage block in the one observation of an ended session starts the quota recovery for the default
@@ -1091,9 +1113,11 @@ The record has these gaps:
 - The daemon sees only its own locks. While a run works on an issue, start each step of that
   issue through the script or the board, not by hand in a session of your own.
 - The board has no control for auto mode
-  ([Start the script](../plugins/celetis/docs/workflow.md#start-the-script)). With `triage` as `auto`, it
+  ([Start the script](../plugins/celetis/docs/workflow.md#start-the-script)). With `triage` as `auto`, and
+  with no `autoLanes` or with `triage` in that list, it
   classifies each new issue, and a splitter question of `/celetis:triage` holds it until you answer.
-  With `specify` as `auto`, it opens a design session for the lowest feature with no spec, and that
+  With `specify` as `auto`, and with no `autoLanes` or with `feature` in that list, it opens a design
+  session for the lowest feature with no spec, and that
   session holds it until the spec is on the issue or you leave the session.
 - [A stop of a run](#a-stop-of-a-run) gives how the runs stop. The lock stays while either the daemon or its session is
   live. After both exit, a new run can claim the stale lock; the session record stays.

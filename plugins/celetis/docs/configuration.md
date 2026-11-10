@@ -12,16 +12,17 @@ nothing after a `---` marker on its line.
 | `landing` | Required: `pr` or `merge`. `pr` squash-merges a PR when each check is green. `merge` creates one squash commit on the trunk, with no PR; a project with no PR check uses `merge` (`docs/issue-tracker.md`, "Branches, PRs, merge") | None: the config is refused |
 | `gates` | Mapping from a step name to `manual` or `auto` (`docs/workflow.md`, "Gates") | `manual` for each omitted step |
 | `agents` | Mapping from a step name to `claude` or `codex`: the preferred agent of that step ([Agent selection and model setup](#agent-selection-and-model-setup)) | Each step uses the local order |
+| `autoLanes` | A sequence with one or more of `triage`, `feature`, `bug`, `chore`, and `hotfix`: the lanes that auto mode of the daemon takes. `triage` stands for an issue with no lane (`docs/workflow.md`, "Gates") | Auto mode takes each lane and each issue with no lane |
 | `board` | Mapping with optional `port`, an integer from 1024 to 65535: the first port to try for the board ("Start the board") | Search starts at 4403 |
 | `worktreeSetup` | A root-relative `.ts` file reference, for example `"scripts/worktree-setup.ts"`, or exactly `""` ("Setup file and instruction text") | No setup |
 | `suite` | A relative path of a TypeScript file in the checkout: the full check of a `merge` landing ("Setup file and instruction text"); required with `landing: merge`, refused with `landing: pr` | With `merge`, the config is refused |
 | `custom` | Mapping from a skill name of the plugin to an instruction string: an addition to the procedure of that skill | No addition for an omitted skill |
 | `codexProfiles` | Mapping from a runtime identity to its profile: four ordered model slots and the reviewer minimum for that dispatch surface | Each Codex child keeps the parent's model |
 
-The engine reads `landing`, `suite`, `gates`, `agents`, `board`, and `codexProfiles` from the
-main checkout, also when a command starts in a lane or a subfolder. The worktree command reads
-`worktreeSetup` from the lane checkout. At a skill entry, the active checkout supplies only the
-selected `custom.<skill>`
+The engine reads `landing`, `suite`, `gates`, `agents`, `autoLanes`, `board`, and `codexProfiles`
+from the main checkout, also when a command starts in a lane or a subfolder. The worktree command
+reads `worktreeSetup` from the lane checkout. At a skill entry, the active checkout supplies only
+the selected `custom.<skill>`
 ([ADR-0032](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0032-shared-configuration-operation-snapshots.md)).
 Commands that need repository setup require a valid file: a missing or invalid required config
 stops before a Git prune, branch or worktree changes, locks, runtime state, host sessions, or
@@ -279,7 +280,7 @@ step that needs a value of the file, and for the verify gate of this repository.
 | --- | --- |
 | Public command | One operation before protected side effects; argument errors can fail first |
 | Board data refresh | One main operation for issue resolution, gates, and default host; Run and Resume start separate commands |
-| New workflow step | Fresh main policy for resolution, gate choice, the `agents` preference of the step, and session start; a fresh local order; original explicit and environment inputs retain precedence |
+| New workflow step | Fresh main policy for resolution, gate choice, the lane test of auto mode (`autoLanes`), the `agents` preference of the step, and session start; a fresh local order; original explicit and environment inputs retain precedence |
 | Active-session monitoring | A separate fresh operation for status; the running session retains its captured host and exact ID; a config failure waits until that child exits |
 | Target lane entry | Fresh main and lane validation before setup or acceptance of an existing setup marker |
 | Configuration setup or test after a write | Fresh validation of the written or newly selected file |
@@ -287,7 +288,9 @@ step that needs a value of the file, and for the verify gate of this repository.
 
 The selected board port stays fixed while the board runs. An update restart requests that same
 port exactly. A changed local order applies to the next new session, and a changed `agents`
-field to the next new session of a run: a new step, or a recovery cycle of a step. A running
+field to the next new session of a run: a new step, or a recovery cycle of a step. A changed
+`autoLanes` list applies at the next pick of auto mode and before the next new step of its run; a
+recovery cycle of a started step has no lane test. A running
 session keeps its agent, and exact Resume retains its saved host and ID. Each skill entry is a
 native boundary of its own ("Skill entry"), independent of runtime operations.
 

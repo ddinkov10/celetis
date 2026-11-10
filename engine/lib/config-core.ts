@@ -1,7 +1,7 @@
 import { type ReviewerLevel, reviewerLevels } from './effort.ts';
 import { type Host, hosts } from './host-names.ts';
 import { type Document, isAlias, isMap, isScalar, isSeq, parseAllDocuments } from './vendor/yaml.mjs';
-import { type Step, steps } from './workflow.ts';
+import { type AutoLane, autoLaneNames, type Step, steps } from './workflow.ts';
 
 export const bunFloor = '1.4.4';
 
@@ -56,6 +56,7 @@ export type ConfigSource = Readonly<{
 export type Config = Readonly<{
   gates?: Readonly<Partial<Record<Step, 'manual' | 'auto'>>>;
   agents?: Readonly<Partial<Record<Step, Host>>>;
+  autoLanes?: readonly AutoLane[];
   board?: Readonly<{ port?: number }>;
   worktreeSetup?: string;
   custom?: Readonly<Record<string, string>>;
@@ -303,7 +304,11 @@ function profile(value: unknown, path: Path): void {
 
 function checkSchema(value: unknown): asserts value is Config {
   const config = object(value, []);
-  keysOnly(config, ['landing', 'gates', 'agents', 'board', 'worktreeSetup', 'suite', 'custom', 'codexProfiles'], []);
+  keysOnly(
+    config,
+    ['landing', 'gates', 'agents', 'autoLanes', 'board', 'worktreeSetup', 'suite', 'custom', 'codexProfiles'],
+    [],
+  );
   required(config, 'landing', []);
   oneOf(config.landing, ['pr', 'merge'], ['landing']);
   if (Object.hasOwn(config, 'gates')) {
@@ -317,6 +322,11 @@ function checkSchema(value: unknown): asserts value is Config {
     const agents = object(config.agents, ['agents']);
     keysOnly(agents, steps, ['agents']);
     for (const [step, host] of Object.entries(agents)) oneOf(host, hosts, ['agents', step]);
+  }
+  if (Object.hasOwn(config, 'autoLanes')) {
+    const { autoLanes } = config;
+    if (!Array.isArray(autoLanes) || autoLanes.length === 0 || !autoLanes.every((name) => autoLaneNames.includes(name)))
+      throw new ConfigError(['autoLanes'], `need a sequence with one or more of ${autoLaneNames.join(', ')}`);
   }
   if (Object.hasOwn(config, 'board')) {
     const board = object(config.board, ['board']);

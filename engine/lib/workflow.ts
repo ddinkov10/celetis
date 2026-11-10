@@ -11,6 +11,9 @@ export type Lane = keyof typeof lanes;
 export type Step = (typeof lanes)[Lane]['steps'][number];
 
 const laneNames = Object.keys(lanes) as Lane[];
+
+export type AutoLane = Lane | 'triage';
+export const autoLaneNames: readonly AutoLane[] = ['triage', ...laneNames];
 const stepsOf = (lane: Lane): readonly Step[] => lanes[lane].steps;
 
 export const steps: readonly Step[] = [...new Set(laneNames.flatMap(stepsOf))];
@@ -300,6 +303,10 @@ export type RunState =
   | 'built';
 
 export type Run = Readonly<{ kind: 'run'; step: Step; lane: Lane | null; state: RunState }>;
+
+export function autoTakes(list: readonly AutoLane[] | undefined, run: Run): boolean {
+  return list === undefined || list.includes(run.lane ?? 'triage');
+}
 
 export type Stop = Readonly<
   | { kind: 'stop'; reason: 'wontfix' | 'finished' | 'needs-info' | 'epic' | 'land-by-hand' }

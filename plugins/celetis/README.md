@@ -448,7 +448,9 @@ celetis --agent <host> run 12    # implement: it builds, verifies, and lands
 With each gate `manual`, one start runs one step. Each command returns at the answer of the daemon, so
 read `celetis daemon status` before the next start. With a gate `auto`, a start goes on through
 that step by itself, and `celetis --agent <host> daemon auto on` turns on auto mode of the
-daemon: it runs each `auto` step of each open issue. A Run press on the agent board sends the
+daemon: it runs each `auto` step of each open issue whose lane `autoLanes` of `.celetis.yaml`
+names, where the name `triage` stands for an issue with no lane, or of each open issue when the
+file has no `autoLanes` (`docs/workflow.md`, "Gates"). A Run press on the agent board sends the
 same request to the daemon, and the daemon opens the session tab in the background.
 
 A run lives in the daemon, with its tabs, its lines, and its exit code: read them in

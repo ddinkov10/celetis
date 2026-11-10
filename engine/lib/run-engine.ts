@@ -93,7 +93,7 @@ import {
 import type { TerminalStatus } from './terminal-types.ts';
 import type { ObservedUsage, UsageAttempt } from './usage-types.ts';
 import { versionFolderGone } from './version-folder.ts';
-import { defaultGate, invocation, type Run, type Step, sameResult, skipped } from './workflow.ts';
+import { autoTakes, defaultGate, invocation, type Run, type Step, sameResult, skipped } from './workflow.ts';
 
 export type Place = Readonly<{ main: string; common: string; state: RepositoryLayout; root: string }>;
 export type RunInput =
@@ -1191,6 +1191,11 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
             continue;
           }
         } else {
+          if (input.kind === 'auto' && !autoTakes(config.autoLanes, next)) {
+            const reason = `#${n}: autoLanes does not name ${next.lane ?? 'triage'}: celetis --agent <host> run ${n} starts ${prompt}`;
+            say(reason);
+            return outcome('gate', reason);
+          }
           if (last && !request?.retry && sameResult(next, last)) {
             if (exitCode !== exits.done)
               die(
@@ -1800,6 +1805,7 @@ export function autoLoop(
           for (const { number, next } of rows) {
             const n = String(number);
             if (next.kind !== 'run' || (config.gates?.[next.step] ?? defaultGate) !== 'auto') continue;
+            if (!autoTakes(config.autoLanes, next)) continue;
             if ((await lockHolder(main, `issue-${n}`)) || (await isRecorded(common, n, lineOf(n, next)))) continue;
             pick = number;
             break;

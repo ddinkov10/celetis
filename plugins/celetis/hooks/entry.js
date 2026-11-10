@@ -480,6 +480,7 @@ var lanes = {
   hotfix: { label: "hotfix", prefix: "hotfix", steps: ["triage", "hotfix"] }
 };
 var laneNames = Object.keys(lanes);
+var autoLaneNames = ["triage", ...laneNames];
 var stepsOf = (lane) => lanes[lane].steps;
 var steps = [...new Set(laneNames.flatMap(stepsOf))];
 var stageNames = ["Triage", "Define", "Plan", "Implement"];
@@ -6981,7 +6982,7 @@ function profile(value, path) {
 }
 function checkSchema(value) {
   const config = object(value, []);
-  keysOnly(config, ["landing", "gates", "agents", "board", "worktreeSetup", "suite", "custom", "codexProfiles"], []);
+  keysOnly(config, ["landing", "gates", "agents", "autoLanes", "board", "worktreeSetup", "suite", "custom", "codexProfiles"], []);
   required2(config, "landing", []);
   oneOf(config.landing, ["pr", "merge"], ["landing"]);
   if (Object.hasOwn(config, "gates")) {
@@ -6997,6 +6998,11 @@ function checkSchema(value) {
     keysOnly(agents, steps, ["agents"]);
     for (const [step, host] of Object.entries(agents))
       oneOf(host, hosts, ["agents", step]);
+  }
+  if (Object.hasOwn(config, "autoLanes")) {
+    const { autoLanes } = config;
+    if (!Array.isArray(autoLanes) || autoLanes.length === 0 || !autoLanes.every((name) => autoLaneNames.includes(name)))
+      throw new ConfigError(["autoLanes"], `need a sequence with one or more of ${autoLaneNames.join(", ")}`);
   }
   if (Object.hasOwn(config, "board")) {
     const board = object(config.board, ["board"]);
