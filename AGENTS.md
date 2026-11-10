@@ -1,7 +1,14 @@
 # AGENTS.md
 
-This repository holds the plugin `celetis`, a general agent harness with Claude and Codex host
-operations, and the program that runs it. The plugin is the folder `plugins/celetis/`: skills
+Celetis is a software factory harness: the process and the runtime around coding agents that take
+each change of a product through its lifecycle. The goal is intent to release. Today a change goes
+from intent to the trunk, and each product project does its own release. Celetis has two modules.
+The plugin `celetis` holds skills and instructions for inline use with any agent; today the hosts
+are Claude Code and Codex. The application shell is the program `celetis`: its daemon runs the
+phases of the SDLC as autonomous workflows. The plugin names roles, and each product project names
+its own parts, so Celetis fits different types of product.
+
+This repository holds both modules. The plugin is the folder `plugins/celetis/`: skills
 (`plugins/celetis/skills/`), procedure modules (`plugins/celetis/docs/procedures/`), principles
 (`plugins/celetis/docs/principles/`), step text (`plugins/celetis/step-prompt.md`), and documents
 (`plugins/celetis/docs/`). The program is the entry `celetis` with its runtime (`engine/`). The
