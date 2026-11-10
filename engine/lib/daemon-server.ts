@@ -42,7 +42,6 @@ import {
   type Admission,
   autoLoop,
   createRun,
-  gone,
   type Place,
   type RunEnd,
   type RunHandle,
@@ -52,6 +51,7 @@ import {
 } from './run-engine.ts';
 import { type RunRecord, readRunRecords, removeRunRecord, writeRunRecord } from './run-record.ts';
 import { daemonSockets, ensureFolder, privateState, writeAtomic } from './state.ts';
+import { versionFolderGone } from './version-folder.ts';
 
 type Frame = { tag: string; last: string | null; sink: Sink | null };
 type Said = Readonly<{ status: number; answer: DaemonAnswer }>;
@@ -648,7 +648,7 @@ async function serve(
     await writeAtomic(paths.identity, `${JSON.stringify(identity)}\n`);
     console.log(`daemon: PID ${process.pid} serves ${paths.socket}`);
     const poll = setInterval(() => {
-      void gone(root).then((missing) => {
+      void versionFolderGone(root).then((missing) => {
         if (missing) removed();
       });
     }, 5000);

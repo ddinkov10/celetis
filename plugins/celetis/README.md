@@ -170,8 +170,10 @@ that runs that install. It removes the other version folders. It changes no file
 `<base>/.local/share/celetis/` and its own entries in
 `<base>/.local/bin/`. When `<base>/.local/bin/celetis`, or `celetis.cmd` on Windows, is there and
 is not an entry of the engine, the install refuses and changes nothing. Move that entry away, then run the install again.
-An install that stopped partway leaves a staging folder in `versions/`, and the next install
-removes it.
+An install that stopped partway leaves a staging folder in `versions/`, or the renamed folder of a
+version folder that it began to remove. The name of each starts with a dot, and the next install
+removes each. When it cannot remove one, that install fails before it changes the engine: remove
+the folder that the error names, then run the install again.
 
 `celetis --version` prints the full revision of the engine.
 
@@ -409,8 +411,8 @@ daemon:
 
 1. asks the resolver for the next step: `celetis --agent <host> next-step <n>` prints a `run` line with
    the command of the step, for example `run /celetis:plan #<n>`, or a `stop` line with the reason;
-2. checks that the version folder of its engine still has its files, and that the engine serves
-   the contract version that the plugin of the session's host needs ("Updates");
+2. checks that the version folder of its engine still has its entry `engine/celetis`, and that the
+   engine serves the contract version that the plugin of the session's host needs ("Updates");
 3. starts the selected interactive CLI in the main checkout with the host's skill prompt, a
    facts header (the issue, the step, the host, the main checkout, the plugin folder, and the
    landing mechanism), the step text, and the effort level of the step

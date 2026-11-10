@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { constants } from 'node:os';
-import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { effectiveOrder, readAgentOrder } from './agent-order.ts';
 import { beginUsageAttempt, readUsage, recordUsage, selectAgent, type UsageTicket } from './agent-usage.ts';
@@ -93,6 +92,7 @@ import {
 } from './terminal.ts';
 import type { TerminalStatus } from './terminal-types.ts';
 import type { ObservedUsage, UsageAttempt } from './usage-types.ts';
+import { versionFolderGone } from './version-folder.ts';
 import { defaultGate, invocation, type Run, type Step, sameResult, skipped } from './workflow.ts';
 
 export type Place = Readonly<{ main: string; common: string; state: RepositoryLayout; root: string }>;
@@ -134,68 +134,6 @@ export interface RunHandle {
 }
 
 export const removed = 'the engine version of this daemon was removed after an update; start the daemon again';
-const required = [
-  'lib/resolver.ts',
-  'lib/updater.ts',
-  'daemon.ts',
-  'celetis',
-  'launcher.ts',
-  'lib/codex-app-server.ts',
-  'lib/config-core.ts',
-  'lib/config.ts',
-  'lib/errors.ts',
-  'lib/events.ts',
-  'lib/git.ts',
-  'lib/homes.ts',
-  'lib/host-claude.ts',
-  'lib/host-codex.ts',
-  'lib/host-names.ts',
-  'lib/host.ts',
-  'lib/hosts.ts',
-  'lib/locks.ts',
-  'lib/operation.ts',
-  'lib/plugin-metadata.ts',
-  'lib/plugin-policy.ts',
-  'lib/update-lock.ts',
-  'lib/windows.ts',
-  'lib/process-identity.ts',
-  'lib/session.ts',
-  'lib/step-end.ts',
-  'lib/terminal.ts',
-  'lib/contract.ts',
-  'lib/workflow.ts',
-  'lib/effort.ts',
-  'lib/tracker.ts',
-  'lib/lines.ts',
-  'lib/process.ts',
-  'lib/installation.ts',
-  'lib/queue.ts',
-  'lib/state-migration.ts',
-  'lib/state-move.ts',
-  'lib/state-preparation.ts',
-  'lib/state.ts',
-  'lib/queue-types.ts',
-  'lib/queue-actions.ts',
-  'lib/quota-recovery.ts',
-  'lib/agent-order.ts',
-  'lib/agent-usage.ts',
-  'lib/usage-types.ts',
-  'lib/usage-claude.ts',
-  'lib/usage-codex.ts',
-  'lib/run-engine.ts',
-  'lib/run-record.ts',
-  'lib/daemon-types.ts',
-  'lib/daemon-server.ts',
-  'lib/daemon-client.ts',
-  'lib/daemon-start.ts',
-  'usage-hook.ts',
-  'lib/vendor/yaml.mjs',
-];
-
-export async function gone(root: string): Promise<boolean> {
-  for (const file of required) if (!(await stat(join(root, 'engine', file)).catch(() => null))?.isFile()) return true;
-  return false;
-}
 
 const idle: Record<TerminalStatus, boolean> = { idle: true, done: true, error: true, working: false, blocked: false };
 const die = (message: string, code: ExitCode): never => {
@@ -594,7 +532,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     const id = (await readSession(main, Number(n), common, locks)).session_id ?? '';
     let retained: TurnKey | null = null;
     while (!abort.aborted && (await waitTerminal(terminal, 60, abort))) {
-      if (await gone(root)) {
+      if (await versionFolderGone(root)) {
         await removal();
         return;
       }
@@ -1202,7 +1140,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       }
       for (;;) {
         stopped();
-        if (await gone(root)) {
+        if (await versionFolderGone(root)) {
           await removal();
           return outcome('stopped', removed, 'Start the daemon again.');
         }
@@ -1298,7 +1236,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
           stopped();
           await requireStart(stepHost, current.checkout.cwd);
           const pluginRoot = await requireContract(stepHost, main);
-          if (await gone(root)) return null;
+          if (await versionFolderGone(root)) return null;
           const chosen =
             override === undefined
               ? (effort ?? { level: defaultLevel, source: 'default' as const })
@@ -1841,7 +1779,7 @@ export function autoLoop(
         initial = undefined;
       }
       while (running()) {
-        if (await gone(root)) {
+        if (await versionFolderGone(root)) {
           hooks.removed();
           await aborted;
           return exits.done;

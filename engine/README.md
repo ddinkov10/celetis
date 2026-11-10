@@ -531,10 +531,12 @@ also prints its stack and adds a defect event `run-defect`. One failure stops th
 exit 6: a step-end record that can neither be removed nor emptied. The daemon stops, because only
 the end of the daemon that the record names revokes it. The sessions stay open in their tabs.
 
-**A removed engine version.** The daemon checks its engine files each 5 seconds, and its runs
-check them as the daemon does. When a file is gone after an update, the daemon stops as above and
-exits 3 ([Updates](../plugins/celetis/README.md#updates)). The sessions stay in their tabs, and their run records stay for the
-next start.
+**A removed engine version.** The daemon reads the entry of its version folder, `engine/celetis`,
+each 5 seconds, and its runs make the same read. For a daemon of a checkout, that folder is the
+checkout. When the entry is absent or is not a regular file, as after an update that removed the
+folder, the daemon stops as above and exits 3 ([Updates](../plugins/celetis/README.md#updates)).
+A read that fails with another error, for example a permission error, stops nothing, and the next
+read decides. The sessions stay in their tabs, and their run records stay for the next start.
 
 **The restart.** An approved update of the board, or **Restart** of the board after a terminal
 update ([Open work during updates](board/README.md#start)), restarts a daemon that runs from the version folder of its revision, `<base>/.local/share/celetis/versions/<revision>`
@@ -667,7 +669,7 @@ exists. A later `chore` issue removes the move.
 The daemon uses the version folder of the engine that started it
 for the resolver and entry of each run. Numbered starts, auto-mode starts, and later steps make no update call.
 The form `run resume` keeps its no-update behavior and saved identity.
-Before a step starts, the daemon checks that its required files still exist.
+Before a step starts, the daemon checks that the entry of its version folder, `engine/celetis`, is still a file.
 [Updates](../plugins/celetis/README.md#updates) gives the contract check of the plugin before each
 new step session (`requireContract` of `engine/lib/contract-check.ts`): the engine must serve the
 contract version that the plugin of the session's host needs. When it does not, the daemon also

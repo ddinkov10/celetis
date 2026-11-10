@@ -233,8 +233,12 @@ export async function installEngine(
     const versions = await realpath(paths.versions);
     const running = resolve(import.meta.dir, '../..');
     for (const { name } of folders.slice(3))
-      if (name !== wanted.revision && join(versions, name) !== running)
-        await rm(join(paths.versions, name), { recursive: true, force: true });
+      if (name !== wanted.revision && join(versions, name) !== running) {
+        // A running engine reads only the entry of its version folder, so that folder must be complete or absent.
+        const renamed = join(paths.versions, `.${name}.${randomUUID()}`);
+        await rename(join(paths.versions, name), renamed);
+        await rm(renamed, { recursive: true, force: true });
+      }
     const engine = await readEngine(paths);
     if (!engine) throw new HostError(`celetis: the install did not make ${paths.link}`, exits.blocked);
     return engine;

@@ -1,18 +1,13 @@
-import { stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname } from 'node:path';
 import { type ExitCode, exits, usage } from './lib/contract.ts';
 import type { QueueAction, QueueRecord } from './lib/queue-types.ts';
+import { versionFolderGone } from './lib/version-folder.ts';
 
 type Status = { command: 'status' };
 type QueueShape = Status | { command: 'action'; json: string };
 type QueueForm = Status | { command: 'action'; action: QueueAction };
 
 const removed = 'the engine version of this command was removed after an update; run the command again';
-const here = import.meta.dir;
-async function gone(files: string[]) {
-  for (const file of files) if (!(await stat(join(here, file)).catch(() => null))?.isFile()) return true;
-  return false;
-}
 
 function shapeOf(argv: string[]): QueueShape | null {
   const [command, ...rest] = argv;
@@ -22,56 +17,7 @@ function shapeOf(argv: string[]): QueueShape | null {
 }
 
 export async function main(argv: string[]): Promise<ExitCode> {
-  const unavailable = await gone([
-    'celetis',
-    'daemon.ts',
-    'launcher.ts',
-    'lib/agent-order.ts',
-    'lib/codex-app-server.ts',
-    'lib/config-core.ts',
-    'lib/config.ts',
-    'lib/daemon-client.ts',
-    'lib/daemon-start.ts',
-    'lib/daemon-types.ts',
-    'lib/effort.ts',
-    'lib/epic-acceptance.ts',
-    'lib/errors.ts',
-    'lib/events.ts',
-    'lib/fields.ts',
-    'lib/git.ts',
-    'lib/homes.ts',
-    'lib/host-claude.ts',
-    'lib/host-codex.ts',
-    'lib/host-names.ts',
-    'lib/host.ts',
-    'lib/hosts.ts',
-    'lib/installation.ts',
-    'lib/lines.ts',
-    'lib/locks.ts',
-    'lib/operation.ts',
-    'lib/plugin-metadata.ts',
-    'lib/process-identity.ts',
-    'lib/process.ts',
-    'lib/queue-actions.ts',
-    'lib/queue.ts',
-    'lib/quota-recovery.ts',
-    'lib/refresh-hints.ts',
-    'lib/resolver.ts',
-    'lib/session.ts',
-    'lib/state-migration.ts',
-    'lib/state-move.ts',
-    'lib/state-preparation.ts',
-    'lib/state.ts',
-    'lib/terminal.ts',
-    'lib/tracker.ts',
-    'lib/update-lock.ts',
-    'lib/usage-claude.ts',
-    'lib/usage-codex.ts',
-    'lib/usage-types.ts',
-    'lib/vendor/yaml.mjs',
-    'lib/windows.ts',
-    'lib/workflow.ts',
-  ]);
+  const unavailable = await versionFolderGone(dirname(import.meta.dir));
   if (!unavailable) (await import('./lib/events.ts')).installRecorder('queue');
   let explicit: string | undefined;
   if (!unavailable) {
