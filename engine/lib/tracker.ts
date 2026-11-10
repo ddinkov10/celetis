@@ -49,7 +49,15 @@ export type CheckRun = Readonly<{
   url: string | null;
 }>;
 export type CommitStatus = Readonly<{ state: string }>;
-export type WorkflowRun = Readonly<{ id: number; suite: number; attempt: number; status: string | null }>;
+export type WorkflowRun = Readonly<{
+  id: number;
+  suite: number;
+  attempt: number;
+  status: string | null;
+  conclusion: string | null;
+  name: string;
+  url: string;
+}>;
 export type Review = Readonly<{ user: string | null; state: string }>;
 export type Parent = Readonly<{ number: number; url: string }>;
 export type Bucket = 'pass' | 'skipping' | 'fail' | 'cancel' | 'pending';
@@ -183,6 +191,9 @@ function parseWorkflowRun(raw: unknown): WorkflowRun {
     suite: integer(run.check_suite_id),
     attempt: integer(run.run_attempt),
     status: orNull(run.status, text),
+    conclusion: orNull(run.conclusion, text),
+    name: orNull(run.name, text) || text(run.path),
+    url: text(run.html_url),
   };
 }
 
@@ -205,13 +216,8 @@ function parseLabelName(raw: unknown): string {
   return text(record(raw).name);
 }
 
-export function bucket(check: CheckRun | CommitStatus): Bucket {
-  if ('state' in check) {
-    if (check.state === 'success') return 'pass';
-    return check.state === 'failure' || check.state === 'error' ? 'fail' : 'pending';
-  }
-  if (check.status !== 'completed') return 'pending';
-  switch (check.conclusion) {
+function concluded(conclusion: string | null): Bucket {
+  switch (conclusion) {
     case 'success':
       return 'pass';
     case 'neutral':
@@ -226,6 +232,22 @@ export function bucket(check: CheckRun | CommitStatus): Bucket {
     default:
       return 'pending';
   }
+}
+
+export function bucket(check: CheckRun | CommitStatus): Bucket {
+  if ('state' in check) {
+    if (check.state === 'success') return 'pass';
+    return check.state === 'failure' || check.state === 'error' ? 'fail' : 'pending';
+  }
+  return check.status === 'completed' ? concluded(check.conclusion) : 'pending';
+}
+
+export function runBucket(run: WorkflowRun, checkRuns: readonly CheckRun[]): 'fail' | 'cancel' | 'pending' | null {
+  if (run.status !== 'completed') return null;
+  if (run.conclusion === 'startup_failure') return 'fail';
+  if (checkRuns.some((check) => check.suite === run.suite)) return null;
+  const value = concluded(run.conclusion);
+  return value === 'pass' || value === 'skipping' ? null : value;
 }
 
 export async function loggedIn(host: string, cwd: string): Promise<boolean> {

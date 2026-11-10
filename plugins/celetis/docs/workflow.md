@@ -392,7 +392,7 @@ The exit status and the first word of the `land` line give the result:
 | 2 | `usage` | usage | bad arguments (the usage line); no Git checkout; a run from inside the lane worktree; a dirty lane worktree; no lane branch; nothing to land; an invalid configuration; a refusal of the request by the daemon with code 2, with its line (for example the 400 usage line of the requests, or the 413 line of a subject that makes the body more than 16 KiB) |
 | 3 | `prerequisite` | the issue is not ready to land | the landing prerequisites of `docs/issue-tracker.md`, "Branches, PRs, merge"; Windows; another live holder of `land-<n>`; no daemon (the line tells you to start it with `celetis daemon start`); a daemon at another revision (the line tells you to restart it with `celetis daemon stop`, then `celetis daemon start`) |
 | 4 | `repair` | the lane needs a repair | a conflict with the trunk; a lane branch that does not contain the head of the trunk; a trunk head, a lane branch, a lane checkout, or a PR that changed during the landing; a missing lane worktree with the landing `merge`; lane lessons that do not validate |
-| 5 | `checks` | a check is not green | a failed CI check, also after its re-run; a failed `suite` with the landing `merge` (`docs/configuration.md`) |
+| 5 | `checks` | a check is not green | a failed CI check, also after its re-run; a workflow run of the PR head that failed to start, or that ended not green with no check run; a failed `suite` with the landing `merge` (`docs/configuration.md`) |
 | 6 | `blocked` | an external block | GitHub does not answer or refuses an act; a fetch or a push fails; the checks did not finish; no check ran; the main checkout is dirty, off the trunk, or with commits that the trunk does not have; the landing mechanism or the default branch changed; two branches or two PRs match; an incomplete lesson transaction (`lesson-store recover`); a lesson lock that stays busy for 10 seconds; a daemon that cannot be read (the line tells you to read `celetis daemon status`); a request during a stop of the daemon (the 503 line); a landing that waits in the line when the daemon stops; a stream with no status (above) |
 | 7 | `cleanup` | landed, the cleanup stopped | the change is on the trunk, and the removal, the pull of the main checkout, or the close of the issue stopped, also by an abort: run `land` again |
 | 128+n | none | a signal | a signal to the client stopped `land`, and the daemon aborted the landing (after the change is on the trunk, a new `land` completes the cleanup); 143 also for a stop of the daemon before the change is on the trunk |
@@ -562,5 +562,9 @@ gap. An observed version is no minimum version.
   show a status that branch protection requires until that status reports. Until then,
   `celetis --agent <host> land` can read `pass` and ask for the merge. GitHub then refuses the merge, and
   the build step stops with `## Landing refused`. Until then, the board also shows `pass` for the PR.
+- The board reads the check runs and the commit statuses of a PR, and no workflow run. So for a PR
+  whose workflow run failed to start, or ended not green with no check run, the board shows `pass`,
+  or no value when the PR has no check, while `celetis --agent <host> land` refuses the PR with
+  exit 5.
 
 `engine/board/README.md` of the repository `celetis` holds the limits of the page.

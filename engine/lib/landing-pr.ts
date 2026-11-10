@@ -1,7 +1,7 @@
 import { HostError } from './errors.ts';
 import type { LandingContext, Mechanism } from './landing.ts';
 import { writeRefreshHint } from './refresh-hints.ts';
-import { bucket, type CheckRun, type Pull, type WorkflowRun } from './tracker.ts';
+import { bucket, type CheckRun, type Pull, runBucket, type WorkflowRun } from './tracker.ts';
 import { branchPattern } from './workflow.ts';
 
 export function prMechanism(context: LandingContext): Mechanism {
@@ -117,9 +117,16 @@ export function prMechanism(context: LandingContext): Mechanism {
         }
         const runs = await tracked((gh) => gh.workflowRuns(tip), true).catch(() => null);
         let checkRuns: readonly CheckRun[] = [];
+        let red: readonly WorkflowRun[] = [];
         try {
           checkRuns = await tracked((gh) => gh.checkRuns(tip), true);
-          const values = [...checkRuns.map(bucket), ...(await tracked((gh) => gh.statuses(tip), true)).map(bucket)];
+          const added = (runs ?? []).map((run) => ({ run, value: runBucket(run, checkRuns) }));
+          red = added.filter(({ value }) => value === 'fail' || value === 'cancel').map(({ run }) => run);
+          const values = [
+            ...checkRuns.map(bucket),
+            ...(await tracked((gh) => gh.statuses(tip), true)).map(bucket),
+            ...added.flatMap(({ value }) => value ?? []),
+          ];
           buckets = [...new Set(values)].sort().join(' ');
         } catch {
           buckets = '';
@@ -135,6 +142,12 @@ export function prMechanism(context: LandingContext): Mechanism {
           return 1;
         }
         if (!buckets || buckets.includes('pending')) return 1;
+        const [first] = red;
+        if (first)
+          die(
+            'checks',
+            `PR #${pr} has a workflow run that is not green (${red.map((run) => `${run.name}: ${run.conclusion}`).join(', ')}): ${first.url}`,
+          );
         if (buckets === 'skipping') die('blocked', `no check ran on PR #${pr}: each check was skipped: ${url}`);
         if (reruns.length)
           die('checks', `PR #${pr} has a check that is not green after the re-run (${buckets}): ${url}`);
