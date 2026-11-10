@@ -42,7 +42,7 @@ conflict after its final review. In order:
    and each issue that their subjects name (`gh issue view <m>`).
 3. Merge `origin/<trunk>` with the subject `Merge origin/<trunk> into <branch> (#<n>)`. Resolve
    each conflict, and keep the behavior of both sides. Resolve a conflict on a path of
-   `docs/lessons/` by `<plugin>/docs/procedures/lesson-curation.md`, "Lesson conflicts".
+   `.celetis/lessons/` by `<plugin>/docs/procedures/lesson-curation.md`, "Lesson conflicts".
 4. Commit the merge.
 5. Run `celetis --agent <host> worktree <n>` again: it completes the entry and the worktree setup.
    Another exit 4 starts again at step 2.

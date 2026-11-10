@@ -184,16 +184,17 @@ loading also needs the native host's project trust.
 .claude/settings.local.json
 docs/superpowers/
 .superpowers/
-docs/lessons/_pending/
+.celetis/lessons/_pending/
 ```
 
 `.claude/worktrees/` holds the lane worktrees (`docs/issue-tracker.md`, "What lives on the
-issue"). `.claude/settings.local.json` holds the settings of one person for the project. The three other
-folders are scratch of the skills, and a file that git does not ignore makes a tree dirty too:
+issue"). `.claude/settings.local.json` holds the settings of one person for the project. Two of the
+three other folders are scratch of the skills, and the third is the pending folder of the lesson
+store. A file that git does not ignore makes a tree dirty too:
 
 - `docs/superpowers/` holds the drafts of the intents, the specs, and the plans;
 - `.superpowers/` holds the review package of `critic-loop`;
-- `docs/lessons/_pending/` holds the lesson drafts that wait for the agent curation of the next
+- `.celetis/lessons/_pending/` holds the lesson drafts that wait for the agent curation of the next
   landing, or for `lesson-review`.
 
 ## The labels
@@ -268,16 +269,34 @@ link refuses; an unrelated Claude instruction link stays unchanged with an owner
 
 ## The stores
 
+Three rules give each output of Celetis its place in a product project:
+
+1. A record that the product owns and people read lives at the conventional path of the product.
+   The ADR store stays `docs/adr/`.
+2. A store that the engine owns lives in `.celetis/` at the root of the product project. The engine
+   owns a store when an engine command defines its format, validates each file, and refuses a file
+   that it does not know. The lesson store is the one such store: `.celetis/lessons/`. Only that
+   folder is the store: a file of the product beside it in `.celetis/` is not refused.
+3. The scratch and the wiring keep their paths: the scratch `docs/superpowers/` and
+   `.superpowers/`, each wiring file that this document names, with the config `.celetis.yaml` and
+   the setup record `.claude/celetis/wiring.json` among them, and the lane worktrees
+   `.claude/worktrees/`. An engine command validates the config and the setup record too. Each is
+   one file, not a folder of records.
+
+Git must not ignore `.celetis/lessons/`. With an ignore rule that covers it, for example
+`/.celetis/`, an apply of a review in a lane exits 6 with `cannot commit the lessons:`, rolls back,
+and keeps the proposal, so no lesson becomes active.
+
 Setup creates no store, starter README, template, or empty catalog. Store writers create only the
 paths that their first record needs:
 
 - `record-architecture-decisions` reads generic guidance and the template from the plugin, plus
   product policy named by `AGENTS.md`. It creates `docs/adr/` with the first numbered record.
   Existing product ADR guidance and templates remain product content.
-- A review that activates a lesson creates `docs/lessons/` when needed, in the checkout where
+- A review that activates a lesson creates `.celetis/lessons/` when needed, in the checkout where
   the review runs. It writes no catalog. Superseded records remain as history.
 - Capture creates only a pending proposal and queue row in the main checkout's
-  `docs/lessons/_pending/`, also when the task runs in a linked worktree. Grounding reads active
+  `.celetis/lessons/_pending/`, also when the task runs in a linked worktree. Grounding reads active
   lessons from the lane's own checkout with `lesson-store read active`. A plan copies each
   applicable active rule with its path and digest.
   Each task and repair boundary, including the final review and re-entry, refreshes those copies

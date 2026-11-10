@@ -19,7 +19,7 @@ export const ignores = [
   '.claude/settings.local.json',
   'docs/superpowers/',
   '.superpowers/',
-  'docs/lessons/_pending/',
+  '.celetis/lessons/_pending/',
 ];
 export const attribute = '.celetis.yaml text eol=lf';
 export const claudeInstructions = ['CLAUDE.md', '.claude/CLAUDE.md'];

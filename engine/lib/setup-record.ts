@@ -43,7 +43,14 @@ const scopes: Record<string, Scope> = {
     ],
   },
   '.gitignore': {
-    lines: [laneIgnore, '.claude/settings.local.json', 'docs/superpowers/', '.superpowers/', 'docs/lessons/_pending/'],
+    lines: [
+      laneIgnore,
+      '.claude/settings.local.json',
+      'docs/superpowers/',
+      '.superpowers/',
+      '.celetis/lessons/_pending/',
+      'docs/lessons/_pending/',
+    ],
   },
   '.gitattributes': { lines: ['.celetis.yaml text eol=lf', 'scripts/celetis text eol=lf'] },
   'AGENTS.md': { marker: true, flow: true },

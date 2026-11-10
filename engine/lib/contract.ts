@@ -336,7 +336,7 @@ export const commands: readonly Entry[] = [
     'lesson-store',
     true,
     [form('lesson-store read main|active', [], helped(19, 'Reads validated lessons; requires explicit --agent.'))],
-    'Returns validated lesson records, exact file contents, digests, and the resolved checkout as JSON. `main` returns the live files of the checkout that runs it with the pending and rejected data of the main checkout, and `root` names the main checkout. Rejected records appear in `history` with `status: pending-review`; they are not past guidance. `active` reads the live files of the task checkout and ignores its pending folder. A leftover `docs/lessons/INDEX.md` fails both reads',
+    'Returns validated lesson records, exact file contents, digests, and the resolved checkout as JSON. `main` returns the live files of the checkout that runs it with the pending and rejected data of the main checkout, and `root` names the main checkout. Rejected records appear in `history` with `status: pending-review`; they are not past guidance. `active` reads the live files of the task checkout and ignores its pending folder. A leftover `.celetis/lessons/INDEX.md` fails both reads',
   ),
   entry(
     'lesson-store',

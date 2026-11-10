@@ -107,7 +107,7 @@ export type ReviewSnapshot = {
   digest: string;
 };
 
-export const lessonsPath = 'docs/lessons';
+export const lessonsPath = '.celetis/lessons';
 export const pendingPath = `${lessonsPath}/_pending`;
 export const queuePath = `${pendingPath}/QUEUE.md`;
 export const journalPath = `${pendingPath}/.transaction.json`;
@@ -733,8 +733,8 @@ export function reviewSnapshot(root: string, files: ReadonlyMap<string, string>,
   return { ...snapshot, digest: hash(stable(snapshot)) };
 }
 export function lessonFile(path: string): 'live' | 'pending' | 'rejected' | null {
-  const live = new RegExp(`^${lessonsPath}/([a-z0-9]+(?:-[a-z0-9]+)*)\\.md$`).exec(path);
-  if (live && (live[1]?.length ?? 0) <= 128) return 'live';
+  const live = path.startsWith(`${lessonsPath}/`) && path.endsWith('.md') ? path.slice(lessonsPath.length + 1, -3) : '';
+  if (live.length <= 128 && slugPattern.test(live)) return 'live';
   for (const [prefix, kind] of [
     [pendingPath, 'pending'],
     [`${pendingPath}/_rejected`, 'rejected'],

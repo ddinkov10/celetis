@@ -1,6 +1,6 @@
 # The lesson format
 
-The schema of `docs/lessons/`, used by `lesson`, by the agent curation at each landing, and by
+The schema of `.celetis/lessons/`, used by `lesson`, by the agent curation at each landing, and by
 `lesson-review`. Keep the keys and body headings in the order below. The `lesson-store` command
 validates records and queue rows.
 
@@ -16,8 +16,8 @@ validates records and queue rows.
 
 ## The store
 
-The store of a checkout is the live files `docs/lessons/{name}.md` of the checkout that runs the
-command, plus the pending folder `docs/lessons/_pending/` of the resolved main checkout. In the
+The store of a checkout is the live files `.celetis/lessons/{name}.md` of the checkout that runs the
+command, plus the pending folder `.celetis/lessons/_pending/` of the resolved main checkout. In the
 main checkout the two are one checkout. A command in a linked checkout never reads the live files
 of the main checkout, except `recover` of a journal without `lane`: that journal comes from an
 apply in the main checkout, so recovery completes its live paths there. Capture writes pending
@@ -28,7 +28,7 @@ create no lesson directory. A denied read, old-format record, or inconsistent ro
 error that names the path. Review old-format data explicitly; the command does not convert it.
 
 No live catalog exists: `lesson-store read` derives the active and history lists from the lesson
-files. A leftover `docs/lessons/INDEX.md` fails each read, with its path, until someone deletes
+files. A leftover `.celetis/lessons/INDEX.md` fails each read, with its path, until someone deletes
 it. A pending proposal can hold an incident that a live or historical file holds with equal
 evidence, for example a replay from a checkout that lacks that lesson. Two records of the
 pending folder cannot share an incident when one of them is a pending proposal.

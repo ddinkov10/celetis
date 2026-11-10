@@ -12,7 +12,7 @@ applicable lesson, put a line with its project lesson path and the `digest` that
 printed for it, then its complete `## Rule` body:
 
 ```markdown
-`docs/lessons/{name}.md` sha256:{digest}
+`.celetis/lessons/{name}.md` sha256:{digest}
 ```
 
 Copy the body unchanged, with all Markdown, wording, and qualifications. Include only the rule
