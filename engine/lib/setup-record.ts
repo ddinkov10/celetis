@@ -20,16 +20,13 @@ export type WiringRecord = {
 type Scope = {
   file?: true;
   lines?: readonly string[];
-  flow?: true;
   marker?: true;
   keys?: readonly (readonly string[])[];
   items?: readonly { path: readonly string[]; values?: readonly string[]; entrypoint?: true }[];
 };
 const scopes: Record<string, Scope> = {
   '.claude/celetis/wiring.json': { file: true },
-  '.claude/celetis-flow/wiring.json': { file: true },
   '.codex/rules/celetis.rules': { file: true },
-  'scripts/celetis': { file: true },
   '.celetis.yaml': { keys: [['landing'], ['suite'], ['host']] },
   '.claude/settings.json': {
     keys: [
@@ -52,18 +49,11 @@ const scopes: Record<string, Scope> = {
       'docs/lessons/_pending/',
     ],
   },
-  '.gitattributes': { lines: ['.celetis.yaml text eol=lf', 'scripts/celetis text eol=lf'] },
-  'AGENTS.md': { marker: true, flow: true },
+  '.gitattributes': { lines: ['.celetis.yaml text eol=lf'] },
+  'AGENTS.md': { marker: true },
   'CLAUDE.md': { marker: true, lines: ['@AGENTS.md'] },
   '.claude/CLAUDE.md': { marker: true, lines: ['@../AGENTS.md', '@AGENTS.md'] },
 };
-const flow = [
-  '## Celetis flow',
-  '- A lane never skips a step.',
-  '- The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.',
-  '- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `celetis --agent <host> land`.',
-  '- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `land` through the bound plugin entrypoint and personal host binding.',
-];
 const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 const safe = (value: string) => !value.includes('\\') && !/\p{Cc}/u.test(value);
@@ -71,17 +61,9 @@ const keysAre = (value: Record<string, unknown>, keys: readonly string[]) =>
   Object.keys(value).every((key) => keys.includes(key));
 const samePath = (one: readonly string[], two: readonly string[]) =>
   one.length === two.length && one.every((key, i) => key === two[i]);
-const repositoryLine = (value: string) =>
-  /^- The lanes are the skills of the plugin `celetis`, on the issues of `[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?\/(?!\.{1,2}`)[A-Za-z0-9._-]{1,100}`\.$/.test(
-    value,
-  );
 
 function entry(value: unknown, scope: Scope): SetupEntry | null {
-  if (typeof value === 'string')
-    return safe(value) &&
-      (scope.lines?.includes(value) || (scope.flow && (flow.includes(value) || repositoryLine(value))))
-      ? value
-      : null;
+  if (typeof value === 'string') return safe(value) && scope.lines?.includes(value) ? value : null;
   if (!object(value)) return null;
   if (
     scope.marker &&

@@ -11,7 +11,7 @@ import {
   lockReason,
   privateMode,
   type RepositoryLayout,
-  repositoryState,
+  repositoryLayout,
   StateError,
   unsafe,
   withLock,
@@ -72,7 +72,7 @@ function versioned(order: readonly Host[]): AgentOrder {
 }
 
 export async function readAgentOrder(common: string): Promise<AgentOrder> {
-  return readOrder(await repositoryState(common));
+  return readOrder(repositoryLayout(common));
 }
 
 function readOrder(layout: RepositoryLayout): AgentOrder {
@@ -125,7 +125,7 @@ async function updateOrder(
   order: readonly Host[],
   expectedVersion: string | null,
 ): Promise<AgentOrder> {
-  const layout = await repositoryState(common);
+  const layout = repositoryLayout(common);
   const folder = ensureFolder(layout.root);
   const lock = layout.agentsLock.path;
   const before = statAt(lock);

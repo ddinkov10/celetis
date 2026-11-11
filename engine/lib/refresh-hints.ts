@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { lstat, readdir, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { commonDir } from './git.ts';
-import { checkFolder, ensureFolder, repositoryState } from './state.ts';
+import { checkFolder, ensureFolder, repositoryLayout } from './state.ts';
 
 function issueNumber(name: string): number | null {
   const match = /^([1-9][0-9]*)\.[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.exec(name);
@@ -15,7 +15,7 @@ export async function readRefreshHints(common: string): Promise<ReadonlyMap<stri
   let folder: string;
   let names: string[];
   try {
-    const layout = await repositoryState(common);
+    const layout = repositoryLayout(common);
     checkFolder(layout.root);
     checkFolder(layout.refresh);
     folder = layout.refresh.path;
@@ -37,7 +37,7 @@ export async function readRefreshHints(common: string): Promise<ReadonlyMap<stri
 export async function writeRefreshHint(cwd: string, number: number): Promise<void> {
   try {
     if (!Number.isSafeInteger(number) || number < 1) return;
-    const layout = await repositoryState(await commonDir(cwd));
+    const layout = repositoryLayout(await commonDir(cwd));
     ensureFolder(layout.root);
     ensureFolder(layout.refresh);
     const folder = layout.refresh.path;

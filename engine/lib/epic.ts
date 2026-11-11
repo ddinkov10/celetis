@@ -2,7 +2,7 @@ import { exits } from './contract.ts';
 import { completionIdentity, parseAcceptedEpic, parseEpicAcceptance } from './epic-acceptance.ts';
 import { HostError } from './errors.ts';
 import { isIssueNumber } from './fields.ts';
-import { repositoryState, withLock } from './state.ts';
+import { repositoryLayout, withLock } from './state.ts';
 import { type GitHub, github } from './tracker.ts';
 import {
   type AcceptedEpic,
@@ -41,7 +41,7 @@ async function withEpicLock<T>(
   change: (signal: AbortSignal) => Promise<T>,
 ): Promise<T> {
   if (!isIssueNumber(n)) throw new HostError('epic: need a positive safe issue number', exits.usage);
-  const layout = await repositoryState(common);
+  const layout = repositoryLayout(common);
   const controller = new AbortController();
   const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
   const interrupt = () => controller.abort(new Error('epic operation interrupted'));

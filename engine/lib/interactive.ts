@@ -10,7 +10,7 @@ import { hostAdapter } from './hosts.ts';
 import type { Operation } from './operation.ts';
 import { requireUpdatePolicy } from './plugin-policy.ts';
 import { childEnv } from './process.ts';
-import { repositoryState } from './state.ts';
+import { repositoryLayout } from './state.ts';
 import { withPluginRead } from './update-lock.ts';
 import type { UsageAttempt } from './usage-types.ts';
 
@@ -55,7 +55,7 @@ export async function runInteractive(
   };
   const args = adapter.interactiveArguments(title, prompt, attempt.id);
   const ticket = await beginUsageAttempt(common, attempt);
-  const layout = await repositoryState(common);
+  const layout = repositoryLayout(common);
   const capture = layout.usageCapture(attempt.id);
   const extra = await adapter.prepareUsage(attempt, layout);
   const child = spawn(executable, [...pin, ...extra, ...args], {

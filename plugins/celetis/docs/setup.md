@@ -77,11 +77,11 @@ each missing tool and each hook that skips its checks in the test lane (ADR-0018
   a host-selection change; `check` and `try` create no preference.
 - Setup writes no launcher, shared entrypoint allow, project `celetis@celetis` enablement,
   generic flow section, ADR starter, or empty lesson catalog. It refreshes current owned wiring
-  and removes obsolete owned scopes, including a recorded dedicated launcher. A valid recorded
-  object key owns its current value; a dedicated whole-file claim owns that file. Manual edits
-  inside those scopes are replaced or removed. Shared files retain content outside owned scopes.
-  Differing unowned settings and rules stay unchanged with exact path warnings and no new claim.
-  Unrecorded old wiring and remaining product callers need [owner review](#review-old-wiring).
+  and removes obsolete owned scopes. A valid recorded object key owns its current value; a dedicated
+  whole-file claim owns that file. Manual edits inside those scopes are replaced or removed. Shared
+  files retain content outside owned scopes. Differing unowned settings and rules stay unchanged
+  with exact path warnings and no new claim. Unrecorded old wiring needs
+  [owner review](#review-old-wiring).
 - In `.celetis.yaml`, setup owns required `landing` and `suite` (with `merge` only). With no file,
   it makes one with `landing` and, with `merge`, `suite`. In a valid file, it adds missing
   entries, refreshes recorded owned values, and removes an obsolete owned suite for `pr`, while
@@ -291,8 +291,7 @@ The schema-1 record stores `{ "start": "<!-- CELETIS:START -->", "end": "<!-- CE
 under the actual instruction destination. Setup claims no whole instruction file, even on
 creation. Retired claims are removed from the resulting record. An approved baseline is added
 after the managed block transformation, outside its ownership; an existing baseline keeps its
-collision warning. Complete recorded old flow lines can be removed outside the block; every
-other byte stays unchanged. Product flow content and unrecorded old text remain for owner review.
+collision warning. Each byte outside the block stays unchanged and is product content.
 
 The plugin has no role for the deployment of a project. It is a product fact, so it also goes into
 `AGENTS.md` when more than one step needs it: a lane ends when the change is on the trunk.
@@ -385,46 +384,22 @@ warnings. Installation and update remain separate explicit operations. The marke
 entry pointer retains its bounded marker authority, even without a record.
 
 1. Review the complete setup diff, including deleted paths, new files and JSON formatting.
-   The resulting record contains current ownership only. Setup reports surviving tracked callers
-   of a removed launcher by path; it changes no product caller. Its literal search cannot find
-   dynamic or external references. A remaining caller or unresolved wiring warning prevents a
+   The resulting record contains current ownership only. An unresolved wiring warning prevents a
    claim that the wiring is current.
 2. Review these candidates against the required forms above:
 
-   - Copied `scripts/celetis` launchers and every caller in scripts, CI, instructions, permissions,
-     and board configuration. Move each approved remaining caller to the installed `celetis`
-     engine. A valid whole-file claim permits setup to remove the launcher; unrecorded launchers
-     need owner review. Keep product additions until their owner has reviewed them.
    - Old `permissions.allow` entries for `scripts/celetis`, `./scripts/celetis`, or broad `celetis`
      calls in `.claude/settings.json`, and obsolete entrypoint allows in
      `.codex/rules/celetis.rules`. Keep the direct-merge restriction. Personal `land` and optional
      `issue` rules stay explicit and local.
-   - The old `.gitattributes` line `scripts/celetis text eol=lf`. Keep
-     `.celetis.yaml text eol=lf` and unrelated attributes.
    - Project `enabledPlugins.celetis@celetis` in `.claude/settings.json`. The supported Celetis
      installation is user-scoped. Keep Superpowers and other plugins, the required marketplace,
      and product settings. Review effective automatic-update policy separately.
-   - Old generic board commands, including `scripts/celetis board` and its `./` form, in launch
-     files or scripts. Keep product-specific board configuration, port choices, and local desktop
-     entries. `celetis daemon start` serves the board and prints its URL.
-   - The exact generic flow lines below. Read the repository identity from the recorded flow line,
-     not from a current answer alone, and compare the current content. A matching phrase alone is
-     insufficient evidence of ownership.
 
-     ```markdown
-     ## Celetis flow
-
-     - The lanes are the skills of the plugin `celetis`, on the issues of `<owner>/<repo>`.
-     - `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `celetis --agent <host> land`.
-     - A lane never skips a step.
-     - The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.
-     ```
-
-3. The owner reviews unowned removals and caller changes in a separate product change. Keep
-   product-specific flow instructions and every unreviewed unowned entry. Setup removes an old
-   recorded generic heading only when no product content remains in its section. Existing generic
-   ADR files and populated stores stay product content and need independent owner review. Commit
-   repairs before another setup run so the tree meets its preflight requirements.
+3. The owner reviews unowned removals in a separate product change. Keep every unreviewed unowned
+   entry. Existing generic ADR files and populated stores stay product content and need independent
+   owner review. Commit repairs before another setup run so the tree meets its preflight
+   requirements.
 
 The existing `setup try` and `setup write` share the reconciliation plan; there is no separate
 cleanup command. One final commit-and-push question covers all shown additions, replacements
@@ -441,14 +416,13 @@ including a custom part and the worktree setup. A file that git does not track a
 checkout dirty, and the resolver then stops each issue.
 
 Setup stops before any write when the index holds a staged change, or when an affected setup path
-has an uncommitted change, including a planned deletion. Validated obsolete owned paths, such as
-the copied launcher, are in the plan and commit; starter documents stay product content. Setup
-stages only validated planned wiring paths and excludes unrelated product changes. After a failed
-write, the report shows the failing path, `git status --short`, the complete diff of each changed
-or deleted setup path, and every new setup file in full. Partial writes need owner review and
-a commit or restore before retry;
-setup claims no success and makes no automatic push. After a successful write, setup asks one
-question: commit and push to the trunk of `origin`?
+has an uncommitted change, including a planned deletion. Validated obsolete owned paths are in the
+plan and commit; starter documents stay product content. Setup stages only validated planned wiring
+paths and excludes unrelated product changes. After a failed write, the report shows the failing
+path, `git status --short`, the complete diff of each changed or deleted setup path, and every new
+setup file in full. Partial writes need owner review and a commit or restore before retry; setup
+claims no success and makes no automatic push. After a successful write, setup asks one question:
+commit and push to the trunk of `origin`?
 
 - On a yes, setup commits the files that it changed, with the subject
   `chore(celetis): wire the project for the celetis lanes`, and it pushes the trunk. The push also

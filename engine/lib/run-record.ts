@@ -1,5 +1,5 @@
 import { readdir, readFile, rm } from 'node:fs/promises';
-import { isAbsolute, join, sep } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import type { UsageTicket } from './agent-usage.ts';
 import type { AgentChoice, Host } from './config-core.ts';
 import { isLevel, isModel } from './effort.ts';
@@ -9,7 +9,7 @@ import type { Identity } from './locks.ts';
 import type { RecoveryAttempt, RecoveryAuthority } from './quota-recovery.ts';
 import type { RunInput, RunState } from './run-engine.ts';
 import { type SessionRecord, validateSession } from './session.ts';
-import { repositoryState, writeAtomic } from './state.ts';
+import { writeAtomic } from './state.ts';
 import { commitMigration, type LocalRecord, readLocalRecord } from './state-migration.ts';
 import { usageAttempt } from './usage-types.ts';
 import { lanes, type Run, type Step, steps } from './workflow.ts';
@@ -62,7 +62,7 @@ export type RunRecord = {
 };
 type NumberInput = Extract<RunInput, { kind: 'number' }>;
 type HistoricalInput = Exclude<RunInput, NumberInput> | Omit<NumberInput, 'model'>;
-type Historical = Omit<RunRecord, 'schema' | 'input'> & { schema: 1 | 2; input: HistoricalInput };
+type Historical = Omit<RunRecord, 'schema' | 'input'> & { schema: 2; input: HistoricalInput };
 export type ReadRecord = { path: string; record: RunRecord } | { path: string; error: string };
 
 const file = /^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\.json$/;
@@ -119,7 +119,7 @@ function selection(value: unknown): boolean {
   );
 }
 
-function input(value: unknown, schema: 1 | 2 | 3): value is HistoricalInput {
+function input(value: unknown, schema: 2 | 3): value is HistoricalInput {
   if (!object(value) || !selection(value.selection)) return false;
   switch (value.kind) {
     case 'number':
@@ -253,7 +253,7 @@ function session(value: unknown, issue: number | null, resume: boolean): value i
   );
 }
 
-function validFields(value: unknown, schema: 1 | 2 | 3): boolean {
+function validFields(value: unknown, schema: 2 | 3): boolean {
   return !(
     !keys(value, 'changedMs,daemon,id,input,issue,lock,loop,queue,request,schema,session,state,wait') ||
     value.schema !== schema ||
@@ -283,7 +283,7 @@ export function validRunRecord(value: unknown): value is RunRecord {
   return validFields(value, 3);
 }
 
-const historical = (value: unknown, schema: 1 | 2): value is Historical => validFields(value, schema);
+const historical = (value: unknown): value is Historical => validFields(value, 2);
 
 export async function writeRunRecord(folder: string, record: RunRecord): Promise<void> {
   const written: unknown = record;
@@ -295,14 +295,7 @@ export async function removeRunRecord(folder: string, id: string): Promise<void>
   await rm(join(folder, `${id}.json`), { force: true });
 }
 
-async function convert(
-  path: string,
-  name: string,
-  folder: string,
-  old: string,
-  state: string,
-  schema: 1 | 2,
-): Promise<ReadRecord> {
+async function convert(path: string, name: string, folder: string): Promise<ReadRecord> {
   let source: LocalRecord | null;
   try {
     source = await readLocalRecord(path, [folder], 'private');
@@ -311,39 +304,21 @@ async function convert(
   }
   if (!source) return { path, error: 'the record is missing' };
   const value = source.value;
-  if (!historical(value, schema)) return { path, error: 'the record is not a valid run record' };
+  if (!historical(value)) return { path, error: 'the record is not a valid run record' };
   if (`${value.id}.json` !== name) return { path, error: 'the record ID differs from its file name' };
-  const moved = (stored: string) =>
-    stored.startsWith(`${old}${sep}`)
-      ? `${state}${stored.slice(old.length)}`
-      : stored.startsWith(`${state}${sep}`)
-        ? stored
-        : null;
-  let session = value.session;
-  if (schema === 1 && session) {
-    const folderAt = moved(session.folder);
-    if (folderAt === null) return { path, error: `the record names session.folder ${session.folder} outside ${old}` };
-    const captureAt = session.capture === null ? null : moved(session.capture);
-    if (session.capture !== null && captureAt === null)
-      return { path, error: `the record names session.capture ${session.capture} outside ${old}` };
-    session = { ...session, folder: folderAt, capture: captureAt };
-  }
   const input: RunInput = value.input.kind === 'number' ? { ...value.input, model: null } : value.input;
-  const record: RunRecord = { ...value, schema: 3, input, session };
+  const record: RunRecord = { ...value, schema: 3, input };
   if (!validRunRecord(record)) return { path, error: 'the record is not a valid run record' };
   try {
-    await commitMigration(source, schema, `${JSON.stringify(record)}\n`);
+    await commitMigration(source, 2, `${JSON.stringify(record)}\n`);
   } catch (error) {
     return { path, error: (error as Error).message };
   }
   return { path, record };
 }
 
-export async function readRunRecords(folder: string, common: string): Promise<ReadRecord[]> {
+export async function readRunRecords(folder: string): Promise<ReadRecord[]> {
   const names = (await readdir(folder)).filter((name) => file.test(name)).sort();
-  const layout = await repositoryState(common);
-  const old = layout.oldRoot;
-  const state = layout.root.path;
   return Promise.all(
     names.map(async (name): Promise<ReadRecord> => {
       const path = join(folder, name);
@@ -359,8 +334,7 @@ export async function readRunRecords(folder: string, common: string): Promise<Re
       } catch {
         return { path, error: 'the record is not valid JSON' };
       }
-      if (object(value) && (value.schema === 1 || value.schema === 2))
-        return convert(path, name, folder, old, state, value.schema);
+      if (object(value) && value.schema === 2) return convert(path, name, folder);
       if (!object(value) || value.schema !== 3) return { path, error: 'the record has another schema' };
       if (!validRunRecord(value)) return { path, error: 'the record is not a valid run record' };
       if (`${value.id}.json` !== name) return { path, error: 'the record ID differs from its file name' };

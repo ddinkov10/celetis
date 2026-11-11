@@ -650,7 +650,7 @@ async function serve(
       restart,
     });
     opened.resolve(board);
-    for (const read of await readRunRecords(layout.runs.path, common)) {
+    for (const read of await readRunRecords(layout.runs.path)) {
       if ('error' in read) {
         console.error(`daemon: cannot take over ${read.path}: ${read.error}; its session stays in its tab`);
         continue;

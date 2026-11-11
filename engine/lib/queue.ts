@@ -11,7 +11,7 @@ import { childEnv } from './process.ts';
 import type { QueueAction, QueueReceipt, QueueRecord, QueueView } from './queue-types.ts';
 import { readRecovery, recoveryOwner } from './quota-recovery.ts';
 import { nextIssue } from './resolver.ts';
-import { ensureFolder, repositoryState, withLock, writeAtomic } from './state.ts';
+import { ensureFolder, repositoryLayout, withLock, writeAtomic } from './state.ts';
 import { commitMigration, type LocalRecord, readLocalRecord } from './state-migration.ts';
 import { requestStatePreparation } from './state-preparation.ts';
 import { lanes, type Run, type Step, steps } from './workflow.ts';
@@ -326,7 +326,7 @@ function historical(value: unknown, file: string): QueueRecord {
 }
 
 async function snapshot(common: string): Promise<LocalRecord | null> {
-  const layout = await repositoryState(common);
+  const layout = repositoryLayout(common);
   const file = layout.queue;
   try {
     return await readLocalRecord(file, [common, layout.root.path], 'shared');
@@ -450,13 +450,13 @@ export async function readQueue(main: string, common?: string, owner?: LockOwner
 
 async function writeQueue(common: string, record: QueueRecord): Promise<void> {
   validate(record);
-  const layout = await repositoryState(common);
+  const layout = repositoryLayout(common);
   ensureFolder(layout.root);
   await writeAtomic(layout.queue, `${JSON.stringify(record)}\n`);
 }
 
 async function withQueueWrite<T>(common: string, change: () => Promise<T>): Promise<T> {
-  return withLock((await repositoryState(common)).queueLock, change);
+  return withLock(repositoryLayout(common).queueLock, change);
 }
 
 export async function updateQueue(

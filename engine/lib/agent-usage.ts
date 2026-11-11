@@ -8,7 +8,7 @@ import {
   lockReason,
   privateMode,
   type RepositoryLayout,
-  repositoryState,
+  repositoryLayout,
   unsafe,
   withLock,
   writeAtomic,
@@ -117,7 +117,7 @@ function readHost(layout: RepositoryLayout, host: Host): UsageRecord | null {
 }
 
 export async function readUsage(common: string): Promise<UsageState> {
-  const layout = await repositoryState(common);
+  const layout = repositoryLayout(common);
   return { claude: readHost(layout, 'claude'), codex: readHost(layout, 'codex') };
 }
 
@@ -126,7 +126,7 @@ async function update<T>(
   host: Host,
   work: (previous: UsageRecord) => { next: UsageRecord; result: T },
 ): Promise<T> {
-  const layout = await repositoryState(common);
+  const layout = repositoryLayout(common);
   ensureFolder(layout.root);
   const directory = ensureFolder(layout.limits);
   const limitLock = layout.limitLock(host);

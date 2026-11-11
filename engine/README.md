@@ -494,8 +494,12 @@ and its wake, at the claim of a queue wake, and after each drain of a queue issu
 removes its record. A detached run
 keeps it, except a run whose answer was 503. The `go` file of the start folder, not the record,
 tells whether the barrier was released. The record has `schema: 3`, with its paths under
-`<git common dir>/celetis/`; a schema-1 or a schema-2 record converts as
-[The move of the old names](#the-move-of-the-old-names) says.
+`<git common dir>/celetis/`. A schema-2 record converts to schema 3 when the daemon reads it at its
+start, after it holds `daemon` and before it serves, with `model: null` in a `number` input. A
+`number`, `auto`, or `queue` input with `quiet` is not valid, so its record does not convert. The
+conversion keeps the exact original bytes in an immutable sibling archive
+([ADR-0070](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0070-automatic-runtime-state-migration.md)). The run
+records have no record lock.
 
 At its start, after it holds `daemon`, the daemon reads the records in the order of their file
 names. It does not take over a record that it cannot read, that is not valid JSON, that has another
@@ -549,8 +553,9 @@ names the next issue with no session, so a stop between two issues continues the
 start. A session whose start folder has no `go` file ends the issue as the table says, and the
 queue state becomes `error` with that line.
 
-**A quota recovery.** The recovery record has `schema: 2` with the key `daemon`; a schema-1 record
-converts as [The move of the old names](#the-move-of-the-old-names) says. When the recovery record of the
+**A quota recovery.** The recovery record has `schema: 2` with the key `daemon`. A record of another
+schema, or with an invalid field, is refused with its path and `invalid or obsolete recovery record;
+inspect it, then remove it`, and it is never read as empty. When the recovery record of the
 issue names a daemon that is gone (a definite read), the daemon writes itself as the owner of the record in one
 transaction. Retry and the bound lane of the
 recovery then accept the daemon. A `POST /retry` for a record that names this daemon needs a run of
@@ -633,75 +638,6 @@ that gap waits until the successor takes over its run. A known limit: after the 
 the successor and exited, or after it closed its socket, a stop does not reach it. In the gap until
 the successor writes its identity file, `celetis daemon stop` finds no daemon, and the successor
 still starts; stop it after its start.
-
-### The move of the old names
-
-A repository that an earlier engine used holds its state under the old names. The first access to
-the state folder moves it (`repositoryState` of `engine/lib/state.ts` calls `moveState` of
-`engine/lib/state-move.ts` once in each process for each Git common folder), so each command and
-the daemon do it with no step of yours:
-
-| Old | New |
-| --- | --- |
-| `<git common dir>/celetis-flow/` | `<git common dir>/celetis/` |
-| `refs/celetis-flow/locks/<name>` | `refs/celetis/locks/<name>`; the move deletes the old refs and moves no owner |
-| the key `runner` of an owner record, and the lock `runner` | the key `daemon`, and the lock `auto` |
-| `<git dir>/celetis-flow-setup-done` | `<git dir>/celetis-setup-done` |
-| `.claude/celetis-flow/wiring.json` | `.claude/celetis/wiring.json` |
-
-The move runs at most three rounds. Each round:
-
-1. lists the refs under `refs/celetis-flow/locks/` and looks at `<git common dir>/celetis-flow`.
-   With no ref and no folder, the move ends. An old path that is not a folder is a refusal;
-2. proves each owner of a listed ref by PID and process start, for the keys `runner` and `session`
-   of its owner record. A live owner, an owner that the process table does not show, and a record
-   that cannot be read are a refusal. Each process gives one line, and the lines come together;
-3. checks whether `celetis` exists while `celetis-flow` exists. If both exist, the round refuses
-   before it deletes any ref (if `celetis-flow` went away meanwhile, the next round starts). It
-   then lists the refs again; a changed list starts the next round;
-4. deletes the listed refs in one transaction, each with the object ID that it read; a failed
-   transaction starts the next round. It lists the refs again before the rename and before the
-   return that has refs only; a ref that remains starts the next round. It then renames the folder
-   to `celetis`.
-
-A refusal line names the state of the move. It exits 3, or 6 when a file or a Git read or write failed. A refusal before step 4 of the first round changes nothing. A later round, a failed rename of the folder
-(an error other than a missing source or an existing target), and the refusal of a state that
-still changed after the third round can follow a deletion in step 4 of an
-earlier round of the same command: that deletion removed only old lock refs whose owners were
-proven gone, and it stays; the folder did not move. Each refusal line names its cause and your act:
-end the old daemon, let an old session finish or end it in its tab, keep one of the two folders by
-hand, remove an old path that is not a folder, or run the command again.
-
-The owner proof has a named blind spot: an old process with no lock ref, such as an old board or an
-old `celetis assist`, `intake`, or `visual` session. It can make `celetis-flow` again after the
-move. The safe result is the both-exist refusal of a later access, with no merge. The daemon moves
-once, when it starts; a later old process is seen by the next process that reads the state.
-
-The records convert when a process reads them and keep the exact original bytes in an immutable
-sibling archive (ADR-0070). The recovery record converts under its record lock. The run records
-convert when the daemon starts, after it holds the lock `daemon` and before it serves; they have
-no record lock. An invalid record is refused with its path and its cause; it is never read as
-empty:
-
-- The recovery record: schema 1 with the key `runner` becomes schema 2 with the key `daemon`.
-- The run record: schema 1 and schema 2 become schema 3, with `model: null` in a `number` input. A
-  `number`, `auto`, or `queue` input with `quiet` is not valid, so its record does not convert. For
-  schema 1, the paths `session.folder` and `session.capture` under the old folder move to
-  `celetis/`. A path outside the old and the new folder is a refusal, and the daemon takes over no
-  run from that record ("The takeover").
-- The step-end record has the key `daemon` only. A record with the key `runner` reads as no
-  record, and nothing converts it.
-- The queue record and the session record keep their schemas
-  ([The continuous queue](#the-continuous-queue), "Automatic storage preparation", and
-  [Sessions](#sessions)).
-- A hook settings file `usage-captures/<id>/settings.json` that an old engine wrote keeps its old
-  absolute hook path. Claude Code reads it only when its session starts, and a new session gets a
-  new folder.
-
-Setup moves the setup record at its next run: `setup status` reports the old record, and with both
-records present, setup refuses and asks you to remove the one that is not current. The first read of the marker of a worktree renames
-`celetis-flow-setup-done` to `celetis-setup-done`, or removes the old marker when the new one
-exists. A later `chore` issue removes the move.
 
 ## The engine and the plugin
 

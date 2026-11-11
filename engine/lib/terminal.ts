@@ -4,7 +4,7 @@ import { type ExitCode, exits } from './contract.ts';
 import { type Host, hosts } from './host-names.ts';
 import { hostAdapter } from './hosts.ts';
 import { childEnv, run } from './process.ts';
-import { repositoryState, StateError, withLock } from './state.ts';
+import { repositoryLayout, StateError, withLock } from './state.ts';
 import type { DialogKind, Terminal, TerminalStatus } from './terminal-types.ts';
 
 type Result = { code: number; stdout: string; stderr: string };
@@ -323,7 +323,7 @@ async function startTab(request: OpenTab, exec: Exec): Promise<string> {
 
 async function holdingSpaceLock<T>(common: string, work: () => Promise<T>): Promise<T> {
   try {
-    return await withLock((await repositoryState(common)).spaceLock, work);
+    return await withLock(repositoryLayout(common).spaceLock, work);
   } catch (error) {
     if (error instanceof StateError) throw new TerminalError(error.message, error.code);
     throw error;

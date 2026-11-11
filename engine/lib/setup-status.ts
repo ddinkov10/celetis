@@ -24,7 +24,6 @@ import {
   markerRepair,
   normal,
   object,
-  oldWiring,
   projectFile,
   settings,
   settingsForm,
@@ -283,37 +282,25 @@ class Status {
   }
 
   async record(): Promise<void> {
-    const current = await this.read(wiring);
-    const old = await this.read(oldWiring);
-    if (current === undefined || old === undefined) return;
-    if (current && old) {
-      this.add(
-        'invalid',
-        `${oldWiring} and ${wiring}`,
-        'both exist; remove the one that is not current by hand, then run setup again',
-      );
-      return;
-    }
-    const source = current ?? old;
+    const source = await this.read(wiring);
+    if (source === undefined) return;
     if (source === null) {
       this.add('missing', wiring, 'no record of setup; setup writes it');
       return;
     }
-    const path = old ? oldWiring : wiring;
-    if (old) this.add('missing', wiring, `the setup record is at ${oldWiring}; setup moves it`);
     let value: WiringRecord;
     try {
-      value = parseSetupRecord(new TextDecoder('utf-8', { fatal: true }).decode(source), path);
+      value = parseSetupRecord(new TextDecoder('utf-8', { fatal: true }).decode(source), wiring);
     } catch {
-      this.add('invalid', path, 'is no valid schema-1 setup record; repair or remove it by hand');
+      this.add('invalid', wiring, 'is no valid schema-1 setup record; repair or remove it by hand');
       return;
     }
     this.saved = value;
     const answers = value.answers;
-    if (answers?.tracker !== 'github') this.add('missing', path, 'answers.tracker is missing; run setup with GitHub');
-    if (!answers?.hosts) this.add('missing', path, 'answers.hosts is missing; run setup with the selected hosts');
+    if (answers?.tracker !== 'github') this.add('missing', wiring, 'answers.tracker is missing; run setup with GitHub');
+    if (!answers?.hosts) this.add('missing', wiring, 'answers.hosts is missing; run setup with the selected hosts');
     else if (!answers.hosts.includes(this.host))
-      this.add('missing', path, `answers.hosts lacks ${this.host}; run setup with ${this.host}`);
+      this.add('missing', wiring, `answers.hosts lacks ${this.host}; run setup with ${this.host}`);
   }
 
   async tracker({ host, repository: name }: Origin): Promise<void> {

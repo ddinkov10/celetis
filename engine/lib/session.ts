@@ -11,7 +11,7 @@ import { isHost } from './host-names.ts';
 import type { Claim } from './host-types.ts';
 import { hostAdapter } from './hosts.ts';
 import type { LockOwner } from './locks.ts';
-import { ensureFolder, repositoryState, writeAtomic } from './state.ts';
+import { ensureFolder, repositoryLayout, writeAtomic } from './state.ts';
 import { commitMigration, type LocalRecord, readLocalRecord } from './state-migration.ts';
 import { requestStatePreparation } from './state-preparation.ts';
 import { readScreen } from './terminal.ts';
@@ -88,7 +88,7 @@ function historical(source: LocalRecord, main: string, issue: number): SessionRe
 
 const oldSchema = (source: LocalRecord) => object(source.value) && source.value.schema === 1;
 async function snapshot(common: string, issue: number): Promise<LocalRecord | null> {
-  const layout = await repositoryState(common);
+  const layout = repositoryLayout(common);
   const file = layout.session(issue);
   try {
     return await readLocalRecord(file, [common, layout.root.path, layout.sessions.path], 'shared');
@@ -201,7 +201,7 @@ export async function selectSavedSession(
 
 export async function writeSession(main: string, record: SessionRecord, owner?: LockOwner): Promise<void> {
   const common = await commonDir(main);
-  const layout = await repositoryState(common);
+  const layout = repositoryLayout(common);
   const file = layout.session(record.issue);
   validateSession(record, main, record.issue, file);
   if (await snapshot(common, record.issue)) await readSession(main, record.issue, common, owner);

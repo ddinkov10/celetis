@@ -811,7 +811,7 @@ of the board document gives the dialog, the reconnect, the restart, and **Restar
 user-selected policy supersedes the consumer-exit rule of ADR-0027; see ADR-0028 and
 [ADR-0077](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0077-the-master-daemon-hosts-the-board-and-restarts-as-a-successor.md).
 
-Codex and Claude sessions and the daemon can stay open, except for the move of #141 below. The updater never stops their
+Codex and Claude sessions and the daemon can stay open. The updater never stops their
 processes or requires the Codex daemon to stop. It uses each host's native cache replacement.
 A fresh session loads the updated skills and tools; old cache files are not guaranteed to remain
 available to running work. Restart a session or the daemon if it still needs a resource that the
@@ -835,22 +835,6 @@ Codex marketplace, can start a new step. After `celetis update`, restart the dae
 or with `celetis daemon stop`, then `celetis daemon start`; a `run` or `queue` form of another
 revision refuses with exit 3 until then. The daemon serves the board, so that restart also gives the board the new
 engine.
-
-**The move of #141.** The update that names the workflow, the daemon, and a run moves the state of
-each repository from the old names to the new ones
-([The move of the old names](https://github.com/ddinkov10/celetis/blob/main/engine/README.md#the-move-of-the-old-names)). The move refuses while an old process holds the state, so before `celetis update`:
-
-1. Run `celetis daemon stop` in each repository that has a daemon.
-2. Let each session end: the step sessions, and the sessions of `celetis assist`, `intake`, and
-   `visual`.
-3. Close each board.
-
-The first command after the update moves the state folder and the lock refs, and it converts the
-records when a process reads them. The marker of a lane worktree moves at the next
-`celetis --agent <host> worktree <n>` or `celetis --agent <host> setup lane <path>` for that
-worktree. A refusal names the old owner (its PID and the issue or the lock) or both folders; end
-the owner, or keep one folder by hand, then run the command again. `/celetis:setup` moves the setup record
-`.claude/celetis-flow/wiring.json` to `.claude/celetis/wiring.json`.
 
 The engine runs the updater of its own version folder. When the engine is broken or missing,
 run "First install" again. The install refuses a link or `current` file whose version folder is

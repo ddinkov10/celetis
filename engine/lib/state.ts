@@ -7,7 +7,6 @@ import type { Host } from './config-core.ts';
 import { exits } from './contract.ts';
 import { HostError } from './errors.ts';
 import { celetisBase } from './homes.ts';
-import { moveState } from './state-move.ts';
 import { tryFlock } from './update-lock.ts';
 import { openLockFile } from './windows.ts';
 
@@ -148,27 +147,7 @@ export function repositoryLayout(common: string) {
     runs,
     runRecord: (id: string) => join(runs.path, `${id}.json`),
     startPrefix: join(root.path, 'start.'),
-    oldRoot: join(common, 'celetis-flow'),
   });
-}
-
-export const oldLockRefs = 'refs/celetis-flow/locks/';
-
-const moves = new Map<string, Promise<void>>();
-
-export async function repositoryState(common: string): Promise<RepositoryLayout> {
-  const layout = repositoryLayout(common);
-  let moved = moves.get(common);
-  if (moved === undefined) {
-    const started = moveState(common, { old: layout.oldRoot, next: layout.root.path, oldRefs: oldLockRefs });
-    moved = started;
-    moves.set(common, started);
-    started.catch(() => {
-      if (moves.get(common) === started) moves.delete(common);
-    });
-  }
-  await moved;
-  return layout;
 }
 
 export function captureFiles(dir: string) {
@@ -240,7 +219,7 @@ export function laneFolder(main: string): string {
 }
 
 export function setupMarker(gitDir: string) {
-  return Object.freeze({ current: join(gitDir, 'celetis-setup-done'), old: join(gitDir, 'celetis-flow-setup-done') });
+  return join(gitDir, 'celetis-setup-done');
 }
 
 export function privateMode(stat: { uid: number; mode: number }): boolean {

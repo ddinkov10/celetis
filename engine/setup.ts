@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { constants as fsConstants } from 'node:fs';
-import { access, lstat, mkdir, mkdtemp, readFile, rm, rmdir, stat, unlink, writeFile } from 'node:fs/promises';
+import { access, lstat, mkdir, mkdtemp, readFile, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -32,7 +32,6 @@ import {
   managedInstructions,
   normal,
   object,
-  oldWiring,
   settings,
   settingsForm,
   trackingProblem,
@@ -47,7 +46,6 @@ const subject = 'chore(celetis): wire the project for the celetis lanes';
 const setupPaths = [
   configFile,
   wiring,
-  oldWiring,
   codexRules,
   settings,
   '.gitignore',
@@ -465,30 +463,23 @@ class Setup {
     }
   }
   async recordSource(): Promise<{ path: string; text: string } | undefined> {
-    const path = await this.recordPath();
-    await this.checkDestination(path);
+    await this.checkDestination(wiring);
     let source: Buffer;
     try {
-      source = await readFile(join(this.cwd, path));
+      source = await readFile(join(this.cwd, wiring));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
-      fail(`cannot read ${path}: ${error instanceof Error ? error.message : String(error)}`, exits.blocked);
+      fail(`cannot read ${wiring}: ${error instanceof Error ? error.message : String(error)}`, exits.blocked);
     }
     try {
-      return { path, text: new TextDecoder('utf-8', { fatal: true }).decode(source) };
+      return { path: wiring, text: new TextDecoder('utf-8', { fatal: true }).decode(source) };
     } catch {
-      fail(`${path}: need valid UTF-8`, exits.usage);
+      fail(`${wiring}: need valid UTF-8`, exits.usage);
     }
   }
   async readRecord(): Promise<WiringRecord> {
     const source = await this.recordSource();
     return source ? parseSetupRecord(source.text, source.path) : { schema: 1, files: [], entries: {} };
-  }
-  private async recordPath(): Promise<string> {
-    if (!(await this.there(oldWiring))) return wiring;
-    if (await this.there(wiring))
-      fail(`${oldWiring} and ${wiring} both exist; remove the one that is not current by hand, then run setup again`);
-    return oldWiring;
   }
   private async checkDestination(path: string): Promise<void> {
     const problem = await destinationProblem(this.cwd, path);
@@ -747,62 +738,14 @@ class Setup {
         if (matches.length > 1)
           fail(`${path}: repeated recorded line ${entry}; remove the ambiguous copy by hand first`);
         const index = matches[0];
-        if (index === undefined || entry === '## Celetis flow') continue;
+        if (index === undefined) continue;
         physical[index] = '';
-      }
-      if (retiring.includes('## Celetis flow')) {
-        const index = physical.findIndex((line) => normal(line.replace(/\n$/, '')) === '## Celetis flow');
-        if (index >= 0) {
-          let end = index + 1;
-          while (end < physical.length && !/^#{1,2} /.test(physical[end] ?? '')) end++;
-          if (!physical.slice(index + 1, end).some((line) => normal(line.replace(/\n$/, '')) !== ''))
-            physical[index] = '';
-        }
       }
       source = physical.join('');
       this.put(path, source);
     }
   }
-  async reportCallers(): Promise<void> {
-    if (this.files.get('scripts/celetis')?.kind !== 'delete' && (await this.there('scripts/celetis'))) return;
-    const tracked = await run('git', ['ls-files', '-z'], { cwd: this.cwd });
-    if (tracked.code !== 0) fail('cannot inspect tracked callers of scripts/celetis', exits.blocked);
-    for (const path of tracked.stdout.split('\0')) {
-      if (!path || path === wiring || path === oldWiring || path === 'scripts/celetis') continue;
-      const planned = this.files.get(path);
-      if (planned?.kind === 'delete') continue;
-      const info = await lstat(join(this.cwd, path)).catch(() => null);
-      if (!info?.isFile()) continue;
-      await this.checkDestination(path);
-      const bytes = planned?.kind === 'write' ? Buffer.from(planned.contents) : await readFile(join(this.cwd, path));
-      if (!bytes.includes(0) && bytes.includes(Buffer.from('scripts/celetis')))
-        this.warn(
-          `${path}: surviving tracked caller of scripts/celetis; the owner must review it by hand before the wiring can be current; setup preserves it`,
-        );
-    }
-    this.warn(
-      'scripts/celetis caller search covers literal tracked text only; constructed, external and untracked references are not covered',
-    );
-  }
-  async reportOldWiring(agentsPath: string): Promise<void> {
-    if ((await this.there('scripts/celetis')) && this.files.get('scripts/celetis')?.kind !== 'delete')
-      this.review('scripts/celetis', 'obsolete product launcher or recorded launcher ownership');
-    const flow = [
-      '## Celetis flow',
-      '- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `celetis --agent <host> land`.',
-      '- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `land` through the bound plugin entrypoint and personal host binding.',
-      '- A lane never skips a step.',
-      '- The maintainer starts the runner; an agent starts it only when its task says so, with a number, and in a terminal.',
-    ];
-    for (const line of new Set([...lines(await this.get(agentsPath))]))
-      if (
-        typeof line === 'string' &&
-        (flow.includes(normal(line)) ||
-          /^- The lanes are the skills of the plugin `celetis`, on the issues of `[^`]+`\.$/.test(normal(line)))
-      )
-        this.review(agentsPath, line);
-    const attribute = 'scripts/celetis text eol=lf';
-    if (hasLine(await this.get('.gitattributes'), attribute)) this.review('.gitattributes', attribute);
+  async reportOldWiring(): Promise<void> {
     let doc: unknown = {};
     if (await this.there(settings)) {
       const source = await this.get(settings);
@@ -917,9 +860,7 @@ class Setup {
     for (const path of this.previous.files)
       if (path !== wiring && !this.owned.files.includes(path) && (await this.there(path)))
         this.files.set(path, { kind: 'delete' });
-    if (await this.there(oldWiring)) this.files.set(oldWiring, { kind: 'delete' });
-    await this.reportOldWiring(agentsPath);
-    await this.reportCallers();
+    await this.reportOldWiring();
     this.owned.files.push(wiring);
     const entries = Object.fromEntries(
       Object.entries(this.owned.entries).map(([file, items]) => [
@@ -937,12 +878,7 @@ class Setup {
     const style = jsonStyle(recordSource, await this.get(settings));
     const contents = `${layoutJSON(value, style)}${style.newline}`;
     parseSetupRecord(contents, wiring);
-    if (
-      (await this.there(oldWiring)) ||
-      !(await this.there(wiring)) ||
-      !isDeepStrictEqual(JSON.parse(recordSource), value)
-    )
-      this.put(wiring, contents);
+    if (!(await this.there(wiring)) || !isDeepStrictEqual(JSON.parse(recordSource), value)) this.put(wiring, contents);
     for (const path of this.files.keys()) this.affected.add(path);
   }
   async writeTree(): Promise<void> {
@@ -953,10 +889,6 @@ class Setup {
         await this.checkDestination(path);
         if (file.kind === 'delete') {
           if (await this.there(path)) await unlink(absolute);
-          if (path === oldWiring)
-            await rmdir(dirname(absolute)).catch((error: NodeJS.ErrnoException) => {
-              if (error.code !== 'ENOTEMPTY' && error.code !== 'ENOENT') throw error;
-            });
           continue;
         }
         const contents = typeof file.contents === 'string' ? Buffer.from(file.contents) : file.contents;
@@ -1001,12 +933,8 @@ class Setup {
     await this.checkStaged();
     const current = await this.readRecord();
     let previous: Pick<WiringRecord, 'files' | 'entries'> = { files: [], entries: {} };
-    for (const path of [wiring, oldWiring]) {
-      const head = await run('git', ['show', `HEAD:${path}`], { cwd: this.cwd });
-      if (head.code !== 0) continue;
-      previous = parseSetupRecord(head.stdout, `HEAD:${path}`);
-      break;
-    }
+    const head = await run('git', ['show', `HEAD:${wiring}`], { cwd: this.cwd });
+    if (head.code === 0) previous = parseSetupRecord(head.stdout, `HEAD:${wiring}`);
     for (const path of [
       ...current.files,
       ...previous.files,

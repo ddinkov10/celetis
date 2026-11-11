@@ -2,7 +2,7 @@ import { constants } from 'node:fs';
 import { lstat, open, realpath } from 'node:fs/promises';
 import { codexRequest } from './codex-app-server.ts';
 import { commonDir, mainCheckout } from './git.ts';
-import { privateMode, repositoryState, withLock, writeAtomic } from './state.ts';
+import { privateMode, repositoryLayout, withLock, writeAtomic } from './state.ts';
 import {
   type ObservedUsage,
   type UsageAttempt,
@@ -90,7 +90,7 @@ async function readSequence(file: string, attempt: UsageAttempt): Promise<Sequen
 
 async function sequenced(attempt: UsageAttempt & { sessionId: string }): Promise<ObservedUsage> {
   if ((await mainCheckout(attempt.main)) !== attempt.main) throw invalid();
-  const layout = await repositoryState(await realpath(await commonDir(attempt.main)));
+  const layout = repositoryLayout(await realpath(await commonDir(attempt.main)));
   return withLock(layout.sequenceLock(attempt.id), async () => {
     const file = layout.sequenceState(attempt.id);
     const previous = await readSequence(file, attempt);

@@ -1,4 +1,4 @@
-import { lstat, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { realpath, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { type Config, validateWorktreeSetup } from './config-core.ts';
 import { exits } from './contract.ts';
@@ -11,20 +11,7 @@ export async function markerOf(checkout: string): Promise<string> {
   const result = await run('git', ['rev-parse', '--path-format=absolute', '--git-dir'], { cwd: checkout });
   if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
   const dir = result.stdout.trimEnd();
-  const { current: marker, old } = setupMarker(dir);
-  const present = (path: string) =>
-    lstat(path).then(
-      () => true,
-      () => false,
-    );
-  if (await present(old)) {
-    if (await present(marker)) await rm(old, { force: true });
-    else
-      await rename(old, marker).catch((error: NodeJS.ErrnoException) => {
-        if (error.code !== 'ENOENT') throw error;
-      });
-  }
-  return marker;
+  return setupMarker(dir);
 }
 
 export async function setupFile(checkout: string, reference: string): Promise<string> {

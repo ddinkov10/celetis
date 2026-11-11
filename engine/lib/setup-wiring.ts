@@ -8,7 +8,6 @@ import { laneIgnore } from './state.ts';
 import { parseAllDocuments } from './vendor/yaml.mjs';
 
 export const wiring = '.claude/celetis/wiring.json';
-export const oldWiring = '.claude/celetis-flow/wiring.json';
 export const settings = '.claude/settings.json';
 export const configFile = '.celetis.yaml';
 export const codexRules = '.codex/rules/celetis.rules';

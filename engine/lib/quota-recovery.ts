@@ -29,13 +29,12 @@ import {
   laneFolder,
   privateMode,
   type RepositoryLayout,
-  repositoryState,
+  repositoryLayout,
   StateError,
   unsafe,
   withLock,
   writeAtomic,
 } from './state.ts';
-import { commitMigration, type LocalRecord, readLocalRecord } from './state-migration.ts';
 import { exitGraceMs, requestExit } from './terminal.ts';
 import type { UsageAttempt } from './usage-types.ts';
 import { type Step, steps } from './workflow.ts';
@@ -88,14 +87,10 @@ const keys = (value: Record<string, unknown>, names: string) => Object.keys(valu
 const positive = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) > 0;
 const text = (value: unknown, limit = 4096): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= limit;
-const fail = (path: string, reason: string) => new RecoveryError(`recovery: ${path}: ${reason}`, exits.blocked);
 const refused = (path: string) =>
   new RecoveryError(`recovery: ${path}: invalid or obsolete recovery record; inspect it, then remove it`, exits.usage);
-const owners = { 1: 'runner', 2: 'daemon' } as const;
-const fields = {
-  1: 'attempt,attempted,authority,blocked,choice,common,id,issue,lane,lock,main,nextResetAt,prior,revision,runner,schema,state,waitId,wake',
-  2: 'attempt,attempted,authority,blocked,choice,common,daemon,id,issue,lane,lock,main,nextResetAt,prior,revision,schema,state,waitId,wake',
-} as const;
+const fields =
+  'attempt,attempted,authority,blocked,choice,common,daemon,id,issue,lane,lock,main,nextResetAt,prior,revision,schema,state,waitId,wake';
 
 function validChoice(value: unknown): value is AgentChoice {
   return (
@@ -131,11 +126,11 @@ function validAttempt(value: unknown): value is RecoveryAttempt {
   );
 }
 
-function validFields(value: unknown, issue: number, schema: 1 | 2): boolean {
+function validRecord(value: unknown, issue: number): value is QuotaRecovery {
   if (
     !object(value) ||
-    !keys(value, fields[schema]) ||
-    value.schema !== schema ||
+    !keys(value, fields) ||
+    value.schema !== 2 ||
     typeof value.id !== 'string' ||
     !uuid.test(value.id) ||
     !positive(value.revision) ||
@@ -151,7 +146,7 @@ function validFields(value: unknown, issue: number, schema: 1 | 2): boolean {
   )
     return false;
   const { authority, prior, attempted, blocked, waitId, wake } = value;
-  const owner = value[owners[schema]];
+  const owner = value.daemon;
   return (
     object(authority) &&
     keys(authority, 'plan,spec,step') &&
@@ -192,8 +187,6 @@ function validFields(value: unknown, issue: number, schema: 1 | 2): boolean {
   );
 }
 
-const validRecord = (value: unknown, issue: number): value is QuotaRecovery => validFields(value, issue, 2);
-
 async function recovering<T>(work: () => Promise<T>): Promise<T> {
   try {
     return await work();
@@ -202,7 +195,7 @@ async function recovering<T>(work: () => Promise<T>): Promise<T> {
   }
 }
 
-const layoutOf = async (main: string) => repositoryState(await realpath(await commonDir(main)));
+const layoutOf = async (main: string) => repositoryLayout(await realpath(await commonDir(main)));
 
 async function existingFolder(main: string): Promise<RepositoryLayout | null> {
   const layout = await layoutOf(main);
@@ -244,54 +237,13 @@ function parse(path: string, source: string, issue: number): QuotaRecovery {
   return value;
 }
 
-function historical(path: string, source: string, issue: number): boolean {
-  let value: unknown;
-  try {
-    value = JSON.parse(source);
-  } catch {
-    return false;
-  }
-  if (!object(value) || value.schema !== 1) return false;
-  if (!validFields(value, issue, 1)) throw refused(path);
-  return true;
-}
-
 function locked<T>(layout: RepositoryLayout, issue: number, work: () => Promise<T>): Promise<T> {
   return withLock(layout.recoveryLock(issue), work);
 }
 
-async function convert(layout: RepositoryLayout, issue: number): Promise<void> {
-  const path = layout.recoveryRecord(issue);
-  const failed = (error: unknown) =>
-    fail(path, `schema 1 to 2: ${error instanceof Error ? error.message : String(error)}`);
-  let source: LocalRecord | null;
-  try {
-    source = await readLocalRecord(path, [layout.recovery.path], 'private');
-  } catch (error) {
-    throw failed(error);
-  }
-  if (!source || !object(source.value) || source.value.schema !== 1) return;
-  if (!validFields(source.value, issue, 1)) throw refused(path);
-  const target = Object.fromEntries(
-    Object.entries(source.value).map(([key, value]) =>
-      key === 'schema' ? [key, 2] : key === owners[1] ? [owners[2], value] : [key, value],
-    ),
-  );
-  if (!validRecord(target, issue)) throw refused(path);
-  try {
-    await commitMigration(source, 1, `${JSON.stringify(target)}\n`);
-  } catch (error) {
-    throw failed(error);
-  }
-}
-
 async function readLocked(layout: RepositoryLayout, issue: number): Promise<QuotaRecovery | null> {
   const path = layout.recoveryRecord(issue);
-  let source = await readPrivate(path);
-  if (source !== null && historical(path, source, issue)) {
-    await convert(layout, issue);
-    source = await readPrivate(path);
-  }
+  const source = await readPrivate(path);
   return source === null ? null : parse(path, source, issue);
 }
 
@@ -300,7 +252,7 @@ async function readOne(layout: RepositoryLayout, issue: number): Promise<QuotaRe
   try {
     const source = await readPrivate(path);
     if (source === null) return null;
-    if (!historical(path, source, issue)) return parse(path, source, issue);
+    return parse(path, source, issue);
   } catch (error) {
     if (!(error instanceof ChangedRecord)) throw error;
   }

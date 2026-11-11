@@ -5,7 +5,7 @@ import { commonDir } from './git.ts';
 import { isHost } from './host-names.ts';
 import type { Next } from './lines.ts';
 import { daemonScript, processRunsScript, processState } from './process-identity.ts';
-import { checkFolder, ensureFolder, repositoryState, writeAtomic } from './state.ts';
+import { checkFolder, ensureFolder, repositoryLayout, writeAtomic } from './state.ts';
 import { isSafeId } from './terminal.ts';
 
 export type StepEndState = 'checking' | 'waiting' | 'exiting';
@@ -54,7 +54,7 @@ const valid = (value: unknown): value is StepEndRecord => {
 
 async function layoutOf(main: string, issue: number) {
   if (!Number.isSafeInteger(issue) || issue <= 0) throw new Error('step-end: invalid issue number');
-  return repositoryState(await commonDir(main));
+  return repositoryLayout(await commonDir(main));
 }
 
 export async function writeStepEnd(main: string, issue: number, record: StepEndRecord): Promise<void> {

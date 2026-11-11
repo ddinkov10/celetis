@@ -25,7 +25,7 @@ import type { LockOwner } from './lib/locks.ts';
 import { commandInput, locateCheckouts } from './lib/operation.ts';
 import { bunArgs, childEnv } from './lib/process.ts';
 import { daemonScript, processAlive, processStart, processState } from './lib/process-identity.ts';
-import { ensureFolder, repositoryState, startFiles, writeAtomic } from './lib/state.ts';
+import { ensureFolder, repositoryLayout, startFiles, writeAtomic } from './lib/state.ts';
 import { requireTerminals, TerminalError } from './lib/terminal.ts';
 
 const noDaemon = 'daemon: no daemon runs for this repository';
@@ -235,7 +235,7 @@ async function prepareState(argv: string[]): Promise<ExitCode> {
       const holder = await owner.take(name);
       if (holder !== null)
         throw new HostError(
-          `session: ${(await repositoryState(checkout.common)).session(Number(argv[2]))}: target schema 2: busy ${name} ownership (PID ${holder}); retry after the owner exits`,
+          `session: ${repositoryLayout(checkout.common).session(Number(argv[2]))}: target schema 2: busy ${name} ownership (PID ${holder}); retry after the owner exits`,
           exits.prerequisite,
         );
       await (await import('./lib/session.ts')).prepareSession(checkout.main, Number(argv[2]), checkout.common, owner);

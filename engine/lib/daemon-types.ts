@@ -9,7 +9,7 @@ import type { ProcessState } from './process-identity.ts';
 import { parseQueueAction, parseQueueView } from './queue.ts';
 import type { QueueAction, QueueView } from './queue-types.ts';
 import type { RunInput, RunState } from './run-engine.ts';
-import { daemonSocketPath, type RepositoryLayout, repositoryState } from './state.ts';
+import { daemonSocketPath, type RepositoryLayout, repositoryLayout } from './state.ts';
 import type { DialogKind } from './terminal-types.ts';
 import { type Step, steps } from './workflow.ts';
 
@@ -162,7 +162,7 @@ export async function daemonPaths(common: string): Promise<{
   socket: string;
 }> {
   const socket = daemonSocket(common);
-  const layout = await repositoryState(common);
+  const layout = repositoryLayout(common);
   return { layout, identity: layout.daemonIdentity, log: layout.daemonLog, socket };
 }
 

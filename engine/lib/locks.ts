@@ -3,7 +3,7 @@ import { type ExitCode, exits } from './contract.ts';
 import { HostError } from './errors.ts';
 import { childEnv, run } from './process.ts';
 import { daemonScript, type ProcessState, processScript, processStart, processState } from './process-identity.ts';
-import { repositoryState } from './state.ts';
+import { repositoryLayout } from './state.ts';
 
 export type Identity = Readonly<{ pid: number; start: string }>;
 export type LockClaim =
@@ -36,7 +36,7 @@ function object(value: unknown): value is Record<string, unknown> {
 }
 
 const ref = (name: string) => `refs/celetis/locks/${name}`;
-const recordPath = async (common: string) => (await repositoryState(common)).noProgress;
+const recordPath = async (common: string) => repositoryLayout(common).noProgress;
 const git = (main: string, args: string[], input?: string) => run('git', args, { cwd: main, env: childEnv(), input });
 const refValue = async (main: string, name: string) =>
   (await git(main, ['rev-parse', '--verify', ref(name)])).stdout.trimEnd();
