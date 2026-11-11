@@ -8,7 +8,7 @@ argument-hint: "#<issue number>"
 
 # /celetis:assist — complete the current block
 
-Input: `#<n>`. This is an interactive helper. Continuation stays with the normal run.
+Input: `#<n>`. This is an interactive helper.
 
 ## 1. Bind the checkout
 
@@ -22,8 +22,5 @@ explain what is missing and wait; this helper does not create or enter a lane au
 
 ## 2. Resolve and complete the block
 
-Read and follow `<plugin>/references/procedures/assisted-completion.md` for the current block: resolve
-its requests, complete permitted machine work, ask for missing human contributions, and record
-verified completion. Keep the entry's permission checks and approval procedure. When access
-fails, report the exact block and setup action after the approved retry; continue independent
-work. End with the confirmed remaining block or next resolver step.
+Read and follow `<plugin>/references/procedures/assisted-completion.md`, "Resolve and work" and
+"Complete and confirm", for the current block.

@@ -9,8 +9,5 @@ description: "Substantive correction of an agent's prior action, or two failed r
 
 Use the invocation input and current task evidence. Read
 `<plugin>/references/procedures/lesson-capture.md` and complete its one bounded pass, including the
-recurrence diagnosis when applicable. Automatic capture and an explicit save request both write
-pending data only. Return its short saved, deferred, or blocked result and continue the authorized
-task. The proposal has the form of `<plugin>/references/procedures/lesson-format.md`, "The capture
-input". An agent reviewer curates the queue at each landing; `lesson-review` is the optional human
-review.
+recurrence diagnosis when applicable. The proposal has the form of
+`<plugin>/references/procedures/lesson-format.md`, "The capture input".

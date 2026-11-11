@@ -26,36 +26,37 @@ not current proof.
 
 - **Closed:** report the observed state and end, with no new acceptance PASS.
 - **Unresolved declaration:** read `<plugin>/references/procedures/epic.md` and obtain a sourced scope
-  decision. A question opt-out supplies no independent classification. Preserve the parent body
-  and publish the agreed definition through `issue <n> epic <file>`, then read its current state.
+  decision. Preserve the parent body and publish the agreed definition through
+  `issue <n> epic <file>`, then read its current state.
 - **Independent:** run `celetis --agent <host> issue <n> complete-epic` without runtime work. Report
   its actual result. Use step 3 for a remaining block.
-- **Combined:** continue with step 2. Pending children alone require no human hold. Run available
-  scenarios at their declared timing, including before child closure when permitted.
+- **Combined:** continue with step 2. Run available scenarios at their declared timing, including
+  before child closure when permitted.
 
 ## 2. Prove the combined outcome
 
-Read `<plugin>/references/procedures/acceptance-coverage.md`, "Mapping", "Review", and "Reporting".
-Use the approved parent criteria and current declaration as the source. Keep their coverage in
-the ordinary runtime report; the parent needs no implementation plan. Retain every criterion
-part, including obligations of a child closed as `not_planned`. Ask for a recorded maintainer
-decision before changing acceptance meaning or declaring a criterion inapplicable.
-
-Read `<plugin>/references/procedures/verification-recipes.md` and the project's relevant existing
-recipes. Read `<plugin>/references/procedures/runtime-verification.md` and apply target confirmation,
-evidence lifetime, and reporting. Identify a safe current target. A dirty checkout needs its
-retained source snapshot; do not switch its branch or install a plugin to obtain proof. Unknown
-loaded source stays UNVERIFIED with the exact missing link.
-
-Run each available scenario and its independent oracle. Keep PASS, FAIL, BLOCKED, unrun, and
-UNVERIFIED results separate. Continue checks independent of a failure or access block. Preserve
-valid unrelated evidence; renew affected proof after a source change, restart, reload, or target
-switch. Clearing a hold supplies no runtime evidence. The usage-limit exception can permit a
-child landing only; a required BLOCKED parent check still prevents parent completion.
-
-Publish the ordinary runtime report on the parent before completion. Keep criterion sources,
-separate results, source and target identities, both loading links, oracle observations, durable
-evidence references, cleanup, and remaining gaps together. Retain sourced inapplicability.
+- **The criteria.** Read `<plugin>/references/procedures/acceptance-coverage.md`, "Mapping",
+  "Review", and "Reporting". Use the approved parent criteria and current declaration as the
+  source. Keep their coverage in the ordinary runtime report; the parent needs no implementation
+  plan. Retain every criterion part, including obligations of a child closed as `not_planned`.
+  Ask for a recorded maintainer decision before changing acceptance meaning or declaring a
+  criterion inapplicable.
+- **The target.** Read `<plugin>/references/procedures/verification-recipes.md` and the project's
+  relevant existing recipes. Read `<plugin>/references/procedures/runtime-verification.md`,
+  "Confirming a target", "Evidence lifetime", and "Reports and deferred checks". Identify a safe
+  current target. A dirty checkout needs its retained source snapshot; do not switch its branch
+  or install a plugin to obtain proof. Unknown loaded source stays UNVERIFIED with the exact
+  missing link.
+- **The runs.** Run each available scenario and its independent oracle. Keep PASS, FAIL,
+  BLOCKED, unrun, and UNVERIFIED results separate. Continue checks independent of a failure.
+  Preserve valid unrelated evidence; renew affected proof after a source change, restart,
+  reload, or target switch. Clearing a hold supplies no runtime evidence. The usage-limit
+  exception can permit a child landing only; a required BLOCKED parent check still prevents
+  parent completion.
+- **The report.** Publish the ordinary runtime report on the parent before completion. Keep
+  criterion sources, separate results, source and target identities, both loading links, oracle
+  observations, durable evidence references, cleanup, and remaining gaps together. Retain sourced
+  inapplicability.
 
 ## 3. Resolve remaining work
 

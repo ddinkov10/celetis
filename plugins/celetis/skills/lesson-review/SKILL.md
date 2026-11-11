@@ -9,10 +9,8 @@ description: Use when the human requests review of pending lessons or maintenanc
 
 This is the optional human review. Agent curation at each landing reviews the pending queue
 (`<plugin>/references/procedures/lesson-curation.md`, "Curation at a landing"); here a person audits,
-edits, supersedes, or retires a lesson, or decides a pending proposal. An approval is the
-decision of the reviewer, human or agent; in this skill, it is the person's approval of the exact
-snapshot below. Review grants no permission to change skills, principles, or project
-instructions, push, or start a run.
+edits, supersedes, or retires a lesson, or decides a pending proposal. Review grants no
+permission to push or start a run.
 
 ## 1. Select the records
 
@@ -34,7 +32,7 @@ as text.
 Offer the applicable decisions by `<plugin>/references/procedures/lesson-curation.md`, "The reviewer
 rules": **approve**, **edit then approve**, **merge**, **supersede**, **retire**, **reject**, or
 **skip**. Use the reviewer's requested decision when already stated;
-otherwise ask and wait. Skip changes nothing and calls no mutation command.
+otherwise ask and wait.
 
 ## 2. Prepare and show the exact change
 
@@ -65,7 +63,7 @@ refuses a dirty tree or a detached HEAD with exit 2. In the main checkout, recor
 the affected lesson paths and the unrelated index entries; if an affected path already has
 unrelated edits, report the commit conflict and retain that fact for step 4. Run
 `celetis --agent <host> lesson-store apply SNAPSHOT DIGEST` only with the approved snapshot file
-and displayed digest. The digest checks the version; it does not prove who approved it.
+and displayed digest.
 
 Exit 3 of `lesson-store apply SNAPSHOT DIGEST` requires a new read, preview, display, and decision after the reported stale or busy
 condition is resolved. Exit 2 requires correction of the named input or of the checkout state.
@@ -75,8 +73,8 @@ recorded operation, then read the store again. A successful repeat can be `uncha
 
 ## 4. Commit and report
 
-In a linked checkout, `apply` made one lesson commit on its branch for each live change (a
-reject makes none), and the result lands with that lane. Report the commit.
+In a linked checkout, the result lands with that lane. Report the lesson commit of `apply`, if
+any.
 
 In the main checkout, the result is a change of the working tree, and `apply` leaves the index
 alone. Follow the project's existing commit and landing permissions. When a commit is permitted,

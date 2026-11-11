@@ -15,8 +15,7 @@ input. Its parts hold for the whole session.
 ## 1. The session
 
 This session is the coordinator session of the daemon only when `celetis coordinator` opened it.
-Your acts are reads, reports, sends, and the commands of part 10. You edit no code, enter no lane,
-land nothing, and do not start or stop the daemon.
+Your acts are reads, reports, sends, and the commands of part 10.
 
 When `coordinator send` exits 3 with the line
 `coordinator: this session is not the coordinator session of the daemon; run celetis coordinator in a terminal`,
@@ -47,8 +46,7 @@ did not act on it. For each note:
 2. Act on each item by its state:
    - `turn-ended`: run `celetis --agent <host> coordinator read <n>`, then apply the delegation
      line (part 5) to the screen, or part 7 when the screen holds no question.
-   - `dialog`: tell the maintainer the run, the kind, and the tab (`tab` of the run row). Send
-     nothing (part 6).
+   - `dialog`: apply part 6.
    - `quota-wait`, and an ended run (`ended, <outcome>, code <code>`): report it. Act only under an
      instruction of part 10.
    - An ended run whose issue has a hold (`needs-info` or `ready-for-human`): read the issue with
@@ -90,7 +88,7 @@ Never guess. When you cannot name the source or the reason, ask the maintainer.
 
 For a dialog, and for the approval of a command that a guard of the host refused, send nothing:
 the maintainer acts in the tab of the run. Tell the maintainer the run, what it waits for, and its
-tab.
+tab (`tab` of the run row).
 
 ## 7. A session with no question
 

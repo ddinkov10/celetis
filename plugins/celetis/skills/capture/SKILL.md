@@ -32,13 +32,15 @@ change. Input: `#<n>`, or the request in free text.
 
 ## Do this
 
-1. **Check the issue.** For `#<n>`, run `celetis --agent <host> issue <n> state` first. A nonzero
-   exit ends the capture: post nothing, and show its output. Else its `line:` line selects the
-   row of the states table below. A refused row ends the capture: post nothing, and show the line
-   with the reason of its row. `refusal: current` also ends the capture: post nothing, and show
-   the line and the current landing refusal, because a new `## ` comment after
-   `## Landing refused` would end that refusal. Free text has no issue yet; it gets one at step 4,
-   on the `run /celetis:triage` row.
+1. **Check the issue.** For `#<n>`, run `celetis --agent <host> issue <n> state` first. Three
+   results end the capture: post nothing, and show
+   - for a nonzero exit, its output;
+   - else, for a refused row of the states table below, which its `line:` line selects, the line
+     with the reason of its row;
+   - for `refusal: current`, the line and the current landing refusal, because a new `## `
+     comment after `## Landing refused` would end that refusal.
+
+   Free text has no issue yet; it gets one at step 4, on the `run /celetis:triage` row.
 2. **Find the decided work.** Read this conversation and sort what it holds into the three parts
    of the record, per `<plugin>/references/procedures/capture.md`, "The record". For `#<n>`, read the
    issue with `gh issue view <n> --json body,comments`, and carry into the new record each line
@@ -71,8 +73,7 @@ change. Input: `#<n>`, or the request in free text.
 
 ## The states table
 
-The `line:` line of `celetis --agent <host> issue <n> state` selects the row. A free-text issue
-starts in the first row.
+The `line:` line of `celetis --agent <host> issue <n> state` selects the row.
 
 | Line | Capture | Hand-on |
 |---|---|---|
