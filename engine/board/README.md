@@ -1064,7 +1064,9 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   as Idle does. The label of a group stays in view while the column scrolls. When cards are below
   the fold, a line at the foot of the column names them, for example
   `3 more below: 1 input on the issue, 2 ready to run`; a press scrolls to the first of them.
-  Idle keeps its current vertical position during a data refresh; the browser clamps it when the content shrinks.
+  Each column of Now and each stage of Pipeline keeps its current vertical position during a data
+  refresh; the browser clamps it when the content shrinks, and a switch of the view starts each
+  column at the top.
   A group row in Idle holds a chevron, the epic number, the epic title, and the count of its cards.
   A press shows or hides the children, and a group starts closed.
 - Queue preserves the saved Now/Pipeline choice. Current work appears above Up next. The picker
