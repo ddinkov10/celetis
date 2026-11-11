@@ -11,6 +11,7 @@ import { type ExitCode, exits, type Label, labels, usage } from './lib/contract.
 import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect, passOn } from './lib/events.ts';
 import { hostAdapter } from './lib/hosts.ts';
+import { editJSON, jsonStyle, layoutJSON } from './lib/json-layout.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
 import { checkClaudePolicy } from './lib/plugin-policy.ts';
 import { childEnv, run } from './lib/process.ts';
@@ -463,23 +464,25 @@ class Setup {
       fail(`cannot read ${path}: ${error instanceof Error ? error.message : String(error)}`, exits.blocked);
     }
   }
-  async readRecord(): Promise<WiringRecord> {
+  async recordSource(): Promise<{ path: string; text: string } | undefined> {
     const path = await this.recordPath();
     await this.checkDestination(path);
     let source: Buffer;
     try {
       source = await readFile(join(this.cwd, path));
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { schema: 1, files: [], entries: {} };
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
       fail(`cannot read ${path}: ${error instanceof Error ? error.message : String(error)}`, exits.blocked);
     }
-    let text: string;
     try {
-      text = new TextDecoder('utf-8', { fatal: true }).decode(source);
+      return { path, text: new TextDecoder('utf-8', { fatal: true }).decode(source) };
     } catch {
       fail(`${path}: need valid UTF-8`, exits.usage);
     }
-    return parseSetupRecord(text, path);
+  }
+  async readRecord(): Promise<WiringRecord> {
+    const source = await this.recordSource();
+    return source ? parseSetupRecord(source.text, source.path) : { schema: 1, files: [], entries: {} };
   }
   private async recordPath(): Promise<string> {
     if (!(await this.there(oldWiring))) return wiring;
@@ -523,7 +526,7 @@ class Setup {
     }
     this.put(path, text);
   }
-  async planSettings(selected: boolean): Promise<void> {
+  async planSettings(selected: boolean, recordSource: string): Promise<void> {
     const source = await this.get(settings);
     let doc: unknown = {};
     if (await this.there(settings)) {
@@ -619,11 +622,31 @@ class Setup {
     } catch (error) {
       this.warn((error as Error).message);
     }
-    if (changed) {
-      const lead = source.match(/^[ \t]+(?=[^ \t\r\n])/m)?.[0] ?? '';
-      const indent = lead.startsWith('\t') ? '\t' : lead.length >= 1 && lead.length <= 7 ? lead.length : 2;
-      this.put(settings, `${JSON.stringify(doc, null, indent)}\n`);
+    if (!changed) return;
+    if (!(await this.there(settings))) {
+      this.put(settings, `${layoutJSON(doc, jsonStyle('', recordSource))}\n`);
+      return;
     }
+    const bytes = await readFile(join(this.cwd, settings)).catch((error: unknown) =>
+      fail(`cannot read ${settings}: ${error instanceof Error ? error.message : String(error)}`, exits.blocked),
+    );
+    let text: string;
+    try {
+      text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+    } catch {
+      fail(`${settings}: need valid UTF-8; repair the file by hand first`);
+    }
+    const replaced = settingsForm()
+      .filter((form) => form.item === undefined)
+      .map((form) => form.path);
+    const edited = editJSON(text, doc, jsonStyle(text, recordSource), replaced);
+    let value: unknown;
+    try {
+      value = JSON.parse(edited);
+    } catch {}
+    if (!isDeepStrictEqual(value, doc))
+      fail(`cannot preserve unrelated values of ${settings}; repair the file by hand first`);
+    this.put(settings, edited);
   }
   configError(checkout: string, error: unknown): void {
     if (!(error instanceof ConfigError)) throw error;
@@ -808,6 +831,7 @@ class Setup {
       }
     }
     this.previous = await this.readRecord();
+    const recordSource = (await this.recordSource())?.text ?? '';
     for (const path of [...this.previous.files, ...Object.keys(this.previous.entries)]) this.affected.add(path);
     const dirty = await this.changedPaths();
     if (dirty.length) fail(`commit or drop the uncommitted changes of these files first: ${dirty.join(' ')}`);
@@ -838,7 +862,7 @@ class Setup {
     this.put(agentsPath, agents);
     this.own(agentsPath, { start: '<!-- CELETIS:START -->', end: '<!-- CELETIS:END -->' });
     if (opts.hosts.includes('claude') || (await this.there(settings)))
-      await this.planSettings(opts.hosts.includes('claude'));
+      await this.planSettings(opts.hosts.includes('claude'), recordSource);
     await this.planConfig(opts, scratch);
     if (opts.hosts.includes('codex')) {
       const path = codexRules;
@@ -909,9 +933,16 @@ class Setup {
       files: [...new Set(this.owned.files)].sort(),
       entries,
     };
-    const contents = `${JSON.stringify(sortedKeys(record), null, 2)}\n`;
+    const value = sortedKeys(record);
+    const style = jsonStyle(recordSource, await this.get(settings));
+    const contents = `${layoutJSON(value, style)}${style.newline}`;
     parseSetupRecord(contents, wiring);
-    this.put(wiring, contents);
+    if (
+      (await this.there(oldWiring)) ||
+      !(await this.there(wiring)) ||
+      !isDeepStrictEqual(JSON.parse(recordSource), value)
+    )
+      this.put(wiring, contents);
     for (const path of this.files.keys()) this.affected.add(path);
   }
   async writeTree(): Promise<void> {

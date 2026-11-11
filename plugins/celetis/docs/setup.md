@@ -7,8 +7,10 @@ machine. Setup writes the required integration and the product additions that yo
 required set is the selected host settings, instruction imports, the dedicated Codex restriction,
 required configuration, ignore and attribute lines, and its record. It also makes missing tracker
 labels. It owns the parts that its record lists, preserves each other byte of a shared file, and
-reports each part that the owner must repair or review. Product procedures and stores stay with
-their owner.
+reports each part that the owner must repair or review. The exception is the white space between
+the members or the items of a container that setup changes in `.claude/settings.json`
+([Claude permissions](#claude-permissions-claudesettingsjson)). Product procedures and stores
+stay with their owner.
 
 ## `setup status`
 
@@ -98,7 +100,11 @@ each missing tool and each hook that skips its checks in the test lane (ADR-0018
   entries and the resolved tracker and hosts. It is no config: only `setup` reads it. Setup
   validates its complete shape and finite wiring scope before using any claim. It drops retired
   claims rather than keeping their union. An unchanged committed repeat changes no bytes or
-  modification times.
+  modification times. Setup compares the value of the record, not its bytes, so this also holds
+  for a record that the formatter of the product laid out. A record whose value changes is written
+  whole in the common JSON layout
+  ([Claude permissions](#claude-permissions-claudesettingsjson)), so a product layout of the
+  record is lost at that change.
 - The write adds only the parts that you approved: the file reference as `worktreeSetup`, the ignore
   lines, and the baseline section. These three parts are product parts: setup writes each one
   only when it is missing, and the record does not list it.
@@ -121,7 +127,7 @@ lane before retry. It copies no source and performs no automatic merge or fallba
 
 Setup adds or refreshes owned marketplace settings, Superpowers enablement, and direct-merge denies.
 It removes obsolete recorded host entries. It adds no shared
-allow and no project Celetis enablement:
+allow and no project Celetis enablement. A new file holds these bytes:
 
 ```json
 {
@@ -130,7 +136,10 @@ allow and no project Celetis enablement:
   },
   "extraKnownMarketplaces": {
     "celetis": {
-      "source": { "source": "github", "repo": "ddinkov10/celetis" },
+      "source": {
+        "source": "github",
+        "repo": "ddinkov10/celetis"
+      },
       "autoUpdate": false
     }
   },
@@ -149,8 +158,44 @@ person. An `issue` allow is optional, and it has a risk.
 The command checks only the planned project settings. The generated `autoUpdate: false` value
 does not prove that a native session loaded it or that a stronger policy disables automatic
 updates. Review each enabled or unknown policy warning and set the effective Celetis policy to
-false by hand. Setup preserves unrelated JSON values; its serializer can change formatting,
-including compact JSON, line endings, and the final newline. The setup report shows that diff.
+false by hand.
+
+Setup writes this file only when an owned value changes, and then it edits the text in place.
+Each byte outside the containers that it changes stays: the other members, the white space, the
+line breaks, and the end of the file, also a missing final line break. A container where setup
+adds or removes a member or an item is laid out again; each kept member and item keeps its own
+text, and only the white space between them changes. An owned value that changes is replaced
+whole. Each changed container, each replaced value, and each new text get the common JSON
+layout, which the setup record also uses:
+
+- A non-empty object has one member per line, one indent unit deeper than the line of its
+  opening brace, and its closing brace on a line of its own. An empty object is `{}`.
+- An array of scalars is on one line when the whole line fits in 80 columns, with the key before
+  it and a comma after it. Else it has one item per line. A tab of the indent counts as two
+  columns, and a wide character, for example a CJK character, counts as two. An empty array is
+  `[]`.
+- An array with an object or an array among its items has one item per line.
+
+The indent unit is that of the first indented line of the file (a tab, or one to seven spaces;
+a longer indent gives two spaces), else that of the other JSON file of setup, else two spaces.
+New text uses the line break of the file. A new file uses LF and ends with one LF. This is the
+layout that Biome 2.5.15 and Prettier 3.6.2 print with their default rules and space indent; a
+later version of a formatter can print another layout. Before any write, setup stops when the
+file is not valid UTF-8 or when the edited text does not read back to the planned value. Then
+repair the file by hand, and run setup again.
+
+The formatter of the product can refuse the text that setup lays out when its rules differ. The
+probes of [#292](https://github.com/ddinkov10/celetis/issues/292) observed these cases:
+
+- Another line width, for an array line between the two widths: Biome with `lineWidth` 120
+  refuses a deny array that setup splits because its line is 84 columns long.
+- A one-item-per-line rule: Biome with `json.formatter.expand` set to `always`, and Prettier with
+  `--parser json-stringify`, refuse a new file of setup.
+- A tab indent, when no JSON file of setup has an indented line: Biome with its default tab
+  indent refuses a new file of setup.
+
+In such a project, format the two files once with the formatter of the product. A later run that
+changes no JSON value writes no byte of either file.
 
 ## Codex permissions: `.codex/rules/celetis.rules`
 
