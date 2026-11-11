@@ -13,7 +13,7 @@ This repository holds both modules. The plugin is the folder `plugins/celetis/`:
 (`plugins/celetis/references/principles/`), step text (`plugins/celetis/step-prompt.md`), and documents
 (`plugins/celetis/docs/`). The engine is the folder `engine/`, with its entry `engine/celetis`. The
 repository also holds maintenance (`scripts/`), the host documents (`docs/hosts/`), and the
-records (`docs/adr/`, `docs/lessons/`). It is also a product project of its own plugin.
+records (`docs/adr/`, `.celetis/lessons/`). It is also a product project of its own plugin.
 `plugins/celetis/README.md` holds the install, the full loop, the skills, the commands, and the
 update rule. `plugins/celetis/docs/setup.md` holds what setup writes.
 `plugins/celetis/docs/workflow.md` holds the steps of a run as a session and a person meet them.

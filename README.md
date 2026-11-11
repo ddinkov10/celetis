@@ -16,7 +16,7 @@ This repository holds:
 
 - the plugin, in `plugins/celetis/`: the skills, the procedure modules, the principles, the step text, and the maintainer documents;
 - the engine: the folder `engine/`, with its entry `engine/celetis`, described in [`engine/README.md`](engine/README.md);
-- the records: `docs/adr/` and `docs/lessons/`;
+- the records: `docs/adr/` and `.celetis/lessons/`;
 - the host documents: `docs/hosts/`;
 - the maintenance scripts: `scripts/`, described in [`scripts/README.md`](scripts/README.md).
 
