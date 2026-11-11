@@ -7,7 +7,7 @@ description: Use when starting design on a project feature, before any plan or c
 
 # specify
 
-Superset of `superpowers:brainstorming` for feature design. It does NOT reimplement brainstorming — it delegates to it and adds project context.
+Superset of `superpowers:brainstorming` for feature design. It delegates to brainstorming and adds project context.
 
 ## The build rule
 
@@ -18,7 +18,7 @@ Where the upstream skill tells the session to build, or to do the request, the s
 ## Do this
 
 1. Enter the issue's worktree per `<plugin>/references/procedures/worktree.md` (the session is already there when `/celetis:feature` hands over).
-2. Read before the first message, with no offer to the user: the issue, the grounding documents below, and the code that the request touches. The issue, read per `<plugin>/references/procedures/capture.md`, "A step with a record": the body and any `## Intent` comment are the request, and the newest `## Captured` comment holds the person's answers. An epic's child also reads its parent's body, whose decisions bind the design (`gh api repos/{owner}/{repo}/issues/<n>/parent --jq .body`; 404 when standalone). What the issue holds is known, the record too: the first question goes to the first gap. The session also makes each later read or lookup with no offer.
+2. Read before the first message, with no offer to the user: the issue, the grounding documents, and the code that the request touches. The grounding documents are the project context per `<plugin>/references/procedures/project-context.md`, for the subsystems the feature likely touches, and `<plugin>/references/procedures/docs-lookup.md`: settle the external facts the design rests on, and carry them in the spec's `## External facts` section. The issue, read per `<plugin>/references/procedures/capture.md`, "A step with a record": the body and any `## Intent` comment are the request, and the newest `## Captured` comment holds the person's answers. An epic's child also reads its parent's body, whose decisions bind the design (`gh api repos/{owner}/{repo}/issues/<n>/parent --jq .body`; 404 when standalone). What the issue holds is known, the record too: the first question goes to the first gap. The session also makes each later read or lookup with no offer.
 3. Invoke `superpowers:brainstorming` as the entry contract says, and follow it under the build rule — it owns intent discovery, the conversation, and the builder check.
 4. Layer the project additions below.
 
@@ -33,9 +33,14 @@ Where the upstream skill tells the session to build, or to do the request, the s
    - **Cleanup, for either kind of spike.** Own each temporary probe file. After success, failure, or a bound stop, remove owned code and other temporary files before session end. On interruption, resume that cleanup; repeated cleanup preserves pre-existing files. Leave no probe file, dependency, or configuration change in the product checkout. If cleanup is blocked, name the exact remaining paths and required action without claiming completion.
 4. **A design that spans several independent features is an epic.** Run the scope check of `<plugin>/references/procedures/epic.md` on the issue in place of the upstream one-at-a-time brainstorm of several independent projects. Remove the lane worktree (Terminal) in the turn of the epic definition (`celetis --agent <host> issue <n> epic <file>`, run by `<plugin>/references/procedures/epic.md`), before the report of the children, and stop after the report.
 5. **Write a design spec, not an implementation plan.** The spec captures the `Who` / `Problem` / `Done when` / design shape / open risks, not step-by-step edits. `plan` turns that spec into code-level tasks.
-6. **Carry remaining uncertainty as risks.** Apply addition 3 to critical unknowns before recording remaining uncertainty and its design consequence in the spec's risk section and plan handoff. The chosen design cannot assume an unsettled premise is true. The existing `plan` procedure decides how to check or avoid it.
+6. **Flag unverified premises as risks.** Apply addition 3 to critical unknowns before recording remaining uncertainty and its design consequence in the spec's risk section and plan handoff. The chosen design cannot assume an unsettled premise is true. The existing `plan` procedure decides how to check or avoid it.
 7. **Build the options for each look decision.** Each change to what a person sees on screen, or to how the screen behaves, is a look decision (`<plugin>/references/procedures/ui.md`, "The look decision"), also when the issue already describes the look. Invoke `celetis:prototype` and follow "The procedure" of that file through its cleanup (step 10), in place of the upstream Visual Companion. The pick comes before the approaches: the look is what the user wants, and the approaches are how it gets built. The pick is the maintainer's lock or accept of step 3 on the `impeccable` path, or the maintainer's pick of step 8 on the hand-built path. The record of step 9 is the spec's `## Prototype` section (`<plugin>/docs/issue-tracker.md`, "What lives on the issue"). The Visual Companion stays available for diagrams and other visuals that are not the app's own UI.
-8. **Research the prior art before the approaches.** After the session understands what the user wants, and before any message that names an approach (the upstream "Lay out the approaches", or the short design of addition 10), research the prior art per `<plugin>/references/procedures/prior-art.md`. The research runs once for the whole design, with one problem sentence. A look decision that comes up later adds its findings, with the guidelines of the platform, to the same `## Prior art` section. Do it with no offer to the user, under the rule of step 2, in place of the web part of the upstream "Do recon". An opt-out of the questions does not skip it. What the user saw elsewhere still counts; the research adds to it. The spec carries the `## Prior art` section before its Approaches part, and the approaches follow "The recommendation" of that document. When the section has a `### Required behavior` list, the design part of the spec lists each of its behaviors as a requirement. A session that ends before the approaches (a spike answer, an epic, `wontfix`) does no research.
+8. **Research the prior art before the approaches.** After the session understands what the user wants, and before any message that names an approach (the upstream "Lay out the approaches", or the short design of addition 10), research the prior art per `<plugin>/references/procedures/prior-art.md`.
+   - The research runs once for the whole design, with one problem sentence. A look decision that comes up later adds its findings, with the guidelines of the platform, to the same `## Prior art` section.
+   - Do it with no offer to the user, under the rule of step 2, in place of the web part of the upstream "Do recon". An opt-out of the questions does not skip it.
+   - What the user saw elsewhere still counts; the research adds to it.
+   - The spec carries the `## Prior art` section before its Approaches part, and the approaches follow "The recommendation" of that document. When the section has a `### Required behavior` list, the design part of the spec lists each of its behaviors as a requirement.
+   - A session that ends before the approaches (a spike answer, an epic, `wontfix`) does no research.
 9. **Before choosing a design, read the applicable principles.** Read each principle below. Apply each one whose `Applies when` holds for the design, with its `Check`: `<plugin>/references/principles/boundary-discipline.md`, `<plugin>/references/principles/model-the-domain.md`, and `<plugin>/references/principles/explain-the-number.md`.
 10. **The short design of the first message waits for the written spec.** The upstream "Your First Message" can end with a short design and ask for its approval, when nothing is open and one way is sensible. In `specify`, that path has these rules:
     - Decide on it only after the research of addition 8, and only when the research leaves one pattern. When the research finds two or more patterns, something is open: lay out the approaches in a message of their own, and the user picks. A `### Decided` approach of the record (step 2) answers that pick: lay out no approaches for a pick, and the Approaches part names each found pattern, the decided one, and the reason. An `### Open` line of the record is open. A look decision is open too: its pick comes before any approach (addition 7).
@@ -44,19 +49,21 @@ Where the upstream skill tells the session to build, or to do the request, the s
     - Else the first message gives the short design and hands over the written spec, with the list of the calls of the session. The user's approval in reply to that message is the one approval of the build rule. After a correction in that reply, revise the spec, run a scoped re-check with the same reviewer, and hand it over again. Only the approval in reply to the latest hand-over permits the publish.
     - The upstream "write the short design doc as approved and go on to the plan" does not apply: the spec exists before the approval, and Terminal replaces the plan.
 
-The grounding documents of step 2:
+**Save the spec to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`** (gitignored scratch, so the upstream commit step has nothing to commit).
 
-- the project context per `<plugin>/references/procedures/project-context.md`, for the subsystems the feature likely touches.
-- `<plugin>/references/procedures/docs-lookup.md` — settle the external facts the design rests on, and carry them in the spec's `## External facts` section.
+- After the user approves the written spec, record the model and the effort level of `plan` per `<plugin>/references/procedures/effort.md`.
+- Then **publish the spec as the issue body** with `celetis --agent <host> issue <n> spec <spec>`: the command puts `Spec: YYYY-MM-DD` on its first line, so the spec file has no `Spec:` line.
 
-**Save the spec to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`** (gitignored scratch, so the upstream commit step has nothing to commit). After the user approves the written spec, record the model and the effort level of `plan` per `<plugin>/references/procedures/effort.md`. Then **publish the spec as the issue body** with `celetis --agent <host> issue <n> spec <spec>`: the command puts `Spec: YYYY-MM-DD` on its first line, so the spec file has no `Spec:` line. The publish records that approval: the resolver of the daemon, `celetis --agent <host> next-step`, sends an issue whose body opens with `Spec:` to `/celetis:plan`, and nothing checks the design again. The issue body is the durable spec; `plan` in a fresh context reads it from there.
+The publish records that approval: the resolver of the daemon, `celetis --agent <host> next-step`, sends an issue whose body opens with `Spec:` to `/celetis:plan`, and nothing checks the design again. The issue body is the durable spec; `plan` in a fresh context reads it from there.
 
 ## Terminal
 
-Do NOT auto-invoke `writing-plans`. Tell the user to run `/celetis:plan #<n>` in a fresh context (their flow: specify → clean context → plan).
+Tell the user to run `/celetis:plan #<n>` in a fresh context (their flow: specify → clean context → plan). Do NOT auto-invoke `writing-plans`.
 
-A design `specify` rejects: write the reason to a file, run `celetis --agent <host> issue <n> wontfix <file>` as the act that moves the line, remove the lane worktree, stop.
+**Three acts move the line** of the issue (`<plugin>/references/procedures/stop.md`, "The act that moves the line"). Do the later acts of each in its turn:
 
-**Remove the lane worktree** when the issue ends here, closed as `wontfix` or defined as an epic: `<plugin>/references/procedures/worktree.md`, "The removal".
+- The publish of the spec: then the Terminal message.
+- The epic definition (`celetis --agent <host> issue <n> epic <file>`): then the sub-issues, the removal of the lane worktree, and then the report of the children. Stop after the report.
+- The close as `wontfix`, for a design `specify` rejects: write the reason to a file, run `celetis --agent <host> issue <n> wontfix <file>` as the act that moves the line, then remove the lane worktree, and stop.
 
-**Three acts move the line** of the issue (`<plugin>/references/procedures/stop.md`, "The act that moves the line"): the publish of the spec, the epic definition (`celetis --agent <host> issue <n> epic <file>`), and the close as `wontfix`. Do the later acts of each in its turn: after the publish, the Terminal message; after the epic definition, the sub-issues, the removal of the lane worktree, and then the report; after the close, the removal of the lane worktree.
+**Remove the lane worktree** by `<plugin>/references/procedures/worktree.md`, "The removal".
