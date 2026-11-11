@@ -1,6 +1,6 @@
 import { codexRequest } from './codex-app-server.ts';
 import { exits } from './contract.ts';
-import { clampEffort, type Level } from './effort.ts';
+import { clampEffort, type Level, levels, type Model } from './effort.ts';
 import { HostError } from './errors.ts';
 import { uuid } from './fields.ts';
 import { codexHome } from './homes.ts';
@@ -41,6 +41,12 @@ async function codexClaim(checkout: string, prompt: string, startedAt: number): 
   const [id] = ids;
   if (id === undefined) return { kind: 'none' };
   return ids.length === 1 ? { kind: 'one', id } : { kind: 'many' };
+}
+
+const tiers: Readonly<Record<Model, number>> = { haiku: 0, sonnet: 0, opus: 1, fable: 2 };
+
+export function tierRaise(level: Level, model: Model): Level {
+  return levels[Math.min(levels.indexOf(level) + tiers[model], levels.length - 1)] ?? level;
 }
 
 function selectCodexEffort(
@@ -103,7 +109,7 @@ export const codex: HostAdapter = {
   stepEnv: (source) => source,
   pin: codexSessionPin,
   stepPrompt: codexPrompt,
-  stepArguments: async ({ issue, step, cwd, effort, stepText }) => {
+  stepArguments: async ({ issue, step, cwd, start, stepText }) => {
     const args = ['--no-daemon'];
     const reply = await codexRequest(cwd, 'config/read', { cwd, includeLayers: false });
     const config = object(reply) && object(reply.result) && object(reply.result.config) ? reply.result.config : null;
@@ -115,7 +121,11 @@ export const codex: HostAdapter = {
       args.push('-c', `developer_instructions=${JSON.stringify(existing ? `${existing}\n\n${text}` : text)}`);
     }
     if (config === null) throw new HostError(modelsUnreadable, exits.blocked);
-    const { model, applied } = selectCodexEffort(config, await codexModels(cwd), effort);
+    const chosen =
+      start.source.level === 'pinned' || start.source.level === 'override'
+        ? start.level
+        : tierRaise(start.level, start.model);
+    const { model, applied } = selectCodexEffort(config, await codexModels(cwd), chosen);
     args.push('-c', `model_reasoning_effort=${JSON.stringify(applied)}`, codexPrompt(step, issue));
     return { args, applied, model };
   },

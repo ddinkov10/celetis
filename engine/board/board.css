@@ -1116,7 +1116,7 @@ a.chip2:hover {
 }
 .status.next {
   flex-wrap: wrap;
-  gap: 4px 6px;
+  gap: 4px;
   min-width: auto;
   overflow: visible;
 }
@@ -1143,20 +1143,47 @@ a.chip2:hover {
   color: var(--ready);
   background: color-mix(in srgb, var(--ready) 13%, transparent);
 }
-.effort {
+.start {
   height: 18px;
   display: inline-flex;
-  align-items: center;
-  padding: 0 6px;
-  border: 1px solid color-mix(in srgb, currentColor 55%, transparent);
-  border-radius: 9px;
+  align-items: stretch;
   font: 500 11px / 1 var(--mono);
   color: var(--fg2);
+  white-space: nowrap;
   cursor: help;
 }
-.effort.is-default {
-  border-style: dashed;
+.start-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 7px;
+  color: var(--fg);
+}
+.start-part[data-part="model"] {
+  border-radius: 9px 0 0 9px;
+  background: color-mix(in srgb, var(--fg) 17%, transparent);
+}
+.start-part[data-part="level"] {
+  border-radius: 0 9px 9px 0;
+  background: var(--fill-strong);
+  color: var(--fg2);
+}
+.start-part:not([data-source="default"]) + .start-part:not([data-source="default"]) {
+  margin-left: 1px;
+}
+.start-part[data-source="default"] {
+  padding: 0 6px;
+  border: 1px dashed currentColor;
+  background: transparent;
   color: var(--fg3);
+}
+.start-part[data-source="default"] + .start-part[data-source="default"] {
+  padding-left: 7px;
+  border-left: 0;
+}
+.start-part .icon {
+  width: 9px;
+  height: 9px;
 }
 .card[data-state="works"] .status {
   color: var(--working);

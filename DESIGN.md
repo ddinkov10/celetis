@@ -358,7 +358,7 @@ Corners are gently rounded and nest: an inner shape is smaller than its containe
 16px (columns, the details panel), cards and toasts 12px, the palette 14px, the update dialog
 10px, controls 8px, the view
 switch 9px around 7px tabs, tags 6px, and small marks 5px. Dots are full circles. Borders are always
-1px hairlines. The effort chip uses a dashed border when its level is the default.
+1px hairlines. The start label draws each default value with a dashed outline.
 
 **The Nesting Rule.** A child radius is never larger than its parent radius. A 7px tab sits in a 9px
 track; a 12px card sits in a 16px column.
@@ -385,8 +385,9 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
 - **Tag:** a 22px chip with a Veil fill for PR, checks, and review state. Check and review tags take
   an 8% tint and a 28–30% border of their state color.
 - **Gate:** an 18px label. `auto` is Go Green on a 13% green tint; `manual` shows no gate label.
-- **Effort chip:** an 18px Geist Mono capsule with a currentColor border; dashed and Ink Faint for a
-  default level.
+- **Start label:** an 18px Geist Mono capsule of two segments, the model and then the level. The
+  model segment has the stronger fill. A pinned value has a pin icon, and a default value has a
+  dashed outline in the text color, with no fill.
 
 ### Cards / Containers
 

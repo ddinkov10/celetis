@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { readdir, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import { type Effort, effortOf } from './effort.ts';
+import type { Config } from './config-core.ts';
+import { decisionOf, type EffortDecision, startPair } from './effort.ts';
 import { describe, type Next, type Observed } from './lines.ts';
 import { isRecorded, lockHolder } from './locks.ts';
 import type { Operation } from './operation.ts';
@@ -109,7 +110,7 @@ function reader(operation: Operation, signal?: AbortSignal) {
 }
 
 type Keeps = (lane: string) => Promise<boolean>;
-type Resolved = { next: Next; effort: Effort | null; authority: RecoveryAuthority | null };
+type Resolved = { next: Next; decided: EffortDecision | null; authority: RecoveryAuthority | null };
 
 function authorityOf(data: IssueData, next: Decision): RecoveryAuthority | null {
   if (next.kind !== 'run') return null;
@@ -131,14 +132,14 @@ export async function nextIssue(
   keeps?: Keeps,
 ): Promise<Resolved & { stderr: string }> {
   const read = reader(operation, signal);
-  const missing: Resolved = { next: unreadable, effort: null, authority: null };
+  const missing: Resolved = { next: unreadable, decided: null, authority: null };
   const { value, stderr } = await read.settle<Resolved>(missing, async () => {
     const observed = await read.observe(n, await read.dirty(read.checkout), keeps);
-    if (observed) return { next: observed, effort: null, authority: null };
+    if (observed) return { next: observed, decided: null, authority: null };
     try {
       const { data } = await read.gh.read(n);
       const next = decide(data);
-      return { next, effort: effortOf(data, next), authority: authorityOf(data, next) };
+      return { next, decided: decisionOf(data, next), authority: authorityOf(data, next) };
     } catch {
       return missing;
     }
@@ -206,6 +207,7 @@ function shownRow(
   prs: readonly BranchPull[],
   dirtyLanes: readonly string[],
   epic: ParentEpic | null,
+  config: Config | null,
 ): Shown | null {
   const next = decide(data);
   const { line, row: shown } = describe(String(issue.number), next);
@@ -224,7 +226,7 @@ function shownRow(
       updatedAt: issue.updatedAt,
       reason: shown.reason,
       act: shown.act,
-      effort: effortOf(data, next),
+      effort: next.kind === 'run' ? startPair(decisionOf(data, next), config?.sessions?.[next.step]) : null,
       epic,
       pr: prs.find(({ branch }) => branch.includes(`/${issue.number}-`))?.pull ?? null,
       ...(path === undefined ? {} : { path }),
@@ -294,7 +296,8 @@ export async function nextBoard(
       const rows: Shown[] = [];
       for (const fetched of open.sort((a, b) => a.issue.number - b.issue.number)) {
         const { parentUrl } = fetched.issue;
-        const row = shownRow(fetched, prs, dirtyLanes, parentUrl === null ? null : (epics.get(parentUrl) ?? null));
+        const epic = parentUrl === null ? null : (epics.get(parentUrl) ?? null);
+        const row = shownRow(fetched, prs, dirtyLanes, epic, operation.mainConfig);
         if (row !== null) rows.push(row);
       }
       const noRun = (await read.dirty(read.checkout))

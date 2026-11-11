@@ -1,6 +1,6 @@
 import type { Diff, Document, Flow, History, LandedIssue, QuotaState, QuotaWait } from '../lib/board-read-types.ts';
 import type { AgentChoice, AgentDecision, AgentOrder, Host, UsageBlock } from '../lib/config-core.ts';
-import type { Effort, Level } from '../lib/effort.ts';
+import type { Level, RowSource, StartPair } from '../lib/effort.ts';
 import type { QueueAction, QueueView } from '../lib/queue-types.ts';
 import type { IssueRow, ParentEpic, Pull } from '../lib/resolver-types.ts';
 import type { TerminalStatus } from '../lib/terminal-types.ts';
@@ -114,7 +114,7 @@ export type Card = {
   cwd?: string | null;
   diff?: Diff | null;
   warning?: string | null;
-  effort?: Effort | null;
+  effort?: StartPair<RowSource> | null;
 };
 export type Column = 'needs' | 'running' | 'idle' | 'human';
 export type Columns = Record<Column, Card[]>;

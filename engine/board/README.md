@@ -338,10 +338,12 @@ Each row also has `number`, `title`, `url`, `updatedAt` and these fields:
   or with `epic`, also in the row of an issue that stops.
 - `step`: the step of the Run decision of the issue, the step of its `run` line ("Gates"), else
   `null`.
-- `effort`: the effort level of that step, from the read of the resolver (`docs/issue-tracker.md`,
-  "What lives on the issue", "Effort"): `level`, and `source` `decided` with `by` (the step before
-  in the lane) and `reason`, or `source` `default` with the level `high`. It is `null` for a row
-  whose line is not `run`.
+- `effort`: the start pair of that step, from the read of the resolver (`docs/issue-tracker.md`,
+  "What lives on the issue", "Effort"), with the `sessions` pin of the main `.celetis.yaml`:
+  `model`, `level`, and `source` with the `model` and the `level` of the source of each value,
+  `decided`, `pinned`, or `default`. When a value is `decided`, `decision` is `{ by, reason }`, with
+  `by` the step before in the lane; else `decision` is `null`. The default is `opus` and `medium`.
+  It is `null` for a row whose line is not `run`.
 - `started`: `true` when the step comes after the define step of its lane (`plan` or `implement`),
   because an earlier step of the lane ran.
 - `urgent`: `true` for the type `hotfix`.
@@ -478,15 +480,17 @@ Agent order, opens the agent order, which has its Retry. A recovery record whose
 to the card of its row, and Run starts the step again.
 
 - A `ready` card shows `auto` when the `gate` of its step is `auto`.
-- A `ready` card shows the effort level of its step, the `effort` of its row, in a chip after
-  `next <step>` and before `auto`. The chip is solid for a decision on the issue and dashed for the
-  default. Its title and accessible name are `effort <level>, decided by <by>` or
-  `effort <level>, default`, where `<by>` is the step before the started step in the lane of the
-  issue ("The data").
-- On a `ready` card, the accessible name of Run is `Run <step> at <level> (decided by <by>), #<n>` or
-  `Run <step> at <level> (default), #<n>`. The title of Run is
-  `Start the <step> step at <level>, decided by <by>` or `Start the <step> step at <level>, the default`,
-  plus the `hint` of that step.
+- A `ready` card shows the start pair of its step, the `effort` of its row, in one label after
+  `next <step>` and before `auto`. The label has two segments, the model and then the level. The
+  model segment has the stronger fill. A segment of a pinned value starts with a pin icon, a
+  segment of a decided value has a plain fill, and a segment of a default value has a dashed outline
+  and no fill. The label is an image with no focus stop. Its title and accessible name are
+  `model <model>, <source>; effort <level>, <source>`, where `<source>` is `decided by <by>`,
+  `pinned by the config`, or `default`, and `<by>` is the step before the started step in the lane
+  of the issue ("The data").
+- On a `ready` card, the accessible name of Run is `Run <step> on <model> at <level>, #<n>`. The
+  title of Run is `Start the <step> step on <model> (<source>) at <level> (<source>)`, then `. ` and
+  the `hint` of that step when it has one, then ` (Enter)`.
 - Open agent sends no agent choice. It is the main action in Now, Pipeline, details, the card menu,
   and search. Open issue remains secondary, and `o` opens the issue. When the first eligible agent
   of the local order is not available, or every included agent is limited, Open agent is disabled
@@ -564,13 +568,14 @@ fields. The dispatcher runs the parser and the answers of a socket request
 (`parseAnswer`):
 
 ```text
-POST /run {"number":<n>,"selection":<selection>,"effort":<level>|null,"quiet":true}
+POST /run {"number":<n>,"selection":<selection>,"effort":<level>|null,"model":null,"quiet":true}
 POST /resume {"number":<n>,"selection":{}}
 ```
 
 The selection is `{"explicit":"<host>"}` for an explicit agent choice of Run, else `{}`. The
 board sends no `environment`, so the `CELETIS_AGENT` of the daemon selects no host. A `Run at
-<level>` entry sends the level as `effort`. `quiet` opens each session tab in the background. The
+<level>` entry sends the level as `effort`. The board sends no model: `model` is always `null`, so
+the model of the start keeps its source. `quiet` opens each session tab in the background. The
 daemon selects the saved session of Resume itself, and it checks `hc` and the Herdr app before
 its answer. A refusal of the daemon gives 409 with its line, also before the end of the takeover
 of its start. The page sends Run and Resume with no timeout, and the board server
@@ -644,9 +649,10 @@ To start one step of a `ready` card at another effort level, use a `Run at <leve
 run menu ("The layout, the keys, and the errors"). An entry sends no agent, as Run does, and sends
 the level. The request then has the level as `effort`, so the
 daemon run starts that step at that level once
-([The start of a step](../README.md#the-start-of-a-step), "The effort level"). The entry writes no decision on the issue, and a later step uses
+([The start of a step](../README.md#the-start-of-a-step), "The model and the effort level"). The entry writes no decision on the issue, and a later step uses
 its own decision. The current issue of a queue paused at a `manual` gate takes no level: the queue
-starts its step at the decided level.
+starts its step at the start pair, with no override: a pinned value wins over a decided value, and
+the default fills a value with no decision and no pin.
 
 **New intake is independent of issue reads.** `POST /api/intake` accepts exactly `{}`. A non-object
 or an extra field returns 400 before any terminal starts. Each press reads the local order and the
@@ -764,7 +770,7 @@ sends no request, and starts no terminal, unless each condition holds:
 
 | Press | Conditions | Cause of the refusal |
 |---|---|---|
-| `POST /api/run` | A fresh issue and queue read succeeds. The issue has a card of its own, with no session. Its row is `ready` or `stuck`. `noRun` is `null`. No press on that issue is active. A current paused queue issue has no `effort` in the body and also meets the Continue conditions below. | The read or queue cause; for an `effort` on a current paused queue issue, that the queue starts this step at the decided level; otherwise that the issue has no step to start now. |
+| `POST /api/run` | A fresh issue and queue read succeeds. The issue has a card of its own, with no session. Its row is `ready` or `stuck`. `noRun` is `null`. No press on that issue is active. A current paused queue issue has no `effort` in the body and also meets the Continue conditions below. | The read or queue cause; for an `effort` on a current paused queue issue, that the queue starts this step at the start pair, with no override; otherwise that the issue has no step to start now. |
 | `POST /api/resume` | The issue has a card of its own, with no session. Its row is `stuck`. `noRun` is `null`. No press on that issue is active. | The issue has no session to resume now. |
 | `POST /api/assist` | A fresh issue read succeeds. The issue has a card of its own, with no session. Its row is `blocked`, with `assist` true and `noRun` null. A current `hc` terminal list succeeds. A fresh read of the local order and the usage records gives a first eligible agent, and it is on `PATH`. No Run, Resume, or Assist press on that issue is active. | The current read, `noRun`, agent, session, or state cause; otherwise that the issue has no blocked state to assist now. |
 | `POST /api/visual` | The issue has a History row in the last good read. The page of its commit does not exist. No live terminal with the link label `#<n> visual` is in the main checkout or a lane worktree. No Make visual press of that number is in flight. A fresh read of the local order and the usage records gives a first eligible agent, and it is on `PATH`. | The issue has no row in History; its visual exists already (use Open visual); its `visual` tab is still open; a Make visual press of the issue is in flight; otherwise the agent cause. |
@@ -1092,14 +1098,17 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   key gets the neutral icon. The main button of a card in Needs you is filled.
 - A card in one row (Idle, the last two groups of Needs you, and Pipeline) has its title beside its
   buttons, and under both the number, the type, and the state. The title shows at most two lines,
-  and a narrow card hides the type. The step name, the effort chip, and `auto` of a `ready` card stay
+  and a narrow card hides the type. The step name, the start label, and `auto` of a `ready` card stay
   whole; a card with no room for them in one line wraps them to a second line.
 - The chevron beside Run opens the run menu: Run with each agent. On a `ready` card, a rule and
   `Run at low`, `Run at medium`, `Run at high`, `Run at xhigh`, and `Run at max` follow. The current
-  level has a check mark and the suffix `(decided by <by>)` or `(default)`; the title of another level is
-  `Start the <step> step at <level>, this start only`. With a `noRun` text, each level entry is
+  level has a check mark and the suffix `(decided by <by>)`, `(pinned by the config)`, or `(default)`
+  of its source; the title of the current level is
+  `Start the <step> step on <model> at <level>, <source>`, and the title of another level is
+  `Start the <step> step on <model> at <level>, this start only`. The entry sends no model, so the
+  start keeps the model of the pair. With a `noRun` text, each level entry is
   disabled with that text; on the current issue of a queue paused at a `manual` gate, with
-  a text that says the queue starts this step at the decided level; else with the cause that disables Run. The `m`
+  a text that says the queue starts this step at the start pair, with no override; else with the cause that disables Run. The `m`
   menu of the card lists the same entries after its actions. Search and the actions of the details
   have no level entries.
 - The lane track at the right of a card shows where the issue is in its lane. The current step has
@@ -1107,10 +1116,12 @@ SIL Open Font License 1.1), so it loads nothing from the network.
 - A press on a card, or `Space`, opens its details in place of Idle: for a session, the last 16
   lines of its terminal screen (with no empty line, rule, or box border), so you can read the dialog or the end
   of the answer; the lane steps, with `auto` on a step whose gate is `auto`; the pull request, the
-  folder, and the lines changed; for a `ready` card, `Effort` (`<level> · decided by <by>` or
-  `<level> · default`) and `Why` before `Updated`. `Why` is the reason of the decision, wrapped,
-  `No reason given.` for a decision with no reason, or
-  `No decision on the issue; the default applies.` for the default. A waiting session shows its
+  folder, and the lines changed; for a `ready` card, `Model` and `Effort` (`<value> · decided by <by>`,
+  `<value> · pinned by the config`, or `<value> · default`) and `Why` before `Updated`. `Why` is the
+  reason of the decision when a value of the pair is decided, wrapped, or `No reason given.` for a
+  decision with no reason; then `The config pins the model of this step.`, `The config pins the level of this step.`,
+  or `The config pins the model and the level of this step.` when the config pins a value; or
+  `No decision on the issue; the default applies.` with no decided and no pinned value. A waiting session shows its
   lines at the top, beside Go, except a human session whose turn ended. `Esc` closes the details.
   Below 1100 px the details cover the right side of the page, and below 720 px the whole page.
 - A card that changed since you last looked at the board has a dot, until you point at it or focus

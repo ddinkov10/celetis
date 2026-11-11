@@ -1,6 +1,16 @@
-import type { Effort } from '../../lib/effort.ts';
+import type { RowSource, StartPair } from '../../lib/effort.ts';
 import type { Action, Card, Flow } from '../types.ts';
-import { agentOf, diffText, effortSource, gateOf, laneTrack, prFacts, shortPath, stateLabel } from '../view.ts';
+import {
+  agentOf,
+  diffText,
+  gateOf,
+  laneTrack,
+  levelSource,
+  modelSource,
+  prFacts,
+  shortPath,
+  stateLabel,
+} from '../view.ts';
 import { $, actionButton, copy, el, icon, iconButton, link, mark, timed } from './ui.ts';
 
 const TONES: Record<string, string> = {
@@ -108,20 +118,25 @@ const facts = (rows: (Fact | null | false | '' | undefined)[]) => {
   return list;
 };
 
-const effortFacts = (effort: Effort | null | undefined): Fact[] =>
-  effort
+const whyOf = (pair: StartPair<RowSource>) => {
+  const pinned = (['model', 'level'] as const).filter((part) => pair.source[part] === 'pinned');
+  const pin = pinned.length
+    ? `The config pins ${pinned.length === 2 ? 'the model and the level' : `the ${pinned[0]}`} of this step.`
+    : '';
+  const decision = pair.decision
+    ? pair.decision.reason || 'No reason given.'
+    : pin
+      ? ''
+      : 'No decision on the issue; the default applies.';
+  return [decision, pin].filter(Boolean).join(' ');
+};
+
+const effortFacts = (pair: StartPair<RowSource> | null | undefined): Fact[] =>
+  pair
     ? [
-        ['Effort', `${effort.level} · ${effortSource(effort)}`],
-        [
-          'Why',
-          el(
-            'span',
-            'why',
-            effort.source === 'default'
-              ? 'No decision on the issue; the default applies.'
-              : effort.reason || 'No reason given.',
-          ),
-        ],
+        ['Model', `${pair.model} · ${modelSource(pair)}`],
+        ['Effort', `${pair.level} · ${levelSource(pair)}`],
+        ['Why', el('span', 'why', whyOf(pair))],
       ]
     : [];
 

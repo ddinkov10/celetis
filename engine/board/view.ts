@@ -1,4 +1,4 @@
-import type { Effort, Level } from '../lib/effort.ts';
+import type { Level, RowSource, StartPair } from '../lib/effort.ts';
 import type { Card, Column, Columns, Diff, Flow, ParentEpic, Pull } from './types.ts';
 export const COLUMNS: { key: Column; name: string; note: string; empty: [string, string] }[] = [
   {
@@ -44,21 +44,29 @@ const WAITS: Record<string, string> = { dialog: 'waits for your answer', turn: '
 export const gateOf = (flow: Partial<Flow> | null | undefined, step: string | null) =>
   flow?.steps?.[step as string]?.gate ?? null;
 
-export const effortSource = (effort: Effort) => (effort.source === 'decided' ? `decided by ${effort.by}` : 'default');
+export const sourceText = (source: RowSource, by: string | null): string =>
+  source === 'decided' ? `decided by ${by}` : source === 'pinned' ? 'pinned by the config' : 'default';
 
-export const startTitle = (step: string | null, effort: Effort, level: Level = effort.level) => {
-  const why =
-    level !== effort.level
-      ? 'this start only'
-      : effort.source === 'decided'
-        ? `decided by ${effort.by}`
-        : 'the default';
-  return `Start the ${step} step at ${level}, ${why}`;
-};
+export const modelSource = (pair: StartPair<RowSource>) => sourceText(pair.source.model, pair.decision?.by ?? null);
 
-export const runTitle = (step: string | null, flow: Partial<Flow> | null | undefined, effort?: Effort | null) => {
+export const levelSource = (pair: StartPair<RowSource>) => sourceText(pair.source.level, pair.decision?.by ?? null);
+
+export const startName = (pair: StartPair<RowSource>) =>
+  `model ${pair.model}, ${modelSource(pair)}; effort ${pair.level}, ${levelSource(pair)}`;
+
+export const startTitle = (step: string | null, pair: StartPair<RowSource>, level: Level = pair.level) =>
+  `Start the ${step} step on ${pair.model} at ${level}, ${level === pair.level ? levelSource(pair) : 'this start only'}`;
+
+export const runTitle = (
+  step: string | null,
+  flow: Partial<Flow> | null | undefined,
+  effort?: StartPair<RowSource> | null,
+) => {
   const hint = flow?.steps?.[step as string]?.hint;
-  return `${effort ? startTitle(step, effort) : `Start the ${step} step`}${hint ? `. ${hint}` : ''} (Enter)`;
+  const start = effort
+    ? `Start the ${step} step on ${effort.model} (${modelSource(effort)}) at ${effort.level} (${levelSource(effort)})`
+    : `Start the ${step} step`;
+  return `${start}${hint ? `. ${hint}` : ''} (Enter)`;
 };
 
 export const AGENTS: Record<string, string> = {

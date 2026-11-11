@@ -2,7 +2,7 @@ import { readdir, readFile, rm } from 'node:fs/promises';
 import { isAbsolute, join, sep } from 'node:path';
 import type { UsageTicket } from './agent-usage.ts';
 import type { AgentChoice, Host } from './config-core.ts';
-import { isLevel } from './effort.ts';
+import { isLevel, isModel } from './effort.ts';
 import { uuid } from './fields.ts';
 import { isHost } from './host-names.ts';
 import type { Identity } from './locks.ts';
@@ -15,7 +15,7 @@ import { usageAttempt } from './usage-types.ts';
 import { lanes, type Run, type Step, steps } from './workflow.ts';
 
 export type RunRecord = {
-  schema: 2;
+  schema: 3;
   id: string;
   daemon: Identity;
   input: RunInput;
@@ -60,7 +60,9 @@ export type RunRecord = {
   state: RunState;
   changedMs: number;
 };
-type Historical = Omit<RunRecord, 'schema'> & { schema: 1 };
+type NumberInput = Extract<RunInput, { kind: 'number' }>;
+type HistoricalInput = Exclude<RunInput, NumberInput> | Omit<NumberInput, 'model'>;
+type Historical = Omit<RunRecord, 'schema' | 'input'> & { schema: 1 | 2; input: HistoricalInput };
 export type ReadRecord = { path: string; record: RunRecord } | { path: string; error: string };
 
 const file = /^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\.json$/;
@@ -117,16 +119,20 @@ function selection(value: unknown): boolean {
   );
 }
 
-function input(value: unknown): value is RunInput {
+function input(value: unknown, schema: 1 | 2 | 3): value is HistoricalInput {
   if (!object(value) || !selection(value.selection)) return false;
   switch (value.kind) {
     case 'number':
-      return (
-        keys(value, 'effort,kind,number,quiet,selection') &&
-        positive(value.number) &&
-        (value.effort === null || isLevel(value.effort)) &&
-        flag(value.quiet)
-      );
+      return schema === 3
+        ? keys(value, 'effort,kind,model,number,quiet,selection') &&
+            positive(value.number) &&
+            (value.effort === null || isLevel(value.effort)) &&
+            (value.model === null || isModel(value.model)) &&
+            flag(value.quiet)
+        : keys(value, 'effort,kind,number,quiet,selection') &&
+            positive(value.number) &&
+            (value.effort === null || isLevel(value.effort)) &&
+            flag(value.quiet);
     case 'auto':
       return keys(value, 'kind,number,quiet,selection') && positive(value.number) && flag(value.quiet);
     case 'queue':
@@ -251,13 +257,13 @@ function session(value: unknown, issue: number | null, resume: boolean): value i
   );
 }
 
-function validFields(value: unknown, schema: 1 | 2): boolean {
+function validFields(value: unknown, schema: 1 | 2 | 3): boolean {
   return !(
     !keys(value, 'changedMs,daemon,id,input,issue,lock,loop,queue,request,schema,session,state,wait') ||
     value.schema !== schema ||
     !id(value.id) ||
     !identity(value.daemon) ||
-    !input(value.input) ||
+    !input(value.input, schema) ||
     !nullable(positive)(value.issue) ||
     !(value.input.kind === 'queue'
       ? value.lock === null || (value.issue !== null && value.lock === `issue-${value.issue}`)
@@ -278,10 +284,10 @@ function validFields(value: unknown, schema: 1 | 2): boolean {
 }
 
 export function validRunRecord(value: unknown): value is RunRecord {
-  return validFields(value, 2);
+  return validFields(value, 3);
 }
 
-const historical = (value: unknown): value is Historical => validFields(value, 1);
+const historical = (value: unknown, schema: 1 | 2): value is Historical => validFields(value, schema);
 
 export async function writeRunRecord(folder: string, record: RunRecord): Promise<void> {
   const written: unknown = record;
@@ -293,7 +299,14 @@ export async function removeRunRecord(folder: string, id: string): Promise<void>
   await rm(join(folder, `${id}.json`), { force: true });
 }
 
-async function convert(path: string, name: string, folder: string, old: string, state: string): Promise<ReadRecord> {
+async function convert(
+  path: string,
+  name: string,
+  folder: string,
+  old: string,
+  state: string,
+  schema: 1 | 2,
+): Promise<ReadRecord> {
   let source: LocalRecord | null;
   try {
     source = await readLocalRecord(path, [folder], 'private');
@@ -302,7 +315,7 @@ async function convert(path: string, name: string, folder: string, old: string, 
   }
   if (!source) return { path, error: 'the record is missing' };
   const value = source.value;
-  if (!historical(value)) return { path, error: 'the record is not a valid run record' };
+  if (!historical(value, schema)) return { path, error: 'the record is not a valid run record' };
   if (`${value.id}.json` !== name) return { path, error: 'the record ID differs from its file name' };
   const moved = (stored: string) =>
     stored.startsWith(`${old}${sep}`)
@@ -311,7 +324,7 @@ async function convert(path: string, name: string, folder: string, old: string, 
         ? stored
         : null;
   let session = value.session;
-  if (session) {
+  if (schema === 1 && session) {
     const folderAt = moved(session.folder);
     if (folderAt === null) return { path, error: `the record names session.folder ${session.folder} outside ${old}` };
     const captureAt = session.capture === null ? null : moved(session.capture);
@@ -319,10 +332,11 @@ async function convert(path: string, name: string, folder: string, old: string, 
       return { path, error: `the record names session.capture ${session.capture} outside ${old}` };
     session = { ...session, folder: folderAt, capture: captureAt };
   }
-  const record: RunRecord = { ...value, schema: 2, session };
+  const input: RunInput = value.input.kind === 'number' ? { ...value.input, model: null } : value.input;
+  const record: RunRecord = { ...value, schema: 3, input, session };
   if (!validRunRecord(record)) return { path, error: 'the record is not a valid run record' };
   try {
-    await commitMigration(source, 1, `${JSON.stringify(record)}\n`);
+    await commitMigration(source, schema, `${JSON.stringify(record)}\n`);
   } catch (error) {
     return { path, error: (error as Error).message };
   }
@@ -349,8 +363,9 @@ export async function readRunRecords(folder: string, common: string): Promise<Re
       } catch {
         return { path, error: 'the record is not valid JSON' };
       }
-      if (object(value) && value.schema === 1) return convert(path, name, folder, old, state);
-      if (!object(value) || value.schema !== 2) return { path, error: 'the record has another schema' };
+      if (object(value) && (value.schema === 1 || value.schema === 2))
+        return convert(path, name, folder, old, state, value.schema);
+      if (!object(value) || value.schema !== 3) return { path, error: 'the record has another schema' };
       if (!validRunRecord(value)) return { path, error: 'the record is not a valid run record' };
       if (`${value.id}.json` !== name) return { path, error: 'the record ID differs from its file name' };
       return { path, record: value };

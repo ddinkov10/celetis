@@ -98,12 +98,12 @@ will read it:
   the host binding with `capscore --json` and include its CAP line in the prompt; the actual
   spawn applies the effort, and the model when `dispatch.model` is not null, through the actual
   spawn controls of the host (`<plugin>/references/procedures/dispatch.md`, "One child").
-- **Plan headers** — print the CAP rec on session-executed tasks. Note: the **session model is the
-  user's picker**; the rubric can only *recommend* there (max is auto-assignable for a spawn, a rec
+- **Plan headers** — print the CAP rec on session-executed tasks. Note: for a session that a person
+  starts, the **session model is the person's choice**; the rubric can only *recommend* there (max is auto-assignable for a spawn, a rec
   for the session). The user may override any rec. A run or board start of a step session gets
-  the effort level that the step before decided on the issue, else `high`, not a rubric band
-  (`<plugin>/references/procedures/effort.md`); the rubric still only
-  recommends the session model.
+  the pair of the start: the decision of the step before, a pin, or a change of one start, else
+  `opus` and `medium` (`<plugin>/references/procedures/effort.md`), not a rubric band. So the CAP
+  line of a task of an inline build recommends the session pair and does not set it.
 
 ## Worked examples (explicit bias 0, attempt 1)
 
@@ -113,14 +113,14 @@ scorer with `--agent claude --bias 0`; each reason states the assumptions behind
 **Exact text correction.** Apply a prescribed non-normative correction at eleven README locations.
 
 ```text
-CAP: J0 V0 B0 N0 S0 X0 = 0 → haiku/low
+CAP: J0 V0 B0 N0 S0 X0 = 0 → haiku/medium
 CAP reason: The transformation is exact, checks cover every correction, and no behavior or retained data changes. Eleven identical edits are S0; publication adds no consequence by itself.
 ```
 
 **Tiny helper.** Adapt a content-change digest helper within a fixed local contract.
 
 ```text
-CAP: J1 V0 B1 N0 S0 X0 = 2 → haiku/low
+CAP: J1 V0 B1 N0 S0 X0 = 2 → haiku/medium
 CAP reason: J1 covers bounded implementation choices. B1 covers reversible content-change detection errors in one helper. Complete behavior checks support V0; an exact established pattern supports N0 and one contract supports S0. X0 applies because the digest grants no authority and handles no secret.
 ```
 
@@ -135,14 +135,14 @@ CAP reason: J1 covers bounded implementation choices. V1 reflects partial behavi
 specified implementation shape of #189 Task 3, without rescoring its historical task.
 
 ```text
-CAP: J1 V1 B2 N1 S2 X0 = 7 → opus/high
+CAP: J1 V1 B2 N1 S2 X0 = 7 → opus/medium
 CAP reason: J1 covers bounded choices inside the approved policy. V1 reflects partial executable coverage. B2 covers missed capture across workflows. N1 adapts an existing capture pattern. S2 couples task and repair contracts. X0 preserves stop and authority decisions.
 ```
 
 **Storage and recovery design.** Coordinate a new storage state model and recovery behavior.
 
 ```text
-CAP: J2 V0 B2 N2 S2 X0 = 8 → opus/high
+CAP: J2 V0 B2 N2 S2 X0 = 8 → opus/medium
 CAP reason: J2 covers unresolved storage/recovery trade-offs. B2 covers retained-data loss or corruption. N2 assumes no suitable project mechanism. S2 couples storage and recovery invariants. Complete executable outcome checks support V0; no authentication or trust decision changes, so X0.
 ```
 
@@ -163,6 +163,6 @@ CAP reason: J1 covers bounded editorial choices. V2 applies because decisive acc
 **Novel authority design.** Resolve coupled authority rules without a reliable executable oracle.
 
 ```text
-CAP: J2 V2 B2 N2 S2 X2 = 12 → fable/max
+CAP: J2 V2 B2 N2 S2 X2 = 12 → fable/high
 CAP reason: J2 covers unresolved authority-policy trade-offs. V2 lacks a reliable oracle for the decisive outcome. B2 covers incorrect grants across workflows. N2 assumes no suitable project precedent. S2 couples permission and recovery contracts. X2 changes trust decisions.
 ```

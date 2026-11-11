@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Config, Host } from './config-core.ts';
 import { exits, stepHeader } from './contract.ts';
-import { isLevel, type Level } from './effort.ts';
+import { isLevel, type Level, type StartPair } from './effort.ts';
 import { HostError } from './errors.ts';
 import { recordEvent } from './events.ts';
 import { uuid } from './fields.ts';
@@ -240,15 +240,9 @@ export async function stepText(facts: StepFacts): Promise<string> {
   return `${stepHeader(facts)}\n\n${text}`;
 }
 
-export function startLine(
-  prompt: string,
-  chosen: Level,
-  source: 'decided' | 'default' | 'override',
-  applied: Level,
-  model: string | null,
-): string {
-  const line = `start: ${prompt} at ${chosen} (${source})`;
-  return applied === chosen ? line : `${line}; codex applies ${applied} for ${model}`;
+export function startLine(prompt: string, start: StartPair, applied: Level, kept: string | null): string {
+  const line = `start: ${prompt} on ${start.model} (${start.source.model}) at ${start.level} (${start.source.level})`;
+  return kept === null ? line : `${line}; codex keeps its configured model ${kept} and applies ${applied}`;
 }
 
 export async function startupError(

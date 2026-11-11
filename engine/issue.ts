@@ -13,7 +13,7 @@ import {
   marker,
   usageText,
 } from './lib/contract.ts';
-import { decidable, effortMarker, isLevel } from './lib/effort.ts';
+import { decidable, effortMarker, isLevel, isModel } from './lib/effort.ts';
 import { completeEpic, readEpic, writeEpicDefinition } from './lib/epic.ts';
 import { parseEpicAcceptance, parseEpicSubmission } from './lib/epic-acceptance.ts';
 import { HostError } from './lib/errors.ts';
@@ -156,8 +156,9 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
   const epic = ['epic', 'epic-state', 'complete-epic'].includes(name);
   const during = name === 'before-landing' && flag === '--during-the-build';
   const step = decidable.find((each) => each === argument);
-  const effort = step && isLevel(flag) ? effortMarker(step, flag) : '';
-  const file = kind === 'effort' ? (argv[4] ?? '') : argument;
+  const level = argv[4];
+  const effort = step && isModel(flag) && isLevel(level) ? effortMarker(step, flag, level) : '';
+  const file = kind === 'effort' ? (argv[5] ?? '') : argument;
   if (
     !isIssueNumber(n) ||
     (epic
@@ -165,7 +166,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
         ? argv.length < 2 || argv.length > 3
         : argv.length !== (name === 'epic' ? 3 : 2)
       : !act ||
-        argv.length !== (kind === 'none' ? 2 : kind === 'effort' ? 5 : during ? 4 : 3) ||
+        argv.length !== (kind === 'none' ? 2 : kind === 'effort' ? 6 : during ? 4 : 3) ||
         (kind === 'lane' && !Object.hasOwn(lanes, argument)) ||
         (kind === 'effort' && !effort))
   )
@@ -177,7 +178,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
     if (!epic && first.startsWith('## ')) die('usage', `${file} starts with a ## line; give the text with no heading`);
     if (name === 'spec' && first.startsWith('Spec:'))
       die('usage', `${file} starts with Spec:; give the spec with no Spec: line`);
-    if (name === 'effort' && !text.trim()) die('usage', `${file} is empty; give the reason of the level`);
+    if (name === 'effort' && !text.trim()) die('usage', `${file} is empty; give the reason of the model and the level`);
   }
   let submission: EpicSubmission | undefined;
   if (name === 'complete-epic' && argv.length === 3) {

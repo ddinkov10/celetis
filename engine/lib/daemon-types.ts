@@ -1,7 +1,7 @@
 import { isAbsolute } from 'node:path';
 import type { Host } from './config-core.ts';
 import { type ExitCode, exitCodeOf, exits, passThrough } from './contract.ts';
-import { isLevel, type Level } from './effort.ts';
+import { isLevel, isModel, type Level, type Model } from './effort.ts';
 import { HostError } from './errors.ts';
 import { commit, uuid } from './fields.ts';
 import { isHost } from './host-names.ts';
@@ -16,7 +16,7 @@ import { type Step, steps } from './workflow.ts';
 export type Selection = Readonly<{ explicit?: Host; environment?: string }>;
 export type Authority = 'maintainer' | 'coordinator';
 export type DaemonRequest =
-  | { kind: 'run'; number: number; selection: Selection; effort: Level | null; quiet: boolean }
+  | { kind: 'run'; number: number; selection: Selection; effort: Level | null; model: Model | null; quiet: boolean }
   | { kind: 'auto'; on: boolean; selection: Selection; quiet: boolean }
   | { kind: 'queue'; id: string; token: string; selection: Selection; quiet: boolean }
   | { kind: 'resume'; number: number; selection: Selection }
@@ -77,7 +77,7 @@ export type DaemonStatus = {
 export const textLimit = 4096;
 export const stopLine = 'daemon: the daemon stops; start it again, then send the request';
 export const requestUsage =
-  'usage: GET /status | POST /run {"number":<issue>,"selection":<selection>,"effort":<level>|null,"quiet":<boolean>} | POST /auto {"on":<boolean>,"selection":<selection>,"quiet":<boolean>} | POST /queue {"id":<uuid>,"token":<uuid>,"selection":<selection>,"quiet":<boolean>} | POST /resume {"number":<issue>,"selection":<selection>} | POST /stop {} | POST /retry {"number":<issue>,"waitId":<text>} | POST /queue/action {"action":<action>,"selection":<selection>,"quiet":<boolean>} | POST /queue/reconcile {} | POST /land {"number":<issue>,"subject":<subject>,"selection":<selection>,"from":<path>} | POST /coordinator/open {"selection":<selection>} | POST /coordinator/read {"number":<issue>} | POST /coordinator/send {"number":<issue>,"authority":"maintainer"|"coordinator","text":<text>,"token":<uuid>}; <selection> is {"explicit"?:"claude"|"codex","environment"?:<text>}; <level> is low|medium|high|xhigh|max; <action> is a queue action of celetis queue action';
+  'usage: GET /status | POST /run {"number":<issue>,"selection":<selection>,"effort":<level>|null,"model":<model>|null,"quiet":<boolean>} | POST /auto {"on":<boolean>,"selection":<selection>,"quiet":<boolean>} | POST /queue {"id":<uuid>,"token":<uuid>,"selection":<selection>,"quiet":<boolean>} | POST /resume {"number":<issue>,"selection":<selection>} | POST /stop {} | POST /retry {"number":<issue>,"waitId":<text>} | POST /queue/action {"action":<action>,"selection":<selection>,"quiet":<boolean>} | POST /queue/reconcile {} | POST /land {"number":<issue>,"subject":<subject>,"selection":<selection>,"from":<path>} | POST /coordinator/open {"selection":<selection>} | POST /coordinator/read {"number":<issue>} | POST /coordinator/send {"number":<issue>,"authority":"maintainer"|"coordinator","text":<text>,"token":<uuid>}; <selection> is {"explicit"?:"claude"|"codex","environment"?:<text>}; <level> is low|medium|high|xhigh|max; <model> is haiku|sonnet|opus|fable; <action> is a queue action of celetis queue action';
 
 export const requestPaths: Readonly<Record<Exclude<DaemonRequest['kind'], 'status'>, string>> = {
   run: '/run',
@@ -205,7 +205,7 @@ export function parseRequest(
   if (selection === null) return refused;
   if (path === '/coordinator/open')
     return exact(body, ['selection']) ? { kind: 'coordinator-open', selection } : refused;
-  const { number, effort, quiet, on, subject, from } = body;
+  const { number, effort, model, quiet, on, subject, from } = body;
   if (path === '/land')
     return exact(body, ['number', 'subject', 'selection', 'from']) &&
       count(number) &&
@@ -224,11 +224,12 @@ export function parseRequest(
     }
   }
   if (path === '/run')
-    return exact(body, ['number', 'selection', 'effort', 'quiet']) &&
+    return exact(body, ['number', 'selection', 'effort', 'model', 'quiet']) &&
       count(number) &&
       (effort === null || isLevel(effort)) &&
+      (model === null || isModel(model)) &&
       typeof quiet === 'boolean'
-      ? { kind: 'run', number, selection, effort, quiet }
+      ? { kind: 'run', number, selection, effort, model, quiet }
       : refused;
   if (path === '/auto')
     return exact(body, ['on', 'selection', 'quiet']) && typeof on === 'boolean' && typeof quiet === 'boolean'

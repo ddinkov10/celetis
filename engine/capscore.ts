@@ -19,7 +19,7 @@ const flagLines = [
   '--bias N                 effort bias (CAP_EFFORT_BIAS; default 0)',
   '--attempt N              gate-fail attempt (default 1; 4 or later stops)',
   '--agent claude|codex      explicit agent (CELETIS_AGENT > local order; no checkout: claude)',
-  '--json                   portable score plus the applied dispatch pair',
+  '--json                   score of the selected host plus the applied dispatch pair',
   "--reviewer               apply the selected host's reviewer minimum",
   '--profile FILE           Codex profile (CAP_MODEL_PROFILE > main config profile > parent model)',
   '--runtime-models FILE    active dispatch allowlist for a Codex profile (CAP_RUNTIME_MODELS)',
@@ -95,11 +95,11 @@ export async function main(argv: string[]): Promise<ExitCode> {
     const [j, v, b, n, s, x] = digits;
     const sum = digits.reduce((a, b) => a + b, 0);
     const label = scoreLabel(values, biasText);
-    const score = resolveScore(digits, bias, attempt);
+    let score: ReturnType<typeof resolveScore> = null;
     let host: string | null = null;
     let dispatch: Pair | null = null;
     let line = `${label} → STOP (attempt ${attemptText}: escalate to user with failure trail)`;
-    if (score) {
+    if (attempt < 4) {
       const identity = await locateCheckouts(cwd);
       checkout = identity.main;
       const operation = await createOperation(identity, { explicit: agent, environment }, (selected) =>
@@ -107,6 +107,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
       );
       const binding = await readBinding(operation.host, { profile, runtimeFile }, checkout, operation.mainConfig);
       host = binding.host;
+      score = resolveScore(digits, bias, attempt, binding.host);
       dispatch = resolvePair(digits, bias, attempt, reviewer, binding) as Pair;
       line = `${label} → ${pairText(dispatch)}${attempt > 1 ? ` [attempt ${attemptText}]` : ''}`;
     }

@@ -182,11 +182,11 @@ export const issueActs = {
     writes: 'the label of the lane; it removes the other lane labels and `needs-triage`',
   },
   effort: {
-    words: ['effort', '<step>', '<level>', '<file>'],
+    words: ['effort', '<step>', '<model>', '<level>', '<file>'],
     flags: [],
     argument: 'effort',
     prerequisite: 'open',
-    writes: 'an `Effort: <step> <level>` comment ("What lives on the issue", "Effort"); no label change',
+    writes: 'an `Effort: <step> <model> <level>` comment ("What lives on the issue", "Effort"); no label change',
   },
   epic: {
     words: ['epic', '<file>'],
@@ -399,14 +399,19 @@ export const commands: readonly Entry[] = [
     [
       form(
         'run <n>',
-        [required('--effort', '<level>'), optional('--quiet')],
+        [required('--effort', '<level>'), optional('--model', '<model>'), optional('--quiet')],
         helped(
           10,
           'Asks the daemon to start the next step of one issue at another effort level, for its first session only.',
         ),
       ),
+      form(
+        'run <n>',
+        [required('--model', '<model>'), optional('--effort', '<level>'), optional('--quiet')],
+        helped(10, 'Asks the daemon to start the next step of one issue on another model, for its first session only.'),
+      ),
     ],
-    `Asks the daemon to start the next step of the issue at \`low\`, \`medium\`, \`high\`, \`xhigh\`, or \`max\` instead of its decided or default level; the request carries the level, for the first session of this start only. Each later step uses its own decision, and the flag writes no decision. It needs exactly one issue number; any other form exits ${exits.usage} with the usage line`,
+    `Asks the daemon to start the next step of the issue with \`--effort\` at \`low\`, \`medium\`, \`high\`, \`xhigh\`, or \`max\`, with \`--model\` on \`haiku\`, \`sonnet\`, \`opus\`, or \`fable\`, or with both, in either order. Each flag replaces the decided, pinned, or default value of the first session of this start only, and the request carries it. Each later step uses its own pair, and neither flag writes a decision. It needs exactly one issue number; any other form exits ${exits.usage} with the usage line`,
   ),
   entry(
     'queue',
@@ -548,7 +553,7 @@ export const commands: readonly Entry[] = [
         optional('--runtime-models', 'FILE'),
       ]),
     ],
-    'Resolves the six digits. `--json` gives portable scores and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null',
+    'Resolves the six digits. `--json` gives the score of the selected host and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null',
   ),
   entry(
     'dispatch',

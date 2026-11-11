@@ -1,5 +1,5 @@
 import type { AgentOrder, Host } from '../../lib/config-core.ts';
-import type { Effort, Level } from '../../lib/effort.ts';
+import type { Level, RowSource, StartPair } from '../../lib/effort.ts';
 import type {
   Action,
   AgentReplaceConflict,
@@ -21,12 +21,12 @@ import {
   agentOf,
   COLUMNS,
   cleanCause,
-  effortSource,
   favicon,
   groupEpics,
   groupNeeds,
   keyOf,
   laneTrack,
+  levelSource,
   needsYou,
   notice,
   pageTitle,
@@ -36,6 +36,7 @@ import {
   runTitle,
   shortPath,
   signature,
+  startName,
   startTitle,
   stateLabel,
   tail,
@@ -89,7 +90,7 @@ const STATUS_ICONS: Record<string, string> = {
   'quota-wait': 'clock',
 };
 const FIND_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K';
-const QUEUE_LEVEL = 'The queue starts this step at the decided level';
+const QUEUE_LEVEL = 'The queue starts this step at the start pair, with no override';
 
 let data: Board | null = null;
 let selected: string | null = null;
@@ -202,7 +203,7 @@ const runReason = (agent: string | null, number?: number | null) => {
 };
 
 const runName = ({ step, effort, number }: Card) =>
-  `Run ${step}${effort ? ` at ${effort.level} (${effortSource(effort)})` : ''}, #${number}`;
+  `Run ${step}${effort ? ` on ${effort.model} at ${effort.level}` : ''}, #${number}`;
 
 const runAction = (card: Card, agent: string | null = null): Action => {
   const display = agent ? agentDisplay(agent) : null;
@@ -254,7 +255,7 @@ const levelEntries = (card: Card): (MenuEntry | 'rule')[] => {
     'rule',
     ...(data?.flow?.levels ?? []).map((level) => ({
       icon: level === effort.level ? 'check' : 'run',
-      label: `Run at ${level}${level === effort.level ? ` (${effortSource(effort)})` : ''}`,
+      label: `Run at ${level}${level === effort.level ? ` (${levelSource(effort)})` : ''}`,
       title: reason ?? startTitle(card.step, effort, level),
       isDisabled: Boolean(reason),
       run: reason
@@ -466,12 +467,23 @@ const track = (card: Card) => {
 const gate = (value: string | null) =>
   value === 'auto' ? Object.assign(el('span', 'gate gate-auto', 'auto'), { title: GATES.auto }) : null;
 
-const effortChip = (effort: Effort) => {
-  const chip = el('span', `effort${effort.source === 'default' ? ' is-default' : ''}`, effort.level);
-  chip.title = `effort ${effort.level}, ${effortSource(effort)}`;
-  chip.setAttribute('role', 'img');
-  chip.setAttribute('aria-label', chip.title);
-  return chip;
+const startLabel = (pair: StartPair<RowSource>) => {
+  const node = el('span', 'start');
+  node.title = startName(pair);
+  node.setAttribute('role', 'img');
+  node.setAttribute('aria-label', node.title);
+  for (const [part, value] of [
+    ['model', pair.model],
+    ['level', pair.level],
+  ] as const) {
+    const segment = el('span', 'start-part');
+    segment.dataset.part = part;
+    segment.dataset.source = pair.source[part];
+    if (pair.source[part] === 'pinned') segment.append(icon('pin'));
+    segment.append(el('span', '', value));
+    node.append(segment);
+  }
+  return node;
 };
 
 const status = (card: Card, hasGlyph = true, isShort = false) => {
@@ -487,7 +499,7 @@ const status = (card: Card, hasGlyph = true, isShort = false) => {
     node.classList.add('next');
     if (hasGlyph) node.append(icon('pending'));
     node.append(el('span', 'lead', 'next'), el('span', 'mono step', card.step));
-    if (card.effort) node.append(effortChip(card.effort));
+    if (card.effort) node.append(startLabel(card.effort));
     const auto = gate(card.gate);
     if (auto) node.append(auto);
   }

@@ -1,4 +1,4 @@
-import { type ReviewerLevel, reviewerLevels } from './effort.ts';
+import { levels, models, type Pin, type ReviewerLevel, reviewerLevels } from './effort.ts';
 import { type Host, hosts } from './host-names.ts';
 import { type Document, isAlias, isMap, isScalar, isSeq, parseAllDocuments } from './vendor/yaml.mjs';
 import { type AutoLane, autoLaneNames, type Step, steps } from './workflow.ts';
@@ -56,6 +56,7 @@ export type ConfigSource = Readonly<{
 export type Config = Readonly<{
   gates?: Readonly<Partial<Record<Step, 'manual' | 'auto'>>>;
   agents?: Readonly<Partial<Record<Step, Host>>>;
+  sessions?: Readonly<Partial<Record<Step, Pin>>>;
   autoLanes?: readonly AutoLane[];
   board?: Readonly<{ port?: number }>;
   worktreeSetup?: string;
@@ -306,7 +307,18 @@ function checkSchema(value: unknown): asserts value is Config {
   const config = object(value, []);
   keysOnly(
     config,
-    ['landing', 'gates', 'agents', 'autoLanes', 'board', 'worktreeSetup', 'suite', 'custom', 'codexProfiles'],
+    [
+      'landing',
+      'gates',
+      'agents',
+      'sessions',
+      'autoLanes',
+      'board',
+      'worktreeSetup',
+      'suite',
+      'custom',
+      'codexProfiles',
+    ],
     [],
   );
   required(config, 'landing', []);
@@ -322,6 +334,16 @@ function checkSchema(value: unknown): asserts value is Config {
     const agents = object(config.agents, ['agents']);
     keysOnly(agents, steps, ['agents']);
     for (const [step, host] of Object.entries(agents)) oneOf(host, hosts, ['agents', step]);
+  }
+  if (Object.hasOwn(config, 'sessions')) {
+    const sessions = object(config.sessions, ['sessions']);
+    keysOnly(sessions, steps, ['sessions']);
+    for (const [step, entry] of Object.entries(sessions)) {
+      const pin = object(entry, ['sessions', step]);
+      keysOnly(pin, ['model', 'effort'], ['sessions', step]);
+      if (Object.hasOwn(pin, 'model')) oneOf(pin.model, models, ['sessions', step, 'model']);
+      if (Object.hasOwn(pin, 'effort')) oneOf(pin.effort, levels, ['sessions', step, 'effort']);
+    }
   }
   if (Object.hasOwn(config, 'autoLanes')) {
     const { autoLanes } = config;

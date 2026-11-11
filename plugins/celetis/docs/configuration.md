@@ -12,6 +12,7 @@ nothing after a `---` marker on its line.
 | `landing` | Required: `pr` or `merge`. `pr` squash-merges a PR when each check is green. `merge` creates one squash commit on the trunk, with no PR; a project with no PR check uses `merge` (`docs/issue-tracker.md`, "Branches, PRs, merge") | None: the config is refused |
 | `gates` | Mapping from a step name to `manual` or `auto` (`docs/workflow.md`, "Gates") | `manual` for each omitted step |
 | `agents` | Mapping from a step name to `claude` or `codex`: the preferred agent of that step ([Agent selection and model setup](#agent-selection-and-model-setup)) | Each step uses the local order |
+| `sessions` | Mapping from a step name to a mapping with an optional `model` (`haiku`, `sonnet`, `opus`, or `fable`) and an optional `effort` (`low`, `medium`, `high`, `xhigh`, or `max`): a pin of the model, the level, or both for each step session that the daemon starts. A pinned value wins over the decision of the step before. A `--model` or `--effort` of one start wins over the pin ([Agent selection and model setup](#agent-selection-and-model-setup)) | No pin |
 | `autoLanes` | A sequence with one or more of `triage`, `feature`, `bug`, `chore`, and `hotfix`: the lanes that auto mode of the daemon takes. `triage` stands for an issue with no lane (`docs/workflow.md`, "Gates") | Auto mode takes each lane and each issue with no lane |
 | `board` | Mapping with optional `port`, an integer from 1024 to 65535: the first port to try for the board ("Start the board") | Search starts at 4403 |
 | `worktreeSetup` | A root-relative `.ts` file reference, for example `"scripts/worktree-setup.ts"`, or exactly `""` ("Setup file and instruction text") | No setup |
@@ -19,7 +20,7 @@ nothing after a `---` marker on its line.
 | `custom` | Mapping from a skill name of the plugin to an instruction string: an addition to the procedure of that skill | No addition for an omitted skill |
 | `codexProfiles` | Mapping from a runtime identity to its profile: four ordered model slots and the reviewer minimum for that dispatch surface | Each Codex child keeps the parent's model |
 
-The engine reads `landing`, `suite`, `gates`, `agents`, `autoLanes`, `board`, and `codexProfiles`
+The engine reads `landing`, `suite`, `gates`, `agents`, `sessions`, `autoLanes`, `board`, and `codexProfiles`
 from the main checkout, also when a command starts in a lane or a subfolder. The worktree command
 reads `worktreeSetup` from the lane checkout. At a skill entry, the active checkout supplies only
 the selected `custom.<skill>`
@@ -280,7 +281,7 @@ step that needs a value of the file, and for the verify gate of this repository.
 | --- | --- |
 | Public command | One operation before protected side effects; argument errors can fail first |
 | Board data refresh | One main operation for issue resolution, gates, and default host; Run and Resume start separate commands |
-| New workflow step | Fresh main policy for resolution, gate choice, the lane test of auto mode (`autoLanes`), the `agents` preference of the step, and session start; a fresh local order; original explicit and environment inputs retain precedence |
+| New workflow step | Fresh main policy for resolution, gate choice, the lane test of auto mode (`autoLanes`), the `agents` preference and the `sessions` pin of the step, and session start; a fresh local order; original explicit and environment inputs retain precedence |
 | Active-session monitoring | A separate fresh operation for status; the running session retains its captured host and exact ID; a config failure waits until that child exits |
 | Target lane entry | Fresh main and lane validation before setup or acceptance of an existing setup marker |
 | Configuration setup or test after a write | Fresh validation of the written or newly selected file |
@@ -408,6 +409,8 @@ agent with no wait. A step with no entry uses the local order. A local exclusion
 agent that the local order excludes has no effect. When this machine cannot start the preferred
 agent (not installed or not signed in), the start stops at its preflight and tries no other
 agent; exclude that agent from the local order to continue with the others.
+
+A step session on Claude Code starts on the model of the `--model` of its start (the first session only), else of its `sessions` pin, else on the model that the step before decides, or else on the default `opus`, and a Codex step session keeps the model of its Codex config (`engine/README.md`, "The start of a step").
 
 New Intake, Assist, and Make visual sessions use the first included host without an active
 confirmed usage block. An explicit host remains pinned despite exclusion or a block.

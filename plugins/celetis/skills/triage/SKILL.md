@@ -95,7 +95,7 @@ Ambiguous — ask the one splitter that resolves it:
    - **No-fit idea** → write why to a file, run `celetis --agent <host> issue <n> wontfix <file>`
      as the last act of the turn, and stop.
 4. **Clean one-liner** — normalize the idea into the single-sentence description the lane consumes.
-5. **Decide the effort, route, announce, ask to continue** — record the effort level of the
+5. **Decide the effort, route, announce, ask to continue** — record the model and the effort level of the
    lane's first step per `<plugin>/references/procedures/effort.md`. Then route the issue
    (`celetis --agent <host> issue <n> route <lane>`
    with the lane `feature`, `bug`, `chore`, or `hotfix`), then state the pick and the one-liner (`→ /celetis:bug #<n>: <one-liner>`). Ask the

@@ -1,6 +1,6 @@
 import { dirname } from 'node:path';
 import { type ExitCode, exits, usage, usageLine } from './lib/contract.ts';
-import type { Level } from './lib/effort.ts';
+import type { Level, Model } from './lib/effort.ts';
 import { versionFolderGone } from './lib/version-folder.ts';
 
 const removed = 'the engine version of this command was removed after an update; run the command again';
@@ -27,6 +27,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
   let numbers: string[];
   let waitId = '';
   let override: Level | undefined;
+  let model: Model | undefined;
   if (argv.length === 3 && argv[0] === 'retry') {
     mode = 'retry';
     numbers = [(argv[1] ?? '').replace(/^#/, '')];
@@ -35,15 +36,16 @@ export async function main(argv: string[]): Promise<ExitCode> {
     mode = 'resume';
     numbers = [(argv[1] ?? '').replace(/^#/, '')];
   } else {
-    const at = argv.indexOf('--effort');
-    if (at !== -1) {
-      const level = argv[at + 1];
-      if (unavailable) argv = argv.toSpliced(at, 2);
-      else if ((await import('./lib/effort.ts')).isLevel(level)) {
-        override = level;
-        argv = argv.toSpliced(at, 2);
-      }
-    }
+    const effort = unavailable ? null : await import('./lib/effort.ts');
+    const take = <T>(flag: string, valid: ((value: unknown) => value is T) | undefined): T | undefined => {
+      const at = argv.indexOf(flag);
+      const value = argv[at + 1];
+      if (at === -1 || !(unavailable || valid?.(value))) return undefined;
+      argv = argv.toSpliced(at, 2);
+      return unavailable ? undefined : (value as T);
+    };
+    override = take('--effort', effort?.isLevel);
+    model = take('--model', effort?.isModel);
     numbers = argv.map((arg) => arg.replace(/^#/, ''));
   }
   if (numbers.length !== 1 || !/^[1-9][0-9]*$/.test(numbers[0] as string)) {
@@ -77,7 +79,12 @@ export async function main(argv: string[]): Promise<ExitCode> {
     }
     const selection = requestSelection(explicit);
     if (mode === 'resume') return await sendRun(common, { kind: 'resume', number, selection }, 'run', subject);
-    return await sendRun(common, { kind: 'run', number, selection, effort: override ?? null, quiet }, 'run', subject);
+    return await sendRun(
+      common,
+      { kind: 'run', number, selection, effort: override ?? null, model: model ?? null, quiet },
+      'run',
+      subject,
+    );
   } catch (error) {
     if (!(error instanceof HostError)) throw error;
     if (error.message) console.error(error.message);

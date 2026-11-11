@@ -45,8 +45,13 @@ start of the step.
 
 For each step, `specify` too, `stepArguments` also reads the session model: `model` of
 `config/read`, else the `isDefault` model of `model/list`. It reads every page of `model/list` with
-`includeHidden: true`, because a configured model can be hidden. `selectCodexEffort` of
-`engine/lib/host-codex.ts` takes the supported levels of that model
+`includeHidden: true`, because a configured model can be hidden. The model of the start pair
+([The start of a step](../../engine/README.md#the-start-of-a-step)) does not reach Codex: the
+session keeps the model of the config. The pair gives only the chosen level. A level of the pair
+with the source `pinned` or `override` is the chosen level as it is. Else `tierRaise` of
+`engine/lib/host-codex.ts` raises the level by the tier of the model of the pair: 0 levels for
+`haiku` and `sonnet`, 1 for `opus`, and 2 for `fable`, at most `max`. `selectCodexEffort` of
+`engine/lib/host-codex.ts` takes the supported levels of the session model
 (`supportedReasoningEfforts[].reasoningEffort`), keeps the five levels of Celetis, and applies the
 highest one at or below the chosen level, else the lowest one.
 The daemon passes it as `-c model_reasoning_effort="<level>"` before the prompt and saves it in the

@@ -2,16 +2,40 @@
 {
   "schema": 1,
   "name": "give-a-reading-case-an-input-that-only-the-rule-under-test-covers",
-  "description": "A reading case for a new sentence used a sample line that another rule of the same agent text also covers, so each reader followed the other rule and the grade failed",
+  "description": "Reading cases used inputs that another rule also covers: a sandbox-block sample line in #252, and a migration that also fires the high row of the level table in #290, so correct readers failed the grade",
   "tags": [
     "test",
     "process",
-    "false-positive"
+    "false-positive",
+    "recurring"
   ],
   "date": "2026-11-11",
   "status": "active",
-  "source": "The fixer of the final review of #252 (child final-fix-2 of the implement session on Claude Code), report of 2026-11-11",
+  "source": "The implement session of #290 on Claude Code, Task 7 (the reading checks of effort.md), 2026-11-11\n\nThe fixer of the final review of #252 (child final-fix-2 of the implement session on Claude Code), report of 2026-11-11",
   "incidents": [
+    {
+      "id": "8da7fc36-cfa3-4dc4-a987-a60a81f4efe9",
+      "date": "2026-11-11",
+      "action": "The plan of #290 wrote reading case K3 (plan decides implement: the build is one coupled migration of eleven tasks, and opus at high is not enough) with the expected act fable at medium.",
+      "expected": "A reading case input that only the rule under test covers (fable in place of opus above high), or an expected act for each rule that the input triggers.",
+      "observed": "The Claude Code reader answered fable at high in 3 of 3 samples; the input also fits the high row of the level table (verification matters or edge cases are likely: a migration). A variant K3b with a clear scope and no likely edge case gave fable at medium on both hosts.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "K3 | fable named, level `high` (3 samples) -> see K3b | PASS fable medium; K3b (K3 + clear scope, no edge case) | PASS fable medium | PASS fable medium",
+        "reference": "https://github.com/ddinkov10/celetis/issues/290"
+      },
+      "inference": "The plan author applied the carried lesson to the model rows only and did not list the level rows that the same input fires. Alternative: the author judged a migration as clear-scope work; the spec level table says edge cases are likely for it.",
+      "diagnosis": [
+        "not-followed"
+      ],
+      "revision": "9885bda",
+      "brief": "Task 7 of the plan of #290 carried give-a-reading-case-an-input-that-only-the-rule-under-test-covers with its digest in its Lesson rules section.",
+      "lesson": {
+        "name": "give-a-reading-case-an-input-that-only-the-rule-under-test-covers",
+        "revision": "630d7d0",
+        "digest": "aff20802552e5d566fd6067beb8a42d3c76f6269df8f87386423e601fa0d7d63"
+      }
+    },
     {
       "id": "5e7072cb-1f4e-49dd-821a-95de2f363101",
       "date": "2026-11-11",
@@ -36,7 +60,7 @@
       }
     }
   ],
-  "recurrences": 0,
+  "recurrences": 1,
   "reviews": [
     {
       "id": "8a7e8662-ebf7-44d9-9c65-d01eef0075f1",
@@ -51,6 +75,21 @@
         "state": "not-needed",
         "detail": "The rule stays text: which rules of the agent text an input triggers needs a read of that text, and the oracle is a reading check. This decision requires no structural follow-up."
       }
+    },
+    {
+      "id": "c1b33050-24e3-40c5-a7c5-2f6b78900fde",
+      "requestDigest": "c386a56ab162d6e12e0ab47ba0c38049f0b6e17ff734e53ccc6c19ddbd06aa03",
+      "date": "2026-11-11",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #290; claude child opus/high\n\nMerge under the reviewer rules: the proposal states the same rule as the active lesson give-a-reading-case-an-input-that-only-the-rule-under-test-covers, whose action already lists each rule that the input can trigger; the incident records that rule as carried and not followed. The survivor keeps both incidents and names a row of a second table as such a rule. Observed facts and inferred causes stay apart.",
+      "related": [
+        "check-each-planned-reading-case-against-every-row-it-can-trigger",
+        "give-a-reading-case-an-input-that-only-the-rule-under-test-covers"
+      ],
+      "followUp": {
+        "state": "not-needed",
+        "detail": "The rule stays text: which rules an input fires is a judgment of the agent text."
+      }
     }
   ]
 }
@@ -61,13 +100,17 @@
 
 The fix wave of the final review of #252 added one sentence to the skill `coordinate`: the act for exit 1 of `coordinator send`. Its reading case K26 used the sample line `coordinator: connect EPERM <socket>` and graded a second send before a screen read as FAIL. That line is a sandbox block, and the entry contract of the plugin gives a sandbox block another first act (one approved retry). The three Codex readers followed the entry contract, and the case failed. A second case K27 with a line that is no sandbox block passed 6 of 6.
 
+The plan of #290 gave reading case K3 a coupled migration of eleven tasks and expected `fable` at `medium`. The Claude Code reader answered `fable` at `high` in 3 of 3 samples. The input also fits the `high` row of the level table (edge cases are likely in a migration). The variant K3b, with a clear scope and no likely edge case, gave `fable` at `medium` on both hosts. Task 7 of the plan carried this lesson.
+
 ## Root cause
 
 Inference: the sample input came from the finding and was not compared with the other rules that the reader reads. Unresolved alternative: the two rules have a real order question for that input, which the kept case K26 records.
 
+In #290, inferred: the plan author checked the input against the rows of the table under test (the model rows) and not against the rows of the second table that the same decision reads (the level rows). Alternative: the author judged the migration as clear-scope work. The evidence does not settle which. The rule reached the author and was not followed.
+
 ## Fix
 
-In #252 the fixer added the isolating case and kept the first case with its grade. Proposed reconciliation, for a separate review: `check-refusal-contract-across-earlier-guards` states the same idea for a failure fixture of code; this proposal applies it to a reading case of agent text. The rule stays text: which rules an input triggers needs a read of the agent text.
+In #252 the fixer added the isolating case and kept the first case with its grade. In #290 the variant K3b removed the second trigger. Proposed reconciliation, for a separate review: `check-refusal-contract-across-earlier-guards` states the same idea for a failure fixture of code; this lesson applies it to a reading case of agent text. When an expected act holds values that more than one table decides (for example a model and a level), each row of each table counts as a rule that the input can trigger. The rule stays text: which rules an input triggers needs a read of the agent text.
 
 ## Detection signature
 
@@ -75,7 +118,7 @@ Each reader of one host gives the same act that the grade refuses, and its answe
 
 ## Rule
 
-Applies when a reading check adds a case for one new or changed sentence of agent text. Action: before the grade is fixed, list each rule of the files that the reader reads that the sample input can trigger, and choose an input that only the rule under test covers; when an input must trigger two rules, write the expected act for each rule and their order. Check: the case file names, for each case, the rules that its input triggers, and a control without the sentence under test changes the act of the case.
+Applies when a reading check adds a case for one new or changed sentence of agent text, also when a plan or a brief writes that case; a row of each table that decides a value of the expected act counts as a rule. Action: before the grade is fixed, list each rule of the files that the reader reads that the sample input can trigger, and choose an input that only the rule under test covers; when an input must trigger two rules, write the expected act for each rule and their order. Check: the case file names, for each case and for each value of its expected act, the rules that its input triggers, and a control without the sentence under test, or without the second trigger, changes only the act that it covers.
 
 ## Related lessons
 

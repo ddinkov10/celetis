@@ -135,7 +135,7 @@ shape:
 {
   "call": {
     "tool": "Agent",
-    "arguments": {"prompt": "<issued CAP line>\nCAP reason: <task evidence>\nReply OK.", "model": "haiku", "effort": "low", "subagent_type": "general-purpose"},
+    "arguments": {"prompt": "<issued CAP line>\nCAP reason: <task evidence>\nReply OK.", "model": "haiku", "effort": "medium", "subagent_type": "general-purpose"},
     "result": {"agentId": "worker-id"}
   },
   "outcome": {"result": "started", "child": "worker-id", "model": null, "effort": null}

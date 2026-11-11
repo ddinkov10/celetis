@@ -22,11 +22,13 @@ export interface Pair {
   reviewer: boolean;
 }
 
-export function resolveScore(digits: readonly number[], bias: number, attempt: number): Score | null {
+export function resolveScore(digits: readonly number[], bias: number, attempt: number, host: Host): Score | null {
   if (attempt >= 4) return null;
   const sum = digits.reduce((a, b) => a + b, 0);
-  let rank = sum <= 3 ? 0 : sum <= 6 ? 1 : sum <= 11 ? 2 : 3;
-  let effort = sum <= 3 ? 0 : sum <= 6 ? 1 : sum <= 9 ? 2 : sum <= 11 ? 3 : 4;
+  const claude = host === 'claude';
+  const above = (limits: number[]) => limits.filter((limit) => sum > limit).length;
+  let rank = above(claude ? [3, 6, 9] : [3, 6, 11]);
+  let effort = claude ? (sum === 12 ? 2 : 1) : above([3, 6, 9, 11]);
   if (digits[5] === 2) {
     rank = Math.max(rank, 2);
     effort = Math.max(effort, 2);
@@ -34,8 +36,11 @@ export function resolveScore(digits: readonly number[], bias: number, attempt: n
   if (digits[1] === 2) effort = Math.max(effort, 2);
   effort += bias;
   if (attempt === 3) {
-    rank++;
-    effort = Math.max(effort, 2);
+    if (claude && rank === 3) effort += 2;
+    else {
+      rank++;
+      effort = Math.max(effort, 2);
+    }
   } else if (attempt === 2) effort++;
   rank = Math.min(rank, 3);
   effort = Math.min(effort, 4);
@@ -59,7 +64,7 @@ export function resolvePair(
   reviewer: boolean,
   binding: Binding,
 ): Pair | null {
-  const score = resolveScore(digits, bias, attempt);
+  const score = resolveScore(digits, bias, attempt, binding.host);
   if (!score) return null;
   const sum = digits.reduce((a, b) => a + b, 0);
   const { host, slots, reviewerRank, reviewerEffort, runtime } = binding;
@@ -67,7 +72,7 @@ export function resolvePair(
   let previousModel: string | null = null;
   let previousEffort = 0;
   for (let retry = host === 'codex' ? 1 : attempt; retry <= attempt; retry++) {
-    const portable = resolveScore(digits, bias, retry) as Score;
+    const portable = resolveScore(digits, bias, retry, host) as Score;
     applied = { ...portable };
     if (reviewer) {
       applied.rank = Math.max(applied.rank, reviewerRank);

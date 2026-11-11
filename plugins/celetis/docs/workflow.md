@@ -53,6 +53,7 @@ of the product project, apart from a path that starts with `~/` or `/`.
 celetis daemon start                           # once: the master daemon of this repository
 celetis --agent <host> run 373                 # one issue; its first step is explicit
 celetis --agent <host> run 373 --effort xhigh  # the same, with its first session at xhigh
+celetis --agent <host> run 373 --model sonnet  # the same, with its first session on sonnet
 celetis --agent <host> run resume 373          # the session of a step with no progress, again
 celetis --agent <host> queue status
 celetis --agent <host> queue action '{"kind":"add","number":12,"step":"plan","expected":{"id":null,"revision":0,"current":null}}'
@@ -150,7 +151,7 @@ The session of `specify` is the one session with no step text, so it is no step 
 `run /celetis:feature #402`:
 
 ```bash
-claude --permission-mode auto --effort high -n '#402 specify' '/celetis:feature #402'
+claude --permission-mode auto --model opus --effort medium -n '#402 specify' '/celetis:feature #402'
 ```
 
 Rule 2 of the step text tells a session to publish with no wait for a review. `specify` publishes
@@ -499,6 +500,10 @@ Claude Code and Codex TUI/CLI only (ADR-0016). A desktop probe has its own recor
 UNRUN desktop probe does not block complete CLI checks, and a desktop success does not close a CLI
 gap. An observed version is no minimum version.
 
+- **Model and effort of a step session (#290).** partial. Hosts: Claude Code 2.1.322, Codex CLI
+  0.167.0, Bun 1.4.4. Open: a real `fable` start in a tab at the consent prompt of usage credits; a
+  provider other than the Anthropic API; a real Codex step start with the tier rule. Evidence:
+  [#290](https://github.com/ddinkov10/celetis/issues/290).
 - **Coordinator session (#252).** partial. Hosts: hc 0.1.20, herdr-app 0.1.15, Claude Code 2.1.322,
   Codex CLI 0.167.0, Bun 1.4.4. Open: a coordinator session of the installed engine with the real
   hosts (the checks after the landing); a Codex coordinator session, whose daemon commands need the

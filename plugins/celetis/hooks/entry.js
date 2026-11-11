@@ -207,11 +207,11 @@ var issueActs = {
     writes: "the label of the lane; it removes the other lane labels and `needs-triage`"
   },
   effort: {
-    words: ["effort", "<step>", "<level>", "<file>"],
+    words: ["effort", "<step>", "<model>", "<level>", "<file>"],
     flags: [],
     argument: "effort",
     prerequisite: "open",
-    writes: 'an `Effort: <step> <level>` comment ("What lives on the issue", "Effort"); no label change'
+    writes: 'an `Effort: <step> <model> <level>` comment ("What lives on the issue", "Effort"); no label change'
   },
   epic: {
     words: ["epic", "<file>"],
@@ -353,8 +353,9 @@ var commands = [
     form("run retry <n> <wait-id>", [], helped(12, "Asks the daemon to wake the quota waiter of an issue for one attempt cycle."))
   ], `Each form sends one request to the master daemon of the repository of the current folder and returns at its answer. \`run <n>\` starts the next step of the issue, \`run resume <n>\` opens the saved session of a step with no progress again, and \`run retry <n> <wait-id>\` wakes the quota waiter of the issue for one attempt cycle. \`--quiet\` opens each session tab of the start in the background; \`run resume\` ignores it. An accepted start prints \`run: #<n>: accepted as run <run id> of the daemon PID <pid>; read its progress: celetis daemon status\`, and an accepted Retry prints \`run: #<n>: Retry requested; the waiting run starts one bounded attempt cycle\`; both exit ${exits.done}. A refusal prints the line of the daemon, on stdout for code ${exits.done} and on stderr otherwise, and exits with its code: ${exits.prerequisite} for a busy issue lock, ${exits.blocked} for a failed GitHub read of the issue, ${exits.done} for each other end before the first session. With no daemon, it exits ${exits.prerequisite} and starts nothing. It exits ${exits.prerequisite} when the daemon runs another revision of the engine or an update removed this engine version, and ${exits.blocked} when the daemon does not answer or the outcome is unknown. On Windows it exits ${exits.prerequisite} with \`run: Windows is not a support target\`. Any other form exits ${exits.usage} with the usage line`),
   entry("run", true, [
-    form("run <n>", [required("--effort", "<level>"), optional("--quiet")], helped(10, "Asks the daemon to start the next step of one issue at another effort level, for its first session only."))
-  ], `Asks the daemon to start the next step of the issue at \`low\`, \`medium\`, \`high\`, \`xhigh\`, or \`max\` instead of its decided or default level; the request carries the level, for the first session of this start only. Each later step uses its own decision, and the flag writes no decision. It needs exactly one issue number; any other form exits ${exits.usage} with the usage line`),
+    form("run <n>", [required("--effort", "<level>"), optional("--model", "<model>"), optional("--quiet")], helped(10, "Asks the daemon to start the next step of one issue at another effort level, for its first session only.")),
+    form("run <n>", [required("--model", "<model>"), optional("--effort", "<level>"), optional("--quiet")], helped(10, "Asks the daemon to start the next step of one issue on another model, for its first session only."))
+  ], `Asks the daemon to start the next step of the issue with \`--effort\` at \`low\`, \`medium\`, \`high\`, \`xhigh\`, or \`max\`, with \`--model\` on \`haiku\`, \`sonnet\`, \`opus\`, or \`fable\`, or with both, in either order. Each flag replaces the decided, pinned, or default value of the first session of this start only, and the request carries it. Each later step uses its own pair, and neither flag writes a decision. It needs exactly one issue number; any other form exits ${exits.usage} with the usage line`),
   entry("queue", true, [
     form(["queue", "action", "'<QueueAction JSON>'"], [optional("--quiet")], helped(13, "Saves a queue action; asks the daemon to run its authorized wake.")),
     form("queue status", [], helped(14, "Reads the current queue and its allowed actions."))
@@ -405,7 +406,7 @@ var commands = [
       optional("--profile", "FILE"),
       optional("--runtime-models", "FILE")
     ])
-  ], "Resolves the six digits. `--json` gives portable scores and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null"),
+  ], "Resolves the six digits. `--json` gives the score of the selected host and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null"),
   entry("dispatch", true, dispatchForms, `Acts: ${dispatchForms.map(({ words }) => `\`${words[1]}\``).join(", ")}. The task loop applies each returned pair and reports exact native arguments/results. Evidence is agent-reported, not independently checked. Records: \`/tmp/celetis-<uid>/dispatch/<host>-<session>.json\` on macOS and Linux; \`<os.tmpdir()>/celetis/dispatch/<host>-<session>.json\` on Windows. It exits ${exits.done} for a ready, reported, or closed result (also \`show\`), ${exits.usage} for bad usage or an invalid \`.celetis.yaml\`, ${exits.prerequisite} for a refusal or a busy dispatch lock, ${exits.blocked} for a setup failure, and ${exits.stop} when the engine stops the task`, ["done", "internal", "usage", "prerequisite", "blocked", "stop"]),
   entry("install", false, [form("install")], 'Installs the revision of the clean checkout that it runs from as the engine ("First install"); takes no arguments'),
   entry("setup", true, [
@@ -499,6 +500,7 @@ var stages = stageNames.map((name, position) => ({
 // engine/lib/effort.ts
 var levels = ["low", "medium", "high", "xhigh", "max"];
 var reviewerLevels = levels.filter((level) => level !== "max");
+var models = ["haiku", "sonnet", "opus", "fable"];
 var decidable = steps.filter((step) => step !== "triage");
 
 // engine/lib/host-names.ts
@@ -6989,7 +6991,18 @@ function profile(value, path) {
 }
 function checkSchema(value) {
   const config = object(value, []);
-  keysOnly(config, ["landing", "gates", "agents", "autoLanes", "board", "worktreeSetup", "suite", "custom", "codexProfiles"], []);
+  keysOnly(config, [
+    "landing",
+    "gates",
+    "agents",
+    "sessions",
+    "autoLanes",
+    "board",
+    "worktreeSetup",
+    "suite",
+    "custom",
+    "codexProfiles"
+  ], []);
   required2(config, "landing", []);
   oneOf(config.landing, ["pr", "merge"], ["landing"]);
   if (Object.hasOwn(config, "gates")) {
@@ -7005,6 +7018,18 @@ function checkSchema(value) {
     keysOnly(agents, steps, ["agents"]);
     for (const [step, host] of Object.entries(agents))
       oneOf(host, hosts, ["agents", step]);
+  }
+  if (Object.hasOwn(config, "sessions")) {
+    const sessions = object(config.sessions, ["sessions"]);
+    keysOnly(sessions, steps, ["sessions"]);
+    for (const [step, entry] of Object.entries(sessions)) {
+      const pin = object(entry, ["sessions", step]);
+      keysOnly(pin, ["model", "effort"], ["sessions", step]);
+      if (Object.hasOwn(pin, "model"))
+        oneOf(pin.model, models, ["sessions", step, "model"]);
+      if (Object.hasOwn(pin, "effort"))
+        oneOf(pin.effort, levels, ["sessions", step, "effort"]);
+    }
   }
   if (Object.hasOwn(config, "autoLanes")) {
     const { autoLanes } = config;

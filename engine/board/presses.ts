@@ -316,7 +316,7 @@ export const createPresses = ({
         throw new Refusal(409, readError() || view?.error || 'queue: no successful initial read');
       const record = view.record;
       if (record?.state === 'me-gate' && record.numbers[0] === number && record.choice) {
-        if (effort) throw new Refusal(409, 'The queue starts this step at the decided level');
+        if (effort) throw new Refusal(409, 'The queue starts this step at the start pair, with no override');
         if (isHost(choice)) {
           try {
             requireQueueChoice(record.choice, { kind: 'explicit', host: choice });

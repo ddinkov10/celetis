@@ -22,8 +22,8 @@ tools, and their versions. The engine adds these rules:
 
 A run uses the environment of the daemon ([The master daemon](#the-master-daemon)). Only these
 values of the command travel in its request: `--agent` and `CELETIS_AGENT` as the host selection,
-`--effort`, and `--quiet`. Each other variable of the shell of the command, for example `PATH`,
-`CLAUDE_CONFIG_DIR`, or `CODEX_HOME`, does not reach the run.
+`--effort`, `--model`, and `--quiet`. Each other variable of the shell of the command, for example
+`PATH`, `CLAUDE_CONFIG_DIR`, or `CODEX_HOME`, does not reach the run.
 
 Intake, Assist, and Make visual share the independent-session launcher. Default launches read
 the current order and per-host usage records from the Git common directory. They select the
@@ -59,13 +59,22 @@ next step whose gate is `auto`. It ends the issue at the first of these, in this
 the same step again ("no progress"), a refused skip, or a `manual` gate. With the default gates, each
 next step is a `manual` step.
 
-**The effort level.** Each session that the daemon starts gets an effort level. The level is the
-decision of the step before on the issue, the newest `Effort: <step> <level>` comment for the step
+**The model and the effort level.** The daemon resolves one start pair, a model and an effort
+level, for each session that it starts (`startPair` of `engine/lib/effort.ts`). Each value is the
+first that is present, from the strongest: the override of this start, the `sessions` pin of the
+step in the `.celetis.yaml` of the main checkout
+([Fields and defaults](../plugins/celetis/docs/configuration.md#fields-and-defaults)), the
+decision of the step before on the issue, and the default `opus` and `medium`. The decision is the
+newest `Effort: <step> <model> <level>` comment for the step
 ([What lives on the issue](../plugins/celetis/docs/issue-tracker.md#what-lives-on-the-issue),
-"Effort"), else the default `high`. `--effort <level>`, before or after the one number, overrides
-that level for the first session of this start only: `low`, `medium`, `high`, `xhigh`, or `max`.
-Each later step of the same start uses its own decision, and the override writes no decision on
-the issue.
+"Effort"); a comment in the old form `Effort: <step> <level>` is no decision. The source of each
+value is `override`, `pinned`, `decided`, or `default`. `--model <model>` and `--effort <level>`,
+each before or after the one number, override the model and the level for the first session of
+this start only, also over a pin: the model is `haiku`, `sonnet`, `opus`, or `fable`, and the level
+is `low`, `medium`, `high`, `xhigh`, or `max`. Each later step of the same start uses its own pin
+and decision, and an override writes no decision on the issue. Claude Code starts on the model and
+the level of the pair. Codex keeps the model of its config, and raises a decided or default level by the tier of
+the model of the pair ("The arguments of a session" below).
 
 **A refused skip.** Between two steps of one start, the script refuses a next step that skips a
 step of its lane. Let S be the step that ended, and T the next step in the lane of the decision.
@@ -142,12 +151,17 @@ explicit issue start can start that step. `engine/lib/locks.ts` of the engine ow
 the owner records, the liveness check of an owner, and the record; the daemon and the board use it.
 
 **The arguments of a session.** `stepArguments` of the adapter of each host builds the arguments
-of a step session: [Claude Code](../docs/hosts/claude-code.md#the-daemon) and
-[Codex](../docs/hosts/codex.md#the-daemon-and-developer_instructions) give them, with the effort
-level of each host and the Codex prompt. A failed model read of Codex starts no session and writes
-no session record. No document content is evaluated as shell code. After it builds the arguments,
-the daemon prints the command, the level, and its source: `decided`, `default`, or `override`.
-When Codex applies another level, the line also names that level and the model.
+of a step session from the start pair: [Claude Code](../docs/hosts/claude-code.md#the-daemon) and
+[Codex](../docs/hosts/codex.md#the-daemon-and-developer_instructions) give them, with the Codex
+prompt. Claude Code gets `--model <model>` and `--effort <level>` of the pair. Codex keeps the model
+of its config and gets only a level: a level with the source `pinned` or `override` as it is, else
+the level raised by the tier of the model of the pair (`tierRaise` of `engine/lib/host-codex.ts`):
+0 levels for `haiku` and `sonnet`, 1 for `opus`, and 2 for `fable`, at most `max`. Then the
+supported levels of the Codex model apply. A failed model read of Codex starts no session and
+writes no session record. No document content is evaluated as shell code. After it builds the
+arguments, the daemon prints the start line
+`start: <prompt> on <model> (<source>) at <level> (<source>)`, with the source of each value of the
+pair. On Codex the line ends with `; codex keeps its configured model <codex model> and applies <applied level>`.
 
 ## The continuous queue
 
@@ -319,7 +333,7 @@ dispatcher throws is the 500 answer below. A body is JSON of at most 16 KiB, wit
 | Request | Body | Effect |
 | --- | --- | --- |
 | `GET /status` | none | The status object |
-| `POST /run` | `{number, selection, effort, quiet}` | A start with one number; `effort` is a level or `null` |
+| `POST /run` | `{number, selection, effort, model, quiet}` | A start with one number; `effort` is a level or `null`, and `model` is a model or `null` |
 | `POST /auto` | `{on, selection, quiet}` | Auto mode on or off |
 | `POST /queue` | `{id, token, selection, quiet}` | The claim and the run of a queue wake that a `queue action` issued |
 | `POST /resume` | `{number, selection}` | `run resume <number>` |
@@ -484,8 +498,8 @@ after the start barrier reports and before its release, after each session end, 
 and its wake, at the claim of a queue wake, and after each drain of a queue issue. A run that ends
 removes its record. A detached run
 keeps it, except a run whose answer was 503. The `go` file of the start folder, not the record,
-tells whether the barrier was released. The record has `schema: 2`, with its paths under
-`<git common dir>/celetis/`; a schema-1 record converts as
+tells whether the barrier was released. The record has `schema: 3`, with its paths under
+`<git common dir>/celetis/`; a schema-1 or a schema-2 record converts as
 [The move of the old names](#the-move-of-the-old-names) says.
 
 At its start, after it holds `daemon`, the daemon reads the records in the order of their file
@@ -675,9 +689,10 @@ no record lock. An invalid record is refused with its path and its cause; it is 
 empty:
 
 - The recovery record: schema 1 with the key `runner` becomes schema 2 with the key `daemon`.
-- The run record: schema 1 becomes schema 2. The paths `session.folder` and `session.capture`
-  under the old folder move to `celetis/`. A path outside the old and the new folder is a refusal,
-  and the daemon takes over no run from that record ("The takeover").
+- The run record: schema 1 and schema 2 become schema 3, with `model: null` in a `number` input. For
+  schema 1, the paths `session.folder` and `session.capture` under the old folder move to
+  `celetis/`. A path outside the old and the new folder is a refusal, and the daemon takes over no
+  run from that record ("The takeover").
 - The step-end record has the key `daemon` only. A record with the key `runner` reads as no
   record, and nothing converts it.
 - The queue record and the session record keep their schemas
@@ -1087,7 +1102,9 @@ are not the saved session ID. From the main checkout, `celetis --agent <host> ru
 asks the daemon to resume. The daemon run first takes the shared issue lock and keeps it until the
 session exits. Under that lock, it reads and validates the current record for #402 and opens its exact host and session ID at the
 level of the record: Claude gets `--effort <level>`, and Codex gets
-`-c model_reasoning_effort="<level>"`.
+`-c model_reasoning_effort="<level>"`. The resume passes only the level of the record and no
+model. On the Anthropic API, Claude Code keeps the model of the transcript, unless
+`ANTHROPIC_MODEL` is set in the environment of the daemon.
 No `gh` call, completion job, or update runs during resume.
 
 A missing or invalid record stops with a recovery action. A record with no verified ID directs
@@ -1345,10 +1362,14 @@ The record has these gaps:
   the daemon from the installed engine, then to send the request again (ADR-0012). The board stops
   with its daemon.
 - The output of the master daemon grows with each run. The daemon does not rotate or trim it.
-- A host can run a session at another level than the daemon chose, and the daemon does not see
-  it. The daemon removes only the process variable `CLAUDE_CODE_EFFORT_LEVEL`. It does not read
-  or change a `CLAUDE_CODE_EFFORT_LEVEL` in the `env` block of a Claude Code settings file, which
-  outranks `--effort`, or `maxEffortLevel` and an organization cap, which run a higher level at
-  the cap. Claude Code runs a level that the model does not support at the highest supported level
-  below it. The start line names the chosen level, and the applied level only when Codex applies
-  another level.
+- A host can run a session on another model or at another level than the pair, and the daemon
+  does not see it. In Claude Code, `/model` in the session changes the model, and an
+  `availableModels` list that blocks the model of the pair starts the session on the default
+  model. A resume on Amazon Bedrock, Google Cloud's Agent Platform, or Microsoft Foundry does not
+  restore the model of the transcript, and no resume does when `ANTHROPIC_MODEL` is set in the
+  environment of the daemon. The daemon removes only the process variable
+  `CLAUDE_CODE_EFFORT_LEVEL`. It does not read or change a `CLAUDE_CODE_EFFORT_LEVEL` in the `env`
+  block of a Claude Code settings file, which outranks `--effort`, or `maxEffortLevel` and an
+  organization cap, which run a higher level at the cap. Claude Code runs a level that the model
+  does not support at the highest supported level below it. The start line names the model, the
+  level, and their sources; on Codex it also names the configured model and the applied level.

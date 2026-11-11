@@ -8,7 +8,7 @@ import type { AgentChoice, Config, Host } from './config-core.ts';
 import { type ExitCode, exits, signalExit } from './contract.ts';
 import { requireContract } from './contract-check.ts';
 import { daemonArgv } from './daemon-start.ts';
-import { defaultLevel, type Level } from './effort.ts';
+import { type Level, type Model, noOverride, type Override, startPair } from './effort.ts';
 import { HostError } from './errors.ts';
 import { markDefect, passOn, recordEvent } from './events.ts';
 import { hostAdapter } from './hosts.ts';
@@ -98,7 +98,14 @@ import { autoTakes, defaultGate, invocation, type Run, type Step, sameResult, sk
 
 export type Place = Readonly<{ main: string; common: string; state: RepositoryLayout; root: string }>;
 export type RunInput =
-  | Readonly<{ kind: 'number'; number: number; selection: HostSelection; effort: Level | null; quiet: boolean }>
+  | Readonly<{
+      kind: 'number';
+      number: number;
+      selection: HostSelection;
+      effort: Level | null;
+      model: Model | null;
+      quiet: boolean;
+    }>
   | Readonly<{ kind: 'auto'; number: number; selection: HostSelection; quiet: boolean }>
   | Readonly<{ kind: 'queue'; id: string; token: string; selection: HostSelection; quiet: boolean }>
   | Readonly<{ kind: 'resume'; number: number; selection: HostSelection }>;
@@ -319,7 +326,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     if (!self?.start) self = { pid: process.pid, start: await processStart(process.pid) };
     fact = {
       ...(fact ?? {
-        schema: 2,
+        schema: 3,
         id,
         daemon: self,
         input,
@@ -423,9 +430,9 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     const { lineOf } = await import('./lines.ts');
     const keeps =
       permit && (async (lane: string) => lane === permit.lane && permitHolds(current.checkout.main as string, permit));
-    const { next, effort, authority, stderr } = await nextIssue(n, current, abort, keeps);
+    const { next, decided, authority, stderr } = await nextIssue(n, current, abort, keeps);
     process.stderr.write(stderr);
-    return { next, effort, authority, line: lineOf(n, next) };
+    return { next, decided, authority, line: lineOf(n, next) };
   };
   const blockedText = (blocked: readonly QuotaBlock[]) =>
     blocked
@@ -824,7 +831,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       retry: boolean;
     },
     hooks?: IssueHooks,
-    override?: Level,
+    override: Override = noOverride,
     from?: Resumed,
   ): Promise<IssueOutcome> => {
     const kept = from && from.phase !== 'before' ? from.record.loop : null;
@@ -1054,7 +1061,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       if (fresh) {
         await hooks?.beforeStart?.(s.next, s.host);
         request = undefined;
-        override = undefined;
+        override = noOverride;
       }
       last = s.next;
       lastHost = s.host;
@@ -1176,7 +1183,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
             say(error.message);
             return undefined;
           });
-        const { next, effort, authority, line } = await nextOf(n, current, halt.signal, permit);
+        const { next, decided, authority, line } = await nextOf(n, current, halt.signal, permit);
         stopped();
         resolved = next;
         const unreadable = next.kind === 'observed' && next.reason === 'unreadable';
@@ -1264,19 +1271,16 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
           await requireStart(stepHost, current.checkout.cwd);
           const pluginRoot = await requireContract(stepHost, main);
           if (await versionFolderGone(root)) return null;
-          const chosen =
-            override === undefined
-              ? (effort ?? { level: defaultLevel, source: 'default' as const })
-              : { level: override, source: 'override' as const };
+          const pair = startPair(decided, config.sessions?.[step], override);
           const { args, applied, model } = await adapter.stepArguments({
             issue,
             step,
             cwd: main,
-            effort: chosen.level,
+            start: pair,
             stepText: () =>
               stepText({ issue, step, host: stepHost, main, pluginRoot, landing: config.landing, recovery: retrying }),
           });
-          return { args, applied, model, ...chosen };
+          return { args, applied, model, pair };
         });
         stopped();
         first = 'gated';
@@ -1284,8 +1288,8 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
           await removal();
           return outcome('stopped', removed, 'Start the daemon again.');
         }
-        const { args, applied, model } = prepared;
-        say(startLine(prompt, prepared.level, prepared.source, applied, model));
+        const { args, applied, model, pair } = prepared;
+        say(startLine(prompt, pair, applied, model));
         const attempt: UsageAttempt = {
           id: randomUUID(),
           host: stepHost,
@@ -1539,7 +1543,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     say(reason);
     return { kind: 'closed', code: exits.done, reason };
   };
-  const issueRun = async (n: number, first: 'any' | 'gated', override?: Level) => {
+  const issueRun = async (n: number, first: 'any' | 'gated', override: Override = noOverride) => {
     operation = await createOperation(checkout, selection, 'main');
     initial = operation;
     await hooks.ready?.();
@@ -1696,7 +1700,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
             record.loop.first,
             record.request ?? undefined,
             undefined,
-            record.input.kind === 'number' ? (record.input.effort ?? undefined) : undefined,
+            record.input.kind === 'number' ? { model: record.input.model, level: record.input.effort } : noOverride,
             { record, phase },
           )
         : await runIssue(String(n), 'gated', undefined, undefined, undefined, { record, phase });
@@ -1711,7 +1715,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       if (input.kind === 'queue') return await queueRun(input);
       const result =
         input.kind === 'number'
-          ? await issueRun(input.number, 'any', input.effort ?? undefined)
+          ? await issueRun(input.number, 'any', { model: input.model, level: input.effort })
           : await issueRun(input.number, 'gated');
       issueStarted = result.started;
       return { kind: result.kind, code: exits.done, reason: result.reason };

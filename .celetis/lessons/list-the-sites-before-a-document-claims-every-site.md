@@ -2,7 +2,7 @@
 {
   "schema": 1,
   "name": "list-the-sites-before-a-document-claims-every-site",
-  "description": "Universal claims went past their evidence: ADR-0081 claimed one exception where the code has two, a #263 ruling scoped a two-file diff claim wider than its command, and an ADR-0091 summary line dropped an exception of its own Decision",
+  "description": "Universal claims went past their evidence: ADR-0081 claimed one exception where the code has two, a #263 ruling scoped a two-file diff claim wider than its command, an ADR-0091 summary line dropped an exception of its own Decision, and a #304 controller brief gave four presses a timeout that only one has",
   "tags": [
     "process",
     "refix",
@@ -10,10 +10,33 @@
     "false-negative",
     "recurring"
   ],
-  "date": "2026-11-10",
+  "date": "2026-11-11",
   "status": "active",
-  "source": "Task 4 review of ddinkov10/celetis#283 (commit 45fa8c9)\n\nTask 6 review of ddinkov10/celetis#263\n\nFinal review of ddinkov10/celetis#256 and its scoped re-review",
+  "source": "The implement session of ddinkov10/celetis#304 on Claude Code, task review of Task 3 (the decision record ADR-0099), 2026-11-11\n\nTask 4 review of ddinkov10/celetis#283 (commit 45fa8c9)\n\nTask 6 review of ddinkov10/celetis#263\n\nFinal review of ddinkov10/celetis#256 and its scoped re-review",
   "incidents": [
+    {
+      "id": "e539afe9-57b2-4486-a0b2-948bac15003e",
+      "date": "2026-11-11",
+      "action": "The controller turned a task-review risk of Task 1 (\"a slow-app New intake press can pass the page timeout\") into a consequence for the Task 3 brief, and wrote it for four presses: \"a board press with no space (New intake, Assist, Make visual, Open shell) takes about hc run + 10 s + 5 s, so it can pass the 10-second page timeout of the board\". The implementer copied the four presses into ADR-0099.",
+      "expected": "Before the brief states that a set of sites has a property, list each site from the code and write the claim only for the sites that have it (here only New intake), as the carried rule list-the-sites-before-a-document-claims-every-site says for a brief.",
+      "observed": "The Task 3 reviewer confirmed the timeout only for New intake. The controller then read engine/board/page/board.ts:153 (post('/api/intake', {}, 'New intake failed', { timeout: 10000 })), board.ts:326, :374, :936 (Assist, Open shell, Make visual call post with no options), and ui.ts:258-265 (a timer only when options is given).",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "engine/board/page/board.ts:153:    const outcome = await post('/api/intake', {}, 'New intake failed', { timeout: 10000 }); ... ui.ts: const timeout = options ? setTimeout(() => controller?.abort(), options.timeout) : undefined;",
+        "reference": "https://github.com/ddinkov10/celetis/issues/304"
+      },
+      "inference": "Inferred: the controller widened the reviewer's one-press finding to the four presses that share the open path, because they share openTab, without reading where the timeout lives (the page, not the open path). Alternative: the four-press list came from the plan's list of person tabs (Decision 8). Uncertain: whether the rule did not reach the controller as an actor, since the controller held the plan text with the rule but the rule names its actors as document authors.",
+      "diagnosis": [
+        "not-followed"
+      ],
+      "revision": "2922539",
+      "brief": "task-3-additions.md, Rulings of the controller 3: \"A slow Herdr app: ... a board press with no space (New intake, Assist, Make visual, Open shell) takes about hc run + 10 s + 5 s, so it can pass the 10-second page timeout of the board\"",
+      "lesson": {
+        "name": "list-the-sites-before-a-document-claims-every-site",
+        "revision": "3fe0a16",
+        "digest": "de52cdd835b8f5592701046d84fcdfac2aff69d2db9f1926883566b509010ca5"
+      }
+    },
     {
       "id": "4bff6d49-f7f9-4b7c-8783-ff6c58d9d1d8",
       "date": "2026-11-10",
@@ -78,7 +101,7 @@
       "revision": "d4c8ad1138dd47a82254de94f728647ce9de3cc5"
     }
   ],
-  "recurrences": 2,
+  "recurrences": 3,
   "reviews": [
     {
       "id": "2a530405-b476-4943-bcc6-863be4f41ee1",
@@ -123,6 +146,21 @@
         "state": "not-needed",
         "detail": "The rule stays text: which exceptions a summary claim must name depends on the meaning of the decision, and no gate reads it."
       }
+    },
+    {
+      "id": "92664de1-c4a6-4a40-91da-8c7f24b2f850",
+      "requestDigest": "4e1309e5fd419bde16f8065d65fbaa3aab5e2047ed5927dfadc504228580fa99",
+      "date": "2026-11-11",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #290; claude child opus/high\n\nMerge under the reviewer rules: the proposal states the same rule as the active lesson list-the-sites-before-a-document-claims-every-site, whose applicability already names a brief and a ruling; the incident records that rule as carried and not followed, and the proposal itself names this merge as its follow-up. The survivor keeps all four incidents and names a brief that widens a review finding. Observed facts and inferred causes stay apart.",
+      "related": [
+        "check-each-site-of-a-claim-that-a-controller-brief-adds",
+        "list-the-sites-before-a-document-claims-every-site"
+      ],
+      "followUp": {
+        "state": "not-needed",
+        "detail": "The rule stays text: which sites have a property needs a read of the code, which a gate cannot express for prose."
+      }
     }
   ]
 }
@@ -137,6 +175,8 @@ During the #263 build, the controller compared the plan base 2a9e010 with the bu
 
 In #283, the first Consequences bullet of ADR-0091 said "the whole engine is in `engine/`". Decision 2 of the same record keeps `DESIGN.md`, `PRODUCT.md`, and `.impeccable/`, the board design files, at the root. The task review found the summary claim broader than the Decision, and dce0477 named those files. The Task 4 brief carried this lesson.
 
+In the implement session of #304, the task review of Task 1 recorded a risk: with a slow Herdr app, a New intake press with no space can pass the 10-second page timeout. The controller carried that risk into the brief of Task 3 for four presses (New intake, Assist, Make visual, Open shell), and the implementer wrote the four presses into ADR-0099. The task review of Task 3 confirmed the timeout only for New intake. The code sets a timeout only at `engine/board/page/board.ts:153`; Assist, Open shell, and Make visual call `post` with no options, and `post` sets a timer only with options (`engine/board/page/ui.ts`). The fix round corrected the record.
+
 ## Root cause
 
 Inferred, not proven: each writer generalized from the sites in view and did not list every call site or error path from the code before writing a universal claim. Alternative: the plan text framed the first claim.
@@ -145,10 +185,12 @@ In #263, inferred: the controller read a path-limited diff as a whole-tree diff.
 
 In #283, inferred: a summary sentence restated the goal (one folder) and dropped the exception that the Decision keeps. The rule reached the author and was not followed. Uncertain whether an author reads a summary line in Consequences as a claim that this rule covers.
 
+In #304, inferred, not proven: the four presses share the open path of `openTab`, so the controller assumed that they share the page timeout too, and did not list the sites of the timeout. Alternative: the controller took the list from the plan's list of tabs that a person opens. The rule was in the plan that the controller read; uncertain whether the controller read its own brief as a document that the rule covers.
+
 ## Fix
 
-Proposed, needs no structural change: before a document states a property of every site, or names the only exception, list the sites from the code (for example a grep of the callers or of each method's error path) and the recorded results, and write the claim from that list. For a claim about the files that two commits differ in, run `git diff --name-only` with no path filter, or write the claim with the path scope of the command. A summary line (a Consequences bullet, a status line) that says a component is whole, complete, or in one place is such a claim too: compare it with each exception that the same text or its source keeps. This stays text: which sites a claim covers needs judgment that no gate can check.
+Proposed, needs no structural change: before a document states a property of every site, or names the only exception, list the sites from the code (for example a grep of the callers or of each method's error path) and the recorded results, and write the claim from that list. For a claim about the files that two commits differ in, run `git diff --name-only` with no path filter, or write the claim with the path scope of the command. A summary line (a Consequences bullet, a status line) that says a component is whole, complete, or in one place is such a claim too: compare it with each exception that the same text or its source keeps. A controller that turns a review finding into a brief claim names only the sites that the finding or a read of the code shows. This stays text: which sites a claim covers needs judgment that no gate can check.
 
 ## Rule
 
-Applies when a document, an ADR, a ruling, a brief, or a report states that every site, call, path, or file has a property, that a component is whole, complete, or in one place, names the one exception, or states which files two commits differ in; a summary line such as a Consequences bullet counts. Action: list each site from the code and the recorded results before writing the sentence, and write the claim so that it holds for each listed site, or name each exception; for a summary line, compare the claim with each exception that the same text or its source keeps; for a diff, take the file list from a diff with no path filter, or write the claim with the same path scope as the command (for example "no agent-text file differs"). Check: a reader can map each site of the list to the sentence, no exception of the same text or its source contradicts the sentence, and a grep of the sites, or the command of the claim rerun with the scope that the sentence states, finds none that the sentence does not cover.
+Applies when a document, an ADR, a ruling, a brief, or a report states that every site, call, path, or file has a property, that a component is whole, complete, or in one place, names the one exception, or states which files two commits differ in; a summary line such as a Consequences bullet counts, and so does a brief or a ruling that carries a review finding or a plan fact to more sites than its source names. Action: list each site from the code and the recorded results before writing the sentence, and write the claim so that it holds for each listed site, or name each exception, and name each site that is not checked; for a summary line, compare the claim with each exception that the same text or its source keeps; for a diff, take the file list from a diff with no path filter, or write the claim with the same path scope as the command (for example "no agent-text file differs"). Check: a reader can map each site of the list to the sentence, no exception of the same text or its source contradicts the sentence, and a grep of the sites, or the command of the claim rerun with the scope that the sentence states, finds none that the sentence does not cover.

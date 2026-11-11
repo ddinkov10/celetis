@@ -1,4 +1,4 @@
-import type { Effort } from './effort.ts';
+import type { RowSource, StartPair } from './effort.ts';
 import type { Lane, Step } from './workflow.ts';
 
 export type Pull = {
@@ -22,7 +22,7 @@ export type IssueRow = {
   path?: string;
   reason: string | null;
   act: string | null;
-  effort: Effort | null;
+  effort: StartPair<RowSource> | null;
   epic: ParentEpic | null;
   pr: Pull | null;
 };

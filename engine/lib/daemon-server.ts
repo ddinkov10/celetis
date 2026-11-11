@@ -589,8 +589,8 @@ async function serve(
         return reply(status, answer);
       }
       case 'run': {
-        const { number, selection, effort, quiet } = parsed;
-        return answerRun(begin({ kind: 'number', number, selection, effort, quiet }, true));
+        const { number, selection, effort, model, quiet } = parsed;
+        return answerRun(begin({ kind: 'number', number, selection, effort, model, quiet }, true));
       }
       case 'resume':
         return answerRun(begin({ kind: 'resume', number: parsed.number, selection: parsed.selection }, false));

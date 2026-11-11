@@ -25,18 +25,20 @@ export const claude: HostAdapter = {
   },
   pin: async () => [],
   stepPrompt: invocation,
-  stepArguments: async ({ issue, step, effort, stepText }) => ({
+  stepArguments: async ({ issue, step, start, stepText }) => ({
     args: [
       '--permission-mode',
       'auto',
+      '--model',
+      start.model,
       '--effort',
-      effort,
+      start.level,
       '-n',
       `#${issue} ${step}`,
       ...(step === 'specify' ? [] : ['--append-system-prompt', await stepText()]),
       invocation(step, issue),
     ],
-    applied: effort,
+    applied: start.level,
     model: null,
   }),
   resumeArguments: (session) => ['--resume', session.session_id, '--effort', session.effort],

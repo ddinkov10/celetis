@@ -37,14 +37,15 @@ var STATES = {
 };
 var WAITS = { dialog: "waits for your answer", turn: "turn ended" };
 var gateOf = (flow, step) => flow?.steps?.[step]?.gate ?? null;
-var effortSource = (effort) => effort.source === "decided" ? `decided by ${effort.by}` : "default";
-var startTitle = (step, effort, level = effort.level) => {
-  const why = level !== effort.level ? "this start only" : effort.source === "decided" ? `decided by ${effort.by}` : "the default";
-  return `Start the ${step} step at ${level}, ${why}`;
-};
+var sourceText = (source, by) => source === "decided" ? `decided by ${by}` : source === "pinned" ? "pinned by the config" : "default";
+var modelSource = (pair) => sourceText(pair.source.model, pair.decision?.by ?? null);
+var levelSource = (pair) => sourceText(pair.source.level, pair.decision?.by ?? null);
+var startName = (pair) => `model ${pair.model}, ${modelSource(pair)}; effort ${pair.level}, ${levelSource(pair)}`;
+var startTitle = (step, pair, level = pair.level) => `Start the ${step} step on ${pair.model} at ${level}, ${level === pair.level ? levelSource(pair) : "this start only"}`;
 var runTitle = (step, flow, effort) => {
   const hint = flow?.steps?.[step]?.hint;
-  return `${effort ? startTitle(step, effort) : `Start the ${step} step`}${hint ? `. ${hint}` : ""} (Enter)`;
+  const start = effort ? `Start the ${step} step on ${effort.model} (${modelSource(effort)}) at ${effort.level} (${levelSource(effort)})` : `Start the ${step} step`;
+  return `${start}${hint ? `. ${hint}` : ""} (Enter)`;
 };
 var AGENTS = {
   claude: "Claude Code",
@@ -228,6 +229,7 @@ var ICONS = {
       }
     ]
   ],
+  pin: [["path", { d: "M5.5 2h5l-.8 4.2 2.3 2.3v1H8.6V14h-1.2V9.5H4v-1l2.3-2.3z", class: "fill" }]],
   spark: [["path", { d: "M8 2.25 9.3 6.7 13.75 8 9.3 9.3 8 13.75 6.7 9.3 2.25 8 6.7 6.7Z" }]],
   wrench: [
     [
@@ -1289,12 +1291,16 @@ var facts = (rows) => {
   }
   return list;
 };
-var effortFacts = (effort) => effort ? [
-  ["Effort", `${effort.level} · ${effortSource(effort)}`],
-  [
-    "Why",
-    el("span", "why", effort.source === "default" ? "No decision on the issue; the default applies." : effort.reason || "No reason given.")
-  ]
+var whyOf = (pair) => {
+  const pinned = ["model", "level"].filter((part) => pair.source[part] === "pinned");
+  const pin = pinned.length ? `The config pins ${pinned.length === 2 ? "the model and the level" : `the ${pinned[0]}`} of this step.` : "";
+  const decision = pair.decision ? pair.decision.reason || "No reason given." : pin ? "" : "No decision on the issue; the default applies.";
+  return [decision, pin].filter(Boolean).join(" ");
+};
+var effortFacts = (pair) => pair ? [
+  ["Model", `${pair.model} · ${modelSource(pair)}`],
+  ["Effort", `${pair.level} · ${levelSource(pair)}`],
+  ["Why", el("span", "why", whyOf(pair))]
 ] : [];
 var pr = (card) => {
   const items = prFacts(card.pr);
@@ -2155,7 +2161,7 @@ var STATUS_ICONS = {
   "quota-wait": "clock"
 };
 var FIND_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K";
-var QUEUE_LEVEL = "The queue starts this step at the decided level";
+var QUEUE_LEVEL = "The queue starts this step at the start pair, with no override";
 var data = null;
 var selected = null;
 var view = store.get("view") === "pipeline" ? "pipeline" : "now";
@@ -2260,7 +2266,7 @@ var runReason = (agent, number) => {
   }
   return defaultReason("run");
 };
-var runName = ({ step, effort, number }) => `Run ${step}${effort ? ` at ${effort.level} (${effortSource(effort)})` : ""}, #${number}`;
+var runName = ({ step, effort, number }) => `Run ${step}${effort ? ` on ${effort.model} at ${effort.level}` : ""}, #${number}`;
 var runAction = (card, agent = null) => {
   const display = agent ? agentDisplay(agent) : null;
   const reason = runReason(agent, card.number);
@@ -2305,7 +2311,7 @@ var levelEntries = (card) => {
     "rule",
     ...(data?.flow?.levels ?? []).map((level) => ({
       icon: level === effort.level ? "check" : "run",
-      label: `Run at ${level}${level === effort.level ? ` (${effortSource(effort)})` : ""}`,
+      label: `Run at ${level}${level === effort.level ? ` (${levelSource(effort)})` : ""}`,
       title: reason ?? startTitle(card.step, effort, level),
       isDisabled: Boolean(reason),
       run: reason ? async () => toast(reason, { isError: true }) : async () => {
@@ -2494,12 +2500,24 @@ var track = (card) => {
   return node;
 };
 var gate = (value) => value === "auto" ? Object.assign(el("span", "gate gate-auto", "auto"), { title: GATES.auto }) : null;
-var effortChip = (effort) => {
-  const chip = el("span", `effort${effort.source === "default" ? " is-default" : ""}`, effort.level);
-  chip.title = `effort ${effort.level}, ${effortSource(effort)}`;
-  chip.setAttribute("role", "img");
-  chip.setAttribute("aria-label", chip.title);
-  return chip;
+var startLabel = (pair) => {
+  const node = el("span", "start");
+  node.title = startName(pair);
+  node.setAttribute("role", "img");
+  node.setAttribute("aria-label", node.title);
+  for (const [part, value] of [
+    ["model", pair.model],
+    ["level", pair.level]
+  ]) {
+    const segment = el("span", "start-part");
+    segment.dataset.part = part;
+    segment.dataset.source = pair.source[part];
+    if (pair.source[part] === "pinned")
+      segment.append(icon("pin"));
+    segment.append(el("span", "", value));
+    node.append(segment);
+  }
+  return node;
 };
 var status = (card, hasGlyph = true, isShort = false) => {
   const node = el("span", "status");
@@ -2520,7 +2538,7 @@ var status = (card, hasGlyph = true, isShort = false) => {
       node.append(icon("pending"));
     node.append(el("span", "lead", "next"), el("span", "mono step", card.step));
     if (card.effort)
-      node.append(effortChip(card.effort));
+      node.append(startLabel(card.effort));
     const auto = gate(card.gate);
     if (auto)
       node.append(auto);

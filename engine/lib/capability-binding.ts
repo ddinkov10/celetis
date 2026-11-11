@@ -2,10 +2,9 @@ import { constants } from 'node:fs';
 import { access, readFile, stat } from 'node:fs/promises';
 import { type Binding, type Runtime, ScoreError } from './capability.ts';
 import type { Config, Host } from './config-core.ts';
-import { levels, type ReviewerLevel, reviewerLevels } from './effort.ts';
+import { levels, models, type ReviewerLevel, reviewerLevels } from './effort.ts';
 import { hostAdapter } from './hosts.ts';
 
-const models = ['haiku', 'sonnet', 'opus', 'fable'];
 type Profile = { schema: number; runtime: string; slots: string[]; reviewer: { rank: number; effort: ReviewerLevel } };
 
 async function readable(file: string): Promise<boolean> {
@@ -144,5 +143,5 @@ export async function readBinding(
       runtime: selected?.runtime ?? null,
     };
   }
-  return { host, slots: models, reviewerRank: 1, reviewerEffort: 1, runtime: null };
+  return { host, slots: [...models], reviewerRank: 1, reviewerEffort: 1, runtime: null };
 }

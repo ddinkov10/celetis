@@ -12,32 +12,78 @@ export function isLevel(value: unknown): value is Level {
   return levels.some((level) => level === value);
 }
 
-export type Decided = Exclude<Step, 'triage'>;
-export const decidable: readonly Decided[] = steps.filter((step): step is Decided => step !== 'triage');
-export const defaultLevel: Level = 'high';
+export const models = ['haiku', 'sonnet', 'opus', 'fable'] as const;
+export type Model = (typeof models)[number];
 
-export type Effort = Readonly<
-  { level: Level; source: 'decided'; by: Step; reason: string } | { level: Level; source: 'default' }
->;
-
-export function effortMarker(step: Decided, level: Level): string {
-  return `Effort: ${step} ${level}`;
+export function isModel(value: unknown): value is Model {
+  return models.some((model) => model === value);
 }
 
-export function effortOf(data: IssueData, decision: Decision): Effort | null {
+export type Pin = Readonly<{ model?: Model; effort?: Level }>;
+
+export type Decided = Exclude<Step, 'triage'>;
+export const decidable: readonly Decided[] = steps.filter((step): step is Decided => step !== 'triage');
+export const defaultModel: Model = 'opus';
+export const defaultLevel: Level = 'medium';
+
+export type Source = 'override' | 'pinned' | 'decided' | 'default';
+export type RowSource = Exclude<Source, 'override'>;
+export type Override = Readonly<{ model: Model | null; level: Level | null }>;
+export const noOverride: Override = { model: null, level: null };
+
+export type EffortDecision = Readonly<{ model: Model; level: Level; by: Step; reason: string }>;
+export type StartPair<S extends Source = Source> = Readonly<{
+  model: Model;
+  level: Level;
+  source: Readonly<{ model: S; level: S }>;
+  decision: Readonly<{ by: Step; reason: string }> | null;
+}>;
+
+export function effortMarker(step: Decided, model: Model, level: Level): string {
+  return `Effort: ${step} ${model} ${level}`;
+}
+
+export function decisionOf(data: IssueData, decision: Decision): EffortDecision | null {
   if (decision.kind === 'stop') return null;
   const { step, lane } = decision;
   const order: readonly Step[] = lane === null ? [] : lanes[lane].steps;
   const by = order[order.indexOf(step) - 1];
-  const fallback: Effort = { level: defaultLevel, source: 'default' };
-  if (step === 'triage' || by === undefined) return fallback;
+  if (step === 'triage' || by === undefined) return null;
   for (const entry of data.history.toReversed()) {
     if (entry.kind !== 'comment') continue;
-    const first = entry.body.split(/\r?\n/, 1)[0] ?? '';
-    const level = levels.find((each) => first === effortMarker(step, each));
-    if (level) return { level, source: 'decided', by, reason: entry.body.slice(first.length).trim() };
+    const first = entry.body.split('\n', 1)[0] ?? '';
+    const line = first.trimEnd();
+    for (const model of models)
+      for (const level of levels)
+        if (line === effortMarker(step, model, level))
+          return { model, level, by, reason: entry.body.slice(first.length).trim() };
   }
-  return fallback;
+  return null;
+}
+
+function strongest<T>(override: T | null, pinned: T | undefined, decided: T | undefined, fallback: T): [T, Source] {
+  if (override !== null) return [override, 'override'];
+  if (pinned !== undefined) return [pinned, 'pinned'];
+  if (decided !== undefined) return [decided, 'decided'];
+  return [fallback, 'default'];
+}
+
+export function startPair(decided: EffortDecision | null, pin: Pin | undefined): StartPair<RowSource>;
+export function startPair(decided: EffortDecision | null, pin: Pin | undefined, override: Override): StartPair;
+export function startPair(
+  decided: EffortDecision | null,
+  pin: Pin | undefined,
+  override: Override = noOverride,
+): StartPair {
+  const [model, modelSource] = strongest(override.model, pin?.model, decided?.model, defaultModel);
+  const [level, levelSource] = strongest(override.level, pin?.effort, decided?.level, defaultLevel);
+  const used = decided !== null && (modelSource === 'decided' || levelSource === 'decided');
+  return {
+    model,
+    level,
+    source: { model: modelSource, level: levelSource },
+    decision: used ? { by: decided.by, reason: decided.reason } : null,
+  };
 }
 
 export function clampEffort(chosen: Level, supported: readonly string[]): Level | null {

@@ -109,7 +109,7 @@ export async function celetisAdapter(
       return argv([...agentFlag(choice), 'visual', number, sha]);
     },
     run: (number, choice, effort) =>
-      start({ kind: 'run', number, selection: selectionOf(choice), effort: effort ?? null, quiet: true }),
+      start({ kind: 'run', number, selection: selectionOf(choice), effort: effort ?? null, model: null, quiet: true }),
     resume: (number) => start({ kind: 'resume', number, selection: {} }),
     queue: (input, choice) =>
       changeQueue({

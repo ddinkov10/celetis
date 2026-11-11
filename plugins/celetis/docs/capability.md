@@ -20,20 +20,33 @@ The procedure module `references/procedures/capability-score.md` holds
 
 ## Bands (sum 0–12)
 
-`0–3 → haiku/low` · `4–6 → sonnet/medium` · `7–9 → opus/high` · `10–11 → opus/xhigh` · `12 → fable/max`
+Claude Code: `0–3 → haiku/medium` · `4–6 → sonnet/medium` · `7–9 → opus/medium` · `10–11 → fable/medium` · `12 → fable/high`
+
+Codex: `0–3 → haiku/low` · `4–6 → sonnet/medium` · `7–9 → opus/high` · `10–11 → opus/xhigh` · `12 → fable/max`
 
 Model tiers (low→high): **haiku · sonnet · opus · fable**. Effort tiers (low→high): **low · medium ·
 high · xhigh · max**.
 
-Fable is reached only at Σ=12 or by attempt-3 escalation from opus. These bands remain an
-intentional allocation policy under #227, not a vendor performance or pricing result. Changing
-them requires outcome evidence; a concentration of scores in one band does not justify a target
-percentage for cheaper models.
+On Claude Code, each row starts at `medium`, the default level of Haiku 5.5 and Opus 5.5, and the
+vendor guidance starts everyday work on Opus at `medium`. A gate failure raises the effort at
+attempt 2. A sum of 10 or more moves to the next model in place of a level above `high`. Fable is
+reached at a sum of 10 or more or by attempt-3 escalation from opus. On Codex, Fable is reached
+only at Σ=12 or by attempt-3 escalation from opus.
+
+The Claude Code bands are the decision of the maintainer in #290 (ADR-0099, "The step before
+decides the model and the effort of the next step"). This decision
+replaces the outcome-evidence rule of #227 for that change only. The bands remain an allocation
+policy, not a vendor performance or pricing result. A later claim of a saving or a quality gain,
+and a later change of a band, need the outcome evidence procedure below; a concentration of scores in
+one band does not justify a target percentage for cheaper models.
 
 ## Floors (beat the sum, never lower it)
 
 - **X=2** → min **opus/high**
 - **V=2** → min effort **high**
+
+A task with no reliable executable oracle cannot depend on a second attempt, so it starts at
+`high`. The floors are the same on each host.
 
 ## Effort bias
 
@@ -55,8 +68,13 @@ an opus result to max.
 ## Escalation (deterministic, gate-fail count within one task)
 
 - attempt 2 → effort **+1 tier**
-- attempt 3 → model **+1 tier**, effort **≥ high**
-- attempt 4 → **STOP**
+- attempt 3 → model **+1 tier**, effort **≥ high**; on Claude Code, when the pair is already on
+  **fable**, effort **+2 tiers** in place of a next model
+- attempt 4 → **STOP**, on each host, before the host lookup
+
+On Claude Code, a sum of 12 gives `fable/high`, `fable/xhigh`, `fable/max`. A sum of 10 with V=2
+gives `fable/high`, `fable/xhigh`, `fable/xhigh`, because the clamp holds a fable result below a
+sum of 12 at xhigh.
 
 In the task loop of `implement`, `dispatch` owns the attempt count and applies this escalation.
 The count is session-scoped; a new session starts at attempt 1. Other consumers pass their attempt
@@ -182,17 +200,18 @@ when available.
 
 The arithmetic produces a capability **rank 0–3** and a rubric effort. The four ranks correspond
 in order to the Claude labels above; model names are a separate host binding. The sum, floors,
-bias, escalation, and final clamp of the portable score are identical on each host. Portable
-rank 3 below Σ=12 caps at xhigh. A host binding can raise the applied effort without changing
-the portable score. On Codex with no profile, the binding names no model: each child keeps the
+bias, and final clamp of the score are identical on each host. The bands and the
+attempt-3 rule differ by host ("Bands", "Escalation"). Rank 3 of the selected host below Σ=12
+caps at xhigh. A host binding can raise the applied effort without changing
+the score of the selected host. On Codex with no profile, the binding names no model: each child keeps the
 parent's model ("Codex model profiles").
 
 [Agent selection and model setup](configuration.md#agent-selection-and-model-setup) gives the agent
-selection. Scoring consults no usage-limit record. Claude's existing human CAP output is
-unchanged.
+selection. Scoring consults no usage-limit record. The human CAP line of Claude Code keeps its
+form and shows the pair of the Claude Code bands.
 
 `--json` returns one schema-1 object instead of the human line. It includes `digits` (`J`, `V`,
-`B`, `N`, `S`, `X`), original `bias`, `attempt`, `sum`, portable `rank` and `effort`, `host`,
+`B`, `N`, `S`, `X`), original `bias`, `attempt`, `sum`, `rank` and `effort`, `host`,
 `status`, the human `line`, and `dispatch`:
 
 ```json
@@ -215,8 +234,9 @@ unchanged.
 `--reviewer`, Claude has a rank-1/medium minimum, and Codex uses its profile's
 minimum, or rank-1/medium with no profile. This raises the resolved rank and effort after
 portable scoring, then reapplies the rank-3 clamp. Codex applies its retry floor after this step.
-Portable `rank` and `effort` still describe the original score. The human line uses the applied
-pair.
+`rank` and `effort` are the result of the selected host before the reviewer minimum, so they
+can differ between Claude Code and Codex for the same digits. They still describe the original
+score. The human line uses the applied pair.
 
 Attempt 4 or later returns `status: "stop"`, with `rank`, `effort`, `host`, and `dispatch` null.
 It keeps the digits, bias, sum, attempt, and original STOP line. STOP is resolved before host

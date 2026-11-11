@@ -1,4 +1,4 @@
-import type { Level } from './effort.ts';
+import type { Level, StartPair } from './effort.ts';
 import type { RepositoryLayout } from './state.ts';
 import type { ObservedUsage, UsageAttempt } from './usage-types.ts';
 import type { Step } from './workflow.ts';
@@ -8,7 +8,7 @@ export type StepStart = Readonly<{
   issue: number;
   step: Step;
   cwd: string;
-  effort: Level;
+  start: StartPair;
   stepText: () => Promise<string>;
 }>;
 export type StepArguments = { args: string[]; applied: Level; model: string | null };

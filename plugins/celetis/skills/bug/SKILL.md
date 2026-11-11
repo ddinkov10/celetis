@@ -119,7 +119,7 @@ Only the exit 0 of `setup status` starts step 1.
    that the fix needs no new look or the bug does not show on screen, and the fix is
    self-contained.
 7. **Decide the effort of `plan`, post the report, then invoke `celetis:plan #<n>`.** Record the
-   effort level of `plan` per `<plugin>/references/procedures/effort.md`. Then
+   model and the effort level of `plan` per `<plugin>/references/procedures/effort.md`. Then
    `celetis --agent <host> issue <n> root-cause <report>`
    posts the report with `## Root cause` as its first line, so the report file has no heading; the report is the spec (root cause + red repro + intended
    behavior + step 3's traps + its `## Causal chain` section + its states table + its `## Masking check`
