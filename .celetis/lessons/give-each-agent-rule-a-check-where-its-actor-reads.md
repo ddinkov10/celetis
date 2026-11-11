@@ -2,16 +2,40 @@
 {
   "schema": 1,
   "name": "give-each-agent-rule-a-check-where-its-actor-reads",
-  "description": "Agent rules did not reach their actor: a research module that the build never reads, and a sub-agent brief that carried only the tool and the bypass call",
+  "description": "Agent rules did not reach their actor: a research module that the build never reads, a sub-agent brief that carried only the tool and the bypass call, and an open point that a ruling closed as settled with no reading check",
   "tags": [
     "process",
     "recurring",
-    "ui"
+    "ui",
+    "refix"
   ],
-  "date": "2026-11-08",
+  "date": "2026-11-11",
   "status": "active",
-  "source": "Final review of ddinkov10/celetis#277 (final-reviewer-277, opus/xhigh, 2026-11-08), reproduced by the build\n\nFinal whole-branch review of #243 in the implement session, 2026-11-04",
+  "source": "The implement session of ddinkov10/celetis#305 on Claude Code, Task 2 fix round 1 and its scoped re-review, 2026-11-11\n\nFinal review of ddinkov10/celetis#277 (final-reviewer-277, opus/xhigh, 2026-11-08), reproduced by the build\n\nFinal whole-branch review of #243 in the implement session, 2026-11-04",
   "incidents": [
+    {
+      "id": "9cd73e36-b9a4-4808-accd-318356a70bae",
+      "date": "2026-11-11",
+      "action": "In Task 2, fix round 1, the implementer's reading check named an open point: after Assessment A returns a busy, failed, or foreign background browser, does Assessment B still call that server, and which line does B get? The coordinator ruled that the existing text settles it (browser.md: each actor reads the roles and lists the tabs itself, so B gets the line of its own case) and sent the round to the scoped re-review with no reading check of that ruling.",
+      "expected": "The lesson give-each-agent-rule-a-check-where-its-actor-reads: 'Treat an open point that a reading check names about those files as a finding, not a note.' A ruling that the text already settles the point needs evidence from the actor's reading, not the coordinator's own reading.",
+      "observed": "The re-review graded the ruling 'DOES NOT HOLD' and new Important breakage: both final runs on 8c37e60 named the gap. A second fix round (56f6dbc) had to add the act of B.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "docs/superpowers/verification/305/rc/fix1-a-busy/answer.md, Q1: \"Not settled by the text: what happens to Assessment B. The rule 'make no further call to that tool' applies to the session, and the session includes its assessments\"; rc/fix1-a-fail/answer.md: \"no file says if Assessment B still tries the same failed server\". Re-review verdict: \"Ruling (1): B makes its own read and gets the line of its own case. DOES NOT HOLD.\"",
+        "reference": "https://github.com/ddinkov10/celetis/issues/305"
+      },
+      "inference": "Inferred: the coordinator treated the open point as a question of fact and answered it from its own reading of browser.md, so the ruling closed the point without the check that the lesson asks for. Alternative: the coordinator judged one more reading check too costly at that round; the ledger does not say so.",
+      "diagnosis": [
+        "not-followed"
+      ],
+      "revision": "8c37e60",
+      "brief": "The plan of #305 (issue comment 6796269712), Task 2, lesson rules: give-each-agent-rule-a-check-where-its-actor-reads sha256:e922e39032325ac768180a4989c94b818a0021dc7360876800a4ef138d2aad54.",
+      "lesson": {
+        "name": "give-each-agent-rule-a-check-where-its-actor-reads",
+        "revision": "eb3812d",
+        "digest": "e922e39032325ac768180a4989c94b818a0021dc7360876800a4ef138d2aad54"
+      }
+    },
     {
       "id": "f95a2252-9143-4e01-9e49-ce12b57be5ae",
       "date": "2026-11-08",
@@ -53,7 +77,7 @@
       "revision": "27a85e430451c25df4ee9137971ad912fa139744"
     }
   ],
-  "recurrences": 1,
+  "recurrences": 2,
   "reviews": [
     {
       "id": "8f1aad0e-006b-4a87-8aea-bc1c145127c5",
@@ -83,6 +107,21 @@
         "state": "proposed",
         "detail": "The earlier proposed follow-up stays open and now covers delegated acts: a separately authorized plan or review step that runs a reading check from only the brief and the files of each sub-agent that a change gives an act, with a case at each exit of the act. This review changes no skill, procedure, or instruction file."
       }
+    },
+    {
+      "id": "8d1ec449-b64a-4281-b1af-d8a19c5117f2",
+      "requestDigest": "6d530b9c08d212300ec9e78ba34cce48d18ba71a18df4c2bff9c9e4fdd918116",
+      "date": "2026-11-11",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #305; claude child opus/high\n\nMerge under the reviewer rules. The incident is observed: the retained excerpts of rc/fix1-a-busy and rc/fix1-a-fail answer \"Not settled by the text\" for the act of Assessment B, and the re-review verdict reads \"Ruling (1): ... DOES NOT HOLD\"; commit 56f6dbc of the lane added the act of B. The incident cites the rule of give-each-agent-rule-a-check-where-its-actor-reads (\"Treat an open point that a reading check names about those files as a finding, not a note\") as its expected behavior, with the diagnosis not-followed: a ruling that the text settles the point is that same rule, so the proposal merges into it and keeps every incident and review. The survivor's rule now names the ruling case and its check. The rule agrees with stop.md of the plugin, where coordinator authority settles a question of fact: it asks for evidence of the ruling and removes no authority. It widens no permission and weakens no check.",
+      "related": [
+        "prove-a-settled-by-the-text-ruling-with-a-reading-check",
+        "give-each-agent-rule-a-check-where-its-actor-reads"
+      ],
+      "followUp": {
+        "state": "not-needed",
+        "detail": "No structural check is proposed: whether existing text settles an open point is a judgment of meaning that the gate cannot decide; the check is the reading run."
+      }
     }
   ]
 }
@@ -95,11 +134,15 @@ The implement session of #243 wrote a component research module. Its rule "use, 
 
 In #277, step 1 of "The design review" in `docs/procedures/design.md` required that the brief of Assessment B name the tool and the call of "The page CSP", and it did not require the other rules of that section. B is a sub-agent of `critique`: it reads only its brief and `critique.md`, and `critique.md` has no origin check. So the tab rules of "The page CSP" (loopback only, a page behind a sign-in, the end of a bypassed tab, the output files) did not reach B. The reading check x1 of the final review answered that, with only the required brief, B follows `critique.md` alone, so at a redirect to a foreign sign-in page its next step is the preflight, in a tab with the CSP bypassed. The rerun of the build answered that, with `critique.md` alone, the text does not settle the act, because `critique.md` has no rule for the origin, a sign-in, or a redirect. Earlier, the build's own reading check RC5 had named the open point ("The text does not say if the brief of B includes the loopback rule and the sign-in rule"), and the text stayed unchanged after it. The Task 3 brief carried this lesson.
 
+In #305, Task 2 fix round 1, the implementer's reading check named an open point: after Assessment A returns a busy, failed, or foreign background browser, does Assessment B still call that server, and which line does B get? The coordinator ruled that the existing text of `browser.md` settles it (each actor reads the roles itself) and sent the round to the scoped re-review with no reading check of that ruling. The re-review graded the ruling "DOES NOT HOLD": both final reading runs on 8c37e60 answered that the text does not settle the act of B (tool output). A second fix round (56f6dbc) added the act of B. The Task 2 brief carried this lesson.
+
 ## Root cause
 
 Inferred, not established: the build checked each rule against the spec wording only. It did not ask which agent acts on the rule, which file that agent reads, and what that agent can observe. Alternative: the plan brief carried the rules without a check, and the build transcribed them.
 
 In #277, inferred: the build applied this rule to the review session that writes the brief, not to the sub-agent that acts. The expected answers of the plan's RC5 covered only the tool and the call, so that check could not fail on the gap, and its open point stayed a note. Alternative: the spec scoped the brief the same way ("adds the tool and the call to the brief of Assessment B"), so the narrower scope can also come from the spec and the plan.
+
+In #305, inferred: the coordinator answered the open point from its own reading, not from a reading of the actor's files, so the ruling closed a finding as a note. Alternative: the coordinator weighed the cost of one more check; the ledger does not say so.
 
 ## Fix
 
@@ -107,6 +150,8 @@ Proposed prevention, not proven enforcement: for each constraint in agent text, 
 
 The fix of #277: the brief of B cites "The page CSP" of `design.md`; on another origin, or on a page that asks for a sign-in, B closes its tab, runs no preflight and no injection, and returns the URL; and B removes the `.playwright-mcp/` files that its tool results name. Proposed prevention, not proven: when agent text delegates an act to a sub-agent through a brief, the plan adds a reading check that starts from only the brief and the files that the sub-agent reads, with a case at each exit of the act. The set of rules that an act needs is a judgment, so this part stays text too.
 
+Proposed prevention after #305, not proven: a coordinator or a reviewer that rules "the existing text settles it" about an open point of a reading check quotes a focused reading run from the actor's files whose input is that point. With no such run, the point stays a finding of the round. Only judgment can tell whether text settles a point, so this part stays text.
+
 ## Rule
 
-Applies when agent text adds a constraint, also when a step delegates the act to a sub-agent through a brief. Action: name the agent that must apply the constraint and the step where it acts; for a delegated act, that agent is the sub-agent, not the session that writes the brief. Keep the canonical rule in the layer required by the project, and make it reachable from the files that agent reads at that step: a brief cites each section of rules that the act needs, whole, and states the act of the sub-agent at each exit (another origin, a sign-in, a failure, the cleanup). Give the rule a check that the agent can observe. Treat an open point that a reading check names about those files as a finding, not a note. Check: a focused reading check, starting from only those files and following their applicable pointers, settles that agent's question, with a case at each exit of a delegated act.
+Applies when agent text adds a constraint, also when a step delegates the act to a sub-agent through a brief. Action: name the agent that must apply the constraint and the step where it acts; for a delegated act, that agent is the sub-agent, not the session that writes the brief. Keep the canonical rule in the layer required by the project, and make it reachable from the files that agent reads at that step: a brief cites each section of rules that the act needs, whole, and states the act of the sub-agent at each exit (another origin, a sign-in, a failure, the cleanup). Give the rule a check that the agent can observe. Treat an open point that a reading check names about those files as a finding, not a note; a ruling that the existing text settles such a point closes it only with a focused reading run from those files whose input is the point, and quotes the lines that settle it. Check: a focused reading check, starting from only those files and following their applicable pointers, settles that agent's question, with a case at each exit of a delegated act, and each "settled by the text" ruling names its reading run and the quoted lines.

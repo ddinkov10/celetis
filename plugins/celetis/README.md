@@ -111,12 +111,17 @@ The documents:
   `PRODUCT.md` of the product. The session checks for both. It never installs `impeccable`, which
   is no plugin dependency, and you run `/impeccable init` once for the product
   (`references/procedures/design.md`, "The check"). A look decision on the `generate` path also needs
-  the Playwright MCP server with `--isolated` and no `--headless`, and the host reviews its
-  `browser_run_code_unsafe` call (`references/procedures/design.md`, "The page CSP").
+  the window browser, and the host reviews its `browser_run_code_unsafe` call
+  (`references/procedures/design.md`, "The page CSP"). Each browser check (a Verify scenario of a web
+  UI, the captures, the component research, the design review) needs the background browser. Both
+  browsers are Playwright MCP servers, and the plugin installs and configures neither
+  (`references/procedures/browser.md`, "The two browsers"). The server `playwright` is the
+  background browser, with `--isolated` and `--headless`. The server `playwright-window` is the
+  window browser, with `--isolated` and no `--headless`. Each machine adds them as
+  "Each machine: Claude Code" and "Each machine: Codex only" say.
 - For the research of a UI component, optional tools that you install: a code-search tool (for
-  example the grep.app MCP server), a web fetch or scrape tool, and a browser tool that the session
-  opens for itself (for example the Playwright MCP server with `--isolated`). The session uses each
-  one that it has and records a limit for each missing one
+  example the grep.app MCP server), a web fetch or scrape tool, and the background browser. The
+  session uses each one that it has and records a limit for each missing one
   (`references/procedures/component-research.md`).
 - On macOS, herdr-core 0.1.19 (`hc`) with its running server, and the open window of the Herdr app
   0.1.11 (`herdr-app`), for each run and for the board: each session runs in a tab
@@ -224,7 +229,20 @@ or the board's update control ("Updates").
    claude plugin marketplace add obra/superpowers-marketplace
    claude plugin install superpowers@superpowers-marketplace
    ```
-3. Last, turn on auto-update for superpowers. In `~/.claude/settings.json`, add
+3. Add the two browsers. The two `remove` commands delete an entry that the machine already has,
+   also the old `playwright` entry with no `--headless`. A `remove` command exits 1 with
+   `No MCP server named` when its entry is absent, and the next command still runs.
+
+   ```bash
+   claude mcp remove -s user playwright
+   claude mcp remove -s user playwright-window
+   claude mcp add -s user playwright -- npx @playwright/mcp@latest --isolated --headless
+   claude mcp add -s user playwright-window -- npx @playwright/mcp@latest --isolated
+   ```
+
+   A run on a machine with both entries leaves the same two entries. The commands change only the
+   `user` scope.
+4. Last, turn on auto-update for superpowers. In `~/.claude/settings.json`, add
    `"autoUpdate": true` beside `source` in the entry `superpowers-marketplace` of
    `extraKnownMarketplaces`. Do this step last, and again after a later run of an add command: in
    Claude Code 2.1.296 that command writes the entry again with `source` only. The entry `celetis`
@@ -272,6 +290,17 @@ enabled = true
 The [plugin configuration documentation](https://developers.openai.com/plugins/build/plugins)
 describes project trust and enablement. Install each host's plugins separately. A Claude install
 does not provide the Codex installation.
+
+Add the two browsers. The two `remove` commands delete an entry that the machine already has, also
+the old `playwright` entry with no `--headless`, and exit 0 when it is absent. A run on a machine
+with no entry, the old entry, or both entries leaves the same two entries.
+
+```bash
+codex mcp remove playwright
+codex mcp remove playwright-window
+codex mcp add playwright -- npx -y @playwright/mcp@latest --isolated --headless
+codex mcp add playwright-window -- npx -y @playwright/mcp@latest --isolated
+```
 
 ### Personal landing permission
 

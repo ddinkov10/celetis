@@ -59,7 +59,7 @@ of the check, and the form of the capture.
 
 | Kind | Live use | Variant and state switch | Sizes | Capture |
 | --- | --- | --- | --- | --- |
-| Web | The browser pane of the host, else the default browser | `?variant=<key>&state=<key>` and the floating bar | 1440×900 and 375×812 | A PNG screenshot from the browser tool of the host or from a script with a headless browser |
+| Web | The browser pane of the host, else the default browser | `?variant=<key>&state=<key>` and the floating bar | 1440×900 and 375×812 | A PNG screenshot from the background browser (`<plugin>/references/procedures/browser.md`, "The two browsers") |
 | Mobile | A simulator or an emulator | The launch arguments `--prototype-variant <key>` and `--prototype-state <key>`, or a debug menu of the product | A small phone near 375×667 points or 360×640 dp, and a large phone near 430×932 points or 412×915 dp | A screenshot of the simulator or the emulator |
 | Desktop | The app window | The same launch arguments, or a debug menu of the app | The smallest window that the app allows (800×600 when it sets no minimum), and 1920×1080 | A window screenshot |
 | Terminal | A terminal pane | `PROTOTYPE_VARIANT=<key>` and `PROTOTYPE_STATE=<key>`, or flags of the program | 80×24 and 160×48 (columns×rows) | A VHS tape: `Screenshot` writes a PNG of a still state, and `Output` writes a GIF of a moving one |
@@ -166,7 +166,9 @@ Do the steps in this order. The build of the variants starts after step 2.
      `process.env.NODE_ENV !== 'production'`.
 5. **The check.** Open each variant in each state at each size of the row. Check keyboard use: the
    focus order, a visible focus, and each action with keys. Check the rules of `DESIGN.md` too. Fix
-   what the check finds.
+   what the check finds. On the web, the check runs in the background browser
+   (`<plugin>/references/procedures/browser.md`, "The two browsers"). A page that asks for a sign-in
+   follows `<plugin>/references/procedures/browser.md`, "A page behind a sign-in".
 6. **The live opening.** Start the prototype with one command, and open it as the row says. On the
    web, open the browser pane of the host when the session has one, else the default browser:
    `open <url>` on macOS, `xdg-open <url>` on Linux, `cmd /c start "" "<url>"` on Windows. Give
@@ -174,7 +176,9 @@ Do the steps in this order. The build of the variants starts after step 2.
 7. **The captures.** Make one capture of each variant in each state at each size of the row, and
    post them on the issue as "Captures" says. Hide the bar or the overlay of step 4 for each
    capture, on the web as "Captures" says: the alt text names the variant, and the record of step 9
-   describes it.
+   describes it. On the web, the captures run in the background browser
+   (`<plugin>/references/procedures/browser.md`, "The two browsers"). A page that asks for a sign-in
+   follows `<plugin>/references/procedures/browser.md`, "A page behind a sign-in".
 8. **The hand-over.** Give the live opening and the link of each capture comment.
    - On the `impeccable` path, the lock or the accept of step 3 is the pick. Give the locked card
      or the accepted variant, and ask for no second pick.
@@ -214,8 +218,9 @@ no variants.
 - `gh --version` prints 2.99.0 or later. The `--attach` flag came in 2.99.0.
 - `gh repo view --json url --jq .url` prints a URL that starts with `https://github.com/`. GitHub
   Enterprise Server does not support `--attach`.
-- The capture tool of the row is there: the browser tool of the host or a script with a headless
-  browser, the simulator or the emulator, the app, or VHS.
+- The capture tool of the row is there: on the web the background browser
+  (`<plugin>/references/procedures/browser.md`, "The two browsers" and "The role of a server"),
+  else the simulator or the emulator, the app, or VHS.
 
 A failed check stops the step before the build. The stop names the update of `gh` or the setup of
 the tool. There is no fallback: the captures go only on the issue. In a step session, hand the

@@ -21,12 +21,13 @@ clean.
 2. Ask the human only for a decision that the issue does not hold, for example a type that
    /celetis:triage cannot tell, a state that the spec does not define, the list of states and the
    platform row of a look decision, the references of a component research, whether a bug fix
-   needs a new look, a pick between prototype variants, a sign-in of the maintainer in the
-   session's own browser, authorization for a destructive act that the plan did not authorize, a
-   consent that the plan foresees, the approval of a command that a guard refused
-   (`<plugin>/references/procedures/stop.md`, "A Verify scenario that cannot run"), or a pick at a repair
-   limit that lets this session go on. A browser pick is a question in the terminal by
-   `<plugin>/references/procedures/design.md`, "The pick". Ask and take the answer by
+   needs a new look, a pick between prototype variants, a sign-in of the maintainer in the window
+   browser (`<plugin>/references/procedures/browser.md`, "A page behind a sign-in"), authorization
+   for a destructive act that the plan did not authorize, a consent that the plan foresees, the
+   approval of a command that a guard refused (`<plugin>/references/procedures/stop.md`, "A
+   Verify scenario that cannot run"), or a pick at a repair limit that lets this session go on. A
+   browser pick is a question in the terminal by `<plugin>/references/procedures/design.md`, "The
+   pick". Ask and take the answer by
    `<plugin>/references/procedures/stop.md`, "The check before a stop", and wait for the answer: an
    upstream "stop and ask" stays a question in this session. Never ask for a go-ahead or a
    review: publish the result on the issue and go on.

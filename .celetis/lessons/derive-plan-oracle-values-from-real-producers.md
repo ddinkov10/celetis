@@ -2,17 +2,41 @@
 {
   "schema": 1,
   "name": "derive-plan-oracle-values-from-real-producers",
-  "description": "Plan oracles gave hand-derived values, also gate results and probe inputs, that the real producers, including guards and unchanged gate jobs, do not produce",
+  "description": "Plan oracles gave hand-derived values, also gate results, probe inputs, and a flag of every browser process, that the real producers, including guards and unchanged gate jobs, do not produce",
   "tags": [
     "test",
     "process",
     "recurring",
-    "build"
+    "build",
+    "false-positive"
   ],
-  "date": "2026-11-09",
+  "date": "2026-11-11",
   "status": "active",
-  "source": "Implement step session of ddinkov10/celetis#260, Task 1 Step 1 (red probe)\n\nTask 4 of ddinkov10/celetis#255\n\nTask 1 implementer report of ddinkov10/celetis#249 (subagent-driven build, commit 0fd8ed3)\n\nImplementation of ddinkov10/celetis#270, Task 2 and Verify corrections",
+  "source": "The implement session of ddinkov10/celetis#305 on Claude Code, Verify V2 run A, 2026-11-11\n\nImplement step session of ddinkov10/celetis#260, Task 1 Step 1 (red probe)\n\nTask 4 of ddinkov10/celetis#255\n\nTask 1 implementer report of ddinkov10/celetis#249 (subagent-driven build, commit 0fd8ed3)\n\nImplementation of ddinkov10/celetis#270, Task 2 and Verify corrections",
   "incidents": [
+    {
+      "id": "a9d1ac08-3cae-4df9-8913-225023e3b5b6",
+      "date": "2026-11-11",
+      "action": "The plan of #305 (Verify V2, run A) stated the oracle: each Chrome process in the tree of the child has `--headless` in its command. The Verify harness sampled processes whose command matched /chrom/i.",
+      "expected": "The lesson derive-plan-oracle-values-from-real-producers: compute the part of an oracle that an existing producer gives from that producer on the planned inputs. Chrome is the producer of its process command lines.",
+      "observed": "On a correct headless run, the Chrome main process had `--headless`, but its helper processes (`--type=` renderer, GPU, utility) had mixed flags; in the headed control (V4) every helper lacked the flag. The substring match also caught three md5sum processes of a host plugin hook. The literal oracle fails a correct run.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "jq over docs/superpowers/verification/305/v2a/chrome.jsonl with the filter ^/Applications/Google Chrome.app: main (no --type=) n=1 pid 51879 headless [true]; helpers n=7 headless [false, true]. v4/chrome.jsonl: main n=1 headless [false]; helpers n=7 headless [false]. Non-Chrome matches of /chrom/i: \"md5sum ./plugins/marketplaces/thedotmack/...\" (3 processes).",
+        "reference": "https://github.com/ddinkov10/celetis/issues/305"
+      },
+      "inference": "Inferred: the plan took the flag from the design probe of the spec, which read the main process, and extended it to every process of the tree with no run of the producer. Alternative: the plan meant the browser process and wrote 'each Chrome process' loosely.",
+      "diagnosis": [
+        "not-followed"
+      ],
+      "revision": "d49aa13",
+      "brief": "The plan of #305 (issue comment 6796269712), Verify phase, lesson rules: derive-plan-oracle-values-from-real-producers sha256:9a6a41b136d4375a6bbd2ca5850f074e8d84894e6c800567c1310a97b20570e3; V2 expected: \"each Chrome process in the tree of the child has --headless in its command\".",
+      "lesson": {
+        "name": "derive-plan-oracle-values-from-real-producers",
+        "revision": "eb3812d",
+        "digest": "9a6a41b136d4375a6bbd2ca5850f074e8d84894e6c800567c1310a97b20570e3"
+      }
+    },
     {
       "id": "861fdb93-8d76-4692-81a4-40e21e6813f1",
       "date": "2026-11-09",
@@ -128,7 +152,7 @@
       }
     }
   ],
-  "recurrences": 4,
+  "recurrences": 5,
   "reviews": [
     {
       "id": "6b752a90-9785-461b-ae6b-5bab3892695f",
@@ -188,6 +212,21 @@
         "state": "proposed",
         "detail": "A plan review check that flags a derived oracle value with no producer or requirement reference, an oracle of a record write that names no guard that can refuse it, a planned gate result with a probe in place that names no job, and a red probe input that names no earlier guard of its producer; it needs separate authorization."
       }
+    },
+    {
+      "id": "dcff8947-cc2b-4fde-a48e-a56dd29e8cda",
+      "requestDigest": "1dbb188f405b819b03902cd2471c0a03d9a3e5a48d09622b12070203c6e63935",
+      "date": "2026-11-11",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #305; claude child opus/high\n\nMerge under the reviewer rules. The incident is observed: the retained jq excerpt over the v2a and v4 chrome.jsonl samples shows `--headless` on the main process only, mixed or absent flags on the `--type=` helpers, and three md5sum matches of /chrom/i. The incident cites this active lesson as its expected behavior and has the diagnosis not-followed: the plan carried the lesson and did not run the producer (Chrome) before it fixed the oracle. So the proposal states the same rule as derive-plan-oracle-values-from-real-producers, applied to a process-table oracle; this follows the earlier merges of the #249, #257, and #260 curations into the same lesson. The survivor keeps every incident and review, and its rule adds the process case: list the process kinds of one real launch, state the oracle for the kind that carries the property, and select processes by the executable path. browser.md of the plugin names `--headless` only as an argument of an MCP server entry, so the rule contradicts no skill, principle, or instruction file. It widens no permission and weakens no check.",
+      "related": [
+        "state-a-browser-process-oracle-for-the-process-kind-that-carries-it",
+        "derive-plan-oracle-values-from-real-producers"
+      ],
+      "followUp": {
+        "state": "not-needed",
+        "detail": "No structural check is proposed: which process kind carries a property, and which values of an oracle are derived, are judgments of the plan that the gate cannot decide."
+      }
     }
   ]
 }
@@ -198,21 +237,25 @@
 
 Four plans gave hand-derived oracle values that the existing producers do not give. The #270 plan gave an Idle list and count that omitted fixture #30, so the real count was 25, not 24, and a changed-dot probe that used a title change, which the board signature ignores. The plan carried the related lesson and claimed to trace each state. The #249 plan, Task 1, expected a refused queue wake with a live foreground holder of the current issue to write `error` to the queue record, and a reconcile wake to reach `running` with a session. The implementer observed (tool output) that a `createLockOwner` holder in a process other than `daemon.ts` is not live (`holderFrom`), that a holder with `registerSession` is a live queue owner, so the guard of `failQueueLaunch` keeps the record unchanged, and that a reconcile wake with `authorization: null` ends at the default `me` gate (`defaultGate`). The spec of #249 states that guard. The #255 plan, Task 4 step 2, expected `verify: PASS` with two probe re-exports of command files in place, as the red result of a new Biome rule. The gate gave `verify: FAIL` (tool output): the unchanged job `tsc browser` failed with 196 TS2591 errors, because the board probe pulled `node:` modules into the browser project, and `biome check` passed in that run. The #260 plan, Task 1 Step 1, named the red probe `engine/probe-260.ts` and expected the trunk launcher to run it (`celetis probe-260 <marker>`, exit 0, marker present). The trunk launcher refused the name at its unchanged name guard `/^[a-z][a-z-]*$/` (`commandName` in `engine/launcher.ts`), because the name has digits: exit 2 with `celetis: the program has no command probe-260` and no marker (tool output). With the name `probe-lane`, the trunk gave exit 0 and the marker. In each case, the implementers or the controller caught the error at execution and asserted the real behavior.
 
+In #305, the Verify phase of the plan (V2, run A) required `--headless` on each Chrome process in the tree of a check session. On a correct headless run, the Chrome main process had the flag, and its helper processes (`--type=` renderer, GPU, utility) had mixed flags; in the headed control (V4), no helper had the flag (tool output). The sampler matched the command by `/chrom/i`, which also caught three `md5sum` processes of a host plugin hook. So the literal oracle failed a correct run. The session corrected the oracle to the main process and selected processes by the executable path. The plan carried this lesson in its Verify lesson rules.
+
 ## Root cause
 
 Inferred: the plans computed the values by hand, from their own data lists, from spec sentences, or from the change alone, and did not run the existing producers on the planned inputs. For #249, the unchanged producers were guards: a lock-holder liveness rule, an owner check, and a gate default. For #255, the unchanged producer was another job of the gate that the probe input also reached. For #260, the unchanged producer was the name guard of the launcher, before the file lookup under test. Uncertain: whether this lesson reached the #249, #255, and #260 plan sessions; none of these plans carries it in the affected task (the #255 plan carries it in its Verify section only), and the earlier rule named lists, counts, triggers, record writes, liveness results, and gate results, not the result of a command on a probe input. Alternative: independent slips.
 
+For #305, inferred: the plan extended a fact of the main process, from the design probe of the spec, to every process of the tree, with no launch of the real producer, although the plan carried this lesson. Alternative: "each Chrome process" was loose wording for the browser process.
+
 ## Fix
 
-Proposed prevention, not proven enforcement: when a plan writes an expected list, count, trigger, record write, liveness result, gate result, or command result on a probe input for a derived state, it computes the part that an existing producer gives, and that the change does not alter, from that producer (for example a probe that runs the placer, the signature, the guards of the call path, or the unchanged jobs of the gate on the planned data, fixture, or probe input), and records how. A guard, a gate default, a lock-holder rule, and a job of the gate of unchanged code are such producers; the plan names how its fixture makes a live owner, a planned gate result with a temporary probe names the job that gives it, or expects only the lines of the job under test, and a probe input that must reach one check passes each earlier guard of that producer on the base. The part that the change adds comes from the requirement, as the test-behavior-not-implementation principle of the plugin celetis says: an oracle computed from the code under change cannot fail when that code is wrong. A structural follow-up needs separate authorization: a plan review check that flags a derived oracle value with no producer or requirement reference, an oracle of a record write that names no guard that can refuse it, and a planned gate result with a probe in place that names no job. Judgment decides which values are derived, which guards apply, and which jobs a probe reaches, so the rule stays text.
+Proposed prevention, not proven enforcement: when a plan writes an expected list, count, trigger, record write, liveness result, gate result, or command result on a probe input for a derived state, it computes the part that an existing producer gives, and that the change does not alter, from that producer (for example a probe that runs the placer, the signature, the guards of the call path, or the unchanged jobs of the gate on the planned data, fixture, or probe input), and records how. A guard, a gate default, a lock-holder rule, and a job of the gate of unchanged code are such producers; the plan names how its fixture makes a live owner, a planned gate result with a temporary probe names the job that gives it, or expects only the lines of the job under test, and a probe input that must reach one check passes each earlier guard of that producer on the base. The part that the change adds comes from the requirement, as the test-behavior-not-implementation principle of the plugin celetis says: an oracle computed from the code under change cannot fail when that code is wrong. A structural follow-up needs separate authorization: a plan review check that flags a derived oracle value with no producer or requirement reference, an oracle of a record write that names no guard that can refuse it, and a planned gate result with a probe in place that names no job. For a property of the processes that a program launches (a flag, a process type, a count), the plan lists the process kinds of one real launch (for Chrome: the main process with no `--type=`, its helpers, and other processes that match the name), states the oracle for the kind that carries the property, and selects processes by the executable path, not by a substring of the command. Judgment decides which values are derived, which guards apply, and which jobs a probe reaches, so the rule stays text.
 
 ## Detection signature
 
-A red probe step whose base run prints a refusal from an earlier guard in place of the planned red behavior.
+A red probe step whose base run prints a refusal from an earlier guard in place of the planned red behavior. A check that fails its own oracle on a correct run, with helper processes or processes of other programs in the failing rows.
 
 ## Rule
 
-Applies when a plan or a brief states an expected value of a derived state (a list, an order, a count, a trigger, a record write, a liveness result, the result of a gate or a multi-job check on a probe input, or the exit and output of a command on a probe input that must reach one check) for a check, and an existing producer that the change does not alter gives part of that value, including each guard, gate default, or lock-holder rule on its call path and each unchanged job of the gate that the probe input reaches. Action: compute that part from the existing producer on the planned inputs and cite the producer; for a record write or a state, list each such guard from the call path and name how the fixture makes a live owner; for a gate result, run or read each unchanged job on the probe input and state the result of each job that the probe reaches, or expect only the lines of the job under test; for a probe input that must reach one check, list each guard of that producer before the check and choose an input that passes each one on the base; derive the part that the change adds from the requirement. Check: each such oracle value names its producer or its requirement, a planned gate result names its jobs, and a run of the existing producer, with its guards, on the planned data or probe input reaches the check under test and gives the part that it covers.
+Applies when a plan or a brief states an expected value of a derived state (a list, an order, a count, a trigger, a record write, a liveness result, the result of a gate or a multi-job check on a probe input, the exit and output of a command on a probe input that must reach one check, or a property of the processes that a program launches) for a check, and an existing producer that the change does not alter gives part of that value, including each guard, gate default, or lock-holder rule on its call path and each unchanged job of the gate that the probe input reaches. Action: compute that part from the existing producer on the planned inputs and cite the producer; for a record write or a state, list each such guard from the call path and name how the fixture makes a live owner; for a gate result, run or read each unchanged job on the probe input and state the result of each job that the probe reaches, or expect only the lines of the job under test; for a probe input that must reach one check, list each guard of that producer before the check and choose an input that passes each one on the base; for a property of launched processes, list the process kinds of one real launch, state the oracle for the kind that carries the property (for Chrome, the main process with no `--type=`), and select processes by the executable path; derive the part that the change adds from the requirement. Check: each such oracle value names its producer or its requirement, a planned gate result names its jobs, and a run of the existing producer, with its guards, on the planned data or probe input reaches the check under test and gives the part that it covers, and a process oracle passes on a known-good launch and fails on a control launch that lacks the property.
 
 ## Related lessons
 
