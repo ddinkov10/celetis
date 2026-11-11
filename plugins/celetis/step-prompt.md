@@ -26,9 +26,10 @@ clean.
    consent that the plan foresees, the approval of a command that a guard refused
    (`<plugin>/references/procedures/stop.md`, "A Verify scenario that cannot run"), or a pick at a repair
    limit that lets this session go on. A browser pick is a question in the terminal by
-   `<plugin>/references/procedures/design.md`, "The pick". Ask, and wait for the answer: an upstream
-   "stop and ask" stays a question in this session. Never ask for a go-ahead or a review: publish
-   the result on the issue and go on.
+   `<plugin>/references/procedures/design.md`, "The pick". Ask and take the answer by
+   `<plugin>/references/procedures/stop.md`, "The check before a stop", and wait for the answer: an
+   upstream "stop and ask" stays a question in this session. Never ask for a go-ahead or a
+   review: publish the result on the issue and go on.
 3. Land a change only with `celetis --agent <host> land`, with the host of the header, and only
    when the skill of your step says so.
 4. A stop is not a question: where a skill says to ask, rule 2 holds. Before you hand each other

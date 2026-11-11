@@ -82,6 +82,7 @@ import {
 import {
   closeTerminal,
   exitGraceMs,
+  inSequence,
   openTab,
   readTerminal,
   requestExit,
@@ -123,6 +124,8 @@ export type RunView = Readonly<{
   state: RunState;
   changedMs: number;
   barrier: Identity | null;
+  terminal: string | null;
+  turn: number | null;
 }>;
 export interface RunHandle {
   readonly id: string;
@@ -135,6 +138,7 @@ export interface RunHandle {
 
 export const removed = 'the engine version of this daemon was removed after an update; start the daemon again';
 
+const attentive: ReadonlySet<RunState> = new Set(['running', 'checking', 'waiting', 'exiting']);
 const idle: Record<TerminalStatus, boolean> = { idle: true, done: true, error: true, working: false, blocked: false };
 const die = (message: string, code: ExitCode): never => {
   throw new HostError(`daemon: ${message}`, code);
@@ -220,6 +224,16 @@ function pidOf(source: string): Identity | null {
   return { pid, start };
 }
 
+export async function barrierOf(source: string): Promise<Identity | null | 'unknown'> {
+  const found = pidOf(source);
+  if (found === null) return null;
+  const { pid, start } = found;
+  const state = await processState(pid, start);
+  const script = state === 'gone' ? 'gone' : await processScript(pid, daemonScript);
+  if (state === 'gone' || script === 'gone') return null;
+  return state === 'runs' && script === 'runs' ? { pid, start } : 'unknown';
+}
+
 function steered(session: Facts): Steered & Readonly<{ barrier: Identity; startedMs: number }> {
   const { next, authority, choice, ticket, capture, owned, barrier, startedMs } = session;
   if (!next || !authority || !choice || !ticket || !capture || !owned || !barrier || startedMs === null)
@@ -275,9 +289,16 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     state: 'starting',
     changedMs: Date.now(),
     barrier: null,
+    terminal: null,
+    turn: null,
   };
   const mark = (next: RunState) => {
-    shown = { ...shown, state: next, changedMs: Date.now() };
+    shown = {
+      ...shown,
+      state: next,
+      changedMs: Date.now(),
+      ...(attentive.has(next) ? {} : { terminal: null, turn: null }),
+    };
   };
   let told: string | null = null;
   const say = (message: string) => {
@@ -467,6 +488,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     try {
       await writeStepEnd(main, stepEndIssue as number, { daemon: stepEndOwner, terminal, host, state, turn });
       mark(state);
+      shown = { ...shown, turn: turn?.sequence ?? null };
       return true;
     } catch (error) {
       await clearStepEnd();
@@ -559,19 +581,27 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
           if (current.idle) continue;
         } else if (!abort.aborted) {
           const verdict = verdictOf(first, changed);
-          if (verdict === 'exiting') {
-            if (!(await publish(record.host, 'exiting', turn))) return false;
-            // hc send can return seconds after the delivery, while it waits for a turn to start.
-            const requested = performance.now();
-            if (!(await requestExit(terminal, record.host, abort))) {
-              if (!abort.aborted) {
-                await publish(record.host, 'waiting', turn);
-                const line = `daemon: #${n} cannot request ${record.host} exit; the session stays open. Exit it in the tab ${tab} when ready.`;
-                console.error(line);
-                recordEvent({ name: 'exit-request', message: line, issue: Number(n) });
-              }
-              return false;
-            }
+          const requested =
+            verdict === 'exiting'
+              ? await inSequence(terminal, async () => {
+                  if (abort.aborted) return null;
+                  const again = await sessionTurn(id, record.host, startedMs, abort);
+                  if (!again?.idle || !sameTurn(turn, again.turn)) return null;
+                  if (!(await publish(record.host, 'exiting', turn))) return false;
+                  // hc send can return seconds after the delivery, while it waits for a turn to start.
+                  const begun = performance.now();
+                  if (await requestExit(terminal, record.host, abort)) return begun;
+                  if (!abort.aborted) {
+                    await publish(record.host, 'waiting', turn);
+                    const line = `daemon: #${n} cannot request ${record.host} exit; the session stays open. Exit it in the tab ${tab} when ready.`;
+                    console.error(line);
+                    recordEvent({ name: 'exit-request', message: line, issue: Number(n) });
+                  }
+                  return false;
+                })
+              : null;
+          if (requested === false) return false;
+          if (requested !== null) {
             const mark = startFiles(watchDir).terminated;
             let settled = false;
             let after: ReturnType<typeof setTimeout> | undefined;
@@ -623,7 +653,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
             }
             return true;
           }
-          if (!(await publish(record.host, verdict, turn))) return false;
+          if (verdict !== 'exiting' && !(await publish(record.host, verdict, turn))) return false;
           retained = verdict === 'waiting' ? turn : null;
         }
       } else {
@@ -632,15 +662,6 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       }
       await pause(5000, undefined, { signal: abort }).catch(() => {});
     }
-  };
-  const barrierOf = async (source: string) => {
-    const found = pidOf(source);
-    if (found === null) return null;
-    const { pid, start } = found;
-    const state = await processState(pid, start);
-    const script = state === 'gone' ? 'gone' : await processScript(pid, daemonScript);
-    if (state === 'gone' || script === 'gone') return null;
-    return state === 'runs' && script === 'runs' ? { pid, start } : 'unknown';
   };
   const forgetTab = async (change: Partial<RunRecord>) =>
     note(change).catch((error: unknown) => console.error((error as Error).message));
@@ -685,7 +706,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     const dir = await mkdtemp(state.startPrefix);
     watchDir = dir;
     tab = `#${n} ${step}`;
-    shown = { ...shown, issue: Number(n), step, host, tab, barrier: null };
+    shown = { ...shown, issue: Number(n), step, host, tab, barrier: null, terminal: null, turn: null };
     const unstarted = async () => {
       if (!detach.signal.aborted) return;
       await note({ session: null });
@@ -770,6 +791,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     await writeFile(startFiles(watchDir).go, '');
     unreleased = '';
     mark('running');
+    shown = { ...shown, terminal };
   };
   const sessionEnd = async (ended: Promise<number | null>) => {
     const code = await Promise.race([ended, halted]);
@@ -812,7 +834,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     let exitCode: number | null = kept ? kept.exitCode : 0;
     let resolved: Next | null = null;
     const issue = Number(n);
-    shown = { ...shown, issue, step: null, host: null, tab: null };
+    shown = { ...shown, issue, ...(from?.phase === 'live' ? {} : { step: null, host: null, tab: null }) };
     const outcome = (kind: IssueOutcome['kind'], reason: string, act: string | null = null): IssueOutcome => ({
       kind,
       started,
@@ -1630,8 +1652,16 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     if (session) {
       terminal = session.terminal ?? '';
       tab = session.tab;
-      shown = { ...shown, issue: n, step: session.step, host: session.host, tab, barrier: claimed };
       const read = await sessionPhase(session);
+      shown = {
+        ...shown,
+        issue: n,
+        step: session.step,
+        host: session.host,
+        tab,
+        barrier: claimed,
+        terminal: read === 'live' && terminal ? terminal : null,
+      };
       if (read !== 'live') watchDir = session.folder;
       if (read === 'missing') {
         await closeTerminal(terminal);

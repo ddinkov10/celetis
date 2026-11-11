@@ -4,7 +4,7 @@ import { type Host, hosts } from './host-names.ts';
 import { hostAdapter } from './hosts.ts';
 import { childEnv, run } from './process.ts';
 import { repositoryState, StateError, withLock } from './state.ts';
-import type { Terminal, TerminalStatus } from './terminal-types.ts';
+import type { DialogKind, Terminal, TerminalStatus } from './terminal-types.ts';
 
 type Result = { code: number; stdout: string; stderr: string };
 type CallOptions = { signal?: AbortSignal; env?: NodeJS.ProcessEnv };
@@ -35,6 +35,8 @@ const SAFE_ID = /^[\w:.][\w:.-]*$/;
 const POLL_MS = 250;
 const POLL_LIMIT_MS = 5_000;
 const STATUSES: Record<TerminalStatus, true> = { idle: true, working: true, done: true, blocked: true, error: true };
+const KINDS: Record<DialogKind, true> = { permission: true, question: true, auth: true };
+const GONE_KINDS = new Set(['finished', 'not_found']);
 
 export const isSafeId = (value: unknown): value is string => typeof value === 'string' && SAFE_ID.test(value);
 const isText = (value: unknown): value is string => typeof value === 'string';
@@ -42,6 +44,7 @@ const isCount = (value: unknown): value is number => Number.isSafeInteger(value)
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 const isStatus = (value: unknown): value is TerminalStatus => isText(value) && Object.hasOwn(STATUSES, value);
+const isKind = (value: unknown): value is DialogKind => isText(value) && Object.hasOwn(KINDS, value);
 const hostOf = (app: unknown): Host | null => hosts.find((host) => hostAdapter(host).app === app) ?? null;
 const records = (value: unknown) => (Array.isArray(value) ? value.filter(isRecord) : []);
 const firstLine = (text: string) =>
@@ -105,6 +108,7 @@ export async function readTerminal(
     id,
     host: hostOf(status.app),
     status: isStatus(status.state) ? status.state : null,
+    kind: isKind(status.kind) ? status.kind : null,
     statusMs: isCount(value.status_ms) ? value.status_ms : null,
     turn: value.turn,
     labels,
@@ -129,10 +133,26 @@ export async function listTerminals(exec: Exec = run): Promise<Terminal[]> {
   return terminals.filter((terminal) => terminal !== null);
 }
 
+const errorKinds = (result: Result) =>
+  [result.stderr, result.stdout].map((output) => {
+    const value = parse(output);
+    const error = isRecord(value) ? value.error : undefined;
+    return isRecord(error) ? error.kind : undefined;
+  });
+const isGone = (kind: unknown) => isText(kind) && GONE_KINDS.has(kind);
+
+export type TerminalState = 'live' | 'ended' | 'unknown';
+
+export async function terminalState(id: string, exec: Exec = run): Promise<TerminalState> {
+  if (!isSafeId(id)) return 'ended';
+  const result = await call(exec, 'hc', ['get', id, '--json']);
+  const value = answer(result);
+  if (isRecord(value) && value.address === id && isText(value.state)) return value.state === 'live' ? 'live' : 'ended';
+  return result.code !== 0 && errorKinds(result).some(isGone) ? 'ended' : 'unknown';
+}
+
 export async function terminalLive(id: string, exec: Exec = run): Promise<boolean> {
-  if (!isSafeId(id)) return false;
-  const value = answer(await call(exec, 'hc', ['get', id, '--json']));
-  return isRecord(value) && value.address === id && value.state === 'live';
+  return (await terminalState(id, exec)) === 'live';
 }
 
 export async function waitTerminal(id: string, seconds: number, signal?: AbortSignal): Promise<boolean> {
@@ -158,10 +178,49 @@ async function setLink(id: string, link: string, exec: Exec): Promise<void> {
   if (isSafeId(id)) await call(exec, 'hc', ['label', id, `${LINK}=${link}`, '--json']);
 }
 
-export async function readScreen(id: string, history: number, exec: Exec = run): Promise<string | null> {
+export type ScreenRead = Readonly<{ text: string; complete: boolean; why: string | null }>;
+
+export async function readHistory(id: string, lines: number, exec: Exec = run): Promise<ScreenRead | null> {
   if (!isSafeId(id)) return null;
-  const value = answer(await call(exec, 'hc', ['read', id, '--lines', String(history), '--json']));
-  return isRecord(value) && isText(value.text) ? value.text : null;
+  const value = answer(await call(exec, 'hc', ['read', id, '--lines', String(lines), '--json']));
+  if (!isRecord(value) || !isText(value.text) || typeof value.complete !== 'boolean') return null;
+  return { text: value.text, complete: value.complete, why: isText(value.why) ? value.why : null };
+}
+
+export async function readScreen(id: string, history: number, exec: Exec = run): Promise<string | null> {
+  return (await readHistory(id, history, exec))?.text ?? null;
+}
+
+export type Sent = 'sent' | 'blocked' | 'gone' | 'unknown';
+
+export async function sendText(
+  id: string,
+  text: string,
+  { signal, exec = run }: { signal?: AbortSignal; exec?: Exec } = {},
+): Promise<Sent> {
+  if (!isSafeId(id)) return 'gone';
+  const env = { ...process.env };
+  delete env.HC_TERMINAL_ID;
+  const result = await call(exec, 'hc', ['send', id, '--json', '--', text], { signal, env });
+  if (result.code === 0) return 'sent';
+  const kinds = errorKinds(result);
+  if (kinds.includes('blocked')) return 'blocked';
+  return kinds.some(isGone) ? 'gone' : 'unknown';
+}
+
+const sequences = new Map<string, Promise<void>>();
+
+export function inSequence<T>(id: string, work: () => Promise<T>): Promise<T> {
+  const result = (sequences.get(id) ?? Promise.resolve()).then(work);
+  const tail = result.then(
+    () => {},
+    () => {},
+  );
+  sequences.set(id, tail);
+  void tail.then(() => {
+    if (sequences.get(id) === tail) sequences.delete(id);
+  });
+  return result;
 }
 
 async function readSpaces(exec: Exec): Promise<Space[]> {
@@ -186,7 +245,7 @@ const reason = (error: unknown) => (error instanceof Error ? error.message : Str
 export async function requireTerminals(exec: Exec = run, env: NodeJS.ProcessEnv = process.env): Promise<void> {
   const PATH = childEnv(env).PATH ?? '';
   if (!Bun.which('hc', { PATH }))
-    throw new TerminalError('hc is not on PATH; install herdr-core 0.1.16, then start again', exits.prerequisite);
+    throw new TerminalError('hc is not on PATH; install herdr-core 0.1.19, then start again', exits.prerequisite);
   await terminalIds(exec).catch((error: unknown) => {
     throw new TerminalError(`the hc server does not answer: ${reason(error)}; start the Herdr app, then start again`);
   });

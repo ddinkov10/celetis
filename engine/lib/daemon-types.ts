@@ -10,9 +10,11 @@ import { parseQueueAction, parseQueueView } from './queue.ts';
 import type { QueueAction, QueueView } from './queue-types.ts';
 import type { RunInput, RunState } from './run-engine.ts';
 import { daemonSocketPath, type RepositoryLayout, repositoryState } from './state.ts';
+import type { DialogKind } from './terminal-types.ts';
 import { type Step, steps } from './workflow.ts';
 
 export type Selection = Readonly<{ explicit?: Host; environment?: string }>;
+export type Authority = 'maintainer' | 'coordinator';
 export type DaemonRequest =
   | { kind: 'run'; number: number; selection: Selection; effort: Level | null; quiet: boolean }
   | { kind: 'auto'; on: boolean; selection: Selection; quiet: boolean }
@@ -22,10 +24,17 @@ export type DaemonRequest =
   | { kind: 'queue-action'; action: QueueAction; selection: Selection; quiet: boolean }
   | { kind: 'queue-reconcile' }
   | { kind: 'land'; number: number; subject: string; selection: Selection; from: string }
+  | { kind: 'coordinator-open'; selection: Selection }
+  | { kind: 'coordinator-read'; number: number }
+  | { kind: 'coordinator-send'; number: number; authority: Authority; text: string; token: string }
   | { kind: 'status' }
   | { kind: 'stop' };
 export type LandingRecord = { out: string } | { err: string } | { code: ExitCode };
 export type DaemonAnswer = { accepted: true; run: string | null } | { accepted: false; line: string; code: ExitCode };
+export type CoordinatorAnswer = { accepted: true; opened: boolean } | { accepted: false; line: string; code: ExitCode };
+export type ScreenAnswer =
+  | { accepted: true; text: string; complete: boolean; why: string | null }
+  | { accepted: false; line: string; code: ExitCode };
 export type QueueAnswer =
   | { accepted: true; run: string | null; view: QueueView }
   | { accepted: false; line: string; code: ExitCode };
@@ -38,6 +47,7 @@ export type DaemonIdentity = {
   common: string;
   socket: string;
 };
+export type Attention = { state: 'dialog' | 'turn-ended' | 'quota-wait'; kind: DialogKind | null; changedMs: number };
 export type RunRow = {
   id: string;
   kind: RunInput['kind'];
@@ -50,6 +60,7 @@ export type RunRow = {
   line: string | null;
   changedMs: number;
   session: ProcessState | null;
+  attention: Attention | null;
   outcome: { kind: 'closed' | 'gate' | 'stopped'; reason: string; code: ExitCode } | null;
 };
 export type LandingRow = { issue: number; state: 'runs' | 'waits'; changedMs: number };
@@ -60,12 +71,13 @@ export type DaemonStatus = {
   auto: 'on' | 'off' | 'stopping';
   runs: RunRow[];
   landings: LandingRow[];
+  coordinator: boolean;
 };
 
 export const textLimit = 4096;
 export const stopLine = 'daemon: the daemon stops; start it again, then send the request';
 export const requestUsage =
-  'usage: GET /status | POST /run {"number":<issue>,"selection":<selection>,"effort":<level>|null,"quiet":<boolean>} | POST /auto {"on":<boolean>,"selection":<selection>,"quiet":<boolean>} | POST /queue {"id":<uuid>,"token":<uuid>,"selection":<selection>,"quiet":<boolean>} | POST /resume {"number":<issue>,"selection":<selection>} | POST /stop {} | POST /retry {"number":<issue>,"waitId":<text>} | POST /queue/action {"action":<action>,"selection":<selection>,"quiet":<boolean>} | POST /queue/reconcile {} | POST /land {"number":<issue>,"subject":<subject>,"selection":<selection>,"from":<path>}; <selection> is {"explicit"?:"claude"|"codex","environment"?:<text>}; <level> is low|medium|high|xhigh|max; <action> is a queue action of celetis queue action';
+  'usage: GET /status | POST /run {"number":<issue>,"selection":<selection>,"effort":<level>|null,"quiet":<boolean>} | POST /auto {"on":<boolean>,"selection":<selection>,"quiet":<boolean>} | POST /queue {"id":<uuid>,"token":<uuid>,"selection":<selection>,"quiet":<boolean>} | POST /resume {"number":<issue>,"selection":<selection>} | POST /stop {} | POST /retry {"number":<issue>,"waitId":<text>} | POST /queue/action {"action":<action>,"selection":<selection>,"quiet":<boolean>} | POST /queue/reconcile {} | POST /land {"number":<issue>,"subject":<subject>,"selection":<selection>,"from":<path>} | POST /coordinator/open {"selection":<selection>} | POST /coordinator/read {"number":<issue>} | POST /coordinator/send {"number":<issue>,"authority":"maintainer"|"coordinator","text":<text>,"token":<uuid>}; <selection> is {"explicit"?:"claude"|"codex","environment"?:<text>}; <level> is low|medium|high|xhigh|max; <action> is a queue action of celetis queue action';
 
 export const requestPaths: Readonly<Record<Exclude<DaemonRequest['kind'], 'status'>, string>> = {
   run: '/run',
@@ -77,6 +89,9 @@ export const requestPaths: Readonly<Record<Exclude<DaemonRequest['kind'], 'statu
   'queue-action': '/queue/action',
   'queue-reconcile': '/queue/reconcile',
   land: '/land',
+  'coordinator-open': '/coordinator/open',
+  'coordinator-read': '/coordinator/read',
+  'coordinator-send': '/coordinator/send',
 };
 const routes: Readonly<Record<string, 'GET' | 'POST'>> = Object.fromEntries([
   ['/status', 'GET'],
@@ -96,6 +111,8 @@ const states: Record<RunState, true> = {
 };
 const reads: Record<ProcessState, true> = { runs: true, gone: true, unknown: true };
 const ends: Record<NonNullable<RunRow['outcome']>['kind'], true> = { closed: true, gate: true, stopped: true };
+const attentions: Record<Attention['state'], true> = { dialog: true, 'turn-ended': true, 'quota-wait': true };
+const dialogs: Record<DialogKind, true> = { permission: true, question: true, auth: true };
 const autos: Record<DaemonStatus['auto'], true> = { on: true, off: true, stopping: true };
 const boardUrl = /^http:\/\/127\.0\.0\.1:[0-9]{1,5}$/;
 
@@ -119,6 +136,9 @@ const path = (value: unknown): value is string => filled(value) && isAbsolute(va
 const isStep = (value: unknown): value is Step => (steps as readonly unknown[]).includes(value);
 const latin1 = (value: unknown): value is string =>
   typeof value === 'string' && Buffer.from(value, 'latin1').toString('latin1') === value;
+
+const authorities: Record<Authority, true> = { maintainer: true, coordinator: true };
+export const isAuthority = (value: unknown): value is Authority => member(authorities, value);
 
 export function landingSubject(number: number, subject: string): boolean {
   return /^[a-z]+(\([^()]+\))?!?: [^ ]/.test(subject) && !subject.includes('\n') && !subject.endsWith(`(#${number})`);
@@ -167,12 +187,24 @@ export function parseRequest(
   if (!object(body)) return refused;
   if (path === '/stop') return exact(body, []) ? { kind: 'stop' } : refused;
   if (path === '/queue/reconcile') return exact(body, []) ? { kind: 'queue-reconcile' } : refused;
+  if (path === '/coordinator/read')
+    return exact(body, ['number']) && count(body.number) ? { kind: 'coordinator-read', number: body.number } : refused;
+  if (path === '/coordinator/send')
+    return exact(body, ['number', 'authority', 'text', 'token']) &&
+      count(body.number) &&
+      isAuthority(body.authority) &&
+      typeof body.text === 'string' &&
+      id(body.token)
+      ? { kind: 'coordinator-send', number: body.number, authority: body.authority, text: body.text, token: body.token }
+      : refused;
   if (path === '/retry')
     return exact(body, ['number', 'waitId']) && count(body.number) && filled(body.waitId)
       ? { kind: 'retry', number: body.number, waitId: body.waitId }
       : refused;
   const selection = selectionOf(body.selection);
   if (selection === null) return refused;
+  if (path === '/coordinator/open')
+    return exact(body, ['selection']) ? { kind: 'coordinator-open', selection } : refused;
   const { number, effort, quiet, on, subject, from } = body;
   if (path === '/land')
     return exact(body, ['number', 'subject', 'selection', 'from']) &&
@@ -240,6 +272,27 @@ export function parseQueueAnswer(value: unknown): QueueAnswer {
       return invalid('answer');
     }
   }
+  const answer = parseAnswer(value);
+  return answer.accepted ? invalid('answer') : answer;
+}
+
+export function parseCoordinatorAnswer(value: unknown): CoordinatorAnswer {
+  if (object(value) && value.accepted === true)
+    return exact(value, ['accepted', 'opened']) && typeof value.opened === 'boolean'
+      ? { accepted: true, opened: value.opened }
+      : invalid('answer');
+  const answer = parseAnswer(value);
+  return answer.accepted ? invalid('answer') : answer;
+}
+
+export function parseScreenAnswer(value: unknown): ScreenAnswer {
+  if (object(value) && value.accepted === true)
+    return exact(value, ['accepted', 'text', 'complete', 'why']) &&
+      typeof value.text === 'string' &&
+      typeof value.complete === 'boolean' &&
+      nullable(text)(value.why)
+      ? { accepted: true, text: value.text, complete: value.complete, why: value.why }
+      : invalid('answer');
   const answer = parseAnswer(value);
   return answer.accepted ? invalid('answer') : answer;
 }
@@ -312,6 +365,17 @@ function landingOf(value: unknown): LandingRow {
   return invalid('landing');
 }
 
+function readAttention(value: unknown): Attention | null {
+  if (value === null) return null;
+  return object(value) &&
+    exact(value, ['state', 'kind', 'changedMs']) &&
+    member(attentions, value.state) &&
+    nullable((each: unknown) => member(dialogs, each))(value.kind) &&
+    code(value.changedMs)
+    ? { state: value.state, kind: value.kind, changedMs: value.changedMs }
+    : invalid('run');
+}
+
 function rowOf(value: unknown): RunRow {
   if (
     object(value) &&
@@ -327,6 +391,7 @@ function rowOf(value: unknown): RunRow {
       'line',
       'changedMs',
       'session',
+      'attention',
       'outcome',
     ]) &&
     id(value.id) &&
@@ -352,6 +417,7 @@ function rowOf(value: unknown): RunRow {
       line: value.line,
       changedMs: value.changedMs,
       session: value.session,
+      attention: readAttention(value.attention),
       outcome: outcomeOf(value.outcome),
     };
   return invalid('run');
@@ -360,13 +426,14 @@ function rowOf(value: unknown): RunRow {
 export function parseStatus(value: unknown): DaemonStatus {
   if (
     !object(value) ||
-    !exact(value, ['schema', 'daemon', 'board', 'auto', 'runs', 'landings']) ||
+    !exact(value, ['schema', 'daemon', 'board', 'auto', 'runs', 'landings', 'coordinator']) ||
     value.schema !== 1 ||
     typeof value.board !== 'string' ||
     !boardUrl.test(value.board) ||
     !member(autos, value.auto) ||
     !Array.isArray(value.runs) ||
-    !Array.isArray(value.landings)
+    !Array.isArray(value.landings) ||
+    typeof value.coordinator !== 'boolean'
   )
     return invalid('status');
   return {
@@ -376,5 +443,6 @@ export function parseStatus(value: unknown): DaemonStatus {
     auto: value.auto,
     runs: value.runs.map(rowOf),
     landings: value.landings.map(landingOf),
+    coordinator: value.coordinator,
   };
 }

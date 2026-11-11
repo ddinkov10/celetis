@@ -8,10 +8,12 @@ import { format } from 'node:util';
 import { type BoardDaemon, celetisAdapter } from '../board/adapter.ts';
 import { type BoardHandle, startBoard } from '../board/start.ts';
 import { type ExitCode, exits, signalExit } from './contract.ts';
+import { createCoordinator } from './coordinator.ts';
 import { shortRevision } from './daemon-client.ts';
 import { createLandings, type Sink } from './daemon-landing.ts';
 import { daemonArgv } from './daemon-start.ts';
 import {
+  type CoordinatorAnswer,
   type DaemonAnswer,
   type DaemonIdentity,
   type DaemonRequest,
@@ -22,6 +24,7 @@ import {
   type RunRow,
   requestPaths,
   requestUsage,
+  type ScreenAnswer,
   type Selection,
   stopLine,
   textLimit,
@@ -89,7 +92,8 @@ const printable = (text: string) =>
   [...text]
     .map((character) => (character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127 ? ' ' : character))
     .join('');
-const reply = (status: number, value: DaemonAnswer | QueueAnswer | DaemonStatus) => Response.json(value, { status });
+const reply = (status: number, value: DaemonAnswer | QueueAnswer | CoordinatorAnswer | ScreenAnswer | DaemonStatus) =>
+  Response.json(value, { status });
 const refused = (status: number, line: string, code: ExitCode): Said => ({
   status,
   answer: { accepted: false, line: clip(line), code },
@@ -296,6 +300,15 @@ async function serve(
   }
 
   const entries = new Map<string, Entry>();
+  const coordinator = createCoordinator(place, checkout, () =>
+    [...entries.values()].map(({ handle, outcome, answer }) => ({
+      id: handle.id,
+      resume: handle.input.kind === 'resume',
+      refused: answer === 'refused',
+      view: handle.view(),
+      outcome,
+    })),
+  );
   const loops = new Set<Loop>();
   const landings = createLandings({
     main,
@@ -445,6 +458,7 @@ async function serve(
       line: frame.last === null ? null : clip(frame.last),
       changedMs: view.changedMs,
       session: view.barrier === null ? null : await processState(view.barrier.pid, view.barrier.start),
+      attention: coordinator.attention(handle.id),
       outcome,
     };
   };
@@ -455,6 +469,7 @@ async function serve(
     auto: [...loops].some(({ control }) => control.active && !control.leaving) ? 'on' : loops.size ? 'stopping' : 'off',
     runs: await Promise.all([...entries.values()].map(row)),
     landings: landings.rows(),
+    coordinator: coordinator.live(),
   });
   const verdict = (admission: Admission, run: string | null): Said => {
     if (stopping) return refused(503, stopLine, exits.prerequisite);
@@ -561,6 +576,18 @@ async function serve(
         return changeQueue('read', {}, true, (operation) => reconcileQueue(operation));
       case 'land':
         return landings.answer(parsed, request.signal);
+      case 'coordinator-open': {
+        const { status, answer } = await coordinator.open(parsed.selection);
+        return reply(status, answer);
+      }
+      case 'coordinator-read': {
+        const { status, answer } = await coordinator.read(parsed.number);
+        return reply(status, answer);
+      }
+      case 'coordinator-send': {
+        const { status, answer } = await coordinator.send(parsed);
+        return reply(status, answer);
+      }
       case 'run': {
         const { number, selection, effort, quiet } = parsed;
         return answerRun(begin({ kind: 'number', number, selection, effort, quiet }, true));
@@ -642,6 +669,7 @@ async function serve(
       }));
       await run.handle.admitted;
     }
+    await coordinator.adopt();
     taking = false;
     rmSync(paths.socket, { force: true });
     const server = Bun.serve({ unix: paths.socket, fetch: respond, error: crashed });
@@ -667,6 +695,7 @@ async function serve(
       if (said.status === 503 && !said.answer.accepted) console.error(said.answer.line);
     }
     await asked;
+    await coordinator.close();
     clearInterval(poll);
     for (const { handle } of entries.values()) handle.detach();
     for (const loop of loops) {

@@ -291,7 +291,8 @@ value.
    nonzero `Number(PORT)` of its environment is an exact port; else the board takes the first free
    port from `board.port` through 65535. A port that cannot open releases `daemon` and exits 6,
    before any takeover;
-8. reads the run records and makes one adoption attempt for each record ("The takeover");
+8. reads the run records and makes one adoption attempt for each record ("The takeover"), then
+   reads the coordinator record ([The coordinator session](#the-coordinator-session));
 9. removes a socket file that a killed daemon left;
 10. serves on the socket;
 11. writes the identity file `daemon/daemon.json` (0600, a temporary file and a rename):
@@ -327,6 +328,9 @@ dispatcher throws is the 500 answer below. A body is JSON of at most 16 KiB, wit
 | `POST /queue/action` | `{action, selection, quiet}` | A queue action, as `queue action '<QueueAction JSON>'`; `action` is that JSON |
 | `POST /queue/reconcile` | `{}` | The queue reconcile of a board read |
 | `POST /land` | `{number, subject, selection, from}` | A landing, as `celetis --agent <host> land <number> '<subject>'` from the folder `from`; the answer is a stream (below) |
+| `POST /coordinator/open` | `{selection}` | The open of the coordinator session, as `celetis coordinator`; the answer is `{accepted: true, opened}` ([The coordinator session](#the-coordinator-session)) |
+| `POST /coordinator/read` | `{number}` | The screen read, as `celetis coordinator read <number>`; the answer is `{accepted: true, text, complete, why}` ([The coordinator session](#the-coordinator-session)) |
+| `POST /coordinator/send` | `{number, authority, text, token}` | The send, as `celetis coordinator send <number> <file> --as <authority>`; `authority` is `maintainer` or `coordinator`, `text` is a string, and `token` is a UUID; the answer is `{accepted: true, run: null}` ([The coordinator session](#the-coordinator-session)) |
 
 `selection` is `{explicit?, environment?}`: an explicit host (`claude` or `codex`), the
 `CELETIS_AGENT` value of the client, or neither. Each run and each landing selects its host from its own request,
@@ -398,9 +402,10 @@ session alone: the owner record then names no daemon and that session. So a late
 daemon, the board, and auto mode find the lock free when the session ends, as after the
 exit of a daemon. A detached run keeps its owner records ("The stop").
 
-**The status object.** `{schema: 1, daemon, board, auto, runs, landings}`. `daemon` is the identity file.
+**The status object.** `{schema: 1, daemon, board, auto, runs, landings, coordinator}`. `daemon` is the identity file.
 `board` is the URL of the board, `http://127.0.0.1:<port>`. `auto` is `on`, `off`, or
-`stopping`. Each run has one row, in start order:
+`stopping`. `coordinator` is `true` while the daemon holds a coordinator record
+([The coordinator session](#the-coordinator-session)). Each run has one row, in start order:
 
 | Field | Value |
 | --- | --- |
@@ -412,6 +417,7 @@ exit of a daemon. A detached run keeps its owner records ("The stop").
 | `line` | The last daemon line of the run, else `null` |
 | `changedMs` | The time of the last change of `state`, in milliseconds since 1970 UTC |
 | `session` | `runs`, `gone`, or `unknown`: a process read of the start barrier of the current session at this status read, else `null` |
+| `attention` | `{state, kind, changedMs}` while the run needs a decision, else `null`: `state` is `dialog`, `turn-ended`, or `quota-wait`; `kind` is `permission`, `question`, or `auth` for a `dialog` that the host named, else `null`; `changedMs` is the time that the pair entered its state ([The coordinator session](#the-coordinator-session)) |
 | `outcome` | `{kind, reason, code}` of a finished run (`closed`, `gate`, or `stopped`), else `null` |
 
 A finished run stays in the status, with its outcome, until the daemon stops. A refused run
@@ -762,6 +768,184 @@ valid. While the terminal of the tab stays live and the barrier has not reported
 warns once after 60 seconds and waits on. The lines of a tab that ends early and of the warning
 ask you to check the login files of `$SHELL` in that tab. No command prints these lines: they
 show as the `line` of the row of `celetis daemon status` and in `daemon/daemon.log`.
+
+## The coordinator session
+
+The coordinator session is one interactive session of a host with the skill `coordinate`, in a
+tab that the daemon opens. It is no run: it has no issue, no issue lock, no step-end watch, and no
+resume by the daemon. You end it in its tab.
+
+**The forms.** `celetis coordinator` (`engine/coordinator.ts`) sends `POST /coordinator/open` with
+the selection of `--agent` and `CELETIS_AGENT`, as `run` does, and waits at most 120 seconds.
+`celetis coordinator status` reads `GET /status` and prints the status object as one JSON line.
+`celetis coordinator read <n>` sends `POST /coordinator/read` ("The screen read"), and
+`celetis coordinator send <n> <file> --as maintainer|coordinator` sends `POST /coordinator/send`
+("The send"). The row of `coordinator` in [The commands](../plugins/celetis/README.md#the-commands)
+gives the lines and the exit codes.
+
+**The open.** The daemon answers one open at a time; a second open waits for the first. In this
+order, it:
+
+1. reads the process of the barrier of the coordinator record, when it holds one. When it runs,
+   the daemon brings its tab to the front (`herdr-app do pane.focus`) and answers
+   `{accepted: true, opened: false}`; a failed focus refuses the open with code 6. A failed read
+   refuses the open with code 6 too, and the record stays. When the process is gone, the daemon removes the record and its start folder and goes on;
+2. selects the host as `assist` does, with the local order and the usage records;
+3. checks the native home of the host, the update policy of its plugin, the host on `PATH`, the
+   contract version of its plugin ([The engine and the plugin](#the-engine-and-the-plugin)), the
+   file `skills/coordinate/SKILL.md` of the plugin root, and `hc` and the Herdr app;
+4. opens the tab `Coordinator` with the link label `Coordinator` and the focus, in the main
+   checkout, as a session tab ([The session tab](#the-session-tab)): the start barrier
+   `daemon --session-start <folder> <daemon PID> <host> - - <arguments>` with the interactive
+   arguments of `assist` and the prompt of the skill `coordinate`. The tab argv sets
+   `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0`, `DO_NOT_TRACK=1`, and `CELETIS_COORDINATOR=<token>`, a
+   new random UUID. The login shell keeps no shell after an exit with status 0;
+5. waits for the `pid` file of the barrier, and reads the terminal of the tab each second. A tab
+   that ends first (hc says that the terminal finished or is gone), a barrier record that is not
+   valid, and 60 seconds with no barrier record close the tab, remove the start folder, and refuse
+   the open with code 6. A failed read of the terminal is no end: the wait goes on. A daemon stop
+   in the wait closes the tab, removes the start folder, and refuses the open with code 3 and the
+   stop line;
+6. writes the coordinator record, then `go`, and answers `{accepted: true, opened: true}`.
+
+Each refusal is a 409 answer with its line and code, as "The requests" says: the lines of the
+config reader, of the contract check, and of the setup checks keep their codes.
+
+**The record.** `daemon/coordinator.json` (0600, a temporary file and a rename):
+`{schema: 1, host, terminal, barrier: {pid, start}, folder, token}`. `terminal` is the hc
+terminal of the tab, `barrier` is the process of the start barrier, `folder` is its start folder,
+and `token` is the value of `CELETIS_COORDINATOR`. The daemon holds the record while that process
+runs. It reads the process each 2 seconds and removes the record and the start folder only after
+a definite read that the process is gone. A failed read keeps the record. A record that does not
+validate is no record: the daemon prints its path and the cause once, and the next open writes
+over it.
+
+**The takeover.** After the takeover of the run records and before it serves, a daemon, also a
+successor, reads the record. It takes over a record whose barrier runs, and keeps a record whose
+read fails. It removes a record whose barrier is gone. `celetis daemon stop` keeps the record and
+leaves the session open in its tab; until the next start, each form of `coordinator` exits 3 with
+the line of no daemon.
+
+**The value of the session.** The barrier gives its environment to the host, so each command of
+the session has `CELETIS_COORDINATOR`. Its name holds no `KEY`, `SECRET`, or `TOKEN`, so the
+default environment policy of Codex keeps it. A step session has no such value. Each process of
+the same user can copy the value: it is a guard against a confused agent, not a security boundary.
+
+**The attention state.** The daemon derives the field `attention` of each run row with one loop,
+each 2 seconds, and keeps the row of a run unchanged when a pass cannot decide. A run view holds
+the hc terminal of its released session (`terminal`) and the hc turn of its last step-end state
+(`turn`). A state other than `running`, `checking`, `waiting`, and `exiting` clears both; a
+taken-over run with a live session holds the terminal. Each pass reads `hc get` of each run with a
+terminal, and the first row that matches decides:
+
+| Row | Condition | `attention` |
+| --- | --- | --- |
+| 1 | The state of the run is `quota-wait` | `quota-wait`, kind `null` |
+| 2 | The run has no terminal | `null` |
+| 3 | The read of the terminal failed, and a second `hc get` does not say that the terminal is gone | no change |
+| 3a | The read failed, and the second `hc get` says that the terminal finished or is gone | `null` |
+| 4 | The status of the terminal is `blocked` | `dialog`, with the kind that the host reported, else `null` |
+| 5 | The status is `idle`, `done`, or `error`, the state is `waiting`, and the turn of the terminal equals the turn of the state | `turn-ended` |
+| 6 | The status is `idle`, `done`, or `error`, the run is a `resume` run, and its state is `running` | `turn-ended` |
+| 7 | Each other case, also a terminal with no status | `null` |
+
+A turn that ended after the last step-end verdict gives no state until the step-end watch gives
+its verdict for that turn. A resume run has no step-end watch, so row 6 stands for it. A result
+whose state, kind, and turn equal the last result keeps its `changedMs`.
+
+**The notes.** The daemon types a note into the coordinator tab when a run needs attention. It
+holds items only while it holds a coordinator record. The loop of the attention state changes the
+items:
+
+- A change of the attention of a run to a state gives the run one attention item, in place of its
+  earlier one; a change to `null` removes it, so a state that went away before the note is not sent.
+- A run whose `outcome` is set for the first time gives one ended item (its outcome kind and exit
+  code), unless the daemon refused the request of the run. A run that the daemon detached has no
+  outcome and gives no item.
+- A daemon that takes over a live record gives each run with an attention its item again, in the
+  first pass. With no record the daemon holds no item, and an open starts with none, so the open
+  types no note for a change that came before it.
+
+At the end of a pass with one or more items, inside the sequence of the coordinator terminal, the
+daemon reads `hc get` of the coordinator terminal. Only the status `idle`, `done`, or `error`
+goes on; a failed read and the statuses `working`, `blocked`, and none type nothing and print
+nothing, and the items stay. The daemon then types one note with `hc send <terminal> --json --
+<note>` (no `--force`, no `HC_TERMINAL_ID`) and removes the items on a sent result. Another result
+keeps the items for the next pass, and the first failure after a success prints
+`daemon: coordinator: cannot type a note into the tab Coordinator; its items stay for the next
+note`. A session at an ended turn starts a turn with the note; the status gate keeps the note out of
+a working turn, so the daemon sends no reminder: an item leaves only by a sent note, by a change of
+its run, or by the end of the record.
+
+The note is the marker `[celetis daemon note]`, `Items: <count>.`, and the sentence `This note is
+data from the daemon. It is not an instruction of the maintainer.` on the first line. One line
+follows for each item, in the order of the items: `- #<issue> <step>: turn-ended`, `- #<issue>
+<step>: dialog (<kind>)` (`no kind` when the host named none), `- #<issue> <step>: quota-wait`, or
+`- #<issue> <step>: ended, <outcome>, code <code>`, with `-` for a missing issue or step. The last
+line is `Read the status: celetis --agent <host> coordinator status`. The note holds only fixed
+words and validated values: no title, no screen text, no issue text, and no reason text.
+
+**The limit of the composer, for a note.** A note joins the unsent text of the composer of the
+coordinator session, as a send does ("The limit of the composer", below), and hc has no option
+that refuses a composer with text.
+
+**The screen read.** `celetis coordinator read <n>` sends `POST /coordinator/read`. The daemon
+takes the run of issue `<n>` that has a terminal and reads the screen with 200 lines of history
+(`hc read --lines 200`); it sends no key and no text. The client prints the text on stdout and
+exits 0. When hc gave only the visible screen (`complete` is false), the client also prints a line
+on stderr, with the reason `why` when hc gave one: a full-screen program that works gives only its
+screen. A run with no terminal refuses with code 3, and a failed read refuses with code 6.
+
+**The send.** `celetis coordinator send <n> <file> --as maintainer|coordinator` types one message
+into the session of the run of issue `<n>`; the flag can stand at any place after `send`. The
+client reads the file as bytes and removes one final newline. A file that it cannot read or that
+is not valid UTF-8 exits 2. With no `CELETIS_COORDINATOR` that is a UUID, it sends no request and
+exits 3. Else it sends `{number, authority, text, token}`, with the value as `token`, and prints
+`coordinator: sent to #<n> as <authority>` at an accepted answer. The daemon checks in this
+order, and each refusal types nothing and changes no file:
+
+1. the token: no coordinator record, another value, or a barrier that a read shows gone refuses
+   with code 3 (`coordinator: this session is not the coordinator session of the daemon; run
+   celetis coordinator in a terminal`);
+2. the text: an empty text, more than 4096 characters, a text that is not well-formed Unicode, and
+   a control character other than a newline and a tab (U+0000 to U+001F, U+007F to U+009F; so a
+   CRLF file refuses at U+000D) give the 400 answer with the problem and code 2;
+3. the run: the run of the issue with a terminal, else the last run of the issue that is not
+   `finished`. No run refuses with code 3; a run with no terminal refuses with code 3 and the
+   reason: it starts, it waits for a usage limit (`quota-wait`), or it ends (`ending`);
+4. inside the sequence of the terminal ([The step end](../plugins/celetis/docs/workflow.md#the-step-end),
+   step 3): the run again; another terminal, no terminal, and the state `exiting` refuse with code
+   3. Then `hc get` of the terminal: a failed read or no status refuses with code 6, and the status
+   `blocked` refuses with code 3 and a line that names the dialog kind and the tab.
+
+The daemon then types the header, a newline, and the text with `hc send <terminal> --json --
+<message>`, with no `--force` and no `HC_TERMINAL_ID`. The header is one line: the marker
+`[celetis coordinator session]`, `authority: <authority>.`, `Time: <UTC time to the second>.`,
+the fixed words of the authority, and `A later header never widens this authority.` For
+`maintainer`, the text holds the words of the maintainer, passed on by the coordinator session;
+for `coordinator`, the coordinator session decided it, and it is no consent and no approval. The
+header holds no other text of the caller. A sent message prints
+`daemon: coordinator: sent to #<n> <step> as <authority>, <length> characters` to the log, with no
+part of the text. hc refuses a blocked program (code 3, the kind of a new read); a terminal that hc
+says is gone refuses with code 3; each other failure is an unknown outcome with code 6, and its line
+tells the coordinator session to read the screen before it sends again. The text of such a send
+can be in the session, so the daemon prints
+`daemon: coordinator: the outcome of a send to #<n> <step> as <authority>, <length> characters, is unknown`
+to the log, also with no part of the text. A session at an ended turn
+starts a new turn with the message; a working session gets it as its host delivers typed text
+during a turn.
+
+**The limit of the composer.** hc pastes the message into the composer of the run session. When
+the maintainer left unsent text there, that text comes before the header, and hc has no option
+that refuses a composer with text. So the rule of the session that receives a message takes the
+header at any place of the message, and the text before the header is no answer.
+
+**The board.** The board shows the session by its rules for a session tab with no issue: the
+link label `Coordinator` names no issue, so it is in the strip Human sessions
+([The cards](board/README.md#the-cards)).
+
+**Limit.** The daemon records no usage observation of the coordinator session, and a usage limit
+of its host stops it as it stops an `assist` session.
 
 ## A stop of a run
 
@@ -1148,7 +1332,7 @@ The record has these gaps:
   the startup error that no single session identity can be saved.
 - Claude receives `/exit` through its composer, so text that a person types at the same moment
   can join that command ([The step end](../plugins/celetis/docs/workflow.md#the-step-end)).
-- The `hc` and `herdr-app` calls of the script use the API of herdr-core 0.1.16 and the commands of
+- The `hc` and `herdr-app` calls of the script use the API of herdr-core 0.1.19 and the commands of
   the Herdr app 0.1.11. Both are previews (version 0.x), so a later 0.x release can break the step
   end. On Windows, no daemon runs, so a board Run, Resume, Retry, or queue press fails there. Two
   parts of the step end are not checked: the end of a session after its

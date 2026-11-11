@@ -54,7 +54,7 @@ gives the reasons why its sessions come from herdr-core and its tabs from the He
 - Bun 1.4.4 or later. The entry exits 3 on an older Bun.
 - git 2.31 or later.
 - The installed `celetis` engine for New intake, Run, Resume, Assist, Make visual, and queue actions (the README of the plugin, "First install").
-- herdr-core 0.1.16, with `hc` on `PATH` and its server that runs, for the session cards and for
+- herdr-core 0.1.19, with `hc` on `PATH` and its server that runs, for the session cards and for
   each button.
 - The Herdr app 0.1.11, with `herdr-app` on `PATH` and its window open, for New intake, Run,
   Resume, Assist, Make visual, Open shell, and Go.
@@ -434,7 +434,9 @@ herdr-core after the first ` / `. With no tab name, its title is empty. The time
 is the time when the server first saw that state; `idle`, `done`, and `error` count as one state.
 
 A session makes one card, from the status that its host reports. The main button of a session
-card is Go. A session with no issue is a human session: a tab that you started yourself. It has no
+card is Go. A session with no issue is a human session: a tab that you started yourself, or the
+coordinator session, whose link label is `Coordinator`
+([The coordinator session](../README.md#the-coordinator-session)). It has no
 card in a column: the strip Human sessions shows it with the same state ("The layout"). The table
 gives the column of a session of an issue.
 
@@ -1239,7 +1241,7 @@ Of the sessions, herdr-core, and the Herdr app:
 - A Go press focuses the pane of the session in the Herdr app (`pane.focus`). The board makes no
   call that brings the window to the front.
 - The API of herdr-core and the commands of the Herdr app are previews (version 0.x). The board
-  uses herdr-core 0.1.16 and the Herdr app 0.1.11; a later 0.x release can break it.
+  uses herdr-core 0.1.19 and the Herdr app 0.1.11; a later 0.x release can break it.
 - Two repositories whose main checkout has the same folder name share one space of the Herdr app.
 - The tab of a new terminal can show up to about 3 seconds after its start. The board waits 5
   seconds for it; after that time, the tab keeps the name that the Herdr app gives it.

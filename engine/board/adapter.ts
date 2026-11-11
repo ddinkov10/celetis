@@ -19,7 +19,12 @@ import type { QueueAction, QueueView } from '../lib/queue-types.ts';
 import { fromChild, repositoryLayout } from '../lib/state.ts';
 
 export type BoardDaemon = Readonly<{
-  send(request: Exclude<DaemonRequest, { kind: 'status' | 'land' }>): Promise<unknown>;
+  send(
+    request: Exclude<
+      DaemonRequest,
+      { kind: 'status' | 'land' | 'coordinator-open' | 'coordinator-read' | 'coordinator-send' }
+    >,
+  ): Promise<unknown>;
   status(): Promise<DaemonStatus>;
 }>;
 export type Adapter = Readonly<{

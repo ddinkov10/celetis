@@ -80,7 +80,7 @@ A list with no item is one line: `**Answers before the build.** None.`, `**Durin
 **Answers before the build.** The maintainer gave these in the plan session. The build uses them and does not ask again.
 
 1. <the act, and what it disturbs, changes, or sends>. Needed by: <Verify Vn, or Land>.
-   Answer: <yes, or no and the check that replaces it>. Source: the maintainer's message in the plan session, <YYYY-MM-DD>.
+   Answer: <yes, or no and the check that replaces it>. Source: <the maintainer's message in the plan session, or the message of the coordinator session with `authority: maintainer`>, <YYYY-MM-DD>.
    <A notice of the consent, when it has one.>
 
 **During the build.** Do these now. The build does not wait for you until it needs them.

@@ -71,7 +71,19 @@ async function json(response: Response): Promise<unknown> {
 
 export async function sendRequest(
   common: string,
-  request: Exclude<DaemonRequest, { kind: 'status' | 'queue-action' | 'queue-reconcile' | 'land' }>,
+  request: Exclude<
+    DaemonRequest,
+    {
+      kind:
+        | 'status'
+        | 'queue-action'
+        | 'queue-reconcile'
+        | 'land'
+        | 'coordinator-open'
+        | 'coordinator-read'
+        | 'coordinator-send';
+    }
+  >,
   signal?: AbortSignal,
 ): Promise<DaemonAnswer> {
   const { kind, ...fields } = request;
@@ -102,7 +114,7 @@ export function requestSelection(explicit: string | undefined): Selection {
   };
 }
 
-type Prefix = 'run' | 'queue' | 'daemon' | 'land' | 'land: blocked';
+type Prefix = 'run' | 'queue' | 'daemon' | 'land' | 'land: blocked' | 'coordinator';
 
 export const unanswered = (prefix: Prefix, reason: string) =>
   `${prefix}: the daemon of this repository does not answer: ${reason}; read celetis daemon status`;
@@ -136,7 +148,20 @@ export async function revisionRefusal(identity: DaemonIdentity, prefix: Prefix):
 
 export async function askDaemon(
   common: string,
-  request: Exclude<DaemonRequest, { kind: 'status' | 'stop' | 'queue-action' | 'queue-reconcile' | 'land' }>,
+  request: Exclude<
+    DaemonRequest,
+    {
+      kind:
+        | 'status'
+        | 'stop'
+        | 'queue-action'
+        | 'queue-reconcile'
+        | 'land'
+        | 'coordinator-open'
+        | 'coordinator-read'
+        | 'coordinator-send';
+    }
+  >,
   prefix: Prefix,
 ): Promise<Readonly<{ identity: DaemonIdentity; answer: DaemonAnswer }>> {
   const identity = await requireDaemon(common, prefix);
@@ -145,6 +170,27 @@ export async function askDaemon(
   } catch (error) {
     if (!(error instanceof HostError)) throw error;
     throw unknownOutcome(prefix, error.message);
+  }
+}
+
+export async function askCoordinator<T>(
+  common: string,
+  request: Extract<DaemonRequest, { kind: 'coordinator-open' | 'coordinator-read' | 'coordinator-send' }>,
+  parse: (value: unknown) => T,
+): Promise<Readonly<{ identity: DaemonIdentity; answer: T }>> {
+  const identity = await requireDaemon(common, 'coordinator');
+  const { kind, ...fields } = request;
+  try {
+    const response = await call(
+      common,
+      requestPaths[kind],
+      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(fields) },
+      AbortSignal.timeout(120_000),
+    );
+    return { identity, answer: parse(await json(response)) };
+  } catch (error) {
+    if (!(error instanceof HostError)) throw error;
+    throw unknownOutcome('coordinator', error.message);
   }
 }
 

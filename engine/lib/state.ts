@@ -144,6 +144,7 @@ export function repositoryLayout(common: string) {
     daemon,
     daemonIdentity: join(daemon.path, 'daemon.json'),
     daemonLog: join(daemon.path, 'daemon.log'),
+    coordinator: join(daemon.path, 'coordinator.json'),
     runs,
     runRecord: (id: string) => join(runs.path, `${id}.json`),
     startPrefix: join(root.path, 'start.'),

@@ -182,7 +182,11 @@ session. `<terminal>` below is the hc terminal of the tab:
    stop of the issue. A stop from an observation (the dirty tree, a landing that runs, or a failed
    read) permits none. The job reads the resolver again, and that read must give the same result.
    It then makes a final session-state check. A `working`, `blocked`, or missing status gets no
-   exit.
+   exit. The exit request and each send of the coordinator session share one sequence for each
+   terminal, so a send and the exit request never mix in one composer. Inside the sequence, the
+   job reads the turn again directly before the request; when that read fails, the session works,
+   or the turn moved, it sends no exit request at this check. A job that the run stopped while it
+   waited for the sequence publishes nothing and sends no exit request.
    For Codex, it requests exit with `hc keys <terminal> ctrl+c ctrl+c`, which clears unsent
    composer text and requests native quit without submitting a chat message. Completion can
    discard a draft. For Claude, it sends `hc send <terminal> /exit` through the composer, so text
@@ -243,8 +247,10 @@ again, and it prints the reason or starts the next step.
 
 ### A stop
 
-A live question waits in the tab of the session; the board shows it in Needs you, and you answer in
-the tab or with Go. A step session hands a stop to the issue with the act `stopped`,
+A live question waits in the tab of the session; the board shows it in Needs you. You answer in the
+tab or with Go, or the coordinator session answers it
+([The coordinator session](https://github.com/ddinkov10/celetis/blob/main/engine/README.md#the-coordinator-session)).
+A step session hands a stop to the issue with the act `stopped`,
 `ready-for-human`, or `before-landing` of `celetis --agent <host> issue`. The act table of
 `docs/issue-tracker.md`, "Conventions", gives the effect of each act. After a hold, the resolver
 gives a stop with `ready-for-human`, and the job ends the session. After `before-landing`, a failed
@@ -285,6 +291,7 @@ asks you each consent that a Verify scenario or the landing needs: an act that d
 tools, changes an account or a shared resource, or sends data to a service beyond the normal use
 of the session. An act on temporary data in the lane or in a scratch folder needs no consent.
 "Answers before the build" records each answer and its source (your message in the plan session,
+or the message of the coordinator session that passes on your words with `authority: maintainer`,
 with its date). The build uses that answer and does not ask again. "During the build" holds only
 acts outside the session, never a consent. Do each act of "During the build" while the build runs,
 and report the acts in one `## Human steps done` comment. Assistance can record verified work and
@@ -492,6 +499,11 @@ Claude Code and Codex TUI/CLI only (ADR-0016). A desktop probe has its own recor
 UNRUN desktop probe does not block complete CLI checks, and a desktop success does not close a CLI
 gap. An observed version is no minimum version.
 
+- **Coordinator session (#252).** partial. Hosts: hc 0.1.20, herdr-app 0.1.15, Claude Code 2.1.322,
+  Codex CLI 0.167.0, Bun 1.4.4. Open: a coordinator session of the installed engine with the real
+  hosts (the checks after the landing); a Codex coordinator session, whose daemon commands need the
+  approval of Codex outside its sandbox; native Windows (no daemon). Evidence:
+  [#252](https://github.com/ddinkov10/celetis/issues/252#issuecomment-6792535220).
 - **Owned-step usage recovery (#236).** partial. Hosts: Claude Code 2.1.318, Codex CLI 0.166.0,
   Bun 1.4.4. Open: a real ordinary Claude turn (BLOCKED by the weekly allowance); Codex and Windows
   termination proof (Codex stops and keeps its Resume information); native Linux and Windows; the
