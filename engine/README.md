@@ -411,6 +411,53 @@ session alone: the owner record then names no daemon and that session. So a late
 daemon, the board, and auto mode find the lock free when the session ends, as after the
 exit of a daemon. A detached run keeps its owner records ("The stop").
 
+**The run machine.** A run is a state machine that a table defines
+([ADR-0103](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0103-a-run-of-the-daemon-is-an-explicit-state-machine.md)).
+Three files hold it:
+
+| File | Holds |
+| --- | --- |
+| `engine/lib/run-machine.ts` | The types `State`, `Event`, `Effect`, `Own`, `Accepts`, `Targets`, and `Table`, the table `on`, and its pure helpers. It does no I/O and does not name the I/O context. |
+| `engine/lib/run-activities.ts` | The I/O context `Io`, the ledger of the resources that the cleanup releases, the activities, and `perform` for the effects. |
+| `engine/lib/run-engine.ts` | The driver in `begin()`, `createRun`, `autoLoop`, `requireSetup`, and the exported types. |
+
+Each state has one activity. The activity does I/O, waits, and returns one event. A table entry for
+a state and an event is a pure function: it returns the next state and an ordered list of effects,
+and it does no I/O. The driver is the only code that sets the state of a run. It sets only a state
+that an entry returned, and it performs the effects of the entry before the next activity runs. A
+throw of an activity, of an entry, or of an effect is the event `failed` of the state that was
+current. A taken-over run starts in `adopting` and uses the same table as a new run.
+
+The status label (`state` in "The status object" and in the run record) is an output of the
+run, not the machine state. The machine has 17 states. Each state except `finished` waits for this:
+
+| State | The run waits for |
+| --- | --- |
+| `starting` | The setup check of a request run, and for a queue run the lock `queue` and the claim of the queue record |
+| `admitting` | The lock of the issue and the first record of the issue |
+| `binding` | The recovery record of the issue: a new issue run clears it, a taken-over issue run clears it or adopts it |
+| `resolving` | The next step of the issue from the resolver |
+| `selecting` | The agent order and the usage records |
+| `quota-wait` | A reset, a renewed agent, or Retry |
+| `preparing` | The preflight of the host and the session arguments; a resume run selects its saved session here |
+| `opening` | The session tab and its start barrier |
+| `live` | The release of the barrier of a new session, then the end of the session, with the step-end watch and the usage watch for a step session |
+| `closing` | The end of an issue: the watch stops, the step-end record goes, the unreleased tab closes, and the lock of the issue is released |
+| `advancing` | The removal of a closed issue from the queue |
+| `reporting` | A queue run after a failure: the tabs close and the error state goes into the queue record |
+| `adopting` | A takeover: the locks of the run record |
+| `observing` | A takeover: the queue record and the phase of the recorded session |
+| `ended` | A takeover: the session that ended while no daemon ran |
+| `ending` | The cleanup of the run |
+| `finished` | Nothing. It holds the end of the run and has no activity. |
+
+The step-end watch stays a loop inside the activity of `live`. `autoLoop` starts runs and is not a
+run. The type check refuses a state with no activity, a state with no row in the table, a state
+with no `failed` entry, an event with no entry, an entry for an event that its state does not accept, an activity that returns an
+event that its state does not accept, and an entry that returns a state outside `Targets` of its
+state ([ADR-0103](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0103-a-run-of-the-daemon-is-an-explicit-state-machine.md),
+"What the type check covers").
+
 **The status object.** `{schema: 1, daemon, board, auto, runs, landings, coordinator}`. `daemon` is the identity file.
 `board` is the URL of the board, `http://127.0.0.1:<port>`. `auto` is `on`, `off`, or
 `stopping`. `coordinator` is `true` while the daemon holds a coordinator record
