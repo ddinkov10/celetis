@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 import { type ExitCode, exits } from './contract.ts';
 import { type Host, hosts } from './host-names.ts';
@@ -34,6 +35,7 @@ export const exitGraceMs = 10_000;
 const SAFE_ID = /^[\w:.][\w:.-]*$/;
 const POLL_MS = 250;
 const POLL_LIMIT_MS = 5_000;
+const SPACE_POLL_LIMIT_MS = 10_000;
 const STATUSES: Record<TerminalStatus, true> = { idle: true, working: true, done: true, blocked: true, error: true };
 const KINDS: Record<DialogKind, true> = { permission: true, question: true, auth: true };
 const GONE_KINDS = new Set(['finished', 'not_found']);
@@ -77,8 +79,8 @@ function failure(file: string, { code, stdout, stderr }: Result): string {
   return texts.filter(isText).map(firstLine).find(Boolean) ?? `${file} exited ${code}`;
 }
 
-async function poll<T>(read: () => Promise<T | null>): Promise<T | null> {
-  const until = performance.now() + POLL_LIMIT_MS;
+async function poll<T>(read: () => Promise<T | null>, limitMs = POLL_LIMIT_MS): Promise<T | null> {
+  const until = performance.now() + limitMs;
   for (;;) {
     const value = await read();
     if (value !== null || performance.now() >= until) return value;
@@ -174,10 +176,6 @@ export async function closeTerminal(id: string, exec: Exec = run): Promise<void>
   await call(exec, 'hc', ['rm', id, '--json']).catch(() => null);
 }
 
-async function setLink(id: string, link: string, exec: Exec): Promise<void> {
-  if (isSafeId(id)) await call(exec, 'hc', ['label', id, `${LINK}=${link}`, '--json']);
-}
-
 export type ScreenRead = Readonly<{ text: string; complete: boolean; why: string | null }>;
 
 export async function readHistory(id: string, lines: number, exec: Exec = run): Promise<ScreenRead | null> {
@@ -251,7 +249,7 @@ export async function requireTerminals(exec: Exec = run, env: NodeJS.ProcessEnv 
   });
   if (!Bun.which('herdr-app', { PATH }))
     throw new TerminalError(
-      'herdr-app is not on PATH; install the Herdr app 0.1.11, then start again',
+      'herdr-app is not on PATH; install the Herdr app 0.1.15, then start again',
       exits.prerequisite,
     );
   await readSpaces(exec).catch((error: unknown) => {
@@ -278,35 +276,6 @@ export async function focusTerminal(id: string, exec: Exec = run): Promise<void>
   if (result.code !== 0) throw new TerminalError(failure('herdr-app', result));
 }
 
-async function newSpace(request: OpenTab, space: string, exec: Exec): Promise<string> {
-  const argv = request.argv === null ? [] : ['--argv', JSON.stringify(request.argv)];
-  const result = await call(exec, 'herdr-app', [
-    'do',
-    'space.new',
-    '--name',
-    space,
-    '--folder',
-    request.folder,
-    '--tab',
-    request.name,
-    ...argv,
-  ]);
-  if (result.code !== 0) throw new TerminalError(failure('herdr-app', result));
-  const reply = parse(result.stdout);
-  const id =
-    isRecord(reply) && isSafeId(reply.terminal)
-      ? reply.terminal
-      : await poll(async () => {
-          const spaces = await readSpaces(exec).catch(() => []);
-          const terminals = spaceNamed(spaces, space)?.tabs[0]?.terminals ?? [];
-          const [only] = terminals;
-          return terminals.length === 1 && isSafeId(only) ? only : null;
-        });
-  if (id === null) throw new TerminalError('herdr gave no terminal for the new space');
-  await setLink(id, request.name, exec);
-  return id;
-}
-
 async function runTerminal(exec: Exec, options: string[], argv: string[]): Promise<string> {
   const result = await call(exec, 'hc', [
     'run',
@@ -324,10 +293,10 @@ async function runTerminal(exec: Exec, options: string[], argv: string[]): Promi
   return reply.address;
 }
 
-async function startTab(request: OpenTab, exec: Exec): Promise<{ id: string; shown: boolean }> {
+async function startTab(request: OpenTab, exec: Exec): Promise<string> {
   const name = basename(request.repository.main);
-  const space = spaceNamed(await readSpaces(exec), name);
-  if (!space) return { id: await newSpace(request, name, exec), shown: true };
+  const found = spaceNamed(await readSpaces(exec), name)?.id;
+  const space = found ?? `celetis-${randomUUID()}`;
   const script = request.keepShell ? '"$@"; exec "$0" -li' : '"$@" || exec "$0" -li';
   const id = await runTerminal(
     exec,
@@ -336,13 +305,20 @@ async function startTab(request: OpenTab, exec: Exec): Promise<{ id: string; sho
       '--cwd',
       request.folder,
       '--label',
-      `herdr.space=${space.id}`,
+      `herdr.space=${space}`,
       '--label',
       `${LINK}=${request.name}`,
     ],
     request.argv === null ? [] : inShell(script, request.argv),
   );
-  return { id, shown: false };
+  if (found === undefined) {
+    const shown = await poll(
+      async () => (await readSpaces(exec).catch(() => [])).some((each) => each.id === space) || null,
+      SPACE_POLL_LIMIT_MS,
+    );
+    if (shown) await call(exec, 'herdr-app', ['do', 'space.rename', JSON.stringify({ id: space, name })]);
+  }
+  return id;
 }
 
 async function holdingSpaceLock<T>(common: string, work: () => Promise<T>): Promise<T> {
@@ -359,8 +335,7 @@ let opening: Promise<unknown> = Promise.resolve();
 export async function openTab(request: OpenTab, exec: Exec = run): Promise<string> {
   const started = opening.then(() => holdingSpaceLock(request.repository.common, () => startTab(request, exec)));
   opening = started.catch(() => {});
-  const { id, shown } = await started;
-  if (shown) return id;
+  const id = await started;
   const tab = await poll(() => tabOf(id, exec));
   if (tab) await rename(tab, request.name, exec);
   if (request.focus) await focusTerminal(id, exec).catch(() => {});

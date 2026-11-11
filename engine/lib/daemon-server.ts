@@ -67,10 +67,9 @@ type Loop = {
   admitted: Promise<Admission>;
   done: Promise<void>;
   selection: Selection;
-  quiet: boolean;
 };
 type AutoRequest = Extract<DaemonRequest, { kind: 'auto' }>;
-type Successor = Readonly<{ engine: Engine; auto: Readonly<{ selection: Selection; quiet: boolean }> | null }>;
+type Successor = Readonly<{ engine: Engine; auto: Readonly<{ selection: Selection }> | null }>;
 type Spawn = Successor & Readonly<{ port: number; start: string; main: string; log: string }>;
 type Carried = AutoRequest | Readonly<{ refused: string }>;
 type Handover = Readonly<{ after: Identity | null; auto: Carried | null }>;
@@ -345,7 +344,7 @@ async function serve(
     if (stopping) return;
     frames.exit(() => console.log(`daemon: restarts on the engine at ${shortRevision(engine.revision)}`));
     const kept = [...loops].find(({ control }) => control.active && !control.leaving);
-    claim.successor = { engine, auto: kept ? { selection: kept.selection, quiet: kept.quiet } : null };
+    claim.successor = { engine, auto: kept ? { selection: kept.selection } : null };
     stop(exits.done);
   };
   const fatal = () => stop(exits.blocked);
@@ -404,12 +403,12 @@ async function serve(
   };
   const begin = (input: RunInput, gh: boolean) =>
     launch(() => ({ handle: createRun(place, input, { hooks: hooksOf(gh), journal }) }), 'pending').handle;
-  const openLoop = (selection: Selection, quiet: boolean, adopted?: Promise<ExitCode>): Loop => {
+  const openLoop = (selection: Selection, adopted?: Promise<ExitCode>): Loop => {
     const control = { active: true, leaving: false };
     const abort = new AbortController();
     const started = autoLoop(
       place,
-      { selection, quiet },
+      { selection },
       {
         hooks: { ready: () => requireSetup(true), removed, fatal },
         active: () => control.active,
@@ -438,7 +437,6 @@ async function serve(
           loops.delete(loop);
         }),
       selection,
-      quiet,
     };
     loops.add(loop);
     return loop;
@@ -485,7 +483,7 @@ async function serve(
   const answerRun = async (handle: RunHandle) => send(await runVerdict(handle));
   const accepted: Said = { status: 200, answer: { accepted: true, run: null } };
   let autoRequests = 0;
-  const auto = async ({ on, selection, quiet }: AutoRequest, adopted?: Promise<ExitCode>): Promise<Said> => {
+  const auto = async ({ on, selection }: AutoRequest, adopted?: Promise<ExitCode>): Promise<Said> => {
     const request = ++autoRequests;
     if (!on) {
       for (const loop of loops) loop.control.active = false;
@@ -502,9 +500,9 @@ async function serve(
       if (!loops.size) break;
       await Promise.all([...loops].map((each) => each.done));
     }
-    return verdict(await openLoop(selection, quiet, adopted).admitted, null);
+    return verdict(await openLoop(selection, adopted).admitted, null);
   };
-  const wakeQueue = async ({ id, token, selection, quiet }: Wake) => {
+  const wakeQueue = async ({ id, token, selection }: Wake) => {
     let pinned: HostSelection;
     try {
       pinned = queueSelection(await readQueue(main, common, createLockOwner(main)), 'act', selection);
@@ -512,12 +510,11 @@ async function serve(
       console.error(described(error));
       return refused(409, described(error), codeOf(error));
     }
-    return runVerdict(begin({ kind: 'queue', id, token, selection: pinned, quiet }, true));
+    return runVerdict(begin({ kind: 'queue', id, token, selection: pinned }, true));
   };
   const changeQueue = async (
     use: 'add' | 'act' | 'read',
     selection: Selection,
-    quiet: boolean,
     change: (operation: Operation) => Promise<QueueReceipt>,
   ) => {
     let operation: Operation;
@@ -531,7 +528,7 @@ async function serve(
     }
     const { view, wake } = receipt;
     if (!wake) return reply(200, { accepted: true, run: null, view });
-    const said = await wakeQueue({ id: wake.id, token: wake.token, selection, quiet });
+    const said = await wakeQueue({ id: wake.id, token: wake.token, selection });
     if (said.answer.accepted) return reply(said.status, { ...said.answer, view });
     if (said.status !== 503)
       await failQueueLaunch(operation, wake.id, wake.token, said.answer.line).catch((error: unknown) =>
@@ -567,13 +564,13 @@ async function serve(
       case 'queue':
         return send(await wakeQueue(parsed));
       case 'queue-action': {
-        const { action, selection, quiet } = parsed;
-        return changeQueue(action.kind === 'add' ? 'add' : 'act', selection, quiet, (operation) =>
+        const { action, selection } = parsed;
+        return changeQueue(action.kind === 'add' ? 'add' : 'act', selection, (operation) =>
           admitQueue(operation, action),
         );
       }
       case 'queue-reconcile':
-        return changeQueue('read', {}, true, (operation) => reconcileQueue(operation));
+        return changeQueue('read', {}, (operation) => reconcileQueue(operation));
       case 'land':
         return landings.answer(parsed, request.signal);
       case 'coordinator-open': {
@@ -589,8 +586,8 @@ async function serve(
         return reply(status, answer);
       }
       case 'run': {
-        const { number, selection, effort, model, quiet } = parsed;
-        return answerRun(begin({ kind: 'number', number, selection, effort, model, quiet }, true));
+        const { number, selection, effort, model } = parsed;
+        return answerRun(begin({ kind: 'number', number, selection, effort, model }, true));
       }
       case 'resume':
         return answerRun(begin({ kind: 'resume', number: parsed.number, selection: parsed.selection }, false));

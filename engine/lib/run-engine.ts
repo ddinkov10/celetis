@@ -98,16 +98,9 @@ import { autoTakes, defaultGate, invocation, type Run, type Step, sameResult, sk
 
 export type Place = Readonly<{ main: string; common: string; state: RepositoryLayout; root: string }>;
 export type RunInput =
-  | Readonly<{
-      kind: 'number';
-      number: number;
-      selection: HostSelection;
-      effort: Level | null;
-      model: Model | null;
-      quiet: boolean;
-    }>
-  | Readonly<{ kind: 'auto'; number: number; selection: HostSelection; quiet: boolean }>
-  | Readonly<{ kind: 'queue'; id: string; token: string; selection: HostSelection; quiet: boolean }>
+  | Readonly<{ kind: 'number'; number: number; selection: HostSelection; effort: Level | null; model: Model | null }>
+  | Readonly<{ kind: 'auto'; number: number; selection: HostSelection }>
+  | Readonly<{ kind: 'queue'; id: string; token: string; selection: HostSelection }>
   | Readonly<{ kind: 'resume'; number: number; selection: HostSelection }>;
 export type RunState =
   | 'starting'
@@ -703,7 +696,6 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     step: Step,
     host: Host,
     args: string[],
-    focus: boolean,
     facts: Omit<Facts, 'folder' | 'terminal' | 'tab' | 'barrier' | 'startedMs'>,
     attempt = '-',
     recovery = false,
@@ -741,7 +733,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
             ...args,
           ]),
         ],
-        focus,
+        focus: false,
         keepShell: true,
       });
     } catch (error) {
@@ -1314,7 +1306,6 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
           session_id: null,
           effort: applied,
         };
-        const quiet = input.kind !== 'resume' && input.quiet;
         const facts = {
           step,
           host: stepHost,
@@ -1331,7 +1322,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
         let begun: Awaited<ReturnType<typeof startSession>>;
         admit({ ok: true });
         try {
-          begun = await startSession(n, step, stepHost, sessionArgs, !quiet, facts, attempt.id, retrying, async () => {
+          begun = await startSession(n, step, stepHost, sessionArgs, facts, attempt.id, retrying, async () => {
             ticket = await beginUsageAttempt(common, attempt);
             if (retrying)
               await saveRecovery(authority, current.choice, (each) => ({
@@ -1391,7 +1382,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       if (!from) await hooks.ready?.();
       admit({ ok: true });
       const args = hostAdapter(saved.host).resumeArguments(saved);
-      const { ended, barrier } = await startSession(String(n), saved.step, host, args, true, {
+      const { ended, barrier } = await startSession(String(n), saved.step, host, args, {
         step: saved.step,
         host,
         next: null,
@@ -1772,7 +1763,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
 
 export function autoLoop(
   place: Place,
-  input: { selection: HostSelection; quiet: boolean },
+  input: { selection: HostSelection },
   options: {
     hooks: RunHooks;
     active: () => boolean;
@@ -1850,7 +1841,7 @@ export function autoLoop(
             const start = () =>
               begin(
                 place,
-                { kind: 'auto', number: pick, selection: input.selection, quiet: input.quiet },
+                { kind: 'auto', number: pick, selection: input.selection },
                 {
                   hooks: { removed: hooks.removed, fatal: hooks.fatal },
                   locks: createLockOwner(main),

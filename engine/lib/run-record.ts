@@ -123,20 +123,16 @@ function input(value: unknown, schema: 1 | 2 | 3): value is HistoricalInput {
   if (!object(value) || !selection(value.selection)) return false;
   switch (value.kind) {
     case 'number':
-      return schema === 3
-        ? keys(value, 'effort,kind,model,number,quiet,selection') &&
-            positive(value.number) &&
-            (value.effort === null || isLevel(value.effort)) &&
-            (value.model === null || isModel(value.model)) &&
-            flag(value.quiet)
-        : keys(value, 'effort,kind,number,quiet,selection') &&
-            positive(value.number) &&
-            (value.effort === null || isLevel(value.effort)) &&
-            flag(value.quiet);
+      return (
+        keys(value, schema === 3 ? 'effort,kind,model,number,selection' : 'effort,kind,number,selection') &&
+        positive(value.number) &&
+        (value.effort === null || isLevel(value.effort)) &&
+        (schema !== 3 || value.model === null || isModel(value.model))
+      );
     case 'auto':
-      return keys(value, 'kind,number,quiet,selection') && positive(value.number) && flag(value.quiet);
+      return keys(value, 'kind,number,selection') && positive(value.number);
     case 'queue':
-      return keys(value, 'id,kind,quiet,selection,token') && id(value.id) && id(value.token) && flag(value.quiet);
+      return keys(value, 'id,kind,selection,token') && id(value.id) && id(value.token);
     case 'resume':
       return keys(value, 'kind,number,selection') && positive(value.number);
     default:

@@ -32,8 +32,6 @@ export async function main(argv: string[]): Promise<ExitCode> {
       return error.code;
     }
   } else if (argv[0] === '--agent') argv = argv.slice(2);
-  const quiet = argv.includes('--quiet');
-  if (quiet) argv = argv.toSpliced(argv.indexOf('--quiet'), 1);
   const shape = shapeOf(argv);
   if (shape === null) {
     console.error(usage('queue'));
@@ -86,7 +84,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
     if (!receipt.wake) return exits.done;
     return await sendRun(
       common,
-      { kind: 'queue', id: receipt.wake.id, token: receipt.wake.token, selection: requested, quiet },
+      { kind: 'queue', id: receipt.wake.id, token: receipt.wake.token, selection: requested },
       'queue',
       subject(receipt.view.record),
     );

@@ -56,7 +56,7 @@ gives the reasons why its sessions come from herdr-core and its tabs from the He
 - The installed `celetis` engine for New intake, Run, Resume, Assist, Make visual, and queue actions (the README of the plugin, "First install").
 - herdr-core 0.1.19, with `hc` on `PATH` and its server that runs, for the session cards and for
   each button.
-- The Herdr app 0.1.11, with `herdr-app` on `PATH` and its window open, for New intake, Run,
+- The Herdr app 0.1.15, with `herdr-app` on `PATH` and its window open, for New intake, Run,
   Resume, Assist, Make visual, Open shell, and Go.
 - `gh` on `PATH`, logged in, for the issue data. The board needs no GitHub credentials of its own.
   The read also needs `ps` on macOS and Linux.
@@ -551,9 +551,9 @@ A press that fails ends the `Starting` card at once, and the next read gives the
 | Press or read | What the server does |
 |---|---|
 | The data of the issues | The read of "The data", in the process of the daemon, with a limit of 60 seconds. |
-| Run | One request `POST /run` of the master daemon ("The requests of Run and Resume"). The daemon opens a quiet session tab `#<n> <step>`. A `Run at <level>` entry sends the level. For the current issue of a queue paused at a `manual` gate, use the queue Continue action below. |
-| Resume | One request `POST /resume` of the master daemon. The daemon checks the saved session and opens the session tab `#<n> <step>` with the focus. |
-| A queue action | One request `POST /queue/action` of the master daemon ("The presses"), for every action. The answer is the persisted QueueView. For a new wake, the daemon starts the queue run in the same request; for each step it opens a quiet session tab `#<n> <step>` with that link label, so the session cards and Go stay. |
+| Run | One request `POST /run` of the master daemon ("The requests of Run and Resume"). The daemon opens the session tab `#<n> <step>` in the background. A `Run at <level>` entry sends the level. For the current issue of a queue paused at a `manual` gate, use the queue Continue action below. |
+| Resume | One request `POST /resume` of the master daemon. The daemon checks the saved session and opens the session tab `#<n> <step>` in the background. |
+| A queue action | One request `POST /queue/action` of the master daemon ("The presses"), for every action. The answer is the persisted QueueView. For a new wake, the daemon starts the queue run in the same request; for each step it opens the session tab `#<n> <step>` with that link label in the background, so the session cards and Go stay. |
 | Retry | One request `POST /retry` of the master daemon, with the issue number and the wait ID. It starts no run. |
 | New intake | A focused `Intake` tab in the main checkout. The current default host asks for the request, then enters `celetis:intake` with the answer. The button creates no issue and starts no run. |
 | Assist | A focused tab `#<n> assist` in the main checkout, with the Assist argv. |
@@ -568,14 +568,14 @@ fields. The dispatcher runs the parser and the answers of a socket request
 (`parseAnswer`):
 
 ```text
-POST /run {"number":<n>,"selection":<selection>,"effort":<level>|null,"model":null,"quiet":true}
+POST /run {"number":<n>,"selection":<selection>,"effort":<level>|null,"model":null}
 POST /resume {"number":<n>,"selection":{}}
 ```
 
 The selection is `{"explicit":"<host>"}` for an explicit agent choice of Run, else `{}`. The
 board sends no `environment`, so the `CELETIS_AGENT` of the daemon selects no host. A `Run at
 <level>` entry sends the level as `effort`. The board sends no model: `model` is always `null`, so
-the model of the start keeps its source. `quiet` opens each session tab in the background. The
+the model of the start keeps its source. The daemon opens each session tab in the background. The
 daemon selects the saved session of Resume itself, and it checks `hc` and the Herdr app before
 its answer. A refusal of the daemon gives 409 with its line, also before the end of the takeover
 of its start. The page sends Run and Resume with no timeout, and the board server
@@ -623,7 +623,7 @@ program that fails leaves the tab open with its message and an interactive shell
 is not checked.
 
 The adapter sends each queue action as `POST /queue/action` to the master daemon with the fixed
-body `{action, selection, quiet: true}`, and waits at most 120 seconds. It parses the answer as
+body `{action, selection}`, and waits at most 120 seconds. It parses the answer as
 external input.
 
 Add supplies the default order (`selection` `{}`) or one host (`{explicit: <host>}`). Other actions send `{}`, and the daemon uses the saved choice. Retry with null step resolves
@@ -673,14 +673,18 @@ run, and no command stops one.
 `celetis daemon stop` stops the daemon and detaches every run, and a session whose start barrier
 the daemon released stays open ([A stop of a run](../README.md#a-stop-of-a-run)).
 
-The terminal calls of New intake, Assist, Make visual, and Open shell, when the Herdr app has a
-space with the name of the repository:
+The terminal calls of New intake, Assist, Make visual, and Open shell. The second `herdr-app ls`
+comes only for a new id, `space.rename` comes only for a new id whose space shows within 10
+seconds, and `pane.focus` comes only for a focused press:
 
 ```text
 herdr-app ls
-hc run --bg --json --no-parent --no-notify --rm --cwd <folder> --label herdr.space=<space> --label 'celetis.link=<name>' -- <the start form of the argv>
+hc run --bg --json --no-parent --no-notify --rm --cwd <folder> --label herdr.space=<space or new id> --label 'celetis.link=<name>' -- <the start form of the argv>
+herdr-app ls
+herdr-app do space.rename '{"id":"<new id>","name":"<folder name>"}'
 herdr-app ls
 herdr-app do tab.rename --id <tab> --name '<name>'
+herdr-app do pane.focus --terminal <id>
 ```
 
 Before these calls, Assist and Open shell read the sessions as a request that is not local does
@@ -689,32 +693,35 @@ Before these calls, Assist and Open shell read the sessions as a request that is
 When `herdr-app ls` fails, for example because the Herdr app does not run, the press gets 502 with
 the first line of the error, and no terminal starts. The space is the first local space whose name
 is the folder name of the main checkout. The label `herdr.space` puts the new terminal in a new
-tab of that space, and the current tab keeps the focus. The board then reads `herdr-app ls` again,
-for up to 5 seconds, until the tab of the new terminal shows, and renames that tab. A tab that does
-not show in that time keeps its name; the link label still links the session. A focused press
-then runs `herdr-app do pane.focus --terminal <id>`. `--no-parent` keeps the session alive when the
-board itself runs in an hc terminal that ends.
-
-When no space has that name, the press makes it:
-`herdr-app do space.new --name <folder name> --folder <folder> --tab <name> --argv <the argv as JSON>`
-takes the place of `hc run` and the rename, and `hc label <id> celetis.link=<name>` labels the
-terminal of the first tab. The Herdr app shows the new space at once. One board process finds or
-makes the space and starts the terminal for one press at a time, so two presses at once make one
-space. Each press keeps its folder, its focus, and its name in the two cases. Run, Resume, Retry,
-and a queue action open no tab and start no terminal: the daemon opens the session tab.
+tab of that space, and the current tab keeps the focus. When no space has that name, the label
+holds a new id `celetis-<UUID>`: the Herdr app makes a new space with that id in the background,
+and the current tab keeps the focus. The board then reads `herdr-app ls`, for up to 10 seconds,
+until that space shows, and names it with the folder name of the main checkout. A space that does
+not show in that time keeps the name that the Herdr app gives it. One board process finds or makes
+the space and starts the terminal for one press at a time, and it names a new space before the
+next press reads the spaces, so two presses at once make one space, unless the new space does not
+show within 10 seconds. The board then reads
+`herdr-app ls` again, for up to 5 seconds, until the tab of the new terminal shows, and renames
+that tab. A tab that does not show in that time keeps its name; the link label still links the
+session. A focused press then runs `herdr-app do pane.focus --terminal <id>`, which also brings a
+space that is not active to the front. `--no-parent` keeps the session alive when the board itself
+runs in an hc terminal that ends. Each press keeps its folder, its focus, and its name, also when it
+makes the space. Run, Resume, Retry, and a queue action open no tab and start no terminal: the
+daemon opens the session tab.
 
 | Press | Folder | Focus | Tab name and link label | Argv |
 |---|---|---|---|---|
-| Run | none: a request to the daemon | none: the session tab is quiet | none | none: `POST /run` |
-| A queue action | none: a request to the daemon | none: each session tab is quiet | none | none: `POST /queue/action` |
-| Resume | none: a request to the daemon | the session tab | none | none: `POST /resume` |
+| Run | none: a request to the daemon | none: the session tab opens in the background | none | none: `POST /run` |
+| A queue action | none: a request to the daemon | none: the session tab opens in the background | none | none: `POST /queue/action` |
+| Resume | none: a request to the daemon | none: the session tab opens in the background | none | none: `POST /resume` |
 | Assist | the main checkout | the new tab | `#<n> assist` | the Assist argv |
 | Make visual | the main checkout | the new tab | `#<n> visual` | the Make visual argv |
 | New intake | the main checkout | the new tab | `Intake` | the New intake argv |
 | Open shell | the `path` of the row | the new tab | `#<n> shell` | none |
 
-So an Open shell press with no space makes the space of the repository in the dirty lane
-worktree, not in the main checkout.
+So an Open shell press with no space makes the space of the repository with its first terminal in
+the lane worktree. The rename gives that space the folder name of the main checkout, so the next
+tab of the repository joins it.
 
 **The reads.** While the page is in view, it asks the server each 5 seconds. While its tab is
 hidden, it asks each 15 seconds with `?local=1`, so the tab title, the tab icon, and the
@@ -781,7 +788,7 @@ sends no request, and starts no terminal, unless each condition holds:
 order. Another action uses the choice of the saved record. The shared engine validator enforces
 the continuous-queue contract. Host, Origin, JSON, and the 1024-byte body limit stay in force.
 
-The fixed adapter gives `POST /queue/action` `{action, selection, quiet: true}` to the dispatcher
+The fixed adapter gives `POST /queue/action` `{action, selection}` to the dispatcher
 of the daemon and parses the answer as external input (`parseQueueAnswer`). The HTTP response is the
 persisted QueueView of the answer; it does not await History or a session. The board writes no
 queue record. For a newly issued wake, the daemon starts the queue run in the same request. A
@@ -942,7 +949,7 @@ Five rules hold for the start, the argvs, and the data:
    lane cannot supply a command path.
 2. **A press starts a fixed argv or sends a fixed request.** Run and Resume send the fixed fields
    of "The requests of Run and Resume", Retry sends `{number, waitId}`, and a queue action sends
-   `{action, selection, quiet}`. New intake, Assist, and Make visual start their interactive commands ("The
+   `{action, selection}`. New intake, Assist, and Make visual start their interactive commands ("The
    argv of a press"). On macOS and Linux, the login shell of the new terminal gets the argv as
    `"$@"`, so it reads no item as shell text. That engine starts the first `bun` on the `PATH` of
    that login shell, through its `env -S` shebang, or through its shim on Windows. New intake,
@@ -1254,7 +1261,7 @@ Of the sessions, herdr-core, and the Herdr app:
 - A Go press focuses the pane of the session in the Herdr app (`pane.focus`). The board makes no
   call that brings the window to the front.
 - The API of herdr-core and the commands of the Herdr app are previews (version 0.x). The board
-  uses herdr-core 0.1.19 and the Herdr app 0.1.11; a later 0.x release can break it.
+  uses herdr-core 0.1.19 and the Herdr app 0.1.15; a later 0.x release can break it.
 - Two repositories whose main checkout has the same folder name share one space of the Herdr app.
 - The tab of a new terminal can show up to about 3 seconds after its start. The board waits 5
   seconds for it; after that time, the tab keeps the name that the Herdr app gives it.

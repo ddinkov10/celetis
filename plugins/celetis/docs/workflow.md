@@ -80,8 +80,7 @@ issue and returns at the answer of the daemon. With the default gates, it runs o
 issue. When the outcome of the request is unknown, read
 `celetis daemon status` before you send the request again: a second start can start a second step.
 [The start of a step](https://github.com/ddinkov10/celetis/blob/main/engine/README.md#the-start-of-a-step)
-gives the answer, the effort level, a refused skip, auto mode, the resume, the option `--quiet`,
-and the locks.
+gives the answer, the effort level, a refused skip, auto mode, the resume, and the locks.
 
 Auto mode of the daemon starts the steps whose gate is `auto`, in the lanes that `autoLanes` names,
 where `triage` stands for an issue with no lane ([Gates](#gates)). Turn it on with
@@ -594,6 +593,11 @@ gap. An observed version is no minimum version.
   Codex CLI 0.166.0, Bun 1.4.4. Open: native Windows; a board Run of the installed program on real
   issues with the real `gh`; the focus outside the Herdr app; the automatic runner (the checks
   after the landing). Evidence: [#232](https://github.com/ddinkov10/celetis/issues/232).
+- **Session tabs keep the focus (#304).** PASS. Hosts: hc 0.1.20, herdr-app 0.1.15, Bun 1.4.4,
+  synthetic hosts. Open: the checks after the landing (a run tab in an existing space and a run
+  tab with no space, in the maintainer's own Herdr window); native Windows. Evidence:
+  [the runtime report](https://github.com/ddinkov10/celetis/issues/304#issuecomment-6799363652) and
+  [its renewal after the merge of #290](https://github.com/ddinkov10/celetis/issues/304#issuecomment-6800347254).
 - **Codex desktop.** BLOCKED. Hosts: none. Open: native entry and automation of the owned isolated
   package (optional; a CLI probe does not establish a desktop result). Evidence: in the history of
   `workflow.md` before #265, at `81c126e`.

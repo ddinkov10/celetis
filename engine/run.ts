@@ -21,8 +21,6 @@ export async function main(argv: string[]): Promise<ExitCode> {
       return error.code;
     }
   } else if (argv[0] === '--agent') argv = argv.slice(2);
-  const quiet = argv.includes('--quiet');
-  if (quiet) argv = argv.toSpliced(argv.indexOf('--quiet'), 1);
   let mode: 'number' | 'resume' | 'retry' = 'number';
   let numbers: string[];
   let waitId = '';
@@ -81,7 +79,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
     if (mode === 'resume') return await sendRun(common, { kind: 'resume', number, selection }, 'run', subject);
     return await sendRun(
       common,
-      { kind: 'run', number, selection, effort: override ?? null, model: model ?? null, quiet },
+      { kind: 'run', number, selection, effort: override ?? null, model: model ?? null },
       'run',
       subject,
     );

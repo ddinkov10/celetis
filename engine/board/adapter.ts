@@ -109,15 +109,9 @@ export async function celetisAdapter(
       return argv([...agentFlag(choice), 'visual', number, sha]);
     },
     run: (number, choice, effort) =>
-      start({ kind: 'run', number, selection: selectionOf(choice), effort: effort ?? null, model: null, quiet: true }),
+      start({ kind: 'run', number, selection: selectionOf(choice), effort: effort ?? null, model: null }),
     resume: (number) => start({ kind: 'resume', number, selection: {} }),
-    queue: (input, choice) =>
-      changeQueue({
-        kind: 'queue-action',
-        action: input,
-        selection: selectionOf(choice),
-        quiet: true,
-      }),
+    queue: (input, choice) => changeQueue({ kind: 'queue-action', action: input, selection: selectionOf(choice) }),
     replaceAgentOrder: async (order, expectedVersion) => {
       const replacement = { order: validateAgentOrder(order), expectedVersion };
       if (!orderVersion.test(expectedVersion)) throw new Error('agents: expectedVersion must be an order version');

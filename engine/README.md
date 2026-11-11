@@ -22,8 +22,8 @@ tools, and their versions. The engine adds these rules:
 
 A run uses the environment of the daemon ([The master daemon](#the-master-daemon)). Only these
 values of the command travel in its request: `--agent` and `CELETIS_AGENT` as the host selection,
-`--effort`, `--model`, and `--quiet`. Each other variable of the shell of the command, for example
-`PATH`, `CLAUDE_CONFIG_DIR`, or `CODEX_HOME`, does not reach the run.
+`--effort`, and `--model`. Each other variable of the shell of the command, for example `PATH`,
+`CLAUDE_CONFIG_DIR`, or `CODEX_HOME`, does not reach the run.
 
 Intake, Assist, and Make visual share the independent-session launcher. Default launches read
 the current order and per-host usage records from the Git common directory. They select the
@@ -126,12 +126,7 @@ and that refusal ends auto mode, as each other invalid field does.
 
 **The form `run resume <n>`** asks the daemon to reopen the exact session of the record
 `<git common dir>/celetis/sessions/<n>.json`, with its saved host and checkout, in a new tab that
-comes to the front ([Sessions](#sessions)). A Resume press of the board types this form.
-
-**The option `--quiet`** opens each session tab of the start in the background: the focus of the
-Herdr app does not move. The request carries it to the daemon run. The board passes it for a Run
-press and a Queue press. With no `--quiet`, each session tab comes to the front. `run resume`
-ignores it.
+opens in the background ([Sessions](#sessions)). A Resume press of the board types this form.
 
 Issue locks and the lock `auto` of auto mode use shared Git refs under
 `refs/celetis/locks/`. Their owner records are `{ daemon, session }`: the daemon and foreground
@@ -273,7 +268,7 @@ and the exit codes of each form.
 - `status` first compares the revision of the daemon with its own, and reads no status of another
   revision.
 - `stop` sends `POST /stop` and reads the process until it is gone, for at most 60 seconds.
-- `auto on` and `auto off` send `POST /auto` with `quiet: false`, the host of `--agent`, and
+- `auto on` and `auto off` send `POST /auto` with the host of `--agent` and
   `CELETIS_AGENT` (each only when present), wait at most 120 seconds, and never send again. On an
   accept they read the status.
 - A daemon is running only when the identity file names a PID with that start time and a command
@@ -324,7 +319,7 @@ reconcile) with 503 and code 3. So no press takes an issue lock before the adopt
 
 The socket folder is private to the user, and the daemon uses no token: any process of the same
 user can send a request. Auto mode is off at each start, also after a crash. Only a successor
-turns it on again, with the selection and `quiet` of the old loop ("The restart").
+turns it on again, with the selection of the old loop ("The restart").
 
 **The requests.** The board gives its requests to the same dispatcher in the daemon process, with
 no socket and no HTTP request to itself: the same parser and the same answers. An error that the
@@ -333,13 +328,13 @@ dispatcher throws is the 500 answer below. A body is JSON of at most 16 KiB, wit
 | Request | Body | Effect |
 | --- | --- | --- |
 | `GET /status` | none | The status object |
-| `POST /run` | `{number, selection, effort, model, quiet}` | A start with one number; `effort` is a level or `null`, and `model` is a model or `null` |
-| `POST /auto` | `{on, selection, quiet}` | Auto mode on or off |
-| `POST /queue` | `{id, token, selection, quiet}` | The claim and the run of a queue wake that a `queue action` issued |
+| `POST /run` | `{number, selection, effort, model}` | A start with one number; `effort` is a level or `null`, and `model` is a model or `null` |
+| `POST /auto` | `{on, selection}` | Auto mode on or off |
+| `POST /queue` | `{id, token, selection}` | The claim and the run of a queue wake that a `queue action` issued |
 | `POST /resume` | `{number, selection}` | `run resume <number>` |
 | `POST /retry` | `{number, waitId}` | The wake of the live quota wait, as `run retry <number> <waitId>` |
 | `POST /stop` | `{}` | The stop of the daemon |
-| `POST /queue/action` | `{action, selection, quiet}` | A queue action, as `queue action '<QueueAction JSON>'`; `action` is that JSON |
+| `POST /queue/action` | `{action, selection}` | A queue action, as `queue action '<QueueAction JSON>'`; `action` is that JSON |
 | `POST /queue/reconcile` | `{}` | The queue reconcile of a board read |
 | `POST /land` | `{number, subject, selection, from}` | A landing, as `celetis --agent <host> land <number> '<subject>'` from the folder `from`; the answer is a stream (below) |
 | `POST /coordinator/open` | `{selection}` | The open of the coordinator session, as `celetis coordinator`; the answer is `{accepted: true, opened}` ([The coordinator session](#the-coordinator-session)) |
@@ -615,7 +610,7 @@ a new process of the installed engine takes over
    it from its own environment before it takes over the runs, so no run or landing suite gets the
    board port.
 6. Auto mode. When auto mode is `on` at the claim, `--auto` carries
-   `{"selection":<selection>,"quiet":<boolean>}` of the loop, and the successor makes that
+   `{"selection":<selection>}` of the loop, and the successor makes that
    `POST /auto` with `on: true` after its identity file. A refusal, for example a lock `auto` of
    another daemon, goes to the log once, and auto mode stays off. Auto mode that is `off` or `stopping` at the claim stays off. The new loop holds
    `auto` and the status says `on` at once, but the loop takes its first issue only after each run
@@ -689,7 +684,8 @@ no record lock. An invalid record is refused with its path and its cause; it is 
 empty:
 
 - The recovery record: schema 1 with the key `runner` becomes schema 2 with the key `daemon`.
-- The run record: schema 1 and schema 2 become schema 3, with `model: null` in a `number` input. For
+- The run record: schema 1 and schema 2 become schema 3, with `model: null` in a `number` input. A
+  `number`, `auto`, or `queue` input with `quiet` is not valid, so its record does not convert. For
   schema 1, the paths `session.folder` and `session.capture` under the old folder move to
   `celetis/`. A path outside the old and the new folder is a refusal, and the daemon takes over no
   run from that record ("The takeover").
@@ -735,9 +731,12 @@ For each session, also an exact resume, the daemon opens a new hc terminal
 with a tab in the space of the repository in the Herdr app (`openTab` of
 `engine/lib/terminal.ts`): `hc run --bg --no-parent --no-notify` in the main checkout, with the
 labels `herdr.space=<id>` and `celetis.link=#<n> <step>`, and the tab name `#<n> <step>`
-(`herdr-app do tab.rename`). The space has the name of the folder of the main checkout. When that
-space is missing, the daemon makes it with `herdr-app do space.new`, and the app shows it. The file
-lock `<git common dir>/celetis/space.lock` lets one process at a time find or make the space.
+(`herdr-app do tab.rename`). The space is the space with the name of the folder of the main
+checkout. When that space is missing, the terminal gets a new id in `herdr.space`, the Herdr app
+makes the space in the background, and the daemon names it with `herdr-app do space.rename`. The
+file lock `<git common dir>/celetis/space.lock` lets one process at a time find or make the space.
+For a new space, that process holds the lock until the space has its name or the poll of
+`herdr-app ls` stops. The poll stops after 10 seconds when the space does not show in it.
 The tab runs the start barrier, the internal form
 `daemon --session-start <folder> <daemon PID> <host> <attempt ID or -> <recovery or ->
 <arguments>` through the engine entry `engine/celetis` of the engine of the daemon, through a login
@@ -768,8 +767,10 @@ sets `CELETIS_SESSION_AGENT` to the host and `CELETIS_ATTEMPT` to the attempt ID
 `HC_TERMINAL_ID`. The daemon reads no `HC_TERMINAL_ID`, so a run that the agent of a session
 starts from its shell tool opens tabs of its own and does not touch the terminal of that session.
 
-The tab of a start and of a resume comes to the front (`herdr-app do pane.focus`); with
-`--quiet`, a tab stays in the background. The daemon closes a tab (`hc kill`, then `hc rm`) only
+Each session tab of a run, also of a resume, opens in the background: the focus of the Herdr app
+does not move. Go of the board brings it to the front. A tab that a person opens (New intake,
+Assist, Make visual, and Open shell of the board, and `celetis coordinator`) comes to the front
+(`herdr-app do pane.focus`). The daemon closes a tab (`hc kill`, then `hc rm`) only
 after a normal end: the status is 0, or 143 with the file `terminated` of the step end
 ([The step end](../plugins/celetis/docs/workflow.md#the-step-end)), and, for a step, a saved turn has a verified identity. It
 closes that tab after the next session tab of the same start is open, or when the run ends.
@@ -1331,10 +1332,10 @@ The record has these gaps:
   session does not end by itself.
 - For a command in another terminal program, whether `herdr-app do pane.focus` brings the
   window of the Herdr app to the front is not checked.
-- The Herdr app 0.1.11 removes a space when its last tab closes (#232). The next session tab then
-  makes the space again with `herdr-app do space.new`, and the app shows that space and gives it
-  the focus, also for a `--quiet` start. That is why a normal end closes its tab late
-  ([The session tab](#the-session-tab)). Auto
+- The Herdr app closes a space when its last tab closes (#232). The next session tab then makes the
+  space again in the background, at the end of the space list. A normal end closes its tab late
+  ([The session tab](#the-session-tab)), so the space of the repository and its place in the space
+  list stay from one session to the next. Auto
   mode that waits for work keeps the tab of its last normal end open until it starts
   the next session or stops.
 - The script does not end the step of a session outside herdr-core, for example in a Code tab of
@@ -1350,7 +1351,7 @@ The record has these gaps:
 - Claude receives `/exit` through its composer, so text that a person types at the same moment
   can join that command ([The step end](../plugins/celetis/docs/workflow.md#the-step-end)).
 - The `hc` and `herdr-app` calls of the script use the API of herdr-core 0.1.19 and the commands of
-  the Herdr app 0.1.11. Both are previews (version 0.x), so a later 0.x release can break the step
+  the Herdr app 0.1.15. Both are previews (version 0.x), so a later 0.x release can break the step
   end. On Windows, no daemon runs, so a board Run, Resume, Retry, or queue press fails there. Two
   parts of the step end are not checked: the end of a session after its
   `celetis --agent <host> land` run ends (ADR-0008), and the end of a session after it adds

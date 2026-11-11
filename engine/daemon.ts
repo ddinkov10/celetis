@@ -152,7 +152,7 @@ async function status(common: string): Promise<ExitCode> {
 
 async function auto(common: string, on: boolean, explicit: string | undefined): Promise<ExitCode> {
   const selection = requestSelection(explicit);
-  const { answer } = await askDaemon(common, { kind: 'auto', on, selection, quiet: false }, 'daemon');
+  const { answer } = await askDaemon(common, { kind: 'auto', on, selection }, 'daemon');
   if (!answer.accepted) {
     (answer.code === exits.done ? console.log : console.error)(answer.line);
     return answer.code;

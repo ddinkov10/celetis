@@ -381,7 +381,7 @@ export const commands: readonly Entry[] = [
     [
       form(
         'run <n>',
-        [optional('--quiet')],
+        [],
         helped(9, 'Asks the daemon to start the next step of one issue and follow its auto gates; returns at once.'),
       ),
       form('run resume <n>', [], helped(11, 'Asks the daemon to open the session of a step with no progress again.')),
@@ -391,7 +391,7 @@ export const commands: readonly Entry[] = [
         helped(12, 'Asks the daemon to wake the quota waiter of an issue for one attempt cycle.'),
       ),
     ],
-    `Each form sends one request to the master daemon of the repository of the current folder and returns at its answer. \`run <n>\` starts the next step of the issue, \`run resume <n>\` opens the saved session of a step with no progress again, and \`run retry <n> <wait-id>\` wakes the quota waiter of the issue for one attempt cycle. \`--quiet\` opens each session tab of the start in the background; \`run resume\` ignores it. An accepted start prints \`run: #<n>: accepted as run <run id> of the daemon PID <pid>; read its progress: celetis daemon status\`, and an accepted Retry prints \`run: #<n>: Retry requested; the waiting run starts one bounded attempt cycle\`; both exit ${exits.done}. A refusal prints the line of the daemon, on stdout for code ${exits.done} and on stderr otherwise, and exits with its code: ${exits.prerequisite} for a busy issue lock, ${exits.blocked} for a failed GitHub read of the issue, ${exits.done} for each other end before the first session. With no daemon, it exits ${exits.prerequisite} and starts nothing. It exits ${exits.prerequisite} when the daemon runs another revision of the engine or an update removed this engine version, and ${exits.blocked} when the daemon does not answer or the outcome is unknown. On Windows it exits ${exits.prerequisite} with \`run: Windows is not a support target\`. Any other form exits ${exits.usage} with the usage line`,
+    `Each form sends one request to the master daemon of the repository of the current folder and returns at its answer. \`run <n>\` starts the next step of the issue, \`run resume <n>\` opens the saved session of a step with no progress again, and \`run retry <n> <wait-id>\` wakes the quota waiter of the issue for one attempt cycle. Each session tab of a run, also of \`run resume\` and of \`run retry\`, opens in the background: the focus of the Herdr app does not move. An accepted start prints \`run: #<n>: accepted as run <run id> of the daemon PID <pid>; read its progress: celetis daemon status\`, and an accepted Retry prints \`run: #<n>: Retry requested; the waiting run starts one bounded attempt cycle\`; both exit ${exits.done}. A refusal prints the line of the daemon, on stdout for code ${exits.done} and on stderr otherwise, and exits with its code: ${exits.prerequisite} for a busy issue lock, ${exits.blocked} for a failed GitHub read of the issue, ${exits.done} for each other end before the first session. With no daemon, it exits ${exits.prerequisite} and starts nothing. It exits ${exits.prerequisite} when the daemon runs another revision of the engine or an update removed this engine version, and ${exits.blocked} when the daemon does not answer or the outcome is unknown. On Windows it exits ${exits.prerequisite} with \`run: Windows is not a support target\`. Any other form exits ${exits.usage} with the usage line`,
   ),
   entry(
     'run',
@@ -399,7 +399,7 @@ export const commands: readonly Entry[] = [
     [
       form(
         'run <n>',
-        [required('--effort', '<level>'), optional('--model', '<model>'), optional('--quiet')],
+        [required('--effort', '<level>'), optional('--model', '<model>')],
         helped(
           10,
           'Asks the daemon to start the next step of one issue at another effort level, for its first session only.',
@@ -407,7 +407,7 @@ export const commands: readonly Entry[] = [
       ),
       form(
         'run <n>',
-        [required('--model', '<model>'), optional('--effort', '<level>'), optional('--quiet')],
+        [required('--model', '<model>'), optional('--effort', '<level>')],
         helped(10, 'Asks the daemon to start the next step of one issue on another model, for its first session only.'),
       ),
     ],
@@ -419,12 +419,12 @@ export const commands: readonly Entry[] = [
     [
       form(
         ['queue', 'action', "'<QueueAction JSON>'"],
-        [optional('--quiet')],
+        [],
         helped(13, 'Saves a queue action; asks the daemon to run its authorized wake.'),
       ),
       form('queue status', [], helped(14, 'Reads the current queue and its allowed actions.')),
     ],
-    `\`status\` prints the view of the queue as JSON. \`action\` saves one validated action and prints the view; when the action gives a wake, it then sends that wake to the master daemon and prints the answer as \`run\` does, with the prefix \`queue:\`. An Add to an empty queue, a Continue, and a Retry exit ${exits.prerequisite} with no daemon and save nothing. \`--quiet\` opens each session tab of the wake in the background. It exits ${exits.usage} for another form, an agent that differs from the agent choice of the queue, or a queue record that is not valid, ${exits.prerequisite} for a refused action (for example a stale \`expected\`), and ${exits.blocked} when GitHub or the queue record cannot be read`,
+    `\`status\` prints the view of the queue as JSON. \`action\` saves one validated action and prints the view; when the action gives a wake, it then sends that wake to the master daemon and prints the answer as \`run\` does, with the prefix \`queue:\`. An Add to an empty queue, a Continue, and a Retry exit ${exits.prerequisite} with no daemon and save nothing. Each session tab of the wake opens in the background. It exits ${exits.usage} for another form, an agent that differs from the agent choice of the queue, or a queue record that is not valid, ${exits.prerequisite} for a refused action (for example a stale \`expected\`), and ${exits.blocked} when GitHub or the queue record cannot be read`,
   ),
   entry(
     'daemon',
