@@ -3,5 +3,5 @@
 .playwright-mcp/
 docs/superpowers/
 .superpowers/
-docs/lessons/_pending/
 node_modules/
+.celetis/lessons/_pending/

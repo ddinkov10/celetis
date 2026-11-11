@@ -7,6 +7,9 @@
     ".celetis.yaml": [
       {
         "path": ["landing"]
+      },
+      {
+        "path": ["suite"]
       }
     ],
     ".claude/settings.json": [
@@ -27,16 +30,13 @@
     ],
     ".gitattributes": [".celetis.yaml text eol=lf"],
     ".gitignore": [
+      ".celetis/lessons/_pending/",
       ".claude/settings.local.json",
       ".claude/worktrees/",
       ".superpowers/",
-      "docs/lessons/_pending/",
       "docs/superpowers/"
     ],
     "AGENTS.md": [
-      "- A lane never skips a step.",
-      "- The lanes are the skills of the plugin `celetis`, on the issues of `ddinkov10/celetis`.",
-      "- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `celetis --agent <host> land`.",
       {
         "end": "<!-- CELETIS:END -->",
         "start": "<!-- CELETIS:START -->"

@@ -218,13 +218,10 @@ with `celetis --agent <host> land <n> '<subject>'`, which runs `suite` (`scripts
 The landing is the last act of a change: this repository has no deployment.
 For installation changes, follow `plugins/celetis/README.md`, "Updates".
 
-- A lane never skips a step.
 - The maintainer starts the daemon and turns auto mode on; an agent starts a run only when its task
   says so, with a number, and in a terminal.
 - A change of `plugins/celetis/skills/`, `plugins/celetis/step-prompt.md`, `engine/`, or `scripts/` changes the behavior of each product
   project, so its lane is `bug` or `feature`, not `chore`.
-- The lanes are the skills of the plugin `celetis`, on the issues of `ddinkov10/celetis`.
-- `landing` in `.celetis.yaml` names the landing mechanism, and a build step ends with `celetis --agent <host> land`.
 
 ## The board
 
