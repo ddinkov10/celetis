@@ -111,7 +111,10 @@ of the coordinator: send it with `--as coordinator`, and name that source.
 2. Run `celetis --agent <host> coordinator send <n> <file> --as maintainer|coordinator`, with the
    authority of part 5, 7, or 8.
 3. Act by the exit code of `coordinator send`:
-   - 0: the text is in the session.
+   - 0: the text is in the session. Report the send to the maintainer in one short sentence that
+     names the issue and the kind of the message (an approval, an answer, a pick, a steering text,
+     or a continue), for example "Sent your approval to #292." Do not repeat, quote, or paraphrase
+     the text of the send, and name no exit code and no authority.
    - 1: an internal error. Report the printed line to the maintainer, and run
      `celetis --agent <host> coordinator read <n>` before another send.
    - 2: correct the text by the printed line, then send again.
