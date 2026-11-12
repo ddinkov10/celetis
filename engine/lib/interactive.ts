@@ -5,6 +5,7 @@ import { readAgentOrder } from './agent-order.ts';
 import { beginUsageAttempt, readUsage, recordUsage, selectAgent } from './agent-usage.ts';
 import { exits } from './contract.ts';
 import { HostError } from './errors.ts';
+import { hostAvailability } from './host.ts';
 import type { Host } from './host-names.ts';
 import { hostAdapter } from './hosts.ts';
 import type { Operation } from './operation.ts';
@@ -37,8 +38,9 @@ export async function runInteractive(
   }
   const host = decision.host;
   const adapter = hostAdapter(host);
-  const executable = Bun.which(host, { PATH: childEnv().PATH });
-  if (!executable) throw new HostError(`celetis: ${host} is not on PATH`, exits.prerequisite);
+  const availability = hostAvailability(host);
+  if (!availability.available) throw new HostError(availability.cause, exits.prerequisite);
+  const { executable } = availability;
   const home = await adapter.homeEnv();
   const pin = await withPluginRead(host, async () => {
     await requireUpdatePolicy(host, cwd);

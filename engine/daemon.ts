@@ -19,7 +19,7 @@ import { HostError } from './lib/errors.ts';
 import { installRecorder, passOn } from './lib/events.ts';
 import { isIssueNumber } from './lib/fields.ts';
 import { engineRevision } from './lib/git.ts';
-import { requireBun } from './lib/host.ts';
+import { hostAvailability, requireBun } from './lib/host.ts';
 import { isHost } from './lib/host-names.ts';
 import type { LockOwner } from './lib/locks.ts';
 import { commandInput, locateCheckouts } from './lib/operation.ts';
@@ -277,8 +277,9 @@ async function waitingSession(args: string[]): Promise<ExitCode> {
     if (attempt !== '-') source.CELETIS_ATTEMPT = attempt;
     if (recovery === 'recovery') source.CELETIS_RECOVERY = attempt;
     const env = { ...childEnv(adapter.stepEnv(source)), ...(await adapter.homeEnv()) };
-    const executable = Bun.which(host, { PATH: env.PATH });
-    if (!executable) throw new HostError(`celetis: ${host} is not on PATH`, exits.prerequisite);
+    const availability = hostAvailability(host, env);
+    if (!availability.available) throw new HostError(availability.cause, exits.prerequisite);
+    const { executable } = availability;
     code = passOn(await spawnConsumer(executable, [executable, ...hostArgs], env));
   } catch (error) {
     if (!(error instanceof HostError)) throw error;

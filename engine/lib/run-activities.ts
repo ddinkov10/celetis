@@ -11,10 +11,11 @@ import { daemonArgv } from './daemon-start.ts';
 import { startPair } from './effort.ts';
 import { HostError } from './errors.ts';
 import { markDefect, passOn, recordEvent } from './events.ts';
+import { hostAvailability } from './host.ts';
+import { hosts } from './host-names.ts';
 import { hostAdapter } from './hosts.ts';
 import { addRecord, type Identity, type LockClaim, type LockOwner, lockHolder } from './locks.ts';
 import { type CheckoutIdentity, createOperation, type HostSelection, type Operation } from './operation.ts';
-import { childEnv } from './process.ts';
 import {
   controllingTerminal,
   daemonScript,
@@ -324,8 +325,8 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
       await requireUpdatePolicy(host, cwd);
       if (cwd !== main) await requireUpdatePolicy(host, main);
     });
-    if (!Bun.which(host, { PATH: childEnv().PATH }))
-      throw new HostError(`celetis: ${host} is not on PATH`, exits.prerequisite);
+    const availability = hostAvailability(host);
+    if (!availability.available) throw new HostError(availability.cause, exits.prerequisite);
   };
   const nextOf = async (
     n: string,
@@ -827,7 +828,9 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
         const each = snapshot?.[host];
         return each ? { ordinal: each.ordinal, sequence: each.sequence } : null;
       };
-      const seen = kept?.seen ?? { claude: seenOf('claude'), codex: seenOf('codex') };
+      const seen =
+        kept?.seen ??
+        (Object.fromEntries(hosts.map((host) => [host, seenOf(host)])) as NonNullable<RunRecord['wait']>['seen']);
       await note({ wait: { waitId, authority, choice, seen } });
       for (;;) {
         stopped();

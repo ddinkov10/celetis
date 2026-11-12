@@ -13,6 +13,7 @@ import { exits } from './contract.ts';
 import { HostError } from './errors.ts';
 import { commonDir, mainCheckout } from './git.ts';
 import { selectHost } from './host.ts';
+import { hosts } from './host-names.ts';
 import { run } from './process.ts';
 
 export type CheckoutIdentity = Readonly<{
@@ -39,7 +40,7 @@ type RequiredConfig = 'host' | 'main' | 'active';
 export function commandInput(argv: string[]): { args: string[]; explicit?: string } {
   const args = [...argv];
   if (args[0] !== '--agent') return { args };
-  if (args[1] === undefined) throw new HostError('celetis: --agent needs claude or codex', exits.usage);
+  if (args[1] === undefined) throw new HostError(`celetis: --agent needs ${hosts.join(' or ')}`, exits.usage);
   const explicit = args[1];
   selectHost(explicit);
   return { args: args.slice(2), explicit };

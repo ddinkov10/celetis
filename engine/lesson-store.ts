@@ -4,6 +4,7 @@ import { readConfig } from './lib/config.ts';
 import { type ExitCode, exits, usage } from './lib/contract.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect } from './lib/events.ts';
+import { hosts } from './lib/host-names.ts';
 import {
   LessonError,
   type LessonSnapshot,
@@ -26,7 +27,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
   try {
     const selected = commandInput(argv);
     if (!selected.explicit)
-      throw new LessonError(exits.usage, 'lesson-store', 'select --agent claude or codex explicitly');
+      throw new LessonError(exits.usage, 'lesson-store', `select --agent ${hosts.join(' or ')} explicitly`);
     const [act, argument, digest] = selected.args;
     if (
       !(

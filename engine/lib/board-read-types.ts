@@ -1,4 +1,5 @@
 import type { Level } from './effort.ts';
+import type { Host } from './host-names.ts';
 import type { QueueView } from './queue-types.ts';
 import type { IssueRow } from './resolver-types.ts';
 
@@ -28,7 +29,7 @@ export type Document = {
   flow: Flow;
   noRun: string | null;
   issues: IssueRow[];
-  agents: Record<string, { available: boolean; cause: string | null }>;
+  agents: Record<Host, { available: boolean; cause: string | null }>;
   queue: QueueView | null;
 };
 export type QuotaWait = { number: number; waitId: string; nextResetAt: number | null };

@@ -1,6 +1,7 @@
 import type { Diff, Document, Flow, History, LandedIssue, QuotaState, QuotaWait } from '../lib/board-read-types.ts';
 import type { AgentChoice, AgentDecision, AgentOrder, Host, UsageBlock } from '../lib/config-core.ts';
 import type { Level, RowSource, StartPair } from '../lib/effort.ts';
+import type { Registry } from '../lib/host-names.ts';
 import type { QueueAction, QueueView } from '../lib/queue-types.ts';
 import type { IssueRow, ParentEpic, Pull } from '../lib/resolver-types.ts';
 import type { TerminalStatus } from '../lib/terminal-types.ts';
@@ -125,6 +126,7 @@ export type Board = Placement & {
   tracker: string | null;
   daemon: DaemonView;
   agents: Document['agents'] | null;
+  registry: Registry;
   picker: AgentPickerView | null;
   next: AgentDecision | null;
   queue: QueueView | null;

@@ -504,7 +504,11 @@ var models = ["haiku", "sonnet", "opus", "fable"];
 var decidable = steps.filter((step) => step !== "triage");
 
 // engine/lib/host-names.ts
-var hosts = ["claude", "codex"];
+var registry = Object.freeze({
+  claude: { name: "Claude Code", short: "Claude" },
+  codex: { name: "Codex", short: "Codex" }
+});
+var hosts = Object.freeze(Object.keys(registry));
 
 // engine/lib/vendor/yaml.mjs
 var __defProp = Object.defineProperty;

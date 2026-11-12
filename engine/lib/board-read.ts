@@ -7,8 +7,9 @@ import type { AgentDecision, AgentOrder, Host, UsageBlock } from './config-core.
 import { levels } from './effort.ts';
 import { commit, isCommit } from './fields.ts';
 import { commonDir } from './git.ts';
+import { hostAvailability } from './host.ts';
+import { hosts } from './host-names.ts';
 import { createOperation, locateCheckouts } from './operation.ts';
-import { childEnv } from './process.ts';
 import { queueOwner, queueView, readQueue, readQueueView } from './queue.ts';
 import type { QueueRecord, QueueView } from './queue-types.ts';
 import { listRecoveries, recoveryOwner } from './quota-recovery.ts';
@@ -85,11 +86,11 @@ async function readDocument(
   }
   signal.throwIfAborted();
   const agents = Object.fromEntries(
-    ['claude', 'codex'].map((agent) => {
-      const available = !!Bun.which(agent, { PATH: childEnv().PATH });
-      return [agent, { available, cause: available ? null : `celetis: ${agent} is not on PATH` }];
+    hosts.map((agent) => {
+      const availability = hostAvailability(agent);
+      return [agent, { available: availability.available, cause: availability.available ? null : availability.cause }];
     }),
-  );
+  ) as Document['agents'];
   const queue = target ? await readQueue(main, common) : null;
   signal.throwIfAborted();
   const view =
@@ -258,7 +259,7 @@ export async function readAgentState(main: string, now: number): Promise<AgentSt
   }
   return {
     order,
-    usage: { claude: activeBlock(records, 'claude', now), codex: activeBlock(records, 'codex', now) },
+    usage: Object.fromEntries(hosts.map((host) => [host, activeBlock(records, host, now)])) as AgentState['usage'],
     next: selectAgent({ kind: 'default' }, order.order, records, now, new Set(), false),
     quota,
   };

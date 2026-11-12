@@ -1,6 +1,8 @@
+import type { Host } from '../../lib/host-names.ts';
 import type { QueueAction, QueueRecord, QueueView } from '../../lib/queue-types.ts';
 import type { Step } from '../../lib/workflow.ts';
 import type { Board } from '../types.ts';
+import { knownAgent } from '../view.ts';
 import { $, el, iconButton, toast } from './ui.ts';
 
 const recordedHost = (record: QueueRecord | null | undefined) =>
@@ -164,7 +166,7 @@ const row = (number: number, index: number, numbers: number[]) => {
 
 const hostAvailable = (host: string | null) => {
   const next = host ?? (board?.next?.kind === 'start' ? board.next.host : null);
-  return next === null || board?.agents?.[next]?.available === true;
+  return next === null || (!!board && knownAgent(board.registry, next) && board.agents?.[next]?.available === true);
 };
 
 function draw(): void {
@@ -235,8 +237,8 @@ function draw(): void {
   select.dataset.control = 'agent';
   select.setAttribute('aria-label', 'Queue agent');
   select.add(new Option('Default order', ''));
-  for (const host of ['claude', 'codex']) {
-    const option = new Option(host === 'claude' ? 'Claude' : 'Codex', host);
+  for (const host of Object.keys(board.registry) as Host[]) {
+    const option = new Option(board.registry[host].short, host);
     option.disabled = board.agents?.[host]?.available !== true;
     select.add(option);
   }

@@ -4,7 +4,7 @@ import type { UsageTicket } from './agent-usage.ts';
 import type { AgentChoice, Host } from './config-core.ts';
 import { isLevel, isModel } from './effort.ts';
 import { uuid } from './fields.ts';
-import { isHost } from './host-names.ts';
+import { hosts, isHost } from './host-names.ts';
 import type { Identity } from './locks.ts';
 import type { RecoveryAttempt, RecoveryAuthority } from './quota-recovery.ts';
 import type { RunInput, RunState } from './run-engine.ts';
@@ -189,10 +189,12 @@ function loop(value: unknown): value is RunRecord['loop'] {
 
 function seen(value: unknown): boolean {
   return (
-    keys(value, 'claude,codex') &&
-    [value.claude, value.codex].every(
-      (each) => each === null || (keys(each, 'ordinal,sequence') && natural(each.ordinal) && natural(each.sequence)),
-    )
+    keys(value, [...hosts].sort().join(',')) &&
+    hosts
+      .map((host) => value[host])
+      .every(
+        (each) => each === null || (keys(each, 'ordinal,sequence') && natural(each.ordinal) && natural(each.sequence)),
+      )
   );
 }
 

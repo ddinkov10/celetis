@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { type ExitCode, exits } from './contract.ts';
 import { HostError } from './errors.ts';
+import { hostAvailability } from './host.ts';
 import type { Next } from './lines.ts';
 import { lineOf } from './lines.ts';
 import { lockHolder } from './locks.ts';
 import type { Operation } from './operation.ts';
-import { childEnv } from './process.ts';
 import {
   explicitHost,
   parseQueueAction,
@@ -77,8 +77,7 @@ export async function admitQueue(operation: Operation, input: QueueAction): Prom
         : next.kind !== 'run' || next.step !== action.step
     )
       refuse(`queue: the displayed decision changed: ${lineOf(String(number), next)}`);
-    if (next.kind === 'run' && pinned && !Bun.which(pinned, { PATH: childEnv().PATH }))
-      refuse(`queue: ${pinned} is not on PATH`);
+    if (next.kind === 'run' && pinned && !hostAvailability(pinned).available) refuse(`queue: ${pinned} is not on PATH`);
   }
   const currentNext =
     snapshot?.numbers[0] && snapshot.numbers[0] !== number

@@ -1,4 +1,5 @@
 import type { RowSource, StartPair } from '../../lib/effort.ts';
+import type { Registry } from '../../lib/host-names.ts';
 import type { Action, Card, Flow } from '../types.ts';
 import {
   agentOf,
@@ -48,13 +49,13 @@ const section = (title: string, aside: string | null, ...children: HTMLElement[]
 
 const screen = (card: Card) => (card.screen?.length ? el('pre', 'screen', card.screen.join('\n')) : null);
 
-const ask = (card: Card, actions: Action[]) => {
+const ask = (card: Card, actions: Action[], registry: Registry) => {
   const [glyph, verb] = ASKS[card.waitFor as string] ?? ['target', 'waits for your answer'];
   const node = el('div', 'ask');
   const head = el('div', 'ask-who');
   head.append(
     icon(glyph),
-    el('b', '', agentOf(card)?.name ?? 'The agent'),
+    el('b', '', agentOf(card, registry)?.name ?? 'The agent'),
     el('span', '', verb),
     timed(card.since, true, ' ago'),
   );
@@ -165,14 +166,20 @@ const pr = (card: Card) => {
 
 export const drawPanel = (
   card: Card,
-  { actions, flow, on, close }: { actions: Action[]; flow: Flow | null; on: string; close: () => void },
+  {
+    actions,
+    flow,
+    registry,
+    on,
+    close,
+  }: { actions: Action[]; flow: Flow | null; registry: Registry; on: string; close: () => void },
 ) => {
   const { state } = card;
   const asks = state === 'waits' && (card.number !== null || card.waitFor === 'dialog');
   const head = el('div', 'panel-head');
   const crumbs = el('div', 'crumbs');
   crumbs.append(
-    mark(card, true),
+    mark(card, registry, true),
     card.number === null ? el('span', 'num none', 'human session') : link('num', `#${card.number}`, card.url),
   );
   for (const part of [card.type, card.step === card.type ? null : card.step])
@@ -210,7 +217,7 @@ export const drawPanel = (
 
   const body = el('div', 'panel-body');
   body.append(top);
-  if (asks) body.append(ask(card, actions));
+  if (asks) body.append(ask(card, actions, registry));
   else if (actions.length) {
     const row = el('div', 'panel-actions');
     row.append(...actions.map((action) => actionButton(action)));
@@ -219,7 +226,7 @@ export const drawPanel = (
   const isSession = Boolean(card.sessionId);
   const details: (Fact | null | false | '' | undefined)[] = isSession
     ? [
-        ['Agent', agentOf(card)?.name ?? 'unknown'],
+        ['Agent', agentOf(card, registry)?.name ?? 'unknown'],
         card.cwd && ['Folder', card.cwd, [card.cwd, 'folder']],
         card.diff && [
           'Changes',

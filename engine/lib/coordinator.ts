@@ -20,12 +20,13 @@ import {
 } from './daemon-types.ts';
 import { HostError } from './errors.ts';
 import { uuid } from './fields.ts';
+import { hostAvailability } from './host.ts';
 import { type Host, isHost } from './host-names.ts';
 import { hostAdapter } from './hosts.ts';
 import type { Identity } from './locks.ts';
 import { type CheckoutIdentity, createOperation } from './operation.ts';
 import { requireUpdatePolicy } from './plugin-policy.ts';
-import { childEnv, run } from './process.ts';
+import { run } from './process.ts';
 import { processState } from './process-identity.ts';
 import { barrierOf, type Place, type RunView, requireSetup } from './run-engine.ts';
 import { type RepositoryLayout, startFiles, writeAtomic } from './state.ts';
@@ -269,8 +270,8 @@ export function createCoordinator(
     const adapter = hostAdapter(host);
     await adapter.checkHome();
     await withPluginRead(host, () => requireUpdatePolicy(host, main));
-    if (!Bun.which(host, { PATH: childEnv().PATH }))
-      throw new HostError(`celetis: ${host} is not on PATH`, exits.prerequisite);
+    const availability = hostAvailability(host);
+    if (!availability.available) throw new HostError(availability.cause, exits.prerequisite);
     const plugin = await requireContract(host, main);
     const skill = join(plugin, 'skills/coordinate/SKILL.md');
     if (!(await stat(skill).catch(() => null))?.isFile())

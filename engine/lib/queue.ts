@@ -2,12 +2,11 @@ import type { AgentChoice, Host } from './config-core.ts';
 import { exits } from './contract.ts';
 import { HostError } from './errors.ts';
 import { uuid } from './fields.ts';
-import { selectHost } from './host.ts';
+import { hostAvailability, selectHost } from './host.ts';
 import { isHost } from './host-names.ts';
 import { lineOf, type Next } from './lines.ts';
 import { type LockOwner, lockHolder } from './locks.ts';
 import { type HostSelection, locateCheckouts, type Operation } from './operation.ts';
-import { childEnv } from './process.ts';
 import type { QueueAction, QueueReceipt, QueueRecord, QueueView } from './queue-types.ts';
 import { readRecovery, recoveryOwner } from './quota-recovery.ts';
 import { nextIssue } from './resolver.ts';
@@ -538,7 +537,7 @@ export async function readQueueView(operation: Operation, signal?: AbortSignal):
       (await recoveryOwner(recovery));
     const view = queueView(record, owner, next, kept ? (record?.reason ?? null) : null);
     const pinned = explicitHost(record?.choice);
-    if (pinned && !Bun.which(pinned, { PATH: childEnv().PATH })) {
+    if (pinned && !hostAvailability(pinned).available) {
       view.error = `queue: ${pinned} is not on PATH`;
       view.actions.add = false;
       view.actions.continue = false;

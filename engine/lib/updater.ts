@@ -18,7 +18,7 @@ import { installRecorder, markDefect } from './events.ts';
 import { revision } from './fields.ts';
 import { git } from './git.ts';
 import { configHome } from './homes.ts';
-import { requireBun } from './host.ts';
+import { hostAvailability, requireBun } from './host.ts';
 import { isHost } from './host-names.ts';
 import { type Engine, type EngineSource, engineSource, installEngine, readEngine } from './installation.ts';
 import { commandInput } from './operation.ts';
@@ -295,7 +295,7 @@ async function settle(part: 'engine' | Host, read: () => Promise<Part>): Promise
 }
 
 async function inspectPlugin(host: Host, cwd: string, ownerPid?: number): Promise<PluginUpdate | string> {
-  if (!Bun.which(host, { PATH: childEnv().PATH })) return `no ${host} command on PATH`;
+  if (!hostAvailability(host).available) return `no ${host} command on PATH`;
   if (host === 'codex') {
     const home = configHome(host);
     if (process.env.CODEX_HOME === undefined && !(await lstat(home).catch(() => null)))

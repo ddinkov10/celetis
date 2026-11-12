@@ -47,10 +47,6 @@ var runTitle = (step, flow, effort) => {
   const start = effort ? `Start the ${step} step on ${effort.model} (${modelSource(effort)}) at ${effort.level} (${levelSource(effort)})` : `Start the ${step} step`;
   return `${start}${hint ? `. ${hint}` : ""} (Enter)`;
 };
-var AGENTS = {
-  claude: "Claude Code",
-  codex: "Codex"
-};
 var cleanCause = (cause) => {
   const line = String(cause ?? "").split(`
 `).map((part) => part.trim()).find(Boolean) ?? "";
@@ -102,10 +98,11 @@ var laneTrack = (card, flow) => {
     state: index < at ? "done" : index === at ? "now" : "next"
   }));
 };
-var agentOf = (card) => {
+var knownAgent = (registry, agent) => agent !== null && Object.hasOwn(registry, agent);
+var agentOf = (card, registry) => {
   if (!card.agent)
     return null;
-  const name = Object.hasOwn(AGENTS, card.agent) ? AGENTS[card.agent] : card.agent;
+  const name = knownAgent(registry, card.agent) ? registry[card.agent].name : card.agent;
   return { name, letter: card.agent[0].toUpperCase() };
 };
 var stateLabel = (card) => {
@@ -533,14 +530,15 @@ var store = {
   }
 };
 var TYPES = { bug: "bug", feature: "spark", chore: "wrench", hotfix: "flame" };
-var mark = (card, identifiedByText = false) => {
-  const agent = agentOf(card);
+var mark = (card, registry, identifiedByText = false) => {
+  const agent = agentOf(card, registry);
   if (agent) {
-    const node = el("span", `mark agent agent-${Object.hasOwn(AGENTS, card.agent) ? card.agent : "other"}`);
+    const known = knownAgent(registry, card.agent) ? card.agent : null;
+    const node = el("span", `mark agent agent-${known ?? "other"}`);
     node.title = agent.name;
-    if (card.agent === "codex" || card.agent === "claude") {
+    if (known) {
       const image = el("img");
-      image.src = AGENT_ICONS[card.agent];
+      image.src = AGENT_ICONS[known];
       image.alt = identifiedByText ? "" : agent.name;
       node.classList.add("agent-image");
       node.append(image);
@@ -563,8 +561,6 @@ class OrderConflict extends Error {
     this.latest = latest;
   }
 }
-var HOSTS = ["claude", "codex"];
-var NAMES = { claude: "Claude Code", codex: "Codex" };
 var NS2 = "http://www.w3.org/2000/svg";
 var GAP = 8;
 var EDGE = 12;
@@ -616,6 +612,7 @@ var resetText = (at) => {
 var same = (a, b) => a.length === b.length && a.every((host, at) => b[at] === host);
 function createAgentPicker(root, actions) {
   let view = null;
+  let registry = null;
   let confirmed = null;
   let saving = null;
   let notice = "";
@@ -658,7 +655,8 @@ function createAgentPicker(root, actions) {
     }, 50);
   };
   const shown = () => saving ?? confirmed?.order ?? [];
-  const excluded = () => HOSTS.filter((host) => !shown().includes(host));
+  const nameOf = (host) => registry?.[host].name ?? host;
+  const excluded = () => (registry ? Object.keys(registry) : []).filter((host) => !shown().includes(host));
   const handleOf = (host) => list.querySelector(`.ap-row[data-host="${host}"] .ap-handle`);
   const paused = () => Boolean(view && shown().every((host) => view?.usage[host]));
   const place = () => {
@@ -693,11 +691,11 @@ function createAgentPicker(root, actions) {
     const handle = el("button", "ap-handle");
     handle.type = "button";
     handle.setAttribute("aria-haspopup", "menu");
-    handle.setAttribute("aria-label", rank === null ? `${NAMES[host]}, excluded from default work. Actions` : `${NAMES[host]}, priority ${rank} of ${shown().length}. Move or exclude`);
+    handle.setAttribute("aria-label", rank === null ? `${nameOf(host)}, excluded from default work. Actions` : `${nameOf(host)}, priority ${rank} of ${shown().length}. Move or exclude`);
     if (saving)
       handle.setAttribute("aria-disabled", "true");
     handle.append(grip());
-    const name = el("span", "ap-name", NAMES[host]);
+    const name = el("span", "ap-name", nameOf(host));
     const text = detail(host);
     const availability = el("small", "ap-detail", text);
     availability.title = text;
@@ -752,9 +750,9 @@ function createAgentPicker(root, actions) {
     root.hidden = false;
     const order = shown();
     stack.replaceChildren(...order.map(agentIcon));
-    const using = view.activeHosts.length ? ` In use: ${view.activeHosts.map((host) => NAMES[host]).join(", ")}.` : "";
-    trigger.setAttribute("aria-label", `Agent order: ${order.map((host) => NAMES[host]).join(", then ")}.${using}${paused() ? " Default work is paused." : ""}`);
-    trigger.title = `Agent order: ${order.map((host) => NAMES[host]).join(" › ")}`;
+    const using = view.activeHosts.length ? ` In use: ${view.activeHosts.map((host) => nameOf(host)).join(", ")}.` : "";
+    trigger.setAttribute("aria-label", `Agent order: ${order.map((host) => nameOf(host)).join(", then ")}.${using}${paused() ? " Default work is paused." : ""}`);
+    trigger.title = `Agent order: ${order.map((host) => nameOf(host)).join(" › ")}`;
     trigger.dataset.state = paused() ? "paused" : "ready";
     list.replaceChildren(...order.map((host, at) => row(host, at + 1)), ...excluded().map((host) => row(host, null)), Object.assign(el("div", "ap-drop"), { hidden: true }));
     list.setAttribute("aria-busy", String(Boolean(saving)));
@@ -799,15 +797,15 @@ function createAgentPicker(root, actions) {
       return;
     order.splice(from, 1);
     order.splice(to, 0, host);
-    commit(order, to === 0 ? `${NAMES[host]} is now first.` : `${NAMES[host]} moved to position ${to + 1} of ${order.length}.`);
+    commit(order, to === 0 ? `${nameOf(host)} is now first.` : `${nameOf(host)} moved to position ${to + 1} of ${order.length}.`);
   };
   const toggle = (host) => {
     const order = shown();
     if (order.includes(host)) {
       if (order.length > 1)
-        commit(order.filter((each) => each !== host), `${NAMES[host]} is excluded from default work.`);
+        commit(order.filter((each) => each !== host), `${nameOf(host)} is excluded from default work.`);
     } else
-      commit([...order, host], `${NAMES[host]} is included in default work, last in the order.`);
+      commit([...order, host], `${nameOf(host)} is included in default work, last in the order.`);
   };
   const retry = async (wait) => {
     if (retrying.has(wait.waitId))
@@ -847,7 +845,7 @@ function createAgentPicker(root, actions) {
     const last = order.length - 1;
     const menu = el("div", "ap-menu");
     menu.setAttribute("role", "menu");
-    menu.setAttribute("aria-label", `${NAMES[host]} actions`);
+    menu.setAttribute("aria-label", `${nameOf(host)} actions`);
     const entry = (action, label, disabled, run) => {
       const button = el("button", "", label);
       button.type = "button";
@@ -1056,7 +1054,8 @@ function createAgentPicker(root, actions) {
   addEventListener("resize", place);
   addEventListener("scroll", place, true);
   return {
-    update(next) {
+    update(next, served) {
+      registry = served;
       const changed = Boolean(confirmed && next.order.version !== confirmed.version);
       view = next;
       if (saving)
@@ -1249,11 +1248,11 @@ var section = (title, aside, ...children) => {
 };
 var screen = (card) => card.screen?.length ? el("pre", "screen", card.screen.join(`
 `)) : null;
-var ask = (card, actions) => {
+var ask = (card, actions, registry) => {
   const [glyph, verb] = ASKS[card.waitFor] ?? ["target", "waits for your answer"];
   const node = el("div", "ask");
   const head = el("div", "ask-who");
-  head.append(icon(glyph), el("b", "", agentOf(card)?.name ?? "The agent"), el("span", "", verb), timed(card.since, true, " ago"));
+  head.append(icon(glyph), el("b", "", agentOf(card, registry)?.name ?? "The agent"), el("span", "", verb), timed(card.since, true, " ago"));
   node.append(head);
   const lines = screen(card);
   if (lines)
@@ -1314,12 +1313,18 @@ var pr = (card) => {
   }
   return section("Pull request", null, row);
 };
-var drawPanel = (card, { actions, flow, on, close }) => {
+var drawPanel = (card, {
+  actions,
+  flow,
+  registry,
+  on,
+  close
+}) => {
   const { state } = card;
   const asks = state === "waits" && (card.number !== null || card.waitFor === "dialog");
   const head = el("div", "panel-head");
   const crumbs = el("div", "crumbs");
-  crumbs.append(mark(card, true), card.number === null ? el("span", "num none", "human session") : link("num", `#${card.number}`, card.url));
+  crumbs.append(mark(card, registry, true), card.number === null ? el("span", "num none", "human session") : link("num", `#${card.number}`, card.url));
   for (const part of [card.type, card.step === card.type ? null : card.step])
     if (part)
       crumbs.append(el("span", "sep", "·"), el("span", "", part));
@@ -1357,7 +1362,7 @@ var drawPanel = (card, { actions, flow, on, close }) => {
   const body = el("div", "panel-body");
   body.append(top);
   if (asks)
-    body.append(ask(card, actions));
+    body.append(ask(card, actions, registry));
   else if (actions.length) {
     const row = el("div", "panel-actions");
     row.append(...actions.map((action) => actionButton(action)));
@@ -1365,7 +1370,7 @@ var drawPanel = (card, { actions, flow, on, close }) => {
   }
   const isSession = Boolean(card.sessionId);
   const details = isSession ? [
-    ["Agent", agentOf(card)?.name ?? "unknown"],
+    ["Agent", agentOf(card, registry)?.name ?? "unknown"],
     card.cwd && ["Folder", card.cwd, [card.cwd, "folder"]],
     card.diff && [
       "Changes",
@@ -1532,7 +1537,7 @@ var row = (number, index, numbers) => {
 };
 var hostAvailable = (host) => {
   const next = host ?? (board?.next?.kind === "start" ? board.next.host : null);
-  return next === null || board?.agents?.[next]?.available === true;
+  return next === null || !!board && knownAgent(board.registry, next) && board.agents?.[next]?.available === true;
 };
 function draw2() {
   if (!board)
@@ -1576,8 +1581,8 @@ function draw2() {
   select.dataset.control = "agent";
   select.setAttribute("aria-label", "Queue agent");
   select.add(new Option("Default order", ""));
-  for (const host of ["claude", "codex"]) {
-    const option = new Option(host === "claude" ? "Claude" : "Codex", host);
+  for (const host of Object.keys(board.registry)) {
+    const option = new Option(board.registry[host].short, host);
     option.disabled = board.agents?.[host]?.available !== true;
     select.add(option);
   }
@@ -2235,7 +2240,8 @@ async function openIntake() {
     drawIntake();
   }
 }
-var agentDisplay = (id) => agentOf({ agent: id })?.name ?? id;
+var registry = () => data.registry;
+var agentDisplay = (id) => agentOf({ agent: id }, registry())?.name ?? id;
 var defaultReason = (work = "session") => {
   const next = data?.next;
   if (next?.kind === "wait")
@@ -2259,7 +2265,7 @@ var runReason = (agent, number) => {
   }
   const agents = data?.agents;
   if (agent) {
-    const entry = agents?.[agent];
+    const entry = data && knownAgent(data.registry, agent) ? agents?.[agent] : undefined;
     if (entry && entry.available === false)
       return cleanCause(entry.cause);
     return null;
@@ -2527,7 +2533,7 @@ var status = (card, hasGlyph = true, isShort = false) => {
     node.append(el("span", "status-label", stateLabel(card)));
     if (isShort)
       return node;
-    const agent = agentOf(card);
+    const agent = agentOf(card, registry());
     if (agent)
       node.append(el("span", "detail agent-name", agent.name));
     if (card.step && card.step !== card.type)
@@ -2643,7 +2649,7 @@ var drawCard = (card, column, { isCompact = false, level } = {}) => {
     main.append(title, meta);
     if (card.warning)
       main.append(el("p", "warning", card.warning));
-    node.append(mark(card), main);
+    node.append(mark(card, registry()), main);
     if (actions[0]) {
       const withButton = runWithButton(card);
       if (withButton) {
@@ -2661,7 +2667,7 @@ var drawCard = (card, column, { isCompact = false, level } = {}) => {
   const head = el("div", "card-head");
   if (node.classList.contains("is-unseen"))
     head.append(unseenDot());
-  head.append(mark(card, Boolean(card.state)), id);
+  head.append(mark(card, registry(), Boolean(card.state)), id);
   if (card.type)
     head.append(el("span", "sep", "·"), el("span", "type", card.type));
   const lane = track(card);
@@ -2888,7 +2894,7 @@ var humanPill = (card) => {
   open.type = "button";
   open.dataset.key = key;
   open.title = "Show the details and the screen of this session";
-  open.append(mark(card), el("span", "human-name", card.title || "A session"), el("i", "human-dot"), el("span", "human-state", stateLabel(card)), timed(card.since, true));
+  open.append(mark(card, registry()), el("span", "human-name", card.title || "A session"), el("i", "human-dot"), el("span", "human-state", stateLabel(card)), timed(card.since, true));
   open.addEventListener("click", () => selected === key ? closePanel() : openPanel(key));
   const [go] = actionsOf(card);
   pill.append(open, iconButton("go", go.name, () => go.run?.(), "human-go"));
@@ -3134,7 +3140,7 @@ var drawStatus = (source, isDown) => {
     daemon.replaceChildren(el("i", "dot"), el("span", "sb-name", "Daemon"), el("span", "sb-text", item.text));
   }
   if (data?.picker)
-    picker.update(data.picker);
+    picker.update(data.picker, data.registry);
   document.body.toggleAttribute("data-stale", isDown);
   $("stale").hidden = !isDown && !source.error;
 };
@@ -3149,6 +3155,7 @@ var drawNotify = () => {
 var panelContext = (card) => ({
   actions: actionsOf(card),
   flow: data.flow,
+  registry: registry(),
   on: onTracker(),
   close: closePanel
 });

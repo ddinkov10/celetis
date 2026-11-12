@@ -25,6 +25,7 @@ import {
   groupEpics,
   groupNeeds,
   keyOf,
+  knownAgent,
   laneTrack,
   levelSource,
   needsYou,
@@ -172,7 +173,8 @@ async function openIntake(): Promise<void> {
   }
 }
 
-const agentDisplay = (id: string) => agentOf({ agent: id })?.name ?? id;
+const registry = () => (data as Board).registry;
+const agentDisplay = (id: string) => agentOf({ agent: id }, registry())?.name ?? id;
 
 const defaultReason = (work: 'run' | 'session' = 'session') => {
   const next = data?.next;
@@ -195,7 +197,7 @@ const runReason = (agent: string | null, number?: number | null) => {
   }
   const agents = data?.agents;
   if (agent) {
-    const entry = agents?.[agent];
+    const entry = data && knownAgent(data.registry, agent) ? agents?.[agent] : undefined;
     if (entry && entry.available === false) return cleanCause(entry.cause);
     return null;
   }
@@ -492,7 +494,7 @@ const status = (card: Card, hasGlyph = true, isShort = false) => {
     if (hasGlyph) node.append(icon(STATUS_ICONS[card.state as string] ?? 'pending'));
     node.append(el('span', 'status-label', stateLabel(card)));
     if (isShort) return node;
-    const agent = agentOf(card);
+    const agent = agentOf(card, registry());
     if (agent) node.append(el('span', 'detail agent-name', agent.name));
     if (card.step && card.step !== card.type) node.append(el('span', 'detail mono', card.step));
   } else if (card.step) {
@@ -629,7 +631,7 @@ const drawCard = (
     const main = el('div', 'main');
     main.append(title, meta);
     if (card.warning) main.append(el('p', 'warning', card.warning));
-    node.append(mark(card), main);
+    node.append(mark(card, registry()), main);
     if (actions[0]) {
       const withButton = runWithButton(card);
       if (withButton) {
@@ -645,7 +647,7 @@ const drawCard = (
   }
   const head = el('div', 'card-head');
   if (node.classList.contains('is-unseen')) head.append(unseenDot());
-  head.append(mark(card, Boolean(card.state)), id);
+  head.append(mark(card, registry(), Boolean(card.state)), id);
   if (card.type) head.append(el('span', 'sep', '·'), el('span', 'type', card.type));
   const lane = track(card);
   if (lane) head.append(lane);
@@ -915,7 +917,7 @@ const humanPill = (card: Card) => {
   open.dataset.key = key;
   open.title = 'Show the details and the screen of this session';
   open.append(
-    mark(card),
+    mark(card, registry()),
     el('span', 'human-name', card.title || 'A session'),
     el('i', 'human-dot'),
     el('span', 'human-state', stateLabel(card) as string),
@@ -1192,7 +1194,7 @@ const drawStatus = (source: Board['source'], isDown: boolean) => {
     daemon.title = item.title;
     daemon.replaceChildren(el('i', 'dot'), el('span', 'sb-name', 'Daemon'), el('span', 'sb-text', item.text));
   }
-  if (data?.picker) picker.update(data.picker);
+  if (data?.picker) picker.update(data.picker, data.registry);
   document.body.toggleAttribute('data-stale', isDown);
   $('stale').hidden = !isDown && !source.error;
 };
@@ -1217,6 +1219,7 @@ const drawNotify = () => {
 const panelContext = (card: Card) => ({
   actions: actionsOf(card),
   flow: (data as Board).flow,
+  registry: registry(),
   on: onTracker(),
   close: closePanel,
 });

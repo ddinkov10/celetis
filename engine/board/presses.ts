@@ -4,8 +4,8 @@ import { commonDir, isInside, readAgentState } from '../lib/board-read.ts';
 import type { AgentChoice, AgentOrder, Host } from '../lib/config-core.ts';
 import type { DaemonStatus } from '../lib/daemon-types.ts';
 import type { Level } from '../lib/effort.ts';
+import { hostAvailability } from '../lib/host.ts';
 import { isHost } from '../lib/host-names.ts';
-import { childEnv } from '../lib/process.ts';
 import { requireQueueChoice } from '../lib/queue.ts';
 import type { QueueAction, QueueView } from '../lib/queue-types.ts';
 import { type Exec, focusTerminal, listTerminals, type OpenTab, openTab as openTerminalTab } from '../lib/terminal.ts';
@@ -208,7 +208,8 @@ export const createPresses = ({
 
   const choose = async (choice: unknown, unknown: string, work: 'run' | 'session'): Promise<AgentChoice> => {
     const available = (host: Host) => {
-      if (!Bun.which(host, { PATH: childEnv().PATH })) throw new Refusal(409, `celetis: ${host} is not on PATH`);
+      const availability = hostAvailability(host);
+      if (!availability.available) throw new Refusal(409, availability.cause);
     };
     if (choice !== undefined && choice !== null) {
       if (!isHost(choice)) throw new Refusal(409, unknown);

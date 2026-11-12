@@ -10,7 +10,7 @@ import {
   readStepEnds,
 } from '../lib/board-read.ts';
 import type { DaemonStatus } from '../lib/daemon-types.ts';
-import { isHost } from '../lib/host-names.ts';
+import { isHost, registry } from '../lib/host-names.ts';
 import { bunArgs } from '../lib/process.ts';
 import { daemonScript } from '../lib/process-identity.ts';
 import type { QueueView } from '../lib/queue-types.ts';
@@ -459,6 +459,7 @@ export const createPlacement = ({
       tracker: reads.document?.tracker ?? null,
       daemon: daemonView(daemon),
       agents: reads.document?.agents ?? null,
+      registry,
       picker: agentState && {
         order: agentState.order,
         usage: agentState.usage,

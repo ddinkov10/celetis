@@ -1,4 +1,5 @@
 import type { AgentOrder, Host } from '../../lib/config-core.ts';
+import type { Registry } from '../../lib/host-names.ts';
 import type { AgentPickerView, QuotaWait } from '../types.ts';
 import { AGENT_ICONS, el } from './ui.ts';
 
@@ -27,8 +28,6 @@ type Drag = {
   ghost: HTMLElement | null;
 };
 
-const HOSTS: readonly Host[] = ['claude', 'codex'];
-const NAMES: Record<Host, string> = { claude: 'Claude Code', codex: 'Codex' };
 const NS = 'http://www.w3.org/2000/svg';
 const GAP = 8;
 const EDGE = 12;
@@ -89,8 +88,9 @@ const same = (a: readonly Host[], b: readonly Host[]) => a.length === b.length &
 export function createAgentPicker(
   root: HTMLElement,
   actions: Actions,
-): { update(view: AgentPickerView): void; destroy(): void } {
+): { update(view: AgentPickerView, registry: Registry): void; destroy(): void } {
   let view: AgentPickerView | null = null;
+  let registry: Registry | null = null;
   let confirmed: AgentOrder | null = null;
   let saving: readonly Host[] | null = null;
   let notice = '';
@@ -138,7 +138,8 @@ export function createAgentPicker(
     }, 50);
   };
   const shown = (): readonly Host[] => saving ?? confirmed?.order ?? [];
-  const excluded = () => HOSTS.filter((host) => !shown().includes(host));
+  const nameOf = (host: Host) => registry?.[host].name ?? host;
+  const excluded = () => (registry ? (Object.keys(registry) as Host[]) : []).filter((host) => !shown().includes(host));
   const handleOf = (host: Host) => list.querySelector<HTMLElement>(`.ap-row[data-host="${host}"] .ap-handle`);
   const paused = () => Boolean(view && shown().every((host) => view?.usage[host]));
 
@@ -173,12 +174,12 @@ export function createAgentPicker(
     handle.setAttribute(
       'aria-label',
       rank === null
-        ? `${NAMES[host]}, excluded from default work. Actions`
-        : `${NAMES[host]}, priority ${rank} of ${shown().length}. Move or exclude`,
+        ? `${nameOf(host)}, excluded from default work. Actions`
+        : `${nameOf(host)}, priority ${rank} of ${shown().length}. Move or exclude`,
     );
     if (saving) handle.setAttribute('aria-disabled', 'true');
     handle.append(grip());
-    const name = el('span', 'ap-name', NAMES[host]);
+    const name = el('span', 'ap-name', nameOf(host));
     const text = detail(host);
     const availability = el('small', 'ap-detail', text);
     availability.title = text;
@@ -243,12 +244,12 @@ export function createAgentPicker(
     root.hidden = false;
     const order = shown();
     stack.replaceChildren(...order.map(agentIcon));
-    const using = view.activeHosts.length ? ` In use: ${view.activeHosts.map((host) => NAMES[host]).join(', ')}.` : '';
+    const using = view.activeHosts.length ? ` In use: ${view.activeHosts.map((host) => nameOf(host)).join(', ')}.` : '';
     trigger.setAttribute(
       'aria-label',
-      `Agent order: ${order.map((host) => NAMES[host]).join(', then ')}.${using}${paused() ? ' Default work is paused.' : ''}`,
+      `Agent order: ${order.map((host) => nameOf(host)).join(', then ')}.${using}${paused() ? ' Default work is paused.' : ''}`,
     );
-    trigger.title = `Agent order: ${order.map((host) => NAMES[host]).join(' › ')}`;
+    trigger.title = `Agent order: ${order.map((host) => nameOf(host)).join(' › ')}`;
     trigger.dataset.state = paused() ? 'paused' : 'ready';
     list.replaceChildren(
       ...order.map((host, at) => row(host, at + 1)),
@@ -304,7 +305,7 @@ export function createAgentPicker(
     order.splice(to, 0, host);
     void commit(
       order,
-      to === 0 ? `${NAMES[host]} is now first.` : `${NAMES[host]} moved to position ${to + 1} of ${order.length}.`,
+      to === 0 ? `${nameOf(host)} is now first.` : `${nameOf(host)} moved to position ${to + 1} of ${order.length}.`,
     );
   };
   const toggle = (host: Host) => {
@@ -313,9 +314,9 @@ export function createAgentPicker(
       if (order.length > 1)
         void commit(
           order.filter((each) => each !== host),
-          `${NAMES[host]} is excluded from default work.`,
+          `${nameOf(host)} is excluded from default work.`,
         );
-    } else void commit([...order, host], `${NAMES[host]} is included in default work, last in the order.`);
+    } else void commit([...order, host], `${nameOf(host)} is included in default work, last in the order.`);
   };
 
   const retry = async (wait: QuotaWait) => {
@@ -355,7 +356,7 @@ export function createAgentPicker(
     const last = order.length - 1;
     const menu = el('div', 'ap-menu');
     menu.setAttribute('role', 'menu');
-    menu.setAttribute('aria-label', `${NAMES[host]} actions`);
+    menu.setAttribute('aria-label', `${nameOf(host)} actions`);
     const entry = (action: string, label: string, disabled: boolean, run: () => void) => {
       const button = el('button', '', label);
       button.type = 'button';
@@ -553,7 +554,8 @@ export function createAgentPicker(
   addEventListener('scroll', place, true);
 
   return {
-    update(next) {
+    update(next, served) {
+      registry = served;
       const changed = Boolean(confirmed && next.order.version !== confirmed.version);
       view = next;
       if (saving) return;

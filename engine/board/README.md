@@ -239,7 +239,10 @@ which the daemon also uses). It builds one typed document (`Document` of
 agent order, the usage records, and the usage-limit recovery records again (`readAgentState` of
 `engine/lib/board-read.ts`), and its reply adds `picker` (the order, the usage blocks, the hosts of
 live sessions, the live usage-limit waits, and a read error) and `next` (the decision of a new
-default start). Each placement also reads the status object of the daemon once through the adapter,
+default start). The reply also adds `registry`: the agent registry of `engine/lib/host-names.ts`,
+with the long name and the menu label of each agent, in the default order. The page builds the agent
+picker, the queue agent menu, and the agent marks of the cards from it, and keeps no list of agents
+of its own. Each placement also reads the status object of the daemon once through the adapter,
 in the process, and the reply adds `daemon`: `{pid, auto}`, with the PID of the daemon and its auto
 mode (`on`, `off`, or `stopping`). These reads do not wait for GitHub.
 The tables below give the value of each field and the rule that gives each row its state.
@@ -310,7 +313,7 @@ The board puts these values in the fields of its document (`Document` of
 | `flow.steps.<step>.hint` | A hint that says the step lands the change when the build is done, for `implement`, `chore`, and `hotfix`. No other step has a hint. |
 | `noRun` | A text that names the dirty path and tells to commit or stash first, while the main checkout is dirty, else `null`. |
 | `daemon` | Read at each response, not in the refresh: `{pid, auto}` of the status object of the daemon that serves the board, with `auto` `on`, `off`, or `stopping`. |
-| `agents` | Entries `claude` and `codex`. Each has `available: true` and `cause: null` when its executable is on the `PATH` of the board, else `available: false` and a `cause` that says the agent is not on `PATH`. This checks only executable presence: sign-in, trust, and plugin discovery need their own checks. |
+| `agents` | One entry for each agent of the registry (`engine/lib/host-names.ts`). Each has `available: true` and `cause: null` when its executable is on the `PATH` of the board, else `available: false` and a `cause` that says the agent is not on `PATH`. This checks only executable presence: sign-in, trust, and plugin discovery need their own checks. |
 | `history` | The remote trunk name, history URL, captured full head SHA, and up to 20 distinct landed issues. Each entry holds the issue number/title/URL and commit SHA/URL/committer time. |
 | `queue` | A `QueueView` with the schema-3 record, live owner, resolver result, error, and Add/Edit/Continue/Retry permissions. A null record means no saved queue yet. |
 | `issues` | One row for each open issue. An issue whose line of the resolver is the epic line or the `wontfix` line has no row. |
@@ -415,7 +418,8 @@ a landed-history panel.
 - Its folder is the main checkout folder itself, or a lane worktree or a folder in it. That folder
   is the folder of its foreground process, else the start folder of the terminal. A terminal of
   another folder has no card, and this includes a subfolder of the main checkout.
-- Its host reports a status (OSC 7501), and the `app` of that status names `claude` or `codex`.
+- Its host reports a status (OSC 7501), and the `app` of that status is the app name of the host
+  adapter of a registry agent (`claude-code` for `claude`, `codex` for `codex`).
   A terminal with no status has no card.
 - Its foreground process is that host (the file name of its first item, with no `.exe`), Bun
   with the engine's launch arguments and its exact `engine/intake.ts`, `engine/assist.ts`, or
@@ -784,7 +788,7 @@ sends no request, and starts no terminal, unless each condition holds:
 | `POST /api/shell` | The issue has a card of its own, with no session. Its row is `dirty`. Its `path` is a lane worktree of the main checkout. | The issue has no dirty worktree. |
 
 `POST /api/queue` accepts exactly `{"action": <QueueAction>}`, or for Add with one host
-`{"action": <QueueAction>, "agent": "claude" | "codex"}`. An Add with no agent records the default
+`{"action": <QueueAction>, "agent": <a registry agent>}`. An Add with no agent records the default
 order. Another action uses the choice of the saved record. The shared engine validator enforces
 the continuous-queue contract. Host, Origin, JSON, and the 1024-byte body limit stay in force.
 
@@ -837,7 +841,7 @@ can precede the failure:
   character gives a line that names it.
 - **The saved session of Resume.** The daemon refuses a Resume with a missing or invalid saved
   record, or a record with no verified session ID, with the first line of its error.
-- **The agent of Run, Assist, or Make visual.** An explicit Run choice must be `claude` or `codex`;
+- **The agent of Run, Assist, or Make visual.** An explicit Run choice must be a registry agent;
   another choice gives a line that names the issue and the unknown agent. A queue continuation uses its saved choice and
   refuses an explicit conflicting host. With no choice, the server reads the local order and the
   usage records again at the press; it never uses a host that the page showed. An agent that is not
@@ -847,7 +851,7 @@ can precede the failure:
 
 `POST /api/agent` replaces the local agent order. After the Host, Origin, JSON content-type, and
 body checks, its body must be exactly `{"order": [...], "expectedVersion": "<64 hex>"}`, with a
-nonempty, unique list of `claude` and `codex`; another shape, including a path, a command, or usage
+nonempty, unique list of registry agents; another shape, including a path, a command, or usage
 data, gives 400 and starts nothing. The server then runs `agents replace` through the fixed
 adapter. Success gives 200 with `{"order": <AgentOrder>}`; a replacement that is already saved gives
 200 with the same version. A stale version gives 409 with `{"error": "<one line>", "latest":
@@ -957,14 +961,14 @@ Five rules hold for the start, the argvs, and the data:
    and `git`, and the issue read starts `gh`, `git`, and, on macOS and Linux, `ps`. Update workers have the separate fixed update
    protocol above.
 3. **Only validated values go into an argv.** The number is the digits of the issue. The agent of
-   an explicit Run is `claude` or `codex`. Default Run, New intake, Assist, and Make visual retain
+   an explicit Run is a registry agent. Default Run, New intake, Assist, and Make visual retain
    default mode; admission reads the current order and usage blocks. The effort level of Run is
    one of the five levels, and the adapter sends it as `effort` of the Run request.
    The commit of Make visual is the full hash of the History row of
    that number in the last good read, and the adapter refuses a value that is not 40 lowercase hex
    digits. The page never sends it. Resume takes no agent. Queue fields pass the shared exact-shape validator; its step is an engine-defined
    value, its ID is a UUID, its revision and issue numbers are positive safe integers, and its
-   choice is default mode or an explicit `claude` or `codex`. No title, reason, act, or data path goes into an argv.
+   choice is default mode or an explicit registry agent. No title, reason, act, or data path goes into an argv.
 4. **The data comes from the engine, in the process of the daemon.** No other program gives the
    document. The adapter parses each answer of the dispatcher of the daemon (`parseAnswer`,
    `parseQueueAnswer`), also the queue view of its reconcile answer, as external input, as a client

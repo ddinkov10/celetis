@@ -2,6 +2,7 @@ import { type BigIntStats, closeSync, constants, fstatSync, lstatSync, openSync,
 import type { AgentChoice, AgentDecision, Host, UsageBlock } from './config-core.ts';
 import { type ExitCode, exits } from './contract.ts';
 import { HostError } from './errors.ts';
+import { hosts } from './host-names.ts';
 import {
   checkFolder,
   ensureFolder,
@@ -118,7 +119,7 @@ function readHost(layout: RepositoryLayout, host: Host): UsageRecord | null {
 
 export async function readUsage(common: string): Promise<UsageState> {
   const layout = repositoryLayout(common);
-  return { claude: readHost(layout, 'claude'), codex: readHost(layout, 'codex') };
+  return Object.fromEntries(hosts.map((host) => [host, readHost(layout, host)])) as UsageState;
 }
 
 async function update<T>(

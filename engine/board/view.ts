@@ -1,4 +1,5 @@
 import type { Level, RowSource, StartPair } from '../lib/effort.ts';
+import type { Host, Registry } from '../lib/host-names.ts';
 import type { Card, Column, Columns, Diff, Flow, ParentEpic, Pull } from './types.ts';
 export const COLUMNS: { key: Column; name: string; note: string; empty: [string, string] }[] = [
   {
@@ -69,11 +70,6 @@ export const runTitle = (
   return `${start}${hint ? `. ${hint}` : ''} (Enter)`;
 };
 
-export const AGENTS: Record<string, string> = {
-  claude: 'Claude Code',
-  codex: 'Codex',
-};
-
 export const cleanCause = (cause: unknown) => {
   const line =
     String(cause ?? '')
@@ -135,9 +131,12 @@ export const laneTrack = (card: Pick<Card, 'type' | 'step'>, flow: Partial<Flow>
   }));
 };
 
-export const agentOf = (card: Pick<Card, 'agent'>) => {
+export const knownAgent = (registry: Registry, agent: string | null): agent is Host =>
+  agent !== null && Object.hasOwn(registry, agent);
+
+export const agentOf = (card: Pick<Card, 'agent'>, registry: Registry) => {
   if (!card.agent) return null;
-  const name = Object.hasOwn(AGENTS, card.agent) ? (AGENTS[card.agent] as string) : card.agent;
+  const name = knownAgent(registry, card.agent) ? registry[card.agent].name : card.agent;
   return { name, letter: (card.agent[0] as string).toUpperCase() };
 };
 
