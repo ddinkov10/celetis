@@ -21,7 +21,6 @@ No debugging without exploring, no fix without the root cause, no plan without t
 one-character diff runs the same lane.
 
 **Before step 1.** Check the wiring per `<plugin>/references/procedures/lane-start.md`, "Before step 1".
-Only the exit 0 of `setup status` starts step 1.
 
 1. **Confirm classification.** Existing behavior misbehaves → continue. New behavior → `/celetis:feature`;
    prod broken + ship-now → `/celetis:hotfix`; zero behavior change → `/celetis:chore`. Then
@@ -82,20 +81,25 @@ Only the exit 0 of `setup status` starts step 1.
    A repair at the causal origin that leaves no suspect state needs no masking section; its
    causal chain and states table remain mandatory.
 6. **Resolve alone, or escalate.** Read the causal chain, states table, and applicable masking
-   check before fixing. Judge from this evidence whether the fix chooses new behavior: it adds a
-   mechanism (for example a retry, a timer, a cache, a lock, or a queue), or it chooses behavior that the spec does not
-   define. When it does, research the prior art per `<plugin>/references/procedures/prior-art.md` before the
-   decision below. A fix that adds or changes a UI component runs
-   `<plugin>/references/procedures/component-research.md` in that research pass, with its reference
-   question. When its `## Prior art` section has a `### Required behavior` list, the report
-   lists each of its behaviors as a requirement of the fix, in its intended behavior. This trigger is wider than the escalation: a fix that adds a mechanism does the
-   research also when the spec defines each state. A fix that restores behavior that the spec or
-   the code already defines skips it. An escalation presents the found patterns among its options;
-   a fix that resolves alone follows "The recommendation" of that document, or the report states
-   the reason. If the fix merges two states
-   that step 5 shows have different writers (for example, treating "absent" as "false"), or the
-   spec does not define behavior for every listed state, STOP and ask the user — present the states
-   and the decision as concrete options. Do not ship a guessed default.
+   check before fixing.
+
+   - **The research trigger.** Judge from this evidence whether the fix chooses new behavior: it
+     adds a mechanism (for example a retry, a timer, a cache, a lock, or a queue), or it chooses
+     behavior that the spec does not define. When it does, research the prior art per
+     `<plugin>/references/procedures/prior-art.md` before the decision below. This trigger is wider
+     than the escalation: a fix that adds a mechanism does the research also when the spec defines
+     each state. A fix that restores behavior that the spec or the code already defines skips it.
+   - **The research.** A fix that adds or changes a UI component runs
+     `<plugin>/references/procedures/component-research.md` in that research pass, with its
+     reference question. When its `## Prior art` section has a `### Required behavior` list, the
+     report lists each of its behaviors as a requirement of the fix, in its intended behavior. An
+     escalation presents the found patterns among its options; a fix that resolves alone follows
+     "The recommendation" of `<plugin>/references/procedures/prior-art.md`, or the report states
+     the reason.
+   - **The decision.** If the fix merges two states that step 5 shows have different writers (for
+     example, treating "absent" as "false"), or the spec does not define behavior for every listed
+     state, STOP and ask the user — present the states and the decision as concrete options. Do not
+     ship a guessed default.
 
    A bug that shows on screen asks the maintainer whether the fix needs a new look, unless a
    `### Decided` line of the record (step 3) answers it: that line is the maintainer's answer, and
@@ -118,11 +122,21 @@ Only the exit 0 of `setup status` starts step 1.
    Proceed autonomously to step 7 only when every state is spec-defined, the maintainer answered
    that the fix needs no new look or the bug does not show on screen, and the fix is
    self-contained.
-7. **Decide the effort of `plan`, post the report, then invoke `celetis:plan #<n>`.** Record the
-   model and the effort level of `plan` per `<plugin>/references/procedures/effort.md`. Then
-   `celetis --agent <host> issue <n> root-cause <report>`
-   posts the report with `## Root cause` as its first line, so the report file has no heading; the report is the spec (root cause + red repro + intended
-   behavior + step 3's traps + its `## Causal chain` section + its states table + its `## Masking check`
-   section when applicable + its `## External facts` section + its `## Prior art` section when
-   step 6 did the research + the link of the capture repro when step 4 made one) and `plan` drives
-   the rest of the chain.
+7. **Decide the effort of `plan`, post the report, then invoke `celetis:plan #<n>`.** In this order:
+   1. Record the model and the effort level of `plan` per
+      `<plugin>/references/procedures/effort.md`.
+   2. `celetis --agent <host> issue <n> root-cause <report>` posts the report with `## Root cause`
+      as its first line, so the report file has no heading.
+   3. Invoke `celetis:plan #<n>`: `plan` drives the rest of the chain.
+
+   The report is the spec. It holds these parts:
+   - the root cause;
+   - the red repro;
+   - the intended behavior;
+   - step 3's traps;
+   - its `## Causal chain` section;
+   - its states table;
+   - its `## Masking check` section when applicable;
+   - its `## External facts` section;
+   - its `## Prior art` section when step 6 did the research;
+   - the link of the capture repro when step 4 made one.

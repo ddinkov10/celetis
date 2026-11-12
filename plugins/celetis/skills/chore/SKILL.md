@@ -25,34 +25,36 @@ observable changes, mid-lane or not, the work belongs in `/celetis:bug` or `/cel
 ## Flow
 
 **Before step 1.** Check the wiring per `<plugin>/references/procedures/lane-start.md`, "Before step 1".
-Only the exit 0 of `setup status` starts step 1.
 
 1. **Confirm the zero-behavior-change claim.** Any behavior delta → redirect: misbehaviour → `/celetis:bug`,
    new behavior → `/celetis:feature`. Proceed only if nothing observable changes. Then start the
    issue per `<plugin>/references/procedures/lane-start.md`, "Start the issue", with `chore` as `<lane>`.
 2. **Worktree.** Enter the issue's worktree per `<plugin>/references/procedures/worktree.md`.
    **Re-entry.** When the branch already holds the commit of the chore and the tree is clean, an
-   earlier run built the change: run `celetis --agent <host> issue <n> state`.
-   Apply `<plugin>/references/procedures/behavior-documentation.md`, "Repairs and re-entry".
-   With `refusal: current`, handle the latest `## Landing refused` comment by
-   `<plugin>/references/procedures/landing.md`, "Re-entry after a refusal", with the fix rule of step 6.
-   Then go to step 4, then step 6.
+   earlier run built the change. In this order:
+   - Run `celetis --agent <host> issue <n> state`.
+   - Apply `<plugin>/references/procedures/behavior-documentation.md`, "Repairs and re-entry".
+   - With `refusal: current`, handle the latest `## Landing refused` comment by
+     `<plugin>/references/procedures/landing.md`, "Re-entry after a refusal", with the fix rule of step 6.
+   - Then go to step 4, then step 6.
+
    An `open:` line is an open human step: step 2 of the landing, which step 6 follows, handles it.
-3. **Do the change.** Read the project context per `<plugin>/references/procedures/project-context.md`.
-   Read `<plugin>/references/procedures/behavior-documentation.md` and apply "Assessment" and "Change
-   work". Complete its session check and report before step 4 and the commit.
-   Read each principle below. Apply each one whose `Applies when` holds for the edit and its
-   checks, with its `Check`: `<plugin>/references/principles/type-system-discipline.md` and
-   `<plugin>/references/principles/test-behavior-not-implementation.md`.
-   A dependency bump: read the changelog or release notes between the old and the new version per
-   `<plugin>/references/procedures/docs-lookup.md`, and post an issue comment whose first line is `## External facts`
-   (`gh issue comment <n> --body-file <file>`) that names each breaking change that touches an
-   API the repo uses, or states that none does.
+3. **Do the change.**
+   - Read the project context per `<plugin>/references/procedures/project-context.md`.
+   - Read `<plugin>/references/procedures/behavior-documentation.md` and apply "Assessment" and
+     "Change work". Complete its session check and report before step 4 and the commit.
+   - Read each principle below. Apply each one whose `Applies when` holds for the edit and its
+     checks, with its `Check`: `<plugin>/references/principles/type-system-discipline.md` and
+     `<plugin>/references/principles/test-behavior-not-implementation.md`.
+   - A dependency bump: read the changelog or release notes between the old and the new version per
+     `<plugin>/references/procedures/docs-lookup.md`, and post an issue comment whose first line is
+     `## External facts` (`gh issue comment <n> --body-file <file>`) that names each breaking change
+     that touches an API the repo uses, or states that none does.
 4. **Gates.** Run the verify gate of the project. The full suite runs once, on the tree that lands:
    the CI of the lane PR with the landing `pr`, or `land` at step 3 of the landing, which step 6
    follows, with the landing `merge`.
-5. **Commit — don't ask.** Commit on the issue's branch WITHOUT confirmation: invoking this lane is the
-   authorization — the "commit only when asked" default does NOT apply. Subject
+5. **Commit — don't ask.** Commit on the issue's branch with no question first: invoking this lane
+   authorizes the commit and overrides the "commit only when asked" default. Subject
    `<type>(<area>): <what>` — `<area>` is whatever a reader would recognise (the package or
    concern); `<type>` matches the change (`chore`, `build` for the build tooling,
    `docs`, `refactor` for a rename). Body: one line, what changed and from → to, ending with `#<n>`.

@@ -8,8 +8,7 @@ description: Use when a raw request arrives with no intent written — a pasted 
 # /celetis:intake — intent front door
 
 Raw-idea entry point that sits before `/celetis:triage`. Two jobs: write the intent, then ask
-"proceed?" and hand to `/celetis:triage`. Never classifies type, never gates, never writes a spec,
-never writes code.
+"proceed?" and hand to `/celetis:triage`.
 
 **Where it writes:** the issue. Draft the template in `docs/superpowers/intents/YYYY-MM-DD-<slug>-intent.md` (gitignored scratch), then post it:
 free text → `gh issue create --label needs-triage --title "<Intent title>" --body-file <intent>`;
@@ -32,7 +31,7 @@ rules.
 
 ## Step 2 — handoff question
 
-Read the intent back. Ask "proceed?". On no, stop. On yes, invoke `/celetis:triage #<n>`. Triage owns the type decision — intake never classifies.
+Read the intent back. Ask "proceed?" and wait for the answer. On no, stop. On yes, invoke `/celetis:triage #<n>`. Triage owns the type decision.
 
 In a step session, ask nothing: stop after the intent is on the issue, and leave triage to the daemon, which starts it in a fresh session.
 
@@ -52,7 +51,7 @@ Intake fires BEFORE any other action on a raw request. These rules are absolute:
 - **Fill `Repro` completely.** The intent is the reproduction source of truth. Copy every
   replication input from the source into `Repro` — site URL, script URL, username, password,
   steps — verbatim.
-- **Stop at "proceed?".** After writing the intent, do nothing else. Ask the question. Wait. In a step session, stop after the intent (Step 2).
+- **Stop at "proceed?".** After writing the intent, do nothing else: Step 2 holds the question, the wait, the answers, and the stop of a step session.
 
 ## Red Flags — STOP
 

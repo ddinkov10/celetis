@@ -22,7 +22,6 @@ No debugging without exploring, no fix without the root cause, no ship without t
 little time for the lane → the change does not ship tonight.
 
 **Before step 1.** Check the wiring per `<plugin>/references/procedures/lane-start.md`, "Before step 1".
-Only the exit 0 of `setup status` starts step 1.
 
 1. **Confirm classification.** Fire needing ship-now → continue. No fire → `/celetis:bug`. New behavior →
    `/celetis:feature`. Zero behavior change → `/celetis:chore`. Then start the issue per
@@ -70,7 +69,12 @@ Only the exit 0 of `setup status` starts step 1.
 6. **Run `celetis:implement #<n>` on the micro-plan** — its Land step lands the fix, as each lane
    does. A micro-plan is a local file, so the re-entry rule of `implement` does not apply to it.
    Window too small to verify → the change does not ship tonight: stop, report blocked.
-7. **Terminal.** When the entry of `hotfix` gave custom text (`custom.hotfix`), that text names the ship acts of the project. Only an entry that found no custom text (the facts line `- custom: none`, or that result on the path without the hook) means that the project has no ship act. When the session cannot see its entry result, the checklist says that the ship acts are not known and tells the maintainer to do the ship acts of the project.
+7. **Terminal.** The entry result of `hotfix` decides the ship acts:
+   - When the entry of `hotfix` gave custom text (`custom.hotfix`), that text names the ship acts of the project.
+   - Only an entry that found no custom text (the facts line `- custom: none`, or that result on the path without the hook) means that the project has no ship act.
+   - When the session cannot see its entry result, the checklist says that the ship acts are not known and tells the maintainer to do the ship acts of the project.
+
+   By the end state of the landing:
    - The fix landed: print the acts of the maintainer, and stop.
      - [ ] Do the ship acts of the project.
    - The landing stopped with a `## Landing refused` comment: run `celetis --agent <host> issue <n> ready-for-human`, print the checklist, and stop.
@@ -84,4 +88,4 @@ Only the exit 0 of `setup status` starts step 1.
      - [ ] Run `celetis --agent <host> land <n> '<subject>'` in your own shell.
      - [ ] Do the ship acts of the project.
 
-   In each checklist, the removal of `ready-for-human` comes before `land`: `land` refuses while the label is on, and after the removal the card reads `land by hand` until the landing.
+   In each checklist, the removal of `ready-for-human` comes before `land`.

@@ -9,14 +9,11 @@ description: Type-axis front door for a cold, unclassified idea whose TYPE (/cel
 
 Cold-idea entry point to the type-axis lane system. One job, three parts: **pick the type lane**
 (`/celetis:bug` · `/celetis:hotfix` · `/celetis:feature` · `/celetis:chore`), **write a clean one-line description**, and **ask
-whether to continue**. Nothing more — triage never starts a flow on its own.
+whether to continue**. Nothing more — triage never starts a flow on its own. The lane it hands to
+owns requirements (`specify`), branching, and gates.
 
 Only for when the type is unknown. If you already know the type, invoke the lane directly
 (`/celetis:bug …`).
-
-## Scope
-
-Triage resolves TYPE only. The lane it hands to owns requirements (`specify`), branching, and gates.
 
 ## Input
 
@@ -29,8 +26,7 @@ Labels and states: `<plugin>/docs/issue-tracker.md`, "Labels" and "Resolving an 
 
 ## Classification contract — the ordered decision tree
 
-Criteria are taken verbatim from the lanes' own descriptions. Apply
-them **in order** — cheapest, most distinctive test first — and stop at the first that fires:
+Apply the criteria **in order** — cheapest, most distinctive test first — and stop at the first that fires:
 
 1. **Mechanical, zero-behavior edit?** (rename, format, doc, config, comment, dep bump, code move —
    no stated fix, no behavior intent) → **`/celetis:chore`**.
@@ -79,8 +75,7 @@ Ambiguous — ask the one splitter that resolves it:
 
 ## Flow
 
-1. **Read the issue.** `gh issue view <n> --comments`; classify from the intent's `Problem` and
-   `Done when`. Then **classify silently** against the ordered tree when the idea is clear. A clear idea produces zero questions.
+1. **Read the issue** as "Input" above says. Then **classify silently** against the ordered tree when the idea is clear. A clear idea produces zero questions.
 2. **Disambiguate only when genuinely ambiguous between types** — ask 1–2 targeted splitter
    questions, no more.
 3. **Edge handling:**
@@ -95,12 +90,16 @@ Ambiguous — ask the one splitter that resolves it:
    - **No-fit idea** → write why to a file, run `celetis --agent <host> issue <n> wontfix <file>`
      as the last act of the turn, and stop.
 4. **Clean one-liner** — normalize the idea into the single-sentence description the lane consumes.
-5. **Decide the effort, route, announce, ask to continue** — record the model and the effort level of the
-   lane's first step per `<plugin>/references/procedures/effort.md`. Then route the issue
-   (`celetis --agent <host> issue <n> route <lane>`
-   with the lane `feature`, `bug`, `chore`, or `hotfix`), then state the pick and the one-liner (`→ /celetis:bug #<n>: <one-liner>`). Ask the
-   human whether to proceed. On yes, invoke that lane with `#<n>` and follow it; the lane's step-1
-   confirm is the redirect gate. On no, stop — the route already carries the verdict.
+5. **Decide the effort, route, announce, ask to continue**, in this order:
+   1. Record the model and the effort level of the lane's first step per
+      `<plugin>/references/procedures/effort.md`.
+   2. Route the issue (`celetis --agent <host> issue <n> route <lane>` with the lane `feature`,
+      `bug`, `chore`, or `hotfix`).
+   3. State the pick and the one-liner (`→ /celetis:bug #<n>: <one-liner>`).
+   4. Ask the human whether to proceed. On yes, invoke that lane with `#<n>` and follow it; the
+      lane's step-1 confirm is the redirect gate. On no, stop — the route already carries the
+      verdict.
+
    In a step session, ask nothing here: stop after the route and the announcement, and leave the
    lane to the daemon, which starts it in a fresh session.
 
