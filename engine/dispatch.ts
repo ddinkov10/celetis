@@ -23,7 +23,7 @@ import {
 } from './lib/dispatch-record.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect } from './lib/events.ts';
-import { hostAdapter } from './lib/hosts.ts';
+import { hostAdapter, requireCan } from './lib/hosts.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { dispatchRecord, ensureFolder, privateState, stateOutcome, withLock, writeAtomic } from './lib/state.ts';
 import { commitMigration, readLocalRecord } from './lib/state-migration.ts';
@@ -220,6 +220,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
       (host) => (scoring ? bindingMode(host, profile, checkout.main) : 'main'),
     );
     const host = operation.host;
+    requireCan(host, { kind: 'dispatch', command: 'dispatch' }, 'celetis');
     const session = sessionOf(host, process.env[hostAdapter(host).sessionVariable]);
     const binding = scoring
       ? await readBinding(host, { profile, runtimeFile }, checkout.main, operation.mainConfig)

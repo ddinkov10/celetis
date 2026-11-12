@@ -27,7 +27,8 @@ values of the command travel in its request: `--agent` and `CELETIS_AGENT` as th
 
 Intake, Assist, and Make visual share the independent-session launcher. Default launches read
 the current order and per-host usage records from the Git common directory. They select the
-first included host with no confirmed active block. Explicit choices keep their exact host.
+first included host that can run an interactive session and has no confirmed active block.
+Explicit choices keep their exact host.
 An elapsed supplied reset permits an attempt without changing the stored block. Exhausted
 defaults report each block and its supplied reset, or unknown, without starting an agent.
 The selected host's normal preflight remains binding; other errors do not select another host.
@@ -40,6 +41,14 @@ and native per-attempt sequences have separate write targets. A running independ
 keeps native recovery and its exit status; exhaustion never transfers its conversation or
 starts a replacement. `CELETIS_SESSION_AGENT` carries attribution only. An inherited explicit
 `CELETIS_AGENT` keeps its user meaning.
+
+**The capability of a host.** The adapter of each host states what it can run
+([ADR-0104](../docs/adr/0104-a-host-states-what-it-can-run.md)); OpenCode runs only the step `triage`
+([OpenCode](../docs/hosts/opencode.md), "The capability"). The start of a step that the selected host cannot run,
+also a Resume or the next step of a run, and each command that it cannot run (`land`, `dispatch`, `capscore`,
+`assist`, `intake`, `visual`, `coordinator`, and `setup`) exit 3 with a line that names the host, what it runs, and
+the hosts that can. No other host starts. The default order and the quota recovery skip such a host for the
+step, except the preferred host of `agents.<step>`; when no host is left, the start refuses with that line.
 
 **The answer.** Each form that starts work (`run <n>`, `run resume`, `run retry`, and a `queue action`
 with a wake) sends one request to the master daemon of the Git common folder of the
@@ -157,6 +166,18 @@ writes no session record. No document content is evaluated as shell code. After 
 arguments, the daemon prints the start line
 `start: <prompt> on <model> (<source>) at <level> (<source>)`, with the source of each value of the
 pair. On Codex the line ends with `; codex keeps its configured model <codex model> and applies <applied level>`.
+[OpenCode](../docs/hosts/opencode.md#the-daemon) gets `--standalone --auto -s <id> --prompt <prompt>`,
+with the session ID that the adapter makes before the start, and no model or level: the session
+keeps the model and the variant of the OpenCode configuration, and the start line ends with
+`; opencode keeps the model and the variant of its configuration`. Before the tab opens, the
+daemon writes the session environment of the host (`sessionEnv` of the adapter) as a JSON object to
+the file `env` of the start folder ([The session tab](#the-session-tab)). For OpenCode it holds
+`OPENCODE_CONFIG_CONTENT`, which names the skills of the plugin root and the step text file
+`step.md` of the start folder; for Claude Code and Codex it is `{}`. A Resume writes both files
+again in its own start folder. An OpenCode Resume checks the contract version of the plugin before
+it writes them; a Claude Code or Codex Resume has no contract check. A failure there ends the run
+with `daemon: #<n> cannot prepare the session environment: <cause>`, opens no tab, and writes no
+session record.
 
 ## The continuous queue
 
@@ -341,7 +362,7 @@ dispatcher throws is the 500 answer below. A body is JSON of at most 16 KiB, wit
 | `POST /coordinator/read` | `{number}` | The screen read, as `celetis coordinator read <number>`; the answer is `{accepted: true, text, complete, why}` ([The coordinator session](#the-coordinator-session)) |
 | `POST /coordinator/send` | `{number, authority, text, token}` | The send, as `celetis coordinator send <number> <file> --as <authority>`; `authority` is `maintainer` or `coordinator`, `text` is a string, and `token` is a UUID; the answer is `{accepted: true, run: null}` ([The coordinator session](#the-coordinator-session)) |
 
-`selection` is `{explicit?, environment?}`: an explicit host (`claude` or `codex`), the
+`selection` is `{explicit?, environment?}`: an explicit host (`claude`, `codex`, or `opencode`), the
 `CELETIS_AGENT` value of the client, or neither. Each run and each landing selects its host from its own request,
 as `celetis --agent <host> run` does from its prefix and its environment. The
 `CELETIS_AGENT` of the daemon never selects a host. A queue wake keeps the recorded agent choice of
@@ -438,7 +459,7 @@ run, not the machine state. The machine has 17 states. Each state except `finish
 | `binding` | The recovery record of the issue: a new issue run clears it, a taken-over issue run clears it or adopts it |
 | `resolving` | The next step of the issue from the resolver |
 | `selecting` | The agent order and the usage records |
-| `quota-wait` | A reset, a renewed agent, or Retry |
+| `quota-wait` | A reset, a renewed agent that can run the step, or Retry |
 | `preparing` | The preflight of the host and the session arguments; a resume run selects its saved session here |
 | `opening` | The session tab and its start barrier |
 | `live` | The release of the barrier of a new session, then the end of the session, with the step-end watch and the usage watch for a step session |
@@ -612,10 +633,14 @@ Retry of a wait that woke gets the answer of the first. An unknown read keeps th
 again each 2 seconds. A quota wait continues with its recorded wait ID, step authority, agent
 choice, and the usage records that it saw. The daemon prints the wait line again and makes no new
 wait ID, so `run retry <n> <wait id>` of that wait wakes it. A wait whose ID the recovery record no
-longer has ends its run.
+longer has ends its run. The usage records that a wait saw have one key for each host. A run record
+of an older engine has no `opencode` key there, so after the update the daemon refuses it:
+`daemon: cannot take over <path>: the record keeps the quota wait of an older engine; start the run again; its session stays in its tab`.
 
 **Per-run failures.** A refusal line, a startup error, a failed queue save, a failed write of the
-run record, and an unexpected error end only their run. Its outcome is `stopped` with the line and the code. An unexpected error
+run record, and an unexpected error end only their run. Its outcome is `stopped` with the line and the code. When the run
+leaves a released session that still runs in its tab, its start folder stays too, because OpenCode
+reads `step.md` there at each turn; the run removes each other start folder. An unexpected error
 also prints its stack and adds a defect event `run-defect`. One failure stops the whole daemon with
 exit 6: a step-end record that can neither be removed nor emptied. The daemon stops, because only
 the end of the daemon that the record names revokes it. The sessions stay open in their tabs.
@@ -736,7 +761,9 @@ folder in `<git common dir>/celetis/`:
    barrier.
 3. The barrier waits for `go` while the daemon lives. A failed read of the daemon process does not
    end this wait; the barrier exits with status 3 before `go` only when the daemon process does
-   not exist. After `go`, the barrier starts the host as its child, waits
+   not exist. After `go`, the barrier reads `env`: one JSON object whose values are strings. Else
+   it writes `error` and the status 1 to `status`, exits with status 1, and starts no host. Then
+   the barrier starts the host as its child, waits
    for the host to exit, writes the exit status of the host to `status`, and exits with that
    status.
 
@@ -746,7 +773,9 @@ before issue progress, the daemon stops with the recovery line and `status unkno
 
 The session gets the login environment of its tab, not the environment of the daemon. The barrier
 sets `CELETIS_SESSION_AGENT` to the host and `CELETIS_ATTEMPT` to the attempt ID of a step, removes `CLAUDE_CODE_EFFORT_LEVEL` for Claude, and sets
-`CODEX_HOME` to the resolved native home for Codex. hc gives the terminal of the tab its own
+`CODEX_HOME` to the resolved native home for Codex. For OpenCode it removes `OPENCODE_CONFIG_CONTENT`,
+`OPENCODE_CONFIG`, and `OPENCODE_CONFIG_DIR`. It sets the values of `env` last, so they replace a
+value of the tab. hc gives the terminal of the tab its own
 `HC_TERMINAL_ID`. The daemon reads no `HC_TERMINAL_ID`, so a run that the agent of a session
 starts from its shell tool opens tabs of its own and does not touch the terminal of that session.
 
@@ -793,9 +822,10 @@ order, it:
 3. checks the native home of the host, the update policy of its plugin, the host on `PATH`, the
    contract version of its plugin ([The engine and the plugin](#the-engine-and-the-plugin)), the
    file `skills/coordinate/SKILL.md` of the plugin root, and `hc` and the Herdr app;
-4. opens the tab `Coordinator` with the link label `Coordinator` and the focus, in the main
-   checkout, as a session tab ([The session tab](#the-session-tab)): the start barrier
-   `daemon --session-start <folder> <daemon PID> <host> - - <arguments>` with the interactive
+4. writes the session environment of the host (`{}` for Claude Code and Codex) to the file `env`
+   of a new start folder, then opens the tab `Coordinator` with the link label `Coordinator` and
+   the focus, in the main checkout, as a session tab ([The session tab](#the-session-tab)): the
+   start barrier `daemon --session-start <folder> <daemon PID> <host> - - <arguments>` with the interactive
    arguments of `assist` and the prompt of the skill `coordinate`. The tab argv sets
    `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0`, `DO_NOT_TRACK=1`, and `CELETIS_COORDINATOR=<token>`, a
    new random UUID. The login shell keeps no shell after an exit with status 0;
@@ -1007,8 +1037,8 @@ agent starts. After a confirmed refusal of the default host, the daemon:
    lane binding all match, the bound lane does not stop the read. A dirty main checkout, another
    dirty lane, a changed branch, HEAD, or digest, and an unresolved merge, rebase, cherry-pick, or
    revert still stop it.
-6. Starts the same step again on the next eligible host of the effective order of the step when
-   the decision is the same step with the same spec digest and `## Plan` comment. The first
+6. Starts the same step again on the next eligible host (one that can run the step) of the effective
+   order of the step when the decision is the same step with the same spec digest and `## Plan` comment. The first
    authorization of the start still holds, so the skip, no-progress, and gate checks do not apply
    to this retry. A changed spec or plan of that step stops. A new step follows the normal checks,
    its gate included.
@@ -1115,11 +1145,16 @@ that sets the thread ID before the start. So for a Codex step, the daemon asks t
 whose `createdAt` is at or after the start of the step, and whose `preview` is the exact prompt
 of the step. No match means that the thread is not there yet. Two or more matches are an invalid
 identity. The issue lock lets only one run start that prompt for that issue.
+For an OpenCode step, the daemon chooses the ID and passes it with `-s`.
 Claude persistence is a current saved user turn with matching ID, cwd, and launch time.
 Codex verifies `thread/read` and `thread/turns/list` without resuming or starting a model turn.
+OpenCode persistence is an entry of `opencode session list --format json --standalone` in the main
+checkout with that ID, the main checkout as its folder, and a creation time at or after the start,
+and a user message in `opencode session export <id> --standalone`
+([OpenCode](../docs/hosts/opencode.md#the-daemon), "The session check").
 
 If startup has not verified identity and a saved turn after 60 seconds, the daemon prints one
-warning for Claude or Codex. It says that monitoring continues and directs the person to check
+warning, on each host. It says that monitoring continues and directs the person to check
 setup prompts in the tab of the session. Verification continues while the foreground runs, until
 a saved turn verifies, an invalid identity ends the watcher, or cancellation stops it. A late
 verified turn enters the normal completion checks without a restart.

@@ -683,7 +683,7 @@ export const helpText = [
   '',
   ...helpRows.map(({ text, summary }) => `  ${text.padEnd(helpWidth)}  ${summary}`),
   '',
-  'In a terminal, --agent claude|codex is optional. CELETIS_AGENT is an explicit choice too.',
+  'In a terminal, --agent claude|codex|opencode is optional. CELETIS_AGENT is an explicit choice too.',
   'With neither, the local agent order applies; its initial order is claude, codex.',
   'The skills run the other commands. plugins/celetis/README.md, "The commands", in the folder that celetis root',
   'prints, lists all of them.',

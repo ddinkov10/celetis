@@ -81,6 +81,7 @@ export async function claudePolicy(cwd: string): Promise<PolicyRecord[]> {
 }
 
 export async function requireUpdatePolicy(host: Host, cwd: string): Promise<void> {
+  if (host === 'opencode') return;
   if (host === 'claude') {
     checkClaudePolicy(await claudePolicy(cwd));
   } else await codexHome();

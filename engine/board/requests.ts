@@ -1,6 +1,6 @@
 import { isLevel, levels } from '../lib/effort.ts';
 import { isIssueField, orderVersion, uuid } from '../lib/fields.ts';
-import { hosts, isHost } from '../lib/host-names.ts';
+import { hostChoices, isHost } from '../lib/host-names.ts';
 import { parseQueueAction } from '../lib/queue.ts';
 import type { QueueAction } from '../lib/queue-types.ts';
 import { TerminalError } from '../lib/terminal.ts';
@@ -138,10 +138,7 @@ export const parseRequest = (path: string, body: unknown): BoardRequest => {
       typeof expectedVersion !== 'string' ||
       !orderVersion.test(expectedVersion)
     )
-      throw new Refusal(
-        400,
-        `the order takes exactly a nonempty, unique list of ${hosts.join(' or ')} and expectedVersion`,
-      );
+      throw new Refusal(400, `the order takes exactly a nonempty, unique list of ${hostChoices} and expectedVersion`);
     return { path, order, expectedVersion };
   }
   if (path === '/api/refresh') return { path };

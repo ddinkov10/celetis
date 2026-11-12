@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { exits } from '../lib/contract.ts';
 import { installRecorder, markDefect } from '../lib/events.ts';
 import { revision } from '../lib/fields.ts';
-import { isHost } from '../lib/host-names.ts';
+import { isPluginHost } from '../lib/host-names.ts';
 import type { PreparedUpdate, UpdateCheck, UpdateResult, UpdateStage } from '../lib/updater.ts';
 
 export const UPDATE_PIPE_LIMIT = 1024 * 1024;
@@ -11,7 +11,7 @@ export type WorkerRecord =
   | { type: 'owned'; pid: number; active: boolean }
   | { type: 'result'; value: UpdateCheck | UpdateResult };
 
-const part = (value: unknown) => value === 'engine' || isHost(value);
+const part = (value: unknown) => value === 'engine' || isPluginHost(value);
 const text = (value: unknown): value is string => typeof value === 'string' && !value.includes('\0');
 const sha = (value: unknown): value is string => text(value) && revision.test(value);
 const object = (value: unknown): value is Record<string, unknown> =>
@@ -42,7 +42,7 @@ export function isPreparedUpdate(value: unknown): value is PreparedUpdate {
     value.plugins.every(
       (plugin) =>
         object(plugin) &&
-        isHost(plugin.host) &&
+        isPluginHost(plugin.host) &&
         ['home', 'root', 'source', 'ref', 'resolvedRef'].every((key) => text(plugin[key])) &&
         sha(plugin.installed) &&
         sha(plugin.target) &&

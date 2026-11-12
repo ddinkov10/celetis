@@ -3,7 +3,7 @@ import { isAbsolute, join } from 'node:path';
 import type { UsageTicket } from './agent-usage.ts';
 import type { AgentChoice, Host } from './config-core.ts';
 import { isLevel, isModel } from './effort.ts';
-import { uuid } from './fields.ts';
+import { isSessionId, uuid } from './fields.ts';
 import { hosts, isHost } from './host-names.ts';
 import type { Identity } from './locks.ts';
 import type { RecoveryAttempt, RecoveryAuthority } from './quota-recovery.ts';
@@ -163,7 +163,7 @@ function attempt(value: unknown): value is RecoveryAttempt {
     id(value.id) &&
     isHost(value.host) &&
     positive(value.startedAt) &&
-    (value.sessionId === null || id(value.sessionId))
+    (value.sessionId === null || isSessionId(value.host, value.sessionId))
   );
 }
 
@@ -187,14 +187,15 @@ function loop(value: unknown): value is RunRecord['loop'] {
   );
 }
 
+const seenKeys = [...hosts].sort().join(',');
+
 function seen(value: unknown): boolean {
   return (
-    keys(value, [...hosts].sort().join(',')) &&
-    hosts
-      .map((host) => value[host])
-      .every(
-        (each) => each === null || (keys(each, 'ordinal,sequence') && natural(each.ordinal) && natural(each.sequence)),
-      )
+    keys(value, seenKeys) &&
+    hosts.every((host) => {
+      const each = value[host];
+      return each === null || (keys(each, 'ordinal,sequence') && natural(each.ordinal) && natural(each.sequence));
+    })
   );
 }
 
@@ -336,6 +337,8 @@ export async function readRunRecords(folder: string): Promise<ReadRecord[]> {
       } catch {
         return { path, error: 'the record is not valid JSON' };
       }
+      if (object(value) && object(value.wait) && object(value.wait.seen) && !keys(value.wait.seen, seenKeys))
+        return { path, error: 'the record keeps the quota wait of an older engine; start the run again' };
       if (object(value) && value.schema === 2) return convert(path, name, folder);
       if (!object(value) || value.schema !== 3) return { path, error: 'the record has another schema' };
       if (!validRunRecord(value)) return { path, error: 'the record is not a valid run record' };

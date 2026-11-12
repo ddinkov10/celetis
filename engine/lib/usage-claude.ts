@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { constants, type Stats } from 'node:fs';
 import { lstat, open, realpath, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
+import { isSessionId } from './fields.ts';
 import { mainCheckout } from './git.ts';
 import { bunArgs } from './process.ts';
 import { captureFiles, privateMode, withLock, writeAtomic } from './state.ts';
@@ -55,7 +56,7 @@ async function binding(path: string): Promise<UsageAttempt> {
     value.schema !== 1 ||
     !usageAttempt(value.attempt) ||
     value.attempt.host !== 'claude' ||
-    !usageUuid(value.attempt.sessionId) ||
+    !isSessionId('claude', value.attempt.sessionId) ||
     (await realpath(value.attempt.main)) !== value.attempt.main
   )
     throw failure();
@@ -116,7 +117,7 @@ export async function prepareClaudeUsage(attempt: UsageAttempt, captureDirectory
   if (
     !usageAttempt(attempt) ||
     attempt.host !== 'claude' ||
-    !usageUuid(attempt.sessionId) ||
+    !isSessionId('claude', attempt.sessionId) ||
     (await realpath(attempt.main)) !== attempt.main
   )
     throw failure();

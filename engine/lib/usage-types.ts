@@ -1,5 +1,5 @@
 import type { Host } from './config-core.ts';
-import { uuid } from './fields.ts';
+import { isSessionId, uuid } from './fields.ts';
 import { isHost } from './host-names.ts';
 
 export type UsageAttempt = {
@@ -44,6 +44,6 @@ export function usageAttempt(value: unknown): value is UsageAttempt {
     typeof value.startedAt === 'number' &&
     Number.isSafeInteger(value.startedAt) &&
     value.startedAt > 0 &&
-    (value.sessionId === null || usageUuid(value.sessionId))
+    (value.sessionId === null || isSessionId(value.host, value.sessionId))
   );
 }

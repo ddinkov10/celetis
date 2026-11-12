@@ -1,4 +1,5 @@
-import type { ExitCode } from './contract.ts';
+import { type ExitCode, exits } from './contract.ts';
+import type { Host } from './host-names.ts';
 
 export class HostError extends Error {
   constructor(
@@ -11,3 +12,7 @@ export class HostError extends Error {
 }
 
 export class NotInstalled extends HostError {}
+
+export function unsupported(host: Host, part: string): never {
+  throw new HostError(`celetis: ${host} has no ${part}; the host capability must refuse first`, exits.internal);
+}

@@ -5,6 +5,10 @@ The Board embeds the selected Codex and Claude Code SVGs as base64 data URLs in
 read of Herdr is required. The shared mark renderer uses the images at 18×18 px with their
 original proportions, colors, and backgrounds in both themes.
 
+OpenCode has no extracted asset. Its icon in `page/ui.ts` is a letter mark made here: an SVG of the
+letter "O" in the weight and the text colors of the Board, for the light and the dark theme. A card
+shows it in a box (the `.agent-opencode` rules of `board.css`).
+
 ## Provenance
 
 Issue [#191](https://github.com/ddinkov10/celetis/issues/191) approves variant C. The assets

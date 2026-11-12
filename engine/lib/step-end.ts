@@ -1,6 +1,6 @@
 import { open, readFile, rm } from 'node:fs/promises';
 import type { Host } from './config-core.ts';
-import { uuid } from './fields.ts';
+import { isSessionId } from './fields.ts';
 import { commonDir } from './git.ts';
 import { isHost } from './host-names.ts';
 import type { Next } from './lines.ts';
@@ -45,8 +45,7 @@ const valid = (value: unknown): value is StepEndRecord => {
         keys(turn, 'sequence,sessionId,terminalId') &&
         typeof turn.terminalId === 'string' &&
         turn.terminalId.length > 0 &&
-        typeof turn.sessionId === 'string' &&
-        uuid.test(turn.sessionId) &&
+        isSessionId(value.host, turn.sessionId) &&
         Number.isSafeInteger(turn.sequence) &&
         Number(turn.sequence) >= 0))
   );

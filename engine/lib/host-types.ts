@@ -10,18 +10,34 @@ export type StepStart = Readonly<{
   cwd: string;
   start: StartPair;
   stepText: () => Promise<string>;
+  sessionId: string | null;
 }>;
-export type StepArguments = { args: string[]; applied: Level; model: string | null };
+export type StepArguments = { args: string[]; applied: Level | null; model: string | null };
+export type Capability = Readonly<{
+  steps: 'all' | readonly Step[];
+  interactive: boolean;
+  dispatch: boolean;
+  landing: boolean;
+  setup: boolean;
+}>;
+export type SessionStart = Readonly<{
+  plugin: () => Promise<string>;
+  folder: string;
+  stepText: (() => Promise<string>) | null;
+}>;
 export type HostAdapter = Readonly<{
   app: string;
+  capability: Capability;
+  appliesEffort: boolean;
   exitKeys: (terminal: string) => string[];
   checkHome: () => Promise<void>;
   homeEnv: () => Promise<Readonly<Record<string, string>>>;
   stepEnv: (source: NodeJS.ProcessEnv) => NodeJS.ProcessEnv;
   pin: (main: string) => Promise<string[]>;
+  sessionEnv: (session: SessionStart) => Promise<Readonly<Record<string, string>>>;
   stepPrompt: (step: Step, issue: number) => string;
   stepArguments: (start: StepStart) => Promise<StepArguments>;
-  resumeArguments: (session: Readonly<{ session_id: string; effort: Level }>) => string[];
+  resumeArguments: (session: Readonly<{ session_id: string; effort: Level | null }>) => string[];
   interactiveArguments: (title: string, prompt: string, attempt: string) => string[];
   startId: () => string | null;
   claim: (checkout: string, prompt: string, announced: string, startedAt: number) => Promise<Claim>;

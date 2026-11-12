@@ -2,11 +2,11 @@ import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type ExitCode, exits, usage } from './lib/contract.ts';
 import { requireContract } from './lib/contract-check.ts';
-import { HostError } from './lib/errors.ts';
+import { HostError, unsupported } from './lib/errors.ts';
 import { installRecorder, markDefect, passOn } from './lib/events.ts';
 import { requireBun } from './lib/host.ts';
 import type { Host } from './lib/host-names.ts';
-import { runInteractive } from './lib/interactive.ts';
+import { interactiveHost, runInteractive } from './lib/interactive.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { childEnv } from './lib/process.ts';
 
@@ -14,6 +14,7 @@ const skillSentence: Record<Host, (plugin: string) => string> = {
   claude: () => 'Invoke the Skill tool with celetis:intake and the user request as its arguments.',
   codex: (plugin) =>
     `Read and follow the intake skill from ${JSON.stringify(join(plugin, 'skills/intake/SKILL.md'))} with the user request.`,
+  opencode: () => unsupported('opencode', 'intake session'),
 };
 
 function intakeText(host: Host, plugin: string): { title: string; prompt: string } {
@@ -37,10 +38,11 @@ export async function main(argv: string[]): Promise<ExitCode> {
       { explicit, environment: process.env.CELETIS_AGENT },
       'main',
     );
+    const host = await interactiveHost(operation, 'intake', 'celetis');
     const main = operation.checkout.main as string;
     process.chdir(main);
     return passOn(
-      await runInteractive(operation, async (host) => {
+      await runInteractive(operation, host, async (host) => {
         const plugin = await requireContract(host, main);
         const skill = join(plugin, 'skills/intake/SKILL.md');
         if (!(await stat(skill).catch(() => null))?.isFile())

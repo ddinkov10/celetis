@@ -166,6 +166,7 @@ export function startFiles(dir: string) {
     go: join(dir, 'go'),
     terminated: join(dir, 'terminated'),
     error: join(dir, 'error'),
+    env: join(dir, 'env'),
   });
 }
 

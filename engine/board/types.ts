@@ -1,7 +1,7 @@
 import type { Diff, Document, Flow, History, LandedIssue, QuotaState, QuotaWait } from '../lib/board-read-types.ts';
 import type { AgentChoice, AgentDecision, AgentOrder, Host, UsageBlock } from '../lib/config-core.ts';
 import type { Level, RowSource, StartPair } from '../lib/effort.ts';
-import type { Registry } from '../lib/host-names.ts';
+import type { PluginHost, Registry } from '../lib/host-names.ts';
 import type { QueueAction, QueueView } from '../lib/queue-types.ts';
 import type { IssueRow, ParentEpic, Pull } from '../lib/resolver-types.ts';
 import type { TerminalStatus } from '../lib/terminal-types.ts';
@@ -23,7 +23,7 @@ export type {
 export type BoardOffer = {
   id: string;
   target: string;
-  parts: { part: 'engine' | Host; installed: string; target: string }[];
+  parts: { part: 'engine' | PluginHost; installed: string; target: string }[];
 };
 export type UpdateView = {
   phase:
@@ -39,8 +39,8 @@ export type UpdateView = {
   offer: BoardOffer | null;
   target: string | null;
   stage: UpdateStage | null;
-  completed: ('engine' | Host)[];
-  incomplete: ('engine' | Host)[];
+  completed: ('engine' | PluginHost)[];
+  incomplete: ('engine' | PluginHost)[];
   error: string | null;
   recovery: string | null;
 };

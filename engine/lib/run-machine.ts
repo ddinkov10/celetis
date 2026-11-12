@@ -4,6 +4,8 @@ import type { AgentChoice, Config, Host } from './config-core.ts';
 import { type ExitCode, exits } from './contract.ts';
 import { type EffortDecision, noOverride, type Override } from './effort.ts';
 import { HostError } from './errors.ts';
+import type { SessionStart } from './host-types.ts';
+import { capableOrder } from './hosts.ts';
 import { describe, type Next } from './lines.ts';
 import type { Identity } from './locks.ts';
 import type { Operation } from './operation.ts';
@@ -80,8 +82,21 @@ export type QuotaWait = Readonly<
     }
   | { kind: 'kept'; wait: KeptWait }
 >;
-export type StepStart = Readonly<{ scope: 'issue'; args: string[]; facts: StepFacts; attempt: UsageAttempt }>;
-export type ResumeStart = Readonly<{ scope: 'resume'; saved: SessionRecord; host: Host; args: string[] }>;
+type SessionInput = Omit<SessionStart, 'folder'>;
+export type StepStart = Readonly<{
+  scope: 'issue';
+  args: string[];
+  facts: StepFacts;
+  attempt: UsageAttempt;
+  session: SessionInput;
+}>;
+export type ResumeStart = Readonly<{
+  scope: 'resume';
+  saved: SessionRecord;
+  host: Host;
+  args: string[];
+  session: SessionInput;
+}>;
 export type Start = StepStart | ResumeStart;
 export type Outcome = Readonly<{
   kind: 'closed' | 'gate' | 'stopped';
@@ -725,9 +740,10 @@ export const on: Table = {
     selected: (state, event) => {
       const { issue, resolution } = state;
       const { choice } = resolution.operation;
+      const preferred = resolution.config.agents?.[resolution.next.step];
       const decision = selectAgent(
         choice,
-        effectiveOrder(event.order, resolution.config.agents?.[resolution.next.step]),
+        capableOrder(effectiveOrder(event.order, preferred), { kind: 'step', step: resolution.next.step }, preferred),
         event.usage,
         event.now,
         new Set(issue.loop.attempted),

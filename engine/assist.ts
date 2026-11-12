@@ -2,11 +2,11 @@ import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type ExitCode, exits, usage } from './lib/contract.ts';
 import { requireContract } from './lib/contract-check.ts';
-import { HostError } from './lib/errors.ts';
+import { HostError, unsupported } from './lib/errors.ts';
 import { installRecorder, markDefect, passOn } from './lib/events.ts';
 import { requireBun } from './lib/host.ts';
 import type { Host } from './lib/host-names.ts';
-import { runInteractive } from './lib/interactive.ts';
+import { interactiveHost, runInteractive } from './lib/interactive.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { childEnv } from './lib/process.ts';
 
@@ -15,6 +15,7 @@ const promptFor: Record<Host, (issue: number, plugin: string) => string> = {
   codex: (issue, plugin) =>
     `Use the celetis:assist skill for #${issue}. Complete its Celetis entry before any response, including commentary.\n` +
     `Read the skill from ${JSON.stringify(join(plugin, 'skills/assist/SKILL.md'))}.`,
+  opencode: () => unsupported('opencode', 'assist session'),
 };
 
 export async function main(argv: string[]): Promise<ExitCode> {
@@ -30,10 +31,11 @@ export async function main(argv: string[]): Promise<ExitCode> {
       { explicit, environment: process.env.CELETIS_AGENT },
       'main',
     );
+    const host = await interactiveHost(operation, 'assist', 'celetis');
     const main = operation.checkout.main as string;
     process.chdir(main);
     return passOn(
-      await runInteractive(operation, async (host) => {
+      await runInteractive(operation, host, async (host) => {
         const plugin = await requireContract(host, main);
         const skill = join(plugin, 'skills/assist/SKILL.md');
         if (!(await stat(skill).catch(() => null))?.isFile())

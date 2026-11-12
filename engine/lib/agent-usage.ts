@@ -2,6 +2,7 @@ import { type BigIntStats, closeSync, constants, fstatSync, lstatSync, openSync,
 import type { AgentChoice, AgentDecision, Host, UsageBlock } from './config-core.ts';
 import { type ExitCode, exits } from './contract.ts';
 import { HostError } from './errors.ts';
+import { isSessionId } from './fields.ts';
 import { hosts } from './host-names.ts';
 import {
   checkFolder,
@@ -14,7 +15,7 @@ import {
   withLock,
   writeAtomic,
 } from './state.ts';
-import { type ObservedUsage, type UsageAttempt, usageAttempt, usageObject, usageUuid } from './usage-types.ts';
+import { type ObservedUsage, type UsageAttempt, usageAttempt, usageObject } from './usage-types.ts';
 
 export type UsageTicket = { attempt: UsageAttempt; ordinal: number };
 type UsageRecord = Readonly<{
@@ -207,7 +208,8 @@ export async function recordUsage(
       (observed.observation.kind === 'blocked' &&
         block({ reason: observed.observation.reason, resetAt: observed.observation.resetAt }))
     ) ||
-    (observed.sessionId !== null && (!usageUuid(observed.sessionId) || observed.sessionId !== attempt.sessionId)) ||
+    (observed.sessionId !== null &&
+      (!isSessionId(attempt.host, observed.sessionId) || observed.sessionId !== attempt.sessionId)) ||
     (observed.observation.kind !== 'unknown' &&
       (attempt.sessionId === null || observed.sessionId !== attempt.sessionId))
   )

@@ -3,10 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import type { Host } from '../lib/config-core.ts';
 import { stopLine } from '../lib/daemon-types.ts';
 import { HostError } from '../lib/errors.ts';
 import { recordEvent } from '../lib/events.ts';
+import type { PluginHost } from '../lib/host-names.ts';
 import { engineSource, installedEngine, readEngine } from '../lib/installation.ts';
 import { bunArgs, childEnv } from '../lib/process.ts';
 import type { PreparedUpdate, UpdateCheck, UpdateResult } from '../lib/updater.ts';
@@ -32,7 +32,7 @@ class WorkerFailure extends Error {
 }
 
 type Worker = { done: Promise<UpdateCheck | UpdateResult>; stop(reason: string): void };
-type Component = 'engine' | Host;
+type Component = 'engine' | PluginHost;
 const pendingParts = (offer: PreparedUpdate): Component[] => [
   ...offer.plugins.filter((plugin) => plugin.installed !== plugin.target).map((plugin) => plugin.host),
   ...(offer.engine.source.revision !== offer.target ? (['engine'] as const) : []),

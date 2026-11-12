@@ -5,6 +5,8 @@ import { daemonSocket, landingSubject, parseAnswer, parseLandingRecord } from '.
 import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect, recordedElsewhere, writeUnrecorded } from './lib/events.ts';
 import { isIssueNumber } from './lib/fields.ts';
+import { isHost } from './lib/host-names.ts';
+import { requireCan } from './lib/hosts.ts';
 import { commandInput, locateCheckouts } from './lib/operation.ts';
 import { run } from './lib/process.ts';
 
@@ -51,6 +53,9 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
     console.error(`land: ${outcome}: ${error.message}`);
     return exits[outcome];
   }
+  const selection = requestSelection(explicit);
+  const chosen = selection.explicit ?? selection.environment;
+  if (isHost(chosen)) requireCan(chosen, { kind: 'landing', command: 'land' }, 'celetis');
   try {
     await requireDaemon(common, 'land');
   } catch (error) {
@@ -69,7 +74,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
     response = await fetch('http://daemon/land', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ number, subject, selection: requestSelection(explicit), from }),
+      body: JSON.stringify({ number, subject, selection, from }),
       signal: abort.signal,
       unix: daemonSocket(common),
     });

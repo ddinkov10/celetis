@@ -4,7 +4,7 @@ import type { AgentOrder, Host } from './config-core.ts';
 import { type ExitCode, exits } from './contract.ts';
 import { HostError } from './errors.ts';
 import { orderVersion } from './fields.ts';
-import { hosts, isHost } from './host-names.ts';
+import { hostChoices, isHost } from './host-names.ts';
 import {
   checkFolder,
   ensureFolder,
@@ -24,6 +24,7 @@ export class AgentOrderConflict extends Error {
   }
 }
 
+const initialOrder: readonly Host[] = ['claude', 'codex'];
 const invalid = (path: string, reason: string, code: ExitCode = exits.blocked) =>
   new HostError(`agents: ${path}: ${reason}`, code);
 const sameFile = (a: BigIntStats, b: BigIntStats) => a.dev === b.dev && a.ino === b.ino;
@@ -53,7 +54,7 @@ export function validateAgentOrder(value: unknown): readonly Host[] {
     Array.from(value).some((host) => !isHost(host)) ||
     new Set(value).size !== value.length
   )
-    throw new HostError(`agents: order must be a nonempty, unique list of ${hosts.join(' or ')}`, exits.usage);
+    throw new HostError(`agents: order must be a nonempty, unique list of ${hostChoices}`, exits.usage);
   return Object.freeze([...value]) as readonly Host[];
 }
 
@@ -78,7 +79,7 @@ function readOrder(layout: RepositoryLayout): AgentOrder {
   const folder = checkFolder(layout.root);
   const path = layout.agents;
   const before = folder ? statAt(path) : null;
-  if (!before) return versioned(validateAgentOrder([...hosts]));
+  if (!before) return versioned(validateAgentOrder(initialOrder));
   regular(path, before);
   const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {

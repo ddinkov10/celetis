@@ -5,7 +5,7 @@ import { exits, stepHeader } from './contract.ts';
 import { isLevel, type Level, type StartPair } from './effort.ts';
 import { HostError } from './errors.ts';
 import { recordEvent } from './events.ts';
-import { uuid } from './fields.ts';
+import { isSessionId } from './fields.ts';
 import { commonDir } from './git.ts';
 import { isHost } from './host-names.ts';
 import type { Claim } from './host-types.ts';
@@ -24,7 +24,7 @@ export interface SessionRecord {
   step: Step;
   checkout: string;
   session_id: string | null;
-  effort: Level;
+  effort: Level | null;
 }
 export type SavedSession = SessionRecord & { session_id: string };
 type StepFacts = {
@@ -47,7 +47,7 @@ function sessionFields(value: Record<string, unknown>, main: string, issue: numb
     isHost(value.host) &&
     typeof value.step === 'string' &&
     steps.includes(value.step as Step) &&
-    (value.session_id === null || (typeof value.session_id === 'string' && uuid.test(value.session_id)))
+    (value.session_id === null || isSessionId(value.host, value.session_id))
   );
 }
 
@@ -57,7 +57,7 @@ export function validateSession(value: unknown, main: string, issue: number, fil
     Object.keys(value).sort().join(',') !== 'checkout,effort,host,issue,schema,session_id,step' ||
     value.schema !== 2 ||
     !sessionFields(value, main, issue) ||
-    !isLevel(value.effort)
+    !(isHost(value.host) && (hostAdapter(value.host).appliesEffort ? isLevel(value.effort) : value.effort === null))
   ) {
     throw new HostError(
       `session: ${file}: invalid schema-2 fields; preserve the record and repair its data`,
@@ -240,8 +240,9 @@ export async function stepText(facts: StepFacts): Promise<string> {
   return `${stepHeader(facts)}\n\n${text}`;
 }
 
-export function startLine(prompt: string, start: StartPair, applied: Level, kept: string | null): string {
+export function startLine(prompt: string, start: StartPair, applied: Level | null, kept: string | null): string {
   const line = `start: ${prompt} on ${start.model} (${start.source.model}) at ${start.level} (${start.source.level})`;
+  if (applied === null) return `${line}; opencode keeps the model and the variant of its configuration`;
   return kept === null ? line : `${line}; codex keeps its configured model ${kept} and applies ${applied}`;
 }
 

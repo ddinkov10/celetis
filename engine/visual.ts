@@ -1,11 +1,12 @@
 import { mkdir, rm } from 'node:fs/promises';
 import { type ExitCode, exits, usage } from './lib/contract.ts';
-import { HostError } from './lib/errors.ts';
+import { HostError, unsupported } from './lib/errors.ts';
 import { installRecorder, markDefect, passOn } from './lib/events.ts';
 import { isCommit, isIssueNumber } from './lib/fields.ts';
 import { requireBun } from './lib/host.ts';
 import type { Host } from './lib/host-names.ts';
-import { runInteractive } from './lib/interactive.ts';
+import { type Need, requireCan } from './lib/hosts.ts';
+import { interactiveHost, runInteractive } from './lib/interactive.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 import { childEnv, run } from './lib/process.ts';
 import { hasPage, partialPage, visualFolder, visualLink, visualPage } from './lib/visual.ts';
@@ -18,8 +19,14 @@ const codexInstall =
 const skillSentence: Record<Host, (sha: string) => string> = {
   claude: (sha) => `Invoke the Skill tool with visual-explainer:diff-review and the argument ${sha}. `,
   codex: (sha) => `Use the visual-explainer skill and make its diff review of the commit ${sha}. `,
+  opencode: () => unsupported('opencode', 'visual session'),
 };
-const installPath: Record<Host, string> = { claude: claudeInstall, codex: codexInstall };
+const installPath: Record<Host, () => string> = {
+  claude: () => claudeInstall,
+  codex: () => codexInstall,
+  opencode: () => unsupported('opencode', 'visual session'),
+};
+const need: Need = { kind: 'interactive', command: 'visual' };
 
 function visualText(host: Host, issue: number, sha: string, main: string): { title: string; prompt: string } {
   const partial = JSON.stringify(partialPage(main, sha));
@@ -32,7 +39,7 @@ function visualText(host: Host, issue: number, sha: string, main: string): { tit
     `Then open ${page} in the default browser of the OS, as the delivery of the skill does. ` +
     'Change no other file, make no commit, and push nothing. ' +
     'When this session has no visual-explainer skill, say exactly "visual-explainer is not available in this session.", ' +
-    `then the install path of this host: ${installPath[host]}. ` +
+    `then the install path of this host: ${installPath[host]()}. ` +
     'Write no file, make no page of your own, and end the turn.';
   return { title: visualLink(issue), prompt };
 }
@@ -55,6 +62,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
       { explicit, environment: process.env.CELETIS_AGENT },
       'main',
     );
+    if (operation.choice.kind === 'explicit') requireCan(operation.choice.host, need, 'celetis');
     const main = operation.checkout.main as string;
     process.chdir(main);
     const remote = await run('git', ['ls-remote', '--symref', 'origin', 'HEAD'], { cwd: main });
@@ -88,7 +96,8 @@ export async function main(argv: string[]): Promise<ExitCode> {
       );
     await mkdir(visualFolder(main), { recursive: true });
     await rm(partialPage(main, sha), { force: true });
-    return passOn(await runInteractive(operation, async (host) => visualText(host, issue, sha, main)));
+    const host = await interactiveHost(operation, 'visual', 'celetis');
+    return passOn(await runInteractive(operation, host, async (host) => visualText(host, issue, sha, main)));
   } catch (error) {
     markDefect(error);
     console.error(error instanceof HostError ? error.message : `celetis-visual: ${(error as Error).message}`);

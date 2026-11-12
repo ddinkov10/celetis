@@ -10,7 +10,7 @@ import { type Config, ConfigError, formatConfigError, type Host, validateWorktre
 import { type ExitCode, exits, type Label, labels, usage } from './lib/contract.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect, passOn } from './lib/events.ts';
-import { hostAdapter } from './lib/hosts.ts';
+import { hostAdapter, type Need, requireCan } from './lib/hosts.ts';
 import { editJSON, jsonStyle, layoutJSON } from './lib/json-layout.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
 import { checkClaudePolicy } from './lib/plugin-policy.ts';
@@ -1088,16 +1088,23 @@ class Setup {
   }
 }
 
+const need: Need = { kind: 'setup', command: 'setup' };
+
 export async function main(argv: string[]): Promise<ExitCode> {
   try {
     const { args, explicit } = commandInput(argv);
     const input = parseCommand(args);
     const checkout = await locateCheckouts(process.cwd());
     const selection = { explicit, environment: process.env.CELETIS_AGENT };
-    if (input.command === 'status') return await setupStatus(await createOperation(checkout, selection, 'host'));
+    if (input.command === 'status') {
+      const status = await createOperation(checkout, selection, 'host');
+      requireCan(status.host, need, 'celetis');
+      return await setupStatus(status);
+    }
     const config = checkout.main !== null && (await hasConfig(checkout.main));
     const full = ['check', 'write', 'lane', 'try'].includes(input.command);
     const operation = await createOperation(checkout, selection, full && config ? 'main' : 'host');
+    requireCan(operation.host, need, 'celetis');
     await hostAdapter(operation.host).checkHome();
     return await new Setup(operation).execute(input);
   } catch (error) {

@@ -1,7 +1,7 @@
 import { bunFloor, type Host } from './config-core.ts';
 import { exits } from './contract.ts';
 import { HostError } from './errors.ts';
-import { hosts, isHost } from './host-names.ts';
+import { hostChoices, isHost } from './host-names.ts';
 import { childEnv } from './process.ts';
 
 export type HostAvailability = { available: true; executable: string } | { available: false; cause: string };
@@ -13,7 +13,7 @@ export function requireBun(): void {
 }
 
 export function selectHost(host: string): Host {
-  if (!isHost(host)) throw new HostError(`celetis: invalid agent ${host}; use ${hosts.join(' or ')}`, exits.usage);
+  if (!isHost(host)) throw new HostError(`celetis: invalid agent ${host}; use ${hostChoices}`, exits.usage);
   return host;
 }
 

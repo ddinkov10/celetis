@@ -1,6 +1,6 @@
 import type { Stats } from 'node:fs';
 import { lstat, readdir, readFile, realpath } from 'node:fs/promises';
-import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { codexRequest } from './codex-app-server.ts';
 import type { Host } from './config-core.ts';
@@ -9,13 +9,16 @@ import { HostError, NotInstalled } from './errors.ts';
 import { revision } from './fields.ts';
 import { git, mainCheckout } from './git.ts';
 import { codexHome, configHome } from './homes.ts';
+import type { PluginHost } from './host-names.ts';
 import { childEnv, run, updateDescriptor } from './process.ts';
+
+const engineRoot = resolve(import.meta.dir, '../..');
 
 export const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 
 export async function installedRevision(
-  host: Host | 'engine',
+  host: PluginHost | 'engine',
   root: string,
   source: string,
   nativeRevision?: string,
@@ -100,7 +103,7 @@ export async function installedRevision(
   return installed;
 }
 
-export async function bindUpdateHome(host: Host, selected = configHome(host)): Promise<string> {
+export async function bindUpdateHome(host: PluginHost, selected = configHome(host)): Promise<string> {
   if (!isAbsolute(selected)) throw new HostError(`update: ${host} home must be absolute: ${selected}`, exits.usage);
   const home = await realpath(selected).catch(() => null);
   if (!home || !(await lstat(home)).isDirectory())
@@ -145,7 +148,7 @@ export async function jsonFile(path: string, optional = false): Promise<Record<s
 }
 
 export async function nativeJson(
-  host: Host,
+  host: PluginHost,
   args: string[],
   cwd: string,
   env = childEnv(),
@@ -599,6 +602,7 @@ export async function codexSessionPin(cwd: string): Promise<string[]> {
 }
 
 export async function installedRoot(host: Host, cwd: string, execute: typeof run = run): Promise<string> {
+  if (host === 'opencode') return join(engineRoot, 'plugins', 'celetis');
   if (host === 'claude') {
     const missing =
       'celetis: no enabled Celetis installation; run: claude plugin marketplace add ddinkov10/celetis && claude plugin install celetis@celetis';

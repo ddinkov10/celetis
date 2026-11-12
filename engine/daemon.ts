@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { closeSync, openSync } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { constants } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
 import { type ExitCode, exits, signalExit, usage } from './lib/contract.ts';
@@ -249,6 +249,24 @@ async function prepareState(argv: string[]): Promise<ExitCode> {
   }
 }
 
+async function sessionEnv(files: ReturnType<typeof startFiles>): Promise<Readonly<Record<string, string>>> {
+  const value: unknown = await readFile(files.env, 'utf8')
+    .then((text) => JSON.parse(text))
+    .catch(() => null);
+  if (
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Object.values(value).every((each) => typeof each === 'string')
+  )
+    return value as Record<string, string>;
+  await writeAtomic(files.error, '');
+  throw new HostError(
+    `celetis: the session environment file ${files.env} is not valid; start the step again`,
+    exits.internal,
+  );
+}
+
 async function waitingSession(args: string[]): Promise<ExitCode> {
   installRecorder('session-start');
   const [dir, daemon, host, attempt, recovery, ...hostArgs] = args;
@@ -271,12 +289,13 @@ async function waitingSession(args: string[]): Promise<ExitCode> {
   }
   let code: ExitCode;
   try {
+    const session = await sessionEnv(files);
     const source: NodeJS.ProcessEnv = { ...process.env, CELETIS_SESSION_AGENT: host };
     delete source.CELETIS_RECOVERY;
     delete source.CELETIS_ATTEMPT;
     if (attempt !== '-') source.CELETIS_ATTEMPT = attempt;
     if (recovery === 'recovery') source.CELETIS_RECOVERY = attempt;
-    const env = { ...childEnv(adapter.stepEnv(source)), ...(await adapter.homeEnv()) };
+    const env = { ...childEnv(adapter.stepEnv(source)), ...(await adapter.homeEnv()), ...session };
     const availability = hostAvailability(host, env);
     if (!availability.available) throw new HostError(availability.cause, exits.prerequisite);
     const { executable } = availability;

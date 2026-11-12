@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { codexRequest } from './codex-app-server.ts';
-import type { Host } from './config-core.ts';
 import {
   type ExitCode,
   exits,
@@ -19,7 +18,7 @@ import { revision } from './fields.ts';
 import { git } from './git.ts';
 import { configHome } from './homes.ts';
 import { hostAvailability, requireBun } from './host.ts';
-import { isHost } from './host-names.ts';
+import { isHost, isPluginHost, type PluginHost, pluginHosts } from './host-names.ts';
 import { type Engine, type EngineSource, engineSource, installEngine, readEngine } from './installation.ts';
 import { commandInput } from './operation.ts';
 import {
@@ -43,7 +42,7 @@ export type { UpdateStage };
 
 export type UpdateTarget = { home: string; root: string; source: string; installed: string; target: string };
 export type Installation = {
-  host: Host;
+  host: PluginHost;
   home: string;
   root: string;
   source: string;
@@ -55,10 +54,10 @@ export type Installation = {
 };
 type Offer = Omit<UpdateTarget, 'home'> & { ref: string };
 export type Part =
-  | { part: 'engine' | Host; skipped: string }
-  | { part: 'engine' | Host; error: string }
+  | { part: 'engine' | PluginHost; skipped: string }
+  | { part: 'engine' | PluginHost; error: string }
   | ({ part: 'engine' } & Offer)
-  | ({ part: Host } & UpdateTarget & { ref: string });
+  | ({ part: PluginHost } & UpdateTarget & { ref: string });
 export type PreparedUpdate = {
   parts: Part[];
   engine: { installed: Engine; source: EngineSource };
@@ -69,8 +68,8 @@ export type UpdateCheck = { parts: Part[]; offer: PreparedUpdate | null; error: 
 export type UpdateResult = {
   ok: boolean;
   target: string;
-  completed: ('engine' | Host)[];
-  incomplete: ('engine' | Host)[];
+  completed: ('engine' | PluginHost)[];
+  incomplete: ('engine' | PluginHost)[];
   error: string | null;
 };
 type PluginUpdate = PreparedUpdate['plugins'][number];
@@ -132,7 +131,7 @@ async function claudeRegistrations(records: unknown, scope: unknown, version: un
   return matches;
 }
 
-async function installation(host: Host, cwd: string): Promise<Installation> {
+async function installation(host: PluginHost, cwd: string): Promise<Installation> {
   const home = await bindUpdateHome(host);
   let siblings: string[] = [];
   let scope: string | undefined;
@@ -279,13 +278,13 @@ async function remoteTarget(source: string, ref: string, cwd: string): Promise<{
   return { ref: names.get(selected) || selected, target };
 }
 
-async function inspect(host: Host, cwd: string): Promise<Installation & { target: string; resolvedRef: string }> {
+async function inspect(host: PluginHost, cwd: string): Promise<Installation & { target: string; resolvedRef: string }> {
   const found = await installation(host, cwd);
   const { ref, target } = await remoteTarget(found.source, found.ref, cwd);
   return { ...found, target, resolvedRef: ref };
 }
 
-async function settle(part: 'engine' | Host, read: () => Promise<Part>): Promise<Part> {
+async function settle(part: 'engine' | PluginHost, read: () => Promise<Part>): Promise<Part> {
   try {
     return await read();
   } catch (error) {
@@ -294,7 +293,7 @@ async function settle(part: 'engine' | Host, read: () => Promise<Part>): Promise
   }
 }
 
-async function inspectPlugin(host: Host, cwd: string, ownerPid?: number): Promise<PluginUpdate | string> {
+async function inspectPlugin(host: PluginHost, cwd: string, ownerPid?: number): Promise<PluginUpdate | string> {
   if (!hostAvailability(host).available) return `no ${host} command on PATH`;
   if (host === 'codex') {
     const home = configHome(host);
@@ -372,7 +371,7 @@ function pairLines(
   serves: ReadonlyMap<number, string> | null,
   target: string,
   plugins: PluginUpdate[],
-  needs: Map<Host, number | null>,
+  needs: Map<PluginHost, number | null>,
   changed: boolean,
 ): string[] {
   const action = `${changed ? '' : 'nothing changed; '}set one compatible source and ref for the parts (plugins/celetis/README.md, "Updates")`;
@@ -398,7 +397,7 @@ async function discoverUpdate(
   let engine: PreparedUpdate['engine'] | null = null;
   let serves: ReadonlyMap<number, string> | null = null;
   const plugins: PluginUpdate[] = [];
-  const needs = new Map<Host, number | null>();
+  const needs = new Map<PluginHost, number | null>();
   const scratch: Scratch = { folder: null, fetched: new Set() };
   try {
     const found = [
@@ -428,7 +427,7 @@ async function discoverUpdate(
         };
       }),
     ];
-    for (const host of ['claude', 'codex'] as const)
+    for (const host of pluginHosts)
       found.push(
         await settle(host, async () => {
           const inspected = await inspectPlugin(host, cwd, ownerPid);
@@ -495,7 +494,7 @@ async function replaceClaudeMarketplace(
   await writeAtomic(path, JSON.stringify({ ...registry, celetis: replacement }), { mode: metadata.mode & 0o7777 });
 }
 
-async function updatePlugin(ownerPid: number, host: Host, target: PluginUpdate): Promise<PluginUpdate> {
+async function updatePlugin(ownerPid: number, host: PluginHost, target: PluginUpdate): Promise<PluginUpdate> {
   if (
     !target.home ||
     !target.root ||
@@ -795,11 +794,11 @@ export async function executeUpdate(
   stage: (value: UpdateStage) => void,
   ownerPid: number,
 ): Promise<UpdateResult> {
-  const pending: ('engine' | Host)[] = offer.plugins
+  const pending: ('engine' | PluginHost)[] = offer.plugins
     .filter((plugin) => plugin.installed !== plugin.target)
     .map((plugin) => plugin.host);
   if (offer.engine.source.revision !== offer.target) pending.push('engine');
-  const completed: ('engine' | Host)[] = [];
+  const completed: ('engine' | PluginHost)[] = [];
   const expected = structuredClone(offer);
   try {
     const before = await discoverUpdate(process.cwd(), ownerPid);
@@ -879,7 +878,7 @@ async function child(argv: string[]): Promise<ExitCode> {
     const { args } = commandInput(argv);
     if (args[0] === '--policy' && args.length === 2 && isHost(args[1]))
       await requireUpdatePolicy(args[1], process.cwd());
-    else if (args[0] === '--inspect' && args.length === 2 && isHost(args[1])) {
+    else if (args[0] === '--inspect' && args.length === 2 && isPluginHost(args[1])) {
       try {
         console.log(JSON.stringify(await inspect(args[1], process.cwd())));
       } catch (error) {

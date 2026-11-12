@@ -12,7 +12,8 @@ cite it.
 - **A Verify scenario that cannot run:** a guard refusal, the `## Before landing` hold, and its
   re-entry.
 - **The act that moves the line:** the last act of the turn.
-- **Claude Code** and **Codex:** how the maintainer lifts a guard refusal in the session.
+- **Claude Code**, **Codex**, and **OpenCode:** how the maintainer lifts a guard refusal in the
+  session.
 
 ## The two modes
 
@@ -226,3 +227,8 @@ With the approval policy `on-request`, Codex asks the maintainer for the approva
 prompt is the live question, and a refusal there is a "no". With `never`, no prompt can come, so a
 sandbox refusal stays a setup stop (`<plugin>/references/procedures/entry.md`, "The contract"), and a
 guard refusal is a hold.
+
+## OpenCode
+
+With `--auto`, OpenCode shows no approval prompt for an action that no rule denies. The maintainer
+cannot lift the refusal of a `deny` rule in the session, so that refusal is a hold.

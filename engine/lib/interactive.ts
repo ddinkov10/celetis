@@ -3,11 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { constants } from 'node:os';
 import { readAgentOrder } from './agent-order.ts';
 import { beginUsageAttempt, readUsage, recordUsage, selectAgent } from './agent-usage.ts';
-import { exits } from './contract.ts';
+import { type CommandName, exits } from './contract.ts';
 import { HostError } from './errors.ts';
 import { hostAvailability } from './host.ts';
 import type { Host } from './host-names.ts';
-import { hostAdapter } from './hosts.ts';
+import { capableOrder, hostAdapter, type Need, requireCan } from './hosts.ts';
 import type { Operation } from './operation.ts';
 import { requireUpdatePolicy } from './plugin-policy.ts';
 import { childEnv } from './process.ts';
@@ -15,15 +15,17 @@ import { repositoryLayout } from './state.ts';
 import { withPluginRead } from './update-lock.ts';
 import type { UsageAttempt } from './usage-types.ts';
 
-export async function runInteractive(
+export async function interactiveHost(
   operation: Operation,
-  textForHost: (host: Host) => Promise<{ title: string; prompt: string }>,
-): Promise<number> {
-  const { main, common, cwd } = operation.checkout;
-  if (main === null || common === null) throw new HostError('celetis: need a Git checkout', exits.usage);
+  command: CommandName,
+  prefix: 'celetis' | 'coordinator',
+): Promise<Host> {
+  const { common } = operation.checkout;
+  if (common === null) throw new HostError('celetis: need a Git checkout', exits.usage);
+  const need: Need = { kind: 'interactive', command };
   const decision = selectAgent(
     operation.choice,
-    (await readAgentOrder(common)).order,
+    capableOrder((await readAgentOrder(common)).order, need),
     await readUsage(common),
     Date.now(),
     new Set(),
@@ -34,9 +36,19 @@ export async function runInteractive(
       (value) =>
         `${value.host}: ${value.reason} Reset: ${value.resetAt === null ? 'unknown' : new Date(value.resetAt).toISOString()}`,
     );
-    throw new HostError(`celetis: all default agents are blocked.\n${blocked.join('\n')}`, exits.prerequisite);
+    throw new HostError(`${prefix}: all default agents are blocked.\n${blocked.join('\n')}`, exits.prerequisite);
   }
-  const host = decision.host;
+  requireCan(decision.host, need, 'celetis');
+  return decision.host;
+}
+
+export async function runInteractive(
+  operation: Operation,
+  host: Host,
+  textForHost: (host: Host) => Promise<{ title: string; prompt: string }>,
+): Promise<number> {
+  const { main, common, cwd } = operation.checkout;
+  if (main === null || common === null) throw new HostError('celetis: need a Git checkout', exits.usage);
   const adapter = hostAdapter(host);
   const availability = hostAvailability(host);
   if (!availability.available) throw new HostError(availability.cause, exits.prerequisite);

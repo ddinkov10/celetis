@@ -84,6 +84,7 @@ export function tryFlock(fd: number, shared = false): boolean {
 }
 
 export async function withPluginRead<T>(host: Host, inspect: () => Promise<T>): Promise<T> {
+  if (host === 'opencode') return inspect();
   const home = host === 'codex' ? await codexHome() : configHome(host);
   await mkdir(home, { recursive: true });
   const fd = openSync(join(home, 'celetis-update.lock'), 'a+', 0o600);

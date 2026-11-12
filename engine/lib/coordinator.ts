@@ -2,8 +2,6 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
-import { readAgentOrder } from './agent-order.ts';
-import { readUsage, selectAgent } from './agent-usage.ts';
 import { type ExitCode, exits } from './contract.ts';
 import { requireContract } from './contract-check.ts';
 import { daemonArgv } from './daemon-start.ts';
@@ -18,11 +16,12 @@ import {
   stopLine,
   textLimit,
 } from './daemon-types.ts';
-import { HostError } from './errors.ts';
+import { HostError, unsupported } from './errors.ts';
 import { uuid } from './fields.ts';
 import { hostAvailability } from './host.ts';
 import { type Host, isHost } from './host-names.ts';
-import { hostAdapter } from './hosts.ts';
+import { hostAdapter, writeSessionEnv } from './hosts.ts';
+import { interactiveHost } from './interactive.ts';
 import type { Identity } from './locks.ts';
 import { type CheckoutIdentity, createOperation } from './operation.ts';
 import { requireUpdatePolicy } from './plugin-policy.ts';
@@ -87,6 +86,7 @@ const promptFor: Record<Host, (skill: string) => string> = {
   codex: (skill) =>
     'Use the celetis:coordinate skill. Complete its Celetis entry before any response, including commentary.\n' +
     `Read the skill from ${JSON.stringify(skill)}.`,
+  opencode: () => unsupported('opencode', 'coordinator session'),
 };
 
 const object = (value: unknown): value is Record<string, unknown> =>
@@ -251,22 +251,7 @@ export function createCoordinator(
 
   const start = async (selection: Selection): Promise<Said> => {
     const operation = await createOperation(checkout, selection, 'main');
-    const decision = selectAgent(
-      operation.choice,
-      (await readAgentOrder(common)).order,
-      await readUsage(common),
-      Date.now(),
-      new Set(),
-      false,
-    );
-    if (decision.kind === 'wait') {
-      const blocked = decision.blocked.map(
-        (value) =>
-          `${value.host}: ${value.reason} Reset: ${value.resetAt === null ? 'unknown' : new Date(value.resetAt).toISOString()}`,
-      );
-      throw new HostError(`coordinator: all default agents are blocked.\n${blocked.join('\n')}`, exits.prerequisite);
-    }
-    const { host } = decision;
+    const host = await interactiveHost(operation, 'coordinator', 'coordinator');
     const adapter = hostAdapter(host);
     await adapter.checkHome();
     await withPluginRead(host, () => requireUpdatePolicy(host, main));
@@ -283,6 +268,14 @@ export function createCoordinator(
     let terminal = '';
     let written = false;
     try {
+      try {
+        await writeSessionEnv(host, { plugin: async () => plugin, folder, stepText: null });
+      } catch (error) {
+        throw new HostError(
+          `coordinator: cannot prepare the session environment: ${described(error)}`,
+          error instanceof HostError ? error.code : exits.blocked,
+        );
+      }
       const argv = [
         // hc gives the tab the environment of its server, not of this daemon.
         'env',

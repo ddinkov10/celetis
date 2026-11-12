@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { uuid } from './fields.ts';
+import { exits } from './contract.ts';
+import { HostError } from './errors.ts';
+import { isSessionId } from './fields.ts';
 import { configHome } from './homes.ts';
 import type { HostAdapter } from './host-types.ts';
 import { ensureFolder } from './state.ts';
@@ -14,6 +16,8 @@ function object(value: unknown): value is Record<string, unknown> {
 
 export const claude: HostAdapter = {
   app: 'claude-code',
+  capability: { steps: 'all', interactive: true, dispatch: true, landing: true, setup: true },
+  appliesEffort: true,
   exitKeys: (terminal) => ['send', terminal, '/exit'],
   checkHome: async () => {},
   homeEnv: async () => ({}),
@@ -24,6 +28,7 @@ export const claude: HostAdapter = {
     );
   },
   pin: async () => [],
+  sessionEnv: async () => ({}),
   stepPrompt: invocation,
   stepArguments: async ({ issue, step, start, stepText }) => ({
     args: [
@@ -41,12 +46,15 @@ export const claude: HostAdapter = {
     applied: start.level,
     model: null,
   }),
-  resumeArguments: (session) => ['--resume', session.session_id, '--effort', session.effort],
+  resumeArguments: (session) => {
+    if (session.effort === null) throw new HostError('daemon: a claude session record has no effort', exits.internal);
+    return ['--resume', session.session_id, '--effort', session.effort];
+  },
   interactiveArguments: (title, prompt) => ['-n', title, prompt],
   startId: () => randomUUID(),
   claim: async (_checkout, _prompt, announced) => ({ kind: 'one', id: announced }),
   verifySession: async (checkout, sessionId, startedAt) => {
-    if (!sessionId || !uuid.test(sessionId)) return false;
+    if (!isSessionId('claude', sessionId)) return false;
     const projects = join(configHome('claude'), 'projects');
     for (const name of await readdir(projects).catch(() => [])) {
       const source = await readFile(join(projects, name, `${sessionId}.jsonl`), 'utf8').catch(() => null);

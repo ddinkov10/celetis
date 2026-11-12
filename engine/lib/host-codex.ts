@@ -2,7 +2,7 @@ import { codexRequest } from './codex-app-server.ts';
 import { exits } from './contract.ts';
 import { clampEffort, type Level, levels, type Model } from './effort.ts';
 import { HostError } from './errors.ts';
-import { uuid } from './fields.ts';
+import { isSessionId } from './fields.ts';
 import { codexHome } from './homes.ts';
 import type { Claim, HostAdapter } from './host-types.ts';
 import { codexSessionPin } from './plugin-metadata.ts';
@@ -29,8 +29,7 @@ async function codexClaim(checkout: string, prompt: string, startedAt: number): 
   if (!Array.isArray(threads)) return { kind: 'none' };
   const ids = threads.flatMap((thread) =>
     object(thread) &&
-    typeof thread.id === 'string' &&
-    uuid.test(thread.id) &&
+    isSessionId('codex', thread.id) &&
     thread.cwd === checkout &&
     typeof thread.createdAt === 'number' &&
     thread.createdAt >= startedAt &&
@@ -101,6 +100,8 @@ async function codexModels(cwd: string): Promise<unknown[]> {
 
 export const codex: HostAdapter = {
   app: 'codex',
+  capability: { steps: 'all', interactive: true, dispatch: true, landing: true, setup: true },
+  appliesEffort: true,
   exitKeys: (terminal) => ['keys', terminal, 'ctrl+c', 'ctrl+c'],
   checkHome: async () => {
     await codexHome();
@@ -108,6 +109,7 @@ export const codex: HostAdapter = {
   homeEnv: async () => ({ CODEX_HOME: await codexHome() }),
   stepEnv: (source) => source,
   pin: codexSessionPin,
+  sessionEnv: async () => ({}),
   stepPrompt: codexPrompt,
   stepArguments: async ({ issue, step, cwd, start, stepText }) => {
     const args = ['--no-daemon'];
@@ -129,18 +131,21 @@ export const codex: HostAdapter = {
     args.push('-c', `model_reasoning_effort=${JSON.stringify(applied)}`, codexPrompt(step, issue));
     return { args, applied, model };
   },
-  resumeArguments: (session) => [
-    'resume',
-    '--no-daemon',
-    '-c',
-    `model_reasoning_effort=${JSON.stringify(session.effort)}`,
-    session.session_id,
-  ],
+  resumeArguments: (session) => {
+    if (session.effort === null) throw new HostError('daemon: a codex session record has no effort', exits.internal);
+    return [
+      'resume',
+      '--no-daemon',
+      '-c',
+      `model_reasoning_effort=${JSON.stringify(session.effort)}`,
+      session.session_id,
+    ];
+  },
   interactiveArguments: (_title, prompt, attempt) => ['--no-daemon', `${prompt}\nLauncher attempt: ${attempt}.`],
   startId: () => null,
   claim: (checkout, prompt, _announced, startedAt) => codexClaim(checkout, prompt, startedAt),
   verifySession: async (checkout, sessionId, startedAt) => {
-    if (!sessionId || !uuid.test(sessionId)) return false;
+    if (!isSessionId('codex', sessionId)) return false;
     try {
       const reply = await codexRequest(checkout, 'thread/read', {
         threadId: sessionId,

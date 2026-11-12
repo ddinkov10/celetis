@@ -13,18 +13,21 @@ import { type ExitCode, exits, updateHint, usage } from './lib/contract.ts';
 import { levels } from './lib/effort.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder } from './lib/events.ts';
+import { isHost } from './lib/host-names.ts';
+import { type Need, requireCan } from './lib/hosts.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
 
 const flagLines = [
   '--bias N                 effort bias (CAP_EFFORT_BIAS; default 0)',
   '--attempt N              gate-fail attempt (default 1; 4 or later stops)',
-  '--agent claude|codex      explicit agent (CELETIS_AGENT > local order; no checkout: claude)',
+  '--agent HOST             explicit agent claude|codex|opencode (CELETIS_AGENT > local order; no checkout: claude)',
   '--json                   score of the selected host plus the applied dispatch pair',
   "--reviewer               apply the selected host's reviewer minimum",
   '--profile FILE           Codex profile (CAP_MODEL_PROFILE > main config profile > parent model)',
   '--runtime-models FILE    active dispatch allowlist for a Codex profile (CAP_RUNTIME_MODELS)',
   'See docs/capability.md of the plugin celetis for profile and result schemas.',
 ];
+const need: Need = { kind: 'dispatch', command: 'capscore' };
 
 export async function main(argv: string[]): Promise<ExitCode> {
   const cwd = process.cwd();
@@ -99,12 +102,15 @@ export async function main(argv: string[]): Promise<ExitCode> {
     let host: string | null = null;
     let dispatch: Pair | null = null;
     let line = `${label} → STOP (attempt ${attemptText}: escalate to user with failure trail)`;
+    const chosen = agent ?? environment;
+    if (isHost(chosen)) requireCan(chosen, need, 'celetis');
     if (attempt < 4) {
       const identity = await locateCheckouts(cwd);
       checkout = identity.main;
       const operation = await createOperation(identity, { explicit: agent, environment }, (selected) =>
         bindingMode(selected, profile, checkout),
       );
+      requireCan(operation.host, need, 'celetis');
       const binding = await readBinding(operation.host, { profile, runtimeFile }, checkout, operation.mainConfig);
       host = binding.host;
       score = resolveScore(digits, bias, attempt, binding.host);

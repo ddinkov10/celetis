@@ -11,7 +11,7 @@ nothing after a `---` marker on its line.
 | --- | --- | --- |
 | `landing` | Required: `pr` or `merge`. `pr` squash-merges a PR when each check is green. `merge` creates one squash commit on the trunk, with no PR; a project with no PR check uses `merge` (`docs/issue-tracker.md`, "Branches, PRs, merge") | None: the config is refused |
 | `gates` | Mapping from a step name to `manual` or `auto` (`docs/workflow.md`, "Gates") | `manual` for each omitted step |
-| `agents` | Mapping from a step name to `claude` or `codex`: the preferred agent of that step ([Agent selection and model setup](#agent-selection-and-model-setup)) | Each step uses the local order |
+| `agents` | Mapping from a step name to `claude`, `codex`, or `opencode`: the preferred agent of that step ([Agent selection and model setup](#agent-selection-and-model-setup)) | Each step uses the local order |
 | `sessions` | Mapping from a step name to a mapping with an optional `model` (`haiku`, `sonnet`, `opus`, or `fable`) and an optional `effort` (`low`, `medium`, `high`, `xhigh`, or `max`): a pin of the model, the level, or both for each step session that the daemon starts. A pinned value wins over the decision of the step before. A `--model` or `--effort` of one start wins over the pin ([Agent selection and model setup](#agent-selection-and-model-setup)) | No pin |
 | `autoLanes` | A sequence with one or more of `triage`, `feature`, `bug`, `chore`, and `hotfix`: the lanes that auto mode of the daemon takes. `triage` stands for an issue with no lane (`docs/workflow.md`, "Gates") | Auto mode takes each lane and each issue with no lane |
 | `board` | Mapping with optional `port`, an integer from 1024 to 65535: the first port to try for the board ("Start the board") | Search starts at 4403 |
@@ -38,8 +38,8 @@ For the repository setting of the squash title with the landing `pr`, see
 The allowed gate names are `triage`, `specify`, `bug`, `chore`, `hotfix`, `plan`, and
 `implement`. No other step is accepted. An empty `gates` mapping uses `manual` for all seven.
 The former value `me` is invalid; there is no automatic conversion.
-The `agents` keys are the same seven step names, and the allowed values are `claude` and
-`codex`. A step with no entry, an omitted `agents` field, and an empty `agents` mapping give no
+The `agents` keys are the same seven step names, and the allowed values are `claude`, `codex`,
+and `opencode`. A step with no entry, an omitted `agents` field, and an empty `agents` mapping give no
 preference.
 An empty `board` mapping starts the automatic port search at 4403. An effective `PORT` takes
 precedence and requests one exact port ("Start the board").
@@ -378,11 +378,12 @@ gives each method. [YAML 1.2.2](https://yaml.org/spec/1.2.2/) defines literal bl
 
 ## Agent selection and model setup
 
-The local agent preference is an ordered list of `claude` and `codex`. The list is unique and
-nonempty; either host can be excluded. It lives at `<Git common directory>/celetis/agents.json`,
+The local agent preference is an ordered list of one to three of `claude`, `codex`, and `opencode`. The list is unique and
+nonempty; any host can be excluded. OpenCode runs only the step triage in this version, so the order skips it for another step. It lives at `<Git common directory>/celetis/agents.json`,
 shared by the main checkout and all linked worktrees on this machine, and it changes no tracked
 file. Its schema is exactly `{"schema":1,"order":["claude","codex"]}`. That is also the order with
-no record. For the record that setup writes, see `docs/setup.md`, "`setup write`".
+no record: OpenCode starts excluded from default work. The three hosts are the agents of the agent
+registry of the engine, in that order. For the record that setup writes, see `docs/setup.md`, "`setup write`".
 YAML `host` is an unknown field; there is no migration. Check
 selection with an explicit host:
 
@@ -390,12 +391,14 @@ selection with an explicit host:
 celetis --agent codex root
 ```
 
-Selection is an explicit `--agent claude|codex`, then an explicit `CELETIS_AGENT`, then, for a
+Selection is an explicit `--agent claude|codex|opencode`, then an explicit `CELETIS_AGENT`, then, for a
 step that a run starts, the preferred agent of that step, then the local order. An invalid host
 value stops; the order of `PATH` never chooses a host. Control
 operations use the first host of the local order without a quota check; outside a Git checkout
-they use Claude. The scripts of the verify gate (`scripts/verify.ts`, `scripts/build.ts`, and
-`scripts/install-tools.ts`) take `--agent`, else `CELETIS_AGENT`, else Claude, and read no order.
+they use Claude. A default `land`, `dispatch`, `capscore`, or `setup` refuses when the first host
+of the order cannot run it, while a step and an interactive session skip that host. The scripts
+of the verify gate (`scripts/verify.ts`, `scripts/build.ts`, and `scripts/install-tools.ts`)
+take `--agent`, else `CELETIS_AGENT`, else Claude, and read no order.
 Explicit control commands and `agents` work without reading the preference for
 selection. Commands that require YAML still validate the whole file. Skills pass their actual
 host explicitly, including landing. Exact Resume keeps its saved host and session ID, and a
@@ -406,7 +409,7 @@ example `implement: codex`. It is tracked repository policy: it applies on each 
 changes through a commit, at the next new step. A default start of that step tries the preferred
 agent first, then the other agents of the local order. A blocked preferred agent gives the next
 agent with no wait. A step with no entry uses the local order. A local exclusion wins: a preferred
-agent that the local order excludes has no effect. When this machine cannot start the preferred
+agent that the local order excludes has no effect, so a step preference selects its agent only when the order includes it. When this machine cannot start the preferred
 agent (not installed or not signed in), the start stops at its preflight and tries no other
 agent; exclude that agent from the local order to continue with the others.
 

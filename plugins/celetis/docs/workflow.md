@@ -4,9 +4,9 @@
 workflow from a terminal to the master daemon of the repository
 ([The master daemon](https://github.com/ddinkov10/celetis/blob/main/engine/README.md#the-master-daemon)), and return
 at once. The daemon asks the resolver for the next step of an issue and starts that step in a new
-interactive Claude or Codex session. Each session starts in a new tab of the Herdr app, in an hc
-terminal of herdr-core of its own, and the daemon steers that tab from outside: it ends the
-session when the step is done, and starts the next step when its gate is `auto`. The GitHub issue
+Claude, Codex, or OpenCode session (OpenCode runs only the step triage). Each session starts in a
+new tab of the Herdr app, in an hc terminal of herdr-core of its own, and the daemon steers that
+tab from outside: it ends the session when the step is done, and starts the next step when its gate is `auto`. The GitHub issue
 stays the state store (`docs/issue-tracker.md`): every result of a step goes to the issue. The
 master daemon also serves the board, a local web page that shows each agent session and the next
 step of each issue. Its Run button gives the request for one issue to the daemon. The board is

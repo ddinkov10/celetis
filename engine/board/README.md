@@ -240,7 +240,9 @@ agent order, the usage records, and the usage-limit recovery records again (`rea
 `engine/lib/board-read.ts`), and its reply adds `picker` (the order, the usage blocks, the hosts of
 live sessions, the live usage-limit waits, and a read error) and `next` (the decision of a new
 default start). The reply also adds `registry`: the agent registry of `engine/lib/host-names.ts`,
-with the long name and the menu label of each agent, in the default order. The page builds the agent
+with the long name and the menu label of each agent, in the registry order (`claude`, `codex`,
+`opencode`). The order with no record is `claude`, `codex` (`readAgentOrder` of
+`engine/lib/agent-order.ts`), so OpenCode starts excluded from default work. The page builds the agent
 picker, the queue agent menu, and the agent marks of the cards from it, and keeps no list of agents
 of its own. Each placement also reads the status object of the daemon once through the adapter,
 in the process, and the reply adds `daemon`: `{pid, auto}`, with the PID of the daemon and its auto
@@ -419,7 +421,8 @@ a landed-history panel.
   is the folder of its foreground process, else the start folder of the terminal. A terminal of
   another folder has no card, and this includes a subfolder of the main checkout.
 - Its host reports a status (OSC 7501), and the `app` of that status is the app name of the host
-  adapter of a registry agent (`claude-code` for `claude`, `codex` for `codex`).
+  adapter of a registry agent (`claude-code` for `claude`, `codex` for `codex`, `opencode` for
+  `opencode`).
   A terminal with no status has no card.
 - Its foreground process is that host (the file name of its first item, with no `.exe`), Bun
   with the engine's launch arguments and its exact `engine/intake.ts`, `engine/assist.ts`, or
@@ -1103,7 +1106,8 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   buttons. A working card shows the lines that it changed. A card whose row has `pr` shows the
   number, the CI result, and the review state. An act line that is a command or a path has a Copy
   button. The mark at the left of a session card identifies its host. Codex and Claude Code use
-  the selected [agent icons](agent-icons.md); other hosts use their initial letter. The same marks
+  the selected [agent icons](agent-icons.md). OpenCode uses a letter mark "O" made for the Board,
+  in a box on a card. An agent outside the registry uses its initial letter. The same marks
   appear in Human sessions and details. An issue card shows the icon of its type. The lane
   keys `bug`, `feature`, `chore`, and `hotfix` have an icon of their own, and a lane with another
   key gets the neutral icon. The main button of a card in Needs you is filled.

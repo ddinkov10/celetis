@@ -13,7 +13,8 @@ import { HostError } from './errors.ts';
 import { markDefect, passOn, recordEvent } from './events.ts';
 import { hostAvailability } from './host.ts';
 import { hosts } from './host-names.ts';
-import { hostAdapter } from './hosts.ts';
+import type { SessionStart } from './host-types.ts';
+import { canRun, hostAdapter, requireCan, writeSessionEnv } from './hosts.ts';
 import { addRecord, type Identity, type LockClaim, type LockOwner, lockHolder } from './locks.ts';
 import { type CheckoutIdentity, createOperation, type HostSelection, type Operation } from './operation.ts';
 import {
@@ -146,6 +147,13 @@ export async function barrierOf(source: string): Promise<Identity | null | 'unkn
   const script = state === 'gone' ? 'gone' : await processScript(pid, daemonScript);
   if (state === 'gone' || script === 'gone') return null;
   return state === 'runs' && script === 'runs' ? { pid, start } : 'unknown';
+}
+
+async function releasedLive(dir: string): Promise<boolean> {
+  const files = startFiles(dir);
+  if (!(await stat(files.go).catch(() => null))?.isFile()) return false;
+  const source = await readFile(files.pid, 'utf8').catch(() => null);
+  return source !== null && (await barrierOf(source)) !== null;
 }
 
 function steered(session: Facts): Steered & Readonly<{ barrier: Identity; startedMs: number }> {
@@ -318,7 +326,8 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
     initial = undefined;
     return current;
   };
-  const requireStart = async (host: Host, cwd: string) => {
+  const requireStart = async (host: Host, cwd: string, step: Step) => {
+    requireCan(host, { kind: 'step', step }, 'daemon');
     await hostAdapter(host).checkHome();
     const { requireUpdatePolicy } = await import('./plugin-policy.ts');
     await (await import('./update-lock.ts')).withPluginRead(host, async () => {
@@ -546,14 +555,14 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
               }
               report(
                 'exit-signal',
-                `daemon: #${n} claude did not exit within 10 seconds; the daemon sent SIGTERM to its host process (PID ${pid}).`,
+                `daemon: #${n} ${record.host} did not exit within 10 seconds; the daemon sent SIGTERM to its host process (PID ${pid}).`,
               );
               if (settled || abort.aborted) return;
               after = setTimeout(() => {
                 if (abort.aborted) return;
                 report(
                   'exit-timeout',
-                  `daemon: #${n} claude did not exit within 10 seconds after SIGTERM; the session stays open. Exit it in the tab ${tab} when ready.`,
+                  `daemon: #${n} ${record.host} did not exit within 10 seconds after SIGTERM; the session stays open. Exit it in the tab ${tab} when ready.`,
                 );
               }, exitGraceMs);
             };
@@ -611,6 +620,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
     host: Host,
     args: string[],
     facts: Omit<Facts, 'folder' | 'terminal' | 'tab' | 'barrier' | 'startedMs'>,
+    session: Omit<SessionStart, 'folder'>,
     attempt = '-',
     recovery = false,
     opened: () => Promise<Partial<Facts>> = async () => ({}),
@@ -629,6 +639,14 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
     const opening: Facts = { ...facts, folder: dir, terminal: null, tab, barrier: null, startedMs: null };
     await note({ session: opening });
     await unstarted();
+    try {
+      await writeSessionEnv(host, { ...session, folder: dir });
+    } catch (error) {
+      die(
+        `#${n} cannot prepare the session environment: ${(error as Error).message}`,
+        error instanceof HostError ? error.code : exits.blocked,
+      );
+    }
     try {
       terminal = await openTab({
         repository: { main, common },
@@ -842,6 +860,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
           const now = usage[each];
           const before = seen[each];
           return (
+            canRun(each, { kind: 'step', step: authority.step }) &&
             now !== null &&
             now.block === null &&
             (before === null || now.ordinal !== before.ordinal || now.sequence !== before.sequence)
@@ -1232,15 +1251,22 @@ async function prepareResume(
   const saved = await selectSavedSession(main, n, selection.explicit, common, locks);
   io.operation = await createOperation(checkout, { ...selection, saved: saved.host }, 'main');
   const host = io.operation.host;
+  const { landing } = io.operation.mainConfig as Config;
   await preflight(async () => {
     stopped();
-    await requireStart(host, io.operation.checkout.cwd);
+    await requireStart(host, io.operation.checkout.cwd, saved.step);
   });
   stopped();
   if (at.ready) await hooks.ready?.();
   admit({ ok: true });
   const args = hostAdapter(saved.host).resumeArguments(saved);
-  return { kind: 'prepared', start: { scope: 'resume', saved, host, args } };
+  let contract: Promise<string> | undefined;
+  const plugin = () => (contract ??= requireContract(host, main));
+  const session = {
+    plugin,
+    stepText: async () => stepText({ issue: n, step: saved.step, host, main, pluginRoot: await plugin(), landing }),
+  };
+  return { kind: 'prepared', start: { scope: 'resume', saved, host, args, session } };
 }
 
 async function preparing(at: StateOf<'preparing'>, io: Io): Promise<EventOf<Own['preparing']>> {
@@ -1254,32 +1280,35 @@ async function preparing(at: StateOf<'preparing'>, io: Io): Promise<EventOf<Own[
   const { retrying } = at.issue.loop;
   const stepHost = at.host;
   const adapter = hostAdapter(stepHost);
+  const sessionId = adapter.startId();
   const prepared = await preflight(async () => {
     stopped();
-    await requireStart(stepHost, current.checkout.cwd);
+    await requireStart(stepHost, current.checkout.cwd, step);
     const pluginRoot = await requireContract(stepHost, main);
     if (await versionFolderGone(root)) return null;
     const pair = startPair(decided, config.sessions?.[step], override);
+    const text = () =>
+      stepText({ issue, step, host: stepHost, main, pluginRoot, landing: config.landing, recovery: retrying });
     const { args, applied, model } = await adapter.stepArguments({
       issue,
       step,
       cwd: main,
       start: pair,
-      stepText: () =>
-        stepText({ issue, step, host: stepHost, main, pluginRoot, landing: config.landing, recovery: retrying }),
+      sessionId,
+      stepText: text,
     });
-    return { args, applied, model, pair };
+    return { args, applied, model, pair, session: { plugin: async () => pluginRoot, stepText: text } };
   });
   stopped();
   if (prepared === null) return removal();
-  const { args, applied, model, pair } = prepared;
+  const { args, applied, model, pair, session } = prepared;
   say(startLine(prompt, pair, applied, model));
   const attempt: UsageAttempt = {
     id: randomUUID(),
     host: stepHost,
     main,
     startedAt: Date.now(),
-    sessionId: adapter.startId(),
+    sessionId,
   };
   const capture = state.usageCapture(attempt.id).path;
   const sessionArgs = [...(await adapter.prepareUsage(attempt, state)), ...args];
@@ -1310,7 +1339,7 @@ async function preparing(at: StateOf<'preparing'>, io: Io): Promise<EventOf<Own[
     capture,
     owned,
   };
-  return { kind: 'prepared', start: { scope: 'issue', args: sessionArgs, facts, attempt } };
+  return { kind: 'prepared', start: { scope: 'issue', args: sessionArgs, facts, attempt, session } };
 }
 
 async function openResume(
@@ -1319,19 +1348,26 @@ async function openResume(
 ): Promise<EventOf<'barrier-reported'>> {
   const { startSession } = io;
   const n = at.number;
-  const { saved, host, args } = at.start;
-  const { ended, barrier } = await startSession(String(n), saved.step, host, args, {
-    step: saved.step,
+  const { saved, host, args, session } = at.start;
+  const { ended, barrier } = await startSession(
+    String(n),
+    saved.step,
     host,
-    next: null,
-    authority: null,
-    choice: null,
-    record: saved,
-    announced: '',
-    ticket: null,
-    capture: null,
-    owned: null,
-  });
+    args,
+    {
+      step: saved.step,
+      host,
+      next: null,
+      authority: null,
+      choice: null,
+      record: saved,
+      announced: '',
+      ticket: null,
+      capture: null,
+      owned: null,
+    },
+    session,
+  );
   return { kind: 'barrier-reported', terminal: io.terminal, tab: io.tab, barrier, exit: ended, ticket: null };
 }
 
@@ -1339,7 +1375,7 @@ async function opening(at: StateOf<'opening'>, io: Io): Promise<EventOf<Own['ope
   if (at.scope === 'resume') return openResume(at, io);
   const { admit, startSession, locks } = io;
   const { main, common } = io.place;
-  const { args: sessionArgs, facts, attempt } = at.start;
+  const { args: sessionArgs, facts, attempt, session } = at.start;
   const { step, host: stepHost, authority, owned, record, capture } = facts;
   const n = String(at.issue.number);
   const { retrying } = at.issue.loop;
@@ -1348,7 +1384,7 @@ async function opening(at: StateOf<'opening'>, io: Io): Promise<EventOf<Own['ope
   let begun: Awaited<ReturnType<typeof startSession>>;
   admit({ ok: true });
   try {
-    begun = await startSession(n, step, stepHost, sessionArgs, facts, attempt.id, retrying, async () => {
+    begun = await startSession(n, step, stepHost, sessionArgs, facts, session, attempt.id, retrying, async () => {
       ticket = await beginUsageAttempt(common, attempt);
       if (retrying)
         await saveRecovery(authority, facts.choice, (each) => ({
@@ -1669,7 +1705,9 @@ async function ending(_at: StateOf<'ending'>, io: Io): Promise<EventOf<Own['endi
   await ledger.watch.watching;
   if (shared && !detach.signal.aborted) await closeUnreleased();
   else await closeTabs();
-  if (ledger.watchDir) await rm(ledger.watchDir, { recursive: true, force: true });
+  // A released session that still runs reads its step text from the start folder at each turn.
+  if (ledger.watchDir && !(await releasedLive(ledger.watchDir)))
+    await rm(ledger.watchDir, { recursive: true, force: true });
   await clearStepEnd();
   await locks.releaseAll(handOff());
   mark('finished');

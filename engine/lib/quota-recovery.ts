@@ -6,7 +6,7 @@ import { basename, dirname, join } from 'node:path';
 import type { AgentChoice, Host } from './config-core.ts';
 import { exits } from './contract.ts';
 import { HostError } from './errors.ts';
-import { revision, uuid } from './fields.ts';
+import { isSessionId, revision, uuid } from './fields.ts';
 import { commonDir } from './git.ts';
 import { isHost } from './host-names.ts';
 import { hostAdapter } from './hosts.ts';
@@ -122,7 +122,7 @@ function validAttempt(value: unknown): value is RecoveryAttempt {
     uuid.test(value.id) &&
     isHost(value.host) &&
     positive(value.startedAt) &&
-    (value.sessionId === null || (typeof value.sessionId === 'string' && uuid.test(value.sessionId)))
+    (value.sessionId === null || isSessionId(value.host, value.sessionId))
   );
 }
 
@@ -167,7 +167,7 @@ function validRecord(value: unknown, issue: number): value is QuotaRecovery {
         typeof item.attemptId === 'string' &&
         uuid.test(item.attemptId) &&
         isHost(item.host) &&
-        (item.sessionId === null || (typeof item.sessionId === 'string' && uuid.test(item.sessionId))),
+        (item.sessionId === null || isSessionId(item.host, item.sessionId)),
     ) &&
     Array.isArray(attempted) &&
     attempted.every(isHost) &&

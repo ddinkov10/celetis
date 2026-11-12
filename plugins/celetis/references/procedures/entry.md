@@ -9,7 +9,8 @@ The entry of each skill of the plugin `celetis`, and the contract of the whole i
   custom text.
 - **Entry without the hook:** the entry that the session makes when the skill text holds the
   entry line.
-- **The contract:** the rules of the whole invocation, with a **Claude Code** and a **Codex** part.
+- **The contract:** the rules of the whole invocation, with a **Claude Code**, a **Codex**, and an
+  **OpenCode** part.
 
 ## The entry line
 
@@ -35,6 +36,9 @@ earlier entry does not replace them.
      its diagnostic, which names the path and the field, or the plugin folder.
    - **On Codex with no shell:** read the file with a dedicated reader or a runtime file API, then
      apply step 3. Inspect the active tool catalog, and use its actual schema.
+   - **On OpenCode:** run the reader CLI of "The contract"
+     (`celetis --agent opencode config <checkout> <plugin>`). Its exit status 2 stops the entry
+     with its diagnostic.
 3. **The rules.** After a read with no reader CLI, each of these conditions stops the entry:
    - The file is not one YAML document with a mapping root.
    - The file has a duplicate key, an alias, a merge key, or a custom tag.
@@ -63,10 +67,10 @@ completion criterion of a skill.
   plugin, and a relative link in a plugin file starts in the folder of that file. A path with no
   prefix is a path of the product project.
 - **Commands.** Run each plugin command as `celetis --agent <host> <command> [<argument>...]`, with
-  `<host>` the running host: `claude` on Claude Code, `codex` on Codex. The installed engine
-  `celetis` runs the command; `<plugin>` locates only the documents that the skills cite. When
-  `celetis` is not on `PATH`, stop before the workflow command, and tell the person to install the
-  engine (`<plugin>/README.md`, "First install") and to start a fresh session.
+  `<host>` the running host: `claude` on Claude Code, `codex` on Codex, `opencode` on OpenCode.
+  The installed engine `celetis` runs the command; `<plugin>` locates only the documents that the
+  skills cite. When `celetis` is not on `PATH`, stop before the workflow command, and tell the
+  person to install the engine (`<plugin>/README.md`, "First install") and to start a fresh session.
 - **GitHub.** Run each write that an act of `celetis --agent <host> issue <n> <act>` makes through
   that act: the engine reads these writes. Use `gh` for reads and for each other write, for example
   the `## Intent` and `## External facts` comments and the sub-issue link of an epic child
@@ -147,3 +151,15 @@ completion criterion of a skill.
   not answer, so request the approved retry first. The approved retry is the path for `issue`.
 - **Session recovery.** Give the person `codex resume --no-daemon <session-id>` from the main
   checkout, or reopen that exact chat in the app. An unknown session ID is a setup gap.
+
+### OpenCode
+
+- **Skills.** Load a skill with the `skill` tool, by its ID: the skill name with no namespace, for
+  example `triage`. A prompt that starts a skill has this form, with the actual skill ID:
+  `Load the skill <id> with the skill tool and follow it for <input>. Complete its Celetis entry before any response, including commentary.`
+- **The approval procedure for a sandbox block.** The session runs with `--auto`: OpenCode approves
+  each action that no rule denies, with no prompt. A denied action has no approved retry in the
+  session: it is a setup stop. Report the exact block and the setup action.
+- **Session recovery.** Give the person `opencode --standalone -s <session-id>` from the main
+  checkout. `opencode session list --format json --standalone` in the main checkout lists the
+  session IDs. An unknown session ID is a setup gap.

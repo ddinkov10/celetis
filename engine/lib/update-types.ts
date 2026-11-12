@@ -1,3 +1,3 @@
-import type { Host } from './config-core.ts';
+import type { PluginHost } from './host-names.ts';
 
-export type UpdateStage = { part: 'engine' | Host; state: 'started' | 'completed' };
+export type UpdateStage = { part: 'engine' | PluginHost; state: 'started' | 'completed' };

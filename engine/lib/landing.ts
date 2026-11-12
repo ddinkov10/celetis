@@ -4,7 +4,7 @@ import { type ExitClass, type ExitCode, exits, signalExit } from './contract.ts'
 import { completeEpic } from './epic.ts';
 import { parseEpicRepository } from './epic-acceptance.ts';
 import { HostError } from './errors.ts';
-import { hostAdapter } from './hosts.ts';
+import { hostAdapter, requireCan } from './hosts.ts';
 import { mergeMechanism } from './landing-merge.ts';
 import { prMechanism } from './landing-pr.ts';
 import { LessonError } from './lesson-record.ts';
@@ -80,6 +80,11 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
   };
   try {
     const operation = await createOperation(await locateCheckouts(main), landing.selection, 'main');
+    try {
+      requireCan(operation.host, { kind: 'landing', command: 'land' }, 'celetis');
+    } catch (error) {
+      throw new Classified((error as HostError).message, exits.prerequisite);
+    }
     const common = operation.checkout.common as string;
     const config = operation.mainConfig as Config;
     await hostAdapter(operation.host).checkHome();

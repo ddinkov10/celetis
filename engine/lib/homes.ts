@@ -1,16 +1,16 @@
 import { lstat, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
-import type { Host } from './config-core.ts';
 import { exits } from './contract.ts';
 import { HostError } from './errors.ts';
+import type { PluginHost } from './host-names.ts';
 
-const configHomes: Record<Host, () => string> = {
+const configHomes: Record<PluginHost, () => string> = {
   claude: () => process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'),
   codex: () => process.env.CODEX_HOME ?? join(homedir(), '.codex'),
 };
 
-export function configHome(host: Host): string {
+export function configHome(host: PluginHost): string {
   return configHomes[host]();
 }
 
