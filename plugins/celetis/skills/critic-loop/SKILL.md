@@ -46,21 +46,26 @@ category and record per `<plugin>/references/procedures/review-evidence.md`.
 Dispatch a fresh reviewer per `<plugin>/references/procedures/dispatch.md`, "One child", scored as a
 review with `celetis --agent <host> capscore J V B N S X --reviewer --json`, per
 `<plugin>/references/procedures/capability-score.md`, "The rubric — six dimensions, each 0–2" and
-"Scorecard format — MANDATORY". Its brief also holds the diff file, the review rubric of step 2,
-and the Contracts-lens rule. Deliver the exact applicable principle paths with the diff to the
-critic and each fixer, with instructions to read them.
-Include `<plugin>/references/procedures/review-evidence.md` and
-`<plugin>/references/principles/demonstrate-behavioral-defects.md` in those resolved references. Read the
-module and apply "Reviewer" to the critic's brief, including each scoped re-review.
-Resolve `<plugin>` to the absolute path bound by the entry. Take paths supplied with the affected
-tasks; derive missing paths from the reviewed changes and revise them for the fix scope. Read
-`<plugin>/references/principles/test-behavior-not-implementation.md` and
-`<plugin>/references/principles/explain-the-number.md`. Apply each one whose `Applies when` holds for
-the review and each finding, with its `Check`. The rubric score alone does not make
-`explain-the-number.md` apply.
-The critic returns the per-perspective scores, total, findings with severity, category and
-evidence, and a verdict under the threshold and evidence contract. The critic never spawns
-subagents and never fixes anything.
+"Scorecard format — MANDATORY".
+
+- The critic's brief also holds the diff file, the review rubric of step 2, and the Contracts-lens
+  rule.
+- Deliver the exact applicable principle paths with the diff to the critic, with instructions to
+  read them.
+- Include `<plugin>/references/procedures/review-evidence.md` and
+  `<plugin>/references/principles/demonstrate-behavioral-defects.md` in those resolved references.
+- Read `<plugin>/references/procedures/review-evidence.md`, "Reviewer", and apply it to the
+  critic's brief, including each scoped re-review.
+- Resolve `<plugin>` to the absolute path bound by the entry.
+- Take paths supplied with the affected tasks; derive missing paths from the reviewed changes and
+  revise them for the fix scope.
+- Read `<plugin>/references/principles/test-behavior-not-implementation.md` and
+  `<plugin>/references/principles/explain-the-number.md`. Apply each one whose `Applies when` holds
+  for the review and each finding, with its `Check`. The rubric score alone does not make
+  `explain-the-number.md` apply.
+- The critic returns the per-perspective scores, total, findings with severity, category and
+  evidence, and a verdict under the threshold and evidence contract.
+- The critic never spawns subagents and never fixes anything.
 
 ## 4. Iterate until threshold
 
@@ -74,17 +79,23 @@ Use its stop for unresolved material risks, including a risk-only report with a 
   `celetis --agent <host> capscore J V B N S X --json`, per
   `<plugin>/references/procedures/capability-score.md`, "The rubric — six dimensions, each 0–2" and
   "Scorecard format — MANDATORY". Its brief also holds the accepted Critical and Important
-  findings and evidence, the unresolved context outside the fix list, the diff path, and the exact
-  applicable principle and review-evidence module paths for the fix. The fixer fixes, re-runs the
+  findings and evidence, the unresolved context outside the fix list, and the diff path. Deliver
+  the exact applicable principle paths for the fix with the diff to each fixer, with instructions
+  to read them. Resolve the paths as in step 3, revise them for the fix scope, and include
+  `<plugin>/references/procedures/review-evidence.md` and
+  `<plugin>/references/principles/demonstrate-behavioral-defects.md`. The fixer fixes, re-runs the
   covering tests, and commits.
 - Resume the same critic for a scoped re-review: verdict each finding ADDRESSED or NOT ADDRESSED, re-score the five
   perspectives, flag new breakage. Newly accepted Critical or Important findings join the open list.
-- Rounds 1-3 resume the same fixer; rounds 4-5 dispatch a fresh fixer on a more capable tier (resolve the original fix score with `--attempt 3` and its explicit bias); round 5
-  still FAIL → stop, report the score and remaining findings, escalate to the user with the trail.
+- Rounds 1-3 resume the same fixer.
+- Rounds 4-5 dispatch a fresh fixer on a more capable tier (resolve the original fix score with
+  `--attempt 3` and its explicit bias).
+- Round 5 still FAIL → stop, report the score and remaining findings, escalate to the user with the
+  trail.
+- Score fails without accepted Critical or Important findings → report the remaining gap and stop by
+  `<plugin>/references/procedures/stop.md`, "The two modes"; invent no defect to start a fix round.
 
-Never fix findings yourself in this session.
-When the score fails without accepted Critical or Important findings, report the remaining gap and stop by
-`<plugin>/references/procedures/stop.md`, "The two modes"; invent no defect to start a fix round.
+Only a fixer fixes findings. Never fix them yourself in this session.
 
 ## Terminal
 

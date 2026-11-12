@@ -56,7 +56,7 @@ a gap outside this pass's diff. Continue independent safe corrections within the
 Applies the moment an edit adds or reshapes a sentence, bullet, or section — not to a bare token swap. Read the target before you write a word.
 
 1. **Measure the neighbors.** The bullets in the same list, or the two sections either side. Note the longest sibling in words, fragment vs sentence, terminal periods or not, nesting, and which emphasis devices the section uses (`>` callouts, **bold** labels, headings).
-2. **Reuse the file's own idiom.** If the file already documents the same *kind* of thing — a flag choosing between two classes, an enum, a rule — your edit takes that exact form, wherever in the file that example sits. Copy the shape, don't invent one. This outranks step 3: when the file's idiom for this kind of thing and the immediate neighbors disagree, follow the idiom.
+2. **Reuse the file's own idiom.** If the file already documents the same *kind* of thing — a flag choosing between two classes, an enum, a rule — your edit takes that exact form, wherever in the file that example sits. Copy the shape. This outranks step 3: when the file's idiom for this kind of thing and the immediate neighbors disagree, follow the idiom.
 3. **Stay inside the local envelope.** Length, punctuation and emphasis match what the section already does. A section whose bullets are 8-word fragments with no periods gets an 8-word fragment with no period.
 
 **The contract: a reader cannot tell which lines you added.**

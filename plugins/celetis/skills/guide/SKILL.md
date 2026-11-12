@@ -9,10 +9,10 @@ disable-model-invocation: true
 
 If entry stops, report only the exact block and the required repair or access setup. End the turn without goal advice, including conditional commands.
 
-After the entry succeeds, match the goal to a row. Give the selected host's skill prompt or command and one line on why it fits.
+After the entry succeeds, match the goal, which is the invocation input, to a row. Give the selected host's skill prompt or command and one line on why it fits.
 When the advice quotes `board.port` or `gates`, get the value at that point from the reader CLI of the entry contract, run on the main checkout.
 Write each launcher recommendation as `celetis --agent claude <command>` or `celetis --agent codex <command>` for the running host, including commands for the person's terminal.
-Execute no recommended action and invoke no other skill. Goal: the invocation input.
+Execute no recommended action and invoke no other skill.
 
 | You want to… | Run |
 |---|---|
