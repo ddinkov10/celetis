@@ -36,6 +36,7 @@ Execute no recommended action and invoke no other skill.
 | land a change whose landing stopped (`## Landing refused`) | the build step again, `/celetis:implement <#>` or `/celetis:chore <#>`: it lands the change and does not build it again |
 | score the current diff before asking for review | `/celetis:critic-loop` |
 | record a decision or a lesson | `/celetis:record-architecture-decisions`, `/celetis:lesson` |
+| write or amend the constitution of the product | `/celetis:constitution [the change]` |
 | check a shared premise after two fixes fail | `/celetis:attack-the-premise` |
 | prevent a repeated mistake through structure | `/celetis:encode-lessons-in-structure` |
 | check retries of an operation that changes persistent state | `/celetis:make-operations-idempotent` |

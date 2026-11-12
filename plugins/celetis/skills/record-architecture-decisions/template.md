@@ -24,6 +24,11 @@ What was true at the time. Failed attempts, results, limits.
 
 What we do and why it is the practical choice.
 
+## Constitution
+
+(omit this section when the project has no `CONSTITUTION.md`; else write the section of
+`<plugin>/references/procedures/constitution.md`, "The section")
+
 ## Alternatives considered
 
 Rejected alternatives and why they were rejected.

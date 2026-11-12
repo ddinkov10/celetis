@@ -43,6 +43,8 @@ required document work in the task that owns the behavior.
 
 Put the exact path of each principle that applies to a task in that task's text, alongside its external facts. Resolve `<plugin>` to the absolute path bound by the entry. An empty applicable set needs no path. The task carries the paths, not copies of the rules.
 
+**Check the plan against the constitution.** Read the `## Constitution` section of the spec or the `## Root cause` report. Apply `<plugin>/references/procedures/constitution.md` to the choices that the plan adds: its tasks, its mechanisms, and its scope. When the `Read:` date of that section differs from the date of the last line of `## Amendments` of `CONSTITUTION.md`, apply the module to the design of the spec or the report too. Write a `## Constitution` section after `## Acceptance coverage` only for a goal, a tension, or a conflict that the section of the spec does not name. With no new one, the plan holds the line `Constitution: the section of the spec holds; this plan adds no goal, tension, or conflict.` When the spec has no such section, each goal, tension, and conflict is new, and the plan writes its own section. With no `CONSTITUTION.md`, the plan holds neither.
+
 **Save the plan to `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`** (gitignored scratch; the Terminal step publishes it to the issue).
 
 **Record in the plan header**, after `**Spec:**`:

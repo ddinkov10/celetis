@@ -14,7 +14,7 @@ no immutable-resource or automatic skill-reload guarantee (ADR-0028). Desktop au
 The repository holds the plugin in `plugins/celetis/` and the engine beside it, and it reaches a
 machine in two forms:
 
-- The plugin of each host gives its sessions the 34 skills ("The skills"), the procedure modules,
+- The plugin of each host gives its sessions the 36 skills ("The skills"), the procedure modules,
   the principles, the entry hook, and the documents. The step text of a run is `step-prompt.md`.
 - The engine is the folder `engine/`, with its entry `engine/celetis` ("The commands"). It runs
   each command, also the daemon and the board, and the daemon gives each step session a facts
@@ -41,6 +41,7 @@ A product project holds no Celetis launcher, runtime source, skill, or document 
 | The custom parts | `custom.<skill>` in `.celetis.yaml`, one string for each skill that needs one |
 | The product facts and Celetis entry pointer | `AGENTS.md` |
 | The stores | `docs/adr/`, the decision records that the product owns, and `.celetis/lessons/`, the lesson store that the engine manages ([setup document](docs/setup.md#the-stores)) |
+| The constitution | `CONSTITUTION.md`, the purpose, the ranked goals, the hard limits, and the non-goals of the product, which `/celetis:constitution` writes and amends |
 
 No file of the plugin names a part of a product, apart from the records of `docs/adr/`. The plugin
 names a role, for example "the verify gate of the project", and the product project names the
@@ -206,7 +207,7 @@ or the board's update control ("Updates").
    ```
 
    The install enables the plugin at the `user` scope, so each session of the machine loads it, in
-   each folder. A session in a project that is not wired also lists the 34 skills. Before its
+   each folder. A session in a project that is not wired also lists the 36 skills. Before its
    first step, each lane skill (`feature`, `bug`, `chore`, `hotfix`) runs
    `celetis --agent <host> setup status`. When the wiring is incomplete, the lane shows each gap
    and `Run /celetis:setup in the main checkout: <path>`, and stops before any issue, label,
@@ -531,6 +532,7 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | | [`/celetis:lesson`](skills/lesson/SKILL.md) | Captures bounded evidence from corrections or failed repairs as pending proposals in the main checkout, including explicit save requests. An agent reviewer curates them at each landing |
 | | [`/celetis:lesson-review`](skills/lesson-review/SKILL.md) | Your optional review of pending drafts, or your audit, edit, supersession, or retirement of selected active lessons, with your approval of the exact change |
 | | [`/celetis:record-architecture-decisions`](skills/record-architecture-decisions/SKILL.md) | Reads and writes the records of `docs/adr/` |
+| | [`/celetis:constitution`](skills/constitution/SKILL.md) | Writes and amends `CONSTITUTION.md` with your approval of the text. Only you can start it |
 | | [`/celetis:doc-drift-sync`](skills/doc-drift-sync/SKILL.md) | Corrects mechanical drift from source and behavioral drift from approved intent; reports implementation defects and uncertain evidence |
 | **Principles** | [`/celetis:attack-the-premise`](skills/attack-the-premise/SKILL.md) | Checks a shared premise after two fixes fail |
 | | [`/celetis:encode-lessons-in-structure`](skills/encode-lessons-in-structure/SKILL.md) | Uses structural prevention when a mistake or corrective instruction repeats |
@@ -573,7 +575,7 @@ Each principle is also a native skill. An ordinary engineering task can select i
 by name without an issue, a lane, or project configuration. The normal entry contract applies.
 Each invocation reads its one canonical rule file.
 
-`capture`, `coordinate`, `feedback`, `guide`, `setup`, `create-verification`, and `maintain-verification` are explicit-only on both
+`capture`, `constitution`, `coordinate`, `feedback`, `guide`, `setup`, `create-verification`, and `maintain-verification` are explicit-only on both
 hosts. Claude reads `disable-model-invocation: true`;
 Codex reads `policy.allow_implicit_invocation: false` in each skill's
 `agents/openai.yaml`. Guide reads its custom part and gives advice; it starts no

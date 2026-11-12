@@ -30,7 +30,11 @@ decisions that bear on the verdict:
 
 1. If the store exists, list its records and search for relevant terms.
 2. Read each matching ADR's `Decision` and `Reconsider when`. A decision whose premise just became
-   false (per `Reconsider when`) must not be inherited — re-evaluate and flag it.
+   false (per `Reconsider when`) must not be inherited — re-evaluate and flag it. When
+   `CONSTITUTION.md` exists, also flag an ADR whose decision conflicts with it, the same way; the
+   first sentence of `<plugin>/references/procedures/constitution.md`, "A conflict", defines a
+   conflict. The read only flags the ADR: the stop and the question of that section are for a
+   decision that a decision document of a step records.
 3. State in your handoff which ADRs you consulted and how each affected the verdict.
 
 ## Write
@@ -50,7 +54,9 @@ When all three hold:
 1. Check whether the decision is already recorded. Reuse that record instead of creating a duplicate.
 2. Create `docs/adr/` only when writing the record. Use `0001` with no existing records; otherwise
    use the next number after the highest existing record number. Copy the plugin template to
-   `docs/adr/NNNN-short-title.md` and fill every section. Before writing, check that the destination
+   `docs/adr/NNNN-short-title.md` and fill every section. Before filling the sections, apply
+   `<plugin>/references/procedures/constitution.md`; omit the `## Constitution` section of the
+   template when the project has no `CONSTITUTION.md`. Before writing, check that the destination
    and its parent paths are in the project and are not symlinks.
 3. If replacing a prior decision, add a new ADR with `Supersedes: <old-title>`; never rewrite a landed ADR.
 4. Commit the landed ADR with the subject `docs(adr): <topic>`; no commit when no ADR landed.

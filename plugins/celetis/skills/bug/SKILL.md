@@ -86,9 +86,12 @@ one-character diff runs the same lane.
    - **The research trigger.** Judge from this evidence whether the fix chooses new behavior: it
      adds a mechanism (for example a retry, a timer, a cache, a lock, or a queue), or it chooses
      behavior that the spec does not define. When it does, research the prior art per
-     `<plugin>/references/procedures/prior-art.md` before the decision below. This trigger is wider
-     than the escalation: a fix that adds a mechanism does the research also when the spec defines
-     each state. A fix that restores behavior that the spec or the code already defines skips it.
+     `<plugin>/references/procedures/prior-art.md`, and apply
+     `<plugin>/references/procedures/constitution.md` to the fix and to each option, before the
+     decision below; apply it again to the option that the user picks there. This trigger is wider
+     than the escalation: a fix that adds a mechanism does the research and the check also when the
+     spec defines each state. A fix that restores behavior that the spec or the code already defines
+     skips both.
    - **The research.** A fix that adds or changes a UI component runs
      `<plugin>/references/procedures/component-research.md` in that research pass, with its
      reference question. When its `## Prior art` section has a `### Required behavior` list, the
@@ -139,4 +142,5 @@ one-character diff runs the same lane.
    - its `## Masking check` section when applicable;
    - its `## External facts` section;
    - its `## Prior art` section when step 6 did the research;
+   - its `## Constitution` section when step 6 applied the constitution check;
    - the link of the capture repro when step 4 made one.
