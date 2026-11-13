@@ -155,8 +155,8 @@ recovery dialog or the reconnect-timeout instructions. A refused check request o
 **Update check failed** with explicit **Check again** recovery. An old current snapshot cannot
 erase that request error, and the page never retries a check POST automatically.
 
-The page reads update status every 5 seconds, or every second during update and reconnect,
-including hidden tabs. These reads do no remote discovery. It retains the target and original
+The page reads update status every 5 seconds while visible and every 15 seconds while hidden,
+and every second during update and reconnect, also hidden. These reads do no remote discovery. It retains the target and original
 runtime instance before sending an approval. A lost response or a pending start restored after
 reload starts status reconciliation and never sends another start. Only an `updating` response
 with that target and original instance allows native progress without a reconnect deadline.
@@ -366,8 +366,8 @@ Each row also has `number`, `title`, `url`, `updatedAt` and these fields:
 
 ## Landed history
 
-History sits between Search and Refresh. It opens the existing nonmodal panel and closes card
-details. Card details close History. The default is closed on each page load; refresh keeps its
+History sits between Search and Refresh. It opens the existing panel, nonmodal beside the board
+and modal when it covers the page (see "The cards"), and closes card details. Card details close History. The default is closed on each page load; refresh keeps its
 open state, scroll, and matching focused link. Escape or Close returns focus to History. The
 landed count and the `d` shortcut open the same panel. Search finds landed issue numbers and titles.
 History stays visible on a phone. Below 1100 px width or 701 px height the panel is a drawer;
@@ -1336,6 +1336,10 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   `No decision on the issue; the default applies.` with no decided and no pinned value. A waiting session shows its
   lines at the top, beside Go, except a human session whose turn ended. `Esc` closes the details.
   Below 1100 px the details cover the right side of the page, and below 720 px the whole page.
+  While the details or History cover the page (below 1100 px wide, or 700 px high or less), the
+  page under them is inert and dimmed, Tab stays in the panel, and `Esc` returns the focus to the
+  card. A resize that makes the panel cover the page moves the focus into the panel. Wider and
+  taller, the panel stays beside the board and the page stays active.
 - A card that changed since you last looked at the board has a dot, until you point at it or focus
   it. The board takes the cards as seen when its window loses the focus. A closed group row shows
   the dot while one of its hidden cards has it.
@@ -1381,8 +1385,13 @@ SIL Open Font License 1.1), so it loads nothing from the network.
 
 **The keys.** `⌘K` (`Ctrl K` off macOS) or `/` opens the search: it lists the issue work that needs
 you first, then the running cards, the steps that can start, the human sessions (a waiting one
-too), the landed issues, and the commands of the board. `#<n>` jumps to an issue, and `<n>` alone also
-finds a human session whose title is `<n>`. `j` and `k` move to the next or the previous card,
+too), the landed issues, and the commands of the board. `#<n>` lists `Go to #<n>` first, and `Enter`
+on it opens its epic group and its details and focuses the card; when the open details hide the idle
+column, the focus stays in the details. The actions of the card follow under
+`Actions for #<n>`, and `Enter` runs no action unless you move to one. The number of an epic lists
+`Go to epic #<n>`, which opens the group and focuses its row; it first closes the details or History
+when they cover the page or hide the row. An empty search lists no `Go to` row.
+`<n>` alone also finds a human session whose title is `<n>`. `j` and `k` move to the next or the previous card,
 `h` and `l` to the column on the left or the right; `Enter` presses the main button of the card,
 `Space` opens its details, `m` opens all its actions, `o` opens the issue, and `c` copies the
 command or the path of the card. `v` changes between Now and Pipeline, `d` shows or hides History, `r`
@@ -1392,8 +1401,9 @@ issues. The search has `Expand all epic groups` and `Collapse all epic groups`. 
 search, a notification press, and the return from the details open the group of a hidden issue and
 store that open. The list has a switch that turns the single-key shortcuts off; the keys of a
 focused card or epic group always work, and the arrow keys move from a focused card or epic group
-as `h`, `j`, `k`, and `l` do. After a Run, Resume, or Open agent press, the focus stays on the card
-of the issue in Running. A press in the details keeps the focus in the details: on the same button, or on
+as `h`, `j`, `k`, and `l` do. `Tab` reaches one card or epic group in each column: the one that last
+had the focus, else the first. A press on a count of 0 focuses the empty state of its column. After a
+Run, Resume, or Open agent press, the focus stays on the card of the issue in Running. A press in the details keeps the focus in the details: on the same button, or on
 Close when that button goes.
 
 After the first good read, the page writes the name of the tracker in its texts:

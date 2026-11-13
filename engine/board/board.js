@@ -190,18 +190,20 @@ var pipeline = (cards, flow) => {
 var filterItems = (items, query) => {
   const text = query.trim().toLowerCase();
   if (text === "")
-    return items;
+    return items.filter((item) => !item.isGoTo);
   const number = /^#?(\d+)$/.exec(text)?.[1];
   if (number) {
     const found = items.filter((item) => item.number !== null && String(item.number).startsWith(number));
+    const exact = found.filter((item) => String(item.number) === number);
     return [
-      ...found.filter((item) => String(item.number) === number),
+      ...exact.filter((item) => item.isGoTo),
+      ...exact.filter((item) => !item.isGoTo),
       ...items.filter((item) => item.number === null && item.context === text),
       ...found.filter((item) => String(item.number) !== number)
     ];
   }
   const words = text.split(/\s+/);
-  return items.filter((item) => words.every((word) => `${item.label} ${item.context ?? ""}`.toLowerCase().includes(word)));
+  return items.filter((item) => !item.isGoTo && words.every((word) => `${item.label} ${item.context ?? ""}`.toLowerCase().includes(word)));
 };
 
 // engine/board/page/ui.ts
@@ -1411,7 +1413,7 @@ function setupUpdates() {
   const schedule = () => {
     clearTimeout(timer);
     if (!timedOut)
-      timer = setTimeout(poll, pending ? 1000 : 5000);
+      timer = setTimeout(poll, pending ? 1000 : document.hidden ? 15000 : 5000);
   };
   const poll = async (forCheck = false) => {
     if (expire())
@@ -1566,6 +1568,12 @@ function setupUpdates() {
     await poll(true);
   };
   check.addEventListener("click", () => void requestCheck());
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden || timedOut || submitting || checking)
+      return;
+    clearTimeout(timer);
+    poll();
+  });
   draw();
   poll();
   return controls;
@@ -2123,13 +2131,16 @@ function setupCoordinator(hooks) {
 var items = [];
 var shown = [];
 var active = 0;
+var exactNumber = () => /^#?(\d+)$/.exec($("pal-input").value.trim())?.[1];
 var option = (item, index) => {
-  const node = el("div", `pal-row${index === active ? " on" : ""}${item.tone ? ` tone-${item.tone}` : ""}`);
+  const node = el("div", `pal-row${index === active ? " on" : ""}${item.isGoTo ? " go" : ""}${item.tone ? ` tone-${item.tone}` : ""}`);
   node.id = `pal-${index}`;
   node.setAttribute("role", "option");
   node.setAttribute("aria-selected", String(index === active));
   if (item.isDisabled)
     node.setAttribute("aria-disabled", "true");
+  if (item.isGoTo)
+    node.setAttribute("aria-label", `${item.label}, ${item.context}. Press Enter to go.`);
   if (item.title)
     node.title = item.title;
   const context = el("span", "ctx");
@@ -2137,7 +2148,7 @@ var option = (item, index) => {
     context.append(el("span", "num", `#${item.number}`));
   if (item.context)
     context.append(item.context);
-  node.append(icon(item.icon), el("b", "", item.label), context, item.key ? el("kbd", "", item.key) : el("span"));
+  node.append(icon(item.icon), el("b", "", item.label), context, item.isGoTo ? el("kbd", "", "Enter to go") : item.key ? el("kbd", "", item.key) : el("span"));
   node.addEventListener("mousemove", () => {
     if (active !== index)
       select(index);
@@ -2149,9 +2160,11 @@ var draw = () => {
   const list = $("pal-list");
   const rows = [];
   let group = null;
+  const exact = exactNumber();
   shown.forEach((item, index) => {
-    if (item.group !== group) {
-      group = item.group;
+    const label = exact && !item.isGoTo && String(item.number) === exact ? `Actions for #${exact}` : item.group;
+    if (label !== group) {
+      group = label;
       rows.push(el("div", "pal-group", group));
     }
     rows.push(option(item, index));
@@ -2161,10 +2174,17 @@ var draw = () => {
   list.replaceChildren(...rows);
   $("pal-input").setAttribute("aria-activedescendant", shown.length ? `pal-${active}` : "");
 };
+var mark2 = (index, isOn) => {
+  const row = $(`pal-${index}`);
+  row.classList.toggle("on", isOn);
+  row.setAttribute("aria-selected", String(isOn));
+};
 var select = (index) => {
+  mark2(active, false);
   active = index;
-  draw();
-  $(`pal-${index}`)?.scrollIntoView({ block: "nearest" });
+  mark2(active, true);
+  $("pal-input").setAttribute("aria-activedescendant", `pal-${active}`);
+  $(`pal-${active}`).scrollIntoView({ block: "nearest" });
 };
 var pick = (index) => {
   const item = shown[index];
@@ -2762,9 +2782,14 @@ var intakeReason = () => {
     return null;
   return defaultReason();
 };
+var drawnIntake = "";
 function drawIntake() {
   const button = $("intake");
   const reason = intakeReason();
+  const state = `${intakePending}|${reason}`;
+  if (state === drawnIntake)
+    return;
+  drawnIntake = state;
   button.setAttribute("aria-disabled", String(reason !== null));
   button.setAttribute("aria-busy", String(intakePending));
   button.title = reason ?? "Open a fresh intake session";
@@ -3260,6 +3285,7 @@ var glyph = (key) => {
 };
 var empty = (key, [title, text]) => {
   const node = el("div", `empty empty-${key}`);
+  node.tabIndex = -1;
   node.append(icon(key === "needs" ? "clear" : `col-${key}`), el("p", "empty-title", title), el("p", "empty-text", text));
   return node;
 };
@@ -3288,6 +3314,7 @@ var showOpenEpics = () => {
     row.setAttribute("aria-expanded", String(isOpen));
     $(row.getAttribute("aria-controls")).hidden = !isOpen;
   }
+  syncStops();
 };
 var setEpicOpen = (epic, isOpen) => {
   storeOpenEpics((open) => isOpen ? open.add(epic) : open.delete(epic));
@@ -3298,6 +3325,7 @@ var epicGroup = (epic, cards, scope) => {
   const isOpen = openEpics.has(epic.number);
   const row = el("button", "epic-row");
   row.type = "button";
+  row.tabIndex = -1;
   row.id = `${id}-row`;
   row.dataset.epic = String(epic.number);
   row.dataset.group = `${scope}-${epic.number}`;
@@ -3357,31 +3385,32 @@ var drawTail = () => {
   wrap.hidden = true;
   return wrap;
 };
+var measureTail = () => {
+  const body = document.querySelector(".col-needs .col-body");
+  const wrap = body?.querySelector(".tail-wrap");
+  if (!body || !wrap)
+    return;
+  const bottom = body.getBoundingClientRect().bottom - (wrap.hidden ? 0 : wrap.offsetHeight);
+  const counts = new Map;
+  for (const node of body.querySelectorAll(".card[data-key]")) {
+    const isHidden = node.getBoundingClientRect().top > bottom - 24;
+    node.dataset.hidden = String(isHidden);
+    if (!isHidden)
+      continue;
+    const group = node.closest(".group");
+    counts.set(group.dataset.group, {
+      short: group.dataset.short,
+      count: (counts.get(group.dataset.group)?.count ?? 0) + 1
+    });
+  }
+  const text = body.scrollHeight > body.clientHeight + 4 ? tail([...counts.values()]) : "";
+  wrap.hidden = text === "";
+  wrap.querySelector(".tail-text").textContent = text;
+};
 var tailFrame = 0;
 var updateTail = () => {
   cancelAnimationFrame(tailFrame);
-  tailFrame = requestAnimationFrame(() => {
-    const body = document.querySelector(".col-needs .col-body");
-    const wrap = body?.querySelector(".tail-wrap");
-    if (!body || !wrap)
-      return;
-    const bottom = body.getBoundingClientRect().bottom - (wrap.hidden ? 0 : wrap.offsetHeight);
-    const counts = new Map;
-    for (const node of body.querySelectorAll(".card[data-key]")) {
-      const isHidden = node.getBoundingClientRect().top > bottom - 24;
-      node.dataset.hidden = String(isHidden);
-      if (!isHidden)
-        continue;
-      const group = node.closest(".group");
-      counts.set(group.dataset.group, {
-        short: group.dataset.short,
-        count: (counts.get(group.dataset.group)?.count ?? 0) + 1
-      });
-    }
-    const text = body.scrollHeight > body.clientHeight + 4 ? tail([...counts.values()]) : "";
-    wrap.hidden = text === "";
-    wrap.querySelector(".tail-text").textContent = text;
-  });
+  tailFrame = requestAnimationFrame(measureTail);
 };
 var pipelineView = (columns, flow) => {
   const cards = [...columns.needs, ...columns.running, ...columns.idle];
@@ -3417,12 +3446,26 @@ var pipelineView = (columns, flow) => {
   return sections;
 };
 var isStop = (node) => !node.closest(".epic-children[hidden]");
+var STOPS = ".card[data-key], .epic-row";
+var stopKeys = new Map;
+var stopKey = (node) => node.dataset.key ?? node.dataset.group;
+var columnId = (col) => col.id || col.getAttribute("aria-labelledby") || "hold";
+var syncStops = () => {
+  for (const col of document.querySelectorAll("#columns .col")) {
+    const stops = [...col.querySelectorAll(STOPS)].filter(isStop);
+    const active = document.activeElement?.closest(STOPS);
+    const kept = stopKeys.get(columnId(col));
+    const stop = stops.find((node) => node === active) ?? stops.find((node) => stopKey(node) === kept) ?? stops[0];
+    for (const node of stops)
+      node.tabIndex = node === stop ? 0 : -1;
+  }
+};
 var focusFirst = (selector) => {
   if (isQueueOpen)
     showQueue(false);
   const target = [...document.querySelectorAll(selector)].find(isStop);
   target?.focus();
-  target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  target?.scrollIntoView({ block: "nearest", behavior: isCalm.matches ? "auto" : "smooth" });
 };
 var summary = (board) => SUMMARY.map(([key, label]) => {
   const count = key === "history" ? data?.history?.entries.length ?? 0 : key === "needs" ? needsYou(board).length : board.columns[key].length;
@@ -3562,6 +3605,28 @@ var drawHistory = () => {
     (match ?? panel.querySelector("button"))?.focus({ preventScroll: true });
   }
 };
+var covering = matchMedia("(max-width: 1099px), (max-height: 700px)");
+var PANEL_FOCUS = ".panel-actions .btn, .ask .btn, .icon-btn";
+var syncCover = () => {
+  const panel = $("panel");
+  const isCovered = !panel.hidden && covering.matches;
+  const isFocusOutside = !panel.contains(document.activeElement);
+  for (const node of document.querySelectorAll(".top, #human, #queue, #columns, .statusbar"))
+    node.inert = isCovered;
+  document.body.classList.toggle("is-covered", isCovered);
+  if (isCovered) {
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-modal", "true");
+  } else {
+    panel.removeAttribute("role");
+    panel.removeAttribute("aria-modal");
+  }
+  if (isCovered && isFocusOutside)
+    (panel.querySelector(PANEL_FOCUS) ?? panel.querySelector("button"))?.focus({
+      preventScroll: true
+    });
+};
+covering.addEventListener("change", syncCover);
 var setHistory = (isOpen) => {
   if (isOpen && isQueueOpen)
     showQueue(false);
@@ -3576,6 +3641,7 @@ var setHistory = (isOpen) => {
   document.body.classList.add("has-panel");
   $("panel").hidden = false;
   drawHistory();
+  syncCover();
   $("panel").querySelector("button")?.focus({ preventScroll: true });
   updateTail();
 };
@@ -3729,7 +3795,12 @@ var drawPanelFor = () => {
     return closePanel();
   $("panel").setAttribute("aria-label", "Card details");
   const focused = $("panel").contains(document.activeElement) ? document.activeElement.getAttribute("aria-label") : null;
+  const scroll = $("panel").dataset.key === selected ? $("panel").querySelector(".panel-body")?.scrollTop ?? 0 : 0;
+  $("panel").dataset.key = selected;
   $("panel").replaceChildren(...drawPanel(entry.card, panelContext(entry.card)));
+  const body = $("panel").querySelector(".panel-body");
+  if (body)
+    body.scrollTop = scroll;
   if (focused)
     ($("panel").querySelector(`[aria-label="${CSS.escape(focused)}"]`) ?? $("panel").querySelector(".panel-head > .icon-btn:last-child"))?.focus({ preventScroll: true });
 };
@@ -3755,7 +3826,8 @@ var openPanel = (key) => {
   $("panel").hidden = false;
   drawPanelFor();
   markSeen(key);
-  $("panel").querySelector(".panel-actions .btn, .ask .btn, .icon-btn")?.focus({ preventScroll: true });
+  syncCover();
+  $("panel").querySelector(PANEL_FOCUS)?.focus({ preventScroll: true });
   updateTail();
 };
 function closePanel() {
@@ -3767,26 +3839,65 @@ function closePanel() {
   document.body.classList.remove("has-panel");
   $("panel").hidden = true;
   $("panel").replaceChildren();
+  syncCover();
   for (const node of document.querySelectorAll("[data-key].is-selected"))
     node.classList.remove("is-selected");
   if (wasHistory)
     $("history").focus({ preventScroll: true });
   if (key) {
     revealCard(key);
-    document.querySelector(`[data-key="${CSS.escape(key)}"]`)?.focus({ preventScroll: true });
+    document.querySelector(`#columns [data-key="${CSS.escape(key)}"]`)?.focus({ preventScroll: true });
   }
   updateTail();
 }
 var reachable = (node) => node?.closest(".epic-children[hidden]")?.closest(".epic-group")?.querySelector(".epic-row") ?? node;
+var markFocus = (active) => {
+  const chip = active?.closest("#summary .chip");
+  if (chip)
+    return { kind: "chip", key: [...chip.classList].find((name) => name.startsWith("chip-")) };
+  const pill = active?.closest(".human-pill");
+  if (pill) {
+    const key = pill.querySelector("[data-key]").dataset.key;
+    return { kind: "pill", key, label: active?.matches(".human-go") ? "go" : undefined };
+  }
+  if (!active?.closest("#columns"))
+    return null;
+  const column = columnId(active.closest(".col"));
+  if (active.closest(".tail"))
+    return { kind: "tail", key: "", column };
+  const row = active.closest(".epic-row");
+  if (row)
+    return { kind: "epic", key: row.dataset.group, column };
+  const card = active.closest(".card[data-key]");
+  if (!card)
+    return null;
+  const key = card.dataset.key;
+  return card === active ? { kind: "card", key, column } : { kind: "control", key, column, label: active.getAttribute("aria-label") ?? active.textContent?.trim() ?? "" };
+};
+var restoreFocus = (mark) => {
+  const one = (selector) => document.querySelector(selector);
+  const keyed = (key, scope = "#columns") => one(`${scope} [data-key="${CSS.escape(key)}"]`);
+  const card = mark.kind === "card" || mark.kind === "control" ? keyed(mark.key) : null;
+  const control = mark.kind === "control" ? [...card?.querySelectorAll("button, a") ?? []].find((node) => (node.getAttribute("aria-label") ?? node.textContent?.trim()) === mark.label) : null;
+  const stop = [...document.querySelectorAll("#columns .col")].find((col) => columnId(col) === mark.column)?.querySelector(`:is(${STOPS})[tabindex="0"], .empty`);
+  if (mark.kind === "tail")
+    measureTail();
+  const target = {
+    chip: () => one(`#summary .${mark.key}`),
+    tail: () => one(".col-needs .tail-wrap")?.hidden === false ? one(".col-needs .tail") : stop,
+    epic: () => one(`.epic-row[data-group="${CSS.escape(mark.key)}"]`) ?? stop,
+    pill: () => {
+      const open = keyed(mark.key, "#human");
+      return (mark.label ? open?.closest(".human-pill")?.querySelector(".human-go") : open) ?? stop;
+    },
+    card: () => reachable(card) ?? stop,
+    control: () => control ?? reachable(card) ?? stop
+  }[mark.kind]();
+  target?.focus({ preventScroll: true });
+};
 var drawBoard = (next) => {
   drawQueue(next);
-  const active = document.activeElement;
-  const holder = active?.closest?.(".human-pill, [data-key]");
-  const target = (holder?.querySelector("[data-key]") ?? holder)?.dataset.key;
-  const isGo = Boolean(active?.matches?.(".human-go"));
-  const epicRow = active?.closest?.(".epic-row");
-  const rowGroup = epicRow?.dataset.group;
-  const rowKeys = [...epicRow?.closest(".epic-group")?.querySelectorAll("[data-key]") ?? []].map((node) => node.dataset.key);
+  const mark = markFocus(document.activeElement);
   used = new Set;
   byKey = new Map;
   const needs = next.columns.needs.length;
@@ -3835,17 +3946,9 @@ var drawBoard = (next) => {
     else
       closePanel();
   }
-  if (target) {
-    const node = document.querySelector(`[data-key="${CSS.escape(target)}"]`);
-    const go = isGo ? node?.closest(".human-pill")?.querySelector(".human-go") : null;
-    (go ?? reachable(node))?.focus({ preventScroll: true });
-  }
-  if (rowGroup) {
-    const row = document.querySelector(`.epic-row[data-group="${CSS.escape(rowGroup)}"]`);
-    const key = rowKeys.find((name) => document.querySelector(`[data-key="${CSS.escape(name)}"]`));
-    const card = key ? document.querySelector(`[data-key="${CSS.escape(key)}"]`) : null;
-    (row ?? reachable(card))?.focus({ preventScroll: true });
-  }
+  syncStops();
+  if (mark)
+    restoreFocus(mark);
   drawHints(document.activeElement?.closest?.(".card[data-key]") ?? null);
   updateTail();
 };
@@ -3882,8 +3985,11 @@ var setView = (next) => {
 var tick = () => {
   drawIntake();
   const now = Date.now();
-  for (const node of document.querySelectorAll("[data-since]"))
-    node.textContent = `${age(node.dataset.since, now, "fine" in node.dataset)}${node.dataset.suffix ?? ""}`;
+  for (const node of document.querySelectorAll("[data-since]")) {
+    const text = `${age(node.dataset.since, now, "fine" in node.dataset)}${node.dataset.suffix ?? ""}`;
+    if (node.textContent !== text)
+      node.textContent = text;
+  }
 };
 var isCalm = matchMedia("(prefers-reduced-motion: reduce)");
 var layoutOf = (next) => JSON.stringify([
@@ -4079,6 +4185,7 @@ var paletteItems = () => {
     run: action.href ? () => window.open(action.href, "_blank", "noopener,noreferrer") : action.run
   });
   const shown = project(data);
+  const goTo = [];
   for (const [column, group] of [
     ["needs", "Needs you"],
     ["running", "Running"],
@@ -4087,6 +4194,23 @@ var paletteItems = () => {
   ]) {
     for (const card of shown.columns[column]) {
       const key = [...byKey].find(([, entry]) => entry.card === card)?.[0] ?? keyOf(card);
+      if (card.number !== null)
+        goTo.push({
+          group: "Go to",
+          isGoTo: true,
+          number: card.number,
+          label: `Go to #${card.number}`,
+          context: card.title,
+          icon: "panel",
+          tone: null,
+          key: "",
+          run: () => {
+            if (!document.querySelector(`[data-key="${CSS.escape(key)}"]`))
+              setView("now");
+            openPanel(key);
+            document.querySelector(`[data-key="${CSS.escape(key)}"]`)?.focus();
+          }
+        });
       const [main] = actionsOf(card);
       if (main && !main.isDisabled)
         add(group, card, key, main);
@@ -4124,6 +4248,30 @@ var paletteItems = () => {
       }
     }
   }
+  const epics = new Map;
+  for (const card of [...shown.columns.needs, ...shown.columns.running, ...shown.columns.idle])
+    if (card.epic)
+      epics.set(card.epic.number, card.epic.title);
+  for (const [number, title] of epics)
+    goTo.push({
+      group: "Go to",
+      isGoTo: true,
+      number,
+      label: `Go to epic #${number}`,
+      context: title,
+      icon: "chevron",
+      tone: null,
+      key: "",
+      run: () => {
+        const row = () => document.querySelector(`.epic-row[data-epic="${number}"]`);
+        if (!row())
+          setView("now");
+        if (!$("panel").hidden && (covering.matches || row()?.offsetParent === null))
+          closePanel();
+        setEpicOpen(number, true);
+        row()?.focus();
+      }
+    });
   for (const card of shown.history?.entries ?? [])
     if (card.url)
       items.push({
@@ -4171,7 +4319,7 @@ var paletteItems = () => {
       drawBoard(project(data));
     }
   });
-  return items;
+  return [...goTo, ...items];
 };
 async function toggleNotify() {
   if (!("Notification" in window))
@@ -4286,6 +4434,14 @@ document.addEventListener("keydown", (event) => {
   press(card);
 });
 var columns = $("columns");
+columns.addEventListener("focusin", (event) => {
+  const node = event.target.closest(STOPS);
+  const col = node?.closest(".col");
+  if (!node || !col)
+    return;
+  stopKeys.set(columnId(col), stopKey(node));
+  syncStops();
+});
 columns.addEventListener("click", (event) => {
   const node = event.target.closest(".card[data-key]");
   if (!node || event.target.closest("a, button"))

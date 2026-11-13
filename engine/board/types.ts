@@ -182,4 +182,10 @@ export type MenuEntry = {
   isDanger?: boolean;
   run: () => unknown;
 };
-export type PaletteItem = MenuEntry & { number: number | null; group: string; context?: string; tone?: string | null };
+export type PaletteItem = MenuEntry & {
+  number: number | null;
+  group: string;
+  context?: string;
+  tone?: string | null;
+  isGoTo?: boolean;
+};

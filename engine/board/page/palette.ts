@@ -6,17 +6,28 @@ let items: PaletteItem[] = [];
 let shown: PaletteItem[] = [];
 let active = 0;
 
+const exactNumber = () => /^#?(\d+)$/.exec($('pal-input').value.trim())?.[1];
+
 const option = (item: PaletteItem, index: number) => {
-  const node = el('div', `pal-row${index === active ? ' on' : ''}${item.tone ? ` tone-${item.tone}` : ''}`);
+  const node = el(
+    'div',
+    `pal-row${index === active ? ' on' : ''}${item.isGoTo ? ' go' : ''}${item.tone ? ` tone-${item.tone}` : ''}`,
+  );
   node.id = `pal-${index}`;
   node.setAttribute('role', 'option');
   node.setAttribute('aria-selected', String(index === active));
   if (item.isDisabled) node.setAttribute('aria-disabled', 'true');
+  if (item.isGoTo) node.setAttribute('aria-label', `${item.label}, ${item.context}. Press Enter to go.`);
   if (item.title) node.title = item.title;
   const context = el('span', 'ctx');
   if (item.number !== null) context.append(el('span', 'num', `#${item.number}`));
   if (item.context) context.append(item.context);
-  node.append(icon(item.icon), el('b', '', item.label), context, item.key ? el('kbd', '', item.key) : el('span'));
+  node.append(
+    icon(item.icon),
+    el('b', '', item.label),
+    context,
+    item.isGoTo ? el('kbd', '', 'Enter to go') : item.key ? el('kbd', '', item.key) : el('span'),
+  );
   node.addEventListener('mousemove', () => {
     if (active !== index) select(index);
   });
@@ -28,9 +39,11 @@ const draw = () => {
   const list = $('pal-list');
   const rows = [];
   let group: string | null = null;
+  const exact = exactNumber();
   shown.forEach((item, index) => {
-    if (item.group !== group) {
-      group = item.group;
+    const label = exact && !item.isGoTo && String(item.number) === exact ? `Actions for #${exact}` : item.group;
+    if (label !== group) {
+      group = label;
       rows.push(el('div', 'pal-group', group));
     }
     rows.push(option(item, index));
@@ -40,10 +53,18 @@ const draw = () => {
   $('pal-input').setAttribute('aria-activedescendant', shown.length ? `pal-${active}` : '');
 };
 
+const mark = (index: number, isOn: boolean) => {
+  const row = $(`pal-${index}`);
+  row.classList.toggle('on', isOn);
+  row.setAttribute('aria-selected', String(isOn));
+};
+
 const select = (index: number) => {
+  mark(active, false);
   active = index;
-  draw();
-  $(`pal-${index}`)?.scrollIntoView({ block: 'nearest' });
+  mark(active, true);
+  $('pal-input').setAttribute('aria-activedescendant', `pal-${active}`);
+  $(`pal-${active}`).scrollIntoView({ block: 'nearest' });
 };
 
 const pick = (index: number) => {

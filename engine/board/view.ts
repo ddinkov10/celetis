@@ -247,23 +247,25 @@ export const pipeline = (cards: Card[], flow: Partial<Flow> | null | undefined) 
   return { stages, hold: cards.filter((card) => !placed.has(card)) };
 };
 
-export const filterItems = <T extends { number: number | null; label: string; context?: string }>(
+export const filterItems = <T extends { number: number | null; label: string; context?: string; isGoTo?: boolean }>(
   items: T[],
   query: string,
 ): T[] => {
   const text = query.trim().toLowerCase();
-  if (text === '') return items;
+  if (text === '') return items.filter((item) => !item.isGoTo);
   const number = /^#?(\d+)$/.exec(text)?.[1];
   if (number) {
     const found = items.filter((item) => item.number !== null && String(item.number).startsWith(number));
+    const exact = found.filter((item) => String(item.number) === number);
     return [
-      ...found.filter((item) => String(item.number) === number),
+      ...exact.filter((item) => item.isGoTo),
+      ...exact.filter((item) => !item.isGoTo),
       ...items.filter((item) => item.number === null && item.context === text),
       ...found.filter((item) => String(item.number) !== number),
     ];
   }
   const words = text.split(/\s+/);
-  return items.filter((item) =>
-    words.every((word) => `${item.label} ${item.context ?? ''}`.toLowerCase().includes(word)),
+  return items.filter(
+    (item) => !item.isGoTo && words.every((word) => `${item.label} ${item.context ?? ''}`.toLowerCase().includes(word)),
   );
 };

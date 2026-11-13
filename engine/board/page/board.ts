@@ -138,9 +138,13 @@ const intakeReason = () => {
   return defaultReason();
 };
 
+let drawnIntake = '';
 function drawIntake(): void {
   const button = $('intake');
   const reason = intakeReason();
+  const state = `${intakePending}|${reason}`;
+  if (state === drawnIntake) return;
+  drawnIntake = state;
   button.setAttribute('aria-disabled', String(reason !== null));
   button.setAttribute('aria-busy', String(intakePending));
   button.title = reason ?? 'Open a fresh intake session';
@@ -684,6 +688,7 @@ const glyph = (key: Column) => {
 
 const empty = (key: Column, [title, text]: [string, string]) => {
   const node = el('div', `empty empty-${key}`);
+  node.tabIndex = -1;
   node.append(
     icon(key === 'needs' ? 'clear' : `col-${key}`),
     el('p', 'empty-title', title),
@@ -723,6 +728,7 @@ const showOpenEpics = () => {
     row.setAttribute('aria-expanded', String(isOpen));
     ($(row.getAttribute('aria-controls') as string) as HTMLElement).hidden = !isOpen;
   }
+  syncStops();
 };
 
 const setEpicOpen = (epic: number, isOpen: boolean) => {
@@ -735,6 +741,7 @@ const epicGroup = (epic: ParentEpic, cards: Card[], scope: string) => {
   const isOpen = openEpics.has(epic.number);
   const row = el('button', 'epic-row');
   row.type = 'button';
+  row.tabIndex = -1;
   row.id = `${id}-row`;
   row.dataset.epic = String(epic.number);
   row.dataset.group = `${scope}-${epic.number}`;
@@ -811,29 +818,31 @@ const drawTail = () => {
   return wrap;
 };
 
+const measureTail = () => {
+  const body = document.querySelector<HTMLElement>('.col-needs .col-body');
+  const wrap = body?.querySelector<HTMLElement>('.tail-wrap');
+  if (!body || !wrap) return;
+  const bottom = body.getBoundingClientRect().bottom - (wrap.hidden ? 0 : wrap.offsetHeight);
+  const counts = new Map();
+  for (const node of body.querySelectorAll<HTMLElement>('.card[data-key]')) {
+    const isHidden = node.getBoundingClientRect().top > bottom - 24;
+    node.dataset.hidden = String(isHidden);
+    if (!isHidden) continue;
+    const group = node.closest<HTMLElement>('.group') as HTMLElement;
+    counts.set(group.dataset.group, {
+      short: group.dataset.short,
+      count: (counts.get(group.dataset.group)?.count ?? 0) + 1,
+    });
+  }
+  const text = body.scrollHeight > body.clientHeight + 4 ? tail([...counts.values()]) : '';
+  wrap.hidden = text === '';
+  (wrap.querySelector<HTMLElement>('.tail-text') as HTMLElement).textContent = text;
+};
+
 let tailFrame = 0;
 const updateTail = () => {
   cancelAnimationFrame(tailFrame);
-  tailFrame = requestAnimationFrame(() => {
-    const body = document.querySelector<HTMLElement>('.col-needs .col-body');
-    const wrap = body?.querySelector<HTMLElement>('.tail-wrap');
-    if (!body || !wrap) return;
-    const bottom = body.getBoundingClientRect().bottom - (wrap.hidden ? 0 : wrap.offsetHeight);
-    const counts = new Map();
-    for (const node of body.querySelectorAll<HTMLElement>('.card[data-key]')) {
-      const isHidden = node.getBoundingClientRect().top > bottom - 24;
-      node.dataset.hidden = String(isHidden);
-      if (!isHidden) continue;
-      const group = node.closest<HTMLElement>('.group') as HTMLElement;
-      counts.set(group.dataset.group, {
-        short: group.dataset.short,
-        count: (counts.get(group.dataset.group)?.count ?? 0) + 1,
-      });
-    }
-    const text = body.scrollHeight > body.clientHeight + 4 ? tail([...counts.values()]) : '';
-    wrap.hidden = text === '';
-    (wrap.querySelector<HTMLElement>('.tail-text') as HTMLElement).textContent = text;
-  });
+  tailFrame = requestAnimationFrame(measureTail);
 };
 
 const pipelineView = (columns: Columns, flow: Flow | null) => {
@@ -880,11 +889,26 @@ const pipelineView = (columns: Columns, flow: Flow | null) => {
 
 const isStop = (node: Element) => !node.closest('.epic-children[hidden]');
 
+const STOPS = '.card[data-key], .epic-row';
+const stopKeys = new Map<string, string>();
+const stopKey = (node: HTMLElement) => (node.dataset.key ?? node.dataset.group) as string;
+const columnId = (col: Element) => col.id || col.getAttribute('aria-labelledby') || 'hold';
+
+const syncStops = () => {
+  for (const col of document.querySelectorAll<HTMLElement>('#columns .col')) {
+    const stops = [...col.querySelectorAll<HTMLElement>(STOPS)].filter(isStop);
+    const active = document.activeElement?.closest<HTMLElement>(STOPS);
+    const kept = stopKeys.get(columnId(col));
+    const stop = stops.find((node) => node === active) ?? stops.find((node) => stopKey(node) === kept) ?? stops[0];
+    for (const node of stops) node.tabIndex = node === stop ? 0 : -1;
+  }
+};
+
 const focusFirst = (selector: string) => {
   if (isQueueOpen) showQueue(false);
   const target = [...document.querySelectorAll<HTMLElement>(selector)].find(isStop);
   target?.focus();
-  target?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  target?.scrollIntoView({ block: 'nearest', behavior: isCalm.matches ? 'auto' : 'smooth' });
 };
 
 const summary = (board: Board) =>
@@ -1059,6 +1083,29 @@ const drawHistory = () => {
   }
 };
 
+const covering = matchMedia('(max-width: 1099px), (max-height: 700px)');
+const PANEL_FOCUS = '.panel-actions .btn, .ask .btn, .icon-btn';
+const syncCover = () => {
+  const panel = $('panel');
+  const isCovered = !panel.hidden && covering.matches;
+  const isFocusOutside = !panel.contains(document.activeElement);
+  for (const node of document.querySelectorAll<HTMLElement>('.top, #human, #queue, #columns, .statusbar'))
+    node.inert = isCovered;
+  document.body.classList.toggle('is-covered', isCovered);
+  if (isCovered) {
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'true');
+  } else {
+    panel.removeAttribute('role');
+    panel.removeAttribute('aria-modal');
+  }
+  if (isCovered && isFocusOutside)
+    (panel.querySelector<HTMLElement>(PANEL_FOCUS) ?? panel.querySelector<HTMLElement>('button'))?.focus({
+      preventScroll: true,
+    });
+};
+covering.addEventListener('change', syncCover);
+
 const setHistory = (isOpen: boolean) => {
   if (isOpen && isQueueOpen) showQueue(false);
   if (!isOpen) return closePanel();
@@ -1070,6 +1117,7 @@ const setHistory = (isOpen: boolean) => {
   document.body.classList.add('has-panel');
   $('panel').hidden = false;
   drawHistory();
+  syncCover();
   $('panel').querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
   updateTail();
 };
@@ -1242,7 +1290,11 @@ const drawPanelFor = () => {
   const focused = $('panel').contains(document.activeElement)
     ? (document.activeElement as Element).getAttribute('aria-label')
     : null;
+  const scroll = $('panel').dataset.key === selected ? ($('panel').querySelector('.panel-body')?.scrollTop ?? 0) : 0;
+  $('panel').dataset.key = selected as string;
   $('panel').replaceChildren(...drawPanel(entry.card, panelContext(entry.card)));
+  const body = $('panel').querySelector('.panel-body');
+  if (body) body.scrollTop = scroll;
   if (focused)
     (
       $('panel').querySelector<HTMLElement>(`[aria-label="${CSS.escape(focused)}"]`) ??
@@ -1272,7 +1324,8 @@ const openPanel = (key: string) => {
   $('panel').hidden = false;
   drawPanelFor();
   markSeen(key);
-  $('panel').querySelector<HTMLElement>('.panel-actions .btn, .ask .btn, .icon-btn')?.focus({ preventScroll: true });
+  syncCover();
+  $('panel').querySelector<HTMLElement>(PANEL_FOCUS)?.focus({ preventScroll: true });
   updateTail();
 };
 
@@ -1285,12 +1338,13 @@ function closePanel() {
   document.body.classList.remove('has-panel');
   $('panel').hidden = true;
   $('panel').replaceChildren();
+  syncCover();
   for (const node of document.querySelectorAll<HTMLElement>('[data-key].is-selected'))
     node.classList.remove('is-selected');
   if (wasHistory) $('history').focus({ preventScroll: true });
   if (key) {
     revealCard(key);
-    document.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`)?.focus({ preventScroll: true });
+    document.querySelector<HTMLElement>(`#columns [data-key="${CSS.escape(key)}"]`)?.focus({ preventScroll: true });
   }
   updateTail();
 }
@@ -1298,17 +1352,65 @@ function closePanel() {
 const reachable = (node: HTMLElement | null | undefined) =>
   node?.closest('.epic-children[hidden]')?.closest('.epic-group')?.querySelector<HTMLElement>('.epic-row') ?? node;
 
+type FocusMark = {
+  kind: 'card' | 'control' | 'chip' | 'tail' | 'epic' | 'pill';
+  key: string;
+  column?: string;
+  label?: string;
+};
+
+const markFocus = (active: Element | null): FocusMark | null => {
+  const chip = active?.closest('#summary .chip');
+  if (chip) return { kind: 'chip', key: [...chip.classList].find((name) => name.startsWith('chip-')) as string };
+  const pill = active?.closest<HTMLElement>('.human-pill');
+  if (pill) {
+    const key = (pill.querySelector('[data-key]') as HTMLElement).dataset.key as string;
+    return { kind: 'pill', key, label: active?.matches('.human-go') ? 'go' : undefined };
+  }
+  if (!active?.closest('#columns')) return null;
+  const column = columnId(active.closest('.col') as Element);
+  if (active.closest('.tail')) return { kind: 'tail', key: '', column };
+  const row = active.closest<HTMLElement>('.epic-row');
+  if (row) return { kind: 'epic', key: row.dataset.group as string, column };
+  const card = active.closest<HTMLElement>('.card[data-key]');
+  if (!card) return null;
+  const key = card.dataset.key as string;
+  return card === active
+    ? { kind: 'card', key, column }
+    : { kind: 'control', key, column, label: active.getAttribute('aria-label') ?? active.textContent?.trim() ?? '' };
+};
+
+const restoreFocus = (mark: FocusMark) => {
+  const one = (selector: string) => document.querySelector<HTMLElement>(selector);
+  const keyed = (key: string, scope = '#columns') => one(`${scope} [data-key="${CSS.escape(key)}"]`);
+  const card = mark.kind === 'card' || mark.kind === 'control' ? keyed(mark.key) : null;
+  const control =
+    mark.kind === 'control'
+      ? [...(card?.querySelectorAll<HTMLElement>('button, a') ?? [])].find(
+          (node) => (node.getAttribute('aria-label') ?? node.textContent?.trim()) === mark.label,
+        )
+      : null;
+  const stop = [...document.querySelectorAll<HTMLElement>('#columns .col')]
+    .find((col) => columnId(col) === mark.column)
+    ?.querySelector<HTMLElement>(`:is(${STOPS})[tabindex="0"], .empty`);
+  if (mark.kind === 'tail') measureTail();
+  const target = {
+    chip: () => one(`#summary .${mark.key}`),
+    tail: () => (one('.col-needs .tail-wrap')?.hidden === false ? one('.col-needs .tail') : stop),
+    epic: () => one(`.epic-row[data-group="${CSS.escape(mark.key)}"]`) ?? stop,
+    pill: () => {
+      const open = keyed(mark.key, '#human');
+      return (mark.label ? open?.closest('.human-pill')?.querySelector<HTMLElement>('.human-go') : open) ?? stop;
+    },
+    card: () => reachable(card) ?? stop,
+    control: () => control ?? reachable(card) ?? stop,
+  }[mark.kind]();
+  target?.focus({ preventScroll: true });
+};
+
 const drawBoard = (next: Board) => {
   drawQueue(next);
-  const active = document.activeElement as HTMLElement | null;
-  const holder = active?.closest?.<HTMLElement>('.human-pill, [data-key]');
-  const target = (holder?.querySelector<HTMLElement>('[data-key]') ?? holder)?.dataset.key;
-  const isGo = Boolean(active?.matches?.('.human-go'));
-  const epicRow = active?.closest?.<HTMLElement>('.epic-row');
-  const rowGroup = epicRow?.dataset.group;
-  const rowKeys = [...(epicRow?.closest('.epic-group')?.querySelectorAll<HTMLElement>('[data-key]') ?? [])].map(
-    (node) => node.dataset.key as string,
-  );
+  const mark = markFocus(document.activeElement);
   used = new Set();
   byKey = new Map();
   const needs = next.columns.needs.length;
@@ -1357,17 +1459,8 @@ const drawBoard = (next: Board) => {
     if (byKey.has(selected)) drawPanelFor();
     else closePanel();
   }
-  if (target) {
-    const node = document.querySelector<HTMLElement>(`[data-key="${CSS.escape(target)}"]`);
-    const go = isGo ? node?.closest('.human-pill')?.querySelector<HTMLElement>('.human-go') : null;
-    (go ?? reachable(node))?.focus({ preventScroll: true });
-  }
-  if (rowGroup) {
-    const row = document.querySelector<HTMLElement>(`.epic-row[data-group="${CSS.escape(rowGroup)}"]`);
-    const key = rowKeys.find((name) => document.querySelector(`[data-key="${CSS.escape(name)}"]`));
-    const card = key ? document.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`) : null;
-    (row ?? reachable(card))?.focus({ preventScroll: true });
-  }
+  syncStops();
+  if (mark) restoreFocus(mark);
   drawHints((document.activeElement as HTMLElement | null)?.closest?.<HTMLElement>('.card[data-key]') ?? null);
   updateTail();
 };
@@ -1408,8 +1501,10 @@ const setView = (next: string) => {
 const tick = () => {
   drawIntake();
   const now = Date.now();
-  for (const node of document.querySelectorAll<HTMLElement>('[data-since]'))
-    node.textContent = `${age(node.dataset.since as string, now, 'fine' in node.dataset)}${node.dataset.suffix ?? ''}`;
+  for (const node of document.querySelectorAll<HTMLElement>('[data-since]')) {
+    const text = `${age(node.dataset.since as string, now, 'fine' in node.dataset)}${node.dataset.suffix ?? ''}`;
+    if (node.textContent !== text) node.textContent = text;
+  }
 };
 
 const isCalm = matchMedia('(prefers-reduced-motion: reduce)');
@@ -1633,6 +1728,7 @@ const paletteItems = () => {
         : (action.run as () => unknown),
     });
   const shown = project(data);
+  const goTo: PaletteItem[] = [];
   for (const [column, group] of [
     ['needs', 'Needs you'],
     ['running', 'Running'],
@@ -1641,6 +1737,22 @@ const paletteItems = () => {
   ] as [Column, string][]) {
     for (const card of shown.columns[column]) {
       const key = [...byKey].find(([, entry]) => entry.card === card)?.[0] ?? keyOf(card);
+      if (card.number !== null)
+        goTo.push({
+          group: 'Go to',
+          isGoTo: true,
+          number: card.number,
+          label: `Go to #${card.number}`,
+          context: card.title,
+          icon: 'panel',
+          tone: null,
+          key: '',
+          run: () => {
+            if (!document.querySelector(`[data-key="${CSS.escape(key)}"]`)) setView('now');
+            openPanel(key);
+            document.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`)?.focus();
+          },
+        });
       const [main] = actionsOf(card);
       if (main && !main.isDisabled) add(group, card, key, main);
       else if (card.number !== null || card.sessionId)
@@ -1676,6 +1788,27 @@ const paletteItems = () => {
       }
     }
   }
+  const epics = new Map<number, string>();
+  for (const card of [...shown.columns.needs, ...shown.columns.running, ...shown.columns.idle])
+    if (card.epic) epics.set(card.epic.number, card.epic.title);
+  for (const [number, title] of epics)
+    goTo.push({
+      group: 'Go to',
+      isGoTo: true,
+      number,
+      label: `Go to epic #${number}`,
+      context: title,
+      icon: 'chevron',
+      tone: null,
+      key: '',
+      run: () => {
+        const row = () => document.querySelector<HTMLElement>(`.epic-row[data-epic="${number}"]`);
+        if (!row()) setView('now');
+        if (!$('panel').hidden && (covering.matches || row()?.offsetParent === null)) closePanel();
+        setEpicOpen(number, true);
+        row()?.focus();
+      },
+    });
   for (const card of shown.history?.entries ?? [])
     if (card.url)
       items.push({
@@ -1727,7 +1860,7 @@ const paletteItems = () => {
       },
     },
   );
-  return items;
+  return [...goTo, ...items];
 };
 
 async function toggleNotify() {
@@ -1836,6 +1969,13 @@ document.addEventListener('keydown', (event) => {
 });
 
 const columns = $('columns');
+columns.addEventListener('focusin', (event) => {
+  const node = (event.target as Element).closest<HTMLElement>(STOPS);
+  const col = node?.closest('.col');
+  if (!node || !col) return;
+  stopKeys.set(columnId(col), stopKey(node));
+  syncStops();
+});
 columns.addEventListener('click', (event) => {
   const node = (event.target as Element).closest<HTMLElement>('.card[data-key]');
   if (!node || (event.target as Element).closest<HTMLElement>('a, button')) return;

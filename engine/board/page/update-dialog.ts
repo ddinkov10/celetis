@@ -375,7 +375,7 @@ export function setupUpdates(): Controls {
   };
   const schedule = () => {
     clearTimeout(timer);
-    if (!timedOut) timer = setTimeout(poll, pending ? 1000 : 5000);
+    if (!timedOut) timer = setTimeout(poll, pending ? 1000 : document.hidden ? 15000 : 5000);
   };
   const poll = async (forCheck = false) => {
     if (expire()) return;
@@ -521,6 +521,11 @@ export function setupUpdates(): Controls {
     await poll(true);
   };
   check.addEventListener('click', () => void requestCheck());
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden || timedOut || submitting || checking) return;
+    clearTimeout(timer);
+    void poll();
+  });
   draw();
   void poll();
   return controls;

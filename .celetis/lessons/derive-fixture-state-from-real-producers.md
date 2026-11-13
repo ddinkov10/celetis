@@ -8,12 +8,35 @@
     "config",
     "process",
     "test",
-    "recurring"
+    "recurring",
+    "ui"
   ],
   "date": "2026-11-07",
   "status": "active",
-  "source": "Implementation verification of ddinkov10/celetis#287\n\nTask 2 of ddinkov10/celetis#250, implement step session (child report to the coordinator)\n\nTask 3 of ddinkov10/celetis#141 (implement session, child t3-impl); recorded by the coordinator\n\nImplementation of ddinkov10/celetis#245, temporary verification correction",
+  "source": "implement session of #310 (Verify phase), 2026-11-13\n\nImplementation verification of ddinkov10/celetis#287\n\nTask 2 of ddinkov10/celetis#250, implement step session (child report to the coordinator)\n\nTask 3 of ddinkov10/celetis#141 (implement session, child t3-impl); recorded by the coordinator\n\nImplementation of ddinkov10/celetis#245, temporary verification correction",
   "incidents": [
+    {
+      "id": "5b0d7c1e-3f2a-4c8e-9a61-7d2e4b9f0310",
+      "date": "2026-11-13",
+      "action": "The Task 1 harness started a read-only board in a Herdr lab with a fake gh, but with no claude or codex on the board PATH; Tasks 2-7 probes and the first Verify run (V1-V9 and 23 captures) ran on it.",
+      "expected": "The probe board shows the same enabled Run and Open agent rows and buttons as the real board, so the V8 oracle 'Go to #<n> first, Run rows follow' and the V7 look captures can be judged.",
+      "observed": "The lab board reported 'celetis: claude is not on PATH'; Search #119 listed only 'Show the details' under 'Actions for #119', with no Run rows, and the Run and Open agent buttons in all captures were grey (disabled). After adding fake claude/codex (print a version, start nothing) to the lab PATH, the same search listed 'Run triage on opus at medium', 'Run #119 with claude', 'Run #119 with codex', and the whole Verify run and all captures had to be renewed.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "lab board: \"celetis: claude is not on PATH\"; Actions for #119 holds only \"Show the details\" and no Run rows",
+        "reference": "https://github.com/ddinkov10/celetis/issues/310#issuecomment-6863157921"
+      },
+      "inference": "The harness derived the card states from the real producers (readBoard, place) but not the host-availability input of the board, which gates the Run actions. Uncertain whether an earlier task probe that asserted an Enter result on a Run action passed for the wrong reason; Task 3 'enter' used a Go action.",
+      "diagnosis": [
+        "wrong-or-incomplete-rule"
+      ],
+      "revision": "e277ce319936cde4be328a4c1e9826777ae53448",
+      "lesson": {
+        "name": "derive-fixture-state-from-real-producers",
+        "revision": "e277ce3",
+        "digest": "62157e607b579ae5952f87acc0d3ea41274ee242fa66ef0a83f8985f0891bd2d"
+      }
+    },
     {
       "id": "1b47ed80-9522-46b0-b863-21e64039221e",
       "date": "2026-11-10",
@@ -101,7 +124,7 @@
       "revision": "40a31cb92ecce73591fc4c75321489240c5392fa plus the Idle scroll fix"
     }
   ],
-  "recurrences": 3,
+  "recurrences": 4,
   "reviews": [
     {
       "id": "6b06a4d9-8913-44c4-9181-015b1c981f26",
@@ -161,6 +184,21 @@
         "state": "proposed",
         "detail": "A reusable temporary board fixture helper could change configuration, await the supported refresh operation, and compare the new model. Such structural work needs separate authorization and adds no tracked test in this review."
       }
+    },
+    {
+      "id": "2b6af16a-fc5e-42fc-b05b-64b5a68f6d73",
+      "requestDigest": "fb63efd822cf96a7953e9f50bf2a92b77600a9456cdc360c87293318b9fab9df",
+      "date": "2026-11-13",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #310; claude child opus/high\n\nMerge under the reviewer rule for the same active rule: the active lesson derive-fixture-state-from-real-producers says to trace a derived state that a fixture must produce to its real producer, and to reach that state before the check accepts the result. The enabled Run and Open agent controls of the board are such a derived state, and the host commands on PATH are an input of its producer; the proposal itself names this lesson as the rule that the harness did not apply (diagnosis wrong-or-incomplete-rule). The retained output \"celetis: claude is not on PATH\" and the Actions for #119 list with only \"Show the details\" establish the incident. The survivor keeps the active name and every incident, source, and review, and adds the enabled-control case to the applicability, the action, and the check, with the detection signature of the proposal. The cause stays labeled as inference, with its alternative and its uncertainty. probe-real-tool-semantics-behind-fakes concerns the target inputs of a faked call, so it stays separate and becomes a related lesson. The rule adds a check, weakens none, adds no network or credential act, and agrees with AGENTS.md, \"Host checks\", and the principle test-behavior-not-implementation of the plugin celetis.",
+      "related": [
+        "give-a-probe-board-the-host-commands-of-the-real-board",
+        "derive-fixture-state-from-real-producers"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "A harness smoke step could fail a probe board that prints `is not on PATH` before the first probe. Such structural work needs separate authorization and adds no tracked test in this review."
+      }
     }
   ]
 }
@@ -177,6 +215,8 @@ In Task 2 of #250 on 2026-11-07, probe case (h) needed a board Run press that st
 
 In #287, a V3 board probe changed fixture gate configuration and read `/api/board`. Its auto case saw the previous manual snapshot. A repair polled the same GET for 40 seconds and failed again. The retained source excerpt shows a 300-second background interval and a supported `POST /api/refresh` operation that awaits the read refresh. No product defect was established.
 
+In the Verify phase of #310 on 2026-11-13, the harness started a read-only board in a Herdr lab with a fake `gh` and an adapter that rejects every start, but with no `claude` or `codex` on the board PATH. The board printed `celetis: claude is not on PATH` and disabled each Run and Open agent control. Task probes and the first Verify run (V1-V9 and 23 captures) ran on that board. The V8 check of an Idle card found only `Show the details` under `Actions for #119`, and every capture showed grey Run buttons. With fake `claude` and `codex` (print a version, start nothing) on the lab PATH, the same search listed the Run rows, and the whole Verify run and its captures were renewed.
+
 ## Root cause
 
 The source and retained output establish the #245 mismatch. Inferred: the fixture author assumed a boundary without reading its actual producer. No wider product defect is established.
@@ -186,6 +226,8 @@ In #141, reported by the implementer and inferred: a shared command helper added
 In #250, observed: the run request of the daemon answers at admission, before `hc run` of its tab, so a block in `hc run` does not hold the answer. Reported by the child: the brief named the fixture concretely, and the child treated it as already derived. Inferred by the coordinator: the plan derived the wait from the spec's open-risk text, not from the answer point in the producer. Uncertain: whether the plan session read the answer point.
 
 For #287, inferred: the probe treated a successful cached GET as a new production of the model. The second attempt kept that premise and changed only the wait. The exact timing of the first read is uncertain.
+
+In #310, inferred: the harness derived the card states from the real producers, but missed one input of the board, the host commands on PATH, which gates the Run and Open agent controls. The harness author did not count host availability as an input of a derived state. Alternative: the brief named only `gh` and the adapter as fakes. Uncertain: whether an earlier task probe that asserted an Enter result on a Run action passed for the wrong reason; the Task 3 enter case used a Go action.
 
 ## Fix
 
@@ -197,10 +239,17 @@ Proposed in #250, not enforced: before a case or a plan needs a request in fligh
 
 Proposed in #287, not enforced: after changing inputs behind a cached read model, use the supported refresh producer and its completion boundary before the assertion. Retain the old snapshot, the completion, and the new independently expected values. A reusable fixture helper remains proposed work that needs separate authorization.
 
+Proposed in #310, not enforced: before the first probe, compare the probe board with the real board for each control that a case acts on or a capture shows, and give the probe process each host command that the page checks, as a fake that answers its read and starts nothing. A harness smoke step that fails when the board prints `is not on PATH` remains proposed structural work that needs separate authorization.
+
+## Detection signature
+
+The board prints `celetis: <host> is not on PATH`; Run and Open agent controls are disabled; a Search for an Idle card lists no Run rows.
+
 ## Rule
 
-Applies when a runtime fixture must produce a derived state for a check, including a cached read model after its inputs change and a request that must still be unanswered at a later event (a stop, a restart, a timeout). Action: trace that state to its real input producer, and choose inputs that satisfy the existing derivation. For a cached model, trace and use the supported refresh producer and its completion boundary before asserting the new model; a successful cached read alone is no evidence of refresh. When a shared helper starts the producer, read the input that the producer stored (for example the selection of a run record) before the case waits, and stop the case when it differs from the input that the derivation needs. For a request in flight, find the point where its producer answers, put the block before that point, and observe the unanswered request directly when the event begins. Check: for a cached model, retain the old snapshot, refresh completion, and new independently expected values, and do not accept a no-refresh control as fresh evidence. The case output shows the stored input next to the expected input before the wait, and shows a request in flight still unanswered when the event begins; a control with the block after the answer point fails that observation; and the fixture reaches the required state before the check accepts the scenario result.
+Applies when a runtime fixture must produce a derived state for a check, including a cached read model after its inputs change, a request that must still be unanswered at a later event (a stop, a restart, a timeout), and the enabled state of a control that a case uses or a capture shows. Action: trace that state to its real input producer, and choose inputs that satisfy the existing derivation. For a cached model, trace and use the supported refresh producer and its completion boundary before asserting the new model; a successful cached read alone is no evidence of refresh. When a shared helper starts the producer, read the input that the producer stored (for example the selection of a run record) before the case waits, and stop the case when it differs from the input that the derivation needs. For a request in flight, find the point where its producer answers, put the block before that point, and observe the unanswered request directly when the event begins. For a control of a page, list each external command and service that the page reads to enable it (for the Celetis board, the host commands `claude` and `codex` on PATH), and give the probe process a fake of each that answers its read and starts nothing. Check: for a cached model, retain the old snapshot, refresh completion, and new independently expected values, and do not accept a no-refresh control as fresh evidence. The case output shows the stored input next to the expected input before the wait, and shows a request in flight still unanswered when the event begins; a control with the block after the answer point fails that observation; before the first probe, the page shows no unavailable-host message, and each control that a case uses or a capture shows is enabled as on the real board; and the fixture reaches the required state before the check accepts the scenario result.
 
 ## Related lessons
 
 [[derive-plan-oracle-values-from-real-producers]]
+[[probe-real-tool-semantics-behind-fakes]]
