@@ -337,26 +337,20 @@ export function createCoordinator(
           error instanceof HostError ? error.code : exits.blocked,
         );
       }
-      const argv = [
-        // hc gives the tab the environment of its server, not of this daemon.
-        'env',
-        'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0',
-        'DO_NOT_TRACK=1',
-        `CELETIS_COORDINATOR=${token}`,
-        ...daemonArgv(root, [
-          '--session-start',
-          folder,
-          String(process.pid),
-          host,
-          '-',
-          '-',
-          ...(await adapter.pin(main)),
-          ...adapter.interactiveArguments(tab, promptFor[host](skill), randomUUID()),
-        ]),
-      ];
+      const argv = daemonArgv(root, [
+        '--session-start',
+        folder,
+        String(process.pid),
+        host,
+        '-',
+        '-',
+        ...(await adapter.pin(main)),
+        ...adapter.interactiveArguments(tab, promptFor[host](skill), randomUUID()),
+      ]);
+      const env = { BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0', DO_NOT_TRACK: '1', CELETIS_COORDINATOR: token };
       try {
         terminal = await openTab(
-          { repository: { main, common }, folder: main, name: tab, argv, focus: !quiet, keepShell: false },
+          { repository: { main, common }, folder: main, name: tab, argv, env, focus: !quiet, keepShell: false },
           exec,
         );
       } catch (error) {
@@ -623,6 +617,11 @@ export function createCoordinator(
             exits.blocked,
           );
         if (seen.status === 'blocked') return dialog(seen.kind);
+        if (seen.host === null)
+          return refused(
+            `coordinator: the session of #${number} has no live host in ${whereOf(view, number)}; no text is sent`,
+            exits.prerequisite,
+          );
         const sent = await sendText(terminal, `${header(authority, new Date())}\n${text}`, { exec }).catch(
           () => 'unknown' as const,
         );

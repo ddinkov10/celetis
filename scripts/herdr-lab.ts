@@ -1,13 +1,26 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { lstat, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { createConnection } from 'node:net';
-import { constants } from 'node:os';
-import { run } from '../engine/lib/process.ts';
+import { constants, tmpdir, userInfo } from 'node:os';
+import { join } from 'node:path';
+import { bunArgs, childEnv, run } from '../engine/lib/process.ts';
 import { privateMode } from '../engine/lib/state.ts';
+import {
+  createJob,
+  type Job,
+  joinJob,
+  makePrivateFolder,
+  openJob,
+  privateFolderProblem,
+  terminateWindowsProcess,
+  windowsProcess,
+} from '../engine/lib/windows.ts';
 
 const usage = 'usage: herdr-lab.ts up | run <id> <command> [<argument>...] | down <id>';
 const timeout = 30_000;
+const windows = process.platform === 'win32';
 
 type LabId = string & { readonly lab: unique symbol };
 
@@ -16,11 +29,19 @@ function labId(value: string): LabId | null {
 }
 
 function rootOf(id: LabId): string {
-  return `/tmp/${id}`;
+  return windows ? join(tmpdir(), id) : `/tmp/${id}`;
+}
+
+function corePipe(session: string): string {
+  return `\\\\.\\pipe\\herdr-core-${userInfo().username}-${session}.sock`;
 }
 
 function labSocket(id: LabId): string {
-  return `${rootOf(id)}/run/herdr-core/${id}.sock`;
+  return windows ? corePipe(id) : `${rootOf(id)}/run/herdr-core/${id}.sock`;
+}
+
+function jobName(id: LabId): string {
+  return `Local\\${id}`;
 }
 
 function token(id: LabId): RegExp {
@@ -40,6 +61,7 @@ function labEnv(source: NodeJS.ProcessEnv, id: LabId): NodeJS.ProcessEnv {
   ])
     delete env[key];
   const root = rootOf(id);
+  if (windows) return { ...env, HC_SESSION: id, HERDR_APP_HOME: join(root, 'app') };
   return {
     ...env,
     HC_SESSION: id,
@@ -51,8 +73,10 @@ function labEnv(source: NodeJS.ProcessEnv, id: LabId): NodeJS.ProcessEnv {
 
 async function checkRoot(id: LabId): Promise<'missing' | 'ok' | 'unsafe'> {
   try {
-    const stat = await lstat(rootOf(id));
-    return stat.isDirectory() && privateMode(stat) ? 'ok' : 'unsafe';
+    const root = rootOf(id);
+    const stat = await lstat(root);
+    if (!stat.isDirectory() || !privateMode(stat)) return 'unsafe';
+    return windows && privateFolderProblem(root) !== null ? 'unsafe' : 'ok';
   } catch (error) {
     return (error as NodeJS.ErrnoException).code === 'ENOENT' ? 'missing' : 'unsafe';
   }
@@ -84,6 +108,7 @@ function realSocket(env: NodeJS.ProcessEnv): string {
   if (env.HC_SOCKET) return env.HC_SOCKET;
   if (env.HC_TERMINAL_SOCKET) return env.HC_TERMINAL_SOCKET;
   const session = env.HC_SESSION || 'default';
+  if (windows) return corePipe(session);
   if (env.XDG_RUNTIME_DIR) return `${env.XDG_RUNTIME_DIR}/herdr-core/${session}.sock`;
   return `${env.XDG_STATE_HOME || `${env.HOME}/.local/state`}/herdr-core/${session}/${session}.sock`;
 }
@@ -298,7 +323,7 @@ async function down(id: LabId): Promise<number> {
 
 async function up(): Promise<number> {
   if (process.platform !== 'darwin') {
-    console.error('herdr-lab: up runs only on macOS');
+    console.error('herdr-lab: up runs only on macOS and Windows');
     return 2;
   }
   if (inLab()) {
@@ -366,6 +391,212 @@ async function up(): Promise<number> {
   }
 }
 
+interface Window {
+  pid: number;
+  start: string;
+}
+
+async function herdrApps(): Promise<number[]> {
+  const list = await run('tasklist.exe', ['/FO', 'CSV', '/NH', '/FI', 'IMAGENAME eq herdr-app.exe'], { timeout });
+  if (list.code !== 0) throw new Error(`tasklist: exit ${list.code}: ${firstLine(list.stderr)}`);
+  return [...list.stdout.matchAll(/^"herdr-app\.exe","(\d+)"/gim)].map((match) => Number(match[1]));
+}
+
+async function keep(id: LabId, env: NodeJS.ProcessEnv): Promise<void> {
+  const library = new URL('../engine/lib/windows.ts', import.meta.url).href;
+  const script = `const { openJob } = await import(${JSON.stringify(library)}); if (!openJob(${JSON.stringify(jobName(id))})) process.exit(1); console.log('ready'); setInterval(() => {}, 1 << 30);`;
+  // A job name ends with its last handle, also while its members run; the keeper holds one until down.
+  const keeper = Bun.spawn([process.execPath, ...bunArgs('-e', [script])], {
+    env: childEnv(env),
+    detached: true,
+    stdio: ['ignore', 'pipe', 'ignore'],
+  });
+  keeper.unref();
+  const reader = keeper.stdout.getReader();
+  let timer: Timer | undefined;
+  const first = await Promise.race([
+    reader.read(),
+    new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), timeout);
+    }),
+  ]);
+  clearTimeout(timer);
+  await reader.cancel();
+  if (!first?.value || !new TextDecoder().decode(first.value).startsWith('ready'))
+    throw new Error('the job keeper did not start');
+}
+
+async function labWindow(job: Job, before: Set<number>): Promise<Window> {
+  const self = windowsProcess(process.pid);
+  if (self.state !== 'runs') throw new Error('cannot read the start of herdr-lab');
+  const deadline = Date.now() + timeout;
+  for (;;) {
+    const fresh = (await herdrApps()).filter((pid) => !before.has(pid));
+    const members = job.members() ?? [];
+    const held = fresh.filter((pid) => members.includes(pid));
+    const pid = held.length === 1 ? held[0] : fresh.length === 1 ? fresh[0] : undefined;
+    const shown = pid === undefined ? null : windowsProcess(pid);
+    if (pid !== undefined && shown?.state === 'runs' && BigInt(shown.start) > BigInt(self.start))
+      return { pid, start: shown.start };
+    if (Date.now() > deadline)
+      throw new Error(`cannot tell the lab window: new herdr-app.exe ${fresh.join(' ') || 'none'}`);
+    await Bun.sleep(250);
+  }
+}
+
+async function upWindows(): Promise<number> {
+  if (inLab()) {
+    console.error('herdr-lab: refused: HC_SESSION already names a lab');
+    return 2;
+  }
+  const hc = Bun.which('hc');
+  const app = Bun.which('herdr-app');
+  if (!hc || !app) {
+    console.error('herdr-lab: refused: hc and herdr-app must be on PATH');
+    return 2;
+  }
+  const id = labId(`celetis-lab-${randomBytes(3).toString('hex')}`);
+  if (!id) return 1;
+  const root = rootOf(id);
+  try {
+    await mkdir(root);
+  } catch (error) {
+    console.error(`herdr-lab: cannot make ${root}: ${(error as Error).message}`);
+    return 1;
+  }
+  let reason: string | null;
+  try {
+    reason = makePrivateFolder(root);
+  } catch (error) {
+    reason = (error as Error).message;
+  }
+  if (reason) {
+    console.error(`herdr-lab: cannot make ${root} private: ${reason}`);
+    await rm(root, { recursive: true, force: true });
+    return 1;
+  }
+  console.log(id);
+  let job: Job | null = null;
+  let member = false;
+  try {
+    const env = labEnv(process.env, id);
+    await mkdir(join(root, 'app'));
+    job = createJob(jobName(id), false);
+    await writeFile(join(root, 'job'), `${jobName(id)}\n`);
+    joinJob(job);
+    member = true;
+    await keep(id, env);
+    const start = await run(hc, ['server', 'start', '--json'], { env, timeout });
+    if (start.code !== 0) throw new Error(`hc server start: exit ${start.code}: ${firstLine(start.stderr)}`);
+    const socket = labSocket(id);
+    if (!(await answers(socket))) throw new Error(`no lab core answers at ${socket}`);
+    const terminals = await run(hc, ['ls', '--json'], { env, timeout });
+    if (terminals.code !== 0 || (JSON.parse(terminals.stdout) as { terminals: unknown[] }).terminals.length)
+      throw new Error('the lab hc ls is not empty');
+    const before = new Set(await herdrApps());
+    Bun.spawn([app], { env: childEnv(env), detached: true, stdio: ['ignore', 'ignore', 'ignore'] }).unref();
+    const deadline = Date.now() + timeout;
+    while ((await run(app, ['status'], { env, timeout })).code !== 0) {
+      if (Date.now() > deadline) throw new Error('the lab herdr-app status did not answer in 30 s');
+      await Bun.sleep(250);
+    }
+    const window = await labWindow(job, before);
+    await writeFile(join(root, 'app.json'), `${JSON.stringify(window)}\n`);
+    const spaces = await run(app, ['ls'], { env, timeout });
+    if (spaces.code !== 0 || (JSON.parse(spaces.stdout) as { spaces: unknown[] }).spaces.length)
+      throw new Error('the lab herdr-app ls is not empty');
+    const version = async (file: string) => (await run(file, ['--version'], { env, timeout })).stdout.trim();
+    console.log(
+      JSON.stringify({ id, root, socket, appPid: window.pid, hc: await version(hc), herdrApp: await version(app) }),
+    );
+    return 0;
+  } catch (error) {
+    console.error(`herdr-lab: up failed: ${(error as Error).message}`);
+    if (job) await downWindows(id, member);
+    else await rm(root, { recursive: true, force: true });
+    return 1;
+  }
+}
+
+async function windowOf(root: string): Promise<Window | null> {
+  const file = join(root, 'app.json');
+  try {
+    const window = JSON.parse(await readFile(file, 'utf8')) as Window;
+    if (Number.isInteger(window.pid) && /^\d+$/.test(window.start)) return window;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+  }
+  throw new Error(`a bad record in ${file}`);
+}
+
+async function downWindows(id: LabId, member = false): Promise<number> {
+  const root = rootOf(id);
+  const state = await checkRoot(id);
+  if (state === 'unsafe') {
+    console.error(`herdr-lab: refused: ${root} is not a private folder of this user`);
+    return 2;
+  }
+  const job = openJob(jobName(id));
+  if (state === 'missing' && !job) {
+    console.log(`herdr-lab: no lab ${id}`);
+    return 0;
+  }
+  try {
+    const problems: string[] = [];
+    const record = join(root, 'job');
+    if (await answers(labSocket(id)))
+      await run(Bun.which('hc') ?? 'hc', ['server', 'stop', '--json'], { env: labEnv(process.env, id), timeout });
+    // A job name goes with its last handle, so a lost keeper hides the members; only a down that saw the job empty removes this record.
+    if (!job && state === 'ok' && existsSync(record))
+      problems.push(`the lab job ${jobName(id)} cannot be opened, and no down saw it empty`);
+    const window =
+      state === 'ok'
+        ? await windowOf(root).catch((error: Error) => {
+            problems.push(error.message);
+            return null;
+          })
+        : null;
+    const deadline = Date.now() + 90_000;
+    let emptied = false;
+    for (;;) {
+      if (job && member) job.terminateOthers();
+      else job?.terminate();
+      const shown = window ? windowsProcess(window.pid) : null;
+      if (window && shown?.state === 'runs' && shown.start === window.start)
+        terminateWindowsProcess(window.pid, window.start, 1);
+      const others = job ? (job.members()?.filter((pid) => pid !== process.pid) ?? null) : [];
+      emptied = others?.length === 0;
+      const open = shown?.state === 'unknown' || (shown?.state === 'runs' && shown.start === window?.start);
+      const core = await answers(labSocket(id));
+      if (others?.length === 0 && !open && !core) break;
+      if (Date.now() >= deadline) {
+        if (others === null) problems.push(`cannot read the members of the lab job ${jobName(id)}`);
+        else if (others.length) problems.push(`processes ${others.join(' ')} still run in the lab job`);
+        if (shown?.state === 'unknown') problems.push(`cannot read the lab window process ${window?.pid}`);
+        else if (open) problems.push(`the lab window process ${window?.pid} still runs`);
+        if (core) problems.push(`a core still answers at ${labSocket(id)}`);
+        break;
+      }
+      await Bun.sleep(500);
+    }
+    if (job && emptied && state === 'ok') await rm(record, { force: true });
+    problems.push(...(await realReads(id)));
+    const local = process.env.LOCALAPPDATA;
+    if (!local) problems.push('LOCALAPPDATA is not set, so the lab core folder is unknown');
+    if (problems.length) {
+      for (const problem of problems) console.error(`herdr-lab: ${problem}`);
+      console.error(`herdr-lab: kept ${root}`);
+      return 1;
+    }
+    await rm(join(local as string, 'herdr-core', id), { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true });
+    console.log(`herdr-lab: removed lab ${id}`);
+    return 0;
+  } finally {
+    job?.close();
+  }
+}
+
 async function runIn(id: LabId, command: string, args: string[]): Promise<number> {
   const state = await checkRoot(id);
   if (state !== 'ok') {
@@ -375,6 +606,15 @@ async function runIn(id: LabId, command: string, args: string[]): Promise<number
         : `herdr-lab: refused: ${rootOf(id)} is not a private folder of this user`,
     );
     return 2;
+  }
+  if (windows) {
+    const job = openJob(jobName(id));
+    if (!job) {
+      console.error(`herdr-lab: no lab job ${jobName(id)}`);
+      return 2;
+    }
+    joinJob(job);
+    job.close();
   }
   return new Promise((resolve) => {
     let child: ReturnType<typeof spawn>;
@@ -407,7 +647,7 @@ async function runIn(id: LabId, command: string, args: string[]): Promise<number
 
 async function main(argv: string[]): Promise<number> {
   const [command, value = '', ...rest] = argv;
-  if (command === 'up' && argv.length === 1) return up();
+  if (command === 'up' && argv.length === 1) return windows ? upWindows() : up();
   if ((command === 'down' && argv.length === 2) || (command === 'run' && rest.length)) {
     const id = labId(value);
     if (!id) {
@@ -419,7 +659,7 @@ async function main(argv: string[]): Promise<number> {
       console.error('herdr-lab: refused: HC_SESSION already names a lab');
       return 2;
     }
-    return down(id);
+    return windows ? downWindows(id) : down(id);
   }
   console.error(usage);
   return 2;

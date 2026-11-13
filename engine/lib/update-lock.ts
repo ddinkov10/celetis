@@ -38,10 +38,16 @@ export function spawnConsumer(file: string, argv: string[], env: NodeJS.ProcessE
   const hold = () => {};
   for (const signal of signals) process.on(signal, hold);
   return new Promise<number>((resolve, reject) => {
-    const child = spawn(file, argv.slice(1), { stdio: 'inherit', env });
-    child.once('error', (error) =>
-      reject(new HostError(`celetis: cannot start ${file}: ${error.message}`, exits.blocked)),
-    );
+    const failed = (error: Error) =>
+      reject(new HostError(`celetis: cannot start ${file}: ${error.message}`, exits.blocked));
+    let child: ChildProcess;
+    try {
+      child = spawn(file, argv.slice(1), { stdio: 'inherit', env });
+    } catch (error) {
+      failed(error as Error);
+      return;
+    }
+    child.once('error', failed);
     child.once('exit', (code, signal) => resolve(code ?? (signal ? 128 + constants.signals[signal] : 1)));
   }).finally(() => {
     for (const signal of signals) process.off(signal, hold);

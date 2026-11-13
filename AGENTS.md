@@ -41,11 +41,12 @@ Use temporary test data with the existing hosts. If a check lacks access, report
 limitation and continue independent checks.
 
 A check that uses the Herdr app or the hc core runs in a lab of `scripts/herdr-lab.ts`, never in
-the maintainer's window or core. One lab serves one Verify run. The setup runs `up` once and
-records the lab id. Each scenario runs its commands through `run <id> <command>…`: the entry of
-the checkout, a board script, and each `hc` and `herdr-app` read. The phase ends with `down <id>`. Run
-the script with the bun flags of the verify gate command. Such a check needs no consent and no
-human act. A check of the daemon, a run, or the board takes its issues from a fake `gh` first on `PATH`.
+the maintainer's window or core. The lab runs on macOS and Windows. One lab serves one Verify run.
+The setup runs `up` once and records the lab id. Each scenario runs its commands through
+`run <id> <command>…`: the entry of the checkout, a board script, and each `hc` and `herdr-app`
+read. The phase ends with `down <id>`. Run the script with the bun flags of the verify gate
+command. Such a check needs no consent and no human act. A check of the daemon, a run, or the
+board takes its issues from a fake `gh` first on `PATH`.
 That `gh` answers `gh api` from local files, for a local fixture repository with no remote. So the
 check needs no GitHub repository, no real issue, and no human step. The lab scenarios before the
 landing are the whole Herdr proof of a change, so `### Your steps` lists no Herdr check, also not

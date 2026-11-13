@@ -95,7 +95,8 @@ export async function celetisAdapter(
       throw new Error(
         'the celetis engine is not installed; run the first install of plugins/celetis/README.md, "First install"',
       );
-    if (CONTROL.test(found.command)) throw new Error('the celetis engine path has a control character');
+    if (CONTROL.test(found.command) || CONTROL.test(found.entry))
+      throw new Error('the celetis engine path has a control character');
     return found;
   };
   const start = async (request: Extract<DaemonRequest, { kind: 'run' | 'resume' }>) => {
@@ -109,7 +110,11 @@ export async function celetisAdapter(
     if (!answer.accepted) throw new Error(answer.line);
     return answer.view;
   };
-  const argv = async (args: (string | number)[]) => [(await engine()).command, ...args.map(String)];
+  const argv = async (args: (string | number)[]) => {
+    const found = await engine();
+    if (process.platform === 'win32') return [process.execPath, ...bunArgs(found.entry, args.map(String))];
+    return [found.command, ...args.map(String)];
+  };
   const control = async (args: string[]) => {
     const { CELETIS_AGENT: _agent, CELETIS_SESSION_AGENT: _session, ...env } = process.env;
     return run(process.execPath, bunArgs((await engine()).entry, args), { cwd: main, timeout: 30_000, env });

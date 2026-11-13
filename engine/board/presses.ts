@@ -162,10 +162,11 @@ export const createPresses = ({
   const { placement, queueView, readSessions, visualOf } = placer;
   const { operations, pressRuns, presses, visualPresses } = book;
 
-  const openTab = async (request: Omit<OpenTab, 'repository' | 'keepShell'>) =>
-    openTerminalTab({ repository: { main, common: await commonDir(main) }, keepShell: false, ...request }, exec).catch(
-      refused,
-    );
+  const openTab = async (request: Omit<OpenTab, 'repository' | 'keepShell' | 'env'>) =>
+    openTerminalTab(
+      { repository: { main, common: await commonDir(main) }, keepShell: false, env: {}, ...request },
+      exec,
+    ).catch(refused);
 
   const started = async (request: () => Promise<string>) => {
     try {

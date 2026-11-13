@@ -286,6 +286,15 @@ and the exit codes of each form.
   Else it spawns `engine/daemon.ts --daemon` in the main checkout. The spawn is detached, with
   stdin closed and stdout and stderr appended to `daemon/daemon.log` (0600). It polls the status
   for at most 30 seconds. Another daemon that wins a race is printed as a running daemon.
+  On Windows, `start` calls `CreateProcessW` (`createDetachedProcess` of `engine/lib/windows.ts`)
+  with a console that has no window (`CREATE_NO_WINDOW`, so its console children share it and open no window), a new process group, and the flag that lets the daemon break away from the
+  job of its terminal, so the daemon runs after that terminal closes. When the innermost job of
+  the terminal does not allow breakaway, the call fails with error 5 and `start` calls again
+  without the flag. After the call, `start` reads `IsProcessInJob` of the new process for any job
+  (a failed read counts as a job). When the process is in a job, `start` prints `daemon: this
+  terminal does not let the daemon leave its job; the daemon ends when this terminal closes` on
+  stderr after its start line, and it still exits 0. The read covers an outer job that a
+  breakaway at the inner levels did not leave.
 - `status` first compares the revision of the daemon with its own, and reads no status of another
   revision.
 - `stop` sends `POST /stop` and reads the process until it is gone, for at most 60 seconds.
@@ -305,42 +314,60 @@ value.
 
 **The start.** In this order, the daemon:
 
-1. refuses Windows with exit 3;
-2. finds the main checkout and the Git common folder of its working folder;
-3. makes the socket path `/tmp/celetis-<uid>/daemon/<first 16 hex digits of the SHA-256 of the
-   Git common folder>.sock`. A path of 104 bytes or more stops the start with exit 3, before any
-   folder or lock;
-4. makes `<git common dir>/celetis/daemon/` and its `runs/` folder (0700), and the socket
-   folder `/tmp/celetis-<uid>/daemon/` (0700);
-5. reads its process start, then takes the lock ref `daemon` with that start. A failed read of the
+1. finds the main checkout and the Git common folder of its working folder;
+2. makes the socket path `/tmp/celetis-<uid>/daemon/<first 16 hex digits of the SHA-256 of the
+   Git common folder>.sock`; on Windows, `%TEMP%\celetis\daemon\<the same digits>.sock`. A path of
+   104 bytes or more stops the start with exit 3, before any folder or lock;
+3. makes `<git common dir>/celetis/daemon/` and its `runs/` folder (0700), and the socket
+   folder `/tmp/celetis-<uid>/daemon/` (0700); on Windows, `%TEMP%\celetis\daemon\`. On Windows, it
+   then holds the socket folder open with no `FILE_SHARE_DELETE` until the daemon exits, so the
+   folder cannot be renamed, sets a protected access list on it (the current user, SYSTEM, and the
+   administrators, with no inherited entry), and checks the owner and the list. It exits 3 when
+   another user owns the folder, the folder denies the current user access, the folder is a
+   reparse point, or another user can still reach the folder, and 6 when a security call fails.
+   `daemon start` then exits 6, because the daemon ended before it served. Before the spawn, on
+   Windows, `daemon start` makes the same check of a socket folder that exists (the reparse point,
+   the access list, the owner), so it exits 3 with the folder in its line, and the daemon's own
+   check guards only the race between that check and the spawn;
+4. reads its process start, then takes the lock ref `daemon` with that start. A failed read of the
    start stops the daemon before the lock with exit 6. When another live process holds `daemon`,
    the daemon names its PID and exits 3;
-6. reads `board.port` of the main `.celetis.yaml` with the full validation of the config, default
+5. reads `board.port` of the main `.celetis.yaml` with the full validation of the config, default
    4403. A file with an error prints the diagnostic of the config reader and exits with its code;
-7. reads the coordinator record ([The coordinator session](#the-coordinator-session), "The
+6. reads the coordinator record ([The coordinator session](#the-coordinator-session), "The
    takeover"), then opens the board ([Start](board/README.md#start) of the board document gives
    its lines). A nonzero `Number(PORT)` of its environment is an exact port; else the board takes
    the first free port from `board.port` through 65535. A port that cannot open releases `daemon`
    and exits 6, before the takeover of a run;
-8. reads the run records and makes one adoption attempt for each record ("The takeover"), then
+7. reads the run records and makes one adoption attempt for each record ("The takeover"), then
    starts the loop of the coordinator session;
-9. removes a socket file that a killed daemon left;
-10. serves on the socket;
-11. writes the identity file `daemon/daemon.json` (0600, a temporary file and a rename):
+8. removes a socket file that a killed daemon left;
+9. serves on the socket;
+10. writes the identity file `daemon/daemon.json` (0600, a temporary file and a rename):
     `{schema: 1, pid, start, revision, main, common, socket}`, where `start` is the process start
     time and `revision` is the Git revision of the engine;
-12. prints its PID and its socket.
+11. prints its PID and its socket.
 
 A successor ("The restart") first waits for the old daemon to end, then starts in this order. Its
 board tries the port of `PORT` first and searches from `board.port` when that port is in use. After
-step 12, it turns auto mode on when the old daemon carried it.
+step 11, it turns auto mode on when the old daemon carried it.
 
 From the open of the board to the end of the takeover, the board serves the page and its reads,
 but the daemon refuses each request of the board (Run, Resume, Retry, a queue action, a queue
 reconcile) with 503 and code 3. So no press takes an issue lock before the adoption of its old run.
 
 The socket folder is private to the user, and the daemon uses no token: any process of the same
-user can send a request. Auto mode is off at each start, also after a crash. Only a successor
+user can send a request. On Windows, the access list makes the folder private, and SYSTEM and the
+administrators can also reach it. The daemon holds the folder open for its life. When a daemon
+runs, each client checks the owner and the access list of the folder before it connects, and
+`daemon start` checks them before it spawns the daemon. It exits
+3 when another user owns the folder, the folder denies the current user access, or another user
+can reach it, and 6 when the list cannot be read. A short
+race stays: when no daemon holds the folder, another user can plant a folder between that check
+and the connect. The root `%TEMP%\celetis` keeps its inherited access list, so other users of the
+host can still read or change the dispatch and lesson records there
+([ADR-0107](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0107-native-windows-is-a-support-target-again.md)).
+Auto mode is off at each start, also after a crash. Only a successor
 turns it on again, with the selection of the old loop ("The restart").
 
 **The requests.** The board gives its requests to the same dispatcher in the daemon process, with
@@ -750,12 +777,19 @@ For a new space, that process holds the lock until the space has its name or the
 `herdr-app ls` stops. The poll stops after 10 seconds when the space does not show in it.
 The tab runs the start barrier, the internal form
 `daemon --session-start <folder> <daemon PID> <host> <attempt ID or -> <recovery or ->
-<arguments>` through the engine entry `engine/celetis` of the engine of the daemon, through a login
-shell of `$SHELL` (`"$@"; exec "$0" -li`), so the tab keeps a shell after the barrier exits. The
-entry replaces its process with `daemon.ts --session-start …` under the same PID, and the barrier
-record and the board read that process after the replace: with the job control of the login
-shell, the barrier leads the foreground process group of the tab. `<folder>` is a private start
-folder in `<git common dir>/celetis/`:
+<arguments>` through the engine entry `engine/celetis` of the engine of the daemon. On macOS and
+Linux, the tab runs through a login shell of `$SHELL` (`"$@"; exec "$0" -li`), so it keeps a shell
+after the barrier exits, and the entry replaces its process with `daemon.ts --session-start …`
+under the same PID. The barrier record and the board read that process after the replace: with
+the job control of the login shell, the barrier leads the foreground process group of the tab.
+On Windows, the tab runs through the tab wrapper `tabWrapper` of `engine/lib/terminal.ts`. The
+wrapper is `bun -e` with the isolation flags. It sets `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0`,
+`DO_NOT_TRACK=1`, and the other variables of the tab, starts the engine entry with no shell, and
+holds the tab after the program exits, with the line `<program> exited <code>. Press Enter to
+close this tab.`, until Enter. The entry cannot replace its process there, so it starts
+`daemon.ts --session-start …` as a child and stays its parent ([The master
+daemon](#the-master-daemon) and ADR-0034); the board reads the program argv after the wrapper
+words. `<folder>` is a private start folder in `<git common dir>/celetis/`:
 
 1. The barrier writes `pid` there: its PID and its process start. The daemon accepts that record
    only when that process runs, has that start, and runs `daemon.ts`.
@@ -768,7 +802,11 @@ folder in `<git common dir>/celetis/`:
    it writes `error` and the status 1 to `status`, exits with status 1, and starts no host. Then
    the barrier starts the host as its child, waits
    for the host to exit, writes the exit status of the host to `status`, and exits with that
-   status.
+   status. On Windows, before it starts the host, the barrier creates the job object
+   `Local\celetis-attempt-<attempt ID>` (`Local\celetis-session-<folder name>` for `-`) with no
+   breakaway and joins it, so each process that the host starts is a member of that job. It holds
+   the handle of the job to its exit. A job name that exists already, or a failed create or join,
+   gives status 6 with the line on stderr, and no host starts.
 
 The exit of the barrier is the one sign that the session ended. A missing or invalid `status`,
 for example after a person closed the tab, is an unknown status, and it counts as a failure:
@@ -796,8 +834,9 @@ daemon stopped. A tab whose barrier the daemon did not release closes, and no ho
 These ends of the start of a tab end the run with code 6, or 3 for a space lock that stays held: the
 tab cannot open, the tab ends before its start barrier reports, and the barrier record is not
 valid. While the terminal of the tab stays live and the barrier has not reported, the daemon
-warns once after 60 seconds and waits on. The lines of a tab that ends early and of the warning
-ask you to check the login files of `$SHELL` in that tab. No command prints these lines: they
+warns once after 60 seconds and waits on. On macOS and Linux, the lines of a tab that ends early and of the warning
+ask you to check the login files of `$SHELL` in that tab; on Windows, the tab has no shell, and the lines ask you to
+read that tab. No command prints these lines: they
 show as the `line` of the row of `celetis daemon status` and in `daemon/daemon.log`.
 
 ## The coordinator session
@@ -832,9 +871,12 @@ order, it:
    main checkout, as a session tab ([The session tab](#the-session-tab)): with the focus for
    `celetis coordinator`, and with no focus for the quiet open, like a run session tab. It starts
    the start barrier `daemon --session-start <folder> <daemon PID> <host> - - <arguments>` with the interactive
-   arguments of `assist` and the prompt of the skill `coordinate`. The tab argv sets
+   arguments of `assist` and the prompt of the skill `coordinate`. The tab sets
    `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0`, `DO_NOT_TRACK=1`, and `CELETIS_COORDINATOR=<token>`, a
-   new random UUID. The login shell keeps no shell after an exit with status 0;
+   new random UUID: on macOS and Linux through `env` in the argv of the login shell, on Windows
+   through the pairs of the tab wrapper. The login shell keeps no shell after an exit with
+   status 0, and on Windows the tab closes after an exit with status 0 and holds after another
+   exit, until Enter;
 5. waits for the `pid` file of the barrier, and reads the terminal of the tab each second. A tab
    that ends first (hc says that the terminal finished or is gone), a barrier record that is not
    valid, and 60 seconds with no barrier record close the tab, remove the start folder, and refuse
@@ -955,8 +997,10 @@ order, and each refusal types nothing and changes no file:
    reason: it starts, it waits for a usage limit (`quota-wait`), or it ends (`ending`);
 4. inside the sequence of the terminal ([The step end](../plugins/celetis/docs/workflow.md#the-step-end),
    step 3): the run again; another terminal, no terminal, and the state `exiting` refuse with code
-   3. Then `hc get` of the terminal: a failed read or no status refuses with code 6, and the status
-   `blocked` refuses with code 3 and a line that names the dialog kind and the tab.
+   3. Then `hc get` of the terminal: a failed read or no status refuses with code 6, the status
+   `blocked` refuses with code 3 and a line that names the dialog kind and the tab, and a status
+   whose app is no host (a shell tab, or a Windows tab that holds after its program exited) refuses
+   with code 3 and a line that names the tab.
 
 The daemon then types the header, a newline, and the text with `hc send <terminal> --json --
 <message>`, with no `--force` and no `HC_TERMINAL_ID`. The header is one line: the marker
@@ -1083,8 +1127,10 @@ and the contract check of the selected host run after this selection. A missing 
 or another setup error of a preferred agent stops the start, and no next agent is tried; the
 remedy is a local exclusion of that agent, which then wins. Each step session gets a
 usage attempt. A Claude step gets attempt-local `Stop` and `StopFailure` callbacks through
-`--settings`, beside its `--session-id`. A Codex step is read through `thread/read` and
-`thread/turns/list` after the daemon saves its verified ID. The daemon acts only on the
+`--settings`, beside its `--session-id`. The callbacks use the `command` and `args` form of a
+hook, which runs with no shell, so they run on Windows with and without Git Bash. The hook runs
+`git`, so `git` must be on the `PATH` of Claude; a host with no `git` there records no usage. A
+Codex step is read through `thread/read` and `thread/turns/list` after the daemon saves its verified ID. The daemon acts only on the
 observation of its own attempt, also when the shared record keeps a newer attempt.
 
 ## Usage-limit recovery
@@ -1096,9 +1142,10 @@ agent starts. After a confirmed refusal of the default host, the daemon:
 1. Saves the block, writes `<git common dir>/celetis/recovery/<n>.json` (schema 2, with the key `daemon`) with the state
    `recovering`, and stops the job of the step end.
 2. Ends only its own attempt (`endOwnedAttempt` of `engine/lib/quota-recovery.ts`). The barrier
-   gives the host `CELETIS_ATTEMPT=<attempt id>`, and each child inherits it. For Claude, the
-   daemon records three groups: the process tree under the barrier, each process with that entry
-   in its environment (not in its arguments), and each process on the tab's controlling terminal
+   gives the host `CELETIS_ATTEMPT=<attempt id>`, and each child inherits it. Codex has no proved
+   termination path on either platform, so its result is always `unverified`. On macOS and Linux,
+   for Claude, the daemon records three groups: the process tree under the barrier, each process
+   with that entry in its environment (not in its arguments), and each process on the tab's controlling terminal
    outside the tab shell's own tree. It sends `/exit`. When the barrier still runs 10 seconds after
    the start of that request, it sends SIGTERM once to the host process, the one child of the
    barrier (as at the step end), so a native dialog of the host does not keep it alive. It reads
@@ -1106,11 +1153,26 @@ agent starts. After a confirmed refusal of the default host, the daemon:
    So a writer that left the tree, as with `cmd &` or `nohup`, still counts. A session with no
    controlling terminal (`ps` shows none, `?`, or `??`), a missing marker, a failed process read,
    or a process that still runs at the deadline is `unverified`, and the line names the running
-   PIDs. Codex, and each host on Windows, have no
-   proved termination path, so their result is always `unverified`. The check cannot see a
+   PIDs. The check cannot see a
    process that leaves the tree and the terminal (a new session) and whose environment `ps`
    cannot show: one that clears the entry, or a macOS platform binary such as `/bin/sh`. The check
    accepts Linux terminal names (`pts/<n>`), but no Linux run has proved it.
+
+   On Windows, the barrier joins a named job before it starts the host
+   ([The session tab](#the-session-tab)), and the proof is the member list of that job. The daemon
+   opens the job by its name and holds the handle to the end of the check. When the first read
+   holds no process other than the barrier, the attempt is quiescent. Else the daemon sends
+   `/exit`. When the barrier still runs 10 seconds after the start of that request, it ends the
+   host, the one child of the barrier, once with `TerminateProcess` and status 143. It reads the
+   members each 250 ms until no process other than the barrier remains, for at most 20 seconds.
+   A member with the PID of the barrier counts as running when the barrier does not run with its
+   start. A job that cannot be opened, a failed read of the members, a failed exit request, or a
+   member that still runs at the deadline is `unverified`, and the line names the running PIDs.
+   The name of a job ends with its last handle, so after the barrier exits the job cannot be
+   opened, and the proof reads the record of the barrier instead
+   ([A session that ended while no daemon ran](#a-session-that-ended-while-no-daemon-ran)). The
+   check cannot see a process that a broker starts outside the job, for example a scheduled task
+   or a WMI process.
 3. On `unverified`, starts no other agent. The session stays in its tab and keeps the issue lock.
    The daemon stops with a line that names the reason, the cause, the running PIDs, the tab, and
    the native resume command of the session from the main checkout.
@@ -1154,6 +1216,15 @@ cannot show. When the barrier of a live refusal in the daemon ends before step 2
 daemon uses the same proof, and its first failed read of the process table reads again in the same
 way. The daemon records no tab shell, so its result there, and after a failed first read, stays
 `unverified`.
+
+On Windows, the name of the job ends with the last handle, which the barrier held, so a session
+that ended by itself leaves no job to read. At the exit of the host, the barrier reads the members
+of its job once and writes the file `job-empty` of its start folder when the job holds no process
+other than the barrier. On this path, and for a live refusal whose barrier ended before the daemon
+opened the job, the proof is `quiescent` when the barrier is gone and that file exists, else
+`unverified` (`the job of the attempt could not be opened`). A descendant that still ran at the
+exit of the host leaves no file, so a process that outlived the host keeps the result
+`unverified`, also after it ended.
 
 ## Exhaustion
 
@@ -1334,8 +1405,8 @@ The workflow and board entries, by `name`:
 | `startup-error` | A session does not start (`startupError` in `engine/lib/session.ts`). `issue` is set |
 | `step-end-write` | The daemon cannot write a step-end record and continues. `issue` is set |
 | `exit-request` | The daemon cannot ask a session to exit. `issue` is set |
-| `exit-signal` | The daemon sends SIGTERM to a Claude host that does not exit within 10 seconds of its exit request. `issue` is set |
-| `exit-timeout` | A session does not exit within 10 seconds of its exit request and gets no signal, or within 10 seconds of the SIGTERM. `issue` is set |
+| `exit-signal` | The daemon sends SIGTERM to a Claude host that does not exit within 10 seconds of its exit request; on Windows, it ends the host process. `issue` is set |
+| `exit-timeout` | A session does not exit within 10 seconds of its exit request and gets no signal, or within 10 seconds of the SIGTERM (on Windows, of the end of the host process). `issue` is set |
 | `issues-read` | Auto mode cannot read the open issues from GitHub |
 | `queue-error` | The queue of the daemon saves the state `error`, or ends with an error |
 | `run-exit` | A run of the master daemon ends with a nonzero code. `issue` and `code` are set |
@@ -1454,7 +1525,7 @@ The record has these gaps:
   can join that command ([The step end](../plugins/celetis/docs/workflow.md#the-step-end)).
 - The `hc` and `herdr-app` calls of the script use the API of herdr-core 0.1.19 and the commands of
   the Herdr app 0.1.15. Both are previews (version 0.x), so a later 0.x release can break the step
-  end. On Windows, no daemon runs, so a board Run, Resume, Retry, or queue press fails there. Two
+  end. Two
   parts of the step end are not checked: the end of a session after its
   `celetis --agent <host> land` run ends (ADR-0008), and the end of a session after it adds
   `ready-for-human` at a stop (ADR-0011).

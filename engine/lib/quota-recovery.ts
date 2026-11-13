@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
-import { lstat, open, readdir, readFile, readlink, realpath, rm, writeFile } from 'node:fs/promises';
+import { lstat, open, readdir, readFile, readlink, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import type { AgentChoice, Host } from './config-core.ts';
 import { exits } from './contract.ts';
@@ -31,12 +31,14 @@ import {
   type RepositoryLayout,
   repositoryLayout,
   StateError,
+  startFiles,
   unsafe,
   withLock,
   writeAtomic,
 } from './state.ts';
 import { exitGraceMs, requestExit } from './terminal.ts';
 import type { UsageAttempt } from './usage-types.ts';
+import { type Job, openJob, sessionJobName } from './windows.ts';
 import { type Step, steps } from './workflow.ts';
 
 export type LaneBinding = Readonly<{ path: string; branch: string; tip: string; dirtySnapshotDigest: string }> | null;
@@ -71,6 +73,7 @@ export type OwnedSession = Readonly<{
   terminal: string;
   shell: number | null;
   tty: string | null;
+  folder: string | null;
 }>;
 declare const permitBrand: unique symbol;
 export type RecoveryPermit = Readonly<{ issue: number; step: Step; lane: string; attemptId: string }> & {
@@ -522,13 +525,65 @@ async function endedAttempt(attempt: UsageAttempt, shell: number, tty: string, d
   }
 }
 
+async function endedJob(
+  attempt: UsageAttempt,
+  owned: OwnedSession,
+  limitMs: number,
+  open: (name: string) => Job | null,
+): Promise<AttemptEnd> {
+  const job = open(sessionJobName(attempt.id, ''));
+  if (!job) {
+    const folder = owned.folder;
+    const empty =
+      folder !== null &&
+      (await processState(owned.pid, owned.start)) === 'gone' &&
+      (await stat(startFiles(folder).jobEmpty).catch(() => null))?.isFile();
+    return empty ? { kind: 'quiescent' } : unverified('the job of the attempt could not be opened');
+  }
+  try {
+    const others = async (): Promise<number[] | null> => {
+      const members = job.members();
+      if (!members) return null;
+      // A member with the PID of an ended starter is another process.
+      const starter = members.includes(owned.pid) && (await processState(owned.pid, owned.start)) === 'runs';
+      return members.filter((pid) => !(starter && pid === owned.pid));
+    };
+    const first = await others();
+    if (!first) return unverified('the job of the attempt could not be read');
+    if (first.length === 0) return { kind: 'quiescent' };
+    const requested = performance.now();
+    if (!(await requestExit(owned.terminal, attempt.host))) return unverified('the exit request failed');
+    const deadline = performance.now() + limitMs;
+    let signalled = false;
+    for (;;) {
+      if (
+        !signalled &&
+        performance.now() - requested >= exitGraceMs &&
+        (await processState(owned.pid, owned.start)) === 'runs'
+      ) {
+        signalled = true;
+        await terminateChild(owned);
+      }
+      const running = await others();
+      if (!running) return unverified('the job of the attempt could not be read');
+      if (running.length === 0) return { kind: 'quiescent' };
+      if (performance.now() >= deadline) return unverified('processes of the attempt still run', running);
+      await Bun.sleep(250);
+    }
+  } finally {
+    job.close();
+  }
+}
+
 export async function endOwnedAttempt(
   attempt: UsageAttempt,
   owned: OwnedSession,
   limitMs = 20_000,
+  open: (name: string) => Job | null = openJob,
 ): Promise<AttemptEnd> {
-  if (process.platform === 'win32' || !hostAdapter(attempt.host).terminatesAfterGrace)
+  if (!hostAdapter(attempt.host).terminatesAfterGrace)
     return unverified(`no proved termination path for ${attempt.host} on ${process.platform}`);
+  if (process.platform === 'win32') return endedJob(attempt, owned, limitMs, open);
   const readUntil = performance.now() + limitMs;
   const recorded = owned.shell !== null && owned.tty !== null;
   let rows = await processTable();

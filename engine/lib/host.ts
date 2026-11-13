@@ -19,5 +19,11 @@ export function selectHost(host: string): Host {
 
 export function hostAvailability(host: Host, env: NodeJS.ProcessEnv = childEnv()): HostAvailability {
   const executable = Bun.which(host, { PATH: env.PATH });
-  return executable ? { available: true, executable } : { available: false, cause: `celetis: ${host} is not on PATH` };
+  if (!executable) return { available: false, cause: `celetis: ${host} is not on PATH` };
+  if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(executable))
+    return {
+      available: false,
+      cause: `celetis: ${host} on PATH is the shim ${executable}; Windows needs the native ${host} program`,
+    };
+  return { available: true, executable };
 }

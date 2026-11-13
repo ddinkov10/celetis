@@ -18,6 +18,8 @@ import { HostError } from './errors.ts';
 import { engineRevision } from './git.ts';
 import { selectHost } from './host.ts';
 import { daemonScript, processScript, processState } from './process-identity.ts';
+import { daemonSockets } from './state.ts';
+import { privateFolderProblem } from './windows.ts';
 
 export type Found =
   | Readonly<{ kind: 'none' }>
@@ -47,7 +49,20 @@ export async function findDaemon(common: string): Promise<Found> {
   const script = await processScript(identity.pid, daemonScript);
   if (script === 'gone') return none;
   if (script === 'unknown') return unreadable(`the command of PID ${identity.pid} cannot be read`);
+  if (process.platform === 'win32') {
+    const refusal = socketFolderRefusal(privateFolderProblem(daemonSockets.path));
+    if (refusal) throw refusal;
+  }
   return { kind: 'runs', identity };
+}
+
+export function socketFolderRefusal(reason: string | null): HostError | null {
+  return reason === null
+    ? null
+    : new HostError(
+        `daemon: ${daemonSockets.path}: another user can reach this folder (${reason}); only the current user, SYSTEM, and the administrators may have access`,
+        exits.prerequisite,
+      );
 }
 
 async function call(common: string, path: string, init: RequestInit, signal?: AbortSignal): Promise<Response> {
@@ -125,8 +140,6 @@ export const unknownOutcome = (prefix: Prefix, cause: string) =>
   );
 
 export async function requireDaemon(common: string, prefix: Prefix): Promise<DaemonIdentity> {
-  if (process.platform === 'win32')
-    throw new HostError(`${prefix}: Windows is not a support target`, exits.prerequisite);
   const found = await findDaemon(common);
   if (found.kind === 'none')
     throw new HostError(

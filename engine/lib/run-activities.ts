@@ -289,7 +289,13 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
   const ownedOf = (barrier: Identity): OwnedSession => {
     const recorded = fact?.session?.barrier;
     const same = recorded?.pid === barrier.pid && recorded.start === barrier.start;
-    return { ...barrier, terminal, shell: same ? recorded.shell : null, tty: same ? recorded.tty : null };
+    return {
+      ...barrier,
+      terminal,
+      shell: same ? recorded.shell : null,
+      tty: same ? recorded.tty : null,
+      folder: same ? (fact?.session?.folder ?? null) : null,
+    };
   };
   const removal = async (): Promise<never> => {
     hooks.removed();
@@ -555,14 +561,18 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
               }
               report(
                 'exit-signal',
-                `daemon: #${n} ${record.host} did not exit within 10 seconds; the daemon sent SIGTERM to its host process (PID ${pid}).`,
+                process.platform === 'win32'
+                  ? `daemon: #${n} ${record.host} did not exit within 10 seconds; the daemon ended its host process (PID ${pid}).`
+                  : `daemon: #${n} ${record.host} did not exit within 10 seconds; the daemon sent SIGTERM to its host process (PID ${pid}).`,
               );
               if (settled || abort.aborted) return;
               after = setTimeout(() => {
                 if (abort.aborted) return;
                 report(
                   'exit-timeout',
-                  `daemon: #${n} ${record.host} did not exit within 10 seconds after SIGTERM; the session stays open. Exit it in the tab ${tab} when ready.`,
+                  process.platform === 'win32'
+                    ? `daemon: #${n} ${record.host} did not exit within 10 seconds after the end of its host process; the session stays open. Exit it in the tab ${tab} when ready.`
+                    : `daemon: #${n} ${record.host} did not exit within 10 seconds after SIGTERM; the session stays open. Exit it in the tab ${tab} when ready.`,
                 );
               }, exitGraceMs);
             };
@@ -652,19 +662,16 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
         repository: { main, common },
         folder: main,
         name: tab,
-        argv: [
-          // hc gives the tab the environment of its server, not of this daemon.
-          ...(process.platform === 'win32' ? [] : ['env', 'BUN_RUNTIME_TRANSPILER_CACHE_PATH=0', 'DO_NOT_TRACK=1']),
-          ...daemonArgv(root, [
-            '--session-start',
-            dir,
-            String(process.pid),
-            host,
-            attempt,
-            recovery ? 'recovery' : '-',
-            ...args,
-          ]),
-        ],
+        argv: daemonArgv(root, [
+          '--session-start',
+          dir,
+          String(process.pid),
+          host,
+          attempt,
+          recovery ? 'recovery' : '-',
+          ...args,
+        ]),
+        env: { BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0', DO_NOT_TRACK: '1' },
         focus: false,
         keepShell: true,
       });
@@ -700,14 +707,18 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
         checked = now;
         if (!(await terminalLive(terminal)))
           die(
-            `#${n} ${host} startup: the tab ${tab} ended before its start barrier reported; check the login files of $SHELL, then start the step again`,
+            process.platform === 'win32'
+              ? `#${n} ${host} startup: the tab ${tab} ended before its start barrier reported; start the step again`
+              : `#${n} ${host} startup: the tab ${tab} ended before its start barrier reported; check the login files of $SHELL, then start the step again`,
             exits.blocked,
           );
       }
       if (!warned && now - waited >= 60_000) {
         warned = true;
         console.error(
-          `daemon: #${n} ${host} startup: the start barrier of the tab ${tab} did not report after 60 seconds; waiting continues. Check the login files of $SHELL in that tab.`,
+          process.platform === 'win32'
+            ? `daemon: #${n} ${host} startup: the start barrier of the tab ${tab} did not report after 60 seconds; waiting continues. Read that tab.`
+            : `daemon: #${n} ${host} startup: the start barrier of the tab ${tab} did not report after 60 seconds; waiting continues. Check the login files of $SHELL in that tab.`,
         );
       }
       await rest(250);

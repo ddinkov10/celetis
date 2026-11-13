@@ -54,3 +54,26 @@ selected Bun. [`AGENTS.md`](../AGENTS.md#verify-gate) gives its command.
 `scripts/herdr-lab.ts` runs a runtime check that uses the Herdr app or the hc core, away from the
 maintainer's window and core. It is no job of the gate. [`AGENTS.md`](../AGENTS.md#host-checks) gives
 its use.
+
+The lab runs on macOS and Windows. On Windows, the root is `%TEMP%\<id>`, and the lab core keeps its
+state in `%LOCALAPPDATA%\herdr-core\<id>`. `up` sets a protected access list on the root (the current
+user, SYSTEM, and the administrators, with no inherited entry), and `down` exits 2 with `refused` for
+a root that another user owns or can reach. Windows gives no read of the environment of another
+process, so a named job `Local\<id>` holds the lab processes. `up` joins the job before it starts
+the core and the window, and records the window process in `app.json` of the root. A keeper
+process in the job holds the job name until `down`, because the name ends with its last handle,
+also while members run. `run` joins the job before it starts its command. The lab core and the
+window get the full environment of the caller with the lab keys; macOS gives the window only the
+lab keys, `PATH`, and the telemetry opt-out. `down` stops the lab core, ends the job and the
+recorded window, and deletes the core state and the root only after the job holds no process.
+
+A Windows `down` keeps the root, names each cause, and exits 1 in these cases: a bad `app.json`; a
+lab job that cannot be opened when no earlier `down` saw it empty; a member of the lab job that
+still runs after 90 seconds, or a member list that cannot be read; a lab window process that still
+runs or cannot be read; a core that still answers; a real core or window that holds lab text; and
+an unset `LOCALAPPDATA`. In each case, `down` still stops the lab core and ends what it can find.
+Most causes clear when the cause ends and `down` runs again. Two need a manual remedy. A bad
+`app.json` hides a window outside the job: confirm that no lab window is open, then delete the root
+by hand. When the job cannot be opened and no `down` saw it empty (the keeper ended early), no read
+finds the other lab processes, because the job name is gone and Windows gives no read of the
+environment of another process. Restart Windows, or accept the risk, then delete the root by hand.

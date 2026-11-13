@@ -3,7 +3,7 @@ import { basename } from 'node:path';
 import { type ExitCode, exits } from './contract.ts';
 import { type Host, hosts } from './host-names.ts';
 import { hostAdapter } from './hosts.ts';
-import { childEnv, run } from './process.ts';
+import { bunArgs, childEnv, run } from './process.ts';
 import { repositoryLayout, StateError, withLock } from './state.ts';
 import type { DialogKind, Terminal, TerminalStatus } from './terminal-types.ts';
 
@@ -16,6 +16,7 @@ export type OpenTab = {
   folder: string;
   name: string;
   argv: string[] | null;
+  env: Readonly<Record<string, string>>;
   focus: boolean;
   keepShell: boolean;
 };
@@ -64,11 +65,53 @@ const parse = (text: string): unknown => {
 const answer = (result: Result): unknown => (result.code === 0 ? parse(result.stdout) : null);
 const call = (exec: Exec, file: string, args: string[], options: CallOptions = {}) =>
   exec(file, args, { ...options, timeout: options.timeout ?? 15_000 });
-const inShell = (script: string, argv: string[]) => {
-  if (process.platform === 'win32') return argv;
-  const shell = process.env.SHELL || '/bin/sh';
-  return [shell, '-lic', script, shell, ...argv];
+
+export const tabWrapper = [
+  'const { spawn } = require("node:child_process");',
+  'const [mode, count, ...rest] = process.argv.slice(1);',
+  'const env = { ...process.env, BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0", DO_NOT_TRACK: "1" };',
+  'for (let at = 0; at < Number(count); at++) env[rest[2 * at]] = rest[2 * at + 1];',
+  'const [program, ...args] = rest.slice(2 * Number(count));',
+  'for (const name of ["SIGINT", "SIGBREAK"]) process.on(name, () => {});',
+  'let ended = false;',
+  'const hold = (line, code) => {',
+  'if (ended) return; ended = true;',
+  // hc keeps the last status of the host while the wrapper holds; a status of no host keeps the card off the board.
+  'process.stdout.write("\\x1b]7501;state=idle:app=celetis-hold\\x1b\\\\");',
+  'console.log(line + " Press Enter to close this tab.");',
+  'process.stdin.once("data", () => process.exit(code)).once("end", () => process.exit(code));',
+  '};',
+  'const child = spawn(program, args, { stdio: "inherit", env });',
+  'child.once("error", (error) => hold(error.message + ".", 127));',
+  'child.once("exit", (code) => {',
+  'if (mode === "close" && code === 0) process.exit(0);',
+  'hold(program + " exited " + (code ?? 1) + ".", code ?? 1);',
+  '});',
+].join(' ');
+const wrapperFlags = bunArgs('-e', []);
+
+// A tab of an older engine keeps its wrapper text, so the strip reads the form of the wrapper, not its text.
+const programArgv = (argv: string[]): string[] | null => {
+  const mode = argv[wrapperFlags.length + 2];
+  if (!wrapperFlags.every((word, at) => argv[at + 1] === word) || (mode !== 'keep' && mode !== 'close')) return argv;
+  const count = argv[wrapperFlags.length + 3] ?? '';
+  const start = wrapperFlags.length + 4 + 2 * Number(count);
+  return /^\d+$/.test(count) && start < argv.length ? argv.slice(start) : null;
 };
+
+// hc gives a tab the environment of its server, not of the caller.
+function tabArgv({ argv, env, keepShell }: OpenTab & { argv: string[] }): string[] {
+  const pairs = Object.entries(env);
+  if (process.platform === 'win32')
+    return [
+      process.execPath,
+      ...bunArgs('-e', [tabWrapper, keepShell ? 'keep' : 'close', String(pairs.length), ...pairs.flat(), ...argv]),
+    ];
+  const shell = process.env.SHELL || '/bin/sh';
+  const script = keepShell ? '"$@"; exec "$0" -li' : '"$@" || exec "$0" -li';
+  const variables = pairs.length ? ['env', ...pairs.map(([key, value]) => `${key}=${value}`)] : [];
+  return [shell, '-lic', script, shell, ...variables, ...argv];
+}
 
 function failure(file: string, { code, stdout, stderr }: Result): string {
   const errors = [stderr, stdout].map((text) => {
@@ -115,7 +158,7 @@ export async function readTerminal(
     turn: value.turn,
     labels,
     cwd,
-    foreground: Array.isArray(foreground.argv) && foreground.argv.every(isText) ? foreground.argv : null,
+    foreground: Array.isArray(foreground.argv) && foreground.argv.every(isText) ? programArgv(foreground.argv) : null,
     tab: at < 0 ? null : where.slice(at + 3) || null,
   };
 }
@@ -322,11 +365,10 @@ async function startTab(request: OpenTab, exec: Exec): Promise<string> {
   const name = basename(request.repository.main);
   const found = spaceNamed(await readSpaces(exec), name)?.id;
   const space = found ?? `celetis-${randomUUID()}`;
-  const script = request.keepShell ? '"$@"; exec "$0" -li' : '"$@" || exec "$0" -li';
   const id = await runTerminal(
     exec,
     [
-      ...(process.platform === 'win32' || request.keepShell ? [] : ['--rm']),
+      ...(request.keepShell ? [] : ['--rm']),
       '--cwd',
       request.folder,
       '--label',
@@ -334,7 +376,7 @@ async function startTab(request: OpenTab, exec: Exec): Promise<string> {
       '--label',
       `${LINK}=${request.name}`,
     ],
-    request.argv === null ? [] : inShell(script, request.argv),
+    request.argv === null ? [] : tabArgv({ ...request, argv: request.argv }),
   );
   if (found === undefined) {
     const shown = await poll(

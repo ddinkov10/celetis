@@ -1,4 +1,4 @@
-import { basename, join, relative, resolve } from 'node:path';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 import {
   type AgentState,
   hasVisualPage,
@@ -42,9 +42,17 @@ import type {
 import { gateOf } from './view.ts';
 
 const LABEL = /^#([1-9][0-9]*)(?: ([a-z]+))?/;
-const INDEPENDENT = ['intake', 'assist', 'visual'].map((name) =>
-  bunArgs(join(import.meta.dir, '..', `${name}.ts`), []),
-);
+const INDEPENDENT_COMMANDS = ['intake', 'assist', 'visual'];
+const INDEPENDENT = INDEPENDENT_COMMANDS.map((name) => bunArgs(join(import.meta.dir, '..', `${name}.ts`), []));
+const FLAGS = bunArgs('', []).slice(0, -1);
+
+// The tabs of an older engine version stay open across an update, so an entry matches by its shape, not by its path.
+const isEntry = (word = '') => basename(word) === 'celetis' && basename(dirname(word)) === 'engine';
+const isLaunched = (words: string[]) => {
+  if (!FLAGS.every((arg, index) => words[index + 1] === arg) || !isEntry(words[FLAGS.length + 1])) return false;
+  const [first, second, third] = words.slice(FLAGS.length + 2);
+  return INDEPENDENT_COMMANDS.includes((first === '--agent' && isHost(second) ? third : first) ?? '');
+};
 
 export type LaunchFeedback = { step: string | null } & (
   | { kind: 'timed'; expired: boolean }
@@ -66,9 +74,11 @@ export const sessionsOf = (terminals: Terminal[], isHere: (path: string) => bool
     const executable = basename(words[0] ?? '').replace(/\.exe$/, '');
     const isHost = executable === host;
     const isIndependent =
-      executable === 'bun' && INDEPENDENT.some((args) => args.every((arg, index) => words[index + 1] === arg));
-    const daemonAt = words.findIndex((word) => basename(word) === daemonScript);
-    const isSession = daemonAt >= 0 && link !== '';
+      executable === 'bun' &&
+      (INDEPENDENT.some((args) => args.every((arg, index) => words[index + 1] === arg)) || isLaunched(words));
+    const isSession =
+      words.some((word, at) => basename(word) === daemonScript || (isEntry(word) && words[at + 1] === 'daemon')) &&
+      link !== '';
     if (!isHere(cwd) || host === null || status === null || !(isHost || isSession || isIndependent)) return [];
     const [, issue, step = ''] = LABEL.exec(link) ?? [];
     return [

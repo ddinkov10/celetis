@@ -167,6 +167,7 @@ export function startFiles(dir: string) {
     terminated: join(dir, 'terminated'),
     error: join(dir, 'error'),
     env: join(dir, 'env'),
+    jobEmpty: join(dir, 'job-empty'),
   });
 }
 

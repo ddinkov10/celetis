@@ -125,12 +125,12 @@ export async function prepareClaudeUsage(attempt: UsageAttempt, captureDirectory
   const settings = files.settings;
   await locked(captureDirectory, async () => {
     await create(files.attempt, `${JSON.stringify({ schema: 1, attempt })}\n`);
-    const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
     const args = bunArgs(join(import.meta.dir, '../usage-hook.ts'), [captureDirectory, attempt.id]);
-    const executable = process.platform === 'win32' ? process.execPath.replaceAll('\\', '/') : process.execPath;
-    const command = [executable, ...args].map(shellQuote).join(' ');
     const hooks = Object.fromEntries(
-      ['Stop', 'StopFailure'].map((event) => [event, [{ hooks: [{ type: 'command', command }] }]]),
+      ['Stop', 'StopFailure'].map((event) => [
+        event,
+        [{ hooks: [{ type: 'command', command: process.execPath, args }] }],
+      ]),
     );
     await create(settings, `${JSON.stringify({ hooks })}\n`);
   });

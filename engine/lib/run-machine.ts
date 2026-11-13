@@ -578,7 +578,7 @@ function settle(
       choice: session.choice,
     },
     say(
-      `#${number}: ${reason} Its session ended, and no process of its tree or with its attempt marker runs; native resume from the main checkout: ${resume}. The same step continues with the next eligible agent.`,
+      `#${number}: ${reason} Its session ended, and ${process.platform === 'win32' ? 'its job holds no other process' : 'no process of its tree or with its attempt marker runs'}; native resume from the main checkout: ${resume}. The same step continues with the next eligible agent.`,
     ),
     { kind: 'mark', label: 'starting' },
   ]);

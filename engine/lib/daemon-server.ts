@@ -1,6 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { spawn } from 'node:child_process';
-import { closeSync, openSync, rmSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { realpath, rm } from 'node:fs/promises';
 import { constants } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -9,9 +8,9 @@ import { type BoardDaemon, celetisAdapter } from '../board/adapter.ts';
 import { type BoardHandle, startBoard } from '../board/start.ts';
 import { type ExitCode, exits, signalExit } from './contract.ts';
 import { createCoordinator } from './coordinator.ts';
-import { shortRevision } from './daemon-client.ts';
+import { shortRevision, socketFolderRefusal } from './daemon-client.ts';
 import { createLandings, type Sink } from './daemon-landing.ts';
-import { daemonArgv } from './daemon-start.ts';
+import { daemonArgv, startDetached } from './daemon-start.ts';
 import {
   type CoordinatorAnswer,
   type DaemonAnswer,
@@ -55,6 +54,7 @@ import {
 import { type RunRecord, readRunRecords, removeRunRecord, writeRunRecord } from './run-record.ts';
 import { daemonSockets, ensureFolder, privateState, writeAtomic } from './state.ts';
 import { versionFolderGone } from './version-folder.ts';
+import { holdFolder, makePrivateFolder, privateFolderProblem } from './windows.ts';
 
 type Frame = { tag: string; last: string | null; sink: Sink | null };
 type Said = Readonly<{ status: number; answer: DaemonAnswer }>;
@@ -216,22 +216,7 @@ async function startSuccessor({ engine, auto, port, start, main, log }: Spawn): 
     ...(auto ? ['--auto', JSON.stringify(auto)] : []),
   ]);
   try {
-    const out = openSync(log, 'a', 0o600);
-    try {
-      const child = spawn(file, args, {
-        detached: true,
-        stdio: ['ignore', out, out],
-        env,
-        cwd: main,
-      });
-      await new Promise<void>((spawned, failed) => {
-        child.once('spawn', spawned);
-        child.once('error', failed);
-      });
-      child.unref();
-    } finally {
-      closeSync(out);
-    }
+    await startDetached(file, args, { cwd: main, env, log });
     return exits.done;
   } catch (error) {
     console.error(`daemon: cannot start the successor: ${described(error)}; run celetis daemon start`);
@@ -240,10 +225,6 @@ async function startSuccessor({ engine, auto, port, start, main, log }: Spawn): 
 }
 
 export async function runDaemon(argv: readonly string[]): Promise<ExitCode> {
-  if (process.platform === 'win32') {
-    console.error('daemon: Windows is not a support target');
-    return exits.prerequisite;
-  }
   installRecorder('daemon');
   const frames = new AsyncLocalStorage<Frame>();
   routeOutput(frames);
@@ -276,6 +257,15 @@ async function serve(
   const place: Place = { main, common, state: layout, root };
   ensureFolder(layout.root);
   for (const folder of [layout.daemon, layout.runs, privateState, daemonSockets]) ensureFolder(folder);
+  if (process.platform === 'win32') {
+    // Held until the process exits: a handle without FILE_SHARE_DELETE stops a rename of the folder.
+    const refusal = socketFolderRefusal(
+      holdFolder(daemonSockets.path) ??
+        makePrivateFolder(daemonSockets.path) ??
+        privateFolderProblem(daemonSockets.path),
+    );
+    if (refusal) throw refusal;
+  }
   const start = await processStart(process.pid);
   if (!start)
     throw new HostError(

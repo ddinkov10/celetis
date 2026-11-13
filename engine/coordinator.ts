@@ -14,8 +14,6 @@ export async function main(argv: string[]): Promise<ExitCode> {
   try {
     requireBun();
     const { args, explicit } = commandInput(argv);
-    if (process.platform === 'win32')
-      throw new HostError('coordinator: Windows is not a support target', exits.prerequisite);
     const at = args[0] === 'send' ? args.indexOf('--as') : -1;
     const named = at < 0 ? undefined : args[at + 1];
     const authority = isAuthority(named) ? named : null;

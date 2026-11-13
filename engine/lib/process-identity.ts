@@ -1,5 +1,7 @@
+import { constants } from 'node:os';
+import { signalExit } from './contract.ts';
 import { run } from './process.ts';
-import { windowsProcess } from './windows.ts';
+import { terminateWindowsProcess, windowsChildren, windowsProcess } from './windows.ts';
 
 export type ProcessState = 'runs' | 'gone' | 'unknown';
 
@@ -27,12 +29,18 @@ async function pidState(pid: number): Promise<ProcessState> {
 }
 
 export async function processStart(pid: number): Promise<string> {
-  if (process.platform === 'win32') return windowsProcess(pid)?.start ?? '';
+  if (process.platform === 'win32') {
+    const read = windowsProcess(pid);
+    return read.state === 'runs' ? read.start : '';
+  }
   return (await field(pid, 'lstart=')) ?? '';
 }
 
 export async function processState(pid: number, start: string): Promise<ProcessState> {
-  if (process.platform === 'win32') return windowsProcess(pid)?.start === start ? 'runs' : 'gone';
+  if (process.platform === 'win32') {
+    const read = windowsProcess(pid);
+    return read.state === 'runs' ? (read.start === start ? 'runs' : 'gone') : read.state;
+  }
   const state = await pidState(pid);
   if (state !== 'runs') return state;
   const begun = await field(pid, 'lstart=');
@@ -56,6 +64,7 @@ export async function terminateChild(
   parent: Readonly<{ pid: number; start: string }>,
   signal?: AbortSignal,
 ): Promise<number | null> {
+  if (process.platform === 'win32') return terminateWindowsChild(parent, signal);
   const rows = await processTable();
   if (!rows?.some((row) => row.pid === parent.pid && row.start === parent.start)) return null;
   const [child, ...others] = rows.filter((row) => row.ppid === parent.pid);
@@ -67,6 +76,22 @@ export async function terminateChild(
   } catch {
     return null;
   }
+}
+
+function terminateWindowsChild(parent: Readonly<{ pid: number; start: string }>, signal?: AbortSignal): number | null {
+  const host = windowsProcess(parent.pid);
+  if (host.state !== 'runs' || host.start !== parent.start) return null;
+  const pids = windowsChildren(parent.pid);
+  if (!pids) return null;
+  const children: { pid: number; start: string }[] = [];
+  for (const pid of pids) {
+    const read = windowsProcess(pid);
+    if (read.state === 'unknown') return null;
+    if (read.state === 'runs' && BigInt(read.start) >= BigInt(parent.start)) children.push({ pid, start: read.start });
+  }
+  const [child, ...others] = children;
+  if (!child || others.length || signal?.aborted) return null;
+  return terminateWindowsProcess(child.pid, child.start, signalExit(constants.signals.SIGTERM)) ? child.pid : null;
 }
 
 export function controllingTerminal(name: string): boolean {
@@ -115,12 +140,12 @@ export async function processesWithEnvironment(entry: string): Promise<Set<numbe
 }
 
 export async function processAlive(pid: number): Promise<ProcessState> {
-  if (process.platform === 'win32') return windowsProcess(pid) === null ? 'gone' : 'runs';
+  if (process.platform === 'win32') return windowsProcess(pid).state;
   return pidState(pid);
 }
 
 export async function processScript(pid: number, script: string): Promise<ProcessState> {
-  if (process.platform === 'win32') return (await processRunsScript(pid, script)) ? 'runs' : 'gone';
+  if (process.platform === 'win32') return windowsProcess(pid).state;
   if (!signalable(pid)) return 'gone';
   const command = await field(pid, 'command=');
   if (!command) return 'unknown';
@@ -129,6 +154,6 @@ export async function processScript(pid: number, script: string): Promise<Proces
 
 export async function processRunsScript(pid: number, script: string): Promise<boolean> {
   // kernel32 cannot read another process's command line.
-  if (process.platform === 'win32') return windowsProcess(pid) !== null;
+  if (process.platform === 'win32') return windowsProcess(pid).state === 'runs';
   return ((await field(pid, 'command=')) ?? '').includes(script);
 }

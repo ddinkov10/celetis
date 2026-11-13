@@ -29,10 +29,6 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
     console.error(usage('land'));
     return exits.usage;
   }
-  if (process.platform === 'win32') {
-    console.error('land: prerequisite: Windows is not a support target');
-    return exits.prerequisite;
-  }
   let common: string;
   let from: string;
   try {

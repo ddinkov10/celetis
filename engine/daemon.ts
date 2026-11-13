@@ -1,9 +1,6 @@
-import { spawn } from 'node:child_process';
-import { closeSync, openSync } from 'node:fs';
-import { readFile, stat } from 'node:fs/promises';
-import { constants } from 'node:os';
+import { lstat, readFile, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
-import { type ExitCode, exits, signalExit, usage } from './lib/contract.ts';
+import { type ExitCode, exits, usage } from './lib/contract.ts';
 import {
   askDaemon,
   type Found,
@@ -13,7 +10,9 @@ import {
   revisionRefusal,
   sendRequest,
   shortRevision,
+  socketFolderRefusal,
 } from './lib/daemon-client.ts';
+import { startDetached } from './lib/daemon-start.ts';
 import { type DaemonIdentity, type DaemonStatus, daemonPaths, type RunRow } from './lib/daemon-types.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder, passOn } from './lib/events.ts';
@@ -25,8 +24,16 @@ import type { LockOwner } from './lib/locks.ts';
 import { commandInput, locateCheckouts } from './lib/operation.ts';
 import { bunArgs, childEnv } from './lib/process.ts';
 import { daemonScript, processAlive, processStart, processState } from './lib/process-identity.ts';
-import { ensureFolder, repositoryLayout, startFiles, writeAtomic } from './lib/state.ts';
+import { daemonSockets, ensureFolder, repositoryLayout, startFiles, writeAtomic } from './lib/state.ts';
 import { requireTerminals, TerminalError } from './lib/terminal.ts';
+import {
+  createJob,
+  type Detached,
+  joinJob,
+  makePrivateFolder,
+  privateFolderProblem,
+  sessionJobName,
+} from './lib/windows.ts';
 
 const noDaemon = 'daemon: no daemon runs for this repository';
 const root = dirname(import.meta.dir);
@@ -78,24 +85,31 @@ async function start(common: string, main: string): Promise<ExitCode> {
   const paths = await daemonPaths(common);
   ensureFolder(paths.layout.root);
   ensureFolder(paths.layout.daemon);
-  const log = openSync(paths.log, 'a', 0o600);
-  const ended: { code: number | null } = { code: null };
+  if (process.platform === 'win32') {
+    const socketFolder = await lstat(daemonSockets.path).catch(() => null);
+    if (socketFolder?.isSymbolicLink())
+      throw new HostError(`daemon: ${daemonSockets.path}: need a folder without a reparse point`, exits.prerequisite);
+    if (socketFolder) {
+      const refusal = socketFolderRefusal(
+        makePrivateFolder(daemonSockets.path) ?? privateFolderProblem(daemonSockets.path),
+      );
+      if (refusal) throw refusal;
+    }
+  }
   const env = childEnv();
   delete env.HC_SCOPE; // hc kill ends each process whose environment carries the scope of the closed terminal
-  const child = spawn(process.execPath, bunArgs(join(root, 'engine', daemonScript), ['--daemon']), {
-    detached: true,
-    stdio: ['ignore', log, log],
-    env,
-    cwd: main,
-  });
-  closeSync(log);
-  child.once('error', () => {
-    ended.code = exits.blocked;
-  });
-  child.once('exit', (code, signal) => {
-    ended.code = code ?? (signal ? signalExit(constants.signals[signal]) : exits.blocked);
-  });
-  child.unref();
+  let child: Detached;
+  try {
+    child = await startDetached(process.execPath, bunArgs(join(root, 'engine', daemonScript), ['--daemon']), {
+      cwd: main,
+      env,
+      log: paths.log,
+    });
+  } catch (error) {
+    if (!(error as NodeJS.ErrnoException | null)?.syscall?.startsWith('spawn')) throw error;
+    console.error(`daemon: the daemon ended with exit ${exits.blocked} before it served; read ${paths.log}`);
+    return exits.blocked;
+  }
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
     const now = await findDaemon(common);
@@ -106,16 +120,19 @@ async function start(common: string, main: string): Promise<ExitCode> {
       }
       const status = await readStatus(common).catch(() => null);
       if (status) {
+        const started = now.identity.pid === child.pid;
         console.log(
-          now.identity.pid === child.pid
-            ? `daemon: started PID ${now.identity.pid} on ${paths.socket}`
-            : await runsLine(now.identity),
+          started ? `daemon: started PID ${now.identity.pid} on ${paths.socket}` : await runsLine(now.identity),
         );
+        if (started && child.inJob)
+          console.error(
+            'daemon: this terminal does not let the daemon leave its job; the daemon ends when this terminal closes',
+          );
         console.log(boardLine(status));
         return exits.done;
       }
-    } else if (ended.code !== null) {
-      console.error(`daemon: the daemon ended with exit ${ended.code} before it served; read ${paths.log}`);
+    } else if (child.exitCode() !== null) {
+      console.error(`daemon: the daemon ended with exit ${child.exitCode()} before it served; read ${paths.log}`);
       return exits.blocked;
     }
     await Bun.sleep(250);
@@ -191,8 +208,6 @@ async function stop(common: string): Promise<ExitCode> {
 export async function main(argv: string[]): Promise<ExitCode> {
   try {
     const { args, explicit } = commandInput(argv);
-    if (process.platform === 'win32')
-      throw new HostError('daemon: Windows is not a support target', exits.prerequisite);
     const form = args[0];
     const word = form === 'auto' ? args[1] : undefined;
     const valid =
@@ -275,7 +290,8 @@ async function waitingSession(args: string[]): Promise<ExitCode> {
     !isAbsolute(dir) ||
     !/^[1-9][0-9]*$/.test(daemon ?? '') ||
     !isHost(host) ||
-    !(attempt === '-' || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(attempt ?? '')) ||
+    !attempt ||
+    !(attempt === '-' || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(attempt)) ||
     !(recovery === '-' || (recovery === 'recovery' && attempt !== '-'))
   )
     return exits.usage;
@@ -299,7 +315,12 @@ async function waitingSession(args: string[]): Promise<ExitCode> {
     const availability = hostAvailability(host, env);
     if (!availability.available) throw new HostError(availability.cause, exits.prerequisite);
     const { executable } = availability;
+    // The handle stays open to the exit of the starter: the name of a job ends with its last handle.
+    const job = process.platform === 'win32' ? createJob(sessionJobName(attempt, dir), false) : null;
+    if (job) joinJob(job);
     code = passOn(await spawnConsumer(executable, [executable, ...hostArgs], env));
+    const members = job?.members();
+    if (members?.length === 1 && members[0] === process.pid) await writeAtomic(files.jobEmpty, '').catch(() => {});
   } catch (error) {
     if (!(error instanceof HostError)) throw error;
     console.error(error.message);

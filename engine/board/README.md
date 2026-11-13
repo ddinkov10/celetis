@@ -49,8 +49,7 @@ gives the reasons why its sessions come from herdr-core and its tabs from the He
 
 **Requirements.**
 
-- macOS or Linux. The master daemon refuses Windows, so no board runs there
-  ([The master daemon](../README.md#the-master-daemon)).
+- macOS, Linux, or Windows.
 - Bun 1.4.4 or later. The entry exits 3 on an older Bun.
 - git 2.31 or later.
 - The installed `celetis` engine for New intake, Run, Resume, Assist, Make visual, and queue actions (the README of the plugin, "First install").
@@ -424,12 +423,23 @@ a landed-history panel.
   adapter of a registry agent (`claude-code` for `claude`, `codex` for `codex`, `opencode` for
   `opencode`).
   A terminal with no status has no card.
-- Its foreground process is that host (the file name of its first item, with no `.exe`), Bun
-  with the engine's launch arguments and its exact `engine/intake.ts`, `engine/assist.ts`, or
-  `engine/visual.ts` entry, or a process with an item of the file name `daemon.ts` while
-  the terminal has a link label. In
-  a session tab of a run, that process is the start barrier, the leader of the foreground
-  process group ([The session tab](../README.md#the-session-tab)). A shell whose host exited has no card, also when Codex left a `done` status in it.
+- Its foreground process is one of these, with the file name of its first item and no `.exe`:
+  - that host;
+  - Bun with the engine's launch arguments and its exact `engine/intake.ts`, `engine/assist.ts`,
+    or `engine/visual.ts` entry;
+  - Bun with the engine's launch arguments, an entry `engine/celetis` of any engine version, an
+    optional `--agent <agent>`, and `intake`, `assist`, or `visual` (the Windows board tabs);
+  - while the terminal has a link label, a process with an item of the file name `daemon.ts`, or
+    with an item `engine/celetis` of any engine version followed by `daemon` (the Windows
+    session tabs).
+
+  In a session tab of a run, that process is the start barrier, the leader of the foreground
+  process group ([The session tab](../README.md#the-session-tab)). On Windows, the board reads the
+  program argv after the form of the tab wrapper (the isolation flags, `-e`, a script, `keep` or
+  `close`, and a count), so a tab of an older wrapper text keeps its card, and the foreground stays
+  that argv until the tab closes. A shell whose host exited has no card, also when Codex left a `done` status in it.
+  On Windows, a tab that holds after its program exits reports the status `idle` of the app
+  `celetis-hold`, which is no host, so it has no card.
 
 The link label of the terminal, `celetis.link`, links a session to an issue: `#<n> <step>` gives
 the issue `<n>` and the step, `#<n>` alone gives the issue only, and another label gives no issue.
@@ -644,17 +654,19 @@ answer of the daemon; a message can wait up to 90 seconds for a draft of the tab
 wake, the adapter reads the installed `celetis` engine
 (`readEngine` of `engine/lib/installation.ts`). Its command is `<base>/.local/bin/celetis`, or
 `<base>\.local\bin\celetis.cmd` on Windows, where `<base>` is `CELETIS_HOME` or the home folder.
+On Windows, the read checks that command, but the argv does not run it (see below).
 The read refuses an entry that is not the file `engine/celetis` of a version folder, so the
 command always starts the engine in its version folder. The command path has no control
 character. The adapter keeps no engine path between presses, so after `celetis update` the next
 press starts the new engine.
 
-The adapter makes each argv from fixed items: the command of the engine, then, for Assist,
+The adapter makes each argv from fixed items: the command of the engine (on Windows, the Bun of
+the board with its isolation flags and the entry of the read, as below), then, for Assist,
 `assist`; for Make visual, `visual`, the number, and the full commit hash of the History row of
 that number; or for New intake, `intake`, with no issue number. These commands select from the
 local order. The engine supplies Bun and its isolation flags. The number is its digits. Each
 item is one argument: no shell reads the argv as a line, so an item cannot add a second command.
-For the issue 12:
+On macOS and Linux, for the issue 12:
 
 ```text
 <base>/.local/bin/celetis assist 12
@@ -675,9 +687,17 @@ with `hc run --rm`. New intake, Assist, and Make visual use this start form:
 ```
 
 The shell gets each item as one item of `"$@"`. A program that exits 0 closes the tab: herdr-core removes its terminal. A
-program that fails leaves the tab open with its message and an interactive shell. On Windows,
-`hc run` gets the argv with no shell, and a tab gets no `--rm`. On Windows, the start of the argv
-is not checked.
+program that fails leaves the tab open with its message and an interactive shell.
+
+On Windows, the argv starts with the Bun of the board, its isolation flags, and the engine entry
+of the read, in place of the command: `<bun> <flags> <entry> intake`. The new terminal starts
+no shell. It starts the tab wrapper `tabWrapper` of `engine/lib/terminal.ts` with `bun -e` and
+the isolation flags, and the wrapper starts the argv with no shell. The wrapper sets
+`BUN_RUNTIME_TRANSPILER_CACHE_PATH=0` and `DO_NOT_TRACK=1` in the environment of the program.
+`hc run --rm` follows the rule of macOS. A program that exits 0 closes the tab. A program that
+fails, or that cannot start, keeps its output and the line
+`<program> exited <code>. Press Enter to close this tab.` until Enter; then the tab closes. The
+board reads the program argv after the form of the wrapper, not its exact text.
 
 The adapter sends each queue action as `POST /queue/action` to the master daemon with the fixed
 body `{action, selection}`, and waits at most 120 seconds. It parses the answer as
@@ -1052,7 +1072,8 @@ Five rules hold for the start, the argvs, and the data:
    `{action, selection}`. New intake, Assist, and Make visual start their interactive commands ("The
    argv of a press"). On macOS and Linux, the login shell of the new terminal gets the argv as
    `"$@"`, so it reads no item as shell text. That engine starts the first `bun` on the `PATH` of
-   that login shell, through its `env -S` shebang, or through its shim on Windows. New intake,
+   that login shell, through its `env -S` shebang. On Windows, the board starts its own Bun with
+   the engine entry, so no shim and no `PATH` lookup of `bun` apply. New intake,
    Assist, and Make visual start the selected native host. The server starts `hc`, `herdr-app`,
    and `git`, and the issue read starts `gh`, `git`, and, on macOS and Linux, `ps`. Update workers have the separate fixed update
    protocol above.
@@ -1494,13 +1515,15 @@ Of the sessions, herdr-core, and the Herdr app:
   ([The master daemon](../README.md#the-master-daemon), "The restart", gives the gap with no
   daemon). A successor that finds the old port in use serves another port: the page cannot
   reconnect at its URL and shows the timeout, and `celetis daemon status` prints the new URL.
-- On macOS and Linux, a New intake, Assist, or Make visual program that exits 0 closes its tab
-  (`hc run --rm`).
-  The first press that makes the space of the repository starts its argv through the start form
+- A New intake, Assist, or Make visual program that exits 0 closes its tab (`hc run --rm`), on
+  each platform.
+  On macOS and Linux, the first press that makes the space of the repository starts its argv through the start form
   of the Herdr app, `"$@"; exec "$0" -li`, so that one tab keeps a shell after its program ends.
-- On Windows, `hc run` gets the argv with no shell, and the first item is `celetis.cmd`. Such a
-  start, its tab, and the card of its session are not checked. A program that `hc run` starts with
-  no shell has no foreground in `hc get`, so its session can get no card.
+- On Windows, a tab has no shell after its program ends. A session tab keeps the line
+  `<program> exited <code>. Press Enter to close this tab.` after each exit, also after exit 0.
+  The wrapper argv holds the variables of the tab, so a process of the same user can read them
+  while the tab is open, for example the token of the coordinator; `readTerminal` removes them
+  from the foreground that the board reads.
 - Two shapes of the REST reads of the board data (`nextBoard`) for each open PR are not checked
   against a live GitHub: a commit status list that is not empty, and a review list that is not
   empty.

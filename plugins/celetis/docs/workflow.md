@@ -217,9 +217,10 @@ work. Before the signal, the job writes the file `terminated` in the start folde
 143 with that file is the requested exit: the step ends as after `/exit`, and the finished tab
 closes. The job sends no SIGKILL, no second request, and no key to a dialog (ADR-0080).
 
-The job sends no signal for Codex, which keeps `ctrl+c ctrl+c`, and on Windows, where a signal is
-a hard kill. It sends none either when the process read fails, when the barrier is gone or has
-another process start, when the barrier has no child or more than one, when the child is gone or
+The job sends no signal for Codex, which keeps `ctrl+c ctrl+c`. On Windows, which has no SIGTERM,
+the job ends the host process, the one child of the barrier, with `TerminateProcess` and the
+status 143, and the rest of this paragraph holds as on macOS. It sends none either when the
+process read fails, when the barrier is gone or has another process start, when the barrier has no child or more than one, when the child is gone or
 has another process start, when the job cannot write `terminated`, or when the job ends first.
 Then it prints one recovery message and keeps waiting. A host that still runs 10 seconds after the
 SIGTERM gets one recovery message too, and the job keeps waiting. If the session stays open, exit
@@ -400,7 +401,7 @@ The exit status and the first word of the `land` line give the result:
 | 0 | none | landed | the change is on the trunk; also with a warning, for example when the parent of the issue cannot be read |
 | 1 | none | an internal error of `land` | an unexpected exception; the 500 answer of the daemon, with its line |
 | 2 | `usage` | usage | bad arguments (the usage line); no Git checkout; a run from inside the lane worktree; a dirty lane worktree; no lane branch; nothing to land; an invalid configuration; a refusal of the request by the daemon with code 2, with its line (for example the 400 usage line of the requests, or the 413 line of a subject that makes the body more than 16 KiB) |
-| 3 | `prerequisite` | the issue is not ready to land | the landing prerequisites of `docs/issue-tracker.md`, "Branches, PRs, merge"; Windows; another live holder of `land-<n>`; no daemon (the line tells you to start it with `celetis daemon start`); a daemon at another revision (the line tells you to restart it with `celetis daemon stop`, then `celetis daemon start`) |
+| 3 | `prerequisite` | the issue is not ready to land | the landing prerequisites of `docs/issue-tracker.md`, "Branches, PRs, merge"; another live holder of `land-<n>`; no daemon (the line tells you to start it with `celetis daemon start`); a daemon at another revision (the line tells you to restart it with `celetis daemon stop`, then `celetis daemon start`) |
 | 4 | `repair` | the lane needs a repair | a conflict with the trunk; a lane branch that does not contain the head of the trunk; a trunk head, a lane branch, a lane checkout, or a PR that changed during the landing; a missing lane worktree with the landing `merge`; lane lessons that do not validate |
 | 5 | `checks` | a check is not green | a failed CI check, also after its re-run; a workflow run of the PR head that failed to start, or that ended not green with no check run; a failed `suite` with the landing `merge` (`docs/configuration.md`) |
 | 6 | `blocked` | an external block | GitHub does not answer or refuses an act; a fetch or a push fails; the checks did not finish; no check ran; the main checkout is dirty, off the trunk, or with commits that the trunk does not have; the landing mechanism or the default branch changed; two branches or two PRs match; an incomplete lesson transaction (`lesson-store recover`); a lesson lock that stays busy for 10 seconds; a daemon that cannot be read (the line tells you to read `celetis daemon status`); a request during a stop of the daemon (the 503 line); a landing that waits in the line when the daemon stops; a stream with no status (above) |
@@ -500,6 +501,12 @@ Claude Code and Codex TUI/CLI only (ADR-0016). A desktop probe has its own recor
 UNRUN desktop probe does not block complete CLI checks, and a desktop success does not close a CLI
 gap. An observed version is no minimum version.
 
+- **Native Windows as a support target (#309).** unverified. Hosts: none recorded yet. Open: each
+  scenario of the Verify phase on a Windows host, with Claude Code and with Codex: the daemon with
+  no window for the daemon or its children, a run, resume, and retry, the queue, the coordinator, a landing, the forced end after
+  the exit grace, the job proof of a usage-limit hand-off, an update restart, the lab, and the
+  private socket folder. Evidence: the Verify evidence of
+  [#309](https://github.com/ddinkov10/celetis/issues/309).
 - **Model and effort of a step session (#290).** partial. Hosts: Claude Code 2.1.322, Codex CLI
   0.167.0, Bun 1.4.4. Open: a real `fable` start in a tab at the consent prompt of usage credits; a
   provider other than the Anthropic API; a real Codex step start with the tier rule. Evidence:
@@ -507,16 +514,18 @@ gap. An observed version is no minimum version.
 - **Coordinator session (#252).** partial. Hosts: hc 0.1.20, herdr-app 0.1.15, Claude Code 2.1.322,
   Codex CLI 0.167.0, Bun 1.4.4. Open: a coordinator session of the installed engine with the real
   hosts (the checks after the landing); a Codex coordinator session, whose daemon commands need the
-  approval of Codex outside its sandbox; native Windows (no daemon). Evidence:
+  approval of Codex outside its sandbox; native Windows (the Verify evidence of #309). Evidence:
   [#252](https://github.com/ddinkov10/celetis/issues/252#issuecomment-6792535220).
 - **Owned-step usage recovery (#236).** partial. Hosts: Claude Code 2.1.318, Codex CLI 0.166.0,
-  Bun 1.4.4. Open: a real ordinary Claude turn (BLOCKED by the weekly allowance); Codex and Windows
-  termination proof (Codex stops and keeps its Resume information); native Linux and Windows; the
+  Bun 1.4.4. Open: a real ordinary Claude turn (BLOCKED by the weekly allowance); Codex
+  termination proof (Codex stops and keeps its Resume information); native Linux; native Windows
+  (the job proof; the Verify evidence of #309); the
   exit-watcher, PID 1, and process-snapshot timing cases; the Starting-row timing of the board.
   Evidence: [#236](https://github.com/ddinkov10/celetis/issues/236).
 - **Native usage adapters (#236).** partial. Hosts: Claude Code 2.1.318, Codex CLI 0.166.0,
   Bun 1.4.4. Open: a real ordinary Claude turn (BLOCKED by the weekly allowance); a live
-  subscription refusal and failover; Codex and Windows termination proof; native Linux. Evidence:
+  subscription refusal and failover; Codex termination proof; native Linux; native Windows (the
+  Verify evidence of #309). Evidence:
   [#236](https://github.com/ddinkov10/celetis/issues/236).
 - **Product-owned setup references (#107).** partial. Hosts: Codex CLI 0.166.0, Claude Code
   2.1.312, Bun 1.4.4. Open: the six Claude V6 cases and the two Claude V7 cases (BLOCKED by the
@@ -569,15 +578,16 @@ gap. An observed version is no minimum version.
   Open: installed startup after a terminal-confirmed `celetis update`. Evidence:
   [#161](https://github.com/ddinkov10/celetis/issues/161).
 - **Board update and restart (#164).** PASS. Hosts: Claude Code 2.1.312, Codex CLI 0.165.0,
-  Bun 1.4.4 on macOS; Bun 1.4.4 on Linux. Open: Windows. Evidence:
+  Bun 1.4.4 on macOS; Bun 1.4.4 on Linux. Open: Windows (the Verify evidence of #309). Evidence:
   [#164](https://github.com/ddinkov10/celetis/issues/164).
 - **The celetis program (#126).** partial. Hosts: none named in the evidence. Open: native Windows;
   the `PATH` of a desktop host; the first real `celetis update` of the maintainer installations.
   Evidence: [#126](https://github.com/ddinkov10/celetis/issues/126).
 - **Native Windows (#125).** partial. Hosts: Windows 11 Pro 10.0.26200, Bun 1.4.4 and 1.4.2, Git
   Bash, Windows PowerShell 5.1 (the verify gate, the launcher, the update lock, and the board
-  before #102 passed). Open: herdr-core and the Herdr app; Codex; PowerShell 7; a real
-  `land` run; a confirmed update apply; the board of #102; the personal `land` and `issue` rules.
+  before #102 passed). Open: PowerShell 7; a confirmed update apply on an installed package; the
+  personal `land` and `issue` rules. The daemon, herdr-core and the Herdr app, Codex, `land`, and the
+  board on Windows: the Verify evidence of #309.
   Evidence: in the history of `workflow.md` before #265, at `81c126e`.
 - **Blocked-issue assistance (#147).** partial. Hosts: Codex CLI 0.165.0, Claude Code 2.1.312,
   Bun 1.4.4, herdr 0.9.3. Open: Claude V1, V2, and V5 (BLOCKED by the weekly allowance); native
@@ -587,16 +597,16 @@ gap. An observed version is no minimum version.
   Bun 1.4.4. Open: every Claude assistance scenario (BLOCKED by the weekly allowance). Evidence:
   [#178](https://github.com/ddinkov10/celetis/issues/178).
 - **herdr-core host (#182).** PASS. Hosts: hc 0.1.16, herdr-app 0.1.11, Claude Code 2.1.316,
-  Codex CLI 0.166.0, Bun 1.4.4. Open: native Windows (the paths compile and are marked
-  unverified); a board Run of the installed program on real issues with the real `gh` (the check
-  after the landing). Evidence: [#182](https://github.com/ddinkov10/celetis/issues/182).
+  Codex CLI 0.166.0, Bun 1.4.4. Open: native Windows (the Verify evidence of #309); a board Run
+  of the installed program on real issues with the real `gh` (the check after the landing). Evidence: [#182](https://github.com/ddinkov10/celetis/issues/182).
 - **Session tabs (#232).** PASS. Hosts: hc 0.1.16, herdr-app 0.1.11, Claude Code 2.1.316,
-  Codex CLI 0.166.0, Bun 1.4.4. Open: native Windows; a board Run of the installed program on real
-  issues with the real `gh`; the focus outside the Herdr app; the automatic runner (the checks
-  after the landing). Evidence: [#232](https://github.com/ddinkov10/celetis/issues/232).
+  Codex CLI 0.166.0, Bun 1.4.4. Open: native Windows (the Verify evidence of #309); a board Run of
+  the installed program on real issues with the real `gh`; the focus outside the Herdr app; the
+  automatic runner (the checks after the landing). Evidence: [#232](https://github.com/ddinkov10/celetis/issues/232).
 - **Session tabs keep the focus (#304).** PASS. Hosts: hc 0.1.20, herdr-app 0.1.15, Bun 1.4.4,
   synthetic hosts. Open: the checks after the landing (a run tab in an existing space and a run
-  tab with no space, in the maintainer's own Herdr window); native Windows. Evidence:
+  tab with no space, in the maintainer's own Herdr window); native Windows (the Verify evidence of
+  #309). Evidence:
   [the runtime report](https://github.com/ddinkov10/celetis/issues/304#issuecomment-6799363652) and
   [its renewal after the merge of #290](https://github.com/ddinkov10/celetis/issues/304#issuecomment-6800347254).
 - **Codex desktop.** BLOCKED. Hosts: none. Open: native entry and automation of the owned isolated
