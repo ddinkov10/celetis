@@ -141,15 +141,15 @@ reads. A direct board decision approves one exact offer for one attempt. The bro
 the offer ID; the controller keeps its complete identity. A stale offer, conflict, or failure needs
 a new check and decision. The native update locks and validation also apply to this path.
 
-The nonmodal update dialog sits at the bottom right and keeps the board usable. It shows each
-installed revision and the target of the engine. **Later** or Escape defers that exact offer in this
+The nonmodal update dialog sits at the bottom right and keeps the board usable. It shows a title,
+one line, and its actions. **Later** or Escape defers that exact offer in this
 tab; **Update available** opens it again. A different offer opens a new dialog.
 **Hide progress** hides the dialog without cancelling the update. **Update in progress** opens
 it again. These choices survive a page reload in tab storage when the browser permits storage.
 A background check failure shows a quiet **Update check failed** control. Open it for the error
-and **Check again**. A failed update shows the completed and incomplete components and requires
+and **Check again**. A failed update shows its error line and its recovery line, and requires
 **Check again** before another attempt. After an approved update of a daemon that runs from a
-checkout, the control and the dialog show **Update completed**: the update completed, and that
+checkout, the control shows **Update completed**, and the dialog **Celetis is updated**: the update completed, and that
 daemon does not restart; **Close** closes the dialog. **Update needs attention** opens that
 recovery dialog or the reconnect-timeout instructions. A refused check request or unreadable status also shows
 **Update check failed** with explicit **Check again** recovery. An old current snapshot cannot
@@ -179,7 +179,7 @@ successor process of the installed engine, which takes over the runs
 ([The master daemon](../README.md#the-master-daemon), "The restart"). The sessions stay in their tabs, and the
 page reconnects at the same URL. A stop of the daemon (`celetis daemon stop` or a signal) during
 the restart cancels the successor, so no daemon runs, and the page then shows the timeout. A daemon that runs from a checkout does not restart: the update
-completes, and the dialog shows **Update completed**. A failed start of the successor prints its
+completes, and the dialog shows **Celetis is updated**. A failed start of the successor prints its
 line to the daemon log, and the page then shows the timeout with the recovery line. It makes no
 retry.
 
@@ -192,15 +192,15 @@ installed engine at most once each 5 seconds. When the installed revision differ
 revision of the daemon, and the last check result is **Up to date** or a failed check, the control
 shows **Restart needed** within 10 seconds. A failed read keeps the last state. An update offer takes precedence,
 because its update restarts the daemon too. A failed update keeps its state until **Check again**.
-The dialog opens by itself one time for each installed revision in the tab, with no focus move. It
-shows the revision of the daemon and the installed revision. **Later** or Escape closes the dialog
+The dialog opens by itself one time for each installed revision in the tab, with no focus move.
+**Later** or Escape closes the dialog
 and keeps **Restart needed** on the control; nothing restarts the daemon before a click. A click on
 **Restart** shows **Restarting…** at once and sends one restart request. The daemon validates the
 installed engine as for an approved update. It answers with the revision that the new daemon
 runs, then it restarts as above. The page waits for that revision of the answer, not for the
 revision that it showed. It reloads once when that revision answers from a new runtime instance
 at the same URL. After 60 seconds it shows **Restart needs attention**, a line that says the
-daemon did not return, and the recovery line. A refused restart shows **Restart needs attention**, a
+daemon did not come back, and the recovery line. A refused restart shows **Restart needs attention**, a
 line that says the daemon did not restart, and the line of the refusal; the daemon keeps running, and **Check again** comes
 before a new attempt. The page never sends a restart again by itself. A daemon that runs from a
 checkout never shows **Restart needed**, and it refuses the restart request: a click never

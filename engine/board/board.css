@@ -3089,47 +3089,32 @@ body.is-covered .panel {
   position-anchor: --statusbar;
   z-index: 100;
   inset: auto 20px calc(anchor(--statusbar top) + 8px) auto;
-  width: min(340px, calc(100vw - 24px));
+  width: min(272px, calc(100vw - 24px));
   max-height: calc(100dvh - anchor-size(--statusbar height) - 20px);
   margin: 0;
-  padding: 16px;
+  padding: 18px 18px 16px;
   overflow: auto;
-  border: 1px solid var(--line-strong);
-  border-radius: 10px;
-  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
   color: var(--fg);
-  box-shadow: none;
+  box-shadow: var(--float);
   font: inherit;
   scrollbar-color: var(--fg3) var(--card);
 }
 .update-dialog h2 {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.4;
 }
 .update-description {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: var(--fg2);
+  margin: 6px 0 0;
+  font-size: 12.5px;
   line-height: 1.5;
-}
-.update-revisions {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 2px 12px;
-  margin: 12px 0 0;
   color: var(--fg3);
-  font-size: 12px;
-}
-.update-revisions:empty {
-  display: none;
-}
-.update-revisions code {
-  font: 11.5px / 1.6 var(--mono);
-  color: var(--fg2);
 }
 .update-status {
-  margin: 14px 0 0;
+  margin: 12px 0 0;
   color: var(--working);
   font-size: 12px;
 }
@@ -3143,62 +3128,41 @@ body.is-covered .panel {
 .update-status.is-busy::before {
   content: "";
   display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin-right: 10px;
+  width: 7px;
+  height: 7px;
+  margin-right: 8px;
   border-radius: 50%;
   background: currentColor;
 }
-.update-note {
-  margin: 0;
-  color: var(--fg3);
-  font-size: 12px;
-}
-.update-failure,
-.update-error {
-  color: var(--danger);
-}
 .update-error,
 .update-recovery {
-  margin: 12px 0 0;
+  margin: 10px 0 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
   font-size: 12px;
+}
+.update-error {
+  color: var(--danger);
 }
 .update-recovery {
   color: var(--fg2);
 }
 .update-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-.update-buttons {
-  display: flex;
-  gap: 4px;
+  display: grid;
+  gap: 6px;
+  margin-top: 18px;
 }
 .update-actions .btn {
-  height: 28px;
-  padding: 0 10px;
+  width: 100%;
+  height: 34px;
 }
 .update-actions .ghost {
   background: transparent;
-  color: var(--fg3);
+  color: var(--fg2);
 }
 .update-actions .ghost:hover {
-  color: var(--fg);
-}
-.update-actions .primary {
-  border: 1px solid var(--line-strong);
   background: var(--fill);
   color: var(--fg);
-}
-.update-actions .primary:hover {
-  background: var(--fill-strong);
 }
 .update-actions .btn:disabled {
   cursor: wait;
@@ -3223,13 +3187,8 @@ body.is-covered .panel {
   .update-dialog {
     right: 12px;
   }
-  .update-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
   .update-actions .btn {
     height: 44px;
-    flex: 1;
   }
   .update-open {
     min-height: 44px;

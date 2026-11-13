@@ -104,17 +104,13 @@
 <dialog class="update-dialog" id="update-dialog" aria-labelledby="update-title" aria-describedby="update-description">
   <h2 id="update-title" tabindex="-1"></h2>
   <p class="update-description" id="update-description"></p>
-  <div class="update-revisions" id="update-revisions"></div>
   <p class="update-status" id="update-progress" aria-hidden="true"></p>
   <p class="update-error" id="update-error" hidden></p>
   <p class="update-recovery" id="update-recovery" hidden></p>
   <div class="update-actions">
-    <p class="update-note" id="update-note"></p>
-    <div class="update-buttons">
-      <button type="button" class="btn ghost" id="update-later">Later</button>
-      <button type="button" class="btn primary" id="update-start">Update and restart</button>
-      <button type="button" class="btn primary" id="update-check" hidden>Check again</button>
-    </div>
+    <button type="button" class="btn primary" id="update-start">Update and restart</button>
+    <button type="button" class="btn primary" id="update-check" hidden>Check again</button>
+    <button type="button" class="btn ghost" id="update-later">Later</button>
   </div>
 </dialog>
 <script type="module" src="/board.js"></script>

@@ -1,3 +1,4 @@
+import { styleText } from 'node:util';
 import { type ExitCode, exits, usage } from './lib/contract.ts';
 import { HostError } from './lib/errors.ts';
 import { installRecorder, markDefect } from './lib/events.ts';
@@ -13,9 +14,8 @@ async function check(cwd: string): Promise<ExitCode> {
 }
 
 export async function update(checked: UpdateCheck): Promise<ExitCode> {
-  const summary = checked.parts.map(line).join('\n');
   if (checked.error) {
-    console.log(summary);
+    console.log(checked.parts.map(line).join('\n'));
     throw new HostError(
       checked.error,
       checked.parts.some((part) => 'error' in part) ? exits.blocked : exits.prerequisite,
@@ -26,39 +26,51 @@ export async function update(checked: UpdateCheck): Promise<ExitCode> {
     throw new HostError('update: no installed engine was inspected', exits.blocked);
   const offer = checked.offer;
   if (!offer) {
-    console.log(`${summary}\nupdate: Celetis is up to date at ${short(engine.target)}`);
+    console.log(`${styleText('green', '✓')} Celetis is up to date (${short(engine.target)}).`);
     return exits.done;
   }
-  console.log(`Celetis update\n${summary}`);
   if (!process.stdin.isTTY || !process.stdout.isTTY)
     throw new HostError(
       'update: run celetis update in an interactive terminal to review and confirm the update',
       exits.prerequisite,
     );
-  console.log('Open sessions stay running; the host may replace cached files they still use.');
-  if (!/^(y|yes)?$/i.test((prompt('Update Celetis now? [Y/n] ') ?? 'n').trim())) {
-    console.log('update: cancelled; nothing changed');
+  process.stdout.write(`Update Celetis to ${styleText('bold', short(offer.target))}? Sessions keep running. [Y/n] `);
+  // Bun's prompt() returns null for an empty line, the same as EOF, so Enter could not take the default.
+  const lines = console[Symbol.asyncIterator]();
+  const answer = await lines.next();
+  await lines.return?.();
+  if (answer.done || !/^(y|yes)?$/i.test(answer.value.trim())) {
+    console.log(styleText('dim', 'Nothing changed.'));
     return exits.done;
   }
+  const row = { started: false, open: '' };
   const result = await executeUpdate(
     offer,
     ({ part, state }) => {
-      const done = offer.parts.find((value) => value.part === part);
-      if (state === 'completed' && done && 'target' in done) console.log(`  ${part}  updated  ${short(done.target)}`);
+      if (state === 'started') {
+        if (!row.started) process.stdout.write('Updating');
+        row.started = true;
+        row.open = part;
+        return;
+      }
+      process.stdout.write(` ${styleText('green', '✓')} ${part}`);
+      row.open = '';
     },
     process.pid,
   );
+  if (row.open) process.stdout.write(` ${styleText('red', '✗')} ${row.open}`);
+  if (row.started) process.stdout.write('\n');
   if (!result.ok) {
-    console.error(
-      [
-        result.error,
+    process.stderr.write(
+      `${[
+        styleText('red', result.error ?? '', { stream: process.stderr }),
         `update: completed: ${result.completed.join(', ') || 'none'}`,
         `update: incomplete: ${result.incomplete.join(', ') || 'none'}`,
-      ].join('\n'),
+      ].join('\n')}\n`,
     );
     return exits.blocked;
   }
-  console.log('update: open a fresh session to use the updated skills');
+  console.log(`${styleText('green', 'Updated.')} Open a fresh session to use the new skills.`);
   return exits.done;
 }
 
@@ -71,7 +83,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
     return await update(await inspectUpdate(process.cwd()));
   } catch (error) {
     markDefect(error);
-    console.error(error instanceof Error ? error.message : String(error));
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     return error instanceof HostError ? error.code : exits.internal;
   }
 }

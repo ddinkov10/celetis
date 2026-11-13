@@ -727,9 +727,9 @@ celetis update
 It reads three parts: the engine, the Celetis plugin of Claude Code, and the Celetis plugin of
 Codex. Each part goes to the target of its own source and ref: the engine to the head of the
 branch of its version folder, and each plugin to the native marketplace source and ref of its
-host. It prints one line for each part: the installed and the target revision or `up to date`,
-then the source and the ref of the part; or a skipped part with its reason, or the first line of
-an error. A host with no CLI on `PATH`, or with no Celetis, is skipped.
+host. A host with no CLI on `PATH`, or with no Celetis, is skipped. At a stop of the list below,
+it prints one line for each part: the installed and the target revision or `up to date`, then the
+source and the ref of the part; or a skipped part with its reason, or the first line of an error.
 
 Before it asks anything, it checks the contract pair of the targets. It reads
 `plugins/celetis/contract.json` at the target of each plugin and
@@ -770,19 +770,23 @@ address are one source: `ddinkov10/celetis` of Claude Code, and
 full name, so the `HEAD` of Claude Code and the `main` of Codex and of the engine are one ref,
 `refs/heads/main`.
 
-When each part is at its target, the command prints that Celetis is up to date at the target of
-the engine, and asks nothing.
+When each part is at its target, the command prints `✓ Celetis is up to date (<target>).`, with
+the target of the engine, and asks nothing.
 
-Else it prints a header line and the part lines, and asks `Update Celetis now? [Y/n]` one time in an
-interactive terminal. Press Enter or enter `y` or `yes` to permit that exact attempt. EOF or any
-other answer leaves each part unchanged. With no interactive terminal, it stops with a line that tells you to run `celetis update` in an interactive terminal, and
+Else it asks `Update Celetis to <target>? Sessions keep running. [Y/n]` one time in an interactive
+terminal, with the target of the engine and no part lines before it. Press Enter or enter `y` or
+`yes` to permit that exact attempt. EOF or any
+other answer leaves each part unchanged and prints `Nothing changed.` With no interactive terminal, it stops with a line that tells you to run `celetis update` in an interactive terminal, and
 exits 3. No cache path, commit hash, or flag confirms an update.
 
 After confirmation, it updates each part that is not at its own target, in this order: Claude Code, Codex, and
-then the engine. It prints one line for each part that it updates, with the target of that part.
-Then it checks the installed parts again, with the contract pair of the installed folders. The
-first failure stops the update: it prints the message and the lists of the completed and the incomplete parts, and exits 6. There is no retry:
-a new attempt is a new command and a new answer. At the end it tells you to open a fresh session to use the updated skills.
+then the engine. It prints one progress row: `Updating`, then ` ✓ <part>` for each part that it
+completes, and ` ✗ <part>` for a part that fails. Then it checks the installed parts again, with
+the contract pair of the installed folders. The first failure stops the update: it prints the
+message and the lists of the completed and the incomplete parts on stderr, and exits 6. There is
+no retry: a new attempt is a new command and a new answer. At the end it prints
+`Updated. Open a fresh session to use the new skills.` It prints no color when the stream is not
+a terminal, when `NO_COLOR` is set, or when `TERM` is `dumb`.
 
 `celetis update check` is read-only. It prints one JSON array of the parts. An installed part
 gives its folder, source, resolved ref, installed revision, and target; another part gives

@@ -1135,10 +1135,8 @@ function setupUpdates() {
   opener.prepend(icon("refresh"));
   const title = $("update-title");
   const description = $("update-description");
-  const revisions = $("update-revisions");
   const progress = $("update-progress");
   const live = $("update-status");
-  const note = $("update-note");
   const diagnostic = $("update-error");
   const recovery = $("update-recovery");
   const later = $("update-later");
@@ -1156,7 +1154,6 @@ function setupUpdates() {
   let checking = false;
   let submitting = null;
   let timedOut = false;
-  let revisionKey = "";
   let announced = "";
   let announcing;
   let timer;
@@ -1251,43 +1248,29 @@ function setupUpdates() {
       return;
     }
     title.textContent = {
-      available: "A Celetis update is available",
+      available: "Update Celetis",
       "restart-needed": "Restart the daemon",
       checking: "Checking for updates",
       updating: "Updating Celetis",
       restarting: "Restarting the daemon",
-      updated: "Update completed",
+      updated: "Celetis is updated",
       "update-failed": "The update did not finish",
       "restart-refused": "The daemon did not restart",
       "check-failed": "Cannot check for updates",
-      timeout: "The daemon did not return"
+      timeout: "The daemon did not come back"
     }[phase];
     description.textContent = {
-      available: "Update the Celetis engine and the installed plugins. The daemon restarts when the update completes.",
-      "restart-needed": "The daemon runs an older Celetis engine than the installed one. Restart the daemon to use the installed engine.",
-      checking: "Checking the configured target and the installed Celetis parts.",
-      updating: "The update is running. The daemon restarts when all parts are ready.",
-      restarting: "This page reconnects when the new daemon answers.",
-      updated: "The update completed. This daemon runs from a checkout, so it does not restart.",
-      "update-failed": "The daemon has not restarted. Check again before a new attempt.",
-      "restart-refused": "The daemon still runs its engine. Check again before a new attempt.",
-      "check-failed": "You can keep using the board. Check again when the source is available.",
-      timeout: `The ${kind} may have completed. This page could not reach the new daemon within 60 seconds.`
+      available: "Sessions keep running.",
+      "restart-needed": "It runs an older engine than the installed one.",
+      checking: "This takes a few seconds.",
+      updating: "The daemon restarts when it is done.",
+      restarting: "This page reconnects by itself.",
+      updated: "This daemon runs from a checkout, so it does not restart.",
+      "update-failed": "The daemon did not restart.",
+      "restart-refused": "It still runs its old engine.",
+      "check-failed": "The board still works.",
+      timeout: `The ${kind} may be done. The page got no answer in 60 seconds.`
     }[phase];
-    const rows = !target ? [] : isRestart ? [...response ? [["Daemon", response.runtime.revision]] : [], ["Installed", target]] : [
-      ...(offered?.parts ?? []).map((part) => [names[part.part], part.installed]),
-      ["Target", target]
-    ];
-    const key = JSON.stringify(rows);
-    if (key !== revisionKey) {
-      revisionKey = key;
-      revisions.replaceChildren(...rows.flatMap(([name, revision]) => {
-        const code = el("code", "", revision.slice(0, 12));
-        code.title = revision;
-        return [el("span", "", name), code];
-      }));
-    }
-    revisions.hidden = phase === "check-failed" || phase === "checking";
     let status = "";
     if (phase === "restarting")
       status = "Reconnecting to the new daemon…";
@@ -1306,11 +1289,6 @@ function setupUpdates() {
       progress.textContent = status;
     announce(JSON.stringify([phase, kind, target, status]), status);
     progress.classList.toggle("is-busy", busy || phase === "checking");
-    note.textContent = phase === "update-failed" && update ? [
-      update.completed.length ? `Completed: ${update.completed.map((part) => names[part]).join(", ")}.` : "",
-      update.incomplete.length ? `Incomplete: ${update.incomplete.map((part) => names[part]).join(", ")}.` : ""
-    ].filter(Boolean).join(" ") : "Your agent sessions keep running in their tabs.";
-    note.classList.toggle("update-failure", phase === "update-failed");
     diagnostic.textContent = failed ? checkFailure ?? refusal?.line ?? update?.error ?? "" : "";
     diagnostic.hidden = !diagnostic.textContent;
     recovery.textContent = failed && phase !== "restart-refused" ? pending?.recovery ?? update?.recovery ?? "" : "";

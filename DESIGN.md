@@ -353,8 +353,7 @@ Shadows are small and have two jobs only.
 - **Raise** (dark: `0 1px 0 rgba(255,255,255,0.035) inset, 0 1px 2px rgba(0,0,0,0.25)`): cards and
   the active view tab. It gives a surface a faint top edge, not a lift.
 - **Float** (dark: `0 16px 40px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.08)`): only for
-  layers above the page: the search palette, toasts, menus, and dialogs. The update dialog is the
-  exception: it is Flat, with no shadow ("Update dialog").
+  layers above the page: the search palette, toasts, menus, and dialogs, the update dialog too.
 
 ### Named Rules
 
@@ -367,8 +366,8 @@ offset for focus, and a 1px Ink Faint ring for the selected card. Never use a co
 ## Shapes
 
 Corners are gently rounded and nest: an inner shape is smaller than its container. Surfaces use
-16px (columns, the details panel), cards and toasts 12px, the palette 14px, the update dialog
-10px, controls 8px, the view
+16px (columns, the details panel), cards, toasts, and the update dialog 12px, the palette 14px,
+controls 8px, the view
 switch 9px around 7px tabs, tags 6px, and small marks 5px. Dots are full circles. Borders are always
 1px hairlines. The start label draws each default value with a dashed outline.
 
@@ -480,18 +479,17 @@ or is blocked, Fault Red for no progress, and Caution Amber for a dirty tree.
 
 ### Update dialog
 
-The update dialog is Flat: a nonmodal layer above the right end of the status bar, with no
-shadow, the Console Grey panel color, a 1px strong hairline border, a 10px radius, 16px padding,
-and a width of 340px (at most the viewport less 24px).
+The update dialog is a short card: a nonmodal layer above the right end of the status bar, with
+Float, Card Slate, a 1px hairline border, a 12px radius, 18px 18px 16px padding, and a width of
+272px (at most the viewport less 24px). It says only what happens and the action: no revision
+list and no note.
 
-- **Title:** 13px at 600, Ink. The description below it is 13px Ink Muted at line height 1.5.
-- **Revisions:** label–value rows in a two-column grid: an Ink Faint label (12px) and an 11.5px
-  Geist Mono value in Ink Muted, for example `Daemon` and `Installed`.
-- **Action row:** under a hairline. The note sits at the left in 12px Ink Faint. A text-style
-  secondary button (transparent, Ink Faint, Ink on hover) and a ghost main button (Veil fill, the
-  strong hairline, Ink) sit at the right, each 28px high.
-- **Phone:** below 720px the dialog keeps a 12px right inset, the note stacks above the buttons,
-  and the two buttons share the row at 44px high.
+- **Title:** 14px at 600, Ink. One line below it is 12.5px Ink Faint at line height 1.5.
+- **Lines of a state:** the busy line in Current Blue during a check, an update, or a restart; the
+  error line in Fault Red and the recovery line in Ink Muted after a failure.
+- **Actions:** a column of full-width buttons, 34px high, the Primary button first and a
+  transparent secondary button with a hairline border (Ink Muted, Veil and Ink on hover) under it.
+- **Phone:** below 720px the dialog keeps a 12px right inset, and the buttons are 44px high.
 
 ### Toast
 
