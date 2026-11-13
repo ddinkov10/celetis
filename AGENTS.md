@@ -229,10 +229,12 @@ For installation changes, follow `plugins/celetis/README.md`, "Updates".
 
 - Keep the trust boundaries of the trust files: `engine/board/perimeter.ts`,
   `engine/board/requests.ts`, `engine/board/presses.ts`, the fixed adapter `engine/board/adapter.ts`,
-  `engine/board/update-worker.ts`, `engine/board/start.ts`, the page modules of `engine/board/page/`,
-  `engine/lib/board-read.ts`, `engine/lib/visual.ts`, `engine/lib/fields.ts`, `engine/lib/host-names.ts`,
-  `engine/lib/terminal.ts`, `engine/lib/effort.ts`, `engine/lib/process.ts`, `engine/lib/updater.ts`,
-  `engine/lib/installation.ts`, `engine/lib/queue.ts`, and `engine/lib/daemon-types.ts`.
+  `engine/board/coordinator.ts`, `engine/board/update-worker.ts`, `engine/board/start.ts`, the page
+  modules of `engine/board/page/`, `engine/lib/board-read.ts`, `engine/lib/visual.ts`,
+  `engine/lib/fields.ts`, `engine/lib/host-names.ts`, `engine/lib/terminal.ts`, `engine/lib/effort.ts`,
+  `engine/lib/process.ts`, `engine/lib/updater.ts`, `engine/lib/installation.ts`, `engine/lib/queue.ts`,
+  `engine/lib/coordinator.ts`, `engine/lib/coordinator-types.ts`, `engine/lib/daemon-server.ts`, and
+  `engine/lib/daemon-types.ts`.
   `engine/board/README.md`, "The trust boundary", maps each file to its rules.
 - Check a UI change in Chromium at desktop width and at 375×812.
 
@@ -244,8 +246,9 @@ A look decision of the board uses these two facts:
   `startBoard` of `engine/board/start.ts` with the main checkout, a port other than 4404, an
   adapter, and the context `{ env: process.env, revision, successor: false, versioned: false,
   restarting: () => false, restart: () => {} }`, and keeps its process alive. The
-  adapter rejects each method except `status`, which answers a fixed status with auto mode off, so
-  the item `Daemon` shows `auto off` and the queue shows its read view. The server reads its page files from its own folder
+  adapter rejects each method except two: `status` answers a fixed status with auto mode off, and
+  `coordinator` answers `null`. So the item `Daemon` shows `auto off`, the queue shows its read
+  view, and the control Coordinator shows `no session`. The server reads its page files from its own folder
   (`HERE` in `engine/board/perimeter.ts`), so the variants show with the live issues and sessions.
   After an edit of a page module, `scripts/build.ts` writes `engine/board/board.js` in that checkout.
 

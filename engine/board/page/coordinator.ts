@@ -1,0 +1,556 @@
+import type { CoordinatorKey, CoordinatorState } from '../../lib/coordinator-types.ts';
+import type { CoordinatorText, CoordinatorView } from '../types.ts';
+import { $, el, icon, post, SERVER_DOWN, store, timed } from './ui.ts';
+import { isReconnecting } from './update-dialog.ts';
+
+type Shown = CoordinatorState | 'ended';
+type Act = 'open' | 'say' | 'key' | 'interrupt' | 'end';
+type Line = { act: Act; text: string; tone: 'error' | 'status' };
+export type CoordinatorHooks = Readonly<{
+  closeOthers(): void;
+  changed(view: CoordinatorView): void;
+  notify(title: string, open: () => void): void;
+}>;
+
+const LIMIT = 4096;
+const RECONNECT = 'The board reconnects after an update, so the press did nothing. Press again after the reconnect.';
+const OPEN_BOUND = 30_000;
+const FOLD_BOUND = 5_000;
+const WORDS: Record<Shown, string> = {
+  none: 'no session',
+  starting: 'starts',
+  dialog: 'waits for your answer',
+  works: 'works',
+  'turn-ended': 'turn ended',
+  ended: 'ended',
+};
+const KEYS: Record<CoordinatorKey, { cap: string; name: string }> = {
+  up: { cap: '↑', name: 'Up' },
+  down: { cap: '↓', name: 'Down' },
+  enter: { cap: 'Enter', name: 'Enter' },
+  esc: { cap: 'Esc', name: 'Esc' },
+  '1': { cap: '1', name: '1' },
+  '2': { cap: '2', name: '2' },
+  '3': { cap: '3', name: '3' },
+};
+const IN_FLIGHT: Record<Act, string> = {
+  open: 'The session starts.',
+  say: 'The message is in flight.',
+  key: 'The key is in flight.',
+  interrupt: 'The interrupt is in flight.',
+  end: 'The exit request is in flight.',
+};
+// Copies of unknownOutcome (engine/lib/coordinator.ts) and the open line (engine/board/adapter.ts): the bundle takes no engine/lib code.
+const UNKNOWN: Record<Act, string> = {
+  open: 'coordinator: the outcome of the open is unknown; press Coordinator again to open or show the session',
+  say: 'coordinator: the outcome of the message is unknown; read the log of the panel before you send again',
+  key: 'coordinator: the outcome of the key is unknown; read the log of the panel before you press a key again',
+  interrupt:
+    'coordinator: the outcome of the interrupt is unknown; read the log of the panel before you interrupt again',
+  end: 'coordinator: the outcome of the exit request is unknown; read the log of the panel before you end the session again',
+};
+
+const none: CoordinatorView = {
+  state: 'none',
+  kind: null,
+  host: null,
+  since: null,
+  turn: null,
+  actions: ['open'],
+  keys: [],
+  sessionId: null,
+  readAt: null,
+  error: null,
+};
+
+export function setupCoordinator(hooks: CoordinatorHooks) {
+  const control = $('coordinator-open');
+  const aside = $('coordinator');
+  const log = $('coordinator-log');
+  const toEnd = $('coordinator-to-end');
+  const form = $('coordinator-form') as HTMLFormElement;
+  const field = $('coordinator-field') as HTMLTextAreaElement;
+  const send = $('coordinator-send');
+  const hint = $('coordinator-hint');
+  const keys = $('coordinator-keys');
+  const keyRow = keys.querySelector('.co-keys-row') as HTMLElement;
+  const interrupt = $('coordinator-interrupt');
+  const end = $('coordinator-end');
+  const go = $('coordinator-go');
+  const close = $('coordinator-close');
+  const startBlock = $('coordinator-start-block');
+  const startText = $('coordinator-start-text');
+  const start = $('coordinator-start');
+
+  let view = none;
+  let known: Shown | null = null;
+  let host = '';
+  let ended = false;
+  let liveId: string | null = null;
+  let foldAt: number | null = null;
+  let opening = 0;
+  let busy: Act | null = null;
+  let line: Line | null = null;
+  let text = '';
+  let full = false;
+  let textAt: string | null = null;
+  let textError: string | null = null;
+  let isDown = false;
+  let isOpen = false;
+  let opener: HTMLElement | null = null;
+  let follow = true;
+  let lastTop = 0;
+  let reading = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let keySet = '';
+  let pillKey = '';
+  let seen = store.get('coordinator-seen');
+
+  const shown = (): Shown => {
+    if (ended) return 'ended';
+    if (opening && view.state === 'none' && Date.now() - opening < OPEN_BOUND) return 'starting';
+    return view.state;
+  };
+  const turnKey = () => `${view.sessionId}:${view.turn}`;
+  const isUnseen = () => view.state === 'turn-ended' && view.sessionId !== null && turnKey() !== seen;
+  const staleCause = () => view.error ?? (isDown ? SERVER_DOWN : null);
+  const timeOf = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString() : 'no good read');
+  const atEnd = () => log.scrollHeight - log.scrollTop - log.clientHeight < 4;
+  const can = (action: CoordinatorView['actions'][number]) => view.actions.includes(action) && !ended;
+  const setText = (node: HTMLElement, value: string) => {
+    if (node.textContent !== value) node.textContent = value;
+  };
+  const announce = (words: string) => {
+    $('announce').textContent = words;
+  };
+  const isSelecting = () => {
+    const selection = getSelection();
+    return Boolean(selection && !selection.isCollapsed && log.contains(selection.anchorNode));
+  };
+
+  const sendBlock = (): string | null => {
+    if (busy) return `Wait: ${IN_FLIGHT[busy]}`;
+    const state = shown();
+    if (state === 'dialog') return 'The host shows a dialog: answer it with a key first';
+    if (state === 'starting') return 'The session starts: send after its first status';
+    if (!can('say')) return `The session ${WORDS[state]}`;
+    if (field.value.length > LIMIT) return `A message takes at most ${LIMIT} characters`;
+    if (field.value.trim() === '') return 'Write a message first';
+    return null;
+  };
+  const hintOf = (): [string, 'error' | 'status' | 'plain'] => {
+    if (field.value.length > LIMIT)
+      return [`The message is longer than ${LIMIT} characters. Make it shorter to send it.`, 'error'];
+    if (busy === 'say') return ['Sending. The message waits until the tab holds no unsent text.', 'status'];
+    if (busy) return [`${IN_FLIGHT[busy]} The other acts wait for it.`, 'status'];
+    if (line && line.act !== 'open') return [line.text, line.tone];
+    const state = shown();
+    if (state === 'dialog') return ['Send waits while the host shows a dialog. Your text stays here.', 'plain'];
+    if (state === 'starting')
+      return ['The session starts. Send waits for its first status. Your text stays here.', 'plain'];
+    if (state === 'works') return ['The session works. A message goes into its tab now.', 'plain'];
+    return ['Enter sends. Shift+Enter adds a line.', 'plain'];
+  };
+
+  const drawKeys = () => {
+    const next = can('key') ? view.keys.join(' ') : '';
+    if (next === keySet) return;
+    const focused = keyRow.contains(document.activeElement)
+      ? (document.activeElement as HTMLElement).dataset.key
+      : undefined;
+    keySet = next;
+    keyRow.replaceChildren(
+      ...(next ? view.keys : []).map((key) => {
+        const button = el('button', 'co-key');
+        button.type = 'button';
+        button.dataset.key = key;
+        const cap = el('kbd', '', KEYS[key].cap);
+        if (KEYS[key].cap !== KEYS[key].name) {
+          button.setAttribute('aria-label', KEYS[key].name);
+          cap.setAttribute('aria-hidden', 'true');
+        }
+        button.append(cap);
+        button.addEventListener('click', () => void pressKey(key));
+        return button;
+      }),
+    );
+    if (focused) keyRow.querySelector<HTMLElement>(`[data-key="${CSS.escape(focused)}"]`)?.focus();
+  };
+
+  const disable = (node: HTMLElement, reason: string | null, title: string) => {
+    node.setAttribute('aria-disabled', String(reason !== null));
+    node.title = reason ?? title;
+  };
+
+  const draw = () => {
+    const active = document.activeElement as HTMLElement | null;
+    const wasInPanel = active !== null && aside.contains(active);
+    const state = shown();
+    const header = ended ? 'none' : state;
+    const cause = staleCause();
+    const unseen = isUnseen();
+    control.dataset.state = header;
+    control.toggleAttribute('data-stale', cause !== null);
+    control.setAttribute('aria-expanded', String(isOpen));
+    control.setAttribute(
+      'aria-label',
+      `Coordinator, ${WORDS[header]}${unseen ? ', new text' : ''}${cause ? ', not current' : ''}`,
+    );
+    control.title = cause
+      ? `${cause}. The state is from ${timeOf(view.readAt)}, not current.`
+      : `${isOpen ? 'Hide' : header === 'none' ? 'Start' : 'Show'} the coordinator session`;
+    setText(control.querySelector('.co-open-state') as HTMLElement, WORDS[header]);
+    (control.querySelector('.co-new') as HTMLElement).hidden = !unseen;
+
+    aside.dataset.state = state;
+    const banner = $('coordinator-banner');
+    const textCause = isOpen ? (textError ?? cause) : null;
+    const aged = view.state === 'starting' && view.sessionId !== null && view.sessionId === liveId;
+    aside.toggleAttribute('data-stale', ended || textCause !== null || aged);
+    const bannerText = ended
+      ? 'The coordinator session ended. This is its last text.'
+      : textCause
+        ? `${textCause}. The text can be out of date: it is from ${timeOf(textAt)}.`
+        : null;
+    banner.hidden = bannerText === null;
+    setText(banner, bannerText ?? '');
+    if (view.host) host = view.host;
+    setText($('coordinator-host'), host);
+    const pill = $('coordinator-head-state');
+    const age = state === 'ended' || state === 'none' ? null : view.since;
+    if (pillKey !== `${state}|${age}`) {
+      pillKey = `${state}|${age}`;
+      pill.replaceChildren(el('span', '', WORDS[state]), ...(age ? [timed(age, true)] : []));
+    }
+    const scope = $('coordinator-scope');
+    const scopeText =
+      state === 'starting'
+        ? 'The session starts in a tab of the Herdr app.'
+        : state === 'none' || state === 'ended' || full
+          ? null
+          : 'Only the visible screen. The full text shows when the turn ends.';
+    scope.hidden = scopeText === null;
+    setText(scope, scopeText ?? '');
+
+    if (log.textContent !== text && !isSelecting()) {
+      log.textContent = text;
+      if (follow) log.scrollTop = log.scrollHeight;
+      lastTop = log.scrollTop;
+    }
+    toEnd.hidden = atEnd();
+
+    const wait = busy ? `Wait: ${IN_FLIGHT[busy]}` : null;
+    interrupt.hidden = !can('interrupt');
+    end.hidden = !can('end');
+    go.hidden = !can('go') || !view.sessionId;
+    disable(interrupt, busy && busy !== 'interrupt' ? wait : null, 'Press the stop key in the session');
+    disable(end, busy && busy !== 'end' ? wait : null, 'Send the exit request of the host to the session');
+    interrupt.setAttribute('aria-busy', String(busy === 'interrupt'));
+    end.setAttribute('aria-busy', String(busy === 'end'));
+
+    form.hidden = state === 'none' || state === 'ended';
+    keys.hidden = !can('key');
+    drawKeys();
+    for (const key of keyRow.querySelectorAll<HTMLElement>('[data-key]')) {
+      disable(
+        key,
+        busy && busy !== 'key' ? wait : null,
+        `Press ${key.getAttribute('aria-label') ?? key.textContent} in the session`,
+      );
+      key.setAttribute('aria-busy', String(busy === 'key'));
+    }
+    const block = sendBlock();
+    disable(send, block, 'Send the message (Enter)');
+    send.setAttribute('aria-busy', String(busy === 'say'));
+    setText(send.querySelector('.label') as HTMLElement, busy === 'say' ? 'Sending' : 'Send');
+    const [words, tone] = hintOf();
+    setText(hint, words);
+    hint.dataset.tone = tone;
+    if (tone === 'plain') hint.removeAttribute('role');
+    else hint.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+    field.setAttribute(
+      'aria-invalid',
+      String(field.value.length > LIMIT || (line?.act === 'say' && line.tone === 'error')),
+    );
+
+    startBlock.hidden = !((state === 'none' || state === 'ended') && view.actions.includes('open'));
+    setText(start.querySelector('.label') as HTMLElement, ended ? 'Start a new session' : 'Start a session');
+    disable(start, wait, 'Start a coordinator session in a quiet tab of the Herdr app');
+    const startLine = line?.act === 'open' ? line.text : null;
+    startText.hidden = startLine === null;
+    setText(startText, startLine ?? '');
+    if (startLine) startText.setAttribute('role', 'alert');
+
+    if (active && wasInPanel && (!active.isConnected || !active.checkVisibility()))
+      (field.checkVisibility() ? field : close).focus({ preventScroll: true });
+  };
+
+  const take = (read: CoordinatorView): string | null => {
+    if (read.error === null && view.error === null && read.readAt && view.readAt && read.readAt < view.readAt)
+      return null;
+    // A server with no good read yet knows no state, so the state of the page stays, marked not current.
+    let next = read.error !== null && read.readAt === null ? { ...view, error: read.error } : read;
+    if (next.state === 'works' || next.state === 'dialog' || next.state === 'turn-ended') {
+      liveId = next.sessionId;
+      foldAt = null;
+    } else if (next.state === 'starting' && next.sessionId !== null && next.sessionId === liveId) {
+      foldAt ??= Date.now();
+      if (Date.now() - foldAt < FOLD_BOUND) next = { ...view, readAt: next.readAt, error: next.error };
+    } else foldAt = null;
+    if (view.state !== 'none' && next.state === 'none' && next.error === null && isOpen && !opening) ended = true;
+    if (next.state !== 'none') {
+      ended = false;
+      opening = 0;
+    }
+    if (view.sessionId !== next.sessionId && next.sessionId !== null) {
+      text = '';
+      full = false;
+      textAt = null;
+      textError = null;
+    }
+    view = next;
+    const state = shown();
+    draw();
+    if (known === null || known === state) {
+      known = state;
+      return null;
+    }
+    known = state;
+    if (state === 'dialog') hooks.notify('The coordinator waits for your answer', open);
+    if (state === 'turn-ended') hooks.notify('The coordinator ended its turn', open);
+    return state === 'ended' ? 'The coordinator session ended' : `Coordinator: ${WORDS[state]}`;
+  };
+
+  const schedule = (from: number) => {
+    clearTimeout(timer);
+    if (isOpen && !document.hidden) timer = setTimeout(readText, Math.max(0, 2000 - (Date.now() - from)));
+  };
+  async function readText(): Promise<void> {
+    clearTimeout(timer);
+    if (!isOpen || document.hidden || reading) return;
+    reading = true;
+    const from = Date.now();
+    try {
+      const response = await fetch('/api/coordinator', { cache: 'no-store' });
+      const body = (await response.json()) as CoordinatorText;
+      if (!response.ok || !body?.view) throw new Error(SERVER_DOWN);
+      const said = take(body.view);
+      if (!ended && view.state !== 'none') {
+        textError = body.error;
+        const exiting = body.view.state === 'starting' && body.view.sessionId === liveId;
+        if ((body.error === null || body.readAt !== null) && !exiting) {
+          text = body.text;
+          full = body.full;
+          textAt = body.readAt;
+        }
+        if (body.error === null && body.view.state === 'turn-ended' && isOpen && !document.hidden) {
+          seen = turnKey();
+          store.set('coordinator-seen', seen);
+        }
+      }
+      if (said) {
+        announce(said);
+        hooks.changed(view);
+      }
+    } catch {
+      textError = SERVER_DOWN;
+    } finally {
+      reading = false;
+      draw();
+      schedule(from);
+    }
+  }
+
+  const act = async (kind: Act, path: string, body: Record<string, string>): Promise<boolean> => {
+    if (busy) return false;
+    if (isReconnecting()) {
+      line = { act: kind, text: RECONNECT, tone: 'status' };
+      draw();
+      return false;
+    }
+    busy = kind;
+    line = null;
+    draw();
+    let error: string | null = null;
+    try {
+      const response = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const answer = (await response.json().catch(() => null)) as { ok?: unknown; error?: unknown } | null;
+      if (!response.ok || answer?.ok !== true) error = typeof answer?.error === 'string' ? answer.error : UNKNOWN[kind];
+    } catch {
+      error = UNKNOWN[kind];
+    }
+    busy = null;
+    if (error) line = { act: kind, text: error, tone: 'error' };
+    draw();
+    void readText();
+    return error === null;
+  };
+
+  const pressKey = async (key: CoordinatorKey) => {
+    if (busy || !can('key')) return;
+    if (await act('key', '/api/coordinator/key', { key }))
+      line = { act: 'key', text: `The key ${KEYS[key].name} is in the session.`, tone: 'status' };
+    draw();
+  };
+
+  const sendText = async () => {
+    if (sendBlock()) return;
+    const sent = field.value;
+    if (!(await act('say', '/api/coordinator/say', { text: sent }))) return;
+    if (field.value === sent) field.value = '';
+    line = { act: 'say', text: 'The message is in the session.', tone: 'status' };
+    draw();
+  };
+
+  const startSession = async () => {
+    if (busy || !view.actions.includes('open')) return;
+    if (isReconnecting()) {
+      line = { act: 'open', text: RECONNECT, tone: 'status' };
+      if (isOpen) draw();
+      else open();
+      return;
+    }
+    ended = false;
+    liveId = null;
+    opening = Date.now();
+    text = '';
+    full = false;
+    textAt = null;
+    textError = null;
+    known = 'starting';
+    announce(`Coordinator: ${WORDS.starting}`);
+    if (!isOpen) open();
+    else {
+      draw();
+      field.focus({ preventScroll: true });
+    }
+    if (!(await act('open', '/api/coordinator/open', {}))) {
+      opening = 0;
+      known = shown();
+      draw();
+    }
+  };
+
+  function open(): void {
+    if (isOpen) return;
+    opener = document.activeElement as HTMLElement | null;
+    hooks.closeOthers();
+    isOpen = true;
+    follow = true;
+    aside.hidden = false;
+    document.body.classList.add('has-coordinator');
+    draw();
+    log.scrollTop = log.scrollHeight;
+    lastTop = log.scrollTop;
+    (field.checkVisibility() ? field : close).focus({ preventScroll: true });
+    void readText();
+  }
+
+  const hide = (refocus: boolean) => {
+    if (!isOpen) return;
+    isOpen = false;
+    ended = false;
+    clearTimeout(timer);
+    aside.hidden = true;
+    document.body.classList.remove('has-coordinator');
+    draw();
+    if (refocus) (opener?.isConnected && opener.checkVisibility() ? opener : control).focus({ preventScroll: true });
+  };
+
+  const toggle = () => {
+    if (isOpen) return hide(true);
+    if (shown() === 'none') return void startSession();
+    open();
+  };
+
+  log.addEventListener('scroll', () => {
+    if (log.scrollTop < lastTop - 1 && !atEnd()) follow = false;
+    else if (atEnd()) follow = true;
+    lastTop = log.scrollTop;
+    toEnd.hidden = atEnd();
+  });
+  new ResizeObserver(() => {
+    if (follow) log.scrollTop = log.scrollHeight;
+    lastTop = log.scrollTop;
+    toEnd.hidden = atEnd();
+  }).observe(log);
+  toEnd.prepend(icon('chevron'));
+  toEnd.addEventListener('click', () => {
+    follow = true;
+    log.focus({ preventScroll: true });
+    log.scrollTop = log.scrollHeight;
+  });
+  field.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' || event.shiftKey || event.isComposing || event.keyCode === 229) return;
+    event.preventDefault();
+    form.requestSubmit();
+  });
+  field.addEventListener('input', () => {
+    if (line?.act !== 'open') line = null;
+    draw();
+  });
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    void sendText();
+  });
+  aside.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    if (event.target !== field && ($('update-dialog') as HTMLDialogElement).open) return;
+    event.preventDefault();
+    hide(true);
+  });
+  interrupt.addEventListener('click', async () => {
+    if (busy || !can('interrupt')) return;
+    if (await act('interrupt', '/api/coordinator/interrupt', {}))
+      line = {
+        act: 'interrupt',
+        text: 'The stop key is in the session. The state shows the effect at the next read.',
+        tone: 'status',
+      };
+    draw();
+  });
+  end.addEventListener('click', async () => {
+    if (busy || !can('end')) return;
+    if (await act('end', '/api/coordinator/end', {}))
+      line = {
+        act: 'end',
+        text: 'The exit request is in the session. The state shows the effect at the next read.',
+        tone: 'status',
+      };
+    draw();
+  });
+  go.prepend(icon('go'));
+  go.addEventListener('click', () => {
+    if (view.sessionId) void post('/api/go', { sessionId: view.sessionId }, 'Go failed');
+  });
+  close.append(icon('close'));
+  close.addEventListener('click', () => hide(true));
+  start.addEventListener('click', () => void startSession());
+  control.prepend(icon('message'));
+  control.addEventListener('click', toggle);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) clearTimeout(timer);
+    else void readText();
+  });
+  draw();
+
+  return {
+    update: take,
+    view: () => view,
+    down(value: boolean) {
+      if (isDown === value) return;
+      isDown = value;
+      draw();
+    },
+    toggle,
+    open,
+    close: hide,
+    focus: () => control.focus(),
+    label: () =>
+      isOpen ? 'Hide the coordinator' : shown() === 'none' ? 'Start the coordinator session' : 'Show the coordinator',
+  };
+}

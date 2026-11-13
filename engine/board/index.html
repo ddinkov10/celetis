@@ -16,6 +16,7 @@
   <div class="views" role="group" aria-label="View"><button type="button" data-view="now"><span class="label">Now</span></button><button type="button" data-view="pipeline"><span class="label">Pipeline</span></button></div>
   <nav class="summary" id="summary" aria-label="Counts"></nav>
   <div class="intake-control"><button type="button" class="btn primary" id="intake" aria-describedby="intake-reason"><span class="label">New intake</span></button><span id="intake-reason" class="intake-reason" hidden></span></div>
+  <button type="button" class="btn ghost co-open" id="coordinator-open" aria-controls="coordinator" aria-expanded="false" data-state="none"><span class="label">Coordinator</span><i class="co-mark" aria-hidden="true"></i><span class="co-open-state">no session</span><i class="co-new" aria-hidden="true" hidden></i></button>
   <button type="button" class="find" id="find" aria-label="Search the cards, history, and commands" aria-keyshortcuts="Control+K Meta+K /"><span class="find-text">Search or run a step</span><kbd>⌘K</kbd></button>
   <button type="button" class="btn ghost" id="queue-open" aria-controls="queue" aria-pressed="false">Queue</button>
   <button type="button" class="btn ghost" id="history" aria-controls="panel" aria-expanded="false" title="Show or hide history (d)"><span class="label">History</span></button>
@@ -30,6 +31,33 @@
   <section class="queue" id="queue" aria-label="Issue queue" hidden></section>
   <main class="board" id="columns" aria-busy="true"></main>
   <aside class="panel" id="panel" aria-label="Card details" hidden></aside>
+  <aside class="coordinator" id="coordinator" aria-labelledby="coordinator-title" data-state="none" hidden>
+    <header class="co-head">
+      <h2 class="co-title" id="coordinator-title">Coordinator</h2>
+      <span class="co-host" id="coordinator-host"></span>
+      <span class="pill co-pill" id="coordinator-head-state"></span>
+      <span class="co-head-end">
+        <button type="button" class="btn ghost" id="coordinator-interrupt" hidden><span class="label">Interrupt</span></button>
+        <button type="button" class="btn ghost" id="coordinator-end" hidden><span class="label">End session</span></button>
+        <button type="button" class="btn ghost" id="coordinator-go" title="Show the tab of the session in the Herdr app" hidden><span class="label">Go</span></button>
+        <button type="button" class="icon-btn" id="coordinator-close" aria-label="Close the coordinator (Esc)" title="Close the coordinator (Esc)"></button>
+      </span>
+    </header>
+    <p class="co-banner" id="coordinator-banner" role="status" hidden></p>
+    <p class="co-scope" id="coordinator-scope" hidden></p>
+    <div class="co-body">
+      <pre class="co-log" id="coordinator-log" role="region" tabindex="0" aria-label="Text of the coordinator session"></pre>
+      <button type="button" class="btn ghost co-to-end" id="coordinator-to-end" hidden><span class="label">Go to the end</span></button>
+    </div>
+    <div class="co-foot">
+      <form class="co-form" id="coordinator-form" hidden>
+        <div class="co-keys" id="coordinator-keys" role="group" aria-labelledby="coordinator-keys-text" hidden><p class="co-keys-text" id="coordinator-keys-text">The host shows a dialog. Answer it with a key.</p><div class="co-keys-row"></div></div>
+        <textarea class="co-field" id="coordinator-field" rows="1" aria-label="Message to the coordinator" aria-describedby="coordinator-hint" placeholder="Write to the coordinator"></textarea>
+        <div class="co-row"><p class="co-hint" id="coordinator-hint"></p><button type="submit" class="btn primary" id="coordinator-send"><span class="label">Send</span></button></div>
+      </form>
+      <div class="co-start" id="coordinator-start-block" hidden><p class="co-start-text" id="coordinator-start-text" hidden></p><button type="button" class="btn primary" id="coordinator-start"><span class="label">Start a new session</span></button></div>
+    </div>
+  </aside>
 </div>
 <footer class="statusbar">
   <span class="sb-item" id="fresh"></span>

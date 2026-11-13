@@ -9,15 +9,17 @@ import {
   readQueueState,
   readStepEnds,
 } from '../lib/board-read.ts';
+import type { CoordinatorFacts } from '../lib/coordinator-types.ts';
 import type { DaemonStatus } from '../lib/daemon-types.ts';
 import { isHost, registry } from '../lib/host-names.ts';
 import { bunArgs } from '../lib/process.ts';
 import { daemonScript } from '../lib/process-identity.ts';
 import type { QueueView } from '../lib/queue-types.ts';
 import { stateOutcome } from '../lib/state.ts';
-import { type Exec, LINK, listTerminals, readScreen } from '../lib/terminal.ts';
+import { type Exec, LINK, listTerminals, readScreen, terminalState } from '../lib/terminal.ts';
 import type { Terminal, TerminalStatus } from '../lib/terminal-types.ts';
 import { visualLink } from '../lib/visual.ts';
+import type { CoordinatorReads } from './coordinator.ts';
 import type { Reads } from './reads.ts';
 import { firstLine, refused } from './requests.ts';
 import type {
@@ -264,14 +266,22 @@ export const agentCause = (cause: unknown) => {
   if (message.includes('the celetis engine is not installed')) return 'the celetis engine is not installed';
   return 'local agent state could not be read or changed; check it in a terminal';
 };
-const screenOf = (text: string) =>
-  text
-    .replaceAll('\t', ' ')
+export const cleanScreen = (text: string, limit: number | null): string[] => {
+  const keepsIndent = limit === null;
+  const lines = (keepsIndent ? text : text.replaceAll('\t', ' '))
     .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '')
     .split('\n')
-    .map((line) => line.replace(/^[\s│┃╭╮╰╯]+|[\s│┃╭╮╰╯]+$/g, ''))
-    .filter((line) => !RULE.test(line))
-    .slice(-SCREEN_LINES);
+    .map((line) =>
+      line
+        .replace(/[\s│┃╭╮╰╯]+$/, '')
+        .replace(/^[\s│┃╭╮╰╯]+/, (lead) => (keepsIndent ? lead.replace(/[│┃╭╮╰╯]/g, '') : '')),
+    )
+    .filter((line) => line === '' || !RULE.test(line));
+  return limit === null
+    ? lines.filter((line, index) => line !== '' || lines[index - 1] !== '')
+    : lines.filter(Boolean).slice(-limit);
+};
+const screenOf = (text: string) => cleanScreen(text, SCREEN_LINES);
 
 export type PressView = {
   nextRead(): number;
@@ -295,6 +305,8 @@ export const createPlacement = ({
   reads,
   presses,
   status,
+  coordinator,
+  facts,
   exec,
   now,
 }: {
@@ -302,6 +314,8 @@ export const createPlacement = ({
   reads: Reads;
   presses: PressView;
   status: () => Promise<DaemonStatus>;
+  coordinator: CoordinatorReads;
+  facts: () => CoordinatorFacts | null;
   exec: Exec;
   now: () => number;
 }): Placer => {
@@ -405,7 +419,15 @@ export const createPlacement = ({
 
   const placement = async ({ isLocal = false } = {}): Promise<Board> => {
     const queue = await queueView();
-    const { terminals, sessions: found, health } = await watchSessions();
+    const { terminals, sessions: listed, health } = await watchSessions();
+    const held = facts();
+    const isRead =
+      health.ok &&
+      (held === null ||
+        terminals.some((terminal) => terminal.id === held.terminal) ||
+        (await terminalState(held.terminal, exec)) === 'ended');
+    const coordinatorView = coordinator.view(isRead ? terminals : null);
+    const found = listed.filter((session) => session.sessionId !== held?.terminal);
     const dispositions = await readStepEnds(
       main,
       found.flatMap((session) => (session.issue === null ? [] : [session.issue])),
@@ -463,13 +485,14 @@ export const createPlacement = ({
       picker: agentState && {
         order: agentState.order,
         usage: agentState.usage,
-        activeHosts: [...new Set(sessions.flatMap((session) => (isHost(session.agent) ? [session.agent] : [])))],
+        activeHosts: [...new Set(listed.flatMap((session) => (isHost(session.agent) ? [session.agent] : [])))],
         waits: [...agentState.quota.values()].flatMap((state) => (state.kind === 'waiting' ? [state.wait] : [])),
         error: agentError,
       },
       next: agentState?.next ?? null,
       queue,
       terminal: health,
+      coordinator: coordinatorView,
       source: { readAt: reads.readAt, error: readError() },
       repo: basename(main),
     };

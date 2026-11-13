@@ -16,6 +16,7 @@ import { AgentOrderConflict } from '../lib/agent-order.ts';
 import { queueReadView, readVisualPage } from '../lib/board-read.ts';
 import { recordEvent } from '../lib/events.ts';
 import { childEnv } from '../lib/process.ts';
+import { createCoordinatorReads } from './coordinator.ts';
 import { createPlacement } from './place.ts';
 import { createPressBook, createPresses } from './presses.ts';
 import { createReads } from './reads.ts';
@@ -33,6 +34,8 @@ const CSP =
   "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src data:; " +
   "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 const VISUAL_CSP = 'sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox';
+// A text of 4096 UTF-16 units, each written as a \u escape of 6 bytes, fits with its field name.
+const SAY_BYTES = 32_768;
 
 export const run: Execute = (file, args, options = {}) =>
   new Promise<Result>((done) => {
@@ -80,14 +83,25 @@ export const createBoard = ({
 }) => {
   const reads = createReads({ read, readTargets, hints, now });
   const book = createPressBook({ now, target: reads.target });
-  const placer = createPlacement({ main, reads, presses: book, status: () => adapter.status(), exec, now });
+  const coordinator = createCoordinatorReads({ adapter, exec, now });
+  const placer = createPlacement({
+    main,
+    reads,
+    presses: book,
+    status: () => adapter.status(),
+    coordinator,
+    facts: () => adapter.coordinator(),
+    exec,
+    now,
+  });
   const presses = createPresses({ main, reads, book, placer, adapter, exec, now });
 
-  const readBody = async (request: IncomingMessage): Promise<unknown> => {
+  const readBody = async (request: IncomingMessage, limit: number): Promise<unknown> => {
     let text = '';
     for await (const chunk of request) {
       text += chunk;
-      if (Buffer.byteLength(text, 'utf8') > 1024) throw new Refusal(400, 'the body is too long (maximum 1024 bytes)');
+      if (Buffer.byteLength(text, 'utf8') > limit)
+        throw new Refusal(400, `the body is too long (maximum ${limit} bytes)`);
     }
     try {
       return JSON.parse(text);
@@ -130,6 +144,8 @@ export const createBoard = ({
       return send(response, 200, type, await readFile(join(HERE, name)));
     }
     if (request.method === 'GET' && path === '/api/queue') return sendJson(response, 200, await queueReadView(main));
+    if (request.method === 'GET' && path === '/api/coordinator')
+      return sendJson(response, 200, await coordinator.text());
     if (request.method === 'GET' && path === '/api/update')
       return sendJson(response, 200, { runtime, update: updates().snapshot() });
     if (request.method === 'GET' && path === '/api/board') {
@@ -145,7 +161,7 @@ export const createBoard = ({
     if (request.headers.origin !== `http://${host}`) throw new Refusal(403, 'the Origin is not this page');
     if (!/^application\/json\s*(;|$)/.test(request.headers['content-type'] ?? ''))
       throw new Refusal(403, 'the content type is not application/json');
-    const body = await readBody(request);
+    const body = await readBody(request, path === '/api/coordinator/say' ? SAY_BYTES : 1024);
     const input = parseRequest(path, body);
     if (input.path === '/api/intake') {
       await presses.intake();
@@ -193,6 +209,11 @@ export const createBoard = ({
     else if (input.path === '/api/resume') await presses.resume(input.number);
     else if (input.path === '/api/shell') await presses.shell(input.number);
     else if (input.path === '/api/go') await presses.go(input.sessionId);
+    else if (input.path === '/api/coordinator/open') await presses.openCoordinator();
+    else if (input.path === '/api/coordinator/say') await presses.actCoordinator({ kind: 'say', text: input.text });
+    else if (input.path === '/api/coordinator/key') await presses.actCoordinator({ kind: 'key', key: input.key });
+    else if (input.path === '/api/coordinator/interrupt') await presses.actCoordinator({ kind: 'interrupt' });
+    else if (input.path === '/api/coordinator/end') await presses.actCoordinator({ kind: 'end' });
     else if (input.path === '/api/agent') {
       try {
         return sendJson(response, 200, { order: await presses.replaceOrder(input.order, input.expectedVersion) });
@@ -212,7 +233,9 @@ export const createBoard = ({
     request.setEncoding('utf8');
     answer(request, response).catch((cause) => {
       const status = cause instanceof Refusal ? cause.status : 500;
-      const error = firstLine(String(cause.message)) || 'the server failed';
+      const error =
+        (cause instanceof Refusal && cause.keepsLines ? cause.message : firstLine(String(cause.message))) ||
+        'the server failed';
       sendJson(response, status, { error });
       if (!(cause instanceof Refusal)) recordEvent({ name: 'board-request', message: '', code: 500, error: cause });
       else if (status === 502) recordEvent({ name: 'board-terminal', message: error, code: 502 });

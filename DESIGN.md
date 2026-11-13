@@ -134,7 +134,7 @@ components:
     textColor: "{colors.ink-muted}"
     typography: "{typography.label}"
     rounded: "{rounded.md}"
-    padding: "0 10px"
+    padding: "0 8px"
     height: "28px"
   count-chip-hot:
     backgroundColor: "color-mix(in srgb, #ff7a45 10%, transparent)"
@@ -146,7 +146,7 @@ components:
     rounded: "{rounded.md}"
     padding: "0 5px 0 10px"
     height: "30px"
-    width: "250px"
+    width: "200px"
   tag:
     backgroundColor: "{colors.veil}"
     textColor: "{colors.ink-muted}"
@@ -318,16 +318,28 @@ column scrolls inside itself, with a soft fade mask at its top and bottom edges.
 - **Now:** three columns with a 14px gap. Needs you is the widest (`minmax(380px, 1.3fr)`), then
   Running (`1fr`) and Idle (`0.95fr`). When nothing needs you, the three columns are equal.
 - **Details:** the panel opens at the right at `clamp(360px, 32vw, 452px)` and replaces Idle.
+- **Coordinator panel:** the right part of the work area at `minmax(0, 1.2fr)` beside the board at
+  `minmax(340px, 0.8fr)`; in Now only Needs you stays beside it.
 - **Pipeline:** one column for each stage of the flow, with horizontal scroll when needed.
 - **Rhythm:** gaps of 6, 8, 10, and 14px. Cards stack with a 10px gap; parts inside a card with 8px.
 
 Responsive steps:
 
-- Below 1600px the search field collapses to its icon.
+- Below 1700px the search field collapses to its icon (without the key hint from 1280px), and
+  Refresh keeps only its icon (its name stays), so the header row holds the widest state words of
+  the control Coordinator. The header gap is 10px, and the folder name stops at 12ch with an
+  ellipsis. The header still wraps to two rows from 1280px to 1380px, and at 1440px with a folder
+  name of 17 or more characters. The maintainer accepted this compaction of the header parts (the
+  search, Refresh, the 8px padding of a count chip, the folder name) and the remaining wrap on
+  2026-11-13 (#288).
 - Below 1100px Needs you takes the left half, Running and Idle share the right half, and the page
-  scrolls as one document with a sticky header. The details cover the right side.
+  scrolls as one document with a sticky header. The details and the coordinator panel (at most
+  680px wide, with Float) cover the right side, and the control Coordinator hides its state words
+  except `waits for your answer`. At a height of 700px or less the coordinator panel also covers
+  the right side.
 - At a height of 700px or less the page also scrolls as one document.
-- Below 720px the columns stack, the details cover the whole page, and touch targets grow to 44px.
+- Below 720px the columns stack, the details and the coordinator panel cover the whole page, and
+  touch targets grow to 44px.
 - Cards use container queries: below 360px card width the foot stacks and the agent name hides.
 
 ## Elevation & Depth
@@ -424,6 +436,40 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
   state. Only **Update available** and **Restart needed**, the states that need you, take the
   accent: Beacon Orange text on a 10% Beacon Tint fill (13% on hover). Each other state is Ink
   Faint, as the other status bar buttons.
+
+- **Coordinator control:** a ghost header button after New intake: the message icon, the label
+  `Coordinator`, a 7px state mark, and the state words in Ink Muted. The mark changes its shape
+  with the state: an empty Ink Faint ring for no session, a Current Blue ring while it starts, a
+  Current Blue dot while it works, an Ink Muted dot at an ended turn, and a Beacon Orange diamond
+  while the host shows a dialog; then the button also takes a 10% Beacon Tint fill and a 45% Beacon
+  Orange border, and the words turn Ink. A second 7px Ink dot with a soft ring marks an ended turn
+  that the panel did not show. After a failed read the mark drops to 0.55 opacity and the words turn Ink Faint.
+  Open, the button has Veil Strong and the strong hairline.
+
+### Coordinator panel
+
+A conversation column in a Console Grey side panel with a 1px strong hairline border and a 16px
+radius, as the details panel.
+
+- **Head:** 48px minimum, the title in Title type, the host in 11.5px Geist Mono Ink Faint, the
+  state pill with its age, and text-style acts (Interrupt, End session, Go) and Close at the right.
+  The pill is Current Blue on a 12% tint while it starts or works and Beacon Orange on a 12% tint
+  for a dialog.
+- **Lines:** the line of a failed read or an ended session sits under the head on Veil at 12.5px,
+  and the log dims to 0.7. The line of the visible screen is 12px Ink Faint above the log, with a hairline under it.
+- **Log:** Geist Mono at 12.5px on 1.7, Ink, in a column of at most 104ch with at least 20px of
+  side padding, the white space of the terminal kept and long lines wrapped. `Go to the end` is a
+  ghost button on Card Slate with Raise, centred 10px above the bottom edge.
+- **Shell:** one raised shell at the foot, aligned to the 104ch column: Card Slate, the strong
+  hairline, a 12px radius, and Raise. It holds the key row, the field (44px to 168px, no border,
+  growing with its text), the hint (12px Ink Faint, Fault Red for an error), and Send (primary).
+  The focus ring goes around the shell only while the field has the focus; an invalid field turns
+  the border to 55% Fault Red.
+- **Key row:** a 6% Beacon Tint band at the top of the shell with a 35% Beacon Orange bottom
+  hairline. Each key is a key cap: 28px high, at least 32px wide, Veil, the strong hairline with a
+  2px bottom edge, an 8px radius, and 12px Geist Mono. On a phone the keys fill four equal columns.
+- **Phone:** below 720px the panel covers the page with no border and no radius, and each button,
+  key, and icon button is 44px.
 
 ### Lane Track (signature)
 

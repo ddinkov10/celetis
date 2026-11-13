@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import { AgentOrderConflict } from '../lib/agent-order.ts';
 import { commonDir, isInside, readAgentState } from '../lib/board-read.ts';
 import type { AgentChoice, AgentOrder, Host } from '../lib/config-core.ts';
+import type { CoordinatorAct } from '../lib/coordinator-types.ts';
 import type { DaemonStatus } from '../lib/daemon-types.ts';
 import type { Level } from '../lib/effort.ts';
 import { hostAvailability } from '../lib/host.ts';
@@ -13,7 +14,7 @@ import { visualLink } from '../lib/visual.ts';
 import type { Adapter } from './adapter.ts';
 import { agentCause, type LaunchFeedback, launchMatches, type Placer, type PressView, type place } from './place.ts';
 import type { Reads } from './reads.ts';
-import { cleanCause, Refusal, refused } from './requests.ts';
+import { cleanCause, cleanLines, Refusal, refused } from './requests.ts';
 import type { Board, Card, Document, IssueRow } from './types.ts';
 
 const PRESS_MS = 30_000;
@@ -28,6 +29,7 @@ export type PressBook = PressView & {
   readonly daemonReads: number;
   queuePress: boolean;
   intakePending: boolean;
+  coordinatorPress: boolean;
 };
 export type Presses = {
   intake(): Promise<void>;
@@ -40,6 +42,8 @@ export type Presses = {
   go(sessionId: string): Promise<void>;
   queue(action: QueueAction, choice: AgentChoice): Promise<QueueView>;
   replaceOrder(order: readonly Host[], expectedVersion: string): Promise<AgentOrder>;
+  openCoordinator(): Promise<void>;
+  actCoordinator(request: CoordinatorAct): Promise<void>;
 };
 
 export const createPressBook = ({
@@ -128,6 +132,7 @@ export const createPressBook = ({
     },
     queuePress: false,
     intakePending: false,
+    coordinatorPress: false,
     nextRead: () => ++daemonReads,
     follow: followPresses,
     launches: launchesOf,
@@ -398,10 +403,38 @@ export const createPresses = ({
   };
 
   const go = async (sessionId: string) => {
-    if (!(await readSessions()).some((session) => session.sessionId === sessionId))
+    if (
+      sessionId !== adapter.coordinator()?.terminal &&
+      !(await readSessions()).some((session) => session.sessionId === sessionId)
+    )
       throw new Refusal(404, 'no herdr agent of this repository has that id');
     await focusTerminal(sessionId, exec).catch(refused);
   };
 
-  return { intake, assist, visual, run: runStep, retry: retryQuota, resume, shell, go, queue, replaceOrder };
+  const coordinatorPress = async (work: () => Promise<void>) => {
+    if (book.coordinatorPress) throw new Refusal(409, 'another act of the coordinator is in flight');
+    book.coordinatorPress = true;
+    try {
+      await work();
+    } catch (cause) {
+      throw new Refusal(409, cleanLines(cause instanceof Error ? cause.message : cause), true);
+    } finally {
+      book.coordinatorPress = false;
+    }
+  };
+
+  return {
+    intake,
+    assist,
+    visual,
+    run: runStep,
+    retry: retryQuota,
+    resume,
+    shell,
+    go,
+    queue,
+    replaceOrder,
+    openCoordinator: () => coordinatorPress(() => adapter.openCoordinator()),
+    actCoordinator: (request) => coordinatorPress(() => adapter.actCoordinator(request)),
+  };
 };

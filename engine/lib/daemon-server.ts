@@ -612,22 +612,35 @@ async function serve(
   };
 
   const answering = new Set<Promise<Response>>();
+  const answered = async (answer: Promise<Response>) => {
+    answering.add(answer);
+    try {
+      return await (await answer).json();
+    } finally {
+      answering.delete(answer);
+    }
+  };
+  const inProcess = async (work: () => Promise<{ status: number; answer: DaemonAnswer | CoordinatorAnswer }>) => {
+    if (stopping) return refusal(503, stopLine, exits.prerequisite);
+    if (taking) return refusal(503, takeoverLine, exits.prerequisite);
+    const { status, answer } = await work();
+    return reply(status, answer);
+  };
   const dispatcher: BoardDaemon = {
-    send: async ({ kind, ...fields }) => {
+    send: ({ kind, ...fields }) => {
       const request = new Request(`http://daemon${requestPaths[kind]}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(fields),
       });
-      const answer = respond(request).catch(crashed);
-      answering.add(answer);
-      try {
-        return await (await answer).json();
-      } finally {
-        answering.delete(answer);
-      }
+      return answered(respond(request).catch(crashed));
     },
     status,
+    coordinator: {
+      facts: () => coordinator.facts(),
+      open: () => answered(inProcess(() => coordinator.open({}, true)).catch(crashed)),
+      act: (request) => answered(inProcess(() => coordinator.act(request)).catch(crashed)),
+    },
   };
 
   const handlers = new Map<NodeJS.Signals, () => void>();
@@ -641,6 +654,8 @@ async function serve(
     const env = { ...process.env };
     // PORT is the port of the board only, so runs and landings never get it.
     delete process.env.PORT;
+    // The record is read before the board opens, so no read of the board sees a live session with no record.
+    await coordinator.adopt();
     board = await startBoard(main, port, await celetisAdapter(main, dispatcher), {
       env,
       revision: identity.revision,
@@ -666,7 +681,7 @@ async function serve(
       }));
       await run.handle.admitted;
     }
-    await coordinator.adopt();
+    coordinator.watch();
     taking = false;
     rmSync(paths.socket, { force: true });
     const server = Bun.serve({ unix: paths.socket, fetch: respond, error: crashed });

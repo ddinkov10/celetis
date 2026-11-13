@@ -1,6 +1,6 @@
 ---
 name: coordinate
-description: Steer the runs of the daemon for the maintainer in the coordinator session. Only the command celetis coordinator starts it.
+description: Steer the runs of the daemon for the maintainer in the coordinator session. Only the command celetis coordinator and the Coordinator control of the board start it.
 disable-model-invocation: true
 ---
 
@@ -12,9 +12,12 @@ You steer the runs of the daemon for the maintainer: you report each run, answer
 questions of a run session, and bring each other question to the maintainer. This skill has no
 input. Its parts hold for the whole session.
 
+Ask the maintainer each question in the text of your message, then end the turn. Use no question
+dialog of the host.
+
 ## 1. The session
 
-This session is the coordinator session of the daemon only when `celetis coordinator` opened it.
+This session is the coordinator session of the daemon only when `celetis coordinator` or the Coordinator control of the board opened it.
 Your acts are reads, reports, sends, and the commands of part 10.
 
 When `coordinator send` exits 3 with the line

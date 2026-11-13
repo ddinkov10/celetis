@@ -317,12 +317,13 @@ value.
    the daemon names its PID and exits 3;
 6. reads `board.port` of the main `.celetis.yaml` with the full validation of the config, default
    4403. A file with an error prints the diagnostic of the config reader and exits with its code;
-7. opens the board ([Start](board/README.md#start) of the board document gives its lines). A
-   nonzero `Number(PORT)` of its environment is an exact port; else the board takes the first free
-   port from `board.port` through 65535. A port that cannot open releases `daemon` and exits 6,
-   before any takeover;
+7. reads the coordinator record ([The coordinator session](#the-coordinator-session), "The
+   takeover"), then opens the board ([Start](board/README.md#start) of the board document gives
+   its lines). A nonzero `Number(PORT)` of its environment is an exact port; else the board takes
+   the first free port from `board.port` through 65535. A port that cannot open releases `daemon`
+   and exits 6, before the takeover of a run;
 8. reads the run records and makes one adoption attempt for each record ("The takeover"), then
-   reads the coordinator record ([The coordinator session](#the-coordinator-session));
+   starts the loop of the coordinator session;
 9. removes a socket file that a killed daemon left;
 10. serves on the socket;
 11. writes the identity file `daemon/daemon.json` (0600, a temporary file and a rename):
@@ -343,7 +344,9 @@ user can send a request. Auto mode is off at each start, also after a crash. Onl
 turns it on again, with the selection of the old loop ("The restart").
 
 **The requests.** The board gives its requests to the same dispatcher in the daemon process, with
-no socket and no HTTP request to itself: the same parser and the same answers. An error that the
+no socket and no HTTP request to itself: the same parser and the same answers. The board also
+calls the acts of the coordinator session as methods of the dispatcher, with no path of the table
+below ([The coordinator session](#the-coordinator-session), "The board acts"). An error that the
 dispatcher throws is the 500 answer below. A body is JSON of at most 16 KiB, with exactly these keys:
 
 | Request | Body | Effect |
@@ -801,7 +804,7 @@ show as the `line` of the row of `celetis daemon status` and in `daemon/daemon.l
 
 The coordinator session is one interactive session of a host with the skill `coordinate`, in a
 tab that the daemon opens. It is no run: it has no issue, no issue lock, no step-end watch, and no
-resume by the daemon. You end it in its tab.
+resume by the daemon. You end it in its tab, or with End session on the board ("The board acts").
 
 **The forms.** `celetis coordinator` (`engine/coordinator.ts`) sends `POST /coordinator/open` with
 the selection of `--agent` and `CELETIS_AGENT`, as `run` does, and waits at most 120 seconds.
@@ -809,23 +812,26 @@ the selection of `--agent` and `CELETIS_AGENT`, as `run` does, and waits at most
 `celetis coordinator read <n>` sends `POST /coordinator/read` ("The screen read"), and
 `celetis coordinator send <n> <file> --as maintainer|coordinator` sends `POST /coordinator/send`
 ("The send"). The row of `coordinator` in [The commands](../plugins/celetis/README.md#the-commands)
-gives the lines and the exit codes.
+gives the lines and the exit codes. The board opens the session with the default agent order and
+no focus move (the quiet open), and it carries the acts of "The board acts".
 
 **The open.** The daemon answers one open at a time; a second open waits for the first. In this
 order, it:
 
 1. reads the process of the barrier of the coordinator record, when it holds one. When it runs,
    the daemon brings its tab to the front (`herdr-app do pane.focus`) and answers
-   `{accepted: true, opened: false}`; a failed focus refuses the open with code 6. A failed read
+   `{accepted: true, opened: false}`; a failed focus refuses the open with code 6. The quiet open
+   makes no focus call and gives the same answer. A failed read
    refuses the open with code 6 too, and the record stays. When the process is gone, the daemon removes the record and its start folder and goes on;
 2. selects the host as `assist` does, with the local order and the usage records;
 3. checks the native home of the host, the update policy of its plugin, the host on `PATH`, the
    contract version of its plugin ([The engine and the plugin](#the-engine-and-the-plugin)), the
    file `skills/coordinate/SKILL.md` of the plugin root, and `hc` and the Herdr app;
 4. writes the session environment of the host (`{}` for Claude Code and Codex) to the file `env`
-   of a new start folder, then opens the tab `Coordinator` with the link label `Coordinator` and
-   the focus, in the main checkout, as a session tab ([The session tab](#the-session-tab)): the
-   start barrier `daemon --session-start <folder> <daemon PID> <host> - - <arguments>` with the interactive
+   of a new start folder, then opens the tab `Coordinator` with the link label `Coordinator` in the
+   main checkout, as a session tab ([The session tab](#the-session-tab)): with the focus for
+   `celetis coordinator`, and with no focus for the quiet open, like a run session tab. It starts
+   the start barrier `daemon --session-start <folder> <daemon PID> <host> - - <arguments>` with the interactive
    arguments of `assist` and the prompt of the skill `coordinate`. The tab argv sets
    `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0`, `DO_NOT_TRACK=1`, and `CELETIS_COORDINATOR=<token>`, a
    new random UUID. The login shell keeps no shell after an exit with status 0;
@@ -849,11 +855,14 @@ a definite read that the process is gone. A failed read keeps the record. A reco
 validate is no record: the daemon prints its path and the cause once, and the next open writes
 over it.
 
-**The takeover.** After the takeover of the run records and before it serves, a daemon, also a
-successor, reads the record. It takes over a record whose barrier runs, and keeps a record whose
-read fails. It removes a record whose barrier is gone. `celetis daemon stop` keeps the record and
-leaves the session open in its tab; until the next start, each form of `coordinator` exits 3 with
-the line of no daemon.
+**The takeover.** Before it opens the board, a daemon, also a successor, reads the record. So the
+first read of the board has the record of a live session, and no read shows that session as no
+session. It takes over a record whose barrier runs, and keeps a record whose read fails. It removes
+a record whose barrier is gone. After the takeover of the run records and before it serves, it
+starts the loop that reads the process, the attention states, and the notes; until then, `open` and
+`act` of the board answer the takeover line ("The board acts"). `celetis daemon stop` keeps the
+record and leaves the session open in its tab; until the next start, each form of `coordinator`
+exits 3 with the line of no daemon.
 
 **The value of the session.** The barrier gives its environment to the host, so each command of
 the session has `CELETIS_COORDINATOR`. Its name holds no `KEY`, `SECRET`, or `TOKEN`, so the
@@ -895,15 +904,17 @@ items:
   first pass. With no record the daemon holds no item, and an open starts with none, so the open
   types no note for a change that came before it.
 
-At the end of a pass with one or more items, inside the sequence of the coordinator terminal, the
-daemon reads `hc get` of the coordinator terminal. Only the status `idle`, `done`, or `error`
-goes on; a failed read and the statuses `working`, `blocked`, and none type nothing and print
-nothing, and the items stay. The daemon then types one note with `hc send <terminal> --json --
-<note>` (no `--force`, no `HC_TERMINAL_ID`) and removes the items on a sent result. Another result
-keeps the items for the next pass, and the first failure after a success prints
-`daemon: coordinator: cannot type a note into the tab Coordinator; its items stay for the next
-note`. A session at an ended turn starts a turn with the note; the status gate keeps the note out of
-a working turn, so the daemon sends no reminder: an item leaves only by a sent note, by a change of
+A pass that ends while an act of the board is in flight ("The board acts") types no note, and the
+items stay for the next pass. At the end of each other pass with one or more items, inside the
+sequence of the coordinator terminal, the daemon reads `hc get` of the coordinator terminal. Only
+the status `idle`, `done`, or `error` goes on; a failed read and the statuses `working`, `blocked`,
+and none type nothing and print nothing, and the items stay. The daemon then types one note with
+`hc send <terminal> --json -- <note>` (no `--force`, no `HC_TERMINAL_ID`) and removes the items on a
+sent result. Another result keeps the items for the next pass, and the first failure after a success
+prints
+`daemon: coordinator: cannot type a note into the tab Coordinator; its items stay for the next note`.
+A session at an ended turn starts a turn with the note; the status gate keeps the note out of a
+working turn, so the daemon sends no reminder: an item leaves only by a sent note, by a change of
 its run, or by the end of the record.
 
 The note is the marker `[celetis daemon note]`, `Items: <count>.`, and the sentence `This note is
@@ -969,9 +980,82 @@ the maintainer left unsent text there, that text comes before the header, and hc
 that refuses a composer with text. So the rule of the session that receives a message takes the
 header at any place of the message, and the text before the header is no answer.
 
-**The board.** The board shows the session by its rules for a session tab with no issue: the
-link label `Coordinator` names no issue, so it is in the strip Human sessions
-([The cards](board/README.md#the-cards)).
+**The board acts.** The board server calls three methods of the dispatcher in the daemon process
+(`coordinator` of `BoardDaemon`, `engine/board/adapter.ts`): `facts` gives the host and the terminal
+of the record while the daemon holds it, else `null`; `open` is the quiet open; `act` takes one act:
+`{kind: 'say', text}`, `{kind: 'key', key}`, `{kind: 'interrupt'}`, or `{kind: 'end'}`. The
+socket has no path for them: `POST /coordinator/say`, `/coordinator/key`, `/coordinator/interrupt`,
+and `/coordinator/end` get 404. While the daemon stops, `open` and `act` answer the stop line, and
+during the takeover the takeover line, each with code 3 ("The requests"). An act has no terminal:
+its one target is the terminal of the coordinator record. The daemon checks in this order, and
+each refusal types nothing:
+
+1. the shape: another kind or another field, a key outside the table, and a text that the rule of
+   "The send" refuses give the 400 answer with code 2. The keys are `up`, `down`, `enter`, `esc`,
+   `1`, `2`, and `3`, the hc key names of the fixed table;
+2. the record: no record refuses with code 3 (`coordinator: no coordinator session runs; press
+   Coordinator on the board to start one`);
+3. inside the sequence of the coordinator terminal, with the notes: the record again, then the
+   process of the barrier (gone refuses with code 3 and the line of no record; a failed read refuses
+   with code 6), then `hc get` of the terminal. A failed read refuses with code 6
+   (`coordinator: cannot read the hc status of the tab Coordinator; nothing was sent`);
+4. the state of the session, from the hc status, and the acts that it permits:
+
+   | State | hc status | Acts |
+   | --- | --- | --- |
+   | `starting` | none | none of the four |
+   | `dialog` | `blocked` | a key |
+   | `works` | `working` | a message, an interrupt |
+   | `turn-ended` | `idle`, `done`, or `error` | a message, an end |
+
+   Another act refuses with code 3 and a line that names the state, with the kind of a dialog:
+   `coordinator: the coordinator session shows a dialog (<kind>); a message is not possible in this
+   state`.
+
+Then the daemon does the act:
+
+- **say** types the text as the maintainer types it, with no header:
+  `hc send <terminal> --json -- <text>`, with no `--force` and no `HC_TERMINAL_ID`. The call waits
+  at most 90 seconds, above the draft wait of hc (60 seconds by default). hc waits for an unsent
+  draft of the tab, then pastes the text after it and presses Enter, so the composer submits the
+  draft and the text as one input; what a real host does with that input is not observed in this
+  build. hc refuses a blocked program (code 3, the kind of a new read), a terminal
+  that hc says is gone refuses with the line of no record, and each other failure is an unknown
+  outcome with code 6 (`coordinator: the outcome of the message is unknown; read the log of the
+  panel before you send again`);
+- **key** presses one key with `hc keys <terminal> <key> --json`. hc presses a key in each state, so
+  the state check is the one guard that a key goes only into a dialog;
+- **interrupt** runs `hc interrupt <terminal> --json`, which waits at most 30 seconds. It is accepted
+  when hc names the stop key that it pressed; the answer holds no result of the turn;
+- **end** sends only the exit request of the host (`requestExit`, as the step end does), and waits
+  at most 90 seconds too: the exit request of Claude is a message (`hc send <terminal> /exit`), so a
+  draft of the tab holds it. The record goes when a definite read shows that the barrier is gone, as
+  "The record" says. With a draft, hc pastes `/exit` after the draft and presses Enter, as for a
+  message.
+
+For a key and an interrupt, a terminal that hc says is gone refuses with the line of no record, and
+each other failure is an unknown outcome with code 6. A failed exit request is an unknown outcome.
+
+An accepted act prints one line to the log: `daemon: coordinator: board: say, <length> characters`,
+`daemon: coordinator: board: key, <key>`, `daemon: coordinator: board: interrupt`, or
+`daemon: coordinator: board: end`. An unknown outcome prints the same words and `; the outcome is
+unknown`, and its line of code 6 tells the maintainer to read the log of the panel first. No line
+holds a part of the text. Each act waits for the act before it in the sequence, so a message that
+waits for a draft holds a key, an interrupt, and an end too. A draft holds `hc keys` only for the
+short pause of hc, and `hc interrupt` not at all. A note and a message are two pastes in
+that sequence, never one composer with both.
+
+A stop of the daemon waits at most 5 seconds for an act in flight and does not abort it. An act
+that takes longer gets no answer, and the text of a message or an end can still arrive in the
+session. The page shows a failed request and keeps the text, with the line of an unknown outcome.
+The stop does not wait for a note behind that act: a note never waits behind an act in flight
+("The notes"). The items of a stopped daemon end with it, and a daemon that takes over the record
+gives each run with an attention its item again. A note that the daemon types at the moment of the
+stop ends first; each `hc` call of it has a bound of 15 seconds.
+
+**The board.** The coordinator session is no item of the strip Human sessions
+([The cards](board/README.md#the-cards)). Its one place on the board is the header control
+`Coordinator`.
 
 **Limit.** The daemon records no usage observation of the coordinator session, and a usage limit
 of its host stops it as it stops an `assist` session.

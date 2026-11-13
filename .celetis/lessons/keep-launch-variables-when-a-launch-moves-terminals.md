@@ -2,7 +2,7 @@
 {
   "schema": 1,
   "name": "keep-launch-variables-when-a-launch-moves-terminals",
-  "description": "A launch into an hc terminal lost the ADR-0024 variables, a lab start through open gave the app every shell value, and the login shell of a Herdr lab tab ran the real host in three lab checks, once after a seed tab",
+  "description": "A launch into an hc terminal lost the ADR-0024 variables, a lab start through open gave the app every shell value, the login shell of a Herdr lab tab ran the real host in three lab checks, once after a seed tab, and the tool shell of a real Codex host with the real HOME ran the installed engine",
   "tags": [
     "platform-quirk",
     "regression",
@@ -10,12 +10,35 @@
     "platform",
     "test",
     "e2e",
-    "recurring"
+    "recurring",
+    "config"
   ],
-  "date": "2026-11-09",
+  "date": "2026-11-13",
   "status": "active",
-  "source": "Verify phase of ddinkov10/celetis#269 (implement step), V3 renewal attempt 2, verifier child report\n\nVerify phase of ddinkov10/celetis#276 (first V5 attempt), reported by the verification child\n\nTask 1 of ddinkov10/celetis#141 (implement session, child t1-impl); recorded by the coordinator\n\nFinal review of ddinkov10/celetis#271 (implement step, Claude Code)\n\nTask 3 review of ddinkov10/celetis#232",
+  "source": "The implement session of #288 on Claude Code, Verify V4 (a real Codex coordinator from the page), 2026-11-13\n\nVerify phase of ddinkov10/celetis#269 (implement step), V3 renewal attempt 2, verifier child report\n\nVerify phase of ddinkov10/celetis#276 (first V5 attempt), reported by the verification child\n\nTask 1 of ddinkov10/celetis#141 (implement session, child t1-impl); recorded by the coordinator\n\nFinal review of ddinkov10/celetis#271 (implement step, Claude Code)\n\nTask 3 review of ddinkov10/celetis#232",
   "incidents": [
+    {
+      "id": "c7e4a9d2-3b58-4f61-8e0a-2d9b6f4c1e73",
+      "date": "2026-11-13",
+      "action": "The codex wrapper of the 1440 run of V4 set HOME=/Users/dinq so that the real host kept its sign-in, as the claude wrapper of #252 V7 does.",
+      "expected": "Each celetis and gh that the real session runs resolves to the fixture bin (lesson keep-launch-variables-when-a-launch-moves-terminals).",
+      "observed": "The Codex login shell loaded the user's profile; command -v celetis printed /Users/dinq/.local/bin/celetis, and coordinator status refused with the installed engine.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "coordinator: the daemon runs the engine at fe9856707ec6 and this engine is at d1f587dff30b"
+      },
+      "inference": "The control tab checked only the fixture shell, not the shell that a real host starts for its tools. Correction in the same run: CODEX_HOME=/Users/dinq/.codex with the fixture HOME; the 375 session then gave the lane answers (inferred from the outputs; no command -v was printed there).",
+      "diagnosis": [
+        "not-followed"
+      ],
+      "revision": "fe9856707ec6656a107da50ea7ace841fd6f1ad3",
+      "brief": "The Verify brief of #288 (verify-lab-brief.md) carried keep-launch-variables-when-a-launch-moves-terminals with this digest.",
+      "lesson": {
+        "name": "keep-launch-variables-when-a-launch-moves-terminals",
+        "revision": "fe9856707ec6656a107da50ea7ace841fd6f1ad3",
+        "digest": "eaf0e66e2a17928e3579feb03b54e323c5564a20d1427d938defb011f7b5a01e"
+      }
+    },
     {
       "id": "ad543543-10c1-4419-8c45-a71be86c4cdb",
       "date": "2026-11-09",
@@ -138,7 +161,7 @@
       "revision": "ae60ba8b15b8d60498eeeb7b13ea4b073265b4ab"
     }
   ],
-  "recurrences": 5,
+  "recurrences": 6,
   "reviews": [
     {
       "id": "16ab5145-be94-4fce-b6b5-049bc72834c7",
@@ -213,6 +236,21 @@
         "state": "proposed",
         "detail": "Structural follow-up, which needs separate authorization: scripts/herdr-lab.ts up creates a fixture ZDOTDIR (or another fixture profile) for the lab app, and run refuses a lab whose control tab resolves a host outside the fixture bin. The earlier proposed follow-ups of this lesson stay as they are."
       }
+    },
+    {
+      "id": "4bafda68-d731-4d8a-b4a4-2d1a3d93ea3d",
+      "requestDigest": "8ba4add34c343fef862b4c54ec6b3748b5074c5533402391c453c65c1a478aee",
+      "date": "2026-11-13",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #288; claude child opus/high\n\nMerge, under the reviewer rules: the proposal states the rule of the active lesson keep-launch-variables-when-a-launch-moves-terminals (a login shell inside a launcher can reorder PATH from the profile of the user; resolve each command to the intended binary and read the environment in the started process), and its own incident names that lesson with the diagnosis not-followed. The survivor keeps every incident and adds the tool shell of a real host to the rule. The proposal named CLAUDE_CONFIG_DIR for Claude Code, but no incident shows that a Claude Code host keeps its sign-in through it, so the survivor names only CODEX_HOME and records the Claude case as not observed.",
+      "related": [
+        "check-the-tool-shell-of-a-real-host-resolves-the-fixture-commands",
+        "keep-launch-variables-when-a-launch-moves-terminals"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "The proposal names a structural follow-up that needs a separate authorization: a wrapper of scripts/herdr-lab.ts for real hosts that keeps the sign-in through the host state variable, gives the host the fixture HOME, and confirms the command resolution in the tool shell of the session."
+      }
     }
   ]
 }
@@ -233,6 +271,8 @@ In the Verify phase of #276 on 2026-11-08, the first V5 probe ran `celetis --age
 
 In the Verify phase of #269 on 2026-11-09, a renewal of a lab scenario (attempt 2, lab celetis-lab-70f939) made the Herdr space with a seed tab, started the lane daemon with a fixture `PATH` and a fixture `CLAUDE_CONFIG_DIR`, and pressed Run on fixture issue #7 in the board. The session tab `t2`, with argv `/bin/zsh -lic ...`, ran the real `/Users/dinq/.local/bin/claude` for about 20 seconds, until the verifier ended it with `hc kill t2`. The fake host log holds only `plugin list --json` calls. Afterwards the fixture config folder holds no account, no completed onboarding, and no transcript. The Verify brief carried this lesson at the digest of the live file. Attempt 3 gave the lab a fixture `ZDOTDIR` whose profile files put the fixture `bin` first. A control tab, started in the same way as a session tab, then answered the fixture `claude` before the press, and the session tab ran the fixture host.
 
+In Verify V4 of #288 on 2026-11-13, the wrapper of a real Codex session set `HOME` to the real home of the maintainer so that Codex kept its sign-in, as the Claude wrapper of #252 V7 did. The tool shell of Codex loaded the profile of the user: `command -v celetis` printed `/Users/dinq/.local/bin/celetis`, and `coordinator status` refused with "the daemon runs the engine at fe9856707ec6 and this engine is at d1f587dff30b". The control tab of the check had confirmed only the fixture shell. The Verify brief carried this lesson. For the next run, the wrapper set `CODEX_HOME=/Users/dinq/.codex` and gave the host the fixture `HOME`.
+
 ## Root cause
 
 Inference: each change took the environment of the started process to be the environment of the caller, or the argv alone. A launcher has its own environment semantics. `hc run` gives an explicit command the environment of the hc server, so a variable set only in the caller does not arrive. The Herdr app wraps raw argv with its own inherited shell and core environment. macOS `open` passes its own environment to the app that it starts, in addition to the `--env` values (inferred from #271; uncertain for other macOS versions). Alternatives: in #232 the plan author assumed that the login shell sets the variables; in #271 the spec probe could not see the leak, because the keys that it looked for were absent from the environment of `open` too.
@@ -242,6 +282,8 @@ In #141, inferred from the tool output: `openTab` makes the first tab of a missi
 In #276, inferred: the probe author reused the run path of the daemon without the space-first step that this rule names, although the brief carried it. The guard detected the real host only after it started, so the guard held as detection but not as prevention. Not known: whether the real binary made an API call in those seconds; no transcript was found under the fixture config folder, and a later re-prepare can have overwritten one.
 
 In #269, inferred: the seed tab removes only the `space.new` path. A later session tab of the daemon also started through `/bin/zsh -lic`, so the profile of the user reordered `PATH` again. For that lab setup, this contradicts the #141 inference that later `hc run` tabs get the fixture shell. The check confirmed the host binary only after the launch. Uncertain: which lab setups give later tabs the fixture shell (#141) and which give the login shell of the app (#269).
+
+In #288, inferred: a real host starts a shell of its own for its tool commands, and that shell reads the profile of the user from the `HOME` that the host gets. The control tab confirmed the command resolution of the lab shell, not of that tool shell. After the correction, the 375 session gave the lane answers; the correction is inferred from the outputs, because no `command -v` was printed in that session. Not observed: whether a Claude Code host with the fixture `HOME` keeps its sign-in through `CLAUDE_CONFIG_DIR`.
 
 ## Fix
 
@@ -255,15 +297,17 @@ The #276 recurrence shows that the text rule and the guard do not prevent the fi
 
 The #269 recurrence shows that the seed tab alone does not prevent the launch of the real host. Proposed prevention, not enforced: before the first launch of a host in a lab, start a control tab in the same way as a session tab, read `command -v` of each host, and launch only when each answer is under the fixture `bin`. When the profile of the user reorders `PATH`, give the lab a fixture `ZDOTDIR` (or another fixture profile) that keeps the fixture `bin` first. A structural follow-up, proposed in #269, needs separate authorization: `scripts/herdr-lab.ts up` creates a fixture `ZDOTDIR` for the lab app, and `run` refuses a lab whose control tab resolves a host outside the fixture `bin`. No enforcement is proven.
 
+The #288 recurrence shows that the control tab does not cover the tool shell of a real host. Proposed prevention, not enforced: in a real-host wrapper, keep the existing sign-in of the host through its own state variable (for Codex, `CODEX_HOME`), give the host the fixture `HOME`, and read `command -v` of each fixture command in the first tool call of the real session before a scenario counts. A structural follow-up, proposed in #288, needs separate authorization: a wrapper of `scripts/herdr-lab.ts` for real hosts that sets these variables.
+
 The rule stays text, because each launcher has its own environment semantics.
 
 ## Detection signature
 
-Bun cache files (`Library/Caches/bun/@t@/*.pile`) under the HOME of a server-like environment after a plugin launch; a launch argv that starts with `process.execPath` outside `spawn`/`run` with `childEnv`; a value of the calling shell, for example a token, in `ps eww` of a process that a launcher started; a session tab of a synthetic-host lab whose process runs a host binary outside the fixture `bin`, for example `~/.local/bin/claude`, also after a seed tab and with argv `/bin/zsh -lic ...`, or a lab session that ends only with a timeout.
+Bun cache files (`Library/Caches/bun/@t@/*.pile`) under the HOME of a server-like environment after a plugin launch; a launch argv that starts with `process.execPath` outside `spawn`/`run` with `childEnv`; a value of the calling shell, for example a token, in `ps eww` of a process that a launcher started; a session tab of a synthetic-host lab whose process runs a host binary outside the fixture `bin`, for example `~/.local/bin/claude`, also after a seed tab and with argv `/bin/zsh -lic ...`, or a lab session that ends only with a timeout; in a real-host session, a `command -v` of a fixture command outside the fixture `bin`, or a refusal such as "the daemon runs the engine at <revision> and this engine is at <revision>".
 
 ## Rule
 
-Applies when a change or a temporary check starts plugin code, an agent, or an app through another process launcher (an hc terminal, a Herdr tab or app, `open`, launchd, a login shell, a scheduler). Action: set the environment of the started process explicitly, and do not assume what the launcher passes on. Carry every variable that the old launch or the caller set and that the process needs, in the argv or in the launcher's own configuration, and keep the ADR-0024 Bun variables: some launchers (hc, the Herdr app) do not pass on a variable set only in the caller. When code limits that environment, also give the launcher itself only the allowed values: some launchers (`open`) pass their own environment on to the started process. A login shell inside a launcher (for example the first tab of a new Herdr space) can change that environment again from the profile of the user, for example the order of `PATH`: make each launch path resolve each command to the intended binary, and for a Herdr lab create the space of the target repository with a seed tab before the first launch of the check, also before a run or a session that a probe starts through the daemon or `celetis run`, so that no session tab goes through `space.new`. A seed tab does not stop a later tab from running a login shell: before the first launch, start a control tab in the same way as a session tab, read `command -v` of each host, and launch only when each answer is under the fixture `bin`. When the profile of the user reorders `PATH`, give the lab a fixture `ZDOTDIR` or another fixture profile. Check: read the environment in the started process, not in the caller. Run the new launch under an `env -i` server-like environment and confirm the variables in the child and no Bun cache file. When the environment is limited, export a sentinel value in the calling shell, start the process, and confirm in `ps eww` of the started process that the sentinel is absent. For a temporary check, read the actual terminal argv and the expected provider or proxy records before accepting its evidence. For a check with synthetic hosts, keep the control-tab answers from before the first launch as evidence, confirm for each session tab that its process runs a host binary under the fixture `bin`, and fail the check at once when a lab process, found only by the lab token in its environment, runs a host binary outside the fixture.
+Applies when a change or a temporary check starts plugin code, an agent, or an app through another process launcher (an hc terminal, a Herdr tab or app, `open`, launchd, a login shell, a scheduler). Action: set the environment of the started process explicitly, and do not assume what the launcher passes on. Carry every variable that the old launch or the caller set and that the process needs, in the argv or in the launcher's own configuration, and keep the ADR-0024 Bun variables: some launchers (hc, the Herdr app) do not pass on a variable set only in the caller. When code limits that environment, also give the launcher itself only the allowed values: some launchers (`open`) pass their own environment on to the started process. A login shell inside a launcher (for example the first tab of a new Herdr space) can change that environment again from the profile of the user, for example the order of `PATH`: make each launch path resolve each command to the intended binary, and for a Herdr lab create the space of the target repository with a seed tab before the first launch of the check, also before a run or a session that a probe starts through the daemon or `celetis run`, so that no session tab goes through `space.new`. A seed tab does not stop a later tab from running a login shell: before the first launch, start a control tab in the same way as a session tab, read `command -v` of each host, and launch only when each answer is under the fixture `bin`. When the profile of the user reorders `PATH`, give the lab a fixture `ZDOTDIR` or another fixture profile. A real host runs its tool commands in a shell of its own, which reads the profile of the user from the `HOME` that the host gets: keep the existing sign-in of the host through its own state variable where one exists (for Codex, `CODEX_HOME`), give the host the fixture `HOME`, and make the first tool call of the real session print `command -v` of each fixture command. Check: read the environment in the started process, not in the caller. Run the new launch under an `env -i` server-like environment and confirm the variables in the child and no Bun cache file. When the environment is limited, export a sentinel value in the calling shell, start the process, and confirm in `ps eww` of the started process that the sentinel is absent. For a temporary check, read the actual terminal argv and the expected provider or proxy records before accepting its evidence. For a check with synthetic hosts, keep the control-tab answers from before the first launch as evidence, confirm for each session tab that its process runs a host binary under the fixture `bin`, and fail the check at once when a lab process, found only by the lab token in its environment, runs a host binary outside the fixture. For a check with a real host, a scenario counts only after the real session's own output shows each fixture command under the fixture `bin`.
 
 ## Related lessons
 

@@ -1,3 +1,5 @@
+import { coordinatorKeys } from '../lib/coordinator-types.ts';
+import { textLimit } from '../lib/daemon-types.ts';
 import { isLevel, levels } from '../lib/effort.ts';
 import { isIssueField, orderVersion, uuid } from '../lib/fields.ts';
 import { hostChoices, isHost } from '../lib/host-names.ts';
@@ -20,6 +22,11 @@ export const POSTS: ReadonlySet<string> = new Set([
   '/api/update/check',
   '/api/update/start',
   '/api/update/restart',
+  '/api/coordinator/open',
+  '/api/coordinator/say',
+  '/api/coordinator/key',
+  '/api/coordinator/interrupt',
+  '/api/coordinator/end',
 ]);
 const fieldsOf = (value: Record<string, unknown>) => Object.keys(value).sort().join(',');
 
@@ -27,6 +34,7 @@ export class Refusal extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly keepsLines = false,
   ) {
     super(message);
   }
@@ -44,6 +52,14 @@ export const cleanCause = (cause: unknown) =>
   firstLine(String(cause ?? ''))
     .replace(/[\u0000-\u001f\u007f]/g, '')
     .slice(0, 200);
+// The daemon bounds its line at textLimit, so this bound cuts no line that the daemon gives.
+export const cleanLines = (cause: unknown) =>
+  String(cause ?? '')
+    .split('\n')
+    .map((line) => line.replace(/[\u0000-\u001f\u007f]/g, '').trim())
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, textLimit);
 
 const agentOf = (number: number, choice: unknown) => {
   if (choice !== undefined && choice !== null && !isHost(choice))
@@ -57,7 +73,8 @@ export const parseRequest = (path: string, body: unknown): BoardRequest => {
       path === '/api/assist' ||
       path === '/api/visual' ||
       path === '/api/intake' ||
-      path === '/api/agent') &&
+      path === '/api/agent' ||
+      path.startsWith('/api/coordinator/')) &&
     (body === null || typeof body !== 'object' || Array.isArray(body))
   )
     throw new Refusal(400, 'the body is not an object');
@@ -70,6 +87,21 @@ export const parseRequest = (path: string, body: unknown): BoardRequest => {
     throw new Refusal(400, 'assistance takes only the issue number');
   if (path === '/api/visual' && (Object.keys(input).length !== 1 || !Object.hasOwn(input, 'number')))
     throw new Refusal(400, 'making a visual takes only the issue number');
+  if (path === '/api/coordinator/open' || path === '/api/coordinator/interrupt' || path === '/api/coordinator/end') {
+    if (Object.keys(input).length) throw new Refusal(400, 'this act of the coordinator takes an empty object');
+    return { path };
+  }
+  if (path === '/api/coordinator/say') {
+    if (fieldsOf(input) !== 'text' || typeof input.text !== 'string')
+      throw new Refusal(400, 'a message to the coordinator takes only one text string');
+    return { path, text: input.text };
+  }
+  if (path === '/api/coordinator/key') {
+    const key = coordinatorKeys.find((each) => each === input.key);
+    if (fieldsOf(input) !== 'key' || key === undefined)
+      throw new Refusal(400, `a key of the coordinator is only one of ${coordinatorKeys.join(', ')}`);
+    return { path, key };
+  }
   if (path === '/api/update/check') {
     if (Object.keys(input).length) throw new Refusal(400, 'the update check takes an empty object');
     return { path };

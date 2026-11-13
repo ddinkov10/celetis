@@ -1,10 +1,11 @@
 import type { Diff, Document, Flow, History, LandedIssue, QuotaState, QuotaWait } from '../lib/board-read-types.ts';
 import type { AgentChoice, AgentDecision, AgentOrder, Host, UsageBlock } from '../lib/config-core.ts';
+import type { CoordinatorAction, CoordinatorKey, CoordinatorState } from '../lib/coordinator-types.ts';
 import type { Level, RowSource, StartPair } from '../lib/effort.ts';
 import type { PluginHost, Registry } from '../lib/host-names.ts';
 import type { QueueAction, QueueView } from '../lib/queue-types.ts';
 import type { IssueRow, ParentEpic, Pull } from '../lib/resolver-types.ts';
-import type { TerminalStatus } from '../lib/terminal-types.ts';
+import type { DialogKind, TerminalStatus } from '../lib/terminal-types.ts';
 import type { UpdateStage } from '../lib/update-types.ts';
 
 export type {
@@ -76,7 +77,29 @@ export type BoardRequest =
   | { path: '/api/refresh' }
   | { path: '/api/update/check' }
   | { path: '/api/update/start'; offerId: string }
-  | { path: '/api/update/restart' };
+  | { path: '/api/update/restart' }
+  | { path: '/api/coordinator/open' | '/api/coordinator/interrupt' | '/api/coordinator/end' }
+  | { path: '/api/coordinator/say'; text: string }
+  | { path: '/api/coordinator/key'; key: CoordinatorKey };
+export type CoordinatorView = {
+  state: CoordinatorState;
+  kind: DialogKind | null;
+  host: Host | null;
+  since: string | null;
+  turn: number | null;
+  actions: CoordinatorAction[];
+  keys: CoordinatorKey[];
+  sessionId: string | null;
+  readAt: string | null;
+  error: string | null;
+};
+export type CoordinatorText = {
+  view: CoordinatorView;
+  text: string;
+  full: boolean;
+  readAt: string | null;
+  error: string | null;
+};
 export type Session = {
   sessionId: string;
   agent: Host;
@@ -131,6 +154,7 @@ export type Board = Placement & {
   next: AgentDecision | null;
   queue: QueueView | null;
   terminal: { ok: boolean | null; error: string | null };
+  coordinator: CoordinatorView;
   source: { readAt: string | null; error: string | null };
   repo: string;
 };

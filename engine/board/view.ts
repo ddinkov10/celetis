@@ -1,6 +1,6 @@
 import type { Level, RowSource, StartPair } from '../lib/effort.ts';
 import type { Host, Registry } from '../lib/host-names.ts';
-import type { Card, Column, Columns, Diff, Flow, ParentEpic, Pull } from './types.ts';
+import type { Board, Card, Column, CoordinatorView, Diff, Flow, ParentEpic, Pull } from './types.ts';
 export const COLUMNS: { key: Column; name: string; note: string; empty: [string, string] }[] = [
   {
     key: 'needs',
@@ -165,14 +165,20 @@ export const signature = (card: Card, column: string) => [column, card.state, ca
 export const pageTitle = (repo: string, needs: number) => `${needs > 0 ? `(${needs}) ` : ''}${repo} · Agent board`;
 
 // The chip, title, tab icon, and Notify count this list; the Needs you column counts only columns.needs (#142).
-export const needsYou = (columns: Columns) => [
+export const needsYou = ({
+  columns,
+  coordinator,
+}: Pick<Board, 'columns' | 'coordinator'>): (Card | CoordinatorView)[] => [
+  ...(coordinator.state === 'dialog' ? [coordinator] : []),
   ...columns.human.filter((card) => card.waitFor === 'dialog'),
   ...columns.needs,
 ];
 
-export const tone = (columns: Columns) => {
-  if (needsYou(columns).length > 0) return 'needs';
-  return columns.running.some((card) => card.state === 'works') ? 'works' : 'calm';
+export const isCard = (entry: Card | CoordinatorView): entry is Card => !('actions' in entry);
+
+export const tone = (board: Pick<Board, 'columns' | 'coordinator'>) => {
+  if (needsYou(board).length > 0) return 'needs';
+  return board.columns.running.some((card) => card.state === 'works') ? 'works' : 'calm';
 };
 
 const BADGES: Record<string, string> = { needs: '#FF7A45', works: '#5EA2FF' };

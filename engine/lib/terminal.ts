@@ -8,8 +8,8 @@ import { repositoryLayout, StateError, withLock } from './state.ts';
 import type { DialogKind, Terminal, TerminalStatus } from './terminal-types.ts';
 
 type Result = { code: number; stdout: string; stderr: string };
-type CallOptions = { signal?: AbortSignal; env?: NodeJS.ProcessEnv };
-export type Exec = (file: string, args: string[], options?: CallOptions & { timeout?: number }) => Promise<Result>;
+type CallOptions = { signal?: AbortSignal; env?: NodeJS.ProcessEnv; timeout?: number };
+export type Exec = (file: string, args: string[], options?: CallOptions) => Promise<Result>;
 export type Repository = { main: string; common: string };
 export type OpenTab = {
   repository: Repository;
@@ -63,7 +63,7 @@ const parse = (text: string): unknown => {
 };
 const answer = (result: Result): unknown => (result.code === 0 ? parse(result.stdout) : null);
 const call = (exec: Exec, file: string, args: string[], options: CallOptions = {}) =>
-  exec(file, args, { timeout: 15_000, ...options });
+  exec(file, args, { ...options, timeout: options.timeout ?? 15_000 });
 const inShell = (script: string, argv: string[]) => {
   if (process.platform === 'win32') return argv;
   const shell = process.env.SHELL || '/bin/sh';
@@ -142,6 +142,12 @@ const errorKinds = (result: Result) =>
     return isRecord(error) ? error.kind : undefined;
   });
 const isGone = (kind: unknown) => isText(kind) && GONE_KINDS.has(kind);
+const goneOrUnknown = (result: Result) => (errorKinds(result).some(isGone) ? 'gone' : 'unknown');
+const withoutTerminal = () => {
+  const env = { ...process.env };
+  delete env.HC_TERMINAL_ID;
+  return env;
+};
 
 export type TerminalState = 'live' | 'ended' | 'unknown';
 
@@ -163,11 +169,16 @@ export async function waitTerminal(id: string, seconds: number, signal?: AbortSi
   return code === 0 && !signal?.aborted;
 }
 
-export async function requestExit(id: string, host: Host, signal?: AbortSignal, exec: Exec = run): Promise<boolean> {
+export async function requestExit(
+  id: string,
+  host: Host,
+  signal?: AbortSignal,
+  exec: Exec = run,
+  timeout?: number,
+): Promise<boolean> {
   if (!isSafeId(id)) return false;
-  const env = { ...process.env };
-  delete env.HC_TERMINAL_ID;
-  return (await call(exec, 'hc', [...hostAdapter(host).exitKeys(id), '--json'], { signal, env })).code === 0;
+  const env = withoutTerminal();
+  return (await call(exec, 'hc', [...hostAdapter(host).exitKeys(id), '--json'], { signal, env, timeout })).code === 0;
 }
 
 export async function closeTerminal(id: string, exec: Exec = run): Promise<void> {
@@ -194,16 +205,30 @@ export type Sent = 'sent' | 'blocked' | 'gone' | 'unknown';
 export async function sendText(
   id: string,
   text: string,
-  { signal, exec = run }: { signal?: AbortSignal; exec?: Exec } = {},
+  { signal, exec = run, timeout }: { signal?: AbortSignal; exec?: Exec; timeout?: number } = {},
 ): Promise<Sent> {
   if (!isSafeId(id)) return 'gone';
-  const env = { ...process.env };
-  delete env.HC_TERMINAL_ID;
-  const result = await call(exec, 'hc', ['send', id, '--json', '--', text], { signal, env });
+  const result = await call(exec, 'hc', ['send', id, '--json', '--', text], {
+    signal,
+    env: withoutTerminal(),
+    timeout,
+  });
   if (result.code === 0) return 'sent';
-  const kinds = errorKinds(result);
-  if (kinds.includes('blocked')) return 'blocked';
-  return kinds.some(isGone) ? 'gone' : 'unknown';
+  return errorKinds(result).includes('blocked') ? 'blocked' : goneOrUnknown(result);
+}
+
+export async function pressKeys(id: string, keys: readonly string[], exec: Exec = run): Promise<Sent> {
+  if (!isSafeId(id)) return 'gone';
+  const result = await call(exec, 'hc', ['keys', id, ...keys, '--json'], { env: withoutTerminal() });
+  return result.code === 0 ? 'sent' : goneOrUnknown(result);
+}
+
+export async function interruptTerminal(id: string, exec: Exec = run): Promise<Sent> {
+  if (!isSafeId(id)) return 'gone';
+  const result = await call(exec, 'hc', ['interrupt', id, '--json'], { env: withoutTerminal(), timeout: 30_000 });
+  const value = answer(result);
+  if (isRecord(value) && isText(value.key)) return 'sent';
+  return result.code === 0 ? 'unknown' : goneOrUnknown(result);
 }
 
 const sequences = new Map<string, Promise<void>>();

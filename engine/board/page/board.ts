@@ -24,6 +24,7 @@ import {
   favicon,
   groupEpics,
   groupNeeds,
+  isCard,
   keyOf,
   knownAgent,
   laneTrack,
@@ -44,6 +45,7 @@ import {
   tone,
 } from '../view.ts';
 import { createAgentPicker, OrderConflict } from './agent-picker.ts';
+import { setupCoordinator } from './coordinator.ts';
 import { openMenu, openPalette, setupMenu, setupPalette } from './palette.ts';
 import { drawPanel } from './panel.ts';
 import { drawQueue, setQueueOpen, setupQueue } from './queue.ts';
@@ -109,6 +111,7 @@ let starting: Map<number, string | null> | null = null;
 let startupWarnings = new Map<number, string>();
 let byKey = new Map<string, { card: Card; column: Column }>();
 let used = new Set<string>();
+let coordinatorLine: string | null = null;
 
 const who = (card: Card) =>
   card.number === null ? (card.title ? `human session "${card.title}"` : 'a human session') : `#${card.number}`;
@@ -884,20 +887,21 @@ const focusFirst = (selector: string) => {
   target?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 };
 
-const summary = (columns: Columns) =>
+const summary = (board: Board) =>
   SUMMARY.map(([key, label]) => {
     const count =
       key === 'history'
         ? (data?.history?.entries.length ?? 0)
         : key === 'needs'
-          ? needsYou(columns).length
-          : columns[key].length;
+          ? needsYou(board).length
+          : board.columns[key].length;
     const chip = el('button', `chip chip-${key}`);
     chip.type = 'button';
     chip.classList.toggle('hot', key === 'needs' && count > 0);
     chip.append(el('i', 'dot'), el('b', '', String(count)), el('span', '', label));
     chip.addEventListener('click', () => {
       if (key === 'history') return setHistory(true);
+      if (key === 'needs' && data?.coordinator.state === 'dialog') return coordinator.focus();
       if (view !== 'now') setView('now');
       focusFirst(
         `${key === 'needs' ? '.human-pill[data-wait="dialog"] .human-open, ' : ''}#col-${key} .card, #col-${key} .epic-row, #col-${key} .empty`,
@@ -1058,6 +1062,7 @@ const drawHistory = () => {
 const setHistory = (isOpen: boolean) => {
   if (isOpen && isQueueOpen) showQueue(false);
   if (!isOpen) return closePanel();
+  coordinator.close(false);
   selected = null;
   for (const node of document.querySelectorAll('[data-key].is-selected')) node.classList.remove('is-selected');
   isHistoryOpen = true;
@@ -1083,6 +1088,16 @@ const markAllSeen = () => {
   for (const [key, { card, column }] of byKey) seen.set(key, signature(card, column));
 };
 
+const systemNotice = (title: string, body: string, tag: string, open: () => void) => {
+  const isAway = document.hidden || !document.hasFocus();
+  if (!isNotifyOn || !isAway || !('Notification' in window) || Notification.permission !== 'granted') return;
+  const shown = new Notification(title, { body, tag, icon: favicon('needs') });
+  shown.addEventListener('click', () => {
+    window.focus();
+    open();
+  });
+};
+
 const notify = (cards: Card[]) => {
   const keys = new Set(cards.map((card: Card) => keyOf(card)));
   const fresh =
@@ -1093,17 +1108,12 @@ const notify = (cards: Card[]) => {
             !(needsKeys as Set<string>).has(keyOf(card)) &&
             !(card.sessionId === null && starting?.has(card.number as number)),
         );
-  const isAway = document.hidden || !document.hasFocus();
-  if (isNotifyOn && isAway && 'Notification' in window && Notification.permission === 'granted') {
-    for (const card of fresh) {
-      const { title, body } = notice(card);
-      const shown = new Notification(title, { body, tag: keyOf(card), icon: favicon('needs') });
-      shown.addEventListener('click', () => {
-        window.focus();
-        if (view !== 'now') setView('now');
-        openPanel(keyOf(card));
-      });
-    }
+  for (const card of fresh) {
+    const { title, body } = notice(card);
+    systemNotice(title, body, keyOf(card), () => {
+      if (view !== 'now') setView('now');
+      openPanel(keyOf(card));
+    });
   }
   needsKeys = keys;
   return fresh.map((card: Card) => notice(card).title);
@@ -1196,6 +1206,7 @@ const drawStatus = (source: Board['source'], isDown: boolean) => {
   }
   if (data?.picker) picker.update(data.picker, data.registry);
   document.body.toggleAttribute('data-stale', isDown);
+  coordinator.down(isDown);
   $('stale').hidden = !isDown && !source.error;
 };
 
@@ -1249,6 +1260,7 @@ const revealCard = (key: string) => {
 const openPanel = (key: string) => {
   if (isQueueOpen) showQueue(false);
   if (!byKey.has(key)) return;
+  coordinator.close(false);
   revealCard(key);
   isHistoryOpen = false;
   $('history').setAttribute('aria-expanded', 'false');
@@ -1300,14 +1312,15 @@ const drawBoard = (next: Board) => {
   used = new Set();
   byKey = new Map();
   const needs = next.columns.needs.length;
-  document.title = pageTitle(next.repo, needsYou(next.columns).length);
-  $('favicon').href = favicon(tone(next.columns));
+  document.title = pageTitle(next.repo, needsYou(next).length);
+  $('favicon').href = favicon(tone(next));
   $('repo').textContent = next.repo;
+  $('repo').title = next.repo;
   $('refresh').title = `${readAgain()} (r)`;
   $('dirty').hidden = !next.noRun;
   const banner = next.noRun ?? '';
   if ($('dirty').textContent !== banner) $('dirty').textContent = banner;
-  $('summary').replaceChildren(...summary(next.columns));
+  $('summary').replaceChildren(...summary(next));
   $('history-total').textContent = String(next.history?.entries.length ?? 0);
   if (isHistoryOpen) drawHistory();
   const board = $('columns');
@@ -1333,7 +1346,12 @@ const drawBoard = (next: Board) => {
     seen = new Map();
     markAllSeen();
   }
-  const lines = [...notify(needsYou(next.columns)), ...startNotices(next.columns)];
+  const lines = [
+    ...notify(needsYou(next).filter(isCard)),
+    ...startNotices(next.columns),
+    ...(coordinatorLine ? [coordinatorLine] : []),
+  ];
+  coordinatorLine = null;
   if (lines.length) $('announce').textContent = lines.join('. ');
   if (selected) {
     if (byKey.has(selected)) drawPanelFor();
@@ -1372,6 +1390,7 @@ const showQueue = (open: boolean) => {
   if (open) {
     closePanel();
     setHistory(false);
+    coordinator.close(false);
   }
   setQueueOpen(open);
   if (!open) $('queue-open').focus();
@@ -1452,6 +1471,7 @@ const render = (canMove = true) => {
     next.history,
     next.source.error,
     next.queue,
+    next.coordinator.state,
   ]);
   if (cards === last) {
     drawQueue(next);
@@ -1532,9 +1552,10 @@ async function load() {
     const next = (await response.json()) as Board;
     if (read > accepted && read > settled) {
       accepted = read;
-      data = next;
       hasRead = true;
       for (const [number, launch] of launches) if (launch.phase !== 'pending') launches.delete(number);
+      coordinatorLine = coordinator.update(next.coordinator);
+      data = { ...next, coordinator: coordinator.view() };
       render();
       source = data.source;
       drawStatus(source, false);
@@ -1574,6 +1595,7 @@ const move = (across: number, down: number) => {
 };
 
 const boardActions = () => [
+  { label: coordinator.label(), icon: 'message', key: '', run: coordinator.toggle },
   { label: 'Show the issue queue', icon: 'stages', key: '', run: () => showQueue(true) },
   { label: readAgain(), icon: 'refresh', key: 'r', run: () => $('refresh').click() },
   {
@@ -1770,6 +1792,18 @@ const ROW_KEYS: Record<string, () => void> = {
 };
 
 const updates = setupUpdates();
+const coordinator = setupCoordinator({
+  closeOthers: () => {
+    if (isQueueOpen) showQueue(false);
+    if (selected || isHistoryOpen) closePanel();
+  },
+  changed: (next) => {
+    if (!data) return;
+    data = { ...data, coordinator: next };
+    render();
+  },
+  notify: (title, open) => systemNotice(title, '', 'coordinator', open),
+});
 document.addEventListener('keydown', (event) => {
   if (event.defaultPrevented || updates.contains(event.target) || $('agent-picker').contains(event.target as Node))
     return;

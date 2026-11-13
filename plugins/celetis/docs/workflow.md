@@ -248,7 +248,8 @@ again, and it prints the reason or starts the next step.
 ### A stop
 
 A live question waits in the tab of the session; the board shows it in Needs you. You answer in the
-tab or with Go, or the coordinator session answers it
+tab or with Go, or the coordinator session answers it. You talk with that session in its tab or in the
+Coordinator panel of the board, and it asks you in the text of its message
 ([The coordinator session](https://github.com/ddinkov10/celetis/blob/main/engine/README.md#the-coordinator-session)).
 A step session hands a stop to the issue with the act `stopped`,
 `ready-for-human`, or `before-landing` of `celetis --agent <host> issue`. The act table of

@@ -2,10 +2,13 @@ import { realpath } from 'node:fs/promises';
 import { AgentOrderConflict, validateAgentOrder } from '../lib/agent-order.ts';
 import type { AgentChoice, AgentOrder, Host } from '../lib/config-core.ts';
 import { exits } from '../lib/contract.ts';
+import { unknownOutcome } from '../lib/coordinator.ts';
+import type { CoordinatorAct, CoordinatorFacts } from '../lib/coordinator-types.ts';
 import {
   type DaemonRequest,
   type DaemonStatus,
   parseAnswer,
+  parseCoordinatorAnswer,
   parseQueueAnswer,
   type Selection,
 } from '../lib/daemon-types.ts';
@@ -26,6 +29,11 @@ export type BoardDaemon = Readonly<{
     >,
   ): Promise<unknown>;
   status(): Promise<DaemonStatus>;
+  coordinator: Readonly<{
+    facts(): CoordinatorFacts | null;
+    open(): Promise<unknown>;
+    act(request: CoordinatorAct): Promise<unknown>;
+  }>;
 }>;
 export type Adapter = Readonly<{
   intake(choice: AgentChoice): Promise<string[]>;
@@ -38,9 +46,14 @@ export type Adapter = Readonly<{
   retryQuota(number: number, waitId: string): Promise<void>;
   status(): Promise<DaemonStatus>;
   reconcileQueue(): Promise<QueueView>;
+  coordinator(): CoordinatorFacts | null;
+  openCoordinator(): Promise<void>;
+  actCoordinator(request: CoordinatorAct): Promise<void>;
 }>;
 
 const CONTROL = /[\u0000-\u001f\u007f]/;
+const openUnknown =
+  'coordinator: the outcome of the open is unknown; press Coordinator again to open or show the session';
 
 const agentFlag = (choice: AgentChoice) => {
   if (choice.kind === 'default') return [];
@@ -142,5 +155,24 @@ export async function celetisAdapter(
     },
     status: () => daemon.status(),
     reconcileQueue: () => changeQueue({ kind: 'queue-reconcile' }),
+    coordinator: () => daemon.coordinator.facts(),
+    openCoordinator: async () => {
+      const answer = await daemon.coordinator
+        .open()
+        .then(parseCoordinatorAnswer)
+        .catch(() => {
+          throw new Error(openUnknown);
+        });
+      if (!answer.accepted) throw new Error(answer.line);
+    },
+    actCoordinator: async (request) => {
+      const answer = await daemon.coordinator
+        .act(request)
+        .then(parseAnswer)
+        .catch(() => {
+          throw new Error(unknownOutcome[request.kind]);
+        });
+      if (!answer.accepted) throw new Error(answer.line);
+    },
   };
 }

@@ -129,14 +129,19 @@ var age = (iso, now, isFine = false) => {
 var keyOf = (card) => `k-${String(card.number ?? card.sessionId).replace(/[^\w-]/g, "-")}`;
 var signature = (card, column) => [column, card.state, card.step, card.waitFor].join("|");
 var pageTitle = (repo, needs) => `${needs > 0 ? `(${needs}) ` : ""}${repo} · Agent board`;
-var needsYou = (columns) => [
+var needsYou = ({
+  columns,
+  coordinator
+}) => [
+  ...coordinator.state === "dialog" ? [coordinator] : [],
   ...columns.human.filter((card) => card.waitFor === "dialog"),
   ...columns.needs
 ];
-var tone = (columns) => {
-  if (needsYou(columns).length > 0)
+var isCard = (entry) => !("actions" in entry);
+var tone = (board) => {
+  if (needsYou(board).length > 0)
     return "needs";
-  return columns.running.some((card) => card.state === "works") ? "works" : "calm";
+  return board.columns.running.some((card) => card.state === "works") ? "works" : "calm";
 };
 var BADGES = { needs: "#FF7A45", works: "#5EA2FF" };
 var favicon = (badge) => {
@@ -1085,6 +1090,1035 @@ function createAgentPicker(root, actions) {
   };
 }
 
+// engine/board/page/update-dialog.ts
+var session = {
+  get(key) {
+    try {
+      return sessionStorage.getItem(`celetis:update-${key}`);
+    } catch {
+      return null;
+    }
+  },
+  set(key, value) {
+    try {
+      if (value === null)
+        sessionStorage.removeItem(`celetis:update-${key}`);
+      else
+        sessionStorage.setItem(`celetis:update-${key}`, value);
+    } catch {}
+  }
+};
+var readPending = () => {
+  try {
+    const value = JSON.parse(session.get("pending") ?? "null");
+    if (value && (value.kind === "update" || value.kind === "restart") && typeof value.target === "string" && typeof value.instance === "string" && (value.recovery === null || typeof value.recovery === "string") && (value.deadline === null || typeof value.deadline === "number" && Number.isFinite(value.deadline)) && typeof value.reloaded === "boolean")
+      return value;
+  } catch {}
+  return null;
+};
+var isRestartAnswer = (value) => {
+  const answer = value;
+  return typeof answer?.target === "string" && typeof answer.runtime?.revision === "string" && typeof answer.runtime.instance === "string";
+};
+var names = { claude: "Claude Code plugin", codex: "Codex plugin", engine: "Celetis engine" };
+var reconnecting = false;
+var isReconnecting = () => reconnecting;
+var controls;
+function setupUpdates() {
+  if (controls)
+    return controls;
+  const dialog = $("update-dialog");
+  const opener = $("update-open");
+  const label = opener.querySelector(".label");
+  opener.prepend(icon("refresh"));
+  const title = $("update-title");
+  const description = $("update-description");
+  const revisions = $("update-revisions");
+  const progress = $("update-progress");
+  const live = $("update-status");
+  const note = $("update-note");
+  const diagnostic = $("update-error");
+  const recovery = $("update-recovery");
+  const later = $("update-later");
+  const start = $("update-start");
+  const check = $("update-check");
+  let response = null;
+  let offered = null;
+  let pending = readPending();
+  let deferred = session.get("deferred");
+  let hidden = session.get("hidden");
+  let restartShown = session.get("restart-shown");
+  let returning = null;
+  let refusal = null;
+  let checkFailure = null;
+  let checking = false;
+  let submitting = null;
+  let timedOut = false;
+  let revisionKey = "";
+  let announced = "";
+  let announcing;
+  let timer;
+  let active;
+  let epoch = 0;
+  const contains = (target) => target instanceof Node && dialog.contains(target);
+  const save = () => session.set("pending", pending ? JSON.stringify(pending) : null);
+  const beginReconnect = () => {
+    if (!pending)
+      return;
+    if (pending.deadline === null) {
+      pending.deadline = Date.now() + 60000;
+      save();
+    }
+    reconnecting = true;
+    document.dispatchEvent(new Event("board-reconnect"));
+  };
+  if (pending)
+    beginReconnect();
+  const open = (isAutomatic = false) => {
+    if (isAutomatic) {
+      if (dialog.open)
+        return;
+      returning = opener;
+      dialog.setAttribute("open", "");
+    } else {
+      returning = document.activeElement;
+      if (!dialog.open)
+        dialog.show();
+      title.focus();
+    }
+    opener.setAttribute("aria-expanded", "true");
+  };
+  const close = () => {
+    const focused = contains(document.activeElement);
+    if (response?.update.offer && !pending) {
+      deferred = response.update.offer.id;
+      session.set("deferred", deferred);
+    } else if (pending) {
+      hidden = `${pending.instance}:${pending.target}`;
+      session.set("hidden", hidden);
+    }
+    dialog.close();
+    draw();
+    if (focused)
+      (returning?.isConnected && !returning.hidden ? returning : opener).focus();
+  };
+  const dismiss = () => {
+    if (!dialog.open)
+      return false;
+    close();
+    return true;
+  };
+  controls = { contains, dismiss };
+  const kindOf = () => submitting ?? pending?.kind ?? refusal?.kind ?? "update";
+  const phaseOf = () => timedOut ? "timeout" : refusal ? refusal.kind === "restart" ? "restart-refused" : "update-failed" : submitting === "restart" ? "restarting" : pending ? reconnecting || pending.kind === "restart" ? "restarting" : "updating" : checking ? "checking" : checkFailure ? "check-failed" : response?.update.phase;
+  const announce = (key, status) => {
+    if (key === announced)
+      return;
+    announced = key;
+    clearTimeout(announcing);
+    if (live.textContent !== status)
+      live.textContent = status;
+    else {
+      live.textContent = "";
+      announcing = setTimeout(() => {
+        live.textContent = status;
+      }, 100);
+    }
+  };
+  const draw = () => {
+    const focused = document.activeElement;
+    const update = response?.update;
+    const phase = phaseOf();
+    const kind = kindOf();
+    const busy = phase === "updating" || phase === "restarting";
+    const failed = phase === "update-failed" || phase === "restart-refused" || phase === "check-failed" || phase === "timeout";
+    label.textContent = busy ? kind === "restart" ? "Restarting…" : "Update in progress" : phase === "checking" ? "Checking…" : phase === "check-failed" ? "Update check failed" : failed ? kind === "restart" ? "Restart needs attention" : "Update needs attention" : phase === "restart-needed" ? "Restart needed" : phase === "available" ? "Update available" : phase === "updated" ? "Update completed" : phase === "current" ? "Up to date" : "Check for updates";
+    const name = `Celetis: ${label.textContent}`;
+    opener.setAttribute("aria-label", name);
+    opener.title = name;
+    opener.classList.toggle("is-accent", phase === "available" || phase === "restart-needed");
+    opener.setAttribute("aria-disabled", String(phase === "checking"));
+    opener.setAttribute("aria-expanded", String(dialog.open));
+    const isRestart = kind === "restart" || phase === "restart-needed";
+    const target = pending?.target ?? (isRestart ? null : offered?.target) ?? update?.target ?? null;
+    if (!phase || phase === "current") {
+      if (phase === "current")
+        announce(JSON.stringify([phase, target]), "Up to date");
+      if (dialog.open)
+        close();
+      return;
+    }
+    title.textContent = {
+      available: "A Celetis update is available",
+      "restart-needed": "Restart the daemon",
+      checking: "Checking for updates",
+      updating: "Updating Celetis",
+      restarting: "Restarting the daemon",
+      updated: "Update completed",
+      "update-failed": "The update did not finish",
+      "restart-refused": "The daemon did not restart",
+      "check-failed": "Cannot check for updates",
+      timeout: "The daemon did not return"
+    }[phase];
+    description.textContent = {
+      available: "Update the Celetis engine and the installed plugins. The daemon restarts when the update completes.",
+      "restart-needed": "The daemon runs an older Celetis engine than the installed one. Restart the daemon to use the installed engine.",
+      checking: "Checking the configured target and the installed Celetis parts.",
+      updating: "The update is running. The daemon restarts when all parts are ready.",
+      restarting: "This page reconnects when the new daemon answers.",
+      updated: "The update completed. This daemon runs from a checkout, so it does not restart.",
+      "update-failed": "The daemon has not restarted. Check again before a new attempt.",
+      "restart-refused": "The daemon still runs its engine. Check again before a new attempt.",
+      "check-failed": "You can keep using the board. Check again when the source is available.",
+      timeout: `The ${kind} may have completed. This page could not reach the new daemon within 60 seconds.`
+    }[phase];
+    const rows = !target ? [] : isRestart ? [...response ? [["Daemon", response.runtime.revision]] : [], ["Installed", target]] : [
+      ...(offered?.parts ?? []).map((part) => [names[part.part], part.installed]),
+      ["Target", target]
+    ];
+    const key = JSON.stringify(rows);
+    if (key !== revisionKey) {
+      revisionKey = key;
+      revisions.replaceChildren(...rows.flatMap(([name, revision]) => {
+        const code = el("code", "", revision.slice(0, 12));
+        code.title = revision;
+        return [el("span", "", name), code];
+      }));
+    }
+    revisions.hidden = phase === "check-failed" || phase === "checking";
+    let status = "";
+    if (phase === "restarting")
+      status = "Reconnecting to the new daemon…";
+    else if (phase === "restart-needed")
+      status = "The daemon runs an older Celetis engine.";
+    else if (phase === "updating") {
+      const stage = update?.stage;
+      status = stage ? `${stage.state === "started" ? "Updating" : "Completed"} ${names[stage.part]}…` : "Preparing the update…";
+    } else if (phase === "checking")
+      status = "Checking for updates…";
+    else if (failed || phase === "updated")
+      status = title.textContent ?? "";
+    else
+      status = "An update is available.";
+    if (progress.textContent !== status)
+      progress.textContent = status;
+    announce(JSON.stringify([phase, kind, target, status]), status);
+    progress.classList.toggle("is-busy", busy || phase === "checking");
+    note.textContent = phase === "update-failed" && update ? [
+      update.completed.length ? `Completed: ${update.completed.map((part) => names[part]).join(", ")}.` : "",
+      update.incomplete.length ? `Incomplete: ${update.incomplete.map((part) => names[part]).join(", ")}.` : ""
+    ].filter(Boolean).join(" ") : "Your agent sessions keep running in their tabs.";
+    note.classList.toggle("update-failure", phase === "update-failed");
+    diagnostic.textContent = failed ? checkFailure ?? refusal?.line ?? update?.error ?? "" : "";
+    diagnostic.hidden = !diagnostic.textContent;
+    recovery.textContent = failed && phase !== "restart-refused" ? pending?.recovery ?? update?.recovery ?? "" : "";
+    recovery.hidden = !recovery.textContent;
+    later.textContent = busy ? "Hide progress" : failed || phase === "updated" ? "Close" : "Later";
+    start.hidden = phase !== "available" && phase !== "restart-needed";
+    start.textContent = phase === "restart-needed" ? "Restart" : "Update and restart";
+    start.disabled = submitting !== null || checking || phase === "available" && !update?.offer;
+    check.hidden = !failed;
+    check.disabled = checking;
+    if (focused === start && start.hidden || focused === check && check.hidden)
+      title.focus();
+    opener.setAttribute("aria-expanded", String(dialog.open));
+  };
+  const expire = () => {
+    if (!pending?.deadline || Date.now() < pending.deadline)
+      return false;
+    timedOut = true;
+    clearTimeout(timer);
+    active?.abort();
+    draw();
+    open(true);
+    return true;
+  };
+  const accept = (next) => {
+    if (expire())
+      return;
+    if (!pending && JSON.stringify(response) === JSON.stringify(next))
+      return;
+    const previousPhase = response?.update.phase;
+    response = next;
+    const update = next.update;
+    if (update.offer)
+      offered = update.offer;
+    if (pending && next.runtime.revision === pending.target && next.runtime.instance !== pending.instance) {
+      if (pending.reloaded) {
+        pending = null;
+        reconnecting = false;
+        save();
+        document.dispatchEvent(new Event("board-connected"));
+      } else {
+        pending.reloaded = true;
+        save();
+        location.reload();
+        return;
+      }
+    }
+    if (update.phase === "updating" || update.phase === "restarting") {
+      refusal = null;
+      if (!pending && update.target) {
+        pending = {
+          kind: update.completed.length || update.incomplete.length ? "update" : "restart",
+          target: update.target,
+          instance: next.runtime.instance,
+          recovery: update.recovery,
+          deadline: null,
+          reloaded: false
+        };
+        save();
+      }
+      if (pending && update.recovery) {
+        pending.recovery = update.recovery;
+        save();
+      }
+    } else if ((update.phase === "update-failed" || update.phase === "updated") && next.runtime.instance === pending?.instance) {
+      if (pending.kind === "restart")
+        refusal = { kind: "restart", line: update.error ?? "" };
+      pending = null;
+      reconnecting = false;
+      save();
+      document.dispatchEvent(new Event("board-connected"));
+    }
+    if (pending) {
+      if (update.phase === "updating" && update.target === pending.target && next.runtime.instance === pending.instance) {
+        if (reconnecting) {
+          pending.deadline = null;
+          reconnecting = false;
+          save();
+          document.dispatchEvent(new Event("board-connected"));
+        }
+      } else
+        beginReconnect();
+    }
+    if (expire())
+      return;
+    draw();
+    if (update.phase === "available" && !pending && !refusal && !checking && update.offer?.id !== deferred)
+      open(true);
+    else if (phaseOf() === "restart-needed" && update.target !== restartShown) {
+      restartShown = update.target;
+      session.set("restart-shown", restartShown);
+      open(true);
+    } else if (pending && hidden !== `${pending.instance}:${pending.target}`)
+      open(true);
+    else if (update.phase === "update-failed" && previousPhase !== "update-failed")
+      open(true);
+    else if (update.phase === "updated" && previousPhase !== undefined && previousPhase !== "updated")
+      open(true);
+  };
+  const schedule = () => {
+    clearTimeout(timer);
+    if (!timedOut)
+      timer = setTimeout(poll, pending ? 1000 : 5000);
+  };
+  const poll = async (forCheck = false) => {
+    if (expire())
+      return;
+    const request = ++epoch;
+    const controller = new AbortController;
+    active = controller;
+    const timeout = setTimeout(() => controller.abort(), Math.min(5000, pending?.deadline ? Math.max(1, pending.deadline - Date.now()) : 5000));
+    try {
+      const result = await fetch("/api/update", { cache: "no-store", signal: controller.signal });
+      if (!result.ok)
+        throw new Error("The board server does not answer.");
+      const next = await result.json();
+      if (!next.runtime || !next.update)
+        throw new Error("The update status could not be read.");
+      if (request === epoch) {
+        if (forCheck)
+          checking = false;
+        accept(next);
+        draw();
+      }
+    } catch {
+      if (request !== epoch)
+        return;
+      if (forCheck || !pending && response?.update.phase === "checking") {
+        checking = false;
+        checkFailure ??= "The update status could not be read. Check again.";
+      }
+      if (pending) {
+        beginReconnect();
+      }
+      draw();
+    } finally {
+      clearTimeout(timeout);
+      if (request === epoch) {
+        expire();
+        schedule();
+      }
+    }
+  };
+  const stopPoll = () => {
+    ++epoch;
+    clearTimeout(timer);
+    active?.abort();
+  };
+  opener.addEventListener("click", () => {
+    const phase = phaseOf();
+    if (phase === "checking")
+      return;
+    if (!phase || phase === "current") {
+      requestCheck();
+      return;
+    }
+    if (pending) {
+      hidden = null;
+      session.set("hidden", null);
+    }
+    open();
+    draw();
+  });
+  later.addEventListener("click", () => close());
+  dialog.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close();
+    }
+  });
+  dialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    if (contains(document.activeElement))
+      close();
+  });
+  const approve = async () => {
+    if (submitting || checking || pending || !response?.update.offer)
+      return;
+    const offer = response.update.offer;
+    stopPoll();
+    pending = {
+      kind: "update",
+      target: offer.target,
+      instance: response.runtime.instance,
+      recovery: response.update.recovery,
+      deadline: null,
+      reloaded: false
+    };
+    hidden = null;
+    refusal = null;
+    submitting = "update";
+    save();
+    draw();
+    const outcome = await post("/api/update/start", { offerId: offer.id }, "Update failed", { timeout: 1e4 });
+    submitting = null;
+    if (outcome.status === "rejected") {
+      pending = null;
+      reconnecting = false;
+      refusal = { kind: "update", line: outcome.error };
+      save();
+      draw();
+    } else
+      beginReconnect();
+    await poll();
+  };
+  const restart = async () => {
+    if (submitting || checking || pending || phaseOf() !== "restart-needed" || !response)
+      return;
+    const shown = response;
+    stopPoll();
+    hidden = null;
+    refusal = null;
+    submitting = "restart";
+    draw();
+    const request = {};
+    const outcome = await post("/api/update/restart", request, "Restart failed", { timeout: 1e4 });
+    submitting = null;
+    if (outcome.status !== "accepted" && outcome.error !== undefined) {
+      refusal = { kind: "restart", line: outcome.error };
+      draw();
+    } else {
+      const answer = outcome.status === "accepted" && isRestartAnswer(outcome.body) ? outcome.body : null;
+      pending = {
+        kind: "restart",
+        target: answer?.target ?? shown.update.target ?? "",
+        instance: answer?.runtime.instance ?? shown.runtime.instance,
+        recovery: shown.update.recovery,
+        deadline: null,
+        reloaded: false
+      };
+      save();
+      beginReconnect();
+    }
+    await poll();
+  };
+  start.addEventListener("click", () => void (phaseOf() === "restart-needed" ? restart() : approve()));
+  const requestCheck = async () => {
+    if (phaseOf() === "checking" || pending && !timedOut)
+      return;
+    if (timedOut) {
+      pending = null;
+      timedOut = false;
+      reconnecting = false;
+      save();
+      document.dispatchEvent(new Event("board-connected"));
+    }
+    checking = true;
+    refusal = null;
+    checkFailure = null;
+    stopPoll();
+    draw();
+    const result = await post("/api/update/check", {}, "Update check failed");
+    if (!result)
+      checkFailure = "The update check could not start. Check again.";
+    await poll(true);
+  };
+  check.addEventListener("click", () => void requestCheck());
+  draw();
+  poll();
+  return controls;
+}
+
+// engine/board/page/coordinator.ts
+var LIMIT = 4096;
+var RECONNECT = "The board reconnects after an update, so the press did nothing. Press again after the reconnect.";
+var OPEN_BOUND = 30000;
+var FOLD_BOUND = 5000;
+var WORDS = {
+  none: "no session",
+  starting: "starts",
+  dialog: "waits for your answer",
+  works: "works",
+  "turn-ended": "turn ended",
+  ended: "ended"
+};
+var KEYS = {
+  up: { cap: "↑", name: "Up" },
+  down: { cap: "↓", name: "Down" },
+  enter: { cap: "Enter", name: "Enter" },
+  esc: { cap: "Esc", name: "Esc" },
+  "1": { cap: "1", name: "1" },
+  "2": { cap: "2", name: "2" },
+  "3": { cap: "3", name: "3" }
+};
+var IN_FLIGHT = {
+  open: "The session starts.",
+  say: "The message is in flight.",
+  key: "The key is in flight.",
+  interrupt: "The interrupt is in flight.",
+  end: "The exit request is in flight."
+};
+var UNKNOWN = {
+  open: "coordinator: the outcome of the open is unknown; press Coordinator again to open or show the session",
+  say: "coordinator: the outcome of the message is unknown; read the log of the panel before you send again",
+  key: "coordinator: the outcome of the key is unknown; read the log of the panel before you press a key again",
+  interrupt: "coordinator: the outcome of the interrupt is unknown; read the log of the panel before you interrupt again",
+  end: "coordinator: the outcome of the exit request is unknown; read the log of the panel before you end the session again"
+};
+var none = {
+  state: "none",
+  kind: null,
+  host: null,
+  since: null,
+  turn: null,
+  actions: ["open"],
+  keys: [],
+  sessionId: null,
+  readAt: null,
+  error: null
+};
+function setupCoordinator(hooks) {
+  const control = $("coordinator-open");
+  const aside = $("coordinator");
+  const log = $("coordinator-log");
+  const toEnd = $("coordinator-to-end");
+  const form = $("coordinator-form");
+  const field = $("coordinator-field");
+  const send = $("coordinator-send");
+  const hint = $("coordinator-hint");
+  const keys = $("coordinator-keys");
+  const keyRow = keys.querySelector(".co-keys-row");
+  const interrupt = $("coordinator-interrupt");
+  const end = $("coordinator-end");
+  const go = $("coordinator-go");
+  const close = $("coordinator-close");
+  const startBlock = $("coordinator-start-block");
+  const startText = $("coordinator-start-text");
+  const start = $("coordinator-start");
+  let view = none;
+  let known = null;
+  let host = "";
+  let ended = false;
+  let liveId = null;
+  let foldAt = null;
+  let opening = 0;
+  let busy = null;
+  let line = null;
+  let text = "";
+  let full = false;
+  let textAt = null;
+  let textError = null;
+  let isDown = false;
+  let isOpen = false;
+  let opener = null;
+  let follow = true;
+  let lastTop = 0;
+  let reading = false;
+  let timer;
+  let keySet = "";
+  let pillKey = "";
+  let seen = store.get("coordinator-seen");
+  const shown = () => {
+    if (ended)
+      return "ended";
+    if (opening && view.state === "none" && Date.now() - opening < OPEN_BOUND)
+      return "starting";
+    return view.state;
+  };
+  const turnKey = () => `${view.sessionId}:${view.turn}`;
+  const isUnseen = () => view.state === "turn-ended" && view.sessionId !== null && turnKey() !== seen;
+  const staleCause = () => view.error ?? (isDown ? SERVER_DOWN : null);
+  const timeOf = (iso) => iso ? new Date(iso).toLocaleTimeString() : "no good read";
+  const atEnd = () => log.scrollHeight - log.scrollTop - log.clientHeight < 4;
+  const can = (action) => view.actions.includes(action) && !ended;
+  const setText = (node, value) => {
+    if (node.textContent !== value)
+      node.textContent = value;
+  };
+  const announce = (words) => {
+    $("announce").textContent = words;
+  };
+  const isSelecting = () => {
+    const selection = getSelection();
+    return Boolean(selection && !selection.isCollapsed && log.contains(selection.anchorNode));
+  };
+  const sendBlock = () => {
+    if (busy)
+      return `Wait: ${IN_FLIGHT[busy]}`;
+    const state = shown();
+    if (state === "dialog")
+      return "The host shows a dialog: answer it with a key first";
+    if (state === "starting")
+      return "The session starts: send after its first status";
+    if (!can("say"))
+      return `The session ${WORDS[state]}`;
+    if (field.value.length > LIMIT)
+      return `A message takes at most ${LIMIT} characters`;
+    if (field.value.trim() === "")
+      return "Write a message first";
+    return null;
+  };
+  const hintOf = () => {
+    if (field.value.length > LIMIT)
+      return [`The message is longer than ${LIMIT} characters. Make it shorter to send it.`, "error"];
+    if (busy === "say")
+      return ["Sending. The message waits until the tab holds no unsent text.", "status"];
+    if (busy)
+      return [`${IN_FLIGHT[busy]} The other acts wait for it.`, "status"];
+    if (line && line.act !== "open")
+      return [line.text, line.tone];
+    const state = shown();
+    if (state === "dialog")
+      return ["Send waits while the host shows a dialog. Your text stays here.", "plain"];
+    if (state === "starting")
+      return ["The session starts. Send waits for its first status. Your text stays here.", "plain"];
+    if (state === "works")
+      return ["The session works. A message goes into its tab now.", "plain"];
+    return ["Enter sends. Shift+Enter adds a line.", "plain"];
+  };
+  const drawKeys = () => {
+    const next = can("key") ? view.keys.join(" ") : "";
+    if (next === keySet)
+      return;
+    const focused = keyRow.contains(document.activeElement) ? document.activeElement.dataset.key : undefined;
+    keySet = next;
+    keyRow.replaceChildren(...(next ? view.keys : []).map((key) => {
+      const button = el("button", "co-key");
+      button.type = "button";
+      button.dataset.key = key;
+      const cap = el("kbd", "", KEYS[key].cap);
+      if (KEYS[key].cap !== KEYS[key].name) {
+        button.setAttribute("aria-label", KEYS[key].name);
+        cap.setAttribute("aria-hidden", "true");
+      }
+      button.append(cap);
+      button.addEventListener("click", () => void pressKey(key));
+      return button;
+    }));
+    if (focused)
+      keyRow.querySelector(`[data-key="${CSS.escape(focused)}"]`)?.focus();
+  };
+  const disable = (node, reason, title) => {
+    node.setAttribute("aria-disabled", String(reason !== null));
+    node.title = reason ?? title;
+  };
+  const draw = () => {
+    const active = document.activeElement;
+    const wasInPanel = active !== null && aside.contains(active);
+    const state = shown();
+    const header = ended ? "none" : state;
+    const cause = staleCause();
+    const unseen = isUnseen();
+    control.dataset.state = header;
+    control.toggleAttribute("data-stale", cause !== null);
+    control.setAttribute("aria-expanded", String(isOpen));
+    control.setAttribute("aria-label", `Coordinator, ${WORDS[header]}${unseen ? ", new text" : ""}${cause ? ", not current" : ""}`);
+    control.title = cause ? `${cause}. The state is from ${timeOf(view.readAt)}, not current.` : `${isOpen ? "Hide" : header === "none" ? "Start" : "Show"} the coordinator session`;
+    setText(control.querySelector(".co-open-state"), WORDS[header]);
+    control.querySelector(".co-new").hidden = !unseen;
+    aside.dataset.state = state;
+    const banner = $("coordinator-banner");
+    const textCause = isOpen ? textError ?? cause : null;
+    const aged = view.state === "starting" && view.sessionId !== null && view.sessionId === liveId;
+    aside.toggleAttribute("data-stale", ended || textCause !== null || aged);
+    const bannerText = ended ? "The coordinator session ended. This is its last text." : textCause ? `${textCause}. The text can be out of date: it is from ${timeOf(textAt)}.` : null;
+    banner.hidden = bannerText === null;
+    setText(banner, bannerText ?? "");
+    if (view.host)
+      host = view.host;
+    setText($("coordinator-host"), host);
+    const pill = $("coordinator-head-state");
+    const age = state === "ended" || state === "none" ? null : view.since;
+    if (pillKey !== `${state}|${age}`) {
+      pillKey = `${state}|${age}`;
+      pill.replaceChildren(el("span", "", WORDS[state]), ...age ? [timed(age, true)] : []);
+    }
+    const scope = $("coordinator-scope");
+    const scopeText = state === "starting" ? "The session starts in a tab of the Herdr app." : state === "none" || state === "ended" || full ? null : "Only the visible screen. The full text shows when the turn ends.";
+    scope.hidden = scopeText === null;
+    setText(scope, scopeText ?? "");
+    if (log.textContent !== text && !isSelecting()) {
+      log.textContent = text;
+      if (follow)
+        log.scrollTop = log.scrollHeight;
+      lastTop = log.scrollTop;
+    }
+    toEnd.hidden = atEnd();
+    const wait = busy ? `Wait: ${IN_FLIGHT[busy]}` : null;
+    interrupt.hidden = !can("interrupt");
+    end.hidden = !can("end");
+    go.hidden = !can("go") || !view.sessionId;
+    disable(interrupt, busy && busy !== "interrupt" ? wait : null, "Press the stop key in the session");
+    disable(end, busy && busy !== "end" ? wait : null, "Send the exit request of the host to the session");
+    interrupt.setAttribute("aria-busy", String(busy === "interrupt"));
+    end.setAttribute("aria-busy", String(busy === "end"));
+    form.hidden = state === "none" || state === "ended";
+    keys.hidden = !can("key");
+    drawKeys();
+    for (const key of keyRow.querySelectorAll("[data-key]")) {
+      disable(key, busy && busy !== "key" ? wait : null, `Press ${key.getAttribute("aria-label") ?? key.textContent} in the session`);
+      key.setAttribute("aria-busy", String(busy === "key"));
+    }
+    const block = sendBlock();
+    disable(send, block, "Send the message (Enter)");
+    send.setAttribute("aria-busy", String(busy === "say"));
+    setText(send.querySelector(".label"), busy === "say" ? "Sending" : "Send");
+    const [words, tone] = hintOf();
+    setText(hint, words);
+    hint.dataset.tone = tone;
+    if (tone === "plain")
+      hint.removeAttribute("role");
+    else
+      hint.setAttribute("role", tone === "error" ? "alert" : "status");
+    field.setAttribute("aria-invalid", String(field.value.length > LIMIT || line?.act === "say" && line.tone === "error"));
+    startBlock.hidden = !((state === "none" || state === "ended") && view.actions.includes("open"));
+    setText(start.querySelector(".label"), ended ? "Start a new session" : "Start a session");
+    disable(start, wait, "Start a coordinator session in a quiet tab of the Herdr app");
+    const startLine = line?.act === "open" ? line.text : null;
+    startText.hidden = startLine === null;
+    setText(startText, startLine ?? "");
+    if (startLine)
+      startText.setAttribute("role", "alert");
+    if (active && wasInPanel && (!active.isConnected || !active.checkVisibility()))
+      (field.checkVisibility() ? field : close).focus({ preventScroll: true });
+  };
+  const take = (read) => {
+    if (read.error === null && view.error === null && read.readAt && view.readAt && read.readAt < view.readAt)
+      return null;
+    let next = read.error !== null && read.readAt === null ? { ...view, error: read.error } : read;
+    if (next.state === "works" || next.state === "dialog" || next.state === "turn-ended") {
+      liveId = next.sessionId;
+      foldAt = null;
+    } else if (next.state === "starting" && next.sessionId !== null && next.sessionId === liveId) {
+      foldAt ??= Date.now();
+      if (Date.now() - foldAt < FOLD_BOUND)
+        next = { ...view, readAt: next.readAt, error: next.error };
+    } else
+      foldAt = null;
+    if (view.state !== "none" && next.state === "none" && next.error === null && isOpen && !opening)
+      ended = true;
+    if (next.state !== "none") {
+      ended = false;
+      opening = 0;
+    }
+    if (view.sessionId !== next.sessionId && next.sessionId !== null) {
+      text = "";
+      full = false;
+      textAt = null;
+      textError = null;
+    }
+    view = next;
+    const state = shown();
+    draw();
+    if (known === null || known === state) {
+      known = state;
+      return null;
+    }
+    known = state;
+    if (state === "dialog")
+      hooks.notify("The coordinator waits for your answer", open);
+    if (state === "turn-ended")
+      hooks.notify("The coordinator ended its turn", open);
+    return state === "ended" ? "The coordinator session ended" : `Coordinator: ${WORDS[state]}`;
+  };
+  const schedule = (from) => {
+    clearTimeout(timer);
+    if (isOpen && !document.hidden)
+      timer = setTimeout(readText, Math.max(0, 2000 - (Date.now() - from)));
+  };
+  async function readText() {
+    clearTimeout(timer);
+    if (!isOpen || document.hidden || reading)
+      return;
+    reading = true;
+    const from = Date.now();
+    try {
+      const response = await fetch("/api/coordinator", { cache: "no-store" });
+      const body = await response.json();
+      if (!response.ok || !body?.view)
+        throw new Error(SERVER_DOWN);
+      const said = take(body.view);
+      if (!ended && view.state !== "none") {
+        textError = body.error;
+        const exiting = body.view.state === "starting" && body.view.sessionId === liveId;
+        if ((body.error === null || body.readAt !== null) && !exiting) {
+          text = body.text;
+          full = body.full;
+          textAt = body.readAt;
+        }
+        if (body.error === null && body.view.state === "turn-ended" && isOpen && !document.hidden) {
+          seen = turnKey();
+          store.set("coordinator-seen", seen);
+        }
+      }
+      if (said) {
+        announce(said);
+        hooks.changed(view);
+      }
+    } catch {
+      textError = SERVER_DOWN;
+    } finally {
+      reading = false;
+      draw();
+      schedule(from);
+    }
+  }
+  const act = async (kind, path, body) => {
+    if (busy)
+      return false;
+    if (isReconnecting()) {
+      line = { act: kind, text: RECONNECT, tone: "status" };
+      draw();
+      return false;
+    }
+    busy = kind;
+    line = null;
+    draw();
+    let error = null;
+    try {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const answer = await response.json().catch(() => null);
+      if (!response.ok || answer?.ok !== true)
+        error = typeof answer?.error === "string" ? answer.error : UNKNOWN[kind];
+    } catch {
+      error = UNKNOWN[kind];
+    }
+    busy = null;
+    if (error)
+      line = { act: kind, text: error, tone: "error" };
+    draw();
+    readText();
+    return error === null;
+  };
+  const pressKey = async (key) => {
+    if (busy || !can("key"))
+      return;
+    if (await act("key", "/api/coordinator/key", { key }))
+      line = { act: "key", text: `The key ${KEYS[key].name} is in the session.`, tone: "status" };
+    draw();
+  };
+  const sendText = async () => {
+    if (sendBlock())
+      return;
+    const sent = field.value;
+    if (!await act("say", "/api/coordinator/say", { text: sent }))
+      return;
+    if (field.value === sent)
+      field.value = "";
+    line = { act: "say", text: "The message is in the session.", tone: "status" };
+    draw();
+  };
+  const startSession = async () => {
+    if (busy || !view.actions.includes("open"))
+      return;
+    if (isReconnecting()) {
+      line = { act: "open", text: RECONNECT, tone: "status" };
+      if (isOpen)
+        draw();
+      else
+        open();
+      return;
+    }
+    ended = false;
+    liveId = null;
+    opening = Date.now();
+    text = "";
+    full = false;
+    textAt = null;
+    textError = null;
+    known = "starting";
+    announce(`Coordinator: ${WORDS.starting}`);
+    if (!isOpen)
+      open();
+    else {
+      draw();
+      field.focus({ preventScroll: true });
+    }
+    if (!await act("open", "/api/coordinator/open", {})) {
+      opening = 0;
+      known = shown();
+      draw();
+    }
+  };
+  function open() {
+    if (isOpen)
+      return;
+    opener = document.activeElement;
+    hooks.closeOthers();
+    isOpen = true;
+    follow = true;
+    aside.hidden = false;
+    document.body.classList.add("has-coordinator");
+    draw();
+    log.scrollTop = log.scrollHeight;
+    lastTop = log.scrollTop;
+    (field.checkVisibility() ? field : close).focus({ preventScroll: true });
+    readText();
+  }
+  const hide = (refocus) => {
+    if (!isOpen)
+      return;
+    isOpen = false;
+    ended = false;
+    clearTimeout(timer);
+    aside.hidden = true;
+    document.body.classList.remove("has-coordinator");
+    draw();
+    if (refocus)
+      (opener?.isConnected && opener.checkVisibility() ? opener : control).focus({ preventScroll: true });
+  };
+  const toggle = () => {
+    if (isOpen)
+      return hide(true);
+    if (shown() === "none")
+      return void startSession();
+    open();
+  };
+  log.addEventListener("scroll", () => {
+    if (log.scrollTop < lastTop - 1 && !atEnd())
+      follow = false;
+    else if (atEnd())
+      follow = true;
+    lastTop = log.scrollTop;
+    toEnd.hidden = atEnd();
+  });
+  new ResizeObserver(() => {
+    if (follow)
+      log.scrollTop = log.scrollHeight;
+    lastTop = log.scrollTop;
+    toEnd.hidden = atEnd();
+  }).observe(log);
+  toEnd.prepend(icon("chevron"));
+  toEnd.addEventListener("click", () => {
+    follow = true;
+    log.focus({ preventScroll: true });
+    log.scrollTop = log.scrollHeight;
+  });
+  field.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229)
+      return;
+    event.preventDefault();
+    form.requestSubmit();
+  });
+  field.addEventListener("input", () => {
+    if (line?.act !== "open")
+      line = null;
+    draw();
+  });
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    sendText();
+  });
+  aside.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || event.defaultPrevented)
+      return;
+    if (event.target !== field && $("update-dialog").open)
+      return;
+    event.preventDefault();
+    hide(true);
+  });
+  interrupt.addEventListener("click", async () => {
+    if (busy || !can("interrupt"))
+      return;
+    if (await act("interrupt", "/api/coordinator/interrupt", {}))
+      line = {
+        act: "interrupt",
+        text: "The stop key is in the session. The state shows the effect at the next read.",
+        tone: "status"
+      };
+    draw();
+  });
+  end.addEventListener("click", async () => {
+    if (busy || !can("end"))
+      return;
+    if (await act("end", "/api/coordinator/end", {}))
+      line = {
+        act: "end",
+        text: "The exit request is in the session. The state shows the effect at the next read.",
+        tone: "status"
+      };
+    draw();
+  });
+  go.prepend(icon("go"));
+  go.addEventListener("click", () => {
+    if (view.sessionId)
+      post("/api/go", { sessionId: view.sessionId }, "Go failed");
+  });
+  close.append(icon("close"));
+  close.addEventListener("click", () => hide(true));
+  start.addEventListener("click", () => void startSession());
+  control.prepend(icon("message"));
+  control.addEventListener("click", toggle);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden)
+      clearTimeout(timer);
+    else
+      readText();
+  });
+  draw();
+  return {
+    update: take,
+    view: () => view,
+    down(value) {
+      if (isDown === value)
+        return;
+      isDown = value;
+      draw();
+    },
+    toggle,
+    open,
+    close: hide,
+    focus: () => control.focus(),
+    label: () => isOpen ? "Hide the coordinator" : shown() === "none" ? "Start the coordinator session" : "Show the coordinator"
+  };
+}
+
 // engine/board/page/palette.ts
 var items = [];
 var shown = [];
@@ -1658,487 +2692,6 @@ function drawQueue(next) {
     announce(`${submitted.record.numbers.length} issues remain in the queue`);
 }
 
-// engine/board/page/update-dialog.ts
-var session = {
-  get(key) {
-    try {
-      return sessionStorage.getItem(`celetis:update-${key}`);
-    } catch {
-      return null;
-    }
-  },
-  set(key, value) {
-    try {
-      if (value === null)
-        sessionStorage.removeItem(`celetis:update-${key}`);
-      else
-        sessionStorage.setItem(`celetis:update-${key}`, value);
-    } catch {}
-  }
-};
-var readPending = () => {
-  try {
-    const value = JSON.parse(session.get("pending") ?? "null");
-    if (value && (value.kind === "update" || value.kind === "restart") && typeof value.target === "string" && typeof value.instance === "string" && (value.recovery === null || typeof value.recovery === "string") && (value.deadline === null || typeof value.deadline === "number" && Number.isFinite(value.deadline)) && typeof value.reloaded === "boolean")
-      return value;
-  } catch {}
-  return null;
-};
-var isRestartAnswer = (value) => {
-  const answer = value;
-  return typeof answer?.target === "string" && typeof answer.runtime?.revision === "string" && typeof answer.runtime.instance === "string";
-};
-var names = { claude: "Claude Code plugin", codex: "Codex plugin", engine: "Celetis engine" };
-var reconnecting = false;
-var isReconnecting = () => reconnecting;
-var controls;
-function setupUpdates() {
-  if (controls)
-    return controls;
-  const dialog = $("update-dialog");
-  const opener = $("update-open");
-  const label = opener.querySelector(".label");
-  opener.prepend(icon("refresh"));
-  const title = $("update-title");
-  const description = $("update-description");
-  const revisions = $("update-revisions");
-  const progress = $("update-progress");
-  const live = $("update-status");
-  const note = $("update-note");
-  const diagnostic = $("update-error");
-  const recovery = $("update-recovery");
-  const later = $("update-later");
-  const start = $("update-start");
-  const check = $("update-check");
-  let response = null;
-  let offered = null;
-  let pending = readPending();
-  let deferred = session.get("deferred");
-  let hidden = session.get("hidden");
-  let restartShown = session.get("restart-shown");
-  let returning = null;
-  let refusal = null;
-  let checkFailure = null;
-  let checking = false;
-  let submitting = null;
-  let timedOut = false;
-  let revisionKey = "";
-  let announced = "";
-  let announcing;
-  let timer;
-  let active;
-  let epoch = 0;
-  const contains = (target) => target instanceof Node && dialog.contains(target);
-  const save = () => session.set("pending", pending ? JSON.stringify(pending) : null);
-  const beginReconnect = () => {
-    if (!pending)
-      return;
-    if (pending.deadline === null) {
-      pending.deadline = Date.now() + 60000;
-      save();
-    }
-    reconnecting = true;
-    document.dispatchEvent(new Event("board-reconnect"));
-  };
-  if (pending)
-    beginReconnect();
-  const open = (isAutomatic = false) => {
-    if (isAutomatic) {
-      if (dialog.open)
-        return;
-      returning = opener;
-      dialog.setAttribute("open", "");
-    } else {
-      returning = document.activeElement;
-      if (!dialog.open)
-        dialog.show();
-      title.focus();
-    }
-    opener.setAttribute("aria-expanded", "true");
-  };
-  const close = () => {
-    const focused = contains(document.activeElement);
-    if (response?.update.offer && !pending) {
-      deferred = response.update.offer.id;
-      session.set("deferred", deferred);
-    } else if (pending) {
-      hidden = `${pending.instance}:${pending.target}`;
-      session.set("hidden", hidden);
-    }
-    dialog.close();
-    draw();
-    if (focused)
-      (returning?.isConnected && !returning.hidden ? returning : opener).focus();
-  };
-  const dismiss = () => {
-    if (!dialog.open)
-      return false;
-    close();
-    return true;
-  };
-  controls = { contains, dismiss };
-  const kindOf = () => submitting ?? pending?.kind ?? refusal?.kind ?? "update";
-  const phaseOf = () => timedOut ? "timeout" : refusal ? refusal.kind === "restart" ? "restart-refused" : "update-failed" : submitting === "restart" ? "restarting" : pending ? reconnecting || pending.kind === "restart" ? "restarting" : "updating" : checking ? "checking" : checkFailure ? "check-failed" : response?.update.phase;
-  const announce = (key, status) => {
-    if (key === announced)
-      return;
-    announced = key;
-    clearTimeout(announcing);
-    if (live.textContent !== status)
-      live.textContent = status;
-    else {
-      live.textContent = "";
-      announcing = setTimeout(() => {
-        live.textContent = status;
-      }, 100);
-    }
-  };
-  const draw = () => {
-    const focused = document.activeElement;
-    const update = response?.update;
-    const phase = phaseOf();
-    const kind = kindOf();
-    const busy = phase === "updating" || phase === "restarting";
-    const failed = phase === "update-failed" || phase === "restart-refused" || phase === "check-failed" || phase === "timeout";
-    label.textContent = busy ? kind === "restart" ? "Restarting…" : "Update in progress" : phase === "checking" ? "Checking…" : phase === "check-failed" ? "Update check failed" : failed ? kind === "restart" ? "Restart needs attention" : "Update needs attention" : phase === "restart-needed" ? "Restart needed" : phase === "available" ? "Update available" : phase === "updated" ? "Update completed" : phase === "current" ? "Up to date" : "Check for updates";
-    const name = `Celetis: ${label.textContent}`;
-    opener.setAttribute("aria-label", name);
-    opener.title = name;
-    opener.classList.toggle("is-accent", phase === "available" || phase === "restart-needed");
-    opener.setAttribute("aria-disabled", String(phase === "checking"));
-    opener.setAttribute("aria-expanded", String(dialog.open));
-    const isRestart = kind === "restart" || phase === "restart-needed";
-    const target = pending?.target ?? (isRestart ? null : offered?.target) ?? update?.target ?? null;
-    if (!phase || phase === "current") {
-      if (phase === "current")
-        announce(JSON.stringify([phase, target]), "Up to date");
-      if (dialog.open)
-        close();
-      return;
-    }
-    title.textContent = {
-      available: "A Celetis update is available",
-      "restart-needed": "Restart the daemon",
-      checking: "Checking for updates",
-      updating: "Updating Celetis",
-      restarting: "Restarting the daemon",
-      updated: "Update completed",
-      "update-failed": "The update did not finish",
-      "restart-refused": "The daemon did not restart",
-      "check-failed": "Cannot check for updates",
-      timeout: "The daemon did not return"
-    }[phase];
-    description.textContent = {
-      available: "Update the Celetis engine and the installed plugins. The daemon restarts when the update completes.",
-      "restart-needed": "The daemon runs an older Celetis engine than the installed one. Restart the daemon to use the installed engine.",
-      checking: "Checking the configured target and the installed Celetis parts.",
-      updating: "The update is running. The daemon restarts when all parts are ready.",
-      restarting: "This page reconnects when the new daemon answers.",
-      updated: "The update completed. This daemon runs from a checkout, so it does not restart.",
-      "update-failed": "The daemon has not restarted. Check again before a new attempt.",
-      "restart-refused": "The daemon still runs its engine. Check again before a new attempt.",
-      "check-failed": "You can keep using the board. Check again when the source is available.",
-      timeout: `The ${kind} may have completed. This page could not reach the new daemon within 60 seconds.`
-    }[phase];
-    const rows = !target ? [] : isRestart ? [...response ? [["Daemon", response.runtime.revision]] : [], ["Installed", target]] : [
-      ...(offered?.parts ?? []).map((part) => [names[part.part], part.installed]),
-      ["Target", target]
-    ];
-    const key = JSON.stringify(rows);
-    if (key !== revisionKey) {
-      revisionKey = key;
-      revisions.replaceChildren(...rows.flatMap(([name, revision]) => {
-        const code = el("code", "", revision.slice(0, 12));
-        code.title = revision;
-        return [el("span", "", name), code];
-      }));
-    }
-    revisions.hidden = phase === "check-failed" || phase === "checking";
-    let status = "";
-    if (phase === "restarting")
-      status = "Reconnecting to the new daemon…";
-    else if (phase === "restart-needed")
-      status = "The daemon runs an older Celetis engine.";
-    else if (phase === "updating") {
-      const stage = update?.stage;
-      status = stage ? `${stage.state === "started" ? "Updating" : "Completed"} ${names[stage.part]}…` : "Preparing the update…";
-    } else if (phase === "checking")
-      status = "Checking for updates…";
-    else if (failed || phase === "updated")
-      status = title.textContent ?? "";
-    else
-      status = "An update is available.";
-    if (progress.textContent !== status)
-      progress.textContent = status;
-    announce(JSON.stringify([phase, kind, target, status]), status);
-    progress.classList.toggle("is-busy", busy || phase === "checking");
-    note.textContent = phase === "update-failed" && update ? [
-      update.completed.length ? `Completed: ${update.completed.map((part) => names[part]).join(", ")}.` : "",
-      update.incomplete.length ? `Incomplete: ${update.incomplete.map((part) => names[part]).join(", ")}.` : ""
-    ].filter(Boolean).join(" ") : "Your agent sessions keep running in their tabs.";
-    note.classList.toggle("update-failure", phase === "update-failed");
-    diagnostic.textContent = failed ? checkFailure ?? refusal?.line ?? update?.error ?? "" : "";
-    diagnostic.hidden = !diagnostic.textContent;
-    recovery.textContent = failed && phase !== "restart-refused" ? pending?.recovery ?? update?.recovery ?? "" : "";
-    recovery.hidden = !recovery.textContent;
-    later.textContent = busy ? "Hide progress" : failed || phase === "updated" ? "Close" : "Later";
-    start.hidden = phase !== "available" && phase !== "restart-needed";
-    start.textContent = phase === "restart-needed" ? "Restart" : "Update and restart";
-    start.disabled = submitting !== null || checking || phase === "available" && !update?.offer;
-    check.hidden = !failed;
-    check.disabled = checking;
-    if (focused === start && start.hidden || focused === check && check.hidden)
-      title.focus();
-    opener.setAttribute("aria-expanded", String(dialog.open));
-  };
-  const expire = () => {
-    if (!pending?.deadline || Date.now() < pending.deadline)
-      return false;
-    timedOut = true;
-    clearTimeout(timer);
-    active?.abort();
-    draw();
-    open(true);
-    return true;
-  };
-  const accept = (next) => {
-    if (expire())
-      return;
-    if (!pending && JSON.stringify(response) === JSON.stringify(next))
-      return;
-    const previousPhase = response?.update.phase;
-    response = next;
-    const update = next.update;
-    if (update.offer)
-      offered = update.offer;
-    if (pending && next.runtime.revision === pending.target && next.runtime.instance !== pending.instance) {
-      if (pending.reloaded) {
-        pending = null;
-        reconnecting = false;
-        save();
-        document.dispatchEvent(new Event("board-connected"));
-      } else {
-        pending.reloaded = true;
-        save();
-        location.reload();
-        return;
-      }
-    }
-    if (update.phase === "updating" || update.phase === "restarting") {
-      refusal = null;
-      if (!pending && update.target) {
-        pending = {
-          kind: update.completed.length || update.incomplete.length ? "update" : "restart",
-          target: update.target,
-          instance: next.runtime.instance,
-          recovery: update.recovery,
-          deadline: null,
-          reloaded: false
-        };
-        save();
-      }
-      if (pending && update.recovery) {
-        pending.recovery = update.recovery;
-        save();
-      }
-    } else if ((update.phase === "update-failed" || update.phase === "updated") && next.runtime.instance === pending?.instance) {
-      if (pending.kind === "restart")
-        refusal = { kind: "restart", line: update.error ?? "" };
-      pending = null;
-      reconnecting = false;
-      save();
-      document.dispatchEvent(new Event("board-connected"));
-    }
-    if (pending) {
-      if (update.phase === "updating" && update.target === pending.target && next.runtime.instance === pending.instance) {
-        if (reconnecting) {
-          pending.deadline = null;
-          reconnecting = false;
-          save();
-          document.dispatchEvent(new Event("board-connected"));
-        }
-      } else
-        beginReconnect();
-    }
-    if (expire())
-      return;
-    draw();
-    if (update.phase === "available" && !pending && !refusal && !checking && update.offer?.id !== deferred)
-      open(true);
-    else if (phaseOf() === "restart-needed" && update.target !== restartShown) {
-      restartShown = update.target;
-      session.set("restart-shown", restartShown);
-      open(true);
-    } else if (pending && hidden !== `${pending.instance}:${pending.target}`)
-      open(true);
-    else if (update.phase === "update-failed" && previousPhase !== "update-failed")
-      open(true);
-    else if (update.phase === "updated" && previousPhase !== undefined && previousPhase !== "updated")
-      open(true);
-  };
-  const schedule = () => {
-    clearTimeout(timer);
-    if (!timedOut)
-      timer = setTimeout(poll, pending ? 1000 : 5000);
-  };
-  const poll = async (forCheck = false) => {
-    if (expire())
-      return;
-    const request = ++epoch;
-    const controller = new AbortController;
-    active = controller;
-    const timeout = setTimeout(() => controller.abort(), Math.min(5000, pending?.deadline ? Math.max(1, pending.deadline - Date.now()) : 5000));
-    try {
-      const result = await fetch("/api/update", { cache: "no-store", signal: controller.signal });
-      if (!result.ok)
-        throw new Error("The board server does not answer.");
-      const next = await result.json();
-      if (!next.runtime || !next.update)
-        throw new Error("The update status could not be read.");
-      if (request === epoch) {
-        if (forCheck)
-          checking = false;
-        accept(next);
-        draw();
-      }
-    } catch {
-      if (request !== epoch)
-        return;
-      if (forCheck || !pending && response?.update.phase === "checking") {
-        checking = false;
-        checkFailure ??= "The update status could not be read. Check again.";
-      }
-      if (pending) {
-        beginReconnect();
-      }
-      draw();
-    } finally {
-      clearTimeout(timeout);
-      if (request === epoch) {
-        expire();
-        schedule();
-      }
-    }
-  };
-  const stopPoll = () => {
-    ++epoch;
-    clearTimeout(timer);
-    active?.abort();
-  };
-  opener.addEventListener("click", () => {
-    const phase = phaseOf();
-    if (phase === "checking")
-      return;
-    if (!phase || phase === "current") {
-      requestCheck();
-      return;
-    }
-    if (pending) {
-      hidden = null;
-      session.set("hidden", null);
-    }
-    open();
-    draw();
-  });
-  later.addEventListener("click", () => close());
-  dialog.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      close();
-    }
-  });
-  dialog.addEventListener("cancel", (event) => {
-    event.preventDefault();
-    if (contains(document.activeElement))
-      close();
-  });
-  const approve = async () => {
-    if (submitting || checking || pending || !response?.update.offer)
-      return;
-    const offer = response.update.offer;
-    stopPoll();
-    pending = {
-      kind: "update",
-      target: offer.target,
-      instance: response.runtime.instance,
-      recovery: response.update.recovery,
-      deadline: null,
-      reloaded: false
-    };
-    hidden = null;
-    refusal = null;
-    submitting = "update";
-    save();
-    draw();
-    const outcome = await post("/api/update/start", { offerId: offer.id }, "Update failed", { timeout: 1e4 });
-    submitting = null;
-    if (outcome.status === "rejected") {
-      pending = null;
-      reconnecting = false;
-      refusal = { kind: "update", line: outcome.error };
-      save();
-      draw();
-    } else
-      beginReconnect();
-    await poll();
-  };
-  const restart = async () => {
-    if (submitting || checking || pending || phaseOf() !== "restart-needed" || !response)
-      return;
-    const shown = response;
-    stopPoll();
-    hidden = null;
-    refusal = null;
-    submitting = "restart";
-    draw();
-    const request = {};
-    const outcome = await post("/api/update/restart", request, "Restart failed", { timeout: 1e4 });
-    submitting = null;
-    if (outcome.status !== "accepted" && outcome.error !== undefined) {
-      refusal = { kind: "restart", line: outcome.error };
-      draw();
-    } else {
-      const answer = outcome.status === "accepted" && isRestartAnswer(outcome.body) ? outcome.body : null;
-      pending = {
-        kind: "restart",
-        target: answer?.target ?? shown.update.target ?? "",
-        instance: answer?.runtime.instance ?? shown.runtime.instance,
-        recovery: shown.update.recovery,
-        deadline: null,
-        reloaded: false
-      };
-      save();
-      beginReconnect();
-    }
-    await poll();
-  };
-  start.addEventListener("click", () => void (phaseOf() === "restart-needed" ? restart() : approve()));
-  const requestCheck = async () => {
-    if (phaseOf() === "checking" || pending && !timedOut)
-      return;
-    if (timedOut) {
-      pending = null;
-      timedOut = false;
-      reconnecting = false;
-      save();
-      document.dispatchEvent(new Event("board-connected"));
-    }
-    checking = true;
-    refusal = null;
-    checkFailure = null;
-    stopPoll();
-    draw();
-    const result = await post("/api/update/check", {}, "Update check failed");
-    if (!result)
-      checkFailure = "The update check could not start. Check again.";
-    await poll(true);
-  };
-  check.addEventListener("click", () => void requestCheck());
-  draw();
-  poll();
-  return controls;
-}
-
 // engine/board/page/board.ts
 var SUMMARY = [
   ["needs", "need you"],
@@ -2184,6 +2737,7 @@ var starting = null;
 var startupWarnings = new Map;
 var byKey = new Map;
 var used = new Set;
+var coordinatorLine = null;
 var who2 = (card) => card.number === null ? card.title ? `human session "${card.title}"` : "a human session" : `#${card.number}`;
 var canRunLater = (card) => card.sessionId === null && card.step && (card.state === null || card.state === "no-progress");
 var copyWhat = (card) => card.act ? COPY[card.state] : null;
@@ -2870,8 +3424,8 @@ var focusFirst = (selector) => {
   target?.focus();
   target?.scrollIntoView({ block: "nearest", behavior: "smooth" });
 };
-var summary = (columns) => SUMMARY.map(([key, label]) => {
-  const count = key === "history" ? data?.history?.entries.length ?? 0 : key === "needs" ? needsYou(columns).length : columns[key].length;
+var summary = (board) => SUMMARY.map(([key, label]) => {
+  const count = key === "history" ? data?.history?.entries.length ?? 0 : key === "needs" ? needsYou(board).length : board.columns[key].length;
   const chip = el("button", `chip chip-${key}`);
   chip.type = "button";
   chip.classList.toggle("hot", key === "needs" && count > 0);
@@ -2879,6 +3433,8 @@ var summary = (columns) => SUMMARY.map(([key, label]) => {
   chip.addEventListener("click", () => {
     if (key === "history")
       return setHistory(true);
+    if (key === "needs" && data?.coordinator.state === "dialog")
+      return coordinator.focus();
     if (view !== "now")
       setView("now");
     focusFirst(`${key === "needs" ? '.human-pill[data-wait="dialog"] .human-open, ' : ""}#col-${key} .card, #col-${key} .epic-row, #col-${key} .empty`);
@@ -3011,6 +3567,7 @@ var setHistory = (isOpen) => {
     showQueue(false);
   if (!isOpen)
     return closePanel();
+  coordinator.close(false);
   selected = null;
   for (const node of document.querySelectorAll("[data-key].is-selected"))
     node.classList.remove("is-selected");
@@ -3037,21 +3594,26 @@ var markAllSeen = () => {
   for (const [key, { card, column }] of byKey)
     seen.set(key, signature(card, column));
 };
+var systemNotice = (title, body, tag, open) => {
+  const isAway = document.hidden || !document.hasFocus();
+  if (!isNotifyOn || !isAway || !("Notification" in window) || Notification.permission !== "granted")
+    return;
+  const shown = new Notification(title, { body, tag, icon: favicon("needs") });
+  shown.addEventListener("click", () => {
+    window.focus();
+    open();
+  });
+};
 var notify = (cards) => {
   const keys = new Set(cards.map((card) => keyOf(card)));
   const fresh = needsKeys === null ? [] : cards.filter((card) => !needsKeys.has(keyOf(card)) && !(card.sessionId === null && starting?.has(card.number)));
-  const isAway = document.hidden || !document.hasFocus();
-  if (isNotifyOn && isAway && "Notification" in window && Notification.permission === "granted") {
-    for (const card of fresh) {
-      const { title, body } = notice(card);
-      const shown = new Notification(title, { body, tag: keyOf(card), icon: favicon("needs") });
-      shown.addEventListener("click", () => {
-        window.focus();
-        if (view !== "now")
-          setView("now");
-        openPanel(keyOf(card));
-      });
-    }
+  for (const card of fresh) {
+    const { title, body } = notice(card);
+    systemNotice(title, body, keyOf(card), () => {
+      if (view !== "now")
+        setView("now");
+      openPanel(keyOf(card));
+    });
   }
   needsKeys = keys;
   return fresh.map((card) => notice(card).title);
@@ -3143,6 +3705,7 @@ var drawStatus = (source, isDown) => {
   if (data?.picker)
     picker.update(data.picker, data.registry);
   document.body.toggleAttribute("data-stale", isDown);
+  coordinator.down(isDown);
   $("stale").hidden = !isDown && !source.error;
 };
 var drawNotify = () => {
@@ -3180,6 +3743,7 @@ var openPanel = (key) => {
     showQueue(false);
   if (!byKey.has(key))
     return;
+  coordinator.close(false);
   revealCard(key);
   isHistoryOpen = false;
   $("history").setAttribute("aria-expanded", "false");
@@ -3226,15 +3790,16 @@ var drawBoard = (next) => {
   used = new Set;
   byKey = new Map;
   const needs = next.columns.needs.length;
-  document.title = pageTitle(next.repo, needsYou(next.columns).length);
-  $("favicon").href = favicon(tone(next.columns));
+  document.title = pageTitle(next.repo, needsYou(next).length);
+  $("favicon").href = favicon(tone(next));
   $("repo").textContent = next.repo;
+  $("repo").title = next.repo;
   $("refresh").title = `${readAgain()} (r)`;
   $("dirty").hidden = !next.noRun;
   const banner = next.noRun ?? "";
   if ($("dirty").textContent !== banner)
     $("dirty").textContent = banner;
-  $("summary").replaceChildren(...summary(next.columns));
+  $("summary").replaceChildren(...summary(next));
   $("history-total").textContent = String(next.history?.entries.length ?? 0);
   if (isHistoryOpen)
     drawHistory();
@@ -3256,7 +3821,12 @@ var drawBoard = (next) => {
     seen = new Map;
     markAllSeen();
   }
-  const lines = [...notify(needsYou(next.columns)), ...startNotices(next.columns)];
+  const lines = [
+    ...notify(needsYou(next).filter(isCard)),
+    ...startNotices(next.columns),
+    ...coordinatorLine ? [coordinatorLine] : []
+  ];
+  coordinatorLine = null;
   if (lines.length)
     $("announce").textContent = lines.join(". ");
   if (selected) {
@@ -3293,6 +3863,7 @@ var showQueue = (open) => {
   if (open) {
     closePanel();
     setHistory(false);
+    coordinator.close(false);
   }
   setQueueOpen(open);
   if (!open)
@@ -3367,7 +3938,8 @@ var render = (canMove = true) => {
     next.columns,
     next.history,
     next.source.error,
-    next.queue
+    next.queue,
+    next.coordinator.state
   ]);
   if (cards === last) {
     drawQueue(next);
@@ -3437,11 +4009,12 @@ async function load() {
     const next = await response.json();
     if (read > accepted && read > settled) {
       accepted = read;
-      data = next;
       hasRead = true;
       for (const [number, launch] of launches)
         if (launch.phase !== "pending")
           launches.delete(number);
+      coordinatorLine = coordinator.update(next.coordinator);
+      data = { ...next, coordinator: coordinator.view() };
       render();
       source = data.source;
       drawStatus(source, false);
@@ -3474,6 +4047,7 @@ var move = (across, down) => {
   }
 };
 var boardActions = () => [
+  { label: coordinator.label(), icon: "message", key: "", run: coordinator.toggle },
   { label: "Show the issue queue", icon: "stages", key: "", run: () => showQueue(true) },
   { label: readAgain(), icon: "refresh", key: "r", run: () => $("refresh").click() },
   {
@@ -3624,7 +4198,7 @@ async function toggleNotify() {
   store.set("notify", isNotifyOn ? "on" : "off");
   drawNotify();
 }
-var KEYS = {
+var KEYS2 = {
   j: () => move(0, 1),
   k: () => move(0, -1),
   h: () => move(-1, 0),
@@ -3661,6 +4235,21 @@ var ROW_KEYS = {
   ArrowRight: () => move(1, 0)
 };
 var updates = setupUpdates();
+var coordinator = setupCoordinator({
+  closeOthers: () => {
+    if (isQueueOpen)
+      showQueue(false);
+    if (selected || isHistoryOpen)
+      closePanel();
+  },
+  changed: (next) => {
+    if (!data)
+      return;
+    data = { ...data, coordinator: next };
+    render();
+  },
+  notify: (title, open) => systemNotice(title, "", "coordinator", open)
+});
 document.addEventListener("keydown", (event) => {
   if (event.defaultPrevented || updates.contains(event.target) || $("agent-picker").contains(event.target))
     return;
@@ -3690,7 +4279,7 @@ document.addEventListener("keydown", (event) => {
     return;
   const card = document.activeElement?.matches?.(".card[data-key]") ? document.activeElement : null;
   const isRow = document.activeElement?.matches?.(".epic-row");
-  const press = card && CARD_KEYS[event.key] || isRow && ROW_KEYS[event.key] || isKeysOn && KEYS[event.key];
+  const press = card && CARD_KEYS[event.key] || isRow && ROW_KEYS[event.key] || isKeysOn && KEYS2[event.key];
   if (!press)
     return;
   event.preventDefault();

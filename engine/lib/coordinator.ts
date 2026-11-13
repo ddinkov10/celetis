@@ -4,6 +4,15 @@ import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { type ExitCode, exits } from './contract.ts';
 import { requireContract } from './contract-check.ts';
+import {
+  type CoordinatorAct,
+  type CoordinatorFacts,
+  type CoordinatorKey,
+  type CoordinatorState,
+  coordinatorKeys,
+  coordinatorStateOf,
+  permittedActions,
+} from './coordinator-types.ts';
 import { daemonArgv } from './daemon-start.ts';
 import {
   type Attention,
@@ -34,10 +43,14 @@ import {
   type Exec,
   focusTerminal,
   inSequence,
+  interruptTerminal,
   isSafeId,
   openTab,
+  pressKeys,
   readHistory,
   readTerminal,
+  requestExit,
+  type Sent,
   sendText,
   TerminalError,
   terminalState,
@@ -64,7 +77,9 @@ export type RunFacts = Readonly<{
 type Refusal = { accepted: false; line: string; code: ExitCode };
 type Said = { status: number; answer: CoordinatorAnswer };
 export type Coordinator = Readonly<{
-  open(selection: Selection): Promise<Said>;
+  open(selection: Selection, quiet?: boolean): Promise<Said>;
+  facts(): CoordinatorFacts | null;
+  act(request: CoordinatorAct): Promise<{ status: number; answer: DaemonAnswer }>;
   attention(id: string): Attention | null;
   read(number: number): Promise<{ status: number; answer: ScreenAnswer }>;
   send(request: { number: number; authority: Authority; text: string; token: string }): Promise<{
@@ -73,6 +88,7 @@ export type Coordinator = Readonly<{
   }>;
   live(): boolean;
   adopt(): Promise<void>;
+  watch(): void;
   close(): Promise<void>;
 }>;
 
@@ -81,6 +97,36 @@ const retry = 'check the login files of $SHELL, then run the command again';
 const silent = `coordinator: the start barrier of the tab ${tab} did not report; ${retry}`;
 const ended = 'daemon: coordinator: the coordinator session ended';
 const unreadable = 'coordinator: cannot read the process of the coordinator session; run the command again';
+// Above the draft wait of hc (60 s by default), which holds a message and the exit request of Claude.
+const draftBound = 90_000;
+const noSession = 'coordinator: no coordinator session runs; press Coordinator on the board to start one';
+const statusUnread = `coordinator: cannot read the hc status of the tab ${tab}; nothing was sent`;
+const actUsage =
+  'coordinator: an act is {"kind":"say","text":<text>}, {"kind":"key","key":<key>}, {"kind":"interrupt"}, or {"kind":"end"}';
+const keyUsage = `coordinator: a key is one of ${coordinatorKeys.join(', ')}`;
+const actNoun: Record<CoordinatorAct['kind'], string> = {
+  say: 'a message',
+  key: 'a key',
+  interrupt: 'an interrupt',
+  end: 'an end',
+};
+export const unknownOutcome: Record<CoordinatorAct['kind'], string> = {
+  say: 'coordinator: the outcome of the message is unknown; read the log of the panel before you send again',
+  key: 'coordinator: the outcome of the key is unknown; read the log of the panel before you press a key again',
+  interrupt:
+    'coordinator: the outcome of the interrupt is unknown; read the log of the panel before you interrupt again',
+  end: 'coordinator: the outcome of the exit request is unknown; read the log of the panel before you end the session again',
+};
+const stateWords: Record<Exclude<CoordinatorState, 'none'>, (kind: DialogKind | null) => string> = {
+  starting: () => 'starts and reports no status yet',
+  dialog: (kind) => `shows a dialog (${kind ?? 'no kind'})`,
+  works: () => 'works',
+  'turn-ended': () => 'has ended its turn',
+};
+const notIn = (state: Exclude<CoordinatorState, 'none'>, kind: DialogKind | null, act: CoordinatorAct['kind']) =>
+  `coordinator: the coordinator session ${stateWords[state](kind)}; ${actNoun[act]} is not possible in this state`;
+const isCoordinatorKey = (value: unknown): value is CoordinatorKey =>
+  (coordinatorKeys as readonly unknown[]).includes(value);
 const promptFor: Record<Host, (skill: string) => string> = {
   claude: () => '/celetis:coordinate',
   codex: (skill) =>
@@ -151,6 +197,20 @@ export function textProblem(text: string): string | null {
   return null;
 }
 
+function actProblem(request: unknown): string | null {
+  if (!object(request)) return actUsage;
+  if (request.kind === 'say') {
+    if (!exact(request, ['kind', 'text']) || typeof request.text !== 'string') return actUsage;
+    const problem = textProblem(request.text);
+    return problem === null ? null : `coordinator: ${problem}`;
+  }
+  if (request.kind === 'key') {
+    if (!exact(request, ['kind', 'key'])) return actUsage;
+    return isCoordinatorKey(request.key) ? null : keyUsage;
+  }
+  return (request.kind === 'interrupt' || request.kind === 'end') && exact(request, ['kind']) ? null : actUsage;
+}
+
 export function attentionOf(
   view: Pick<RunView, 'state' | 'terminal' | 'turn'>,
   resume: boolean,
@@ -204,6 +264,7 @@ export function createCoordinator(
   const items = new Map<string, NoteItem>();
   const reported = new Set<string>();
   let failing = false;
+  let acting = 0;
   const halt = new AbortController();
   const stopped = () => {
     if (halt.signal.aborted) throw new HostError(stopLine, exits.prerequisite);
@@ -249,7 +310,7 @@ export function createCoordinator(
     }
   };
 
-  const start = async (selection: Selection): Promise<Said> => {
+  const start = async (selection: Selection, quiet: boolean): Promise<Said> => {
     const operation = await createOperation(checkout, selection, 'main');
     const host = await interactiveHost(operation, 'coordinator', 'coordinator');
     const adapter = hostAdapter(host);
@@ -295,7 +356,7 @@ export function createCoordinator(
       ];
       try {
         terminal = await openTab(
-          { repository: { main, common }, folder: main, name: tab, argv, focus: true, keepShell: false },
+          { repository: { main, common }, folder: main, name: tab, argv, focus: !quiet, keepShell: false },
           exec,
         );
       } catch (error) {
@@ -331,7 +392,7 @@ export function createCoordinator(
     return { status: 200, answer: { accepted: true, opened: true } };
   };
 
-  const openOnce = async (selection: Selection): Promise<Said> => {
+  const openOnce = async (selection: Selection, quiet: boolean): Promise<Said> => {
     if (halt.signal.aborted) return refused(stopLine, exits.prerequisite);
     await forgetting;
     const record = current;
@@ -339,18 +400,19 @@ export function createCoordinator(
       const seen = await processState(record.barrier.pid, record.barrier.start);
       if (seen === 'unknown') return refused(unreadable, exits.blocked);
       if (seen === 'runs') {
-        try {
-          await focusTerminal(record.terminal, exec);
-        } catch (error) {
-          if (!(error instanceof TerminalError)) throw error;
-          return refused(`coordinator: cannot bring the tab ${tab} to the front: ${error.message}`, exits.blocked);
-        }
+        if (!quiet)
+          try {
+            await focusTerminal(record.terminal, exec);
+          } catch (error) {
+            if (!(error instanceof TerminalError)) throw error;
+            return refused(`coordinator: cannot bring the tab ${tab} to the front: ${error.message}`, exits.blocked);
+          }
         return { status: 200, answer: { accepted: true, opened: false } };
       }
       await forget(record);
     }
     try {
-      return await start(selection);
+      return await start(selection, quiet);
     } catch (error) {
       if (!(error instanceof HostError)) throw error;
       return refused(error.message, error.code);
@@ -412,7 +474,8 @@ export function createCoordinator(
   };
   const deliver = async () => {
     const record = current;
-    if (record === null || items.size === 0) return;
+    // A note never waits behind an act in flight, so a stop of the daemon does not wait for that act.
+    if (record === null || items.size === 0 || acting > 0) return;
     const due = [...items];
     await inSequence(record.terminal, async () => {
       const seen = await readTerminal(record.terminal, { exec }).catch(() => null);
@@ -444,11 +507,69 @@ export function createCoordinator(
     }
   };
 
+  const press = async (record: CoordinatorRecord, request: CoordinatorAct): Promise<Sent> => {
+    switch (request.kind) {
+      case 'say':
+        return sendText(record.terminal, request.text, { exec, timeout: draftBound });
+      case 'key':
+        return pressKeys(record.terminal, [request.key], exec);
+      case 'interrupt':
+        return interruptTerminal(record.terminal, exec);
+      case 'end':
+        return (await requestExit(record.terminal, record.host, undefined, exec, draftBound)) ? 'sent' : 'unknown';
+    }
+  };
+  const actOn = async (
+    record: CoordinatorRecord,
+    request: CoordinatorAct,
+  ): Promise<{ status: number; answer: DaemonAnswer }> => {
+    if (current !== record) return refused(noSession, exits.prerequisite);
+    const barrier = await processState(record.barrier.pid, record.barrier.start);
+    if (barrier === 'gone') return refused(noSession, exits.prerequisite);
+    if (barrier === 'unknown') return refused(unreadable, exits.blocked);
+    const seen = await readTerminal(record.terminal, { exec }).catch(() => null);
+    if (seen === null) return refused(statusUnread, exits.blocked);
+    const state = coordinatorStateOf(seen);
+    if (!permittedActions[state].includes(request.kind))
+      return refused(notIn(state, seen.kind, request.kind), exits.prerequisite);
+    const what =
+      request.kind === 'say'
+        ? `say, ${request.text.length} characters`
+        : request.kind === 'key'
+          ? `key, ${request.key}`
+          : request.kind;
+    const sent = await press(record, request).catch(() => 'unknown' as const);
+    if (sent === 'sent') {
+      console.log(`daemon: coordinator: board: ${what}`);
+      return { status: 200, answer: { accepted: true, run: null } };
+    }
+    if (sent === 'blocked') {
+      const kind = (await readTerminal(record.terminal, { exec }).catch(() => null))?.kind ?? null;
+      return refused(notIn('dialog', kind, request.kind), exits.prerequisite);
+    }
+    if (sent === 'gone') return refused(noSession, exits.prerequisite);
+    console.log(`daemon: coordinator: board: ${what}; the outcome is unknown`);
+    return refused(unknownOutcome[request.kind], exits.blocked);
+  };
+
   return {
-    open: (selection) => {
-      const next = opening.then(() => openOnce(selection));
+    open: (selection, quiet = false) => {
+      const next = opening.then(() => openOnce(selection, quiet));
       opening = next.catch(() => {});
       return next;
+    },
+    facts: () => (current === null ? null : { host: current.host, terminal: current.terminal }),
+    act: async (request) => {
+      const problem = actProblem(request);
+      if (problem !== null) return { status: 400, answer: { accepted: false, line: problem, code: exits.usage } };
+      const record = current;
+      if (!record) return refused(noSession, exits.prerequisite);
+      acting += 1;
+      try {
+        return await inSequence(record.terminal, () => actOn(record, request));
+      } finally {
+        acting -= 1;
+      }
     },
     attention: (id) => attentions.get(id)?.value ?? null,
     read: async (number) => {
@@ -548,6 +669,8 @@ export function createCoordinator(
           }
         }
       }
+    },
+    watch: () => {
       watching = watch();
     },
     close: async () => {
